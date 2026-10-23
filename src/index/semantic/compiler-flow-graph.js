@@ -71,14 +71,29 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
     return block;
   };
   const referenceTarget = node => unwrapCompilerExpression(ts, node);
-  const write = (target, value, next, context, origin = 'definition') => {
+  const write = (target, value, next, context, origin = 'definition', keyConverted = false) => {
     target = referenceTarget(target);
     if (ts.isIdentifier(target)) return eventBlock(target, { kind: 'write', target, value, origin }, next, context);
-    if (ts.isPropertyAccessExpression(target) || ts.isElementAccessExpression(target)) return eventBlock(target, { kind: 'heapWrite', target, value, origin, mayThrow: true }, next, context);
+    if (ts.isPropertyAccessExpression(target) || ts.isElementAccessExpression(target)) {
+      const written = eventBlock(target, { kind: 'heapWrite', target, value, origin, mayThrow: true }, next, context);
+      return ts.isElementAccessExpression(target) && !keyConverted ? convertElementKey(target, written, context) : written;
+    }
     reasons.add('destructuring_write_requires_pattern_analysis');
     return expression(target, eventBlock(target, { kind: 'unknownWrite', target, value }, next, context), context);
   };
   const isChain = node => node && (ts.isCallChain(node) || ts.isPropertyAccessChain(node) || ts.isElementAccessChain(node));
+  const convertElementKey = (node, next, context) => {
+    const key = referenceTarget(node.argumentExpression);
+    const primitive = key && (ts.isStringLiteral(key) || ts.isNumericLiteral(key) || ts.isBigIntLiteral(key)
+      || ts.isNoSubstitutionTemplateLiteral(key)
+      || [ts.SyntaxKind.TrueKeyword, ts.SyntaxKind.FalseKeyword, ts.SyntaxKind.NullKeyword].includes(key.kind));
+    // Conversion belongs to reference consumption: GetValue, PutValue or delete.
+    // Keep conversion separate from GetValue/PutValue and from a key call's own
+    // operation, so it cannot execute a recognized ordered-storage operation twice.
+    if (!primitive) reasons.add('property_key_coercion_effects_unresolved');
+    return eventBlock(node, { kind: 'propertyKey', target: node.argumentExpression, mayThrow: !primitive }, next, context);
+  };
+  const elementKey = (node, next, context) => expression(node.argumentExpression, convertElementKey(node, next, context), context);
   // A nullish hop skips the entire contiguous optional-chain region, including
   // later computed keys and call arguments. Parentheses end that region.
   const optionalChain = (node, next, context, shortCircuit, asReference = false) => {
@@ -86,7 +101,9 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
     const call = ts.isCallExpression(node);
     let active = asReference && !call ? next
       : eventBlock(node, { kind: call ? 'operation' : 'heapRead', target: node, mayThrow: true }, next, context);
-    const evaluated = call ? [...node.arguments] : ts.isElementAccessExpression(node) ? [node.argumentExpression] : [];
+    if (ts.isElementAccessExpression(node)) active = asReference
+      ? expression(node.argumentExpression, active, context) : elementKey(node, active, context);
+    const evaluated = call ? [...node.arguments] : [];
     for (let i = evaluated.length - 1; i >= 0; i -= 1) active = expression(evaluated[i], active, context);
     if (call) reasons.add('call_heap_and_captured_effects_unresolved');
     if (node.questionDotToken) {
@@ -104,8 +121,7 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
     if (!node || ts.isIdentifier(node)) return next;
     if (isChain(node)) return optionalChain(node, next, context, shortCircuit, true);
     if (ts.isPropertyAccessExpression(node)) return expression(node.expression, next, context);
-    if (ts.isElementAccessExpression(node)) return expression(node.expression,
-      expression(node.argumentExpression, next, context), context);
+    if (ts.isElementAccessExpression(node)) return expression(node.expression, expression(node.argumentExpression, next, context), context);
     return expression(node, next, context);
   };
   const expression = (node, next, context) => {
@@ -133,9 +149,12 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
         mayThrow: ts.isIdentifier(target) || ts.isPropertyAccessExpression(target) || ts.isElementAccessExpression(target)
       }, next, context);
       const skipped = isChain(target) ? eventBlock(node, { kind: 'operation', target: node, mayThrow: false }, next, context) : next;
-      return reference(target, deletion, context, skipped);
+      const consumed = ts.isElementAccessExpression(target) ? convertElementKey(target, deletion, context) : deletion;
+      return reference(target, consumed, context, skipped);
     }
     if (isChain(node)) return optionalChain(node, next, context, next);
+    if (ts.isElementAccessExpression(node)) return expression(node.expression, elementKey(node,
+      eventBlock(node, { kind: 'heapRead', target: node, mayThrow: true }, next, context), context), context);
     if (ts.isBinaryExpression(node)) {
       const operator = node.operatorToken.kind;
       const assignment = operator >= ts.SyntaxKind.FirstAssignment && operator <= ts.SyntaxKind.LastAssignment;
@@ -143,7 +162,7 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
         ts.SyntaxKind.AmpersandAmpersandEqualsToken, ts.SyntaxKind.BarBarEqualsToken, ts.SyntaxKind.QuestionQuestionEqualsToken].includes(operator);
       if (logical) {
         const join = eventBlock(node, { kind: 'operation' }, next, context), branch = add(node.left, { kind: 'condition' }, 'normal', context);
-        const right = expression(node.right, assignment ? write(node.left, node, join, context) : join, context);
+        const right = expression(node.right, assignment ? write(node.left, node, join, context, 'definition', true) : join, context);
         const reversed = [ts.SyntaxKind.BarBarToken, ts.SyntaxKind.BarBarEqualsToken].includes(operator);
         link(branch, reversed ? join : right, 'controlTrue', anchor(node.left));
         link(branch, reversed ? right : join, 'controlFalse', anchor(node.left));
@@ -152,7 +171,7 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
       }
       if (assignment) {
         const value = operator === ts.SyntaxKind.EqualsToken ? node.right : node;
-        const written = write(node.left, value, next, context);
+        const written = write(node.left, value, next, context, 'definition', operator !== ts.SyntaxKind.EqualsToken);
         const operation = eventBlock(node, { kind: 'operation', mayThrow: operator !== ts.SyntaxKind.EqualsToken }, written, context);
         const rhs = expression(node.right, operation, context);
         if (operator === ts.SyntaxKind.EqualsToken) return reference(node.left, rhs, context);
@@ -167,7 +186,7 @@ export const buildCompilerFlowGraph = ({ ts, owner, sourceFile, expressionFor, s
     }
     if ((ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node))
       && [ts.SyntaxKind.PlusPlusToken, ts.SyntaxKind.MinusMinusToken].includes(node.operator)) {
-      return expression(node.operand, eventBlock(node, { kind: 'operation', mayThrow: true }, write(node.operand, node, next, context), context), context);
+      return expression(node.operand, eventBlock(node, { kind: 'operation', mayThrow: true }, write(node.operand, node, next, context, 'definition', true), context), context);
     }
     const mayThrow = ts.isCallExpression(node) || ts.isTaggedTemplateExpression(node) || ts.isNewExpression(node) || ts.isPropertyAccessExpression(node)
       || ts.isElementAccessExpression(node) || ts.isAwaitExpression(node) || ts.isBinaryExpression(node)

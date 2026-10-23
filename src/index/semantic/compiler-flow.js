@@ -256,7 +256,8 @@ export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourc
         if (event.kind === 'throw') edge('throws', expressionFor(event.value), payload, null, 'modeled');
         else {
           reasons.add('implicit_exception_payload_unresolved');
-          if (ts.isCallExpression(block.node) || ts.isTaggedTemplateExpression(block.node) || ts.isNewExpression(block.node)) for (const { argument } of compilerInvocationInputs(ts, block.node).inputs) edge('flowsTo', expressionFor(argument), payload, null, 'modeled');
+          if (event.kind === 'propertyKey') edge('flowsTo', expressionFor(event.target), payload, null, 'modeled');
+          else if (ts.isCallExpression(block.node) || ts.isTaggedTemplateExpression(block.node) || ts.isNewExpression(block.node)) for (const { argument } of compilerInvocationInputs(ts, block.node).inputs) edge('flowsTo', expressionFor(argument), payload, null, 'modeled');
           else for (const input of compilerOperationDependencies(ts, block.node)?.inputs || []) edge('flowsTo', expressionFor(input.node), payload, null, 'modeled');
         }
         for (const target of exceptionTargets(block)) {
@@ -278,6 +279,7 @@ export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourc
         const location = symbols.get(field).location;
         if (location.parameter !== null) effects.push({ parameter: location.parameter, path: location.path, ref: heapWrites.get(block) });
       }
+      if (event?.kind === 'propertyKey' && event.mayThrow) reasons.add('property_key_coercion_effects_unresolved');
       if ((event?.kind === 'operation' && (ts.isCallExpression(block.node) || ts.isTaggedTemplateExpression(block.node) || ts.isNewExpression(block.node))) || ['heapRead','heapWrite'].includes(event?.kind)) {
         const adapter=compilerCallAdapter({ts,checker,node:block.node,isDefaultLibrary});
         if (!orderedOperations.has(canonicalSemanticJson(block.site))) for(const argument of adapter?.runtimeArguments||compilerInvocationInputs(ts,block.node).runtimeArguments) fields.rootsFor(argument);
