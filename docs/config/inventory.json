@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-23T22:37:59.148Z",
+  "generatedAt": "2026-10-23T23:32:34.773Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4590,6 +4590,7 @@
         "tests/cli/general/canonical-workflows.test.js",
         "tests/cli/general/metadata-and-index-admission.test.js",
         "tests/cli/search/contract-matrix.test.js",
+        "tests/cli/search/helpers/missing-value-flags.js",
         "tests/context-pack/graph-selection.test.js",
         "tests/context-pack/risk-filters-parity.test.js",
         "tests/context-pack/risk-truncation-contract.test.js",
