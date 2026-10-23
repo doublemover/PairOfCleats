@@ -28,7 +28,9 @@ const shippedPaths = new Set(
 );
 
 const requiredShippedPaths = [
+  '__init__.py',
   'plugin.py',
+  'editor-config-contract.json',
   'README.md',
   'Default.sublime-commands',
   'Default (Windows).sublime-keymap',
@@ -45,6 +47,10 @@ const requiredShippedPaths = [
   'commands/analysis.py',
   'commands/settings.py',
   'commands/validate.py',
+  'commands/semantic.py',
+  'commands/evidence.py',
+  'lib/operations.py',
+  'lib/api_client.py',
 ];
 for (const entry of requiredShippedPaths) {
   if (!shippedPaths.has(entry)) {

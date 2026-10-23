@@ -253,6 +253,18 @@ More after all known identities are loaded. Such contradictions retain the
 previous result set and selection. A genuinely unknown producer total is shown
 as unknown; it is never rendered as a complete count.
 
+The installed package loads only its canonical bundled runtime contract and
+refuses malformed, oversized or unsupported revisions with reinstall guidance.
+The archive root and package identity remain `PairOfCleats.sublime-package`.
+API endpoints are HTTP(S) bases without user-info, query secrets or fragments;
+bearer credentials remain destination-bound User/environment values. Received
+body activity does not renew an elapsed request deadline. HTTP cancellation
+requests an owned response close off the UI thread, and shutdown accounts for
+both the request worker and closer. Original read/byte-budget failures survive
+close faults; unconfirmed close remains a failure rather than successful stop.
+These runtime/installed-consumer controls are authored, with behavior and real
+Sublime/Python/network qualification deferred.
+
 Exact saved-source cursor requests and line/column selections derive protocol
 CR/LF/CRLF boundaries from the verified original text, then invert only the
 actually observed BOM/newline buffer form. They do not depend on a host's LF-only

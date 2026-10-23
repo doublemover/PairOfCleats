@@ -1,6 +1,8 @@
 import json
 import os
 import threading
+import time
+import sys
 import urllib.parse
 import urllib.request
 import urllib.error
@@ -20,7 +22,16 @@ class ApiResponseTooLarge(RuntimeError):
         self.preview = bytes(prefix[:4096]).decode('utf-8', 'replace')
 
 
-def _read_response(response, handle=None, max_bytes=None):
+class ApiDeadlineExceeded(RuntimeError):
+    code = 'api-deadline-exceeded'
+
+
+def _check_request_deadline(deadline):
+    if deadline is not None and time.monotonic() >= deadline:
+        raise ApiDeadlineExceeded('API request exceeded its elapsed deadline. Inspect service readiness before retrying.')
+
+
+def _read_response(response, handle=None, max_bytes=None, deadline=None):
     """Bound received bytes for JSON, text and HTTP errors before decoding."""
     limit = MAX_RESPONSE_BYTES if max_bytes is None else min(MAX_RESPONSE_BYTES, max(1, int(max_bytes)))
     headers = {str(key).lower(): str(value) for key, value in response.headers.items()}
@@ -32,9 +43,11 @@ def _read_response(response, handle=None, max_bytes=None):
         raise ApiResponseTooLarge(limit)
     data = bytearray()
     while True:
+        _check_request_deadline(deadline)
         if handle is not None and handle.is_cancelled():
             raise RuntimeError('API request cancelled.')
         block = response.read(min(_RESPONSE_BLOCK_BYTES, limit - len(data) + 1))
+        _check_request_deadline(deadline)
         if handle is not None and handle.is_cancelled():
             raise RuntimeError('API request cancelled.')
         if not block:
@@ -49,6 +62,9 @@ class ApiResult(object):
         self.payload = payload
         self.headers = headers or {}
         self.error = error
+        self.cause = None
+        self.cleanup_errors = []
+        self.cleanup_pending = False
 
 
 def read_workflow_capabilities(payload):
@@ -70,33 +86,67 @@ class ApiHandle(object):
     def __init__(self, thread, scope=None):
         self.thread = thread
         self._cancelled = False
-        self.scope = scope
+        self.scope = dict(scope) if scope is not None else None
         self.response = None
         self.response_lock = threading.Lock()
         self.on_cancel = None
         self.settled = False
+        self.started = threading.Event()
+        self.close_threads = []
+        self.cleanup_errors = []
+        self.cleanup_pending = False
 
     def cancel(self):
         if self._cancelled:
             return
         self._cancelled = True
         if callable(self.on_cancel):
-            self.on_cancel()
+            try:
+                self.on_cancel()
+            except Exception as error:
+                self.cleanup_errors.append('HTTP cancellation notification failed: {0}'.format(error)[:1024])
         with self.response_lock:
             response = self.response
         if response is not None:
-            try:
-                response.close()
-            except Exception:
-                pass
+            # urllib close can wait on a live reader's lock. Keep it off the UI
+            # thread and retain its settlement in this same request owner.
+            def close_response():
+                try:
+                    response.close()
+                except Exception as error:
+                    self.cleanup_errors.append('Cancelled HTTP response close failed: {0}'.format(error)[:1024])
+            closer = threading.Thread(target=close_response)
+            closer.daemon = True
+            with self.response_lock:
+                self.close_threads.append(closer)
+                try:
+                    closer.start()
+                except Exception as error:
+                    self.cleanup_errors.append('HTTP response closer could not start: {0}'.format(error)[:1024])
 
     def is_cancelled(self):
         return self._cancelled or (self.scope is not None and not operations.is_current(self.scope))
 
     def wait(self, timeout):
+        deadline = time.monotonic() + max(0.0, timeout)
         if self.thread is not None:
-            self.thread.join(timeout)
-            return not self.thread.is_alive()
+            if not self.started.wait(max(0.0, deadline - time.monotonic())):
+                return False
+            if self.thread.ident is not None:
+                self.thread.join(max(0.0, deadline - time.monotonic()))
+            if self.thread.is_alive():
+                return False
+        with self.response_lock:
+            closers = list(self.close_threads)
+        for closer in closers:
+            if closer.ident is not None:
+                closer.join(max(0.0, deadline - time.monotonic()))
+            if closer.is_alive():
+                return False
+        if self.cleanup_errors:
+            return False
+        self.cleanup_pending = False
+        operations.release(self)
         return True
 
 
@@ -159,6 +209,7 @@ def _open_url(url, timeout_ms=5000, method='GET', payload=None, headers=None):
     timeout = float(timeout_ms or 5000) / 1000.0
     if timeout <= 0:
         timeout = 5.0
+    deadline = time.monotonic() + timeout
     request_headers = dict(headers or {})
     data = _encode_payload(payload)
     if data is not None and 'Content-Type' not in request_headers:
@@ -167,6 +218,7 @@ def _open_url(url, timeout_ms=5000, method='GET', payload=None, headers=None):
 
     opener = urllib.request.build_opener(_CredentialRedirectGuard())
     try:
+        _check_request_deadline(deadline)
         resp = opener.open(request, timeout=timeout)
     except urllib.error.HTTPError as err:
         # HTTPError owns a live response too, including authentication/proxy
@@ -180,16 +232,26 @@ def _open_url(url, timeout_ms=5000, method='GET', payload=None, headers=None):
             raise RuntimeError('API request cancelled.')
         status = resp.getcode() or 0
         headers = dict(resp.headers.items())
-        data = _read_response(resp, handle)
+        data = _read_response(resp, handle, deadline=deadline)
         return status, headers, data
     finally:
+        primary = sys.exc_info()[1]
         if handle is not None:
             with handle.response_lock:
                 handle.response = None
         try:
             resp.close()
-        except Exception:
-            pass
+        except Exception as error:
+            if handle is not None:
+                handle.cleanup_errors.append('HTTP response close failed: {0}'.format(error)[:1024])
+            # Do not replace an originating read/budget/HTTP exception.
+            if primary is not None:
+                primary.pairofcleats_cleanup_errors = [str(error)[:1024]]
+            else:
+                message = 'HTTP response close failed: {0}'.format(error)
+                if status < 200 or status >= 300:
+                    message = 'API request failed ({0}); '.format(status) + message
+                raise RuntimeError(message)
 
 
 def request_json(url, timeout_ms=5000, method='GET', payload=None, headers=None):
@@ -242,7 +304,7 @@ def _write_json(path_value, payload):
 
 def run_async(request_fn, on_done, on_progress=None, window=None, scope=None, task=None):
     import sublime
-    scope = scope or operations.capture(window or sublime.active_window())
+    scope = dict(scope or operations.capture(window or sublime.active_window()))
     handle = ApiHandle(None, scope=scope)
     if task is not None:
         from . import tasks
@@ -251,14 +313,17 @@ def run_async(request_fn, on_done, on_progress=None, window=None, scope=None, ta
             tasks.mark_cancelling(window, task,
                 details='Cancellation requested; waiting for owned HTTP request settlement.')
             if handle.settled:
-                sublime.set_timeout(lambda: tasks.complete_task(window, task, status='cancelled',
-                    details='Cancelled after owned HTTP request settlement.'), 0)
+                sublime.set_timeout(lambda: tasks.complete_task(window, task,
+                    status='failed' if handle.cleanup_pending else 'cancelled',
+                    details='Owned HTTP response settlement remains unconfirmed.' if handle.cleanup_pending else
+                        'Cancelled after owned HTTP request settlement.'), 0)
         handle.on_cancel = cancelled_task
         task['cancellable'] = True
         task['cancel'] = handle.cancel
 
     def worker():
         _REQUEST_CONTEXT.handle = handle
+        result = None
         try:
             if handle.is_cancelled():
                 return
@@ -273,17 +338,33 @@ def run_async(request_fn, on_done, on_progress=None, window=None, scope=None, ta
                 payload, headers = response, {}
             result = ApiResult(payload=payload, headers=headers)
         except Exception as exc:
-            if handle.is_cancelled():
-                return
             result = ApiResult(error=str(exc))
+            result.cause = exc
         finally:
             _REQUEST_CONTEXT.handle = None
-            operations.release(handle)
+            with handle.response_lock:
+                closers = list(handle.close_threads)
+            for closer in closers:
+                if closer.ident is not None:
+                    closer.join(1.0)
+            cleanup_pending = bool(handle.cleanup_errors or any(closer.is_alive() for closer in closers))
+            handle.cleanup_pending = cleanup_pending
             handle.settled = True
-            if task is not None and handle.is_cancelled():
+            if not cleanup_pending:
+                operations.release(handle)
+            if result is not None:
+                result.cleanup_errors = list(handle.cleanup_errors)
+                result.cleanup_pending = cleanup_pending
+                if cleanup_pending:
+                    result.error = (result.error + '\n' if result.error else '') + 'Owned HTTP response settlement remains unconfirmed.'
+            if task is not None and (handle.is_cancelled() or cleanup_pending):
                 from . import tasks
-                sublime.set_timeout(lambda: tasks.complete_task(window, task, status='cancelled',
-                    details='Cancelled after owned HTTP request settlement.'), 0)
+                terminal_details = ((result.error if result is not None and result.error else
+                    '\n'.join(handle.cleanup_errors)) + '\nOwned HTTP response settlement remains unconfirmed.'
+                    if cleanup_pending else 'Cancelled after owned HTTP request settlement.')
+                sublime.set_timeout(lambda: tasks.complete_task(window, task,
+                    status='failed' if cleanup_pending else 'cancelled',
+                    details=terminal_details), 0)
         if handle.is_cancelled():
             return
         sublime.set_timeout(lambda: on_done(result) if not handle.is_cancelled() else None, 0)
@@ -292,7 +373,19 @@ def run_async(request_fn, on_done, on_progress=None, window=None, scope=None, ta
     thread.daemon = True
     handle.thread = thread
     operations.track(scope, handle)
-    thread.start()
+    try:
+        thread.start()
+    except Exception as error:
+        message = 'HTTP request worker could not start: {0}'.format(error)[:1024]
+        handle.settled = True
+        operations.release(handle)
+        if task is not None:
+            from . import tasks
+            tasks.complete_task(window, task, status='failed', details=message)
+        if operations.is_current(scope):
+            sublime.set_timeout(lambda: on_done(ApiResult(error=message)), 0)
+    finally:
+        handle.started.set()
     return handle
 
 
@@ -342,7 +435,7 @@ def search_json(
         headers=_api_headers(base_url),
     )
     if not isinstance(body, dict) or body.get('ok') is False:
-        raise RuntimeError((body or {}).get('message') or 'API search failed.')
+        raise RuntimeError(body.get('message') if isinstance(body, dict) and body.get('message') else 'API search failed.')
     result = body.get('result')
     if not isinstance(result, dict):
         raise RuntimeError('API search returned invalid JSON.')
@@ -369,7 +462,7 @@ def health_json(base_url, settings):
         headers=_api_headers(base_url),
     )
     if not isinstance(body, dict) or body.get('ok') is False:
-        raise RuntimeError((body or {}).get('message') or 'API health request failed.')
+        raise RuntimeError(body.get('message') if isinstance(body, dict) and body.get('message') else 'API health request failed.')
     payload = dict(body)
     payload.setdefault('ok', True)
     return payload, headers
@@ -386,7 +479,7 @@ def status_json(base_url, repo_root, settings):
         headers=_api_headers(base_url),
     )
     if not isinstance(body, dict) or body.get('ok') is False:
-        raise RuntimeError((body or {}).get('message') or 'API status request failed.')
+        raise RuntimeError(body.get('message') if isinstance(body, dict) and body.get('message') else 'API status request failed.')
     payload = body.get('status')
     if not isinstance(payload, dict):
         raise RuntimeError('API status returned invalid JSON.')

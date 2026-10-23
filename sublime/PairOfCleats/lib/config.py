@@ -12,17 +12,37 @@ SETTINGS_FILE = 'PairOfCleats.sublime-settings'
 
 def _load_editor_config_contract():
     resource_loader = getattr(sublime, 'load_resource', None)
-    if callable(resource_loader):
-        loaded = json.loads(resource_loader(
-            'Packages/PairOfCleats/editor-config-contract.json'))
-    else:
-        # Standalone Python tools and copied packages share the bundled data.
-        contract_path = os.path.join(os.path.dirname(__file__), '..',
-                                     'editor-config-contract.json')
-        with open(contract_path, 'r', encoding='utf-8') as handle:
-            loaded = json.load(handle)
-    if not isinstance(loaded, dict):
-        raise ValueError('editor-config-contract.json must contain an object')
+    try:
+        if callable(resource_loader):
+            text = resource_loader('Packages/PairOfCleats/editor-config-contract.json')
+        else:
+            # Standalone tools use the same package-local authority.
+            contract_path = os.path.join(os.path.dirname(__file__), '..', 'editor-config-contract.json')
+            with open(contract_path, 'r', encoding='utf-8') as handle:
+                text = handle.read(65537)
+        if not isinstance(text, str) or len(text) > 65536 or len(text.encode('utf-8')) > 65536:
+            raise ValueError('bundled contract exceeds its 64 KiB bound')
+        loaded = json.loads(text)
+        if (not isinstance(loaded, dict) or type(loaded.get('schemaVersion')) is not int
+                or loaded['schemaVersion'] != 1):
+            raise ValueError('bundled contract has an unsupported schema version')
+        search = loaded.get('search')
+        settings = loaded.get('settings')
+        sublime_settings = settings.get('sublime') if isinstance(settings, dict) else None
+        if not isinstance(search, dict) or not isinstance(sublime_settings, dict):
+            raise ValueError('bundled contract is missing its search or Sublime settings surface')
+        for key in ('modes', 'backends', 'apiBackends'):
+            values = search.get(key)
+            if (not isinstance(values, list) or not values or any(not isinstance(value, str) or not value for value in values)
+                    or len(set(values)) != len(values)):
+                raise ValueError('bundled contract has invalid search ' + key)
+        for key in ('cliPathKey', 'nodePathKey', 'apiServerUrlKey', 'apiTimeoutKey', 'apiExecutionModeKey', 'envKey'):
+            if not isinstance(sublime_settings.get(key), str) or not sublime_settings[key]:
+                raise ValueError('bundled contract is missing setting ' + key)
+    except Exception as error:
+        raise RuntimeError('PairOfCleats cannot load its bundled runtime contract. Reinstall the complete '
+            'Packages/PairOfCleats directory or Installed Packages/PairOfCleats.sublime-package; '
+            'remove stale nested/shadowing revisions. Cause: {0}'.format(error)) from error
     return loaded
 
 
@@ -688,9 +708,11 @@ def _validate_nullable_bool_setting(errors, settings, key):
 def _is_valid_base_url(value):
     try:
         parsed = urlparse(str(value).strip())
+        return (parsed.scheme in ('http', 'https') and bool(parsed.hostname) and parsed.port != 0
+                and parsed.username is None and parsed.password is None and not parsed.query and not parsed.fragment
+                and not any(ord(char) < 32 or ord(char) == 127 for char in str(value)))
     except Exception:
         return False
-    return parsed.scheme in ('http', 'https') and bool(parsed.netloc)
 
 
 def _is_env_key(key):

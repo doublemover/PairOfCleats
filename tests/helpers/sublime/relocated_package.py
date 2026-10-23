@@ -46,4 +46,22 @@ with tempfile.TemporaryDirectory() as temporary:
     importlib.reload(plugin.config)
     assert calls == ['Packages/PairOfCleats/editor-config-contract.json']
     assert plugin.config.EDITOR_CONFIG_CONTRACT == json.loads(contract_text)
+    # The installed consumer refuses stale/malformed runtime authority instead
+    # of silently inventing defaults from an unsupported contract version.
+    valid_contract = json.loads(contract_text)
+    invalid_contracts = [dict(valid_contract, schemaVersion=2), dict(valid_contract, schemaVersion=True),
+                         dict(valid_contract, search={}), dict(valid_contract, settings={})]
+    for invalid in invalid_contracts:
+        sublime.load_resource = lambda _name, invalid=invalid: json.dumps(invalid)
+        try:
+            plugin.config._load_editor_config_contract()
+            raise AssertionError('invalid installed runtime contract was admitted')
+        except RuntimeError as error:
+            assert 'Reinstall the complete' in str(error) and error.__cause__ is not None
+    sublime.load_resource = lambda _name: ' ' * 65537
+    try:
+        plugin.config._load_editor_config_contract()
+        raise AssertionError('oversized installed contract was parsed')
+    except RuntimeError as error:
+        assert '64 KiB' in str(error)
 print('relocated plugin registration and packed-resource loading passed')

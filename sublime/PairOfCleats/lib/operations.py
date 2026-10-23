@@ -51,8 +51,8 @@ def capture(window, key=None):
         scope = {'windowId': window_id, 'window': window, 'state': state,
                  'epoch': state['epoch'], 'context': _context(window), 'key': key,
                  'generation': state['keys'].get(key)}
-    for handle in older:
-        handle.cancel()
+    if _cancel_handles(older):
+        raise RuntimeError('A previous PairOfCleats operation could not be cancelled. Inspect its task before retrying.')
     return scope
 
 
@@ -68,9 +68,10 @@ def is_current(scope):
 
 def track(scope, handle):
     with _LOCK:
-        _RECORDS.append({'scope': scope, 'handle': handle})
+        if not any(record['handle'] is handle for record in _RECORDS):
+            _RECORDS.append({'scope': dict(scope), 'handle': handle, 'failures': []})
     if not is_current(scope):
-        handle.cancel()
+        _cancel_handles([handle])
     return handle
 
 
@@ -86,8 +87,28 @@ def invalidate(window):
         if state is not None:
             state['epoch'] += 1
         handles = [record['handle'] for record in _RECORDS if record['scope']['windowId'] == window_id]
+    _cancel_handles(handles)
+
+
+def _record_failure(handle, phase, error):
+    message = '{0}: {1}'.format(phase, error)[:1024]
+    with _LOCK:
+        for record in _RECORDS:
+            if record['handle'] is handle:
+                record.setdefault('failures', []).append(message)
+                del record['failures'][:-8]
+    print('PairOfCleats owned operation ' + message)
+
+
+def _cancel_handles(handles):
+    failures = []
     for handle in handles:
-        handle.cancel()
+        try:
+            handle.cancel()
+        except Exception as error:
+            failures.append(handle)
+            _record_failure(handle, 'cancellation failed', error)
+    return failures
 
 
 def shutdown(window=None, timeout=5.0, all_windows=False):
@@ -103,12 +124,15 @@ def shutdown(window=None, timeout=5.0, all_windows=False):
         handles = [record['handle'] for record in _RECORDS
                    if all_windows or record['scope']['windowId'] == window_id]
     deadline = time.monotonic() + timeout
-    for handle in handles:
-        handle.cancel()
-    unconfirmed = []
+    unconfirmed = _cancel_handles(handles)
     for handle in handles:
         wait = getattr(handle, 'wait', None)
-        if not callable(wait) or not wait(max(0.0, deadline - time.monotonic())):
+        try:
+            confirmed = callable(wait) and wait(max(0.0, deadline - time.monotonic()))
+        except Exception as error:
+            confirmed = False
+            _record_failure(handle, 'settlement wait failed', error)
+        if not confirmed and handle not in unconfirmed:
             unconfirmed.append(handle)
     if unconfirmed:
         print('PairOfCleats: shutdown has {0} unconfirmed owned operation(s).'.format(len(unconfirmed)))
