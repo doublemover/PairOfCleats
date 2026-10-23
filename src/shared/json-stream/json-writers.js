@@ -3,10 +3,11 @@ import { createJsonWriteStream, writeChunk } from './streams.js';
 import { throwIfAborted } from './runtime.js';
 import { Writable } from 'node:stream';
 import { finished } from 'node:stream/promises';
+import { addStorageFailureContext } from '../storage/operation-error.js';
 
 // One serialization owner fans encoded bytes out to bounded writable sinks.
 // Join all finalizers before exposing either representation to publication.
-const createJsonOutput = (filePath, options) => {
+const createJsonOutput = async (filePath, options) => {
   const { additionalOutputs = [], ...primaryOptions } = options;
   if (!additionalOutputs.length) return createJsonWriteStream(filePath, primaryOptions);
   const sinks = [];
@@ -20,6 +21,7 @@ const createJsonOutput = (filePath, options) => {
     }
   } catch (error) {
     for (const sink of sinks) sink.stream.destroy(error);
+    await Promise.allSettled(sinks.map(sink => sink.done));
     throw error;
   }
   stream = new Writable({
@@ -37,8 +39,12 @@ const createJsonOutput = (filePath, options) => {
     }
   });
   const done = finished(stream).catch(async error => {
-    await Promise.allSettled(sinks.map(sink => sink.done));
-    throw error;
+    const settled = await Promise.allSettled(sinks.map(sink => sink.done));
+    let primary = error;
+    for (const outcome of settled) if (outcome.status === 'rejected' && outcome.reason !== error) {
+      primary = addStorageFailureContext(primary, {}, outcome.reason, { secondaryPresent: true });
+    }
+    throw primary;
   });
   done.catch(() => {});
   return { ...sinks[0], stream, done,
@@ -69,8 +75,14 @@ const finalizeJsonWrite = async ({
 };
 
 const abortJsonWrite = async (stream, done, err) => {
-  try { stream.destroy(err); } catch {}
-  try { await done; } catch {}
+  let primary = err;
+  try { stream.destroy(err); } catch (error) {
+    if (error !== err) primary = addStorageFailureContext(primary, {}, error, { secondaryPresent: true });
+  }
+  try { await done; } catch (error) {
+    if (error !== err) primary = addStorageFailureContext(primary, {}, error, { secondaryPresent: true });
+  }
+  return primary;
 };
 
 export async function writeJsonArrayFile(filePath, items, options = {}) {
@@ -83,7 +95,7 @@ export async function writeJsonArrayFile(filePath, items, options = {}) {
     signal = null,
     checksumAlgo = null
   } = options;
-  const { stream, done, getBytesWritten, getChecksum, getAdditionalResults, checksumAlgo: resolvedChecksumAlgo } = createJsonOutput(filePath, {
+  const { stream, done, getBytesWritten, getChecksum, getAdditionalResults, checksumAlgo: resolvedChecksumAlgo } = await createJsonOutput(filePath, {
     additionalOutputs: options.additionalOutputs,
     compression,
     atomic,
@@ -106,8 +118,7 @@ export async function writeJsonArrayFile(filePath, items, options = {}) {
       getAdditionalResults
     });
   } catch (err) {
-    await abortJsonWrite(stream, done, err);
-    throw err;
+    throw await abortJsonWrite(stream, done, err);
   }
 }
 
@@ -123,7 +134,7 @@ export async function writeJsonObjectFile(filePath, input = {}) {
     signal = null,
     checksumAlgo = null
   } = input;
-  const { stream, done, getBytesWritten, getChecksum, getAdditionalResults, checksumAlgo: resolvedChecksumAlgo } = createJsonOutput(filePath, {
+  const { stream, done, getBytesWritten, getChecksum, getAdditionalResults, checksumAlgo: resolvedChecksumAlgo } = await createJsonOutput(filePath, {
     additionalOutputs: input.additionalOutputs,
     compression,
     atomic,
@@ -139,7 +150,7 @@ export async function writeJsonObjectFile(filePath, input = {}) {
       throwIfAborted(signal);
       if (!first) await writeChunk(stream, ',');
       await writeChunk(stream, `${JSON.stringify(key)}:`);
-      await writeJsonValue(stream, value);
+      await writeJsonValue(stream, value, { signal });
       first = false;
     }
     for (const [key, items] of Object.entries(arrays)) {
@@ -161,7 +172,6 @@ export async function writeJsonObjectFile(filePath, input = {}) {
       getAdditionalResults
     });
   } catch (err) {
-    await abortJsonWrite(stream, done, err);
-    throw err;
+    throw await abortJsonWrite(stream, done, err);
   }
 }

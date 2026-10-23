@@ -66,6 +66,8 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
   const resolvedCompression = compression === 'none' ? null : compression;
   const useWorkerCompression = resolvedCompression === 'zstd';
   const resolvedBlockSize = resolveBlockSize(blockSize, resolvedCompression);
+  // Codec admission happens before any output descriptor is opened.
+  if (useWorkerCompression) resolveZstd(options);
   const { stream, done, getBytesWritten } = createJsonWriteStream(filePath, {
     compression: useWorkerCompression ? null : resolvedCompression,
     gzipOptions,
@@ -78,7 +80,6 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
   let ownedPool = false;
   let compressionPool = pool || (useWorkerCompression ? borrowJsonlCompressionPool(options) : null);
   if (useWorkerCompression) {
-    resolveZstd(options);
     if (!compressionPool) {
       compressionPool = createJsonlCompressionPool({
         compression: resolvedCompression,
@@ -101,7 +102,7 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
     : 0;
   const semaphore = useWorkerCompression ? createSemaphore(maxInFlight) : null;
 
-  const pendingChunks = [];
+  let pendingBuffer = null;
   let pendingBytes = 0;
   let pendingLease = null;
   let nextBlockId = 0;
@@ -114,6 +115,7 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
   let closed = false;
   let failed = null;
   let failPromise = null;
+  let activeWrite = null, closePromise = null;
 
   const resolveDrain = () => {
     if (pendingBlocks !== 0) return;
@@ -149,7 +151,7 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
       for (const block of ready.values()) block.lease?.release();
       ready.clear();
       pendingLease?.release(); pendingLease = null;
-      pendingChunks.length = 0; pendingBytes = 0;
+      pendingBuffer = null; pendingBytes = 0;
       pendingBlocks = 0;
       try { stream.destroy(failed); } catch {}
       try { await done; } catch {}
@@ -218,9 +220,9 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
 
   const flushBuffer = async () => {
     if (!pendingBytes) return;
-    const block = Buffer.concat(pendingChunks, pendingBytes);
+    const block = pendingBuffer.subarray(0, pendingBytes);
     const lease = pendingLease; pendingLease = null;
-    pendingChunks.length = 0;
+    pendingBuffer = null;
     pendingBytes = 0;
     if (!useWorkerCompression) {
       await writeChunk(stream, block);
@@ -229,7 +231,7 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
     try { await enqueueCompressedBlock(block, lease); } catch (error) { lease?.release(); throw error; }
   };
 
-  const writeLine = async (line, lineBytes = null) => {
+  const appendLine = async (line, lineBytes = null) => {
     if (failed) throw failed;
     if (closed) throw new Error('JSONL writer closed.');
     const buffer = Buffer.isBuffer(line) ? line : Buffer.from(line, 'utf8');
@@ -242,11 +244,30 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
           pendingLease = await compressionPool.acquireBlock(resolvedBlockSize, signal);
         }
         if (failed) { pendingLease?.release(); pendingLease = null; throw failed; }
-        const length = Math.min(source.length - offset, resolvedBlockSize - pendingBytes);
-        pendingChunks.push(source.subarray(offset, offset + length)); pendingBytes += length; offset += length;
+        if (!pendingBuffer || pendingBytes === pendingBuffer.length) {
+          const capacity = Math.min(resolvedBlockSize, Math.max(64 * 1024, (pendingBuffer?.length || 0) * 2));
+          const next = Buffer.allocUnsafe(capacity);
+          if (pendingBytes) pendingBuffer.copy(next, 0, 0, pendingBytes);
+          pendingBuffer = next;
+        }
+        const length = Math.min(source.length - offset, resolvedBlockSize - pendingBytes, pendingBuffer.length - pendingBytes);
+        source.copy(pendingBuffer, pendingBytes, offset, offset + length);
+        pendingBytes += length; offset += length;
         if (pendingBytes >= resolvedBlockSize) await flushBuffer();
       }
     }
+  };
+
+  // A Buffer argument remains borrowed only until this promise settles. Copy
+  // into the single admitted block rather than retaining caller-owned slices.
+  // Concurrent line calls are unsupported instead of silently interleaving.
+  const writeLine = (line, lineBytes = null) => {
+    if (activeWrite) return Promise.reject(new Error('Concurrent JSONL line writes are unsupported.'));
+    const pending = appendLine(line, lineBytes);
+    activeWrite = pending;
+    pending.then(() => { if (activeWrite === pending) activeWrite = null; },
+      () => { if (activeWrite === pending) activeWrite = null; });
+    return pending;
   };
 
   const attachAbortHandler = () => {
@@ -261,13 +282,14 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
 
   const detachAbort = attachAbortHandler();
 
-  const close = async () => {
+  const close = () => {
+    if (closePromise) return closePromise;
     if (closed) {
-      if (failed) throw failed;
-      return;
+      return failed ? Promise.reject(failed) : Promise.resolve();
     }
     closed = true;
-    try {
+    closePromise = (async () => { try {
+      if (activeWrite) await activeWrite;
       await flushBuffer();
       if (useWorkerCompression) {
         await waitForDrain();
@@ -287,7 +309,8 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
       throw err;
     } finally {
       detachAbort();
-    }
+    } })();
+    return closePromise;
   };
 
   const destroy = async (err) => {

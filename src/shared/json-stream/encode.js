@@ -1,5 +1,6 @@
 import { writeChunk, writeChunkIfNeeded } from './streams.js';
 import { createCooperativeYielder, throwIfAborted } from './runtime.js';
+import { consumeJsonRows } from './consume-rows.js';
 
 export const normalizeJsonValue = (value) => {
   if (value && typeof value === 'object') {
@@ -220,11 +221,11 @@ export const stringifyJsonValue = (value) => {
 export const writeArrayItems = async (stream, items, signal = null) => {
   const cooperate = createCooperativeYielder();
   let first = true;
-  for (const item of items) {
+  await consumeJsonRows(items, async item => {
     throwIfAborted(signal);
     if (!first) await writeChunk(stream, ',');
-    await writeJsonValue(stream, item, { cooperate });
+    await writeJsonValue(stream, item, { cooperate, signal });
     await cooperate();
     first = false;
-  }
+  }, { signal });
 };

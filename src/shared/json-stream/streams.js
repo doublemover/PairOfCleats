@@ -366,20 +366,28 @@ export const createJsonWriteStream = (filePath, options = {}) => {
   if (signal?.aborted) {
     throw createAbortError();
   }
-  const tempRef = atomic
-    ? createExclusiveAtomicFileStream(filePath, highWaterMark, resolvedPreallocateBytes)
-    : null;
+  if (compression && !['none', 'gzip', 'zstd'].includes(compression)) throw new TypeError('Unsupported JSON stream compression.');
+  // Construct/validate the codec and checksum before opening an output FD.
+  const codec = compression === 'gzip' ? createFflateGzipStream(options)
+    : compression === 'zstd' ? createZstdStream(options) : null;
+  let counting;
+  try { counting = createByteCounter(maxBytes, highWaterMark, checksumAlgo); }
+  catch (error) { codec?.destroy(); throw error; }
+  let tempRef, fileStream;
+  try {
+    tempRef = atomic ? createExclusiveAtomicFileStream(filePath, highWaterMark, resolvedPreallocateBytes) : null;
+    fileStream = atomic ? tempRef.fileStream : createPreallocatedFileStream(filePath, highWaterMark, resolvedPreallocateBytes);
+  } catch (error) {
+    codec?.destroy(); counting.counter.destroy(); throw error;
+  }
   const targetPath = atomic ? tempRef.tempPath : filePath;
-  const fileStream = atomic
-    ? tempRef.fileStream
-    : createPreallocatedFileStream(targetPath, highWaterMark, resolvedPreallocateBytes);
   const {
     counter,
     getBytes,
     isOverLimit,
     checksumAlgo: resolvedChecksumAlgo,
     getChecksum
-  } = createByteCounter(maxBytes, highWaterMark, checksumAlgo);
+  } = counting;
   let writer = null;
   let committed = false;
   const streams = [];
@@ -462,7 +470,7 @@ export const createJsonWriteStream = (filePath, options = {}) => {
       })
   });
   if (compression === 'gzip') {
-    const gzip = createFflateGzipStream(options);
+    const gzip = codec;
     writer = gzip;
     writer[JSON_STREAM_WAIT_TIMEOUT_SYMBOL] = resolvedWaitTimeoutMs;
     gzip.pipe(counter).pipe(fileStream);
@@ -471,7 +479,7 @@ export const createJsonWriteStream = (filePath, options = {}) => {
     return createWriteStreamResult(gzip);
   }
   if (compression === 'zstd') {
-    const zstd = createZstdStream(options);
+    const zstd = codec;
     writer = zstd;
     writer[JSON_STREAM_WAIT_TIMEOUT_SYMBOL] = resolvedWaitTimeoutMs;
     zstd.pipe(counter).pipe(fileStream);
