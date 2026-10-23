@@ -63,7 +63,7 @@ try {
     fsp.stat = () => assert.fail('snapshot stat and raw bytes must come from the same opened descriptor');
     const snapshot = await readLockSnapshot(file, 1000000);
     assert.equal(snapshot.exists, true); assert.equal(snapshot.staleByMtime, false); assert.ok(snapshot.fingerprint);
-    assert.equal(state.opens, 1); assert.equal(state.stats, 2); assert.equal(state.closes, 1); assert.ok(state.reads > 1); restore();
+    assert.equal(state.opens, 1); assert.equal(state.stats, 4); assert.equal(state.closes, 1); assert.ok(state.reads > 1); restore();
   }
   const actions = [() => readLockInfo(file), () => readLockSnapshot(file, 1), () => isLockStale(file, 1),
     () => removeLockFileIfOwned(file, payload, { force: true }), () => acquireFileLock({ lockPath: file, waitMs: 0 })];
@@ -87,6 +87,24 @@ try {
     primary.cacheOwnershipReleased = () => true; await rejected(() => session.releaseAfterClose());
     assert.equal(state.closes, 0); ready = true; await session.releaseAfterClose();
     assert.equal(state.reads, 1); assert.equal(state.closes, 1); assert.equal(state.removals, 0); restore();
+  }
+  {
+    let exactId = 2n ** 60n + 1n;
+    const initial = exactId;
+    fsp.open = async (name, ...args) => {
+      const actual = await open(name, ...args); if (name !== file) return actual;
+      const getStat = actual.stat;
+      actual.stat = async function (...next) {
+        const value = await getStat.call(actual, ...next);
+        value.ino = typeof value.ino === 'bigint' ? exactId : Number(exactId); return value;
+      };
+      return actual;
+    };
+    const first = await readLockSnapshot(file, -1);
+    exactId += 1n; assert.equal(Number(exactId), Number(initial));
+    const second = await readLockSnapshot(file, -1);
+    assert.equal(isStableStaleSnapshot(first, second), false, 'rounded numeric inode equality cannot identify a stable native snapshot');
+    restore();
   }
   for (const action of [() => readLockInfoSync(file), () => removeLockFileSyncIfOwned(file, payload, { force: true })]) {
     let closes = 0, removals = 0;

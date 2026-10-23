@@ -22,11 +22,13 @@ const progress = (count, allowance) => {
 /** Internal JSON consumer borrow; no path mutation, implicit native retry or
  * category authority. Text conversion follows confirmed descriptor closure.
  */
-export const readJsonResourceText = async (filePath, admitStat = null) => {
+export const readJsonResourceText = async (filePath, admitStat = null, onExactStat = null) => {
+  if (onExactStat !== null && typeof onExactStat !== 'function') throw new TypeError('Exact JSON descriptor stat observer must be a function.');
   const open = fsp.open, handle = await open.call(fsp, filePath, 'r');
   const owner = createContainedFileResource({ handle, sync: false });
   const bytes = await owner.run(async descriptor => {
     const before = await descriptor.stat(), buffer = admit(before, admitStat);
+    const exactBefore = onExactStat ? await descriptor.stat({ bigint: true }) : null;
     let position = 0;
     while (position < buffer.length) {
       const count = Math.min(65536, buffer.length - position);
@@ -34,6 +36,14 @@ export const readJsonResourceText = async (filePath, admitStat = null) => {
       position += progress(bytesRead, count);
     }
     unchanged(before, await descriptor.stat());
+    if (onExactStat) {
+      const exactAfter = await descriptor.stat({ bigint: true });
+      if (!exactAfter.isFile() || ['dev', 'ino', 'size', 'mtimeMs', 'ctimeMs', 'mtimeNs', 'ctimeNs']
+        .some(key => exactBefore[key] !== exactAfter[key])) throw changed();
+      const result = onExactStat(exactAfter);
+      if (result && typeof result.then === 'function') throw Object.assign(
+        new Error('Synchronous exact descriptor stat observer returned unknown asynchronous work.'), { cacheOwnershipPending: true });
+    }
     return buffer;
   });
   return bytes.toString('utf8');

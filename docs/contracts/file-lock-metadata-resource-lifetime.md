@@ -11,7 +11,10 @@ owned-removal and stale-check catches cannot suppress that ownership merely
 because they historically returned `false` or accepted a force option.
 
 `readLockSnapshot` reads bytes and admitted stat identity from one descriptor,
-verifies that same descriptor afterward and waits for close. Its fingerprint adds
+verifies that same descriptor afterward and waits for close. The internal JSON
+borrower's optional synchronous exact-stat observer receives matched BigInt stats
+from that same descriptor; async-returning observers remain unknown native work.
+Ordinary JSON borrowers add no extra stat calls. Its fingerprint adds exact
 device/inode/ctime to the existing size/mtime/content digest. Independent pathname
 stat plus read can no longer synthesize one successful snapshot, and replaced
 objects with identical bytes/mtime cannot satisfy the stable-snapshot comparison.
@@ -31,7 +34,8 @@ diagnostic readers, snapshots, stale checks, force removal and real acquisition
 against disposable metadata. It covers short reads and method replacement, failed
 close, original pending read, explicit close-only recovery without replay/unlink,
 unknown numeric close, safe classification, falsey/frozen structured causes,
-unknown open, ordinary missing/malformed behavior and replaced stale snapshots.
+unknown open, ordinary missing/malformed behavior and replaced stale snapshots,
+including distinct native IDs that round to the same double.
 
 This grants no new resource registry, lease namespace, PID-death authority or
 deletion rights. A completed diagnostic reader does not by itself make a later

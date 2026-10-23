@@ -87,15 +87,13 @@ export const isInvalidLockInfo = (info) => {
 
 export const createLockSnapshotFingerprint = (raw, stat) => {
   const hash = createHash('sha1').update(raw).digest('hex');
-  return `${stat?.dev ?? ''}:${stat?.ino ?? ''}:${Number(stat?.ctimeMs) || 0}:${Number(stat?.mtimeMs) || 0}:${Number(stat?.size) || 0}:${hash}`;
+  return `${stat?.dev ?? ''}:${stat?.ino ?? ''}:${stat?.ctimeNs ?? stat?.ctimeMs ?? 0}:${stat?.mtimeNs ?? stat?.mtimeMs ?? 0}:${Number(stat?.size) || 0}:${hash}`;
 };
 
 export const readLockSnapshot = async (lockPath, staleMs) => {
   try {
     let stat;
-    const raw = await readJsonResourceText(lockPath, opened => {
-      stat = { dev: opened.dev, ino: opened.ino, ctimeMs: opened.ctimeMs, mtimeMs: opened.mtimeMs, size: opened.size };
-    });
+    const raw = await readJsonResourceText(lockPath, null, opened => { stat = opened; });
     const ageMs = Date.now() - Number(stat?.mtimeMs || 0);
     return {
       exists: true,
