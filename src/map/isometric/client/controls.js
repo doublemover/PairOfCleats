@@ -11,6 +11,7 @@ import { createRenderLoop } from './render-loop.js';
 import { createViewportInputOwner } from './input-ownership.js';
 import { createControlsPickingOwner } from './rendering/picking-owner.js';
 import { createControlsLifetime, retirePreviousControls } from './controls-lifetime.js';
+import { captureControlsRuntimeCallbacks } from './controls-runtime-callbacks.js';
 
 export const initControls = () => {
   retirePreviousControls(state);
@@ -40,6 +41,10 @@ export const initControls = () => {
       visualDefaults
     } = state;
     const ownsControls = lifetime.owns;
+    const rendererCallbacks = captureControlsRuntimeCallbacks(renderer, ['render', 'setPixelRatio', 'setSize'], lifetime.wrap, lifetime.current);
+    if (!lifetime.current()) throw new Error('Controls runtime callback capture lost its original authority.');
+    const cameraCallbacks = captureControlsRuntimeCallbacks(camera, ['updateMatrixWorld', 'updateProjectionMatrix'], lifetime.wrap, lifetime.current);
+    if (!lifetime.current()) throw new Error('Controls runtime callback capture lost its original authority.');
 
     const pointer = new THREE.Vector2();
     const raycaster = new THREE.Raycaster();
@@ -345,7 +350,7 @@ export const initControls = () => {
     let cameraSeen=false;
     let fileVisibleSnapshot, memberVisibleSnapshot;
     const refreshHoverCamera = () => {
-      camera.updateMatrixWorld();
+      cameraCallbacks.updateMatrixWorld();
       if (lifetime.disposed || !ownsControls()) return;
       const world = camera.matrixWorld.elements, projection = camera.projectionMatrix.elements;
       let changed = false;
@@ -378,12 +383,16 @@ export const initControls = () => {
           : controlDefaults.zoomMin);
         const zoomMax = state.cameraZoomRange?.max??(Number.isFinite(controls.zoomMax) ? controls.zoomMax : controlDefaults.zoomMax);
         const before = getPlanePointFromNdc(zoomPointer);
+        if (!lifetime.current()) return false;
         camera.zoom = Math.max(zoomMin, Math.min(zoomMax, camera.zoom * Math.exp(zoomVelocity * dt)));
-        camera.updateProjectionMatrix();
+        cameraCallbacks.updateProjectionMatrix();
+        if (!lifetime.current()) return false;
         const after = getPlanePointFromNdc(zoomPointer);
+        if (!lifetime.current()) return false;
         if (before && after) {
           camera.position.add(before.sub(after));
           lockIsometric();
+          if (!lifetime.current()) return false;
         }
         const damping = Number.isFinite(controls.zoomDamping) ? controls.zoomDamping : controlDefaults.zoomDamping;
         zoomVelocity *= Math.pow(damping, dt * 60);
@@ -530,7 +539,7 @@ export const initControls = () => {
       if (lifetime.disposed || !ownsControls()) return false;
       hover.frame();
       if (lifetime.disposed || !ownsControls()) return false;
-      renderer.render(state.scene, camera);
+      rendererCallbacks.render(state.scene, camera);
       if (lifetime.disposed || !ownsControls()) return false;
       const renderInfo=renderer.info;
       perfStats.renderer=renderInfo?{calls:renderInfo.render?.calls??null,triangles:renderInfo.render?.triangles??null,
@@ -548,6 +557,7 @@ export const initControls = () => {
 
     const onResize = () => {
       const viewport = getViewport();
+      if (!lifetime.current()) return;
       const aspect = viewport.width / viewport.height;
       const base = state.cameraBase;
       camera.left = -base * aspect;
@@ -556,23 +566,29 @@ export const initControls = () => {
       camera.bottom = -base;
       camera.near = state.nearPlane;
       camera.far = state.farPlane;
-      camera.updateProjectionMatrix();
+      cameraCallbacks.updateProjectionMatrix();
+      if (!lifetime.current()) return;
       lineResolution.width = viewport.width;
       lineResolution.height = viewport.height;
       for (const material of state.wireMaterials) {
         if (material.resolution && typeof material.resolution.set === 'function') {
           material.resolution.set(lineResolution.width, lineResolution.height);
+          if (!lifetime.current()) return;
         }
       }
       for (const material of state.gridLineMaterials) {
         if (material.resolution && typeof material.resolution.set === 'function') {
           material.resolution.set(lineResolution.width, lineResolution.height);
+          if (!lifetime.current()) return;
         }
       }
       const pixelRatioCap = numberValue(visuals.pixelRatioCap, visualDefaults.pixelRatioCap);
-      renderer.setPixelRatio(Math.min(pixelRatioCap, window.devicePixelRatio || 1));
-      renderer.setSize(viewport.width, viewport.height);
+      rendererCallbacks.setPixelRatio(Math.min(pixelRatioCap, window.devicePixelRatio || 1));
+      if (!lifetime.current()) return;
+      rendererCallbacks.setSize(viewport.width, viewport.height);
+      if (!lifetime.current()) return;
       lockIsometric();
+      if (!lifetime.current()) return;
       invalidateRender();
     };
     listen(window, 'resize', onResize);
