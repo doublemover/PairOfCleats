@@ -192,4 +192,141 @@ with isolated_temp_directory() as root:
         assert not executed.called
         assert 'Original semantic source view changed' in sublime.last_error
 
+        # Cancellation seals the actual generation and scalar inputs. Queued
+        # done callbacks cannot resume a selector after the user dismissed it.
+        window.set_active_view(source)
+        command.run(repo_root=root)
+        pending[-1][1](api.ApiResult(payload={'capabilities': {'semantic-find': True}}))
+        window.quick_panel_callback(1)
+        cancelled_generation = dict(window.input)
+        old_selector = window.quick_panel_callback
+        cancelled_generation['cancel']()
+        cancelled_generation['done']('original-generation')
+        assert window.quick_panel_callback is old_selector and not executed.called
+
+        command.run(repo_root=root)
+        pending[-1][1](api.ApiResult(payload={'capabilities': {'semantic-find': True}}))
+        window.quick_panel_callback(1)
+        window.input['done']('original-generation')
+        window.quick_panel_callback(3)
+        window.quick_panel_callback(0)
+        cancelled_scalar = dict(window.input)
+        cancelled_scalar['cancel']()
+        cancelled_scalar['done']('must not submit')
+        assert not executed.called
+
+        command.run(repo_root=root)
+        pending[-1][1](api.ApiResult(payload={'capabilities': {'semantic-find': True}}))
+        menu = window.quick_panel_callback
+        menu(1)
+        generation_input = dict(window.input)
+        generation_input['done']('original-generation')
+        selector = window.quick_panel_callback
+        generation_input['done']('replacement-generation')
+        assert window.quick_panel_callback is selector
+        selector(1)
+        exact_value = dict(window.input)
+        exact_value['done']('call')
+        exact_value['done']('replacement-operation')
+        assert executed.call_count == 1
+        assert executed.call_args[0][2]['generation']['baseBuildId'] == 'original-generation'
+        assert executed.call_args[0][2]['selector'] == {'field': 'operation', 'value': 'call'}
+
+# Trace bounds retain the original accepted depth/kinds/slot across their native
+# steps, and submit or cancellation is consumed exactly once.
+trace_values, trace_cancelled = [], []
+semantic.choose_trace_options(window, context(), trace_values.append, lambda: trace_cancelled.append(True))
+original_depth = dict(window.input)
+original_depth['done']('3')
+kind_panel = window.quick_panel_callback
+original_depth['done']('63')
+assert window.quick_panel_callback is kind_panel
+kind_panel(1)
+next_kind_panel = window.quick_panel_callback
+kind_panel(1)
+assert window.quick_panel_callback is next_kind_panel
+next_kind_panel(0)
+slot_panel = window.quick_panel_callback
+slot_panel(0)
+slot_panel(0)
+assert trace_values == [{'depth': 3, 'kinds': ['flowsTo']}] and trace_cancelled == []
+semantic.choose_trace_options(window, context(), trace_values.append, lambda: trace_cancelled.append(True))
+cancelled_depth = dict(window.input)
+cancelled_depth['cancel']()
+cancelled_depth['cancel']()
+cancelled_depth['done']('2')
+assert len(trace_values) == 1 and trace_cancelled == [True]
+
+# The actual CLI adapter hands one closed, flushed request file to its process
+# and lets the canonical runner settlement callback own removal. Cleanup faults
+# are visible rather than acknowledged as successful request disposal.
+with isolated_temp_directory() as cache_root:
+    window.set_folders([cache_root])
+    cli_settings = {'api_execution_mode': 'cli', 'env': {}}
+    cli_context = {'root': cache_root, 'settings': cli_settings,
+                   'scope': operations.capture(window, key='semantic-evidence')}
+    cli_request = semantic.request_for('find', cache_root, generation,
+                                      {'field': 'sourcePath', 'value': 'original.py'})
+    cli_calls = []
+    cli_states = []
+    with patch.object(sublime, 'cache_path', return_value=cache_root), \
+            patch.object(semantic.paths, 'resolve_cli', return_value={'command': 'inert-cli'}), \
+            patch.object(semantic.runner, 'run_process', side_effect=lambda *args, **options: cli_calls.append((args, options))):
+        semantic.execute(window, 'find', cli_request, cli_context, cli_states.append)
+        arguments, options = cli_calls[-1]
+        request_path = arguments[1][arguments[1].index('--request') + 1]
+        with open(request_path, 'rb') as handle:
+            assert json.loads(handle.read().decode('utf-8')) == cli_request
+        assert options['operation_scope']['key'] == 'semantic-operation'
+        result = semantic.runner.ProcessResult(0, '', payload=payload())
+        options['on_settled'](result)
+        assert not os.path.exists(request_path)
+        options['on_done'](result)
+        assert len(cli_states) == 1
+
+        semantic.execute(window, 'find', cli_request, cli_context, cli_states.append)
+        arguments, options = cli_calls[-1]
+        request_path = arguments[1][arguments[1].index('--request') + 1]
+        cleanup_error = OSError('original semantic request removal failure')
+        with patch.object(semantic.os, 'remove', side_effect=cleanup_error):
+            try:
+                options['on_settled'](result)
+            except RuntimeError as error:
+                assert error.__cause__ is cleanup_error and request_path in str(error)
+            else:
+                raise AssertionError('request removal failure was acknowledged as settled')
+        assert os.path.exists(request_path)
+        options['on_settled'](result)
+
+        # A stale response cannot publish, while its independent settlement
+        # still removes the request it owns.
+        semantic.execute(window, 'find', cli_request, cli_context, cli_states.append)
+        arguments, options = cli_calls[-1]
+        request_path = arguments[1][arguments[1].index('--request') + 1]
+        operations.invalidate(window)
+        options['on_settled'](result)
+        options['on_done'](result)
+        assert len(cli_states) == 1 and not os.path.exists(request_path)
+
+    cli_context['scope'] = operations.capture(window, key='semantic-evidence')
+    with patch.object(sublime, 'cache_path', return_value=cache_root), \
+            patch.object(semantic.paths, 'resolve_cli', return_value={'command': 'inert-cli'}), \
+            patch.object(semantic.runner, 'run_process', side_effect=OSError('original semantic dispatch failure')), \
+            patch.object(semantic.os, 'remove', side_effect=OSError('independent request cleanup failure')):
+        semantic.execute(window, 'find', cli_request, cli_context, cli_states.append)
+    assert 'original semantic dispatch failure' in sublime.last_error
+    assert 'independent request cleanup failure' in sublime.last_error
+    assert 'semantic-' in sublime.last_error
+    storage = os.path.join(cache_root, 'PairOfCleats')
+    for filename in os.listdir(storage):
+        os.remove(os.path.join(storage, filename))
+
+    with patch.object(sublime, 'cache_path', return_value=cache_root), \
+            patch.object(semantic.paths, 'resolve_cli', return_value={'command': 'inert-cli'}), \
+            patch.object(semantic.publication, 'stage_text', side_effect=OSError('original staged request failure')), \
+            patch.object(semantic.runner, 'run_process') as dispatched:
+        semantic.execute(window, 'find', cli_request, cli_context, cli_states.append)
+        assert not dispatched.called
+    assert 'original staged request failure' in sublime.last_error
+
 print('Sublime semantic requests preserve original source, evidence, cursor and failure authority')

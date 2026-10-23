@@ -16,19 +16,11 @@ def _retain_failure(primary, phase, error):
     primary.pairofcleats_cleanup_errors = failures
 
 
-def write_text(destination, text, is_current=None, create_parents=False):
+def stage_text(parent, text, prefix='.pairofcleats-', suffix='.tmp'):
     # Encode before acquiring a destination resource. The bytes are exactly the
     # reviewed text, including Unicode and line endings, on every host.
     encoded = text.encode('utf-8')
-    def check_current():
-        if is_current is not None and not is_current():
-            raise PublicationCancelled('The original export request is no longer current.')
-
-    check_current()
-    parent = os.path.dirname(os.path.abspath(destination))
-    if create_parents:
-        os.makedirs(parent, exist_ok=True)
-    descriptor, staged = tempfile.mkstemp(prefix='.pairofcleats-', suffix='.tmp', dir=parent)
+    descriptor, staged = tempfile.mkstemp(prefix=prefix, suffix=suffix, dir=parent)
     handle = None
     try:
         handle = os.fdopen(descriptor, 'wb')
@@ -40,11 +32,6 @@ def write_text(destination, text, is_current=None, create_parents=False):
         os.fsync(handle.fileno())
         handle.close()
         handle = None
-        check_current()
-        # Same-directory replacement is the only destination mutation. In
-        # particular, never truncate, remove or "restore" the prior destination.
-        os.replace(staged, destination)
-        staged = None
     except Exception as primary:
         if handle is not None:
             try:
@@ -56,16 +43,40 @@ def write_text(destination, text, is_current=None, create_parents=False):
                 os.close(descriptor)
             except Exception as error:
                 _retain_failure(primary, 'Staged descriptor close failed', error)
-        if staged is not None:
-            try:
-                os.unlink(staged)
-            except OSError as error:
-                if error.errno != errno.ENOENT:
-                    primary.pairofcleats_recovery_path = staged
-                    _retain_failure(primary, 'Staged export cleanup failed', error)
-            except Exception as error:
-                primary.pairofcleats_recovery_path = staged
-                _retain_failure(primary, 'Staged export cleanup failed', error)
+        _cleanup_staged(staged, primary)
+        raise
+    return staged
+
+
+def _cleanup_staged(staged, primary):
+    try:
+        os.unlink(staged)
+    except OSError as error:
+        if error.errno != errno.ENOENT:
+            primary.pairofcleats_recovery_path = staged
+            _retain_failure(primary, 'Staged export cleanup failed', error)
+    except Exception as error:
+        primary.pairofcleats_recovery_path = staged
+        _retain_failure(primary, 'Staged export cleanup failed', error)
+
+
+def write_text(destination, text, is_current=None, create_parents=False):
+    def check_current():
+        if is_current is not None and not is_current():
+            raise PublicationCancelled('The original export request is no longer current.')
+
+    check_current()
+    parent = os.path.dirname(os.path.abspath(destination))
+    if create_parents:
+        os.makedirs(parent, exist_ok=True)
+    staged = stage_text(parent, text)
+    try:
+        check_current()
+        # Same-directory replacement is the only destination mutation. In
+        # particular, never truncate, remove or "restore" the prior destination.
+        os.replace(staged, destination)
+    except Exception as primary:
+        _cleanup_staged(staged, primary)
         raise
     return destination
 

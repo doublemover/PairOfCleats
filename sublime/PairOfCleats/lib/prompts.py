@@ -26,17 +26,19 @@ class NativePrompt:
             callback(value)
         return accepted
 
-    def choose(self, items, callback, selected_index=0):
+    def choose(self, items, callback, selected_index=0, on_cancel=None):
         if not self.current():
             return
         def selected(index):
             if type(index) is not int or index < 0 or index >= len(items):
                 self.cancel()
+                if index == -1 and callable(on_cancel):
+                    on_cancel()
                 return
             callback(index)
         self.window.show_quick_panel(items, self._step(selected), selected_index=selected_index)
 
-    def input(self, caption, initial, callback):
+    def input(self, caption, initial, callback, on_cancel=None):
         if not self.current():
             return
         def entered(value):
@@ -47,6 +49,8 @@ class NativePrompt:
         accepted = self._step(entered)
         revision = self.revision
         def cancelled():
-            if revision == self.revision:
+            if revision == self.revision and self.current():
                 self.cancel()
+                if callable(on_cancel):
+                    on_cancel()
         self.window.show_input_panel(caption, initial, accepted, None, cancelled)

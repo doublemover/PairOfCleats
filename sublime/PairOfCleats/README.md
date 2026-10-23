@@ -348,6 +348,16 @@ output, and a browser refusal is no longer reported as a successful open.
 Actual command, persistence and host-notification regressions are authored and
 unrun; native browser/filesystem qualification remains pending.
 
+Semantic generation, selector, literal and trace-bound inputs consume each native
+step once, including cancellation. Accepted depth/kind/slot choices cannot be
+replaced by queued callbacks, and evidence/action pickers seal their previous
+steps. CLI requests reuse the direct-save staging owner for exact flushed bytes;
+the runner's settlement callback owns request-file removal even when publication
+is revoked. Removal faults remain settlement failures with the owned path, and
+dispatch failures retain their initiating error beside independent cleanup errors.
+These consumer and fault fixtures are authored, unrun, and do not qualify a real
+Sublime installation or the Python 3.3 runtime.
+
 Exact saved-source cursor requests and line/column selections derive protocol
 CR/LF/CRLF boundaries from the verified original text, then invert only the
 actually observed BOM/newline buffer form. They do not depend on a host's LF-only

@@ -1,7 +1,7 @@
 """Bounded, generation-pinned native access to the canonical semantic consumers."""
 import json
 import os
-import tempfile
+import errno
 import math
 import re
 import copy
@@ -11,7 +11,8 @@ import sublime
 import sublime_plugin
 
 from ..lib import api_client, config, operations, paths, results, runner, ui, service_repository
-from ..lib import semantic_discovery
+from ..lib import semantic_discovery, publication
+from ..lib.prompts import NativePrompt
 from ..lib.source_authority import read_verified_source, utf16_source_position
 
 _LAST = {}
@@ -118,12 +119,22 @@ def choose_trace_options(window, context, on_done, on_cancel):
     """Native keyboard panels; every trace keeps the shared operation bounds."""
     chosen_kinds = []
     extra = {}
+    finished = [False]
+    prompt_sequence = NativePrompt(window, context.get('pickerScope') or context['scope'])
     def current():
-        return (operations.is_current(context['scope'])
+        return (not finished[0] and operations.is_current(context['scope'])
                 and (not context.get('pickerScope') or operations.is_current(context['pickerScope'])))
     def cancel():
-        if current() and callable(on_cancel):
-            on_cancel()
+        if current():
+            finished[0] = True
+            prompt_sequence.cancel()
+            if callable(on_cancel):
+                on_cancel()
+    def finish():
+        if current():
+            finished[0] = True
+            prompt_sequence.cancel()
+            on_done(copy.deepcopy(extra))
     def depth_done(value):
         if not current():
             return
@@ -154,7 +165,7 @@ def choose_trace_options(window, context, on_done, on_cancel):
                 else:
                     chosen_kinds.append(kind)
                 choose_kinds()
-        window.show_quick_panel(items, selected)
+        prompt_sequence.choose(items, selected, on_cancel=cancel)
     def choose_slot():
         if not current():
             return
@@ -164,7 +175,7 @@ def choose_trace_options(window, context, on_done, on_cancel):
             if index < 0:
                 cancel()
             elif index == 0:
-                on_done(extra)
+                finish()
             else:
                 name = TRACE_SLOTS[index - 1]
                 def ordinal_done(value):
@@ -175,11 +186,11 @@ def choose_trace_options(window, context, on_done, on_cancel):
                         cancel()
                         return
                     extra['slot'] = {'name': name, 'ordinal': int(value)}
-                    on_done(extra)
-                window.show_input_panel(name + ' ordinal (zero based)', '0', ordinal_done, None, cancel)
-        window.show_quick_panel(['Any slot'] + list(TRACE_SLOTS), selected)
-    window.show_input_panel('Trace depth 1-64; records 128 / edges 512 / 64 KiB / 250 ms',
-                            '2', depth_done, None, cancel)
+                    finish()
+                prompt_sequence.input(name + ' ordinal (zero based)', '0', ordinal_done, on_cancel=cancel)
+        prompt_sequence.choose(['Any slot'] + list(TRACE_SLOTS), selected, on_cancel=cancel)
+    prompt_sequence.input('Trace depth 1-64; records 128 / edges 512 / 64 KiB / 250 ms',
+                            '2', depth_done, on_cancel=cancel)
 
 
 def describe(payload, generation_source=None):
@@ -289,36 +300,50 @@ def execute(window, operation, request, context, on_done, on_error=None):
         return
 
     storage = os.path.join(sublime.cache_path(), 'PairOfCleats')
-    os.makedirs(storage, exist_ok=True)
-    descriptor, request_path = tempfile.mkstemp(prefix='semantic-', suffix='.json', dir=storage)
-    with os.fdopen(descriptor, 'w', encoding='utf-8') as handle:
-        json.dump(request, handle)
-    cli = paths.resolve_cli(settings, context['root'])
+    try:
+        cli = paths.resolve_cli(settings, context['root'])
+        env = config.build_env(settings)
+        encoded_request = json.dumps(request)
+        os.makedirs(storage, exist_ok=True)
+        request_path = publication.stage_text(storage, encoded_request, prefix='semantic-', suffix='.json')
+    except Exception as error:
+        message = publication.describe_failure('Semantic request staging failed: ', error)
+        if not current() and getattr(error, 'pairofcleats_cleanup_errors', None):
+            print(message)
+        else:
+            failed(message)
+        return
     def cleanup(_response):
         try:
             os.remove(request_path)
-        except OSError:
-            pass
+        except OSError as error:
+            if error.errno != errno.ENOENT:
+                raise RuntimeError('Semantic request cleanup failed for {0}: {1}'.format(request_path, error)) from error
     def done(response):
+        if response.error or response.returncode != 0:
+            failed(response.error or response.output or 'Semantic operation failed.')
+            return
+        payload = response.payload
+        if isinstance(payload, dict) and payload.get('cursor'):
+            payload = copy.deepcopy(payload)
+            payload['warnings'] = list(payload.get('warnings') or []) + [
+                'CLI continuation expires with its process. Use a persistent API session for More.']
+        accept(payload)
+    try:
+        runner.run_process(cli['command'], list(cli.get('args_prefix') or []) + [
+            'semantic', operation, '--request', request_path], cwd=context['root'], env=env,
+            window=window, title='PairOfCleats semantic ' + operation, capture_json=True,
+            stream_output=False, timeout_ms=5000, on_done=done, operation_scope=call_scope, on_settled=cleanup)
+    except Exception as primary:
         try:
-            if response.error or response.returncode != 0:
-                failed(response.error or response.output or 'Semantic operation failed.')
-                return
-            payload = response.payload
-            if isinstance(payload, dict) and payload.get('cursor'):
-                payload = copy.deepcopy(payload)
-                payload['warnings'] = list(payload.get('warnings') or []) + [
-                    'CLI continuation expires with its process. Use a persistent API session for More.']
-            accept(payload)
-        finally:
-            try:
-                os.remove(request_path)
-            except OSError:
-                pass
-    runner.run_process(cli['command'], list(cli.get('args_prefix') or []) + [
-        'semantic', operation, '--request', request_path], cwd=context['root'], env=config.build_env(settings),
-        window=window, title='PairOfCleats semantic ' + operation, capture_json=True,
-        stream_output=False, timeout_ms=5000, on_done=done, operation_scope=call_scope, on_settled=cleanup)
+            cleanup(None)
+        except Exception as error:
+            primary.pairofcleats_cleanup_errors = [str(error)]
+        message = publication.describe_failure('Semantic process dispatch failed: ', primary)
+        if not current() and getattr(primary, 'pairofcleats_cleanup_errors', None):
+            print(message)
+        else:
+            failed(message)
 
 
 def open_source(window, state, record, request_current=None):
@@ -395,10 +420,12 @@ def inspect(window, state, on_back=None):
     if suggestions and supported('enrichment'):
         plan_index = len(items)
         items.append(['Inspect Proposed Enrichment Plan', 'Planning only; no enqueue/drain or runtime capture'])
+    picked = [False]
     def selected(index):
-        if (not operations.is_current(picker_scope) or not operations.is_current(state['context']['scope'])
+        if (picked[0] or not operations.is_current(picker_scope) or not operations.is_current(state['context']['scope'])
                 or index >= len(items)):
             return
+        picked[0] = True
         if index <= 0:
             if index == 0 and callable(on_back):
                 on_back()
@@ -421,10 +448,12 @@ def inspect(window, state, on_back=None):
                    'Open Exact Source (requires captured source mapping)']
         offered = [index for index, operation in enumerate(('detail', 'trace', 'trace', 'explain', None))
                    if operation is None or supported(operation)]
+        action_picked = [False]
         def action(chosen):
-            if (not operations.is_current(picker_scope) or not operations.is_current(state['context']['scope'])
+            if (action_picked[0] or not operations.is_current(picker_scope) or not operations.is_current(state['context']['scope'])
                     or chosen >= len(offered)):
                 return
+            action_picked[0] = True
             if chosen < 0:
                 inspect(window, state, on_back)
                 return
@@ -486,6 +515,7 @@ class PairOfCleatsSemanticEvidenceCommand(sublime_plugin.WindowCommand):
                 return
             context = {'root': root, 'settings': settings,
                        'scope': scope}
+            prompt_sequence = NativePrompt(self.window, scope)
             def generation(value, origin='explicit immutable generation'):
                 if not operations.is_current(context['scope']):
                     return
@@ -528,13 +558,13 @@ class PairOfCleatsSemanticEvidenceCommand(sublime_plugin.WindowCommand):
                             if type_name == 'null':
                                 scalar_value('')
                             elif type_name == 'boolean':
-                                self.window.show_quick_panel(['true', 'false'], lambda choice: (
+                                prompt_sequence.choose(['true', 'false'], lambda choice: (
                                     scalar_value(['true', 'false'][choice]) if choice >= 0 else None))
                             else:
                                 prompt = ('String value (empty is valid)' if type_name == 'string' else
                                     'Exact recorded {0} representation (decimal; bigint has no n suffix)'.format(type_name))
-                                self.window.show_input_panel(prompt, '', scalar_value, None, None)
-                        self.window.show_quick_panel(['string', 'boolean', 'null', 'number', 'bigint'], scalar_type)
+                                prompt_sequence.input(prompt, '', scalar_value)
+                        prompt_sequence.choose(['string', 'boolean', 'null', 'number', 'bigint'], scalar_type)
                     else:
                         def value_done(text):
                             if not text or not operations.is_current(context['scope']):
@@ -554,19 +584,19 @@ class PairOfCleatsSemanticEvidenceCommand(sublime_plugin.WindowCommand):
                                         selected['typeExpression']['roles'] = (['local', 'parameter', 'field', 'return'] if chosen_role == 0
                                             else [['local'], ['parameter'], ['field'], ['return']][chosen_role - 1])
                                         submit(selected)
-                                    self.window.show_quick_panel(['All supported roles', 'Local', 'Parameter', 'Field', 'Return'], role)
-                                self.window.show_quick_panel(['Declared source', 'Compiler source', 'Declared and compiler'], source)
+                                    prompt_sequence.choose(['All supported roles', 'Local', 'Parameter', 'Field', 'Return'], role)
+                                prompt_sequence.choose(['Declared source', 'Compiler source', 'Declared and compiler'], source)
                             else:
                                 submit(selected)
-                        self.window.show_input_panel(selectors[index] + ': exact value', '', value_done, None, None)
+                        prompt_sequence.input(selectors[index] + ': exact value', '', value_done)
                 def submit(selected):
                     if not operations.is_current(context['scope']):
                         return
                     execute(self.window, 'find', request_for('find', root, pinned, selected), context,
                             lambda state: inspect(self.window, state))
-                self.window.show_quick_panel(selectors, selector)
+                prompt_sequence.choose(selectors, selector)
             def manual():
-                self.window.show_input_panel('Exact semantic baseBuildId (from indexed evidence/manifest)', '', generation, None, None)
+                prompt_sequence.input('Exact semantic baseBuildId (from indexed evidence/manifest)', '', generation)
             from . import search
             execution = config.resolve_execution_mode(settings, 'semantic-find')
             if execution.get('error'):
@@ -602,7 +632,7 @@ class PairOfCleatsSemanticEvidenceCommand(sublime_plugin.WindowCommand):
                                 if not operations.is_current(context['scope']):
                                     return
                                 ui.show_status('PairOfCleats: ' + message)
-                                self.window.show_quick_panel(['Enter Immutable Generation Explicitly', 'Return to Previous Evidence'],
+                                prompt_sequence.choose(['Enter Immutable Generation Explicitly', 'Return to Previous Evidence'],
                                     lambda correction: manual() if correction == 0 and operations.is_current(context['scope']) else None)
                             semantic_discovery.discover_generation(self.window, context, value, accepted, unavailable)
                         if seed:
@@ -614,9 +644,8 @@ class PairOfCleatsSemanticEvidenceCommand(sublime_plugin.WindowCommand):
                                     ui.show_error('Use a repository-relative retained source path.')
                                     return
                                 discover('file:' + value.replace('\\', '/'))
-                            self.window.show_input_panel('Retained source for canonical semantic generation discovery', '',
-                                                         source_entered, None, None)
-                self.window.show_quick_panel(['Discover Published Semantic Generation for Selected Source / Hit',
+                            prompt_sequence.input('Retained source for canonical semantic generation discovery', '', source_entered)
+                prompt_sequence.choose(['Discover Published Semantic Generation for Selected Source / Hit',
                                               'Enter Immutable Semantic Generation'], choice)
             def cursor_route(captured):
                 if not operations.is_current(context['scope']):
@@ -640,7 +669,7 @@ class PairOfCleatsSemanticEvidenceCommand(sublime_plugin.WindowCommand):
                             context, lambda state: inspect(self.window, state))
                     elif index == 1:
                         generation_menu()
-                self.window.show_quick_panel(['Use Current Source-qualified Cursor Binding',
+                prompt_sequence.choose(['Use Current Source-qualified Cursor Binding',
                                               'Choose Selector / Immutable Generation'], route)
             def begin_seed_selection():
                 if not operations.is_current(context['scope']):
