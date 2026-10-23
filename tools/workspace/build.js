@@ -178,15 +178,21 @@ export const runRepoBuild = async ({ repo, buildArgs }, { spawn = spawnSubproces
   }
 };
 
-export const runWorkspaceBuild = async (workspaceConfig, {
+export const runWorkspaceBuildReport = async (workspaceConfig, {
   buildArgs,
   includeDisabled,
   concurrency,
   strict
 }, { runBuild = runRepoBuild } = {}) => {
-  const targets = workspaceConfig.repos
+  // Retain this invocation's target inventory before any build callback awaits.
+  const configured = workspaceConfig.repos.map(repo => ({ ...repo }));
+  const targets = configured
     .filter((repo) => includeDisabled || repo.enabled)
     .slice()
+    .sort((a, b) => a.repoId.localeCompare(b.repoId));
+  const identities = targets.map(({ repoId, repoRootCanonical }) => ({ repoId, repoRootCanonical }));
+  const excluded = configured.filter(repo => !includeDisabled && !repo.enabled)
+    .map(({ repoId, repoRootCanonical }) => ({ repoId, repoRootCanonical, reason: 'disabled' }))
     .sort((a, b) => a.repoId.localeCompare(b.repoId));
   const results = new Array(targets.length);
   let cursor = 0;
@@ -204,7 +210,10 @@ export const runWorkspaceBuild = async (workspaceConfig, {
         result = { repoId: repo.repoId, repoRootCanonical: repo.repoRootCanonical, exitCode: null,
           signal: null, durationMs: 0, status: 'failed', error: error?.message || String(error) };
       }
-      results[next] = result;
+      if (!result || typeof result !== 'object') {
+        result = { exitCode: null, signal: null, durationMs: 0, status: 'failed', error: 'Repository build returned no outcome.' };
+      }
+      results[next] = { ...result, ...identities[next] };
       if (strict && result.status !== 'passed') {
         stopScheduling = true;
       }
@@ -213,8 +222,21 @@ export const runWorkspaceBuild = async (workspaceConfig, {
 
   const workers = Array.from({ length: Math.max(1, concurrency) }, () => worker());
   await Promise.all(workers);
-  return results.filter(Boolean).sort((a, b) => a.repoId.localeCompare(b.repoId));
+  const entries = results.filter(Boolean);
+  const skipped = identities.filter((_repo, index) => !results[index])
+    .map(repo => ({ ...repo, status: 'skipped', reason: 'strict-failure' }));
+  const failed = entries.filter(entry => entry.status !== 'passed').length;
+  return {
+    total: entries.length, failed, entries,
+    configured: configured.length, selected: targets.length, attempted: entries.length,
+    passed: entries.length - failed, skippedAfterFailure: skipped.length,
+    excludedDisabled: excluded.length, skipped, excluded,
+    outcome: targets.length === 0 ? 'no-work' : failed ? 'failed' : 'passed'
+  };
 };
+
+/** Compatibility owner: existing callers receive attempted build entries only. */
+export const runWorkspaceBuild = async (...args) => (await runWorkspaceBuildReport(...args)).entries;
 
 export async function runWorkspaceBuildCli(rawArgs = process.argv.slice(2)) {
   if (rawArgs.includes('--help') || rawArgs.includes('-h')) {
@@ -223,7 +245,8 @@ export async function runWorkspaceBuildCli(rawArgs = process.argv.slice(2)) {
   }
   const options = parseRawWorkspaceBuildArgs(rawArgs);
   const workspaceConfig = loadWorkspaceConfig(options.workspacePath);
-  const buildDiagnostics = await runWorkspaceBuild(workspaceConfig, options);
+  const diagnostics = await runWorkspaceBuildReport(workspaceConfig, options);
+  const buildDiagnostics = diagnostics.entries;
   const failed = buildDiagnostics.filter((entry) => entry.status !== 'passed');
   const manifestResult = await generateWorkspaceManifest(workspaceConfig, { write: true });
 
@@ -233,11 +256,7 @@ export async function runWorkspaceBuildCli(rawArgs = process.argv.slice(2)) {
     manifestPath: manifestResult.manifestPath,
     repoSetId: manifestResult.manifest.repoSetId,
     manifestHash: manifestResult.manifest.manifestHash,
-    diagnostics: {
-      total: buildDiagnostics.length,
-      failed: failed.length,
-      entries: buildDiagnostics
-    }
+    diagnostics
   };
 
   if (options.json) {
@@ -246,6 +265,8 @@ export async function runWorkspaceBuildCli(rawArgs = process.argv.slice(2)) {
     console.error('Workspace build complete');
     console.error(`- workspace: ${payload.workspacePath}`);
     console.error(`- repos built: ${payload.diagnostics.total}`);
+    console.error(`- repos selected: ${diagnostics.selected}; skipped after failure: ${diagnostics.skippedAfterFailure}; disabled: ${diagnostics.excludedDisabled}`);
+    console.error(`- build outcome: ${diagnostics.outcome}`);
     console.error(`- repos failed: ${payload.diagnostics.failed}`);
     console.error(`- manifest: ${payload.manifestPath}`);
     console.error(`- repoSetId: ${payload.repoSetId}`);
@@ -258,6 +279,7 @@ export async function runWorkspaceBuildCli(rawArgs = process.argv.slice(2)) {
         if (entry.error) console.error(`    ${entry.error}`);
       }
     }
+    for (const entry of diagnostics.skipped) console.error(`  - ${entry.repoId}: skipped (${entry.reason})`);
   }
 
   if (failed.length > 0) {

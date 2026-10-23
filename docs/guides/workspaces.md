@@ -64,6 +64,13 @@ For a first small build, use explicit per-repository code builds from the
 build owner also supports bounded fanout; review its current help before opting
 into multiple target builds. No provider installation follows from membership.
 
+Workspace build diagnostics distinguish selected, attempted, passed, failed,
+skipped after strict failure and disabled repositories. `total` and `entries`
+retain attempted outcomes; `skipped` lists retry candidates never started by this
+invocation, and `excluded` identifies disabled members. `outcome: "no-work"`
+explicitly means no build ran. The refreshed manifest can retain older valid
+generations for unbuilt members; see [build outcomes](../contracts/workspace-build-outcomes.md).
+
 <!-- poc:recipe workspace-search shell=portable effects=read-only -->
 ```sh
 node bin/pairofcleats.js search --workspace "path/to/workspace.jsonc" --mode code --backend memory --top 5 --json -- "cache"
