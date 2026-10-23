@@ -1,101 +1,66 @@
 # PairOfCleats Roadmap
 
-Status: Paused at user request
+Status: Active solo implementation; runtime validation deferred
 Last audited: 2026-10-23
 Last reconciled: 2026-10-23
 Canonical for: initiative status, execution order, and remaining work
 
-Current reconciliation, 2026-10-23: 970 open issues are being reconciled by
-priority and shared owner; historical implementation and acceptance remain distinct.
-
 ## Current GitHub repair program
 
 Continue on `codex/pr557-audit-repairs-20261012` through
-[PR #572](https://github.com/doublemover/PairOfCleats/pull/572), targeting its
-existing `main` base. The latest qualified production/test source checkpoint is
-`d4dcba4134f6103e3a59703d90fdbde5ca54d09e`; publication is authorized and working.
-No merge is authorized. Preserve granular commits and verify remote/PR identities.
+[PR #572](https://github.com/doublemover/PairOfCleats/pull/572), retaining its
+existing `main` base. Node is **26.12.1**. Publication is authorized; no merge is
+authorized. The user resumed work **solo**, with all workers parked, and requested
+source implementation across the backlog before runtime testing. Formatting and
+static checks continue before granular commits. Commit and push completed batches;
+refresh the PR overview at least every 20 commits.
 
-The live inventory now contains **970 open issues (#584–#1553)**: P0 0, P1 53,
-P2 460, P3 102, P4 0, Perf 102, and unprioritized 253. This includes 886 new
-reports. The [current repair receipt](archived/github-issue-repairs-2026-10-21.md)
-contains every issue and its disposition. The
-[previous receipt](archived/github-issue-repairs-2026-10-20.md) records 77 earlier
-implemented repairs and seven unfinished owners (#630–#632, #636–#637, #639–#640).
-Those implementation claims are not blanket acceptance for the new inventory.
-
-User order: **P0–P4 first, then Perf, then everything else**. Within a priority,
-fix destructive authority/data-loss defects before downstream consumers; batch
-shared transaction, lifecycle and schema owners. Priority-marked performance
-issues keep their stated priority. Read each issue's actual scope and dependencies;
-do not assume issue-number order or turn feature requests into duplicate engines.
-
-The sixteen Sol 6.1/xhigh worker wave followed an
-[exclusive owner plan](archived/parallel-implementation-wave-2026-10-23.md).
-The user has now paused all work after committing completed batches. The
-[pause handoff](archived/implementation-pause-2026-10-23.md) preserves resume work.
-P0–P4 remain first when resumed.
-Fresh locked setup/native verification previously passed 37 packages/33 routes
-without warnings/errors; 26 focused cases, repaired 40-case gate and the complete
-front gate passed at their recorded source. At 245be5fc2 the first 70 broad cases
-have 60 passes, 9 ordinary failures and 1 timeout. Actual repairs and a focused rerun
-then yield 11 passes / 3 timeouts; records MetaV2 and three wrapper partitions have
-additional source repairs awaiting execution. The [Windows receipt](archived/windows-post-wave-validation-2026-10-22.md)
-retains exact provenance. Broad acceptance waits for a frozen resulting tree.
-New P2 reports #1541–#1550 have source repairs and authored regressions. Extended
-spans add immutable graph capability consumption, bounded opt-in JS/TS coarse
-worker analysis, distinct backend/waiter shutdown accounting and pending-provider
-fallback protection. MCP 1.10.0 and generated surfaces await final-tree refresh
-and qualification. New #1551 has a source repair preserving deferred artifact
-writes; #1552 phrase spill and #1553 exact API target joins are also committed.
-No complete deep-suite pass is claimed.
+The refreshed snapshot contains **1,151 open reports (#147–#1722)**: P0 0,
+P1 58, P2 574, P3 105, P4 0, Perf 125, and other/unprioritized 289.
+Compared with the previous 970-report snapshot this adds 181 reports, including
+12 older/reopened reports. Titles supply priority; labels do not supply those
+priorities. The [solo repair receipt](archived/solo-issue-repairs-2026-10-23.md)
+records this delta, reviewed scopes, source checkpoints and unfinished owners.
+The [prior comprehensive receipt](archived/github-issue-repairs-2026-10-21.md)
+and [pause handoff](archived/implementation-pause-2026-10-23.md) retain the
+previous wave's detailed mappings and provenance. Open status, source changes
+and accepted issue closure are separate facts.
 
 ### Execution order
 
-1. Snapshot/diff registry authority, retention, GC dry runs and frozen-byte
-   integrity (#686, #688, #778, #806, #811, #819, #832, #835). **Implemented;
-   affected Windows checks and the complete front gate pass.**
-2. Other P1 publication/rollback and state recovery, queue ownership, vector
-   identity, worker shutdown and installable editor packages. Combine related
-   P2 cases only where they share the repaired owner and regression setup.
-   **In progress:** 23 additional repairs have focused proof and the complete
-   front gate passes at f05fb0d4e. A further 33 storage/publication/cache/contract
-   repairs have focused proof and the complete front gate passes at d4dcba413. Remaining
-   watch/pointer/queue authority and editor-package owners continue next. Three
-   original workers completed earlier source spans; the subsequent sixteen-worker
-   wave is finishing and parking. The lead resumes solo integration, validation,
-   Git and publication. No worktree or elevation is required.
-3. Remaining P2 correctness/contract issues, then P3, grouped by owner.
-4. Perf reports: retain correctness parity and measure the changed operation;
-   distinguish operation-count reductions from real latency/heap measurements.
-5. Unprioritized work, including the structured-semantics dependency program;
-   build foundations before dependent language/consumer integrations.
-6. Final candidate-wide Windows discovery/cohort reconciliation and relevant
-   qualification. Keep release/real-model/optional-backend claims separate.
+1. **P0–P4 first**, prioritizing destructive authority/data-loss and lifecycle
+   failures within a priority. Batch shared owners rather than issue numbers.
+   New P1 #1679 credential projection and #1582 embedding channel identity have
+   source repairs; #1574/#1693 now use cleanup admission/exclusion and truthful
+   retained outcomes. Full index/backend category cleanup and real parent drain
+   remain partial. #1554 verified TUI replacement is next.
+2. Remaining P2/P3 issues, including prior partial owners, ordered by dependency:
+   publication/resource ownership; source/cache identities; semantic and retrieval
+   correctness; transports/providers; operator and evaluation workflows. Read full
+   issue scopes before implementing or declaring equivalence.
+3. Perf reports after priority issues. Preserve correctness, separate bounded
+   operations from measured latency/heap claims, and measure serially later.
+4. Other work, including setup/runtime distribution and research foundations,
+   before dependent consumers. Do not create duplicate infrastructure.
+5. After source integration, refresh generated contracts, fixture inventories,
+   ordered lanes and MCP schemas/snapshots through their registered generators.
+   Prepare/verify locked dependencies, run affected regressions and the complete
+   front gate, then freeze the candidate for explicit Windows cohorts. Preserve
+   original assertions, 30-second limits, zero retries and native redo disabled.
 
-The user's latest direction freezes the completed implementation wave and parks
-all three agents for a thorough lead-owned testing/validation pass. Prepare the
-locked installation, refresh generated contracts, run focused regressions and
-explicit Windows cohorts, and fix actual failures. Implementation checkpoints
-remain **unvalidated** until their exact-source results are recorded; they do
-not replace the last qualified source above. Recent source batches cover final response/risk
-accounting, MCP domain errors, TUI bounded flow and event timing, architecture
-detection, canonical map member/file inventory and editor generation-bound
-risk requests. Recent source also shares bounded codec admission, repairs immutable syntax
-occurrence handoff and bounds compiler construction with replay-safe identities.
-The fidelity/occurrence checkpoint adds explicit admission, durable omission
-receipts and bounded call-site spill; full semantic resume/capability sealing
-remain open. Native log/review presentation, profile/reference caches and timestamp retention
-now have source checkpoints; whole-app cache migration/quota and shared transform
-mixed provider/semantic CPU wait boundaries remain open. Shared Stage1 transform sessions, parse descriptors, embedding token batches,
-risk prefixes and editor HTTP/history/diagnostic projections now have further
-source checkpoints; their regressions and runtime/measurement proof remain open. During
-this validation pass, prepare the changed dependency installation, establish
-fail-before controls where required, run affected checks and the complete front
-gate, then reconcile Windows cohorts. Do not run repeated broad suites,
-raise deadlines, add retries or remove meaningful assertions to obtain green.
-Update the durable receipt and PR summary with exact source/results after each
-batch. An issue is not complete merely because code was changed or pushed.
+The current solo batches have only scoped `npm run format` and Git whitespace
+checks. Authored regressions are **unrun**. No current-head deep-suite pass, issue
+closure or measured speedup is claimed. The latest qualified production/test source
+remains `d4dcba4134f6103e3a59703d90fdbde5ca54d09e`. Historical locked setup passed
+37 required packages/33 routes without warnings/errors; it is not new final-head
+runtime evidence. At frozen `245be5fc2`, 70 broad cases produced 60 passes,
+9 failures and 1 timeout; a subsequent focused selection produced 11 passes and
+3 wrapper timeouts. Source repairs followed and await execution. The
+[Windows receipt](archived/windows-post-wave-validation-2026-10-22.md) preserves
+exact-source results. No Linux/WSL, elevation, security changes, worktrees or
+arbitrary physical-link creation are included.
+
+### Earlier source chronology and unresolved qualification
 
 Current wave after `ae324aeeb` repairs watch/pointer and queue authority,
 immutable publication and piece assembly, bounded artifact/SCM/source identities,
@@ -150,9 +115,7 @@ corrected with new authored negative/roundtrip controls, all unrun.
 Remaining qualification includes full language/provider/research integration,
 generic migration/fine-grained resume, actual native/editor/browser/model/IPC
 hosts, source-specific fail-before/after controls, locked setup, generated
-inventory/freshness, format/front gate and final Windows cohorts. Three Sol 6.1/
-xhigh agents continue independent real-file spans while the lead owns Git and
-publication. Unreleased edits are excluded; no new issue closure, deep pass or
+inventory/freshness, format/front gate and final Windows cohorts. The lead now works alone; all earlier workers remain parked. Unreleased edits are excluded; no new issue closure, deep pass or
 measured speedup is claimed.
 
 Current development also preserves actual Lua/archive/lock and receipt cleanup
