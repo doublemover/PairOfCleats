@@ -141,7 +141,7 @@ export const createGraphqlChunker = ({ parseStructure = parseGraphqlStructure } 
       kind: GRAPHQL_KIND_BY_KEYWORD[definition.keyword] || 'Section', meta: { title: definition.title,
         format: 'graphql', definitionType: definition.definitionType, definitionName: definition.name || null,
         parser: structure.parser, parserCoverage: structure.coverage,
-        astRange: { start: definition.start, end: definition.end } })), { format: 'graphql' });
+        astRange: { start: definition.start, end: definition.end } } })), { format: 'graphql' });
   }
   const { headings, lineIndex } = collectHeadingRows(text, context, {
     skipLine: (line, trimmed) => trimmed.startsWith('#'),

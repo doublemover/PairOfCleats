@@ -18,7 +18,7 @@ try {
   harness.activate();
   const provider = harness.treeProviders[0], node = provider.getChildren()[0].children[0];
   assert.equal(node.hit.coordinateUnit, 'utf16', 'normalization retains explicit original range-unit evidence');
-  harness.fakeVscode.window.showTextDocument = async document => ({ document, set selection() { selections++; }, revealRange() {} });
+  harness.fakeVscode.window.showTextDocument = async document => ({ document, set selection(_value) { selections++; }, revealRange() {} });
   const run = () => harness.registeredCommands.get('pairofcleats.openResultHit')(node);
   await run(); assert.equal(selections, 1);
 

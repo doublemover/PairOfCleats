@@ -74,7 +74,7 @@ try {
 
   for (const boundary of ['open', 'show']) {
     const revoked = fixture(), entered = deferred(), gate = deferred();
-    revoked[boundary] = async document => { entered.resolve(); await gate.promise; return { document, set selection() { assert.fail('revoked original opening cannot select'); } }; };
+    revoked[boundary] = async document => { entered.resolve(); await gate.promise; return { document, set selection(_value) { assert.fail('revoked original opening cannot select'); } }; };
     const pending = revoked.run(); await entered.promise; revoked.current = false; gate.resolve();
     assert.equal((await pending).kind, 'cancelled'); assert.equal(revoked.selections.length, 0);
     if (boundary === 'open') assert.equal(revoked.shows, 0);
@@ -83,13 +83,13 @@ try {
   for (const mutate of [document => { document.version++; }, document => { document.isDirty = true; },
     document => { document.isClosed = true; }, document => { document.uri = uri(sibling); },
     () => { fs.writeFileSync(file, sourceText + 'changed bytes'); }]) {
-    const changed = fixture(); changed.show = document => { mutate(document); return { document, set selection() { assert.fail('changed target cannot receive original range'); } }; };
+    const changed = fixture(); changed.show = document => { mutate(document); return { document, set selection(_value) { assert.fail('changed target cannot receive original range'); } }; };
     assert.equal((await changed.run()).ok, false); assert.equal(changed.selections.length, 0);
   }
   const changedDisk = fixture(); fs.writeFileSync(file, 'foreign bytes');
   assert.equal((await changedDisk.run()).ok, false); assert.equal(changedDisk.opens, 0);
   for (const withHash of [true, false]) {
-    const different = fixture(); different.show = document => ({ document: { ...document }, set selection() { assert.fail('equal-text sibling editor is not the original opened document'); } });
+    const different = fixture(); different.show = document => ({ document: { ...document }, set selection(_value) { assert.fail('equal-text sibling editor is not the original opened document'); } });
     const hit = qualifiedHit(); if (!withHash) delete hit.sourceHash;
     assert.equal((await different.run(hit)).ok, false); assert.equal(different.selections.length, 0);
     const wrongUri = fixture(); wrongUri.open = document => { document.uri = uri(sibling); };
