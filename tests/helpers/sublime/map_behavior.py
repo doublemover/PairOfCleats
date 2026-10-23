@@ -98,6 +98,15 @@ class MapBehaviorTests(unittest.TestCase):
         self.map_commands.runner.run_process = _run_process
         return runner_calls
 
+    def test_map_primary_owned_failure_precedes_secondary_exit_output(self):
+        failed = _FakeResult({})
+        failed.returncode = 2
+        failed.output = 'secondary map exit text'
+        failed.error = 'original owned map read failure'
+        self.map_commands.runner.run_process = lambda *args, **options: options['on_done'](failed)
+        self.map_commands._dispatch_map(self.window, 'repo', None, 'C:/repo')
+        self.assertEqual(self.sublime.last_error, 'original owned map read failure')
+
     def test_map_dispatch_records_report_and_reopens_url_output(self):
         payload = {
             'ok': True,

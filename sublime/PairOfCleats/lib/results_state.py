@@ -1,5 +1,6 @@
 import hashlib
 import json
+import copy
 
 from . import operations
 from .filter_pagination import carry_filter_page_history, has_filter_page_history, normalize_filter_pagination
@@ -31,7 +32,7 @@ def _prepare_filter_progress(window, payload):
     if not binding or not has_filter_page_history(payload.get('hits')):
         return scope, None
     return scope, {'epoch': scope['epoch'], 'context': scope['context'],
-        'binding': binding, 'hits': payload['hits']}
+        'binding': binding, 'hits': copy.deepcopy(payload['hits'])}
 
 
 def _commit_filter_progress(prepared):
@@ -99,8 +100,9 @@ def _record_last_session(window, key, payload):
         return
     data, state = _load_state(window)
     data, state = dict(data), dict(state)
-    progress = _prepare_filter_progress(window, payload) if key == 'last_results' else None
-    state[key] = dict(payload)
+    retained = copy.deepcopy(payload)
+    progress = _prepare_filter_progress(window, retained) if key == 'last_results' else None
+    state[key] = retained
     data['pairofcleats_state'] = state
     window.set_project_data(data)
     _commit_filter_progress(progress)
@@ -112,7 +114,7 @@ def _get_last_session(window, key):
     _, state = _load_state(window)
     payload = state.get(key)
     if isinstance(payload, dict):
-        copied = dict(payload)
+        copied = copy.deepcopy(payload)
         if key == 'last_results':
             _restore_filter_progress(window, copied)
         return copied

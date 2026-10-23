@@ -324,6 +324,16 @@ mapping persistence retains the previous cache and never acknowledges a new
 selection. Deferred regressions also cover replacing the credential endpoint
 while an original request is pending: it cannot borrow the replacement token.
 
+Stored result sessions, attached buffers and reopened native pickers now retain
+independent nested source/evidence snapshots; edits through a transport or a
+previous reader cannot replace their acknowledged references. Private indexed
+continuation receipts retain the same isolation. A history-save failure reports
+that failure while keeping valid search results usable, with a scope recheck
+before publication. Search, symbol, map, context and risk consumers preserve an
+originating owned failure ahead of secondary process-exit text, and negative
+diagnostic envelopes cannot claim successful operator reports. These source and
+actual-consumer fixture changes remain unqualified until deferred execution.
+
 Exact saved-source cursor requests and line/column selections derive protocol
 CR/LF/CRLF boundaries from the verified original text, then invert only the
 actually observed BOM/newline buffer form. They do not depend on a host's LF-only

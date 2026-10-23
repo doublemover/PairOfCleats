@@ -30,6 +30,7 @@ class SearchBehaviorTests(unittest.TestCase):
             'run_process': self.search.runner.run_process,
             'api_search_json': self.search.api_client.search_json,
             'api_run_async': self.search.api_client.run_async,
+            'service_resolve': self.search.service_repository.resolve,
         }
         self.search.paths.resolve_repo_root = (
             lambda _window, return_reason=True, path_hint=None, allow_fallback=True: ('C:/repo', None)
@@ -42,6 +43,7 @@ class SearchBehaviorTests(unittest.TestCase):
             'source': 'path',
         }
         self.search.config.build_env = lambda _settings: {}
+        self.search.service_repository.resolve = lambda _window, _settings, root, on_done, **options: on_done(root)
 
     def tearDown(self):
         for key, value in self._originals.items():
@@ -61,6 +63,8 @@ class SearchBehaviorTests(unittest.TestCase):
                 self.search.api_client.search_json = value
             elif key == 'api_run_async':
                 self.search.api_client.run_async = value
+            elif key == 'service_resolve':
+                self.search.service_repository.resolve = value
 
     def test_search_prefers_api_when_configured(self):
         self.search.config.get_settings = lambda _window: {
@@ -271,20 +275,23 @@ class SearchBehaviorTests(unittest.TestCase):
             }],
         }, {})
 
-    def _run_api_immediate(self, request_fn, on_done, on_progress=None):
+    def _run_api_immediate(self, request_fn, on_done, on_progress=None, **options):
+        self.assertIsNotNone(options.get('scope'))
         if callable(on_progress):
             on_progress('Request started.')
         payload, headers = request_fn()
         on_done(self.search.api_client.ApiResult(payload=payload, headers=headers))
         return None
 
-    def _run_api_error(self, _request_fn, on_done, on_progress=None):
+    def _run_api_error(self, _request_fn, on_done, on_progress=None, **options):
+        self.assertIsNotNone(options.get('scope'))
         if callable(on_progress):
             on_progress('Request started.')
         on_done(self.search.api_client.ApiResult(error='api down'))
         return None
 
-    def _run_process(self, _command, _args, cwd=None, env=None, window=None, title=None, capture_json=None, on_done=None, stream_output=None, panel_name=None):
+    def _run_process(self, _command, _args, cwd=None, env=None, window=None, title=None, capture_json=None, on_done=None, stream_output=None, panel_name=None, **options):
+        self.assertIsNotNone(options.get('operation_scope'))
         self.runner_calls.append({
             'cwd': cwd,
             'title': title,

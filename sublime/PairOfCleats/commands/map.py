@@ -262,12 +262,12 @@ def _dispatch_map(window, scope, focus, repo_root, map_type=None, map_format=Non
         return
 
     def handle_payload(result):
+        if result.error:
+            ui.show_error(result.error)
+            return
         if result.returncode != 0:
             message = result.output.strip() or 'PairOfCleats map failed.'
             ui.show_error(message)
-            return
-        if result.error:
-            ui.show_error(result.error)
             return
         payload = result.payload
         if not isinstance(payload, dict) or not payload.get('ok'):

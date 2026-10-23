@@ -2,6 +2,7 @@ import importlib
 import os
 import sys
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -106,6 +107,20 @@ class OperatorBehaviorTests(unittest.TestCase):
         self.assertIn('PairOfCleats config dump', panel.appended)
         self.assertIn('"repoCacheRoot"', panel.appended)
 
+    def test_negative_cli_and_api_diagnostics_retain_previous_reports(self):
+        self.operator.ui.write_output_panel(self.window, self.operator.DOCTOR_PANEL, 'original doctor report')
+        self.operator.ui.write_output_panel(self.window, self.operator.HEALTH_PANEL, 'original health report')
+        with patch.object(self, '_payload_for_args', return_value={'ok': False, 'message': 'original CLI diagnostic failure'}):
+            self.operator.PairOfCleatsToolingDoctorCommand(self.window).run()
+        self.assertEqual(self.sublime.last_error, 'original CLI diagnostic failure')
+        self.assertEqual(self.window.panels[self.operator.DOCTOR_PANEL].appended, 'original doctor report')
+        with patch.object(self.operator.api_client, 'health_json', return_value=(
+                {'ok': False, 'message': 'original API diagnostic failure'}, {})):
+            self.operator.PairOfCleatsServerHealthCommand(self.window).run()
+        self.assertEqual(self.sublime.last_error, 'original API diagnostic failure')
+        self.assertEqual(self.window.panels[self.operator.HEALTH_PANEL].appended, 'original health report')
+        self.assertFalse(any(message.endswith('Server health loaded.') for message in self.sublime.status_history))
+
     def test_tooling_doctor_runs_cli_and_renders_panel(self):
         command = self.operator.PairOfCleatsToolingDoctorCommand(self.window)
         self.assertTrue(command.is_enabled())
@@ -180,7 +195,8 @@ class OperatorBehaviorTests(unittest.TestCase):
         on_done(self.fixture_repo, None)
 
     def _run_process(self, command, args, cwd=None, env=None, window=None, title=None,
-                     capture_json=None, on_done=None, stream_output=None, panel_name='pairofcleats'):
+                     capture_json=None, on_done=None, stream_output=None, panel_name='pairofcleats', **options):
+        self.assertIsNotNone(options.get('operation_scope'))
         self.runner_calls.append({
             'command': command,
             'args': list(args or []),
@@ -191,7 +207,8 @@ class OperatorBehaviorTests(unittest.TestCase):
         if on_done:
             on_done(_FakeCliResult(payload))
 
-    def _run_async(self, request_fn, on_done, on_progress=None):
+    def _run_async(self, request_fn, on_done, on_progress=None, **options):
+        self.assertIsNotNone(options.get('scope'))
         if callable(on_progress):
             on_progress('Request started.')
         payload, headers = request_fn()

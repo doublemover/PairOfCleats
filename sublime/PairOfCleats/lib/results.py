@@ -1,10 +1,12 @@
 import os
 import time
+import copy
 
 import sublime
 from .saved_search import normalize_saved_options
 from . import operations
 from . import results_state
+from .prompts import NativePrompt
 from .filter_pagination import selected_index, capture_selection, carry_filter_page_history
 from .source_authority import assert_source_filename, read_verified_source, source_buffer_form, source_range_in_buffer
 
@@ -35,7 +37,7 @@ def collect_hits(payload):
         for hit in items:
             if not isinstance(hit, dict):
                 continue
-            merged = dict(hit)
+            merged = copy.deepcopy(hit)
             merged['section'] = section
             hits.append(merged)
 
@@ -50,7 +52,7 @@ def collect_hits_from_session(session):
     hits = session.get('hits')
     if not isinstance(hits, list):
         return []
-    return [dict(hit) for hit in hits if isinstance(hit, dict)]
+    return [copy.deepcopy(hit) for hit in hits if isinstance(hit, dict)]
 
 
 def build_session(query, options, repo_root, hits, target, explain=False):
@@ -73,6 +75,7 @@ def build_session(query, options, repo_root, hits, target, explain=False):
 def reopen_session(window, session):
     if window is None or not isinstance(session, dict):
         return None
+    session = copy.deepcopy(session)
     hits = collect_hits_from_session(session)
     target = session.get('target') or 'quick_panel'
     repo_root = session.get('repoRoot')
@@ -101,7 +104,7 @@ def reopen_session(window, session):
             results_state.record_last_results(window, session)
         open_hit(window, hits[index], repo_root)
 
-    window.show_quick_panel(items, on_select, selected_index=selected_index(session, hits))
+    NativePrompt(window, scope).choose(items, on_select, selected_index=selected_index(session, hits))
     return {'target': 'quick_panel', 'count': len(items)}
 
 
@@ -210,7 +213,7 @@ def open_hit(window, hit, repo_root=None, request_current=None):
     if (not isinstance(hit, dict)
             or request_current is not None and (not callable(request_current) or request_current() is not True)):
         return None
-    hit = dict(hit)
+    hit = copy.deepcopy(hit)
     file_path = resolve_hit_path(hit, repo_root)
     if not file_path:
         return None
@@ -333,7 +336,7 @@ def qualified_source_buffer(source_text, buffer_text):
 def highlight_hit(view, hit, scope=None, repo_root=None, source_file=None, request_current=None):
     if view is None or not isinstance(hit, dict):
         return
-    hit = dict(hit)
+    hit = copy.deepcopy(hit)
     start_line = hit.get('startLine')
     end_line = hit.get('endLine') or start_line
     if not isinstance(start_line, int) or start_line <= 0:
@@ -464,9 +467,9 @@ def normalize_hit(hit):
         if isinstance(value, (str, int, float, bool)) or value is None:
             normalized[key] = value
         elif isinstance(value, dict):
-            normalized[key] = dict(value)
+            normalized[key] = copy.deepcopy(value)
         elif isinstance(value, list):
-            normalized[key] = list(value)
+            normalized[key] = copy.deepcopy(value)
     return normalized
 
 
@@ -475,7 +478,7 @@ def _attach_session(view, explain=False, session=None):
         return
     settings = view.settings()
     key = EXPLAIN_SESSION_KEY if explain else RESULTS_SESSION_KEY
-    settings.set(key, dict(session))
+    settings.set(key, copy.deepcopy(session))
 
 
 def _safe_num_groups(window):

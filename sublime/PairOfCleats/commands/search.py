@@ -410,12 +410,12 @@ def _dispatch_search(window, query, repo_root, settings, resolved, execution, sc
     def handle_payload(result):
         if not operations.is_current(scope):
             return
+        if result.error:
+            ui.show_error(result.error)
+            return
         if result.returncode != 0:
             message = result.output.strip() or 'PairOfCleats search failed.'
             ui.show_error(message)
-            return
-        if result.error:
-            ui.show_error(result.error)
             return
         payload = result.payload
         if not isinstance(payload, dict):
@@ -456,7 +456,12 @@ def _dispatch_search(window, query, repo_root, settings, resolved, execution, sc
                 return
         history_limit = settings.get('history_limit')
         if query:
-            history.record_query(window, query, resolved, history_limit)
+            try:
+                history.record_query(window, query, resolved, history_limit)
+            except Exception as error:
+                ui.show_error('PairOfCleats: search completed, but history save failed: ' + str(error))
+        if not operations.is_current(scope):
+            return
 
         if explain:
             session = results.build_session(
@@ -649,12 +654,12 @@ def _dispatch_symbol_lookup(window, query, on_hits, repo_root, settings, resolve
     def on_done(result):
         if not operations.is_current(scope):
             return
+        if result.error:
+            ui.show_error(result.error)
+            return
         if result.returncode != 0:
             message = result.output.strip() or '{0} failed.'.format(title)
             ui.show_error(message)
-            return
-        if result.error:
-            ui.show_error(result.error)
             return
         payload = result.payload
         if not isinstance(payload, dict):

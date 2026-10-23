@@ -128,6 +128,37 @@ with tempfile.TemporaryDirectory() as prompt_root:
     cancelled['done']('must not run')
     assert analysis_values == []
 
+    # The real command result retains a valid search when unrelated history
+    # persistence fails, while a project replacement during that callback
+    # revokes its result publication. A primary owned failure beats exit text.
+    prompt_window.set_folders([prompt_root])
+    options = {'repoRoot': prompt_root, 'mode': 'code', 'backend': '', 'limit': 25,
+               'ann': None, 'allow_sparse_fallback': False, 'as_of': '', 'snapshot': '', 'advanced': {},
+               'scopeComplete': True, 'schemaVersion': 1}
+    actual_calls = []
+    cli_settings = {'api_execution_mode': 'cli', 'history_limit': 25, 'open_results_in': 'quick_panel'}
+    with patch.object(search.config, 'get_settings', return_value=cli_settings), \
+            patch.object(search.config, 'validate_settings', return_value=[]), \
+            patch.object(search.paths, 'resolve_cli', return_value={'command': 'inert-cli'}), \
+            patch.object(search.runner, 'run_process', side_effect=lambda *args, **kwargs: actual_calls.append(kwargs)):
+        search._execute_search(prompt_window, 'valid search', options)
+        with patch.object(history, 'record_query', side_effect=OSError('original history persistence failure')):
+            actual_calls[-1]['on_done'](search.runner.ProcessResult(0, '', payload={'code': [{'file': 'original.py'}]}))
+        state = importlib.import_module('PairOfCleats.lib.results_state')
+        assert state.get_last_results(prompt_window)['query'] == 'valid search'
+        assert 'search completed, but history save failed' in sublime.last_error
+        assert 'original history persistence failure' in sublime.last_error
+
+        search._execute_search(prompt_window, 'revoked search', options)
+        with patch.object(history, 'record_query', side_effect=lambda *args: prompt_window.set_folders([])):
+            actual_calls[-1]['on_done'](search.runner.ProcessResult(0, '', payload={'code': [{'file': 'replacement.py'}]}))
+        assert state.get_last_results(prompt_window)['query'] == 'valid search'
+        prompt_window.set_folders([prompt_root])
+        search._execute_search(prompt_window, 'failed search', options)
+        actual_calls[-1]['on_done'](search.runner.ProcessResult(2, 'secondary process exit output',
+            error='original owned read failure'))
+        assert sublime.last_error == 'original owned read failure'
+
 for change in ['move-before-response', 'move-before-accept', 'edit', 'close', 'supersede', 'rename',
                'move-window', 'invalidate-before-response', 'invalidate-before-accept', 'unload-before-accept', 'none']:
     operations.activate()

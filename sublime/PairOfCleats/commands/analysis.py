@@ -924,11 +924,11 @@ class PairOfCleatsContextPackCommand(sublime_plugin.WindowCommand):
             args.append('--include-paths')
 
         def on_done(result):
-            if result.returncode != 0:
-                ui.show_error(result.output.strip() or 'PairOfCleats context pack failed.')
-                return
             if result.error:
                 ui.show_error(result.error)
+                return
+            if result.returncode != 0:
+                ui.show_error(result.output.strip() or 'PairOfCleats context pack failed.')
                 return
             payload = result.payload
             if not isinstance(payload, dict) or payload.get('ok') is False:
@@ -1000,13 +1000,13 @@ class PairOfCleatsRiskExplainCommand(sublime_plugin.WindowCommand):
             args.extend(['--sink-rule', sink_rule])
 
         def on_done(result):
+            if result.error:
+                ui.show_error(result.error)
+                return
             if result.returncode != 0:
                 ui.show_error((result.output.strip() or 'PairOfCleats risk explain failed.') +
                               '\nThe selected generation or chunk may no longer be available. '
                               'Run Risk Explain again to deliberately select the current generation.')
-                return
-            if result.error:
-                ui.show_error(result.error)
                 return
             payload = result.payload
             if not isinstance(payload, dict) or payload.get('ok') is False:

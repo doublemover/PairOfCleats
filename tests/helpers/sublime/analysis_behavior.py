@@ -355,7 +355,8 @@ class AnalysisBehaviorTests(unittest.TestCase):
         self.assertIn('API mode is not supported for context pack.', self.sublime.last_error)
 
     def _run_process(self, command, args, cwd=None, env=None, window=None, title=None,
-                     capture_json=None, on_done=None, stream_output=None, panel_name='pairofcleats'):
+                     capture_json=None, on_done=None, stream_output=None, panel_name='pairofcleats', **options):
+        self.assertIsNotNone(options.get('operation_scope'))
         self.runner_calls.append({
             'command': command,
             'args': list(args or []),

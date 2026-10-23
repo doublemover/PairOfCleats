@@ -92,8 +92,10 @@ def _run_api(window, title, panel_name, request_fn, render_fn, success_message, 
             tasks.complete_task(window, task, status='failed', details=result.error)
             ui.show_error(result.error)
             return
-        if not isinstance(result.payload, dict):
+        if not isinstance(result.payload, dict) or result.payload.get('ok') is False:
             message = 'PairOfCleats: service returned an invalid diagnostics response. Previous report is retained.'
+            if isinstance(result.payload, dict) and result.payload.get('message'):
+                message = str(result.payload['message'])
             tasks.complete_task(window, task, status='failed', details=message)
             ui.show_error(message)
             return
@@ -127,7 +129,10 @@ def _run_cli_json(window, context, title, panel_name, args, render_fn, success_m
             ui.show_error(message)
             return
         payload = result.payload
-        if not isinstance(payload, dict):
+        if not isinstance(payload, dict) or payload.get('ok') is False:
+            if isinstance(payload, dict) and payload.get('message'):
+                ui.show_error(str(payload['message']))
+                return
             ui.show_error('PairOfCleats: invalid JSON returned from {0}.'.format(title))
             return
         ui.write_output_panel(window, panel_name, render_fn(payload))

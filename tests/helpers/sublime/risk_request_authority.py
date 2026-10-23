@@ -152,6 +152,18 @@ with isolated_temp_directory() as temporary:
         old_direction(0)
         assert directions == []
 
+        # An originating owned read/cleanup failure remains authoritative even
+        # when the child also has a nonzero exit and secondary output.
+        command.run(chunk='original')
+        complete(calls[-1], packet())
+        calls[-1][2]['on_done'](runner.ProcessResult(2, 'secondary risk exit output',
+            error='original owned risk read failure'))
+        assert sublime.last_error == 'original owned risk read failure'
+        analysis.PairOfCleatsContextPackCommand(window).run(seed='file:src/original.py')
+        calls[-1][2]['on_done'](runner.ProcessResult(2, 'secondary context exit output',
+            error='original owned context read failure'))
+        assert sublime.last_error == 'original owned context read failure'
+
         # Input uses the root resolved before the prompt, and replacement
         # project/closed window cannot authorize a late resolution/export.
         paths.select_repo(window, first)
