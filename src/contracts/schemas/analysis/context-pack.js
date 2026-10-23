@@ -1,4 +1,5 @@
 import { SEMANTIC_CONTEXT_SCHEMA, SEMANTIC_CONTEXT_FEDERATION_SCHEMA } from '../semantic-context.js';
+import { CONTEXT_TASK_POLICY_SCHEMA, CONTEXT_EDIT_UNIT_SCHEMA } from '../context-task.js';
 import {
   CONTEXT_PACK_RISK_CONTRACT_VERSION,
   CONTEXT_PACK_RISK_SCHEMA_VERSION
@@ -62,6 +63,7 @@ export const COMPOSITE_CONTEXT_PACK_SCHEMA = {
           additionalProperties: true
         },
         excerpt: { type: 'string' },
+        unit: CONTEXT_EDIT_UNIT_SCHEMA,
         excerptHash: nullableString,
         evidence: { type: ['object', 'null'], additionalProperties: true },
         provenance: { type: ['object', 'null'], additionalProperties: true }
@@ -116,7 +118,8 @@ export const COMPOSITE_CONTEXT_PACK_SCHEMA = {
           type: 'object',
           required: ['strictEvidence'],
           properties: {
-            strictEvidence: { type: 'boolean' }
+            strictEvidence: { type: 'boolean' },
+            taskPolicy: CONTEXT_TASK_POLICY_SCHEMA
           },
           additionalProperties: false
         },
@@ -192,6 +195,29 @@ export const COMPOSITE_CONTEXT_PACK_SCHEMA = {
   // Keep direct schema consumers and the runtime validator on the same
   // inclusion contract after optional response-budget omission.
   allOf: [
+    {
+      if: { type: 'object', properties: { evidence: { type: 'object', required: ['policy'], properties: {
+        policy: { type: 'object', required: ['taskPolicy'], properties: {
+          taskPolicy: { type: 'object', required: ['task'], properties: { task: { const: 'edit-safe' } } }
+        } }
+      } } } },
+      then: { type: 'object', properties: {
+        primary: { type: 'object', required: ['unit', 'evidence'], properties: { unit: CONTEXT_EDIT_UNIT_SCHEMA,
+          evidence: { type: 'object', required: ['fileBacked', 'missing', 'substituted', 'truncated', 'sourceIdentity'], properties: {
+            fileBacked: { const: true }, missing: { const: false }, substituted: { const: false }, truncated: { const: false },
+            truncatedBytes: { const: false }, truncatedTokens: { const: false },
+            sourceIdentity: { type: 'object', required: ['drift'], properties: { drift: { const: 'unchanged' } } }
+          } } } }
+      } }
+    },
+    {
+      if: { type: 'object', properties: { primary: { type: 'object', required: ['unit'], properties: { unit: {} } } } },
+      then: { type: 'object', properties: { evidence: { type: 'object', required: ['policy'], properties: {
+        policy: { type: 'object', required: ['taskPolicy'], properties: {
+          taskPolicy: { type: 'object', properties: { task: { const: 'edit-safe' } } }
+        } }
+      } } } }
+    },
     ...['partial', 'unavailable'].map(includedSemanticEvidence),
     {
       if: { type: 'object', not: { required: ['semantic'], properties: { semantic: {} } } },

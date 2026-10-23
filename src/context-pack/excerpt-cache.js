@@ -6,6 +6,8 @@ import { normalizeOptionalNumber } from '../shared/limits.js';
 import { compareStrings } from '../shared/sort.js';
 import { isRelativePathEscape } from '../shared/file-paths.js';
 import { readVerifiedContainedFileSync } from '../shared/contained-file.js';
+import { throwIfAborted } from '../shared/abort.js';
+import { observeStorageResource } from '../shared/storage/failure-observation.js';
 
 const trimUtf8Buffer = (buffer) => {
   let end = buffer.length;
@@ -100,17 +102,19 @@ export const createExcerptSourceContext = ({ maxBytes = SOURCE_SNAPSHOT_BYTE_CAP
   return context;
 };
 
-const readSourceSnapshot = (filePath, repoRoot, hashAlgorithm = 'sha1', sourceContext = null) => {
+const readSourceSnapshot = (filePath, repoRoot, hashAlgorithm = 'sha1', sourceContext = null, { maxBytes = SOURCE_SNAPSHOT_BYTE_CAP, signal = null } = {}) => {
+  throwIfAborted(signal);
   const state = sourceContexts.get(sourceContext);
   if (state && !state.active) throw new Error('Excerpt source context has ended.');
   const key = JSON.stringify([path.resolve(repoRoot), path.resolve(filePath), hashAlgorithm]);
   const cached = state?.entries.get(key);
   if (cached) {
+    if (cached.buffer.length > maxBytes) throw Object.assign(new Error('Source exceeds the read byte allowance.'), { code: 'ERR_FILE_TOO_LARGE' });
     state.entries.delete(key); state.entries.set(key, cached);
     return cached;
   }
   const snapshot = readVerifiedContainedFileSync(repoRoot, filePath, {
-    maxBytes: SOURCE_SNAPSHOT_BYTE_CAP, hashAlgorithm
+    maxBytes, hashAlgorithm, signal
   });
   const retainedBytes = retainedSnapshotBytes(snapshot);
   if (state && retainedBytes <= state.maxBytes) {
@@ -158,7 +162,8 @@ export const prefetchFileRanges = (ranges, indexSignature, repoRoot = null, sour
       const snapshot = readSourceSnapshot(filePath, repoRoot, 'sha1', sourceContext);
       const cacheScope = `${indexSignature || 'working'}:${snapshot.hash}`;
       for (const range of group) readSnapshotRange(snapshot, filePath, range.start, range.end, cacheScope);
-    } catch {
+    } catch (error) {
+      observeStorageResource(error, { phase: 'context-source-prefetch' }).requireSettled();
       // Direct reads still enforce containment, bounds and current source identity.
     }
   }
@@ -206,9 +211,13 @@ export const resolveExcerpt = ({
   indexSignature = null,
   indexedHash = null,
   hashAlgorithm = 'sha1',
-  sourceContext = null
+  sourceContext = null,
+  taskPolicy = undefined,
+  signal = null
 }) => {
-  const snapshot = readSourceSnapshot(filePath, repoRoot, hashAlgorithm, sourceContext);
+  const intact = taskPolicy?.task === 'edit-safe';
+  const snapshot = readSourceSnapshot(filePath, repoRoot, hashAlgorithm, sourceContext,
+    { ...(intact ? { maxBytes } : {}), signal });
   const cacheScope = `${indexSignature || 'working'}:${snapshot.hash}`;
   const expectedHash = typeof indexedHash === 'string'
     ? indexedHash.replace(new RegExp(`^${hashAlgorithm}:`), '').toLowerCase() : null;
@@ -218,6 +227,8 @@ export const resolveExcerpt = ({
     indexedHash: expectedHash ? `${hashAlgorithm}:${expectedHash}` : null,
     drift: expectedHash ? (expectedHash === snapshot.hash ? 'unchanged' : 'changed') : 'unknown'
   };
+  if (intact && sourceIdentity.drift !== 'unchanged') throw Object.assign(new Error('Edit source differs from its pinned indexed source hash.'), { code: 'ERR_CONTEXT_PACK_SOURCE_MISMATCH', status: 409 });
+  throwIfAborted(signal);
   const cacheKeyInfo = buildLocalCacheKey({
     namespace: 'context-pack-excerpt',
     payload: {
@@ -227,10 +238,11 @@ export const resolveExcerpt = ({
       start: start ?? null,
       end: end ?? null,
       maxBytes: maxBytes ?? null,
-      maxTokens: maxTokens ?? null
+      maxTokens: maxTokens ?? null,
+      taskPolicy: taskPolicy || null
     }
   });
-  const cached = getCachedValue(excerptCache, cacheKeyInfo.key);
+  const cached = intact ? null : getCachedValue(excerptCache, cacheKeyInfo.key);
   if (cached) return cached;
   let text = '';
   if (start != null || end != null) {
@@ -238,10 +250,14 @@ export const resolveExcerpt = ({
   } else {
     text = sourceText(snapshot);
   }
-  const { excerpt, truncated, truncatedBytes, truncatedTokens } = sliceExcerpt(text, maxBytes, maxTokens);
+  if (intact && (Buffer.byteLength(text) > maxBytes || maxTokens != null && text.split(/\s+/).filter(Boolean).length > maxTokens)) {
+    throw Object.assign(new Error('The mandatory complete edit unit cannot fit the selected byte/token allowance.'), { code: 'ERR_CONTEXT_PACK_UNIT_CANNOT_FIT', status: 413 });
+  }
+  const { excerpt, truncated, truncatedBytes, truncatedTokens } = intact
+    ? { excerpt: text, truncated: false, truncatedBytes: false, truncatedTokens: false } : sliceExcerpt(text, maxBytes, maxTokens);
   const excerptHash = excerpt ? `sha1:${sha1(excerpt)}` : null;
   let deduped = excerpt;
-  if (excerptHash) {
+  if (excerptHash && !intact) {
     const cached = getCachedValue(excerptHashCache, excerptHash);
     if (cached) {
       deduped = cached;
@@ -249,12 +265,16 @@ export const resolveExcerpt = ({
       setCachedValue(excerptHashCache, excerptHash, excerpt, EXCERPT_HASH_CACHE_MAX);
     }
   }
-  const payload = { excerpt: deduped, truncated, excerptHash, truncatedBytes, truncatedTokens, sourceIdentity };
-  setCachedValue(excerptCache, cacheKeyInfo.key, payload, EXCERPT_CACHE_MAX);
+  throwIfAborted(signal);
+  const payload = { excerpt: deduped, truncated, excerptHash, truncatedBytes, truncatedTokens, sourceIdentity, sourceLength: text.length };
+  // Edit units are reverified for each assembly and never publish a partial
+  // request's derived cache state if later assembly or cancellation fails.
+  if (!intact) setCachedValue(excerptCache, cacheKeyInfo.key, payload, EXCERPT_CACHE_MAX);
   return payload;
 };
 
-export const buildPrimaryExcerpt = ({ chunk, repoRoot, maxBytes, maxTokens, indexSignature, warnings }) => {
+export const buildPrimaryExcerpt = ({ chunk, repoRoot, maxBytes, maxTokens, indexSignature, warnings, taskPolicy, signal }) => {
+  throwIfAborted(signal);
   const evidenceWarningCodes = [];
   const pushWarning = (code, message) => {
     warnings.push({ code, message });
@@ -308,9 +328,12 @@ export const buildPrimaryExcerpt = ({ chunk, repoRoot, maxBytes, maxTokens, inde
           maxTokens: maxTokensNum,
           indexSignature,
           indexedHash: chunk.fileHash || null,
-          hashAlgorithm: chunk.fileHashAlgo === 'sha256' ? 'sha256' : 'sha1'
+          hashAlgorithm: chunk.fileHashAlgo === 'sha256' ? 'sha256' : 'sha1',
+          taskPolicy, signal
         });
-      } catch {
+      } catch (error) {
+        observeStorageResource(error, { phase: 'context-primary-source' }).requireSettled();
+        throwIfAborted(signal);
         pushWarning('PRIMARY_PATH_UNAVAILABLE', 'Primary path failed current file identity or containment checks.');
         resolvedExcerpt = { excerpt: '', excerptHash: null, truncated: false, truncatedBytes: false, truncatedTokens: false };
       }

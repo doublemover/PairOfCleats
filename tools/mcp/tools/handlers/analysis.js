@@ -4,6 +4,7 @@ import { buildRiskDeltaPayload } from '../../../../src/context-pack/risk-delta.j
 import { projectRiskDeltaRequest, projectRiskExplainRequest } from '../../../analysis/risk-request.js';
 import { createError, ERROR_CODES } from '../../../../src/shared/error-codes.js';
 import { buildContextPackRequestInput } from '../../../../src/shared/context-pack-request.js';
+import { isContextTaskFailure } from '../../../../src/contracts/context-task.js';
 import { attachObservability, buildChildObservability } from '../../../../src/shared/observability.js';
 import { createProgressReporter } from '../../../../src/shared/progress-events.js';
 import { buildCompositeContextPackPayload } from '../../../../src/integrations/tooling/context-pack.js';
@@ -123,13 +124,15 @@ export async function runContextPack(args = {}, context = {}) {
       err?.code === 'ERR_CONTEXT_PACK_INVALID_REQUEST'
       || err?.code === 'ERR_CONTEXT_PACK_RISK_FILTER_INVALID'
       || err?.code === 'ERR_CONTEXT_PACK_STRICT_EVIDENCE'
+      || isContextTaskFailure(err)
     ) {
       throw createError(ERROR_CODES.INVALID_REQUEST, err.message, {
         ...(err?.code === 'ERR_CONTEXT_PACK_RISK_FILTER_INVALID'
           ? { reason: 'invalid_risk_filters' }
           : err?.code === 'ERR_CONTEXT_PACK_STRICT_EVIDENCE'
             ? { reason: 'strict_evidence_incomplete', evidence: err?.evidence || null }
-            : {})
+            : isContextTaskFailure(err)
+              ? { reason: err.code, contextPackCode: err.code } : {})
       });
     }
     if (err?.code === 'ERR_CONTEXT_PACK_NO_INDEX') {

@@ -15,6 +15,7 @@ const CONTEXT_PACK_PAYLOAD_FIELDS = Object.freeze([
   'includeCallersCallees',
   'includePaths',
   'pathSemantics',
+  'taskPolicy',
   'maxBytes',
   'maxTokens',
   'maxTypeEntries',
@@ -88,7 +89,12 @@ export function buildContextPackRequestInput(source = {}, {
  * @returns {object}
  */
 export function buildCliContextPackRequestInput(argv = {}, { repoRoot = undefined } = {}) {
-  return buildContextPackRequestInput(argv, {
+  const source = { ...argv };
+  if (argv.task !== undefined || argv.granularity !== undefined || argv.wholeFileFallback !== undefined) {
+    source.taskPolicy = { schemaVersion: 1, task: argv.task, granularity: argv.granularity,
+      wholeFileFallback: argv.wholeFileFallback === true };
+  }
+  return buildContextPackRequestInput(source, {
     repoRoot,
     workspacePath: argv.workspace ?? argv.workspacePath,
     repoFilter: argv.repoFilter ?? argv['repo-filter'],

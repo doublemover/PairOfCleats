@@ -1,4 +1,5 @@
 import { buildSearchRequestProperties, createSearchStringListSchema } from '../../src/shared/search-request-schema.js';
+import { CONTEXT_TASK_POLICY_SCHEMA } from '../../src/contracts/schemas/context-task.js';
 import { validateFederatedSearchAdmission } from '../../src/retrieval/federation/request.js';
 import { cloneJsonSchema, compileSchema, createAjv } from '../../src/shared/validation/ajv-factory.js';
 import {
@@ -173,6 +174,7 @@ const contextPackSchema = {
     strictRisk: { type: 'boolean' },
     strictEvidence: { type: 'boolean' },
     pathSemantics: { const: 'graph-witness' },
+    taskPolicy: CONTEXT_TASK_POLICY_SCHEMA,
     includeImports: { type: 'boolean' },
     includeUsages: { type: 'boolean' },
     includeCallersCallees: { type: 'boolean' },

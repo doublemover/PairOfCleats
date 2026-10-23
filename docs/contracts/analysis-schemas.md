@@ -16,6 +16,15 @@ edge domains are validated; unknown extraction, unresolved targets and truncated
 or unrequested witnesses remain explicit. `indexCompatKey` alone cannot pin this
 capability. Graph witnesses provide no executable-path or feasibility proof.
 
+The canonical context task schema is `src/contracts/schemas/context-task.js`.
+Its optional version 1 request policy distinguishes exploration excerpts from
+edit-safe complete files. Edit units bind the actual UTF-8 excerpt hash, byte
+length, complete UTF-16 span and index signature; their evidence cannot claim
+truncation, substitution or source drift. Function granularity currently requires
+an explicitly permitted whole-file fallback or an unavailable outcome. See
+[context-pack task policies](../guides/context-pack-tasks.md) for bounds and
+mandatory-unit error behavior.
+
 ## Small report example
 
 The existing `tests/shared/contracts/analysis-schemas-validate.test.js` fixture

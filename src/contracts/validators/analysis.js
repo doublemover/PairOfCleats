@@ -15,6 +15,7 @@ import { validateContextPackRiskContractCompatibility } from '../context-pack-ri
 import { formatValidatorErrors, toValidationResult } from './result.js';
 import { validateMetadataV2Semantics } from './metadata.js';
 import { graphPathProjectionErrors } from '../../graph/path-capability.js';
+import { contextTaskProjectionErrors } from '../context-task.js';
 
 const ajv = createAjv({
   allErrors: true,
@@ -70,6 +71,7 @@ export function validateCompositeContextPack(payload) {
   const schemaOk = Boolean(COMPOSITE_CONTEXT_PACK_VALIDATOR(payload));
   const errors = schemaOk ? [] : formatValidatorErrors(COMPOSITE_CONTEXT_PACK_VALIDATOR);
   if (schemaOk && payload.graph?.pathCapability) errors.push(...graphPathProjectionErrors(payload.graph, 'graph_context'));
+  if (schemaOk) errors.push(...contextTaskProjectionErrors(payload));
   const compatibility = validateContextPackRiskContractCompatibility(payload);
   if (!compatibility.ok) {
     errors.push(...compatibility.errors);

@@ -28,7 +28,8 @@ const normalizeSelection = (selection) => {
  *  indexDir:string,
  *  strict?:boolean,
  *  maxBytes?:number,
- *  includeChunkMeta?:boolean
+ *  includeChunkMeta?:boolean,
+ *  signal?:AbortSignal
  * }} [options]
  * @returns {Promise<{
  *  repoRoot:string|null,
@@ -46,8 +47,10 @@ export const prepareGraphInputs = async ({
   indexDir,
   strict = true,
   maxBytes = MAX_JSON_BYTES,
-  includeChunkMeta = false
+  includeChunkMeta = false,
+  signal = null
 } = {}) => {
+  throwIfAborted(signal);
   if (!indexDir) {
     throw new Error('Missing required indexDir.');
   }
@@ -55,11 +58,13 @@ export const prepareGraphInputs = async ({
   const chunkMeta = includeChunkMeta
     ? await loadChunkMeta(indexDir, { maxBytes, manifest, strict })
     : null;
+  throwIfAborted(signal);
   const { key: indexCompatKey } = readCompatibilityKey(indexDir, {
     maxBytes,
     strict
   });
   const indexSignature = await buildIndexSignature(indexDir);
+  throwIfAborted(signal);
   return {
     repoRoot: repoRoot || null,
     indexDir,
@@ -86,7 +91,9 @@ export const prepareGraphInputs = async ({
  *  maxBytes?:number,
  *  graphInputs?:object|null,
  *  includeGraphIndex?:boolean,
- *  includeGraphRelations?:boolean
+ *  includeGraphRelations?:boolean,
+ *  cacheEnabled?:boolean,
+ *  signal?:AbortSignal
  * }} [options]
  * @returns {Promise<{
  *  graphStore:ReturnType<typeof createGraphStore>,
@@ -106,8 +113,11 @@ export const prepareGraphIndex = async ({
   maxBytes = MAX_JSON_BYTES,
   graphInputs = null,
   includeGraphIndex = true,
-  includeGraphRelations = false
+  includeGraphRelations = false,
+  cacheEnabled = true,
+  signal = null
 } = {}) => {
+  throwIfAborted(signal);
   const resolvedIndexDir = indexDir || graphInputs?.indexDir || null;
   if (!resolvedIndexDir) {
     throw new Error('Missing required indexDir.');
@@ -135,12 +145,12 @@ export const prepareGraphIndex = async ({
 
   const graphSelection = normalizeSelection(selection);
   const includeCsr = graphStore.hasArtifact('graph_relations_csr');
-  const graphCacheKey = buildGraphIndexCacheKey({
+  const graphCacheKey = cacheEnabled ? buildGraphIndexCacheKey({
     indexSignature,
     repoRoot: resolvedRepoRoot,
     graphs: graphSelection,
     includeCsr
-  });
+  }) : null;
 
   const graphIndex = includeGraphIndex
     ? await graphStore.loadGraphIndex({
@@ -151,12 +161,14 @@ export const prepareGraphIndex = async ({
       includeCsr
     })
     : null;
+  throwIfAborted(signal);
 
   const graphRelations = includeGraphRelations
     ? (graphStore.hasArtifact('graph_relations')
       ? await graphStore.loadGraph()
       : null)
     : null;
+  throwIfAborted(signal);
 
   return {
     graphStore,
