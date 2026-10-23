@@ -4,6 +4,7 @@ import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { loadWorkspaceConfig } from '../../src/workspace/config.js';
 import { WORKSPACE_INDEX_MODES, generateWorkspaceManifest } from '../../src/workspace/manifest.js';
 import { describeWorkspaceReadiness } from './diagnostics.js';
+import { runWorkspaceCliLifecycle } from './cli-lifecycle.js';
 
 const formatModeSummary = (entry, mode) => {
   const modeEntry = entry.indexes[mode];
@@ -12,37 +13,41 @@ const formatModeSummary = (entry, mode) => {
   return `${mode}=${reason} sig=${signature}`;
 };
 
-export async function runWorkspaceStatusCli() {
+export async function runWorkspaceStatusCli(rawArgs = process.argv.slice(2), { signal = null } = {}) {
   const argv = createCli({
+    argv: ['node', 'workspace-status', ...rawArgs],
     scriptName: 'workspace-status',
     options: {
       workspace: { type: 'string' },
       json: { type: 'boolean', default: false }
     }
-  }).parse();
+  }).strictOptions().exitProcess(false).fail(message => { throw new Error(message); }).parse();
+  if (argv.help || argv.version) return null;
+  signal?.throwIfAborted();
 
   if (!argv.workspace) {
     throw new Error('workspace status requires --workspace <path>.');
   }
 
   const workspaceConfig = loadWorkspaceConfig(argv.workspace);
-  const { manifest, manifestPath } = await generateWorkspaceManifest(workspaceConfig, { write: false, allowPartial: true });
+  const { manifest, manifestPath } = await generateWorkspaceManifest(workspaceConfig, { write: false, allowPartial: true, signal });
   const inspectionOk = manifest.diagnostics.errors.length === 0;
   if (!inspectionOk) process.exitCode = 1;
   const readiness = describeWorkspaceReadiness(workspaceConfig, manifest);
 
+  const payload = {
+    ok: inspectionOk,
+    workspacePath: workspaceConfig.workspacePath,
+    manifestPath,
+    repoSetId: manifest.repoSetId,
+    manifestHash: manifest.manifestHash,
+    repos: manifest.repos,
+    diagnostics: manifest.diagnostics,
+    ...readiness
+  };
   if (argv.json) {
-    console.log(JSON.stringify({
-      ok: inspectionOk,
-      workspacePath: workspaceConfig.workspacePath,
-      manifestPath,
-      repoSetId: manifest.repoSetId,
-      manifestHash: manifest.manifestHash,
-      repos: manifest.repos,
-      diagnostics: manifest.diagnostics,
-      ...readiness
-    }, null, 2));
-    return;
+    console.log(JSON.stringify(payload, null, 2));
+    return payload;
   }
 
   console.error('Workspace status');
@@ -64,11 +69,9 @@ export async function runWorkspaceStatusCli() {
   for (const failure of manifest.diagnostics.errors) console.error(`  inspection (${failure.repoId}): ${failure.code}: ${failure.message}`);
   console.error(readiness.qualification);
   console.error(`  search: ${readiness.nextCommands.search.map(value => JSON.stringify(value)).join(' ')}`);
+  return payload;
 }
 
 if (isDirectExecution(import.meta.url)) {
-  runWorkspaceStatusCli().catch((error) => {
-    console.error(error?.message || error);
-    process.exit(1);
-  });
+  await runWorkspaceCliLifecycle(runWorkspaceStatusCli, { action: 'status' });
 }

@@ -14,6 +14,7 @@ import { INDEX_BUILD_OPTIONS } from '../../src/shared/cli-option-sets.js';
 import { validateBuildArgs } from '../../src/shared/cli-option-validators.js';
 import { describeStorageFailure, observeStorageResource } from '../../src/shared/storage/failure-observation.js';
 import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
+import { reportWorkspaceCliFailure } from './cli-lifecycle.js';
 
 const TOOL_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const BUILD_INDEX_SCRIPT = path.join(TOOL_ROOT, 'build_index.js');
@@ -355,91 +356,90 @@ export async function runWorkspaceBuildCli(rawArgs = process.argv.slice(2), {
   let cancellationExitCode = null;
   const onInterrupt = () => { cancellationExitCode = 130; cancellation.abort(new Error('Workspace build interrupted.')); };
   const onTerminate = () => { cancellationExitCode = 143; cancellation.abort(new Error('Workspace build terminated.')); };
-  process.once('SIGINT', onInterrupt);
-  process.once('SIGTERM', onTerminate);
-  let diagnostics;
-  try { diagnostics = await runWorkspaceBuildReport(workspaceConfig, { ...options, signal: cancellation.signal }, { runBuild }); }
-  catch (error) {
-    if (!error?.cacheOwnershipPending) throw error;
-    const payload = { ok: false, state: 'settlement-pending', workspacePath: workspaceConfig.workspacePath,
-      manifestRefresh: 'not-performed-settlement-pending', diagnostics: error.workspaceBuildDiagnostics,
-      pendingOwnershipCount: error.workspaceBuildPendingOwners?.length || 1,
-      nextAction: 'The actual subprocess owner still has unresolved teardown. Do not replay this build until it settles.' };
-    if (options.json) console.log(JSON.stringify(payload, null, 2));
-    else console.error(JSON.stringify(payload, null, 2));
-    process.exitCode = cancellationExitCode || 1;
+  process.on('SIGINT', onInterrupt);
+  process.on('SIGTERM', onTerminate);
+  try {
+    let diagnostics;
+    try { diagnostics = await runWorkspaceBuildReport(workspaceConfig, { ...options, signal: cancellation.signal }, { runBuild }); }
+    catch (error) {
+      if (!error?.cacheOwnershipPending) throw error;
+      const payload = { ok: false, state: 'settlement-pending', workspacePath: workspaceConfig.workspacePath,
+        manifestRefresh: 'not-performed-settlement-pending', diagnostics: error.workspaceBuildDiagnostics,
+        pendingOwnershipCount: error.workspaceBuildPendingOwners?.length || 1,
+        nextAction: 'The actual subprocess owner still has unresolved teardown. Do not replay this build until it settles.' };
+      if (options.json) console.log(JSON.stringify(payload, null, 2));
+      else console.error(JSON.stringify(payload, null, 2));
+      process.exitCode = cancellationExitCode || 1;
+      return payload;
+    }
+    const buildDiagnostics = diagnostics.entries;
+    const failed = buildDiagnostics.filter((entry) => entry.status !== 'passed');
+    let manifestResult = null, manifestError = null;
+    if (diagnostics.outcome !== 'cancelled') {
+      try { manifestResult = await refreshManifest(workspaceConfig, { write: true, signal: cancellation.signal }); }
+      catch (error) {
+        try { manifestError = describeStorageFailure(error, { phase: 'workspace-build-manifest-refresh' }); }
+        catch (pending) { throw addStorageFailureContext(pending, { workspaceBuildDiagnostics: diagnostics }); }
+      }
+    }
+
+    const payload = {
+      ok: failed.length === 0 && !cancellation.signal.aborted && diagnostics.outcome !== 'cancelled' && !manifestError,
+      state: cancellation.signal.aborted ? 'cancelled' : manifestError || failed.length ? 'blocked' : 'complete',
+      workspacePath: workspaceConfig.workspacePath,
+      manifestPath: manifestResult?.manifestPath || null,
+      repoSetId: workspaceConfig.repoSetId,
+      manifestHash: manifestResult?.manifest.manifestHash || null,
+      manifestRefresh: manifestResult ? 'completed' : cancellation.signal.aborted ? 'not-completed-cancelled' : manifestError ? 'failed' : 'not-performed-cancelled',
+      ...(manifestError ? { manifestError } : {}),
+      diagnostics,
+      recovery: createWorkspaceBuildRecovery(workspaceConfig, diagnostics, options.buildArgs),
+      qualification: 'Build outcomes describe this invocation. The manifest can retain earlier generations for modes or members not rebuilt.'
+    };
+
+    if (options.json) {
+      console.log(JSON.stringify(payload, null, 2));
+    } else {
+      console.error(`Workspace build ${diagnostics.outcome}`);
+      console.error(`- workspace: ${payload.workspacePath}`);
+      console.error(`- repos attempted: ${payload.diagnostics.total}`);
+      console.error(`- repos selected: ${diagnostics.selected}; skipped after failure: ${diagnostics.skippedAfterFailure}; disabled: ${diagnostics.excludedDisabled}`);
+      console.error(`- build outcome: ${diagnostics.outcome}`);
+      console.error(`- repos failed: ${payload.diagnostics.failed}`);
+      console.error(`- manifest: ${payload.manifestPath}`);
+      console.error(`- repoSetId: ${payload.repoSetId}`);
+      console.error(`- manifestHash: ${payload.manifestHash}`);
+      for (const entry of buildDiagnostics) {
+        if (entry.status === 'passed') {
+          console.error(`  - ${entry.repoId}: passed (${entry.durationMs}ms)`);
+        } else {
+          console.error(`  - ${entry.repoId}: failed (${entry.durationMs}ms)`);
+          if (entry.error) console.error(`    ${entry.error}`);
+        }
+      }
+      for (const entry of diagnostics.skipped) console.error(`  - ${entry.repoId}: skipped (${entry.reason})`);
+      if (manifestError) console.error(`- manifest refresh failed: ${manifestError.code}: ${manifestError.message}`);
+      for (const retry of payload.recovery.retryCandidates) console.error(`  retry (${retry.repoId}): ${retry.command.map(value => JSON.stringify(value)).join(' ')}`);
+      for (const review of payload.recovery.membershipReview) console.error(`  review membership (${review.repoId}): ${review.command.map(value => JSON.stringify(value)).join(' ')}`);
+      console.error(payload.qualification);
+    }
+
+    if (cancellationExitCode) { process.exitCode = cancellationExitCode; return payload; }
+    if (failed.length > 0) {
+      const firstSignal = failed.find((entry) => typeof entry?.signal === 'string' && entry.signal.trim().length > 0)?.signal || null;
+      if (firstSignal) {
+        exitLikeCommandResult({ status: null, signal: firstSignal });
+      }
+      process.exitCode = 1;
+    }
+    if (manifestError) process.exitCode = 1;
     return payload;
-  }
-  finally {
+  } finally {
     process.removeListener('SIGINT', onInterrupt);
     process.removeListener('SIGTERM', onTerminate);
   }
-  const buildDiagnostics = diagnostics.entries;
-  const failed = buildDiagnostics.filter((entry) => entry.status !== 'passed');
-  let manifestResult = null, manifestError = null;
-  if (diagnostics.outcome !== 'cancelled') {
-    try { manifestResult = await refreshManifest(workspaceConfig, { write: true }); }
-    catch (error) {
-      try { manifestError = describeStorageFailure(error, { phase: 'workspace-build-manifest-refresh' }); }
-      catch (pending) { throw addStorageFailureContext(pending, { workspaceBuildDiagnostics: diagnostics }); }
-    }
-  }
-
-  const payload = {
-    ok: failed.length === 0 && diagnostics.outcome !== 'cancelled' && !manifestError,
-    workspacePath: workspaceConfig.workspacePath,
-    manifestPath: manifestResult?.manifestPath || null,
-    repoSetId: workspaceConfig.repoSetId,
-    manifestHash: manifestResult?.manifest.manifestHash || null,
-    manifestRefresh: manifestError ? 'failed' : manifestResult ? 'completed' : 'not-performed-cancelled',
-    ...(manifestError ? { manifestError } : {}),
-    diagnostics,
-    recovery: createWorkspaceBuildRecovery(workspaceConfig, diagnostics, options.buildArgs),
-    qualification: 'Build outcomes describe this invocation. The manifest can retain earlier generations for modes or members not rebuilt.'
-  };
-
-  if (options.json) {
-    console.log(JSON.stringify(payload, null, 2));
-  } else {
-    console.error(`Workspace build ${diagnostics.outcome}`);
-    console.error(`- workspace: ${payload.workspacePath}`);
-    console.error(`- repos attempted: ${payload.diagnostics.total}`);
-    console.error(`- repos selected: ${diagnostics.selected}; skipped after failure: ${diagnostics.skippedAfterFailure}; disabled: ${diagnostics.excludedDisabled}`);
-    console.error(`- build outcome: ${diagnostics.outcome}`);
-    console.error(`- repos failed: ${payload.diagnostics.failed}`);
-    console.error(`- manifest: ${payload.manifestPath}`);
-    console.error(`- repoSetId: ${payload.repoSetId}`);
-    console.error(`- manifestHash: ${payload.manifestHash}`);
-    for (const entry of buildDiagnostics) {
-      if (entry.status === 'passed') {
-        console.error(`  - ${entry.repoId}: passed (${entry.durationMs}ms)`);
-      } else {
-        console.error(`  - ${entry.repoId}: failed (${entry.durationMs}ms)`);
-        if (entry.error) console.error(`    ${entry.error}`);
-      }
-    }
-    for (const entry of diagnostics.skipped) console.error(`  - ${entry.repoId}: skipped (${entry.reason})`);
-    if (manifestError) console.error(`- manifest refresh failed: ${manifestError.code}: ${manifestError.message}`);
-    for (const retry of payload.recovery.retryCandidates) console.error(`  retry (${retry.repoId}): ${retry.command.map(value => JSON.stringify(value)).join(' ')}`);
-    for (const review of payload.recovery.membershipReview) console.error(`  review membership (${review.repoId}): ${review.command.map(value => JSON.stringify(value)).join(' ')}`);
-    console.error(payload.qualification);
-  }
-
-  if (cancellationExitCode) { process.exitCode = cancellationExitCode; return payload; }
-  if (failed.length > 0) {
-    const firstSignal = failed.find((entry) => typeof entry?.signal === 'string' && entry.signal.trim().length > 0)?.signal || null;
-    if (firstSignal) {
-      exitLikeCommandResult({ status: null, signal: firstSignal });
-    }
-    process.exitCode = 1;
-  }
-  if (manifestError) process.exitCode = 1;
-  return payload;
 }
 
 if (isDirectExecution(import.meta.url)) {
-  runWorkspaceBuildCli().catch((error) => {
-    console.error(error?.message || error);
-    process.exit(1);
-  });
+  runWorkspaceBuildCli().catch(error => reportWorkspaceCliFailure(error, { action: 'build' }));
 }

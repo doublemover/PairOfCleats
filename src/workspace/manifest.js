@@ -5,7 +5,7 @@ import { buildIndexSignature } from '../retrieval/index-cache.js';
 import { sha1 } from '../shared/hash.js';
 import { stableStringify } from '../shared/stable-json.js';
 import { atomicWriteText } from '../shared/io/atomic-write.js';
-import { readJsonFileSafe } from '../shared/file-read.js';
+import { readJsonResourceText } from '../shared/file-read-resource.js';
 import {
   buildGenerationKey,
   resolveCacheScopedBuildIdRoot,
@@ -54,22 +54,29 @@ const TOKEN_POSTINGS_MARKERS = [
   'token_postings.packed.meta.json'
 ];
 
-const fileExists = (value) => {
+const fileExists = (value, signal = null) => {
+  signal?.throwIfAborted();
   try {
     fs.statSync(value);
+    signal?.throwIfAborted();
     return true;
   } catch (error) {
     const failure = describeStorageFailure(error, { phase: 'workspace-artifact-stat' });
+    signal?.throwIfAborted();
     if (['ENOENT', 'ENOTDIR'].includes(failure.code)) return false;
     throw error;
   }
 };
 
-const statIfExists = async (value) => {
+const statIfExists = async (value, signal = null) => {
+  signal?.throwIfAborted();
   try {
-    return await fsPromises.stat(value);
+    const stat = await fsPromises.stat(value);
+    signal?.throwIfAborted();
+    return stat;
   } catch (error) {
     const failure = describeStorageFailure(error, { phase: 'workspace-path-stat' });
+    signal?.throwIfAborted();
     if (!['ENOENT', 'ENOTDIR'].includes(failure.code)) throw error;
     return null;
   }
@@ -105,31 +112,27 @@ const signatureFromStat = (stat) => (
   stat ? `${stat.size}:${stat.mtimeMs}` : null
 );
 
-const hasAnyArtifact = (indexDir, markers) => markers.some((marker) => (
-  fileExists(path.join(indexDir, marker))
+const hasAnyArtifact = (indexDir, markers, signal) => markers.some((marker) => (
+  fileExists(path.join(indexDir, marker), signal)
 ));
 
-const hasRequiredArtifacts = (indexDir) => (
-  hasAnyArtifact(indexDir, CHUNK_META_MARKERS) && hasAnyArtifact(indexDir, TOKEN_POSTINGS_MARKERS)
+const hasRequiredArtifacts = (indexDir, signal) => (
+  hasAnyArtifact(indexDir, CHUNK_META_MARKERS, signal) && hasAnyArtifact(indexDir, TOKEN_POSTINGS_MARKERS, signal)
 );
 
-const readJsonFile = async (filePath) => {
-  let failed = false, readError;
+const readJsonFile = async (filePath, signal = null) => {
+  signal?.throwIfAborted();
   try {
-    const value = await readJsonFileSafe(filePath, {
-      fallback: null,
-      maxBytes: WORKSPACE_JSON_MAX_BYTES,
-      onError: ({ error }) => {
-        if (!failed) { failed = true; readError = error; }
-      }
+    const text = await readJsonResourceText(filePath, stat => {
+      signal?.throwIfAborted();
+      if (stat.size > WORKSPACE_JSON_MAX_BYTES) throw Object.assign(new Error('Workspace JSON exceeds its bounded read allowance.'),
+        { code: 'ERR_JSON_FILE_TOO_LARGE' });
     });
-    if (failed) {
-      observeStorageResource(readError, { phase: 'workspace-json-read' }).requireSettled();
-      return { ok: false, error: readError };
-    }
-    return { ok: true, value };
+    signal?.throwIfAborted();
+    return { ok: true, value: JSON.parse(text) };
   } catch (error) {
     observeStorageResource(error, { phase: 'workspace-json-read' }).requireSettled();
+    signal?.throwIfAborted();
     return { ok: false, error };
   }
 };
@@ -181,17 +184,17 @@ const buildEmptyPointerState = (currentJsonPath) => ({
  *   modes:string[]
  * }>}
  */
-const readBuildPointerState = async ({ repoId, repoRootCanonical, repoCacheRoot, diagnostics }) => {
+const readBuildPointerState = async ({ repoId, repoRootCanonical, repoCacheRoot, diagnostics, signal }) => {
   const buildsRoot = path.join(repoCacheRoot, 'builds');
   const currentJsonPath = path.join(buildsRoot, 'current.json');
-  const currentStat = await statIfExists(currentJsonPath);
+  const currentStat = await statIfExists(currentJsonPath, signal);
   if (!currentStat) {
     return buildEmptyPointerState(currentJsonPath);
   }
   const pointer = buildEmptyPointerState(currentJsonPath);
   pointer.currentJsonExists = true;
   pointer.currentJsonMtimeMs = currentStat.mtimeMs;
-  const parsed = await readJsonFile(currentJsonPath);
+  const parsed = await readJsonFile(currentJsonPath, signal);
   if (!parsed.ok) {
     const failure = describeStorageFailure(parsed.error, { phase: 'workspace-pointer-diagnostic' });
     pointer.invalidPointer = true;
@@ -283,10 +286,10 @@ const readBuildPointerState = async ({ repoId, repoRootCanonical, repoCacheRoot,
   return pointer;
 };
 
-const readIndexState = async (indexDir, diagnostics, repoId, mode, repoRootCanonical) => {
+const readIndexState = async (indexDir, diagnostics, repoId, mode, repoRootCanonical, signal) => {
   const statePath = path.join(indexDir, 'index_state.json');
-  if (!fileExists(statePath)) return { cohortKey: null, compatibilityKey: null };
-  const parsed = await readJsonFile(statePath);
+  if (!fileExists(statePath, signal)) return { cohortKey: null, compatibilityKey: null };
+  const parsed = await readJsonFile(statePath, signal);
   if (!parsed.ok) {
     const failure = describeStorageFailure(parsed.error, { phase: 'workspace-index-state-diagnostic' });
     diagnostics.warnings.push({
@@ -317,11 +320,13 @@ const buildModeEntry = async ({
   pointer,
   diagnostics,
   repoId,
-  repoRootCanonical
+  repoRootCanonical,
+  signal
 }) => {
+  signal?.throwIfAborted();
   const indexRoot = pointer.modeRoots[mode] || null;
   const indexDir = indexRoot ? path.join(indexRoot, `index-${mode}`) : null;
-  const indexStat = indexDir ? await statIfExists(indexDir) : null;
+  const indexStat = indexDir ? await statIfExists(indexDir, signal) : null;
   const hasIndexDir = Boolean(indexStat?.isDirectory?.());
   let indexSignatureHash = null;
   let requiredArtifacts = false;
@@ -330,9 +335,10 @@ const buildModeEntry = async ({
   let incompatibleFormat = false;
   if (hasIndexDir) {
     const signature = await buildIndexSignature(indexDir);
+    signal?.throwIfAborted();
     indexSignatureHash = signature ? `is1-${sha1(signature)}` : null;
-    requiredArtifacts = hasRequiredArtifacts(indexDir);
-    const stateKeys = await readIndexState(indexDir, diagnostics, repoId, mode, repoRootCanonical);
+    requiredArtifacts = hasRequiredArtifacts(indexDir, signal);
+    const stateKeys = await readIndexState(indexDir, diagnostics, repoId, mode, repoRootCanonical, signal);
     cohortKey = stateKeys.cohortKey;
     compatibilityKey = stateKeys.compatibilityKey;
     incompatibleFormat = stateKeys.incompatibleFormat === true;
@@ -372,10 +378,11 @@ const buildModeEntry = async ({
   };
 };
 
-const resolveSqliteEntry = async (dbPath) => {
+const resolveSqliteEntry = async (dbPath, signal) => {
+  signal?.throwIfAborted();
   if (!dbPath) return { path: null, present: false, fileSignature: null };
   const canonicalPath = toRealPathSync(dbPath);
-  const stat = await statIfExists(canonicalPath);
+  const stat = await statIfExists(canonicalPath, signal);
   return {
     path: canonicalPath,
     present: Boolean(stat?.isFile?.()),
@@ -383,7 +390,8 @@ const resolveSqliteEntry = async (dbPath) => {
   };
 };
 
-const buildRepoManifestEntry = async (repoEntry, diagnostics) => {
+const buildRepoManifestEntry = async (repoEntry, diagnostics, signal) => {
+  signal?.throwIfAborted();
   assertWorkspaceMemberCurrent(repoEntry);
   const repoRootCanonical = repoEntry.repoRootCanonical;
   const userConfig = loadUserConfig(repoRootCanonical);
@@ -393,28 +401,32 @@ const buildRepoManifestEntry = async (repoEntry, diagnostics) => {
     repoRootCanonical,
     repoCacheRoot,
     userConfig,
-    diagnostics
+    diagnostics,
+    signal
   });
 
   const indexes = {};
   for (const mode of WORKSPACE_INDEX_MODES) {
+    signal?.throwIfAborted();
     indexes[mode] = await buildModeEntry({
       mode,
       pointer,
       diagnostics,
       repoId: repoEntry.repoId,
-      repoRootCanonical
+      repoRootCanonical,
+      signal
     });
   }
 
+  signal?.throwIfAborted();
   const sqlitePaths = resolveSqlitePaths(repoRootCanonical, userConfig);
   const sqlite = {
     dir: toRealPathSync(sqlitePaths.dbDir),
     dbs: {
-      code: await resolveSqliteEntry(sqlitePaths.codePath),
-      prose: await resolveSqliteEntry(sqlitePaths.prosePath),
-      'extracted-prose': await resolveSqliteEntry(sqlitePaths.extractedProsePath),
-      records: await resolveSqliteEntry(sqlitePaths.recordsPath)
+      code: await resolveSqliteEntry(sqlitePaths.codePath, signal),
+      prose: await resolveSqliteEntry(sqlitePaths.prosePath, signal),
+      'extracted-prose': await resolveSqliteEntry(sqlitePaths.extractedProsePath, signal),
+      records: await resolveSqliteEntry(sqlitePaths.recordsPath, signal)
     }
   };
 
@@ -447,6 +459,7 @@ const buildRepoManifestEntry = async (repoEntry, diagnostics) => {
     sqlite
   };
   assertWorkspaceMemberCurrent(repoEntry);
+  signal?.throwIfAborted();
   return entry;
 };
 
@@ -512,8 +525,8 @@ export const computeManifestHash = (manifestLike) => {
   return `wm1-${sha1(stableStringify(core))}`;
 };
 
-export const readWorkspaceManifest = async (manifestPath) => {
-  const parsed = await readJsonFile(manifestPath);
+export const readWorkspaceManifest = async (manifestPath, { signal = null } = {}) => {
+  const parsed = await readJsonFile(manifestPath, signal);
   if (!parsed.ok) {
     const failure = describeStorageFailure(parsed.error, { phase: 'workspace-manifest-diagnostic' });
     throw addStorageFailureContext(parsed.error, { workspaceManifestPath: manifestPath,
@@ -527,8 +540,10 @@ export const generateWorkspaceManifest = async (workspaceConfigOrPath, {
   allowPartial = false,
   generatedAt = null,
   manifestPath = null,
-  platform = process.platform
+  platform = process.platform,
+  signal = null
 } = {}) => {
+  signal?.throwIfAborted();
   const workspaceConfig = typeof workspaceConfigOrPath === 'string'
     ? loadWorkspaceConfig(workspaceConfigOrPath, { platform })
     : workspaceConfigOrPath;
@@ -537,8 +552,11 @@ export const generateWorkspaceManifest = async (workspaceConfigOrPath, {
 
   const repos = [];
   for (const repoEntry of members) {
-    try { repos.push(await buildRepoManifestEntry(repoEntry, diagnostics)); }
+    signal?.throwIfAborted();
+    try { repos.push(await buildRepoManifestEntry(repoEntry, diagnostics, signal)); }
     catch (error) {
+      observeStorageResource(error, { phase: 'workspace-member-cancellation' }).requireSettled();
+      signal?.throwIfAborted();
       if (write || !allowPartial) throw error;
       const failure = describeStorageFailure(error, { phase: 'workspace-member-inspection',
         defaultCode: 'ERR_WORKSPACE_MEMBER_INSPECTION' });
@@ -547,6 +565,7 @@ export const generateWorkspaceManifest = async (workspaceConfigOrPath, {
     }
   }
   repos.sort((a, b) => a.repoId.localeCompare(b.repoId));
+  signal?.throwIfAborted();
 
   const manifest = {
     schemaVersion: WORKSPACE_MANIFEST_SCHEMA_VERSION,
@@ -573,8 +592,9 @@ export const generateWorkspaceManifest = async (workspaceConfigOrPath, {
   }
   const outputPath = manifestPath || getWorkspaceManifestPath(workspaceConfig);
   if (write) {
-    await atomicWriteText(outputPath, stableStringify(manifest), { newline: true,
-      beforeCommit: () => { for (const member of members) assertWorkspaceMemberCurrent(member); } });
+    signal?.throwIfAborted();
+    await atomicWriteText(outputPath, stableStringify(manifest), { newline: true, signal,
+      beforeCommit: () => { signal?.throwIfAborted(); for (const member of members) assertWorkspaceMemberCurrent(member); } });
   }
   return {
     manifest,

@@ -4,21 +4,25 @@ import { loadWorkspaceConfig } from '../../src/workspace/config.js';
 import { WORKSPACE_INDEX_MODES, generateWorkspaceManifest } from '../../src/workspace/manifest.js';
 import { describeWorkspaceReadiness } from './diagnostics.js';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
+import { runWorkspaceCliLifecycle } from './cli-lifecycle.js';
 
-export const runWorkspaceCatalogCli = async () => {
+export const runWorkspaceCatalogCli = async (rawArgs = process.argv.slice(2), { signal = null } = {}) => {
   const argv = createCli({
+    argv: ['node', 'workspace-catalog', ...rawArgs],
     scriptName: 'workspace-catalog',
     options: {
       workspace: { type: 'string' },
       json: { type: 'boolean', default: false }
     }
-  }).parse();
+  }).strictOptions().exitProcess(false).fail(message => { throw new Error(message); }).parse();
+  if (argv.help || argv.version) return null;
+  signal?.throwIfAborted();
 
   if (!argv.workspace || typeof argv.workspace !== 'string') {
     throw new Error('workspace catalog requires --workspace <path>.');
   }
   const workspaceConfig = loadWorkspaceConfig(argv.workspace);
-  const { manifest, manifestPath } = await generateWorkspaceManifest(workspaceConfig, { write: false, allowPartial: true });
+  const { manifest, manifestPath } = await generateWorkspaceManifest(workspaceConfig, { write: false, allowPartial: true, signal });
   const inspectionOk = manifest.diagnostics.errors.length === 0;
   if (!inspectionOk) process.exitCode = 1;
   const manifestByRepo = new Map((manifest.repos || []).map((entry) => [entry.repoId, entry]));
@@ -77,7 +81,7 @@ export const runWorkspaceCatalogCli = async () => {
 
   if (argv.json) {
     console.log(JSON.stringify(payload, null, 2));
-    return;
+    return payload;
   }
 
   console.error('Workspace catalog');
@@ -94,9 +98,7 @@ export const runWorkspaceCatalogCli = async () => {
     }
   }
   for (const failure of payload.manifest.diagnostics.errors) console.error(`  inspection (${failure.repoId}): ${failure.code}: ${failure.message}`);
+  return payload;
 };
 
-if (isDirectExecution(import.meta.url)) runWorkspaceCatalogCli().catch((error) => {
-  console.error(error?.message || error);
-  process.exit(1);
-});
+if (isDirectExecution(import.meta.url)) await runWorkspaceCliLifecycle(runWorkspaceCatalogCli, { action: 'catalog' });
