@@ -141,8 +141,8 @@ Fields that must not influence key:
 Static requests retain cache hits while fresh. Relative-filter requests at a
 different effective cutoff cannot reuse the earlier result, even if the manifest
 is unchanged. Enumeration cursors retain their first-page time anchor instead
-of moving their cutoff between pages. Internal key payload version 6 retires
-results from before child-signature and selected-scope completeness admission,
+of moving their cutoff between pages. Internal key payload version 7 retires
+results from before child-root pinning, signature and selected-scope completeness admission,
 in addition to earlier time binding and pre-limit FTS eligibility changes.
 
 Loaded cache snapshots share only frozen result payloads; entry metadata belongs

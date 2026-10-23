@@ -165,8 +165,8 @@ export const buildFederatedQueryCacheKeyPayload = ({
   limits = {},
   runtime = {}
 } = {}) => ({
-  // Selected scope and fulfilled mode payloads now govern strict completeness.
-  v: 6,
+  // Child mode roots are pinned before execution and strict completeness admission.
+  v: 7,
   repoSetId: repoSetId || null,
   manifestHash: manifestHash || null,
   workspace: normalizeWorkspace(workspace),

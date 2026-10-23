@@ -30,8 +30,9 @@ import { parseSearchArgs, hasSearchFilterArgs } from '../cli-args.js';
 import { bindRelativeModificationArgs } from './time-filter.js';
 import { captureFederatedShadow, publishFederatedShadow } from './shadow-routing.js';
 import { createFederatedAdmission } from './admission.js';
-import { verifyFederatedModeGeneration } from './generation.js';
-import { applyModeOverride, buildRepoModePlans } from './modes.js';
+import { verifyFederatedModeGeneration, buildPinnedFederatedModePlans,
+  bindFederatedBuildRef, bindFederatedModeGeneration } from './generation.js';
+import { applyModeOverride } from './modes.js';
 import { resolveFederatedCursor } from './request.js';
 import { INTERNAL_EXACT_SEARCH_MODE } from '../cli.js';
 import { validateFederatedModeResult } from './results.js';
@@ -602,6 +603,8 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     const result = await enumerateWorkspace({
       tasks, args: enumerationArgs, cursor: requestCursor,
       manifestHash: manifest.manifestHash, search: context.searchFn || coreSearch, signal: context.signal,
+      bindArgs: (task, args) => bindFederatedModeGeneration(args,
+        manifest.repos.find(repo => repo.repoId === task.repo.repoId), task.mode),
       verifyResult: (task, result) => verifyFederatedModeGeneration({ repoId: task.repo.repoId,
         modes: [task.mode], result, manifestRepo: manifest.repos.find(repo => repo.repoId === task.repo.repoId) }),
       verifyGeneration: async () => {
@@ -891,9 +894,10 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
           throw createError(ERROR_CODES.INVALID_REQUEST, `Repository ${repo.repoId} generation changed after workspace admission. Retry the search.`);
         }
         let callSucceeded = false;
-        const repoModePlan = buildRepoModePlans(
-          Array.from(repoEligibleModesById.get(repo.repoId) || [])
-        );
+        const repoModePlan = buildPinnedFederatedModePlans({
+          modes: Array.from(repoEligibleModesById.get(repo.repoId) || []),
+          manifestRepo: manifestRepoMap.get(repo.repoId), args: basePerRepoArgs
+        });
         const modePlans = repoModePlan.length
           ? repoModePlan
           : [{ modeFlag: null, modesCovered: new Set(requestedModes) }];
@@ -909,7 +913,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
         const executionFailures = [];
         for (const plan of modePlans) {
           if (!admission.accepting()) return;
-          const repoArgs = applyModeOverride(basePerRepoArgs, plan.modeFlag);
+          const repoArgs = bindFederatedBuildRef(applyModeOverride(basePerRepoArgs, plan.modeFlag), plan.indexRef);
           try {
             const result = await searchFn(repo.repoRootCanonical, {
               args: repoArgs,

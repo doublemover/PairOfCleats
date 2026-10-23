@@ -306,10 +306,13 @@ terminal in either mode, including for warm cache requests.
 
 Each core child mode's actual index signature must match the manifest used for
 cohort admission before its hits enter the merge. The final manifest fence also
-rejects live generation changes. Historical selectors are not a separate
+rejects live generation changes. Latest child calls use the admitted retained
+build reference; modes with different roots use separate calls, and an admitted
+root that cannot be represented by the existing build resolver rejects.
+Historical selectors are not a separate
 workspace snapshot: selected historical mode signatures must match the admitted
 workspace manifest or the request rejects. Custom programmatic search producers
-that omit retrieval metadata remain trusted and rely on the final manifest fence.
+that omit retrieval metadata remain trusted producers of these bound requests.
 
 The coordinator retains at most `perRepoTop` admitted rows per repository and
 mode, and merges each chosen mode once. RRF merge compares lightweight ranked

@@ -42,7 +42,7 @@ const admitRepositoryPage = (result, key, previousCursor) => {
 };
 
 /** One repository/mode page per request keeps work and cursor state bounded. */
-export const enumerateWorkspace = async ({ tasks, args, cursor, manifestHash, search, signal, verifyGeneration, verifyResult }) => {
+export const enumerateWorkspace = async ({ tasks, args, cursor, manifestHash, search, signal, verifyGeneration, verifyResult, bindArgs }) => {
   const identity = createHash('sha256').update(stableStringify({
     tasks: tasks.map(({ repo, mode }) => [repo.repoId, mode]), args
   })).digest('hex');
@@ -72,7 +72,8 @@ export const enumerateWorkspace = async ({ tasks, args, cursor, manifestHash, se
   if (task) {
     // Override the CLI mode once, preserving the ordinary search owner and its cursor checks.
     const modeArgs = [];
-    const boundArgs = bindRelativeModificationArgs(args, timeAnchor);
+    const timedArgs = bindRelativeModificationArgs(args, timeAnchor);
+    const boundArgs = bindArgs ? bindArgs(task, timedArgs) : timedArgs;
     for (let i = 0; i < boundArgs.length; i += 1) {
       if (boundArgs[i] === '--') { modeArgs.push(...boundArgs.slice(i)); break; }
       if (boundArgs[i] === '--mode') { i += 1; continue; }

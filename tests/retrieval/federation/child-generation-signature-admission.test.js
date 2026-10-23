@@ -50,9 +50,9 @@ try {
       search: { backend: 'memory', mode: shape === 'ranked-all' ? 'all' : 'code',
         ...(shape === 'enumeration' ? { type: 'FunctionDeclaration' } : {}), top: 2 } };
     let searchedGeneration;
-    await assert.rejects(runFederatedSearch(request, {
+    const pinned = await runFederatedSearch(request, {
       // This host correctly reports A before the child starts. The actual child
-      // then reads B, and the live pointer returns to A before final validation.
+      // then sees B as current, while its explicit admitted build remains A.
       ...(shape === 'ranked-all' ? { resolveRepoCaches: async () => ({ buildId: admittedBuild.buildId,
         activeBuildRoot: admittedBuild.activeRoot, buildGenerationKey: admittedBuild.generationKey }) } : {}),
       searchFn: async (...args) => {
@@ -60,29 +60,38 @@ try {
         try {
           const result = await coreSearch(...args);
           assert.ok(result.code.length > 0, 'the actual core search must read the promoted tiny index');
-          assert.equal(result.code[0].name, 'build-b');
+          assert.equal(result.code[0].name, 'build-a');
+          assert.equal(result.asOf.ref, 'build:build-a');
           searchedGeneration = result.retrieval.freshness.byMode.code.buildId;
           return result;
         } finally { await select('build-a'); }
       }
-    }), error => {
+    });
+    assert.equal(pinned.code[0].name, 'build-a');
+    assert.equal(searchedGeneration, 'build-a');
+    assert.equal((await generateWorkspaceManifest(workspace, { write: false })).manifest.manifestHash,
+      admitted.manifestHash, 'the returned pointer and manifest retain the same identity');
+
+    const forged = { ...request, search: { ...request.search, output: 'full' } };
+    await assert.rejects(runFederatedSearch(forged, { searchFn: async (...args) => {
+      const result = structuredClone(await coreSearch(...args));
+      result.retrieval.freshness.byMode.code.signature = 'different-selected-source';
+      return result;
+    } }), error => {
       assert.equal(error.code, 'INVALID_REQUEST');
       assert.match(error.message, /generation does not match workspace admission/);
       return true;
     });
-    assert.equal(searchedGeneration, 'build-b');
-    assert.equal((await generateWorkspaceManifest(workspace, { write: false })).manifest.manifestHash,
-      admitted.manifestHash, 'the ordinary final pointer/manifest fence cannot distinguish this returned-pointer race');
     let calls = 0;
-    const healthy = await runFederatedSearch(request, { searchFn: async (...args) => { calls++; return coreSearch(...args); } });
+    const healthy = await runFederatedSearch(forged, { searchFn: async (...args) => { calls++; return coreSearch(...args); } });
     assert.equal(calls, 1, 'a rejected child generation must never populate the outer result cache');
     assert.equal(healthy.code[0].name, 'build-a');
     assert.equal(healthy.meta.manifestHash, admitted.manifestHash);
     assert.equal(healthy.repos[0].freshness?.buildId || (shape === 'enumeration' ? 'build-a' : null), 'build-a');
   }
   const payload = buildFederatedQueryCacheKeyPayload({ query: 'alpha' });
-  assert.notEqual(buildFederatedQueryCacheKey(payload).keyHash, buildFederatedQueryCacheKey({ ...payload, v: 4 }).keyHash,
-    'pre-signature-admission results cannot bypass the new generation boundary through a cache hit');
+  assert.notEqual(buildFederatedQueryCacheKey(payload).keyHash, buildFederatedQueryCacheKey({ ...payload, v: 6 }).keyHash,
+    'pre-root-pinning results cannot bypass the new generation boundary through a cache hit');
 } finally {
   await fs.rm(root, { recursive: true, force: true });
 }
