@@ -120,6 +120,13 @@ full cleanup-category capability or deep-suite green is claimed.
   unrun. Earlier sibling-drain work remains credited; runtime/backend disposal
   qualification is not replaced by these source changes.
 
+- #1629: document progress no longer returns from a finally block, preserving
+  original failures for short, suppressed and due-progress batches. Admission
+  stops at the first document failure/cancellation; all admitted siblings settle
+  before session unwind. Independent worker/logger failures retain original
+  causes through the existing failure compositor. Deferred sibling, progress
+  boundary, logger and healthy concurrency controls are authored, unrun.
+
 ## Remaining integration and qualification
 
 - #1554 now has a source repair: complete immutable generations, exact staged
@@ -233,7 +240,7 @@ full cleanup-category capability or deep-suite green is claimed.
 | [#1626](https://github.com/doublemover/PairOfCleats/issues/1626) | [P2] Validate LSP response envelopes before settling requests as successful | Pending full-scope review |
 | [#1627](https://github.com/doublemover/PairOfCleats/issues/1627) | [P2] Publish Tantivy as a source-pinned generation instead of rebuilding the served path in place | Pending full-scope review |
 | [#1628](https://github.com/doublemover/PairOfCleats/issues/1628) | [P3] Settle LSP requests when their outbound write rejects before a response is possible | Pending full-scope review |
-| [#1629](https://github.com/doublemover/PairOfCleats/issues/1629) | [P2] Preserve LSP document failures and join sibling work before releasing the session | Pending full-scope review |
+| [#1629](https://github.com/doublemover/PairOfCleats/issues/1629) | [P2] Preserve LSP document failures and join sibling work before releasing the session | Source repair committed; runtime proof pending |
 | [#1630](https://github.com/doublemover/PairOfCleats/issues/1630) | [P2] Cancel queued LSP lease waiters without acquiring or killing the pooled session | Pending full-scope review |
 | [#1631](https://github.com/doublemover/PairOfCleats/issues/1631) | [P2] Recheck LSP request eligibility when queued method work acquires a slot | Pending full-scope review |
 | [#1632](https://github.com/doublemover/PairOfCleats/issues/1632) | [P2] Derive per-mode validation verdicts from all owned semantic failures | Pending full-scope review |

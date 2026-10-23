@@ -1,4 +1,5 @@
 import { throwIfAborted } from '../../../../../shared/abort.js';
+import { addStorageFailureContext } from '../../../../../shared/storage/operation-error.js';
 
 export const DEFAULT_DOCUMENT_SYMBOL_CONCURRENCY = 4;
 export const DEFAULT_HOVER_CONCURRENCY = 8;
@@ -32,19 +33,58 @@ export const runWithConcurrency = async (items, concurrency, worker, options = {
     ? options.signal
     : null;
   const maxWorkers = Math.max(1, Math.min(list.length, clampIntRange(concurrency, 1, { min: 1, max: 128 })));
-  let index = 0;
-  const runners = Array.from({ length: maxWorkers }, async () => {
-    while (true) {
-      throwIfAborted(signal);
-      const current = index;
-      index += 1;
-      if (current >= list.length) break;
-      throwIfAborted(signal);
-      await worker(list[current], current);
-      throwIfAborted(signal);
+  let index = 0, failed = false, firstRunner = -1, primary;
+  const runners = Array.from({ length: maxWorkers }, async (_, runnerIndex) => {
+    try {
+      while (!failed) {
+        throwIfAborted(signal);
+        const current = index++;
+        if (current >= list.length) break;
+        await worker(list[current], current);
+        throwIfAborted(signal);
+      }
+    } catch (error) {
+      if (!failed) { failed = true; primary = error; firstRunner = runnerIndex; }
+      throw error;
     }
   });
-  await Promise.all(runners);
+  const settled = await Promise.allSettled(runners);
+  if (failed) {
+    let failure = primary;
+    for (let runnerIndex = 0; runnerIndex < settled.length; runnerIndex++) {
+      if (runnerIndex !== firstRunner && settled[runnerIndex].status === 'rejected') {
+        failure = addStorageFailureContext(failure, {}, settled[runnerIndex].reason, { secondaryPresent: true });
+      }
+    }
+    throw failure;
+  }
+};
+
+/** Progress observes completion; it must not return out of a work finally or
+ * replace an original document failure with an independent logger failure.
+ */
+export const createDocumentProgressRunner = ({ total, worker, onProgress, now = Date.now }) => {
+  let processed = 0, lastProgressAt = now();
+  return async doc => {
+    let failed = false, primary;
+    try { return await worker(doc); }
+    catch (error) { failed = true; primary = error; throw error; }
+    finally {
+      processed += 1;
+      try {
+        if (total >= 20) {
+          const current = now();
+          if (processed === total || processed % 20 === 0 || current - lastProgressAt >= 5000) {
+            lastProgressAt = current;
+            await onProgress({ processed, total });
+          }
+        }
+      } catch (error) {
+        if (failed) throw addStorageFailureContext(primary, {}, error, { secondaryPresent: true });
+        throw error;
+      }
+    }
+  };
 };
 
 /**

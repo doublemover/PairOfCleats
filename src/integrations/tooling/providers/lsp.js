@@ -1,3 +1,4 @@
+import { createDocumentProgressRunner } from './lsp/hover-types/concurrency.js';
 import path from 'node:path';
 import { languageIdForFileExt, pathToFileUri } from '../lsp/client.js';
 import { resolveInitializeResultPositionEncoding, buildLspLineIndex as buildLineIndex } from '../lsp/positions.js';
@@ -1025,26 +1026,12 @@ export async function collectLspTypes({
         enriched += enrichedDelta;
       };
 
-      let processedDocs = 0;
-      let lastProgressLogAt = Date.now();
-      const progressLogEnabled = selectedDocsToOpen.length >= 20;
-      const runDocWithProgress = async (doc) => {
-        try {
-          await processDoc(doc);
-        } finally {
-          processedDocs += 1;
-          if (!progressLogEnabled) return;
-          const now = Date.now();
-          const shouldLog = processedDocs === selectedDocsToOpen.length
-            || processedDocs % 20 === 0
-            || (now - lastProgressLogAt) >= 5000;
-          if (!shouldLog) return;
-          lastProgressLogAt = now;
-          log(
-            `[tooling] ${cmd} progress: docs=${processedDocs}/${selectedDocsToOpen.length}, enriched=${enriched}, checks=${checks.length}`
-          );
-        }
-      };
+      const runDocWithProgress = createDocumentProgressRunner({ total: selectedDocsToOpen.length,
+        worker: processDoc,
+        onProgress: ({ processed, total }) => log(
+          `[tooling] ${cmd} progress: docs=${processed}/${total}, enriched=${enriched}, checks=${checks.length}`
+        )
+      });
       await runWithConcurrency(selectedDocsToOpen, resolvedDocumentSymbolConcurrency, runDocWithProgress, {
         signal: toolingAbortSignal
       });
