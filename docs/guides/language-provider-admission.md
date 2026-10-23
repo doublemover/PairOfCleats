@@ -148,6 +148,17 @@ presentation uses the existing Swift adapter and reaches retained `docmeta` and
 inferred-type consumers in the explicit protocol fixture. SwiftSyntax, IndexStore
 facts, SDK pairing and real-server/compiler qualification remain unfinished.
 
+C# dedicated and known .NET workspace routes require exact repository execution
+trust before command/runtime probing or project loading. This covers the existing
+csharp-ls MSBuild workspace path; recognizing a Roslyn/F# command for this gate
+does not register or qualify that server family. The csharp-ls 1.1 adapter parses
+documented `dotnet` application-host option operands and optional `exec` before
+selecting a regular `.dll` file. Unknown host options and SDK commands remain
+explicitly unsupported. These launch checks do not prove SDK/framework selection,
+assembly compatibility, analyzer safety, build freshness or compiler bindings.
+Roslyn server project-open/capability integration, the C#/VB compiler sidecar and
+F# compiler service production in #1171/#1172/#1176 remain separate unfinished work.
+
 Primary references: [Kotlin function syntax](https://kotlinlang.org/spec/declarations.html#function-declaration),
 [official Kotlin LSP](https://github.com/Kotlin/kotlin-lsp),
 [Dart package-config v2 specification](https://github.com/dart-lang/language/blob/main/accepted/2.8/language-versioning/package-config-file-v2.md),
@@ -157,4 +168,6 @@ Primary references: [Kotlin function syntax](https://kotlinlang.org/spec/declara
 [Composer manifest schema](https://github.com/composer/composer/blob/main/res/composer-schema.json),
 [Intelephense client/server licences](https://github.com/bmewburn/vscode-intelephense/blob/master/LICENSE.txt),
 [PHP-Parser 5.9.0 licence](https://github.com/nikic/PHP-Parser/blob/v5.9.0/LICENSE),
-[SourceKit Swift 6.2 configuration precedence/options](https://github.com/swiftlang/sourcekit-lsp/blob/swift-6.2-RELEASE/Documentation/Configuration%20File.md).
+[SourceKit Swift 6.2 configuration precedence/options](https://github.com/swiftlang/sourcekit-lsp/blob/swift-6.2-RELEASE/Documentation/Configuration%20File.md),
+[.NET application-host syntax](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet),
+[csharp-ls MSBuild workspace loader](https://github.com/razzmatazz/csharp-language-server/blob/master/src/CSharpLanguageServer/Roslyn/Solution.fs).

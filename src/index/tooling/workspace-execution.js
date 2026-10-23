@@ -10,13 +10,24 @@ export const isSourcekitProvider = ({ providerId, server } = {}) => {
   return ['sourcekit', 'sourcekit-lsp', 'lsp-sourcekit', 'lsp-sourcekit-lsp'].includes(id) || command === 'sourcekit-lsp';
 };
 
+const isDotnetWorkspaceProvider = ({ providerId, server, languages } = {}) => {
+  const command = path.basename(String(server?.cmd || '')).toLowerCase().replace(/\.(exe|cmd|bat)$/u, '');
+  const id = String(server?.workspaceExecutionProfile || server?.id || providerId || '').toLowerCase();
+  const selected = [...(Array.isArray(server?.languages) ? server.languages : []), ...(Array.isArray(languages) ? languages : [])]
+    .map(value => String(value).toLowerCase());
+  return ['csharp-ls', 'omnisharp', 'roslyn-language-server', 'fsautocomplete'].includes(command)
+    || ['csharp-ls', 'lsp-csharp-ls', 'roslyn-language-server', 'fsautocomplete'].includes(id)
+    || selected.some(language => ['csharp', 'cs', 'fsharp', 'fs'].includes(language));
+};
+
 /** Phpactor can include Composer-generated PHP and trusted project extensions.
  * A tool selection is distinct from permission to execute that repository. */
 export const isProviderWorkspaceExecution = ({ providerId, server, languages, requiresWorkspaceExecution } = {}) => {
   const command = path.basename(String(server?.cmd || '')).toLowerCase().replace(/\.(exe|cmd|bat|phar)$/u, '');
   return requiresWorkspaceExecution === true || server?.requiresWorkspaceExecution === true
     || String(server?.workspaceExecutionProfile || server?.id || providerId || '').toLowerCase() === 'phpactor'
-    || command === 'phpactor' || isSourcekitProvider({ providerId, server }) || isWorkspaceBuildExecution({ providerId, server, languages });
+    || command === 'phpactor' || isSourcekitProvider({ providerId, server })
+    || isDotnetWorkspaceProvider({ providerId, server, languages }) || isWorkspaceBuildExecution({ providerId, server, languages });
 };
 
 export const resolveProviderWorkspaceExecutionAuthority = ({ repoRoot, workspaceRoot = repoRoot, ...input }) => {
