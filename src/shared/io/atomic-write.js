@@ -5,7 +5,10 @@ import { createTempPath } from './temp-path.js';
 import { replaceFile, replaceFileSync } from './replace-file.js';
 import { joinPathSafe, normalizePathForPlatform } from '../path-normalize.js';
 import { incAtomicPersistenceFallback } from '../metrics/core.js';
-import { throwIfAborted, isAbortError } from '../abort.js';
+import { throwIfAborted } from '../abort.js';
+import { createContainedFileResource, getContainedFileSession } from '../contained-file-resource.js';
+import { observeStorageResource } from '../storage/failure-observation.js';
+import { addStorageFailureContext } from '../storage/operation-error.js';
 
 const DIR_SYNC_UNSUPPORTED_CODES = new Set(['EINVAL', 'ENOTSUP', 'EPERM', 'EISDIR', 'EBADF', 'EMFILE', 'ENFILE']);
 const OPEN_RETRY_CODES = new Set(['EMFILE', 'ENFILE']);
@@ -21,31 +24,73 @@ const toNonNegativeInt = (value, fallback) => {
   return Math.floor(parsed);
 };
 
-const createAtomicWriteError = (operation, targetPath, err) => {
-  const wrapped = new Error(
-    `[atomic-write] Failed to ${operation} "${targetPath}": ${err?.message || String(err)}`
-  );
+const createAtomicWriteError = (operation, targetPath, err, fields = {}, secondary = [], sourceObservation = null) => {
+  const observation = sourceObservation || observeStorageResource(err, { phase: 'atomic-write' });
+  let message = 'Unknown atomic persistence failure.', code = '', name = '', inspection, inspectionPresent = false;
+  try {
+    const originalMessage = observation.primary.message, originalCode = observation.primary.code, originalName = observation.primary.name;
+    if (typeof originalMessage === 'string') message = originalMessage;
+    if (typeof originalCode === 'string') code = originalCode;
+    if (typeof originalName === 'string') name = originalName;
+  } catch (value) { inspection = value; inspectionPresent = true; }
+  const original = inspectionPresent ? observation.retain(inspection, { inspectionPresent: true }) : observation.retain();
+  const sessions = [...new Set([err, ...secondary, ...(inspectionPresent ? [inspection] : [])].map(getContainedFileSession).filter(Boolean))];
+  const context = { ...fields, ...(sessions.length ? { containedFileSession: sessions[0], containedFileSessions: Object.freeze(sessions) } : {}) };
+  const options = { secondaryPresent: true, nonEnumerable: ['containedFileSession', 'containedFileSessions'] };
+  if (name === 'AbortError' || code === 'ABORT_ERR') {
+    let failure = addStorageFailureContext(err, context, original, options);
+    for (const error of secondary) failure = addStorageFailureContext(failure, {}, error, { secondaryPresent: true });
+    return failure;
+  }
+  const wrapped = new Error(`[atomic-write] Failed to ${operation} "${targetPath}": ${message}`, { cause: err });
   wrapped.code = 'ERR_ATOMIC_WRITE';
   wrapped.operation = operation;
   wrapped.path = targetPath;
-  wrapped.cause = err;
-  wrapped.causeCode = err?.code || null;
-  return wrapped;
+  wrapped.causeCode = code || null;
+  let failure = addStorageFailureContext(wrapped, context, original, options);
+  for (const error of secondary) failure = addStorageFailureContext(failure, {}, error, { secondaryPresent: true });
+  Object.defineProperty(failure, 'cause', { value: err, writable: true, configurable: true });
+  return failure;
 };
 
-const removeTempPath = async (tempPath) => {
-  if (!tempPath) return;
-  try {
-    await fs.rm(tempPath, { force: true });
-  } catch {}
+const atomicIdentity = stat => {
+  if (!stat.isFile() || stat.ino === 0n || stat.nlink < 1n || stat.nlink > 2n) throw new Error('Atomic staging requires an exact ordinary file identity.');
+  return Object.freeze({ dev: stat.dev, ino: stat.ino, mode: stat.mode, size: stat.size,
+    mtime: String(stat.mtimeNs ?? stat.mtimeMs), birthtime: String(stat.birthtimeNs ?? stat.birthtimeMs) });
 };
-
-const removeTempPathSync = (tempPath) => {
-  if (!tempPath) return;
-  try {
-    fsSync.rmSync(tempPath, { force: true });
-  } catch {}
+const assertAtomicIdentity = (stat, expected) => {
+  const actual = atomicIdentity(stat);
+  if (!expected || Object.keys(expected).some(key => expected[key] !== actual[key])) throw Object.assign(
+    new Error('Atomic staging or rollback pathname no longer identifies its sealed original file.'), { code: 'ERR_ATOMIC_FILE_CHANGED' });
 };
+const failureCode = error => {
+  const observation = observeStorageResource(error, { phase: 'atomic-write-classification' });
+  observation.requireSettled(); let code;
+  try { code = observation.primary.code; } catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+  observation.requireSettled(); return code;
+};
+const removeOwnedAtomicPath = async (file, identity, requireSettled = () => {}) => {
+  requireSettled();
+  let stat;
+  try { stat = await fs.lstat(file, { bigint: true }); }
+  catch (error) { if (failureCode(error) === 'ENOENT') { requireSettled(); return; } throw error; }
+  requireSettled();
+  assertAtomicIdentity(stat, identity);
+  if (await fs.unlink(file) !== undefined) throw Object.assign(new Error('Atomic owned-file unlink did not confirm its standard void result.'), { cacheOwnershipPending: true });
+  requireSettled();
+};
+const removeOwnedAtomicPathSync = (file, identity, requireSettled = () => {}) => {
+  requireSettled();
+  let stat;
+  try { stat = fsSync.lstatSync(file, { bigint: true }); }
+  catch (error) { if (failureCode(error) === 'ENOENT') { requireSettled(); return; } throw error; }
+  requireSettled();
+  assertAtomicIdentity(stat, identity);
+  if (fsSync.unlinkSync(file) !== undefined) throw Object.assign(new Error('Atomic owned-file unlink did not confirm its standard void result.'), { cacheOwnershipPending: true });
+  requireSettled();
+};
+const syncResourceMethods = () => ({ receiver: fsSync, read: fsSync.readSync, stat: fsSync.fstatSync,
+  close: fsSync.closeSync, writeFile: fsSync.writeFileSync, sync: fsSync.fsyncSync });
 
 const sleep = (delayMs) => new Promise((resolve) => setTimeout(resolve, delayMs));
 
@@ -92,7 +137,7 @@ const openWithRetry = async (filePath, flags, mode) => {
         : await fs.open(filePath, flags, mode);
     } catch (err) {
       attempts += 1;
-      if (!OPEN_RETRY_CODES.has(err?.code) || attempts >= OPEN_RETRY_ATTEMPTS) {
+      if (!OPEN_RETRY_CODES.has(failureCode(err)) || attempts >= OPEN_RETRY_ATTEMPTS) {
         throw err;
       }
       const delayMs = Math.min(250, OPEN_RETRY_BASE_DELAY_MS * (2 ** (attempts - 1)));
@@ -101,18 +146,26 @@ const openWithRetry = async (filePath, flags, mode) => {
   }
 };
 
-const syncParentDirectory = async (targetPath) => {
-  let dirHandle = null;
+const assertAtomicDirectory = (stat, expected = stat) => {
+  if (!stat.isDirectory() || !expected.isDirectory() || stat.dev !== expected.dev || stat.ino !== expected.ino
+    || String(stat.birthtimeNs ?? stat.birthtimeMs) !== String(expected.birthtimeNs ?? expected.birthtimeMs)) throw Object.assign(
+    new Error('Atomic publication parent no longer identifies its admitted directory.'), { code: 'ERR_ATOMIC_PARENT_CHANGED' });
+};
+const syncParentDirectory = async (targetPath, expectedParent) => {
+  let phase = 'open';
   try {
-    dirHandle = await fs.open(path.dirname(targetPath), 'r');
-    await dirHandle.sync();
+    const dirHandle = await fs.open(path.dirname(targetPath), 'r');
+    const owner = createContainedFileResource({ handle: dirHandle, sync: false, additionalMethods: ['sync'] });
+    await owner.run(async descriptor => {
+      phase = 'verify';
+      assertAtomicDirectory(await descriptor.stat({ bigint: true }), expectedParent);
+      phase = 'sync'; await descriptor.sync(); phase = 'verify';
+      assertAtomicDirectory(await descriptor.stat({ bigint: true }), expectedParent);
+      assertAtomicDirectory(await fs.stat(path.dirname(targetPath), { bigint: true }), expectedParent);
+    });
   } catch (err) {
-    if (!DIR_SYNC_UNSUPPORTED_CODES.has(err?.code)) {
+    if (!['open', 'sync'].includes(phase) || !DIR_SYNC_UNSUPPORTED_CODES.has(failureCode(err))) {
       throw err;
-    }
-  } finally {
-    if (dirHandle) {
-      try { await dirHandle.close(); } catch {}
     }
   }
 };
@@ -167,35 +220,46 @@ const writeAtomicPayload = async (targetPath, payload, {
   if (mkdir && tempPath) {
     await fs.mkdir(path.dirname(tempPath), { recursive: true });
   }
-  let handle = null;
-  let publishedIdentity = null, published = false;
+  let owner = null, identity = null, published = false, committed = false, cleanupAttempted = false, publicationAttempted = false;
   try {
-    handle = await openWithRetry(tempPath, 'wx', mode);
-    await verifyStaging?.(handle, tempPath);
-    throwIfAborted(signal);
-    if (writePayload) {
-      await writePayload(handle);
-    } else if (Buffer.isBuffer(payload)) {
-      await handle.writeFile(payload);
-    } else {
-      await handle.writeFile(String(payload), { encoding });
-    }
-    await handle.sync();
-    await beforeCommit?.(handle, tempPath);
-    throwIfAborted(signal);
+    const parentIdentity = await fs.stat(parent, { bigint: true }); assertAtomicDirectory(parentIdentity);
+    const handle = await openWithRetry(tempPath, 'wx', mode);
+    owner = createContainedFileResource({ handle, sync: false, additionalMethods: ['writeFile', 'write', 'sync'] });
+    const requireOwner = () => {
+      if (!owner.isSettled()) throw Object.assign(new Error('Atomic descriptor original work remains unconfirmed before publication cleanup.'),
+        { cacheOwnershipPending: true, cacheOwnershipReleased: owner.isSettled });
+    };
+    await owner.run(async descriptor => {
+      const initial = await descriptor.stat({ bigint: true }); identity = atomicIdentity(initial);
+      if (initial.nlink !== 1n) throw new Error('Atomic staging admission requires its exclusive single-link file.');
+      await verifyStaging?.(handle, tempPath);
+      throwIfAborted(signal);
+      if (writePayload) await writePayload(descriptor);
+      else if (Buffer.isBuffer(payload)) await descriptor.writeFile(payload);
+      else await descriptor.writeFile(String(payload), { encoding });
+      identity = atomicIdentity(await descriptor.stat({ bigint: true }));
+      await descriptor.sync();
+      await beforeCommit?.(handle, tempPath);
+      throwIfAborted(signal);
+      identity = atomicIdentity(await descriptor.stat({ bigint: true }));
+      if (createOnly) {
+        // Same-directory hard-link publication is atomic and fails if the name
+        // already exists. Never fall back to overwriting rename or copy.
+        publicationAttempted = true;
+        if (await fs.link(tempPath, safeTargetPath) !== undefined) throw Object.assign(
+          new Error('Atomic create-only link did not confirm its standard void result.'), { cacheOwnershipPending: true });
+        published = true;
+        await verifyPublished?.(handle, safeTargetPath);
+      }
+    });
     if (createOnly) {
-      // Same-directory hard-link publication is atomic and fails if the name
-      // already exists. Never fall back to an overwriting rename or copy.
-      publishedIdentity = await handle.stat({ bigint: true });
-      await fs.link(tempPath, safeTargetPath);
-      published = true;
-      await verifyPublished?.(handle, safeTargetPath);
-      await handle.close();
-      handle = null;
-      await removeTempPath(tempPath);
+      committed = true;
+      cleanupAttempted = true;
+      await removeOwnedAtomicPath(tempPath, identity, requireOwner);
     } else {
-      await handle.close();
-      handle = null;
+      assertAtomicIdentity(await fs.lstat(tempPath, { bigint: true }), identity);
+      requireOwner();
+      publicationAttempted = true;
       await replaceFile(tempPath, safeTargetPath, {
         keepBackup: false,
         signal,
@@ -203,41 +267,59 @@ const writeAtomicPayload = async (targetPath, payload, {
           recordExdevFallback(safeTargetPath);
         }
       });
+      committed = true;
     }
-    await syncParentDirectory(safeTargetPath);
+    await syncParentDirectory(safeTargetPath, parentIdentity);
     return safeTargetPath;
   } catch (err) {
-    if (published) {
-      // Roll back only the new name that still identifies our opened object.
-      // A replacement or link installed by somebody else is never unlinked.
+    const observation = observeStorageResource(err, { phase: 'atomic-write-rollback' });
+    const secondary = [];
+    const requireRollback = () => {
+      observation.requireSettled();
+      for (const error of secondary) observeStorageResource(error, { phase: 'atomic-write-rollback-cleanup' }).requireSettled();
+      if (owner && !owner.isSettled()) throw Object.assign(new Error('Atomic descriptor original work remains pending during rollback.'),
+        { cacheOwnershipPending: true, cacheOwnershipReleased: owner.isSettled });
+    };
+    let settled = false;
+    try { observation.requireSettled(); settled = !owner || owner.isSettled(); }
+    catch (pending) { secondary.push(pending); }
+    if (settled && !committed && identity) {
+      if (published) {
+        try { await removeOwnedAtomicPath(safeTargetPath, identity, requireRollback); }
+        catch (cleanupError) { secondary.push(observeStorageResource(cleanupError, { phase: 'atomic-write-target-cleanup' }).retain()); }
+      }
+      // A cleanup failure can itself own native work. Never proceed to another
+      // destructive operation until each captured original prerequisite settles.
       try {
-        const current = await fs.lstat(safeTargetPath, { bigint: true });
-        if (!current.isSymbolicLink() && current.dev === publishedIdentity.dev && current.ino === publishedIdentity.ino) {
-          await fs.unlink(safeTargetPath);
+        for (const error of secondary) observeStorageResource(error, { phase: 'atomic-write-rollback-cleanup' }).requireSettled();
+        observation.requireSettled();
+        if (!cleanupAttempted) {
+          cleanupAttempted = true;
+          await removeOwnedAtomicPath(tempPath, identity, requireRollback);
         }
-      } catch {}
+      } catch (cleanupError) { secondary.push(observeStorageResource(cleanupError, { phase: 'atomic-write-staging-cleanup' }).retain()); }
     }
-    if (handle) {
-      try { await handle.close(); } catch {}
-    }
-    await removeTempPath(tempPath);
-    if (isAbortError(err)) throw err;
-    throw createAtomicWriteError('write file atomically', safeTargetPath, err);
+    throw createAtomicWriteError('write file atomically', safeTargetPath, err, {
+      atomicWriteStagingPath: tempPath, atomicWritePublicationState: committed ? 'committed' : published ? 'linked-unconfirmed'
+        : publicationAttempted ? createOnly ? 'create-unconfirmed' : 'replace-unconfirmed' : 'uncommitted'
+    }, secondary, observation);
   }
 };
 
-const syncParentDirectorySync = (targetPath) => {
-  let fd = null;
+const syncParentDirectorySync = (targetPath, expectedParent) => {
+  let phase = 'open';
   try {
-    fd = fsSync.openSync(path.dirname(targetPath), 'r');
-    fsSync.fsyncSync(fd);
+    const methods = syncResourceMethods(), fd = fsSync.openSync(path.dirname(targetPath), 'r');
+    const owner = createContainedFileResource({ fd, sync: true, methods, additionalMethods: ['sync'] });
+    owner.runSync(descriptor => {
+      phase = 'verify'; assertAtomicDirectory(descriptor.stat({ bigint: true }), expectedParent);
+      phase = 'sync'; descriptor.sync(); phase = 'verify';
+      assertAtomicDirectory(descriptor.stat({ bigint: true }), expectedParent);
+      assertAtomicDirectory(fsSync.statSync(path.dirname(targetPath), { bigint: true }), expectedParent);
+    });
   } catch (err) {
-    if (!DIR_SYNC_UNSUPPORTED_CODES.has(err?.code)) {
+    if (!['open', 'sync'].includes(phase) || !DIR_SYNC_UNSUPPORTED_CODES.has(failureCode(err))) {
       throw err;
-    }
-  } finally {
-    if (fd != null) {
-      try { fsSync.closeSync(fd); } catch {}
     }
   }
 };
@@ -266,37 +348,51 @@ const writeAtomicPayloadSync = (targetPath, payload, {
   if (mkdir && tempPath) {
     fsSync.mkdirSync(path.dirname(tempPath), { recursive: true });
   }
-  let fd = null;
+  let owner = null, identity = null, committed = false, publicationAttempted = false;
   try {
-    fd = mode == null
+    const parentIdentity = fsSync.statSync(parent, { bigint: true }); assertAtomicDirectory(parentIdentity);
+    const methods = syncResourceMethods();
+    const fd = mode == null
       ? fsSync.openSync(tempPath, 'wx')
       : fsSync.openSync(tempPath, 'wx', mode);
-    if (Buffer.isBuffer(payload)) {
-      fsSync.writeFileSync(fd, payload);
-    } else {
-      fsSync.writeFileSync(fd, String(payload), { encoding });
-    }
-    if (durable !== false) {
-      fsSync.fsyncSync(fd);
-    }
-    fsSync.closeSync(fd);
-    fd = null;
+    owner = createContainedFileResource({ fd, sync: true, methods, additionalMethods: ['writeFile', 'sync'] });
+    owner.runSync(descriptor => {
+      const initial = descriptor.stat({ bigint: true }); identity = atomicIdentity(initial);
+      if (initial.nlink !== 1n) throw new Error('Atomic staging admission requires its exclusive single-link file.');
+      if (Buffer.isBuffer(payload)) descriptor.writeFile(payload);
+      else descriptor.writeFile(String(payload), { encoding });
+      identity = atomicIdentity(descriptor.stat({ bigint: true }));
+      if (durable !== false) descriptor.sync();
+    });
+    assertAtomicIdentity(fsSync.lstatSync(tempPath, { bigint: true }), identity);
+    publicationAttempted = true;
     replaceFileSync(tempPath, safeTargetPath, {
       keepBackup: false,
       onExdevFallback: () => {
         recordExdevFallback(safeTargetPath);
       }
     });
+    committed = true;
     if (durable !== false) {
-      syncParentDirectorySync(safeTargetPath);
+      syncParentDirectorySync(safeTargetPath, parentIdentity);
     }
     return safeTargetPath;
   } catch (err) {
-    if (fd != null) {
-      try { fsSync.closeSync(fd); } catch {}
-    }
-    removeTempPathSync(tempPath);
-    throw createAtomicWriteError('write file atomically', safeTargetPath, err);
+    const observation = observeStorageResource(err, { phase: 'atomic-write-rollback-sync' });
+    const secondary = [];
+    try {
+      observation.requireSettled();
+      const requireRollback = () => {
+        observation.requireSettled();
+        if (owner && !owner.isSettled()) throw Object.assign(new Error('Atomic sync descriptor original work remains pending during rollback.'),
+          { cacheOwnershipPending: true, cacheOwnershipReleased: owner.isSettled });
+      };
+      if (!committed && identity && (!owner || owner.isSettled())) removeOwnedAtomicPathSync(tempPath, identity, requireRollback);
+    } catch (cleanupError) { secondary.push(cleanupError); }
+    throw createAtomicWriteError('write file atomically', safeTargetPath, err, {
+      atomicWriteStagingPath: tempPath, atomicWritePublicationState: committed ? 'committed'
+        : publicationAttempted ? 'replace-unconfirmed' : 'uncommitted'
+    }, secondary, observation);
   }
 };
 

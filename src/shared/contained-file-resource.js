@@ -60,12 +60,13 @@ export const iterateContainedFileResource = acquire => {
  * lease authority. Failed synchronous close cannot safely be retried by fd
  * number: even a matching stat does not establish its descriptor generation.
  */
-export const createContainedFileResource = ({ handle = null, fd, sync, methods }) => {
+export const createContainedFileResource = ({ handle = null, fd, sync, methods, additionalMethods = [] }) => {
   let resourceId = null;
   const identity = () => resourceId ||= `contained-file:${randomUUID()}`;
   const errors = [], guards = [], seen = new WeakSet(), active = new Set(), contexts = new Set(), observations = new WeakSet();
   let primary, hasPrimary = false, overflow = false, accepting = true, closed = false, closeAttempted = false;
   let closeMethod = null, statMethod = null, readMethod = null, captureFailed = false, closing = null;
+  const extraMethods = new Map();
   const receiver = sync ? methods.receiver : handle;
   const remember = value => {
     const error = asError(value);
@@ -127,6 +128,14 @@ export const createContainedFileResource = ({ handle = null, fd, sync, methods }
         const method = sync ? methods[field] : handle[field];
         if (typeof method !== 'function') throw new TypeError(`Contained descriptor has no original ${field} method.`);
         if (field === 'stat') statMethod = method; else readMethod = method;
+      } catch (value) { remember(value); }
+    }
+    for (const field of additionalMethods) {
+      try {
+        if (!['write', 'writeFile', 'sync'].includes(field) || extraMethods.has(field)) throw new TypeError('Invalid original descriptor operation.');
+        const method = sync ? methods[field] : handle[field];
+        if (typeof method !== 'function') throw new TypeError(`Contained descriptor has no original ${field} method.`);
+        extraMethods.set(field, method);
       } catch (value) { remember(value); }
     }
   };
@@ -204,7 +213,9 @@ export const createContainedFileResource = ({ handle = null, fd, sync, methods }
   capture();
   const operations = Object.freeze({ fd,
     stat: (...args) => sync ? invokeSync(statMethod, args) : invokeAsync(statMethod, args),
-    read: (...args) => sync ? invokeSync(readMethod, args) : invokeAsync(readMethod, args) });
+    read: (...args) => sync ? invokeSync(readMethod, args) : invokeAsync(readMethod, args),
+    ...Object.fromEntries([...extraMethods].map(([field, method]) => [field,
+      (...args) => sync ? invokeSync(method, args) : invokeAsync(method, args)])) });
   const completedFailure = () => {
     if (errors.length === 1) return primary;
     return addStorageFailureContext(primary, {}, new AggregateError(errors.slice(1), 'Contained read has independent failures.'));
