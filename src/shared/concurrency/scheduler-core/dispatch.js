@@ -247,11 +247,19 @@ export function createSchedulerDispatch({
       lease.depth--; enqueueResume();
       try { await lease.resumePromise; }
       catch (error) {
+        const reacquisition = Object.assign(new Error('Scheduler CPU reacquisition failed.', { cause: error }), {
+          code: 'ERR_SCHEDULER_CPU_REACQUIRE', schedulerCpuReacquisitionFailed: true
+        });
         if (failed) {
-          try { primary.cpuReacquisitionError = error; } catch {}
-          throw primary;
+          let attached = false;
+          try { primary.cpuReacquisitionError = reacquisition; attached = primary.cpuReacquisitionError === reacquisition; } catch {}
+          if (attached) throw primary;
+          throw Object.assign(new AggregateError([primary, reacquisition],
+            'Nested operation failed and scheduler CPU reacquisition did not complete.', { cause: primary }), {
+            code: 'ERR_SCHEDULER_CPU_REACQUIRE', schedulerCpuReacquisitionFailed: true
+          });
         }
-        throw error;
+        throw reacquisition;
       }
       if (failed) throw primary;
       return value;
@@ -290,6 +298,7 @@ export function createSchedulerDispatch({
     queueLifecycle.recordQueueWaitTime(queue, config.nowMs() - next.enqueuedAt);
     const used = reserve(queue, next.tokens);
     const lease = createTaskLease(queue, used, next.signal);
+    lease.replayIdentity = next.replayIdentity || null;
     const startedAt = config.nowMs();
     dispatchReplay?.observeStart(next);
     queue.runningSince.set(next, startedAt);
@@ -502,7 +511,9 @@ export function createSchedulerDispatch({
   const scheduleIfAvailable = (queueName, tokensReq, fn) => enqueue(queueName, tokensReq, fn, true);
 
   return {
-    getReplayResourceIdentity: () => schedulerReplayLimitIdentity(replayEnvelope()),
+    getReplayResourceIdentity: () => config.queueOrder.length <= 64
+      && config.queueOrder.every(queue => typeof queue.name === 'string' && queue.name.length <= 128)
+      ? schedulerReplayLimitIdentity(replayEnvelope()) : null,
     canStart,
     snapshotQueueAdmission,
     reserve,

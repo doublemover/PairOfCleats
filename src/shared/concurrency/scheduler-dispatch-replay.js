@@ -4,6 +4,7 @@ const VERSION = 1;
 const MAX_TASKS = 512;
 const MAX_DECISIONS = 128;
 const MAX_READY = 64;
+const MAX_QUEUES = 64;
 const MAX_BYTES = 2 * 1024 * 1024;
 const identity = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const label = value => typeof value === 'string' && value.length > 0 && value.length <= 128 ? value : null;
@@ -32,7 +33,7 @@ export const projectSchedulerReplayTask = value => {
  * throughput or outcomes that were not observed in the original execution. */
 export const compareSchedulerDispatchReplay = trace => {
   const summary = { decisions: 0, evaluable: 0, divergence: 0, exclusions: {}, predictionSamples: 0,
-    absolutePredictionErrorMs: 0, queueWaitMs: [], commitDelayMs: [], incompleteOutcomes: 0 };
+    absolutePredictionErrorMs: 0, queueWaitMs: [], commitDelayMs: [], incompleteOutcomes: 0, excludedResultOutcomes: 0 };
   const reject = reason => { summary.exclusions[reason] = (summary.exclusions[reason] || 0) + 1; };
   const malformed = !trace || trace.version !== VERSION || !Array.isArray(trace.tasks) || trace.tasks.length > MAX_TASKS
     || !Array.isArray(trace.decisions) || trace.decisions.length > MAX_DECISIONS;
@@ -48,7 +49,8 @@ export const compareSchedulerDispatchReplay = trace => {
     if (!Number.isFinite(task.enqueuedAt) || task.enqueuedAt < 0
       || (task.startedAt != null && (!Number.isFinite(task.startedAt) || task.startedAt < task.enqueuedAt))
       || (task.endedAt != null && (!Number.isFinite(task.endedAt) || task.endedAt < (task.startedAt ?? task.enqueuedAt)))
-      || (task.committedAt != null && (!Number.isFinite(task.committedAt) || task.startedAt == null || task.committedAt < task.startedAt))) {
+      || (task.committedAt != null && (!Number.isFinite(task.committedAt) || task.startedAt == null
+        || task.committedAt < task.startedAt || task.outcome !== 'completed'))) {
       invalidTasks.add(task.id);
     }
   }
@@ -130,6 +132,7 @@ export const compareSchedulerDispatchReplay = trace => {
   for (const task of tasks.values()) {
     if (invalidTasks.has(task.id)) continue;
     if (task.outcome == null) { summary.incompleteOutcomes++; continue; }
+    if (task.commitStatus && task.commitStatus !== 'completed') { summary.excludedResultOutcomes++; continue; }
     if (task.outcome !== 'completed' || !Number.isFinite(task.durationMs) || !task.prediction?.predictedDurationMs) continue;
     summary.predictionSamples++;
     summary.absolutePredictionErrorMs += Math.abs(task.durationMs - task.prediction.predictedDurationMs);
@@ -150,6 +153,8 @@ export const compareSchedulerDispatchReplay = trace => {
 export const createSchedulerDispatchReplay = ({ nowMs, startedAtMs, starvationMs }) => {
   let context = null, taskOrdinal = 0, decisionOrdinal = 0, usedBytes = 0, droppedTasks = 0, droppedDecisions = 0;
   const tasks = new Map(), decisions = [];
+  const commitExclusions = {};
+  const excludeCommit = reason => { commitExclusions[reason] = (commitExclusions[reason] || 0) + 1; };
   const charge = value => {
     const bytes = Buffer.byteLength(JSON.stringify(value)) + 256;
     if (usedBytes + bytes > MAX_BYTES) return false;
@@ -165,10 +170,13 @@ export const createSchedulerDispatchReplay = ({ nowMs, startedAtMs, starvationMs
     const ordinal = ++taskOrdinal;
     const task = { id: `t${ordinal}`, ordinal, stage: label(queueName), enqueuedAt: Math.max(0, entry.enqueuedAt - startedAtMs),
       startedAt: null, endedAt: null, committedAt: null, outcome: null, durationMs: null,
+      pendingCommitAt: null, commitStatus: null,
       bytes: entry.tokens.bytes, resources: { ...entry.tokens }, prediction: null };
     try { task.prediction = projectSchedulerReplayTask(metadata); } catch {}
     if (tasks.size >= MAX_TASKS || !charge(task)) { droppedTasks++; return; }
     tasks.set(task.id, task); entry.replayTaskId = task.id;
+    entry.replayIdentity = Object.freeze({ taskId: task.id, domain: task.prediction?.domain || null,
+      orderIndex: task.prediction?.orderIndex ?? null });
   };
   const observeStart = entry => {
     const task = tasks.get(entry.replayTaskId);
@@ -180,20 +188,40 @@ export const createSchedulerDispatchReplay = ({ nowMs, startedAtMs, starvationMs
     task.endedAt = Math.max(0, nowMs() - startedAtMs);
     task.outcome = outcome;
     task.durationMs = task.startedAt == null ? null : Math.max(0, task.endedAt - task.startedAt);
-  };
-  const observeCommit = ({ domain, orderIndex } = {}) => {
-    for (const task of tasks.values()) {
-      if (task.prediction?.domain === domain && task.prediction.orderIndex === orderIndex && task.startedAt != null && task.committedAt == null) {
-        task.committedAt = Math.max(0, nowMs() - startedAtMs);
-      }
+    if (task.pendingCommitAt != null) {
+      if (outcome === 'completed' && task.commitStatus === 'completed') task.committedAt = task.pendingCommitAt;
+      else { task.commitStatus = 'failed-attempt'; excludeCommit('failed-attempt'); }
+      task.pendingCommitAt = null;
     }
+  };
+  const observeCommit = ({ domain, orderIndex, taskId, status = 'completed' } = {}) => {
+    if (!label(taskId)) { excludeCommit('missing-attempt-identity'); return; }
+    const task = tasks.get(taskId);
+    if (!task || task.prediction?.domain !== domain || task.prediction.orderIndex !== orderIndex || task.startedAt == null) {
+      excludeCommit('attempt-identity-mismatch'); return;
+    }
+    if (task.committedAt != null) return;
+    if (status !== 'completed') {
+      task.commitStatus = status === 'skipped' || status === 'failed' ? status : 'unknown-result-status';
+      task.pendingCommitAt = null; excludeCommit('non-completed-result'); return;
+    }
+    if (task.outcome != null && task.outcome !== 'completed') {
+      task.commitStatus = 'failed-attempt'; excludeCommit('failed-attempt'); return;
+    }
+    task.commitStatus = 'completed';
+    const at = Math.max(0, nowMs() - startedAtMs);
+    if (task.outcome === 'completed') task.committedAt = at;
+    else task.pendingCommitAt = at;
   };
   const capture = ({ queues, baseline, admissionReason, envelope }) => {
     if (!context) return;
     if (decisions.length >= MAX_DECISIONS || usedBytes >= MAX_BYTES) { droppedDecisions++; return; }
-    const now = nowMs(), pendingCount = queues.reduce((total, queue) => total + queue.pending.length, 0);
+    const now = nowMs(), boundedQueues = queues.length <= MAX_QUEUES
+      && queues.every(queue => label(queue.name) && (queue.surface == null || label(queue.surface)));
+    const pendingCount = boundedQueues ? queues.reduce((total, queue) => total + queue.pending.length, 0) : null;
     const decision = { id: ++decisionOrdinal, at: Math.max(0, now - startedAtMs), baselineTaskId: baseline?.replayTaskId || null,
-      completeReadySet: pendingCount <= MAX_READY, incompleteReason: pendingCount > MAX_READY ? 'ready-set-limit' : null,
+      completeReadySet: boundedQueues && pendingCount <= MAX_READY,
+      incompleteReason: !boundedQueues ? 'queue-set-limit' : pendingCount > MAX_READY ? 'ready-set-limit' : null,
       pendingCount, candidates: [], eligibleTaskIds: [], starvationMs, compatibilityIdentity: context.compatibilityIdentity,
       resourceIdentity: null, limitIdentity: null, envelope: null, commit: null };
     if (decision.completeReadySet) {
@@ -218,8 +246,8 @@ export const createSchedulerDispatchReplay = ({ nowMs, startedAtMs, starvationMs
   };
   const snapshot = () => {
     const trace = { version: VERSION, enabled: Boolean(context), limits: { tasks: MAX_TASKS, decisions: MAX_DECISIONS,
-      ready: MAX_READY, bytes: MAX_BYTES }, retainedBytes: usedBytes, droppedTasks, droppedDecisions,
-    tasks: structuredClone([...tasks.values()]), decisions: structuredClone(decisions) };
+      ready: MAX_READY, queues: MAX_QUEUES, bytes: MAX_BYTES }, retainedBytes: usedBytes, droppedTasks, droppedDecisions,
+    tasks: structuredClone([...tasks.values()]), decisions: structuredClone(decisions), commitExclusions: { ...commitExclusions } };
     return { ...trace, comparison: compareSchedulerDispatchReplay(trace) };
   };
   return { configure, register, observeStart, observeEnd, observeCommit, capture, snapshot, enabled: () => Boolean(context) };

@@ -94,7 +94,8 @@ let ordinaryStarted = false;
 const bestEffort = await rejected(runWithQueue(new PQueue({ concurrency: 1 }), [pending, ordinary],
   async error => { if (error === ordinary) ordinaryStarted = true; throw error; }, { bestEffort: true }));
 assert.equal(ordinaryStarted, false, 'pending native ownership stops best-effort admission');
-assert.equal(bestEffort.errors[0].cause, pending);
+assert.deepEqual(bestEffort.errors, [pending]);
+assert.equal(bestEffort.cause, pending);
 assert.equal(bestEffort.cacheOwnershipReleased(), false);
 bestEffortClosed = true;
 assert.equal(bestEffort.cacheOwnershipReleased(), true);

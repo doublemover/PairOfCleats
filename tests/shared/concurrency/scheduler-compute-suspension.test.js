@@ -77,6 +77,8 @@ const ending = createBuildScheduler({ cpuTokens: 1, requireSignals: true });
 const controller = new AbortController(); const endGate = deferred(); const primary = new Error('original abort evidence');
 const pending = ending.schedule('parent', { cpu: 1, bytes: 10, signal: controller.signal }, () =>
   withSchedulerCpuSuspended(async () => { await endGate.promise; throw primary; }));
-const rejected = assert.rejects(pending, error => error === primary && /shut down/.test(error.cpuReacquisitionError?.message));
+const rejected = assert.rejects(pending, error => error === primary
+  && error.cpuReacquisitionError?.code === 'ERR_SCHEDULER_CPU_REACQUIRE'
+  && /shut down/.test(error.cpuReacquisitionError?.cause?.message));
 await tick(); controller.abort(); ending.shutdown(); endGate.resolve(); await rejected; await tick();
 assert.equal(ending.stats().tokens.cpu.used, 0); assert.equal(ending.stats().activity.inFlightBytes, 0);

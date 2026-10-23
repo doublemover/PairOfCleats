@@ -39,12 +39,18 @@ try {
     order.push(ctx.index); await tick(); return ctx.index;
   }, { schedulerMetadata: shadow.metadata, estimateBytes: entry => entry.stat.size,
     onBeforeDispatch: () => undefined,
-    onResult: (_result, ctx) => { shadow.noteCommitted(scheduler, ctx.index); frontier++; } });
+    onResult: (_result, ctx) => {
+      const attempt = shadow.captureCommitIdentity(ctx.index);
+      shadow.noteCommitted(scheduler, ctx.index, { identity: attempt, status: 'completed' }); frontier++;
+    } });
   const trace = scheduler.getDispatchReplay();
   assert.deepEqual(order, [0, 1]);
   assert.equal(trace.tasks.length, 2);
   assert.ok(trace.tasks.every(task => task.prediction?.profileIdentity && task.committedAt != null));
   assert.ok(trace.comparison.summary.evaluable > 0);
   assert.equal(JSON.stringify(trace).includes('private/source.js'), false, 'bounded evidence redacts file paths');
+  assert.deepEqual(await runWithQueue(queue, [source], () => 'ordinary', { schedulerMetadata: () => { throw new Error('observer failed'); } }),
+    ['ordinary'], 'failed instrumentation cannot change actual task result');
+  assert.ok(scheduler.getDispatchReplay().comparison.summary.exclusions['missing-prediction'] > 0);
 } finally { await scheduler.shutdown({ awaitRunning: true, timeoutMs: 1000 }); }
 console.log('learned opt-in producer reaches exact scheduler replay without changing live selection');

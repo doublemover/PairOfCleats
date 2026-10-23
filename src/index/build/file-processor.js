@@ -17,6 +17,7 @@ import { createTokenizationContext } from './tokenization.js';
 import { reuseCachedBundle } from './file-processor/cached-bundle.js';
 import { processFileCpuWithWorker } from './file-processor/coarse-worker.js';
 import { fileAnalysisAdmissionBytes, isFileAnalysisCandidate } from './workers/file-analysis-contract.js';
+import { createFileSerialCompute } from './file-processor/serial-compute.js';
 import { loadCachedBundleForFile, writeBundleForFile } from './file-processor/incremental.js';
 import { resolvePreReadSkip } from './file-processor/skip.js';
 import { createCrashStageUpdater } from './file-processor/crash-stage.js';
@@ -371,7 +372,6 @@ export function createFileProcessor(options) {
     reporter: cacheReporter
   });
 
-  let treeSitterSerial = Promise.resolve();
   /**
    * Serialize Tree-sitter executions to avoid parser/runtime contention.
    *
@@ -381,11 +381,7 @@ export function createFileProcessor(options) {
    * @param {Function} fn
    * @returns {Promise<any>}
    */
-  const runTreeSitterSerial = async (fn) => {
-    const run = treeSitterSerial.then(fn, fn);
-    treeSitterSerial = run.catch(() => {});
-    return run;
-  };
+  const runTreeSitterSerial = createFileSerialCompute();
   /**
    * Process a file: read, chunk, analyze, and produce chunk payloads.
    * @param {string} abs

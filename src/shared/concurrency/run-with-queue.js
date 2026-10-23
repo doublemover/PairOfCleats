@@ -1,18 +1,9 @@
 import PQueue from 'p-queue';
 import { createAbortError, isAbortSignal, throwIfAborted } from '../abort.js';
 import { awaitWithKeepalive } from '../promise-keepalive.js';
+import { isQueueRecoveryUnsafe as unsafeRecovery } from './queue-recovery.js';
 
 const objectLike = value => value !== null && (typeof value === 'object' || typeof value === 'function');
-const unsafeRecoveryCodes = new Set(['ERR_WORKER_POOL_CLEANUP_UNCONFIRMED', 'BUILD_CLEANUP_TIMEOUT',
-  'PISCINA_DESTROY_TIMEOUT', 'PISCINA_FORCE_TERMINATE_INCOMPLETE']);
-const unsafeRecovery = error => {
-  if (!objectLike(error)) return false;
-  try {
-    if (unsafeRecoveryCodes.has(error.code) || error.workerOwnershipPending === true) return true;
-    const observer = captureQueueOwnership(error);
-    return Boolean(observer && !observer());
-  } catch { return true; }
-};
 const captureQueueOwnership = error => {
   if (!objectLike(error)) return null;
   try {
@@ -167,6 +158,7 @@ export async function runWithQueue(queue, items, worker, options = {}) {
         { originalObservers: [originalObserver], primaryDescriptors: originalDescriptors }
       );
     }
+    if (unsafeRecovery(error)) { fatalResourceFailure ||= error; markAborted(); }
     if (bestEffort) {
       errors.push(error);
       return;
@@ -283,13 +275,15 @@ export async function runWithQueue(queue, items, worker, options = {}) {
     }
     try {
       taskBytes = resolveItemBytes(item, ctx);
-      shadow = schedulerMetadata?.(item, ctx) || null;
     } catch (err) {
       await recordError(err, ctx);
       doneCount += 1;
       await recordProgress();
       return;
     }
+    // Optional evidence cannot change actual producer/admission outcomes.
+    // A failed observer yields an explicitly missing prediction at dispatch.
+    try { shadow = schedulerMetadata?.(item, ctx) || null; } catch { shadow = null; }
     if (maxPending) {
       while (pendingSignals.size >= maxPending && !aborted) {
         await waitForAnyPendingOrAbort();
@@ -420,7 +414,9 @@ export async function runWithQueue(queue, items, worker, options = {}) {
       await enqueue(list[index], index);
       if (aborted && !bestEffort) break;
     }
-    await waitForPendingDrainOrAbort();
+    try { await waitForPendingDrainOrAbort(); }
+    catch (error) { if (fatalResourceFailure) throw fatalResourceFailure; throw error; }
+    if (fatalResourceFailure) throw fatalResourceFailure;
     if (signal?.aborted) throw abortError;
     if (firstError) throw firstError;
     if (bestEffort && errors.length) {

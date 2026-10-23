@@ -9,6 +9,8 @@ const contains = (error, expected, depth = 0) => error === expected || (depth < 
 for (const fields of [
   { code: 'ERR_WORKER_POOL_CLEANUP_UNCONFIRMED' }, { code: 'PISCINA_DESTROY_TIMEOUT' },
   { code: 'PISCINA_FORCE_TERMINATE_INCOMPLETE' }, { code: 'BUILD_CLEANUP_TIMEOUT' },
+  { code: 'ERR_PROCESS_TASK_BUDGET' }, { code: 'ERR_TOKENIZER_RESOURCE_PRESSURE' },
+  { code: 'ERR_SCHEDULER_CPU_REACQUIRE' },
   { workerOwnershipPending: true }, { cacheOwnershipPending: true },
   { cacheOwnershipPending: false, cacheOwnershipReleased: () => false }
 ]) {
@@ -28,4 +30,12 @@ assert.deepEqual(await runWithQueue(new PQueue({ concurrency: 1 }), [0], async (
   return 'settled';
 }, { retries: 2 }), ['settled']);
 assert.equal(attempts, 2, 'independently retryable settled failures retain their production retry policy');
+const controller = new AbortController();
+const failure = Object.freeze(Object.assign(new Error('original cleanup beats concurrent outer cancellation'), {
+  code: 'ERR_WORKER_POOL_CLEANUP_UNCONFIRMED', workerOwnershipPending: true
+}));
+await assert.rejects(runWithQueue(new PQueue({ concurrency: 1 }), [0], () => {
+  controller.abort(); throw failure;
+}, { signal: controller.signal, onError: () => assert.fail('cancellation cannot authorize ordered skip') }),
+error => contains(error, failure));
 console.log('resource failures forbid outer retry and ordered skip while ordinary retries remain');

@@ -54,7 +54,9 @@ try {
     const cancellation = assert.rejects(canceled, { name: 'AbortError' }); abort.abort(); await cancellation;
     assert.ok(scheduler.getDispatchReplay().comparison.summary.incompleteOutcomes > 0);
     gate.resolve(); await Promise.all([blocker, slow, fast, tied]);
-    now += 10; scheduler.noteDispatchReplayCommit({ domain: 'code', orderIndex: 1 });
+    now += 10;
+    const committed = scheduler.getDispatchReplay().tasks.find(task => task.prediction?.orderIndex === 1);
+    scheduler.noteDispatchReplayCommit({ domain: 'code', orderIndex: 1, taskId: committed.id });
     const trace = scheduler.getDispatchReplay();
     assert.deepEqual(sequence, ['blocker', 'slow', 'fast', 'tied'], 'shadow leaves actual queue FIFO unchanged');
     const slowTask = trace.tasks.find(task => task.prediction?.orderIndex === 1);
@@ -78,6 +80,25 @@ try {
       assert.equal(frontier.decisions.find(row => row.baselineTaskId === slowTask.id).reason, 'contiguous-commit-frontier');
       assert.equal(compareSchedulerDispatchReplay({ version: 1, tasks: [], decisions: [null] }).summary.exclusions['invalid-decision-record'], 1);
       assert.equal(compareSchedulerDispatchReplay({}).summary.exclusions['invalid-trace'], 1);
+      const failedAttempt = scheduler.schedule('file', { cpu: 1, shadow: shadow(5) }, () => { throw new Error('earlier same-order attempt'); });
+      await assert.rejects(failedAttempt, /earlier same-order/u);
+      await scheduler.schedule('file', { cpu: 1, shadow: shadow(5) }, () => 'successful retry');
+      await scheduler.schedule('file', { cpu: 1, shadow: shadow(6) }, () => null);
+      const attempts = scheduler.getDispatchReplay().tasks.filter(task => task.prediction?.orderIndex === 5);
+      const failed = attempts.find(task => task.outcome === 'failed'), successful = attempts.find(task => task.outcome === 'completed');
+      scheduler.noteDispatchReplayCommit({ domain: 'code', orderIndex: 5, taskId: successful.id });
+      scheduler.noteDispatchReplayCommit({ domain: 'code', orderIndex: 5, taskId: failed.id });
+      const skipped = scheduler.getDispatchReplay().tasks.find(task => task.prediction?.orderIndex === 6);
+      scheduler.noteDispatchReplayCommit({ domain: 'code', orderIndex: 6, taskId: skipped.id, status: 'skipped' });
+      scheduler.noteDispatchReplayCommit({ domain: 'code', orderIndex: 5 });
+      const settled = scheduler.getDispatchReplay();
+      assert.equal(settled.tasks.find(task => task.id === failed.id).committedAt, null);
+      assert.ok(settled.tasks.find(task => task.id === successful.id).committedAt != null);
+      assert.equal(settled.tasks.find(task => task.id === skipped.id).committedAt, null);
+      assert.ok(settled.commitExclusions['failed-attempt'] > 0);
+      assert.ok(settled.commitExclusions['non-completed-result'] > 0);
+      assert.ok(settled.commitExclusions['missing-attempt-identity'] > 0);
+      assert.ok(settled.comparison.summary.excludedResultOutcomes > 0);
     }
     trace.tasks.length = 0;
     assert.ok(scheduler.getDispatchReplay().tasks.length > 0, 'callers cannot mutate retained evidence');

@@ -28,6 +28,20 @@ alternate runners keep their existing compute admission because their execution
 is not a pure wait. Subprocess termination remains with the existing subprocess
 and cleanup owners.
 
+The file-local native parser serialization chain also suspends only while a
+predecessor owns runtime access. Its FIFO head reacquires CPU before executing
+and retires its chain slot on success, parser failure or canceled reacquisition.
+Capped source readers suspend around open/read/probe/close promises, then resume
+before concatenation and decoding. A timed close remains registered with the
+original task until its actual promise settles.
+
+Failed CPU reacquisition is typed as `ERR_SCHEDULER_CPU_REACQUIRE`. An existing
+operation failure remains primary with that evidence attached; frozen/primitive
+failures use an aggregate with the exact original cause. Tokenizer consumers and
+outer queue recovery preserve this failure instead of computing inline without
+a permit. Transport-budget and original pending cleanup failures have the same
+no-fallback authority, including nested aggregate causes and concurrent abort.
+
 ## Independent concurrency limits
 
 The effective queue concurrency is the minimum of the configured scheduler cap
@@ -134,9 +148,15 @@ duration with enqueue-ordinal ties. It reports baseline/proposed IDs, prediction
 admission/age/commit constraints, observed baseline outcomes, divergence, absolute
 prediction error, queue wait, commit delay and incomplete exclusions. Commit time
 comes only from the actual ordered owner; commit during a task's result callback
-can precede full scheduler settlement and has zero post-settlement delay.
+can precede full scheduler settlement and has zero post-settlement delay. The
+result callback captures that exact scheduler attempt identity before handing
+off ordered work. Only the matching successfully completed attempt can receive
+commit timing; early notifications await successful settlement. Failed/rejected
+earlier attempts at the same order, skipped/failed final results and missing or
+mismatched identities have explicit commit exclusions. A missing exact hard
+ahead bound produces unevaluable frontier evidence rather than an inferred cap.
 
-At most 512 tasks, 128 dispatches, 64 pending candidates per exact set and 2 MiB
+At most 512 tasks, 128 dispatches, 64 queues/pending candidates per exact set and 2 MiB
 of conservatively charged trace data are retained. Overflow, missing task rows,
 malformed ordering, absent dependencies/frontier and changed resource limits are
 excluded. Shutdown/cancellation retains incomplete/rejected outcomes. Comparison
@@ -158,6 +178,10 @@ backend work through recovery, separately from request/throttle-wait counters.
 - `tests/indexing/workers/pressure-reconfigure-admission-authority.test.js`
 - `tests/indexing/workers/tokenize-batch-real-worker-receipt.test.js`
 - `tests/indexing/file-processor/scm-command-compute-suspension.test.js`
+- `tests/indexing/file-processor/serial-compute-wait-ownership.test.js`
+- `tests/indexing/file-processor/capped-read-compute-suspension.test.js`
+- `tests/indexing/file-processor/mixed-scm-token-waits-admission.test.js`
+- `tests/indexing/file-processor/tokenizer-resource-fallback-authority.test.js`
 - `tests/indexing/file-processor/tokenize-batch-bounds-order.test.js`
 - `tests/indexing/file-processor/tokenize-batch-receipt-lifetime.test.js`
 - `tests/indexing/file-processor/coarse-worker-file-analysis.test.js`

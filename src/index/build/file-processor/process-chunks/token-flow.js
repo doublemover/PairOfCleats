@@ -6,6 +6,7 @@ import { analyzeLiteralText } from '../../../../shared/text-analyzer.js';
 import { MINHASH_HASH_IDENTITY } from '../../../minhash.js';
 import util from 'node:util';
 import { isAbortError, throwIfAborted } from '../../../../shared/abort.js';
+import { isQueueRecoveryUnsafe } from '../../../../shared/concurrency/queue-recovery.js';
 import { recordTokenizationRoute } from '../tokenization-evidence.js';
 import { analyzeComplexity, COMPLEXITY_ANALYZER_VERSION, lintChunk } from '../../../analysis.js';
 import { getLanguageForFile } from '../../../language-registry.js';
@@ -822,8 +823,9 @@ export const processChunks = async (context) => {
           addSettingMetric('tokenize', chunkLanguageId, chunkLineCount, tokenDurationMs);
         }
       } catch (err) {
+        if (isQueueRecoveryUnsafe(err)) throw err;
         throwIfAborted(signal);
-        if (isAbortError(err) || err?.code === 'ERR_TOKENIZER_RESOURCE_PRESSURE') throw err;
+        if (isAbortError(err)) throw err;
         inlineReason = 'caller-error';
         if (!workerState.workerTokenizeFailed) {
           const message = formatError(err);
