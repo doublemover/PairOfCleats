@@ -1,6 +1,7 @@
 """Discover only typed, source-scoped semantic generation witnesses."""
 import json
 import re
+import copy
 
 from . import api_client, config, operations, paths, runner, service_repository
 
@@ -23,7 +24,7 @@ def generation_from_context_pack(payload, expected_root):
         return None
     for key in ('discovery', 'detail', 'trace'):
         page = section.get(key)
-        if page and (not isinstance(page, dict) or page.get('generation') != generation):
+        if page is not None and (not isinstance(page, dict) or page.get('generation') != generation):
             raise ValueError('Canonical semantic context contains conflicting generation evidence.')
     for item in section.get('followUps') or []:
         request = item.get('request') if isinstance(item, dict) else None
@@ -52,6 +53,7 @@ def context_discovery_cli_args(root, seed):
 
 
 def discover_generation(window, context, seed, on_done, on_error):
+    context = dict(context, settings=copy.deepcopy(context['settings']), scope=dict(context['scope']))
     scope, settings = context['scope'], context['settings']
     if not operations.is_current(scope):
         return
@@ -69,7 +71,7 @@ def discover_generation(window, context, seed, on_done, on_error):
             witness = generation_from_context_pack(payload, expected_root)
             if not witness:
                 raise ValueError('No authoritative semantic generation was returned for this selected source. Choose an explicit immutable generation or another source.')
-            on_done(witness)
+            on_done(copy.deepcopy(witness))
         except (ValueError, TypeError) as error:
             on_error(str(error))
     if execution.get('mode') == 'api':
@@ -90,6 +92,8 @@ def discover_generation(window, context, seed, on_done, on_error):
             response, headers = api_client.request_json(api_client.build_url(base, '/analysis/context-pack'),
                 timeout_ms=settings.get('api_timeout_ms', 5000), method='POST',
                 payload=context_discovery_request(service_root, seed), headers=api_client._api_headers(base))
+            if not isinstance(response, dict):
+                raise ValueError('Canonical generation discovery returned an invalid response object.')
             if response.get('ok') is False:
                 raise ValueError(response.get('message') or 'Canonical semantic generation discovery failed.')
             return response.get('result'), headers

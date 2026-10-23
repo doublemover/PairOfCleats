@@ -4,6 +4,8 @@ import os
 import tempfile
 import math
 import re
+import copy
+import hashlib
 
 import sublime
 import sublime_plugin
@@ -17,6 +19,20 @@ LIMITS = {'records': 128, 'bytes': 65536, 'workMs': 250}
 TRACE_KINDS = ('flowsTo', 'defines', 'reads', 'writes', 'callTarget', 'constructTarget',
                'argumentToParameter', 'returnToResult')
 TRACE_SLOTS = ('input', 'output', 'argument', 'receiver', 'parameter', 'returnValue', 'propertyValue', 'element')
+
+
+def _snapshot_context(context):
+    snapshot = dict(context)
+    snapshot['scope'] = dict(context['scope'])
+    for key in ('settings', 'capabilities', 'cursorHistory'):
+        if key in snapshot:
+            snapshot[key] = copy.deepcopy(snapshot[key])
+    return snapshot
+
+
+def _snapshot_state(state):
+    return dict(state, request=copy.deepcopy(state.get('request') or {}),
+                payload=copy.deepcopy(state['payload']), context=_snapshot_context(state['context']))
 
 
 def qualified_binding_seed(payload):
@@ -182,15 +198,23 @@ def describe(payload, generation_source=None):
 
 
 def execute(window, operation, request, context, on_done, on_error=None):
+    request = copy.deepcopy(request)
+    context = _snapshot_context(context)
     scope = context['scope']
     if not operations.is_current(scope):
         return
+    call_scope = operations.capture(window, key='semantic-operation')
+    def current():
+        return operations.is_current(scope) and operations.is_current(call_scope)
     def failed(message):
-        if not operations.is_current(scope):
+        if not current():
             return
         ui.show_error(message + '\nPrevious evidence remains available.')
         if callable(on_error):
             on_error()
+    if request.get('cursor') is not None and (not isinstance(request['cursor'], str) or not 0 < len(request['cursor']) <= 8192):
+        failed('PairOfCleats: semantic request cursor is invalid. Restart from the seed.')
+        return
     settings = context['settings']
     execution = config.resolve_execution_mode(settings, 'semantic-' + operation)
     if execution.get('error'):
@@ -198,7 +222,7 @@ def execute(window, operation, request, context, on_done, on_error=None):
         return
 
     def accept(payload):
-        if not operations.is_current(scope):
+        if not current():
             return
         if not isinstance(payload, dict) or payload.get('generation') != request['generation']:
             failed('PairOfCleats: semantic generation mismatch. Restart from the seed.')
@@ -206,20 +230,39 @@ def execute(window, operation, request, context, on_done, on_error=None):
         if len(json.dumps(payload, ensure_ascii=False).encode('utf-8')) > 131072:
             failed('PairOfCleats: semantic response exceeds the editor evidence bound.')
             return
+        payload = copy.deepcopy(payload)
+        cursor = payload.get('cursor')
+        if cursor is not None and (not isinstance(cursor, str) or not 0 < len(cursor) <= 8192):
+            failed('PairOfCleats: semantic continuation is invalid. Restart from the seed.')
+            return
+        signature = json.dumps([operation, {key: value for key, value in request.items() if key != 'cursor'}], sort_keys=True)
+        history = context.get('cursorHistory') or {}
+        observed = set(history.get('digests') or []) if request.get('cursor') and history.get('signature') == signature else set()
+        if request.get('cursor'):
+            observed.add(hashlib.sha256(request['cursor'].encode('utf-8')).hexdigest())
+        if cursor:
+            digest = hashlib.sha256(cursor.encode('utf-8')).hexdigest()
+            if digest in observed or len(observed) >= 128:
+                failed('PairOfCleats: semantic continuation repeated or reached its 128-page bound. Previous evidence is retained; restart from the seed.')
+                return
+            observed.add(digest)
+        context['cursorHistory'] = {'signature': signature, 'digests': sorted(observed)}
         state = {'operation': operation, 'request': request, 'payload': payload, 'context': context,
                  'transport': execution.get('mode')}
-        _LAST[window.id()] = state
+        _LAST[window.id()] = _snapshot_state(state)
         ui.write_output_panel(window, 'pairofcleats-semantic', describe(payload, context.get('generationSource')))
-        on_done(state)
+        on_done(_snapshot_state(state))
 
     if execution.get('mode') == 'api':
         if not context.get('serviceRoot'):
             def selected(root):
+                if not current():
+                    return
                 context['serviceRoot'] = root
                 execute(window, operation, request, context, on_done, on_error)
             service_repository.resolve(window, settings, context['root'], selected)
             return
-        wire_request = dict(request, repoRoot=context['serviceRoot'])
+        wire_request = copy.deepcopy(dict(request, repoRoot=context['serviceRoot']))
         base = execution['base_url']
         def call():
             capability, _headers = api_client.request_json(api_client.build_url(base, '/capabilities'),
@@ -228,8 +271,10 @@ def execute(window, operation, request, context, on_done, on_error=None):
             if context['capabilities'].get('semantic-' + operation) is not True:
                 raise ValueError('Service does not advertise this semantic operation.')
             response, headers = api_client.request_json(api_client.build_url(base, '/analysis/semantic-' + operation),
-                timeout_ms=settings.get('api_timeout_ms', 5000), method='POST', payload=wire_request,
+                timeout_ms=settings.get('api_timeout_ms', 5000), method='POST', payload=copy.deepcopy(wire_request),
                 headers=api_client._api_headers(base))
+            if not isinstance(response, dict):
+                raise ValueError('Semantic service returned an invalid response object.')
             if response.get('ok') is False:
                 raise ValueError(response.get('message') or 'Semantic request failed.')
             return response.get('result'), headers
@@ -238,7 +283,7 @@ def execute(window, operation, request, context, on_done, on_error=None):
                 failed(response.error)
             else:
                 accept(response.payload)
-        api_client.run_async(call, api_done, window=window, scope=scope)
+        api_client.run_async(call, api_done, window=window, scope=call_scope)
         return
 
     storage = os.path.join(sublime.cache_path(), 'PairOfCleats')
@@ -259,6 +304,7 @@ def execute(window, operation, request, context, on_done, on_error=None):
                 return
             payload = response.payload
             if isinstance(payload, dict) and payload.get('cursor'):
+                payload = copy.deepcopy(payload)
                 payload['warnings'] = list(payload.get('warnings') or []) + [
                     'CLI continuation expires with its process. Use a persistent API session for More.']
             accept(payload)
@@ -270,7 +316,7 @@ def execute(window, operation, request, context, on_done, on_error=None):
     runner.run_process(cli['command'], list(cli.get('args_prefix') or []) + [
         'semantic', operation, '--request', request_path], cwd=context['root'], env=config.build_env(settings),
         window=window, title='PairOfCleats semantic ' + operation, capture_json=True,
-        stream_output=False, timeout_ms=5000, on_done=done, operation_scope=scope, on_settled=cleanup)
+        stream_output=False, timeout_ms=5000, on_done=done, operation_scope=call_scope, on_settled=cleanup)
 
 
 def open_source(window, state, record, request_current=None):
@@ -328,6 +374,8 @@ def open_source(window, state, record, request_current=None):
 
 
 def inspect(window, state, on_back=None):
+    state = _snapshot_state(state)
+    picker_scope = operations.capture(window, key='semantic-picker')
     payload = state['payload']
     records = payload.get('records') or []
     items = [['Back to seed / previous evidence', 'Captured evidence is retained'],
@@ -346,7 +394,8 @@ def inspect(window, state, on_back=None):
         plan_index = len(items)
         items.append(['Inspect Proposed Enrichment Plan', 'Planning only; no enqueue/drain or runtime capture'])
     def selected(index):
-        if not operations.is_current(state['context']['scope']):
+        if (not operations.is_current(picker_scope) or not operations.is_current(state['context']['scope'])
+                or index >= len(items)):
             return
         if index <= 0:
             if index == 0 and callable(on_back):
@@ -371,7 +420,8 @@ def inspect(window, state, on_back=None):
         offered = [index for index, operation in enumerate(('detail', 'trace', 'trace', 'explain', None))
                    if operation is None or supported(operation)]
         def action(chosen):
-            if not operations.is_current(state['context']['scope']):
+            if (not operations.is_current(picker_scope) or not operations.is_current(state['context']['scope'])
+                    or chosen >= len(offered)):
                 return
             if chosen < 0:
                 inspect(window, state, on_back)
@@ -395,6 +445,8 @@ def inspect(window, state, on_back=None):
                 submit()
         window.show_quick_panel([actions[index] for index in offered], action)
     def restore():
+        if not operations.is_current(state['context']['scope']):
+            return
         ui.write_output_panel(window, 'pairofcleats-semantic', describe(state['payload'], state['context'].get('generationSource')))
         inspect(window, state, on_back)
     window.show_quick_panel(items, selected)
@@ -402,7 +454,26 @@ def inspect(window, state, on_back=None):
 
 class PairOfCleatsSemanticEvidenceCommand(sublime_plugin.WindowCommand):
     def run(self, hit=None, repo_root=None):
+        hit = copy.deepcopy(hit)
+        scope = operations.capture(self.window, key='semantic-evidence')
+        source_view = self.window.active_view()
+        source_id = source_view.id() if source_view else None
+        source_file = source_view.file_name() if source_view else None
+        source_version = source_view.change_count() if source_view else None
+        source_buffer = source_view.buffer_id() if source_view else None
+        source_selection = [(region.a, region.b) for region in source_view.sel()] if source_view else []
+
+        def source_current():
+            active = self.window.active_view()
+            owner = source_view.window() if source_view else None
+            return bool(source_view and source_view.is_valid() and active and active.id() == source_id
+                and owner and owner.id() == self.window.id() and source_view.file_name() == source_file
+                and source_view.buffer_id() == source_buffer and source_view.change_count() == source_version
+                and [(region.a, region.b) for region in source_view.sel()] == source_selection)
+
         def chosen(root, reason):
+            if not operations.is_current(scope):
+                return
             if not root:
                 ui.show_status(reason or 'Repository selection cancelled.')
                 return
@@ -412,13 +483,13 @@ class PairOfCleatsSemanticEvidenceCommand(sublime_plugin.WindowCommand):
                 ui.show_error('\n'.join(errors))
                 return
             context = {'root': root, 'settings': settings,
-                       'scope': operations.capture(self.window, key='semantic-evidence')}
+                       'scope': scope}
             def generation(value, origin='explicit immutable generation'):
                 if not operations.is_current(context['scope']):
                     return
                 if not value.strip():
                     return
-                if value in ('.', '..') or any(char in value for char in '/\\:\0'):
+                if not semantic_discovery.pinned_generation({'baseBuildId': value.strip(), 'semanticRevision': 0}):
                     ui.show_error('Use a single immutable semantic build identifier.')
                     return
                 pinned = {'baseBuildId': value.strip(), 'semanticRevision': 0}
@@ -432,9 +503,10 @@ class PairOfCleatsSemanticEvidenceCommand(sublime_plugin.WindowCommand):
                     if index == 4:
                         submit({'field': 'chunkUid', 'value': hit['chunkUid']})
                     elif index == 0:
-                        view = self.window.active_view()
-                        file_name = view.file_name() if view else None
-                        relative = os.path.relpath(file_name, root).replace('\\', '/') if file_name else ''
+                        if not source_current():
+                            ui.show_error('Original semantic source view changed. Start from the intended saved source again.')
+                            return
+                        relative = os.path.relpath(source_file, root).replace('\\', '/') if source_file else ''
                         if not relative or relative.startswith('../') or os.path.isabs(relative):
                             ui.show_error('Focus a saved file in the selected repository.')
                             return
@@ -510,8 +582,10 @@ class PairOfCleatsSemanticEvidenceCommand(sublime_plugin.WindowCommand):
                         seed = 'chunk:' + hit['chunkUid'] if hit and hit.get('chunkUid') else None
                         file_name = hit.get('file') if hit else None
                         if not file_name:
-                            view = self.window.active_view()
-                            file_name = view.file_name() if view else None
+                            if source_file and not source_current():
+                                ui.show_error('Original semantic source changed before generation discovery. Start again.')
+                                return
+                            file_name = source_file
                         if not seed and file_name:
                             relative = os.path.relpath(file_name, root).replace('\\', '/') if os.path.isabs(file_name) else file_name
                             if (relative and not relative.startswith('../') and not os.path.isabs(relative)
@@ -552,6 +626,9 @@ class PairOfCleatsSemanticEvidenceCommand(sublime_plugin.WindowCommand):
                     if not operations.is_current(context['scope']):
                         return
                     if index == 0:
+                        if not source_current():
+                            ui.show_error('Original semantic source changed before cursor binding. Navigate again.')
+                            return
                         fresh = qualified_binding_seed(search.qualified_navigation_evidence(self.window, root))
                         if not fresh or fresh != captured:
                             ui.show_error('Qualified cursor identity changed. Navigate again or choose an explicit selector.')
@@ -566,10 +643,13 @@ class PairOfCleatsSemanticEvidenceCommand(sublime_plugin.WindowCommand):
             def begin_seed_selection():
                 if not operations.is_current(context['scope']):
                     return
+                if not hit and source_file and not source_current():
+                    ui.show_error('Original semantic source changed before seed selection. Start again.')
+                    return
                 captured = qualified_binding_seed(search.qualified_navigation_evidence(self.window, root)) if not hit and execution.get('mode') == 'cli' else None
                 if captured:
                     cursor_route(captured)
-                elif not hit and execution.get('mode') == 'cli' and self.window.active_view() and self.window.active_view().file_name():
+                elif not hit and execution.get('mode') == 'cli' and source_file:
                     def received(payload, evidence_root):
                         if evidence_root != root:
                             cursor_route(None)
@@ -579,7 +659,7 @@ class PairOfCleatsSemanticEvidenceCommand(sublime_plugin.WindowCommand):
                             ui.show_status('PairOfCleats: current indexed cursor is {0}; choose an explicit source/structural selector.'.format(
                                 payload.get('status', 'unavailable') if isinstance(payload, dict) else 'unavailable'))
                         cursor_route(seed)
-                    search._execute_qualified_navigation(self.window.active_view(), '', 'definitions', lambda *_args: None,
+                    search._execute_qualified_navigation(source_view, '', 'definitions', lambda *_args: None,
                         25, 'PairOfCleats semantic cursor seed', on_evidence=received, operation_scope=context['scope'])
                 else:
                     generation_menu()

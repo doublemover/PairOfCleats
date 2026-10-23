@@ -231,6 +231,15 @@ selection; stale saved mappings cannot supply that revision. Cancelling
 **Select Repository** keeps the previous choice. The additional command-level
 regressions are authored; supported host/topology qualification remains open.
 
+Semantic seed prompts retain the originally selected source view, file, buffer
+version and cursor. A later active file cannot replace that source. Requests,
+response packets, record actions and More retain independent captured data;
+transport annotations and caller edits cannot change the displayed evidence.
+New semantic operations supersede pending operations, while deliberate Back and
+failure recovery retain the previous frontier. More refuses repeated cursors
+and stops at 128 pages. These controls do not certify provider completeness or
+supported Sublime host behavior.
+
 Exact saved-source cursor requests and line/column selections derive protocol
 CR/LF/CRLF boundaries from the verified original text, then invert only the
 actually observed BOM/newline buffer form. They do not depend on a host's LF-only
