@@ -593,7 +593,8 @@ export async function scanImports({
       const relKey = item.relKey;
       const ext = item.ext || fileExt(relKey);
       const hadPrefetch = cachedImportsByFile.has(relKey);
-      const options = languageOptions && typeof languageOptions === 'object' ? languageOptions : {};
+      const options = { ...(languageOptions && typeof languageOptions === 'object' ? languageOptions : {}),
+        ...(effectiveAbortSignal ? { abortSignal: effectiveAbortSignal } : {}) };
       const recordImportHints = (hints, imports = null) => {
         if (!hints || typeof hints !== 'object') return;
         const importSet = new Set(Array.isArray(imports) ? imports : []);

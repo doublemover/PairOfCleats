@@ -1,4 +1,5 @@
 import { buildLineIndex, offsetToLine } from './lines.js';
+import { createXmlReferenceOwner } from './xml-references.js';
 
 const MAX_CHARS = 786432;
 const MAX_LINES = 20000;
@@ -6,11 +7,9 @@ const MAX_TOKENS = 65536;
 const MAX_TOKEN_CHARS = 32768;
 const MAX_NAME_CHARS = 4096;
 const MAX_NODES = 20000;
-const MAX_IMPORT_ENTRIES = 4096;
 const MAX_DEPTH = 64;
 const MAX_MS = 30;
 const EMPTY = Object.freeze([]);
-const ATTRIBUTES = new Set(['schemalocation', 'href', 'src', 'location', 'file', 'path', 'url', 'project']);
 const NAME_RANGES = [[0xc0, 0xd6], [0xd8, 0xf6], [0xf8, 0x2ff], [0x370, 0x37d], [0x37f, 0x1fff],
   [0x200c, 0x200d], [0x2070, 0x218f], [0x2c00, 0x2fef], [0x3001, 0xd7ff], [0xf900, 0xfdcf],
   [0xfdf0, 0xfffd], [0x10000, 0xeffff]];
@@ -27,12 +26,14 @@ class XmlBoundaryError extends Error {}
 export const createXmlStructureParser = ({ now = () => performance.now() } = {}) => {
   let previousText;
   let previousResult;
-  return (text, { maxMs = MAX_MS, remainingMs = null } = {}) => {
+  return (text, { maxMs = MAX_MS, remainingMs = null, abortSignal = null } = {}) => {
     const source = String(text || '');
     let sourceLines;
     let metrics = {};
     const fallback = (reason, elapsedMs = 0) => Object.freeze({ parser: 'xml-unavailable', coverage: 'unavailable', reason,
-      sourceLines, sections: EMPTY, importEntries: EMPTY, metrics: Object.freeze({ ...metrics, elapsedMs }) });
+      sourceLines, sections: EMPTY, importEntries: EMPTY, referenceObservations: EMPTY,
+      importCoverage: Object.freeze({ state: 'unsupported', reasons: Object.freeze([reason]), source: 'xml-lexical-reference-subset' }),
+      metrics: Object.freeze({ ...metrics, elapsedMs }) });
     if (source.length > MAX_CHARS) return fallback('source-limit');
     const started = Number(now());
     const configured = Number(maxMs);
@@ -43,6 +44,7 @@ export const createXmlStructureParser = ({ now = () => performance.now() } = {})
       ? Math.max(0, Math.min(localLimitMs, entryRemaining)) : entryRemaining === Infinity ? localLimitMs : 0 };
     const elapsed = () => Math.max(0, Number(now()) - started);
     const checkTime = () => {
+      if (abortSignal?.aborted) throw new XmlBoundaryError('cancelled');
       const measured = elapsed();
       if (!Number.isFinite(measured) || measured >= localLimitMs || !(remaining() > 0)) throw new XmlBoundaryError('time-limit');
     };
@@ -71,7 +73,7 @@ export const createXmlStructureParser = ({ now = () => performance.now() } = {})
       let roots = 0;
       const elements = [];
       const stack = [];
-      const importEntries = [];
+      const references = createXmlReferenceOwner({ range, checkTime, fail: reason => { throw new XmlBoundaryError(reason); } });
       const token = (start, end) => {
         checkTime();
         if (++tokenCount > MAX_TOKENS) throw new XmlBoundaryError('token-limit');
@@ -182,8 +184,8 @@ export const createXmlStructureParser = ({ now = () => performance.now() } = {})
         const { name, range: nameRange } = readName();
         if (closing) {
           skipSpace();
-          if (source[offset++] !== '>' || stack.at(-1)?.name !== name) throw new XmlBoundaryError('unbalanced-element');
-          const element = stack.pop();
+          if (source[offset++] !== '>' || stack.at(-1)?.element.name !== name) throw new XmlBoundaryError('unbalanced-element');
+          const { element } = stack.pop();
           element.end = offset;
           token(start, offset);
           continue;
@@ -226,24 +228,14 @@ export const createXmlStructureParser = ({ now = () => performance.now() } = {})
           node();
           element.attributes.push(Object.freeze({ name: attribute.name, nameRange: attribute.range,
             value: literal ? raw : null, unresolved: !literal, valueRange }));
-          const includeTag = /^(?:[^:]+:)?(?:include|import)$/iu.test(name);
-          const selected = includeTag && ATTRIBUTES.has(attribute.name.toLowerCase());
-          const schema = attribute.name === 'xsi:schemaLocation' || (selected && attribute.name.toLowerCase() === 'schemalocation');
-          if (!literal || (!selected && !schema)) continue;
-          const values = schema ? [...raw.matchAll(/\S+/gu)].filter((match) => /[\/.:]/u.test(match[0])) : [{ 0: raw, index: 0 }];
-          for (const match of values) {
-            checkTime();
-            if (importEntries.length >= MAX_IMPORT_ENTRIES) throw new XmlBoundaryError('import-limit');
-            importEntries.push(Object.freeze({ value: match[0], ...range(valueStart + match.index, valueStart + match.index + match[0].length),
-              nameRange: attribute.range, elementName: name }));
-          }
         }
         if (!closed) throw new XmlBoundaryError('unterminated-element');
         token(start, offset);
         element.openingRange = range(start, offset);
+        const namespaceScope = references.opening(element, stack.at(-1)?.namespaceScope || null);
         elements.push(element);
         if (empty) element.end = offset;
-        else stack.push(element);
+        else stack.push({ element, namespaceScope });
       }
       checkTime();
       if (stack.length || roots !== 1) throw new XmlBoundaryError('unbalanced-element');
@@ -252,13 +244,15 @@ export const createXmlStructureParser = ({ now = () => performance.now() } = {})
         checkTime();
         if (element.depth !== 1) continue;
         sections.push(Object.freeze({ name: element.name, start: element.start, end: element.end,
-          nameRange: element.nameRange, openingRange: element.openingRange, attributes: Object.freeze(element.attributes) }));
+          nameRange: element.nameRange, openingRange: element.openingRange, expandedName: element.expandedName,
+          attributes: Object.freeze(element.attributes) }));
       }
       checkTime();
       previousText = source;
       previousResult = Object.freeze({ parser: 'xml-lexical', coverage: 'partial', reason: null,
         rangeSource: 'application-utf16-lexer', sourceLines, unresolvedReferences, ignoredDeclarations,
-        sections: Object.freeze(sections), importEntries: Object.freeze(importEntries),
+        sections: Object.freeze(sections), importEntries: Object.freeze(references.entries),
+        referenceObservations: Object.freeze(references.observations), importCoverage: references.coverage(),
         metrics: Object.freeze({ ...metrics, elapsedMs: elapsed(), tokenCount, nodeCount }) });
       return previousResult;
     } catch (error) {

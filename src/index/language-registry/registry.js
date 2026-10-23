@@ -119,6 +119,7 @@ const normalizeImportEntries = (entries) => {
   const result = Array.from(deduped.values())
     .sort((a, b) => (a.specifier < b.specifier ? -1 : (a.specifier > b.specifier ? 1 : 0)));
   if (entries?.coverage) Object.defineProperty(result, 'coverage', { value: entries.coverage });
+  if (entries?.occurrences) Object.defineProperty(result, 'occurrences', { value: entries.occurrences });
   return result;
 };
 

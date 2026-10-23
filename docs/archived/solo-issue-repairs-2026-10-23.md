@@ -267,6 +267,20 @@ full cleanup-category capability or deep-suite green is claimed.
   Import producer 13 to 14 invalidates prior semantic scan receipts. Earlier
   template fixes and their original negative coverage remain unchanged.
 
+- #1715: XML references now use expanded attribute/element names from the
+  complete opening tag and bounded namespace scopes. Standard instance hints
+  emit only schema locations, with namespace association as typed metadata;
+  bare locations, no-namespace hints, rebinding and sibling restoration retain
+  exact source witnesses. XSD single locations and legacy config heuristics
+  have distinct roles. Unbound/odd/unresolved/ambiguous cases remain observable
+  partial evidence. Dependency budgets do not charge namespace tokens or
+  rejected literals. Generic import scan coverage prevents partial replay
+  admission, while existing XML lexical/entity/declaration boundaries remain.
+  Independently expected lexical/budget and actual registry/post-scan/graph/
+  bundle controls are authored, unrun. Original mistaken namespace-as-file
+  assertions are corrected with primary XSD proof, retaining unbound negatives.
+  Import producer 14 to 15. See [the contract](../contracts/xml-schema-reference-identity.md).
+
 ## Remaining integration and qualification
 
 - #1554 now has a source repair: complete immutable generations, exact staged
@@ -466,7 +480,7 @@ full cleanup-category capability or deep-suite green is claimed.
 | [#1712](https://github.com/doublemover/PairOfCleats/issues/1712) | [P2] Collect CSS imports from tokens instead of comment/string substrings and truncated URLs | Source repair committed; runtime proof pending |
 | [#1713](https://github.com/doublemover/PairOfCleats/issues/1713) | [Perf] Share one prepared parse5 document between HTML chunking and metadata | Pending full-scope review |
 | [#1714](https://github.com/doublemover/PairOfCleats/issues/1714) | [Perf] Amortize retained graph evidence verification within owned page enumerations | Pending full-scope review |
-| [#1715](https://github.com/doublemover/PairOfCleats/issues/1715) | [P2] Separate XML schema namespace identifiers from schema-location dependencies | Pending full-scope review |
+| [#1715](https://github.com/doublemover/PairOfCleats/issues/1715) | [P2] Separate XML schema namespace identifiers from schema-location dependencies | Source repair committed; runtime proof pending |
 | [#1716](https://github.com/doublemover/PairOfCleats/issues/1716) | [P2] Own symbolic graph bytes before hydration callbacks and validated-entry caching | Pending full-scope review |
 | [#1717](https://github.com/doublemover/PairOfCleats/issues/1717) | [P2] Project JS/TS literals safely instead of JSON-stringifying parser values into type evidence | Pending full-scope review |
 | [#1718](https://github.com/doublemover/PairOfCleats/issues/1718) | [P2] Surface retained SQLite closure failures through repository cache shutdown | Source repair committed; runtime proof pending |

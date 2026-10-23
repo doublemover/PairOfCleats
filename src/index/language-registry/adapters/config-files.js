@@ -21,10 +21,16 @@ export const createConfigDataAdapter = ({ id, match, collectImports = () => [], 
     const values = collectImports(text, options);
     const entries = values.map(specifier => ({ specifier, provenance: 'parsed-literal' }));
     if (values.coverage) Object.defineProperty(entries, 'coverage', { value: values.coverage });
+    if (values.occurrences) Object.defineProperty(entries, 'occurrences', { value: values.occurrences });
     return entries;
   } } : {}),
   prepare: async () => ({}),
-  buildRelations: ({ text, options }) => buildSimpleRelations({ imports: collectImports(text, options), literalImports }),
+  buildRelations: ({ text, options }) => {
+    const values = collectImports(text, options);
+    return { ...buildSimpleRelations({ imports: values, literalImports }),
+      ...(values.coverage ? { importScanCoverage: values.coverage } : {}),
+      ...(id === 'xml' ? { xmlImportOccurrences: values.occurrences || [], xmlReferenceObservations: values.observations || [] } : {}) };
+  },
   extractDocMeta: () => ({}),
   flow: () => null,
   attachName: false
