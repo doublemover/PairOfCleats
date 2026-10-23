@@ -102,6 +102,8 @@ try {
     { code: 'ERR_SCIP_IMPORT_IDENTITY' }, 'old receipt ownership meaning cannot be published');
   await assert.rejects(writeScipSemanticImport({ prepared: { ...prepared, adapterIdentity: { ...prepared.adapterIdentity, version: '3' } } }),
     { code: 'ERR_SCIP_IMPORT_IDENTITY' }, 'old role/range admission meaning cannot be published');
+  await assert.rejects(writeScipSemanticImport({ prepared: { ...prepared, adapterIdentity: { ...prepared.adapterIdentity, version: '4' } } }),
+    { code: 'ERR_SCIP_IMPORT_IDENTITY' }, 'old containing-declaration join meaning cannot be published');
   const result = await writeScipSemanticImport({ prepared: pinned, state, policy: normalizeSemanticConfig({ enabled: true }),
     semanticSink: createSemanticProviderResultSink({ state, runtime }) });
   assert.equal(result.persisted, 1);

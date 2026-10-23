@@ -12,7 +12,7 @@ import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { readRetainedSemanticSourceSnapshot } from '../../semantic/retained-source-snapshot.js';
 import { captureSourceLinkedInput } from './source-linked-input.js';
 
-export const SCIP_SEMANTIC_IMPORT_VERSION = '4';
+export const SCIP_SEMANTIC_IMPORT_VERSION = '5';
 const adapterIdentity = () => ({ version: SCIP_SEMANTIC_IMPORT_VERSION, sourceCoordinates: SEMANTIC_ANALYSIS_VERSIONS.lspBindings });
 const fail = message => Object.assign(new Error(message), { code: 'ERR_SCIP_IMPORT_IDENTITY' });
 const digest = value => typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
@@ -179,9 +179,10 @@ export const prepareScipSemanticImport = ({ bytes, producingReceipt, expectedRec
       const symbolKey = semanticHash('tooling.scip-symbol.v1', { artifactHash, generation, projectVariant,
         localSource: symbol.startsWith('local ') ? item.source.sourceUnitId : null, symbol });
       const normalized = { symbol, symbolKey, span, roles, original: occurrence,
-        declarationRefs: item.declarations.filter(value => value.span[0] <= span[0] && value.span[1] >= span[1]).slice(0, 2).map(value => value.ref),
+        declarationRefs: item.declarations.filter(value => value.span[0] === span[0] && value.span[1] === span[1]).slice(0, 2).map(value => value.ref),
         occurrenceRefs: item.occurrences.filter(value => value.span[0] === span[0] && value.span[1] === span[1]).slice(0, 2).map(value => value.ref) };
       if (roles & 1) {
+        if (normalized.declarationRefs.length !== 1) omitted++;
         const known = definitions.get(symbolKey) || [];
         for (const ref of normalized.declarationRefs) if (!known.some(value => canonicalSemanticJson(value) === canonicalSemanticJson(ref))) known.push(ref);
         definitions.set(symbolKey, known);
@@ -232,7 +233,7 @@ export const writeScipSemanticImport = async ({ prepared, state, policy, semanti
         data: { method: 'scip/occurrence', producerId: 'scip-import', producerVersion: SCIP_SEMANTIC_IMPORT_VERSION, evidenceKind: 'scip-source-pinned', sourceRef: item.source.sourceUnitId, artifactRef } } });
       const candidates = prepared.definitions.get(occurrence.symbolKey) || [];
       if (occurrence.roles & 1) {
-        for (const target of candidates) rows.push({ family: 'edge', row: { id: edgeId++, kind: 'evidenceInput', from: evidence, to: target,
+        for (const target of occurrence.declarationRefs) rows.push({ family: 'edge', row: { id: edgeId++, kind: 'evidenceInput', from: evidence, to: target,
           callSite: null, operandOrdinal: null, contextKey: context.contextKey, condition: null, evidence, certainty: 'modeled' } });
         continue;
       }
