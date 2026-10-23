@@ -32,7 +32,7 @@ try {
   const result = runNode(['tools/storage/cli.js', 'configure-plan', '--repo', repo, '--home', home,
     '--category', 'models', '--path', target, '--json'], 'storage configure precedence CLI', process.cwd(),
   applyTestEnv({ syncProcess: false, extraEnv: env }), { stdio: 'pipe', allowFailure: true, timeoutMs: 10000 });
-  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(result.status, 1, 'blocked configuration plans expose their non-applicable state to CLI callers');
   assert.equal(JSON.parse(result.stdout).shadowedByExplicitOverride, true);
   assert.equal(JSON.parse(result.stdout).effectiveDiff['categories.models'].after, source);
   assert.equal(readStorageLocator(home).status, 'missing');
