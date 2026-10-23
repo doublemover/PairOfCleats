@@ -30,11 +30,11 @@ shared transaction, lifecycle and schema owners. Priority-marked performance
 issues keep their stated priority. Read each issue's actual scope and dependencies;
 do not assume issue-number order or turn feature requests into duplicate engines.
 
-Latest source continuation: `10a3423a5` preserves original persistent/semantic
-reader, controls/RAF/picking and reranker work; guards write-admission inventory,
-lexical import shadows (callFlow33), bounds worker telemetry without losing task
-totals, and reconciles HTTP documentation with the shipped contracts.
-Dispositions: 141 historical, 561 source, 164 partial, 91 pending.
+Latest source continuation: `0eebcf74e` captures original local reranker and map
+runtime callbacks, preserves symbolic/archive/reservation cleanup evidence, and
+retains evaluation cohort membership. Canonical JS/TS imports and runtime exports
+use importResolution9/callFlow35/moduleExports3; ANN/FTS contracts describe actual
+provider capabilities. Dispositions:141 historical,562 source,164 partial,90 pending.
 All authored checks remain unvalidated; durable failed-job cleanup recovery is open.
 
 ### Execution order
@@ -84,7 +84,7 @@ raise deadlines, add retries or remove meaningful assertions to obtain green.
 Update the durable receipt and PR summary with exact source/results after each
 batch. An issue is not complete merely because code was changed or pushed.
 
-Current source through `10a3423a5` repairs watch/pointer and queue authority,
+Current source through `0eebcf74e` repairs watch/pointer and queue authority,
 immutable publication and piece assembly, bounded artifact/SCM/source identities,
 verified model installation/leases, request-pinned retrieval and canonical editor
 workflows. Native TUI state, Unicode framing, selection/review, setup/service and
