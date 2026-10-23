@@ -1,5 +1,19 @@
 import noRegexDoubleEscape from './eslint-rules/no-regex-double-escape.js';
 
+// Keep unresolved runtime references out of executable owners. Fixture source
+// deliberately contains unresolved names and remains outside this rule.
+const sourceGlobals = Object.fromEntries(Object.getOwnPropertyNames(globalThis)
+  .filter(name => /^[A-Za-z_$][\w$]*$/.test(name)).map(name => [name, 'readonly']));
+const browserGlobals = Object.fromEntries([
+  'Option', 'window', 'document', 'navigator', 'location', 'self', 'postMessage',
+  'addEventListener', 'removeEventListener', 'requestAnimationFrame', 'cancelAnimationFrame',
+  'ResizeObserver', 'MutationObserver', 'IntersectionObserver', 'HTMLElement', 'Element',
+  'Node', 'Image', 'ImageData', 'CustomEvent', 'EventTarget', 'Worker', 'importScripts',
+  'getComputedStyle', 'matchMedia', 'localStorage', 'sessionStorage', 'screen', 'devicePixelRatio',
+  'MouseEvent', 'PointerEvent', 'KeyboardEvent', 'DOMParser', 'XMLSerializer', 'FileReader',
+  'WebSocket', 'alert', 'confirm', 'prompt', 'indexedDB'
+].map(name => [name, 'readonly']));
+
 export default [
   {
     ignores: [
@@ -46,5 +60,10 @@ export default [
     rules: {
       'max-lines': 'off'
     }
+  },
+  {
+    files: ['src/**/*.js', 'tools/**/*.js'],
+    languageOptions: { globals: { ...sourceGlobals, ...browserGlobals } },
+    rules: { 'no-undef': 'error' }
   }
 ];
