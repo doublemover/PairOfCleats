@@ -10,10 +10,10 @@
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
     "hero": 0,
-    "matrix": 10,
+    "matrix": 9,
     "meta": 0,
     "soak": 0,
-    "heavy-runtime": 10
+    "heavy-runtime": 14
   },
   "tests": [
     {
@@ -131,10 +131,28 @@
       "suiteCategoryReason": "long-lane-or-tag"
     },
     {
-      "id": "cli/search/contract-matrix",
+      "id": "cli/search/contract-matrix/topn-memory",
       "order": 20,
-      "suiteCategory": "matrix",
-      "suiteCategoryReason": "matrix-filename"
+      "suiteCategory": "heavy-runtime",
+      "suiteCategoryReason": "long-lane-or-tag"
+    },
+    {
+      "id": "cli/search/contract-matrix/topn-sqlite-fts",
+      "order": 21,
+      "suiteCategory": "heavy-runtime",
+      "suiteCategoryReason": "long-lane-or-tag"
+    },
+    {
+      "id": "cli/search/contract-matrix/tie-memory",
+      "order": 22,
+      "suiteCategory": "heavy-runtime",
+      "suiteCategoryReason": "long-lane-or-tag"
+    },
+    {
+      "id": "cli/search/contract-matrix/tie-sqlite",
+      "order": 23,
+      "suiteCategory": "heavy-runtime",
+      "suiteCategoryReason": "long-lane-or-tag"
     }
   ]
 }

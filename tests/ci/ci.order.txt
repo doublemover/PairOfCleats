@@ -59,7 +59,8 @@ indexing/build/stage4-explicit-index-root-no-promotion
 tooling/lsp/adaptive-timeout-matrix
 indexing/embeddings/manifest-pieces
 indexing/lifecycle/index-contract
-cli/build-index/all
+cli/build-index/all/artifacts
+cli/build-index/all/sqlite-stage4
 indexing/type-inference/providers/type-inference-lsp-enrichment
 indexing/contracts/golden-surface-suite
 context-pack/risk-filters-parity/filters-and-aliases

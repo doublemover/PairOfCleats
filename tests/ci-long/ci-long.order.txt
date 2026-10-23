@@ -17,4 +17,7 @@ retrieval/filters/search-filter-contract-matrix
 retrieval/cache/query-cache-contract-matrix
 storage/sqlite/incremental/update-contract-matrix
 indexing/piece-assembly/core
-cli/search/contract-matrix
+cli/search/contract-matrix/topn-memory
+cli/search/contract-matrix/topn-sqlite-fts
+cli/search/contract-matrix/tie-memory
+cli/search/contract-matrix/tie-sqlite

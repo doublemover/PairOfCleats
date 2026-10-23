@@ -1,9 +1,17 @@
 #!/usr/bin/env node
+import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
+import os from 'node:os';
 import path from 'node:path';
 
 import { runSqliteBuild } from '../../helpers/sqlite-builder.js';
 import { createSearchLifecycle } from '../../helpers/search-lifecycle.js';
+const cases = ['topn-memory', 'topn-sqlite-fts', 'tie-memory', 'tie-sqlite'];
+assert.deepEqual(JSON.parse(await fsPromises.readFile(new URL('./contract-matrix.test.js.cases.json', import.meta.url))),
+  { schemaVersion: 1, cases });
+const selected = process.env.PAIROFCLEATS_TEST_ID?.split('cli/search/contract-matrix/')[1];
+assert.ok(cases.includes(selected), 'run one independently bounded search contract case');
+
 const createContractFixture = async () => {
   const lifecycle = await createSearchLifecycle({
     cacheScope: 'isolated',
@@ -43,28 +51,26 @@ const createContractFixture = async () => {
   };
 };
 
-const runTopNFilterCase = async (fixture) => {
+const runTopNFilterCase = async (fixture, backend) => {
   const { allowedFiles, runSearchPayload } = fixture;
 
-  for (const backend of ['memory', 'sqlite-fts']) {
-    const payload = runSearchPayload('alpha', {
-      label: `search contract matrix topN (${backend})`,
-      mode: 'prose',
-      topN: 2,
-      backend,
-      annEnabled: false,
-      extraArgs: ['--file', 'allowed']
-    });
-    const hits = payload.prose || [];
-    if (hits.length !== 2) throw new Error(`expected 2 ${backend} results, got ${hits.length}`);
-    for (const hit of hits) {
-      const fileBase = path.basename(hit.file || '');
-      if (!fileBase.startsWith('allowed-')) throw new Error(`unexpected file in ${backend} results: ${fileBase}`);
-    }
+  const payload = runSearchPayload('alpha', {
+    label: `search contract matrix topN (${backend})`,
+    mode: 'prose',
+    topN: 2,
+    backend,
+    annEnabled: false,
+    extraArgs: ['--file', 'allowed']
+  });
+  const hits = payload.prose || [];
+  if (hits.length !== 2) throw new Error(`expected 2 ${backend} results, got ${hits.length}`);
+  for (const hit of hits) {
+    const fileBase = path.basename(hit.file || '');
+    if (!fileBase.startsWith('allowed-')) throw new Error(`unexpected file in ${backend} results: ${fileBase}`);
   }
 };
 
-const runTieOrderCase = async (fixture) => {
+const runTieOrderCase = async (fixture, backend) => {
   const { runSearchPayload } = fixture;
   const runTieSearch = (backend) => {
     const payload = runSearchPayload('tiealpha', {
@@ -92,23 +98,32 @@ const runTieOrderCase = async (fixture) => {
     }
   };
 
-  const memoryFirst = runTieSearch('memory');
-  const memorySecond = runTieSearch('memory');
-  assertTie(memoryFirst);
-  if (JSON.stringify(memoryFirst.map((hit) => hit.file)) !== JSON.stringify(memorySecond.map((hit) => hit.file))) {
-    throw new Error('expected stable ordering under ties for memory backend');
-  }
-
-  const sqliteFirst = runTieSearch('sqlite');
-  const sqliteSecond = runTieSearch('sqlite');
-  assertTie(sqliteFirst);
-  if (JSON.stringify(sqliteFirst.map((hit) => hit.file)) !== JSON.stringify(sqliteSecond.map((hit) => hit.file))) {
-    throw new Error('expected stable ordering under ties for sqlite backend');
+  const first = runTieSearch(backend);
+  const second = runTieSearch(backend);
+  assertTie(first);
+  if (JSON.stringify(first.map((hit) => hit.file)) !== JSON.stringify(second.map((hit) => hit.file))) {
+    throw new Error(`expected stable ordering under ties for ${backend} backend`);
   }
 };
 
 const fixture = await createContractFixture();
-await runTopNFilterCase(fixture);
-await runTieOrderCase(fixture);
-
-console.log('CLI search contract matrix test passed');
+let primary;
+let failed = false;
+try {
+  if (selected.startsWith('topn-')) await runTopNFilterCase(fixture, selected.slice(5));
+  else await runTieOrderCase(fixture, selected.slice(4));
+} catch (error) {
+  failed = true; primary = error;
+} finally {
+  try {
+    const owned = path.resolve(fixture.workspaceRoot);
+    assert.equal(path.relative(path.resolve(os.tmpdir()), path.dirname(owned)), '');
+    assert.ok(path.basename(owned).startsWith('pairofcleats-search-'));
+    await fsPromises.rm(owned, { recursive: true, force: true });
+  } catch (cleanup) {
+    if (failed) throw new AggregateError([primary, cleanup], 'Search contract and owned fixture cleanup failed.');
+    throw cleanup;
+  }
+}
+if (failed) throw primary;
+console.log(`CLI search contract ${selected} passed`);
