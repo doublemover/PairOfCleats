@@ -66,21 +66,25 @@ try {
       const beforeCopy = (from, to) => {
         assert.notEqual(to, final, 'a copy must never write into the visible target');
         if (from === temp) {
-          fs.writeFileSync(to, 'partial');
           assert.equal(fs.readFileSync(final, 'utf8'), 'old');
-          if (failure === 'copy') throw Object.assign(new Error('copy interrupted'), { code: 'EIO' });
+          if (failure === 'copy') {
+            // This hook creates the partial before the original copy acquires
+            // its destination. It is unknown ownership, not a sealed copy.
+            fs.writeFileSync(to, 'partial');
+            throw Object.assign(new Error('copy interrupted'), { code: 'EIO' });
+          }
         }
       };
       try {
         const options = { keepBackup: true, onExdevFallback: () => { fallbackCount++; } };
         if (sync) {
           fs.renameSync = (from, to) => { beforeRename(from); return rename(from, to); };
-          fs.copyFileSync = (from, to) => { beforeCopy(from, to); return copy(from, to); };
+          fs.copyFileSync = (from, to, ...args) => { beforeCopy(from, to); return copy(from, to, ...args); };
           if (failure) assert.throws(() => replaceFileSync(temp, final, options), { code: failure === 'copy' ? 'EIO' : 'EACCES' });
           else replaceFileSync(temp, final, options);
         } else {
           fsp.rename = async (from, to) => { beforeRename(from); return rename(from, to); };
-          fsp.copyFile = async (from, to) => { beforeCopy(from, to); return copy(from, to); };
+          fsp.copyFile = async (from, to, ...args) => { beforeCopy(from, to); return copy(from, to, ...args); };
           if (failure) await assert.rejects(replaceFile(temp, final, options), { code: failure === 'copy' ? 'EIO' : 'EACCES' });
           else await replaceFile(temp, final, options);
         }
@@ -92,9 +96,10 @@ try {
       assert.equal(fs.existsSync(temp), !!failure);
       assert.equal(fallbackCount, failure ? 0 : 1);
       const remaining = (await fsp.readdir(root)).filter(name => name.startsWith('.cross-device.json.bak-'));
-      assert.equal(remaining.length, failure ? 0 : 1, 'failed staging leaves no partial or stranded backup');
+      assert.equal(remaining.length, failure === 'commit' ? 0 : 1,
+        'sealed failed staging is cleaned; unsealed partial evidence and successful retained backup are preserved');
       for (const name of remaining) {
-        assert.equal(await fsp.readFile(path.join(root, name), 'utf8'), 'old');
+        assert.equal(await fsp.readFile(path.join(root, name), 'utf8'), failure === 'copy' ? 'partial' : 'old');
         await fsp.unlink(path.join(root, name));
       }
     }
