@@ -1,5 +1,5 @@
 import { RETRIEVAL_SPARSE_UNAVAILABLE_CODE } from '../sparse/requirements.js';
-import { isAbortError } from '../../shared/abort.js';
+import { observeRetrievalProviderFailure } from './provider-failure.js';
 import { FTS_UNAVAILABLE_CODE } from './constants.js';
 import { requiresBooleanUniverse } from './query-ast.js';
 import { createEligibilityPlan } from './eligibility-plan.js';
@@ -210,11 +210,14 @@ export const runCandidateStage = ({
         sparseType = bm25Result.type;
         sqliteFtsUsed = false;
       } catch (error) {
-        if (isAbortError(error)) throw error;
+        const failure = observeRetrievalProviderFailure(error);
+        throwIfAborted?.();
+        if (failure.abort) throw error;
         emitSparseUnavailable(sqliteFtsDiagnostics, 'provider_error', mode, {
           provider: bm25Provider.id || 'js-bm25',
-          message: String(error?.message || error)
+          message: failure.message || 'Sparse provider query failed.'
         });
+        failure.requireSettled();
         sparseType = 'none';
       }
     }

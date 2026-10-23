@@ -6,7 +6,8 @@ import {
   PROVIDER_RETRY_BASE_MS,
   PROVIDER_RETRY_MAX_MS
 } from './constants.js';
-import { isAbortError, throwIfAborted } from '../../shared/abort.js';
+import { throwIfAborted } from '../../shared/abort.js';
+import { observeRetrievalProviderFailure } from './provider-failure.js';
 
 const generationRuntimes = new WeakMap();
 export const getGenerationProviderRuntime = (index) => {
@@ -217,11 +218,14 @@ export const createProviderRuntime = () => {
       recordProviderSuccess(provider, mode);
       return ok;
     } catch (err) {
-      if (signal?.aborted || isAbortError(err)) {
+      const failure = observeRetrievalProviderFailure(err);
+      if (signal?.aborted || failure.abort) {
         throwIfAborted(signal);
         throw err;
       }
-      recordProviderFailure(provider, mode, err?.message || 'preflight failed', { fromPreflight: true });
+      try { recordProviderFailure(provider, mode, failure.message || 'preflight failed', { fromPreflight: true }); }
+      catch (inspection) { throw failure.retain(inspection, { inspectionPresent: true }); }
+      failure.requireSettled();
       return false;
     }
   };

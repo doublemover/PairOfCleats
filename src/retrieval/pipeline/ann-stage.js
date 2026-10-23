@@ -9,7 +9,8 @@ import {
   resolveAnnCandidateSet
 } from '../scoring/ann-candidate-policy.js';
 import { VECTOR_REQUIRED_CODE } from './constants.js';
-import { isAbortError, throwIfAborted } from '../../shared/abort.js';
+import { throwIfAborted } from '../../shared/abort.js';
+import { observeRetrievalProviderFailure } from './provider-failure.js';
 import { createEligibilityPlan } from './eligibility-plan.js';
 import { rankDenseVectorsAsync } from '../rankers.js';
 import { createCountAwareAnnWork, planCountAwareAnn, snapshotCountAwareStoredDense } from './count-aware-ann.js';
@@ -239,18 +240,20 @@ export const runAnnStage = async ({
       if (reservation) reservation.attempt.accepted = accepted.length;
       return { hits: accepted, succeeded: true, topN: resolvedTopN };
     } catch (err) {
-      if (err?.cacheOwnershipPending) throw err;
+      const failure = observeRetrievalProviderFailure(err);
       if (signal?.aborted) throwIfAborted(signal);
       if (reservation?.timeout.aborted) {
         reservation.attempt.status = 'deadline'; countWork.receipt.reasonEnded = 'deadline';
         return { hits: [], succeeded: false, budgetEnded: true };
       }
-      if (signal?.aborted || isAbortError(err)) {
+      if (signal?.aborted || failure.abort) {
         throwIfAborted(signal);
         throw err;
       }
-      if (reservation) { reservation.attempt.status = 'failed'; reservation.attempt.reason = err?.code || err?.message || 'provider-error'; }
-      providerRuntime.recordProviderFailure(provider, mode, err?.message || 'query failed');
+      if (reservation) { reservation.attempt.status = 'failed'; reservation.attempt.reason = failure.code || failure.message || 'provider-error'; }
+      try { providerRuntime.recordProviderFailure(provider, mode, failure.message || 'query failed'); }
+      catch (inspection) { throw failure.retain(inspection, { inspectionPresent: true }); }
+      failure.requireSettled();
       return { hits: [], succeeded: false };
     }
   };
@@ -321,12 +324,13 @@ export const runAnnStage = async ({
             exactStored = true; countHandled = true; providerAvailable = true; annSource = ANN_PROVIDER_IDS.DENSE;
             countWork.finish({ hits: annHits, exact: true, metrics });
           } catch (error) {
+            const failure = observeRetrievalProviderFailure(error);
             throwIfAborted(signal);
+            if (failure.abort) throw error;
             if (reservation.timeout.aborted) {
               countWork.receipt.reasonEnded = 'deadline'; reservation.attempt.status = 'deadline'; countHandled = true; providerAvailable = true;
             } else {
-              if (error?.cacheOwnershipPending) throw error;
-              reservation.attempt.status = 'failed'; reservation.attempt.reason = error?.code || error?.message || 'stored-scan-error';
+              reservation.attempt.status = 'failed'; reservation.attempt.reason = failure.code || failure.message || 'stored-scan-error';
               countWork.receipt.route = 'ann'; countWork.receipt.reason = 'stored-scan-unavailable';
             }
           }
@@ -341,7 +345,11 @@ export const runAnnStage = async ({
         let providerInitiallyAvailable = false;
         try {
           providerInitiallyAvailable = provider.isAvailable({ idx, mode, embedding: queryEmbedding }) === true;
-        } catch {
+        } catch (error) {
+          const failure = observeRetrievalProviderFailure(error);
+          throwIfAborted(signal);
+          if (failure.abort) throw error;
+          failure.requireSettled();
           providerInitiallyAvailable = false;
         }
         if (!providerInitiallyAvailable) continue;
@@ -355,7 +363,11 @@ export const runAnnStage = async ({
         const resolveProviderAvailability = () => {
           try {
             return provider.isAvailable({ idx, mode, embedding: queryEmbedding }) === true;
-          } catch {
+          } catch (error) {
+            const failure = observeRetrievalProviderFailure(error);
+            throwIfAborted(signal);
+            if (failure.abort) throw error;
+            failure.requireSettled();
             return false;
           }
         };
