@@ -69,6 +69,7 @@ export const createWorkerPoolLifecycle = (input = {}) => {
   let forceDestroyPromise = null;
   let destroying = false;
   let pendingRestart = false;
+  let pressureReconfigurePending = false;
   let idleShutdownWaiters = [];
   let effectiveMaxWorkers = Math.max(1, Math.floor(Number(configuredMaxWorkers) || 1));
   let pressureDownscaleEvents = 0;
@@ -151,6 +152,7 @@ export const createWorkerPoolLifecycle = (input = {}) => {
     if (permanentlyDisabled) return;
     if (!pool && disabled && restartAttempts > maxRestartAttempts) return;
     disabled = true;
+    pressureReconfigurePending = false;
     restartAttempts += 1;
     incWorkerRetries({ pool: poolLabel });
     if (restartAttempts > maxRestartAttempts) {
@@ -175,6 +177,7 @@ export const createWorkerPoolLifecycle = (input = {}) => {
     if (permanentlyDisabled) return;
     disabled = true;
     pendingRestart = true;
+    pressureReconfigurePending = true;
     restartAtMs = Date.now() + 50;
     await shutdownNowOrWhenIdle();
     if (reason) log(`Worker pool reconfigure: ${reason}`);
@@ -420,6 +423,7 @@ export const createWorkerPoolLifecycle = (input = {}) => {
     isDisabled: () => disabled,
     isPermanentlyDisabled: () => permanentlyDisabled,
     isPendingRestart: () => pendingRestart,
+    isPressureReconfigurePending: () => pendingRestart && pressureReconfigurePending && !permanentlyDisabled,
     getRestartAttempts: () => restartAttempts,
     getEffectiveMaxWorkers: () => effectiveMaxWorkers,
     getConfiguredMaxWorkers: () => configuredMaxWorkers,
