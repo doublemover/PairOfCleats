@@ -131,7 +131,7 @@ consumers. Complete source-checked semantic tokens and iterative symbols preserv
 source authority. Accessor calls distinguish reads/writes/deletion; computed keys
 retain evaluation/conversion order and creation-context captures. Current versions:
 moduleExports3/sourceChunking12/importResolution9/typeNormalization8/compilerBindings22/
-lspBindings40/rq10/cfgFlow27/callFlow36/valueSlice10/boundaryFlow10/workerFlow9. VSCode and Sublime retain
+lspBindings41/rq10/cfgFlow27/callFlow36/valueSlice10/boundaryFlow10/workerFlow9. VSCode and Sublime retain
 original opened-file/URI/request identity through deferred native selection.
 Proto/SemanticDB/ShellCheck report adapters are3 and SCIP importer is5; the other
 five report adapters remain2.

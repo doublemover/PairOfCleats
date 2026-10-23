@@ -145,3 +145,33 @@ performance cases are serial. The remaining3340 correctness cases use bounded
 concurrency; the single disposable uninstall case is separately audited before
 execution. No discovered case is silently omitted. Final cohort source is frozen
 only after the documentation/generated checkpoint is committed and pushed.
+
+## First correctness cohort follow-through
+
+The first two analysis cases fail at published2ae45984b without timeouts or
+native crashes. Risk explain exposes a missing writeSemanticJson import, then
+Windows promotion rejects its own generation because canonical lowercase paths
+are compared case-sensitively. The original writer is imported; publication uses
+platform path equality and retains original producer fallback generation identity.
+Real index build/risk explain now passes, alongside copied-record, wrong root/
+mode/index/schema/generation negatives and Windows case-alias positives.
+Risk delta's EACCES fixture now targets the actual contained reader's openSync
+boundary, retaining both original delta directions and positive-result controls;
+it passes without weakening the error expectation.
+
+A no-undef audit inspects2722 src/tools modules. Nine unbound references belong
+to two missing helpers: document-symbol timeout classification and bakeoff elapsed
+formatting; three browser Option references are legitimate. The helper owner
+exports/imports are repaired, and normal lint now guards executable source owners
+while leaving deliberately unresolved fixture source outside that rule. Restored
+LSP failure/fallback production advances lspBindings41 to retire stale meaning.
+The bakeoff resume fixture retains its positive assertion with an actual published
+fixture generation and adds missing/newly appearing generation negatives; it
+passes. No real model or latency benchmark was executed. Subsequent cohorts remain
+pending, and source changes require their resulting-candidate checks.
+
+First-cohort source checkpoint: `fdcfc0dcad41bdc70946a856dceb117f2b98bd77`. The source repairs and permanent
+identifier guard pass required formatting, the complete front gate and40 gate
+cases again. The analysis, publication/LSP and serial bakeoff controls pass;
+full cohort acceptance is still pending. Freeze and rerun the original failed
+analysis cohort against the next published checkpoint before proceeding.
