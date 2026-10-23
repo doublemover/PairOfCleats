@@ -30,12 +30,12 @@ shared transaction, lifecycle and schema owners. Priority-marked performance
 issues keep their stated priority. Read each issue's actual scope and dependencies;
 do not assume issue-number order or turn feature requests into duplicate engines.
 
-Latest source continuation: `1801dd996` shares effective search guardrails with
-settings preview/save (#838), captures original evaluation/AST/editor evidence,
-and retains original range/JSON/lock metadata descriptors before output/fallback.
-Dispositions:141 historical,565 source,165 partial,86 pending. All new controls
-remain unvalidated. MCP1.9.0 generated snapshots are stale; durable service
-recovery and final Windows acceptance remain open.
+Latest source continuation: `ae324aeeb` pins direct semantic selectors/refs,
+repairs destructuring accessor candidates (callFlow36), qualifies original editor
+sources, and retains first lock-worker and strict JSON descriptor prerequisites.
+Effective config/dump shares search guardrails. Dispositions:141 historical,
+565 source,166 partial,85 pending. New controls remain unvalidated; MCP1.9.0
+snapshots, durable service recovery and final Windows acceptance remain open.
 
 ### Execution order
 
@@ -84,7 +84,7 @@ raise deadlines, add retries or remove meaningful assertions to obtain green.
 Update the durable receipt and PR summary with exact source/results after each
 batch. An issue is not complete merely because code was changed or pushed.
 
-Current source through `1801dd996` repairs watch/pointer and queue authority,
+Current source through `ae324aeeb` repairs watch/pointer and queue authority,
 immutable publication and piece assembly, bounded artifact/SCM/source identities,
 verified model installation/leases, request-pinned retrieval and canonical editor
 workflows. Native TUI state, Unicode framing, selection/review, setup/service and
@@ -124,7 +124,7 @@ consumers. Complete source-checked semantic tokens and iterative symbols preserv
 source authority. Accessor calls distinguish reads/writes/deletion; computed keys
 retain evaluation/conversion order and creation-context captures. Current versions:
 moduleExports3/sourceChunking11/importResolution9/typeNormalization8/compilerBindings22/
-lspBindings40/rq10/cfgFlow26/callFlow35/valueSlice9/boundaryFlow9/workerFlow8. VSCode and Sublime retain
+lspBindings40/rq10/cfgFlow26/callFlow36/valueSlice9/boundaryFlow9/workerFlow8. VSCode and Sublime retain
 original opened-file/URI/request identity through deferred native selection.
 Proto/SemanticDB/ShellCheck report adapters are3 and SCIP importer is5; the other
 five report adapters remain2.
