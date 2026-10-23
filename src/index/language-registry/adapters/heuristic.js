@@ -378,7 +378,8 @@ const buildHeuristicManagedRelations = ({
   });
   try {
     const source = budgetContext.source;
-    const base = buildSimpleRelations({ imports: collectImports(source, options), literalImports: adapterId === 'r' });
+    const base = buildSimpleRelations({ imports: collectImports(source, options),
+      literalImports: adapterId === 'r' || adapterId === 'handlebars' });
     const symbols = Array.isArray(chunks) && chunks.length ? sortUnique(chunks.map(chunk=>chunk.name))
       : collectPatternNames(source, symbolPatterns, budgetContext.scanBudget);
     if (Array.isArray(chunks) && chunks.some(chunk=>Array.isArray(chunk.meta?.syntaxCalls))) {
