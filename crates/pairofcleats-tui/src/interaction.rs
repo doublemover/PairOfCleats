@@ -12,7 +12,7 @@ pub(super) fn record_geometry(model: &AppModel, area: Rect) {
     let panes = if area.height < 7 || area.width < 20 { Vec::new() }
     else if compact(model, area) { vec![(model.focus_panel, compact_body(area))] }
     else {
-        let body = Rect::new(area.x, area.y + 15, area.width, area.height.saturating_sub(15));
+        let body = Rect::new(area.x, area.y + 16, area.width, area.height.saturating_sub(16));
         let cols = Layout::default().direction(Direction::Horizontal).constraints([
             Constraint::Percentage(28), Constraint::Percentage(28), Constraint::Percentage(44)]).split(body);
         vec![(FocusPanel::Jobs, cols[0]), (FocusPanel::Tasks, cols[1]), (FocusPanel::Logs, cols[2])]
@@ -99,21 +99,31 @@ pub(super) fn compact_body(area: Rect) -> Rect {
 }
 
 pub(super) fn activity_text(model: &AppModel) -> String {
-    let task = model.task_order.iter().rev().find_map(|key| {
+    if model.selected_job_expired { return "Selected job instance expired; reselect a visible job".into(); }
+    let task = model.task_order.iter().filter_map(|key| {
         if model.task_identity.get(key).map(|(job, _)| Some(job) == model.selected_job.as_ref()).unwrap_or(false) {
             model.task_status.get(key)
         } else { None }
-    });
-    task.map(|task| task.activity(if model.session.mode == "replay" { model.recorded_ms.unwrap_or(0) }
+    }).max_by_key(|task| (task.lifecycle() == Lifecycle::Active, task.ended_ms.or(task.last_event_ms)));
+    let activity = task.map(|task| task.activity(if model.session.mode == "replay" { model.recorded_ms.unwrap_or(0) }
         else { model.activity_second * 1000 }, model.session.mode == "replay"))
-        .unwrap_or_else(|| runtime_summary_text(model, 160))
+        .unwrap_or_else(|| runtime_summary_text(model, 160));
+    if model.selected_job.as_ref().and_then(|id| model.job_status.get(id)).is_some_and(|status| status == "cancelling") {
+        format!("cancel requested | {activity}")
+    } else { activity }
 }
 
 pub(super) fn activity_tick(model: &mut AppModel) {
+    let elapsed = model.activity_origin.elapsed().as_millis().min(u64::MAX as u128) as u64;
+    activity_tick_at(model, elapsed);
+}
+
+pub(super) fn activity_tick_at(model: &mut AppModel, elapsed_ms: u64) {
     if model.overlay != OverlayMode::None || model.session.mode == "replay" || !model.owns_control_channel { return; }
+    if model.selected_job_expired { return; }
     if !model.selected_job.as_ref().and_then(|id| model.job_status.get(id))
         .is_some_and(|status| Lifecycle::from_status(status) == Lifecycle::Active) { return; }
-    let second = model.activity_origin.elapsed().as_secs();
+    let second = elapsed_ms / 1000;
     if second != model.activity_second { model.activity_second = second; model.dirty = true; }
 }
 

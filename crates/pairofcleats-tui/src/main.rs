@@ -14,6 +14,8 @@ mod supervisor_transport;
 #[cfg(test)]
 mod viewport_tests;
 #[cfg(test)]
+mod activity_tests;
+#[cfg(test)]
 mod workflow_tests;
 mod workflows;
 mod text_editor;
@@ -2052,6 +2054,17 @@ fn selected_job_cancel_request(model: &mut AppModel) -> Option<Value> {
     Some(json!({"proto":"poc.tui@1", "op":"job:cancel", "jobId":id, "reason":"user_cancel"}))
 }
 
+fn send_selected_job_cancel(model: &mut AppModel, supervisor: &mut std::process::Child) -> anyhow::Result<()> {
+    if let Some(request) = selected_job_cancel_request(model) {
+        let id = request["jobId"].as_str().unwrap().to_owned();
+        send_request(supervisor, request)?;
+        // This records the local request only. The producer's terminal event
+        // still decides the outcome after its owned execution actually settles.
+        model.update_job_status(&id, "cancelling", None);
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 thread_local! { static ROW_PRESENTATIONS: std::cell::Cell<(usize, usize)> = const { std::cell::Cell::new((0, 0)) }; }
 
@@ -2387,6 +2400,7 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
             Constraint::Length(3),
             Constraint::Length(3),
             Constraint::Length(3),
+            Constraint::Length(1),
             Constraint::Min(1),
         ])
         .split(frame.area());
@@ -2419,8 +2433,9 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
         .wrap(Wrap { trim: true })
         .block(Block::default().borders(Borders::ALL).title("Hints"));
     frame.render_widget(footer_block, rows[4]);
+    frame.render_widget(Paragraph::new(interaction::activity_text(model)), rows[5]);
 
-    if rows[5].width < 100 {
+    if rows[6].width < 100 {
         let stacked = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -2428,7 +2443,7 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
                 Constraint::Percentage(30),
                 Constraint::Percentage(40),
             ])
-            .split(rows[5]);
+            .split(rows[6]);
         let tasks_width = stacked[1].width.saturating_sub(2) as usize;
         let logs_width = stacked[2].width.saturating_sub(2) as usize;
         render_job_panel(frame, model, stacked[0]);
@@ -2497,7 +2512,7 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
                 Constraint::Percentage(28),
                 Constraint::Percentage(44),
             ])
-            .split(rows[5]);
+            .split(rows[6]);
 
         let tasks_width = cols[1].width.saturating_sub(2) as usize;
         let logs_width = cols[2].width.saturating_sub(2) as usize;
@@ -3139,9 +3154,7 @@ fn apply_palette_action(
             start_sample_job(model, supervisor, next_job_idx)?;
         }
         PaletteAction::CancelSelected => {
-            if let Some(request) = selected_job_cancel_request(model) {
-                send_request(supervisor, request)?;
-            }
+            send_selected_job_cancel(model, supervisor)?;
         }
         PaletteAction::ShowHelp => {
             model.overlay = OverlayMode::Help;
@@ -3661,7 +3674,7 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, _queue_depth: usize)
                 .is_some_and(|task| task.lifecycle() != Lifecycle::Active) {
                 return;
             }
-            if event_name == "task:progress" && event["ts"].as_str().and_then(task_state::recorded_timestamp)
+            if event["ts"].as_str().and_then(task_state::recorded_timestamp)
                 .zip(model.task_status.get(&task_key).and_then(|task| task.producer_ms))
                 .is_some_and(|(incoming, retained)| incoming < retained) { return; }
             let status = event
@@ -3672,6 +3685,12 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, _queue_depth: usize)
                 } else {
                     "running"
                 });
+            // A delayed start must not reset the already reconciled task merely
+            // because update_task_status declined its terminal owner below.
+            if Lifecycle::from_status(status) == Lifecycle::Active
+                && model.job_status.get(job_id).is_some_and(|owner| Lifecycle::from_status(owner) != Lifecycle::Active) {
+                return;
+            }
             let msg = event.get("message").and_then(|value| value.as_str());
             model.update_task_status(job_id, task_id, status, msg);
             let now = if model.owns_control_channel && model.session.mode != "replay" {
@@ -4047,9 +4066,7 @@ fn dispatch_input_with_recordings_at(
             start_sample_job(model, supervisor, next_job_idx)?;
         }
         InputCommand::CancelSelected => {
-            if let Some(request) = selected_job_cancel_request(model) {
-                send_request(supervisor, request)?;
-            }
+            send_selected_job_cancel(model, supervisor)?;
         }
         InputCommand::LogsUp => {
             model.log_scroll = model.log_scroll.saturating_add(1);

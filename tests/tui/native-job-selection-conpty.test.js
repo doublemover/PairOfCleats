@@ -54,6 +54,8 @@ try {
       terminal.write('r');
       await wait(async () => (await events()).some(event => event.jobId === 'job-1'
         && event.event === 'task:progress'), 'first real worker progress');
+      await wait(() => screen().includes('/10000 files') && screen().includes('elapsed ')
+        && screen().includes('last '), 'canonical producer counts and local observation age in the actual wide frame');
       terminal.write('r');
       await wait(async () => (await events()).some(event => event.jobId === 'job-2'
         && event.event === 'task:progress'), 'second real worker progress');
@@ -61,7 +63,7 @@ try {
       assert.equal(workers.length, 2); assert.ok(workers.every(row => isProcessAlive(row.job)));
       terminal.write('['); await rendered('selected job-1 (pinned)');
       await wait(async () => (await events()).some(event => event.event === 'task:progress'
-        && event.jobId === 'job-2' && event.completed >= 5), 'concurrently updating unselected worker');
+        && event.jobId === 'job-2' && event.current >= 5), 'concurrently updating unselected worker');
       await rendered('ALPHA_ONLY_LOG_');
       assert.ok(screen().includes('>job-1 | running'));
       assert.ok(screen().includes('ALPHA_TASK')); assert.equal(screen().includes('BETA_TASK'), false);

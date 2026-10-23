@@ -5,7 +5,8 @@ let completed = 0;
 const emit = () => {
   completed++;
   process.stdout.write(JSON.stringify({ proto: 'poc.progress@2', event: 'task:progress',
-    ts: new Date().toISOString(), taskId: `${label}_TASK`, completed, total: 10000 }) + '\n');
+    ts: new Date().toISOString(), taskId: `${label}_TASK`, current: completed, total: 10000,
+    unit: 'files', stage: label.toLowerCase() }) + '\n');
   process.stderr.write(`${label}_ONLY_LOG_${completed}\n`);
 };
 emit();

@@ -57,8 +57,11 @@ pub struct TaskState {
     pub total: Option<f64>,
     pub unit: Option<String>,
     pub stage: Option<String>,
+    pub state: Option<String>,
+    pub phase: Option<String>,
     pub started_ms: Option<u64>,
     pub last_event_ms: Option<u64>,
+    pub last_progress_ms: Option<u64>,
     pub ended_ms: Option<u64>,
     pub producer_ms: Option<u64>,
 }
@@ -66,7 +69,8 @@ pub struct TaskState {
 impl TaskState {
     pub fn new(status: &str, message: Option<&str>) -> Self {
         Self { status: status.to_owned(), message: message.filter(|text| !text.trim().is_empty()).map(str::to_owned),
-            current: None, total: None, unit: None, stage: None, started_ms: None, last_event_ms: None, ended_ms: None, producer_ms: None }
+            current: None, total: None, unit: None, stage: None, state: None, phase: None,
+            started_ms: None, last_event_ms: None, last_progress_ms: None, ended_ms: None, producer_ms: None }
     }
 
     pub fn lifecycle(&self) -> Lifecycle {
@@ -75,16 +79,33 @@ impl TaskState {
 
     pub fn observe(&mut self, event: &serde_json::Value, now: Option<u64>) {
         self.producer_ms = event["ts"].as_str().and_then(recorded_timestamp).or(self.producer_ms);
+        let previous = (self.current, self.total);
+        let mut progress_changed = false;
+        let label = |name: &str| event[name].as_str().map(str::trim).filter(|text| !text.is_empty())
+            .map(|text| text.chars().take(80).collect::<String>());
+        // Counts belong to the observed unit and stage. A producer changing
+        // either without counts cannot relabel an old measurement as new work.
+        for (name, target) in [("unit", &mut self.unit), ("stage", &mut self.stage),
+            ("state", &mut self.state), ("phase", &mut self.phase)] {
+            if event.get(name).is_none() { continue; }
+            let next = label(name);
+            if *target != next {
+                if name == "unit" || name == "stage" { self.current = None; self.total = None; }
+                if name != "state" { progress_changed = true; }
+            }
+            *target = next;
+        }
         let count = |name: &str| event[name].as_f64().filter(|value| value.is_finite() && *value >= 0.0);
         if event.get("current").is_some() { self.current = count("current"); }
         if event.get("total").is_some() { self.total = count("total"); }
         // Invalid/revised totals never turn into a fabricated ratio.
         if self.current.zip(self.total).is_some_and(|(current, total)| current > total) { self.total = None; }
-        for (name, target) in [("unit", &mut self.unit), ("stage", &mut self.stage)] {
-            if let Some(value) = event[name].as_str() { *target = Some(value.chars().take(80).collect()); }
-        }
         if let Some(now) = now {
             self.started_ms.get_or_insert(now); self.last_event_ms = Some(now);
+            if (progress_changed || previous != (self.current, self.total))
+                && (self.current.is_some() || self.stage.is_some() || self.phase.is_some()) {
+                self.last_progress_ms = Some(now);
+            }
             if self.lifecycle() != Lifecycle::Active { self.ended_ms.get_or_insert(now); }
         }
     }
@@ -97,11 +118,14 @@ impl TaskState {
         };
         let timing = if let Some(start) = self.started_ms {
             let end = self.ended_ms.unwrap_or(now);
-            format!("{}elapsed {}s | last {}s ago", if recorded { "recorded " } else { "" }, end.saturating_sub(start) / 1000,
+            let progress = self.last_progress_ms.map(|time| format!("progress {}s ago", end.saturating_sub(time) / 1000))
+                .unwrap_or_else(|| "progress unmeasured".into());
+            format!("{}elapsed {}s | last {}s ago | {progress}", if recorded { "recorded " } else { "" }, end.saturating_sub(start) / 1000,
                 end.saturating_sub(self.last_event_ms.unwrap_or(start)) / 1000)
         } else { "timing not recorded".into() };
-        format!("{} | {} {} | {} | {}", self.stage.as_deref().unwrap_or("task").chars().take(16).collect::<String>(), measured,
-            self.unit.as_deref().unwrap_or("units?").chars().take(12).collect::<String>(), self.status, timing)
+        let state = self.state.as_deref().or(self.phase.as_deref()).map(|state| format!(" ({state})")).unwrap_or_default();
+        format!("{} | {} {} | {}{} | {}", self.stage.as_deref().unwrap_or("task").chars().take(16).collect::<String>(), measured,
+            self.unit.as_deref().unwrap_or("units?").chars().take(12).collect::<String>(), self.status, state, timing)
     }
 }
 
