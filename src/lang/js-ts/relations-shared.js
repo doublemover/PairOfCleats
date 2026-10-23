@@ -1,3 +1,4 @@
+import { projectJsTsLiteral, formatJsTsLiteral } from './literal.js';
 export const normalizeCallText = (value) => {
   if (value === null || value === undefined) return '';
   const raw = String(value);
@@ -89,10 +90,8 @@ export const formatJsTsCallArg = (arg, options = {}) => {
   const maxDepth = Number.isFinite(options.maxDepth) ? options.maxDepth : 2;
   if (!arg || depth > maxDepth) return '...';
   if (arg.type === 'Identifier') return arg.name;
-  if (arg.type === 'Literal') return JSON.stringify(arg.value);
-  if (arg.type === 'StringLiteral' || arg.type === 'NumericLiteral' || arg.type === 'BooleanLiteral') {
-    return JSON.stringify(arg.value);
-  }
+  const literal = projectJsTsLiteral(arg);
+  if (literal) return formatJsTsLiteral(literal);
   if (arg.type === 'MemberExpression' || arg.type === 'OptionalMemberExpression') {
     const memberName = options.getMemberName || ((node) => resolveAstMemberName(node, options));
     return memberName(arg) || 'member';

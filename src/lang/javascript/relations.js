@@ -1,3 +1,4 @@
+import { projectJsTsLiteral, collectCallLiteralEvidence } from '../js-ts/literal.js';
 import { collectConstantReferences } from '../js-ts/constant-references.js';
 import { createReturnCallEvidence } from '../js-ts/return-call-evidence.js';
 import { recordJsTsImportBindings } from '../js-ts/import-bindings.js';
@@ -222,13 +223,14 @@ export function buildCodeRelations(text, relPath, options = {}) {
     const params = [];
     const paramNames = [];
     const stableParamNames = [];
-    const paramDefaults = {};
+    const paramDefaults = Object.create(null);
+    const paramDefaultLiterals = Object.create(null);
     if (!node?.params) {
       return {
         params,
         paramNames,
         stableParamNames,
-        paramDefaults
+        paramDefaults, paramDefaultLiterals
       };
     }
     node.params.forEach((param, index) => {
@@ -239,6 +241,8 @@ export function buildCodeRelations(text, relPath, options = {}) {
         paramNames.push(name);
         if (param.type === 'AssignmentPattern' && param.left?.type === 'Identifier') {
           paramDefaults[name] = formatDefault(param.right);
+          const literal = sourceOwned && !ast.errors?.length ? projectJsTsLiteral(param.right, text) : null;
+          if (literal) paramDefaultLiterals[name] = literal;
         }
       });
       if (stableParamNames.length < MAX_PARAM_NAMES) {
@@ -249,7 +253,7 @@ export function buildCodeRelations(text, relPath, options = {}) {
       params,
       paramNames,
       stableParamNames,
-      paramDefaults
+      paramDefaults, paramDefaultLiterals
     };
   };
 
@@ -267,7 +271,7 @@ export function buildCodeRelations(text, relPath, options = {}) {
     const name = inferFunctionName(node, parent);
     const hasExisting = Object.prototype.hasOwnProperty.call(functionMeta, name);
     const existing = hasExisting ? functionMeta[name] : null;
-    const { paramNames, stableParamNames, paramDefaults } = collectParamMeta(node);
+    const { paramNames, stableParamNames, paramDefaults, paramDefaultLiterals } = collectParamMeta(node);
     const signature = buildSignature(node, name);
     const modifiers = {
       async: !!node.async,
@@ -292,7 +296,7 @@ export function buildCodeRelations(text, relPath, options = {}) {
       functionMeta[name] = {
         params: paramNames,
         paramNames: stableParamNames,
-        paramDefaults,
+        paramDefaults, paramDefaultLiterals,
         signature,
         modifiers,
         methodKind,
@@ -307,6 +311,7 @@ export function buildCodeRelations(text, relPath, options = {}) {
       existing.params = existing.params?.length ? existing.params : paramNames;
       existing.paramNames = existing.paramNames?.length ? existing.paramNames : stableParamNames;
       existing.paramDefaults = Object.keys(existing.paramDefaults || {}).length ? existing.paramDefaults : paramDefaults;
+      existing.paramDefaultLiterals = Object.keys(existing.paramDefaultLiterals || {}).length ? existing.paramDefaultLiterals : paramDefaultLiterals;
       existing.signature = existing.signature || signature;
       existing.modifiers = existing.modifiers || modifiers;
       existing.methodKind = existing.methodKind || methodKind;
@@ -471,6 +476,7 @@ export function buildCodeRelations(text, relPath, options = {}) {
           }
           const location = resolveCallLocation(node);
           const detail = buildCallDetail({ callerName, calleeName, args, location });
+          if (sourceOwned && !ast.errors?.length) detail.argLiterals = collectCallLiteralEvidence(node.arguments, text);
           const returnedValue = returnEvidence.get(node);
           if (returnedValue) detail.returnedValue = returnedValue;
           const lexicalBinding = sourceOwned && !ast.errors?.length ? constants.callRoots.get(node) : null;

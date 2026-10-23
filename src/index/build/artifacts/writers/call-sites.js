@@ -184,6 +184,7 @@ const buildCallSiteRow = ({ chunk, detail, stats, semanticRef = null }) => {
   }
   row.extensions ||= {};
   row.extensions.semanticRef = semanticRef || unavailableCallSiteSemanticRef();
+  if (Array.isArray(detail.argLiterals)) row.extensions.argLiterals = detail.argLiterals.slice(0, MAX_ARGS_PER_CALL);
   const trimmedResult = maybeTrimRow(row);
   if (!trimmedResult.row) {
     if (detail.source === 'tree-sitter') {

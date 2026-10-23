@@ -7,11 +7,11 @@ import { MODULE_EXPORTS_VERSION } from '../../lang/js-ts-exports.js';
 export const SEMANTIC_ANALYSIS_VERSIONS = Object.freeze({
   moduleExports: MODULE_EXPORTS_VERSION,
   lexicalAnalyzer: '2', importResolution: '15', pieceAssembly: '3',
-  recordsProducer: '4', ignoreRules: '2', documentExtraction: '2', discoverySelection: '2',
+  recordsProducer: '5', ignoreRules: '2', documentExtraction: '2', discoverySelection: '2',
   repoMapProducer: '2', graphRelations: '1',
-  sourceChunking: '19', typeNormalization: '9', vfsRouting: '2', complexityAnalysis: '2',
+  sourceChunking: '20', typeNormalization: '10', vfsRouting: '2', complexityAnalysis: '2',
   riskPropagation: '4', callSiteIdentity: '3',
-  compilerBindings: '23', lspBindings: '46', cfgFlow: '28', callFlow: '45',
+  compilerBindings: '23', lspBindings: '46', cfgFlow: '28', callFlow: '46',
   valueSlice: '10', storageFlow: '2', workerFlow: '11', boundaryFlow: '11', wasmFlow: '5', nativeFlow: '2'
 });
 // Static WASM validation is supplied by this runtime, so derived replay must

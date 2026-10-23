@@ -1,3 +1,4 @@
+import { literalEvidenceProjectionErrors } from '../literal-evidence.js';
 import { compileSchema, createAjv } from '../../shared/validation/ajv-factory.js';
 import { ARTIFACT_SCHEMA_DEFS } from '../schemas/artifacts.js';
 import { toValidationResult } from './result.js';
@@ -27,6 +28,16 @@ export function validateArtifact(name, data) {
       const language = data[index]?.lang?.toLowerCase();
       if (summary?.source === 'parser-node' && language && !['typescript', 'ts', 'tsx'].includes(language)) {
         result.errors.push(`/${index}/extensions/callableParameters: parameter language differs from the published symbol.`);
+      }
+      if (result.errors.length >= 20) break;
+    }
+    result.ok = !result.errors.length;
+  }
+  if (result.ok && name === 'call_sites' && Array.isArray(data)) {
+    for (let index = 0; index < data.length; index++) {
+      for (const literal of data[index]?.extensions?.argLiterals || []) {
+        if (literal) result.errors.push(...literalEvidenceProjectionErrors(literal)
+          .map(error => `/${index}/extensions/argLiterals: ${error}`));
       }
       if (result.errors.length >= 20) break;
     }

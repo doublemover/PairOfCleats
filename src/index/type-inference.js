@@ -1,3 +1,4 @@
+import { literalEvidenceType } from '../contracts/literal-evidence.js';
 import { collectDeclaredReturnTypes } from './metadata/docmeta.js';
 import { normalizeLiteralInput, inspectLiteralStructure, splitLiteralElements, isWholeQuotedLiteral } from './type-inference/literal-expression.js';
 
@@ -457,7 +458,10 @@ export function inferTypeMetadata({ docmeta, chunkText, languageId }) {
 
   const paramDefaults = docmeta.paramDefaults || {};
   for (const [name, value] of Object.entries(paramDefaults)) {
-    const inferredType = inferLiteralType(value, languageId);
+    const literal = docmeta.paramDefaultLiterals;
+    const typed = literal && Object.hasOwn(literal, name);
+    const type = typed ? literalEvidenceType(literal[name]) : null;
+    const inferredType = typed ? (type ? { type } : null) : inferLiteralType(value, languageId);
     if (!inferredType) continue;
     hasData = addTypes(inferred.params, name, {
       ...inferredType,

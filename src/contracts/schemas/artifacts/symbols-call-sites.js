@@ -1,3 +1,4 @@
+import { LITERAL_EVIDENCE_SCHEMA } from '../../literal-evidence.js';
 import { CALL_SITE_SEMANTIC_REF_SCHEMA } from '../call-site-semantic-ref.js';
 import { CALLABLE_PARAMETER_SUMMARY_SCHEMA } from '../../callable-parameters.js';
 
@@ -199,6 +200,7 @@ const callSiteEntry = {
     snippetHash: nullableString,
     extensions: { type: 'object', properties: {
       semanticRef: CALL_SITE_SEMANTIC_REF_SCHEMA,
+      argLiterals: { type: 'array', maxItems: 5, items: { anyOf: [LITERAL_EVIDENCE_SCHEMA, { type: 'null' }] } },
       syntax: { type: 'object', additionalProperties: false,
         required: ['producer', 'coordinateSystem', 'role', 'resolution', 'reason', 'rawPreviewTruncated'],
         properties: {

@@ -1,3 +1,4 @@
+import { literalEvidenceType } from '../../contracts/literal-evidence.js';
 import { setImmediate as yieldPropagation } from 'node:timers/promises';
 import { resolveCrossFileFidelity, resolveCrossFilePropagationBudget, orderCrossFileChunks } from '../cross-file-fidelity.js';
 import { createSymbolRefCacheMaintenance } from './symbol-ref-cache-maintenance.js';
@@ -634,6 +635,7 @@ export async function runCrossFilePropagation({
             reason: symbolRef?.reason || detail.reason || (dynamicSyntax ? 'dynamic-call-target' : 'syntax-target-unresolved'),
             start: detail.start ?? null, end: detail.end ?? null, callSiteRef: detail.semanticRecordRef || null,
             args,
+            ...(Array.isArray(detail.argLiterals) ? { argLiterals: detail.argLiterals } : {}),
             calleeRef: symbolRef || null,
             resolvedCalleeChunkUid: symbolRef?.resolved?.chunkUid || null
           };
@@ -765,7 +767,8 @@ export async function runCrossFilePropagation({
               const name = paramNames[i];
               const argValue = Object.hasOwn(argMap, name) ? argMap[name] : args[i];
               if (!name || !argValue) continue;
-              const type = inferArgType(argValue);
+              const literal = summary.argLiterals?.[i];
+              const type = literal ? literalEvidenceType(literal) : inferArgType(argValue);
               if (!type) continue;
               if (addInferredParam(calleeChunk.docmeta, name, type, FLOW_SOURCE, confidence, paramTypeLimit)) {
                 const entry = resolvedUid ? entryByUid.get(resolvedUid) : null;

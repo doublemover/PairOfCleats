@@ -337,6 +337,20 @@ full cleanup-category capability or deep-suite green is claimed.
   #1678 actual-argument/type/risk/timer-spread work remains pending. See
   [the handoff contract](../contracts/api-callable-parameter-handoff.md).
 
+- #1717: one dialect projector now separates bounded JSON-safe literal facts
+  from display text for JS defaults and JS/TS arguments. BigInt retains exact
+  tagged decimal precision, overflow stays number with unavailable scalar,
+  null/boolean/string/finite/unary/separator forms retain kind, and regex or
+  unsupported parser values remain explicit unknown without invoking object
+  conversion. Owned ranges and bounded raw spelling survive JSONL publication;
+  local/cross-file inference consumes typed facts before textual compatibility.
+  Canonical call-site schema/semantic checks reject contradictory evidence.
+  Actual Acorn/Babel/TS, defaults/local, writer/reload, cold/warm cross-file and
+  conversion/size controls are authored, UNRUN. SourceChunking 19 to 20,
+  TypeNormalization 9 to 10, CallFlow 45 to 46, RecordsProducer 4 to 5.
+  #1678 full arity/spread/tail qualification remains separate. See
+  [literal evidence](../contracts/js-ts-literal-evidence.md).
+
 ## Remaining integration and qualification
 
 - #1554 now has a source repair: complete immutable generations, exact staged
@@ -538,7 +552,7 @@ full cleanup-category capability or deep-suite green is claimed.
 | [#1714](https://github.com/doublemover/PairOfCleats/issues/1714) | [Perf] Amortize retained graph evidence verification within owned page enumerations | Pending full-scope review |
 | [#1715](https://github.com/doublemover/PairOfCleats/issues/1715) | [P2] Separate XML schema namespace identifiers from schema-location dependencies | Source repair committed; runtime proof pending |
 | [#1716](https://github.com/doublemover/PairOfCleats/issues/1716) | [P2] Own symbolic graph bytes before hydration callbacks and validated-entry caching | Pending full-scope review |
-| [#1717](https://github.com/doublemover/PairOfCleats/issues/1717) | [P2] Project JS/TS literals safely instead of JSON-stringifying parser values into type evidence | Pending full-scope review |
+| [#1717](https://github.com/doublemover/PairOfCleats/issues/1717) | [P2] Project JS/TS literals safely instead of JSON-stringifying parser values into type evidence | Source committed; runtime proof pending |
 | [#1718](https://github.com/doublemover/PairOfCleats/issues/1718) | [P2] Surface retained SQLite closure failures through repository cache shutdown | Source repair committed; runtime proof pending |
 | [#1719](https://github.com/doublemover/PairOfCleats/issues/1719) | [P2] Project SQL usages by AST role without erasing decoded identifier identity | Pending full-scope review |
 | [#1720](https://github.com/doublemover/PairOfCleats/issues/1720) | [P2] Reject or model SQL table column-alias lists before resolving catalog columns | Pending full-scope review |
