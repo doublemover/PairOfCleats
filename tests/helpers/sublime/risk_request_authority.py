@@ -130,6 +130,28 @@ with isolated_temp_directory() as temporary:
         complete(older, error='old failure must stay invisible')
         assert sublime.last_error == ''
 
+        # Native analysis hit/action and direction pickers retain their own
+        # original project epoch rather than acquiring fresh dispatch scopes.
+        actions = analysis.PairOfCleatsAnalysisActionsCommand(window)
+        with patch.object(analysis.results, 'apply_hit_action') as applied:
+            actions.run(source='risk-explain')
+            old_hit = window.quick_panel_callback
+            operations.invalidate(window)
+            old_hit(0)
+            assert not applied.called
+            actions.run(source='risk-explain')
+            window.quick_panel_callback(0)
+            old_action = window.quick_panel_callback
+            operations.invalidate(window)
+            old_action(0)
+            assert not applied.called
+        directions = []
+        analysis._prompt_direction(window, directions.append)
+        old_direction = window.quick_panel_callback
+        operations.invalidate(window)
+        old_direction(0)
+        assert directions == []
+
         # Input uses the root resolved before the prompt, and replacement
         # project/closed window cannot authorize a late resolution/export.
         paths.select_repo(window, first)

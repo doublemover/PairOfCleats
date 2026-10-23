@@ -661,7 +661,9 @@ def _has_any_analysis_session(window):
     return False
 
 
-def _run_analysis_action(window, session, hit, action):
+def _run_analysis_action(window, session, hit, action, scope=None):
+    if scope is not None and not operations.is_current(scope):
+        return
     repo_root = session.get('repoRoot')
     if action in ('open', 'open_new_group') and not hit.get('sourceHash'):
         ui.show_status('PairOfCleats: captured source hash is unavailable; indexed range freshness is unknown.')
@@ -669,17 +671,18 @@ def _run_analysis_action(window, session, hit, action):
     return results.apply_hit_action(window, hit, repo_root=repo_root, action=action)
 
 
-def _show_analysis_action_choices(window, session, hit):
+def _show_analysis_action_choices(window, session, hit, scope=None):
+    scope = scope or operations.capture(window, key='analysis-actions')
     items = []
     file_label = results.format_file_label(hit)
     for action, label in ANALYSIS_ACTIONS:
         items.append([label, file_label])
 
     def on_action(index):
-        if index < 0:
+        if index < 0 or index >= len(ANALYSIS_ACTIONS) or not operations.is_current(scope):
             return
         action = ANALYSIS_ACTIONS[index][0]
-        _run_analysis_action(window, session, hit, action)
+        _run_analysis_action(window, session, hit, action, scope)
 
     window.show_quick_panel(items, on_action)
 
@@ -759,9 +762,10 @@ def _parse_path_list(value):
 
 def _prompt_direction(window, on_done):
     items = ['Downstream', 'Upstream']
+    scope = operations.capture(window, key='analysis-direction')
 
     def on_select(index):
-        if index < 0:
+        if index < 0 or index >= len(items) or not operations.is_current(scope):
             return
         on_done('downstream' if index == 0 else 'upstream')
 
@@ -1420,7 +1424,7 @@ class PairOfCleatsAnalysisActionsCommand(sublime_plugin.WindowCommand):
         return self.is_enabled()
 
     def run(self, source='context_pack', hit_index=None, action=None):
-        session = _load_analysis_session(self.window, source)
+        session = copy.deepcopy(_load_analysis_session(self.window, source))
         if not session:
             ui.show_status('PairOfCleats: no stored analysis results for actions.')
             return
@@ -1428,19 +1432,20 @@ class PairOfCleatsAnalysisActionsCommand(sublime_plugin.WindowCommand):
         if not hits:
             ui.show_status('PairOfCleats: stored analysis results have no navigable hits.')
             return
+        scope = operations.capture(self.window, key='analysis-actions')
         if isinstance(hit_index, int) and 0 <= hit_index < len(hits):
             selected = hits[hit_index]
             if action:
-                _run_analysis_action(self.window, session, selected, action)
+                _run_analysis_action(self.window, session, selected, action, scope)
                 return
-            _show_analysis_action_choices(self.window, session, selected)
+            _show_analysis_action_choices(self.window, session, selected, scope)
             return
 
         items = [results.format_quick_panel_item(hit) for hit in hits]
 
         def on_hit(index):
-            if index < 0:
+            if index < 0 or index >= len(hits) or not operations.is_current(scope):
                 return
-            _show_analysis_action_choices(self.window, session, hits[index])
+            _show_analysis_action_choices(self.window, session, hits[index], scope)
 
         self.window.show_quick_panel(items, on_hit)
