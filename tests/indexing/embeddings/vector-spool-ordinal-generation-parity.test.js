@@ -7,6 +7,7 @@ import { createEmbeddingVectorSpool } from '../../../tools/build/embeddings/vect
 import { buildEmbeddingGeneration, buildEmbeddingGenerationAsync } from '../../../src/shared/embedding-generation.js';
 import { writeDenseVectorArtifacts } from '../../../src/shared/dense-vector-artifacts.js';
 import { buildDenseVectorValidity } from '../../../src/shared/dense-vector-validity.js';
+import { resolveEmbeddingQuantizationSpec } from '../../../src/shared/embedding-quantization-spec.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 
 const { dir } = await prepareIsolatedTestCacheDir('vector-spool-ordinal-generation', { clean: true });
@@ -71,7 +72,8 @@ for (const order of [[2, 0, 1], [1, 2, 0]]) {
     for (const channel of channels) {
       const result = await writeDenseVectorArtifacts({ indexDir: artifactDir, baseName: `dense_${channel}`,
         vectors: spool.vectors[channel], vectorFields: { dims }, shardMaxBytes: 128, writeBinary: true });
-      const bytes = await fs.readFile(result.binPath), expectedBytes = Buffer.alloc(count * dims);
+      const bytes = await fs.readFile(result.binPath), expectedBytes = Buffer.alloc(count * dims,
+        resolveEmbeddingQuantizationSpec().paddingValue);
       baseline[channel].forEach((row, index) => { if (row.length) expectedBytes.set(row, index * dims); });
       assert.deepEqual(bytes, expectedBytes, 'actual binary writer consumes every ordinal/channel without materializing a corpus');
       const meta = JSON.parse(await fs.readFile(result.metaPath, 'utf8'));

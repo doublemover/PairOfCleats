@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import { constants } from 'node:fs';
 import path from 'node:path';
 import {readCacheIndex,writeCacheEntries,readCacheEntries,encodeCacheEntryPayload,
   createShardAppendHandlePool,createCacheBatchReader,flushCacheIndex,resolveCacheShardPath} from '../../../tools/build/embeddings/cache.js';
@@ -21,7 +22,9 @@ const originalOpen=fs.open;
 let opens=0,reads=0;
 fs.open=async(...args)=>{
   const handle=await originalOpen(...args);
-  if(String(args[0]).includes(path.sep+'shards'+path.sep)&&args[1]==='r'){
+  const flags=args[1];
+  const readOnly=flags==='r'||typeof flags==='number'&&(flags&(constants.O_WRONLY|constants.O_RDWR))===constants.O_RDONLY;
+  if(String(args[0]).includes(path.sep+'shards'+path.sep)&&readOnly){
     opens++;const read=handle.read.bind(handle);handle.read=(...parameters)=>{reads++;return read(...parameters);};
   }
   return handle;

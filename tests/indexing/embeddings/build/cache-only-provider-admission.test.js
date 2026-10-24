@@ -5,7 +5,7 @@ import path from 'node:path';
 import { __setAdapterFactoryForTests, __resetEmbeddingAdapterCachesForTests } from '../../../../src/shared/embedding-adapter.js';
 import { runBuildEmbeddingsWithConfig } from '../../../../tools/build/embeddings/runner.js';
 import { parseBuildEmbeddingsArgs } from '../../../../tools/build/embeddings/args.js';
-import { resolveCacheDir, readCacheIndex, writeCacheIndex } from '../../../../tools/build/embeddings/cache.js';
+import { resolveCacheRoot, resolveCacheDir, readCacheIndex, writeCacheIndex } from '../../../../tools/build/embeddings/cache.js';
 import { getRepoCacheRoot } from '../../../../src/shared/repo-paths.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 import { prepareIsolatedTestCacheDir } from '../../../helpers/test-cache.js';
@@ -29,7 +29,7 @@ const env = applyTestEnv({ cacheRoot: path.join(dir, 'cache'), embeddings: 'real
   }, tooling: { autoEnableOnDetect: false, lsp: { enabled: false } }
 } });
 runNode([path.resolve('build_index.js'), '--repo', repo, '--stage', 'stage2', '--mode', 'code',
-  '--threads', '1', '--progress', 'off'], 'build cache-only canonical fixture', process.cwd(), env, { stdio: 'pipe' });
+  '--incremental', '--threads', '1', '--progress', 'off'], 'build cache-only canonical fixture', process.cwd(), env, { stdio: 'pipe' });
 const cacheRepo = getRepoCacheRoot(repo), builds = path.join(cacheRepo, 'builds');
 const children = (await fs.readdir(builds, { withFileTypes: true })).filter(value => value.isDirectory());
 assert.equal(children.length, 1);
@@ -76,7 +76,7 @@ try {
   assert.equal((await fs.readdir(indexDir)).some(name => name.startsWith('.stage3-vector-spool-')), false);
 
   const identity = firstState.embeddings.embeddingIdentity;
-  const fileDir = resolveCacheDir(cacheRoot, identity, 'code');
+  const fileDir = resolveCacheDir(resolveCacheRoot({ cacheDirConfig: cacheRoot }), identity, 'code');
   const index = await readCacheIndex(fileDir, firstState.embeddings.embeddingIdentityKey, { strict: true });
   const missing = index.files['beta.js']; assert.ok(missing);
   delete index.entries[missing]; delete index.files['beta.js'];

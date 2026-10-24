@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import { prepareIsolatedTestCacheDir } from '../helpers/test-cache.js';
 import { createPreparedTextEncoder } from '../../src/shared/embedding-prepared.js';
 import { createRunQueue } from '../../src/shared/onnx-embeddings/run-queue.js';
 import { __setTransformersModuleLoaderForTests, disposeEmbeddingAdapterCaches, getEmbeddingAdapter } from '../../src/shared/embedding-adapter.js';
@@ -12,7 +14,10 @@ class Tensor { constructor(type, data, dims) { Object.assign(this, { type, data,
 const tokenizer = async (texts, options) => {
   const rows = texts.map(text => [text.codePointAt(0)]);
   if (options.return_tensor === false) return { input_ids: rows, attention_mask: rows.map(() => [1]) };
-  return { input_ids: new Tensor('int64', BigInt64Array.from(rows.flat(), BigInt), [texts.length, 1]) };
+  return {
+    input_ids: new Tensor('int64', BigInt64Array.from(rows.flat(), BigInt), [texts.length, 1]),
+    attention_mask: new Tensor('int64', new BigInt64Array(texts.length).fill(1n), [texts.length, 1])
+  };
 };
 let active = 0, peak = 0, loads = 0, disposals = 0;
 let hold = null;
@@ -39,7 +44,11 @@ __setTransformersModuleLoaderForTests(async () => ({
   AutoTokenizer: { from_pretrained: async () => tokenizer },
   AutoModel: { from_pretrained: async () => { loads += 1; return model; } }
 }));
-const config = { modelId: 'onnx-community/embeddinggemma-2-ONNX', provider: 'xenova', retainInCache: true };
+// The inert loader exercises scheduling against the qualified immutable
+// profile. An empty isolated model root prevents author-cache bytes from
+// changing this fixture's acquisition identity between leases.
+const { dir: modelsDir } = await prepareIsolatedTestCacheDir('embedding-shared-admission');
+const config = { modelId: 'onnx-community/embeddinggemma-2-ONNX', modelsDir, provider: 'xenova', retainInCache: true };
 const first = getEmbeddingAdapter(config), second = getEmbeddingAdapter(config);
 try {
   const prepared = await first.prepare(['c']);
@@ -68,6 +77,7 @@ try {
   await Promise.allSettled([first.dispose(), second.dispose()]);
   await disposeEmbeddingAdapterCaches();
   __setTransformersModuleLoaderForTests(null);
+  await fs.rm(modelsDir, { recursive: true, force: true });
 }
 
 const queue = createRunQueue({ maxQueued: 1 });

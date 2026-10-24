@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
+import path from 'node:path';
 import { createEmbeddingVectorSpool } from '../../../tools/build/embeddings/vector-spool.js';
 import { buildEmbeddingGenerationAsync } from '../../../src/shared/embedding-generation.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
@@ -24,6 +25,16 @@ fsp.open = async (...args) => {
   return handle;
 };
 try {
+  const deepParent = path.join(dir, 'deep-' + 'x'.repeat(Math.max(1, 250 - dir.length)));
+  await fsp.mkdir(deepParent);
+  const deep = await createEmbeddingVectorSpool({ parentDir: deepParent, count: 1, dims: 4 });
+  try {
+    const input = rows([0]);
+    await deep.writeFile(input.items, input.channels); await deep.seal();
+    assert.deepEqual(Array.from(deep.vectors.code[0]), [0, 1, 2, 3]);
+    assert.equal(path.dirname(deep.directory), deepParent);
+  } finally { await deep.close(); }
+  await assert.rejects(fsp.stat(deep.directory), { code: 'ENOENT' });
   const short = await createEmbeddingVectorSpool({ parentDir: dir, count: 8, dims: 4, windowBytes: 8 });
   try {
     const input = rows([0, 1, 6, 7]);

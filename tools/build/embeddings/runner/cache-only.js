@@ -70,7 +70,8 @@ export const planStage3CacheOnly = async ({ roots, identity, identityKey, cacheR
   const refuse = reason => ({ eligible: false, reason, work });
   if (identity?.stub || !embeddingArtifactReusable(identity?.modelArtifact)
     || !Number.isSafeInteger(identity?.dims) || identity.dims <= 0
-    || !identity.modelId || !identity.provider || !identity.pooling || !identity.inputFormatting
+    || !identity.modelId || !identity.provider || !identity.pooling
+    || !Object.hasOwn(identity, 'inputFormatting')
     || identityKey !== buildEmbeddingIdentityKey(identity)) return refuse('incomplete-identity');
   try {
     for (const [mode, indexRoot] of roots) {

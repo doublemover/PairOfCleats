@@ -27,7 +27,10 @@ export const createEmbeddingVectorSpool = async ({ parentDir, count, dims, signa
   throwIfAborted(signal);
   parentDir = path.resolve(parentDir);
   assertNoSymlinkPath(parentDir, parentDir);
-  const directory = await fsp.mkdtemp(path.join(parentDir, '.stage3-vector-spool-'));
+  // Windows mkdtemp needs its extended path form even when later file I/O
+  // already accepts this generation's long ordinary path.
+  const allocated = await fsp.mkdtemp(path.toNamespacedPath(path.join(parentDir, '.stage3-vector-spool-')));
+  const directory = path.join(parentDir, path.basename(allocated));
   const bytesPerWindow = Math.max(dims, Math.floor(Math.min(MAX_WINDOW_BYTES, windowBytes) / dims) * dims);
   const rowsPerWindow = Math.max(1, Math.floor(bytesPerWindow / dims));
   const handles = {}, filenames = {}, presence = {}, seals = {}, windows = {};

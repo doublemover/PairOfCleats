@@ -22,8 +22,9 @@ await assert.rejects(runtime.getChunkEmbeddings(['late miss']), { name: 'AbortEr
 await runtime.dispose();
 await assert.rejects(planStage3CacheOnly({ roots: [['code', 'unused']], identity, identityKey: key,
   signal: abort.signal }), { name: 'AbortError' });
+const { inputFormatting: _formatting, ...missingFormatting } = identity;
 for (const selected of [{ ...identity, dims: null }, { ...identity, modelArtifact: { status: 'unknown', reuse: 'refuse' } },
-  { ...identity, inputFormatting: null }]) {
+  missingFormatting]) {
   const plan = await planStage3CacheOnly({ roots: [], identity: selected, identityKey: key });
   assert.equal(plan.eligible, false, 'ambiguous identity never reaches cache IO or native construction');
 }

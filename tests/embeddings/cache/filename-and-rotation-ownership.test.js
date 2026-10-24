@@ -16,14 +16,14 @@ try {
     { key, file, createdAt: timestamp, lastAccessAt: timestamp, sizeBytes: 1 }]));
   const state = await readCacheIndex(dir, identity);
   state.entries = entries; state.files = buildCacheIndexFileMap(entries);
-  assert.deepEqual(state.files, { 'foo.js': 'plain', ' foo.js': 'leading', 'foo.js ': 'trailing' });
+  assert.deepEqual(state.files, Object.assign(Object.create(null), { 'foo.js': 'plain', ' foo.js': 'leading', 'foo.js ': 'trailing' }));
   await writeCacheIndex(dir, state);
   const loaded = await readCacheIndex(dir, identity);
   assert.deepEqual(loaded.files, state.files, 'write/read normalization preserves exact filename identity');
   mergeCacheIndex(loaded, { entries: { ...entries }, shards: {} });
   assert.deepEqual(loaded.files, state.files, 'merge keeps whitespace-distinct owners');
   await pruneCacheIndex(dir, loaded, { maxAgeMs: 1000, deleteShards: false });
-  assert.deepEqual(loaded.files, { ' foo.js': 'leading', 'foo.js ': 'trailing' });
+  assert.deepEqual(loaded.files, Object.assign(Object.create(null), { ' foo.js': 'leading', 'foo.js ': 'trailing' }));
   await writeCacheIndex(dir, loaded);
   assert.deepEqual((await readCacheIndex(dir, identity)).files, loaded.files);
 
