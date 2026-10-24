@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import path from 'node:path';
+import fs from 'node:fs/promises';
 import { createCli } from '../../../src/shared/cli.js';
 import { buildActions, SCRIPT_COVERAGE_GROUPS } from './actions.js';
 import { loadPackageScripts, resolveScriptCoveragePaths } from './paths.js';
@@ -7,6 +8,7 @@ import { applyActionCoverage, applyDefaultSkips, createCoverageState, finalizeCo
 import { createCommandRunner, prepareCoverageDirs, resolveRetries, runShellScripts } from './runner.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { repoRoot } from '../../helpers/root.js';
+import { writeClosedJavaScriptProject } from '../../helpers/closed-javascript-project.js';
 
 applyTestEnv({ testing: '1' });
 
@@ -74,7 +76,7 @@ const shardIndex = normalizeShardValue(
 const {
   baseCacheRoot,
   repoCacheRoot,
-  fixtureRoot,
+  fixtureRoot: defaultFixtureRoot,
   failureLogRoot,
   ciOutDir,
   mergeDir
@@ -90,6 +92,18 @@ const repoEnv = {
 };
 
 await prepareCoverageDirs({ baseCacheRoot, repoCacheRoot, failureLogRoot });
+// Restore coverage owns the real stage1 -> SQLite/pack -> restore chain. Its
+// input needs both source and prose, not the unrelated multilingual sample.
+// Keep every command, coverage claim and publication/restore boundary intact.
+const fixtureRoot = argv.action === 'ci-restore'
+  ? path.join(baseCacheRoot, 'ci-restore-source') : defaultFixtureRoot;
+if (fixtureRoot !== defaultFixtureRoot) {
+  await fs.mkdir(fixtureRoot, { recursive: true });
+  await fs.writeFile(path.join(fixtureRoot, 'answer.js'), 'export function restoreAnswer() { return 42; }\n');
+  await fs.writeFile(path.join(fixtureRoot, 'README.md'), '# Restore fixture\nSource and prose survive the actual archive roundtrip.\n');
+  await fs.writeFile(path.join(fixtureRoot, '.pairofcleats.json'), JSON.stringify({ threads: 1, indexing: { scm: { provider: 'none' } } }));
+  await writeClosedJavaScriptProject(fixtureRoot, ['*.js']);
+}
 const { run, runNode } = createCommandRunner({ retries, failureLogRoot });
 
 const actions = await buildActions({
