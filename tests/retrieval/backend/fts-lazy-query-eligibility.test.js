@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { admitSortedPostings } from '../../../src/shared/posting-order.js';
+import { SCORING_ANALYZER_VERSION } from '../../../src/shared/tokenize-identifiers.js';
 import Database from 'better-sqlite3';
 import { CREATE_TABLES_BASE_SQL } from '../../../src/storage/sqlite/schema.js';
 import { createInsertStatements } from '../../../src/storage/sqlite/build/statements.js';
@@ -76,12 +78,17 @@ try {
   const pipelineHits = await pipeline(pipelineIdx, 'prose', null);
   assert.equal(pipelineHits.length, 3, 'lazy metadata must not reject candidates before FTS execution');
   const fallbackIdx = load();
-  fallbackIdx.tokenIndex = pipelineIdx.tokenIndex;
+  fallbackIdx.state = { ...fallbackIdx.state,
+    features: { ...fallbackIdx.state?.features, scoringAnalyzer: SCORING_ANALYZER_VERSION } };
+  fallbackIdx.tokenIndex = admitSortedPostings({ ...pipelineIdx.tokenIndex,
+    vocab: ['alpha', 'beta', 'gamma', 'unrelated'],
+    postings: [[[0, 1], [1, 1], [2, 1]], [[0, 1], [2, 1]], [[1, 1]], [[3, 1]]] },
+  { completeVocabulary: true });
   const fallback = createInMemorySearchPipeline({ query: 'alpha NOT gamma', queryTokens: ['alpha'], topN: 3,
     overrides: { annEnabled: false, useSqlite: true, sqliteFtsRequested: true,
       sqliteHasFts: () => false, sqliteHasTable: (_mode, table) => table !== 'chunks_fts',
       buildCandidateSetSqlite: () => new Set([0, 1, 2]),
-      getTokenIndexForQuery: () => ({ ...pipelineIdx.tokenIndex, vocab: ['alpha'], postings: [[[0, 1], [1, 1], [2, 1]]] }),
+      getTokenIndexForQuery: () => fallbackIdx.tokenIndex,
       rankSqliteFts: helpers.rankSqliteFts, queryAst: ast('alpha NOT gamma') } });
   const fallbackHits = await fallback(fallbackIdx, 'prose', null);
   assert.deepEqual(fallbackHits.map(hit => hit.idx ?? hit.id).sort(), [0, 2],
