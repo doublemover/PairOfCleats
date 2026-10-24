@@ -1,3 +1,4 @@
+import { addStorageFailureContext } from '../storage/operation-error.js';
 import PQueue from 'p-queue';
 import { createAbortError, isAbortSignal, throwIfAborted } from '../abort.js';
 import { awaitWithKeepalive } from '../promise-keepalive.js';
@@ -441,4 +442,31 @@ export async function runWithQueue(queue, items, worker, options = {}) {
 export async function runWithConcurrency(items, limit, worker, options = {}) {
   const queue = new PQueue({ concurrency: Math.max(1, Math.floor(limit || 1)) });
   return runWithQueue(queue, items, worker, options);
+}
+
+
+/** Drain original work before exposing cancellation or failure. The signal is
+ * passed to the actual worker, while the existing queue cannot race its drain.
+ * No new operation starts after a failure, and every failed owner is retained.
+ */
+export async function runWithSettledConcurrency(items, limit, worker, { signal = null, collectResults = false } = {}) {
+  throwIfAborted(signal);
+  const failures = [], observedFailures = new Set();
+  const results = await runWithConcurrency(items, limit, async (item, context) => {
+    if (failures.length) return;
+    try { throwIfAborted(signal); return await worker(item, { ...context, signal }); }
+    catch (error) {
+      if (!objectLike(error) || !observedFailures.has(error)) {
+        failures.push(error); if (objectLike(error)) observedFailures.add(error);
+      }
+    }
+  }, { collectResults, retries: 0 });
+  if (failures.length === 1) throw failures[0];
+  if (failures.length) {
+    let failure = failures[0];
+    for (const secondary of failures.slice(1)) failure = addStorageFailureContext(failure, { retryable: false }, secondary, { secondaryPresent: true });
+    throw failure;
+  }
+  throwIfAborted(signal);
+  return results;
 }

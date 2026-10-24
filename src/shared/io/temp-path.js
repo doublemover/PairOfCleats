@@ -21,6 +21,15 @@ export const createTempPath = (filePath, options = {}) => {
   const token = createTempToken();
   const suffix = `.tmp-${token}`;
   const tempPath = `${filePath}${suffix}`;
+  // Node's filesystem writer supports long Windows paths. Keep its staging
+  // inode in the admitted target parent instead of probing ancestor directories
+  // intended for native consumers with legacy path limits. Compact components
+  // also avoid exceeding the filesystem's filename limit on every platform.
+  if (options?.sameDirectory === true && (Buffer.byteLength(path.basename(tempPath)) > 240
+    || process.platform === 'win32' && tempPath.length > WINDOWS_PATH_BUDGET)) {
+    const compact = crypto.createHash('sha256').update(filePath).update(':').update(token).digest('hex');
+    return path.join(path.dirname(filePath), `.tmp-${compact}`);
+  }
   if (process.platform !== 'win32' || tempPath.length <= WINDOWS_PATH_BUDGET) {
     return tempPath;
   }

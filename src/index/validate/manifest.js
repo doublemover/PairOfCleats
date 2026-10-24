@@ -1,3 +1,4 @@
+import { runWithSettledConcurrency } from '../../shared/concurrency/run-with-queue.js';
 import { isAbortError, throwIfAborted } from '../../shared/abort.js';
 import path from 'node:path';
 import { loadPiecesManifestWithReadPlan } from '../../shared/artifact-io/manifest.js';
@@ -9,76 +10,93 @@ import { isManifestPathSafe, normalizeManifestPath } from './paths.js';
 import { addIssue } from './issues.js';
 import { validateManifestEntries, validateSchema } from './schema.js';
 
-const verifyManifestPieces = async ({ report, mode, dir, strict, modeReport, manifest, readPlan = null, signal = null }) => {
-  for (const piece of manifest.pieces) {
-    throwIfAborted(signal);
-    const relPath = piece?.path;
-    if (!relPath) continue;
-    if (!isManifestPathSafe(relPath)) {
-      const issue = `unsafe manifest path: ${relPath}`;
-      if (strict) {
-        modeReport.ok = false;
-        modeReport.missing.push(issue);
-        report.issues.push(`[${mode}] ${issue}`);
-      } else {
-        modeReport.warnings.push(issue);
-        report.warnings.push(`[${mode}] ${issue}`);
-      }
-      continue;
-    }
-    const absPath = path.resolve(dir, fromPosix(normalizeManifestPath(relPath)));
-    const root = path.resolve(dir);
-    const relative = path.relative(root, absPath);
-    if (isRelativePathEscape(relative) || isAbsolutePathNative(relative)) {
-      const issue = `manifest path escapes index root: ${relPath}`;
-      if (strict) {
-        modeReport.ok = false;
-        modeReport.missing.push(issue);
-        report.issues.push(`[${mode}] ${issue}`);
-      } else {
-        modeReport.warnings.push(issue);
-        report.warnings.push(`[${mode}] ${issue}`);
-      }
-      continue;
-    }
-    if (!existsOrBak(absPath)) {
-      const issue = `piece missing: ${relPath}`;
+const verifyManifestPiece = async ({ report, mode, dir, strict, modeReport, piece, readPlan = null, signal = null }) => {
+  throwIfAborted(signal);
+  const relPath = piece?.path;
+  if (!relPath) return;
+  if (!isManifestPathSafe(relPath)) {
+    const issue = `unsafe manifest path: ${relPath}`;
+    if (strict) {
       modeReport.ok = false;
       modeReport.missing.push(issue);
       report.issues.push(`[${mode}] ${issue}`);
-      continue;
+    } else {
+      modeReport.warnings.push(issue);
+      report.warnings.push(`[${mode}] ${issue}`);
     }
-    const checksum = typeof piece?.checksum === 'string' ? piece.checksum : '';
-    if (checksum) {
-      const match = /^(sha1|sha256|xxh64):([0-9a-f]+)$/i.exec(checksum);
-      const lengths = { sha1: 40, sha256: 64, xxh64: 16 };
-      const algorithm = match?.[1]?.toLowerCase();
-      const expected = match?.[2]?.toLowerCase();
-      if (!algorithm || expected.length !== lengths[algorithm]) {
-        const issue = `piece checksum invalid or unsupported: ${relPath}`;
-        if (strict) {
-          modeReport.ok = false;
-          modeReport.missing.push(issue);
-          report.issues.push(`[${mode}] ${issue}`);
-        } else {
-          modeReport.warnings.push(issue);
-          report.warnings.push(`[${mode}] ${issue}`);
-        }
-        continue;
-      }
-      const actual = readPlan ? await readPlan.checksum(absPath, algorithm)
-        : algorithm === 'sha1'
-          ? await sha1File(absPath, { containedRoot: strict ? dir : null, signal })
-          : algorithm === 'sha256'
-            ? await sha256File(absPath, { containedRoot: strict ? dir : null, signal })
-            : (await checksumFile(absPath, { containedRoot: strict ? dir : null, signal }))?.value;
-      if (actual?.toLowerCase() !== expected) {
-        const issue = `piece checksum mismatch: ${relPath}`;
+    return;
+  }
+  const absPath = path.resolve(dir, fromPosix(normalizeManifestPath(relPath)));
+  const root = path.resolve(dir);
+  const relative = path.relative(root, absPath);
+  if (isRelativePathEscape(relative) || isAbsolutePathNative(relative)) {
+    const issue = `manifest path escapes index root: ${relPath}`;
+    if (strict) {
+      modeReport.ok = false;
+      modeReport.missing.push(issue);
+      report.issues.push(`[${mode}] ${issue}`);
+    } else {
+      modeReport.warnings.push(issue);
+      report.warnings.push(`[${mode}] ${issue}`);
+    }
+    return;
+  }
+  if (!existsOrBak(absPath)) {
+    const issue = `piece missing: ${relPath}`;
+    modeReport.ok = false;
+    modeReport.missing.push(issue);
+    report.issues.push(`[${mode}] ${issue}`);
+    return;
+  }
+  const checksum = typeof piece?.checksum === 'string' ? piece.checksum : '';
+  if (checksum) {
+    const match = /^(sha1|sha256|xxh64):([0-9a-f]+)$/i.exec(checksum);
+    const lengths = { sha1: 40, sha256: 64, xxh64: 16 };
+    const algorithm = match?.[1]?.toLowerCase();
+    const expected = match?.[2]?.toLowerCase();
+    if (!algorithm || expected.length !== lengths[algorithm]) {
+      const issue = `piece checksum invalid or unsupported: ${relPath}`;
+      if (strict) {
         modeReport.ok = false;
         modeReport.missing.push(issue);
         report.issues.push(`[${mode}] ${issue}`);
-        report.hints.push('Run `pairofcleats index build` to refresh index artifacts.');
+      } else {
+        modeReport.warnings.push(issue);
+        report.warnings.push(`[${mode}] ${issue}`);
       }
+      return;
+    }
+    const actual = readPlan ? await readPlan.checksum(absPath, algorithm)
+      : algorithm === 'sha1'
+        ? await sha1File(absPath, { containedRoot: strict ? dir : null, signal })
+        : algorithm === 'sha256'
+          ? await sha256File(absPath, { containedRoot: strict ? dir : null, signal })
+          : (await checksumFile(absPath, { containedRoot: strict ? dir : null, signal }))?.value;
+    if (actual?.toLowerCase() !== expected) {
+      const issue = `piece checksum mismatch: ${relPath}`;
+      modeReport.ok = false;
+      modeReport.missing.push(issue);
+      report.issues.push(`[${mode}] ${issue}`);
+      report.hints.push('Run `pairofcleats index build` to refresh index artifacts.');
+    }
+  }
+};
+
+const verifyManifestPieces = async input => {
+  const { manifest, report, modeReport, signal } = input;
+  // Bound retained diagnostics and descriptors to four pieces. Merge in the
+  // original manifest order so parallel hashing cannot reorder output.
+  for (let start = 0; start < manifest.pieces.length; start += 4) {
+    const results = await runWithSettledConcurrency(manifest.pieces.slice(start, start + 4), 4, async piece => {
+      const localMode = { ok: true, missing: [], warnings: [] };
+      const localReport = { issues: [], warnings: [], hints: [] };
+      await verifyManifestPiece({ ...input, piece, modeReport: localMode, report: localReport });
+      return { mode: localMode, report: localReport };
+    }, { signal, collectResults: true });
+    for (const result of results) {
+      if (!result.mode.ok) modeReport.ok = false;
+      modeReport.missing.push(...result.mode.missing); modeReport.warnings.push(...result.mode.warnings);
+      report.issues.push(...result.report.issues); report.warnings.push(...result.report.warnings); report.hints.push(...result.report.hints);
     }
   }
 };

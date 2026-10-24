@@ -1,9 +1,10 @@
+import { runWithSettledConcurrency } from '../../shared/concurrency/run-with-queue.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { assertNoSymlinkPath, readVerifiedContainedFile, withContainedFile } from '../../shared/contained-file.js';
-import { resolveArtifactPath } from '../../shared/artifact-io/contained-path.js';
+import { resolveArtifactPath, resolveArtifactIdentityPath } from '../../shared/artifact-io/contained-path.js';
 import { atomicWriteChunks } from '../../shared/io/atomic-write.js';
 import { sha256File } from '../../shared/hash.js';
 import { throwIfAborted } from '../../shared/abort.js';
@@ -30,18 +31,18 @@ export const inventoryStageOutput = async ({ buildRoot, buildId, mode, signal, s
   }
   const names = new Set(), inventory = [];
   let bytes = 0;
-  for (const piece of manifest.pieces) {
+  await runWithSettledConcurrency(manifest.pieces, 4, async piece => {
     throwIfAborted(signal);
     if (typeof piece?.path !== 'string' || names.has(piece.path)
       || !Number.isSafeInteger(piece.bytes) || piece.bytes < 0) throw stageFailure('Invalid completed-stage piece.');
     names.add(piece.path);
-    const filename = resolveArtifactPath(outDir, piece.path);
-    if (!select(piece)) continue;
+    const filename = resolveArtifactIdentityPath(outDir, piece.path);
+    if (!select(piece)) { resolveArtifactPath(outDir, piece.path); return; }
     const hash = await sha256File(filename, { containedRoot: outDir, signal });
     bytes += piece.bytes;
     if (!Number.isSafeInteger(bytes)) throw stageFailure('Completed-stage byte total exceeds safe integer range.');
     inventory.push({ path: piece.path, bytes: piece.bytes, hash });
-  }
+  }, { signal });
   inventory.sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
   if (Buffer.byteLength(JSON.stringify(inventory)) > STAGE_METADATA_MAX_BYTES) throw stageFailure('Completed-stage inventory exceeds its metadata allowance.');
   return { manifest, inventory, output: { manifestHash, contentHash: stageIdentityHash(inventory), pieces: inventory.length, bytes } };
@@ -52,9 +53,9 @@ export const inventoryStageOutput = async ({ buildRoot, buildId, mode, signal, s
  */
 export const copyStageMember = async ({ sourceRoot, targetRoot, part, signal, assertOwned, createOnly = true }) => {
   throwIfAborted(signal); assertOwned();
-  const source = resolveArtifactPath(sourceRoot, part.path), target = resolveArtifactPath(targetRoot, part.path, { allowMissing: true });
-  assertNoSymlinkPath(targetRoot, target, { allowMissing: true });
-  await fs.mkdir(path.dirname(target), { recursive: true });
+  // The contained reader admits the source at open, and the atomic writer
+  // creates target parents before its existing lease/path commit recheck.
+  const source = resolveArtifactIdentityPath(sourceRoot, part.path), target = resolveArtifactPath(targetRoot, part.path, { allowMissing: true });
   await withContainedFile(sourceRoot, source, async descriptor => {
     const before = await descriptor.stat();
     if (!before.isFile() || before.size !== part.bytes) throw stageFailure('Sealed mode member changed size.');
@@ -75,3 +76,12 @@ export const copyStageMember = async ({ sourceRoot, targetRoot, part, signal, as
     }, { signal, createOnly, beforeCommit: () => { assertOwned(); assertNoSymlinkPath(targetRoot, target, { allowMissing: true }); } });
   });
 };
+
+
+/** Four bounded I/O copies retain at most four 64 KiB source buffers. Failure
+ * stops admission; the existing queue drains every launched copy before the
+ * batch exposes an error. The signal belongs to actual I/O, not a queue race
+ * that could return while a source descriptor or atomic writer is still live.
+ */
+export const copyStageMembers = async ({ inventory, ...options }) =>
+  runWithSettledConcurrency(inventory, 4, part => copyStageMember({ ...options, part }), { signal: options.signal });

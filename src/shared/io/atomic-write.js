@@ -193,8 +193,10 @@ const writeAtomicPayload = async (targetPath, payload, {
   if (mkdir) {
     await fs.mkdir(parent, { recursive: true });
   }
-  const tempPath = createTempPath(safeTargetPath);
-  if (mkdir && tempPath) {
+  const tempPath = createTempPath(safeTargetPath, { sameDirectory: true });
+  if (mkdir && tempPath && path.dirname(tempPath) !== parent) {
+    // Long-path staging can select a different directory. The ordinary same-
+    // parent case was already created above and is admitted by stat below.
     await fs.mkdir(path.dirname(tempPath), { recursive: true });
   }
   let owner = null, identity = null, published = false, committed = false, cleanupAttempted = false, publicationAttempted = false;
@@ -304,8 +306,8 @@ const writeAtomicPayloadSync = (targetPath, payload, {
   if (mkdir) {
     fsSync.mkdirSync(parent, { recursive: true });
   }
-  const tempPath = createTempPath(safeTargetPath);
-  if (mkdir && tempPath) {
+  const tempPath = createTempPath(safeTargetPath, { sameDirectory: true });
+  if (mkdir && tempPath && path.dirname(tempPath) !== parent) {
     fsSync.mkdirSync(path.dirname(tempPath), { recursive: true });
   }
   let owner = null, identity = null, committed = false, publicationAttempted = false;

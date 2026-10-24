@@ -11,16 +11,14 @@ import { assertArtifactPublicationReady, resolveArtifactPublicationPath,
   writeArtifactPublicationRecord, writeArtifactPublicationValidationReport } from './artifact-publication.js';
 import { reconcileIndexIdentity } from '../identity/reconcile.js';
 import { GRAPH_CAPABILITY_REQUIRED_FAMILIES, writeGraphCapabilityReceipt } from './graph-capability.js';
-import { copyStageMember, inventoryStageOutput, readBuildMetadata, sameStagePath,
+import { copyStageMembers, inventoryStageOutput, readBuildMetadata, sameStagePath,
   stageFailure, stageIdentityHash, STAGE_METADATA_MAX_BYTES } from './stage-output.js';
 
 export const resolveStageSnapshotRoot = (buildRoot, locator) => {
   if (!locator || typeof locator.relativeRoot !== 'string' || !/^completed\/(code|prose|extracted-prose|records)\/[a-f0-9-]{36}$/.test(locator.relativeRoot)) {
     throw stageFailure('Invalid immutable stage snapshot locator.');
   }
-  const snapshotRoot = resolveArtifactPath(buildRoot, locator.relativeRoot);
-  assertNoSymlinkPath(buildRoot, snapshotRoot);
-  return snapshotRoot;
+  return resolveArtifactPath(buildRoot, locator.relativeRoot);
 };
 
 /** Snapshots are ordinary contained generation copies using the same family
@@ -32,10 +30,9 @@ export const snapshotStageOutput = async ({ runtime, mode, manifest, inventory, 
   assertOwned(); throwIfAborted(signal);
   const relativeRoot = `completed/${mode}/${randomUUID()}`;
   const snapshotRoot = resolveArtifactPath(runtime.buildRoot, relativeRoot, { allowMissing: true });
-  assertNoSymlinkPath(runtime.buildRoot, snapshotRoot, { allowMissing: true });
   await fs.mkdir(path.join(snapshotRoot, `index-${mode}`), { recursive: true });
   const sourceRoot = path.join(runtime.buildRoot, `index-${mode}`), targetRoot = path.join(snapshotRoot, `index-${mode}`);
-  for (const part of inventory) await copyStageMember({ sourceRoot, targetRoot, part, signal, assertOwned });
+  await copyStageMembers({ inventory, sourceRoot, targetRoot, signal, assertOwned });
   const manifestPath = path.join(targetRoot, 'pieces/manifest.json');
   const original = await readVerifiedContainedFile(sourceRoot, path.join(sourceRoot, 'pieces/manifest.json'), {
     maxBytes: STAGE_METADATA_MAX_BYTES, expectedHash: output.manifestHash, signal
@@ -107,7 +104,7 @@ export const restoreStageSnapshot = async ({ runtime, mode, receipt, signal }) =
   const assertOwned = () => assertIndexCacheLease(runtime.cacheWriterLease, runtime.repoCacheRoot);
   const sourceRoot = path.join(verified.snapshotRoot, `index-${mode}`), targetRoot = path.join(runtime.buildRoot, `index-${mode}`);
   await fs.mkdir(targetRoot, { recursive: true });
-  for (const part of verified.descriptor.inventory) await copyStageMember({ sourceRoot, targetRoot, part, signal, assertOwned, createOnly: false });
+  await copyStageMembers({ inventory: verified.descriptor.inventory, sourceRoot, targetRoot, signal, assertOwned, createOnly: false });
   const { buffer } = await readVerifiedContainedFile(sourceRoot, path.join(sourceRoot, 'pieces/manifest.json'), {
     maxBytes: STAGE_METADATA_MAX_BYTES, expectedHash: verified.descriptor.output.manifestHash, signal });
   await atomicWriteText(path.join(targetRoot, 'pieces/manifest.json'), buffer, { signal, beforeCommit: assertOwned });

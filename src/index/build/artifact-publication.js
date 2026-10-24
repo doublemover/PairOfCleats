@@ -3,7 +3,7 @@ import path from 'node:path';
 
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { toPosix } from '../../shared/file-paths.js';
-import { assertArtifactFilePath, resolveArtifactPath } from '../../shared/artifact-io/contained-path.js';
+import { assertArtifactFilePath, resolveArtifactPath, resolveArtifactIdentityPath } from '../../shared/artifact-io/contained-path.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 
 export const ARTIFACT_PUBLICATION_SCHEMA_VERSION = 1;
@@ -114,7 +114,12 @@ export const validateArtifactPublicationGeneration = async ({
       identityErrors.push({ source, path: entry?.path ?? null, message: 'invalid piece identity' });
       return false;
     }
-    resolveArtifactPath(outDir, entry.path);
+    // These synchronous loops compare labels, not file bytes. Every committed
+    // target is physically admitted immediately before its stat below. Keep
+    // physical admission for unmatched manifest members too; no path is cached
+    // across asynchronous work or borrowed from a prior validation.
+    resolveArtifactIdentityPath(outDir, entry.path);
+    if (source === 'manifest' && !committedByPath.has(entry.path)) resolveArtifactPath(outDir, entry.path);
     if (byPath.has(entry.path)) {
       identityErrors.push({ source, path: entry.path, message: 'duplicate piece path' });
       return false;
