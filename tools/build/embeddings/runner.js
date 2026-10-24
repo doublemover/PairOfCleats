@@ -8,6 +8,7 @@ import { encodeIncrementalManifest, INCREMENTAL_MANIFEST_MAX_BYTES } from '../..
 import { readEffectiveMemory, estimateRetainedBytes } from '../../../src/shared/effective-memory.js';
 import { throwIfAborted, isAbortError } from '../../../src/shared/abort.js';
 import { observeStorageResource } from '../../../src/shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
 import { tryImport } from '../../../src/shared/optional-deps.js';
 import { createPersistentEmbeddingTextKvStore } from './text-kv-cache.js';
 import { settleEmbeddingCacheConsumers } from './cache/settle-consumers.js';
@@ -1347,10 +1348,8 @@ export async function runBuildEmbeddingsWithConfig(config) {
     try { await cleanup?.(); }
     catch (error) {
       if (primaryFailure) {
-        primaryFailure.cleanupError = error;
-        primaryFailure.cacheOwnershipPending = true;
+        throw addStorageFailureContext(primaryFailure, { cleanupError: error }, error, { secondaryPresent: true });
       } else {
-        error.cacheOwnershipPending = true;
         throw error;
       }
     }
@@ -1738,7 +1737,8 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
       () => persistentTextCacheStore?.close?.(), () => embedder?.dispose?.(), () => crashLogger.close?.(), () => finalize()]) {
       try { await settle(); } catch (error) { failures.push(error); }
     }
-    if (failures.length) throw new AggregateError(failures, 'Embedding runtime owners failed to settle.', { cause: failures[0] });
+    if (failures.length) throw failures.slice(1).reduce((primary, secondary) =>
+      addStorageFailureContext(primary, {}, secondary, { secondaryPresent: true }), failures[0]);
   });
   const cacheOnlyPlan = useStubEmbeddings ? { eligible: false, reason: 'stub-fast-path', work: null }
     : await planStage3CacheOnly({ roots: receiptRoots, identity: cacheIdentity, identityKey: cacheIdentityKey,
@@ -1802,7 +1802,6 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
         stack: err?.stack || null
       });
       try { await runtimeReceipts.fail(err); } catch { /* Keep the original provider probe failure. */ }
-      try { await embedder.dispose?.(); } catch { /* Best-effort cleanup must not replace the probe failure. */ }
       throw err;
     }
     const detectedProvider = typeof embedder.getActiveProvider === 'function'
