@@ -7,6 +7,7 @@ export class FakeChildProcess extends EventEmitter {
     this.pid = 0;
     this.killed = false;
     this.exitCode = null;
+    this.signalCode = null;
     this.stdin = new PassThrough();
     this.stdout = new PassThrough();
     this.stderr = new PassThrough();

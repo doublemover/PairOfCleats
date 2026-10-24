@@ -69,7 +69,12 @@ try {
     cancelledCreator.abort(); cancelledPeer.abort(); await Promise.all([creatorRejected, peerRejected]);
     assert.equal(admitted, false); assert.equal(clients.length, 1);
     const ownedCreation = creationOptions.at(-1);
-    for (const field of ['abortSignal', 'onNotification', 'onRequest']) assert.equal(ownedCreation[field], undefined);
+    assert.equal(ownedCreation.abortSignal, undefined);
+    assert.equal(typeof ownedCreation.onNotification, 'function', 'the session owns its stable notification dispatcher');
+    assert.equal(typeof ownedCreation.onRequest, 'function', 'the session owns its stable request dispatcher');
+    ownedCreation.onNotification({ method: 'fixture/notification' });
+    assert.equal(await ownedCreation.onRequest({ method: 'fixture/request' }), null);
+    assert.equal(abandonedCalls, 0, 'owned dispatchers never retain the cancelled borrower handlers');
     createGate.resolve(); await successor; createGate = null; createStarted = null;
     assert.equal(abandonedCalls, 0); assert.equal(clients.length, 2);
     assert.equal(getEventListeners(cancelledCreator.signal, 'abort').length, 0);

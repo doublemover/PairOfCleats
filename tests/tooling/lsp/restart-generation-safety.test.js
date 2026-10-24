@@ -46,6 +46,7 @@ try {
   client.start();
   await waitForSpawns(1);
   await Promise.resolve(client.kill());
+  assert.equal((await client.waitForResourceSettlement()).settled, true, 'real child close must precede replacement admission');
   client.start();
   await waitForSpawns(2);
 

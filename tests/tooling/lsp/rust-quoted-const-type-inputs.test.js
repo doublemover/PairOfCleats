@@ -33,7 +33,8 @@ const entries = new Map(), cacheKey = buildLspRequestCacheKey({ virtualPath: 'co
 writeRequestCacheEntry({ requestCacheEntries: entries, cacheKey, requestKind: 'hover', info: parsed });
 const cached = readRequestCacheEntry({ requestCacheEntries: entries, cacheKey, requestKind: 'hover' });
 assert.equal(cached.info.returnType, parsed.returnType);
-assert.equal(cached.info.paramTypes.value[0].type, parsed.paramTypes.value);
+assert.equal(cached.info.paramTypes.value[0].type, '[u8;{"a  b".len()}]',
+  'cached parameter types use the same canonical spelling as live enrichment while preserving literal spaces');
 
 const parseCache = new Map(), seen = [];
 const parser = detail => { seen.push(detail); return parse(detail); };

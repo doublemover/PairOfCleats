@@ -3,11 +3,18 @@ import { registerHooks } from 'node:module';
 let outcome = 'unconfirmed', creations = 0;
 globalThis.__lspDisposalFactory = () => {
   creations++;
-  return { isTransportRunning: () => true, getGeneration: () => 1,
+  let settled = false;
+  const observers = new Set();
+  const evidence = () => ({ settled, closeObserved: settled, exitObserved: settled, pending: !settled });
+  return { isTransportRunning: () => !settled, getGeneration: () => 1,
+    onResourcesSettled: observer => { observers.add(observer); return () => observers.delete(observer); },
+    getTerminationEvidence: evidence, waitForResourceSettlement: async () => evidence(),
     shutdownAndExit: async () => {}, killSync() {},
     kill: async () => {
       if (outcome === 'rejected') throw new Error('controlled termination denied');
-      return { exitObserved: outcome === 'confirmed', terminated: outcome === 'confirmed' };
+      settled = outcome === 'confirmed';
+      if (settled) for (const observer of observers) observer();
+      return { ...evidence(), terminated: settled };
     } };
 };
 const hook = registerHooks({ load(url, context, next) {
