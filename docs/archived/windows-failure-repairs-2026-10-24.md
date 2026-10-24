@@ -1014,3 +1014,34 @@ transactions, immutable-generation rejection, publication records, copy lifetime
 and full JSONL stage3 observability passed. Seventy-four original failures now
 have source-bound passing closure; 26 remain. No separately observed adjacent
 failure is outstanding. This is not a final-tree or full-suite acceptance claim.
+
+The complete local front gate passed at `3345becd36fc619c20a0ab7f7f09060fde900e8c`
+(format/lint, config budget, environment, generated surfaces, commands, workflow,
+40/40 gate cases and whitespace). That head was pushed and remote/PR head/body
+were read back, preserving all 141 prior closing references. Hosted gate was
+still running at readback. Its separate five-case source/bundle follow-up failed
+all five without timeouts/skips/crashes; original closure remains 74/100.
+
+Further diagnosed owners: C# native invocation_expression was absent from the
+shared call-role set despite complete-supported coverage. The actual grammar
+role and nested-lambda exclusion now have a native projection regression;
+call/chunk versions 8/12 and SourceChunking 28 invalidate prior extraction.
+Keyword expectations retain qualified native receiver names rather than leaf
+aliases. SQLite fallback fixtures now decode/encode compact manifests through
+the canonical codec, retaining dependency-table identity before immutable
+replacement and deliberate content/count faults.
+
+Implicit accessor updates now bind to the retained ++/-- operation when lowering
+provides no independent property-expression row (CompilerBindings 24). The
+transparent-alias fixture checks actual per-target parameter/return channels;
+explicit direct-call target edges belong to compiler bindings, whose source
+owner establishes them before cross-file flow. No target/call-site comparisons
+were replaced by aggregate counts.
+
+The pinned Astro compiler demonstrably emits conflicting zero-width anchors at
+stripped frontmatter and generated wrapper boundaries. Only the live pinned
+adapter may retain these as coarse intervals with no usable original spans;
+external/serialized maps still reject conflicts. Exact declaration/use spans,
+source identities and unsupported authority negatives stay required. Adapter 2
+invalidates changed qualification and every parsed segment consumes point budget.
+These latest source/fixture changes await the next focused cohort.

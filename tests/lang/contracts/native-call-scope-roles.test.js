@@ -30,6 +30,22 @@ const project = async (id, ext, text) => {
   return { chunks: selected, relations, sites };
 };
 
+const csharp = await project('csharp', '.cs', `class Box {
+  void Outer() {
+    Before();
+    if (ready) { receiver.Handle(value); }
+    System.Action callback = () => Nested();
+    After();
+  }
+}`);
+const csharpOuter = csharp.chunks.find(chunk => chunk.name === 'Box.Outer');
+assert.ok(csharpOuter, 'C# keeps its actual qualified native caller');
+assert.deepEqual(csharpOuter.codeRelations.callDetails.map(detail => detail.callee),
+  ['Before', 'receiver.Handle', 'After'], 'C# invocation_expression roles include calls inside control bodies');
+assert.equal(csharpOuter.codeRelations.callOmissions.anonymousScopeCalls, 1);
+assert.ok(!csharp.sites.some(site => site.calleeRaw === 'Nested'), 'lambda calls cannot leak into the enclosing method');
+assert.deepEqual(csharp.sites.map(site => site.calleeRaw), ['Before', 'receiver.Handle', 'After']);
+
 const julia = await project('julia', '.jl', `function empty()
   1
 end

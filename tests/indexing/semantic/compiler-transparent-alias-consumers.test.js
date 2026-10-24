@@ -98,8 +98,20 @@ try {
   for (const partition of added) for await (const edge of store.iterateRows(partition.partitionId, 'semantic_edges')) edges.push(edge);
   for (const text of selected.slice(0, 4)) {
     const call = calls.find(candidate => candidate.node.getText(sourceFile) === text);
-    for (const target of call.targets) assert.ok(edges.some(edge => edge.kind === 'callTarget'
-      && key(edge.callSite) === key(call.occurrence) && key(edge.to) === key(target)), text + ' retains each call-owned source target');
+    // Explicit callTarget edges belong to compiler bindings. This producer
+    // owns parameter/return channels, which must retain every resolved source
+    // alternative without substituting a same-name declaration or call site.
+    for (const target of call.targets) {
+      const summary = fixture.group.flowDocuments[0].summaries.find(row => row.declaration
+        && key(row.declaration) === key(target));
+      assert.ok(summary, text + ' has the actual source target summary');
+      assert.ok(edges.some(edge => edge.kind === 'argumentToParameter'
+        && key(edge.callSite) === key(call.occurrence) && key(edge.from) === key(call.arguments[0])
+        && key(edge.to) === key(summary.parameters[0])), text + ' retains each target parameter');
+      for (const returned of summary.returns) assert.ok(edges.some(edge => edge.kind === 'returnToResult'
+        && key(edge.callSite) === key(call.occurrence) && key(edge.from) === key(returned)
+        && key(edge.to) === key(call.result)), text + ' retains each target return channel');
+    }
     assert.equal(edges.filter(edge => edge.kind === 'returnToResult' && key(edge.callSite) === key(call.occurrence)).length, 2);
   }
   for (const text of selected.slice(5)) {

@@ -57,6 +57,12 @@ try {
     assert.deepEqual(callsFor(name)[0].arguments[0], expressionFor(assignment.right), 'transparent wrappers retain the actual RHS input');
   }
   for (const name of ['compound', 'update']) assert.deepEqual(callsFor(name).map(call => call.invocationKind), ['getter', 'setter']);
+  for (const call of callsFor('update')) {
+    const owner = sourceFile.statements.find(node => node.name?.text === 'update');
+    assert.deepEqual(call.occurrence, expressionFor(owner.body.statements[0].expression),
+      'the retained update operation owns both accessor invocations');
+  }
+  assert.ok(calls.every(call => call.occurrence), 'supported accessors must never emit a null call site');
   for (const name of ['remove', 'removeDot', 'dynamic']) assert.equal(callsFor(name).length, 0,
     name + ' cannot invent a property accessor from a deleted reference or the key binding symbol');
   assert.deepEqual(callsFor('removeNested').map(call => call.node.getText(sourceFile)), ['box.child'],

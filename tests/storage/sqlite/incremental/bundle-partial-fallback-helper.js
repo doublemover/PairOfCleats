@@ -11,6 +11,7 @@ import {
   readBundleFile
 } from '../../../../src/shared/bundle-io.js';
 import { writeIncrementalBundleSnapshot } from '../../../../src/index/build/incremental/bundle-snapshot.js';
+import { decodeIncrementalManifest, encodeIncrementalManifest } from '../../../../src/index/build/incremental/manifest-codec.js';
 
 function createBundleFallbackTestConfig() {
   return {
@@ -78,11 +79,11 @@ export async function setupBundlePartialFallbackFixture({ name, beforeBuild } = 
 }
 
 export function readManifest(manifestPath) {
-  return JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  return decodeIncrementalManifest(JSON.parse(fs.readFileSync(manifestPath, 'utf8')), { indexPath: manifestPath });
 }
 
 export function writeManifest(manifestPath, manifest) {
-  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
+  fs.writeFileSync(manifestPath, encodeIncrementalManifest(manifest, { indexPath: manifestPath }));
 }
 
 export function findFirstBundleEntry(manifest, predicate = () => true) {

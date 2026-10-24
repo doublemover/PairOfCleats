@@ -31,6 +31,14 @@ try {
   const document = createAstroGeneratedDocument({ item, generation: f.generation, configHash: 'a'.repeat(64), dependencyHash: 'b'.repeat(64) });
   assert.equal(document.languageId, 'typescriptreact');
   assert.equal(document.runtime.version, '2.13.1');
+  assert.equal(document.adapterVersion, '2');
+  const strippedBoundary = document.code.indexOf('\r\n');
+  assert.ok(strippedBoundary >= 0);
+  assert.deepEqual(mapAstroGeneratedRange(document, [strippedBoundary, strippedBoundary + 2]),
+    { quality: 'coarse', spans: [] }, 'conflicting compiler boundary anchors never choose an original source');
+  assert.throws(() => qualifyAstroGeneratedMap({ map: document.map, code: document.code,
+    originalText: text, filename: 'Page.astro' }), /Conflicting/,
+  'a serialized compiler-looking map cannot grant itself the live adapter qualification');
   const mapped = [];
   for (const match of document.code.matchAll(/\btitle\b/gu)) {
     const generated = [match.index, match.index + match[0].length];

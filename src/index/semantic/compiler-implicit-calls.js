@@ -47,9 +47,13 @@ export const collectCompilerImplicitCalls = ({ts,checker,nodes,expressionFor,dec
       if(setter&&!write&&!update||!setter&&assignment)continue;
       const declarations=(symbol?.declarations||[]).filter(setter?ts.isSetAccessorDeclaration:ts.isGetAccessorDeclaration),targets=declarations.map(declarationRef).filter(Boolean);
       if(!targets.length)continue;
-      calls.push({node,occurrence:expressionFor(node),span:[node.getStart(),node.end],targets,incompleteTargets:true,invocationKind:setter?'setter':'getter',
+      // Update lowering owns the complete ++/-- operation rather than a
+      // separate property-value expression. Bind both implicit accessor calls
+      // to that retained operation when the property has no independent row.
+      const occurrence = expressionFor(node) || (update ? expressionFor(parent) : null);
+      calls.push({node,occurrence,span:[node.getStart(),node.end],targets,incompleteTargets:true,invocationKind:setter?'setter':'getter',
         receiver:expressionFor(node.expression),arguments:setter?[pattern||iteration?null:expressionFor(assignment?parent.right:parent)]:[],
-        unknownInputs:(pattern ? pattern.inputs : iteration ? [parent.expression] : []).map(value=>expressionFor(value)).filter(Boolean),result:expressionFor(node),suppressResult:setter,hasSpread:false,
+        unknownInputs:(pattern ? pattern.inputs : iteration ? [parent.expression] : []).map(value=>expressionFor(value)).filter(Boolean),result:occurrence,suppressResult:setter,hasSpread:false,
         reason:'accessor_invocation_receiver_and_descriptor_mutation_conservative'+(iteration?';iteration_assignment_value_unresolved':'')
           +(pattern?';destructuring_assignment_value_unresolved':'')});
     }

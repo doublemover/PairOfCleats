@@ -4,6 +4,7 @@ import { canonicalSemanticJson, semanticHash } from '../../semantic/identity.js'
 import { throwIfAborted } from '../../../shared/abort.js';
 
 const require = createRequire(import.meta.url), admitted = new WeakMap();
+const compilerMaps = new WeakSet();
 const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 const fail = message => Object.assign(new Error(message), { code: 'ERR_ASTRO_GENERATED_MAPPING' });
 const digest = value => typeof value === 'string' && /^[a-f0-9]{64}$/u.test(value);
@@ -37,7 +38,7 @@ export const qualifyAstroGeneratedMap = ({ map, code, originalText, filename, ch
     || typeof map.mappings !== 'string' || Buffer.byteLength(map.mappings) > 256 * 1024
     || Buffer.byteLength(code) > 128 * 1024 || Buffer.byteLength(originalText) > 128 * 1024) throw fail('Astro map/source shape or byte budget is not admitted.');
   const generatedLines = linesFor(code), originalLines = linesFor(originalText), points = [];
-  let sourceIndex = 0, sourceLine = 0, sourceColumn = 0, nameIndex = 0;
+  let sourceIndex = 0, sourceLine = 0, sourceColumn = 0, nameIndex = 0, pointCount = 0;
   const offsetAt = (lines, text, line, column) => {
     const entry = lines[line], offset = entry ? entry.start + column : -1;
     if (!Number.isSafeInteger(line) || !Number.isSafeInteger(column) || line < 0 || column < 0
@@ -67,7 +68,7 @@ export const qualifyAstroGeneratedMap = ({ map, code, originalText, filename, ch
     let generatedColumn = 0;
     if (!mappingLines[line]) continue;
     for (const segment of mappingLines[line].split(',')) {
-      if (points.length >= maxPoints) throw fail('Astro map point budget exhausted.');
+      if (++pointCount > maxPoints) throw fail('Astro map point budget exhausted.');
       const values = decode(segment);
       if (values[0] < 0) throw fail('Generated source-map columns are not ordered.');
       generatedColumn += values[0];
@@ -83,10 +84,18 @@ export const qualifyAstroGeneratedMap = ({ map, code, originalText, filename, ch
         }
       }
       if (points.at(-1)?.generated === generated) {
-        if (points.at(-1).original !== original) throw Object.assign(fail('Conflicting Astro map anchors at one generated coordinate.'), {
-          mappingConflict: { generatedLine: line, generatedColumn, generatedOffset: generated,
-            previousOriginalOffset: points.at(-1).original, originalOffset: original }
-        });
+        const previous = points.at(-1);
+        if (previous.original !== original) {
+          // The pinned compiler emits overlapping zero-width anchors where it
+          // removes frontmatter delimiters and inserts wrapper boundaries.
+          // No candidate wins: retain the ambiguity as a coarse interval with
+          // no usable original span. External maps still fail closed.
+          if (compilerMaps.has(map)) { previous.original = null; previous.ambiguous = true; }
+          else throw Object.assign(fail('Conflicting Astro map anchors at one generated coordinate.'), {
+            mappingConflict: { generatedLine: line, generatedColumn, generatedOffset: generated,
+              previousOriginalOffset: previous.original, originalOffset: original }
+          });
+        }
       } else points.push({ generated, original });
     }
   }
@@ -100,9 +109,9 @@ export const qualifyAstroGeneratedMap = ({ map, code, originalText, filename, ch
       && end - from.generated === to.original - from.original
       && code.slice(from.generated, end) === originalText.slice(from.original, to.original);
     intervals.push({ generated: [from.generated, end], original: exact ? [from.original, to.original] : null,
-      quality: exact ? 'exact' : from.original === null ? 'synthetic' : 'coarse' });
+      quality: exact ? 'exact' : from.ambiguous ? 'coarse' : from.original === null ? 'synthetic' : 'coarse' });
   }
-  return { intervals, pointCount: points.length };
+  return { intervals, pointCount };
 };
 
 /** One bounded parse-only transform, without Astro project configuration,
@@ -128,9 +137,13 @@ export const createAstroGeneratedDocument = ({ item, generation, configHash, dep
   check();
   if (typeof generated?.code !== 'string' || Buffer.byteLength(canonicalSemanticJson(generated.map)) > 256 * 1024
     || !Array.isArray(generated.diagnostics) || generated.diagnostics.length > 32) throw fail('Astro generated output exceeds its map/diagnostic contract.');
-  const qualified = qualifyAstroGeneratedMap({ code: generated.code, map: generated.map,
-    originalText: item.text, filename: item.source.path, check });
-  const body = { schemaVersion: 1, kind: 'astro-generated-tooling-document', adapterVersion: '1',
+  let qualified;
+  compilerMaps.add(generated.map);
+  try {
+    qualified = qualifyAstroGeneratedMap({ code: generated.code, map: generated.map,
+      originalText: item.text, filename: item.source.path, check });
+  } finally { compilerMaps.delete(generated.map); }
+  const body = { schemaVersion: 1, kind: 'astro-generated-tooling-document', adapterVersion: '2',
     runtime: { family: '@astrojs/compiler', version, qualification: 'application-library-unqualified' },
     source: { path: item.source.path, sourceUnitId: item.source.sourceUnitId, sourceHash: item.source.byteHash,
       syntaxPartitionId: item.syntax?.partitionId, syntaxHash: item.syntax?.canonicalHash },

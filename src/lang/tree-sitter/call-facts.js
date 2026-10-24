@@ -2,8 +2,8 @@ import { projectNativeCallArguments } from './call-arguments.js';
 import { getNamedChild, getNamedChildCount } from './ast.js';
 import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
 
-export const SYNTAX_CALL_FACTS_VERSION = 7;
-const callTypes = new Set(['call_expression', 'function_call', 'call', 'method_invocation', 'function_call_expression', 'juxt_function_call',
+export const SYNTAX_CALL_FACTS_VERSION = 8;
+const callTypes = new Set(['call_expression', 'function_call', 'call', 'method_invocation', 'invocation_expression', 'function_call_expression', 'juxt_function_call',
   'member_call_expression', 'nullsafe_member_call_expression', 'scoped_call_expression', 'object_creation_expression', 'command']);
 const scopeBarriers = new Set(['function_definition', 'function_declaration', 'method', 'singleton_method', 'function_item',
   'method_definition', 'method_declaration', 'constructor_declaration', 'lambda_expression', 'lambda', 'lambda_literal',

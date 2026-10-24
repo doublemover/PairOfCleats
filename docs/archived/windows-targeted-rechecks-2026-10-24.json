@@ -5443,6 +5443,164 @@
           "historicalAuthorWorkspaceEvidence": true
         }
       ]
+    },
+    {
+      "sourceHead": "3345becd36fc619c20a0ab7f7f09060fde900e8c",
+      "startedAt": "2026-10-24T14:04:59.999Z",
+      "finishedAt": "2026-10-24T14:05:43.169Z",
+      "scope": "Current-source compiler, Astro generated mapping and SQLite fallback diagnosis.",
+      "policy": {
+        "timeoutMs": 30000,
+        "retries": 0,
+        "nativeStatusRedo": false,
+        "threads": 1,
+        "platform": "win32",
+        "node": "v26.12.1",
+        "removedLaunchSetting": "PAIROFCLEATS_TRUSTED_CONFIG: missing configured file; no replacement authority granted"
+      },
+      "summary": {
+        "selected": 5,
+        "passed": 0,
+        "failed": 5,
+        "timeouts": 0,
+        "skipped": 0
+      },
+      "cohorts": [
+        {
+          "name": "source-bundle-wave-01",
+          "summary": {
+            "total": 5,
+            "passed": 0,
+            "failed": 5,
+            "skipped": 0,
+            "durationMs": 42200
+          },
+          "ids": [
+            "storage/sqlite/incremental/bundle-count-mismatch-fallback",
+            "storage/sqlite/incremental/bundle-partial-chunk-fallback",
+            "indexing/semantic/compiler-accessor-reference-roles",
+            "indexing/semantic/compiler-transparent-alias-consumers",
+            "indexing/semantic/astro-generated-source-evidence"
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "id": "indexing/semantic/astro-generated-source-evidence",
+          "path": "indexing/semantic/astro-generated-source-evidence.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "failed",
+          "durationMs": 624,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-3345becd36fc619c20a0ab7f7f09060fde900e8c/source-bundle-wave-01-logs/run-1792850700952-8h536x/indexing_semantic_astro-generated-source-evidence.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-3345becd36fc619c20a0ab7f7f09060fde900e8c/source-bundle-wave-01-logs/run-1792850700952-8h536x/indexing_semantic_astro-generated-source-evidence.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/semantic/compiler-accessor-reference-roles",
+          "path": "indexing/semantic/compiler-accessor-reference-roles.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "failed",
+          "durationMs": 1559,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-3345becd36fc619c20a0ab7f7f09060fde900e8c/source-bundle-wave-01-logs/run-1792850700952-8h536x/indexing_semantic_compiler-accessor-reference-roles.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-3345becd36fc619c20a0ab7f7f09060fde900e8c/source-bundle-wave-01-logs/run-1792850700952-8h536x/indexing_semantic_compiler-accessor-reference-roles.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/semantic/compiler-transparent-alias-consumers",
+          "path": "indexing/semantic/compiler-transparent-alias-consumers.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "failed",
+          "durationMs": 1707,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-3345becd36fc619c20a0ab7f7f09060fde900e8c/source-bundle-wave-01-logs/run-1792850700952-8h536x/indexing_semantic_compiler-transparent-alias-consumers.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-3345becd36fc619c20a0ab7f7f09060fde900e8c/source-bundle-wave-01-logs/run-1792850700952-8h536x/indexing_semantic_compiler-transparent-alias-consumers.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "storage/sqlite/incremental/bundle-count-mismatch-fallback",
+          "path": "storage/sqlite/incremental/bundle-count-mismatch-fallback.test.js",
+          "lane": "storage",
+          "tags": [
+            "sqlite",
+            "storage"
+          ],
+          "status": "failed",
+          "durationMs": 18616,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-3345becd36fc619c20a0ab7f7f09060fde900e8c/source-bundle-wave-01-logs/run-1792850700952-8h536x/storage_sqlite_incremental_bundle-count-mismatch-fallback.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-3345becd36fc619c20a0ab7f7f09060fde900e8c/source-bundle-wave-01-logs/run-1792850700952-8h536x/storage_sqlite_incremental_bundle-count-mismatch-fallback.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "storage/sqlite/incremental/bundle-partial-chunk-fallback",
+          "path": "storage/sqlite/incremental/bundle-partial-chunk-fallback.test.js",
+          "lane": "storage",
+          "tags": [
+            "sqlite",
+            "storage"
+          ],
+          "status": "failed",
+          "durationMs": 19675,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-3345becd36fc619c20a0ab7f7f09060fde900e8c/source-bundle-wave-01-logs/run-1792850700952-8h536x/storage_sqlite_incremental_bundle-partial-chunk-fallback.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-3345becd36fc619c20a0ab7f7f09060fde900e8c/source-bundle-wave-01-logs/run-1792850700952-8h536x/storage_sqlite_incremental_bundle-partial-chunk-fallback.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        }
+      ]
     }
   ],
   "cumulativeClosure": {

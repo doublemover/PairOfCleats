@@ -983,7 +983,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 18565
+      "recheckDurationMs": 18565,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "3345becd36fc619c20a0ab7f7f09060fde900e8c",
+      "latestRecheckDurationMs": 18616
     },
     {
       "id": "storage/sqlite/incremental/bundle-partial-chunk-fallback",
@@ -1000,7 +1003,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 18998
+      "recheckDurationMs": 18998,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "3345becd36fc619c20a0ab7f7f09060fde900e8c",
+      "latestRecheckDurationMs": 19675
     },
     {
       "id": "storage/sqlite/maintenance-sidecar-cleanup",
@@ -5318,7 +5324,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 1127
+      "recheckDurationMs": 1127,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "3345becd36fc619c20a0ab7f7f09060fde900e8c",
+      "latestRecheckDurationMs": 624
     },
     {
       "id": "indexing/semantic/cache-reader-identity",
@@ -5360,7 +5369,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 1825
+      "recheckDurationMs": 1825,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "3345becd36fc619c20a0ab7f7f09060fde900e8c",
+      "latestRecheckDurationMs": 1559
     },
     {
       "id": "indexing/semantic/compiler-callback-runtime-parameters",
@@ -5449,7 +5461,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 1814
+      "recheckDurationMs": 1814,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "3345becd36fc619c20a0ab7f7f09060fde900e8c",
+      "latestRecheckDurationMs": 1707
     },
     {
       "id": "indexing/semantic/compiler-wasm-flow",
