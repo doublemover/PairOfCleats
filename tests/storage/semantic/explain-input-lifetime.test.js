@@ -90,13 +90,15 @@ try {
   const projectInput = { store: raw, manifest, request: requestFor(),
     result: { records, frontier: [{ reason: 'analysis_incomplete' }] }, maxMs: 50 };
   const target = path.resolve(f.stagingRoot, syntax.members.semantic_sources[0].path);
+  const isTarget = file => path.relative(path.toNamespacedPath(path.resolve(String(file))),
+    path.toNamespacedPath(target)) === '';
   for (const abortCaller of [false, true]) {
     let deny = true, scopedSignal, state;
     const caller = new AbortController();
     const original = Object.freeze(Object.assign(new Error('original explanation reader close rejected'), { name: 'AbortError' }));
     fs.open = async (file, ...args) => {
       const handle = await originalOpen(file, ...args);
-      if (path.resolve(String(file)) !== target) return handle;
+      if (!isTarget(file)) return handle;
       const nativeClose = handle.close, nativeRead = handle.read;
       state = { handle, reads: 0, closes: 0 };
       disposal.set(handle, () => nativeClose.call(handle));

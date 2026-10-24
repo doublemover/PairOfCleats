@@ -32,15 +32,17 @@ try {
   const syntax = await f.write([semanticNode(0, f.source.textLength)]), store = f.store([syntax]);
   const ref = { partitionId: syntax.partitionId, localId: 0 };
   const target = path.resolve(f.stagingRoot, 'semantic-sources', f.source.byteHash + '.utf8');
+  const isTarget = file => path.relative(path.toNamespacedPath(path.resolve(String(file))),
+    path.toNamespacedPath(target)) === '';
   const install = ({ read = null, stat = null, close = null } = {}) => {
     const states = [];
     fs.readFile = function (file, ...args) {
-      assert.notEqual(path.resolve(String(file)), target, 'retained sources never use unbounded raw readFile');
+      assert.equal(isTarget(file), false, 'retained sources never use unbounded raw readFile');
       return originalReadFile.call(fs, file, ...args);
     };
     fs.open = async (file, ...args) => {
       const handle = await originalOpen(file, ...args);
-      if (path.resolve(String(file)) !== target) return handle;
+      if (!isTarget(file)) return handle;
       const nativeRead = handle.read, nativeStat = handle.stat, nativeClose = handle.close;
       const state = { handle, reads: 0, readBytes: 0, maxBuffer: 0, maxRequest: 0, stats: 0, closes: 0 };
       states.push(state); disposal.set(handle, () => nativeClose.call(handle));

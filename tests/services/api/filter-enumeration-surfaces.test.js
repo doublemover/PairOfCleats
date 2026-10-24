@@ -88,9 +88,13 @@ try {
   parseSearchArgs(vscode.buildSearchArgs('', root, { mode: 'code', type: 'FunctionDeclaration', contextLines: 0 }).slice(1));
   assert.throws(() => vscode.buildSearchArgs('x', root, { contextLines: 1 }), /removed/);
   const python = spawnSync('python3', ['-c',
-    'import json,runpy; m=runpy.run_path(' + JSON.stringify(path.resolve('sublime/PairOfCleats/lib/search.py'))
-      + '); print(json.dumps(m["build_search_payload"]("", repo_root=' + JSON.stringify(root)
-      + ', mode="code", backend="memory", limit=2, ann=False, as_of="latest", advanced={"return_type":"boolean"})))'],
+    ['import json,sys',
+      'sys.path.insert(0,' + JSON.stringify(path.resolve('tests/helpers/sublime')) + ')',
+      'from runtime_harness import install_fake_modules', 'install_fake_modules()',
+      'from PairOfCleats.lib.search import build_search_payload',
+      'print(json.dumps(build_search_payload("", repo_root=' + JSON.stringify(root)
+        + ', mode="code", backend="memory", limit=2, ann=False, as_of="latest", advanced={"return_type":"boolean"})))'
+    ].join('; ')],
   { encoding: 'utf8', timeout: 5000 });
   assert.equal(python.status, 0, python.stderr);
   const generated = JSON.parse(python.stdout); assert.equal(generated.output, 'compact');
