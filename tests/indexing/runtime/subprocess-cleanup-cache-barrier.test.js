@@ -3,9 +3,19 @@ import assert from 'node:assert/strict';
 import { errorGraphIncludes } from '../../helpers/error-graph.js';
 import { registerHooks } from 'node:module';
 import { EventEmitter } from 'node:events';
-import { assertSubprocessTerminationReceipt } from '../../../src/shared/subprocess/termination-receipt.js';
-import { trackedSubprocesses } from '../../../src/shared/subprocess/tracking-runtime.js';
-import { releaseCacheWriterOwnership } from '../../../src/index/build/cache-writer-drain.js';
+import { fileURLToPath } from 'node:url';
+// The canonical runner preloads test-env, including the real tracking module.
+// Isolate only that preload so module hooks precede this fixture's mocked owner.
+if (!process.argv.includes('--isolated-termination-owner')) {
+  const { runNode } = await import('../../helpers/run-node.js');
+  const preload = `--import ${new URL('../../helpers/test-env.js', import.meta.url).href}`;
+  const env = { ...process.env, NODE_OPTIONS: String(process.env.NODE_OPTIONS || '').replaceAll(preload, '').trim() };
+  const result = runNode([fileURLToPath(import.meta.url), '--isolated-termination-owner'],
+    'isolated subprocess termination owner', process.cwd(), env, { stdio: 'pipe', timeoutMs: 25000 });
+  process.stdout.write(result.stdout || '');
+  process.stderr.write(result.stderr || '');
+  process.exit(result.status);
+}
 const state = { error: null, launches: [], terminations: [], confirmed: false, failures: 0, snapshots: 0 };
 const key = Symbol.for('poc.test.subprocess-cache-barrier'); globalThis[key] = state;
 const access = 'const state = globalThis[Symbol.for("poc.test.subprocess-cache-barrier")];';
@@ -31,6 +41,9 @@ try {
   // so teardown exercises the controlled termination owner rather than a cache hit.
   const { applyTestEnv } = await import('../../helpers/test-env.js');
   applyTestEnv();
+  const { assertSubprocessTerminationReceipt } = await import('../../../src/shared/subprocess/termination-receipt.js');
+  const { trackedSubprocesses } = await import('../../../src/shared/subprocess/tracking-runtime.js');
+  const { releaseCacheWriterOwnership } = await import('../../../src/index/build/cache-writer-drain.js');
   const { executeTreeSitterSchedulerTasks } = await import('../../../src/index/build/tree-sitter-scheduler/runner/task-execution.js');
   const { teardownRuntime } = await import('../../../src/integrations/core/build-index/runtime.js');
   const runtime = { root: process.cwd(), log: () => {}, subprocessOwnership: { stage1FilePrefix: 'stage1:fixture-run:' } };

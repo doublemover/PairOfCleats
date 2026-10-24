@@ -271,7 +271,7 @@ impl Widget {
     languageId: 'html',
     file: 'sample.html',
     grammarKey: 'native:html',
-    expectedNames: ['html', 'body', 'main'],
+    expectedNames: ['html', 'html.body', 'html.body.main'],
     content: `<html>
   <body>
     <main id="app"></main>
