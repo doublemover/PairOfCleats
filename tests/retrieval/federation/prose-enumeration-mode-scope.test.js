@@ -17,7 +17,8 @@ const makeRepo = async (name, modes, compatibilityKey = null) => {
     const indexDir = await createCompatibilityIndex(descriptor.buildRoot, { mode, compatibilityKey: compatibilityKey || `compat-${mode}`, fileName: 'README.md' });
     const count = mode === 'prose' ? 2 : 20;
     await fs.writeFile(path.join(indexDir, 'chunk_meta.json'), JSON.stringify(Array.from({ length: count }, (_, id) => ({
-      id, file: 'README.md', name: `${mode}-${id}`, kind: 'Paragraph', start: id, end: id + 1, chunkUid: `${mode}:${id}`
+      id, file: 'README.md', name: `${mode}-${id}`, kind: 'Paragraph', start: id, end: id + 1, chunkUid: `${mode}:${id}`,
+      tokens: id === 0 ? ['alpha'] : []
     }))));
   }
   const workspacePath = path.join(root, `${name}-workspace.json`);

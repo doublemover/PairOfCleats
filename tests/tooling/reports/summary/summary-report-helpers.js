@@ -192,6 +192,8 @@ export const assertParitySummaryReport = async ({ sqliteBackend, outFileName }) 
   await fsPromises.mkdir(path.dirname(outPath), { recursive: true });
 
   const topN = 3;
+  assert.equal(summarizeParityMatch([{ id: 0 }], [{ id: 0 }], 1).overlap, 0,
+    'unscoped backend ordinals cannot establish shared chunk identity');
   const rows = [
     {
       query: 'index',
@@ -228,6 +230,13 @@ export const assertParitySummaryReport = async ({ sqliteBackend, outFileName }) 
       proseSqliteHits: []
     }
   ];
+  // These symbolic fixture ids represent stable authored chunks, not backend
+  // ordinals. Give both representations the actual cross-backend identity.
+  for (const row of rows) {
+    for (const hits of [row.memoryHits, row.sqliteHits, row.proseMemoryHits, row.proseSqliteHits]) {
+      for (const hit of hits) hit.chunkUid = `summary-fixture:${hit.id}`;
+    }
+  }
   const results = rows.map((row, index) => ({
     query: row.query,
     memory: {

@@ -5,6 +5,7 @@ import path from 'node:path';
 import { runFederatedSearch } from '../../../src/retrieval/federation/coordinator.js';
 import { writeFederationRepoFixture } from './repo-fixture.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { ERROR_CODES } from '../../../src/shared/error-codes.js';
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-fed-result-admission-'));
 const cacheRoot = path.join(root, 'cache');
@@ -14,11 +15,12 @@ try {
   const workspacePath = path.join(root, 'workspace.json');
   await fs.writeFile(workspacePath, JSON.stringify({ schemaVersion: 1, cacheRoot: './cache', repos: [{ root: './a' }, { root: './b' }] }));
   const malformed = [null, [], {}, { ok: false, code: 'ERR_RESULT', message: 'failed envelope' },
+    { ok: false, code: ERROR_CODES.INVALID_REQUEST, message: 'canonical failed envelope' },
     { code: {} }, { code: [undefined] }, { code: [null] }, { code: [[]] }];
   for (const [index, result] of malformed.entries()) {
     const request = { workspacePath, query: `admit-${index}`, search: { mode: 'code' }, strict: true };
     await assert.rejects(runFederatedSearch(request, { searchFn: async () => result }),
-      { code: result?.ok === false ? 'ERR_RESULT' : 'INTERNAL' });
+      { code: result?.code === ERROR_CODES.INVALID_REQUEST ? ERROR_CODES.INVALID_REQUEST : ERROR_CODES.INTERNAL });
     let calls = 0;
     const healthy = await runFederatedSearch(request, { searchFn: async () => { calls++; return { code: [] }; } });
     assert.equal(calls, 2, 'a rejected mode payload must not become a cached empty success');

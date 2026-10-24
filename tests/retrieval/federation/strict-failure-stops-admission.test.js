@@ -8,6 +8,7 @@ import { createError, ERROR_CODES } from '../../../src/shared/error-codes.js';
 import { createSqliteDbCache } from '../../../src/retrieval/sqlite-cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { writeFederationRepoFixture } from './repo-fixture.js';
+import { toRealPathSync } from '../../../src/workspace/identity.js';
 
 const deferred = () => {
   let resolve;
@@ -17,7 +18,7 @@ const deferred = () => {
 };
 const tick = () => new Promise(resolve => setImmediate(resolve));
 const emptyResult = () => ({ backend: 'memory', code: [], prose: [], extractedProse: [], records: [] });
-const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-fed-terminal-admission-'));
+const root = toRealPathSync(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-fed-terminal-admission-')));
 const cacheRoot = path.join(root, 'cache');
 applyTestEnv({ cacheRoot });
 
@@ -41,7 +42,7 @@ try {
     for (const ownership of ['local', 'host']) {
       const started = deferred();
       const release = deferred();
-      const original = createError(boundary === 'missing-index' ? ERROR_CODES.NO_INDEX : 'ERR_FIXTURE', `${boundary} primary`);
+      const original = createError(boundary === 'missing-index' ? ERROR_CODES.NO_INDEX : ERROR_CODES.INTERNAL, `${boundary} primary`);
       const resolved = [];
       const searched = [];
       const clears = { index: 0, sqlite: 0 };
@@ -143,15 +144,15 @@ try {
 
   const sequential = [];
   await assert.rejects(runFederatedSearch({ ...request, query: 'concurrency-one', limits: { concurrency: 1 } }, {
-    searchFn: async repo => { sequential.push(repo); throw createError('ERR_FIRST', 'first'); }
-  }), { code: 'ERR_FIRST' });
+    searchFn: async repo => { sequential.push(repo); throw createError(ERROR_CODES.INTERNAL, 'first'); }
+  }), { code: ERROR_CODES.INTERNAL });
   assert.deepEqual(sequential, [first]);
 
   const bestEffort = [];
   const partial = await runFederatedSearch({ ...request, query: 'non-strict-control', strict: false }, {
     searchFn: async repo => {
       bestEffort.push(repo);
-      if (repo === first) throw createError('ERR_REPO', 'repo fault');
+      if (repo === first) throw createError(ERROR_CODES.INTERNAL, 'repo fault');
       return emptyResult();
     }
   });
@@ -181,13 +182,13 @@ try {
   const pending = runFederatedSearch({ ...request, query: 'stop-second-mode', search: { mode: 'all' } }, {
     searchFn: async (repo, { args }) => {
       modeCalls.push([repo, args[args.indexOf('--mode') + 1]]);
-      if (repo === first) { await modeStarted.promise; throw createError('ERR_MODE', 'mode failure'); }
+      if (repo === first) { await modeStarted.promise; throw createError(ERROR_CODES.INVALID_REQUEST, 'mode failure'); }
       modeStarted.resolve();
       await modeRelease.promise;
       return emptyResult();
     }
   });
-  const rejected = assert.rejects(pending, { code: 'ERR_MODE' });
+  const rejected = assert.rejects(pending, { code: ERROR_CODES.INVALID_REQUEST });
   try { await modeStarted.promise; await rejected; } finally { modeRelease.resolve(); await tick(); }
   assert.deepEqual(modeCalls, [[first, 'all'], [sibling, 'code']]);
 } finally {

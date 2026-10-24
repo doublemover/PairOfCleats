@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { applyTestEnv, withTemporaryEnv } from '../../helpers/test-env.js';
 import { initGitRepo } from '../../helpers/git-fixture.js';
@@ -19,10 +20,12 @@ const models = ['explicit-fixture-baseline', 'explicit-fixture-candidate'];
 const env = applyTestEnv({ cacheRoot: cacheRootBase, embeddings: 'stub', extraEnv: {
   PAIROFCLEATS_TRUSTED_CONFIG: null
 } });
-const rows = Array.from({ length: 20 }, (_, id) => ({ id, file: `src/part-${id}.js`,
+const source = 'export function alphaBetaGamma() {}\n';
+const fileHash = createHash('sha1').update(source).digest('hex');
+const rows = Array.from({ length: 20 }, (_, id) => ({ id, file: `src/part-${id}.js`, fileHash,
   chunkUid: `fixture:${id}`, name: `part${id}`, kind: 'FunctionDeclaration',
-  start: 0, end: Buffer.byteLength('export function alphaBetaGamma() {}\n'), startLine: 1, endLine: 1 }));
-for (const row of rows) await fs.writeFile(path.join(repo, row.file), 'export function alphaBetaGamma() {}\n');
+  start: 0, end: Buffer.byteLength(source), startLine: 1, endLine: 1 }));
+for (const row of rows) await fs.writeFile(path.join(repo, row.file), source);
 for (const [modelIndex, modelId] of models.entries()) {
   const modelCache = resolveCompareModelCacheRoot({ modelId, cacheRootBase });
   await withTemporaryEnv({ ...env, PAIROFCLEATS_CACHE_ROOT: modelCache, PAIROFCLEATS_MODEL: modelId }, async () => {

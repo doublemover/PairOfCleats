@@ -5,10 +5,11 @@ import { withContainedFile } from './contained-file.js';
 import { describeStorageFailure, observeStorageResource } from './storage/failure-observation.js';
 import { classifyGeneratedArtifactCorePrefix, isGeneratedArtifactCoreCandidatePath } from './generated-artifact-core.js';
 import { classifyGeneratedArtifactCachePrefix, isGeneratedArtifactCacheCandidatePath } from './generated-artifact-cache.js';
+import { MAP_MODEL_VERSION } from '../map/model-version.js';
 
 export const GENERATED_ARTIFACT_PREFIX_BYTES = 8192;
 // Bump when recognition changes so older bundles cannot bypass new classifications.
-export const GENERATED_ARTIFACT_POLICY_VERSION = 'poc.generated-discovery@4';
+export const GENERATED_ARTIFACT_POLICY_VERSION = 'poc.generated-discovery@5';
 export const GENERATED_ARTIFACT_FLAGS = Object.freeze({ OMIT: 1, WARN: 2 });
 const FORMAT = 'poc.generated@1';
 const MAP_KIND = 'code-map-cache';
@@ -73,7 +74,7 @@ const parseMapHeader = (text, key = null) => {
   } catch { return false; }
 };
 
-const hasMapModelHeader = (text, repoRoot = null) => {
+const hasMapModelHeader = (text, repoRoot = null, versions = ['1.0.0', MAP_MODEL_VERSION]) => {
   const nodes = /"nodes"\s*:\s*\[/.exec(text);
   if (!nodes) return false;
   try {
@@ -81,7 +82,7 @@ const hasMapModelHeader = (text, repoRoot = null) => {
     if (hasDuplicateKeys(headerText)) return false;
     const header = JSON.parse(headerText);
     if (Object.keys(header).sort().join(',') !== LEGACY_HEADER_KEYS.join(',')) return false;
-    return header.version === '1.0.0' && Number.isFinite(Date.parse(header.generatedAt))
+    return versions.includes(header.version) && Number.isFinite(Date.parse(header.generatedAt))
       && typeof header.root?.path === 'string'
       && (!repoRoot || path.resolve(header.root.path) === path.resolve(repoRoot))
       && typeof header.root?.id === 'string'
@@ -131,7 +132,7 @@ export const classifyGeneratedArtifactPrefix = ({ relativePath, prefix, repoRoot
   }
   // Historical caches have no reserved header. Require their exact old location,
   // canonical key filename and recognizable map header; authored siblings survive.
-  if (typeof repoRoot !== 'string' || !repoRoot || !hasMapModelHeader(text, repoRoot)) return null;
+  if (typeof repoRoot !== 'string' || !repoRoot || !hasMapModelHeader(text, repoRoot, ['1.0.0'])) return null;
   return { kind: MAP_KIND, format: 'legacy-code-map@1', flags: GENERATED_ARTIFACT_FLAGS.OMIT, action: 'omit' };
 };
 

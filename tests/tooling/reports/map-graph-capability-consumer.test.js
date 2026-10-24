@@ -6,10 +6,11 @@ import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
 import { writePiecesManifest } from '../../helpers/artifact-io-fixture.js';
+import { toRealPathSync } from '../../../src/workspace/identity.js';
 
 // The actual report/dispatcher consume a named trusted graph boundary fixture.
 // Backend sealing/authority negatives stay with the real graph capability owner.
-const fixture = await makeTempDir('poc-map-graph-capability-');
+const fixture = toRealPathSync(await makeTempDir('poc-map-graph-capability-'));
 try {
   const repo = path.join(fixture, 'repo'), retained = path.join(fixture, 'failed-build');
   const snapshot = path.join(fixture, 'immutable-graph'), indexDir = path.join(snapshot, 'index-code');

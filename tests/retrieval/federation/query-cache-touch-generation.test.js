@@ -19,12 +19,12 @@ try {
   upsertFederatedQueryCacheEntry(cache, { keyHash: 'a', manifestHash: 'generation-a', result: { marker }, now: new Date(originalTime).toISOString(), policy });
   await persistFederatedQueryCache({ cachePath, cache });
   const canonical = await fs.readFile(cachePath, 'utf8');
-  const originalRead = fs.readFile;
+  const originalOpen = fs.open;
   let payloadReads = 0;
   try {
-    fs.readFile = async function (file, ...args) {
+    fs.open = async function (file, ...args) {
       if (String(file) === cachePath) payloadReads++;
-      return originalRead.call(this, file, ...args);
+      return originalOpen.call(this, file, ...args);
     };
     cache = await loadFederatedQueryCache({ cachePath, repoSetId });
     const first = cache.entries.a.result;
@@ -36,7 +36,7 @@ try {
     }
     assert.equal(payloadReads, 1);
     assert.throws(() => { first.marker = 'mutated'; }, TypeError);
-  } finally { fs.readFile = originalRead; }
+  } finally { fs.open = originalOpen; }
 
   const refreshed = originalTime + 500;
   touchFederatedQueryCacheEntry(cache, 'a', new Date(refreshed).toISOString());

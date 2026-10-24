@@ -128,8 +128,8 @@ try {
     JSON.stringify({
       artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       buildId: 'build-a',
-      buildRoot: externalBuild,
-      activeRoot: externalBuild
+      buildRoot: path.relative(cacheRoot, buildA),
+      buildRootsByMode: { code: path.relative(cacheRoot, buildA) }
     }, null, 2)
   );
 
@@ -188,6 +188,14 @@ try {
     2,
     'expected refreshJson to recompute analysis even when existing analysis is valid'
   );
+  await fsPromises.writeFile(path.join(cacheRoot, 'builds', 'current.json'), JSON.stringify({
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, buildId: 'outside-current-build',
+    buildRoot: externalBuild, activeRoot: externalBuild
+  }));
+  const rejectedExternal = loadOrComputeBenchAnalysis({ payload: benchPayload,
+    featureMetrics: null, indexingSummary: null, refreshJson: true, deepAnalysis: false });
+  assert.notEqual(normalizeComparablePath(rejectedExternal.analysis?.buildRoot), normalizeComparablePath(externalBuild),
+    'an out-of-cache pointer never grants authority to an external build');
 
   const repoAliasPath = path.join(repoRoot, '..', path.basename(repoRoot));
   assert.equal(

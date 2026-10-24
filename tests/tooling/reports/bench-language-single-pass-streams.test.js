@@ -16,7 +16,10 @@ try {
   const preflight = '[tooling] preflight:ok provider=gopls id=gopls.workspace-model durationMs=87 state=ready';
   const reuse = '[scm] file-meta snapshot: source=cache requested=10 reused=10 fetched=0. elapsedMs=12';
   for (const repo of ['repo-a', 'repo-b', 'all']) {
-    await fs.writeFile(path.join(logs, `run-one-${repo}.log`), `${preflight}\n${reuse}\n`, 'utf8');
+    // A selected log contains a material parity event absent from JSONL. Parser
+    // crash counters alone are not one of the parity reducer's event classes.
+    const unmatchedFallback = repo === 'repo-a' ? 'using fallback parser\n' : '';
+    await fs.writeFile(path.join(logs, `run-one-${repo}.log`), `${preflight}\n${reuse}\n${unmatchedFallback}`, 'utf8');
     await fs.writeFile(path.join(logs, `run-one-${repo}.diagnostics.jsonl`), `${JSON.stringify({
       eventType: 'parser_crash', eventId: 'one-event', signature: 'one-event', message: 'same event', label: repo === 'all' ? 'repo-a' : repo
     })}\nnot-json\n`, 'utf8');

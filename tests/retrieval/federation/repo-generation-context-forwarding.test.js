@@ -8,10 +8,11 @@ import { runFederatedSearch } from '../../../src/retrieval/federation/coordinato
 import { getRepoCacheRoot } from '../../../tools/shared/dict-utils.js';
 import { loadWorkspaceConfig } from '../../../src/workspace/config.js';
 import { generateWorkspaceManifest } from '../../../src/workspace/manifest.js';
+import { toRealPathSync } from '../../../src/workspace/identity.js';
 
 import { applyTestEnv } from '../../helpers/test-env.js';
 
-const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-fed-generation-context-'));
+const tempRoot = toRealPathSync(await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-fed-generation-context-')));
 const cacheRoot = path.join(tempRoot, 'cache');
 applyTestEnv({ cacheRoot });
 const repoRoot = path.join(tempRoot, 'repo');

@@ -12,6 +12,9 @@ const pidDir = path.join(temp, 'pids');
 await fs.mkdir(repo); await fs.mkdir(pidDir);
 await fs.writeFile(path.join(repo, 'cache.js'), 'export function refreshCache(value) { return value; }\n');
 await fs.writeFile(path.join(repo, 'README.md'), '# Refresh cache\nRefresh cached values.\n');
+await fs.writeFile(path.join(repo, 'tsconfig.json'), JSON.stringify({
+  compilerOptions: { types: [], lib: ['es2022'] }
+}));
 await fs.writeFile(path.join(repo, '.pairofcleats.json'), JSON.stringify({
   threads: 1,
   indexing: {
@@ -32,7 +35,7 @@ try {
   const result = runNode([path.join(root, 'bin/pairofcleats.js'), 'index', 'build', '--repo', repo,
     '--mode', 'both', '--threads', '1'], 'cold parity setup', repo, env,
   { stdio: 'pipe', allowFailure: true, timeoutMs: 15000 });
-  assert.equal(result.status, 0, `cold build: ${result.error?.code || result.signal || ''}\n${result.stderr}`);
+  assert.equal(result.status, 0, `cold build after ${Date.now() - start}ms: ${result.error?.code || result.signal || ''}\n${result.stdout}\n${result.stderr}`);
 } catch (error) { primary = error; }
 const pids = (await fs.readdir(pidDir)).map(Number);
 const deadline = Date.now()+2000;

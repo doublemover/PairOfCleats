@@ -6,10 +6,11 @@ import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 import { writePiecesManifest } from '../../helpers/artifact-io-fixture.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
+import { toRealPathSync } from '../../../src/workspace/identity.js';
 
 // The actual report entry point uses explicit trusted fixture implementations at
 // its model/operational boundary. It cannot fall back to a bare PATH executable.
-const fixture = await makeTempDir('poc-map-operational-render-');
+const fixture = toRealPathSync(await makeTempDir('poc-map-operational-render-'));
 try {
   const repo = path.join(fixture, 'repo'), index = path.join(fixture, 'index');
   await fs.mkdir(repo);
@@ -41,6 +42,7 @@ try {
       '--cache-dir', path.join(fixture, `cache-${scenario}`), '--format', scenario === 'html' ? 'html' : 'svg',
       '--out', out, '--json'], `map-${scenario}`, process.cwd(), env,
     { timeoutMs: 5000, stdio: 'pipe', allowFailure: true });
+    assert.equal(child.status, scenario === 'svg' || scenario === 'html' ? 0 : 1, child.stderr);
     assert.deepEqual(JSON.parse(await fs.readFile(trace, 'utf8')), { id: 'graphviz', args: ['-Tsvg'] });
     if (scenario === 'pending') {
       assert.notEqual(child.status, 0); assert.equal(child.stdout, '');
