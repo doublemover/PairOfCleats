@@ -1326,3 +1326,21 @@ Actual independent pending/failed-close observations and the 128-original bound
 are unchanged; no resource observer is replaced with successful classification.
 Regression controls retain two independent errors across repeated aliases and
 require both actual descriptors to close once. Repaired-source checks are pending.
+
+The 15-case run at `fce875b326fdf6737b561bb63b93f8fc4f50ee93` passed
+ten and failed five (one timeout), with no skips/crashes. All reader lifetime,
+short-read, digest, original-work, failed-close and private-copy controls passed;
+actual completed-stage recovery and immutable graph capability passed too. The
+four export cases now cancel during final artifact validation with ordinary
+AbortError and settled teardown, rather than diagnostic ownership expansion.
+Original closure remains 95; no adjacent observed failure remains.
+
+A separate bounded clean producer-provenance diagnostic measured 495.6ms for one
+observation. An actual-Git regression failed before repair (895ms fixture): six
+Git commands versus the required two closed clean observations. The implementation
+now uses porcelain-v2 NUL status to observe HEAD and clean membership together,
+reads the actual bootstrap receipt, then requires a fresh clean matching HEAD.
+Unknown/dirty records use the existing exact dirty-file byte inventory and final
+membership/revision checks. Identity fields/meaning remain unchanged; no receipt,
+branch, dirty-byte or native readiness authority is fabricated. This is a process
+work reduction, not yet a claimed production latency result.

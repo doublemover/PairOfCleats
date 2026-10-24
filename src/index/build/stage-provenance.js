@@ -12,6 +12,23 @@ import { SIGNATURE_VERSION } from './indexer/signatures.js';
 const toolRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const paths = ['src', 'bin', 'tools', 'rules', 'patches', 'package.json', 'package-lock.json'];
 
+const readProducerStatus = status => {
+  const records = status.split('\0').filter(Boolean);
+  const revisions = records.filter(record => /^# branch\.oid [a-f0-9]{40,64}$/.test(record));
+  const heads = records.filter(record => /^# branch\.head .+$/.test(record));
+  const revision = revisions.length === 1 ? revisions[0].slice('# branch.oid '.length) : null;
+  const clean = Boolean(status.endsWith('\0') && revision && heads.length === 1 && records.every(record =>
+    /^# branch\.(?:oid [a-f0-9]{40,64}|head .+|upstream .+|ab \+\d+ -\d+)$/.test(record)));
+  return { revision, clean };
+};
+
+const producerIdentity = (revision, dirty, bootstrap) => {
+  const value = { schemaVersion: 1, revision, dirty: stageIdentityHash(dirty), dirtyFiles: dirty.length,
+    bootstrap, node: process.version, signatureVersion: SIGNATURE_VERSION,
+    analysisVersions: SEMANTIC_ANALYSIS_VERSIONS, evidenceScope: 'observed-implementation-files-and-bootstrap-receipt' };
+  return { ...value, identity: stageIdentityHash(value) };
+};
+
 /** Git supplies dirty membership; only changed implementation files are hashed.
  * This is reuse admission evidence, not a second full-tree diagnostic scan.
  */
@@ -28,8 +45,19 @@ export const observeStageProducer = async (signal = null) => {
     return String(result.stdout || '');
   };
   try {
-    const revision = (await git(['rev-parse', '--verify', 'HEAD'])).trim();
+    const status = () => git(['status', '--porcelain=v2', '--branch', '-z', '--untracked-files=all', '--', ...paths]);
+    const initial = readProducerStatus(await status());
+    const revision = initial.revision || (await git(['rev-parse', '--verify', 'HEAD'])).trim();
     if (!/^[a-f0-9]{40,64}$/.test(revision)) throw new Error('Invalid implementation revision.');
+    if (initial.clean) {
+      // One status supplies both HEAD and dirty membership. No file hashes are
+      // omitted unless that closed observation is clean, and a second fresh
+      // observation must agree after reading the actual bootstrap receipt.
+      const bootstrap = await readVerifiedContainedFile(toolRoot, path.join(toolRoot, 'node_modules/.pairofcleats-bootstrap.json'), { maxBytes: 8 * 1024 * 1024, signal });
+      const final = readProducerStatus(await status());
+      if (!final.clean || final.revision !== revision) throw new Error('Implementation membership changed during observation.');
+      return producerIdentity(revision, [], bootstrap.hash);
+    }
     const membership = async () => [...new Set((await git(['diff', '--no-ext-diff', '--no-textconv', '--name-only', '-z', 'HEAD', '--', ...paths])
       + await git(['ls-files', '--others', '--exclude-standard', '-z', '--', ...paths])).split('\0').filter(Boolean))].sort();
     const dirtyPaths = await membership();
@@ -50,10 +78,7 @@ export const observeStageProducer = async (signal = null) => {
     if (stageIdentityHash(await membership()) !== stageIdentityHash(dirtyPaths)
       || (await git(['rev-parse', '--verify', 'HEAD'])).trim() !== revision) throw new Error('Implementation membership changed during observation.');
     const bootstrap = await readVerifiedContainedFile(toolRoot, path.join(toolRoot, 'node_modules/.pairofcleats-bootstrap.json'), { maxBytes: 8 * 1024 * 1024, signal });
-    const value = { schemaVersion: 1, revision, dirty: stageIdentityHash(dirty), dirtyFiles: dirty.length,
-      bootstrap: bootstrap.hash, node: process.version, signatureVersion: SIGNATURE_VERSION,
-      analysisVersions: SEMANTIC_ANALYSIS_VERSIONS, evidenceScope: 'observed-implementation-files-and-bootstrap-receipt' };
-    return { ...value, identity: stageIdentityHash(value) };
+    return producerIdentity(revision, dirty, bootstrap.hash);
   } catch (error) {
     observeStorageResource(error, { phase: 'stage-producer-observation' }).requireSettled();
     if (signal?.aborted) throw error;

@@ -9403,6 +9403,417 @@
           "historicalAuthorWorkspaceEvidence": true
         }
       ]
+    },
+    {
+      "sourceHead": "fce875b326fdf6737b561bb63b93f8fc4f50ee93",
+      "startedAt": "2026-10-24T16:19:42.699Z",
+      "finishedAt": "2026-10-24T16:21:55.968Z",
+      "scope": "Paired-reader alias/cancellation/close-owner controls, actual recovery/graph capability and affected API/SSR cases",
+      "policy": {
+        "timeoutMs": 30000,
+        "retries": 0,
+        "nativeStatusRedo": false,
+        "threads": 1,
+        "platform": "win32",
+        "node": "v26.12.1",
+        "removedLaunchSetting": "PAIROFCLEATS_TRUSTED_CONFIG: missing configured file; no replacement authority granted"
+      },
+      "summary": {
+        "selected": 15,
+        "passed": 10,
+        "failed": 5,
+        "timeouts": 1,
+        "skipped": 0
+      },
+      "cohorts": [
+        {
+          "name": "reader-snapshot-wave-01",
+          "summary": {
+            "total": 5,
+            "passed": 5,
+            "failed": 0,
+            "skipped": 0,
+            "durationMs": 4031
+          },
+          "ids": [
+            "shared/artifact-io/paired-reader-resource-lifetime",
+            "shared/artifact-io/persistent-reader-resource-lifetime",
+            "shared/artifact-io/offsets-loader-proof-lifetime",
+            "shared/artifact-io/offset-resource-lifetime",
+            "shared/artifact-io/jsonl-row-short-read-consumers"
+          ]
+        },
+        {
+          "name": "reader-snapshot-wave-02",
+          "summary": {
+            "total": 5,
+            "passed": 4,
+            "failed": 1,
+            "skipped": 0,
+            "durationMs": 45817
+          },
+          "ids": [
+            "storage/semantic/registered-jsonl-digest-algorithms",
+            "indexing/artifacts/unpublished-stage-copy",
+            "indexing/artifacts/completed-stage-recovery",
+            "indexing/build/immutable-graph-capability",
+            "indexing/semantic/ssr-snapshot-witness-incremental"
+          ]
+        },
+        {
+          "name": "reader-snapshot-wave-03",
+          "summary": {
+            "total": 5,
+            "passed": 1,
+            "failed": 4,
+            "skipped": 0,
+            "durationMs": 80671
+          },
+          "ids": [
+            "indexing/semantic/ssr-snapshot-witness-incremental-parity",
+            "tooling/api-contracts/export-identity-cli/js-fail",
+            "tooling/api-contracts/export-identity-cli/js-report",
+            "tooling/api-contracts/export-identity-cli/ts-fail",
+            "tooling/api-contracts/export-identity-cli/ts-report"
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "id": "shared/artifact-io/jsonl-row-short-read-consumers",
+          "path": "shared/artifact-io/jsonl-row-short-read-consumers.test.js",
+          "lane": "unit",
+          "tags": [
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 3362,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fce875b326fdf6737b561bb63b93f8fc4f50ee93/reader-snapshot-wave-01-logs/run-1792858783545-w8clkr/shared_artifact-io_jsonl-row-short-read-consumers.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "shared/artifact-io/offset-resource-lifetime",
+          "path": "shared/artifact-io/offset-resource-lifetime.test.js",
+          "lane": "unit",
+          "tags": [
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 134,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fce875b326fdf6737b561bb63b93f8fc4f50ee93/reader-snapshot-wave-01-logs/run-1792858783545-w8clkr/shared_artifact-io_offset-resource-lifetime.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "shared/artifact-io/offsets-loader-proof-lifetime",
+          "path": "shared/artifact-io/offsets-loader-proof-lifetime.test.js",
+          "lane": "unit",
+          "tags": [
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 217,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fce875b326fdf6737b561bb63b93f8fc4f50ee93/reader-snapshot-wave-01-logs/run-1792858783545-w8clkr/shared_artifact-io_offsets-loader-proof-lifetime.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "shared/artifact-io/paired-reader-resource-lifetime",
+          "path": "shared/artifact-io/paired-reader-resource-lifetime.test.js",
+          "lane": "unit",
+          "tags": [
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 154,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fce875b326fdf6737b561bb63b93f8fc4f50ee93/reader-snapshot-wave-01-logs/run-1792858783545-w8clkr/shared_artifact-io_paired-reader-resource-lifetime.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "shared/artifact-io/persistent-reader-resource-lifetime",
+          "path": "shared/artifact-io/persistent-reader-resource-lifetime.test.js",
+          "lane": "unit",
+          "tags": [
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 154,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fce875b326fdf6737b561bb63b93f8fc4f50ee93/reader-snapshot-wave-01-logs/run-1792858783545-w8clkr/shared_artifact-io_persistent-reader-resource-lifetime.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/artifacts/completed-stage-recovery",
+          "path": "indexing/artifacts/completed-stage-recovery.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 3514,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fce875b326fdf6737b561bb63b93f8fc4f50ee93/reader-snapshot-wave-02-logs/run-1792858788540-q4olug/indexing_artifacts_completed-stage-recovery.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/artifacts/unpublished-stage-copy",
+          "path": "indexing/artifacts/unpublished-stage-copy.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 265,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fce875b326fdf6737b561bb63b93f8fc4f50ee93/reader-snapshot-wave-02-logs/run-1792858788540-q4olug/indexing_artifacts_unpublished-stage-copy.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/build/immutable-graph-capability",
+          "path": "indexing/build/immutable-graph-capability.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 11306,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fce875b326fdf6737b561bb63b93f8fc4f50ee93/reader-snapshot-wave-02-logs/run-1792858788540-q4olug/indexing_build_immutable-graph-capability.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/semantic/ssr-snapshot-witness-incremental",
+          "path": "indexing/semantic/ssr-snapshot-witness-incremental.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "failed",
+          "durationMs": 30543,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": true,
+          "timeoutClass": "timed_out_with_failure",
+          "skipReason": null,
+          "termination": {
+            "terminated": true,
+            "forced": true,
+            "fallbackAttempted": false,
+            "fallbackTerminated": 0
+          },
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fce875b326fdf6737b561bb63b93f8fc4f50ee93/reader-snapshot-wave-02-logs/run-1792858788540-q4olug/indexing_semantic_ssr-snapshot-witness-incremental.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fce875b326fdf6737b561bb63b93f8fc4f50ee93/reader-snapshot-wave-02-logs/run-1792858788540-q4olug/indexing_semantic_ssr-snapshot-witness-incremental.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "storage/semantic/registered-jsonl-digest-algorithms",
+          "path": "storage/semantic/registered-jsonl-digest-algorithms.test.js",
+          "lane": "storage",
+          "tags": [
+            "storage"
+          ],
+          "status": "passed",
+          "durationMs": 173,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fce875b326fdf6737b561bb63b93f8fc4f50ee93/reader-snapshot-wave-02-logs/run-1792858788540-q4olug/storage_semantic_registered-jsonl-digest-algorithms.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/semantic/ssr-snapshot-witness-incremental-parity",
+          "path": "indexing/semantic/ssr-snapshot-witness-incremental-parity.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 28791,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fce875b326fdf6737b561bb63b93f8fc4f50ee93/reader-snapshot-wave-03-logs/run-1792858835274-d4q9va/indexing_semantic_ssr-snapshot-witness-incremental-parity.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/js-fail",
+          "path": "tooling/api-contracts/export-identity-cli.test.js",
+          "lane": "gate",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "status": "failed",
+          "durationMs": 13001,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fce875b326fdf6737b561bb63b93f8fc4f50ee93/reader-snapshot-wave-03-logs/run-1792858835274-d4q9va/tooling_api-contracts_export-identity-cli_js-fail.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fce875b326fdf6737b561bb63b93f8fc4f50ee93/reader-snapshot-wave-03-logs/run-1792858835274-d4q9va/tooling_api-contracts_export-identity-cli_js-fail.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/js-report",
+          "path": "tooling/api-contracts/export-identity-cli.test.js",
+          "lane": "gate",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "status": "failed",
+          "durationMs": 12979,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fce875b326fdf6737b561bb63b93f8fc4f50ee93/reader-snapshot-wave-03-logs/run-1792858835274-d4q9va/tooling_api-contracts_export-identity-cli_js-report.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fce875b326fdf6737b561bb63b93f8fc4f50ee93/reader-snapshot-wave-03-logs/run-1792858835274-d4q9va/tooling_api-contracts_export-identity-cli_js-report.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/ts-fail",
+          "path": "tooling/api-contracts/export-identity-cli.test.js",
+          "lane": "gate",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "status": "failed",
+          "durationMs": 12994,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fce875b326fdf6737b561bb63b93f8fc4f50ee93/reader-snapshot-wave-03-logs/run-1792858835274-d4q9va/tooling_api-contracts_export-identity-cli_ts-fail.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fce875b326fdf6737b561bb63b93f8fc4f50ee93/reader-snapshot-wave-03-logs/run-1792858835274-d4q9va/tooling_api-contracts_export-identity-cli_ts-fail.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/ts-report",
+          "path": "tooling/api-contracts/export-identity-cli.test.js",
+          "lane": "gate",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "status": "failed",
+          "durationMs": 12885,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fce875b326fdf6737b561bb63b93f8fc4f50ee93/reader-snapshot-wave-03-logs/run-1792858835274-d4q9va/tooling_api-contracts_export-identity-cli_ts-report.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fce875b326fdf6737b561bb63b93f8fc4f50ee93/reader-snapshot-wave-03-logs/run-1792858835274-d4q9va/tooling_api-contracts_export-identity-cli_ts-report.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        }
+      ]
     }
   ],
   "cumulativeClosure": {
