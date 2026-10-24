@@ -11,7 +11,7 @@ import { assertArtifactPublicationReady, resolveArtifactPublicationPath,
   writeArtifactPublicationRecord, writeArtifactPublicationValidationReport } from './artifact-publication.js';
 import { reconcileIndexIdentity } from '../identity/reconcile.js';
 import { GRAPH_CAPABILITY_REQUIRED_FAMILIES, writeGraphCapabilityReceipt } from './graph-capability.js';
-import { copyStageMembers, inventoryStageOutput, readBuildMetadata, sameStagePath,
+import { copyStageMembers, copyUnpublishedStageMembers, inventoryStageOutput, readBuildMetadata, sameStagePath,
   stageFailure, stageIdentityHash, STAGE_METADATA_MAX_BYTES } from './stage-output.js';
 
 export const resolveStageSnapshotRoot = (buildRoot, locator) => {
@@ -30,9 +30,13 @@ export const snapshotStageOutput = async ({ runtime, mode, manifest, inventory, 
   assertOwned(); throwIfAborted(signal);
   const relativeRoot = `completed/${mode}/${randomUUID()}`;
   const snapshotRoot = resolveArtifactPath(runtime.buildRoot, relativeRoot, { allowMissing: true });
-  await fs.mkdir(path.join(snapshotRoot, `index-${mode}`), { recursive: true });
+  await fs.mkdir(path.dirname(snapshotRoot), { recursive: true });
+  assertNoSymlinkPath(runtime.buildRoot, path.dirname(snapshotRoot));
+  // Existing directories are never admitted as private unpublished staging.
+  await fs.mkdir(snapshotRoot);
+  await fs.mkdir(path.join(snapshotRoot, `index-${mode}`));
   const sourceRoot = path.join(runtime.buildRoot, `index-${mode}`), targetRoot = path.join(snapshotRoot, `index-${mode}`);
-  await copyStageMembers({ inventory, sourceRoot, targetRoot, signal, assertOwned });
+  await copyUnpublishedStageMembers({ inventory, sourceRoot, targetRoot, signal, assertOwned });
   const manifestPath = path.join(targetRoot, 'pieces/manifest.json');
   const original = await readVerifiedContainedFile(sourceRoot, path.join(sourceRoot, 'pieces/manifest.json'), {
     maxBytes: STAGE_METADATA_MAX_BYTES, expectedHash: output.manifestHash, signal

@@ -1271,3 +1271,22 @@ Read-only hosted status for the preceding published 3345becd3 reports gate FAILU
 policy SUCCESS and downstream jobs SKIPPED. Its failure is a POSIX postinstall Git
 child-signal assertion, separate from this Windows-only execution. No Linux/WSL
 checks were launched locally and no hosted-green claim is made.
+
+PR #572 was updated/read back after publication of
+`74f59e3c91cf363c16661a45ec40b95d7c7068fe`; all 141 existing closing
+references were preserved. Remote SHA matched; policy passed and the new hosted
+gate was in progress at readback. No hosted-green result is inferred.
+
+An internal snapshot copy optimization is now implemented for validation. The
+snapshot root must be newly created exclusively; only its final stage-completion
+descriptor exposes publication authority. Such private members use ordinary
+exclusive files through the existing contained descriptor owner, retain bounded
+held-source streaming and exact source hash/identity checks, sync and close every
+file, then sync each distinct admitted parent directory before validation. They
+avoid per-member temporary-file hardlink publication and repeated parent setup.
+Restore/replacement keeps the original atomic writer. Uncertain failure retains
+unsealed bytes and original descriptor recovery; it does not unlink evidence or
+publish a completion descriptor. New regressions cover exact independent/empty
+bytes, partial writes, create-only collisions, four-reader failure draining and
+failed target-close retention without an automatic native retry. No latency
+improvement or closure is claimed before the strict source-bound re-check.

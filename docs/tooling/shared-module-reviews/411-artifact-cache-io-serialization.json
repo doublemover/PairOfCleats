@@ -1049,22 +1049,22 @@
     },
     {
       "path": "src/shared/io/directory-sync.js",
-      "consumerCount": 4,
+      "consumerCount": 5,
       "classifications": [
         "document",
         "test"
       ],
-      "consumerNotes": "Static production imports: src/shared/artifact-io/binary-columnar.js, src/shared/io/atomic-write.js, src/shared/io/persistence-helpers.js, tools/tui/install-generation.js.",
+      "consumerNotes": "Static production imports: src/index/build/stage-output.js, src/shared/artifact-io/binary-columnar.js, src/shared/io/atomic-write.js, src/shared/io/persistence-helpers.js, tools/tui/install-generation.js.",
       "recommendation": "Retain parent identity checks and explicit unsupported sync handling in async and sync persistence paths."
     },
     {
       "path": "src/shared/io/file-identity.js",
-      "consumerCount": 4,
+      "consumerCount": 5,
       "classifications": [
         "document",
         "test"
       ],
-      "consumerNotes": "Static production imports: src/shared/artifact-io/binary-columnar.js, src/shared/bundle-io/patch.js, src/shared/io/persistence-helpers.js, src/shared/io/replace-file.js.",
+      "consumerNotes": "Static production imports: src/index/build/stage-output.js, src/shared/artifact-io/binary-columnar.js, src/shared/bundle-io/patch.js, src/shared/io/persistence-helpers.js, src/shared/io/replace-file.js.",
       "recommendation": "Keep opened-file comparison data separate from portable atomic compare-and-remove guarantees."
     },
     {
