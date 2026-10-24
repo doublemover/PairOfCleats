@@ -2,7 +2,7 @@ import { projectNativeCallArguments } from './call-arguments.js';
 import { getNamedChild, getNamedChildCount } from './ast.js';
 import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
 
-export const SYNTAX_CALL_FACTS_VERSION = 6;
+export const SYNTAX_CALL_FACTS_VERSION = 7;
 const callTypes = new Set(['call_expression', 'function_call', 'call', 'method_invocation', 'function_call_expression', 'juxt_function_call',
   'member_call_expression', 'nullsafe_member_call_expression', 'scoped_call_expression', 'object_creation_expression', 'command']);
 const scopeBarriers = new Set(['function_definition', 'function_declaration', 'method', 'singleton_method', 'function_item',
@@ -66,7 +66,14 @@ export const attachSyntaxCallFacts = (root, text, chunks, { maxNodes = 250000, d
     let exclusion = declared ? null : inheritedExclusion;
     const declarationBody = node.type === 'closure' && owner
       && node.startIndex === owner.meta?.bodyStart && node.endIndex === owner.meta?.bodyEnd;
-    if (scopeBarriers.has(node.type) && !declared && !declarationBody) {
+    const statement = node.parent?.type === 'expression_statement' ? node.parent : node;
+    const controlBody = languageId === 'groovy' && node.type === 'closure'
+      && ['if_statement', 'while_statement', 'for_statement', 'enhanced_for_statement', 'do_statement'].includes(statement.parent?.type)
+      && ['body', 'consequence', 'alternative'].some(name => {
+        const body = field(statement.parent, name);
+        return body && keyOf(body) === keyOf(statement);
+      });
+    if (scopeBarriers.has(node.type) && !declared && !declarationBody && !controlBody) {
       blockedOwner = owner || blockedOwner; owner = null; exclusion = 'anonymousScopeCalls';
     }
     // Julia represents declaration signatures with the same call_expression

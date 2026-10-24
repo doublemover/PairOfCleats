@@ -9,7 +9,8 @@ const installation = createVsCodeRuntimeTempRepo({ prefix: 'poc-editor-install-'
 const first = createVsCodeRuntimeTempRepo({ prefix: 'poc-editor-first-' });
 const second = createVsCodeRuntimeTempRepo({ prefix: 'poc-editor-second-' });
 const cli = path.join(installation, 'bin', 'pairofcleats.js');
-const user = { cliPath: cli, nodePath: process.execPath, apiExecutionMode: 'cli', env: {}, cliArgs: [], extraSearchArgs: [] };
+const user = { cliPath: cli, nodePath: process.execPath, apiExecutionMode: 'cli', env: {}, cliArgs: [], extraSearchArgs: [],
+  inlineDiagnosticsEnabled: false, inlineDecorationsEnabled: false };
 const byRoot = new Map([[first, { searchMode: 'code', searchBackend: 'memory', searchFilter: 'lang:javascript' }],
   [second, { searchMode: 'records', searchBackend: 'memory', searchFilter: 'type:record' }]]);
 const harness = createVsCodeRuntimeHarness({ repoRoot: first, activeFile: path.join(first, 'src', 'app.ts'),

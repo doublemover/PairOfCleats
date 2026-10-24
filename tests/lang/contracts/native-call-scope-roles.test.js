@@ -67,7 +67,9 @@ const groovy = await project('groovy', '.groovy', `class Box {
     def callback = { nested(); };
     after();
   }
-  def greet() { println 'ready'; }
+  def greet() {
+    println 'ready'
+  }
 }
 `);
 const groovyOuter = groovy.chunks.find(chunk => chunk.name === 'Box.outer');
@@ -80,6 +82,10 @@ assert.ok(groovy.sites.some(site => site.calleeRaw === 'println'),
     name: chunk.name, parserRecovered: chunk.meta.parserRecovered,
     calls: chunk.meta.syntaxCalls, coverage: chunk.meta.syntaxCallCoverage
   })))}`);
+const recoveredGroovy = await project('groovy', '.groovy', "class Box { def greet() { println 'ready'; } }");
+assert.equal(recoveredGroovy.chunks.find(chunk => chunk.name === 'Box.greet').meta.parserRecovered, true);
+assert.ok(!recoveredGroovy.sites.some(site => site.calleeRaw === 'println'),
+  'the partial grammar cannot invent a call from its recovered non-invocation nodes');
 
 // Grammar-role control also exercises interrupted traversal finalization without
 // invoking native parsers or depending on a wall-clock cutoff.
