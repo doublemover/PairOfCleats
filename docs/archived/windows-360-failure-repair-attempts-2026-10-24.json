@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "recordedAt": "2026-10-24T09:59:25.533Z",
+  "recordedAt": "2026-10-24T10:06:47.097Z",
   "queueSourceHead": "a96699ab0e9e822320e008f5affc1d690f305cfe",
   "originalFailureSource": "893fe089458e7f7294b8d1f357f596fdecc7d5d4",
   "scope": "The 360 historical failures outstanding at the runtime-wave publication. Attempt every implementation before further batch tests. Seven repairs were completed and tested immediately before this instruction.",
@@ -19,8 +19,8 @@
   },
   "summary": {
     "selected": 360,
-    "implemented-unvalidated": 195,
-    "not-attempted": 127,
+    "implemented-unvalidated": 207,
+    "not-attempted": 115,
     "needs-further-implementation": 13,
     "attempted-existing-owner-repair": 18,
     "implemented": 7,
@@ -838,8 +838,8 @@
       "id": "services/api/context-task-lifetime",
       "path": "services/api/context-task-lifetime.test.js",
       "owner": "services/api",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "7c5deebc1",
       "originalTimedOut": false,
       "originalFailure": "AggregateError [AbortError]: Operation aborted",
       "failureLocations": [
@@ -850,15 +850,15 @@
         "tests/services/api/context-task-lifetime.test.js:48:54",
         "src/shared/abort.js:2:17"
       ],
-      "notes": null,
+      "notes": "LMDB distinguishes manifested binary from sharded dense rows and retains strict declared-family errors. Native fixtures preserve actual Int64 source IDs and all three per-variant writer failures. Service/cache fixtures publish or explicitly select generations and declare format authority; missing/strict/cursor negatives remain. EXDEV injection follows the original cross-device source through retries while allowing the distinct same-volume staged commit. Ambiguous synchronous fd close is explicitly non-retryable, with independent harness-only physical cleanup. Semantic format rejection is tested after content resealing and retains the integrity-failure negative. MCP mock core owns its integrated SQLite stage; scoped GC uses registered generated data and protects unrelated unknown evidence. Status compares canonical Windows repository identity. No runtime re-test performed.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "services/api/filter-enumeration-surfaces",
       "path": "services/api/filter-enumeration-surfaces.test.js",
       "owner": "services/api",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "7c5deebc1",
       "originalTimedOut": false,
       "originalFailure": "Error: [search] code index not found at C:\\Users\\sneak\\AppData\\Local\\Temp\\poc-public-enumeration-mStBFb\\cache\\repos\\poc-public-enumeration-m-fcc4aa10e180\\index-code. Run \"pairofcleats index build\" (build-index) or \"node build_index.js\".",
       "failureLocations": [
@@ -869,29 +869,29 @@
         "src/retrieval/cli/load-indexes.js:67:26",
         "src/retrieval/cli/run-search/plan-runner.js:1098:15"
       ],
-      "notes": null,
+      "notes": "LMDB distinguishes manifested binary from sharded dense rows and retains strict declared-family errors. Native fixtures preserve actual Int64 source IDs and all three per-variant writer failures. Service/cache fixtures publish or explicitly select generations and declare format authority; missing/strict/cursor negatives remain. EXDEV injection follows the original cross-device source through retries while allowing the distinct same-volume staged commit. Ambiguous synchronous fd close is explicitly non-retryable, with independent harness-only physical cleanup. Semantic format rejection is tested after content resealing and retains the integrity-failure negative. MCP mock core owns its integrated SQLite stage; scoped GC uses registered generated data and protects unrelated unknown evidence. Status compares canonical Windows repository identity. No runtime re-test performed.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "services/api/semantic-trace",
       "path": "services/api/semantic-trace.test.js",
       "owner": "services/api",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "7c5deebc1",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/services/api/semantic-trace.test.js:99:10"
       ],
-      "notes": null,
+      "notes": "LMDB distinguishes manifested binary from sharded dense rows and retains strict declared-family errors. Native fixtures preserve actual Int64 source IDs and all three per-variant writer failures. Service/cache fixtures publish or explicitly select generations and declare format authority; missing/strict/cursor negatives remain. EXDEV injection follows the original cross-device source through retries while allowing the distinct same-volume staged commit. Ambiguous synchronous fd close is explicitly non-retryable, with independent harness-only physical cleanup. Semantic format rejection is tested after content resealing and retains the integrity-failure negative. MCP mock core owns its integrated SQLite stage; scoped GC uses registered generated data and protects unrelated unknown evidence. Status compares canonical Windows repository identity. No runtime re-test performed.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "services/api/status-durability",
       "path": "services/api/status-durability.test.js",
       "owner": "services/api",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "7c5deebc1",
       "originalTimedOut": false,
       "originalFailure": "AggregateError: [atomic-write] Failed to write file atomically \"C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\api-status-durability\\repo\\degraded.txt\": cross-device link not permitted",
       "failureLocations": [
@@ -902,35 +902,35 @@
         "tests/services/api/status-durability.test.js:35:3",
         "src/shared/io/persistence-helpers.js:95:44"
       ],
-      "notes": null,
+      "notes": "LMDB distinguishes manifested binary from sharded dense rows and retains strict declared-family errors. Native fixtures preserve actual Int64 source IDs and all three per-variant writer failures. Service/cache fixtures publish or explicitly select generations and declare format authority; missing/strict/cursor negatives remain. EXDEV injection follows the original cross-device source through retries while allowing the distinct same-volume staged commit. Ambiguous synchronous fd close is explicitly non-retryable, with independent harness-only physical cleanup. Semantic format rejection is tested after content resealing and retains the integrity-failure negative. MCP mock core owns its integrated SQLite stage; scoped GC uses registered generated data and protects unrelated unknown evidence. Status compares canonical Windows repository identity. No runtime re-test performed.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "services/mcp/cache-gc-repo-scope",
       "path": "services/mcp/cache-gc-repo-scope.test.js",
       "owner": "services/mcp",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "7c5deebc1",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:",
       "failureLocations": [
         "tests/services/mcp/cache-gc-repo-scope.test.js:28:10"
       ],
-      "notes": null,
+      "notes": "LMDB distinguishes manifested binary from sharded dense rows and retains strict declared-family errors. Native fixtures preserve actual Int64 source IDs and all three per-variant writer failures. Service/cache fixtures publish or explicitly select generations and declare format authority; missing/strict/cursor negatives remain. EXDEV injection follows the original cross-device source through retries while allowing the distinct same-volume staged commit. Ambiguous synchronous fd close is explicitly non-retryable, with independent harness-only physical cleanup. Semantic format rejection is tested after content resealing and retains the integrity-failure negative. MCP mock core owns its integrated SQLite stage; scoped GC uses registered generated data and protects unrelated unknown evidence. Status compares canonical Windows repository identity. No runtime re-test performed.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "services/mcp/index-build-cancellation",
       "path": "services/mcp/index-build-cancellation.test.js",
       "owner": "services/mcp",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "7c5deebc1",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:",
       "failureLocations": [
         "tests/services/mcp/index-build-cancellation.test.js:148:12"
       ],
-      "notes": null,
+      "notes": "LMDB distinguishes manifested binary from sharded dense rows and retains strict declared-family errors. Native fixtures preserve actual Int64 source IDs and all three per-variant writer failures. Service/cache fixtures publish or explicitly select generations and declare format authority; missing/strict/cursor negatives remain. EXDEV injection follows the original cross-device source through retries while allowing the distinct same-volume staged commit. Ambiguous synchronous fd close is explicitly non-retryable, with independent harness-only physical cleanup. Semantic format rejection is tested after content resealing and retains the integrity-failure negative. MCP mock core owns its integrated SQLite stage; scoped GC uses registered generated data and protects unrelated unknown evidence. Status compares canonical Windows repository identity. No runtime re-test performed.",
       "finalBatchStatus": "pending"
     },
     {
@@ -974,40 +974,40 @@
       "id": "retrieval/ann/generation-lmdb",
       "path": "retrieval/ann/generation-lmdb.test.js",
       "owner": "retrieval/ann",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "7c5deebc1",
       "originalTimedOut": false,
       "originalFailure": "AggregateError: Missing manifest entry for dense_vectors_binary_meta",
       "failureLocations": [],
-      "notes": null,
+      "notes": "LMDB distinguishes manifested binary from sharded dense rows and retains strict declared-family errors. Native fixtures preserve actual Int64 source IDs and all three per-variant writer failures. Service/cache fixtures publish or explicitly select generations and declare format authority; missing/strict/cursor negatives remain. EXDEV injection follows the original cross-device source through retries while allowing the distinct same-volume staged commit. Ambiguous synchronous fd close is explicitly non-retryable, with independent harness-only physical cleanup. Semantic format rejection is tested after content resealing and retains the integrity-failure negative. MCP mock core owns its integrated SQLite stage; scoped GC uses registered generated data and protects unrelated unknown evidence. Status compares canonical Windows repository identity. No runtime re-test performed.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "retrieval/ann/generation-publication",
       "path": "retrieval/ann/generation-publication.test.js",
       "owner": "retrieval/ann",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "7c5deebc1",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Lance and HNSW preserve source ordinals across null gaps",
       "failureLocations": [
         "tests/retrieval/ann/generation-publication.test.js:96:10"
       ],
-      "notes": null,
+      "notes": "LMDB distinguishes manifested binary from sharded dense rows and retains strict declared-family errors. Native fixtures preserve actual Int64 source IDs and all three per-variant writer failures. Service/cache fixtures publish or explicitly select generations and declare format authority; missing/strict/cursor negatives remain. EXDEV injection follows the original cross-device source through retries while allowing the distinct same-volume staged commit. Ambiguous synchronous fd close is explicitly non-retryable, with independent harness-only physical cleanup. Semantic format rejection is tested after content resealing and retains the integrity-failure negative. MCP mock core owns its integrated SQLite stage; scoped GC uses registered generated data and protects unrelated unknown evidence. Status compares canonical Windows repository identity. No runtime re-test performed.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "retrieval/ann/generation-rebuild-failure",
       "path": "retrieval/ann/generation-rebuild-failure.test.js",
       "owner": "retrieval/ann",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "7c5deebc1",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/retrieval/ann/generation-rebuild-failure.test.js:48:8"
       ],
-      "notes": null,
+      "notes": "LMDB distinguishes manifested binary from sharded dense rows and retains strict declared-family errors. Native fixtures preserve actual Int64 source IDs and all three per-variant writer failures. Service/cache fixtures publish or explicitly select generations and declare format authority; missing/strict/cursor negatives remain. EXDEV injection follows the original cross-device source through retries while allowing the distinct same-volume staged commit. Ambiguous synchronous fd close is explicitly non-retryable, with independent harness-only physical cleanup. Semantic format rejection is tested after content resealing and retains the integrity-failure negative. MCP mock core owns its integrated SQLite stage; scoped GC uses registered generated data and protects unrelated unknown evidence. Status compares canonical Windows repository identity. No runtime re-test performed.",
       "finalBatchStatus": "pending"
     },
     {
@@ -1033,23 +1033,23 @@
       "id": "retrieval/cache/index-cache-contract-matrix",
       "path": "retrieval/cache/index-cache-contract-matrix.test.js",
       "owner": "retrieval/cache",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "7c5deebc1",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/retrieval/cache/index-cache-contract-matrix.test.js:516:16",
         "tests/retrieval/cache/index-cache-contract-matrix.test.js:526:3"
       ],
-      "notes": null,
+      "notes": "LMDB distinguishes manifested binary from sharded dense rows and retains strict declared-family errors. Native fixtures preserve actual Int64 source IDs and all three per-variant writer failures. Service/cache fixtures publish or explicitly select generations and declare format authority; missing/strict/cursor negatives remain. EXDEV injection follows the original cross-device source through retries while allowing the distinct same-volume staged commit. Ambiguous synchronous fd close is explicitly non-retryable, with independent harness-only physical cleanup. Semantic format rejection is tested after content resealing and retains the integrity-failure negative. MCP mock core owns its integrated SQLite stage; scoped GC uses registered generated data and protects unrelated unknown evidence. Status compares canonical Windows repository identity. No runtime re-test performed.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "retrieval/cache/index-validation-policy",
       "path": "retrieval/cache/index-validation-policy.test.js",
       "owner": "retrieval/cache",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "7c5deebc1",
       "originalTimedOut": false,
       "originalFailure": "Error: ERR_INDEX_FORMAT_UNSUPPORTED: Cannot read pieces manifest at C:\\Users\\sneak\\AppData\\Local\\Temp\\poc-index-policy-Y4ypLd\\pieces\\manifest.json.",
       "failureLocations": [
@@ -1060,7 +1060,7 @@
         "src/retrieval/cli-index.js:76:20",
         "src/retrieval/cli/load-indexes/backend.js:104:30"
       ],
-      "notes": null,
+      "notes": "LMDB distinguishes manifested binary from sharded dense rows and retains strict declared-family errors. Native fixtures preserve actual Int64 source IDs and all three per-variant writer failures. Service/cache fixtures publish or explicitly select generations and declare format authority; missing/strict/cursor negatives remain. EXDEV injection follows the original cross-device source through retries while allowing the distinct same-volume staged commit. Ambiguous synchronous fd close is explicitly non-retryable, with independent harness-only physical cleanup. Semantic format rejection is tested after content resealing and retains the integrity-failure negative. MCP mock core owns its integrated SQLite stage; scoped GC uses registered generated data and protects unrelated unknown evidence. Status compares canonical Windows repository identity. No runtime re-test performed.",
       "finalBatchStatus": "pending"
     },
     {
@@ -4788,14 +4788,14 @@
       "id": "integrations/core/status-overload-options",
       "path": "integrations/core/status-overload-options.test.js",
       "owner": "integrations/core",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "7c5deebc1",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/integrations/core/status-overload-options.test.js:17:10"
       ],
-      "notes": null,
+      "notes": "LMDB distinguishes manifested binary from sharded dense rows and retains strict declared-family errors. Native fixtures preserve actual Int64 source IDs and all three per-variant writer failures. Service/cache fixtures publish or explicitly select generations and declare format authority; missing/strict/cursor negatives remain. EXDEV injection follows the original cross-device source through retries while allowing the distinct same-volume staged commit. Ambiguous synchronous fd close is explicitly non-retryable, with independent harness-only physical cleanup. Semantic format rejection is tested after content resealing and retains the integrity-failure negative. MCP mock core owns its integrated SQLite stage; scoped GC uses registered generated data and protects unrelated unknown evidence. Status compares canonical Windows repository identity. No runtime re-test performed.",
       "finalBatchStatus": "pending"
     },
     {

@@ -516,3 +516,21 @@ negatives, compare actual selected source and count four candidate witnesses
 from two capped two-target symbols (80 total, 12 when call/import are filtered);
 all CSR/legacy, direction and cap comparisons remain. Formatting and diff checks
 pass. Runtime checks remain deferred until every queue item is attempted.
+
+Dense/service implementation `7c5deebc1` attempts 12 cases (245/360; 115
+unattempted). LMDB no longer interprets sharded dense-row declarations as a
+requirement for disabled binary metadata; malformed declared binary families
+still fail. Lance Int64 ordinals remain bigint and native writer fault coverage
+asserts all three independently reported variants. CLI/HTTP/MCP enumeration
+publishes its authored index; direct cache signatures select their exact index
+root and permissive-policy fixtures still supply canonical format authority.
+EXDEV injection follows only the original source through normal replacement
+policy; the distinct same-volume staged rename succeeds. The HTTP edit-source
+fixture now proves synchronous ambiguous-close retry is refused, then physically
+closes its harness-owned descriptor without forging a production receipt.
+Semantic HTTP coverage first retains integrity failure (500), then reseals the
+unsupported-format artifact to exercise the original 409 contract. Scoped MCP
+GC owns generated inputs while the other repository's unknown bytes survive;
+its core-build mock now owns integrated SQLite work instead of requiring a
+duplicate adapter stage. Status overloads compare canonical Windows identity.
+Formatting/diff checks pass; all runtime acceptance remains deferred.
