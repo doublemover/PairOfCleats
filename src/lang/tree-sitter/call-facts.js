@@ -2,7 +2,7 @@ import { projectNativeCallArguments } from './call-arguments.js';
 import { getNamedChild, getNamedChildCount } from './ast.js';
 import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
 
-export const SYNTAX_CALL_FACTS_VERSION = 4;
+export const SYNTAX_CALL_FACTS_VERSION = 5;
 const callTypes = new Set(['call_expression', 'function_call', 'call', 'method_invocation', 'function_call_expression', 'juxt_function_call',
   'member_call_expression', 'nullsafe_member_call_expression', 'scoped_call_expression', 'object_creation_expression', 'command']);
 const scopeBarriers = new Set(['function_definition', 'function_declaration', 'method', 'singleton_method', 'function_item',
@@ -75,9 +75,11 @@ export const attachSyntaxCallFacts = (root, text, chunks, { maxNodes = 250000, d
     if (!owner && blockedOwner && callTypes.has(node.type)) omissions.get(blockedOwner)[exclusion]++;
     if (owner && callTypes.has(node.type)) {
       const calleeNode = field(node, 'function') || field(node, 'name') || field(node, 'method') || field(node, 'constructor') || field(node, 'type')
-        || (languageId === 'julia' && node.type === 'call_expression' ? getNamedChild(node, 0) : null);
+        || (languageId === 'perl' ? field(node, 'function_name') : null)
+        || (['julia', 'kotlin'].includes(languageId) && node.type === 'call_expression' ? getNamedChild(node, 0) : null);
       let callee = textOf(calleeNode, text);
-      const receiver = field(node, 'receiver') || field(node, 'object') || field(node, 'scope');
+      const receiver = field(node, 'receiver') || field(node, 'object') || field(node, 'scope')
+        || (languageId === 'perl' ? field(node, 'package_name') : null);
       if (receiver && callee && receiver.endIndex <= calleeNode.startIndex) callee = `${textOf(receiver,text)}.${callee}`;
       const dynamicRole = ['subscript_expression', 'element_access_expression', 'index_expression',
         'array_access_expression', 'parenthesized_expression', 'call_expression', 'lambda_expression'].includes(calleeNode?.type);

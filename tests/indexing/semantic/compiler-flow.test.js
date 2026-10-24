@@ -13,6 +13,7 @@ import { collectCompilerFlow } from '../../../src/index/semantic/compiler-flow.j
 import { createTypeScriptNodeIndex } from '../../../src/index/tooling/typescript/node-index.js';
 import { createSemanticDiskAccount } from '../../../src/index/build/artifacts/writers/semantic/partition.js';
 import { createArtifactSemanticStore } from '../../../src/semantic/artifact-store.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 const text = [
   'function choose(flag: boolean) { let x = 0; if (flag) x = 1; else x = 2; return x; }',
   'function loop(n: number) { let x = 0; while (x < n) { x += 1; } return x; }',
@@ -27,6 +28,7 @@ const text = [
   'function guarded(fn: any, value: any) { let x = 0; fn?.(x = 1); const y = value ?? x; switch(y) { case 0: x = 2; } return x; }'
 ].join('\r\n');
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-cfg-'));
+let store;
 try {
   const bytes = Buffer.from(text), source = createSemanticSourceSnapshot({ bytes, repositoryNamespace: 'cfg-fixture', path: 'flow.ts', language: 'typescript' }).manifest;
   const syntax = prepareTypeScriptSyntax(text, { ext: '.ts', fileName: 'flow.ts' }), { ts, sourceFile } = syntax;
@@ -51,7 +53,7 @@ try {
   const argumentsFor = { ts, checker, sourceFile, nodes: nodeIndex.nodes(), expressionFor, declarationFor, source, bytes,
     bindingPartition: partition, context: { contextKey: 'c'.repeat(64) }, root, policy, diskAccount };
   const flow = await collectCompilerFlow(argumentsFor);
-  const store = createArtifactSemanticStore({ root, repoRoot: 'cfg-fixture', artifactSurfaceVersion: '0.1.0',
+  store = createArtifactSemanticStore({ root, repoRoot: 'cfg-fixture', artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     generation: { baseBuildId: 'fixture', semanticRevision: 0 }, partitions: [partition, flow.partition] });
   const values = new Map(), edges = [];
   for await (const row of store.iterateRows(flow.partition.partitionId, 'semantic_records')) values.set(row.id, row);
@@ -125,4 +127,4 @@ try {
   assert.equal(limited.coverage[0].state, 'partial');
   assert.match(limited.coverage[0].reason, /iteration_budget/);
   console.log('CFG branch joins, mutable versions, loops, exceptions/finally and zero analysis budget passed');
-} finally { await fs.rm(root, { recursive: true, force: true }); }
+} finally { await store?.close(); await fs.rm(root, { recursive: true, force: true }); }

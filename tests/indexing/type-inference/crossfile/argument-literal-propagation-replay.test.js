@@ -50,7 +50,11 @@ try {
     if (expected === null) assert.equal(Object.hasOwn(inferred, name), false, `no prefix fact may reach ${name}`);
     else assert.ok(inferred[name].some(entry => entry.type === expected && entry.source === 'flow'), `expected complete argument fact for ${name}`);
   }
-  assert.equal(cold[1].codeRelations.callSummaries[0].args[1], '"ok" === input', 'unsupported argument evidence stays available in the ordinary summary');
+  const summary = cold[1].codeRelations.callSummaries[0];
+  assert.equal(summary.args[1], '...', 'the legacy argument projection remains a conservative summary');
+  assert.equal(summary.arguments.slots[1].preview, '"ok" === input',
+    'the canonical parser argument preserves unsupported expression evidence');
+  assert.equal(summary.arguments.slots[1].literalType, null, 'a comparison is not a string literal');
   const warm = makeChunks(), warmStats = await run(warm);
   assert.equal(warmStats.cacheHit, true);
   assert.deepEqual(JSON.parse(JSON.stringify(warm)), JSON.parse(JSON.stringify(cold)),

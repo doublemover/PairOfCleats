@@ -4,7 +4,7 @@ import { throwIfAborted } from '../../shared/abort.js';
  * catch/loop consumes only its own abrupt completion; leaving a finalizer drops
  * the suspended entries it actually escapes. No runtime value is evaluated. */
 export const collectCompilerCompletions = ({ graph, maxBytes, maxWork, signal }) => {
-  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || !Number.isSafeInteger(maxWork) || maxWork < 1) {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || !Number.isSafeInteger(maxWork) || maxWork < 0) {
     throw new TypeError('Compiler completion byte/work allowances are required.');
   }
   const returns = new Set(), visited = new Set(), pending = [];

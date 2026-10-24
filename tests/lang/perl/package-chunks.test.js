@@ -38,7 +38,7 @@ assert.equal(relations.imports.includes('strict'), true, 'expected use import re
 assert.equal(relations.imports.includes('Foo::Bar'), true, 'expected require import relation');
 assert.equal(relations.exports.includes('run'), true, 'expected function export relation');
 assert.equal(
-  relations.calls.some(([caller, callee]) => caller === 'run' && (callee === 'Foo::Bar::execute' || callee === 'execute')),
+  relations.calls.some(([caller, callee]) => caller === 'run' && callee === 'Foo.Bar.execute'),
   true,
   'expected relation call for required module invocation'
 );

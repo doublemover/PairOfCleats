@@ -115,7 +115,7 @@ function collectTypeScriptCallsAndUsages(text, normalizedText = null) {
     const raw = match[1];
     if (!raw) continue;
     const base = getLastDottedSegment(raw);
-    if (!base || TS_CALL_KEYWORDS.has(base)) continue;
+    if (!base || raw === base && TS_CALL_KEYWORDS.has(base)) continue;
     calls.add(raw);
     if (base !== raw) calls.add(base);
     if (!match[0]) callRe.lastIndex += 1;
@@ -212,7 +212,7 @@ export function buildTypeScriptRelations(text, tsChunks, options = {}) {
     const calleeName = getCalleeName(node.callee);
     if (!calleeName) return;
     const base = getLastDottedSegment(calleeName);
-    if (!base || TS_CALL_KEYWORDS.has(base)) return;
+    if (!base || calleeName === base && TS_CALL_KEYWORDS.has(base)) return;
     const location = resolveCallLocation(node);
     const callerName = location ? resolveCallerName(location.start, location.end) : '(module)';
     const args = [];
