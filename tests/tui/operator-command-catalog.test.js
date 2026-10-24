@@ -47,13 +47,17 @@ assert.ok(benchArgv.includes('--build=false'));
 assert.ok(benchArgv.includes('--clean=false'));
 assert.ok(benchArgv.includes('--components=sparse,dense,hybrid'));
 for (const id of ['sqlite.compact', 'lmdb.build', 'cache.clear']) {
-  assert.ok(catalog.find(command => command.id === id).unsupportedReason, `${id}: no implicit unimplemented ownership handoff`);
+  assert.ok(complete.find(command => command.id === id).unsupportedReason, `${id}: no implicit unimplemented ownership handoff`);
 }
-for (const command of describeIndexWorkflows({ backendDelegationEnabled: true })
+for (const command of describeIndexWorkflows({ backendDelegationEnabled: true, includeExperimental: true })
   .filter(command => ['sqlite.compact', 'lmdb.build'].includes(command.id))) {
   assert.equal(command.unsupportedReason, undefined, 'only an explicitly integrated code owner admits delegated backend maintenance');
   assert.equal(command.fields.some(field => field.name === 'index-root'), false, 'the reviewed current generation supplies the explicit root');
   assert.equal(validateConfig(command.schema, { mode: 'records' }).ok, false);
+}
+for (const id of ['index.recover', 'tooling.prepare-sourcekit']) {
+  assert.ok(complete.find(command => command.id === id).unsupportedReason,
+    `${id}: exact selection and review remain owned by the canonical CLI`);
 }
 for (const id of ['storage.configure-plan', 'storage.configure-apply', 'storage.policy-plan', 'storage.policy-apply', 'storage.migration-plan',
   'storage.migration-apply', 'storage.migration-rollback', 'storage.migration-status']) {

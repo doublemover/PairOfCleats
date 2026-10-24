@@ -61,8 +61,13 @@ try {
     const controller = new AbortController();
     await assert.rejects(async () => {
       for await (const _entry of readJsonLinesIterator(filename, { maxInFlight: 1, signal: controller.signal,
-        onBackpressure: () => controller.abort() })) { /* cancellation may precede first delivery */ }
+        onBackpressure: () => controller.abort() })) {
+        // Cancellation must occur even if delivery keeps pace with the
+        // producer and the queue never needs its backpressure callback.
+        controller.abort();
+      }
     }, { name: 'AbortError' });
+    assert.equal(controller.signal.aborted, true);
     assertClosed();
     sources = []; decoders = [];
     await assert.rejects(readJsonLinesEachAwait(filename, () => controller.abort(), { signal: controller.signal }), { name: 'AbortError' });

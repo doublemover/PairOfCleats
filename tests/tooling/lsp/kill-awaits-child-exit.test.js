@@ -5,7 +5,8 @@ import { createLspClient } from '../../../src/integrations/tooling/lsp/client.js
 import { getTrackedSubprocessCount } from '../../../src/shared/subprocess/tracking.js';
 
 // Deliver real child exits explicitly: successful signal delivery must not stand
-// in for the child handle's exit, including when a replacement starts meanwhile.
+// in for the child handle's exit. A replacement cannot adopt unsettled resources;
+// duplicate stale exit delivery must still leave a settled replacement intact.
 const children = [];
 const events = [];
 const client = createLspClient({
@@ -41,17 +42,20 @@ try {
   let settled = false, concurrentSettled = false;
   killing = Promise.resolve(client.kill()).then(() => { settled = true; });
   concurrentKill = Promise.resolve(client.kill()).then(() => { concurrentSettled = true; });
-  const replacement = client.start();
-  await once(children[1].child, 'spawn');
+  assert.throws(() => client.start(), { code: 'ERR_LSP_RESTART_STALE_PROCESS' });
   await children[0].exited;
   await flush();
   assert.equal(settled, false, 'kill must await the owned child exit notification');
   assert.equal(concurrentSettled, false, 'concurrent kill must join pending cleanup');
-  assert.equal(getTrackedSubprocessCount(), 2, 'the exiting child must remain tracked');
+  assert.equal(getTrackedSubprocessCount(), 1, 'the exiting child must remain tracked');
   await children[0].release();
   await Promise.all([killing, concurrentKill]);
-  assert.equal(getTrackedSubprocessCount(), 1, 'late exit must release only its own registration');
+  assert.equal(getTrackedSubprocessCount(), 0, 'observed exit releases its original registration');
   assert.ok(events.some(event => event.kind === 'exit' && event.pid === children[0].child.pid));
+  const replacement = client.start();
+  await once(children[1].child, 'spawn');
+  children[0].facade.emit('exit', children[0].facade.exitCode, children[0].facade.signalCode);
+  children[0].facade.emit('close', children[0].facade.exitCode, children[0].facade.signalCode);
   assert.equal(client.start(), replacement, 'late exit must preserve the replacement generation');
   assert.equal(client.isTransportRunning(), true);
   replacementKill = client.kill();

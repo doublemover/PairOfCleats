@@ -6,15 +6,16 @@ export const createResponseCapture = () => {
   };
   return {
     capture,
-    response: {
+    response: Object.assign(new EventEmitter(), {
       writeHead(statusCode, headers) {
         capture.statusCode = statusCode;
         capture.headers = headers;
       },
       end(body) {
         capture.body = body;
+        this.writableEnded = true;
       }
-    }
+    })
   };
 };
 
@@ -25,15 +26,16 @@ export const createMockResponse = () => {
     body: ''
   };
   return {
-    res: {
+    res: Object.assign(new EventEmitter(), {
       writeHead(statusCode, headers) {
         state.statusCode = Number(statusCode) || 0;
         state.headers = headers || {};
       },
       end(chunk = '') {
         state.body += String(chunk || '');
+        this.writableEnded = true;
       }
-    },
+    }),
     get statusCode() {
       return state.statusCode;
     },
@@ -53,7 +55,7 @@ export const invokeRouteWithMockResponse = async (routeHandler, {
 }) => {
   const response = createMockResponse();
   const handled = await routeHandler({
-    req: { method, ...req },
+    req: Object.assign(new EventEmitter(), { method }, req),
     res: response.res,
     requestUrl,
     pathname,
@@ -62,3 +64,4 @@ export const invokeRouteWithMockResponse = async (routeHandler, {
   });
   return { handled, response };
 };
+import { EventEmitter } from 'node:events';

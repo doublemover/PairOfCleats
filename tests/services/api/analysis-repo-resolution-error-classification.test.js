@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 
 import { ERROR_CODES } from '../../../src/shared/error-codes.js';
 import {
@@ -64,7 +65,7 @@ for (const testCase of cases) {
   repoErr.code = testCase.errorCode;
 
   const handled = await testCase.handler({
-    req: {},
+    req: new EventEmitter(),
     res: response,
     corsHeaders: {},
     observability: null,

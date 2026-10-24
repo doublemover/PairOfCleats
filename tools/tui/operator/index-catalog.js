@@ -101,6 +101,8 @@ const OPTIONS = {
 // Deliberate dispositions, not a catch-all. A new public registry command must
 // receive an adapter or a reviewed concrete reason before catalog admission.
 const UNSUPPORTED = {
+  'index.recover': 'Recovery requires an exact retained generation, immutable reviewed plan and graph capability preview; use the canonical index recover CLI until the native review adapter is implemented.',
+  'tooling.prepare-sourcekit': 'SourceKit preparation requires explicit selected-toolchain and generated-provider configuration review; use the canonical tooling prepare-sourcekit CLI until that native adapter exists.',
   'graph-evidence': 'Retained graph evidence needs an exact pinned-build/family request review and native cursor owner; use the canonical graph-evidence request-file CLI. No native action/capture or graph coverage is implied.',
   'workspace.init': 'Workspace authoring needs a native membership/create-file preview; use the canonical workspace init CLI.',
   'workspace.add': 'Workspace membership changes need a native exact-membership/file revision preview; use the canonical workspace add CLI.',
