@@ -23,8 +23,8 @@ Status: DRIFT
 
 ## scoreBreakdown
 - doc: docs/contracts/search-contract.md
-- source: src/retrieval/pipeline.js
-- missing in docs: none
+- source: src/retrieval/pipeline/rank-stage.js
+- missing in docs (8): ann, blend, phrase, relation, rrf, selected, sparse, symbol
 - extra in docs: none
 
 ## testRunnerLanes

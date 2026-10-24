@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-23T03:59:36.888Z",
+  "generatedAt": "2026-10-24T12:09:35.707Z",
   "ok": false,
   "checks": {
     "searchCliFlags": {
@@ -114,10 +114,19 @@
     },
     "scoreBreakdown": {
       "doc": "docs/contracts/search-contract.md",
-      "source": "src/retrieval/pipeline.js",
-      "sourceCount": 0,
+      "source": "src/retrieval/pipeline/rank-stage.js",
+      "sourceCount": 8,
       "docCount": 0,
-      "missingInDocs": [],
+      "missingInDocs": [
+        "ann",
+        "blend",
+        "phrase",
+        "relation",
+        "rrf",
+        "selected",
+        "sparse",
+        "symbol"
+      ],
       "extraInDocs": []
     },
     "testRunnerLanes": {

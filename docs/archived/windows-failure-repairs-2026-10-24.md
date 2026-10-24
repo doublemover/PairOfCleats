@@ -690,3 +690,13 @@ the cross-mode UID fixture stops after stage2; all original content comparisons
 remain. These checks do not require extra unrelated prose/records, ANN or
 SQLite work to establish their respective assertions. New repairs remain
 unvalidated until the next focused cohort.
+
+Historical context moved from the active roadmap to preserve its size bound:
+
+After the 2026-10-23 remote history cleanup, commit `59fde1d2d` fixed provider
+record projection, same-line repo-map source identities, Windows embedding stage
+paths, SQLite dense encoding admission and stale fixtures. The attempted warm
+compiler replay case omitted its original 2 GiB admission allowance and does
+not establish a replay defect. A frozen Windows campaign at that commit covered
+most explicit cohorts but exposed many failures and stopped during repeatedly
+failing native TUI cases; it is historical evidence, not final-tree acceptance.

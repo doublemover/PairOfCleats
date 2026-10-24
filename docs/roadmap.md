@@ -29,13 +29,7 @@ recorded; these observations are not a final-tree deep-suite pass.
 The earlier CDB-attributed
 Node-API finalizer lifetime repair retains its fail-before, ten-process and
 exposing-fixture evidence; no crash workaround or Node downgrade is used.
-After the 2026-10-23 remote history cleanup, commit `59fde1d2d` fixed provider
-record projection, same-line repo-map source identities, Windows embedding stage
-paths, SQLite dense encoding admission and stale fixtures. The attempted warm
-compiler replay case omitted its original 2 GiB admission allowance and does
-not establish a replay defect. A frozen Windows campaign at that commit covered
-most explicit cohorts but exposed many failures and stopped during repeatedly
-failing native TUI cases; it is historical evidence, not final-tree acceptance.
+Older campaign details remain in the linked source-bound receipts.
 The current narrow security repair excludes DOCX deleted/moved-from text,
 versions extraction and bundle reuse, and corrects UNC service-root authority.
 Focused regressions and the 40-case front gate passed and were published. Existing
