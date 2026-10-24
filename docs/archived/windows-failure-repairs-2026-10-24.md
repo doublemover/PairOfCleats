@@ -153,3 +153,45 @@ patch predicate. `9f94a3595` removes only that file-symlink cohort membership an
 asserts that ordinary CI still owns the full fixture. The resumed gate passes
 without creating links or weakening its completeness/timeout/retry guards. Both
 gate attempts are retained; no unexpected warning appears in focused transcripts.
+
+## Import-budget follow-up
+
+`54dad84737f77a8b818cfda2f4cb185f5379f243`, tree
+`0d65bf8fb851b22deb92e61a8afe5f4c411e6834`, meets every unchanged direct and
+transitive module budget. Command-registry queries use **2 / 2**, artifact I/O
+**71 / 73**, and the retrieval CLI **7 / 60** transitive modules. Other measured
+module budgets also pass. The serial original `tooling/shared-module-performance`
+fixture passes, including successful execution of all four help commands.
+Raw import/command timing samples and all module metrics remain in the JSON
+inventory; single-run samples do not qualify a latency speedup.
+
+Storage action identity now belongs to the canonical command registry, with the
+storage option module re-exporting that same frozen list. Registry queries no
+longer depend on CLI option declarations. Retrieval preflight imports the actual
+dense metadata predicate rather than its writer/binary facade. Artifact cache
+keys, repository access admission and binary JSON row parsing load their existing
+owners on first use through synchronous Node loading. This retains synchronous
+admission, the same key builder, original reader/lease instances, strict authority
+and public return contracts; it adds no asynchronous configuration snapshot gap.
+No public function, format, CLI option or threshold is removed or relaxed.
+
+Nine focused functional cases pass: dispatch/registry parity, sparse mode and
+filtered fallback policy, binary streaming without full materialization, JSON
+facade compatibility, loader fallback, manifest planning and strict containment.
+Two additional original repository/delegation lease controls pass, retaining live
+reader exclusion, dead/foreign/unknown-owner behavior and failed IPC authority.
+Together with the serial performance fixture this repairs one additional
+historical failure, giving latest scoped counts of **87 passing, 371 failing
+and one platform exclusion**. Broader coupling inventory/review work and the ten
+original timeout cases remain open.
+
+The complete import-batch front gate passes, including all 40 cases and Markdown
+links. Its first freshness failure caught a changed status literal: the broader
+coupling audit remains open even though its count budgets now pass. Restoring
+that explicit status retains the new budget evidence and the existing guard.
+The inventory preserves both observations. No unexpected warning appears in
+the Windows focused transcripts. Hosted CI at the preceding `dfba4c65d` checkpoint
+passes the dependency audit but fails the POSIX-only Git SIGTERM propagation
+control; downstream jobs remain unqualified. This Linux signal-lifetime path is
+outside the requested local Windows execution scope and has no speculative fix
+or disabled assertion.

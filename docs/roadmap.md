@@ -20,10 +20,10 @@ The next service batch repairs changing-lock contention and nested diagnostic
 redaction, with source-bound format, release-owner and lazy-posting fixtures.
 The [459-case re-check receipt](archived/windows-historical-rechecks-2026-10-24.md)
 records 32 baseline passes, 426 failures (10 timeouts) and one POSIX exclusion.
-Focused repairs through `abf38e247` move 54 failures to passing: latest scoped
-counts are 86 passes, 372 failures and one exclusion. The
+Focused repairs through `54dad8473` move 55 failures to passing: latest scoped
+counts are 87 passes, 371 failures and one exclusion. The
 [next repair receipt](archived/windows-failure-repairs-2026-10-24.md) records
-37 passing checks plus 15 cache/setup checks, dependency audit repair, regex/PHP,
+37 passing checks plus 15 cache/setup and 12 import/lease checks, dependency audit repair, regex/PHP,
 provider preflight, Windows delegation, MCP, VSIX and fallback fixes. No access violation was
 recorded; these observations are not a final-tree deep-suite pass.
 The earlier CDB-attributed
@@ -234,7 +234,7 @@ remain authoritative. Meaning changes must advance their shared producer version
 | Phase 14 IndexRefs, snapshots, diffs, and as-of retrieval | `implemented` | Snapshot and IndexRef contracts include historical/cache-boundary corrections. | Refresh cross-platform and end-to-end snapshot acceptance before release. |
 | Lexicon, relation boosts, chargram enrichment, and ANN candidate safety | `implemented` | Lexicon/chargram controls, ANN filtering and semantic constraints are implemented. | Measure representative search quality and optional native backends before release. |
 | USR consolidated contract and rollout program | `implemented` | Language/framework matrices, canonical schemas and conformance surfaces are present. | Refresh technical acceptance; the former approval-lock process is archived and is not a release blocker. |
-| Shared-module reduction | `coupling audit open` | Six ownership batches retain their backlog; current inventory omissions are reconciled explicitly. | Retain fixes for the October 18 direct/transitive import-budget failures without raising baselines; measure remaining startup/coupling work separately. |
+| Shared-module reduction | `coupling audit open` | Query registry 2/2, artifact I/O 71/73 and retrieval CLI 7/60 pass; broader ownership inventory remains separate. | Retain fixes for the October 18 direct/transitive import-budget failures without raising baselines; measure remaining startup/coupling work separately. |
 | Duplicate-code reduction | `checkpoint clean` | The May refresh found no current fragments among 212 saved candidates. | A future intentional full audit refresh, not ad hoc rework of stale saved-report entries, establishes a new repository-wide baseline. |
 | Production readiness | `deferred validation` | Release tooling and bounded platform/security receipts remain revision-specific. | Run production verification and release-readiness evidence against the final candidate; later security changes require their own merge and rescan. |
 | Phase 0.5 language/framework execution contract | `implemented` | Capability matrices, language adapters and executable conformance lanes are present. | Preserve the contract and rerun affected language/tooling acceptance when those owners change. |

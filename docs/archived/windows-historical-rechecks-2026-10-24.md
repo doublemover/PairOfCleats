@@ -121,9 +121,12 @@ identities; language, editor and report contracts. Separate deadlocks/leaked
 ownership from oversized aggregate cases before partitioning wrappers, retaining
 every assertion and script-coverage claim.
 
-The serial import check still exceeds unchanged transitive module budgets:
+At the original checkpoint, the serial import check exceeded transitive budgets:
 command-registry query 3/2, artifact I/O 89/73 and retrieval CLI 94/60. This is
-an import-count failure, not measured latency evidence. Native terminal lifetime,
+an import-count failure, not measured latency evidence. The
+[import follow-up](windows-failure-repairs-2026-10-24.md#import-budget-follow-up)
+passes all unchanged budgets at `54dad8473` (2/2, 71/73 and 7/60), bringing latest
+scoped counts to **87 passing, 371 failing and one exclusion**. Native terminal lifetime,
 useful latency qualification, Linux/macOS, optional sqlite-vec, real-model and
 release acceptance retain separate owners. No complete deep-suite, issue-closure
 or backlog-completion claim is made.

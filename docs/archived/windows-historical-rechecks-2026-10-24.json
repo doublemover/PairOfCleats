@@ -6557,6 +6557,365 @@
         "repairedFailure": "The explicit file-symlink inventory still selected the now-portable patch predicate. Removed only that privileged cohort entry and asserted ordinary CI ownership; all 40 gate cases pass after reconciliation."
       },
       "nativeAccessViolations": 0
+    },
+    {
+      "sourceHead": "54dad84737f77a8b818cfda2f4cb185f5379f243",
+      "sourceTree": "0d65bf8fb851b22deb92e61a8afe5f4c411e6834",
+      "recordedAt": "2026-10-24T07:10:42.316Z",
+      "scope": "Import owner reductions and unchanged-budget acceptance; functional and lease controls remain explicit.",
+      "policy": {
+        "jobs": 1,
+        "indexingThreads": 1,
+        "timeoutMs": 30000,
+        "retries": 0,
+        "nativeStatusRedo": false,
+        "performance": "serial"
+      },
+      "summary": {
+        "total": 12,
+        "passed": 12,
+        "failed": 0,
+        "skipped": 0
+      },
+      "observations": [
+        {
+          "id": "dispatch/command-registry-parity",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 737,
+          "timedOut": false,
+          "sourceHead": "54dad84737f77a8b818cfda2f4cb185f5379f243",
+          "report": "import-functional.json"
+        },
+        {
+          "id": "retrieval/backend/cli-sparse-preflight-mode-selection",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 81,
+          "timedOut": false,
+          "sourceHead": "54dad84737f77a8b818cfda2f4cb185f5379f243",
+          "report": "import-functional.json"
+        },
+        {
+          "id": "retrieval/backend/cli-sqlite-sparse-preflight-allow-fallback",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 2258,
+          "timedOut": false,
+          "sourceHead": "54dad84737f77a8b818cfda2f4cb185f5379f243",
+          "report": "import-functional.json"
+        },
+        {
+          "id": "retrieval/backend/cli-sqlite-sparse-preflight-allow-fallback-filtered",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 2306,
+          "timedOut": false,
+          "sourceHead": "54dad84737f77a8b818cfda2f4cb185f5379f243",
+          "report": "import-functional.json"
+        },
+        {
+          "id": "shared/artifact-io/core-binary-columnar-streaming-no-full-materialization",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 244,
+          "timedOut": false,
+          "sourceHead": "54dad84737f77a8b818cfda2f4cb185f5379f243",
+          "report": "import-functional.json"
+        },
+        {
+          "id": "shared/artifact-io/json-modularization",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 78,
+          "timedOut": false,
+          "sourceHead": "54dad84737f77a8b818cfda2f4cb185f5379f243",
+          "report": "import-functional.json"
+        },
+        {
+          "id": "shared/artifact-io/loader-fallbacks",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 219,
+          "timedOut": false,
+          "sourceHead": "54dad84737f77a8b818cfda2f4cb185f5379f243",
+          "report": "import-functional.json"
+        },
+        {
+          "id": "shared/artifact-io/manifest-read-plan",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 188,
+          "timedOut": false,
+          "sourceHead": "54dad84737f77a8b818cfda2f4cb185f5379f243",
+          "report": "import-functional.json"
+        },
+        {
+          "id": "shared/artifact-io/strict-contained-readers",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 180,
+          "timedOut": false,
+          "sourceHead": "54dad84737f77a8b818cfda2f4cb185f5379f243",
+          "report": "import-functional.json"
+        },
+        {
+          "id": "tooling/shared-module-performance",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 3213,
+          "timedOut": false,
+          "sourceHead": "54dad84737f77a8b818cfda2f4cb185f5379f243",
+          "report": "import-acceptance.json"
+        },
+        {
+          "id": "shared/cache/repo-access",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 3231,
+          "timedOut": false,
+          "sourceHead": "54dad84737f77a8b818cfda2f4cb185f5379f243",
+          "report": "import-lease-controls.json"
+        },
+        {
+          "id": "shared/storage/delegated-native-owner-lifetime",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 1998,
+          "timedOut": false,
+          "sourceHead": "54dad84737f77a8b818cfda2f4cb185f5379f243",
+          "report": "import-lease-controls.json"
+        }
+      ],
+      "newlyPassingHistoricalFailures": [
+        "tooling/shared-module-performance"
+      ],
+      "selectedLatest": {
+        "passed": 87,
+        "failed": 371,
+        "skipped": 1,
+        "remainingTimeouts": 10
+      },
+      "importMeasurements": {
+        "schemaVersion": "1.0.0",
+        "generatedAt": "2026-10-24T07:05:39.438Z",
+        "baselinePath": "docs/tooling/shared-module-performance-baselines.json",
+        "modules": [
+          {
+            "id": "shared.search-request",
+            "path": "src/shared/search-request.js",
+            "directLocalImportCount": 0,
+            "transitiveLocalModuleCount": 0,
+            "importMs": 5.092
+          },
+          {
+            "id": "shared.command-registry.query",
+            "path": "src/shared/command-registry-query.js",
+            "directLocalImportCount": 1,
+            "transitiveLocalModuleCount": 2,
+            "importMs": 8.237
+          },
+          {
+            "id": "shared.runtime-capability-manifest",
+            "path": "src/shared/runtime-capability-manifest.js",
+            "directLocalImportCount": 3,
+            "transitiveLocalModuleCount": 46,
+            "importMs": 46.392
+          },
+          {
+            "id": "shared.artifact-io",
+            "path": "src/shared/artifact-io.js",
+            "directLocalImportCount": 8,
+            "transitiveLocalModuleCount": 71,
+            "importMs": 99.525
+          },
+          {
+            "id": "shared.subprocess.runner",
+            "path": "src/shared/subprocess/runner.js",
+            "directLocalImportCount": 3,
+            "transitiveLocalModuleCount": 14,
+            "importMs": 30.918
+          },
+          {
+            "id": "retrieval.cli",
+            "path": "src/retrieval/cli.js",
+            "directLocalImportCount": 2,
+            "transitiveLocalModuleCount": 7,
+            "importMs": 10.449
+          }
+        ],
+        "commands": [
+          {
+            "id": "cli.search-help",
+            "args": [
+              "search.js",
+              "--help"
+            ],
+            "wallMs": 546.716,
+            "exitCode": 0,
+            "signal": null
+          },
+          {
+            "id": "cli.pairofcleats-help",
+            "args": [
+              "bin/pairofcleats.js",
+              "help"
+            ],
+            "wallMs": 762.93,
+            "exitCode": 0,
+            "signal": null
+          },
+          {
+            "id": "report.metrics-help",
+            "args": [
+              "tools/reports/metrics-dashboard.js",
+              "--help"
+            ],
+            "wallMs": 301.093,
+            "exitCode": 0,
+            "signal": null
+          },
+          {
+            "id": "report.diagnostics-help",
+            "args": [
+              "tools/reports/diagnostics-report.js",
+              "--help"
+            ],
+            "wallMs": 538.454,
+            "exitCode": 0,
+            "signal": null
+          }
+        ],
+        "regressions": []
+      },
+      "measurementQualification": "One serial sample per import/command; module-count budgets pass; not latency qualification.",
+      "frontGate": {
+        "status": "passed",
+        "attempts": [
+          {
+            "name": "format",
+            "exitCode": 0,
+            "report": "import-format.log"
+          },
+          {
+            "durationMs": 3136,
+            "name": "config-budget",
+            "exitCode": 0
+          },
+          {
+            "durationMs": 1587,
+            "name": "env-check",
+            "exitCode": 0
+          },
+          {
+            "durationMs": 10425,
+            "name": "generated-freshness",
+            "exitCode": 1
+          },
+          {
+            "exitCode": 0,
+            "durationMs": 13206,
+            "name": "generated-freshness"
+          },
+          {
+            "exitCode": 0,
+            "durationMs": 3200,
+            "name": "command-surface"
+          },
+          {
+            "exitCode": 0,
+            "durationMs": 273,
+            "name": "workflow-contract"
+          },
+          {
+            "exitCode": 0,
+            "durationMs": 7210,
+            "name": "gate"
+          },
+          {
+            "exitCode": 0,
+            "durationMs": 98,
+            "name": "diff-check"
+          }
+        ],
+        "checks": [
+          {
+            "name": "format",
+            "exitCode": 0,
+            "report": "import-format.log"
+          },
+          {
+            "durationMs": 3136,
+            "name": "config-budget",
+            "exitCode": 0
+          },
+          {
+            "durationMs": 1587,
+            "name": "env-check",
+            "exitCode": 0
+          },
+          {
+            "exitCode": 0,
+            "durationMs": 13206,
+            "name": "generated-freshness"
+          },
+          {
+            "exitCode": 0,
+            "durationMs": 3200,
+            "name": "command-surface"
+          },
+          {
+            "exitCode": 0,
+            "durationMs": 273,
+            "name": "workflow-contract"
+          },
+          {
+            "exitCode": 0,
+            "durationMs": 7210,
+            "name": "gate"
+          },
+          {
+            "exitCode": 0,
+            "durationMs": 98,
+            "name": "diff-check"
+          }
+        ],
+        "gateCases": {
+          "durationMs": 4739,
+          "failed": 0,
+          "passed": 40,
+          "skipped": 0,
+          "total": 40
+        },
+        "markdownLinksExitCode": 0,
+        "repairedFailure": "Restored the existing coupling audit open status literal while keeping the newly passing budget evidence in its table row; the broader audit remains open."
+      },
+      "localEvidence": {
+        "root": ".tmp/tasks/windows-failure-repairs-20261024",
+        "historical": true,
+        "availableInCleanCheckout": false
+      },
+      "nativeAccessViolations": 0,
+      "hostedCheckpoint": {
+        "head": "dfba4c65db81c329cf9e047b2c461dd6ed739894",
+        "run": "https://github.com/doublemover/PairOfCleats/actions/runs/40072224209",
+        "dependencyAudit": "passed",
+        "policy": "passed",
+        "gate": "failed",
+        "failure": "The hosted POSIX-only Git SIGTERM propagation control reports a normal exit; no local Linux execution or signal-owner workaround was performed."
+      }
     }
   ]
 }
