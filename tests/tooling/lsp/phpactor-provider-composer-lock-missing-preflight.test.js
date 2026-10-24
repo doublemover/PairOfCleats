@@ -33,7 +33,7 @@ const result = await runDedicatedProviderFixture({
     args: [resolveLspStubServerPath(), '--mode', 'php', 'language-server'] },
   inputs
 });
-assert.equal(result.byChunkUid.has(inputs.chunkUid), true);
+assert.equal(result.byChunkUid.has(inputs.chunkUid), true, JSON.stringify(result.diagnostics.phpactor));
 assert.equal(result.diagnostics.phpactor.preflight.state, 'degraded');
 assert.equal(result.diagnostics.phpactor.preflight.reasonCode, 'phpactor_workspace_composer_lock_missing');
 assert.ok(result.diagnostics.phpactor.checks.some(check => check.name === 'phpactor_workspace_composer_lock_missing'));

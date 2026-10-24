@@ -10,7 +10,7 @@ const baseDescriptor = {
   configKey: 'fixtureDedicated',
   docExtensions: ['.fixture'],
   command: {
-    defaultCmd: 'missing-fixture-cmd'
+    defaultCmd: process.execPath
   },
   parseSignature: () => null
 };

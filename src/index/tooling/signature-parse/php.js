@@ -2,7 +2,7 @@ import { findMatchingParen, findTopLevelIndex, splitSignatureParameters } from '
 import { setOwn } from '../../../shared/object-record.js';
 import { normalizeTypeWhitespace } from '../../../shared/type-normalization.js';
 
-const FUNCTION_HEAD = /^(?:<\?php\s*)?(?:\[virtual\]\s*)?(?:(?:public|protected|private|abstract|final|static)\s+)*(?:function\s*&?\s*)?(?<name>\?[\p{ID_Start}_][\p{ID_Continue}\\]*(?:(?:::|->)[\p{ID_Start}_][\p{ID_Continue}]*)?)\s*\(/u;
+const FUNCTION_HEAD = /^(?:<\?php\s*)?(?:\[virtual\]\s*)?(?:(?:public|protected|private|abstract|final|static)\s+)*(?:function\s*&?\s*)?(?<name>\\?[\p{ID_Start}_][\p{ID_Continue}\\]*(?:(?:::|->)[\p{ID_Start}_][\p{ID_Continue}]*)?)\s*\(/u;
 const typeDisplay = value => {
   const result = normalizeTypeWhitespace(value);
   if (!result || /[;=]/u.test(result) || splitSignatureParameters(result)?.length !== 1) return null;

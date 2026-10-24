@@ -60,10 +60,10 @@ await withLspTestPath({ repoRoot: root }, async () => {
   assert.equal(result.metrics?.providerRuntime?.dart?.degraded?.active, true, 'expected per-provider degraded runtime flag');
   assert.equal(
     checks.some((check) => check?.name === 'tooling_initialize_failed'),
-    true,
-    'expected initialize failure after command probe warning when command truly cannot launch'
+    false,
+    'command discovery proves absence before initialization can acquire a process'
   );
-  assert.equal(result.metrics?.requests?.requests >= 1, true, 'expected runtime initialization attempt after probe warning');
+  assert.equal(result.metrics?.requests?.requests || 0, 0, 'a proven missing command must not create runtime requests');
 });
 
 console.log('dart provider command fallback test passed');

@@ -9,6 +9,13 @@ tester.run('no-regex-double-escape', noRegexDoubleEscape, {
   valid: [
     String.raw`const pattern = /\\(?:n|t)/u;`,
     String.raw`const pattern = /\\\\(?:n|t)/u;`,
+    String.raw`const pattern = /\\?[A-Za-z_]/u;`,
+    String.raw`const pattern = /\\+[A-Za-z_]/u;`,
+    String.raw`const pattern = /\\*[A-Za-z_]/u;`,
+    String.raw`const pattern = /\\{1,2}[A-Za-z_]/u;`,
+    String.raw`const pattern = /\\(name)/u;`,
+    String.raw`const pattern = /(?:name\\|other)$/u;`,
+    String.raw`const pattern = /^name\\$/u;`,
     String.raw`const pattern = /\s+\d/giu;`,
     String.raw`const pattern = /[\\s]/;`,
     String.raw`const pattern = new RegExp('\\s+');`,

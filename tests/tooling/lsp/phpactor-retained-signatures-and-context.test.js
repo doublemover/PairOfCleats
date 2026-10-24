@@ -26,7 +26,7 @@ assert.deepEqual(parsePhpSignature('function unknown($value)').paramTypes, {});
 assert.equal(parsePhpSignature('function unknown($value)').returnType, null);
 assert.equal(parsePhpSignature('<?php function café(string $名, bool $ok = 1 < 2): string').paramTypes['名'], 'string');
 assert.equal(parsePhpSignature('function safe(string $__proto__): string').paramTypes.__proto__, 'string');
-for (const unsupported of ['class Example {}', 'function broken(string $a', 'function x(string $a, int $a): void',
+for (const unsupported of ['class Example {}', 'function ?greet(string $name): string', 'function broken(string $a', 'function x(string $a, int $a): void',
   'function x(string name): string', 'function x():', 'function x(): string { return "x"; }']) {
   assert.equal(parsePhpSignature(unsupported), null, `malformed or unsupported signature: ${unsupported}`);
 }

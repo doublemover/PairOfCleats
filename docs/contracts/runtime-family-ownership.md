@@ -68,7 +68,7 @@ Offline parser identity advances to version 4; raw interchange formats stay at 1
 Native authority discovery and its build-frontier consumer observe settlement
 before cancellation/diagnostic classification. A pending read cannot become an
 ordinary unsupported/deferred authority. Settled unsupported native inputs retain
-that policy. Native/LSP producer identity is lspBindings46; platform sealing and
+that policy. Native/LSP producer identity is lspBindings47; platform sealing and
 runtime launch authority are unchanged. Portable error-boundary fixtures intercept
 executable resolution; they do not qualify ELF or actual native tools on Windows.
 

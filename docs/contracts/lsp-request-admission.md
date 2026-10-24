@@ -33,9 +33,15 @@ admission counters. Existing method `requested` counters count admitted guard
 attempts; the client's request/write metrics describe transport admission and
 local encoding failures. Queue residence is not a server response timeout.
 
-Shared LSP producer identity is `lspBindings46`; signature cache policy is
+Shared LSP producer identity is `lspBindings47`; signature cache policy is
 `rq11`. Prior malformed-response negatives and previous admission semantics
 cannot supply current reuse. No cache directories are deleted. The document,
 writer, envelope, local-write, lease and method-queue regressions are authored
 and **unrun** at this source checkpoint. Real server/terminal/native qualification
 and the resulting-tree front gate remain required.
+
+Version 47 repairs PHP signature name admission and classifies proven missing
+runtime prerequisites as degraded. Execution denial, invalid command paths and
+pending resource ownership still block provider launch. Existing cache entries
+cannot supply the corrected semantic coverage; the shared version forces replay
+to use the current producer.
