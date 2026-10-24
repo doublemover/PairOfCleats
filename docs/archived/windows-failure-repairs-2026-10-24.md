@@ -1440,3 +1440,21 @@ environment usage, generated freshness, command surface, workflow contracts,
 f663002908a receipt was not overwritten: this gate has its own source-keyed
 .tmp task directory. The four export failures remain open despite a green gate;
 selected gate coverage is not broad deep-suite acceptance.
+
+A further bounded I/O batch removes redundant async metadata dispatch from
+verified-contained reads: the same captured native fd-stat primitive already
+used during admission supplies fresh before/after stats, retaining numeric
+public results, actual byte/hash checks, original reads and close ownership.
+The actual-handle work-count control failed before repair (107ms, two redundant
+async stat dispatches); async growth now independently rejects and proves the
+actual descriptor closed. Stage copy's final contained verification already
+returns a fresh actual fd stat, so that same observation now supplies the final
+copy stamp rather than an additional async stat. Copy stamps use exact bigint
+identities and nanosecond times. No physical metadata observation or containment
+check is omitted, and no stamp is reused across reads. Checks are pending.
+The existing original-method replacement test now covers both consumers:
+verified-contained reads retain their close/certificate failure assertions, while
+an explicit borrowed-descriptor route still executes both originally captured
+async stats around the actual read after public methods are replaced. Thus the
+old two-stat lifetime proof remains rather than being removed to fit the
+optimized verified-read path.

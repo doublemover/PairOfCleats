@@ -9,6 +9,14 @@ verification. It retains original operation and independent cleanup failures,
 including frozen errors, readonly fields and every falsey thrown value. Native
 stat/read progress and descriptor containment/hash checks remain mandatory.
 
+Verified-contained reads use the captured native `fstatSync` primitive for fresh
+before/after metadata, as descriptor admission already does. This avoids two
+async stat dispatches while preserving the numeric result representation and
+actual opened-file identity checks. Payload reads and close remain asynchronous.
+Borrowed descriptor `stat()` still uses its captured original async method;
+replacement/recovery controls cover that route independently. No metadata stamp
+is borrowed from a previous read or substituted for fresh byte hashing.
+
 Async operations keep the existing scheduler CPU suspension. The actual native
 open/read/stat/close promise is observed independently of the scheduler wrapper;
 a wrapper result cannot stand in for native completion. Already admitted reads

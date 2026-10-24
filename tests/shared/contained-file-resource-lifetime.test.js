@@ -41,7 +41,7 @@ try {
   assert.deepEqual(valid.buffer, bytes); assert.equal(records, 1);
   assert.equal(JSON.stringify(valid).includes('fileIdentity'), false);
 
-  {
+  for (const verifiedRead of [true, false]) {
     let allowClose = false, closes = 0, reads = 0, stats = 0, closeGets = 0, readGets = 0, statGets = 0;
     const closeError = Object.freeze(Object.assign(new Error('original descriptor close rejected'), { code: 'ECLOSE' }));
     fs.open = async (...args) => {
@@ -64,18 +64,27 @@ try {
       return handle;
     };
     records = 0;
-    const failure = await rejected(() => scope(() => { records += 1; }, () => readVerifiedContainedFile(root, file)));
+    const failure = await rejected(() => scope(() => { records += 1; }, () => verifiedRead
+      ? readVerifiedContainedFile(root, file)
+      : withContainedFile(root, file, async descriptor => {
+        const before = await descriptor.stat(), buffer = Buffer.alloc(before.size);
+        const { bytesRead } = await descriptor.read(buffer, 0, buffer.length, 0);
+        assert.equal(bytesRead, bytes.length); assert.deepEqual(buffer, bytes);
+        assert.equal((await descriptor.stat()).size, before.size);
+        descriptor.verify();
+      })));
     const session = getContainedFileSession(failure);
     assert.equal(isContainedFileSession(session), true); assert.equal(contains(failure, closeError), true);
     assert.equal(failure.code, 'ECLOSE'); assert.equal(Object.getOwnPropertyDescriptor(failure, 'code').writable, false);
-    assert.equal(closes, 1); assert.equal(reads, 1); assert.equal(stats, 2); assert.equal(records, 0);
+    const expectedStats = verifiedRead ? 0 : 2;
+    assert.equal(closes, 1); assert.equal(reads, 1); assert.equal(stats, expectedStats); assert.equal(records, 0);
     assert.deepEqual([closeGets, readGets, statGets], [1, 1, 1]);
     assert.equal(failure.cacheOwnershipReleased(), false);
     assert.throws(() => Object.defineProperty(failure, 'cacheOwnershipReleased', { value: () => true }), TypeError);
     allowClose = true;
     const receipts = await Promise.all([session.releaseAfterClose(), session.releaseAfterClose()]);
     for (const receipt of receipts) assert.deepEqual(receipt, { resourceId: session.resourceId, settled: true, pending: false });
-    assert.equal(closes, 2); assert.equal(reads, 1); assert.equal(stats, 2); assert.equal(records, 0);
+    assert.equal(closes, 2); assert.equal(reads, 1); assert.equal(stats, expectedStats); assert.equal(records, 0);
     assert.equal(failure.cacheOwnershipReleased(), true);
   }
   for (const value of [undefined, null, false, 0, '']) {

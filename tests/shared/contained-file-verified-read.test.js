@@ -12,13 +12,38 @@ try {
   fs.writeFileSync(file, bytes);
   const hash = createHash('sha256').update(bytes).digest('hex');
   const metrics = {};
-  const result = await readVerifiedContainedFile(root, file, {
-    expectedHash: hash, expectedBytes: bytes.length, maxBytes: bytes.length, metrics
-  });
+  const open = fs.promises.open;
+  let asyncStats = 0, result;
+  try {
+    fs.promises.open = async (...args) => {
+      const handle = await open(...args), stat = handle.stat.bind(handle);
+      handle.stat = (...options) => { asyncStats++; return stat(...options); };
+      return handle;
+    };
+    result = await readVerifiedContainedFile(root, file, {
+      expectedHash: hash, expectedBytes: bytes.length, maxBytes: bytes.length, metrics
+    });
+    assert.equal(asyncStats, 0, 'verified metadata uses the same captured fd-stat primitive as descriptor admission');
+  } finally { fs.promises.open = open; }
   assert.deepEqual(result.buffer, bytes);
   assert.equal(result.hash, hash);
   assert.equal(metrics.verificationBytes, bytes.length);
   assert.equal(JSON.parse(result.buffer).value, 1);
+  let changedFd;
+  try {
+    fs.promises.open = async (...args) => {
+      const handle = await open(...args), read = handle.read.bind(handle);
+      changedFd = handle.fd;
+      handle.read = async (...span) => {
+        const value = await read(...span);
+        fs.appendFileSync(file, ' ');
+        return value;
+      };
+      return handle;
+    };
+    await assert.rejects(readVerifiedContainedFile(root, file), { code: 'ERR_FILE_CHANGED' });
+    assert.throws(() => fs.fstatSync(changedFd), { code: 'EBADF' });
+  } finally { fs.promises.open = open; fs.writeFileSync(file, bytes); }
   assert.throws(() => readVerifiedContainedFileSync(root, file, { maxBytes: bytes.length - 1 }),
     { code: 'ERR_FILE_TOO_LARGE' });
   await assert.rejects(readVerifiedContainedFile(root, file, { expectedHash: '0'.repeat(64) }),

@@ -224,7 +224,10 @@ export const readVerifiedContainedFile = async (root, target, inputOptions = {})
   throwIfAborted(options.signal);
   const { owner, verification } = await acquireContainedFile(root, target, options);
   const result = await owner.run(async descriptor => {
-    const stat = await descriptor.stat();
+    // Admission already captures this exact native fd-stat operation. Keep
+    // fresh before/after metadata without dispatching redundant async stats;
+    // payload reads and closure retain their original asynchronous owner.
+    const stat = verification.fstat.call(fs, descriptor.fd);
     admitRead(stat, options);
     const buffer = Buffer.alloc(stat.size);
     let offset = 0;
@@ -235,7 +238,7 @@ export const readVerifiedContainedFile = async (root, target, inputOptions = {})
       if (!bytesRead) break;
       offset += bytesRead;
     }
-    return finishRead(descriptor.fd, root, target, stat, await descriptor.stat(), buffer, offset, options, verification);
+    return finishRead(descriptor.fd, root, target, stat, verification.fstat.call(fs, descriptor.fd), buffer, offset, options, verification);
   });
   recordVerifiedArtifactRead(root, target, result, options.hashAlgorithm);
   return result;

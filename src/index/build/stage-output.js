@@ -69,21 +69,24 @@ const copyStageMemberUsing = async ({ sourceRoot, targetRoot, part, signal, asse
   // creates target parents before its existing lease/path commit recheck.
   const source = resolveArtifactIdentityPath(sourceRoot, part.path), target = resolveTarget(targetRoot, part.path, { allowMissing: true });
   await withContainedFile(sourceRoot, source, async descriptor => {
-    const before = await descriptor.stat();
-    if (!before.isFile() || before.size !== part.bytes) throw stageFailure('Sealed mode member changed size.');
+    const before = await descriptor.stat({ bigint: true });
+    if (!before.isFile() || !Number.isSafeInteger(part.bytes) || part.bytes < 0
+      || before.size !== BigInt(part.bytes)) throw stageFailure('Sealed mode member changed size.');
     await writeChunks(target, async write => {
-      const hash = crypto.createHash('sha256'), scratch = Buffer.allocUnsafe(Math.min(65536, Math.max(1, before.size)));
+      const hash = crypto.createHash('sha256'), scratch = Buffer.allocUnsafe(Math.min(65536, Math.max(1, part.bytes)));
       let position = 0;
-      while (position < before.size) {
+      while (position < part.bytes) {
         throwIfAborted(signal); assertOwned();
-        const length = Math.min(scratch.length, before.size - position);
+        const length = Math.min(scratch.length, part.bytes - position);
         const { bytesRead } = await descriptor.read(scratch, 0, length, position);
         if (!Number.isSafeInteger(bytesRead) || bytesRead <= 0 || bytesRead > length) throw stageFailure('Sealed mode member made invalid read progress.');
         const bytes = scratch.subarray(0, bytesRead);
         hash.update(bytes); await write(bytes); position += bytesRead;
       }
-      const after = await descriptor.stat(); descriptor.verify();
-      if (['dev', 'ino', 'size', 'mtimeMs', 'ctimeMs'].some(key => before[key] !== after[key])
+      // Contained verification returns the actual fresh bigint descriptor
+      // stat after rechecking its path. It also supplies the end-of-copy stamp.
+      const after = descriptor.verify();
+      if (['dev', 'ino', 'size', 'mtimeNs', 'ctimeNs'].some(key => before[key] !== after[key])
         || hash.digest('hex') !== part.hash) throw stageFailure('Sealed mode member content changed during copy.');
     }, { signal, createOnly, beforeCommit: () => { assertOwned(); assertNoSymlinkPath(targetRoot, target, { allowMissing: true }); } });
   });
