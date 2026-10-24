@@ -105,7 +105,8 @@ try {
     }), error => { unconfirmed = error; return error.cause === unknown; });
     retained.add(unconfirmed.managedCommandLease);
     assert.equal(unconfirmed.cacheOwnershipReleased(), false);
-    assert.throws(() => unconfirmed.managedCommandSession.releaseAfterClosure(), /pending|unconfirmed/);
+    assert.throws(() => unconfirmed.managedCommandSession.releaseAfterClosure(), error =>
+      error.cacheOwnershipPending === true && error.cause === unknown);
     assert.equal(await f.protected(), true);
     // Inert fixture callback created no native resources; release only its exact
     // lease for teardown after the unknown-owner rejection has been asserted.

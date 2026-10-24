@@ -47,7 +47,7 @@ try {
   await client.connect(transport);
   const callers = {
     cli,
-    post: async value => { const response = await post(value); assert.equal(response.status, 200); return response.body.result; },
+    post: async value => { const response = await post(value); assert.equal(response.status, 200, JSON.stringify(response.body)); return response.body.result; },
     get: async value => {
       const query = new URLSearchParams(Object.entries(value).filter(([, v]) => v !== undefined));
       const response = await fetch(base + '/search?' + query); assert.equal(response.status, 200);

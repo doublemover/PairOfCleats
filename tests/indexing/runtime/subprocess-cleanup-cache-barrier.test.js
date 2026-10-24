@@ -6,20 +6,19 @@ import { EventEmitter } from 'node:events';
 import { assertSubprocessTerminationReceipt } from '../../../src/shared/subprocess/termination-receipt.js';
 import { trackedSubprocesses } from '../../../src/shared/subprocess/tracking-runtime.js';
 import { releaseCacheWriterOwnership } from '../../../src/index/build/cache-writer-drain.js';
-import { applyTestEnv } from '../../helpers/test-env.js';
-
-applyTestEnv();
-const state = { error: null, launches: [], confirmed: false, failures: 0, snapshots: 0 };
+const state = { error: null, launches: [], terminations: [], confirmed: false, failures: 0, snapshots: 0 };
 const key = Symbol.for('poc.test.subprocess-cache-barrier'); globalThis[key] = state;
 const access = 'const state = globalThis[Symbol.for("poc.test.subprocess-cache-barrier")];';
 const hooks = registerHooks({ load(url, context, next) {
   const source = url.endsWith('/src/shared/subprocess/runner.js')
     ? access + 'export const spawnSubprocess = async (command,args,options) => { state.launches.push(options); throw state.error; };'
     : url.endsWith('/src/shared/subprocess/tracking-terminate.js')
-      ? access + `export const terminateTrackedSubprocesses = async options => ({
+      ? access + `const terminate = options => { state.terminations.push(options); return ({
         ...options, tracked: 1, failures: state.failures,
         killAudit: [{ ownershipId: options.ownershipPrefix + ':child', terminated: state.confirmed,
-          closeObserved: state.confirmed }] });`
+          closeObserved: state.confirmed }] }); };
+        export const terminateTrackedSubprocesses = async options => terminate(options);
+        export const terminateTrackedSubprocessesSync = options => terminate(options);`
       : url.endsWith('/src/lang/tree-sitter.js') ? 'export const shutdownTreeSitterWorkerPool = async () => {};'
         : url.endsWith('/src/lang/python.js') ? 'export const shutdownPythonAstPool = async () => {};'
           : url.endsWith('/src/shared/progress-runtime.js') ? 'export const log = () => {};'
@@ -28,6 +27,10 @@ const hooks = registerHooks({ load(url, context, next) {
   return source == null ? next(url, context) : { format: 'module', source, shortCircuit: true };
 } });
 try {
+  // test-env imports tracking.js; install the module hooks before that import
+  // so teardown exercises the controlled termination owner rather than a cache hit.
+  const { applyTestEnv } = await import('../../helpers/test-env.js');
+  applyTestEnv();
   const { executeTreeSitterSchedulerTasks } = await import('../../../src/index/build/tree-sitter-scheduler/runner/task-execution.js');
   const { teardownRuntime } = await import('../../../src/integrations/core/build-index/runtime.js');
   const runtime = { root: process.cwd(), log: () => {}, subprocessOwnership: { stage1FilePrefix: 'stage1:fixture-run:' } };
@@ -60,6 +63,8 @@ try {
   for (const failures of [0, 1]) {
     state.failures = failures; state.confirmed = false;
     await assert.rejects(teardownRuntime(runtime), error => error.cacheOwnershipPending === true);
+    assert.ok(state.terminations.some(value => value.ownershipPrefix === 'stage1:fixture-run:'),
+      'the controlled termination owner must actually be invoked');
     await assert.rejects(release(false), /ownership retained/i);
   }
   assert.equal(invalidations, 0); assert.equal(releases, 0);

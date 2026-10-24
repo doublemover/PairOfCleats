@@ -126,14 +126,26 @@ const createDeferred = () => {
 const runLateWriteFailureCase = async () => {
   const { client: fakeClient, spawnedChildren, waitForMessage } = createFakeClient();
   try {
+    const original = fakeClient.start(), writeStarted = createDeferred();
+    let rejectOldWrite;
+    original.stdin.write = (_data, encoding, callback) => {
+      rejectOldWrite = typeof encoding === 'function' ? encoding : callback;
+      writeStarted.resolve();
+      return true;
+    };
     fakeClient.notify('test/old', null);
-    // The old write is queued, so closing it here rejects only after the restart.
+    await writeStarted.promise;
+    // Native closure and an outstanding write callback are distinct events.
     const killing = fakeClient.kill();
+    assert.throws(() => fakeClient.start(), { code: 'ERR_LSP_RESTART_STALE_PROCESS' });
+    await killing;
+    assert.equal((await fakeClient.waitForResourceSettlement()).settled, true);
     const response = fakeClient.request('test/current', null, { timeoutMs: 1000 })
       .then((value) => ({ value }), (error) => ({ error }));
     const replacement = spawnedChildren[1];
-    await killing;
     const requestMessage = await waitForMessage(replacement, (message) => message.method === 'test/current');
+    rejectOldWrite(Object.assign(new Error('late original write failure'), { code: 'ERR_STREAM_DESTROYED' }));
+    await flushAsyncWork();
 
     assert.equal(
       fakeClient.notify('test/still-running', null, { startIfNeeded: false }),
@@ -180,8 +192,10 @@ const runDeferredServerRepliesCase = async () => {
     sendServerMessage(original, { jsonrpc: '2.0', id: 11, method: 'test/old-success' });
     sendServerMessage(original, { jsonrpc: '2.0', id: 12, method: 'test/old-failure' });
     const killing = fakeClient.kill();
-    const replacement = fakeClient.start();
+    assert.throws(() => fakeClient.start(), { code: 'ERR_LSP_RESTART_STALE_PROCESS' });
     await killing;
+    assert.equal((await fakeClient.waitForResourceSettlement()).settled, true);
+    const replacement = fakeClient.start();
 
     // Servers may reuse request IDs after a restart.
     sendServerMessage(replacement, { jsonrpc: '2.0', id: 11, method: 'test/current-success' });
@@ -221,8 +235,10 @@ const runInitializeContinuationCase = async ({ restart = false, close = false } 
     sendServerMessage(original, { jsonrpc: '2.0', id: initializeRequest.id, result });
     if (close) {
       const killing = fakeClient.kill();
-      if (restart) fakeClient.start();
+      if (restart) assert.throws(() => fakeClient.start(), { code: 'ERR_LSP_RESTART_STALE_PROCESS' });
       await killing;
+      assert.equal((await fakeClient.waitForResourceSettlement()).settled, true);
+      if (restart) fakeClient.start();
     }
     const outcome = await initialized;
     if (close) {
