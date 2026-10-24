@@ -763,3 +763,36 @@ MCP scoped cleanup retains a positive deletion control and adds explicit zero
 limit rejection. Stale-child fixtures observe configured backoff after actual
 resource closure, without retries or a longer deadline. This wave is pending
 focused validation.
+
+The 19-case follow-up at `4b86182818b8755b0d8d6503a73e2e2a784930d5`
+passed 15 and failed four, with zero timeouts/skips/crashes. Twelve more original
+failures gained passing closure (40 cumulatively; 60 remain). Exact routed
+storage protection, complete child diagnostics, both actual stale-child
+lifetimes, qualified TypeScript calls, Kotlin/Perl roles, pooling, provider
+source-byte replay and scoped MCP cleanup passed. The complete front gate also
+passed at this source, including 40/40 gate fixtures. Remote and PR source/body
+were verified after push. Hosted CI at preceding `60dbba13f` failed its POSIX
+Git-child SIGTERM assertion; downstream jobs were skipped, while policy passed.
+No Linux execution was performed locally.
+
+The next implementation wave repairs cancellation telemetry: a drained writer's
+abort used to bypass both its final statistics and the terminal runtime update.
+Statistics now capture in finally; independent drain failures retain context
+and terminal persistence remains separately attempted. Text-vector cache misses
+caused by invalid physical rows or failed reads now discard the previous digest
+memo, allowing successful inference to repair the rejected row. The corruption
+fixture flushes queued writes before editing actual SQLite bytes and retains
+all ten corruption controls, miss counts, hit counts and width/nonfinite tests.
+
+Fixture repairs follow existing owners: workspace filter enumeration drains its
+documented repository cursor; SDK MCP children receive the fixture environment
+instead of the SDK's restricted default environment. Delta checkpoint/profile
+authority is established before synthetic shard data, rather than trying to
+adopt an already populated unmarked profile. The artifact semantic store already
+closes readers per scoped operation; an incorrect new close() call was removed.
+Lazy model observations assert absent pre-acquisition authority and then require
+a distinct actual unknown-model load. Sibling pipeline sharing is tested after
+both leases acquire their resource, and TTL observation spans asynchronous
+acquisition. EG2 positive mocks supply required typed input IDs/masks while
+retaining strict malformed-input coverage. Mapping collisions retain refusal
+and assert their actual boundaryMismatch reason. This wave awaits focused tests.

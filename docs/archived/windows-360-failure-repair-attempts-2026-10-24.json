@@ -44,8 +44,8 @@
     },
     "followUpClosure": {
       "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
-      "originalFailuresMovedToPassing": 28,
-      "originalFailuresWithoutPassingClosure": 72
+      "originalFailuresMovedToPassing": 40,
+      "originalFailuresWithoutPassingClosure": 60
     }
   },
   "items": [
@@ -685,7 +685,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 379
+      "recheckDurationMs": 379,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "4b86182818b8755b0d8d6503a73e2e2a784930d5",
+      "latestRecheckDurationMs": 327
     },
     {
       "id": "shared/storage/migration-marker-resource-outcomes",
@@ -1069,7 +1072,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 11237
+      "recheckDurationMs": 11237,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "4b86182818b8755b0d8d6503a73e2e2a784930d5",
+      "latestRecheckDurationMs": 9945
     },
     {
       "id": "services/api/semantic-trace",
@@ -1125,7 +1131,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 1192
+      "recheckDurationMs": 1192,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "4b86182818b8755b0d8d6503a73e2e2a784930d5",
+      "latestRecheckDurationMs": 2057
     },
     {
       "id": "services/mcp/index-build-cancellation",
@@ -1599,7 +1608,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 504
+      "recheckDurationMs": 504,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "4b86182818b8755b0d8d6503a73e2e2a784930d5",
+      "latestRecheckDurationMs": 469
     },
     {
       "id": "retrieval/pipeline/default-ann-sparse-artifact-availability",
@@ -1704,7 +1716,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 86
+      "recheckDurationMs": 86,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "4b86182818b8755b0d8d6503a73e2e2a784930d5",
+      "latestRecheckDurationMs": 82
     },
     {
       "id": "retrieval/pipeline/literal-and-chargram-identities",
@@ -2479,9 +2494,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 291,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3",
-      "latestRecheckDurationMs": 618
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "4b86182818b8755b0d8d6503a73e2e2a784930d5",
+      "latestRecheckDurationMs": 633
     },
     {
       "id": "tooling/install/parallel-patch-preparation",
@@ -3046,9 +3061,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 180,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3",
-      "latestRecheckDurationMs": 653
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "4b86182818b8755b0d8d6503a73e2e2a784930d5",
+      "latestRecheckDurationMs": 1299
     },
     {
       "id": "tooling/lsp/request-local-write-settlement",
@@ -3156,9 +3171,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 167,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3",
-      "latestRecheckDurationMs": 629
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "4b86182818b8755b0d8d6503a73e2e2a784930d5",
+      "latestRecheckDurationMs": 1236
     },
     {
       "id": "tooling/navigation-source-binding",
@@ -3248,7 +3263,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 774
+      "recheckDurationMs": 774,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "4b86182818b8755b0d8d6503a73e2e2a784930d5",
+      "latestRecheckDurationMs": 799
     },
     {
       "id": "tooling/providers/provider-output-contract-normalization",
@@ -3968,8 +3986,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 7232,
       "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3",
-      "latestRecheckDurationMs": 11751
+      "latestRecheckSourceHead": "4b86182818b8755b0d8d6503a73e2e2a784930d5",
+      "latestRecheckDurationMs": 15113
     },
     {
       "id": "indexing/artifacts/artifact-size-guardrails",
@@ -4858,9 +4876,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 20849,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3",
-      "latestRecheckDurationMs": 19500
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "4b86182818b8755b0d8d6503a73e2e2a784930d5",
+      "latestRecheckDurationMs": 19188
     },
     {
       "id": "indexing/incremental/piece-output-producer-identity",
@@ -5303,7 +5321,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 931
+      "recheckDurationMs": 931,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "4b86182818b8755b0d8d6503a73e2e2a784930d5",
+      "latestRecheckDurationMs": 1061
     },
     {
       "id": "indexing/semantic/compiler-reference-evaluation",
@@ -5541,7 +5562,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 1344
+      "recheckDurationMs": 1344,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "4b86182818b8755b0d8d6503a73e2e2a784930d5",
+      "latestRecheckDurationMs": 1121
     },
     {
       "id": "indexing/type-inference/crossfile/module-export-target-replay",
@@ -5560,7 +5584,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 1464
+      "recheckDurationMs": 1464,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "4b86182818b8755b0d8d6503a73e2e2a784930d5",
+      "latestRecheckDurationMs": 1244
     },
     {
       "id": "indexing/type-inference/crossfile/parser-import-binding-replay",
@@ -6220,7 +6247,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 529
+      "recheckDurationMs": 529,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "4b86182818b8755b0d8d6503a73e2e2a784930d5",
+      "latestRecheckDurationMs": 484
     },
     {
       "id": "lang/perl/package-chunks",
@@ -6237,7 +6267,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 503
+      "recheckDurationMs": 503,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "4b86182818b8755b0d8d6503a73e2e2a784930d5",
+      "latestRecheckDurationMs": 520
     },
     {
       "id": "lang/perl/scheduler-crash-recovery",
