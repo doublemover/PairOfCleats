@@ -115,13 +115,16 @@ Response:
 
 ### Tool schema versioning
 
-The current source catalog is 1.10.0. Its additive opt-in semantic
+The current source catalog is 1.10.1. `graph_evidence` explicitly declares an
+object root for MCP SDK interoperability, preserving its existing `oneOf`
+branches and strict request validators. Real SDK discovery, search/context and
+cancellation checks pass at the October 24 repair checkpoint. Its additive opt-in semantic
 `pathSemantics` request profile and `pathCapability` result distinguish bounded
 balanced-call value traces from relation neighborhoods. Existing requests keep
 their default behavior. These graph declarations do not prove executable-path
 feasibility. Generated schema/actual-server snapshots and transport acceptance
-must be refreshed against the frozen resulting candidate; the active parallel
-implementation wave is not a qualified MCP release.
+must be refreshed against the frozen resulting candidate; this scoped repair
+does not qualify the complete MCP release.
 - MCP tool schemas are versioned via `schemaVersion` (SemVer) and `toolVersion` (package version).
 - Breaking changes to tool names or input schemas require a **major** schemaVersion bump.
 - Backwards-compatible additions require a **minor** bump; editorial clarifications are **patch** bumps.

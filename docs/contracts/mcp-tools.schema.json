@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.10.0",
+  "schemaVersion": "1.10.1",
   "tools": [
     {
       "name": "bootstrap",
@@ -691,6 +691,7 @@
       "name": "graph_evidence",
       "description": "Experimental, qualification pending: page retained call occurrences or resolved adjacency in an explicit immutable build. Bounded retained-family coverage does not establish upstream semantic completeness.",
       "inputSchema": {
+        "type": "object",
         "oneOf": [
           {
             "type": "object",
