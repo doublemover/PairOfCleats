@@ -68,14 +68,14 @@ for (const ext of ['.django', '.djhtml']) {
   assert.equal(model.dialect, 'django');
   assert.deepEqual(model.definitions.map((entry) => entry.name), ['Actual']);
   assert.deepEqual(collectLanguageImports({ text: djangoText, ext, relPath: `templates/page${ext}`, mode: 'code' }), ['django.html']);
-  const dispatched = smartChunk({ text: djangoText, ext, relPath: `templates/page${ext}`, mode: 'code' });
+  const dispatched = sourceSections(djangoText, smartChunk({ text: djangoText, ext, relPath: `templates/page${ext}`, mode: 'code' }));
   assert.deepEqual(dispatched.map((entry) => entry.name), ['block Actual', 'include "django.html"']);
   assert.ok(dispatched.every((entry) => entry.meta.templateDialect === 'django'));
   assert.deepEqual(adapter.buildRelations({ text: djangoText, ext, relPath: `templates/page${ext}`, options: {} }).exports, ['Actual']);
 }
 for (const ext of ['.jinja', '.jinja2', '.j2']) {
   assert.equal(resolveJinjaTemplateDialect({ ext }), 'jinja');
-  assert.ok(smartChunk({ text, ext, mode: 'code' }).every((entry) => entry.meta.templateDialect === 'jinja'));
+  assert.ok(sourceSections(text, smartChunk({ text, ext, mode: 'code' })).every((entry) => entry.meta.templateDialect === 'jinja'));
 }
 assert.equal(resolveJinjaTemplateDialect({ relPath: 'templates\\page.DJHTML' }), 'django');
 assert.equal(parseJinjaTemplateStructure(djangoText).reason, 'unsupported-dialect-tag', 'Django verbatim is not Jinja raw');

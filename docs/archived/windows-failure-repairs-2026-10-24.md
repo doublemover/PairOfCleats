@@ -416,3 +416,28 @@ SSR wrappers. The wrappers retain distinct forward-content and backend-parity
 assertions; no duplicate removal or extended deadline is claimed. There are 257
 items still unattempted. Formatting passes; no runtime re-test, front gate or
 final-tree qualification has occurred during implementation-first work.
+
+Language implementation `38a3cc476` attempts all 16 language-contract failures.
+C-like fallback comments match native styles, wrapped declarators retain grammar
+identifier roles, and SQL scanner identities survive native source envelopes.
+Chunk cache 8/source producer 23 invalidate old meaning. Fixtures prove complete
+source coverage separately from actual section ranges and require prepared native
+owners for executable calls. Extensionless BUILD now requires its actual resolved
+link. Groovy parenthesis-free call publication remains open with added parser
+diagnostics; no failing assertion is removed. The ledger records 119 attempts
+(90 unvalidated implementations, 14 existing repairs, eight still open, seven
+previously tested), with 241 not yet attempted. Formatting passes; runtime checks
+remain deferred until every selected failure has an implementation attempt.
+
+Editor implementation `5645aa365` addresses Windows service-drive admission and
+compares reopened source identities through consistent descriptor observations
+while retaining the original handle. Fake selections/cache APIs and operation
+scopes now match the real editor interfaces. Fixtures use canonical executable
+paths, an actual repository choice, valid positive depth and offered presentation
+actions. Presentation errors retain failed session/original-error evidence. The
+removed palette duplicate had identical command/args to retained approximate
+Related Search; command membership and duplicate checks stay covered. Existing
+VSIX repair `dbe962953` is queued for the original two-package determinism check.
+Selected-repository enumeration remains open with new pre-dispatch diagnostics.
+All 19 selected editor failures are attempted: 138/360 total, 222 unattempted.
+Only formatting has run; no runtime acceptance is claimed.

@@ -19,11 +19,11 @@
   },
   "summary": {
     "selected": 360,
+    "not-attempted": 222,
+    "implemented-unvalidated": 107,
+    "needs-further-implementation": 9,
     "implemented": 7,
-    "implemented-unvalidated": 75,
-    "attempted-existing-owner-repair": 14,
-    "needs-further-implementation": 7,
-    "not-attempted": 257,
+    "attempted-existing-owner-repair": 15,
     "finalBatchPassed": 0
   },
   "items": [
@@ -174,14 +174,14 @@
       "id": "lang/contracts/native-call-scope-roles",
       "path": "lang/contracts/native-call-scope-roles.test.js",
       "owner": "lang/contracts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "needs-further-implementation",
+      "sourceHead": "38a3cc476",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: parenthesis-free grammar invocation remains addressable",
       "failureLocations": [
         "tests/lang/contracts/native-call-scope-roles.test.js:78:8"
       ],
-      "notes": null,
+      "notes": "Preserved the original parenthesis-free invocation assertion and added actual recovered declaration/call-fact diagnostics. The existing grammar route recognizes juxt_function_call, so the missing published occurrence still requires parser-level evidence in the later batch.",
       "finalBatchStatus": "pending"
     },
     {
@@ -339,56 +339,56 @@
       "id": "tooling/sublime/editor-source-lifetime",
       "path": "tooling/sublime/editor-source-lifetime.test.js",
       "owner": "tooling/sublime",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5645aa365",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Traceback (most recent call last):\r",
       "failureLocations": [
         "tests/tooling/sublime/editor-source-lifetime.test.js:9:8"
       ],
-      "notes": null,
+      "notes": "Source authority compares the original and reopened current path through retained descriptor fstat identities, preserving size/time/inode checks and pathname rebinding checks. Real-file lifetime negatives remain.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/sublime/navigation-request-lifetime",
       "path": "tooling/sublime/navigation-request-lifetime.test.js",
       "owner": "tooling/sublime",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5645aa365",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Traceback (most recent call last):\r",
       "failureLocations": [
         "tests/tooling/sublime/navigation-request-lifetime.test.js:10:8"
       ],
-      "notes": null,
+      "notes": "Repair editor positive fixture/API ownership while retaining original lifecycle, identity and invalid-request assertions; runtime re-test deferred.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/sublime/semantic-source-lifetime",
       "path": "tooling/sublime/semantic-source-lifetime.test.js",
       "owner": "tooling/sublime",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5645aa365",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Traceback (most recent call last):\r",
       "failureLocations": [
         "tests/tooling/sublime/semantic-source-lifetime.test.js:10:8"
       ],
-      "notes": null,
+      "notes": "Source authority compares the original and reopened current path through retained descriptor fstat identities, preserving size/time/inode checks and pathname rebinding checks. Real-file lifetime negatives remain.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/vscode/captured-evidence-registered-lifetime",
       "path": "tooling/vscode/captured-evidence-registered-lifetime.test.js",
       "owner": "tooling/vscode",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5645aa365",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/tooling/vscode/captured-evidence-registered-lifetime.test.js:49:48"
       ],
-      "notes": null,
+      "notes": "Use the existing positive-depth UI contract so the capture fixture dispatches its command before the unchanged publication/picker/source lifetime negatives.",
       "finalBatchStatus": "pending"
     },
     {
@@ -2976,81 +2976,81 @@
       "id": "tooling/sublime/behavior-contract-matrix",
       "path": "tooling/sublime/behavior-contract-matrix.test.js",
       "owner": "tooling/sublime",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5645aa365",
       "originalTimedOut": false,
       "originalFailure": "AssertionError: 'C:\\\\repo\\\\src\\\\app.js:7' != 'C:/repo\\\\src/app.js:7'",
       "failureLocations": [
         "src/app.js:7",
         "tests/tooling/sublime/behavior-contract-matrix.test.js:54:10"
       ],
-      "notes": null,
+      "notes": "Repair editor positive fixture/API ownership while retaining original lifecycle, identity and invalid-request assertions; runtime re-test deferred.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/sublime/extended-editor-workflows",
       "path": "tooling/sublime/extended-editor-workflows.test.js",
       "owner": "tooling/sublime",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5645aa365",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Traceback (most recent call last):\r",
       "failureLocations": [
         "tests/tooling/sublime/extended-editor-workflows.test.js:9:8"
       ],
-      "notes": null,
+      "notes": "Fix Windows drive-root admission by checking the whole rooted path, not the drive-stripped tail whose isabs behavior changed in Python 3.13. Drive-relative, traversal and outside-root negatives stay strict.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/sublime/package-harness",
       "path": "tooling/sublime/package-harness.test.js",
       "owner": "tooling/sublime",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5645aa365",
       "originalTimedOut": false,
       "originalFailure": "TypeError: PackageHarnessTests._run_process() got an unexpected keyword argument 'operation_scope'",
       "failureLocations": [],
-      "notes": null,
+      "notes": "Repair editor positive fixture/API ownership while retaining original lifecycle, identity and invalid-request assertions; runtime re-test deferred.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/sublime/package-release-sanity",
       "path": "tooling/sublime/package-release-sanity.test.js",
       "owner": "tooling/sublime",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5645aa365",
       "originalTimedOut": false,
       "originalFailure": "package-release-sanity test failed: duplicate command palette entries",
       "failureLocations": [],
-      "notes": null,
+      "notes": "Remove one proven duplicate palette entry: same command and absent args as retained Related Search (Approximate). No behavior or invocation boundary removed; duplicate guard and command membership remain.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/sublime/repository-request-snapshots",
       "path": "tooling/sublime/repository-request-snapshots.test.js",
       "owner": "tooling/sublime",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5645aa365",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Traceback (most recent call last):\r",
       "failureLocations": [
         "tests/tooling/sublime/repository-request-snapshots.test.js:10:8"
       ],
-      "notes": null,
+      "notes": "Fix Windows drive-root admission by checking the whole rooted path, not the drive-stripped tail whose isabs behavior changed in Python 3.13. Drive-relative, traversal and outside-root negatives stay strict.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/sublime/semantic-request-snapshots",
       "path": "tooling/sublime/semantic-request-snapshots.test.js",
       "owner": "tooling/sublime",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5645aa365",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Traceback (most recent call last):\r",
       "failureLocations": [
         "tests/tooling/sublime/semantic-request-snapshots.test.js:10:8"
       ],
-      "notes": null,
+      "notes": "Repair editor positive fixture/API ownership while retaining original lifecycle, identity and invalid-request assertions; runtime re-test deferred.",
       "finalBatchStatus": "pending"
     },
     {
@@ -3113,127 +3113,127 @@
       "id": "tooling/vscode/context-risk-runtime",
       "path": "tooling/vscode/context-risk-runtime.test.js",
       "owner": "tooling/vscode",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5645aa365",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/tooling/vscode/context-risk-runtime.test.js:169:10"
       ],
-      "notes": null,
+      "notes": "Presentation failure retains original error evidence and failed session, with no false success notification; subsequent successful risk/context export assertions remain.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/vscode/extension-runtime",
       "path": "tooling/vscode/extension-runtime.test.js",
       "owner": "tooling/vscode",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5645aa365",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/tooling/vscode/extension-runtime.test.js:41:8"
       ],
-      "notes": null,
+      "notes": "Repair editor positive fixture/API ownership while retaining original lifecycle, identity and invalid-request assertions; runtime re-test deferred.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/vscode/integration-harness",
       "path": "tooling/vscode/integration-harness.test.js",
       "owner": "tooling/vscode",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5645aa365",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/tooling/vscode/integration-harness.test.js:58:8"
       ],
-      "notes": null,
+      "notes": "Repair editor positive fixture/API ownership while retaining original lifecycle, identity and invalid-request assertions; runtime re-test deferred.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/vscode/operator-runtime",
       "path": "tooling/vscode/operator-runtime.test.js",
       "owner": "tooling/vscode",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5645aa365",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/tooling/vscode/operator-runtime.test.js:72:8"
       ],
-      "notes": null,
+      "notes": "Repair editor positive fixture/API ownership while retaining original lifecycle, identity and invalid-request assertions; runtime re-test deferred.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/vscode/package-determinism",
       "path": "tooling/vscode/package-determinism.test.js",
       "owner": "tooling/vscode",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "attempted-existing-owner-repair",
+      "sourceHead": "dbe962953",
       "originalTimedOut": false,
       "originalFailure": "Invalid VSIX: content types do not describe the VSIX manifest",
       "failureLocations": [],
-      "notes": null,
+      "notes": "Existing official VSIX repair normalizes dotted extension names in Content_Types and declares explicit package contents. Re-test both complete package runs/checksums later; no determinism assertion weakened.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/vscode/replay-transport-and-explanation",
       "path": "tooling/vscode/replay-transport-and-explanation.test.js",
       "owner": "tooling/vscode",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5645aa365",
       "originalTimedOut": false,
       "originalFailure": "TypeError: Cannot read properties of undefined (reading 'args')",
       "failureLocations": [
         "tests/tooling/vscode/replay-transport-and-explanation.test.js:18",
         "tests/tooling/vscode/replay-transport-and-explanation.test.js:18:47"
       ],
-      "notes": null,
+      "notes": "Multi-root fixture explicitly focuses its intended initial repository before invoking real registered commands; semantic replay, source installation, transport and captured ranking assertions remain.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/vscode/resource-scoped-enumeration-runtime",
       "path": "tooling/vscode/resource-scoped-enumeration-runtime.test.js",
       "owner": "tooling/vscode",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "needs-further-implementation",
+      "sourceHead": "5645aa365",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/tooling/vscode/resource-scoped-enumeration-runtime.test.js:41:10"
       ],
-      "notes": null,
+      "notes": "Selection precedence appears intact in both passive and active resolver code; added pre-dispatch selected-context and dispatch resource/error diagnostics without changing the original selected-root assertion. Requires later batch evidence.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/vscode/risk-generation-registered-lifetime",
       "path": "tooling/vscode/risk-generation-registered-lifetime.test.js",
       "owner": "tooling/vscode",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5645aa365",
       "originalTimedOut": false,
       "originalFailure": "TypeError: Cannot read properties of undefined (reading 'args')",
       "failureLocations": [
         "tests/tooling/vscode/risk-generation-registered-lifetime.test.js:33",
         "tests/tooling/vscode/risk-generation-registered-lifetime.test.js:33:40"
       ],
-      "notes": null,
+      "notes": "Choose an actually offered export presentation action instead of cancelling by searching for an absent output option; all selected-generation replacement/legacy/authority checks remain.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/vscode/source-mapping-progress-evidence",
       "path": "tooling/vscode/source-mapping-progress-evidence.test.js",
       "owner": "tooling/vscode",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5645aa365",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The input did not match the regular expression /normalization/. Input:",
       "failureLocations": [
         "tests/tooling/vscode/source-mapping-progress-evidence.test.js:55:10",
         "tests/tooling/vscode/source-mapping-progress-evidence.test.js:55:23"
       ],
-      "notes": null,
+      "notes": "Repair editor positive fixture/API ownership while retaining original lifecycle, identity and invalid-request assertions; runtime re-test deferred.",
       "finalBatchStatus": "pending"
     },
     {
@@ -4835,214 +4835,214 @@
       "id": "lang/contracts/build-dsl-heuristic-adapters",
       "path": "lang/contracts/build-dsl-heuristic-adapters.test.js",
       "owner": "lang/contracts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "38a3cc476",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: cmake should emit call edges",
       "failureLocations": [
         "tests/lang/helpers/heuristic-adapter-contracts.js:41:12",
         "tests/lang/contracts/build-dsl-heuristic-adapters.test.js:85:1"
       ],
-      "notes": null,
+      "notes": "Lexical mode requires usages with explicit incomplete call coverage, never fabricated caller edges. Native-supported cases additionally prepare real syntax owners and preserve positive caller/callee/source-occurrence assertions.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "lang/contracts/c-parenthesized-prototype-roles",
       "path": "lang/contracts/c-parenthesized-prototype-roles.test.js",
       "owner": "lang/contracts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "38a3cc476",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/lang/contracts/c-parenthesized-prototype-roles.test.js:50:8"
       ],
-      "notes": null,
+      "notes": "Declarator traversal and prototype admission accept grammar type_identifier/field_identifier leaves through wrappers while pointer/type bindings remain excluded. Native chunk version 8 and semantic source producer 23 invalidate stale meaning.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "lang/contracts/clike-registry-prepared-relations",
       "path": "lang/contracts/clike-registry-prepared-relations.test.js",
       "owner": "lang/contracts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "38a3cc476",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The input did not match the regular expression /useful docs/. Input:",
       "failureLocations": [
         "tests/lang/contracts/clike-registry-prepared-relations.test.js:14:10"
       ],
-      "notes": null,
+      "notes": "Fallback C-like doc extraction now matches native line-comment styles; original meaningful doc, signature, import, export and call assertions retained.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "lang/contracts/dockerfile-ast-boundaries",
       "path": "lang/contracts/dockerfile-ast-boundaries.test.js",
       "owner": "lang/contracts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "38a3cc476",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:",
       "failureLocations": [
         "tests/lang/contracts/dockerfile-ast-boundaries.test.js:29:8"
       ],
-      "notes": null,
+      "notes": "Fixture separately proves gapless full source retention and validates only real section metadata/ranges; retained preambles cannot masquerade as syntax nodes. Workflow envelope includes prefix and suffix while actual job keyRange remains exact.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "lang/contracts/dynamic-heuristic-adapters",
       "path": "lang/contracts/dynamic-heuristic-adapters.test.js",
       "owner": "lang/contracts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "38a3cc476",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: julia should emit call edges",
       "failureLocations": [
         "tests/lang/helpers/heuristic-adapter-contracts.js:41:12",
         "tests/lang/contracts/dynamic-heuristic-adapters.test.js:44:1"
       ],
-      "notes": null,
+      "notes": "Lexical mode requires usages with explicit incomplete call coverage, never fabricated caller edges. Native-supported cases additionally prepare real syntax owners and preserve positive caller/callee/source-occurrence assertions.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "lang/contracts/handlebars-ast-boundaries",
       "path": "lang/contracts/handlebars-ast-boundaries.test.js",
       "owner": "lang/contracts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "38a3cc476",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:",
       "failureLocations": [
         "tests/lang/contracts/handlebars-ast-boundaries.test.js:32:8"
       ],
-      "notes": null,
+      "notes": "Fixture separately proves gapless full source retention and validates only real section metadata/ranges; retained preambles cannot masquerade as syntax nodes. Workflow envelope includes prefix and suffix while actual job keyRange remains exact.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "lang/contracts/jinja-django-lexical-boundaries",
       "path": "lang/contracts/jinja-django-lexical-boundaries.test.js",
       "owner": "lang/contracts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "38a3cc476",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:",
       "failureLocations": [
         "tests/lang/contracts/jinja-django-lexical-boundaries.test.js:33:8"
       ],
-      "notes": null,
+      "notes": "Fixture separately proves gapless full source retention and validates only real section metadata/ranges; retained preambles cannot masquerade as syntax nodes. Workflow envelope includes prefix and suffix while actual job keyRange remains exact.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "lang/contracts/managed-heuristic-adapters",
       "path": "lang/contracts/managed-heuristic-adapters.test.js",
       "owner": "lang/contracts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "38a3cc476",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: dart should emit call edges",
       "failureLocations": [
         "tests/lang/helpers/heuristic-adapter-contracts.js:41:12",
         "tests/lang/contracts/managed-heuristic-adapters.test.js:61:1"
       ],
-      "notes": null,
+      "notes": "Lexical mode requires usages with explicit incomplete call coverage, never fabricated caller edges. Native-supported cases additionally prepare real syntax owners and preserve positive caller/callee/source-occurrence assertions.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "lang/contracts/mustache-parse-token-boundaries",
       "path": "lang/contracts/mustache-parse-token-boundaries.test.js",
       "owner": "lang/contracts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "38a3cc476",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:",
       "failureLocations": [
         "tests/lang/contracts/mustache-parse-token-boundaries.test.js:46:8"
       ],
-      "notes": null,
+      "notes": "Fixture separately proves gapless full source retention and validates only real section metadata/ranges; retained preambles cannot masquerade as syntax nodes. Workflow envelope includes prefix and suffix while actual job keyRange remains exact.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "lang/contracts/simple-language-relations-contract",
       "path": "lang/contracts/simple-language-relations-contract.test.js",
       "owner": "lang/contracts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "38a3cc476",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/lang/contracts/simple-language-relations-contract.test.js:77:8"
       ],
-      "notes": null,
+      "notes": "Existing Bazel label resolution already resolves extensionless BUILD. Fixture now requires both actual import links and zero suppressed resolver gaps.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "lang/contracts/sql-and-document-source-coverage",
       "path": "lang/contracts/sql-and-document-source-coverage.test.js",
       "owner": "lang/contracts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "38a3cc476",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:",
       "failureLocations": [
         "tests/lang/contracts/sql-and-document-source-coverage.test.js:10:10"
       ],
-      "notes": null,
+      "notes": "Scanner declaration identities survive native generic name search or source-only envelopes, including IF NOT EXISTS and quoted names, while native ranges and uncovered SQL/document source are retained.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "lang/contracts/template-heuristic-adapters",
       "path": "lang/contracts/template-heuristic-adapters.test.js",
       "owner": "lang/contracts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "38a3cc476",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: razor should emit call edges",
       "failureLocations": [
         "tests/lang/helpers/heuristic-adapter-contracts.js:41:12",
         "tests/lang/contracts/template-heuristic-adapters.test.js:62:1"
       ],
-      "notes": null,
+      "notes": "Lexical mode requires usages with explicit incomplete call coverage, never fabricated caller edges. Native-supported cases additionally prepare real syntax owners and preserve positive caller/callee/source-occurrence assertions.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "lang/contracts/toml-semantic-lexical-boundaries",
       "path": "lang/contracts/toml-semantic-lexical-boundaries.test.js",
       "owner": "lang/contracts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "38a3cc476",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:",
       "failureLocations": [
         "tests/lang/contracts/toml-semantic-lexical-boundaries.test.js:34:8"
       ],
-      "notes": null,
+      "notes": "Fixture separately proves gapless full source retention and validates only real section metadata/ranges; retained preambles cannot masquerade as syntax nodes. Workflow envelope includes prefix and suffix while actual job keyRange remains exact.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "lang/contracts/xml-lexical-boundaries",
       "path": "lang/contracts/xml-lexical-boundaries.test.js",
       "owner": "lang/contracts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "38a3cc476",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:",
       "failureLocations": [
         "tests/lang/contracts/xml-lexical-boundaries.test.js:32:8"
       ],
-      "notes": null,
+      "notes": "Fixture separately proves gapless full source retention and validates only real section metadata/ranges; retained preambles cannot masquerade as syntax nodes. Workflow envelope includes prefix and suffix while actual job keyRange remains exact.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "lang/contracts/yaml-syntax-node-boundaries",
       "path": "lang/contracts/yaml-syntax-node-boundaries.test.js",
       "owner": "lang/contracts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "38a3cc476",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/lang/contracts/yaml-syntax-node-boundaries.test.js:47:8"
       ],
-      "notes": null,
+      "notes": "Fixture separately proves gapless full source retention and validates only real section metadata/ranges; retained preambles cannot masquerade as syntax nodes. Workflow envelope includes prefix and suffix while actual job keyRange remains exact.",
       "finalBatchStatus": "pending"
     },
     {

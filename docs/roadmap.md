@@ -23,7 +23,7 @@ records 32 baseline passes, 426 failures (10 timeouts) and one POSIX exclusion.
 Focused repairs through `f6c7812a4` move 73 failures to passing: latest scoped
 counts are 105 passes, 353 failures and one exclusion (nine timeouts remain).
 The [360-item implementation queue](archived/windows-360-failure-repair-attempts-2026-10-24.json)
-tracks 103/360 attempts; tests wait until every item is attempted.
+tracks 138/360 attempts; tests wait until every item is attempted.
 The
 [next repair receipt](archived/windows-failure-repairs-2026-10-24.md) records
 37 passing checks plus 15 cache/setup, 12 import/lease, 19 runtime and eight coverage/probe checks; heap
@@ -148,7 +148,7 @@ Unicode type roots and own parameter/argument names reach parser/cache/public
 consumers. Complete source-checked semantic tokens and iterative symbols preserve
 source authority. Accessor calls distinguish reads/writes/deletion; computed keys
 retain evaluation/conversion order and creation-context captures. Current versions:
-moduleExports3/recordsProducer7/sourceChunking22/importResolution15/pieceAssembly3/typeNormalization11/compilerBindings23/
+moduleExports3/recordsProducer7/sourceChunking23/importResolution15/pieceAssembly3/typeNormalization11/compilerBindings23/
 lspBindings48/rq11/cfgFlow29/callFlow48/valueSlice10/boundaryFlow12/workerFlow11. VSCode and Sublime retain
 original opened-file/URI/request identity through deferred native selection.
 Proto/SemanticDB/ShellCheck report adapters are3 and SCIP importer is5; the other
