@@ -102,15 +102,17 @@ try {
     });
     assert.ok(fsSync.fstatSync(admissionFd).isFile(), 'failed original close keeps that exact descriptor open');
     const session = getContainedFileSession(admissionError); assert.ok(session);
-    await session.releaseAfterCloseSync();
-    assert.equal(session.isSettled(), true);
-    assert.throws(() => fsSync.fstatSync(admissionFd), { code: 'EBADF' });
-    assert.equal(admissionCloses, 3, 'one ordinary close, one failed close and one explicit original-owner recovery');
+    assert.throws(() => session.releaseAfterCloseSync(), error =>
+      contains(error, admissionCloseFailure) && error.cacheOwnershipPending === true);
+    assert.equal(session.isSettled(), false, 'an ambiguous numeric fd close cannot establish reusable descriptor authority');
+    assert.ok(fsSync.fstatSync(admissionFd).isFile());
+    assert.equal(admissionCloses, 2, 'the original owner must never repeat an unconfirmed close by fd number');
     assert.equal(await fs.readFile(admissionPath, 'utf8'), 'old authority');
   } finally {
     if (admissionError) {
-      const session = getContainedFileSession(admissionError);
-      if (session && !session.isSettled()) await session.releaseAfterCloseSync();
+      // The injected close threw before calling the OS, known only to this
+      // fixture. Native disposal does not publish an owner settlement receipt.
+      nativeClose.call(fsSync, admissionFd);
     }
     fsSync.ftruncateSync = nativeTruncate; fsSync.closeSync = nativeClose;
   }

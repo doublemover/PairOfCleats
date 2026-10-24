@@ -46,17 +46,25 @@ try {
 
 const exitingPool = createJsonlCompressionPool({ compression: 'gzip', workerCount: 1 });
 try {
+  let workerStarted;
+  const started = new Promise(resolve => { workerStarted = resolve; });
   const createExitingWorker = exitingPool._createWorker.bind(exitingPool);
   exitingPool._createWorker = () => {
     const worker = createExitingWorker();
     worker.postMessage = () => {};
+    workerStarted(worker);
     return worker;
   };
   const pending = exitingPool.compress(Buffer.alloc(32));
   const queued = exitingPool.compress(Buffer.alloc(32));
+  const completed = Promise.allSettled([pending, queued]);
+  const worker = await started;
+  assert.equal(exitingPool.pending.size, 1, 'the first compression must own an actual worker');
+  assert.equal(exitingPool.queue.length, 1, 'the second compression must be admitted before observing idle');
   const idle = exitingPool.waitForIdle();
-  exitingPool.workers[0].emit('exit', 0);
-  for (const result of await Promise.allSettled([pending, queued, idle])) {
+  const idleCompleted = Promise.allSettled([idle]);
+  worker.emit('exit', 0);
+  for (const result of [...await completed, ...await idleCompleted]) {
     assert.equal(result.status, 'rejected', 'unexpected clean worker exit must settle all waiters');
     assert.match(result.reason.message, /worker exited with code 0/);
   }

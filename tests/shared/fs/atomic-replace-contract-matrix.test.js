@@ -139,7 +139,7 @@ const cases = [
     }
   },
   {
-    name: 'committed final survives missing temp for async and sync persistence helpers',
+    name: 'missing temp cannot claim an existing final was committed by async or sync persistence helpers',
     async run() {
       const outDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'poc-atomic-replace-committed-'));
       const finalPath = path.join(outDir, 'final.txt');
@@ -147,12 +147,13 @@ const cases = [
       const missingTempPath = path.join(outDir, 'temp.txt');
       try {
         await fsPromises.writeFile(finalPath, 'committed\n', 'utf8');
-        await replacePersistentFile(missingTempPath, finalPath, { keepBackup: false });
+        await assert.rejects(replacePersistentFile(missingTempPath, finalPath, { keepBackup: false }), { code: 'ERR_TEMP_MISSING' });
         assert.equal(await fsPromises.readFile(finalPath, 'utf8'), 'committed\n');
 
         await fsPromises.writeFile(backupPath, 'stale\n', 'utf8');
-        replaceFileSync(missingTempPath, finalPath, { keepBackup: false });
+        assert.throws(() => replaceFileSync(missingTempPath, finalPath, { keepBackup: false }), { code: 'ERR_TEMP_MISSING' });
         assert.equal(await fsPromises.readFile(finalPath, 'utf8'), 'committed\n');
+        assert.equal(await fsPromises.readFile(backupPath, 'utf8'), 'stale\n', 'absence grants no cleanup authority over another retained backup');
       } finally {
         await fsPromises.rm(outDir, { recursive: true, force: true });
       }
