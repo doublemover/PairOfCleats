@@ -397,12 +397,12 @@ export const processChunks = async (context) => {
     const effectiveLintEnabled = lintEnabled && !heavyFileDownshift && parserIsAstFull;
     if (effectiveComplexityEnabled) {
       const cacheKey = `complexity:${COMPLEXITY_ANALYZER_VERSION}:${rel}:${fileHash || 'unhashed'}`;
-      let cachedComplexity = complexityCache.get(cacheKey);
+      let cachedComplexity = complexityCache?.get(cacheKey);
       if (!cachedComplexity) {
         const enrichStart = Date.now();
         const fullCode = text;
         const compResult = await analyzeComplexity(fullCode, rel);
-        complexityCache.set(cacheKey, compResult);
+        complexityCache?.set(cacheKey, compResult);
         cachedComplexity = compResult;
         const enrichDurationMs = Date.now() - enrichStart;
         addComplexityDuration(enrichDurationMs);
@@ -411,12 +411,12 @@ export const processChunks = async (context) => {
     }
     if (effectiveLintEnabled) {
       const cacheKey = fileHash ? `${rel}:${fileHash}` : rel;
-      let cachedLint = lintCache.get(cacheKey);
+      let cachedLint = lintCache?.get(cacheKey);
       if (!cachedLint) {
         const enrichStart = Date.now();
         const fullCode = text;
         const lintResult = await lintChunk(fullCode, rel);
-        lintCache.set(cacheKey, lintResult);
+        lintCache?.set(cacheKey, lintResult);
         cachedLint = lintResult;
         const enrichDurationMs = Date.now() - enrichStart;
         addLintDuration(enrichDurationMs);

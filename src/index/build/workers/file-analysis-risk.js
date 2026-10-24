@@ -26,7 +26,7 @@ const mapRules = (config, transform) => {
 // Copy exact already-normalized regex policy/provenance; native compiled
 // handles remain with the source owner. Worker compilation never changes engine.
 export const projectFileAnalysisRisk = config => mapRules(config, projectPattern);
-export const restoreFileAnalysisRisk = config => mapRules(config, pattern => {
+const restorePattern = pattern => {
   if (!pattern || typeof pattern.source !== 'string' || typeof pattern.flags !== 'string'
     || !['RegExp', 'SafeRegex'].includes(pattern.type)) throw fileAnalysisProtocolError('risk-regex-projection');
   const regex = pattern.type === 'RegExp' ? new RegExp(pattern.source, pattern.flags)
@@ -35,4 +35,11 @@ export const restoreFileAnalysisRisk = config => mapRules(config, pattern => {
   if (pattern.prefilter != null) regex.prefilter = pattern.prefilter;
   if (pattern.prefilterLower != null) regex.prefilterLower = pattern.prefilterLower;
   return regex;
-});
+};
+export const restoreFileAnalysisRisk = config => mapRules(config, restorePattern);
+
+const mapCommentPatterns = (config, transform) => config ? { ...config,
+  ...Object.fromEntries(['licensePattern', 'generatedPattern', 'linterPattern'].map(key =>
+    [key, config[key] == null ? null : transform(config[key])])) } : config;
+export const projectFileAnalysisComments = config => mapCommentPatterns(config, projectPattern);
+export const restoreFileAnalysisComments = config => mapCommentPatterns(config, restorePattern);

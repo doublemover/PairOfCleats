@@ -32,9 +32,10 @@ try {
   await fs.writeFile(path.join(repo, 'input.ts'),
     'export function original(x: number) { return x + 1; } export function use() { return original(2); }');
   applyTestEnv({ cacheRoot: path.join(temp, 'cache'), embeddings: 'stub', testConfig: {
-    indexing: { semantic: { enabled: true, profile: 'rich', enrichment: { bindings: 'eager', localFlow: 'eager' } },
-      embeddings: { enabled: false }, typeInference: false, typeInferenceCrossFile: false,
-      riskAnalysis: false, treeSitter: { enabled: false } }
+    indexing: { semantic: { enabled: true, profile: 'rich', execution: { compilerAdmission: { maxResidentBytes: 2147483648 } },
+      enrichment: { bindings: 'eager', localFlow: 'eager' } },
+    embeddings: { enabled: false }, typeInference: false, typeInferenceCrossFile: false,
+    riskAnalysis: false, treeSitter: { enabled: false } }
   } });
   await build();
   const cold = await readGeneration();

@@ -2,7 +2,7 @@ import { processFileCpu } from '../file-processor/cpu.js';
 import { createTokenizationContext } from '../tokenization.js';
 import { getLanguageForFile } from '../../language-registry.js';
 import { createTokenizationEvidence } from '../file-processor/tokenization-evidence.js';
-import { restoreFileAnalysisRisk } from './file-analysis-risk.js';
+import { restoreFileAnalysisRisk, restoreFileAnalysisComments } from './file-analysis-risk.js';
 import { decodeFileAnalysisInput, encodeFileAnalysisResult, FILE_ANALYSIS_MAX_EVENTS,
   FILE_ANALYSIS_TIMING_METHODS, fileAnalysisBudgetError } from './file-analysis-contract.js';
 
@@ -24,6 +24,7 @@ export const executeFileAnalysis = async (payload, resources) => {
   try {
     const result = await processFileCpu({ ...input,
       riskConfig: restoreFileAnalysisRisk(input.riskConfig),
+      normalizedCommentsConfig: restoreFileAnalysisComments(input.normalizedCommentsConfig),
       semantic: null, sourceBytes: null, scmProvider: null, scmProviderImpl: null, scmRepoRoot: null,
       embeddingEnabled: false, embeddingBatchSize: 0, getChunkEmbedding: null, getChunkEmbeddings: null,
       tokenDictWords: resources.dictWords, tokenContext, timing, tokenizationStats,

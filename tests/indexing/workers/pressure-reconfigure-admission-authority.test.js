@@ -4,7 +4,7 @@ import { createIndexerWorkerPool } from '../../../src/index/build/workers/pool.j
 
 const until = async predicate => {
   for (let attempt = 0; attempt < 100 && !predicate(); attempt++) await tick();
-  assert.ok(predicate());
+  assert.ok(predicate(), JSON.stringify(pool.stats()));
 };
 const pool = await createIndexerWorkerPool({ config: { enabled: true, maxWorkers: 2, cleanupTimeoutMs: 1000,
   heapTargetMb: 256, heapMinMb: 256, heapMaxMb: 256, processFallback: true,
@@ -18,7 +18,7 @@ const originalMemoryUsage = process.memoryUsage;
 const requests = [];
 let settled = 0;
 try {
-  process.memoryUsage = Object.assign(() => ({ heapUsed: 999, heapTotal: 1000, rss: 1024 * 1024 * 900 }), originalMemoryUsage);
+  process.memoryUsage = Object.assign(() => ({ heapUsed: 999, heapTotal: 1000, rss: 1024 * 1024 * 1000 }), originalMemoryUsage);
   const submit = () => pool.tokenizeChunk({ mode: 'code', languageId: 'typescript', text: 'const value = 1;' },
     { signal: controller.signal }).then(value => { settled++; return value; }, error => { settled++; return error; });
   requests.push(submit());

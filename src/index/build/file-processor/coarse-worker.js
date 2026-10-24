@@ -65,7 +65,7 @@ export const processFileCpuWithWorker = async context => {
     if (error?.code !== 'ERR_FILE_ANALYSIS_PROTOCOL' && error?.code !== 'ERR_FILE_ANALYSIS_BUDGET') throw error;
     return inline('rejected-result');
   }
-  if (data.status === 'unsupported') return inline('projection-refused');
+  if (data.status === 'unsupported') return inline(`projection-refused:${data.reason}`);
   if (evidence) { evidence.completed++; evidence.outputBytes += envelope.outputBytes; }
   // Keep observer failures outside fallback authority: an accepted result must
   // never cause a second analysis merely because presentation failed afterward.

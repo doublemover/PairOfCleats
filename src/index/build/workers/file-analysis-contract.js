@@ -1,11 +1,11 @@
 import { serialize, deserialize } from 'node:v8';
 import { createHash } from 'node:crypto';
 import { SEMANTIC_ANALYSIS_VERSIONS } from '../../semantic/analysis-versions.js';
-import { projectFileAnalysisRisk } from './file-analysis-risk.js';
+import { projectFileAnalysisRisk, projectFileAnalysisComments } from './file-analysis-risk.js';
 import { fileAnalysisProtocolError, fileAnalysisBudgetError } from './file-analysis-errors.js';
 export { fileAnalysisProtocolError, fileAnalysisBudgetError } from './file-analysis-errors.js';
 
-export const FILE_ANALYSIS_CONTRACT_VERSION = 1;
+export const FILE_ANALYSIS_CONTRACT_VERSION = 2;
 export const FILE_ANALYSIS_MAX_SOURCE_BYTES = 2 * 1024 * 1024;
 export const FILE_ANALYSIS_MAX_INPUT_BYTES = 4 * 1024 * 1024;
 export const FILE_ANALYSIS_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
@@ -58,12 +58,47 @@ const bytesOf = value => {
   return Buffer.from(value.buffer, value.byteOffset, value.byteLength);
 };
 const decode = bytes => {
-  try { return deserialize(bytes); }
+  let decoded;
+  try { decoded = deserialize(bytes); }
   catch { throw fileAnalysisProtocolError('serialized-envelope'); }
+  if (!decoded || !Array.isArray(decoded.nullPrototypePaths) || decoded.nullPrototypePaths.length > 200000) {
+    throw fileAnalysisProtocolError('dictionary-envelope');
+  }
+  for (const path of decoded.nullPrototypePaths) {
+    if (!Array.isArray(path) || path.length > 64) throw fileAnalysisProtocolError('dictionary-path');
+    let target = decoded.value;
+    for (const key of path) {
+      if (typeof key !== 'string' || !target || typeof target !== 'object') throw fileAnalysisProtocolError('dictionary-path');
+      const descriptor = Object.getOwnPropertyDescriptor(target, key);
+      if (!descriptor || !('value' in descriptor)) throw fileAnalysisProtocolError('dictionary-path');
+      target = descriptor.value;
+    }
+    if (!target || Array.isArray(target) || (Object.getPrototypeOf(target) !== Object.prototype
+      && Object.getPrototypeOf(target) !== null)) {
+      throw fileAnalysisProtocolError('dictionary-prototype');
+    }
+    Object.setPrototypeOf(target, null);
+  }
+  return decoded.value;
 };
 const encode = (value, limit) => {
   validateFileAnalysisProjection(value, limit);
-  const bytes = serialize(value);
+  // V8 serialization drops null prototypes. Preserve the owned dictionary
+  // paths separately so names such as __proto__ keep identical map semantics.
+  const nullPrototypePaths = [];
+  let pathBytes = 0;
+  const visit = (node, path, bytes) => {
+    if (!node || typeof node !== 'object' || ArrayBuffer.isView(node)
+      || node instanceof ArrayBuffer || node instanceof Date || node instanceof RegExp) return;
+    if (Object.getPrototypeOf(node) === null) {
+      pathBytes += bytes + path.length * 8 + 32;
+      if (pathBytes > limit) throw fileAnalysisBudgetError('dictionary-paths');
+      nullPrototypePaths.push(path);
+    }
+    for (const key of Object.keys(node)) visit(node[key], [...path, key], bytes + Buffer.byteLength(key));
+  };
+  visit(value, [], 0);
+  const bytes = serialize({ value, nullPrototypePaths });
   if (bytes.length > limit) throw fileAnalysisBudgetError('serialized-bytes');
   return bytes;
 };
@@ -116,6 +151,7 @@ export const projectFileAnalysisInput = context => {
     crash: Boolean(context.crashLogger?.enabled) };
   try {
     projection.riskConfig = projectFileAnalysisRisk(context.riskConfig);
+    projection.normalizedCommentsConfig = projectFileAnalysisComments(context.normalizedCommentsConfig);
     const body = encode({ producer: producerIdentity(), context: projection }, FILE_ANALYSIS_MAX_INPUT_BYTES);
     return { payload: { version: FILE_ANALYSIS_CONTRACT_VERSION, identity: hash(body), body,
       mode: context.mode, ext: context.ext, languageId: ['.ts', '.tsx', '.mts', '.cts'].includes(context.ext) ? 'typescript' : 'javascript',

@@ -7,7 +7,7 @@ import { executeFileAnalysis } from '../../../src/index/build/workers/file-analy
 import { createBuildScheduler } from '../../../src/shared/concurrency/scheduler-core.js';
 import { createTokenizationBuffers, createTokenizationContext, tokenizeChunkText } from '../../../src/index/build/tokenization.js';
 import { fileAnalysisAdmissionBytes, FILE_ANALYSIS_MAX_OUTPUT_BYTES, projectFileAnalysisInput,
-  decodeFileAnalysisInput, decodeFileAnalysisResult } from '../../../src/index/build/workers/file-analysis-contract.js';
+  decodeFileAnalysisInput, encodeFileAnalysisResult, decodeFileAnalysisResult } from '../../../src/index/build/workers/file-analysis-contract.js';
 import { createScmFileProcessorContext } from './scm-file-processor-test-helper.js';
 import { normalizeRiskConfig } from '../../../src/index/risk.js';
 
@@ -59,8 +59,8 @@ for (const name of names) {
     const context = make({ workerPool: pool });
     const actual = await run(context);
     assert.deepEqual(actual, expected, `${name}: chunks, syntax facts, relations, risk/type/lint and checkpoint projection`);
-    assert.equal(tasks, 1, `${name}: real consumer uses the coarse task contract`);
-    assert.equal(context.tokenizationStats.coarseAnalysis.completed, 1);
+    assert.equal(tasks, 1, `${name}: real consumer uses the coarse task contract: ${JSON.stringify(context.tokenizationStats.coarseAnalysis)}`);
+    assert.equal(context.tokenizationStats.coarseAnalysis.completed, 1, JSON.stringify(context.tokenizationStats.coarseAnalysis));
     if (name === 'replay' && expected.lexicalCheckpoint) {
       const warm = make({ workerPool: pool, cachedLexicalCheckpoint: expected.lexicalCheckpoint,
         cachedStageBundle: { stageRefresh: { parse: false }, parseCheckpoint: expected.parseCheckpoint } });
@@ -70,6 +70,12 @@ for (const name of names) {
     if (name === 'authority') {
       const prepared = projectFileAnalysisInput(make());
       assert.ok(prepared.payload);
+      const dictionary = Object.assign(Object.create(null), { ['__proto__']: 'owned source name' });
+      const roundtrip = decodeFileAnalysisResult(prepared.payload,
+        encodeFileAnalysisResult(prepared.payload, { dictionary, alias: dictionary }));
+      assert.equal(Object.getPrototypeOf(roundtrip.dictionary), null);
+      assert.equal(roundtrip.dictionary.__proto__, 'owned source name');
+      assert.equal(roundtrip.alias, roundtrip.dictionary, 'transport preserves aliased source dictionaries');
       assert.throws(() => decodeFileAnalysisInput({ ...prepared.payload, languageId: 'python' }), { code: 'ERR_FILE_ANALYSIS_PROTOCOL' });
       const result = await executeFileAnalysis(prepared.payload, resources);
       assert.throws(() => decodeFileAnalysisResult(prepared.payload, { ...result, outputBytes: FILE_ANALYSIS_MAX_OUTPUT_BYTES + 1 }),
