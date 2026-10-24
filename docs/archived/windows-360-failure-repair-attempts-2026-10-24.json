@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "recordedAt": "2026-10-24T09:43:56.056Z",
+  "recordedAt": "2026-10-24T09:59:25.533Z",
   "queueSourceHead": "a96699ab0e9e822320e008f5affc1d690f305cfe",
   "originalFailureSource": "893fe089458e7f7294b8d1f357f596fdecc7d5d4",
   "scope": "The 360 historical failures outstanding at the runtime-wave publication. Attempt every implementation before further batch tests. Seven repairs were completed and tested immediately before this instruction.",
@@ -19,8 +19,8 @@
   },
   "summary": {
     "selected": 360,
-    "not-attempted": 152,
-    "implemented-unvalidated": 170,
+    "implemented-unvalidated": 195,
+    "not-attempted": 127,
     "needs-further-implementation": 13,
     "attempted-existing-owner-repair": 18,
     "implemented": 7,
@@ -31,14 +31,14 @@
       "id": "indexing/documents/pdf-resource-lifetime",
       "path": "indexing/documents/pdf-resource-lifetime.test.js",
       "owner": "indexing/documents",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "24b2f50aa",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected \"actual\" to be reference-equal to \"expected\":",
       "failureLocations": [
         "tests/indexing/documents/pdf-resource-lifetime.test.js:45:10"
       ],
-      "notes": null,
+      "notes": "Implementation reviewed/authored before runtime validation: exact failure graph assertions retain primary identities; initialization does not claim observed execution; nested compute uses the existing explicit CPU-suspension owner. Active file reads drain native stream closure, dictionary interfaces observe late close errors and dictionary owners canonicalize Windows authority paths. Scene recovery retains preceding native failures and registers synchronous parent failures after children. Fixtures use registered GC inputs with protected-unknown negatives, qualified cache/autotune identities, registered metadata shards, typed member identities and real Three attributes. Current graph golden counts individual candidate witnesses and source context verifies actual selected content; simulated reports declare provenance and retain missing-provenance negatives. Relevant original assertions/deadlines remain; see durable receipt for mappings.",
       "finalBatchStatus": "pending"
     },
     {
@@ -73,8 +73,8 @@
       "id": "indexing/runtime/runtime-attempt-lifecycle",
       "path": "indexing/runtime/runtime-attempt-lifecycle.test.js",
       "owner": "indexing/runtime",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "24b2f50aa",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
@@ -82,7 +82,7 @@
         "tests/helpers/test-env.js:92:12",
         "tests/indexing/runtime/runtime-attempt-lifecycle.test.js:25:3"
       ],
-      "notes": null,
+      "notes": "Implementation reviewed/authored before runtime validation: exact failure graph assertions retain primary identities; initialization does not claim observed execution; nested compute uses the existing explicit CPU-suspension owner. Active file reads drain native stream closure, dictionary interfaces observe late close errors and dictionary owners canonicalize Windows authority paths. Scene recovery retains preceding native failures and registers synchronous parent failures after children. Fixtures use registered GC inputs with protected-unknown negatives, qualified cache/autotune identities, registered metadata shards, typed member identities and real Three attributes. Current graph golden counts individual candidate witnesses and source context verifies actual selected content; simulated reports declare provenance and retain missing-provenance negatives. Relevant original assertions/deadlines remain; see durable receipt for mappings.",
       "finalBatchStatus": "pending"
     },
     {
@@ -188,14 +188,14 @@
       "id": "map/scene-shutdown-failure-ownership",
       "path": "map/scene-shutdown-failure-ownership.test.js",
       "owner": "map/scene-shutdown-failure-ownership",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "24b2f50aa",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/map/scene-shutdown-failure-ownership.test.js:133:10"
       ],
-      "notes": null,
+      "notes": "Implementation reviewed/authored before runtime validation: exact failure graph assertions retain primary identities; initialization does not claim observed execution; nested compute uses the existing explicit CPU-suspension owner. Active file reads drain native stream closure, dictionary interfaces observe late close errors and dictionary owners canonicalize Windows authority paths. Scene recovery retains preceding native failures and registers synchronous parent failures after children. Fixtures use registered GC inputs with protected-unknown negatives, qualified cache/autotune identities, registered metadata shards, typed member identities and real Three attributes. Current graph golden counts individual candidate witnesses and source context verifies actual selected content; simulated reports declare provenance and retain missing-provenance negatives. Relevant original assertions/deadlines remain; see durable receipt for mappings.",
       "finalBatchStatus": "pending"
     },
     {
@@ -395,68 +395,68 @@
       "id": "shared/cache/contract-matrix",
       "path": "shared/cache/contract-matrix.test.js",
       "owner": "shared/cache",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "24b2f50aa",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:",
       "failureLocations": [
         "tests/shared/cache/contract-matrix.test.js:192:8"
       ],
-      "notes": null,
+      "notes": "Implementation reviewed/authored before runtime validation: exact failure graph assertions retain primary identities; initialization does not claim observed execution; nested compute uses the existing explicit CPU-suspension owner. Active file reads drain native stream closure, dictionary interfaces observe late close errors and dictionary owners canonicalize Windows authority paths. Scene recovery retains preceding native failures and registers synchronous parent failures after children. Fixtures use registered GC inputs with protected-unknown negatives, qualified cache/autotune identities, registered metadata shards, typed member identities and real Three attributes. Current graph golden counts individual candidate witnesses and source context verifies actual selected content; simulated reports declare provenance and retain missing-provenance negatives. Relevant original assertions/deadlines remain; see durable receipt for mappings.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "shared/cache/gc",
       "path": "shared/cache/gc.test.js",
       "owner": "shared/cache",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "24b2f50aa",
       "originalTimedOut": false,
       "originalFailure": "cache-gc age failed to remove old-repo",
       "failureLocations": [],
-      "notes": null,
+      "notes": "Implementation reviewed/authored before runtime validation: exact failure graph assertions retain primary identities; initialization does not claim observed execution; nested compute uses the existing explicit CPU-suspension owner. Active file reads drain native stream closure, dictionary interfaces observe late close errors and dictionary owners canonicalize Windows authority paths. Scene recovery retains preceding native failures and registers synchronous parent failures after children. Fixtures use registered GC inputs with protected-unknown negatives, qualified cache/autotune identities, registered metadata shards, typed member identities and real Three attributes. Current graph golden counts individual candidate witnesses and source context verifies actual selected content; simulated reports declare provenance and retain missing-provenance negatives. Relevant original assertions/deadlines remain; see durable receipt for mappings.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "shared/concurrency/scheduler-config-parse",
       "path": "shared/concurrency/scheduler-config-parse.test.js",
       "owner": "shared/concurrency",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "24b2f50aa",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected max CPU tokens to use autotune recommendation",
       "failureLocations": [
         "tests/shared/concurrency/scheduler-config-parse.test.js:123:8"
       ],
-      "notes": null,
+      "notes": "Implementation reviewed/authored before runtime validation: exact failure graph assertions retain primary identities; initialization does not claim observed execution; nested compute uses the existing explicit CPU-suspension owner. Active file reads drain native stream closure, dictionary interfaces observe late close errors and dictionary owners canonicalize Windows authority paths. Scene recovery retains preceding native failures and registers synchronous parent failures after children. Fixtures use registered GC inputs with protected-unknown negatives, qualified cache/autotune identities, registered metadata shards, typed member identities and real Three attributes. Current graph golden counts individual candidate witnesses and source context verifies actual selected content; simulated reports declare provenance and retain missing-provenance negatives. Relevant original assertions/deadlines remain; see durable receipt for mappings.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "shared/file-stats-cancellation",
       "path": "shared/file-stats-cancellation.test.js",
       "owner": "shared/file-stats-cancellation",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "24b2f50aa",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: cancellation waits for actual owned stream close",
       "failureLocations": [
         "tests/shared/file-stats-cancellation.test.js:41:10"
       ],
-      "notes": null,
+      "notes": "Implementation reviewed/authored before runtime validation: exact failure graph assertions retain primary identities; initialization does not claim observed execution; nested compute uses the existing explicit CPU-suspension owner. Active file reads drain native stream closure, dictionary interfaces observe late close errors and dictionary owners canonicalize Windows authority paths. Scene recovery retains preceding native failures and registers synchronous parent failures after children. Fixtures use registered GC inputs with protected-unknown negatives, qualified cache/autotune identities, registered metadata shards, typed member identities and real Three attributes. Current graph golden counts individual candidate witnesses and source context verifies actual selected content; simulated reports declare provenance and retain missing-provenance negatives. Relevant original assertions/deadlines remain; see durable receipt for mappings.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "shared/generated-artifact-core",
       "path": "shared/generated-artifact-core.test.js",
       "owner": "shared/generated-artifact-core",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "24b2f50aa",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/shared/generated-artifact-core.test.js:12:10"
       ],
-      "notes": null,
+      "notes": "Implementation reviewed/authored before runtime validation: exact failure graph assertions retain primary identities; initialization does not claim observed execution; nested compute uses the existing explicit CPU-suspension owner. Active file reads drain native stream closure, dictionary interfaces observe late close errors and dictionary owners canonicalize Windows authority paths. Scene recovery retains preceding native failures and registers synchronous parent failures after children. Fixtures use registered GC inputs with protected-unknown negatives, qualified cache/autotune identities, registered metadata shards, typed member identities and real Three attributes. Current graph golden counts individual candidate witnesses and source context verifies actual selected content; simulated reports declare provenance and retain missing-provenance negatives. Relevant original assertions/deadlines remain; see durable receipt for mappings.",
       "finalBatchStatus": "pending"
     },
     {
@@ -482,14 +482,14 @@
       "id": "shared/logging/scoped-ring-redaction",
       "path": "shared/logging/scoped-ring-redaction.test.js",
       "owner": "shared/logging",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "24b2f50aa",
       "originalTimedOut": false,
       "originalFailure": "SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)",
       "failureLocations": [
         "tests/shared/logging/scoped-ring-redaction.test.js:28:25"
       ],
-      "notes": null,
+      "notes": "Implementation reviewed/authored before runtime validation: exact failure graph assertions retain primary identities; initialization does not claim observed execution; nested compute uses the existing explicit CPU-suspension owner. Active file reads drain native stream closure, dictionary interfaces observe late close errors and dictionary owners canonicalize Windows authority paths. Scene recovery retains preceding native failures and registers synchronous parent failures after children. Fixtures use registered GC inputs with protected-unknown negatives, qualified cache/autotune identities, registered metadata shards, typed member identities and real Three attributes. Current graph golden counts individual candidate witnesses and source context verifies actual selected content; simulated reports declare provenance and retain missing-provenance negatives. Relevant original assertions/deadlines remain; see durable receipt for mappings.",
       "finalBatchStatus": "pending"
     },
     {
@@ -510,8 +510,8 @@
       "id": "shared/storage/dictionary-category-migration",
       "path": "shared/storage/dictionary-category-migration.test.js",
       "owner": "shared/storage",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "24b2f50aa",
       "originalTimedOut": false,
       "originalFailure": "Error: Category migration ownership changed since preview.",
       "failureLocations": [
@@ -522,22 +522,22 @@
         "src/shared/storage/migration.js:119:20",
         "src/shared/storage/migration.js:228:12"
       ],
-      "notes": null,
+      "notes": "Implementation reviewed/authored before runtime validation: exact failure graph assertions retain primary identities; initialization does not claim observed execution; nested compute uses the existing explicit CPU-suspension owner. Active file reads drain native stream closure, dictionary interfaces observe late close errors and dictionary owners canonicalize Windows authority paths. Scene recovery retains preceding native failures and registers synchronous parent failures after children. Fixtures use registered GC inputs with protected-unknown negatives, qualified cache/autotune identities, registered metadata shards, typed member identities and real Three attributes. Current graph golden counts individual candidate witnesses and source context verifies actual selected content; simulated reports declare provenance and retain missing-provenance negatives. Relevant original assertions/deadlines remain; see durable receipt for mappings.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "shared/storage/dictionary-secondary-failures-retain-ownership",
       "path": "shared/storage/dictionary-secondary-failures-retain-ownership.test.js",
       "owner": "shared/storage",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "24b2f50aa",
       "originalTimedOut": false,
       "originalFailure": "Error: inert native close ambiguity",
       "failureLocations": [
         "tests/shared/storage/dictionary-secondary-failures-retain-ownership.test.js:48:44",
         "tests/shared/storage/dictionary-secondary-failures-retain-ownership.test.js:48:16"
       ],
-      "notes": null,
+      "notes": "Implementation reviewed/authored before runtime validation: exact failure graph assertions retain primary identities; initialization does not claim observed execution; nested compute uses the existing explicit CPU-suspension owner. Active file reads drain native stream closure, dictionary interfaces observe late close errors and dictionary owners canonicalize Windows authority paths. Scene recovery retains preceding native failures and registers synchronous parent failures after children. Fixtures use registered GC inputs with protected-unknown negatives, qualified cache/autotune identities, registered metadata shards, typed member identities and real Three attributes. Current graph golden counts individual candidate witnesses and source context verifies actual selected content; simulated reports declare provenance and retain missing-provenance negatives. Relevant original assertions/deadlines remain; see durable receipt for mappings.",
       "finalBatchStatus": "pending"
     },
     {
@@ -558,14 +558,14 @@
       "id": "shared/storage/migration-marker-resource-outcomes",
       "path": "shared/storage/migration-marker-resource-outcomes.test.js",
       "owner": "shared/storage",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "24b2f50aa",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/shared/storage/migration-marker-resource-outcomes.test.js:149:41"
       ],
-      "notes": null,
+      "notes": "Implementation reviewed/authored before runtime validation: exact failure graph assertions retain primary identities; initialization does not claim observed execution; nested compute uses the existing explicit CPU-suspension owner. Active file reads drain native stream closure, dictionary interfaces observe late close errors and dictionary owners canonicalize Windows authority paths. Scene recovery retains preceding native failures and registers synchronous parent failures after children. Fixtures use registered GC inputs with protected-unknown negatives, qualified cache/autotune identities, registered metadata shards, typed member identities and real Three attributes. Current graph golden counts individual candidate witnesses and source context verifies actual selected content; simulated reports declare provenance and retain missing-provenance negatives. Relevant original assertions/deadlines remain; see durable receipt for mappings.",
       "finalBatchStatus": "pending"
     },
     {
@@ -4184,23 +4184,23 @@
       "id": "indexing/runtime/scheduler-nested-embedding-queue-no-deadlock",
       "path": "indexing/runtime/scheduler-nested-embedding-queue-no-deadlock.test.js",
       "owner": "indexing/runtime",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "24b2f50aa",
       "originalTimedOut": false,
       "originalFailure": "Error: nested cpu->embedding schedule stalled (deadlock regression)",
       "failureLocations": [
         "tests/indexing/runtime/scheduler-nested-embedding-queue-no-deadlock.test.js:38",
         "tests/indexing/runtime/scheduler-nested-embedding-queue-no-deadlock.test.js:38:39"
       ],
-      "notes": null,
+      "notes": "Implementation reviewed/authored before runtime validation: exact failure graph assertions retain primary identities; initialization does not claim observed execution; nested compute uses the existing explicit CPU-suspension owner. Active file reads drain native stream closure, dictionary interfaces observe late close errors and dictionary owners canonicalize Windows authority paths. Scene recovery retains preceding native failures and registers synchronous parent failures after children. Fixtures use registered GC inputs with protected-unknown negatives, qualified cache/autotune identities, registered metadata shards, typed member identities and real Three attributes. Current graph golden counts individual candidate witnesses and source context verifies actual selected content; simulated reports declare provenance and retain missing-provenance negatives. Relevant original assertions/deadlines remain; see durable receipt for mappings.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/runtime/subprocess-cleanup-cache-barrier",
       "path": "indexing/runtime/subprocess-cleanup-cache-barrier.test.js",
       "owner": "indexing/runtime",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "24b2f50aa",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The validation function is expected to return \"true\". Received false",
       "failureLocations": [
@@ -4209,7 +4209,7 @@
         "src/shared/concurrency/run-with-queue.js:202:27",
         "tests/indexing/runtime/subprocess-cleanup-cache-barrier.test.js:45:33"
       ],
-      "notes": null,
+      "notes": "Implementation reviewed/authored before runtime validation: exact failure graph assertions retain primary identities; initialization does not claim observed execution; nested compute uses the existing explicit CPU-suspension owner. Active file reads drain native stream closure, dictionary interfaces observe late close errors and dictionary owners canonicalize Windows authority paths. Scene recovery retains preceding native failures and registers synchronous parent failures after children. Fixtures use registered GC inputs with protected-unknown negatives, qualified cache/autotune identities, registered metadata shards, typed member identities and real Three attributes. Current graph golden counts individual candidate witnesses and source context verifies actual selected content; simulated reports declare provenance and retain missing-provenance negatives. Relevant original assertions/deadlines remain; see durable receipt for mappings.",
       "finalBatchStatus": "pending"
     },
     {
@@ -4711,36 +4711,36 @@
       "id": "graph/fanout-prefix-admission",
       "path": "graph/fanout-prefix-admission.test.js",
       "owner": "graph/fanout-prefix-admission",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "24b2f50aa",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: unchanged baseline output includes discarded-symbol notices and full fanout counts",
       "failureLocations": [
         "tests/graph/fanout-prefix-admission.test.js:10:8"
       ],
-      "notes": null,
+      "notes": "Implementation reviewed/authored before runtime validation: exact failure graph assertions retain primary identities; initialization does not claim observed execution; nested compute uses the existing explicit CPU-suspension owner. Active file reads drain native stream closure, dictionary interfaces observe late close errors and dictionary owners canonicalize Windows authority paths. Scene recovery retains preceding native failures and registers synchronous parent failures after children. Fixtures use registered GC inputs with protected-unknown negatives, qualified cache/autotune identities, registered metadata shards, typed member identities and real Three attributes. Current graph golden counts individual candidate witnesses and source context verifies actual selected content; simulated reports declare provenance and retain missing-provenance negatives. Relevant original assertions/deadlines remain; see durable receipt for mappings.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "graph/real-source-change-workflow",
       "path": "graph/real-source-change-workflow.test.js",
       "owner": "graph/real-source-change-workflow",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "24b2f50aa",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The input did not match the regular expression /compareStrings/. Input:",
       "failureLocations": [
         "tests/graph/real-source-change-workflow.test.js:38:10"
       ],
-      "notes": null,
+      "notes": "Implementation reviewed/authored before runtime validation: exact failure graph assertions retain primary identities; initialization does not claim observed execution; nested compute uses the existing explicit CPU-suspension owner. Active file reads drain native stream closure, dictionary interfaces observe late close errors and dictionary owners canonicalize Windows authority paths. Scene recovery retains preceding native failures and registers synchronous parent failures after children. Fixtures use registered GC inputs with protected-unknown negatives, qualified cache/autotune identities, registered metadata shards, typed member identities and real Three attributes. Current graph golden counts individual candidate witnesses and source context verifies actual selected content; simulated reports declare provenance and retain missing-provenance negatives. Relevant original assertions/deadlines remain; see durable receipt for mappings.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "graph/suggest-tests-explicit-polyglot-pattern",
       "path": "graph/suggest-tests-explicit-polyglot-pattern.test.js",
       "owner": "graph/suggest-tests-explicit-polyglot-pattern",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "24b2f50aa",
       "originalTimedOut": false,
       "originalFailure": "Error: Suggest-tests report requires indexSignature or indexCompatKey.",
       "failureLocations": [
@@ -4750,15 +4750,15 @@
         "tests/graph/suggest-tests-explicit-polyglot-pattern.test.js:10:33",
         "tests/graph/suggest-tests-explicit-polyglot-pattern.test.js:11:20"
       ],
-      "notes": null,
+      "notes": "Implementation reviewed/authored before runtime validation: exact failure graph assertions retain primary identities; initialization does not claim observed execution; nested compute uses the existing explicit CPU-suspension owner. Active file reads drain native stream closure, dictionary interfaces observe late close errors and dictionary owners canonicalize Windows authority paths. Scene recovery retains preceding native failures and registers synchronous parent failures after children. Fixtures use registered GC inputs with protected-unknown negatives, qualified cache/autotune identities, registered metadata shards, typed member identities and real Three attributes. Current graph golden counts individual candidate witnesses and source context verifies actual selected content; simulated reports declare provenance and retain missing-provenance negatives. Relevant original assertions/deadlines remain; see durable receipt for mappings.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "graph/upstream-coverage-absence",
       "path": "graph/upstream-coverage-absence.test.js",
       "owner": "graph/upstream-coverage-absence",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "24b2f50aa",
       "originalTimedOut": false,
       "originalFailure": "Error: Architecture report requires indexSignature or indexCompatKey.",
       "failureLocations": [
@@ -4767,7 +4767,7 @@
         "src/graph/architecture.js:135:30",
         "tests/graph/upstream-coverage-absence.test.js:28:24"
       ],
-      "notes": null,
+      "notes": "Implementation reviewed/authored before runtime validation: exact failure graph assertions retain primary identities; initialization does not claim observed execution; nested compute uses the existing explicit CPU-suspension owner. Active file reads drain native stream closure, dictionary interfaces observe late close errors and dictionary owners canonicalize Windows authority paths. Scene recovery retains preceding native failures and registers synchronous parent failures after children. Fixtures use registered GC inputs with protected-unknown negatives, qualified cache/autotune identities, registered metadata shards, typed member identities and real Three attributes. Current graph golden counts individual candidate witnesses and source context verifies actual selected content; simulated reports declare provenance and retain missing-provenance negatives. Relevant original assertions/deadlines remain; see durable receipt for mappings.",
       "finalBatchStatus": "pending"
     },
     {
@@ -5147,8 +5147,8 @@
       "id": "map/canonical-member-inventory",
       "path": "map/canonical-member-inventory.test.js",
       "owner": "map/canonical-member-inventory",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "24b2f50aa",
       "originalTimedOut": false,
       "originalFailure": "Error: Ambiguous manifest entries for file_meta",
       "failureLocations": [
@@ -5159,29 +5159,29 @@
         "src/map/build-map/io.js:67:22",
         "src/map/build-map.js:237:29"
       ],
-      "notes": null,
+      "notes": "Implementation reviewed/authored before runtime validation: exact failure graph assertions retain primary identities; initialization does not claim observed execution; nested compute uses the existing explicit CPU-suspension owner. Active file reads drain native stream closure, dictionary interfaces observe late close errors and dictionary owners canonicalize Windows authority paths. Scene recovery retains preceding native failures and registers synchronous parent failures after children. Fixtures use registered GC inputs with protected-unknown negatives, qualified cache/autotune identities, registered metadata shards, typed member identities and real Three attributes. Current graph golden counts individual candidate witnesses and source context verifies actual selected content; simulated reports declare provenance and retain missing-provenance negatives. Relevant original assertions/deadlines remain; see durable receipt for mappings.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "map/canonical-renderer-member-identity",
       "path": "map/canonical-renderer-member-identity.test.js",
       "owner": "map/canonical-renderer-member-identity",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "24b2f50aa",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Missing expected exception.",
       "failureLocations": [
         "tests/map/canonical-renderer-member-identity.test.js:36:8"
       ],
-      "notes": null,
+      "notes": "Implementation reviewed/authored before runtime validation: exact failure graph assertions retain primary identities; initialization does not claim observed execution; nested compute uses the existing explicit CPU-suspension owner. Active file reads drain native stream closure, dictionary interfaces observe late close errors and dictionary owners canonicalize Windows authority paths. Scene recovery retains preceding native failures and registers synchronous parent failures after children. Fixtures use registered GC inputs with protected-unknown negatives, qualified cache/autotune identities, registered metadata shards, typed member identities and real Three attributes. Current graph golden counts individual candidate witnesses and source context verifies actual selected content; simulated reports declare provenance and retain missing-provenance negatives. Relevant original assertions/deadlines remain; see durable receipt for mappings.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "map/connected-highlight-opaque-ids",
       "path": "map/connected-highlight-opaque-ids.test.js",
       "owner": "map/connected-highlight-opaque-ids",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "24b2f50aa",
       "originalTimedOut": false,
       "originalFailure": "TypeError: Cannot read properties of undefined (reading 'length')",
       "failureLocations": [
@@ -5192,15 +5192,15 @@
         "src/map/isometric/client/selection.js:506:13",
         "src/map/isometric/client/selection.js:572:21"
       ],
-      "notes": null,
+      "notes": "Implementation reviewed/authored before runtime validation: exact failure graph assertions retain primary identities; initialization does not claim observed execution; nested compute uses the existing explicit CPU-suspension owner. Active file reads drain native stream closure, dictionary interfaces observe late close errors and dictionary owners canonicalize Windows authority paths. Scene recovery retains preceding native failures and registers synchronous parent failures after children. Fixtures use registered GC inputs with protected-unknown negatives, qualified cache/autotune identities, registered metadata shards, typed member identities and real Three attributes. Current graph golden counts individual candidate witnesses and source context verifies actual selected content; simulated reports declare provenance and retain missing-provenance negatives. Relevant original assertions/deadlines remain; see durable receipt for mappings.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "map/normal-map-loader-ownership",
       "path": "map/normal-map-loader-ownership.test.js",
       "owner": "map/normal-map-loader-ownership",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "24b2f50aa",
       "originalTimedOut": false,
       "originalFailure": "AggregateError: shared scene normal map disposal was explicitly unconfirmed.",
       "failureLocations": [
@@ -5211,15 +5211,15 @@
         "src/map/isometric/client/scene-retirement.js:140:45",
         "tests/map/normal-map-loader-ownership.test.js:39:96"
       ],
-      "notes": null,
+      "notes": "Implementation reviewed/authored before runtime validation: exact failure graph assertions retain primary identities; initialization does not claim observed execution; nested compute uses the existing explicit CPU-suspension owner. Active file reads drain native stream closure, dictionary interfaces observe late close errors and dictionary owners canonicalize Windows authority paths. Scene recovery retains preceding native failures and registers synchronous parent failures after children. Fixtures use registered GC inputs with protected-unknown negatives, qualified cache/autotune identities, registered metadata shards, typed member identities and real Three attributes. Current graph golden counts individual candidate witnesses and source context verifies actual selected content; simulated reports declare provenance and retain missing-provenance negatives. Relevant original assertions/deadlines remain; see durable receipt for mappings.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "map/preview-original-close-lifetime",
       "path": "map/preview-original-close-lifetime.test.js",
       "owner": "map/preview-original-close-lifetime",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "24b2f50aa",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The validation function is expected to return \"true\". Received false",
       "failureLocations": [
@@ -5230,7 +5230,7 @@
         "tests/map/preview-original-close-lifetime.test.js:71:49",
         "src/map/isometric/client/scene-retirement.js:89:61"
       ],
-      "notes": null,
+      "notes": "Implementation reviewed/authored before runtime validation: exact failure graph assertions retain primary identities; initialization does not claim observed execution; nested compute uses the existing explicit CPU-suspension owner. Active file reads drain native stream closure, dictionary interfaces observe late close errors and dictionary owners canonicalize Windows authority paths. Scene recovery retains preceding native failures and registers synchronous parent failures after children. Fixtures use registered GC inputs with protected-unknown negatives, qualified cache/autotune identities, registered metadata shards, typed member identities and real Three attributes. Current graph golden counts individual candidate witnesses and source context verifies actual selected content; simulated reports declare provenance and retain missing-provenance negatives. Relevant original assertions/deadlines remain; see durable receipt for mappings.",
       "finalBatchStatus": "pending"
     },
     {
@@ -5251,28 +5251,28 @@
       "id": "map/saved-artifact-admission",
       "path": "map/saved-artifact-admission.test.js",
       "owner": "map/saved-artifact-admission",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "24b2f50aa",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Missing expected exception.",
       "failureLocations": [
         "tests/map/saved-artifact-admission.test.js:24:8"
       ],
-      "notes": null,
+      "notes": "Implementation reviewed/authored before runtime validation: exact failure graph assertions retain primary identities; initialization does not claim observed execution; nested compute uses the existing explicit CPU-suspension owner. Active file reads drain native stream closure, dictionary interfaces observe late close errors and dictionary owners canonicalize Windows authority paths. Scene recovery retains preceding native failures and registers synchronous parent failures after children. Fixtures use registered GC inputs with protected-unknown negatives, qualified cache/autotune identities, registered metadata shards, typed member identities and real Three attributes. Current graph golden counts individual candidate witnesses and source context verifies actual selected content; simulated reports declare provenance and retain missing-provenance negatives. Relevant original assertions/deadlines remain; see durable receipt for mappings.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "map/scene-partial-construction-ownership",
       "path": "map/scene-partial-construction-ownership.test.js",
       "owner": "map/scene-partial-construction-ownership",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "24b2f50aa",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/map/scene-partial-construction-ownership.test.js:64:10"
       ],
-      "notes": null,
+      "notes": "Implementation reviewed/authored before runtime validation: exact failure graph assertions retain primary identities; initialization does not claim observed execution; nested compute uses the existing explicit CPU-suspension owner. Active file reads drain native stream closure, dictionary interfaces observe late close errors and dictionary owners canonicalize Windows authority paths. Scene recovery retains preceding native failures and registers synchronous parent failures after children. Fixtures use registered GC inputs with protected-unknown negatives, qualified cache/autotune identities, registered metadata shards, typed member identities and real Three attributes. Current graph golden counts individual candidate witnesses and source context verifies actual selected content; simulated reports declare provenance and retain missing-provenance negatives. Relevant original assertions/deadlines remain; see durable receipt for mappings.",
       "finalBatchStatus": "pending"
     },
     {

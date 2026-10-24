@@ -494,3 +494,25 @@ original abort propagation. Cold-build cleanup retains its 15-second deadline
 and all reaping/deletion assertions; closed ambient inputs and better diagnostics
 are implemented, but timing closure remains unresolved. Formatting/diff checks
 pass; runtime acceptance and the front gate remain deferred by instruction.
+
+Runtime/shared/map implementation `24b2f50aa` attempts 25 additional cases
+(233/360; 127 unattempted). File-stat cancellation now joins active reads through
+native close without retaining the whole input history. Dictionary readline
+interfaces keep an error observer through actual close; Windows dictionary
+owners compare canonical roots. Scene recovery preserves earlier native errors
+when a later prerequisite fails, and registers synchronous parents after child
+failures. These lifecycle repairs remain unvalidated, including normal-map,
+partial/shutdown and preview closure cases. Pino's empty level fragment produced
+invalid JSON in redacted ring metadata; a valid synthetic fragment is removed
+without removing caller-owned level fields. The generated metadata registry now
+includes graph_relation_edges, with policy 6/ignore-rules 4 replay invalidation.
+Fixtures distinguish initialization from observed execution, explicitly suspend
+parent compute, retain exact PDF/subprocess failures through wrappers, declare
+cache/autotune identities and protect unknown GC inputs. Map fixtures publish
+registered shard metadata, use actual Three attribute storage, accept distinct
+typed IDs and still reject exact typed duplicates. History a44f06fb28 proves
+typed saved-input identity was intentional. Graph fixtures retain provenance
+negatives, compare actual selected source and count four candidate witnesses
+from two capped two-target symbols (80 total, 12 when call/import are filtered);
+all CSR/legacy, direction and cap comparisons remain. Formatting and diff checks
+pass. Runtime checks remain deferred until every queue item is attempted.
