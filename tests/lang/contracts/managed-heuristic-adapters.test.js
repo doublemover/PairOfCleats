@@ -58,6 +58,6 @@ const CASES = [
   }
 ];
 
-assertHeuristicAdapterCases(CASES);
+await assertHeuristicAdapterCases(CASES);
 
 console.log('managed heuristic adapters contract test passed');

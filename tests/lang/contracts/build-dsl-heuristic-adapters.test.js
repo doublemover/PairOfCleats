@@ -82,6 +82,6 @@ const CASES = [
   }
 ];
 
-assertHeuristicAdapterCases(CASES, { usageLabel: 'DSL usage' });
+await assertHeuristicAdapterCases(CASES, { usageLabel: 'DSL usage' });
 
 console.log('build DSL heuristic adapters contract test passed');

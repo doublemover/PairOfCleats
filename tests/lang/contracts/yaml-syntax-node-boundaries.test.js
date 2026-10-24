@@ -44,7 +44,9 @@ const workflow = ['notes: |', '  jobs:', '  fake:', '    runs-on: inert', 'jobs:
 const workflowChunks = chunkYaml(workflow, '.github/workflows/inert.yaml', {});
 assert.deepEqual(workflowChunks.map((entry) => entry.name), ['real']);
 assert.equal(workflowChunks[0].meta.format, 'github-actions');
-assert.equal(workflowChunks[0].start, workflow.indexOf('  real:'));
+assert.equal(workflowChunks[0].start, 0, 'the workflow envelope retains notes before the first job');
+assert.equal(workflowChunks.at(-1).end, workflow.length, 'the workflow envelope retains its suffix');
+assert.equal(workflowChunks[0].meta.keyRange.start, workflow.indexOf('real:'));
 assert.equal(workflow.slice(workflowChunks[0].meta.keyRange.start, workflowChunks[0].meta.keyRange.end), 'real');
 assert.deepEqual(chunkYaml(workflow, 'ordinary.yaml', {}).map((entry) => entry.name), ['root'], 'default root policy is unchanged');
 assert.equal(chunkYaml(text, 'ordinary.yaml', { yamlChunking: { mode: 'top-level', maxBytes: 1 } })[0].name, 'root');

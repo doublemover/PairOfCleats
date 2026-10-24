@@ -1,12 +1,14 @@
 import assert from 'node:assert/strict';
 import { createJinjaTemplateStructureParser, parseJinjaTemplateStructure, resolveJinjaTemplateDialect } from '../../../src/shared/jinja-template-structure.js';
-import { chunkJinja, createJinjaChunker } from '../../../src/index/chunking/dispatch/heuristic-chunkers.js';
+import { chunkJinja as chunkJinjaSource, createJinjaChunker } from '../../../src/index/chunking/dispatch/heuristic-chunkers.js';
+import { sourceSections } from '../helpers/source-sections.js';
 import { smartChunk } from '../../../src/index/chunking/dispatch.js';
 import { collectJinjaImports, createJinjaImportCollector } from '../../../src/index/language-registry/import-collectors/jinja.js';
 import { createJinjaManagedAdapter } from '../../../src/index/language-registry/adapters/heuristic.js';
 import { collectLanguageImports } from '../../../src/index/language-registry/registry.js';
 import { LANGUAGE_CAPS_BASELINES, TREE_SITTER_CAPS_BASELINES } from '../../../src/index/build/runtime/caps-calibration.js';
 
+const chunkJinja = (text, ...args) => sourceSections(text, chunkJinjaSource(text, ...args));
 const text = [
   '😀 header', '{%- raw -%}', '{% block Ghost %}', '{% include "raw.fake" %}',
   '{%+ endraw +%}', '{# {% include "comment.fake" %} #}',

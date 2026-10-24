@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import { createHandlebarsStructureParser, parseHandlebarsStructure } from '../../../src/shared/handlebars-ast.js';
-import { chunkHandlebars, createHandlebarsChunker } from '../../../src/index/chunking/dispatch/heuristic-chunkers.js';
+import { chunkHandlebars as chunkHandlebarsSource, createHandlebarsChunker } from '../../../src/index/chunking/dispatch/heuristic-chunkers.js';
+import { sourceSections } from '../helpers/source-sections.js';
 import { collectHandlebarsImports, createHandlebarsImportCollector } from '../../../src/index/language-registry/import-collectors/handlebars.js';
 import { createHandlebarsManagedAdapter } from '../../../src/index/language-registry/adapters/heuristic.js';
 
+const chunkHandlebars = (text, ...args) => sourceSections(text, chunkHandlebarsSource(text, ...args));
 const text = [
   'Emoji 🚀',
   '{{{{raw}}}}',

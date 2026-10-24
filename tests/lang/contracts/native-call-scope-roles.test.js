@@ -75,7 +75,11 @@ assert.ok(groovyOuter, 'native qualified caller names survive relation projectio
 assert.deepEqual(groovyOuter.codeRelations.callDetails.map(detail => detail.callee), ['before', 'after']);
 assert.equal(groovyOuter.codeRelations.callOmissions.anonymousScopeCalls, 1);
 assert.ok(!groovy.sites.some(site => site.calleeRaw === 'nested'));
-assert.ok(groovy.sites.some(site => site.calleeRaw === 'println'), 'parenthesis-free grammar invocation remains addressable');
+assert.ok(groovy.sites.some(site => site.calleeRaw === 'println'),
+  `parenthesis-free grammar invocation remains addressable: ${JSON.stringify(groovy.chunks.map(chunk => ({
+    name: chunk.name, parserRecovered: chunk.meta.parserRecovered,
+    calls: chunk.meta.syntaxCalls, coverage: chunk.meta.syntaxCallCoverage
+  })))}`);
 
 // Grammar-role control also exercises interrupted traversal finalization without
 // invoking native parsers or depending on a wall-clock cutoff.

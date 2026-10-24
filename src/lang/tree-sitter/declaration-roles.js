@@ -16,7 +16,7 @@ export const resolveDeclaratorName = (node, text) => {
       return source(current, text).slice(0, (parameters?.startIndex ?? declarator?.startIndex ?? current.endIndex) - current.startIndex).trim();
     }
     if (['identifier', 'field_identifier', 'type_identifier', 'qualified_identifier', 'operator_name', 'destructor_name'].includes(current.type)) return source(current, text).trim();
-    current = field(current, 'declarator') || named(current).find(child => /declarator$/.test(child.type) || child.type === 'identifier');
+    current = field(current, 'declarator') || named(current).find(child => /declarator$/.test(child.type) || prototypeNameNodes.has(child.type));
   }
   return '';
 };
@@ -29,7 +29,7 @@ const prototypeOwner = node => {
   }
   return null;
 };
-const prototypeNameNodes = new Set(['identifier', 'field_identifier', 'qualified_identifier', 'operator_name', 'destructor_name']);
+const prototypeNameNodes = new Set(['identifier', 'field_identifier', 'type_identifier', 'qualified_identifier', 'operator_name', 'destructor_name']);
 const prototypeNameWrappers = new Set(['parenthesized_declarator', 'parenthesized_field_declarator',
   'attributed_declarator', 'attributed_field_declarator']);
 export const isCPrototype = node => {

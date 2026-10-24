@@ -7,6 +7,7 @@ import { smartChunk } from '../../../src/index/chunking/dispatch.js';
 import { collectLanguageImports } from '../../../src/index/language-registry/registry.js';
 import { buildConfigFileAdapters } from '../../../src/index/language-registry/adapters/config-files.js';
 import { quotedToml as quoted } from '../../fixtures/formats/toml-quoted.js';
+import { sourceSections } from '../helpers/source-sections.js';
 
 const vendor = createRequire(import.meta.url)('smol-toml');
 const forbidden = () => { throw Error('Excluded file/reference loading or serialization'); };
@@ -30,7 +31,7 @@ assert.equal(text.slice(model.importEntries[0].keyRange.start, model.importEntri
 assert.equal(text.slice(model.importEntries[0].start, model.importEntries[0].end), 'include = [\r\n "real.toml",\r\n "comma,name.toml",\r\n]');
 assert.deepEqual(collectTomlImports(text), ['real.toml', 'comma,name.toml', '../real']);
 assert.deepEqual(collectLanguageImports({ text, ext: '.toml', relPath: 'Cargo.toml', mode: 'code' }), collectTomlImports(text).sort());
-const chunks = smartChunk({ text, ext: '.toml', relPath: 'Cargo.toml', mode: 'code' });
+const chunks = sourceSections(text, smartChunk({ text, ext: '.toml', relPath: 'Cargo.toml', mode: 'code' }));
 assert.deepEqual(chunks.map((entry) => entry.name), ['tool.poc', 'dependencies']);
 assert.ok(chunks.every((entry) => entry.meta.parser === model.parser && entry.meta.parserCoverage === 'partial'
   && entry.meta.astRange === undefined && entry.meta.rangeSource === 'application-utf16-lexer'));

@@ -39,6 +39,8 @@ import path from 'node:path';
 const OBJC_HEADER_EXTENSIONS = new Set(['.h', '.hh', '.hpp', '.hxx']);
 const OBJC_HEADER_MARKER_RE = /(^\s*@(?:interface|implementation|protocol|property|class|end)\b)|(^\s*[+-]\s*\([^)]*\)\s*[A-Za-z_][A-Za-z0-9_:]*)/m;
 const OBJC_FRAMEWORK_IMPORT_RE = /^\s*#\s*import\s*[<"](?:Foundation|UIKit|AppKit|Core[A-Za-z0-9_]+)\//m;
+// Match the registered C/C++/Objective-C native declaration producers.
+const CLIKE_DOC_OPTIONS = { linePrefixes: ['///', '//'], blockStarts: ['/**'] };
 
 function isObjcContext(ext, text = '') {
   const normalizedExt = String(ext || '').trim().toLowerCase();
@@ -335,7 +337,7 @@ export function buildCLikeChunks(text, ext, options = {}) {
         endLine,
         signature,
         modifiers: extractCLikeModifiers(signature),
-        docstring: extractDocComment(lines, docLine),
+        docstring: extractDocComment(lines, docLine, CLIKE_DOC_OPTIONS),
         conforms: extractObjcConforms(signature)
       }
     }, true);
@@ -363,7 +365,7 @@ export function buildCLikeChunks(text, ext, options = {}) {
           startLine,
           endLine,
           signature,
-          docstring: extractDocComment(lines, docLine),
+          docstring: extractDocComment(lines, docLine, CLIKE_DOC_OPTIONS),
           conforms: extractObjcConforms(signature)
         }
       }, true);
@@ -415,7 +417,7 @@ export function buildCLikeChunks(text, ext, options = {}) {
           signature,
           params: extractObjcParams(signature),
           returns: extractObjcReturns(signature),
-          docstring: extractDocComment(lines, docLine),
+          docstring: extractDocComment(lines, docLine, CLIKE_DOC_OPTIONS),
           attributes: collectAttributes(lines, i, signature),
           modifiers
         }
@@ -463,7 +465,7 @@ export function buildCLikeChunks(text, ext, options = {}) {
         params: extractCLikeParams(signature),
         returns,
         modifiers: extractCLikeModifiers(signature),
-        docstring: extractDocComment(lines, docLine)
+        docstring: extractDocComment(lines, docLine, CLIKE_DOC_OPTIONS)
       }
     });
     attachCachedBodyBounds(decls[decls.length - 1]?.meta, bounds);

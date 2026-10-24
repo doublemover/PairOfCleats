@@ -1,13 +1,15 @@
 import assert from 'node:assert/strict';
 import { createXmlStructureParser } from '../../../src/shared/xml-structure.js';
 import { createXmlChunker } from '../../../src/index/chunking/formats/xml.js';
+import { sourceSections } from '../helpers/source-sections.js';
 import { createXmlImportCollector } from '../../../src/index/language-registry/import-collectors/xml.js';
 
 // Lexical content/ranges use an injected clock. Default exported API and
 // registry/adapter positives retain real-clock, serial acceptance in
 // perf/parsers/xml-cold-budget; expiry and owner overrun remain asserted below.
 const parseXmlStructure = createXmlStructureParser({ now: () => 0 });
-const chunkXml = createXmlChunker({ parseStructure: parseXmlStructure, now: () => 0 });
+const chunkXmlSource = createXmlChunker({ parseStructure: parseXmlStructure, now: () => 0 });
+const chunkXml = (text, ...args) => sourceSections(text, chunkXmlSource(text, ...args));
 const collector = createXmlImportCollector({ parseStructure: parseXmlStructure });
 const collectXmlImports = (source, options = {}) => collector(source, { collectorNow: () => 0, ...options });
 

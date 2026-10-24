@@ -401,6 +401,17 @@ export function buildSqlChunks(text, options = {}) {
 
   if(!treeChunks?.length) return decls;
   const out = treeChunks.map(chunk=>({...chunk,meta:{...chunk.meta,dialect}}));
+  // The declaration scanner consumes IF NOT EXISTS and quoted identifiers.
+  // Generic native name search can instead pick a keyword or an identifier
+  // inside the column list. Reconcile only an unambiguous matching declaration;
+  // preserve its native ranges and every unrelated/nested chunk.
+  for (const declaration of decls) {
+    if (declaration.kind === 'Statement') continue;
+    const owners = out.filter(chunk => chunk.kind === declaration.kind
+      && chunk.start >= declaration.start && chunk.end <= declaration.end);
+    if (owners.length === 1) owners[0].name = declaration.name;
+    else if (!owners.length) out.push(declaration);
+  }
   // A count cannot prove source coverage. Keep authoritative native declarations
   // and add each uncovered statement/gap without replacing good identities.
   for(const declaration of decls) {
