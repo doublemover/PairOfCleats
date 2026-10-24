@@ -63,7 +63,7 @@ export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourc
       index: orderedIndex, signal });
     const registerField = location => {
       const token = 'field:' + location.key;
-      if (!symbols.has(token)) symbols.set(token, {key:token,site:location.site,unknown:null,location});
+      if (!symbols.has(token)) symbols.set(token, {key:token,site:location.site || location.root,unknown:null,location});
       return token;
     };
     for (const location of ordered.allLocations()) registerField(location);
@@ -207,6 +207,11 @@ export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourc
     if (!complete) reasons.add('reaching_definition_iteration_budget');
     totalBlocks += reachable.size; solvedBlocks += complete ? reachable.size : outgoing.size;
     const returnRefs = [], exceptionRefs = [], effects = [], parameterFields = [];
+    for (const entry of symbols.values()) {
+      const location = entry.location;
+      if (location && location.parameter !== null) parameterFields.push({ parameter: location.parameter,
+        path: location.path, ref: entry.unknown });
+    }
     if(ts.isConstructorDeclaration(owner)) for(const parameter of owner.parameters) {
       if(ts.isIdentifier(parameter.name)&&parameter.modifiers?.some(modifier=>[ts.SyntaxKind.PublicKeyword,ts.SyntaxKind.PrivateKeyword,ts.SyntaxKind.ProtectedKeyword,ts.SyntaxKind.ReadonlyKeyword].includes(modifier.kind))) {
         const input=declarationFor(parameter);if(input)effects.push({parameter:-1,path:[parameter.name.text],ref:input});
