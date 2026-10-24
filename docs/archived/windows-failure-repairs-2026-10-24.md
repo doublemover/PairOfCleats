@@ -534,3 +534,21 @@ GC owns generated inputs while the other repository's unknown bytes survive;
 its core-build mock now owns integrated SQLite work instead of requiring a
 duplicate adapter stage. Status overloads compare canonical Windows identity.
 Formatting/diff checks pass; all runtime acceptance remains deferred.
+
+Parser/import implementation `8a6aebbe9` attempts 22 cases (267/360; 93
+unattempted). CSS reports elapsed-time exhaustion from token/match/line admission
+as scan_time; import semantic producer is 16. Default phrase hashing is admitted
+when configuration omits the default-true switch. Bounded report discovery keeps
+current roots ahead of historical caches. Bazel resolution records attempts as
+well as hits/misses; its fixture adds an ordinary missing-file input for real
+filesystem-probe coverage. Missing source imports on test surfaces remain
+actionable; a separate asset retains positive fixture classification. Native
+fixtures use prepared Perl/Ruby/Kotlin chunks, grammar-valid Kotlin separators,
+qualified XML/YAML names and actual Python scope identity. JS/TS export arity
+uses parser-owned callable and operand facts. Quantization rejects mismatched
+dimensions rather than truncating and preserves empty/null channels. Git mocks
+produce NUL-delimited paths. Crash evidence uses the attempt logger directory;
+the reader-close wedge retains its real FileHandle and explicitly releases it
+after bounded timeout assertions. CDC expects its current byte-bounded producer,
+and VFS cleanup protects sibling collectors. Formatting/diff checks pass; runtime
+tests remain deferred until all 360 cases have implementation attempts.

@@ -23,7 +23,7 @@ records 32 baseline passes, 426 failures (10 timeouts) and one POSIX exclusion.
 Focused repairs through `f6c7812a4` move 73 failures to passing: latest scoped
 counts are 105 passes, 353 failures and one exclusion (nine timeouts remain).
 The [360-item implementation queue](archived/windows-360-failure-repair-attempts-2026-10-24.json)
-tracks 245/360 attempts; tests wait until every item is attempted.
+tracks 267/360 attempts; tests wait until every item is attempted.
 The
 [next repair receipt](archived/windows-failure-repairs-2026-10-24.md) records
 37 passing checks plus 15 cache/setup, 12 import/lease, 19 runtime and eight coverage/probe checks; heap

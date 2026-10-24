@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "recordedAt": "2026-10-24T10:06:47.097Z",
+  "recordedAt": "2026-10-24T10:26:50.646Z",
   "queueSourceHead": "a96699ab0e9e822320e008f5affc1d690f305cfe",
   "originalFailureSource": "893fe089458e7f7294b8d1f357f596fdecc7d5d4",
   "scope": "The 360 historical failures outstanding at the runtime-wave publication. Attempt every implementation before further batch tests. Seven repairs were completed and tested immediately before this instruction.",
@@ -19,10 +19,10 @@
   },
   "summary": {
     "selected": 360,
-    "implemented-unvalidated": 207,
-    "not-attempted": 115,
+    "implemented-unvalidated": 229,
     "needs-further-implementation": 13,
     "attempted-existing-owner-repair": 18,
+    "not-attempted": 93,
     "implemented": 7,
     "finalBatchPassed": 0
   },
@@ -89,85 +89,85 @@
       "id": "indexing/tree-sitter/declaration-role-and-scope-contract",
       "path": "indexing/tree-sitter/declaration-role-and-scope-contract.test.js",
       "owner": "indexing/tree-sitter",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "8a6aebbe9",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: kotlin Box.normal MethodDeclaration: [[\"Greeter\",\"InterfaceDeclaration\"],[\"Greeter.hello\",\"MethodDeclaration\"],[\"Color\",\"EnumDeclaration\"],[\"Box\",\"ClassDeclaration\"],[\"Box.constructor\",\"ConstructorDeclaration\"]]",
       "failureLocations": [
         "tests/indexing/tree-sitter/declaration-role-and-scope-contract.test.js:15:14",
         "tests/indexing/tree-sitter/declaration-role-and-scope-contract.test.js:31:1"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: CSS time-budget reasons and default phrase admission repaired; semantic import producer 16. Replay discovery preserves current-root priority and Bazel stages count attempts. Fixtures use actual parser-owned chunks, parameters/arguments, lexical names, NUL Git paths and producer versions; quantization rejects conflicting dimensions and preserves absent channels. Crash logs use attempt ownership; wedged reader close retains and explicitly releases real handles. VFS cleanup protects sibling collectors. Import fixture policy preserves missing-source negatives and asset positives. Original meaningful assertions retained; see durable receipt. Runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/tree-sitter/scheduler-crash-fallback",
       "path": "indexing/tree-sitter/scheduler-crash-fallback.test.js",
       "owner": "indexing/tree-sitter",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "8a6aebbe9",
       "originalTimedOut": false,
       "originalFailure": "Error: ENOENT: no such file or directory, access 'C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\tree-sitter-scheduler-crash-fallback\\repo-cache\\logs\\index-crash-forensics-index.json'",
       "failureLocations": [
         "tests/indexing/tree-sitter/scheduler-crash-fallback.test.js:116:5"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: CSS time-budget reasons and default phrase admission repaired; semantic import producer 16. Replay discovery preserves current-root priority and Bazel stages count attempts. Fixtures use actual parser-owned chunks, parameters/arguments, lexical names, NUL Git paths and producer versions; quantization rejects conflicting dimensions and preserves absent channels. Crash logs use attempt ownership; wedged reader close retains and explicitly releases real handles. VFS cleanup protects sibling collectors. Import fixture policy preserves missing-source negatives and asset positives. Original meaningful assertions retained; see durable receipt. Runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/tree-sitter/scheduler-lookup-reader-lease",
       "path": "indexing/tree-sitter/scheduler-lookup-reader-lease.test.js",
       "owner": "indexing/tree-sitter",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "8a6aebbe9",
       "originalTimedOut": false,
       "originalFailure": "Node.js v26.12.1",
       "failureLocations": [],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: CSS time-budget reasons and default phrase admission repaired; semantic import producer 16. Replay discovery preserves current-root priority and Bazel stages count attempts. Fixtures use actual parser-owned chunks, parameters/arguments, lexical names, NUL Git paths and producer versions; quantization rejects conflicting dimensions and preserves absent channels. Crash logs use attempt ownership; wedged reader close retains and explicitly releases real handles. VFS cleanup protects sibling collectors. Import fixture policy preserves missing-source negatives and asset positives. Original meaningful assertions retained; see durable receipt. Runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/tree-sitter/scheduler-native-language-contract",
       "path": "indexing/tree-sitter/scheduler-native-language-contract.test.js",
       "owner": "indexing/tree-sitter",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "8a6aebbe9",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: missing expected chunk \"host\" for yaml",
       "failureLocations": [
         "tests/indexing/tree-sitter/native-language-contract-suite.js:409:18",
         "tests/indexing/tree-sitter/scheduler-native-language-contract.test.js:7:16"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: CSS time-budget reasons and default phrase admission repaired; semantic import producer 16. Replay discovery preserves current-root priority and Bazel stages count attempts. Fixtures use actual parser-owned chunks, parameters/arguments, lexical names, NUL Git paths and producer versions; quantization rejects conflicting dimensions and preserves absent channels. Crash logs use attempt ownership; wedged reader close retains and explicitly releases real handles. VFS cleanup protects sibling collectors. Import fixture policy preserves missing-source negatives and asset positives. Original meaningful assertions retained; see durable receipt. Runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/tree-sitter/scheduler-native-smoke",
       "path": "indexing/tree-sitter/scheduler-native-smoke.test.js",
       "owner": "indexing/tree-sitter",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "8a6aebbe9",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: missing expected chunk \"host\" for yaml",
       "failureLocations": [
         "tests/indexing/tree-sitter/native-language-contract-suite.js:409:18",
         "tests/indexing/tree-sitter/scheduler-native-smoke.test.js:9:16"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: CSS time-budget reasons and default phrase admission repaired; semantic import producer 16. Replay discovery preserves current-root priority and Bazel stages count attempts. Fixtures use actual parser-owned chunks, parameters/arguments, lexical names, NUL Git paths and producer versions; quantization rejects conflicting dimensions and preserves absent channels. Crash logs use attempt ownership; wedged reader close retains and explicitly releases real handles. VFS cleanup protects sibling collectors. Import fixture policy preserves missing-source negatives and asset positives. Original meaningful assertions retained; see durable receipt. Runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/tree-sitter/xml-runtime",
       "path": "indexing/tree-sitter/xml-runtime.test.js",
       "owner": "indexing/tree-sitter",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "8a6aebbe9",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected database element chunk",
       "failureLocations": [
         "tests/indexing/tree-sitter/xml-runtime.test.js:68:10"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: CSS time-budget reasons and default phrase admission repaired; semantic import producer 16. Replay discovery preserves current-root priority and Bazel stages count attempts. Fixtures use actual parser-owned chunks, parameters/arguments, lexical names, NUL Git paths and producer versions; quantization rejects conflicting dimensions and preserves absent channels. Crash logs use attempt ownership; wedged reader close retains and explicitly releases real handles. VFS cleanup protects sibling collectors. Import fixture policy preserves missing-source negatives and asset positives. Original meaningful assertions retained; see durable receipt. Runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
@@ -3906,57 +3906,57 @@
       "id": "indexing/imports/config-origins-and-package-scope",
       "path": "indexing/imports/config-origins-and-package-scope.test.js",
       "owner": "indexing/imports",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "8a6aebbe9",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/indexing/imports/config-origins-and-package-scope.test.js:31:10"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: CSS time-budget reasons and default phrase admission repaired; semantic import producer 16. Replay discovery preserves current-root priority and Bazel stages count attempts. Fixtures use actual parser-owned chunks, parameters/arguments, lexical names, NUL Git paths and producer versions; quantization rejects conflicting dimensions and preserves absent channels. Crash logs use attempt ownership; wedged reader close retains and explicitly releases real handles. VFS cleanup protects sibling collectors. Import fixture policy preserves missing-source negatives and asset positives. Original meaningful assertions retained; see durable receipt. Runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/imports/import-build-context-plugins",
       "path": "indexing/imports/import-build-context-plugins.test.js",
       "owner": "indexing/imports",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "8a6aebbe9",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/indexing/imports/import-build-context-plugins.test.js:102:8"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: CSS time-budget reasons and default phrase admission repaired; semantic import producer 16. Replay discovery preserves current-root priority and Bazel stages count attempts. Fixtures use actual parser-owned chunks, parameters/arguments, lexical names, NUL Git paths and producer versions; quantization rejects conflicting dimensions and preserves absent channels. Crash logs use attempt ownership; wedged reader close retains and explicitly releases real handles. VFS cleanup protects sibling collectors. Import fixture policy preserves missing-source negatives and asset positives. Original meaningful assertions retained; see durable receipt. Runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/imports/import-resolution-policy-contract-matrix",
       "path": "indexing/imports/import-resolution-policy-contract-matrix.test.js",
       "owner": "indexing/imports",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "8a6aebbe9",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/indexing/imports/import-resolution-policy-contract-matrix.test.js:355:14",
         "tests/indexing/imports/import-resolution-policy-contract-matrix.test.js:376:3"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: CSS time-budget reasons and default phrase admission repaired; semantic import producer 16. Replay discovery preserves current-root priority and Bazel stages count attempts. Fixtures use actual parser-owned chunks, parameters/arguments, lexical names, NUL Git paths and producer versions; quantization rejects conflicting dimensions and preserves absent channels. Crash logs use attempt ownership; wedged reader close retains and explicitly releases real handles. VFS cleanup protects sibling collectors. Import fixture policy preserves missing-source negatives and asset positives. Original meaningful assertions retained; see durable receipt. Runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/imports/replay-harness",
       "path": "indexing/imports/replay-harness.test.js",
       "owner": "indexing/imports",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "8a6aebbe9",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: current outputs precede historical roots within the bound",
       "failureLocations": [
         "tests/indexing/imports/replay-harness.test.js:246:10"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: CSS time-budget reasons and default phrase admission repaired; semantic import producer 16. Replay discovery preserves current-root priority and Bazel stages count attempts. Fixtures use actual parser-owned chunks, parameters/arguments, lexical names, NUL Git paths and producer versions; quantization rejects conflicting dimensions and preserves absent channels. Crash logs use attempt ownership; wedged reader close retains and explicitly releases real handles. VFS cleanup protects sibling collectors. Import fixture policy preserves missing-source negatives and asset positives. Original meaningful assertions retained; see durable receipt. Runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
@@ -4019,22 +4019,22 @@
       "id": "indexing/postings/phrase-hash-adaptive-spill",
       "path": "indexing/postings/phrase-hash-adaptive-spill.test.js",
       "owner": "indexing/postings",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "8a6aebbe9",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:",
       "failureLocations": [
         "tests/indexing/postings/phrase-hash-adaptive-spill.test.js:91:10"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: CSS time-budget reasons and default phrase admission repaired; semantic import producer 16. Replay discovery preserves current-root priority and Bazel stages count attempts. Fixtures use actual parser-owned chunks, parameters/arguments, lexical names, NUL Git paths and producer versions; quantization rejects conflicting dimensions and preserves absent channels. Crash logs use attempt ownership; wedged reader close retains and explicitly releases real handles. VFS cleanup protects sibling collectors. Import fixture policy preserves missing-source negatives and asset positives. Original meaningful assertions retained; see durable receipt. Runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/postings/quantize",
       "path": "indexing/postings/quantize.test.js",
       "owner": "indexing/postings",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "8a6aebbe9",
       "originalTimedOut": false,
       "originalFailure": "Error: [postings] embedding dimensions differ across dense rows.",
       "failureLocations": [
@@ -4045,7 +4045,7 @@
         "src/index/build/postings/index.js:235:13",
         "tests/indexing/postings/quantize.test.js:39:24"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: CSS time-budget reasons and default phrase admission repaired; semantic import producer 16. Replay discovery preserves current-root priority and Bazel stages count attempts. Fixtures use actual parser-owned chunks, parameters/arguments, lexical names, NUL Git paths and producer versions; quantization rejects conflicting dimensions and preserves absent channels. Crash logs use attempt ownership; wedged reader close retains and explicitly releases real handles. VFS cleanup protects sibling collectors. Import fixture policy preserves missing-source negatives and asset positives. Original meaningful assertions retained; see durable receipt. Runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
@@ -4216,14 +4216,14 @@
       "id": "indexing/scm/git-provider-parse",
       "path": "indexing/scm/git-provider-parse.test.js",
       "owner": "indexing/scm",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "8a6aebbe9",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:",
       "failureLocations": [
         "tests/indexing/scm/git-provider-parse.test.js:45:10"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: CSS time-budget reasons and default phrase admission repaired; semantic import producer 16. Replay discovery preserves current-root priority and Bazel stages count attempts. Fixtures use actual parser-owned chunks, parameters/arguments, lexical names, NUL Git paths and producer versions; quantization rejects conflicting dimensions and preserves absent channels. Crash logs use attempt ownership; wedged reader close retains and explicitly releases real handles. VFS cleanup protects sibling collectors. Import fixture policy preserves missing-source negatives and asset positives. Original meaningful assertions retained; see durable receipt. Runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
@@ -4607,28 +4607,28 @@
       "id": "indexing/vfs/cdc-segmentation-contract",
       "path": "indexing/vfs/cdc-segmentation-contract.test.js",
       "owner": "indexing/vfs",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "8a6aebbe9",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected CDC segmentation version 1.0.0.",
       "failureLocations": [
         "tests/indexing/vfs/cdc-segmentation-contract.test.js:7:8"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: CSS time-budget reasons and default phrase admission repaired; semantic import producer 16. Replay discovery preserves current-root priority and Bazel stages count attempts. Fixtures use actual parser-owned chunks, parameters/arguments, lexical names, NUL Git paths and producer versions; quantization rejects conflicting dimensions and preserves absent channels. Crash logs use attempt ownership; wedged reader close retains and explicitly releases real handles. VFS cleanup protects sibling collectors. Import fixture policy preserves missing-source negatives and asset positives. Original meaningful assertions retained; see durable receipt. Runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/vfs/merge-core-integration",
       "path": "indexing/vfs/merge-core-integration.test.js",
       "owner": "indexing/vfs",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "8a6aebbe9",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Missing expected rejection: spill runs should be cleaned",
       "failureLocations": [
         "tests/indexing/vfs/merge-core-integration.test.js:54:1"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: CSS time-budget reasons and default phrase admission repaired; semantic import producer 16. Replay discovery preserves current-root priority and Bazel stages count attempts. Fixtures use actual parser-owned chunks, parameters/arguments, lexical names, NUL Git paths and producer versions; quantization rejects conflicting dimensions and preserves absent channels. Crash logs use attempt ownership; wedged reader close retains and explicitly releases real handles. VFS cleanup protects sibling collectors. Import fixture policy preserves missing-source negatives and asset positives. Original meaningful assertions retained; see durable receipt. Runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
@@ -5049,98 +5049,98 @@
       "id": "lang/css-import-source-tokens",
       "path": "lang/css-import-source-tokens.test.js",
       "owner": "lang/css-import-source-tokens",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "8a6aebbe9",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:",
       "failureLocations": [
         "tests/lang/css-import-source-tokens.test.js:81:8"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: CSS time-budget reasons and default phrase admission repaired; semantic import producer 16. Replay discovery preserves current-root priority and Bazel stages count attempts. Fixtures use actual parser-owned chunks, parameters/arguments, lexical names, NUL Git paths and producer versions; quantization rejects conflicting dimensions and preserves absent channels. Crash logs use attempt ownership; wedged reader close retains and explicitly releases real handles. VFS cleanup protects sibling collectors. Import fixture policy preserves missing-source negatives and asset positives. Original meaningful assertions retained; see durable receipt. Runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "lang/js-ts-export-identity",
       "path": "lang/js-ts-export-identity.test.js",
       "owner": "lang/js-ts-export-identity",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "8a6aebbe9",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/lang/js-ts-export-identity.test.js:109:48"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: CSS time-budget reasons and default phrase admission repaired; semantic import producer 16. Replay discovery preserves current-root priority and Bazel stages count attempts. Fixtures use actual parser-owned chunks, parameters/arguments, lexical names, NUL Git paths and producer versions; quantization rejects conflicting dimensions and preserves absent channels. Crash logs use attempt ownership; wedged reader close retains and explicitly releases real handles. VFS cleanup protects sibling collectors. Import fixture policy preserves missing-source negatives and asset positives. Original meaningful assertions retained; see durable receipt. Runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "lang/kotlin/perf-guard",
       "path": "lang/kotlin/perf-guard.test.js",
       "owner": "lang/kotlin",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "8a6aebbe9",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected Kotlin calls to include foo().",
       "failureLocations": [
         "tests/lang/kotlin/perf-guard.test.js:40:8"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: CSS time-budget reasons and default phrase admission repaired; semantic import producer 16. Replay discovery preserves current-root priority and Bazel stages count attempts. Fixtures use actual parser-owned chunks, parameters/arguments, lexical names, NUL Git paths and producer versions; quantization rejects conflicting dimensions and preserves absent channels. Crash logs use attempt ownership; wedged reader close retains and explicitly releases real handles. VFS cleanup protects sibling collectors. Import fixture policy preserves missing-source negatives and asset positives. Original meaningful assertions retained; see durable receipt. Runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "lang/perl/package-chunks",
       "path": "lang/perl/package-chunks.test.js",
       "owner": "lang/perl",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "8a6aebbe9",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected relation call for required module invocation",
       "failureLocations": [
         "tests/lang/perl/package-chunks.test.js:37:8"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: CSS time-budget reasons and default phrase admission repaired; semantic import producer 16. Replay discovery preserves current-root priority and Bazel stages count attempts. Fixtures use actual parser-owned chunks, parameters/arguments, lexical names, NUL Git paths and producer versions; quantization rejects conflicting dimensions and preserves absent channels. Crash logs use attempt ownership; wedged reader close retains and explicitly releases real handles. VFS cleanup protects sibling collectors. Import fixture policy preserves missing-source negatives and asset positives. Original meaningful assertions retained; see durable receipt. Runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "lang/perl/scheduler-crash-recovery",
       "path": "lang/perl/scheduler-crash-recovery.test.js",
       "owner": "lang/perl",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "8a6aebbe9",
       "originalTimedOut": false,
       "originalFailure": "Error: ENOENT: no such file or directory, access 'C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\perl-scheduler-crash-recovery\\repo-cache\\logs\\index-crash-forensics-index.json'",
       "failureLocations": [
         "tests/lang/perl/scheduler-crash-recovery.test.js:77:3"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: CSS time-budget reasons and default phrase admission repaired; semantic import producer 16. Replay discovery preserves current-root priority and Bazel stages count attempts. Fixtures use actual parser-owned chunks, parameters/arguments, lexical names, NUL Git paths and producer versions; quantization rejects conflicting dimensions and preserves absent channels. Crash logs use attempt ownership; wedged reader close retains and explicitly releases real handles. VFS cleanup protects sibling collectors. Import fixture policy preserves missing-source negatives and asset positives. Original meaningful assertions retained; see durable receipt. Runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "lang/python/registry-relations",
       "path": "lang/python/registry-relations.test.js",
       "owner": "lang/python",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "8a6aebbe9",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:",
       "failureLocations": [
         "tests/lang/python/registry-relations.test.js:17:10"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: CSS time-budget reasons and default phrase admission repaired; semantic import producer 16. Replay discovery preserves current-root priority and Bazel stages count attempts. Fixtures use actual parser-owned chunks, parameters/arguments, lexical names, NUL Git paths and producer versions; quantization rejects conflicting dimensions and preserves absent channels. Crash logs use attempt ownership; wedged reader close retains and explicitly releases real handles. VFS cleanup protects sibling collectors. Import fixture policy preserves missing-source negatives and asset positives. Original meaningful assertions retained; see durable receipt. Runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "lang/ruby/modules",
       "path": "lang/ruby/modules.test.js",
       "owner": "lang/ruby",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "8a6aebbe9",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected class declaration chunk",
       "failureLocations": [
         "tests/lang/ruby/modules.test.js:23:8"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: CSS time-budget reasons and default phrase admission repaired; semantic import producer 16. Replay discovery preserves current-root priority and Bazel stages count attempts. Fixtures use actual parser-owned chunks, parameters/arguments, lexical names, NUL Git paths and producer versions; quantization rejects conflicting dimensions and preserves absent channels. Crash logs use attempt ownership; wedged reader close retains and explicitly releases real handles. VFS cleanup protects sibling collectors. Import fixture policy preserves missing-source negatives and asset positives. Original meaningful assertions retained; see durable receipt. Runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
