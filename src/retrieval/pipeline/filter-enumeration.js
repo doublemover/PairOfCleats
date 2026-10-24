@@ -32,7 +32,20 @@ const admitMatches = (key, ids) => {
 
 /** A cursor is bound to both the indexed generation and the exact filters. */
 export function createFilterEnumeration({ cursor = null, filters, modes, generation, cacheDir = null }) {
-  const generationHash = digest(generation);
+  // Both loader and search-session constructors use this owner. Preserve
+  // selected roots and artifact signatures, while API-only invocation context
+  // cannot change cursor identity for a direct CLI over the same generation.
+  const hasSelectedRoots = generation?.generationByMode && Object.values(generation.generationByMode)
+    .every(info => info === null || typeof info?.canonicalIndexDir === 'string' && info.canonicalIndexDir.length > 0);
+  const cursorGeneration = hasSelectedRoots ? {
+    ...generation,
+    generationByMode: Object.fromEntries(Object.entries(generation.generationByMode)
+      .map(([mode, info]) => [mode, info ? {
+        buildId: info.buildId, artifactSurfaceVersion: info.artifactSurfaceVersion,
+        canonicalIndexDir: info.canonicalIndexDir
+      } : null]))
+  } : generation;
+  const generationHash = digest(cursorGeneration);
   const relativeTime = filters.modifiedSinceDays != null;
   const requestHash = digest({ version: VERSION, filters: relativeTime ? { ...filters, modifiedAfter: null } : filters, modes });
   let modifiedAfter = relativeTime ? filters.modifiedAfter : null;

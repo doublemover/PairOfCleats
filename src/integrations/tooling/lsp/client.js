@@ -532,8 +532,8 @@ export function createLspClient(options) {
     pendingWrite.catch(error => {
       if (writer !== currentWriter || generation !== currentGen) return;
       const evidence = getJsonRpcWriteEvidence(pendingWrite);
-      const local = evidence?.settled && !evidence.frameStarted && !evidence.streamRetired
-        && !isClosedStreamWriteError(error);
+      const local = Boolean(evidence?.settled && !evidence.frameStarted && !evidence.streamRetired
+        && !isClosedStreamWriteError(error));
       onWriteFailure?.(error, local);
       if (!local) {
         writerClosed = true;
