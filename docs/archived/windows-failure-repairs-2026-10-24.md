@@ -359,3 +359,30 @@ production identity check is weakened to accommodate a fixture.
 Formatting is allowed during this phase. Feature tests, setup/runtime probes and
 the pre-push front gate are explicitly deferred until every item has had an
 implementation attempt; this batch is not acceptance evidence.
+
+Embedding implementation through `888989696` uses the existing promise
+keepalive for accepted inline batches, preserves cancellation name/code and
+independent observers across consumer teardown, and distinguishes an unmet
+pre-close prerequisite from a failed native closer. The latter allows the first
+actual close after its prerequisite settles, while captured failed native closers
+still require explicit retry. Existing mixed-provenance and unknown-resource
+negative cases remain. Deferred adapters expose requested configuration and an
+empty observed session list without triggering acquisition; disabled embedding
+runtimes retain no qualified artifact claim.
+
+Cache reads now continue to a legacy fallback after a decoded-null primary and
+only retarget verified entries. Corrupt bytes remain available to the separate
+maintenance owner. Cached dimension mismatches retain their original classifier;
+strict quantized byte validation remains. SQLite text storage uses an extended
+Windows namespace within the same profile/lease, with a new real deep-path
+set/get/close regression awaiting execution. Legacy-schema preparation first
+uses the actual producer to establish its profile authority.
+
+Fixture repairs preserve canonical stable chunk identities, complete coverage
+and publication negatives; LRU variants keep valid vector dimensions across
+consumer workspaces; and observability reads full JSONL events instead of
+truncated human projections. Determinism prepares its needed code Stage2 inputs
+before both original cold Stage3 content comparisons. The inferred-dimension
+case's cancellation frontier is repaired, but its later startup cleanup still
+needs work. All 22 embedding failures have now had source-level implementation
+attempts. Formatting passes; runtime tests and the front gate remain deferred.

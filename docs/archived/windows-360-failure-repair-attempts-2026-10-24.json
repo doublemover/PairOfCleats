@@ -20,10 +20,10 @@
   "summary": {
     "selected": 360,
     "implemented": 7,
-    "implemented-unvalidated": 37,
+    "implemented-unvalidated": 58,
     "attempted-existing-owner-repair": 14,
-    "needs-further-implementation": 5,
-    "not-attempted": 297,
+    "needs-further-implementation": 6,
+    "not-attempted": 275,
     "finalBatchPassed": 0
   },
   "items": [
@@ -45,28 +45,28 @@
       "id": "indexing/embeddings/embedding-onnx-execution-observation",
       "path": "indexing/embeddings/embedding-onnx-execution-observation.test.js",
       "owner": "indexing/embeddings",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "12c8241b4",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/indexing/embeddings/embedding-onnx-execution-observation.test.js:44:10"
       ],
-      "notes": null,
+      "notes": "Deferred acquisition is awaited before rejecting mock native loads; configured dimensions remain strict, requested tuning remains observable, native/fallback disposal is explicit, and exactly one expected fallback warning is asserted.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/embeddings/query-warm-cache-lifetime",
       "path": "indexing/embeddings/query-warm-cache-lifetime.test.js",
       "owner": "indexing/embeddings",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "888989696",
       "originalTimedOut": false,
       "originalFailure": "  ^",
       "failureLocations": [
         "tests/indexing/embeddings/query-warm-cache-lifetime.test.js:135"
       ],
-      "notes": null,
+      "notes": "LRU variant fixtures keep valid width 3 across 66 consumer workspace contexts, sharing one raw pipeline. TTL, cache eviction, active lease drain, unknown authority and distinct native-key bounds remain.",
       "finalBatchStatus": "pending"
     },
     {
@@ -3545,36 +3545,36 @@
       "id": "indexing/embeddings/build/bundle-refresh-coverage",
       "path": "indexing/embeddings/build/bundle-refresh-coverage.test.js",
       "owner": "indexing/embeddings",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "888989696",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: a valid covered bundle does not erase the invalid sibling",
       "failureLocations": [
         "tests/indexing/embeddings/build/bundle-refresh-coverage.test.js:34:10"
       ],
-      "notes": null,
+      "notes": "Bundle and artifact mapping fixtures carry matching canonical chunkId/file identity, preserving invalid siblings, complete late-shard content, second-pass reuse and capacity publication negatives.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/embeddings/build/embeddinggemma2-profile-cache",
       "path": "indexing/embeddings/build/embeddinggemma2-profile-cache.test.js",
       "owner": "indexing/embeddings",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "888989696",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: cache-only reuse acquires no provider; each inference build releases its provider ownership",
       "failureLocations": [
         "tests/indexing/embeddings/build/embeddinggemma2-profile-cache.test.js:63:12"
       ],
-      "notes": null,
+      "notes": "Stage2 fixture explicitly produces the incremental source manifest required by cache-only preflight. Native persistent text storage uses the Windows extended path namespace within the same leased profile. Original no-provider cache-only and changed-precision assertions remain.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/embeddings/build/inferred-dimensions-identity",
       "path": "indexing/embeddings/build/inferred-dimensions-identity.test.js",
       "owner": "indexing/embeddings",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "needs-further-implementation",
+      "sourceHead": "d1803539a",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:",
       "failureLocations": [
@@ -3585,69 +3585,69 @@
         "src/shared/abort.js:2:17",
         "tests/indexing/embeddings/build/inferred-dimensions-identity.test.js:96:46"
       ],
-      "notes": null,
+      "notes": "Cleanup aggregation now preserves original AbortError name/code and captured independent owners, so cancellation reaches the correct lifecycle. Later initial-probe cleanup still has a duplicate best-effort disposal/mutable diagnostic path requiring further implementation.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/embeddings/build/process-outcome",
       "path": "indexing/embeddings/build/process-outcome.test.js",
       "owner": "indexing/embeddings",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "888989696",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:",
       "failureLocations": [
         "tests/indexing/embeddings/build/process-outcome.test.js:7:8"
       ],
-      "notes": null,
+      "notes": "Asserts the complete current successful child receipt, including zero stdout/stderr forwarding overflow, retaining real failure, signal and cancellation negatives.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/embeddings/cache-corrupt-standalone-recovery",
       "path": "indexing/embeddings/cache-corrupt-standalone-recovery.test.js",
       "owner": "indexing/embeddings",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "888989696",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected corrupt primary cache entry to be removed",
       "failureLocations": [
         "tests/indexing/embeddings/cache-corrupt-standalone-recovery.test.js:45:8"
       ],
-      "notes": null,
+      "notes": "Reads preserve corrupt physical bytes; they have no deletion authority. Production fallback proceeds after a decoded-null primary and retargets indexes only after successful decode. Legacy fallback, miss and unchanged bytes remain asserted.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/embeddings/cache-index-contract-matrix",
       "path": "indexing/embeddings/cache-index-contract-matrix.test.js",
       "owner": "indexing/embeddings",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "888989696",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:",
       "failureLocations": [
         "tests/indexing/embeddings/cache-index-contract-matrix.test.js:188:10"
       ],
-      "notes": null,
+      "notes": "Checks complete dictionary content and requires the current null prototype, preserving hostile-key isolation.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/embeddings/determinism",
       "path": "indexing/embeddings/determinism.test.js",
       "owner": "indexing/embeddings",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "888989696",
       "originalTimedOut": true,
       "originalFailure": "termination: {\"terminated\":true,\"forced\":true,\"fallbackAttempted\":false,\"fallbackTerminated\":0}",
       "failureLocations": [],
-      "notes": null,
+      "notes": "Prepares only required code Stage2 inputs before the two original fresh-cache Stage3 content comparisons, uses one index thread and clears only the selected repository embedding cache.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/embeddings/dims-validation",
       "path": "indexing/embeddings/dims-validation.test.js",
       "owner": "indexing/embeddings",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "888989696",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected cached dims mismatch to throw",
       "failureLocations": [
@@ -3657,15 +3657,15 @@
         "tools/build/embeddings/embed.js:46:5",
         "tests/indexing/embeddings/dims-validation.test.js:13:9"
       ],
-      "notes": null,
+      "notes": "Cached row width now reaches the original dims-mismatch classifier before strict value admission; invalid encodings and values remain rejected.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/embeddings/effective-memory-and-retained-bytes",
       "path": "indexing/embeddings/effective-memory-and-retained-bytes.test.js",
       "owner": "indexing/embeddings",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "888989696",
       "originalTimedOut": false,
       "originalFailure": "Error [AbortError]: Operation aborted",
       "failureLocations": [
@@ -3675,27 +3675,27 @@
         "tools/build/embeddings/writer-queue.js:128:5",
         "tests/indexing/embeddings/effective-memory-and-retained-bytes.test.js:84:16"
       ],
-      "notes": null,
+      "notes": "Drained cancelled writer queues still reject with ABORT_ERR; retained bytes, producer admission, zero residual ownership and constrained-memory bounds remain asserted.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/embeddings/embedding-batcher-unref-timer",
       "path": "indexing/embeddings/embedding-batcher-unref-timer.test.js",
       "owner": "indexing/embeddings",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "d1803539a",
       "originalTimedOut": false,
       "originalFailure": "                ^",
       "failureLocations": [],
-      "notes": null,
+      "notes": "Inline shared batch flush now uses existing awaitWithKeepalive until accepted provider work settles; original real child with unref timer remains the exposing regression.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/embeddings/embedding-execution-observation",
       "path": "indexing/embeddings/embedding-execution-observation.test.js",
       "owner": "indexing/embeddings",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "12c8241b4",
       "originalTimedOut": false,
       "originalFailure": "Error: Invalid embedding provider output: array embedding dimensions disagree.",
       "failureLocations": [
@@ -3705,29 +3705,29 @@
         "src/shared/embedding-output-admission.js:70:19",
         "src/shared/embedding-provider-adapters.js:137:18"
       ],
-      "notes": null,
+      "notes": "Uses a consistent declared dimension and rejects empty provider output while preserving no-load telemetry, loaded-vs-inference evidence and unsupported-observer controls.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/embeddings/embedding-text-kv-cache",
       "path": "indexing/embeddings/embedding-text-kv-cache.test.js",
       "owner": "indexing/embeddings",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "888989696",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:",
       "failureLocations": [
         "tests/indexing/embeddings/embedding-text-kv-cache.test.js:143:10"
       ],
-      "notes": null,
+      "notes": "Actual producer establishes profile authority before a legacy-schema migration fixture; native SQLite uses extended Windows paths. Added deeply nested real database set/get/close case; precision, checksum, malformed row and nonfinite negatives remain.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/embeddings/embeddinggemma2-contract",
       "path": "indexing/embeddings/embeddinggemma2-contract.test.js",
       "owner": "indexing/embeddings",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "888989696",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The input did not match the regular expression /shape/. Input:",
       "failureLocations": [
@@ -3738,99 +3738,99 @@
         "src/shared/embedding-model-profile.js:62:20",
         "tests/indexing/embeddings/embeddinggemma2-contract.test.js:53:21"
       ],
-      "notes": null,
+      "notes": "Malformed output asserts canonical error code and exact expected/observed row counts rather than obsolete shape prose; meaningful vector/norm/identity comparisons remain.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/embeddings/embeddinggemma2-prepared",
       "path": "indexing/embeddings/embeddinggemma2-prepared.test.js",
       "owner": "indexing/embeddings",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "12c8241b4",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:",
       "failureLocations": [
         "tests/indexing/embeddings/embeddinggemma2-prepared.test.js:135:10"
       ],
-      "notes": null,
+      "notes": "Deferred telemetry now exposes requested session options and an empty observed-session list without loading a model. Original prepared ownership and model-cache assertions remain.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/embeddings/inactive-and-provenance-runtime",
       "path": "indexing/embeddings/inactive-and-provenance-runtime.test.js",
       "owner": "indexing/embeddings",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "12c8241b4",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/indexing/embeddings/inactive-and-provenance-runtime.test.js:27:12"
       ],
-      "notes": null,
+      "notes": "Inactive runtime explicitly keeps modelArtifact null instead of the identity builder manufacturing qualified revision evidence.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/embeddings/manifest-retains-non-embedding-pieces",
       "path": "indexing/embeddings/manifest-retains-non-embedding-pieces.test.js",
       "owner": "indexing/embeddings",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "888989696",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: failed recovery cannot replace the prior manifest",
       "failureLocations": [
         "tests/indexing/embeddings/manifest-retains-non-embedding-pieces.test.js:144:8"
       ],
-      "notes": null,
+      "notes": "Moves corrupt-primary byte-preservation assertion to its actual failed recovery step before the later valid manifest restoration; original access-denial, metadata migration and non-embedding piece checks remain.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/embeddings/prepared-tensor-resource-ownership",
       "path": "indexing/embeddings/prepared-tensor-resource-ownership.test.js",
       "owner": "indexing/embeddings",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "888989696",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The input did not match the regular expression /invalid sentence_embedding shape/. Input:",
       "failureLocations": [
         "tests/indexing/embeddings/prepared-tensor-resource-ownership.test.js:95:10"
       ],
-      "notes": null,
+      "notes": "Malformed tensor asserts canonical output error code and exact data/shape disagreement, retaining every tensor close and independent resource negative.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/embeddings/stage3-perf-observability",
       "path": "indexing/embeddings/stage3-perf-observability.test.js",
       "owner": "indexing/embeddings",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "888989696",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected stage3 perf_progress line with stable metrics",
       "failureLocations": [
         "tests/indexing/embeddings/stage3-perf-observability.test.js:50:8"
       ],
-      "notes": null,
+      "notes": "Consumes full canonical JSONL log events instead of truncated human rows. Uses two source fixtures with disabled optional ANN backends; all original metrics, drained resources and writer-cap checks remain.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/embeddings/transformers-quantized-compatibility",
       "path": "indexing/embeddings/transformers-quantized-compatibility.test.js",
       "owner": "indexing/embeddings",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "888989696",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: existing model cache must be retained",
       "failureLocations": [
         "tests/indexing/embeddings/transformers-quantized-compatibility.test.js:43:10"
       ],
-      "notes": null,
+      "notes": "Per-acquisition cache_dir remains asserted; module-global env.cacheDir must stay unchanged. Quantized dtype, pooling, normalization, shared pipeline and disposal controls remain.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/embeddings/xenova-output-tensor-ownership",
       "path": "indexing/embeddings/xenova-output-tensor-ownership.test.js",
       "owner": "indexing/embeddings",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "d1803539a",
       "originalTimedOut": false,
       "originalFailure": "AggregateError: original producer independent native child",
       "failureLocations": [
@@ -3841,7 +3841,7 @@
         "src/shared/embedding-transformers-resources.js:59:36",
         "src/shared/embedding-transformers-resources.js:94:34"
       ],
-      "notes": null,
+      "notes": "Scope distinguishes an unmet prerequisite before resource close from an attempted native disposal. Settled independent prerequisites admit the first close; failed original native closers still need explicit retry. Copied-provenance and unknown-owner negatives remain.",
       "finalBatchStatus": "pending"
     },
     {
