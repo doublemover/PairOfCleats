@@ -3,8 +3,9 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { copyUnpublishedStageMembers } from '../../../src/index/build/stage-output.js';
+import { copyUnpublishedStageMembers, inventoryStageOutput, inventoryStageOutputForCopy } from '../../../src/index/build/stage-output.js';
 import { getContainedFileSession } from '../../../src/shared/contained-file-resource.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 
 const gate = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
 const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-unpublished-copy-')));
@@ -32,6 +33,37 @@ const captureSessions = error => {
   visit(error);
 };
 try {
+  {
+    const buildRoot = path.join(root, 'inventory'), sourceRoot = path.join(buildRoot, 'index-code');
+    const targetRoot = path.join(root, 'inventory-copy'), rejectedRoot = path.join(root, 'inventory-rejected');
+    await fs.mkdir(path.join(sourceRoot, 'pieces'), { recursive: true });
+    await fs.mkdir(targetRoot); await fs.mkdir(rejectedRoot);
+    const filename = path.join(sourceRoot, 'data'), piece = { path: 'data', bytes: bytes.length,
+      name: 'fixture', format: 'binary', count: 1, checksum: 'sha256:' + part('data').hash };
+    await fs.writeFile(filename, bytes);
+    const manifest = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, mode: 'code', buildId: 'closed-copy-fixture', pieces: [piece] };
+    const manifestPath = path.join(sourceRoot, 'pieces/manifest.json');
+    await fs.writeFile(manifestPath, JSON.stringify(manifest));
+    let sourceOpens = 0;
+    fs.open = async function(file, ...args) { if (file === filename) sourceOpens++; return originalOpen.call(this, file, ...args); };
+    const options = { buildRoot, buildId: manifest.buildId, mode: 'code' };
+    const ordinary = await inventoryStageOutput(options);
+    assert.equal(sourceOpens, 1, 'ordinary reuse/inventory verification reads the actual member');
+    sourceOpens = 0;
+    const prepared = await inventoryStageOutputForCopy(options);
+    assert.equal(sourceOpens, 0, 'a subsequent verified copy need not pre-read the same SHA-256 source');
+    assert.deepEqual(prepared.output, ordinary.output); assert.deepEqual(prepared.inventory, ordinary.inventory);
+    await copyUnpublishedStageMembers({ sourceRoot, targetRoot, inventory: prepared.inventory, assertOwned() {} });
+    assert.equal(sourceOpens, 1, 'the copy verifies the actual original source descriptor');
+    piece.checksum = 'sha256:' + '0'.repeat(64);
+    await fs.writeFile(manifestPath, JSON.stringify(manifest));
+    const corrupted = await inventoryStageOutputForCopy(options);
+    await assert.rejects(copyUnpublishedStageMembers({ sourceRoot, targetRoot: rejectedRoot,
+      inventory: corrupted.inventory, assertOwned() {} }), /content changed during copy/);
+    assert.equal((await inventoryStageOutput(options)).inventory[0].hash, part('data').hash,
+      'ordinary verification never promotes the corrupt pin into a physical hash');
+    fs.open = originalOpen;
+  }
   {
     const options = await roots('ordinary'), inventory = [part('nested/data'), { path: 'empty', bytes: 0,
       hash: createHash('sha256').update('').digest('hex') }];

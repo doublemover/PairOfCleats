@@ -23,7 +23,7 @@ export const readBuildMetadata = async (root, filename, maxBytes = 1024 * 1024, 
 };
 
 /** Exact manifest inventory, independent of directory names and mtimes. */
-export const inventoryStageOutput = async ({ buildRoot, buildId, mode, signal, select = () => true }) => {
+const inventoryStageOutputUsing = async ({ buildRoot, buildId, mode, signal, select = () => true }, copyWillVerifyHashes) => {
   if (!['code', 'prose', 'extracted-prose', 'records'].includes(mode)) throw stageFailure('Unsupported completed-stage mode.');
   const outDir = path.join(buildRoot, `index-${mode}`);
   const manifestPath = path.join(outDir, 'pieces/manifest.json');
@@ -41,7 +41,13 @@ export const inventoryStageOutput = async ({ buildRoot, buildId, mode, signal, s
     names.add(piece.path);
     const filename = resolveArtifactIdentityPath(outDir, piece.path);
     if (!select(piece)) { resolveArtifactPath(outDir, piece.path); return; }
-    const hash = await sha256File(filename, { containedRoot: outDir, signal });
+    const pinned = copyWillVerifyHashes && typeof piece.checksum === 'string'
+      ? /^sha256:([a-f0-9]{64})$/i.exec(piece.checksum) : null;
+    // The unpublished copy checks this exact digest against its actual held
+    // source bytes before any completion descriptor can be published. Ordinary
+    // inventory/reuse verification still rehashes every physical member.
+    if (pinned) resolveArtifactPath(outDir, piece.path);
+    const hash = pinned ? pinned[1].toLowerCase() : await sha256File(filename, { containedRoot: outDir, signal });
     bytes += piece.bytes;
     if (!Number.isSafeInteger(bytes)) throw stageFailure('Completed-stage byte total exceeds safe integer range.');
     inventory.push({ path: piece.path, bytes: piece.bytes, hash });
@@ -50,6 +56,9 @@ export const inventoryStageOutput = async ({ buildRoot, buildId, mode, signal, s
   if (Buffer.byteLength(JSON.stringify(inventory)) > STAGE_METADATA_MAX_BYTES) throw stageFailure('Completed-stage inventory exceeds its metadata allowance.');
   return { manifest, inventory, output: { manifestHash, contentHash: stageIdentityHash(inventory), pieces: inventory.length, bytes } };
 };
+
+export const inventoryStageOutput = options => inventoryStageOutputUsing(options, false);
+export const inventoryStageOutputForCopy = options => inventoryStageOutputUsing(options, true);
 
 /** Copy one admitted mode member through the existing contained reader and
  * durable atomic writer. The target is an owned generation, never a hardlink.

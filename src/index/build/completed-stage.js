@@ -9,7 +9,7 @@ import { assertArtifactPublicationReady, resolveArtifactPublicationPath,
   resolveArtifactPublicationValidationPath } from './artifact-publication.js';
 import { buildStageReusePolicy, observeStageProducer } from './stage-provenance.js';
 import { snapshotStageOutput, verifyStageSnapshot } from './stage-snapshot.js';
-import { inventoryStageOutput, readBuildMetadata, sameStagePath, stageFailure,
+import { inventoryStageOutput, inventoryStageOutputForCopy, readBuildMetadata, sameStagePath, stageFailure,
   stageIdentityHash, STAGE_METADATA_MAX_BYTES } from './stage-output.js';
 
 export { readBuildMetadata } from './stage-output.js';
@@ -38,7 +38,7 @@ export const sealCompletedStage = async ({ runtime, mode, sourceSnapshot = null,
     || !sameStagePath(validation.buildRoot, runtime.buildRoot)
     || !sameStagePath(validation.indexDir, path.join(runtime.buildRoot, `index-${mode}`))
     || !Array.isArray(validation.families)) throw stageFailure('Required publication family validation is absent or belongs to another generation.');
-  const { output, manifest, inventory } = await inventoryStageOutput({ buildRoot: runtime.buildRoot, buildId: runtime.buildId, mode, signal });
+  const { output, manifest, inventory } = await inventoryStageOutputForCopy({ buildRoot: runtime.buildRoot, buildId: runtime.buildId, mode, signal });
   let sourceValidation = { status: 'unavailable', reason: 'actual-processed-source-identity-unavailable' };
   if (runtime.preprocessedSources instanceof Map && manifest.pieces.some(piece => piece.name === 'file_meta')) {
     const rows = await loadJsonArrayArtifact(path.join(runtime.buildRoot, `index-${mode}`), 'file_meta', { manifest, strict: true });

@@ -1290,3 +1290,20 @@ publish a completion descriptor. New regressions cover exact independent/empty
 bytes, partial writes, create-only collisions, four-reader failure draining and
 failed target-close retention without an automatic native retry. No latency
 improvement or closure is claimed before the strict source-bound re-check.
+
+At `971cb0259b0be695fd035ccc0a426d7938a2408c`, all five copy/lifetime/
+publication controls passed. Incremental SSR artifact/SQLite parity passed in
+29.1 seconds. The forward exact-content wrapper reached its positive completion
+message but exceeded 30 seconds during owned fixture cleanup, so it remains a
+failure. All four export-identity cases still aborted at their original bound.
+This 11-case run passed six, failed five (one timeout), with no skips/crashes.
+Original closure is 95; five remain and no adjacent regression is outstanding.
+
+The next internal change folds redundant SHA-256 inventory reads into the actual
+unpublished copy. Only valid existing manifest SHA-256 pins take this path; other
+algorithms still use physical SHA-256 inventory reads. The copy must hash its held
+source bytes and compare them to the pin before the completion descriptor can be
+published. Normal inventory/reuse verification still rehashes every member. New
+controls compare identical inventories/output, count the actual source opens,
+and reject a corrupt pinned digest during copy while ordinary inventory keeps
+reporting the actual physical hash. No schema or public configuration changed.
