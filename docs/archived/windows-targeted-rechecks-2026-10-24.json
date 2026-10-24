@@ -5601,12 +5601,351 @@
           "historicalAuthorWorkspaceEvidence": true
         }
       ]
+    },
+    {
+      "sourceHead": "2a6c443770a26dc0f480774a6a2c49e1ded577ae",
+      "startedAt": "2026-10-24T14:15:03.077Z",
+      "finishedAt": "2026-10-24T14:15:58.137Z",
+      "scope": "Native C# calls, compiler accessor/alias channels, Astro mapping and canonical SQLite fallback authority.",
+      "policy": {
+        "timeoutMs": 30000,
+        "retries": 0,
+        "nativeStatusRedo": false,
+        "threads": 1,
+        "platform": "win32",
+        "node": "v26.12.1",
+        "removedLaunchSetting": "PAIROFCLEATS_TRUSTED_CONFIG: missing configured file; no replacement authority granted"
+      },
+      "summary": {
+        "selected": 12,
+        "passed": 11,
+        "failed": 1,
+        "timeouts": 0,
+        "skipped": 0
+      },
+      "cohorts": [
+        {
+          "name": "source-authority-wave-01",
+          "summary": {
+            "total": 5,
+            "passed": 5,
+            "failed": 0,
+            "skipped": 0,
+            "durationMs": 44441
+          },
+          "ids": [
+            "storage/sqlite/incremental/bundle-count-mismatch-fallback",
+            "storage/sqlite/incremental/bundle-partial-chunk-fallback",
+            "storage/sqlite/incremental/bundle-snapshot-binding",
+            "indexing/semantic/compiler-accessor-reference-roles",
+            "indexing/semantic/compiler-transparent-alias-consumers"
+          ]
+        },
+        {
+          "name": "source-authority-wave-02",
+          "summary": {
+            "total": 5,
+            "passed": 4,
+            "failed": 1,
+            "skipped": 0,
+            "durationMs": 5686
+          },
+          "ids": [
+            "indexing/semantic/compiler-destructuring-accessor-roles",
+            "indexing/semantic/compiler-iteration-accessor-roles",
+            "indexing/semantic/astro-generated-source-evidence",
+            "indexing/relations/keyword-skip-heuristics",
+            "lang/contracts/native-call-scope-roles"
+          ]
+        },
+        {
+          "name": "source-authority-wave-03",
+          "summary": {
+            "total": 2,
+            "passed": 2,
+            "failed": 0,
+            "skipped": 0,
+            "durationMs": 2153
+          },
+          "ids": [
+            "lang/contracts/native-call-owner-projection",
+            "lang/contracts/native-call-argument-authority"
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "id": "indexing/semantic/compiler-accessor-reference-roles",
+          "path": "indexing/semantic/compiler-accessor-reference-roles.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 1767,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-2a6c443770a26dc0f480774a6a2c49e1ded577ae/source-authority-wave-01-logs/run-1792851303984-ysk53p/indexing_semantic_compiler-accessor-reference-roles.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/semantic/compiler-transparent-alias-consumers",
+          "path": "indexing/semantic/compiler-transparent-alias-consumers.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 1743,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-2a6c443770a26dc0f480774a6a2c49e1ded577ae/source-authority-wave-01-logs/run-1792851303984-ysk53p/indexing_semantic_compiler-transparent-alias-consumers.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "storage/sqlite/incremental/bundle-count-mismatch-fallback",
+          "path": "storage/sqlite/incremental/bundle-count-mismatch-fallback.test.js",
+          "lane": "storage",
+          "tags": [
+            "sqlite",
+            "storage"
+          ],
+          "status": "passed",
+          "durationMs": 19891,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-2a6c443770a26dc0f480774a6a2c49e1ded577ae/source-authority-wave-01-logs/run-1792851303984-ysk53p/storage_sqlite_incremental_bundle-count-mismatch-fallback.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "storage/sqlite/incremental/bundle-partial-chunk-fallback",
+          "path": "storage/sqlite/incremental/bundle-partial-chunk-fallback.test.js",
+          "lane": "storage",
+          "tags": [
+            "sqlite",
+            "storage"
+          ],
+          "status": "passed",
+          "durationMs": 20683,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-2a6c443770a26dc0f480774a6a2c49e1ded577ae/source-authority-wave-01-logs/run-1792851303984-ysk53p/storage_sqlite_incremental_bundle-partial-chunk-fallback.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "storage/sqlite/incremental/bundle-snapshot-binding",
+          "path": "storage/sqlite/incremental/bundle-snapshot-binding.test.js",
+          "lane": "storage",
+          "tags": [
+            "sqlite",
+            "storage"
+          ],
+          "status": "passed",
+          "durationMs": 349,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-2a6c443770a26dc0f480774a6a2c49e1ded577ae/source-authority-wave-01-logs/run-1792851303984-ysk53p/storage_sqlite_incremental_bundle-snapshot-binding.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/relations/keyword-skip-heuristics",
+          "path": "indexing/relations/keyword-skip-heuristics.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 502,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-2a6c443770a26dc0f480774a6a2c49e1ded577ae/source-authority-wave-02-logs/run-1792851349369-cxavw8/indexing_relations_keyword-skip-heuristics.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/semantic/astro-generated-source-evidence",
+          "path": "indexing/semantic/astro-generated-source-evidence.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 640,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-2a6c443770a26dc0f480774a6a2c49e1ded577ae/source-authority-wave-02-logs/run-1792851349369-cxavw8/indexing_semantic_astro-generated-source-evidence.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/semantic/compiler-destructuring-accessor-roles",
+          "path": "indexing/semantic/compiler-destructuring-accessor-roles.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 1932,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-2a6c443770a26dc0f480774a6a2c49e1ded577ae/source-authority-wave-02-logs/run-1792851349369-cxavw8/indexing_semantic_compiler-destructuring-accessor-roles.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/semantic/compiler-iteration-accessor-roles",
+          "path": "indexing/semantic/compiler-iteration-accessor-roles.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 1667,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-2a6c443770a26dc0f480774a6a2c49e1ded577ae/source-authority-wave-02-logs/run-1792851349369-cxavw8/indexing_semantic_compiler-iteration-accessor-roles.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "lang/contracts/native-call-scope-roles",
+          "path": "lang/contracts/native-call-scope-roles.test.js",
+          "lane": "unit",
+          "tags": [
+            "lang",
+            "unit"
+          ],
+          "status": "failed",
+          "durationMs": 934,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-2a6c443770a26dc0f480774a6a2c49e1ded577ae/source-authority-wave-02-logs/run-1792851349369-cxavw8/lang_contracts_native-call-scope-roles.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-2a6c443770a26dc0f480774a6a2c49e1ded577ae/source-authority-wave-02-logs/run-1792851349369-cxavw8/lang_contracts_native-call-scope-roles.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "lang/contracts/native-call-argument-authority",
+          "path": "lang/contracts/native-call-argument-authority.test.js",
+          "lane": "unit",
+          "tags": [
+            "lang",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 1207,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-2a6c443770a26dc0f480774a6a2c49e1ded577ae/source-authority-wave-03-logs/run-1792851355970-2zkkye/lang_contracts_native-call-argument-authority.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "lang/contracts/native-call-owner-projection",
+          "path": "lang/contracts/native-call-owner-projection.test.js",
+          "lane": "unit",
+          "tags": [
+            "lang",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 940,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-2a6c443770a26dc0f480774a6a2c49e1ded577ae/source-authority-wave-03-logs/run-1792851355970-2zkkye/lang_contracts_native-call-owner-projection.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        }
+      ]
     }
   ],
   "cumulativeClosure": {
     "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
-    "originalFailuresMovedToPassing": 74,
-    "originalFailuresWithoutPassingClosure": 26,
+    "originalFailuresMovedToPassing": 79,
+    "originalFailuresWithoutPassingClosure": 21,
     "additionalObservedFailuresOutsideOriginal100": []
   }
 }

@@ -44,8 +44,8 @@
     },
     "followUpClosure": {
       "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
-      "originalFailuresMovedToPassing": 74,
-      "originalFailuresWithoutPassingClosure": 26,
+      "originalFailuresMovedToPassing": 79,
+      "originalFailuresWithoutPassingClosure": 21,
       "additionalObservedFailuresOutsideOriginal100": []
     }
   },
@@ -251,9 +251,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 944,
-      "latestRecheckStatus": "passed",
-      "latestRecheckSourceHead": "6d08b130ff157bfb00692bb19e0855d34c522e48",
-      "latestRecheckDurationMs": 906
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "2a6c443770a26dc0f480774a6a2c49e1ded577ae",
+      "latestRecheckDurationMs": 934
     },
     {
       "id": "map/scene-shutdown-failure-ownership",
@@ -984,9 +984,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 18565,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "3345becd36fc619c20a0ab7f7f09060fde900e8c",
-      "latestRecheckDurationMs": 18616
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "2a6c443770a26dc0f480774a6a2c49e1ded577ae",
+      "latestRecheckDurationMs": 19891
     },
     {
       "id": "storage/sqlite/incremental/bundle-partial-chunk-fallback",
@@ -1004,9 +1004,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 18998,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "3345becd36fc619c20a0ab7f7f09060fde900e8c",
-      "latestRecheckDurationMs": 19675
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "2a6c443770a26dc0f480774a6a2c49e1ded577ae",
+      "latestRecheckDurationMs": 20683
     },
     {
       "id": "storage/sqlite/maintenance-sidecar-cleanup",
@@ -5070,7 +5070,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 451
+      "recheckDurationMs": 451,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "2a6c443770a26dc0f480774a6a2c49e1ded577ae",
+      "latestRecheckDurationMs": 502
     },
     {
       "id": "indexing/risk/interprocedural/engine-shape-guards",
@@ -5325,9 +5328,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 1127,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "3345becd36fc619c20a0ab7f7f09060fde900e8c",
-      "latestRecheckDurationMs": 624
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "2a6c443770a26dc0f480774a6a2c49e1ded577ae",
+      "latestRecheckDurationMs": 640
     },
     {
       "id": "indexing/semantic/cache-reader-identity",
@@ -5370,9 +5373,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 1825,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "3345becd36fc619c20a0ab7f7f09060fde900e8c",
-      "latestRecheckDurationMs": 1559
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "2a6c443770a26dc0f480774a6a2c49e1ded577ae",
+      "latestRecheckDurationMs": 1767
     },
     {
       "id": "indexing/semantic/compiler-callback-runtime-parameters",
@@ -5462,9 +5465,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 1814,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "3345becd36fc619c20a0ab7f7f09060fde900e8c",
-      "latestRecheckDurationMs": 1707
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "2a6c443770a26dc0f480774a6a2c49e1ded577ae",
+      "latestRecheckDurationMs": 1743
     },
     {
       "id": "indexing/semantic/compiler-wasm-flow",

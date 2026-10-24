@@ -15,7 +15,7 @@ const project = async (id, ext, text) => {
     astDataflowEnabled: false, controlFlowEnabled: false
   } };
   const { lang, context } = await buildLanguageContext(input);
-  const chunks = context[id + 'Chunks'];
+  const chunks = context[id === 'csharp' ? 'csChunks' : id + 'Chunks'];
   assert.ok(chunks?.some(chunk => /Function|Method/.test(chunk.kind)), 'native declaration owner must be available');
   const raw = lang.buildRelations({ ...input, context });
   const relations = filterRawRelationsWithLexicon(raw, { languageId: id, relKey: input.relPath });

@@ -1045,3 +1045,21 @@ external/serialized maps still reject conflicts. Exact declaration/use spans,
 source identities and unsupported authority negatives stay required. Adapter 2
 invalidates changed qualification and every parsed segment consumes point budget.
 These latest source/fixture changes await the next focused cohort.
+
+The 12-case follow-up at `2a6c443770a26dc0f480774a6a2c49e1ded577ae`
+passed 11 and failed one, with no timeouts/skips/crashes. Both SQLite content/
+count fallbacks, snapshot binding negatives, accessor update references, source
+alias parameter/return channels, destructuring/iteration controls, qualified
+keyword calls and Astro exact/ambiguous map checks passed. The added C# scope
+control used the wrong context key: its registered adapter owns csChunks, not
+csharpChunks. That helper defect is corrected without changing extraction.
+Seventy-nine original failures have passing closure; 21 remain.
+
+Official VSCE 4.0.0 rewrites README.md to extension/readme.md (installed
+ReadmeProcessor); release verification still required the old uppercase ZIP
+entry. Its exact required path and malformed-archive fixtures now use the actual
+container spelling; no case-insensitive archive admission is introduced. The
+Sublime navigation fixture now supplies real disposable source/target bytes,
+actual hashes, UTF-16 ranges, stable source version and operation scope to the
+existing qualified navigation path, preserving definition, reference, completion
+and empty-result behavior assertions. These changes await focused validation.
