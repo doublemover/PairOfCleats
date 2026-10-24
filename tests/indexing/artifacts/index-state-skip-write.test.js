@@ -117,6 +117,12 @@ const readMeta = () => JSON.parse(fs.readFileSync(path.join(outDir, 'index_state
 const stableText = (value) => stableStringifyForSignature(stripIndexStateNondeterministicFields(value));
 const digest = (value, algorithm) => crypto.createHash(algorithm).update(stableText(value)).digest('hex');
 let saved = readState();
+assert.equal(saved.filterIndex.stats.diskBytes, fs.statSync(path.join(outDir, 'filter_index.json')).size,
+  'the first saved state includes the actual completed artifact size');
+assert.deepEqual(saved.filterIndex.stats, indexState.filterIndex.stats,
+  'publication must not mutate physical metrics after hashing and serializing the state');
+assert.equal(saved.extensions.artifactCleanup.status, 'not-required');
+assert.equal(indexState.extensions.artifactCleanup.status, 'not-required');
 assert.equal(saved.extensions.__poc_generated.kind, 'index-state');
 assert.deepEqual(saved.extensions.caller, { retained: true });
 assert.equal(Object.keys(saved)[0], 'extensions');

@@ -44,9 +44,12 @@
     },
     "followUpClosure": {
       "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
-      "originalFailuresMovedToPassing": 69,
-      "originalFailuresWithoutPassingClosure": 31,
-      "additionalObservedFailuresOutsideOriginal100": []
+      "originalFailuresMovedToPassing": 72,
+      "originalFailuresWithoutPassingClosure": 28,
+      "additionalObservedFailuresOutsideOriginal100": [
+        "tooling/install/download-body-ownership",
+        "tooling/install/download-node-iterator-native-close"
+      ]
     }
   },
   "items": [
@@ -357,9 +360,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 360,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d",
-      "latestRecheckDurationMs": 334
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "62691aea51b8d26198a43555f51b7e85da3db1a3",
+      "latestRecheckDurationMs": 537
     },
     {
       "id": "tooling/install/managed-detect-diagnostic-lifetime",
@@ -3072,9 +3075,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 4934,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d",
-      "latestRecheckDurationMs": 4913
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "62691aea51b8d26198a43555f51b7e85da3db1a3",
+      "latestRecheckDurationMs": 7128
     },
     {
       "id": "tooling/lsp/reader-closed-restart-reaps-stale-process",
@@ -3175,8 +3178,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 1669,
       "latestRecheckStatus": "passed",
-      "latestRecheckSourceHead": "5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d",
-      "latestRecheckDurationMs": 2054
+      "latestRecheckSourceHead": "62691aea51b8d26198a43555f51b7e85da3db1a3",
+      "latestRecheckDurationMs": 1820
     },
     {
       "id": "tooling/lsp/session-queued-cancellation",
@@ -5095,8 +5098,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 119,
       "latestRecheckStatus": "passed",
-      "latestRecheckSourceHead": "6d08b130ff157bfb00692bb19e0855d34c522e48",
-      "latestRecheckDurationMs": 144
+      "latestRecheckSourceHead": "62691aea51b8d26198a43555f51b7e85da3db1a3",
+      "latestRecheckDurationMs": 112
     },
     {
       "id": "indexing/risk/interprocedural/framework-semantics",
@@ -5114,9 +5117,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 118,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d",
-      "latestRecheckDurationMs": 121
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "62691aea51b8d26198a43555f51b7e85da3db1a3",
+      "latestRecheckDurationMs": 112
     },
     {
       "id": "indexing/risk/interprocedural/partial-flows",

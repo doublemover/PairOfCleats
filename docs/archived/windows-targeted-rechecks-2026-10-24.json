@@ -4868,12 +4868,251 @@
           "historicalAuthorWorkspaceEvidence": true
         }
       ]
+    },
+    {
+      "sourceHead": "62691aea51b8d26198a43555f51b7e85da3db1a3",
+      "startedAt": "2026-10-24T13:55:12.399Z",
+      "finishedAt": "2026-10-24T13:55:24.214Z",
+      "scope": "Installer teardown, direct download identity, Pyright recovery and framework frontier controls.",
+      "policy": {
+        "timeoutMs": 30000,
+        "retries": 0,
+        "nativeStatusRedo": false,
+        "threads": 1,
+        "platform": "win32",
+        "node": "v26.12.1",
+        "removedLaunchSetting": "PAIROFCLEATS_TRUSTED_CONFIG: missing configured file; no replacement authority granted"
+      },
+      "summary": {
+        "selected": 8,
+        "passed": 6,
+        "failed": 2,
+        "timeouts": 0,
+        "skipped": 0
+      },
+      "cohorts": [
+        {
+          "name": "download-health-wave-01",
+          "summary": {
+            "total": 5,
+            "passed": 3,
+            "failed": 2,
+            "skipped": 0,
+            "durationMs": 7985
+          },
+          "ids": [
+            "tooling/install/install-download-resource-lifetime",
+            "tooling/install/download-body-ownership",
+            "tooling/install/download-node-iterator-native-close",
+            "tooling/install/official-release-response-lifetime",
+            "tooling/lsp/pyright-health-source-context"
+          ]
+        },
+        {
+          "name": "download-health-wave-02",
+          "summary": {
+            "total": 3,
+            "passed": 3,
+            "failed": 0,
+            "skipped": 0,
+            "durationMs": 2051
+          },
+          "ids": [
+            "indexing/risk/interprocedural/framework-semantics",
+            "tooling/lsp/semantic-location-evidence",
+            "indexing/risk/interprocedural/flows-cap-matrix"
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "id": "tooling/install/download-body-ownership",
+          "path": "tooling/install/download-body-ownership.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "failed",
+          "durationMs": 86,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-62691aea51b8d26198a43555f51b7e85da3db1a3/download-health-wave-01-logs/run-1792850113267-mmlxkw/tooling_install_download-body-ownership.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-62691aea51b8d26198a43555f51b7e85da3db1a3/download-health-wave-01-logs/run-1792850113267-mmlxkw/tooling_install_download-body-ownership.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/install/download-node-iterator-native-close",
+          "path": "tooling/install/download-node-iterator-native-close.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "failed",
+          "durationMs": 115,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-62691aea51b8d26198a43555f51b7e85da3db1a3/download-health-wave-01-logs/run-1792850113267-mmlxkw/tooling_install_download-node-iterator-native-close.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-62691aea51b8d26198a43555f51b7e85da3db1a3/download-health-wave-01-logs/run-1792850113267-mmlxkw/tooling_install_download-node-iterator-native-close.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/install/install-download-resource-lifetime",
+          "path": "tooling/install/install-download-resource-lifetime.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 537,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-62691aea51b8d26198a43555f51b7e85da3db1a3/download-health-wave-01-logs/run-1792850113267-mmlxkw/tooling_install_install-download-resource-lifetime.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/install/official-release-response-lifetime",
+          "path": "tooling/install/official-release-response-lifetime.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 107,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-62691aea51b8d26198a43555f51b7e85da3db1a3/download-health-wave-01-logs/run-1792850113267-mmlxkw/tooling_install_official-release-response-lifetime.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/lsp/pyright-health-source-context",
+          "path": "tooling/lsp/pyright-health-source-context.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 7128,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-62691aea51b8d26198a43555f51b7e85da3db1a3/download-health-wave-01-logs/run-1792850113267-mmlxkw/tooling_lsp_pyright-health-source-context.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/risk/interprocedural/flows-cap-matrix",
+          "path": "indexing/risk/interprocedural/flows-cap-matrix.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 112,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-62691aea51b8d26198a43555f51b7e85da3db1a3/download-health-wave-02-logs/run-1792850122147-9slptw/indexing_risk_interprocedural_flows-cap-matrix.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/risk/interprocedural/framework-semantics",
+          "path": "indexing/risk/interprocedural/framework-semantics.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 112,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-62691aea51b8d26198a43555f51b7e85da3db1a3/download-health-wave-02-logs/run-1792850122147-9slptw/indexing_risk_interprocedural_framework-semantics.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/lsp/semantic-location-evidence",
+          "path": "tooling/lsp/semantic-location-evidence.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 1820,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-62691aea51b8d26198a43555f51b7e85da3db1a3/download-health-wave-02-logs/run-1792850122147-9slptw/tooling_lsp_semantic-location-evidence.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        }
+      ]
     }
   ],
   "cumulativeClosure": {
     "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
-    "originalFailuresMovedToPassing": 69,
-    "originalFailuresWithoutPassingClosure": 31,
-    "additionalObservedFailuresOutsideOriginal100": []
+    "originalFailuresMovedToPassing": 72,
+    "originalFailuresWithoutPassingClosure": 28,
+    "additionalObservedFailuresOutsideOriginal100": [
+      "tooling/install/download-body-ownership",
+      "tooling/install/download-node-iterator-native-close"
+    ]
   }
 }

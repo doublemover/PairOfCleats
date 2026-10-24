@@ -62,7 +62,7 @@ export const prepareArtifactCleanup = async ({
       schemaVersion: 2,
       profileId,
       allowlistOnly: vectorOnlyProfile,
-      status: summary?.status || 'staged',
+      status: summary?.status || (cleanupActions.length ? 'staged' : 'not-required'),
       plannedActions: cleanupActions.length,
       completedActions: Number.isFinite(Number(summary?.completedActions))
         ? Number(summary.completedActions)
@@ -165,7 +165,7 @@ export const prepareArtifactCleanup = async ({
     }
     const summary = {
       schemaVersion: 1,
-      status: failures.length ? 'completed-with-warnings' : 'completed',
+      status: failures.length ? 'completed-with-warnings' : (cleanupActions.length ? 'completed' : 'not-required'),
       plannedActions: cleanupActions.length,
       completedActions,
       failedActions: failures.length,

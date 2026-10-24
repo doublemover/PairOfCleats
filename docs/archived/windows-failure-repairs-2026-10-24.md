@@ -984,3 +984,24 @@ pooled server before changing the launch-only simulated mode, retaining persiste
 health identity and recovery assertions. Framework risk coverage retains the
 terminal modeled flow frontier and both distinct argument-evidence gaps.
 These latest changes await focused validation.
+
+The eight-case follow-up at `62691aea51b8d26198a43555f51b7e85da3db1a3`
+passed six and failed two, with no timeouts/skips/crashes. Installer storage
+lifetime, Pyright source/config recovery, framework frontier content, LSP
+evidence and risk cap controls passed. Seventy-two original failures have
+passing closure; 28 remain. Two adjacent download controls exposed exact-error-
+identity regressions from the attempted graph repair; those are recorded as
+failures, not accepted. The refinement preserves the direct download producer's
+original error object and adds the actual teardown edge only at the outer
+installer context boundary. It awaits the next focused check.
+
+The index-state writer previously hashed and queued state before filter-index
+physical metrics settled, then mutated the shared stats object afterward. State
+construction now runs through the existing write planner only after primary
+artifact completion and metric collection. Both dispatch phases preserve the
+shared scheduler, publication registry, telemetry and cumulative write count.
+No-op cleanup is truthfully not-required before and after publication; actual
+cleanup still remains staged until the publication owner commits it. The fixed-
+point test retains marker migration, content/meta hashes, determinism and missing-
+file recovery, and now checks the actual filter-index byte count and snapshot.
+This source repair awaits its focused publication controls.

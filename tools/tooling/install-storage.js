@@ -14,6 +14,19 @@ const captureActionObservation = error => {
   } catch { return () => false; }
 };
 
+// The download producer retains its original error identity and records the
+// actual teardown failure as a non-enumerable data property. At the outer
+// install boundary, expose that secondary failure through standard error edges
+// without replacing the response owner's exact primary error or capabilities.
+const retainDownloadCleanupFailure = error => {
+  try {
+    const cleanup = Object.getOwnPropertyDescriptor(error, 'downloadCleanupError')?.value;
+    return cleanup && cleanup !== error ? addStorageFailureContext(error, {}, cleanup) : error;
+  } catch (inspectionError) {
+    return addStorageFailureContext(error, {}, inspectionError);
+  }
+};
+
 /** Actual archive/SDK writer boundary. Canonical recipes provide inclusive
  * estimates for each actual destination; unknown capacity never triggers GC.
  */
@@ -67,7 +80,8 @@ export const runInstallWithStorageAdmission = async ({ toolingRoot, storageEstim
         ...(cause?.storageSession && cause.storageSession !== storage ? [cause.storageSession] : [])])];
       const retained = { ...fields, ...(storage ? { storageSession: storage } : {}),
         ...(childSessions.length ? { installChildStorageSessions: childSessions } : {}) };
-      return addStorageFailureContext(cause, retained, error, { nonEnumerable: Object.keys(retained) });
+      return addStorageFailureContext(retainDownloadCleanupFailure(cause), retained, error,
+        { nonEnumerable: Object.keys(retained) });
     };
     const reconcile = async action => {
       try { return await action(); }
@@ -135,6 +149,7 @@ export const runInstallWithStorageAdmission = async ({ toolingRoot, storageEstim
       } });
       fields.installStorageMetadataSession = metadata;
     }
-    throw addStorageFailureContext(error, fields, null, { nonEnumerable: Object.keys(fields) });
+    throw addStorageFailureContext(retainDownloadCleanupFailure(error), fields, null,
+      { nonEnumerable: Object.keys(fields) });
   }
 };

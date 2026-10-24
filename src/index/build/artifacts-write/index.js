@@ -924,118 +924,121 @@ async function writeIndexArtifactsInCodecScope(input) {
       }
     );
   }
-  if (indexState && typeof indexState === 'object') {
-    const indexStatePath = path.join(outDir, 'index_state.json');
-    const indexStateMetaPath = path.join(outDir, 'index_state.meta.json');
-    const determinismReportPath = path.join(outDir, 'determinism_report.json');
-    const markedIndexState = withGeneratedArtifactMetadata(indexState, 'index-state');
-    indexState.extensions = markedIndexState.extensions;
-    const stableState = stripIndexStateNondeterministicFields(indexState, { forStableHash: true });
-    const stableHash = sha1(stableStringifyForSignature(stableState));
-    const determinismReport = buildDeterminismReport({
-      mode,
-      indexState
-    });
-    let canSkipIndexState = false;
-    try {
-      if (await pathExists(indexStateMetaPath) && await pathExists(indexStatePath)) {
-        const metaRaw = readJsonFile(indexStateMetaPath, { maxBytes: maxJsonBytes });
-        const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
-        const onDiskStableHash = await readStableIndexStateHash(indexStatePath, {
-          maxBytes: maxJsonBytes
-        });
-        if (meta?.stableHash === stableHash && onDiskStableHash === stableHash) {
-          canSkipIndexState = true;
-        }
-      }
-    } catch {}
-    const indexStateWarnBytes = Math.max(1024 * 64, Math.floor(maxJsonBytes * 0.1));
-    const indexStateCompressThreshold = Math.max(1024 * 128, Math.floor(maxJsonBytes * 0.2));
-    /**
-     * Persist compact metadata for index_state reuse checks.
-     *
-     * @param {number|null} bytes
-     * @returns {Promise<void>}
-     */
-    const writeIndexStateMeta = async (bytes) => {
-      await writeJsonObjectFile(indexStateMetaPath, {
-        fields: withGeneratedArtifactMetadata({
-          stableHash,
-          generatedAt: indexState.generatedAt || null,
-          updatedAt: new Date().toISOString(),
-          bytes: Number.isFinite(bytes) ? bytes : null
-        }, 'index-state-meta'),
-        atomic: true
+  // State hashes and rows must observe completed physical artifact metrics.
+  const enqueueIndexStateWrites = async () => {
+    if (indexState && typeof indexState === 'object') {
+      const indexStatePath = path.join(outDir, 'index_state.json');
+      const indexStateMetaPath = path.join(outDir, 'index_state.meta.json');
+      const determinismReportPath = path.join(outDir, 'determinism_report.json');
+      const markedIndexState = withGeneratedArtifactMetadata(indexState, 'index-state');
+      indexState.extensions = markedIndexState.extensions;
+      const stableState = stripIndexStateNondeterministicFields(indexState, { forStableHash: true });
+      const stableHash = sha1(stableStringifyForSignature(stableState));
+      const determinismReport = buildDeterminismReport({
+        mode,
+        indexState
       });
-    };
-    enqueueWrite(
-      formatArtifactLabel(determinismReportPath),
-      async () => {
-        await writeJsonObjectFile(determinismReportPath, {
-          fields: determinismReport,
+      let canSkipIndexState = false;
+      try {
+        if (await pathExists(indexStateMetaPath) && await pathExists(indexStatePath)) {
+          const metaRaw = readJsonFile(indexStateMetaPath, { maxBytes: maxJsonBytes });
+          const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
+          const onDiskStableHash = await readStableIndexStateHash(indexStatePath, {
+            maxBytes: maxJsonBytes
+          });
+          if (meta?.stableHash === stableHash && onDiskStableHash === stableHash) {
+            canSkipIndexState = true;
+          }
+        }
+      } catch {}
+      const indexStateWarnBytes = Math.max(1024 * 64, Math.floor(maxJsonBytes * 0.1));
+      const indexStateCompressThreshold = Math.max(1024 * 128, Math.floor(maxJsonBytes * 0.2));
+      /**
+       * Persist compact metadata for index_state reuse checks.
+       *
+       * @param {number|null} bytes
+       * @returns {Promise<void>}
+       */
+      const writeIndexStateMeta = async (bytes) => {
+        await writeJsonObjectFile(indexStateMetaPath, {
+          fields: withGeneratedArtifactMetadata({
+            stableHash,
+            generatedAt: indexState.generatedAt || null,
+            updatedAt: new Date().toISOString(),
+            bytes: Number.isFinite(bytes) ? bytes : null
+          }, 'index-state-meta'),
           atomic: true
         });
-      },
-      {
-        publishedPieces: [{
-          entry: { type: 'stats', name: 'determinism_report', format: 'json' },
-          filePath: determinismReportPath
-        }]
-      }
-    );
-    if (!canSkipIndexState) {
+      };
       enqueueWrite(
-        formatArtifactLabel(indexStatePath),
+        formatArtifactLabel(determinismReportPath),
         async () => {
-          await writeJsonObjectFile(indexStatePath, { fields: markedIndexState, atomic: true });
-          let bytes = null;
-          try {
-            const stat = await fs.stat(indexStatePath);
-            bytes = stat.size;
-          } catch {}
-          if (Number.isFinite(bytes) && bytes > indexStateWarnBytes) {
-            log(
-              `index_state ~${formatBytes(bytes)}; consider pruning volatile fields or enabling compression.`
-            );
-          }
-          if (compressionEnabled && compressionMode && Number.isFinite(bytes) && bytes > indexStateCompressThreshold) {
-            const compressedPath = path.join(
-              outDir,
-              `index_state.${compressionMode === 'zstd' ? 'json.zst' : 'json.gz'}`
-            );
-            await writeJsonObjectFile(compressedPath, {
-              fields: markedIndexState,
-              compression: compressionMode,
-              gzipOptions: compressionGzipOptions,
-              atomic: true
-            });
-          }
-          await writeIndexStateMeta(bytes);
+          await writeJsonObjectFile(determinismReportPath, {
+            fields: determinismReport,
+            atomic: true
+          });
         },
         {
           publishedPieces: [{
-            entry: { type: 'stats', name: 'index_state', format: 'json' },
-            filePath: indexStatePath
+            entry: { type: 'stats', name: 'determinism_report', format: 'json' },
+            filePath: determinismReportPath
           }]
         }
       );
-    } else {
-      enqueueWrite(
-        formatArtifactLabel(indexStateMetaPath),
-        async () => {
-          let bytes = null;
-          try {
-            const stat = await fs.stat(indexStatePath);
-            bytes = stat.size;
-          } catch {}
-          await writeIndexStateMeta(bytes);
+      if (!canSkipIndexState) {
+        enqueueWrite(
+          formatArtifactLabel(indexStatePath),
+          async () => {
+            await writeJsonObjectFile(indexStatePath, { fields: markedIndexState, atomic: true });
+            let bytes = null;
+            try {
+              const stat = await fs.stat(indexStatePath);
+              bytes = stat.size;
+            } catch {}
+            if (Number.isFinite(bytes) && bytes > indexStateWarnBytes) {
+              log(
+                `index_state ~${formatBytes(bytes)}; consider pruning volatile fields or enabling compression.`
+              );
+            }
+            if (compressionEnabled && compressionMode && Number.isFinite(bytes) && bytes > indexStateCompressThreshold) {
+              const compressedPath = path.join(
+                outDir,
+                `index_state.${compressionMode === 'zstd' ? 'json.zst' : 'json.gz'}`
+              );
+              await writeJsonObjectFile(compressedPath, {
+                fields: markedIndexState,
+                compression: compressionMode,
+                gzipOptions: compressionGzipOptions,
+                atomic: true
+              });
+            }
+            await writeIndexStateMeta(bytes);
+          },
+          {
+            publishedPieces: [{
+              entry: { type: 'stats', name: 'index_state', format: 'json' },
+              filePath: indexStatePath
+            }]
+          }
+        );
+      } else {
+        enqueueWrite(
+          formatArtifactLabel(indexStateMetaPath),
+          async () => {
+            let bytes = null;
+            try {
+              const stat = await fs.stat(indexStatePath);
+              bytes = stat.size;
+            } catch {}
+            await writeIndexStateMeta(bytes);
+          }
+        );
+        if (await pathExists(indexStatePath)) {
+          addPieceFile({ type: 'stats', name: 'index_state', format: 'json' }, indexStatePath);
         }
-      );
-      if (await pathExists(indexStatePath)) {
-        addPieceFile({ type: 'stats', name: 'index_state', format: 'json' }, indexStatePath);
       }
     }
-  }
+  };
   const { enqueueJsonObject, enqueueJsonArray, enqueueJsonArraySharded } = createArtifactWriter({
     outDir,
     enqueueWrite,
@@ -2082,66 +2085,70 @@ async function writeIndexArtifactsInCodecScope(input) {
       piece: { type: 'postings', name: 'vocab_order' }
     });
   }
-  const { laneQueues, totalWrites: plannedTotalWrites } = resolveQueuedWriteLanes({
-    writes,
-    splitWriteLanes
-  });
-  setTotalWrites(plannedTotalWrites);
-  await dispatchPlannedArtifactWrites({
-    laneQueues,
-    totalWrites: getTotalWrites(),
-    logLine,
-    artifactConfig,
-    writeFsStrategy,
-    adaptiveWriteConcurrencyEnabled,
-    adaptiveWriteMinConcurrency,
-    adaptiveWriteStartConcurrencyOverride,
-    adaptiveWriteScaleUpBacklogPerSlot,
-    adaptiveWriteScaleDownBacklogPerSlot,
-    adaptiveWriteStallScaleDownSeconds,
-    adaptiveWriteStallScaleUpGuardSeconds,
-    adaptiveWriteScaleUpCooldownMs,
-    adaptiveWriteScaleDownCooldownMs,
-    adaptiveWriteObserveIntervalMs,
-    adaptiveWriteQueuePendingThreshold,
-    adaptiveWriteQueueOldestWaitMsThreshold,
-    adaptiveWriteQueueWaitP95MsThreshold,
-    writeTailWorkerEnabled,
-    writeTailWorkerMaxPending,
-    writeTailRescueEnabled,
-    writeTailRescueMaxPending,
-    writeTailRescueStallSeconds,
-    writeTailRescueBoostIoTokens,
-    writeTailRescueBoostMemTokens,
-    workClassSmallConcurrencyOverride,
-    workClassMediumConcurrencyOverride,
-    workClassLargeConcurrencyOverride,
-    scheduler,
-    effectiveAbortSignal,
-    canDispatchEntryUnderHugeWritePolicy,
-    activeWrites,
-    activeWriteBytes,
-    activeWriteMeta,
-    hugeWriteState,
-    updateWriteInFlightTelemetry,
-    getLongestWriteStallSeconds,
-    getActiveWriteTelemetrySnapshot,
-    updateActiveWriteMeta,
-    resolveEntryEstimatedBytes,
-    resolveHugeWriteFamily,
-    massiveWriteIoTokens,
-    massiveWriteMemTokens,
-    resolveArtifactWriteMemTokens,
-    outDir,
-    artifactMetrics,
-    artifactFamilyLedger,
-    artifactQueueDelaySamples,
-    updatePieceMetadata,
-    formatBytes,
-    logWriteProgress,
-    writeHeartbeat,
-    ultraLightWriteThresholdBytes
-  });
+  const dispatchWrites = async () => {
+    const { laneQueues, totalWrites: plannedTotalWrites } = resolveQueuedWriteLanes({
+      writes,
+      splitWriteLanes
+    });
+    writes.length = 0;
+    setTotalWrites(getCompletedWrites() + plannedTotalWrites);
+    await dispatchPlannedArtifactWrites({
+      laneQueues,
+      totalWrites: getTotalWrites(),
+      logLine,
+      artifactConfig,
+      writeFsStrategy,
+      adaptiveWriteConcurrencyEnabled,
+      adaptiveWriteMinConcurrency,
+      adaptiveWriteStartConcurrencyOverride,
+      adaptiveWriteScaleUpBacklogPerSlot,
+      adaptiveWriteScaleDownBacklogPerSlot,
+      adaptiveWriteStallScaleDownSeconds,
+      adaptiveWriteStallScaleUpGuardSeconds,
+      adaptiveWriteScaleUpCooldownMs,
+      adaptiveWriteScaleDownCooldownMs,
+      adaptiveWriteObserveIntervalMs,
+      adaptiveWriteQueuePendingThreshold,
+      adaptiveWriteQueueOldestWaitMsThreshold,
+      adaptiveWriteQueueWaitP95MsThreshold,
+      writeTailWorkerEnabled,
+      writeTailWorkerMaxPending,
+      writeTailRescueEnabled,
+      writeTailRescueMaxPending,
+      writeTailRescueStallSeconds,
+      writeTailRescueBoostIoTokens,
+      writeTailRescueBoostMemTokens,
+      workClassSmallConcurrencyOverride,
+      workClassMediumConcurrencyOverride,
+      workClassLargeConcurrencyOverride,
+      scheduler,
+      effectiveAbortSignal,
+      canDispatchEntryUnderHugeWritePolicy,
+      activeWrites,
+      activeWriteBytes,
+      activeWriteMeta,
+      hugeWriteState,
+      updateWriteInFlightTelemetry,
+      getLongestWriteStallSeconds,
+      getActiveWriteTelemetrySnapshot,
+      updateActiveWriteMeta,
+      resolveEntryEstimatedBytes,
+      resolveHugeWriteFamily,
+      massiveWriteIoTokens,
+      massiveWriteMemTokens,
+      resolveArtifactWriteMemTokens,
+      outDir,
+      artifactMetrics,
+      artifactFamilyLedger,
+      artifactQueueDelaySamples,
+      updatePieceMetadata,
+      formatBytes,
+      logWriteProgress,
+      writeHeartbeat,
+      ultraLightWriteThresholdBytes
+    });
+  };
+  await dispatchWrites();
   await sealTokenPostingsFamily({ outDir, plan: tokenPostingsFamilyPlan, entries: listPieceEntries(),
     addPieceFile, signal: effectiveAbortSignal });
   if (tokenPostingsFamilyPlan && timing) timing.tokenPostingsFamilyReuse = tokenPostingsFamilyPlan;
@@ -2167,11 +2174,6 @@ async function writeIndexArtifactsInCodecScope(input) {
       );
     }
   }
-  timing.writeMs = Date.now() - writeStart;
-  timing.totalMs = Date.now() - timing.start;
-  log(
-    `📦  ${mode.padEnd(5)}: ${state.chunks.length.toLocaleString()} chunks, ${postings.tokenVocab.length.toLocaleString()} tokens, dims=${postings.dims}`
-  );
   if (filterIndexStats && typeof filterIndexStats === 'object') {
     const filterIndexPiece = pieceEntries.find((entry) => entry?.name === 'filter_index' && entry?.path);
     const filterIndexPath = filterIndexPiece?.path ? path.join(outDir, filterIndexPiece.path) : null;
@@ -2197,6 +2199,15 @@ async function writeIndexArtifactsInCodecScope(input) {
       filterIndexStats.compressionRatio = filterIndexDiskBytes / filterIndexStats.jsonBytes;
     }
   }
+
+  await enqueueIndexStateWrites();
+  await dispatchWrites();
+  pieceEntries = listPieceEntries();
+  timing.writeMs = Date.now() - writeStart;
+  timing.totalMs = Date.now() - timing.start;
+  log(
+    `📦  ${mode.padEnd(5)}: ${state.chunks.length.toLocaleString()} chunks, ${postings.tokenVocab.length.toLocaleString()} tokens, dims=${postings.dims}`
+  );
 
   for (const entry of pieceEntries) {
     if (!entry?.path) continue;
