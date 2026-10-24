@@ -357,7 +357,8 @@ const cases = [
 
       const stages = resolution?.stats?.resolverPipelineStages || {};
       assert.equal((stages.normalize?.attempts || 0) >= 2, true);
-      assert.equal((stages.language_resolver?.attempts || 0) >= 2, true);
+      assert.equal(stages.language_resolver?.attempts, 1,
+        'Bazel labels go directly to their build resolver; the JavaScript import owns language resolution');
       assert.equal((stages.build_system_resolver?.attempts || 0) >= 2, true);
       assert.equal((stages.build_system_resolver?.hits || 0) >= 1, true);
       assert.equal((stages.build_system_resolver?.misses || 0) >= 1, true);

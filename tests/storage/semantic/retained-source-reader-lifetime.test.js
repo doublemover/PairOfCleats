@@ -165,7 +165,7 @@ try {
     'a caller cannot bless changed retained bytes by mutating expected hashes during the read');
   restore(); await fs.writeFile(target, f.bytes);
   await store.verifySource(f.source, { spans: [[65532, 65534]] });
-  assert.equal((await store.getSourceSpans([ref]))[0].text, f.bytes.toString('utf8'));
+  assert.equal((await run('excerpt'))[0].text, f.bytes.toString('utf8'));
   const limitStore = f.store([syntax], { maxRecordBytes: f.bytes.length - 1 });
   await assert.rejects(limitStore.getSourceSpans([ref]), { code: 'ERR_SEMANTIC_OUTPUT_LIMIT' });
   await assert.rejects(store.getSourceSpans([ref], { maxBytes: 1 }), { code: 'ERR_SEMANTIC_OUTPUT_LIMIT' });

@@ -5,6 +5,7 @@ import { buildGeneratedPolicyConfig } from '../../../src/index/build/generated-p
 
 const entries = [
   { rel: 'src/main.ts' },
+  { rel: 'scripts/codemods/ac3-to-ac4/src/apolloClientInitialization.ts' },
   { rel: 'src/proto/client.proto' },
   { rel: 'schema/api.graphql' },
   { rel: 'api/openapi.yaml' },
@@ -209,9 +210,12 @@ const generatedFromBuildScript = buildContext.classifyUnresolved({
   spec: '../dist/node/axios.cjs',
   rawSpec: '../dist/node/axios.cjs'
 });
-assert.equal(generatedFromBuildScript?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
-assert.equal(generatedFromBuildScript?.pluginId, 'path-context');
-assert.equal(generatedFromBuildScript?.generatedMatch?.matchType, 'build_output_script_reference');
+assert.equal(generatedFromBuildScript, null, 'a build-script filename does not prove a missing source module is generated');
+const generatedBuildAsset = buildContext.classifyUnresolved({ importerRel: 'bin/check-build-version.js',
+  spec: '../dist/runtime.wasm', rawSpec: '../dist/runtime.wasm' });
+assert.equal(generatedBuildAsset?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
+assert.equal(generatedBuildAsset?.pluginId, 'path-context');
+assert.equal(generatedBuildAsset?.generatedMatch?.matchType, 'build_output_script_reference');
 
 const generatedFromBuildScriptTsEmit = buildContext.classifyUnresolved({
   importerRel: 'scripts/codemods/ac3-to-ac4/src/index.ts',
@@ -221,6 +225,10 @@ const generatedFromBuildScriptTsEmit = buildContext.classifyUnresolved({
 assert.equal(generatedFromBuildScriptTsEmit?.reasonCode, 'IMP_U_GENERATED_EXPECTED_MISSING');
 assert.equal(generatedFromBuildScriptTsEmit?.pluginId, 'path-context');
 assert.equal(generatedFromBuildScriptTsEmit?.generatedMatch?.matchType, 'build_script_typescript_emit_reference');
+assert.equal(createImportBuildContext({ entries: [] }).classifyUnresolved({
+  importerRel: 'scripts/codemods/ac3-to-ac4/src/index.ts',
+  spec: './apolloClientInitialization.js', rawSpec: './apolloClientInitialization.js'
+}), null, 'a TypeScript emit projection requires its indexed source counterpart');
 
 const buildRuntimeRootReference = buildContext.classifyUnresolved({
   importerRel: 'docker/scripts/setup_env',

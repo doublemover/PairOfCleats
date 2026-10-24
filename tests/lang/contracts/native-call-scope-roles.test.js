@@ -67,9 +67,9 @@ const groovy = await project('groovy', '.groovy', `class Box {
     def callback = { nested(); };
     after();
   }
-  def greet() {
-    println 'ready'
-  }
+}
+def greet() {
+  println 'ready'
 }
 `);
 const groovyOuter = groovy.chunks.find(chunk => chunk.name === 'Box.outer');
@@ -77,6 +77,7 @@ assert.ok(groovyOuter, 'native qualified caller names survive relation projectio
 assert.deepEqual(groovyOuter.codeRelations.callDetails.map(detail => detail.callee), ['before', 'after']);
 assert.equal(groovyOuter.codeRelations.callOmissions.anonymousScopeCalls, 1);
 assert.ok(!groovy.sites.some(site => site.calleeRaw === 'nested'));
+assert.deepEqual(groovy.chunks.find(chunk => chunk.name === 'greet').codeRelations.calls, [['greet', 'println']]);
 assert.ok(groovy.sites.some(site => site.calleeRaw === 'println'),
   `parenthesis-free grammar invocation remains addressable: ${JSON.stringify(groovy.chunks.map(chunk => ({
     name: chunk.name, parserRecovered: chunk.meta.parserRecovered,
