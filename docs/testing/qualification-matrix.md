@@ -12,7 +12,8 @@ failure repair; [the current receipt](../archived/windows-solo-validation-2026-1
 records fresh setup, focused failures/repairs and pending full-tree acceptance.
 Initial discovery contained 4348 default-all cases. Two ownership regressions
 expand it to 4350. Splitting four aggregate CLI wrappers into all 77 original
-command cases yields 4423 discovered cases, 4361 required and the same 62
+command cases yields 4423 discovered cases. Five new ownership regressions bring discovery
+to 4428, with 4366 required and the same 62
 documented exclusions. Native build/query lifecycle cases run serially. Older
 inventory totals below are historical. Current source is not fully qualified.
 

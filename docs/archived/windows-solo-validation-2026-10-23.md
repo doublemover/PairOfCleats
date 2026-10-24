@@ -187,3 +187,90 @@ This repair batch passes scoped npm formatting, config budget, environment usage
 generated-surface freshness, command-surface and workflow contracts, the complete
 40-case front gate, and git diff --check. These checks do not substitute for
 the pending complete frozen-source Windows cohorts.
+
+
+## API, module ownership and publication repair wave
+
+Candidate `a11b642781c8a92937261e2f6ed92aece690b40e` passed both 60-case CLI
+cohorts, including the full build fixtures. Its explicit 24-case API-contract
+cohort passed seven and failed 17: four row/writer fixtures and 13 builds hitting
+their internal 10-second cancellation bound. There were no outer 30-second
+timeouts, skips or native crashes. This remains a failed candidate, not broad
+acceptance. Original commands, logs, failure JSON and per-head receipts remain
+historical author-workspace files in the task directory.
+
+The serial TypeScript control distinguished correctness from load: the build
+finished, but module-level calls disappeared from call_sites because declaration
+chunks did not own their source spans. JS/TS now retain module calls only within
+unowned source gaps, preserving existing declaration ranges and rejecting calls
+crossing a declaration boundary. Parse-checkpoint replay does not duplicate
+module owners. SourceChunking advances 21 to 22 and RecordsProducer 6 to 7.
+The original TypeScript CLI source/calls remain intact; its clean/policy variants
+pass with five/seven exact joins and the original two missing-argument warnings.
+Fixtures explicitly enable the existing target resolver instead of demanding
+resolved targets while disabling that producer. Value/type and risk inference
+remain outside those API fixture assertions.
+
+Manual positive call rows now obtain independent argument receipts by parsing
+their authored operands. Invalid targets, lexical ambiguity, generation mismatch,
+missing joins, duplicate identity and warning-cap negatives remain. The direct
+TypeScript writer fixture supplies canonical chunk UIDs and virtual paths, so
+its actual metadata owner can mint symbol identity; both compiler and Babel
+variants retain the independent compiler diagnostic oracle and writer/reload
+content assertions. API reader qualification also preserves the required formal
+field for report version 1.1.0 after the 1.2.0 cutover. A new negative fails before
+that fix; 1.0.0 legacy readability remains covered.
+
+A reproduced publication warning was an algorithm mismatch: semantic frontier
+targets carry SHA256 seals, but reconciliation recomputed xxh64. The reader now
+compares the actual SHA256 bytes and length against both registrations. Its
+fixture preserves producer seals/actual byte counts and obtains a real generation
+validation receipt before publication. The recovery regression passes, including
+unpublished, missing/corrupt control storage and generation/receipt negatives.
+No activation, checksum or publication authority was relaxed.
+
+Profiling found repeated physical path walks during identity-only comparisons,
+serial snapshot copies/hashes, and Node atomic staging probing ancestor directories
+for a legacy native path budget. Identity comparison now uses shared lexical
+admission; actual file use/publication and unmatched manifest members keep current
+physical admission. Portable injected-link metadata, traversal, root-selection
+and missing-current-byte negatives pass without creating a symlink. Snapshot copy,
+inventory hashing and bounded manifest checksum windows use the existing queue
+with an explicit original-work drain. Four copies retain at most four 64 KiB
+source buffers; manifest diagnostics merge in original order with four-piece
+windows. Failure stops new work and preserves all distinct original failures,
+falsey values, frozen error metadata/getter receivers and actual ownership. No
+signal race can return while already launched work remains active.
+
+Node filesystem atomic writes now request compact same-parent staging on deep
+Windows paths/long filename components. The native-consumer legacy path policy
+is unchanged. Existing descriptor/failure tests and real deep-path async/sync
+publication pass. Copy failure tests hold real source reads, reject two actual
+content mismatches, and prove writer/descriptor settlement and no subsequent
+admission. Completed-stage recovery, publication-family validation and both
+manifest read-plan controls pass. These are correctness/resource bounds, not an
+end-to-end latency qualification.
+
+API fixture projects had also inherited 97 parent-checkout ambient @types files:
+198 compiler inputs/about 5 MB. Their explicit ECMAScript tsconfig scope retains
+normal production providers and cuts that to 66 inputs/472529 bytes with no
+parent @types inputs. The original combined export fixture, all four source
+files and all CLI/policy assertions remain. It still hits its original 10-second
+build bound on the dirty repair tree; no deadline increase or passing acceptance
+is claimed. A diagnostic phase trace is not final-source evidence. After the
+repair commit, rerun every API case against the clean candidate before resuming
+remaining cohorts.
+
+Five new owner regressions bring discovery to 4428, with 4366 required cases and
+the same provisional 62 exclusions. A source review additionally found that the
+legacy index-validation aggregate mixes portable checks with a physical-symlink
+case and has a malformed checksum fixture. Its portable coverage must be split
+out and the checksum assertion repaired in the next validation batch; excluding
+the aggregate cannot qualify those portable assertions. Further mixed physical
+wrappers need the same audit before final omission reconciliation.
+
+The implementation source checkpoint is 870a47fc4f5d90717c1f33bb8c33cfc27c333b01. Scoped formatting, config
+budget, environment usage, generated freshness, command/workflow contracts and
+the final 40-case gate pass; the versioned schema regression passes after its
+last compatibility adjustment. Original source/fixture failure receipts remain.
+The following documentation commit does not certify the remaining API/deep pass.

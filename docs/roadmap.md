@@ -10,7 +10,10 @@ Canonical for: initiative status, execution order, and remaining work
 Current reconciliation, 2026-10-23: after source commit `d256540ac`, the user
 requested a full Windows validation pass and failure repairs before more backlog
 implementation. Workers remain parked. The [current validation receipt](archived/windows-solo-validation-2026-10-23.md)
-separates current observations from older qualified sources.
+separates current observations from older qualified sources. Both 60-case CLI
+cohorts passed at `a11b64278`; API failures exposed module-call ownership, report
+qualification and publication-seal defects. The repair tree remains unqualified;
+clean-candidate API reruns and portable coverage in mixed link wrappers are next.
 
 Continue on `codex/pr557-audit-repairs-20261012` through
 [PR #572](https://github.com/doublemover/PairOfCleats/pull/572), retaining its
