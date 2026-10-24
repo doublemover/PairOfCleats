@@ -42,7 +42,8 @@ const indexWithLegacy = {
 const recovered = await readCacheEntry(cacheDir, keyWithLegacyFallback, indexWithLegacy);
 assert.ok(recovered?.entry, 'expected corrupt primary cache file to fall back to legacy cache entry');
 assert.equal(recovered.path, validLegacyPath, 'expected fallback read path to use legacy cache entry');
-assert.equal(fs.existsSync(corruptPrimaryPath), false, 'expected corrupt primary cache entry to be removed');
+assert.equal(await fsPromises.readFile(corruptPrimaryPath, 'utf8'), 'not-a-valid-encoded-cache-entry',
+  'read-only recovery preserves corrupt bytes for the separate owned maintenance boundary');
 assert.equal(
   indexWithLegacy.entries[keyWithLegacyFallback]?.path,
   validLegacyPath,
@@ -65,6 +66,8 @@ const indexCorruptOnly = {
 
 const missingAfterCorrupt = await readCacheEntry(cacheDir, keyCorruptOnly, indexCorruptOnly);
 assert.equal(missingAfterCorrupt?.entry, null, 'expected corrupt standalone cache entry without fallback to miss');
-assert.equal(fs.existsSync(corruptOnlyPath), false, 'expected corrupt standalone cache entry to be removed');
+assert.equal(fs.existsSync(corruptOnlyPath), true, 'a read miss has no deletion authority');
+assert.equal(await fsPromises.readFile(corruptOnlyPath, 'utf8'), 'still-not-a-valid-cache-entry');
+assert.equal(indexCorruptOnly.entries[keyCorruptOnly].path, corruptOnlyPath, 'failed reads cannot retarget an index to unverified bytes');
 
 console.log('embeddings cache corrupt standalone recovery test passed');

@@ -92,7 +92,8 @@ try {
 
   const malformed = fixture({ invalidOutput: true });
   const malformedFailure = await rejected(malformed.encoder(['malformed output']));
-  assert.match(malformedFailure.message, /invalid sentence_embedding shape/);
+  assert.equal(malformedFailure.code, 'ERR_EMBEDDING_OUTPUT');
+  assert.match(malformedFailure.message, /tensor data length disagrees with its shape/);
   assert.ok(malformed.tensors.every(tensor => tensor.closes === 1), 'invalid output still releases every observed input/output');
   await malformed.encoder.dispose();
 

@@ -40,7 +40,7 @@ try {
   leases.push(adapter);
   const vectors = await adapter.embed(['first', 'second']);
   assert.equal(adapter.provider, 'xenova', 'persisted provider identity must remain compatible');
-  assert.equal(env.cacheDir, modelsDir, 'existing model cache must be retained');
+  assert.equal(env.cacheDir, undefined, 'the selected cache is passed per acquisition without mutating Transformers global state');
   assert.deepEqual(pipelineCalls, [
     ['feature-extraction', modelId, { dtype: 'q8', cache_dir: modelsDir }]
   ], 'Node must load the existing model_quantized.onnx weights, not its fp32 default');

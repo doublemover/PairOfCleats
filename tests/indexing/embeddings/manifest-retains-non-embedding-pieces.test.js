@@ -130,6 +130,7 @@ assert.ok(JSON.parse(await fs.readFile(manifestPath, 'utf8')).pieces.some(piece 
 await fs.rm(`${manifestPath}.bak`, { force: true });
 await fs.writeFile(manifestPath, '{truncated');
 await assert.rejects(updatePieceManifest({ indexDir, mode: 'code', totalChunks: 1, dims: 4 }), /valid existing manifest/);
+assert.equal(await fs.readFile(manifestPath, 'utf8'), '{truncated', 'failed recovery cannot replace the prior manifest');
 
 await fs.writeFile(manifestPath, stableBytes);
 const originalReadFileSync = fsSync.readFileSync;
@@ -141,7 +142,6 @@ try {
   await assert.rejects(updatePieceManifest({ indexDir, mode: 'code', totalChunks: 1, dims: 4 }), /valid existing manifest/);
 } finally { fsSync.readFileSync = originalReadFileSync; }
 assert.equal(await fs.readFile(manifestPath, 'utf8'), stableBytes, 'unreadable existing authority is never treated as a new manifest');
-assert.equal(await fs.readFile(manifestPath, 'utf8'), '{truncated', 'failed recovery cannot replace the prior manifest');
 await fs.writeFile(manifestPath, JSON.stringify({ pieces: [] }));
 await assert.rejects(updatePieceManifest({ indexDir, mode: 'code', totalChunks: 1, dims: 4 }), /valid existing manifest/);
 

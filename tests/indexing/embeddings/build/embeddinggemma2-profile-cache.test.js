@@ -29,7 +29,7 @@ const env = applyTestEnv({
   }
 });
 runNode([
-  path.resolve('build_index.js'), '--repo', repoRoot, '--stage', 'stage2',
+  path.resolve('build_index.js'), '--repo', repoRoot, '--incremental', '--stage', 'stage2',
   '--mode', 'code', '--threads', '1', '--progress', 'off'
 ], 'build model-profile fixture', process.cwd(), env, { stdio: 'pipe' });
 const buildsDir = path.join(getRepoCacheRoot(repoRoot), 'builds');

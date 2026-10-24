@@ -459,16 +459,22 @@ const readCacheEntryUnlocked = async (cacheDir, cacheKey, cacheIndex, maxBytes) 
   const primaryPath = resolveCacheEntryPath(cacheDir, cacheKey);
   if (primaryPath && fsSync.existsSync(primaryPath)) {
     try {
-      repairShardIndexEntryToStandalonePath(cacheIndex, cacheKey, primaryPath);
-      return { path: primaryPath, entry: await readCacheEntryFile(primaryPath, { maxBytes }) };
+      const entry = await readCacheEntryFile(primaryPath, { maxBytes });
+      if (entry) {
+        repairShardIndexEntryToStandalonePath(cacheIndex, cacheKey, primaryPath);
+        return { path: primaryPath, entry };
+      }
     } catch (error) { if (error.cacheOwnershipPending || error instanceof AggregateError) throw error; }
   }
   const legacyPath = resolveCacheEntryPath(cacheDir, cacheKey, { legacy: true });
   if (legacyPath && fsSync.existsSync(legacyPath)) {
     try {
-      repairShardIndexEntryToStandalonePath(cacheIndex, cacheKey, legacyPath);
-      repointCacheIndexEntryPath(cacheIndex, cacheKey, legacyPath);
-      return { path: legacyPath, entry: await readCacheEntryFile(legacyPath, { maxBytes }) };
+      const entry = await readCacheEntryFile(legacyPath, { maxBytes });
+      if (entry) {
+        repairShardIndexEntryToStandalonePath(cacheIndex, cacheKey, legacyPath);
+        repointCacheIndexEntryPath(cacheIndex, cacheKey, legacyPath);
+        return { path: legacyPath, entry };
+      }
     } catch (error) { if (error.cacheOwnershipPending || error instanceof AggregateError) throw error; }
   }
   return { path: primaryPath, entry: null };

@@ -81,7 +81,7 @@ const waitingForCancel = cancelledQueue.enqueuePrepared({ estimateBytes: 512,
 cancel.abort();
 await assert.rejects(waitingForCancel, { name: 'AbortError' });
 assert.equal(cancelledQueue.stats().waitingProducerBytes, 0);
-finishWrite(); await cancelledQueue.onIdle();
+finishWrite(); await assert.rejects(cancelledQueue.onIdle(), { code: 'ABORT_ERR' });
 assert.equal(cancelledQueue.stats().cancelled, 1);
 assert.equal(cancelledQueue.stats().pendingBytes, 0);
 
@@ -90,7 +90,7 @@ const deferredQueue = createBoundedWriterQueue({ maxPending: 1, signal: deferred
 const admitted = deferredQueue.enqueuePrepared({ estimateBytes: 512,
   prepare() { assert.fail('cancelled admitted producer must never encode'); }, write() {} });
 deferredCancel.abort();
-await admitted; await deferredQueue.onIdle();
+await admitted; await assert.rejects(deferredQueue.onIdle(), { code: 'ABORT_ERR' });
 assert.equal(deferredQueue.stats().failed, 1);
 assert.equal(deferredQueue.stats().cancelled, 1);
 assert.equal(deferredQueue.stats().pendingBytes, 0);

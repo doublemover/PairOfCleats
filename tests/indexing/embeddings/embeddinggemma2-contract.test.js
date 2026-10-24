@@ -49,11 +49,12 @@ for (const dimensions of [128, 256, 512, 768]) {
   vectors[0][0] = 7;
   assert.notEqual(vectors[1][0], 7, 'rows must not alias');
 }
-assert.throws(() => normalizeEmbeddingGemma2Output({ last_hidden_state: tensor().last_hidden_state }, 1, 128), /shape/);
-assert.throws(() => normalizeEmbeddingGemma2Output(tensor(2), 1, 128), /shape/);
+assert.throws(() => normalizeEmbeddingGemma2Output({ last_hidden_state: tensor().last_hidden_state }, 1, 128), { code: 'ERR_EMBEDDING_OUTPUT' });
+assert.throws(() => normalizeEmbeddingGemma2Output(tensor(2), 1, 128), error => error.code === 'ERR_EMBEDDING_OUTPUT'
+  && error.expectedRows === 1 && error.observedRows === 2);
 const nonfinite = tensor();
 nonfinite.sentence_embedding.data[767] = NaN;
-assert.throws(() => normalizeEmbeddingGemma2Output(nonfinite, 1, 128), /nonfinite/);
+assert.throws(() => normalizeEmbeddingGemma2Output(nonfinite, 1, 128), { code: 'ERR_EMBEDDING_OUTPUT' });
 const zero = tensor();
 zero.sentence_embedding.data.fill(0);
 assert.throws(() => normalizeEmbeddingGemma2Output(zero, 1, 128), /norm/);

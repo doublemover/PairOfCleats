@@ -43,13 +43,12 @@ export const validateCachedDims = ({ vectors, expectedDims, mode, quantization }
   const spec = resolveEmbeddingQuantizationSpec(quantization);
   if (!expectedDims || !Array.isArray(vectors)) return;
   for (const vec of vectors) {
-    assertQuantizedEmbeddingRow(vec, { spec, dims: expectedDims });
-    if (!isVectorLike(vec) || !vec.length) continue;
-    if (vec.length !== expectedDims) {
+    if ((Array.isArray(vec) || vec instanceof Uint8Array) && vec.length && vec.length !== expectedDims) {
       throw new Error(
         `[embeddings] ${mode} embedding dims mismatch (configured=${expectedDims}, observed=${vec.length}).`
       );
     }
+    assertQuantizedEmbeddingRow(vec, { spec, dims: expectedDims });
   }
 };
 

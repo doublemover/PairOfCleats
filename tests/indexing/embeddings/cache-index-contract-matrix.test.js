@@ -185,7 +185,8 @@ const toIso = (value) => new Date(value).toISOString();
     },
     'id'
   );
-  assert.deepEqual(normalized.files, { 'src/a.js': 'a' });
+  assert.equal(Object.getPrototypeOf(normalized.files), null, 'file lookup dictionaries cannot inherit attacker-selected keys');
+  assert.deepEqual({ ...normalized.files }, { 'src/a.js': 'a' });
   assert.equal(
     normalizeCacheIndex(
       {

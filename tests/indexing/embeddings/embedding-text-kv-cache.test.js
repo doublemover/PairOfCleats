@@ -128,10 +128,14 @@ const integrityRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-text-kv-integ
 try {
   const identity = { ...cacheIdentity, dims: 4 };
   const base = resolveCacheBase(integrityRoot, identity);
-  await fs.mkdir(base, { recursive: true });
+  const originalStore = await createPersistentEmbeddingTextKvStore({ Database, cacheRoot: integrityRoot,
+    cacheIdentity: identity, cacheIdentityKey });
+  assert.ok(originalStore, 'the real producer first establishes this profile authority');
+  await originalStore.close();
   const dbPath = path.join(base, 'text-vectors.sqlite');
   const legacy = new Database(dbPath);
-  legacy.exec(`CREATE TABLE text_vectors (cache_key TEXT PRIMARY KEY, dims INTEGER NOT NULL,
+  legacy.exec(`DROP TABLE text_vectors;
+    CREATE TABLE text_vectors (cache_key TEXT PRIMARY KEY, dims INTEGER NOT NULL,
     vector_blob BLOB NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
     last_access_at TEXT NOT NULL, hit_count INTEGER NOT NULL DEFAULT 0)`);
   const legacyKey = createHash('sha1').update(`${cacheIdentityKey}\nlegacy`).digest('hex');
@@ -197,5 +201,19 @@ try {
     assert.equal(store.set('overflow', new Float32Array(values.length).fill(1e10)), false);
   } finally { await store.close(); }
 } finally { await fs.rm(roundingRoot, { recursive: true, force: true }); }
+
+const longRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-text-kv-long-'));
+try {
+  const cacheRoot = path.join(longRoot, 'nested-cache-'.repeat(12));
+  const store = await createPersistentEmbeddingTextKvStore({ Database, cacheRoot, cacheIdentity, cacheIdentityKey });
+  assert.ok(store, 'the original profile owner admits a deeply nested native SQLite database');
+  try {
+    assert.equal(store.set('long path', Float32Array.of(1, 2, 3)), true);
+    assert.deepEqual(Array.from(store.get('long path')), [1, 2, 3]);
+    const dbPath = path.join(resolveCacheBase(cacheRoot, cacheIdentity), 'text-vectors.sqlite');
+    assert.ok(dbPath.length > 260, 'exercise the Windows legacy path boundary without changing the profile layout');
+    assert.equal((await fs.stat(dbPath)).isFile(), true);
+  } finally { await store.close(); }
+} finally { await fs.rm(longRoot, { recursive: true, force: true }); }
 
 console.log('embedding text kv cache test passed');

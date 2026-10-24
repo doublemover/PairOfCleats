@@ -4,7 +4,8 @@ import { runEmbeddingsTool } from '../../../../src/integrations/core/embeddings.
 import { applyTestEnv } from '../../../helpers/test-env.js';
 
 applyTestEnv();
-assert.deepEqual(await runEmbeddingsTool(['-e', 'process.exit(0)']), { ok: true });
+assert.deepEqual(await runEmbeddingsTool(['-e', 'process.exit(0)']), { ok: true,
+  forwarding: { stdout: { overflowBytes: 0 }, stderr: { overflowBytes: 0 } } });
 await assert.rejects(
   runEmbeddingsTool(['-e', 'process.stderr.write("synthetic failure"); process.exit(7)']),
   (error) => error.code === 'SUBPROCESS_FAILED'

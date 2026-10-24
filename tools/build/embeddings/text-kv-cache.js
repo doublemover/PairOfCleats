@@ -235,7 +235,9 @@ const openPersistentTextStore = async ({
   const session = acquireEmbeddingProfileSession(baseDir);
   let lifetime = null;
   try {
-    db = new Database(dbPath);
+    // Keep the existing profile, lease and quota owner. SQLite's Windows file
+    // API needs the extended namespace for deeply nested repository caches.
+    db = new Database(path.toNamespacedPath(dbPath));
     lifetime = createTextDatabaseLifetime(db, session);
     if (db.pragma('journal_mode = DELETE', { simple: true }) !== 'delete') throw new Error('Text cache rollback journal mode is unconfirmed.');
     db.pragma('synchronous = NORMAL');
