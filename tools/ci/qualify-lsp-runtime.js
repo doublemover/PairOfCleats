@@ -7,7 +7,7 @@ import { resolveToolingCommandProfile, probeLspInitializeHandshake } from '../..
 import { isProcessAlive } from '../../src/shared/locks/file-lock-owner.js';
 import { redactDiagnosticText } from '../../src/shared/diagnostic-text.js';
 import { probeCommand } from '../shared/cli-utils.js';
-import { isTestingEnv } from '../../src/shared/env.js';
+import { isTestingEnv } from '../../src/shared/env/testing.js';
 import { hashManagedToolFile } from '../../src/shared/managed-tool-file.js';
 import { PHPACTOR_APPROVED_RELEASE, PHPACTOR_POSIX_SHIM } from '../tooling/approved-artifacts.js';
 

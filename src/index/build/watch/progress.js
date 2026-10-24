@@ -1,5 +1,5 @@
 import { writeProgressEvent } from '../../../shared/cli/progress-events.js';
-import { getProgressContext } from '../../../shared/env.js';
+import { getProgressContext } from '../../../shared/env/runtime.js';
 import { normalizeProgressMode } from '../../../shared/cli/display/terminal.js';
 
 /** Structured observations through the canonical progress writer. Monitoring

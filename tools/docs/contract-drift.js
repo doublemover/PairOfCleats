@@ -159,7 +159,7 @@ const main = async () => {
   const runnerDocText = readText(path.join(root, 'docs', 'testing', 'test-runner-interface.md'));
   const regroupingDocText = readText(path.join(root, 'docs', 'testing', 'test-decomposition-regrouping.md'));
 
-  const pipelineText = readText(path.join(root, 'src', 'retrieval', 'pipeline.js'));
+  const pipelineText = readText(path.join(root, 'src', 'retrieval', 'pipeline', 'rank-stage.js'));
 
   const searchFlags = collectSearchOptionFlags();
 
@@ -212,7 +212,7 @@ const main = async () => {
     },
     scoreBreakdown: {
       doc: 'docs/contracts/search-contract.md',
-      source: 'src/retrieval/pipeline.js',
+      source: 'src/retrieval/pipeline/rank-stage.js',
       sourceCount: scoreKeysSource.size,
       docCount: scoreKeysDoc.size,
       ...scoreDiff

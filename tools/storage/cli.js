@@ -14,7 +14,7 @@ import { inspectStorageFreeSpace } from '../../src/shared/storage/destination.js
 import { resolveRepoConfig, resolveRepoCacheRootPath, getModelsDir, getToolingDir, getExtensionsDir, getDictConfig, getCacheRoot } from '../shared/dict-utils.js';
 import { STORAGE_ACTIONS, STORAGE_OPTIONS } from './options.js';
 import { readStorageLocator } from '../../src/shared/storage/locator-read.js';
-import { getEnvConfig } from '../../src/shared/env.js';
+import { getEnvConfig } from '../../src/shared/env/runtime.js';
 import { applyStorageLocatorSelections } from '../../src/shared/storage/selected-layout.js';
 import { inspectStorageCategory } from './category-inventory.js';
 import { planStorageProbePolicy, applyStorageProbePolicy } from '../../src/shared/storage/probe-policy.js';

@@ -670,6 +670,9 @@ const probeBinary = ({ providerId, command, launchArgs = [], probeArgs, timeoutM
       if (err?.cacheOwnershipPending === true) return { ok: false, attempted, cached: false,
         cacheSource: null, cacheOwnershipPending: true,
         validationFailure: { reasonCode: 'tooling_managed_installation_settlement_pending' } };
+      // A timeout exhausts this command probe. Alternate help/version forms
+      // remain useful after an ordinary exit, but cannot retry a hung command.
+      if (err?.code === 'SUBPROCESS_TIMEOUT') break;
     }
   }
   setBoundedCacheEntry(
