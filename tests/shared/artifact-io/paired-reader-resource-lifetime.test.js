@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { readJsonlRowAt, validateOffsetsAgainstFile } from '../../../src/shared/artifact-io/offsets.js';
-import { withOpenedFileReaders } from '../../../src/shared/artifact-io/with-opened-readers.js';
+import { openFileReaderScope, withOpenedFileReaders } from '../../../src/shared/artifact-io/with-opened-readers.js';
 import { getContainedFileSession, isContainedFileSession } from '../../../src/shared/contained-file-resource.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 
@@ -170,6 +170,26 @@ try {
     const failure = await rejected(() => reading);
     assert.equal(contains(failure, primary), true); assert.ok([...states.values()].every(state => state.closes === 1));
     assert.equal(getContainedFileSession(failure), null); fsp.open = originalOpen;
+  }
+  {
+    const states = install(), scope = await openFileReaderScope([data, offsets], { containedRoot: root });
+    const cancellation = Object.freeze(Object.assign(new Error('ordinary verification cancellation'), { code: 'ABORT_ERR' }));
+    try {
+      const retained = scope.remember(cancellation);
+      for (let index = 0; index < 256; index++) assert.equal(scope.remember(retained), retained,
+        'one scope must not recursively re-observe its own already retained failure');
+      const peer = Object.freeze(new Error('independent ordinary peer verification failure'));
+      scope.remember(peer);
+      const combined = scope.combineFailures();
+      for (let index = 0; index < 256; index++) {
+        assert.equal(scope.remember(combined), combined);
+        assert.equal(scope.combineFailures(), combined, 'unchanged original failures keep one bounded composition');
+      }
+      assert.equal(contains(combined, cancellation), true); assert.equal(contains(combined, peer), true);
+    } finally {
+      assert.equal((await scope.complete()).settled, true, 'ordinary failure aliases cannot invent pending original work');
+    }
+    assert.ok([...states.values()].every(state => state.closes === 1)); fsp.open = originalOpen;
   }
   assert.equal(await fsp.readFile(data, 'utf8'), lines.join('')); assert.deepEqual(await fsp.readFile(offsets), bytes);
 } finally {

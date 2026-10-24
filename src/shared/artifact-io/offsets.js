@@ -2,7 +2,6 @@ import { readExactAt } from '../io/read-exact.js';
 import fs from 'node:fs/promises';
 import { createContainedFileResource } from '../contained-file-resource.js';
 import { openFileReaderScope, withOpenedFileReaders } from './with-opened-readers.js';
-import { addStorageFailureContext } from '../storage/operation-error.js';
 import { createHash } from 'node:crypto';
 import { throwIfAborted } from '../abort.js';
 import { parseJsonlLine } from './jsonl.js';
@@ -465,9 +464,11 @@ export const openJsonlRowReader = async (jsonlPath, offsetsPath, options = {}) =
         const hashes = await Promise.allSettled(handles.map((handle, index) =>
           hashReadSource(handle, index ? offsetsBytes : jsonlBytes, signal, snapshot,
             index ? offsetsHashAlgorithm : jsonlHashAlgorithm)));
-        const failures = hashes.filter(result => result.status === 'rejected').map(result => scope.remember(result.reason));
-        if (failures.length) throw failures.slice(1).reduce((failure, secondary) =>
-          addStorageFailureContext(failure, {}, secondary, { secondaryPresent: true }), failures[0]);
+        const failures = hashes.filter(result => result.status === 'rejected');
+        if (failures.length) {
+          for (const failure of failures) scope.remember(failure.reason);
+          throw scope.combineFailures();
+        }
         const values = hashes.map(result => result.value);
         if (values[0].hash !== jsonlHash || values[1].hash !== offsetsHash) throw contentChanged();
         if (snapshot) {

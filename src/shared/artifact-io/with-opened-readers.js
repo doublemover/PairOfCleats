@@ -12,13 +12,14 @@ export const openFileReaderScope = async (paths, { containedRoot = null } = {}) 
   if (!Array.isArray(paths) || paths.length < 1 || paths.length > 8) {
     throw new TypeError('A bounded file reader set is required.');
   }
-  const errors = [], seenValues = new WeakMap();
-  let completing = null, terminalFailure = null, overflow = false;
+  const errors = [], seenValues = new WeakMap(), compositions = new WeakSet();
+  let completing = null, terminalFailure = null, overflow = false, combined = null, combinedCount = -1;
   const remember = value => {
     // This exact completion error already observes these same descriptor
     // owners. Feeding it back through their gates would create a self-cycle.
     if (terminalFailure && value === terminalFailure) return value;
     const objectLike = value !== null && ['object', 'function'].includes(typeof value);
+    if (objectLike && compositions.has(value)) return value;
     if (objectLike && seenValues.has(value)) return errors[seenValues.get(value)];
     if (errors.length >= 128) {
       if (!overflow) {
@@ -31,10 +32,21 @@ export const openFileReaderScope = async (paths, { containedRoot = null } = {}) 
     }
     const retained = observeStorageResource(value, { phase: 'opened-file-readers' }).retain();
     if (objectLike) seenValues.set(value, errors.length);
+    // Nested verification/read promises may report the same captured failure.
+    // Its original prerequisites are already recorded; wrapping our own alias
+    // again inflates the bounded diagnostic graph without adding original work.
+    seenValues.set(retained, errors.length);
     errors.push(retained); return retained;
   };
-  const combine = () => errors.slice(1).reduce((failure, secondary) =>
-    addStorageFailureContext(failure, {}, secondary, { secondaryPresent: true }), errors[0]);
+  const combine = () => {
+    if (combinedCount !== errors.length) {
+      combined = errors.slice(1).reduce((failure, secondary) =>
+        addStorageFailureContext(failure, {}, secondary, { secondaryPresent: true }), errors[0]);
+      combinedCount = errors.length;
+      if (combined) compositions.add(combined);
+    }
+    return combined;
+  };
   const requireFailuresSettled = () => {
     for (const error of errors) observeStorageResource(error, { phase: 'opened-file-readers' }).requireSettled();
   };
@@ -92,7 +104,8 @@ export const openFileReaderScope = async (paths, { containedRoot = null } = {}) 
     return completing;
   };
   if (errors.length) throw (await complete()).failure;
-  return Object.freeze({ descriptors: Object.freeze(admission.map(entry => entry.value)), remember, requireFailuresSettled, complete });
+  return Object.freeze({ descriptors: Object.freeze(admission.map(entry => entry.value)), remember,
+    combineFailures: combine, requireFailuresSettled, complete });
 };
 
 /** Scope a small exact file set using these same owners and compositor. */

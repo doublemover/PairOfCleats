@@ -1307,3 +1307,22 @@ published. Normal inventory/reuse verification still rehashes every member. New
 controls compare identical inventories/output, count the actual source opens,
 and reject a corrupt pinned digest during copy while ordinary inventory keeps
 reporting the actual physical hash. No schema or public configuration changed.
+
+The 11-case copy-pin follow-up at
+`bd09f33ee24a9c73a42e61d92a126754f937a545` again passed six/failed five
+(one timeout), with no skips/native crashes. Copy/integrity controls and one SSR
+case pass, but the five unresolved originals remain. One export cancellation
+advanced into graph-capability reconciliation and exposed retained error-graph
+expansion in the existing paired-reader owner; no pass is claimed for that case.
+
+A new real-handle regression failed before repair in 125ms: remembering the
+scope's own retained ordinary cancellation created another wrapper rather than
+returning its already captured observation. Nested verification wrappers could
+consume the bounded context allowance and leave ordinary cancellation classified
+as unknown original work. The paired-reader owner now recognizes its own aliases
+and privately produced compositions, memoizing only unchanged captured originals.
+JSONL verification asks that same owner to compose its two original hash errors.
+Actual independent pending/failed-close observations and the 128-original bound
+are unchanged; no resource observer is replaced with successful classification.
+Regression controls retain two independent errors across repeated aliases and
+require both actual descriptors to close once. Repaired-source checks are pending.
