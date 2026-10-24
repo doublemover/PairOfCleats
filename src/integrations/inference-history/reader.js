@@ -188,7 +188,17 @@ const dateBound = (value, end) => {
   return date.toISOString();
 };
 
+/** One synchronous search owns one consistent read snapshot. Besides preventing
+ * cross-statement generation/privacy drift, this avoids taking a new filesystem
+ * read lock for every candidate/provenance lookup on persistent collections.
+ * Existing caller transactions retain their original commit/rollback owner.
+ */
 export function searchHistory(db, request) {
+  const read = () => searchHistorySnapshot(db, request);
+  return db && !db.inTransaction ? db.transaction(read)() : read();
+}
+
+function searchHistorySnapshot(db, request) {
   if (typeof request.query !== 'string' || request.query.length > 4096) throw invalid();
   const searchField = request.searchField || 'text';
   const groupBy = request.groupBy || 'evidence';

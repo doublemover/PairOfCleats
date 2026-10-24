@@ -148,3 +148,8 @@ The JSON companion now includes 4 later-added active modules. Static consumer ev
 - `src/shared/cache/repo-access.js`: 5 direct consumers; retain and document the owner.
 - `src/shared/cache/repo-access-reader.js`: 2 direct production consumers; retain the lightweight reader admission and process-lifetime lease owner, with cache authority and lifecycle coverage.
 - `src/shared/json-stream/buffer-transfer.js`: 2 direct consumers; retain and document the owner.
+
+
+## 2026-10-24 inventory reconciliation
+
+The JSON companion now matches the current owned-file census (114 files). 15 newly added modules received explicit boundary recommendations and actual production-consumer notes. Existing recommendations remain historical design review; this inventory reconciliation does not establish runtime qualification. No code was removed on the basis of static consumer counts.

@@ -54,12 +54,12 @@
     ]
   },
   {
-    "query": "\"Minimal API Server\"",
+    "query": "\"HTTP API server contract\"",
     "mode": "prose",
     "expect": [
       {
         "file": "docs/api/server.md",
-        "name": "Minimal API Server",
+        "name": "HTTP API server contract",
         "mode": "prose"
       }
     ]

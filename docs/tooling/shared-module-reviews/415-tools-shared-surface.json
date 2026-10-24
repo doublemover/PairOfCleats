@@ -4,7 +4,7 @@
   "reviewDate": "2026-03-25",
   "scope": "Primary ownership for every file under tools/shared/** assigned to #415 in the shared-module ledger.",
   "summary": {
-    "ownedFileCount": 17,
+    "ownedFileCount": 22,
     "overallAssessment": "tools/shared is doing three jobs at once: it houses real tool-local adapters, generic helpers that should probably live under src/shared, and a few one-off report or compatibility shims that are not strong shared modules at all. The main cleanup goal is to make those three categories explicit so the bucket stops growing ambiguously, while preserving the hard cutovers that already moved runtime-grade helpers out.",
     "clusterFindings": [
       {
@@ -91,6 +91,27 @@
   },
   "entries": [
     {
+      "path": "tools/shared/archive-extraction.js",
+      "consumerCount": 5,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 3 direct consumers, including tools/download/extensions.js, tools/tooling/install-clangd.js, tools/tooling/install-go-sdk.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "tools/shared/archive-resource-owner.js",
+      "consumerCount": 2,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: tools/shared/archive-extraction.js, tools/tooling/install-lua-language-server.js.",
+      "recommendation": "Retain actual archive descriptor sessions and captured native methods; destroy/iterator acknowledgments are insufficient closure."
+    },
+    {
       "path": "tools/shared/cli-display.js",
       "consumerCount": 11,
       "classifications": [
@@ -102,7 +123,7 @@
     },
     {
       "path": "tools/shared/cli-utils.js",
-      "consumerCount": 23,
+      "consumerCount": 28,
       "classifications": [
         "keep",
         "document",
@@ -112,8 +133,20 @@
       "recommendation": "Keep it in tools/shared as the tool runner facade, but do not let it absorb lower-level subprocess behavior that already belongs to src/shared."
     },
     {
+      "path": "tools/shared/dev-artifacts.js",
+      "consumerCount": 28,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "The static census has 28 direct production consumers across benchmark and CI tools. Test helpers also use the owner to place disposable development artifacts beneath temp/dev; they are outside this production consumer count.",
+      "recommendation": "Keep the category-to-path mapping private and lightweight. Preserve unknown-category and lexical traversal rejection, readiness admission ordering and stable .testLogs/.diagnostics interfaces. Path construction does not establish deletion authority; destructive callers must still validate real disposable roots.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
       "path": "tools/shared/dict-utils.js",
-      "consumerCount": 117,
+      "consumerCount": 131,
       "classifications": [
         "split",
         "move",
@@ -126,7 +159,7 @@
     },
     {
       "path": "tools/shared/download-utils.js",
-      "consumerCount": 2,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -134,6 +167,28 @@
       ],
       "consumerNotes": "Download scripts use it for hash normalization, policy resolution, and download verification rules.",
       "recommendation": "Keep it tool-local for now, but document it as the canonical download-policy helper so download scripts do not invent parallel hash parsing and verification logic."
+    },
+    {
+      "path": "tools/shared/file-inventory.js",
+      "consumerCount": 1,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: tools/docs/shared-module-ledger.js.",
+      "recommendation": "Keep one operation-owned inventory over nonoverlapping approved scan roots."
+    },
+    {
+      "path": "tools/shared/fs-utils.js",
+      "consumerCount": 3,
+      "classifications": [
+        "move",
+        "merge",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "CI and docs tooling use it for directory copying and recursive file listing, both of which are generic filesystem behaviors.",
+      "recommendation": "Merge or move these helpers into a shared filesystem family so tool and runtime code stop carrying separate recursive file-list logic."
     },
     {
       "path": "tools/shared/generated-report.js",
@@ -145,18 +200,6 @@
       ],
       "consumerNotes": "Generated docs and report tools use this for byte-stable JSON writes, generatedAt preservation, and write-if-changed text output.",
       "recommendation": "Keep this as the canonical generated-report persistence helper while leaving generator-specific inventory and markdown rendering local."
-    },
-    {
-      "path": "tools/shared/fs-utils.js",
-      "consumerCount": 5,
-      "classifications": [
-        "move",
-        "merge",
-        "document",
-        "test"
-      ],
-      "consumerNotes": "CI and docs tooling use it for directory copying and recursive file listing, both of which are generic filesystem behaviors.",
-      "recommendation": "Merge or move these helpers into a shared filesystem family so tool and runtime code stop carrying separate recursive file-list logic."
     },
     {
       "path": "tools/shared/git-state.js",
@@ -182,7 +225,7 @@
     },
     {
       "path": "tools/shared/input-parsers.js",
-      "consumerCount": 4,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "merge",
@@ -194,7 +237,7 @@
     },
     {
       "path": "tools/shared/map-build-options.js",
-      "consumerCount": 2,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -202,6 +245,26 @@
       ],
       "consumerNotes": "Tooling and test helpers use this for normalizing map-build option projections.",
       "recommendation": "Keep option projection narrow and avoid turning this into a broad tool option parsing surface."
+    },
+    {
+      "path": "tools/shared/native-database-authority.js",
+      "consumerCount": 1,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: tools/shared/native-database-lifetime.js.",
+      "recommendation": "Retain exact delegated command and effective child scope admission before opening databases."
+    },
+    {
+      "path": "tools/shared/native-database-lifetime.js",
+      "consumerCount": 2,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: tools/build/compact-sqlite-index.js, tools/build/lmdb-index.js.",
+      "recommendation": "Keep actual database/checkpoint handles in the existing lifecycle registry until confirmed close."
     },
     {
       "path": "tools/shared/numeric-distribution.js",
@@ -213,6 +276,16 @@
       ],
       "consumerNotes": "Ledger-owned shared module in tools/shared with 2 direct consumer(s).",
       "recommendation": "Keep ownership explicit and update this review entry with a narrower recommendation when the module is next touched."
+    },
+    {
+      "path": "tools/shared/operator-cli-options.js",
+      "consumerCount": 22,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: tools/analysis/delta-risk.js, tools/analysis/explain-risk.js, tools/analysis/graph-evidence.js, tools/analysis/map-iso-serve.js, tools/analysis/runtime-evidence.js, tools/analysis/semantic-detail.js, tools/analysis/semantic-explain.js, tools/analysis/semantic-find.js, tools/analysis/semantic-trace.js, tools/bench/micro/run.js, tools/build/compact-sqlite-index.js, tools/build/lmdb-index.js, tools/docs/recipes/contracts.js, tools/eval/run.js, tools/index/cache-gc.js, tools/reports/report-code-map.js, tools/setup/bootstrap.js, tools/setup/first-search-capabilities.js, tools/setup/first-search-plan.js, tools/setup/setup.js, tools/tooling/doctor.js, tools/tui/operator/index-catalog.js.",
+      "recommendation": "Keep operator CLI declarations shared with typed forms while retaining command-specific validation."
     },
     {
       "path": "tools/shared/parity-indexes.js",
@@ -258,29 +331,6 @@
       ],
       "consumerNotes": "Bench and CI gate scripts use it for doctor report resolution and gate result emission.",
       "recommendation": "Keep it tool-local as the gate/reporting helper surface, but ensure generic JSON persistence stays delegated to the lower-level JSON helper family."
-    },
-    {
-      "path": "tools/shared/dev-artifacts.js",
-      "consumerCount": 28,
-      "classifications": [
-        "keep",
-        "document",
-        "test"
-      ],
-      "consumerNotes": "The static census has 28 direct production consumers across benchmark and CI tools. Test helpers also use the owner to place disposable development artifacts beneath temp/dev; they are outside this production consumer count.",
-      "recommendation": "Keep the category-to-path mapping private and lightweight. Preserve unknown-category and lexical traversal rejection, readiness admission ordering and stable .testLogs/.diagnostics interfaces. Path construction does not establish deletion authority; destructive callers must still validate real disposable roots.",
-      "inventoryReviewDate": "2026-10-18"
-    },
-    {
-      "path": "tools/shared/archive-extraction.js",
-      "consumerCount": 3,
-      "classifications": [
-        "keep",
-        "document"
-      ],
-      "consumerNotes": "Static ownership census confirms 3 direct consumers, including tools/download/extensions.js, tools/tooling/install-clangd.js, tools/tooling/install-go-sdk.js. This inventory review is not a behavioral qualification receipt.",
-      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
-      "inventoryReviewDate": "2026-10-18"
     }
   ],
   "inventoryReconciliation": {
@@ -290,5 +340,11 @@
       "tools/shared/archive-extraction.js",
       "tools/shared/dev-artifacts.js"
     ]
+  },
+  "inventoryReview": {
+    "date": "2026-10-24",
+    "scope": "Current file ownership, exported boundaries and production-consumer inventory; not runtime or platform qualification.",
+    "newlyReviewedFiles": 5,
+    "evidence": "tools/docs/shared-module-ledger.js and current source declarations; dynamic preload ownership inspected separately."
   }
 }

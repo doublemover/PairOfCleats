@@ -4,7 +4,7 @@
   "reviewDate": "2026-03-26",
   "scope": "Primary ownership for src/shared artifact, cache, IO, bundle, and serialization helpers assigned to #411 in the shared-module ledger.",
   "summary": {
-    "ownedFileCount": 99,
+    "ownedFileCount": 114,
     "overallAssessment": "This shared surface is broadly useful and already owns many of the repo's right low-level seams, but it must stay deliberately layered. Recent work made manifest.js and bundle-io.js facade-oriented, moved manifest entry selection and columnar rows into narrow artifact owners, split bundle behavior, separated generic binary-columnar frame reading from the async chunk_meta adapter, and kept sync token_postings binary decode local to preserve the sync API. The remaining cleanup opportunities are the larger loader cores, the deleted files facade handoff, atomic persistence, cache layering documentation, and generic JSON-stream boundaries; compression pooling and byte accounting now have their own JSON-stream owners, binary-columnar JSON row decode has its own loader leaf, and core streaming row dispatch has its own loader leaf.",
     "clusterFindings": [
       {
@@ -112,7 +112,7 @@
   "entries": [
     {
       "path": "src/shared/artifact-io.js",
-      "consumerCount": 32,
+      "consumerCount": 0,
       "classifications": [
         "keep",
         "document",
@@ -123,7 +123,7 @@
     },
     {
       "path": "src/shared/artifact-io/binary-columnar.js",
-      "consumerCount": 6,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",
@@ -145,7 +145,7 @@
     },
     {
       "path": "src/shared/artifact-io/checksum.js",
-      "consumerCount": 5,
+      "consumerCount": 4,
       "classifications": [
         "keep",
         "document",
@@ -155,8 +155,19 @@
       "recommendation": "Keep as the artifact checksum primitive."
     },
     {
+      "path": "src/shared/artifact-io/chunk-meta-presence.js",
+      "consumerCount": 13,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Validation, search, SQLite, setup, reports, and benchmark tooling use it for coarse chunk_meta presence probes without optional fallback coupling.",
+      "recommendation": "Keep chunk_meta presence detection under artifact IO and do not reintroduce a root index-artifact facade."
+    },
+    {
       "path": "src/shared/artifact-io/columnar-rows.js",
-      "consumerCount": 5,
+      "consumerCount": 6,
       "classifications": [
         "keep",
         "document",
@@ -167,7 +178,7 @@
     },
     {
       "path": "src/shared/artifact-io/compression.js",
-      "consumerCount": 5,
+      "consumerCount": 9,
       "classifications": [
         "keep",
         "document",
@@ -178,7 +189,7 @@
     },
     {
       "path": "src/shared/artifact-io/constants.js",
-      "consumerCount": 41,
+      "consumerCount": 62,
       "classifications": [
         "keep",
         "document"
@@ -187,8 +198,18 @@
       "recommendation": "Keep as the artifact-io constant contract surface."
     },
     {
+      "path": "src/shared/artifact-io/contained-path.js",
+      "consumerCount": 11,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/index/build/artifact-publication.js, src/index/build/artifacts/checksums.js, src/index/build/artifacts/piece-registry.js, src/index/build/artifacts/token-postings-reuse.js, src/index/build/stage-output.js, src/index/build/stage-provenance.js, src/index/build/stage-snapshot.js, src/index/snapshots/mode-provenance.js, src/storage/sqlite/zero-state.js, tools/bench/embeddings/evaluation-identity.js, tools/ci/artifact-bundle.js.",
+      "recommendation": "Keep label validation separate from physical path admission; publication callers must admit paths at actual use."
+    },
+    {
       "path": "src/shared/artifact-io/fs.js",
-      "consumerCount": 9,
+      "consumerCount": 10,
       "classifications": [
         "keep",
         "document",
@@ -210,7 +231,7 @@
     },
     {
       "path": "src/shared/artifact-io/json.js",
-      "consumerCount": 33,
+      "consumerCount": 50,
       "classifications": [
         "keep",
         "document",
@@ -221,7 +242,7 @@
     },
     {
       "path": "src/shared/artifact-io/json/fallback.js",
-      "consumerCount": 3,
+      "consumerCount": 7,
       "classifications": [
         "keep",
         "document",
@@ -232,7 +253,7 @@
     },
     {
       "path": "src/shared/artifact-io/json/line-scan.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document",
@@ -298,7 +319,7 @@
     },
     {
       "path": "src/shared/artifact-io/jsonl.js",
-      "consumerCount": 11,
+      "consumerCount": 10,
       "classifications": [
         "keep",
         "document",
@@ -320,7 +341,7 @@
     },
     {
       "path": "src/shared/artifact-io/loaders.js",
-      "consumerCount": 4,
+      "consumerCount": 31,
       "classifications": [
         "keep",
         "document",
@@ -353,7 +374,7 @@
     },
     {
       "path": "src/shared/artifact-io/loaders/chunk-meta.js",
-      "consumerCount": 7,
+      "consumerCount": 11,
       "classifications": [
         "keep",
         "document",
@@ -364,7 +385,7 @@
     },
     {
       "path": "src/shared/artifact-io/loaders/core-array-payload.js",
-      "consumerCount": 2,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -419,7 +440,7 @@
     },
     {
       "path": "src/shared/artifact-io/loaders/core-file-meta.js",
-      "consumerCount": 2,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -427,17 +448,6 @@
       ],
       "consumerNotes": "Leaf helper extracted during the artifact/cache/IO split so loader, cache, persistence, and JSON-stream responsibilities are owned by smaller modules.",
       "recommendation": "Keep this module specialized and resist rebuilding the broader pre-split facade internally."
-    },
-    {
-      "path": "src/shared/artifact-io/loaders/core-source-resolution.js",
-      "consumerCount": 5,
-      "classifications": [
-        "keep",
-        "document",
-        "test"
-      ],
-      "consumerNotes": "Resolves manifest sources, cache hints, and fallback paths for the core loader family.",
-      "recommendation": "Keep as the source-resolution layer under core loaders."
     },
     {
       "path": "src/shared/artifact-io/loaders/core-row-stream.js",
@@ -451,8 +461,19 @@
       "recommendation": "Keep streaming format dispatch here so core.js does not absorb row materialization policy."
     },
     {
+      "path": "src/shared/artifact-io/loaders/core-source-resolution.js",
+      "consumerCount": 5,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Resolves manifest sources, cache hints, and fallback paths for the core loader family.",
+      "recommendation": "Keep as the source-resolution layer under core loaders."
+    },
+    {
       "path": "src/shared/artifact-io/loaders/core.js",
-      "consumerCount": 17,
+      "consumerCount": 19,
       "classifications": [
         "keep",
         "document",
@@ -474,7 +495,7 @@
     },
     {
       "path": "src/shared/artifact-io/loaders/minhash.js",
-      "consumerCount": 3,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",
@@ -496,7 +517,7 @@
     },
     {
       "path": "src/shared/artifact-io/loaders/shared.js",
-      "consumerCount": 13,
+      "consumerCount": 14,
       "classifications": [
         "keep",
         "document",
@@ -518,7 +539,7 @@
     },
     {
       "path": "src/shared/artifact-io/manifest-entry-selection.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document",
@@ -529,7 +550,7 @@
     },
     {
       "path": "src/shared/artifact-io/manifest-paths.js",
-      "consumerCount": 3,
+      "consumerCount": 4,
       "classifications": [
         "keep",
         "document",
@@ -540,7 +561,7 @@
     },
     {
       "path": "src/shared/artifact-io/manifest-read.js",
-      "consumerCount": 2,
+      "consumerCount": 9,
       "classifications": [
         "keep",
         "document",
@@ -562,7 +583,7 @@
     },
     {
       "path": "src/shared/artifact-io/manifest.js",
-      "consumerCount": 27,
+      "consumerCount": 44,
       "classifications": [
         "keep",
         "document",
@@ -573,7 +594,7 @@
     },
     {
       "path": "src/shared/artifact-io/offsets.js",
-      "consumerCount": 6,
+      "consumerCount": 9,
       "classifications": [
         "keep",
         "document",
@@ -584,7 +605,7 @@
     },
     {
       "path": "src/shared/artifact-io/optional-fallback.js",
-      "consumerCount": 2,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -616,8 +637,28 @@
       "recommendation": "Keep as the compact binary primitive."
     },
     {
-      "path": "src/shared/bundle-checksum.js",
+      "path": "src/shared/artifact-io/verified-read-scope.js",
+      "consumerCount": 7,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/index/validate.js, src/index/validate/read-plan.js, src/shared/artifact-io/cache.js, src/shared/artifact-io/json/read-json.js, src/shared/artifact-io/json/read-jsonl-stream.js, src/shared/artifact-io/loaders/binary-columnar.js, src/shared/contained-file.js.",
+      "recommendation": "Keep byte witnesses invocation-scoped and descriptor-qualified; do not turn stat stamps into mutable-path authority."
+    },
+    {
+      "path": "src/shared/artifact-io/with-opened-readers.js",
       "consumerCount": 1,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/artifact-io/offsets.js.",
+      "recommendation": "Retain the bounded borrowed-reader scope; group completion must not impersonate independent descriptor closure."
+    },
+    {
+      "path": "src/shared/bundle-checksum.js",
+      "consumerCount": 8,
       "classifications": [
         "keep",
         "document",
@@ -628,7 +669,7 @@
     },
     {
       "path": "src/shared/bundle-contract.js",
-      "consumerCount": 4,
+      "consumerCount": 6,
       "classifications": [
         "keep",
         "document",
@@ -639,7 +680,7 @@
     },
     {
       "path": "src/shared/bundle-io.js",
-      "consumerCount": 9,
+      "consumerCount": 7,
       "classifications": [
         "keep",
         "document",
@@ -680,6 +721,16 @@
       ],
       "consumerNotes": "Owns shared bundle worker offload, checksum sidecar writes, patch cleanup, and file-removal helpers.",
       "recommendation": "Keep this as leaf-style infrastructure that never imports read/write/patch owners."
+    },
+    {
+      "path": "src/shared/bundle-io/transform-owner.js",
+      "consumerCount": 2,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/index/build/indexer/steps/process-files.js, src/shared/bundle-io/support.js.",
+      "recommendation": "Retain single-transform admission and source ownership while callers wait; avoid queued cloned graphs."
     },
     {
       "path": "src/shared/bundle-io/write.js",
@@ -760,7 +811,7 @@
     },
     {
       "path": "src/shared/cache-key.js",
-      "consumerCount": 24,
+      "consumerCount": 23,
       "classifications": [
         "keep",
         "document",
@@ -771,7 +822,7 @@
     },
     {
       "path": "src/shared/cache-roots.js",
-      "consumerCount": 19,
+      "consumerCount": 25,
       "classifications": [
         "keep",
         "document",
@@ -781,8 +832,19 @@
       "recommendation": "Keep as the cache-root ownership layer."
     },
     {
+      "path": "src/shared/cache/fifo-budget.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 1 direct consumers, including src/shared/cache-key.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the active storage/identity owner. Preserve containment, format checks and cache admission; path-only diagnostics must not acquire data-access leases. Keep cleanup and corruption regressions.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
       "path": "src/shared/cache/json-file.js",
-      "consumerCount": 2,
+      "consumerCount": 4,
       "classifications": [
         "keep",
         "document",
@@ -825,8 +887,71 @@
       "recommendation": "Keep as the explicit cache policy contract."
     },
     {
+      "path": "src/shared/cache/repo-access-delegation-guard.js",
+      "consumerCount": 4,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/cache/repo-access-delegation.js, src/shared/cache/repo-access-reader.js, src/shared/cache/repo-access.js, src/shared/storage/access.js.",
+      "recommendation": "Keep uncertain delegation records as exclusion blockers; parent death alone cannot release a delegated child."
+    },
+    {
+      "path": "src/shared/cache/repo-access-delegation-preload.js",
+      "consumerCount": 0,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Dynamically selected through the Node --import URL in src/shared/cache/repo-access-delegation.js before the child entry module; no static import edge.",
+      "recommendation": "Retain this executable Node import gate; zero static imports do not make the URL-selected preload obsolete."
+    },
+    {
+      "path": "src/shared/cache/repo-access-delegation.js",
+      "consumerCount": 3,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/cache/repo-access-delegation-preload.js, tools/shared/native-database-lifetime.js, tools/tui/operator/cache-maintenance.js.",
+      "recommendation": "Keep actual ChildProcess and IPC settlement with the delegation owner; disconnect and timeout are insufficient release evidence."
+    },
+    {
+      "path": "src/shared/cache/repo-access-owner.js",
+      "consumerCount": 3,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/cache/repo-access-reader.js, src/shared/cache/repo-access.js, src/shared/storage/access.js.",
+      "recommendation": "Keep strict known-owner shape admission; unfamiliar retention fields must remain blocking evidence."
+    },
+    {
+      "path": "src/shared/cache/repo-access-reader.js",
+      "consumerCount": 4,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Manifest reads and the asynchronous repo-access owner share this narrow process-lifetime reader admission primitive. The static census has 2 direct production consumers; cache authority and lifecycle fixtures qualify its behavior separately.",
+      "recommendation": "Keep reader admission before opening cache data and retain leases until process exit. Preserve collector-lock exclusion, dead-owner recovery and containment tests. Path-only diagnostics must not acquire reader leases, and this leaf must not import the asynchronous cleanup owner.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/cache/repo-access.js",
+      "consumerCount": 17,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 5 direct consumers, including src/retrieval/cli-lmdb.js, src/retrieval/cli-sqlite.js, src/shared/artifact-io/manifest-read.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain the active storage/identity owner. Preserve containment, format checks and cache admission; path-only diagnostics must not acquire data-access leases. Keep cleanup and corruption regressions.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
       "path": "src/shared/cache/size.js",
-      "consumerCount": 15,
+      "consumerCount": 13,
       "classifications": [
         "keep",
         "document",
@@ -848,7 +973,7 @@
     },
     {
       "path": "src/shared/encoding.js",
-      "consumerCount": 11,
+      "consumerCount": 12,
       "classifications": [
         "keep",
         "document",
@@ -891,17 +1016,6 @@
       "recommendation": "Keep as the file-stat normalization helper."
     },
     {
-      "path": "src/shared/artifact-io/chunk-meta-presence.js",
-      "consumerCount": 14,
-      "classifications": [
-        "keep",
-        "document",
-        "test"
-      ],
-      "consumerNotes": "Validation, search, SQLite, setup, reports, and benchmark tooling use it for coarse chunk_meta presence probes without optional fallback coupling.",
-      "recommendation": "Keep chunk_meta presence detection under artifact IO and do not reintroduce a root index-artifact facade."
-    },
-    {
       "path": "src/shared/io/append-writer.js",
       "consumerCount": 5,
       "classifications": [
@@ -914,7 +1028,7 @@
     },
     {
       "path": "src/shared/io/atomic-write.js",
-      "consumerCount": 50,
+      "consumerCount": 82,
       "classifications": [
         "keep",
         "document",
@@ -924,8 +1038,38 @@
       "recommendation": "Keep the facade and continue pushing low-level mechanics into atomic-persistence.js."
     },
     {
+      "path": "src/shared/io/directory-identity.js",
+      "consumerCount": 2,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/io/remove-path-with-retry.js, src/shared/io/replace-dir.js.",
+      "recommendation": "Keep root comparison data separate from tree immutability or deletion capabilities."
+    },
+    {
+      "path": "src/shared/io/directory-sync.js",
+      "consumerCount": 4,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/artifact-io/binary-columnar.js, src/shared/io/atomic-write.js, src/shared/io/persistence-helpers.js, tools/tui/install-generation.js.",
+      "recommendation": "Retain parent identity checks and explicit unsupported sync handling in async and sync persistence paths."
+    },
+    {
+      "path": "src/shared/io/file-identity.js",
+      "consumerCount": 4,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/artifact-io/binary-columnar.js, src/shared/bundle-io/patch.js, src/shared/io/persistence-helpers.js, src/shared/io/replace-file.js.",
+      "recommendation": "Keep opened-file comparison data separate from portable atomic compare-and-remove guarantees."
+    },
+    {
       "path": "src/shared/io/persistence-helpers.js",
-      "consumerCount": 3,
+      "consumerCount": 23,
       "classifications": [
         "keep",
         "document",
@@ -935,8 +1079,18 @@
       "recommendation": "Keep this module specialized and resist rebuilding the broader pre-split facade internally."
     },
     {
+      "path": "src/shared/io/read-exact.js",
+      "consumerCount": 20,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/index/build/artifacts/field-postings-shard-stream.js, src/index/build/file-scan.js, src/index/build/preprocess-snapshot.js, src/index/build/shebang.js, src/index/build/watch/records.js, src/index/semantic/control-store.js, src/index/semantic/runtime/claims.js, src/index/semantic/runtime/query-store.js, src/index/tooling/vfs/offset-reader.js, src/index/validate/read-plan.js, src/integrations/inference-history/archive.js, src/integrations/inference-history/correlation.js, src/shared/artifact-io/loaders/minhash.js, src/shared/artifact-io/offsets.js, src/shared/artifact-io/varint.js, src/shared/onnx-artifact-closure.js, src/shared/onnx-model-install.js, tools/bench/embeddings/onnx-profile-experiment.js, tools/bench/language/report-streams.js, tools/ci/get-last-failure.js.",
+      "recommendation": "Retain bounded positioned reads and distinguish actual EOF from partial read progress."
+    },
+    {
       "path": "src/shared/io/remove-path-with-retry.js",
-      "consumerCount": 12,
+      "consumerCount": 9,
       "classifications": [
         "keep",
         "document",
@@ -947,7 +1101,7 @@
     },
     {
       "path": "src/shared/io/replace-dir.js",
-      "consumerCount": 1,
+      "consumerCount": 2,
       "classifications": [
         "keep",
         "document",
@@ -958,7 +1112,7 @@
     },
     {
       "path": "src/shared/io/replace-file.js",
-      "consumerCount": 1,
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -969,7 +1123,7 @@
     },
     {
       "path": "src/shared/io/temp-path.js",
-      "consumerCount": 2,
+      "consumerCount": 4,
       "classifications": [
         "keep",
         "document",
@@ -980,7 +1134,7 @@
     },
     {
       "path": "src/shared/json-stream/atomic.js",
-      "consumerCount": 7,
+      "consumerCount": 11,
       "classifications": [
         "keep",
         "document",
@@ -990,8 +1144,30 @@
       "recommendation": "Keep internal to json-stream rather than turning it into another general atomic helper."
     },
     {
-      "path": "src/shared/json-stream/compress.js",
+      "path": "src/shared/json-stream/buffer-transfer.js",
       "consumerCount": 2,
+      "classifications": [
+        "keep",
+        "document"
+      ],
+      "consumerNotes": "Static ownership census confirms 2 direct consumers, including src/shared/json-stream/jsonl-compress-worker.js, src/shared/json-stream/jsonl-compression-pool.js. This inventory review is not a behavioral qualification receipt.",
+      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
+      "inventoryReviewDate": "2026-10-18"
+    },
+    {
+      "path": "src/shared/json-stream/byte-counter.js",
+      "consumerCount": 1,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "JSON write-stream creation uses it for byte accounting, max-byte enforcement, and optional checksum hashing.",
+      "recommendation": "Keep checksum and byte-accounting transform behavior here so streams.js stays focused on stream construction and lifecycle coordination."
+    },
+    {
+      "path": "src/shared/json-stream/compress.js",
+      "consumerCount": 3,
       "classifications": [
         "keep",
         "document",
@@ -1001,8 +1177,18 @@
       "recommendation": "Keep narrowly focused on JSON-stream compression behavior."
     },
     {
+      "path": "src/shared/json-stream/consume-rows.js",
+      "consumerCount": 3,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/shared/json-stream/encode.js, src/shared/json-stream/jsonl-sharded.js, src/shared/json-stream/jsonl-write.js.",
+      "recommendation": "Keep producer storage borrowed only until the next advance; preserve iterator closure on consumer and value failures."
+    },
+    {
       "path": "src/shared/json-stream/encode.js",
-      "consumerCount": 6,
+      "consumerCount": 11,
       "classifications": [
         "keep",
         "document",
@@ -1024,7 +1210,7 @@
     },
     {
       "path": "src/shared/json-stream/jsonl-batch.js",
-      "consumerCount": 3,
+      "consumerCount": 5,
       "classifications": [
         "keep",
         "document",
@@ -1032,17 +1218,6 @@
       ],
       "consumerNotes": "JSONL file and sharded writers use it for batch-writer lifecycle, block sizing, in-flight ordering, and stream writes.",
       "recommendation": "Keep batch-writer mechanics here and keep worker compression pooling in jsonl-compression-pool.js."
-    },
-    {
-      "path": "src/shared/json-stream/jsonl-compression-pool.js",
-      "consumerCount": 2,
-      "classifications": [
-        "keep",
-        "document",
-        "test"
-      ],
-      "consumerNotes": "JSONL batch and sharded writers use it for worker-backed compression pooling and bounded termination.",
-      "recommendation": "Keep worker lifecycle, idle waiting, and compression task dispatch here so jsonl-batch.js stays focused on writer mechanics."
     },
     {
       "path": "src/shared/json-stream/jsonl-compress-worker.js",
@@ -1056,8 +1231,29 @@
       "recommendation": "Keep as a worker-target module and document its family ownership."
     },
     {
+      "path": "src/shared/json-stream/jsonl-compression-pool.js",
+      "consumerCount": 3,
+      "classifications": [
+        "keep",
+        "document",
+        "test"
+      ],
+      "consumerNotes": "JSONL batch and sharded writers use it for worker-backed compression pooling and bounded termination.",
+      "recommendation": "Keep worker lifecycle, idle waiting, and compression task dispatch here so jsonl-batch.js stays focused on writer mechanics."
+    },
+    {
+      "path": "src/shared/json-stream/jsonl-compression-scope.js",
+      "consumerCount": 3,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/index/build/artifacts-write/index.js, src/shared/json-stream/jsonl-batch.js, src/shared/json-stream/jsonl-sharded.js.",
+      "recommendation": "Keep compression teardown owned by the artifact invocation; nested writers only borrow the pool."
+    },
+    {
       "path": "src/shared/json-stream/jsonl-sharded.js",
-      "consumerCount": 1,
+      "consumerCount": 18,
       "classifications": [
         "keep",
         "document",
@@ -1068,7 +1264,7 @@
     },
     {
       "path": "src/shared/json-stream/jsonl-write.js",
-      "consumerCount": 2,
+      "consumerCount": 24,
       "classifications": [
         "keep",
         "document",
@@ -1089,8 +1285,18 @@
       "recommendation": "Keep separate from general JSONL stream creation so offset behavior stays explicit."
     },
     {
+      "path": "src/shared/json-stream/prepared-row.js",
+      "consumerCount": 8,
+      "classifications": [
+        "document",
+        "test"
+      ],
+      "consumerNotes": "Static production imports: src/index/build/artifacts/writers/_common.js, src/index/build/artifacts/writers/chunk-meta/iterator.js, src/index/build/artifacts/writers/chunk-meta/plan.js, src/index/build/artifacts/writers/chunk-meta/shared.js, src/index/build/artifacts/writers/chunk-meta/writer.js, src/index/build/artifacts/writers/symbols.js, src/shared/json-stream/json-writers.js, src/shared/json-stream/jsonl-write.js.",
+      "recommendation": "Retain privately produced immutable rows under a bounded allowance; copied public fields cannot admit reuse."
+    },
+    {
       "path": "src/shared/json-stream/runtime.js",
-      "consumerCount": 7,
+      "consumerCount": 9,
       "classifications": [
         "keep",
         "document",
@@ -1098,17 +1304,6 @@
       ],
       "consumerNotes": "Provides runtime abort and error behavior shared across JSON-stream writers.",
       "recommendation": "Keep as the small json-stream runtime helper layer."
-    },
-    {
-      "path": "src/shared/json-stream/byte-counter.js",
-      "consumerCount": 1,
-      "classifications": [
-        "keep",
-        "document",
-        "test"
-      ],
-      "consumerNotes": "JSON write-stream creation uses it for byte accounting, max-byte enforcement, and optional checksum hashing.",
-      "recommendation": "Keep checksum and byte-accounting transform behavior here so streams.js stays focused on stream construction and lifecycle coordination."
     },
     {
       "path": "src/shared/json-stream/streams.js",
@@ -1123,7 +1318,7 @@
     },
     {
       "path": "src/shared/jsonc.js",
-      "consumerCount": 10,
+      "consumerCount": 13,
       "classifications": [
         "keep",
         "document",
@@ -1145,7 +1340,7 @@
     },
     {
       "path": "src/shared/stable-json.js",
-      "consumerCount": 50,
+      "consumerCount": 127,
       "classifications": [
         "keep",
         "document",
@@ -1153,51 +1348,6 @@
       ],
       "consumerNotes": "Many cache, bundle, artifact, and signature paths rely on it for deterministic JSON serialization.",
       "recommendation": "Keep as the canonical deterministic JSON primitive and document when to use stableStringify versus stableStringifyForSignature."
-    },
-    {
-      "path": "src/shared/cache/fifo-budget.js",
-      "consumerCount": 1,
-      "classifications": [
-        "keep",
-        "document"
-      ],
-      "consumerNotes": "Static ownership census confirms 1 direct consumers, including src/shared/cache-key.js. This inventory review is not a behavioral qualification receipt.",
-      "recommendation": "Retain the active storage/identity owner. Preserve containment, format checks and cache admission; path-only diagnostics must not acquire data-access leases. Keep cleanup and corruption regressions.",
-      "inventoryReviewDate": "2026-10-18"
-    },
-    {
-      "path": "src/shared/cache/repo-access.js",
-      "consumerCount": 5,
-      "classifications": [
-        "keep",
-        "document"
-      ],
-      "consumerNotes": "Static ownership census confirms 5 direct consumers, including src/retrieval/cli-lmdb.js, src/retrieval/cli-sqlite.js, src/shared/artifact-io/manifest-read.js. This inventory review is not a behavioral qualification receipt.",
-      "recommendation": "Retain the active storage/identity owner. Preserve containment, format checks and cache admission; path-only diagnostics must not acquire data-access leases. Keep cleanup and corruption regressions.",
-      "inventoryReviewDate": "2026-10-18"
-    },
-    {
-      "path": "src/shared/cache/repo-access-reader.js",
-      "consumerCount": 2,
-      "classifications": [
-        "keep",
-        "document",
-        "test"
-      ],
-      "consumerNotes": "Manifest reads and the asynchronous repo-access owner share this narrow process-lifetime reader admission primitive. The static census has 2 direct production consumers; cache authority and lifecycle fixtures qualify its behavior separately.",
-      "recommendation": "Keep reader admission before opening cache data and retain leases until process exit. Preserve collector-lock exclusion, dead-owner recovery and containment tests. Path-only diagnostics must not acquire reader leases, and this leaf must not import the asynchronous cleanup owner.",
-      "inventoryReviewDate": "2026-10-18"
-    },
-    {
-      "path": "src/shared/json-stream/buffer-transfer.js",
-      "consumerCount": 2,
-      "classifications": [
-        "keep",
-        "document"
-      ],
-      "consumerNotes": "Static ownership census confirms 2 direct consumers, including src/shared/json-stream/jsonl-compress-worker.js, src/shared/json-stream/jsonl-compression-pool.js. This inventory review is not a behavioral qualification receipt.",
-      "recommendation": "Retain this active shared owner and its narrow imports. Keep behavior acceptance separate from this ownership inventory; unresolved test and platform qualifications are recorded in the October 18 deep audit.",
-      "inventoryReviewDate": "2026-10-18"
     }
   ],
   "inventoryReconciliation": {
@@ -1209,5 +1359,11 @@
       "src/shared/cache/repo-access-reader.js",
       "src/shared/json-stream/buffer-transfer.js"
     ]
+  },
+  "inventoryReview": {
+    "date": "2026-10-24",
+    "scope": "Current file ownership, exported boundaries and production-consumer inventory; not runtime or platform qualification.",
+    "newlyReviewedFiles": 15,
+    "evidence": "tools/docs/shared-module-ledger.js and current source declarations; dynamic preload ownership inspected separately."
   }
 }

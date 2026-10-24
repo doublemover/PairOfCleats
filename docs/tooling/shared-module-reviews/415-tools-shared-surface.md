@@ -82,3 +82,8 @@ The JSON companion now includes 2 later-added active modules. Static consumer ev
 
 - `tools/shared/archive-extraction.js`: 3 direct consumers; retain and document the owner.
 - `tools/shared/dev-artifacts.js`: 28 direct production consumers; retain the private development-path mapping and containment checks. Destructive callers remain responsible for real-root deletion authority.
+
+
+## 2026-10-24 inventory reconciliation
+
+The JSON companion now matches the current owned-file census (22 files). 5 newly added modules received explicit boundary recommendations and actual production-consumer notes. Existing recommendations remain historical design review; this inventory reconciliation does not establish runtime qualification. No code was removed on the basis of static consumer counts.

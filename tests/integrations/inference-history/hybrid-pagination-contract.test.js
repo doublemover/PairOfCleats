@@ -8,6 +8,7 @@ import { digest } from '../../../src/integrations/inference-history/common.js';
 import { projectArtifact } from '../../../src/integrations/inference-history/artifact-projection.js';
 import { createLocalSourceHistoryService } from '../../../src/integrations/inference-history/service.js';
 import { searchHybridHistory } from '../../../src/integrations/inference-history/hybrid.js';
+import { searchHistory } from '../../../src/integrations/inference-history/reader.js';
 import { historyIndexState } from '../../../src/integrations/inference-history/generation.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 const { dir } = await prepareIsolatedTestCacheDir('hybrid-pagination-contract');
@@ -17,8 +18,20 @@ const records = Array.from({ length: 1001 }, (_, id) => projectArtifact({ text: 
 await fs.writeFile(source, JSON.stringify(records));
 const bootstrap = await createLocalSourceHistoryService({ sources: [{ path: source, sha256: digest(await fs.readFile(source)) }], indexPath });
 await bootstrap.dispose();
-const db = new Database(indexPath); registerArchiveAnalyzer(db, DEFAULT_ARCHIVE_ANALYZER);
+const db = new Database(indexPath);
+registerArchiveAnalyzer(db, Object.freeze({ ...DEFAULT_ARCHIVE_ANALYZER,
+  terms(text) {
+    assert.equal(db.inTransaction, true, 'each synchronous search retains one SQLite read snapshot');
+    return DEFAULT_ARCHIVE_ANALYZER.terms(text);
+  }
+}));
 try {
+  searchHistory(db, { query: 'cobalt', top: 3 });
+  assert.equal(db.inTransaction, false, 'the search closes only its own read snapshot');
+  db.transaction(() => {
+    searchHistory(db, { query: 'cobalt', top: 3 });
+    assert.equal(db.inTransaction, true, 'an existing caller transaction remains owned by its caller');
+  })();
   const semantic = { kind: 'local', indexGenerationRef: historyIndexState(db).generationRef,
     modelId: 'synthetic-no-model', modelVersion: '1', dimensions: 2,
     async search() { return { candidates: [], complete: true }; } };

@@ -100,3 +100,8 @@ The JSON companion now includes 2 later-added active modules. Static consumer ev
 
 - `src/shared/concurrency/weighted-batches.js`: 2 direct consumers; retain and document the owner.
 - `src/shared/workers/heap-contract.js`: 2 direct consumers; retain and document the owner.
+
+
+## 2026-10-24 inventory reconciliation
+
+The JSON companion now matches the current owned-file census (71 files). 8 newly added modules received explicit boundary recommendations and actual production-consumer notes. Existing recommendations remain historical design review; this inventory reconciliation does not establish runtime qualification. No code was removed on the basis of static consumer counts.

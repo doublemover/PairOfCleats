@@ -1170,3 +1170,32 @@ legacy propagation disabled. Symbol-reference ambiguity, shadowed imports,
 stale-target clearing and full compiler-binding controls passed. All eight map
 controls passed, including passive upgrade and the adjacent ordering regression.
 Cumulative original failure closure is 85; 15 still lack passing closure.
+
+All 15 remaining original cases were rechecked serially at
+`d9b285ae2fb858b95f5ff77c9d6a75ebcb666a17`: four passed, eleven failed,
+including three timeouts, with no skips/native crashes. Sample/mixed evaluation
+and both JavaScript qualified-target cases passed. Cumulative closure is 89;
+eleven original failures still lack passing closure. This is not final-head
+acceptance and earlier green observations are not merged into a whole-tree pass.
+
+The showcase phrase is proven stale: the current source document starts with
+`HTTP API server contract` and contains no `Minimal API Server`. Its dataset now
+uses the actual heading for both the quoted phrase and positive chunk-name
+assertion, retaining the same source file, mode and required hit.
+
+Shared-module review ownership was reconciled for 119 added files, with explicit
+per-file boundary recommendations and real static production consumers. Existing
+review recommendations remain; the reconciliation is a structural inventory,
+not a claim of runtime/security qualification. The dynamically selected Node
+preload is retained despite zero static import edges. No source/test was removed.
+
+A separately labeled SQL instrumentation diagnostic (not acceptance evidence)
+observed 43,655 privacy lookups, 28,437 location queries and 14,218 each of
+occurrence/snapshot lookups before the unchanged 30-second history deadline.
+Each tiny persistent read separately acquired/released SQLite filesystem locks.
+Search now retains one synchronous read transaction, borrowing existing caller
+transactions without committing them. Generation/privacy/evidence reads share
+that snapshot; the original 1,001-record pagination, budgets and negatives remain.
+The added exact read-snapshot assertion failed before the repair in 1.45 seconds
+(author-workspace history-read-transaction-before-direct receipt). Closure still
+requires the repaired-source run; no performance claim is made from instrumentation.
