@@ -2375,11 +2375,228 @@
           "historicalAuthorWorkspaceEvidence": true
         }
       ]
+    },
+    {
+      "sourceHead": "7705d94030edbfbc0ea462bedf2721b1fb7d2073",
+      "startedAt": "2026-10-24T12:55:23.457Z",
+      "finishedAt": "2026-10-24T12:55:50.930Z",
+      "scope": "Unknown model observation, retained process settlement and cross-surface enumeration follow-up.",
+      "policy": {
+        "timeoutMs": 30000,
+        "retries": 0,
+        "nativeStatusRedo": false,
+        "threads": 1,
+        "platform": "win32",
+        "node": "v26.12.1",
+        "removedLaunchSetting": "PAIROFCLEATS_TRUSTED_CONFIG: missing configured file; no replacement authority granted"
+      },
+      "summary": {
+        "selected": 7,
+        "passed": 3,
+        "failed": 4,
+        "timeouts": 0,
+        "skipped": 0
+      },
+      "cohorts": [
+        {
+          "name": "lifetime-wave-01",
+          "summary": {
+            "total": 5,
+            "passed": 2,
+            "failed": 3,
+            "skipped": 0,
+            "durationMs": 24830
+          },
+          "ids": [
+            "indexing/embeddings/embedding-execution-observation",
+            "indexing/embeddings/embeddinggemma2-contract",
+            "services/api/filter-enumeration-surfaces",
+            "tooling/lsp/restart-generation-safety",
+            "tooling/lsp/shutdown-does-not-respawn-on-closed-transport"
+          ]
+        },
+        {
+          "name": "lifetime-wave-02",
+          "summary": {
+            "total": 2,
+            "passed": 1,
+            "failed": 1,
+            "skipped": 0,
+            "durationMs": 642
+          },
+          "ids": [
+            "indexing/runtime/subprocess-cleanup-cache-barrier",
+            "tooling/providers/managed-command-frozen-recovery"
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "id": "indexing/embeddings/embedding-execution-observation",
+          "path": "indexing/embeddings/embedding-execution-observation.test.js",
+          "lane": "integration",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 209,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-7705d94030edbfbc0ea462bedf2721b1fb7d2073/lifetime-wave-01-logs/run-1792846524451-nokdt0/indexing_embeddings_embedding-execution-observation.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/embeddings/embeddinggemma2-contract",
+          "path": "indexing/embeddings/embeddinggemma2-contract.test.js",
+          "lane": "integration",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "status": "failed",
+          "durationMs": 381,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-7705d94030edbfbc0ea462bedf2721b1fb7d2073/lifetime-wave-01-logs/run-1792846524451-nokdt0/indexing_embeddings_embeddinggemma2-contract.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-7705d94030edbfbc0ea462bedf2721b1fb7d2073/lifetime-wave-01-logs/run-1792846524451-nokdt0/indexing_embeddings_embeddinggemma2-contract.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "services/api/filter-enumeration-surfaces",
+          "path": "services/api/filter-enumeration-surfaces.test.js",
+          "lane": "api",
+          "tags": [
+            "api",
+            "services"
+          ],
+          "status": "failed",
+          "durationMs": 11987,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-7705d94030edbfbc0ea462bedf2721b1fb7d2073/lifetime-wave-01-logs/run-1792846524451-nokdt0/services_api_filter-enumeration-surfaces.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-7705d94030edbfbc0ea462bedf2721b1fb7d2073/lifetime-wave-01-logs/run-1792846524451-nokdt0/services_api_filter-enumeration-surfaces.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/lsp/restart-generation-safety",
+          "path": "tooling/lsp/restart-generation-safety.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "failed",
+          "durationMs": 6836,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-7705d94030edbfbc0ea462bedf2721b1fb7d2073/lifetime-wave-01-logs/run-1792846524451-nokdt0/tooling_lsp_restart-generation-safety.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-7705d94030edbfbc0ea462bedf2721b1fb7d2073/lifetime-wave-01-logs/run-1792846524451-nokdt0/tooling_lsp_restart-generation-safety.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/lsp/shutdown-does-not-respawn-on-closed-transport",
+          "path": "tooling/lsp/shutdown-does-not-respawn-on-closed-transport.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 5402,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-7705d94030edbfbc0ea462bedf2721b1fb7d2073/lifetime-wave-01-logs/run-1792846524451-nokdt0/tooling_lsp_shutdown-does-not-respawn-on-closed-transport.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/runtime/subprocess-cleanup-cache-barrier",
+          "path": "indexing/runtime/subprocess-cleanup-cache-barrier.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "failed",
+          "durationMs": 139,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-7705d94030edbfbc0ea462bedf2721b1fb7d2073/lifetime-wave-02-logs/run-1792846550272-fnvj5q/indexing_runtime_subprocess-cleanup-cache-barrier.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-7705d94030edbfbc0ea462bedf2721b1fb7d2073/lifetime-wave-02-logs/run-1792846550272-fnvj5q/indexing_runtime_subprocess-cleanup-cache-barrier.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/providers/managed-command-frozen-recovery",
+          "path": "tooling/providers/managed-command-frozen-recovery.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 495,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-7705d94030edbfbc0ea462bedf2721b1fb7d2073/lifetime-wave-02-logs/run-1792846550272-fnvj5q/tooling_providers_managed-command-frozen-recovery.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        }
+      ]
     }
   ],
   "cumulativeClosure": {
     "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
-    "originalFailuresMovedToPassing": 48,
-    "originalFailuresWithoutPassingClosure": 52
+    "originalFailuresMovedToPassing": 51,
+    "originalFailuresWithoutPassingClosure": 49
   }
 }

@@ -44,8 +44,8 @@
     },
     "followUpClosure": {
       "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
-      "originalFailuresMovedToPassing": 48,
-      "originalFailuresWithoutPassingClosure": 52
+      "originalFailuresMovedToPassing": 51,
+      "originalFailuresWithoutPassingClosure": 49
     }
   },
   "items": [
@@ -396,7 +396,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 5297
+      "recheckDurationMs": 5297,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "7705d94030edbfbc0ea462bedf2721b1fb7d2073",
+      "latestRecheckDurationMs": 5402
     },
     {
       "id": "tooling/structural/managed-execution-lifetime",
@@ -1077,8 +1080,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 11237,
       "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "8944d1e483f436c2428422f65619aeea21bc9bf6",
-      "latestRecheckDurationMs": 11923
+      "latestRecheckSourceHead": "7705d94030edbfbc0ea462bedf2721b1fb7d2073",
+      "latestRecheckDurationMs": 11987
     },
     {
       "id": "services/api/semantic-trace",
@@ -3102,7 +3105,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 4278
+      "recheckDurationMs": 4278,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "7705d94030edbfbc0ea462bedf2721b1fb7d2073",
+      "latestRecheckDurationMs": 6836
     },
     {
       "id": "tooling/lsp/rust-quoted-const-type-inputs",
@@ -3249,7 +3255,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 541
+      "recheckDurationMs": 541,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "7705d94030edbfbc0ea462bedf2721b1fb7d2073",
+      "latestRecheckDurationMs": 495
     },
     {
       "id": "tooling/providers/provider-cache-source-bytes",
@@ -4560,9 +4569,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 246,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "8944d1e483f436c2428422f65619aeea21bc9bf6",
-      "latestRecheckDurationMs": 189
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "7705d94030edbfbc0ea462bedf2721b1fb7d2073",
+      "latestRecheckDurationMs": 209
     },
     {
       "id": "indexing/embeddings/embedding-text-kv-cache",
@@ -4606,8 +4615,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 353,
       "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "8944d1e483f436c2428422f65619aeea21bc9bf6",
-      "latestRecheckDurationMs": 359
+      "latestRecheckSourceHead": "7705d94030edbfbc0ea462bedf2721b1fb7d2073",
+      "latestRecheckDurationMs": 381
     },
     {
       "id": "indexing/embeddings/embeddinggemma2-prepared",
@@ -5192,7 +5201,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 158
+      "recheckDurationMs": 158,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "7705d94030edbfbc0ea462bedf2721b1fb7d2073",
+      "latestRecheckDurationMs": 139
     },
     {
       "id": "indexing/scm/git-provider-parse",

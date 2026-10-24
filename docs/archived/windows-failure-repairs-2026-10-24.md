@@ -822,3 +822,28 @@ authority rather than matching the outer diagnostic wording. The subprocess
 barrier fixture installs its module hook before test-env imports the tracking
 owner and asserts the controlled owner was actually invoked. These controls
 retain all release, unrelated-owner and original-identity negatives.
+
+The seven-case follow-up at `7705d94030edbfbc0ea462bedf2721b1fb7d2073`
+passed three and failed four, without timeout/skip/crash. Unknown model execution
+observations, closed-transport shutdown and frozen managed-command recovery
+passed. Original failures without source-bound passing closure now number 49
+(51 moved to passing). Remaining errors exposed a stale EG2 runtime diagnostic
+expectation, missing explicit fake-child close events, termination-hook admission
+and a real cross-surface cursor generation mismatch.
+
+Cursor identity now keeps the selected canonical index directories and current
+artifact signatures while excluding invocation-only generation context. API and
+direct CLI calls over the same physical generation can agree without lending a
+cursor to a different root. Ranked-query cache metadata retains its existing
+generation context. The original public continuation, invalid-filter and
+changed-generation assertions remain intact.
+
+C tag declarations directly owned by a grammar declaration container and
+followed by its semicolon are retained as forward declarations; parameter and
+object references remain excluded. Single-document inline YAML maps retain the
+existing root chunk name instead of an artificial document-zero label. Native
+chunk version 9 and SourceChunking 25 invalidate the changed extraction. The
+Objective-C native suite asserts the actual signed selector `Widget.-greet:`.
+Fake protocol-child tests now explicitly emit the close events their zero-PID
+inert processes cannot obtain from an OS kill; separate actual Windows child
+fixtures retain OS termination qualification. This source wave awaits tests.
