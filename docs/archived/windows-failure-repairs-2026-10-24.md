@@ -875,3 +875,28 @@ The fixture still asserts actual controlled termination invocation, pending
 writer protection and exact close negatives. Native HTML expectations retain
 all elements using their canonical qualified names. These latest repairs await
 the next focused cohort.
+
+The 15-case closure follow-up at `4ae5ed7ec605556138a3fe7aadfe32ea4cdf899a`
+passed 13 and failed two, without timeouts/skips/crashes. All cursor, cache,
+real federation, C/YAML declaration, native language/smoke and subprocess barrier
+controls passed. The adjacent federation regression is closed at that source.
+Original passing closures total 57; 43 original failures remain. Public cursor
+continuations now reach a later Python fixture import problem. The LSP current-
+writer control exposed that request rejection still always selected the local
+error code even after transport classification was corrected.
+
+The next source repair preserves ERR_LSP_REQUEST_WRITE for local serialization
+failure and uses ERR_LSP_TRANSPORT_CLOSED for a retired/unknown transport, keeping
+the original error graph. Python payload coverage imports the actual package
+through the existing headless Sublime harness instead of runpy without package
+context. Semantic FileHandle fault controls compare equivalent Windows paths
+in the same namespace so the actual targeted read/close is intercepted.
+
+Dart's grammar places function_body beside its declaration signature. Native
+call traversal now aliases that exact sibling body to the existing declared
+owner and recognizes bounded argument-part selectors. Calls keep source-owned
+ranges, qualified/dynamic targets and existing unavailable argument-count
+coverage; no file-wide lexical fallback is introduced. Native call-fact version
+6, native chunk version 10 and SourceChunking 26 invalidate previous extraction.
+The existing managed-adapter test requires an actual native caller and the
+original source occurrence. These changes await focused validation.
