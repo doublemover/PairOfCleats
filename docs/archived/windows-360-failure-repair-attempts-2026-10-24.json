@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "recordedAt": "2026-10-24T10:26:50.646Z",
+  "recordedAt": "2026-10-24T10:32:00.524Z",
   "queueSourceHead": "a96699ab0e9e822320e008f5affc1d690f305cfe",
   "originalFailureSource": "893fe089458e7f7294b8d1f357f596fdecc7d5d4",
   "scope": "The 360 historical failures outstanding at the runtime-wave publication. Attempt every implementation before further batch tests. Seven repairs were completed and tested immediately before this instruction.",
@@ -19,11 +19,11 @@
   },
   "summary": {
     "selected": 360,
-    "implemented-unvalidated": 229,
-    "needs-further-implementation": 13,
+    "implemented-unvalidated": 246,
+    "needs-further-implementation": 14,
     "attempted-existing-owner-repair": 18,
-    "not-attempted": 93,
     "implemented": 7,
+    "not-attempted": 75,
     "finalBatchPassed": 0
   },
   "items": [
@@ -320,8 +320,8 @@
       "id": "tooling/structural/managed-execution-lifetime",
       "path": "tooling/structural/managed-execution-lifetime.test.js",
       "owner": "tooling/structural",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "3976af8e7",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The input did not match the regular expression /remains pending/. Input:",
       "failureLocations": [
@@ -332,7 +332,7 @@
         "tests/tooling/structural/managed-execution-lifetime.test.js:41:31",
         "src/experimental/structural/execution.js:50:41"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: direct name expansion enforces its cap, sparse labels reflect actual field postings, query cache identities advance to 9. Fixtures declare MinHash hash identity, stable parity UIDs, real provider selection/trust, parser-owned operands/parameters, import-only syntax, standard SARIF regex dialect and typed cancellation. Passive source proxy permits only Promise thenability lookup; source fields still cannot execute. VFS fixtures use exact lengths and retained/released physical handles; structural assertions traverse preserved exact error edges. Markdown fences explicitly admit line terminators. See durable receipt; all runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
@@ -1014,8 +1014,8 @@
       "id": "retrieval/backend/sqlite-missing-sparse-tables-allow-fallback",
       "path": "retrieval/backend/sqlite-missing-sparse-tables-allow-fallback.test.js",
       "owner": "retrieval/backend",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "3976af8e7",
       "originalTimedOut": false,
       "originalFailure": "Error: MinHash hash identity is missing or incompatible; rebuild the index.",
       "failureLocations": [
@@ -1026,7 +1026,7 @@
         "src/retrieval/pipeline.js:648:9",
         "src/retrieval/pipeline.js:505:77"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: direct name expansion enforces its cap, sparse labels reflect actual field postings, query cache identities advance to 9. Fixtures declare MinHash hash identity, stable parity UIDs, real provider selection/trust, parser-owned operands/parameters, import-only syntax, standard SARIF regex dialect and typed cancellation. Passive source proxy permits only Promise thenability lookup; source fields still cannot execute. VFS fixtures use exact lengths and retained/released physical handles; structural assertions traverse preserved exact error edges. Markdown fences explicitly admit line terminators. See durable receipt; all runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
@@ -1067,14 +1067,14 @@
       "id": "retrieval/context-expansion/cap-and-cache-identity",
       "path": "retrieval/context-expansion/cap-and-cache-identity.test.js",
       "owner": "retrieval/context-expansion",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "3976af8e7",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/retrieval/context-expansion/cap-and-cache-identity.test.js:23:8"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: direct name expansion enforces its cap, sparse labels reflect actual field postings, query cache identities advance to 9. Fixtures declare MinHash hash identity, stable parity UIDs, real provider selection/trust, parser-owned operands/parameters, import-only syntax, standard SARIF regex dialect and typed cancellation. Passive source proxy permits only Promise thenability lookup; source fields still cannot execute. VFS fixtures use exact lengths and retained/released physical handles; structural assertions traverse preserved exact error edges. Markdown fences explicitly admit line terminators. See durable receipt; all runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
@@ -1272,26 +1272,26 @@
       "id": "retrieval/output/sarif-interoperability",
       "path": "retrieval/output/sarif-interoperability.test.js",
       "owner": "retrieval/output",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "3976af8e7",
       "originalTimedOut": false,
       "originalFailure": "SyntaxError: Invalid regular expression: /^[a-zA-Z]{2}|^[a-zA-Z]{2}-[a-zA-Z]{2}]?$/u: Lone quantifier brackets",
       "failureLocations": [],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: direct name expansion enforces its cap, sparse labels reflect actual field postings, query cache identities advance to 9. Fixtures declare MinHash hash identity, stable parity UIDs, real provider selection/trust, parser-owned operands/parameters, import-only syntax, standard SARIF regex dialect and typed cancellation. Passive source proxy permits only Promise thenability lookup; source fields still cannot execute. VFS fixtures use exact lengths and retained/released physical handles; structural assertions traverse preserved exact error edges. Markdown fences explicitly admit line terminators. See durable receipt; all runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "retrieval/parity/partial-ranks-report",
       "path": "retrieval/parity/partial-ranks-report.test.js",
       "owner": "retrieval/parity",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "3976af8e7",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:",
       "failureLocations": [
         "tests/retrieval/parity/partial-ranks-report.test.js:40:8"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: direct name expansion enforces its cap, sparse labels reflect actual field postings, query cache identities advance to 9. Fixtures declare MinHash hash identity, stable parity UIDs, real provider selection/trust, parser-owned operands/parameters, import-only syntax, standard SARIF regex dialect and typed cancellation. Passive source proxy permits only Promise thenability lookup; source fields still cannot execute. VFS fixtures use exact lengths and retained/released physical handles; structural assertions traverse preserved exact error edges. Markdown fences explicitly admit line terminators. See durable receipt; all runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
@@ -1432,8 +1432,8 @@
       "id": "retrieval/providers/tantivy-boolean-and-failure",
       "path": "retrieval/providers/tantivy-boolean-and-failure.test.js",
       "owner": "retrieval/providers",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "3976af8e7",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:",
       "failureLocations": [
@@ -1443,29 +1443,29 @@
         "src/retrieval/pipeline.js:468:5",
         "tests/retrieval/providers/tantivy-boolean-and-failure.test.js:82:87"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: direct name expansion enforces its cap, sparse labels reflect actual field postings, query cache identities advance to 9. Fixtures declare MinHash hash identity, stable parity UIDs, real provider selection/trust, parser-owned operands/parameters, import-only syntax, standard SARIF regex dialect and typed cancellation. Passive source proxy permits only Promise thenability lookup; source fields still cannot execute. VFS fixtures use exact lengths and retained/released physical handles; structural assertions traverse preserved exact error edges. Markdown fences explicitly admit line terminators. See durable receipt; all runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "retrieval/ranking/bm25-sqlite-override",
       "path": "retrieval/ranking/bm25-sqlite-override.test.js",
       "owner": "retrieval/ranking",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "3976af8e7",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/retrieval/ranking/bm25-sqlite-override.test.js:10:8"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: direct name expansion enforces its cap, sparse labels reflect actual field postings, query cache identities advance to 9. Fixtures declare MinHash hash identity, stable parity UIDs, real provider selection/trust, parser-owned operands/parameters, import-only syntax, standard SARIF regex dialect and typed cancellation. Passive source proxy permits only Promise thenability lookup; source fields still cannot execute. VFS fixtures use exact lengths and retained/released physical handles; structural assertions traverse preserved exact error edges. Markdown fences explicitly admit line terminators. See durable receipt; all runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "retrieval/ranking/local-cross-encoder-original-inputs",
       "path": "retrieval/ranking/local-cross-encoder-original-inputs.test.js",
       "owner": "retrieval/ranking",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "3976af8e7",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: source value getter cannot substitute between hash and token formatting",
       "failureLocations": [
@@ -1474,15 +1474,15 @@
         "src/retrieval/rerankers/cross-encoder-scoring.js:50:34",
         "tests/retrieval/ranking/local-cross-encoder-original-inputs.test.js:97:9"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: direct name expansion enforces its cap, sparse labels reflect actual field postings, query cache identities advance to 9. Fixtures declare MinHash hash identity, stable parity UIDs, real provider selection/trust, parser-owned operands/parameters, import-only syntax, standard SARIF regex dialect and typed cancellation. Passive source proxy permits only Promise thenability lookup; source fields still cannot execute. VFS fixtures use exact lengths and retained/released physical handles; structural assertions traverse preserved exact error edges. Markdown fences explicitly admit line terminators. See durable receipt; all runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "retrieval/ranking/negative-dense-promotion",
       "path": "retrieval/ranking/negative-dense-promotion.test.js",
       "owner": "retrieval/ranking",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "3976af8e7",
       "originalTimedOut": false,
       "originalFailure": "Error: [embeddings] Unknown provider \"stub\". Expected one of: onnx, xenova.",
       "failureLocations": [
@@ -1491,7 +1491,7 @@
         "src/retrieval/cli/normalize-options.js:79:29",
         "tests/retrieval/ranking/negative-dense-promotion.test.js:52:18"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: direct name expansion enforces its cap, sparse labels reflect actual field postings, query cache identities advance to 9. Fixtures declare MinHash hash identity, stable parity UIDs, real provider selection/trust, parser-owned operands/parameters, import-only syntax, standard SARIF regex dialect and typed cancellation. Passive source proxy permits only Promise thenability lookup; source fields still cannot execute. VFS fixtures use exact lengths and retained/released physical handles; structural assertions traverse preserved exact error edges. Markdown fences explicitly admit line terminators. See durable receipt; all runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
@@ -1569,14 +1569,14 @@
       "id": "tooling/docs/markdown-local-navigation",
       "path": "tooling/docs/markdown-local-navigation.test.js",
       "owner": "tooling/docs",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "3976af8e7",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:",
       "failureLocations": [
         "tests/tooling/docs/markdown-local-navigation.test.js:9:8"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: direct name expansion enforces its cap, sparse labels reflect actual field postings, query cache identities advance to 9. Fixtures declare MinHash hash identity, stable parity UIDs, real provider selection/trust, parser-owned operands/parameters, import-only syntax, standard SARIF regex dialect and typed cancellation. Passive source proxy permits only Promise thenability lookup; source fields still cannot execute. VFS fixtures use exact lengths and retained/released physical handles; structural assertions traverse preserved exact error edges. Markdown fences explicitly admit line terminators. See durable receipt; all runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
@@ -2939,8 +2939,8 @@
       "id": "tooling/structural/managed-frozen-recovery",
       "path": "tooling/structural/managed-frozen-recovery.test.js",
       "owner": "tooling/structural",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "3976af8e7",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The input did not match the regular expression /remains pending/. Input:",
       "failureLocations": [
@@ -2951,7 +2951,7 @@
         "tests/tooling/structural/managed-frozen-recovery.test.js:44:49",
         "src/experimental/structural/execution.js:124:30"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: direct name expansion enforces its cap, sparse labels reflect actual field postings, query cache identities advance to 9. Fixtures declare MinHash hash identity, stable parity UIDs, real provider selection/trust, parser-owned operands/parameters, import-only syntax, standard SARIF regex dialect and typed cancellation. Passive source proxy permits only Promise thenability lookup; source fields still cannot execute. VFS fixtures use exact lengths and retained/released physical handles; structural assertions traverse preserved exact error edges. Markdown fences explicitly admit line terminators. See durable receipt; all runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
@@ -3083,22 +3083,22 @@
       "id": "tooling/vfs/collector-cleanup-on-error",
       "path": "tooling/vfs/collector-cleanup-on-error.test.js",
       "owner": "tooling/vfs",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "3976af8e7",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected runs directory to be cleaned up",
       "failureLocations": [
         "tests/tooling/vfs/collector-cleanup-on-error.test.js:65:10"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: direct name expansion enforces its cap, sparse labels reflect actual field postings, query cache identities advance to 9. Fixtures declare MinHash hash identity, stable parity UIDs, real provider selection/trust, parser-owned operands/parameters, import-only syntax, standard SARIF regex dialect and typed cancellation. Passive source proxy permits only Promise thenability lookup; source fields still cannot execute. VFS fixtures use exact lengths and retained/released physical handles; structural assertions traverse preserved exact error edges. Markdown fences explicitly admit line terminators. See durable receipt; all runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/vfs/offset-reader-close-timeout",
       "path": "tooling/vfs/offset-reader-close-timeout.test.js",
       "owner": "tooling/vfs",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "3976af8e7",
       "originalTimedOut": false,
       "originalFailure": "Error: VFS row is truncated.",
       "failureLocations": [
@@ -3106,7 +3106,7 @@
         "src/index/tooling/vfs/offset-reader.js:206:69",
         "tests/tooling/vfs/offset-reader-close-timeout.test.js:40:3"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: direct name expansion enforces its cap, sparse labels reflect actual field postings, query cache identities advance to 9. Fixtures declare MinHash hash identity, stable parity UIDs, real provider selection/trust, parser-owned operands/parameters, import-only syntax, standard SARIF regex dialect and typed cancellation. Passive source proxy permits only Promise thenability lookup; source fields still cannot execute. VFS fixtures use exact lengths and retained/released physical handles; structural assertions traverse preserved exact error edges. Markdown fences explicitly admit line terminators. See durable receipt; all runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
@@ -4523,23 +4523,23 @@
       "id": "indexing/type-inference/crossfile/argument-literal-propagation-replay",
       "path": "indexing/type-inference/crossfile/argument-literal-propagation-replay.test.js",
       "owner": "indexing/type-inference",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "3976af8e7",
       "originalTimedOut": false,
       "originalFailure": "TypeError: Cannot read properties of undefined (reading 'params')",
       "failureLocations": [
         "tests/indexing/type-inference/crossfile/argument-literal-propagation-replay.test.js:39",
         "tests/indexing/type-inference/crossfile/argument-literal-propagation-replay.test.js:39:50"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: direct name expansion enforces its cap, sparse labels reflect actual field postings, query cache identities advance to 9. Fixtures declare MinHash hash identity, stable parity UIDs, real provider selection/trust, parser-owned operands/parameters, import-only syntax, standard SARIF regex dialect and typed cancellation. Passive source proxy permits only Promise thenability lookup; source fields still cannot execute. VFS fixtures use exact lengths and retained/released physical handles; structural assertions traverse preserved exact error edges. Markdown fences explicitly admit line terminators. See durable receipt; all runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/type-inference/crossfile/module-export-target-replay",
       "path": "indexing/type-inference/crossfile/module-export-target-replay.test.js",
       "owner": "indexing/type-inference",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "needs-further-implementation",
+      "sourceHead": "3976af8e7",
       "originalTimedOut": false,
       "originalFailure": "TypeError: Cannot read properties of undefined (reading '0')",
       "failureLocations": [
@@ -4547,46 +4547,46 @@
         "tests/indexing/type-inference/crossfile/module-export-target-replay.test.js:101:111",
         "tests/indexing/type-inference/crossfile/module-export-target-replay.test.js:118:79"
       ],
-      "notes": null,
+      "notes": "Actual JS/TS parser -> range ownership -> cross-file consumer traced. Missing summary could originate before or after chunk projection; added exact language/name assertions for parser call-details and derived summaries. All module/export/type-only negatives retained; root-cause closure still pending deferred batch.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/type-inference/crossfile/parser-import-binding-replay",
       "path": "indexing/type-inference/crossfile/parser-import-binding-replay.test.js",
       "owner": "indexing/type-inference",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "3976af8e7",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:",
       "failureLocations": [
         "tests/indexing/type-inference/crossfile/parser-import-binding-replay.test.js:68:12",
         "tests/indexing/type-inference/crossfile/parser-import-binding-replay.test.js:165:16"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: direct name expansion enforces its cap, sparse labels reflect actual field postings, query cache identities advance to 9. Fixtures declare MinHash hash identity, stable parity UIDs, real provider selection/trust, parser-owned operands/parameters, import-only syntax, standard SARIF regex dialect and typed cancellation. Passive source proxy permits only Promise thenability lookup; source fields still cannot execute. VFS fixtures use exact lengths and retained/released physical handles; structural assertions traverse preserved exact error edges. Markdown fences explicitly admit line terminators. See durable receipt; all runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/type-inference/providers/type-inference-lsp-enrichment",
       "path": "indexing/type-inference/providers/type-inference-lsp-enrichment.test.js",
       "owner": "indexing/type-inference",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "3976af8e7",
       "originalTimedOut": false,
       "originalFailure": "LSP enrichment test failed: missing tooling return type for Swift.",
       "failureLocations": [],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: direct name expansion enforces its cap, sparse labels reflect actual field postings, query cache identities advance to 9. Fixtures declare MinHash hash identity, stable parity UIDs, real provider selection/trust, parser-owned operands/parameters, import-only syntax, standard SARIF regex dialect and typed cancellation. Passive source proxy permits only Promise thenability lookup; source fields still cannot execute. VFS fixtures use exact lengths and retained/released physical handles; structural assertions traverse preserved exact error edges. Markdown fences explicitly admit line terminators. See durable receipt; all runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/type-inference/providers/type-inference-sourcekit-provider-no-sourcekit",
       "path": "indexing/type-inference/providers/type-inference-sourcekit-provider-no-sourcekit.test.js",
       "owner": "indexing/type-inference",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "3976af8e7",
       "originalTimedOut": false,
       "originalFailure": "sourcekit provider missing expected fallback log message.",
       "failureLocations": [],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: direct name expansion enforces its cap, sparse labels reflect actual field postings, query cache identities advance to 9. Fixtures declare MinHash hash identity, stable parity UIDs, real provider selection/trust, parser-owned operands/parameters, import-only syntax, standard SARIF regex dialect and typed cancellation. Passive source proxy permits only Promise thenability lookup; source fields still cannot execute. VFS fixtures use exact lengths and retained/released physical handles; structural assertions traverse preserved exact error edges. Markdown fences explicitly admit line terminators. See durable receipt; all runtime rechecks pending.",
       "finalBatchStatus": "pending"
     },
     {

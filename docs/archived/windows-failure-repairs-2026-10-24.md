@@ -552,3 +552,22 @@ the reader-close wedge retains its real FileHandle and explicitly releases it
 after bounded timeout assertions. CDC expects its current byte-bounded producer,
 and VFS cleanup protects sibling collectors. Formatting/diff checks pass; runtime
 tests remain deferred until all 360 cases have implementation attempts.
+
+Retrieval/provider implementation `3976af8e7` attempts 18 more cases
+(285/360; 75 unattempted). Direct call-name candidates now honor their name cap,
+and BM25 reports fielded ranking only when actual field postings exist. Local
+and federated query-cache versions advance to 9. Literal propagation fixtures
+use parsed declarations/arguments and canonical symbols; import-only valid TS
+syntax is independent from declaration presence. Provider fixtures select actual
+fixture commands/trust and admit the existing structured-preflight log path.
+MinHash declares its current hash identity; partial-rank reports use stable UIDs.
+SARIF validates its unchanged official schema with ECMA regex syntax; cancellation
+asserts the owning API's typed contract. A hostile source proxy permits only the
+Promise thenability lookup before passive descriptor admission. VFS cleanup owns
+its collector child, and close-timeout coverage uses exact bytes plus retained,
+explicitly released real handles. Structural pending failures remain asserted
+through preserved error graphs. Markdown code fences now explicitly consume line
+terminators. Module-export replay still needs root-cause closure: new assertions
+identify the exact language/function and distinguish missing parsed calls from
+missing summaries while retaining all export/type-only barriers. Formatting and
+diff checks pass; runtime acceptance remains deferred.
