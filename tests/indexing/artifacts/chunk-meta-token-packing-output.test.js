@@ -18,7 +18,7 @@ try {
         : index % 3 === 1 ? BigInt(index) : 0xffffffffffffffffn));
       const selected = tokenMode === 'sample' ? ids.slice(0, 15001) : ids.slice();
       const expected = encodeVarint64List(selected.map(parseHash64)).toString('base64');
-      assert.ok(Buffer.from(expected, 'base64').length > 65536, 'the real row crosses the fixed byte block');
+      assert.ok(Buffer.byteLength(expected, 'utf8') > 65536, 'the real row crosses the fixed byte block');
       let idReads = 0;
       const chunk = { id: 0, file: 'src/雪.js', start: 0, end: 1, chunkUid: 'uid-0', tokens: [] };
       Object.defineProperty(chunk, 'tokenIds', { get() { idReads++; return ids; } });

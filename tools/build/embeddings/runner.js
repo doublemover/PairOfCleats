@@ -3682,10 +3682,12 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
           logArtifactLocation(mode, 'dense_vectors_code_uint8_bin', `${codeVectorsBasePath}.bin`);
         }
 
-        const backendStageRoot = path.join(modeIndexRoot || indexDir, '.embeddings-backend-staging');
+        // Keep the owned stage inside this generation without adding two long
+        // path components before Windows mkdtemp and native backend filenames.
+        const backendStageRoot = modeIndexRoot || indexDir;
         const backendStageDir = await scheduleIo(async () => {
           await fs.mkdir(backendStageRoot, { recursive: true });
-          return fs.mkdtemp(path.join(backendStageRoot, `index-${mode}-`));
+          return fs.mkdtemp(path.join(backendStageRoot, '.ann-'));
         });
         const stagedHnswPaths = {
           merged: resolveHnswPaths(backendStageDir, 'merged'),

@@ -93,7 +93,7 @@ export const validateChunkIdentity = (report, mode, chunkMeta) => {
 };
 
 export const validateFileNameCollisions = (report, mode, repoMap) => {
-  const seen = new Set();
+  const seen = new Map();
   for (const entry of Array.isArray(repoMap) ? repoMap : []) {
     const file = entry?.file;
     const name = entry?.name;
@@ -104,7 +104,12 @@ export const validateFileNameCollisions = (report, mode, repoMap) => {
       ? entry.startLine
       : (Number.isFinite(entry?.start) ? entry.start : '');
     const key = JSON.stringify([file, name, kind, signature, lineMarker]);
-    if (seen.has(key)) {
+    const chunkUid = typeof entry?.chunkUid === 'string' && entry.chunkUid ? entry.chunkUid : null;
+    const prior = seen.get(key);
+    // Multiple source-owned chunks can share a display name and line. The
+    // published chunk identity distinguishes them; legacy rows without one
+    // still require the original collision check.
+    if (prior && (!chunkUid || prior.missingUid || prior.uids.has(chunkUid))) {
       addIssue(
         report,
         mode,
@@ -113,7 +118,8 @@ export const validateFileNameCollisions = (report, mode, repoMap) => {
       );
       return;
     }
-    seen.add(key);
+    if (prior) prior.uids.add(chunkUid);
+    else seen.set(key, { missingUid: !chunkUid, uids: new Set(chunkUid ? [chunkUid] : []) });
   }
 };
 

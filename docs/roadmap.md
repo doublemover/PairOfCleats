@@ -19,6 +19,14 @@ cleanup handle now preserves that lifetime; the preserved old binding fails
 cancellation, while ten fresh-process cases and the exposing fixture pass.
 Complete locked setup, remaining failure repairs and portable coverage in mixed
 link wrappers precede a new candidate freeze.
+After the 2026-10-23 remote history cleanup, the rewritten branch tip has the
+same committed file tree; local repairs were preserved. The next repair batch
+fixes provider record projection, same-line repo-map source identities, Windows
+embedding stage paths, SQLite dense encoding admission and several stale fixture
+assumptions. Focused cold compiler indexing passes in 22.4s. A separate 24.9s
+warm replay case proves that unchanged syntax can publish without its prior
+compiler bindings; replay admission/publication remains a high-priority defect.
+The next committed batch triggers the requested full Windows validation pass.
 
 Continue on `codex/pr557-audit-repairs-20261012` through
 [PR #572](https://github.com/doublemover/PairOfCleats/pull/572), retaining its
@@ -123,8 +131,8 @@ Unicode type roots and own parameter/argument names reach parser/cache/public
 consumers. Complete source-checked semantic tokens and iterative symbols preserve
 source authority. Accessor calls distinguish reads/writes/deletion; computed keys
 retain evaluation/conversion order and creation-context captures. Current versions:
-moduleExports3/recordsProducer6/sourceChunking21/importResolution15/pieceAssembly3/typeNormalization11/compilerBindings23/
-lspBindings46/rq11/cfgFlow28/callFlow47/valueSlice10/boundaryFlow12/workerFlow11. VSCode and Sublime retain
+moduleExports3/recordsProducer7/sourceChunking22/importResolution15/pieceAssembly3/typeNormalization11/compilerBindings23/
+lspBindings46/rq11/cfgFlow28/callFlow48/valueSlice10/boundaryFlow12/workerFlow11. VSCode and Sublime retain
 original opened-file/URI/request identity through deferred native selection.
 Proto/SemanticDB/ShellCheck report adapters are3 and SCIP importer is5; the other
 five report adapters remain2.

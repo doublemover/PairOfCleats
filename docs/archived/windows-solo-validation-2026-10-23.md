@@ -354,3 +354,43 @@ binary/PDB, exact commands, hashes and symbolized traces remain. Formatting, con
 budget, environment usage, generated freshness, command/workflow contracts, all
 40 gate cases and diff whitespace checks pass for this native repair source.
 Seven npm audit findings and the five functional route failures remain open.
+
+## Remote rewrite and next Windows repair batch, 2026-10-23
+
+The user removed errant GitHub tags from branch history. Fetch moved origin
+from `c3fa4640f` to `9ce4c6bef`; both commits have the exact same tree
+`df350cc4b7c486012166fc17e428f92353fb50d2`. A soft local reset followed
+the rewritten origin tip without altering the uncommitted source or test repairs.
+
+Focused work confirms the original cache-route Windows path failure and several
+contract defects have separate owners. The canonical provider store omits
+unrequested `data`; call joins now request it explicitly. The graph loader now
+records the actual `call_sites` artifact instead of its private cache key.
+Embedding staging stays in a short path within the approved generation root;
+the original stub cache fixture passes in 21.2s. SQLite dense ingestion now
+distinguishes a primary JSONL-shard description from its companion binary
+encoding, while rejecting other explicit formats. Four SQLite fixtures and the
+native isolate pass with one job, 30-second deadlines and zero retries.
+
+The same-line TypeScript fixture exposes two legitimate `(module)` chunks with
+different canonical `chunkUid`s. Repo-map validation used file/name/kind/
+signature/start line but ignored those published identities; it rejected the
+second chunk. Validation now accepts distinct source IDs and still rejects
+repeated or missing IDs. The rich cold compiler fixture passes in 22.4s.
+Its combined cold/warm wrapper exceeded 30s, so a small independent warm case
+keeps the original syntax/binding/call-target parity checks within one bounded
+process. That case fails in 24.9s: the new generation reuses the same syntax
+hashes but publishes no binding rows. This is an open replay correctness defect,
+not passing evidence. A subsequent diagnostic attempt exceeded 30s during
+warm preparation and is also recorded as a timeout, never a pass.
+
+The code-map SVG negative now asserts the intentional exit-1 error contract and
+checks that the DOT recovery file exists. The provider alias fixture supplies a
+schema-valid value reference so wrong-kind evidence is still tested. The
+observability fixture reads the runtime's owned JSONL log, which contains the
+two expected SourceKit/Rust trust warnings; reading the caller's separate ring
+lost those messages. The hang-safety guard distinguishes the no-token debounce
+scheduler from token-bearing build scheduler calls. The SQLite crash fixture
+reads the attempt-owned forensic index rather than the obsolete shared path.
+No remote rewrite changed product files. The frozen 720-case report belongs to
+the prior source and remains historical; a fresh full candidate pass is pending.

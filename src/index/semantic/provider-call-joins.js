@@ -44,7 +44,7 @@ export const joinProviderCallSummaries = async ({ group, output, store, state, p
   for (let offset = 0; offset < values.length; offset += 128) {
     throwIfAborted(signal);
     const batch = values.slice(offset, offset + 128);
-    const rows = await store.getRecords(batch, [], { signal });
+    const rows = await store.getRecords(batch, ['data'], { signal });
     rows.forEach((row, index) => { if (row) records.set(key(batch[index]), row); });
   }
   const qualifiedEvidence = (edge, partition) => {

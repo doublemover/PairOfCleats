@@ -59,6 +59,12 @@ const resolveSqliteDenseArtifactSource = ({ vectorsPath, modelId = null, dims = 
       { maxBytes: 64 * 1024 * 1024, signal }).buffer.toString('utf8')));
     const sourceMeta = readMeta(metaPath);
     const meta = sourceMeta ? { ...sourceMeta, count: sourceMeta.count ?? sourceMeta.totalRecords } : null;
+    if (meta && Object.hasOwn(meta, 'format') && !['jsonl-sharded', 'uint8-row-major'].includes(meta.format)) {
+      throw new Error('Invalid vector artifact metadata format.');
+    }
+    // The primary metadata may describe companion JSONL shards. Its encoding
+    // does not describe the separately selected and extent-validated .bin file.
+    if (meta) delete meta.format;
     if (!meta || !Number.isSafeInteger(meta.count) || meta.count < 0
       || !Number.isSafeInteger(meta.dims) || meta.dims <= 0
       || !Number.isSafeInteger(meta.count * meta.dims)
@@ -68,7 +74,8 @@ const resolveSqliteDenseArtifactSource = ({ vectorsPath, modelId = null, dims = 
     const binaryMetaPath = `${resolvedBasePath}.bin.meta.json`;
     if (fsSync.existsSync(binaryMetaPath)) {
       const binaryMeta = readMeta(binaryMetaPath);
-      if (!binaryMeta || binaryMeta.count !== meta.count || binaryMeta.dims !== meta.dims
+      if (!binaryMeta || (Object.hasOwn(binaryMeta, 'format') && binaryMeta.format !== 'uint8-row-major')
+        || binaryMeta.count !== meta.count || binaryMeta.dims !== meta.dims
         || binaryMeta.model !== meta.model || JSON.stringify(binaryMeta.validity ?? null) !== JSON.stringify(meta.validity ?? null)
         || (binaryMeta.bytes != null && binaryMeta.bytes !== meta.count * meta.dims)) {
         throw new Error('Binary and sharded vector metadata disagree.');

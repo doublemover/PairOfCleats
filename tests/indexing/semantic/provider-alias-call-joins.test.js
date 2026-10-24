@@ -31,7 +31,7 @@ try {
   const edge = (kind, from, to, extra = {}) => rows.push({ family: 'edge', row: { id: edgeId++, kind, from, to, callSite: null, operandOrdinal: null, contextKey, condition: null, evidence: ref(0), certainty: 'exact-static', ...extra } });
   const invalidEvidence = ref(nodeId++);
   rows.push({ family: 'node', row: { id: invalidEvidence.localId, kind: 'value', span: null, scope: null,
-    data: { origin: 'unknown', site: null, storage: null } } });
+    data: { origin: 'unknown', site: doc.expressionFor(calls[0]), storage: null } } });
   const wrongSourceEvidence = ref(nodeId++);
   rows.push({ family: 'node', row: { id: wrongSourceEvidence.localId, kind: 'evidence', span: null, scope: null,
     data: { method: 'wrong-source-fixture', producerId: 'fixture', producerVersion: '1', evidenceKind: 'static-analysis',

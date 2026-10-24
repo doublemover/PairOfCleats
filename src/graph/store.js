@@ -437,13 +437,14 @@ export const createGraphStore = ({
   };
 
   /**
-   * Memoize one async artifact loader by artifact name.
+   * Memoize a loader by representation while reporting its actual source artifact.
    *
    * @param {string} name
    * @param {() => Promise<unknown>} loader
+   * @param {string} artifactName
    * @returns {Promise<unknown>}
    */
-  const loadOnce = async (name, loader) => {
+  const loadOnce = async (name, loader, artifactName = name) => {
     if (artifactCache.has(name)) return artifactCache.get(name);
     const promise = Promise.resolve()
       .then(loader)
@@ -452,7 +453,7 @@ export const createGraphStore = ({
         throw err;
       });
     artifactCache.set(name, promise);
-    artifactsUsed.add(name);
+    artifactsUsed.add(artifactName);
     return promise;
   };
 
@@ -498,13 +499,12 @@ export const createGraphStore = ({
   // indexing retains only its pair evidence, without a second corpus-sized row
   // array. Complete/unresolved evidence is separately enumerable in pages.
   const loadCallSiteIndex = () => loadOnce('call_sites_pair_index', async () => {
-    artifactsUsed.add('call_sites');
     const index = new Map();
     for await (const row of loadJsonArrayArtifactRows(indexDir, 'call_sites', {
       manifest: resolvedManifest, maxBytes, strict
     })) appendCallSiteIndex(index, row);
     return index;
-  });
+  }, 'call_sites');
   let callSitePages = null;
   const getCallSitePages = () => callSitePages ||= createCallSitePages({
     indexDir, manifest: resolvedManifest, maxBytes

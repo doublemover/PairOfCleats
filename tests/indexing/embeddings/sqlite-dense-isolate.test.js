@@ -127,7 +127,7 @@ try {
   assert.equal(replayEnvelope.bundle.replay.vectorsPath, vectorsBasePath, 'expected replay bundle vectors path');
   assert.equal(replayEnvelope.bundle.workerIdentity, 'stage3-sqlite:code', 'expected replay bundle worker identity');
 
-  const forensicsIndexPath = path.join(repoCacheRoot, 'logs', 'index-crash-forensics-index.json');
+  const forensicsIndexPath = path.join(crashLogger.paths.directory, 'index-crash-forensics-index.json');
   const forensicsIndex = JSON.parse(await fsPromises.readFile(forensicsIndexPath, 'utf8'));
   assert.equal(
     Array.isArray(forensicsIndex?.entries) && forensicsIndex.entries.some((entry) => entry.kind === 'sqlite-stage3-replay'),

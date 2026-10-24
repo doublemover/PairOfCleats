@@ -30,6 +30,7 @@ const baseStats = {
   mode: 'code',
   status: 'ok',
   reason: null,
+  inputCoverage: { status: 'complete' },
   effectiveConfig: { enabled: true, summaryOnly: false, emitArtifacts: 'jsonl' },
   counts: { flowsEmitted: 1, summariesEmitted: 1, uniqueCallSitesReferenced: 0 },
   callSiteSampling: { strategy: 'firstN', maxCallSitesPerEdge: 0, order: 'deterministic' },
@@ -214,6 +215,16 @@ const assembleAt = (indexDir, riskStrict = false) => assembleCompositeContextPac
   includeImports: false, includeUsages: false, includeCallersCallees: false,
   now: fixedNow, indexCompatKey: 'compat-strict'
 });
+for (const [name, inputCoverage, droppedRecords] of [
+  ['unknown-input', undefined, []],
+  ['partial-input', { status: 'partial' }, []],
+  ['dropped-input', { status: 'complete' }, [{ artifact: 'risk_flows', count: 1 }]]
+]) {
+  const pack = await buildPack({ name, stats: { ...baseStats, inputCoverage, droppedRecords },
+    summaries: [summaryRow], flows: [normalFlow] });
+  assert.equal(pack.risk.analysisStatus.code, 'capped', name);
+  assertStrictFail(path.join(tempRoot, name, 'index-code'));
+}
 for (const missing of ['stats', 'summaries']) {
   const name = `missing-${missing}`;
   const pack = await buildPack({ name, stats: missing === 'stats' ? null : baseStats,

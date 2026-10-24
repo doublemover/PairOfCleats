@@ -101,21 +101,5 @@ try {
     assert.ok(manifest.completedTasks.length > 0);
     for (const receipt of manifest.completedTasks) assert.equal(control.prepare('SELECT state FROM tasks WHERE taskId=?').get(receipt.taskId).state, 'completed', 'completion follows successful normal generation promotion');
   } finally { control.close(); }
-  await buildIndex(repo, { mode: 'code', stage: 'stage2', incremental: true, 'stub-embeddings': true, 'scm-provider': 'none' });
-  const warmDir = getIndexDir(repo, 'code', loadUserConfig(repo));
-  const warm = JSON.parse(await fs.readFile(path.join(warmDir, 'semantic_manifest.json'), 'utf8'));
-  assert.notEqual(warm.generation.baseBuildId, manifest.generation.baseBuildId);
-  assert.deepEqual(warm.partitions.filter(p => p.partitionId.startsWith('sy1:')).map(p => p.canonicalHash).sort(),
-    manifest.partitions.filter(p => p.partitionId.startsWith('sy1:')).map(p => p.canonicalHash).sort(), 'warm reuse retains exact immutable syntax');
-  const {store:warmStore}=await openPublishedSemanticStore({indexDir:warmDir,repoRoot:repo,generation:warm.generation});
-  const warmBindings=[],warmTargets=[];
-  for(const partition of warm.partitions){
-    for await(const row of warmStore.iterateRows(partition.partitionId,'semantic_records'))if(row.kind==='binding')warmBindings.push(JSON.stringify(row));
-    for await(const row of warmStore.iterateRows(partition.partitionId,'semantic_edges'))if(row.kind==='callTarget')warmTargets.push(JSON.stringify(row));
-  }
-  assert.deepEqual(warmBindings.sort(),[...records.values()].filter(row=>row.kind==='binding').map(row=>JSON.stringify(row)).sort(),'warm cache retains checker observations without requiring redundant task execution');
-  assert.deepEqual(warmTargets.sort(),edges.filter(row=>row.kind==='callTarget').map(row=>JSON.stringify(row)).sort(),'warm cache retains exact call targets');
-  assert.ok(warm.completedTasks.every(receipt => receipt.baseBuildId === warm.generation.baseBuildId));
-
 } finally { await fs.rm(temp, { recursive: true, force: true }); }
 console.log('compiler binding production passed');

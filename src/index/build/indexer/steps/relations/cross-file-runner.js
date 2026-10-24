@@ -115,7 +115,7 @@ export const runCrossFileInference = async ({
       const work = await prepareSemanticBindingWork({ state, runtime, signal: abortSignal, reuseReady: useTooling, compilerDocuments });
       return { semanticSession, semanticLspSession, toolingConfig, toolingDocuments, work };
     });
-    await work.run(async ({ signal }) => {
+    const semanticExecution = await work.run(async ({ signal }) => {
       semanticSession.setSignal(signal); semanticLspSession.setSignal?.(signal);
       let registeredProviderOutput = null;
       if (semanticSession.enabled || semanticLspSession.enabled) {
@@ -133,6 +133,9 @@ export const runCrossFileInference = async ({
       const compilerOutput = semanticSession.output();
       return combineSemanticProviderOutputs([compilerOutput, lspOutput]);
     });
+    if (!semanticExecution?.ran && work.tasks.length) {
+      log(`[semantic] compiler work deferred: ${semanticExecution?.reason || 'unknown'}.`);
+    }
     await runNativeSemanticProviders({ state, runtime, toolingConfig, log, signal: abortSignal });
   }
 

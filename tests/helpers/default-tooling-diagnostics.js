@@ -3,12 +3,12 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 // These sample-repository integrations exercise normal provider selection.
-// Optional command absence and Rust's untrusted-workspace rejection are expected;
+// Optional command absence and project-loader trust rejections are expected;
 // crashes, timeouts, protocol failures and any other degraded check are not.
 const EXPECTED_WARNINGS = new Map([
   ['clangd', new Set(['clangd_command_unavailable'])],
   ['pyright', new Set()],
-  ['sourcekit', new Set(['sourcekit_command_unavailable'])],
+  ['sourcekit', new Set(['sourcekit_command_unavailable', 'sourcekit_workspace_trust_required'])],
   ['rust-analyzer', new Set(['rust_workspace_trust_required', 'lsp_command_unavailable'])]
 ]);
 
@@ -35,8 +35,10 @@ export const assertDefaultToolingDiagnostics = async ({ repoCacheRoot, startedAt
     if (record.preflight.state === 'blocked') {
       assert.ok(warnings.length > 0, 'blocked providers retain the initiating diagnostic');
       assert.equal(record.runtime, null, 'blocked providers do not claim live execution');
-      if (record.providerId === 'rust-analyzer' && reasons.has('rust_workspace_trust_required')) {
-        assert.equal(record.preflight.reasonCode, 'rust_workspace_trust_required');
+      const trustReason = record.providerId === 'rust-analyzer' ? 'rust_workspace_trust_required'
+        : record.providerId === 'sourcekit' ? 'sourcekit_workspace_trust_required' : null;
+      if (trustReason && warnings.some(check => check.name === trustReason)) {
+        assert.equal(record.preflight.reasonCode, trustReason);
       } else assert.equal(record.preflight.reasonCode, 'preflight_command_unavailable');
     }
     if (record.runtime) {

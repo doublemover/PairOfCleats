@@ -30,6 +30,18 @@ try {
   assert.equal((await runSqliteDenseIsolateChild(payload)).count, 2,
     'producer sharded totalRecords and binary count metadata agree on authoritative rows');
   const afterValid = await fs.readFile(dbPath);
+  for (const [primaryFormat, binaryFormat] of [
+    ['jsonl-sharded', 'jsonl-sharded'],
+    ['unknown-encoding', 'uint8-row-major'],
+    [null, 'uint8-row-major'],
+    ['jsonl-sharded', null]
+  ]) {
+    await fs.writeFile(`${vectorsPath}.meta.json`, JSON.stringify({ format: primaryFormat, totalRecords: 2, dims: 2, model: 'fixture' }));
+    await fs.writeFile(`${vectorsPath}.bin.meta.json`, JSON.stringify({ format: binaryFormat, count: 2, dims: 2, model: 'fixture', bytes: 4 }));
+    await assert.rejects(runSqliteDenseIsolateChild(payload), { code: 'ERR_SQLITE_DENSE_ARTIFACT_INVALID' });
+    assert.deepEqual(await fs.readFile(dbPath), afterValid, 'encoding rejection cannot mutate prior SQLite bytes');
+  }
+  await fs.writeFile(`${vectorsPath}.meta.json`, JSON.stringify({ format: 'jsonl-sharded', totalRecords: 2, dims: 2, model: 'fixture' }));
   await fs.writeFile(`${vectorsPath}.bin.meta.json`, JSON.stringify({ count: 3, dims: 2, model: 'fixture', bytes: 6 }));
   await assert.rejects(runSqliteDenseIsolateChild(payload), { code: 'ERR_SQLITE_DENSE_ARTIFACT_INVALID' });
   assert.deepEqual(await fs.readFile(dbPath), afterValid, 'disagreeing binary identity cannot mutate prior SQLite bytes');

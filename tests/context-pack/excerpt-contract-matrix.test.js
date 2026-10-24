@@ -113,7 +113,7 @@ const cases = [
         const filePath = path.join(srcDir, 'delta.txt');
         fs.writeFileSync(filePath, 'alpha beta gamma');
         const chunkMeta = [
-          { chunkUid: 'chunk-d', file: 'src/delta.txt', start: 0, end: 18 }
+          { chunkUid: 'chunk-d', file: 'src/delta.txt', start: 0, end: 16 }
         ];
         const first = buildPack({
           repoRoot,
