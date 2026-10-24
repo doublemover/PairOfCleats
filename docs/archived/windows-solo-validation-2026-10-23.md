@@ -498,3 +498,51 @@ checks pass; unchanged gate behavior retains the preceding 40-case observation.
 The cumulative targeted inventory is 125 passing IDs, including 77 former
 failures. Another 473 historical failure IDs await targeted re-checks. No new full
 rerun, native crash campaign or measured performance claim is made.
+
+## Targeted service and query follow-up, 2026-10-24
+
+The next narrow batch demonstrates a real acquisition race: lock metadata may
+change during a verified descriptor read while another owner publishes or
+retires it. Acquisition now treats only a fully settled `ERR_FILE_CHANGED`
+observation as contention within its existing deadline. It never derives stale
+removal authority from that incomplete read. The new real-file mutation
+regression fails before the fix and passes after it; an independent close
+failure still blocks and retains its original recovery session. Concurrent
+queue admission/dispatch and exact-identity/falsey/release controls pass.
+
+The lock contract fixture also reused a path after deliberately leaving an
+unconfirmed release, so its next worker never ran. Distinct negative-case paths
+now retain the false-result, custom-release throw and worker-error assertions;
+an added real native-removal failure exercises the wrapper and recovery owner.
+
+API diagnostics preserve nested validation field pointers while independently
+redacting embedded server paths. Core API assertions read the build's actual
+owned JSONL log instead of the caller's unrelated ring. Semantic manifest
+version fixtures regenerate the real publication seal before format admission;
+missing, legacy and future cases all retain exact 409/remedy assertions, and
+the path-disclosure control passes. No checksum or format guard is relaxed.
+
+All three original Boolean CLI backend cases pass (memory 24.7s, SQLite 26.1s,
+FTS 26.3s), including cold/warm queries, negative-only complements, structured
+filters, expected warnings and invalid compound negation. The lazy FTS fixture
+now admits its complete sorted posting vocabulary and scoring-analyzer identity
+before asserting posting-bounded hydration; conservative unknown-index behavior
+remains covered by eligibility-domain parity.
+
+The obsolete JSONL source-regex test required a synchronous cleanup helper that
+has been replaced by awaited source/decoder closure. Its replacement exercises
+real streaming gzip candidates: failed primary closure precedes backup opening,
+explicit recovery returns exact rows, strict mode preserves the original error,
+and all streams close while backup bytes remain unchanged. The existing
+plain/gzip/zstd cancellation and independent-finalizer assertions are retained.
+
+Cumulative targeted observations now contain 145 passing IDs, including 91
+historical failures. The other 459 old failure IDs still await targeted re-checks;
+this is not another full campaign or a claim that those failures are unchanged.
+
+Source checkpoints are `0c91b46e4` (lock contention and release controls),
+`6a77f1d30` (API diagnostics and sealed format fixtures), and `5640695e5`
+(posting admission and real JSONL fallback cleanup). The complete ready-batch
+front gate passes, including all 40 gate cases; no failing check or timeout is
+counted as acceptance. All 145 latest targeted observations are passing; the
+failed-before and intermediate diagnostic receipts remain preserved separately.

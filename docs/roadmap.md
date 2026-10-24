@@ -1,24 +1,26 @@
 # PairOfCleats Roadmap
 
 Status: Windows validation in progress; solo issue repairs
-Last audited: 2026-10-23
-Last reconciled: 2026-10-23
+Last audited: 2026-10-24
+Last reconciled: 2026-10-24
 Canonical for: initiative status, execution order, and remaining work
 
 ## Current GitHub repair program
 
-Current reconciliation, 2026-10-23: the user replaced the proposed full Windows
+Current reconciliation, 2026-10-24: the user replaced the proposed full Windows
 rerun with **targeted re-checks** of failures and changed shared owners. Work is
 solo; workers remain parked. The [current validation receipt](archived/windows-solo-validation-2026-10-23.md)
 separates current observations from older qualified sources. Four pushed repairs
 through `f273a45d6` restore SQLite nullable facts, fielded pure-NOT results,
 coarse-worker regex/dictionary parity, cache-only admission and Windows spool
-paths. Targeted observations include 75 previously failing IDs now passing and
-all 40 gate cases; 475 old failure IDs still await re-checks. These are scoped
-observations, not a final-tree deep-suite pass. Follow-up `f4c47f641` fixes the
+paths. Follow-up `f4c47f641` fixes the
 retained graph MCP repository owner and restores strict schema compilation;
 the graph/CLI/HTTP case, MCP schema/version/list and three generator checks pass.
-Including this follow-up, 77 old failure IDs pass and 473 await re-checks.
+The next service batch repairs changing-lock contention and nested diagnostic
+redaction, with source-bound format, release-owner and lazy-posting fixtures.
+Targeted observations now cover 145 passing IDs, including 91 former failures
+and 40 gate cases; 459 old failure IDs await re-checks. These scoped observations
+are not a final-tree deep-suite pass.
 The earlier CDB-attributed
 Node-API finalizer lifetime repair retains its fail-before, ten-process and
 exposing-fixture evidence; no crash workaround or Node downgrade is used.
