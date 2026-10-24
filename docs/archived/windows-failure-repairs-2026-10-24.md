@@ -1063,3 +1063,13 @@ Sublime navigation fixture now supplies real disposable source/target bytes,
 actual hashes, UTF-16 ranges, stable source version and operation scope to the
 existing qualified navigation path, preserving definition, reference, completion
 and empty-result behavior assertions. These changes await focused validation.
+
+The nine-case follow-up at `bb44d9d04c1c832a258977cee1f23fc39e55e158`
+passed seven and failed two without timeouts/skips/crashes. C# native scope,
+actual official VSIX/Sublime archive qualification, output paths, package
+contracts and existing navigation/editor lifetime controls passed. Eighty-one
+original failures now have passing closure; 19 remain. An adjacent malformed-
+archive fixture retained an uppercase regex after its ZIP path changed; that
+is corrected. Navigation helper checks now preserve actual line-only encoded
+opening and distinguish approximate completion's existing search command from
+source-qualified definition/reference navigation. Those refinements await checks.

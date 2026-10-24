@@ -5940,12 +5940,273 @@
           "historicalAuthorWorkspaceEvidence": true
         }
       ]
+    },
+    {
+      "sourceHead": "bb44d9d04c1c832a258977cee1f23fc39e55e158",
+      "startedAt": "2026-10-24T14:22:56.662Z",
+      "finishedAt": "2026-10-24T14:23:10.831Z",
+      "scope": "Native scope closure and release/archive/editor behavior checks.",
+      "policy": {
+        "timeoutMs": 30000,
+        "retries": 0,
+        "nativeStatusRedo": false,
+        "threads": 1,
+        "platform": "win32",
+        "node": "v26.12.1",
+        "removedLaunchSetting": "PAIROFCLEATS_TRUSTED_CONFIG: missing configured file; no replacement authority granted"
+      },
+      "summary": {
+        "selected": 9,
+        "passed": 7,
+        "failed": 2,
+        "timeouts": 0,
+        "skipped": 0
+      },
+      "cohorts": [
+        {
+          "name": "editor-release-wave-01",
+          "summary": {
+            "total": 5,
+            "passed": 4,
+            "failed": 1,
+            "skipped": 0,
+            "durationMs": 7414
+          },
+          "ids": [
+            "lang/contracts/native-call-scope-roles",
+            "lang/contracts/native-call-owner-projection",
+            "tooling/release/verify-surface-archives",
+            "tooling/release/verify-surface-archive-install",
+            "tooling/release/verify-surface-output-paths"
+          ]
+        },
+        {
+          "name": "editor-release-wave-02",
+          "summary": {
+            "total": 4,
+            "passed": 3,
+            "failed": 1,
+            "skipped": 0,
+            "durationMs": 4966
+          },
+          "ids": [
+            "tooling/vscode/package-contract-matrix",
+            "tooling/sublime/behavior-contract-matrix",
+            "tooling/sublime/navigation-request-lifetime",
+            "tooling/sublime/editor-source-lifetime"
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "id": "lang/contracts/native-call-owner-projection",
+          "path": "lang/contracts/native-call-owner-projection.test.js",
+          "lane": "unit",
+          "tags": [
+            "lang",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 932,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-bb44d9d04c1c832a258977cee1f23fc39e55e158/editor-release-wave-01-logs/run-1792851777579-kelr68/lang_contracts_native-call-owner-projection.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "lang/contracts/native-call-scope-roles",
+          "path": "lang/contracts/native-call-scope-roles.test.js",
+          "lane": "unit",
+          "tags": [
+            "lang",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 910,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-bb44d9d04c1c832a258977cee1f23fc39e55e158/editor-release-wave-01-logs/run-1792851777579-kelr68/lang_contracts_native-call-scope-roles.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/release/verify-surface-archive-install",
+          "path": "tooling/release/verify-surface-archive-install.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "failed",
+          "durationMs": 1718,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-bb44d9d04c1c832a258977cee1f23fc39e55e158/editor-release-wave-01-logs/run-1792851777579-kelr68/tooling_release_verify-surface-archive-install.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-bb44d9d04c1c832a258977cee1f23fc39e55e158/editor-release-wave-01-logs/run-1792851777579-kelr68/tooling_release_verify-surface-archive-install.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/release/verify-surface-archives",
+          "path": "tooling/release/verify-surface-archives.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 2512,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-bb44d9d04c1c832a258977cee1f23fc39e55e158/editor-release-wave-01-logs/run-1792851777579-kelr68/tooling_release_verify-surface-archives.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/release/verify-surface-output-paths",
+          "path": "tooling/release/verify-surface-output-paths.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 1330,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-bb44d9d04c1c832a258977cee1f23fc39e55e158/editor-release-wave-01-logs/run-1792851777579-kelr68/tooling_release_verify-surface-output-paths.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/sublime/behavior-contract-matrix",
+          "path": "tooling/sublime/behavior-contract-matrix.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "failed",
+          "durationMs": 2126,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-bb44d9d04c1c832a258977cee1f23fc39e55e158/editor-release-wave-02-logs/run-1792851785850-5n41hg/tooling_sublime_behavior-contract-matrix.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-bb44d9d04c1c832a258977cee1f23fc39e55e158/editor-release-wave-02-logs/run-1792851785850-5n41hg/tooling_sublime_behavior-contract-matrix.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/sublime/editor-source-lifetime",
+          "path": "tooling/sublime/editor-source-lifetime.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 628,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-bb44d9d04c1c832a258977cee1f23fc39e55e158/editor-release-wave-02-logs/run-1792851785850-5n41hg/tooling_sublime_editor-source-lifetime.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/sublime/navigation-request-lifetime",
+          "path": "tooling/sublime/navigation-request-lifetime.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 806,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-bb44d9d04c1c832a258977cee1f23fc39e55e158/editor-release-wave-02-logs/run-1792851785850-5n41hg/tooling_sublime_navigation-request-lifetime.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/vscode/package-contract-matrix",
+          "path": "tooling/vscode/package-contract-matrix.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 1397,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-bb44d9d04c1c832a258977cee1f23fc39e55e158/editor-release-wave-02-logs/run-1792851785850-5n41hg/tooling_vscode_package-contract-matrix.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        }
+      ]
     }
   ],
   "cumulativeClosure": {
     "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
-    "originalFailuresMovedToPassing": 79,
-    "originalFailuresWithoutPassingClosure": 21,
-    "additionalObservedFailuresOutsideOriginal100": []
+    "originalFailuresMovedToPassing": 81,
+    "originalFailuresWithoutPassingClosure": 19,
+    "additionalObservedFailuresOutsideOriginal100": [
+      "tooling/release/verify-surface-archive-install"
+    ]
   }
 }

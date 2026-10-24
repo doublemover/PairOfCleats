@@ -215,7 +215,7 @@ await withReleaseArchiveFixture(async () => {
     const missingEntryPayload = JSON.parse(missingEntryRun.stdout || '{}');
     assert.match(
       missingEntryPayload.error || '',
-      /archive manifest missing archive entry: extension\/README\.md/,
+      /archive manifest missing archive entry: extension\/readme\.md/,
       'expected archive validation to reject manifests that do not match archive entries'
     );
 

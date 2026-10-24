@@ -74,7 +74,7 @@ class NavigationBehaviorTests(unittest.TestCase):
         self.search.config.build_env = lambda _settings: {}
 
         def open_file(encoded_path, flags=0):
-            filename = encoded_path.rsplit(':', 2)[0]
+            filename = encoded_path.rsplit(':', 1)[0]
             with open(filename, encoding='utf-8') as handle:
                 opened = SourceView(filename, handle.read())
             self.window.opened_files.append({'path': encoded_path, 'flags': flags, 'view': opened})
@@ -107,7 +107,7 @@ class NavigationBehaviorTests(unittest.TestCase):
         self._install_payload(payload)
         command = self.search.PairOfCleatsGotoDefinitionCommand(self.view)
         command.run(edit=None)
-        expected = '{0}:12:1'.format(os.path.join(self.repo, 'src/defs.js'))
+        expected = '{0}:12'.format(os.path.join(self.repo, 'src/defs.js'))
         self.assertEqual(self.window.opened_files[0]['path'], expected)
 
     def test_find_references_shows_picker(self):
@@ -123,7 +123,7 @@ class NavigationBehaviorTests(unittest.TestCase):
         command.run(edit=None)
         self.assertEqual(len(self.window.quick_panel_items), 2)
         self.window.quick_panel_callback(1)
-        expected = '{0}:9:1'.format(os.path.join(self.repo, 'src/b.js'))
+        expected = '{0}:9'.format(os.path.join(self.repo, 'src/b.js'))
         self.assertEqual(self.window.opened_files[-1]['path'], expected)
 
     def test_complete_symbol_applies_selected_completion(self):
@@ -134,7 +134,7 @@ class NavigationBehaviorTests(unittest.TestCase):
                 {'file': 'src/b.js', 'startLine': 9, 'name': 'WidgetFactory'},
             ],
         }
-        self._install_payload(payload)
+        self._install_payload(payload, completion=True)
         command = self.search.PairOfCleatsCompleteSymbolCommand(self.view)
         command.run(edit=None)
         self.assertEqual(len(self.window.quick_panel_items), 2)
@@ -147,7 +147,7 @@ class NavigationBehaviorTests(unittest.TestCase):
         command.run(edit=None)
         self.assertEqual(self.sublime.last_status, 'PairOfCleats: no indexed definitions found.')
 
-    def _install_payload(self, payload):
+    def _install_payload(self, payload, completion=False):
         source_hash = hashlib.sha256(b'WidgetBuilder').hexdigest()
         payload.update(status='resolved', binding={'status': 'resolved'}, sourceHash=source_hash,
                        sourceVersion='0', coordinateUnit='utf16')
@@ -160,12 +160,15 @@ class NavigationBehaviorTests(unittest.TestCase):
 
         def _run_process(command, args, cwd=None, env=None, window=None, title=None, capture_json=None,
                          on_done=None, stream_output=None, timeout_ms=None, operation_scope=None):
-            self.assertEqual(args[:2], ['tooling', 'navigate'])
-            self.assertEqual(args[args.index('--source-hash') + 1], source_hash)
-            self.assertEqual(args[args.index('--source-version') + 1], '0')
-            self.assertEqual(timeout_ms, 5000)
+            if completion:
+                self.assertEqual(args[:2], ['search', '--json'])
+            else:
+                self.assertEqual(args[:2], ['tooling', 'navigate'])
+                self.assertEqual(args[args.index('--source-hash') + 1], source_hash)
+                self.assertEqual(args[args.index('--source-version') + 1], '0')
+                self.assertEqual(timeout_ms, 5000)
             self.assertTrue(operation_scope)
-            on_done(_FakeResult(payload))
+            on_done(_FakeResult({'ok': True, 'code': payload['results']} if completion else payload))
 
         self.search.runner.run_process = _run_process
 
