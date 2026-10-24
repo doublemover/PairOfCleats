@@ -12,6 +12,7 @@ import {
 } from './persistence-helpers.js';
 import { persistenceDirectoryIdentity, assertPersistenceDirectoryIdentity } from './directory-identity.js';
 import { getContainedFileSession } from '../contained-file-resource.js';
+import { getStorageDirectorySession, withStorageDirectory } from '../storage/directory.js';
 import { observeStorageResource } from '../storage/failure-observation.js';
 import { addStorageFailureContext } from '../storage/operation-error.js';
 
@@ -123,8 +124,17 @@ export const replaceDir = async (tempPath, finalPath, options = {}) => {
     // existing or subsequently replaced pathname discovered after copy failure.
     stagedIdentity = await readDirectory(stagedPath); stagedAvailable = true; requireSettled();
     if (!stagedIdentity) throw new Error('Created staging directory disappeared before its identity was sealed.');
-    if (await fs.cp(tempPath, stagedPath, { recursive: true, force: false, errorOnExist: true }) !== undefined) throw unconfirmed(
-      'Directory copy did not confirm its standard void result.');
+    // The staging root is exclusively created above. Copying onto that root
+    // with errorOnExist rejects its deliberate existence on Node 26. Copy each
+    // child into an absent destination, retaining overwrite refusal throughout.
+    await withStorageDirectory(tempPath, async directory => {
+      for (let entry = await directory.read(); entry; entry = await directory.read()) {
+        requireSettled(); checkRoot(tempPath, sourceIdentity); checkRoot(stagedPath, stagedIdentity);
+        if (await fs.cp(path.join(tempPath, entry.name), path.join(stagedPath, entry.name), {
+          recursive: true, force: false, errorOnExist: true
+        }) !== undefined) throw unconfirmed('Directory copy did not confirm its standard void result.');
+      }
+    });
     requireSettled(); checkRoot(tempPath, sourceIdentity); checkRoot(stagedPath, stagedIdentity);
     await move(stagedPath, finalPath, stagedIdentity, () => {
       committed = true; copiedPromotion = true; stagedAvailable = false; recoveryPaths.delete(stagedPath);
@@ -167,14 +177,16 @@ export const replaceDir = async (tempPath, finalPath, options = {}) => {
     const primary = operationPresent ? operationError : cleanupErrors[0];
     const independent = [...new Set([...failures, ...(observationOverflow ? [overflowFailure] : [])])].filter(error => error !== primary);
     const sessions = [...new Set([primary, ...independent].map(getContainedFileSession).filter(Boolean))];
+    const directorySessions = [...new Set([primary, ...independent].map(getStorageDirectorySession).filter(Boolean))];
     // Freeze the original observations before attaching to a mutable primary.
     const originals = Object.freeze([...observations]);
     let failure = addStorageFailureContext(primary, {
       recoveryPaths: Object.freeze([...recoveryPaths]), cleanupErrors: Object.freeze([...cleanupErrors]),
       directoryReplacementState: committed ? 'committed' : promotionAttempted ? 'promotion-unconfirmed' : 'uncommitted',
       cacheOwnershipPending: true, cacheOwnershipReleased: () => !observationOverflow && originals.every(observation => observation.isSettled()),
-      ...(sessions.length ? { containedFileSession: sessions[0], containedFileSessions: Object.freeze(sessions) } : {})
-    }, null, { nonEnumerable: ['containedFileSession', 'containedFileSessions'] });
+      ...(sessions.length ? { containedFileSession: sessions[0], containedFileSessions: Object.freeze(sessions) } : {}),
+      ...(directorySessions.length ? { storageDirectorySession: directorySessions[0], storageDirectorySessions: Object.freeze(directorySessions) } : {})
+    }, null, { nonEnumerable: ['containedFileSession', 'containedFileSessions', 'storageDirectorySession', 'storageDirectorySessions'] });
     for (const secondary of independent) failure = addStorageFailureContext(failure, {}, secondary, { secondaryPresent: true });
     for (const field of ['cacheOwnershipPending', 'cacheOwnershipReleased']) {
       const descriptor = Object.getOwnPropertyDescriptor(failure, field);

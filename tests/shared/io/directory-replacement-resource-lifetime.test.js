@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { replaceDir } from '../../../src/shared/io/replace-dir.js';
 import { getContainedFileSession } from '../../../src/shared/contained-file-resource.js';
+import { getStorageDirectorySession } from '../../../src/shared/storage/directory.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 
 // UNVALIDATED: actual directory replacement, captured native prerequisites and
@@ -54,6 +55,9 @@ try {
   }
   {
     const { source, final } = await fixture(); let attempts = 0, copies = 0;
+    await fs.mkdir(path.join(source, 'nested'));
+    await fs.mkdir(path.join(source, 'empty'));
+    await fs.writeFile(path.join(source, 'nested', 'payload'), 'nested new');
     const original = Object.assign(new Error('ordinary cross-volume rename'), { code: 'EXDEV' });
     fs.rename = async (from, to) => { if (from === source && to === final) { attempts++; throw original; } return rename(from, to); };
     fs.cp = async (from, to, options) => {
@@ -61,8 +65,10 @@ try {
       return copy(from, to, options);
     };
     const result = await replaceDir(source, final, { keepBackup: true });
-    assert.equal(attempts, 20, 'existing two bounded retry windows precede fallback'); assert.equal(copies, 1);
+    assert.equal(attempts, 20, 'existing two bounded retry windows precede fallback'); assert.equal(copies, 3, 'each root child retains exclusive destination copying');
     assert.equal(await fs.readFile(path.join(final, 'value'), 'utf8'), 'new');
+    assert.equal(await fs.readFile(path.join(final, 'nested', 'payload'), 'utf8'), 'nested new');
+    assert.deepEqual(await fs.readdir(path.join(final, 'empty')), []);
     assert.equal(await fs.readFile(path.join(result.backupPath, 'value'), 'utf8'), 'old');
     await assert.rejects(fs.lstat(source), { code: 'ENOENT' });
   }
@@ -100,7 +106,7 @@ try {
     const { directory, source, final } = await fixture(); let ready = false, copies = 0, removals = 0, staged;
     const primary = Object.assign(new Error('copy still owns native work'), { cacheOwnershipReleased() { return ready; } });
     fs.rename = async (from, to) => { if (from === source && to === final) throw Object.assign(new Error('cross-volume'), { code: 'EXDEV' }); return rename(from, to); };
-    fs.cp = async (_from, to) => { copies++; staged = to; await fs.writeFile(path.join(to, 'partial'), 'partial'); throw primary; };
+    fs.cp = async (_from, to) => { copies++; staged = path.dirname(to); await fs.writeFile(path.join(staged, 'partial'), 'partial'); throw primary; };
     fs.rm = async (...args) => { removals++; return remove(...args); };
     const failure = await rejected(() => replaceDir(source, final));
     assert.equal(copies, 1); assert.equal(removals, 0); assert.equal(failure.cacheOwnershipReleased(), false);
@@ -109,7 +115,10 @@ try {
     const backups = (await names(directory)).filter(file => file !== staged); assert.equal(backups.length, 1);
     assert.equal(await fs.readFile(path.join(backups[0], 'value'), 'utf8'), 'old');
     primary.cacheOwnershipReleased = () => true; assert.equal(failure.cacheOwnershipReleased(), false);
-    ready = true; assert.equal(failure.cacheOwnershipReleased(), true); assert.equal(copies, 1); assert.equal(removals, 0);
+    ready = true; assert.equal(failure.cacheOwnershipReleased(), false, 'settled copy work does not close its independently retained directory');
+    const directorySession = getStorageDirectorySession(failure); assert.ok(directorySession);
+    await directorySession.releaseAfterClose();
+    assert.equal(failure.cacheOwnershipReleased(), true); assert.equal(copies, 1); assert.equal(removals, 0);
   }
   {
     const { directory, source, final } = await fixture(); let removals = 0;

@@ -53,3 +53,13 @@ descriptors remain governed by its fulfilled/rejected API result; a rejected
 unsealed copy cannot grant deletion authority over a partial pathname. Directory
 replacement's independent catches and other raw stream consumers remain separate
 work; no JSON-stream source or token-postings loader is edited by this owner.
+
+The October 24 Windows repair corrects directory EXDEV fallback: the exclusively
+created staging root is enumerated through the existing directory owner, and
+each child is copied into its own absent destination with `force:false` and
+`errorOnExist:true`. Copying the source onto the already-created root rejects
+that root on Node 26. Child copying retains all original observation and root
+identity checks, including nested/empty directories. Pending copy work retains
+the actual directory recovery capability as well as the original backup; its
+closure cannot be inferred from copy settlement. The focused directory fixture
+passes; broader platform, publication and persistence qualification stays separate.
