@@ -34,9 +34,9 @@ await fs.writeFile(
   JSON.stringify({
     artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     buildId,
-    buildRoot: '.',
+    buildRoot: path.relative(repoCacheRoot, activeRoot),
     buildRootsByMode: {
-      code: '.'
+      code: path.relative(repoCacheRoot, activeRoot)
     }
   }, null, 2),
   'utf8'
@@ -68,9 +68,9 @@ await fs.writeFile(
   JSON.stringify({
     artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     buildId,
-    buildRoot: '.',
+    buildRoot: path.relative(repoCacheRoot, activeRoot),
     buildRootsByMode: {
-      code: '.'
+      code: path.relative(repoCacheRoot, activeRoot)
     }
   }, null, 2),
   'utf8'

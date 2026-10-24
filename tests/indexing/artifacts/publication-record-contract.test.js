@@ -37,7 +37,7 @@ try {
       pieceEntries: [{ type: 'chunks', name: 'chunk_meta', format: 'json', path: 'chunk_meta.json' }],
       manifestPath
     }),
-    /missing committed artifact/
+    /publishing requires successful generation validation/
   );
 
   const chunkMetaPath = path.join(outDir, 'chunk_meta.json');
@@ -52,6 +52,18 @@ try {
     },
     atomic: true
   });
+
+  const validatedBeforeRemoval = await writeArtifactPublicationValidationReport({
+    buildRoot, outDir, mode: 'code', buildId: 'build-1',
+    pieceEntries: [{ type: 'chunks', name: 'chunk_meta', format: 'json', path: 'chunk_meta.json' }],
+    manifestPath, familyDeclarations: [{ family: 'core', owner: 'test', requiredMembers: ['chunk_meta'] }]
+  });
+  await fs.unlink(chunkMetaPath);
+  await assert.rejects(writeArtifactPublicationRecord({ buildRoot, outDir, mode: 'code', buildId: 'build-1',
+    pieceEntries: [{ type: 'chunks', name: 'chunk_meta', format: 'json', path: 'chunk_meta.json' }],
+    manifestPath, publicationValidation: validatedBeforeRemoval }), /missing committed artifact/,
+  'a validated generation cannot publish an artifact removed before commitment');
+  await writeJsonObjectFile(chunkMetaPath, { fields: { rows: [] }, atomic: true });
 
   const result = await writeArtifactPublicationRecord({
     buildRoot,

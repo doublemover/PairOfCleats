@@ -25,7 +25,9 @@ const snapshot = createSemanticSourceSnapshot({ bytes, repositoryNamespace: root
 const partitionId = createSyntaxPartitionId({ sourceUnitId: snapshot.manifest.sourceUnitId,
   parser: { family: 'fixture', version: '1', options: {} }, extractor: { schemaVersion: 1, version: '1' }, structuralPolicy: {} });
 const diskAccount = createSemanticDiskAccount(16 * 1024 * 1024);
-const policy = normalizeSemanticConfig({ enabled: true, languages: ['scala'] });
+// This handoff qualifies retained source/ownership, not Scala semantic extraction.
+// The source keeps its actual language; no unsupported extractor is enabled.
+const policy = normalizeSemanticConfig({ enabled: true });
 const generation = { baseBuildId: 'call-source-generation', semanticRevision: 0 };
 const storage = { generation, relativePath: 'index-code/semantic' };
 const detail = { source: 'tree-sitter', coordinateSystem: 'utf16', role: 'call', callee: null,

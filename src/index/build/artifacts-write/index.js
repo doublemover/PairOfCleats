@@ -1542,12 +1542,22 @@ async function writeIndexArtifactsInCodecScope(input) {
       + `to match dims=${packedMinhash.dims}.`
     );
   }
+  // Packed signatures are already an admitted lossless representation. Avoid
+  // publishing a JSON companion that this generation's readers cannot admit.
+  // An unsigned 32-bit value needs at most ten digits plus a separator; include
+  // every row and the actual metadata envelope without allocating JSON rows.
+  const minhashJsonUpperBytes = packedMinhash
+    ? Buffer.byteLength(JSON.stringify({ hashIdentity: MINHASH_HASH_IDENTITY,
+      ...(minhashSamplingMeta ? { sampling: minhashSamplingMeta } : {}), signatures: [] })) + 1
+      + minhashCount * (packedMinhash.dims * 11 + 2)
+    : 0;
+  const skipMinhashJsonForBudget = Boolean(packedMinhash && maxJsonBytes && minhashJsonUpperBytes > maxJsonBytes);
   const skipMinhashJsonForLarge = sparseArtifactsEnabled
     && packedMinhash
-    && minhashCount >= minhashJsonLargeThreshold;
+    && (minhashCount >= minhashJsonLargeThreshold || skipMinhashJsonForBudget);
   if (skipMinhashJsonForLarge && typeof log === 'function') {
     log(
-      `[minhash] skipping minhash_signatures.json for large index `
+      `[minhash] skipping minhash_signatures.json for ${skipMinhashJsonForBudget ? 'JSON admission budget' : 'large index'} `
       + `(count=${minhashCount}, threshold=${minhashJsonLargeThreshold}); using packed artifact.`
     );
   }

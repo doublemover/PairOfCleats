@@ -29,7 +29,9 @@ try {
     const chunks = [chunk('beta'), chunk('alpha')], writes = [], pieces = [];
     let rowEncodes = 0;
     JSON.stringify = function(value, ...args) {
-      if (value?.v === 1 && Object.hasOwn(value, 'symbolId')) rowEncodes++;
+      // The bounded encoder visits scalar fields rather than stringifying a
+      // complete object. Each unique symbolId is an actual encoding witness.
+      if (value === 'sym:alpha' || value === 'sym:beta') rowEncodes++;
       return stringify(value, ...args);
     };
     try {

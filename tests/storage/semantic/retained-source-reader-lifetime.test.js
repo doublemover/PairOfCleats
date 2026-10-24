@@ -68,7 +68,9 @@ try {
     return states;
   };
   const restore = () => { fs.open = originalOpen; fs.readFile = originalReadFile; };
-  const run = mode => mode === 'excerpt' ? store.getSourceSpans([ref]) : store.verifySource(f.source);
+  const run = mode => mode === 'excerpt' ? store.getSourceSpans([ref], { maxBytes: f.bytes.length }) : store.verifySource(f.source);
+  await assert.rejects(store.getSourceSpans([ref]), { code: 'ERR_SEMANTIC_OUTPUT_LIMIT' },
+    'the complete boundary-crossing source does not fit the default response allowance');
   await fs.writeFile(f.original, 'working tree changed');
   for (const mode of ['excerpt', 'verify']) {
     const states = install({ read: (state, native) => state.reads === 1 ? native(7) : native() });

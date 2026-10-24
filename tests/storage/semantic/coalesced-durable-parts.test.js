@@ -12,7 +12,7 @@ const bytes = Buffer.from('x');
 const source = createSemanticSourceSnapshot({ bytes, repositoryNamespace: 'fixture:coalesce', path: 'input.js', language: 'javascript' }).manifest;
 const partitionId = createSyntaxPartitionId({ sourceUnitId: source.sourceUnitId,
   parser: { family: 'fixture', version: '1', options: {} }, extractor: { schemaVersion: 1, version: '1' }, structuralPolicy: { structure: 'complete' } });
-const row = { family: 'coverage', row: { scope: null, phase: 'syntax', state: 'complete', reason: null,
+const row = { family: 'coverage', row: { scope: { sourceUnitId: source.sourceUnitId }, phase: 'syntax', state: 'complete', reason: null,
   observedCount: 1, completedCount: 1, frontierRef: null } };
 const batch = (sequence, rows = [row]) => ({ partitionId, sequence, rows,
   byteCount: rows.reduce((sum, value) => sum + Buffer.byteLength(canonicalSemanticJson(value)) + 1, 0) });

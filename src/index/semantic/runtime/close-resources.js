@@ -1,7 +1,7 @@
 import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
 
 /** Close every owned native/file resource even when one close fails. */
-export const closeRuntimeResources = async (resources, operationError = null,
+export const closeRuntimeResources = async (resources, operationError,
   { hasOperationError = operationError !== null && operationError !== undefined } = {}) => {
   const results = await Promise.allSettled(resources.filter(Boolean).map(resource => Promise.resolve().then(() => resource.close())));
   const errors = results.filter(result => result.status === 'rejected').map(result => result.reason);

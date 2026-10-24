@@ -5,7 +5,7 @@ import crypto from 'node:crypto';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { resolveModeExecutionPlan } from '../../../src/storage/sqlite/build/runner/mode-plan.js';
 import { buildSqliteIndex } from '../../../src/storage/sqlite/build/runner.js';
-import { getRepoCacheRoot } from '../../../src/shared/dict-utils.js';
+import { getRepoCacheRoot, toRealPathSync } from '../../../src/shared/dict-utils.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
@@ -42,24 +42,24 @@ try {
   const plan = resolveModeExecutionPlan(input);
   assert.equal(plan.errorMessage, undefined);
   for (const [mode, buildRoot] of Object.entries(roots)) {
-    assert.equal(plan.modeIndexRoots[mode], buildRoot);
-    assert.equal(plan.modeIndexDirs[mode], path.join(buildRoot, `index-${mode}`));
+    assert.equal(toRealPathSync(plan.modeIndexRoots[mode]), toRealPathSync(buildRoot));
+    assert.equal(toRealPathSync(plan.modeIndexDirs[mode]), toRealPathSync(path.join(buildRoot, `index-${mode}`)));
   }
   const built = await buildSqliteIndex({ root: repo, userConfig, emitOutput: false, noCompact: true });
   assert.equal(built.ok, true);
   for (const [mode, buildRoot] of Object.entries(roots)) {
-    assert.equal(built.outputPaths[mode], path.join(buildRoot, 'index-sqlite', `index-${mode}.db`));
+    assert.equal(toRealPathSync(built.outputPaths[mode]), toRealPathSync(path.join(buildRoot, 'index-sqlite', `index-${mode}.db`)));
     await fs.access(path.join(buildRoot, `index-${mode}`, 'pieces', 'sqlite-zero-state.json'));
   }
   await assert.rejects(fs.access(path.join(roots.code, 'index-prose', 'pieces', 'sqlite-zero-state.json')));
   assert.deepEqual(JSON.parse(await fs.readFile(currentPath, 'utf8')), pointer);
   const explicit = resolveModeExecutionPlan({ ...input, argv: { 'index-root': roots.code } });
-  assert.ok(Object.values(explicit.modeIndexRoots).every(buildRoot => buildRoot === roots.code));
+  assert.ok(Object.values(explicit.modeIndexRoots).every(buildRoot => toRealPathSync(buildRoot) === toRealPathSync(roots.code)));
   const moved = path.join(repoCacheRoot, 'builds', 'generation-D');
   await writeEmpty(moved, 'prose');
   pointer.buildRootsByMode.prose = path.relative(repoCacheRoot, moved);
   await fs.writeFile(currentPath, JSON.stringify(pointer));
-  assert.equal(resolveModeExecutionPlan(input).modeIndexRoots.prose, moved,
+  assert.equal(toRealPathSync(resolveModeExecutionPlan(input).modeIndexRoots.prose), toRealPathSync(moved),
     'cached code root must not hide a changed prose pointer');
 } finally {
   await fs.rm(temp, { recursive: true, force: true });

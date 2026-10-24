@@ -71,7 +71,7 @@ try {
   validateMetaV2Types(metadataReport, 'code', [{ metaV2: { types: { expressions: { ...typeExpressions, interpretation: 'invalid' } } } }]);
   assert.equal(metadataReport.issues.length, 1, 'invalid symbolic envelopes are still rejected');
   const inferenceState = { chunks, symbolicTypeGraphs: [graph], fileRelations: new Map() };
-  await runCrossFileInference({ runtime: { root: repoRoot, buildRoot: outDir, repoCacheRoot: path.join(fixture, 'runner-cache'),
+  await runCrossFileInference({ runtime: { root: repoRoot, buildRoot: outDir, buildId: generation.baseBuildId, repoCacheRoot: path.join(fixture, 'runner-cache'),
     typeInferenceEnabled: true, typeInferenceCrossFileEnabled: true, toolingEnabled: false,
     riskAnalysisEnabled: false, riskAnalysisCrossFileEnabled: false, riskInterproceduralEnabled: false },
   mode: 'code', state: inferenceState, crashLogger: { updatePhase() {} } });
