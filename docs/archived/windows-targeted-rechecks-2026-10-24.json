@@ -6485,12 +6485,464 @@
           "historicalAuthorWorkspaceEvidence": true
         }
       ]
+    },
+    {
+      "sourceHead": "8a1d21e1e45088ddd48e911cf87515bdff6903f5",
+      "startedAt": "2026-10-24T14:52:42.639Z",
+      "finishedAt": "2026-10-24T14:54:35.642Z",
+      "scope": "Full editor helper closure and rejected ordinary-publication scope experiment.",
+      "policy": {
+        "timeoutMs": 30000,
+        "retries": 0,
+        "nativeStatusRedo": false,
+        "threads": 1,
+        "platform": "win32",
+        "node": "v26.12.1",
+        "removedLaunchSetting": "PAIROFCLEATS_TRUSTED_CONFIG: missing configured file; no replacement authority granted"
+      },
+      "summary": {
+        "selected": 16,
+        "passed": 6,
+        "failed": 10,
+        "timeouts": 0,
+        "skipped": 0
+      },
+      "cohorts": [
+        {
+          "name": "publication-scope-wave-01",
+          "summary": {
+            "total": 5,
+            "passed": 4,
+            "failed": 1,
+            "skipped": 0,
+            "durationMs": 17743
+          },
+          "ids": [
+            "tooling/sublime/behavior-contract-matrix",
+            "tooling/sublime/navigation-request-lifetime",
+            "tooling/sublime/editor-source-lifetime",
+            "tooling/sublime/semantic-source-lifetime",
+            "tooling/api-contracts/export-identity-cli/js-fail"
+          ]
+        },
+        {
+          "name": "publication-scope-wave-02",
+          "summary": {
+            "total": 5,
+            "passed": 0,
+            "failed": 5,
+            "skipped": 0,
+            "durationMs": 49746
+          },
+          "ids": [
+            "tooling/api-contracts/export-identity-cli/js-report",
+            "tooling/api-contracts/export-identity-cli/ts-fail",
+            "tooling/api-contracts/export-identity-cli/ts-report",
+            "tooling/api-contracts/qualified-target-joins-cli/js-clean",
+            "tooling/api-contracts/qualified-target-joins-cli/js-violation"
+          ]
+        },
+        {
+          "name": "publication-scope-wave-03",
+          "summary": {
+            "total": 5,
+            "passed": 1,
+            "failed": 4,
+            "skipped": 0,
+            "durationMs": 38309
+          },
+          "ids": [
+            "tooling/api-contracts/qualified-target-joins-cli/ts-clean",
+            "tooling/api-contracts/qualified-target-joins-cli/ts-violation",
+            "indexing/semantic/ssr-snapshot-witness-incremental",
+            "indexing/semantic/ssr-snapshot-witness-incremental-parity",
+            "indexing/artifacts/stage-copy-batch-lifetime"
+          ]
+        },
+        {
+          "name": "publication-scope-wave-04",
+          "summary": {
+            "total": 1,
+            "passed": 1,
+            "failed": 0,
+            "skipped": 0,
+            "durationMs": 3642
+          },
+          "ids": [
+            "indexing/artifacts/completed-stage-recovery"
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "id": "tooling/api-contracts/export-identity-cli/js-fail",
+          "path": "tooling/api-contracts/export-identity-cli.test.js",
+          "lane": "gate",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "status": "failed",
+          "durationMs": 10170,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8a1d21e1e45088ddd48e911cf87515bdff6903f5/publication-scope-wave-01-logs/run-1792853563599-ib3d1s/tooling_api-contracts_export-identity-cli_js-fail.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8a1d21e1e45088ddd48e911cf87515bdff6903f5/publication-scope-wave-01-logs/run-1792853563599-ib3d1s/tooling_api-contracts_export-identity-cli_js-fail.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/sublime/behavior-contract-matrix",
+          "path": "tooling/sublime/behavior-contract-matrix.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 5755,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8a1d21e1e45088ddd48e911cf87515bdff6903f5/publication-scope-wave-01-logs/run-1792853563599-ib3d1s/tooling_sublime_behavior-contract-matrix.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/sublime/editor-source-lifetime",
+          "path": "tooling/sublime/editor-source-lifetime.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 554,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8a1d21e1e45088ddd48e911cf87515bdff6903f5/publication-scope-wave-01-logs/run-1792853563599-ib3d1s/tooling_sublime_editor-source-lifetime.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/sublime/navigation-request-lifetime",
+          "path": "tooling/sublime/navigation-request-lifetime.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 622,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8a1d21e1e45088ddd48e911cf87515bdff6903f5/publication-scope-wave-01-logs/run-1792853563599-ib3d1s/tooling_sublime_navigation-request-lifetime.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/sublime/semantic-source-lifetime",
+          "path": "tooling/sublime/semantic-source-lifetime.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 631,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8a1d21e1e45088ddd48e911cf87515bdff6903f5/publication-scope-wave-01-logs/run-1792853563599-ib3d1s/tooling_sublime_semantic-source-lifetime.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/js-report",
+          "path": "tooling/api-contracts/export-identity-cli.test.js",
+          "lane": "gate",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "status": "failed",
+          "durationMs": 10083,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8a1d21e1e45088ddd48e911cf87515bdff6903f5/publication-scope-wave-02-logs/run-1792853582205-u9uiax/tooling_api-contracts_export-identity-cli_js-report.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8a1d21e1e45088ddd48e911cf87515bdff6903f5/publication-scope-wave-02-logs/run-1792853582205-u9uiax/tooling_api-contracts_export-identity-cli_js-report.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/ts-fail",
+          "path": "tooling/api-contracts/export-identity-cli.test.js",
+          "lane": "gate",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "status": "failed",
+          "durationMs": 10144,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8a1d21e1e45088ddd48e911cf87515bdff6903f5/publication-scope-wave-02-logs/run-1792853582205-u9uiax/tooling_api-contracts_export-identity-cli_ts-fail.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8a1d21e1e45088ddd48e911cf87515bdff6903f5/publication-scope-wave-02-logs/run-1792853582205-u9uiax/tooling_api-contracts_export-identity-cli_ts-fail.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/ts-report",
+          "path": "tooling/api-contracts/export-identity-cli.test.js",
+          "lane": "gate",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "status": "failed",
+          "durationMs": 10014,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8a1d21e1e45088ddd48e911cf87515bdff6903f5/publication-scope-wave-02-logs/run-1792853582205-u9uiax/tooling_api-contracts_export-identity-cli_ts-report.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8a1d21e1e45088ddd48e911cf87515bdff6903f5/publication-scope-wave-02-logs/run-1792853582205-u9uiax/tooling_api-contracts_export-identity-cli_ts-report.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/api-contracts/qualified-target-joins-cli/js-clean",
+          "path": "tooling/api-contracts/qualified-target-joins-cli.test.js",
+          "lane": "gate",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "status": "failed",
+          "durationMs": 9622,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8a1d21e1e45088ddd48e911cf87515bdff6903f5/publication-scope-wave-02-logs/run-1792853582205-u9uiax/tooling_api-contracts_qualified-target-joins-cli_js-clean.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8a1d21e1e45088ddd48e911cf87515bdff6903f5/publication-scope-wave-02-logs/run-1792853582205-u9uiax/tooling_api-contracts_qualified-target-joins-cli_js-clean.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/api-contracts/qualified-target-joins-cli/js-violation",
+          "path": "tooling/api-contracts/qualified-target-joins-cli.test.js",
+          "lane": "gate",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "status": "failed",
+          "durationMs": 9863,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8a1d21e1e45088ddd48e911cf87515bdff6903f5/publication-scope-wave-02-logs/run-1792853582205-u9uiax/tooling_api-contracts_qualified-target-joins-cli_js-violation.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8a1d21e1e45088ddd48e911cf87515bdff6903f5/publication-scope-wave-02-logs/run-1792853582205-u9uiax/tooling_api-contracts_qualified-target-joins-cli_js-violation.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/artifacts/stage-copy-batch-lifetime",
+          "path": "indexing/artifacts/stage-copy-batch-lifetime.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 209,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8a1d21e1e45088ddd48e911cf87515bdff6903f5/publication-scope-wave-03-logs/run-1792853632830-xvd2ph/indexing_artifacts_stage-copy-batch-lifetime.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/semantic/ssr-snapshot-witness-incremental",
+          "path": "indexing/semantic/ssr-snapshot-witness-incremental.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "failed",
+          "durationMs": 7402,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8a1d21e1e45088ddd48e911cf87515bdff6903f5/publication-scope-wave-03-logs/run-1792853632830-xvd2ph/indexing_semantic_ssr-snapshot-witness-incremental.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8a1d21e1e45088ddd48e911cf87515bdff6903f5/publication-scope-wave-03-logs/run-1792853632830-xvd2ph/indexing_semantic_ssr-snapshot-witness-incremental.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/semantic/ssr-snapshot-witness-incremental-parity",
+          "path": "indexing/semantic/ssr-snapshot-witness-incremental-parity.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "failed",
+          "durationMs": 11290,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8a1d21e1e45088ddd48e911cf87515bdff6903f5/publication-scope-wave-03-logs/run-1792853632830-xvd2ph/indexing_semantic_ssr-snapshot-witness-incremental-parity.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8a1d21e1e45088ddd48e911cf87515bdff6903f5/publication-scope-wave-03-logs/run-1792853632830-xvd2ph/indexing_semantic_ssr-snapshot-witness-incremental-parity.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/api-contracts/qualified-target-joins-cli/ts-clean",
+          "path": "tooling/api-contracts/qualified-target-joins-cli.test.js",
+          "lane": "gate",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "status": "failed",
+          "durationMs": 9697,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8a1d21e1e45088ddd48e911cf87515bdff6903f5/publication-scope-wave-03-logs/run-1792853632830-xvd2ph/tooling_api-contracts_qualified-target-joins-cli_ts-clean.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8a1d21e1e45088ddd48e911cf87515bdff6903f5/publication-scope-wave-03-logs/run-1792853632830-xvd2ph/tooling_api-contracts_qualified-target-joins-cli_ts-clean.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/api-contracts/qualified-target-joins-cli/ts-violation",
+          "path": "tooling/api-contracts/qualified-target-joins-cli.test.js",
+          "lane": "gate",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "status": "failed",
+          "durationMs": 9694,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8a1d21e1e45088ddd48e911cf87515bdff6903f5/publication-scope-wave-03-logs/run-1792853632830-xvd2ph/tooling_api-contracts_qualified-target-joins-cli_ts-violation.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8a1d21e1e45088ddd48e911cf87515bdff6903f5/publication-scope-wave-03-logs/run-1792853632830-xvd2ph/tooling_api-contracts_qualified-target-joins-cli_ts-violation.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/artifacts/completed-stage-recovery",
+          "path": "indexing/artifacts/completed-stage-recovery.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 3637,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8a1d21e1e45088ddd48e911cf87515bdff6903f5/publication-scope-wave-04-logs/run-1792853671987-13kbtq/indexing_artifacts_completed-stage-recovery.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        }
+      ]
     }
   ],
   "cumulativeClosure": {
     "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
-    "originalFailuresMovedToPassing": 82,
-    "originalFailuresWithoutPassingClosure": 18,
+    "originalFailuresMovedToPassing": 83,
+    "originalFailuresWithoutPassingClosure": 17,
     "additionalObservedFailuresOutsideOriginal100": []
   }
 }

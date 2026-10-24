@@ -8,11 +8,9 @@ import { canonicalSemanticJson } from '../../src/index/semantic/identity.js';
 const key = canonicalSemanticJson;
 
 export const createSsrWitness = (root, incremental = false) => createPublishedSemanticWitness({ root, incremental,
-  // The witness covers typed-array snapshots and retained semantic transport,
-  // not the separate completed-stage recovery cache. Eager rich analysis and
-  // ordinary generation publication run in both stages with the same backend.
-  stage: 'stage1',
-  threads: 1, extraIgnore: ['tsconfig.json'],
+  // Both metadata files remain present compiler dependencies, not indexed
+  // source witnesses. These Node-only inputs do not use browser DOM globals.
+  threads: 1, extraIgnore: ['tsconfig.json', 'package.json'], compilerOptions: { lib: ['es2022'] },
   recordPartitionFilter: partition => partition.partitionId.startsWith('sy1:') });
 
 export const inspectSsrWitness = async (fixture, { backendParity = true, forwardOnly = false } = {}) => {

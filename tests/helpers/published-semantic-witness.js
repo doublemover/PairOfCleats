@@ -28,7 +28,6 @@ firstRun();secondRun();
  * This helper only executes when an authorized acceptance fixture invokes it.
  */
 export const createPublishedSemanticWitness = async ({ root, revision = 0, incremental = false,
-  stage = 'stage2',
   abortSignal = null, recordPartitionFilter = null, threads = undefined, extraIgnore = undefined,
   compilerAdmission = { maxResidentBytes: 1024 * 1024 * 1024 }, extraEnv = undefined,
   sourceFiles = SEMANTIC_WITNESS_SOURCES, compilerOptions = {} } = {}) => {
@@ -50,7 +49,7 @@ export const createPublishedSemanticWitness = async ({ root, revision = 0, incre
       embeddings: { enabled: false }, typeInference: false, typeInferenceCrossFile: false,
       riskAnalysis: false, treeSitter: { enabled: false }
     } } });
-  await buildIndex(repoRoot, { mode: 'code', stage, incremental, abortSignal,
+  await buildIndex(repoRoot, { mode: 'code', stage: 'stage2', incremental, abortSignal,
     ...(threads === undefined ? {} : { threads }),
     'stub-embeddings': true, 'scm-provider': 'none' });
   const indexDir = getIndexDir(repoRoot, 'code', loadUserConfig(repoRoot));

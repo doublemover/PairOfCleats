@@ -1118,3 +1118,26 @@ stage2 SQLite, recovery and copy-owner controls remain separate. No production
 path/ownership validation, stage2 implementation or deadline was weakened.
 These scope refinements await full affected-case validation; no speedup or
 passing observation is inferred from diagnostic profiles.
+
+The 16-case follow-up at `8a1d21e1e45088ddd48e911cf87515bdff6903f5`
+passed six and failed ten, with no timeouts/skips/crashes. The complete Sublime
+behavior matrix and all three source-lifetime controls passed, as did copy
+lifetime and completed-stage recovery. Eighty-three original failures have
+passing closure; 17 remain. The stage1 experiment is rejected: it omits required
+call_sites artifacts and semantic witness channels despite eager configuration.
+All eight CLI cases and both SSR assertions remained strict and failed. Their
+original stage2 selection is restored; the unused helper option is removed.
+
+The next scope refinement excludes tsconfig/package metadata only from indexed
+witness rows, keeping the actual files present as compiler configuration/module
+dependencies. SSR inputs select ES2022 libraries because their real sources use
+Node MessageChannel/typed arrays and no browser globals; Node type dependencies
+and rich analysis remain. All original stage2 content assertions/deadlines stay.
+
+Remote map navigation now retains scene/cache prerequisites for stale failures
+without touching their message/name/code getters. Default active error capture
+still inspects diagnostics once, preserving independently owned inspection
+failures; passive captures can upgrade if later selected for diagnostics. A new
+regression requires both original scene and cache channels to close independently
+while stale diagnostic getters remain unread through retirement. These changes
+await focused validation; no stage2 performance improvement is yet established.

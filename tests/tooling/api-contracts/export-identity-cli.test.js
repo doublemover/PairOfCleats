@@ -40,16 +40,13 @@ await fs.writeFile(path.join(repo, 'tsconfig.json'), JSON.stringify({ compilerOp
 // The semantic compiler pass owns bindings independently of legacy cross-file
 // type propagation, which is not an input to these API-contract assertions.
 const env = applyTestEnv({ cacheRoot: path.join(dir, 'cache'), embeddings: 'stub',
-  testConfig: { threads: 1, indexing: { twoStage: { stage1: { treeSitter: { enabled: true } } }, semantic: { enabled: true,
+  testConfig: { threads: 1, extraIgnore: ['tsconfig.json'], indexing: { semantic: { enabled: true,
     enrichment: { bindings: 'eager', localFlow: 'off', crossFileFlow: 'off' } }, embeddings: { enabled: false },
   typeInference: false, typeInferenceCrossFile: false, riskAnalysis: false, riskAnalysisCrossFile: false },
   tooling: { autoEnableOnDetect: false, lsp: { enabled: false } } },
   extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null } });
 const signal = AbortSignal.timeout(10000);
-// Ordinary stage1 publication runs the explicitly eager compiler binding pass.
-// Completed-stage replay snapshots are a separate owner, not API report input.
-// Retain the same native parser selection and the unchanged build deadline.
-await buildIndex(repo, { mode: 'code', stage: 'stage1', 'stub-embeddings': true,
+await buildIndex(repo, { mode: 'code', stage: 'stage2', 'stub-embeddings': true,
   'scm-provider': 'none', threads: 1, abortSignal: signal });
 signal.throwIfAborted();
 const args = [path.join(root, 'bin/pairofcleats.js'), 'api-contracts', '--repo', repo, '--json', '--onlyExports'];
