@@ -170,7 +170,9 @@ try {
     ];
     for (const corrupt of corruptions) {
       assert.equal(store.set('malformed', Float32Array.from([1, 2, 3, 4])), true);
+      assert.equal(store.flush(), true, 'publish the real queued write before external byte corruption');
       const row = raw.prepare('SELECT * FROM text_vectors WHERE format_version = 2').get();
+      assert.ok(row, 'each corruption starts from an actual current physical row');
       const before = store.stats();
       corrupt(row);
       assert.equal(store.get('malformed'), null, 'malformed cache rows are recoverable misses');

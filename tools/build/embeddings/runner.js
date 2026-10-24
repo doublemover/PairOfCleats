@@ -4171,11 +4171,17 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
             stage: failureState.enrichment.stage || failureState.stage || 'stage2'
           };
         }
+        if (modeWriterQueue) {
+          try { await modeWriterQueue.onIdle(); }
+          catch (drainError) {
+            if (drainError !== err && !(isAbortError(err) && isAbortError(drainError))) {
+              err = addStorageFailureContext(err, { phase: 'stage3-writer-drain' }, drainError,
+                { secondaryPresent: true });
+              modePrimaryFailure = err;
+            }
+          } finally { writerStatsByMode[mode] = modeWriterQueue.stats(); }
+        }
         try {
-          if (modeWriterQueue) {
-            await modeWriterQueue.onIdle();
-            writerStatsByMode[mode] = modeWriterQueue.stats();
-          }
           await runtimeReceipts.fail(err, mode, { writer: writerStatsByMode[mode] });
         } catch { /* Preserve the original failure when a best-effort snapshot fails. */ }
         failureState.extensions = { ...failureState.extensions,

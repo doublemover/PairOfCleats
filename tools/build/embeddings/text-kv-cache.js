@@ -428,6 +428,7 @@ const openPersistentTextStore = async ({
           }
           const vector = decodeVectorRow(row, resolvedVectorEncoding, expectedDims);
           if (!vector || !vector.length) {
+            persistedDigests.delete(key);
             counters.misses += 1;
             return null;
           }
@@ -436,6 +437,7 @@ const openPersistentTextStore = async ({
           touch(key);
           return vector;
         } catch (error) {
+          persistedDigests.delete(key);
           observeStorageResource(error, { phase: 'embedding-text-cache-read' }).requireSettled();
           if (error instanceof AggregateError) throw error;
           counters.errors += 1;
