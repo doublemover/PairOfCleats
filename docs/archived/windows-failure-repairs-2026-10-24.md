@@ -900,3 +900,26 @@ coverage; no file-wide lexical fallback is introduced. Native call-fact version
 6, native chunk version 10 and SourceChunking 26 invalidate previous extraction.
 The existing managed-adapter test requires an actual native caller and the
 original source occurrence. These changes await focused validation.
+
+The 12-case follow-up at `277508fb31961cc97a6a4f3c54534d50cd895dd8`
+passed nine and failed three, without timeouts/skips/crashes. Public CLI/API/GET/
+MCP/viewer/editor pagination and generation negatives passed; the delayed LSP
+generation race, targeted explanation lifetime, Dart preparation and native
+call controls passed. Sixty original failures have passing closure; 40 remain.
+The adjacent partial-frame LSP control exposed an error-code regression and is
+tracked separately rather than being counted green.
+
+The next repair keeps a request's own partial-frame write error distinct from
+siblings losing that transport. Canonical abort helpers retain ABORT_ERR and
+AbortError while preserving the original reason (including falsey reasons or
+reason-inspection failures) as a non-enumerable cause. A focused new helper test
+covers immediate/in-flight abort, retained native ownership and live success.
+
+Groovy control bodies are distinguished from anonymous callable closures using
+their exact grammar parent/field role. The parenthesis-free positive keeps an
+actual juxt_function_call node; a recovered one-line form remains explicitly
+partial and cannot invent invocation facts. Native call/chunk versions 7/11
+and SourceChunking 27 invalidate changed ownership. The VS Code enumeration
+fixture disables unrelated inline background commands using its existing
+settings while retaining selected-resource, continuation and trust assertions.
+These changes await focused checks.

@@ -44,9 +44,11 @@
     },
     "followUpClosure": {
       "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
-      "originalFailuresMovedToPassing": 57,
-      "originalFailuresWithoutPassingClosure": 43,
-      "additionalObservedFailuresOutsideOriginal100": []
+      "originalFailuresMovedToPassing": 60,
+      "originalFailuresWithoutPassingClosure": 40,
+      "additionalObservedFailuresOutsideOriginal100": [
+        "tooling/lsp/request-local-write-settlement"
+      ]
     }
   },
   "items": [
@@ -141,8 +143,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 308,
       "latestRecheckStatus": "passed",
-      "latestRecheckSourceHead": "4ae5ed7ec605556138a3fe7aadfe32ea4cdf899a",
-      "latestRecheckDurationMs": 318
+      "latestRecheckSourceHead": "277508fb31961cc97a6a4f3c54534d50cd895dd8",
+      "latestRecheckDurationMs": 348
     },
     {
       "id": "indexing/tree-sitter/scheduler-crash-fallback",
@@ -289,7 +291,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 1090
+      "recheckDurationMs": 1090,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "277508fb31961cc97a6a4f3c54534d50cd895dd8",
+      "latestRecheckDurationMs": 1367
     },
     {
       "id": "storage/semantic/retained-source-reader-lifetime",
@@ -308,7 +313,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 478
+      "recheckDurationMs": 478,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "277508fb31961cc97a6a4f3c54534d50cd895dd8",
+      "latestRecheckDurationMs": 511
     },
     {
       "id": "tooling/install/archive-resource-lifetime",
@@ -1089,9 +1097,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 11237,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "4ae5ed7ec605556138a3fe7aadfe32ea4cdf899a",
-      "latestRecheckDurationMs": 13623
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "277508fb31961cc97a6a4f3c54534d50cd895dd8",
+      "latestRecheckDurationMs": 14556
     },
     {
       "id": "services/api/semantic-trace",
@@ -3096,7 +3104,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "passed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 186
+      "recheckDurationMs": 186,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "277508fb31961cc97a6a4f3c54534d50cd895dd8",
+      "latestRecheckDurationMs": 194
     },
     {
       "id": "tooling/lsp/restart-generation-safety",
@@ -3116,9 +3127,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 4278,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "4ae5ed7ec605556138a3fe7aadfe32ea4cdf899a",
-      "latestRecheckDurationMs": 1921
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "277508fb31961cc97a6a4f3c54534d50cd895dd8",
+      "latestRecheckDurationMs": 1913
     },
     {
       "id": "tooling/lsp/rust-quoted-const-type-inputs",
@@ -6122,7 +6133,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 532
+      "recheckDurationMs": 532,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "277508fb31961cc97a6a4f3c54534d50cd895dd8",
+      "latestRecheckDurationMs": 531
     },
     {
       "id": "lang/contracts/mustache-parse-token-boundaries",
@@ -6298,8 +6312,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 529,
       "latestRecheckStatus": "passed",
-      "latestRecheckSourceHead": "4b86182818b8755b0d8d6503a73e2e2a784930d5",
-      "latestRecheckDurationMs": 484
+      "latestRecheckSourceHead": "277508fb31961cc97a6a4f3c54534d50cd895dd8",
+      "latestRecheckDurationMs": 515
     },
     {
       "id": "lang/perl/package-chunks",
@@ -6318,8 +6332,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 503,
       "latestRecheckStatus": "passed",
-      "latestRecheckSourceHead": "4b86182818b8755b0d8d6503a73e2e2a784930d5",
-      "latestRecheckDurationMs": 520
+      "latestRecheckSourceHead": "277508fb31961cc97a6a4f3c54534d50cd895dd8",
+      "latestRecheckDurationMs": 492
     },
     {
       "id": "lang/perl/scheduler-crash-recovery",

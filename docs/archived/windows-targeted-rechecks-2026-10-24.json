@@ -3417,12 +3417,353 @@
           "historicalAuthorWorkspaceEvidence": true
         }
       ]
+    },
+    {
+      "sourceHead": "277508fb31961cc97a6a4f3c54534d50cd895dd8",
+      "startedAt": "2026-10-24T13:16:18.986Z",
+      "finishedAt": "2026-10-24T13:16:45.315Z",
+      "scope": "Dart body/source handle, editor package and LSP transport-code controls.",
+      "policy": {
+        "timeoutMs": 30000,
+        "retries": 0,
+        "nativeStatusRedo": false,
+        "threads": 1,
+        "platform": "win32",
+        "node": "v26.12.1",
+        "removedLaunchSetting": "PAIROFCLEATS_TRUSTED_CONFIG: missing configured file; no replacement authority granted"
+      },
+      "summary": {
+        "selected": 12,
+        "passed": 9,
+        "failed": 3,
+        "timeouts": 0,
+        "skipped": 0
+      },
+      "cohorts": [
+        {
+          "name": "dart-source-wave-01",
+          "summary": {
+            "total": 5,
+            "passed": 3,
+            "failed": 2,
+            "skipped": 0,
+            "durationMs": 18553
+          },
+          "ids": [
+            "services/api/filter-enumeration-surfaces",
+            "storage/semantic/explain-input-lifetime",
+            "storage/semantic/retained-source-reader-lifetime",
+            "tooling/lsp/request-local-write-settlement",
+            "tooling/lsp/restart-generation-safety"
+          ]
+        },
+        {
+          "name": "dart-source-wave-02",
+          "summary": {
+            "total": 5,
+            "passed": 4,
+            "failed": 1,
+            "skipped": 0,
+            "durationMs": 3838
+          },
+          "ids": [
+            "indexing/tree-sitter/declaration-role-and-scope-contract",
+            "lang/contracts/managed-heuristic-adapters",
+            "lang/contracts/native-call-argument-authority",
+            "lang/contracts/native-call-owner-projection",
+            "lang/contracts/native-call-ownership-and-metadata"
+          ]
+        },
+        {
+          "name": "dart-source-wave-03",
+          "summary": {
+            "total": 2,
+            "passed": 2,
+            "failed": 0,
+            "skipped": 0,
+            "durationMs": 1013
+          },
+          "ids": [
+            "lang/kotlin/perf-guard",
+            "lang/perl/package-chunks"
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "id": "services/api/filter-enumeration-surfaces",
+          "path": "services/api/filter-enumeration-surfaces.test.js",
+          "lane": "api",
+          "tags": [
+            "api",
+            "services"
+          ],
+          "status": "passed",
+          "durationMs": 14556,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-277508fb31961cc97a6a4f3c54534d50cd895dd8/dart-source-wave-01-logs/run-1792847779856-svy1vz/services_api_filter-enumeration-surfaces.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "storage/semantic/explain-input-lifetime",
+          "path": "storage/semantic/explain-input-lifetime.test.js",
+          "lane": "storage",
+          "tags": [
+            "storage"
+          ],
+          "status": "passed",
+          "durationMs": 1367,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-277508fb31961cc97a6a4f3c54534d50cd895dd8/dart-source-wave-01-logs/run-1792847779856-svy1vz/storage_semantic_explain-input-lifetime.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "storage/semantic/retained-source-reader-lifetime",
+          "path": "storage/semantic/retained-source-reader-lifetime.test.js",
+          "lane": "storage",
+          "tags": [
+            "storage"
+          ],
+          "status": "failed",
+          "durationMs": 511,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-277508fb31961cc97a6a4f3c54534d50cd895dd8/dart-source-wave-01-logs/run-1792847779856-svy1vz/storage_semantic_retained-source-reader-lifetime.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-277508fb31961cc97a6a4f3c54534d50cd895dd8/dart-source-wave-01-logs/run-1792847779856-svy1vz/storage_semantic_retained-source-reader-lifetime.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/lsp/request-local-write-settlement",
+          "path": "tooling/lsp/request-local-write-settlement.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "failed",
+          "durationMs": 194,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-277508fb31961cc97a6a4f3c54534d50cd895dd8/dart-source-wave-01-logs/run-1792847779856-svy1vz/tooling_lsp_request-local-write-settlement.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-277508fb31961cc97a6a4f3c54534d50cd895dd8/dart-source-wave-01-logs/run-1792847779856-svy1vz/tooling_lsp_request-local-write-settlement.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/lsp/restart-generation-safety",
+          "path": "tooling/lsp/restart-generation-safety.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 1913,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-277508fb31961cc97a6a4f3c54534d50cd895dd8/dart-source-wave-01-logs/run-1792847779856-svy1vz/tooling_lsp_restart-generation-safety.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/tree-sitter/declaration-role-and-scope-contract",
+          "path": "indexing/tree-sitter/declaration-role-and-scope-contract.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 348,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-277508fb31961cc97a6a4f3c54534d50cd895dd8/dart-source-wave-02-logs/run-1792847799438-ihaef8/indexing_tree-sitter_declaration-role-and-scope-contract.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "lang/contracts/managed-heuristic-adapters",
+          "path": "lang/contracts/managed-heuristic-adapters.test.js",
+          "lane": "unit",
+          "tags": [
+            "lang",
+            "unit"
+          ],
+          "status": "failed",
+          "durationMs": 531,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-277508fb31961cc97a6a4f3c54534d50cd895dd8/dart-source-wave-02-logs/run-1792847799438-ihaef8/lang_contracts_managed-heuristic-adapters.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-277508fb31961cc97a6a4f3c54534d50cd895dd8/dart-source-wave-02-logs/run-1792847799438-ihaef8/lang_contracts_managed-heuristic-adapters.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "lang/contracts/native-call-argument-authority",
+          "path": "lang/contracts/native-call-argument-authority.test.js",
+          "lane": "unit",
+          "tags": [
+            "lang",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 1219,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-277508fb31961cc97a6a4f3c54534d50cd895dd8/dart-source-wave-02-logs/run-1792847799438-ihaef8/lang_contracts_native-call-argument-authority.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "lang/contracts/native-call-owner-projection",
+          "path": "lang/contracts/native-call-owner-projection.test.js",
+          "lane": "unit",
+          "tags": [
+            "lang",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 1056,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-277508fb31961cc97a6a4f3c54534d50cd895dd8/dart-source-wave-02-logs/run-1792847799438-ihaef8/lang_contracts_native-call-owner-projection.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "lang/contracts/native-call-ownership-and-metadata",
+          "path": "lang/contracts/native-call-ownership-and-metadata.test.js",
+          "lane": "unit",
+          "tags": [
+            "lang",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 673,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-277508fb31961cc97a6a4f3c54534d50cd895dd8/dart-source-wave-02-logs/run-1792847799438-ihaef8/lang_contracts_native-call-ownership-and-metadata.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "lang/kotlin/perf-guard",
+          "path": "lang/kotlin/perf-guard.test.js",
+          "lane": "unit",
+          "tags": [
+            "lang",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 515,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-277508fb31961cc97a6a4f3c54534d50cd895dd8/dart-source-wave-03-logs/run-1792847804286-5wsnjb/lang_kotlin_perf-guard.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "lang/perl/package-chunks",
+          "path": "lang/perl/package-chunks.test.js",
+          "lane": "unit",
+          "tags": [
+            "lang",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 492,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-277508fb31961cc97a6a4f3c54534d50cd895dd8/dart-source-wave-03-logs/run-1792847804286-5wsnjb/lang_perl_package-chunks.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        }
+      ]
     }
   ],
   "cumulativeClosure": {
     "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
-    "originalFailuresMovedToPassing": 57,
-    "originalFailuresWithoutPassingClosure": 43,
-    "additionalObservedFailuresOutsideOriginal100": []
+    "originalFailuresMovedToPassing": 60,
+    "originalFailuresWithoutPassingClosure": 40,
+    "additionalObservedFailuresOutsideOriginal100": [
+      "tooling/lsp/request-local-write-settlement"
+    ]
   }
 }
