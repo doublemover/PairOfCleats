@@ -113,6 +113,8 @@ Machine-readable index:
 - `diff_inputs` (object): requires `id`, `createdAt`, `from`, `to`, `modes`, `allowMismatch`, `identityHash`.
 - `diff_summary` (object): requires `id`, `createdAt`, `from`, `to`, `modes`.
 - `graph_relations` (object): requires `version`, `generatedAt`, `callGraph`, `usageGraph`, `importGraph`. Each graph requires `nodeCount`, `edgeCount`, `nodes[]` (node requires `id`, `out`, `in`; optional `file`, `name`, `kind`, `chunkId`).
+- `graph_relation_edges` (array/JSONL): canonical graph edge evidence; exact row fields are defined in `src/contracts/schemas/graph-relation-edges.js`.
+- `graph_relation_edges_meta` (object): sharded JSONL metadata for `graph_relation_edges`.
 - `import_resolution_graph` (object): requires `generatedAt`, `nodes`, `edges`, `stats`. Nodes require `id`, `type`. Edges require `from`, `to`, `rawSpecifier`, `resolvedType`. Optional edge fields include `kind`, `resolvedPath`, `packageName`, `tsconfigPath`, `tsPathPattern`. Optional top-level `warnings[]`.
 
 Semantic family members support either an array of canonical rows or a generation

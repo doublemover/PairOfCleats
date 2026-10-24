@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-10-24T12:09:35.707Z",
-  "ok": false,
+  "generatedAt": "2026-10-24T12:10:43.281Z",
+  "ok": true,
   "checks": {
     "searchCliFlags": {
       "doc": "docs/contracts/search-cli.md",
@@ -105,28 +105,16 @@
       "doc": "docs/contracts/artifact-schemas.md",
       "source": "src/contracts/schemas/artifacts.js",
       "sourceCount": 90,
-      "docCount": 88,
-      "missingInDocs": [
-        "graph_relation_edges",
-        "graph_relation_edges_meta"
-      ],
+      "docCount": 90,
+      "missingInDocs": [],
       "extraInDocs": []
     },
     "scoreBreakdown": {
       "doc": "docs/contracts/search-contract.md",
       "source": "src/retrieval/pipeline/rank-stage.js",
       "sourceCount": 8,
-      "docCount": 0,
-      "missingInDocs": [
-        "ann",
-        "blend",
-        "phrase",
-        "relation",
-        "rrf",
-        "selected",
-        "sparse",
-        "symbol"
-      ],
+      "docCount": 8,
+      "missingInDocs": [],
       "extraInDocs": []
     },
     "testRunnerLanes": {

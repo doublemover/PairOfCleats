@@ -105,6 +105,20 @@ Canonical stability requirements:
 - consumers must not assume a fixed `scoreBreakdown` key set.
 - parser compatibility is forward-only: unknown fields are non-breaking.
 
+Current producer fields in `scoreBreakdown` are:
+
+- `sparse`: lexical score, provider, normalization and field-weight observations.
+- `ann`: dense score, selected backend and candidate policy.
+- `rrf`: reciprocal-rank contributions when rank fusion is selected.
+- `phrase`: matched phrase count and its signed relative adjustment.
+- `symbol`: symbol-match adjustment evidence.
+- `blend`: configured sparse/dense blend evidence outside reciprocal-rank fusion.
+- `relation`: relation-match adjustment evidence.
+- `selected`: the final selected score and score type.
+
+These fields can be null when their producer is ineligible. This inventory does
+not make the key set closed; optional graph diagnostics remain additive.
+
 ### Track IQ: Intent confidence semantics
 For explain output, `stats.intent` now carries a calibrated confidence surface:
 - type remains the dominant class from intent classification.
