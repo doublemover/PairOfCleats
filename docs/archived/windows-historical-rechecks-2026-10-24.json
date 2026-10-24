@@ -6244,6 +6244,319 @@
       },
       "nativeAccessViolations": 0,
       "unexpectedWarningDiagnostics": 0
+    },
+    {
+      "sourceHead": "abf38e24706ef5e22209bbbf7ac952725e57037a",
+      "sourceTree": "e5449099e8ee7ee24dbb6ec6a68dbcff8a59f9a0",
+      "recordedAt": "2026-10-24T06:55:08.377Z",
+      "scope": "Cache/session and portable bootstrap follow-up; candidates remain explicit per observation.",
+      "policy": {
+        "jobs": 1,
+        "indexingThreads": 1,
+        "timeoutMs": 30000,
+        "retries": 0,
+        "nativeStatusRedo": false
+      },
+      "summary": {
+        "total": 15,
+        "passed": 15,
+        "failed": 0,
+        "skipped": 0
+      },
+      "newlyPassingHistoricalFailures": [
+        "retrieval/cache/degraded-session-recovery",
+        "retrieval/cache/embedding-flight-replacement",
+        "retrieval/cache/embedding-process-reuse",
+        "retrieval/cache/embedding-query-dims-lru",
+        "retrieval/cache/query-cache-engine-ownership",
+        "retrieval/cache/query-cache-execution-admission",
+        "retrieval/cache/query-plan-filter-identity",
+        "retrieval/cache/query-retrieval-knobs-invalidation",
+        "retrieval/cache/query-session-snapshot-ownership",
+        "tooling/install/postinstall-rebuild-native"
+      ],
+      "selectedLatest": {
+        "passed": 86,
+        "failed": 372,
+        "skipped": 1,
+        "remainingTimeouts": 10
+      },
+      "observations": [
+        {
+          "id": "retrieval/cache/degraded-session-recovery",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 670,
+          "timedOut": false,
+          "sourceHead": "2548ff65a2c26e654d1a541cbb977cf1e62ecdd9",
+          "report": "cache-final.json"
+        },
+        {
+          "id": "retrieval/cache/embedding-flight-replacement",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 227,
+          "timedOut": false,
+          "sourceHead": "2548ff65a2c26e654d1a541cbb977cf1e62ecdd9",
+          "report": "cache-final.json"
+        },
+        {
+          "id": "retrieval/cache/embedding-process-reuse",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 219,
+          "timedOut": false,
+          "sourceHead": "2548ff65a2c26e654d1a541cbb977cf1e62ecdd9",
+          "report": "cache-final.json"
+        },
+        {
+          "id": "retrieval/cache/embedding-query-dims-lru",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 256,
+          "timedOut": false,
+          "sourceHead": "2548ff65a2c26e654d1a541cbb977cf1e62ecdd9",
+          "report": "cache-final.json"
+        },
+        {
+          "id": "retrieval/cache/prewarm-once-per-generation",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 182,
+          "timedOut": false,
+          "sourceHead": "2548ff65a2c26e654d1a541cbb977cf1e62ecdd9",
+          "report": "cache-final.json"
+        },
+        {
+          "id": "retrieval/cache/query-cache-engine-ownership",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 1926,
+          "timedOut": false,
+          "sourceHead": "2548ff65a2c26e654d1a541cbb977cf1e62ecdd9",
+          "report": "cache-final.json"
+        },
+        {
+          "id": "retrieval/cache/query-cache-execution-admission",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 385,
+          "timedOut": false,
+          "sourceHead": "2548ff65a2c26e654d1a541cbb977cf1e62ecdd9",
+          "report": "cache-final.json"
+        },
+        {
+          "id": "retrieval/cache/query-effective-identity",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 290,
+          "timedOut": false,
+          "sourceHead": "2548ff65a2c26e654d1a541cbb977cf1e62ecdd9",
+          "report": "cache-final.json"
+        },
+        {
+          "id": "retrieval/cache/query-plan-filter-identity",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 363,
+          "timedOut": false,
+          "sourceHead": "2548ff65a2c26e654d1a541cbb977cf1e62ecdd9",
+          "report": "cache-final.json"
+        },
+        {
+          "id": "retrieval/cache/query-retrieval-knobs-invalidation",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 13423,
+          "timedOut": false,
+          "sourceHead": "2548ff65a2c26e654d1a541cbb977cf1e62ecdd9",
+          "report": "cache-final.json"
+        },
+        {
+          "id": "retrieval/cache/query-session-snapshot-ownership",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 438,
+          "timedOut": false,
+          "sourceHead": "2548ff65a2c26e654d1a541cbb977cf1e62ecdd9",
+          "report": "cache-final.json"
+        },
+        {
+          "id": "retrieval/cli/search-backend-finally",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 1668,
+          "timedOut": false,
+          "sourceHead": "2548ff65a2c26e654d1a541cbb977cf1e62ecdd9",
+          "report": "cache-final.json"
+        },
+        {
+          "id": "tooling/install/postinstall-patch-enforcement",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 3833,
+          "timedOut": false,
+          "sourceHead": "abf38e24706ef5e22209bbbf7ac952725e57037a",
+          "report": "postinstall-final.json"
+        },
+        {
+          "id": "tooling/install/postinstall-rebuild-native",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 2445,
+          "timedOut": false,
+          "sourceHead": "abf38e24706ef5e22209bbbf7ac952725e57037a",
+          "report": "postinstall-final.json"
+        },
+        {
+          "id": "tooling/install/postinstall-signal-exit",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 76,
+          "timedOut": false,
+          "sourceHead": "abf38e24706ef5e22209bbbf7ac952725e57037a",
+          "report": "postinstall-final.json"
+        }
+      ],
+      "localEvidence": {
+        "root": ".tmp/tasks/windows-failure-repairs-20261024",
+        "historical": true,
+        "availableInCleanCheckout": false
+      },
+      "setup": {
+        "command": "node tools/setup/rebuild-native.js --verify",
+        "exitCode": 0,
+        "unexpectedWarningDiagnostics": 0
+      },
+      "hostedCheckpoint": {
+        "head": "8e46778945eda2b48c5031a892030fc0d670a830",
+        "run": "https://github.com/doublemover/PairOfCleats/actions/runs/40071189894",
+        "dependencyAudit": "passed",
+        "policy": "passed",
+        "gate": "failed",
+        "failure": "postinstall-patch-enforcement expected the obsolete already applied diagnostic; follow-up source repairs pending a new hosted observation."
+      },
+      "intermediateReports": [
+        "cache-batch-01.json",
+        "cache-batch-02.json",
+        "postinstall-focused.json"
+      ],
+      "frontGate": {
+        "status": "passed",
+        "sourceHead": "9f94a3595",
+        "attempts": [
+          {
+            "report": "followup-format.log",
+            "name": "format",
+            "exitCode": 0
+          },
+          {
+            "durationMs": 2903,
+            "name": "config-budget",
+            "exitCode": 0
+          },
+          {
+            "durationMs": 1476,
+            "name": "env-check",
+            "exitCode": 0
+          },
+          {
+            "durationMs": 10028,
+            "name": "generated-freshness",
+            "exitCode": 0
+          },
+          {
+            "durationMs": 2917,
+            "name": "command-surface",
+            "exitCode": 0
+          },
+          {
+            "durationMs": 244,
+            "name": "workflow-contract",
+            "exitCode": 0
+          },
+          {
+            "durationMs": 7222,
+            "name": "gate",
+            "exitCode": 1
+          },
+          {
+            "name": "gate",
+            "report": "followup-gate-resumed.log",
+            "exitCode": 0
+          },
+          {
+            "exitCode": 0,
+            "name": "diff-check"
+          }
+        ],
+        "checks": [
+          {
+            "report": "followup-format.log",
+            "name": "format",
+            "exitCode": 0
+          },
+          {
+            "durationMs": 2903,
+            "name": "config-budget",
+            "exitCode": 0
+          },
+          {
+            "durationMs": 1476,
+            "name": "env-check",
+            "exitCode": 0
+          },
+          {
+            "durationMs": 10028,
+            "name": "generated-freshness",
+            "exitCode": 0
+          },
+          {
+            "durationMs": 2917,
+            "name": "command-surface",
+            "exitCode": 0
+          },
+          {
+            "durationMs": 244,
+            "name": "workflow-contract",
+            "exitCode": 0
+          },
+          {
+            "name": "gate",
+            "report": "followup-gate-resumed.log",
+            "exitCode": 0
+          },
+          {
+            "exitCode": 0,
+            "name": "diff-check"
+          }
+        ],
+        "gateCases": {
+          "durationMs": 5631,
+          "failed": 0,
+          "passed": 40,
+          "skipped": 0,
+          "total": 40
+        },
+        "markdownLinksExitCode": 0,
+        "repairedFailure": "The explicit file-symlink inventory still selected the now-portable patch predicate. Removed only that privileged cohort entry and asserted ordinary CI ownership; all 40 gate cases pass after reconciliation."
+      },
+      "nativeAccessViolations": 0
     }
   ]
 }

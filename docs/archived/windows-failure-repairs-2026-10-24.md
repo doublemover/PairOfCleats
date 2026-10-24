@@ -93,3 +93,63 @@ transitive budgets remain unchanged; correctness/resource bounds are not latency
 measurements. Windows terminal lifecycle, platform-specific native authority,
 optional sqlite-vec, real models, Linux/macOS and release acceptance retain their
 separate owners. No comprehensive backlog or issue-closure claim is made.
+
+## Cache and setup follow-up
+
+`136fb56fd` repairs two production defects. A zero query-cache freshness window
+was interpreted as unlimited hot reuse, allowing an invalid canonical execution
+proof to be bypassed. Both session lookup sites now validate disk authority when
+the window is zero; nonzero bounded hot reuse and low-level in-memory consumers
+retain their policies. All six malformed/degraded/missing/wrong-mode proof
+negatives remain misses without rewriting data or publishing touches. Pre-cancelled
+core search now returns the same `CANCELLED` / `cancelled:true` contract as later
+cancellation, with no successful-search history publication. Both regressions
+failed before the repair and pass afterward.
+
+`2548ff65a2c26e654d1a541cbb977cf1e62ecdd9`, tree
+`69874b8de3e3ac428500beb2ed3945982195b123`, has **12 passing focused cases**
+(20.1 seconds total; maximum 13.4 seconds). Positive mocked embedding caches now
+explicitly select deterministic stub authority or real, inert selected graph and
+tokenizer bytes. Unknown model provenance still executes twice rather than
+borrowing stub reuse. Dimensions, normalization, generation/provider isolation,
+LRU bounds, retired-flight replacement and failed-flight recovery remain covered.
+The query-plan test isolates its two orderings' cache namespaces instead of
+mistaking the preceding ordering's valid entry for cross-policy reuse. Cancellation
+is observed before an awaited lock release, retaining the original aborted write
+and no-publication assertions. A full session fixture supplies its required ONNX
+and context-expansion options. The retrieval-knob CLI fixture selects balanced
+quality and sparse retrieval explicitly, verifies the expected source on every
+cold/warm call, and retains distinct configuration keys and miss/hit assertions.
+Transient ANN/FTS failure/recovery and effective-model identity remain separate
+passing controls; no unknown-provenance admission was relaxed.
+
+Hosted CI at `8e4677894` passes dependency security and the offline Identity/MSAL
+contract, then stops on an obsolete patch diagnostic assertion. The ensuing
+portable Windows repair at `abf38e24706ef5e22209bbbf7ac952725e57037a`, tree
+`e5449099e8ee7ee24dbb6ec6a68dbcff8a59f9a0`, fixes a genuine setup diagnostic defect:
+wrapping an aborted Git child converted cancellation into an ordinary patch
+failure. Input-order selection could then hide the incompatible patch that
+stopped the wave. The original AbortError now reaches the scheduler unchanged;
+the real incompatible package remains the primary failure and neither package
+is modified. Patch repeat checks assert the actual zero-change counters. The
+linked-directory predicate runs against the real admission owner with controlled
+native metadata and proves rejection before target open, creating no symlink or
+junction. This is portable predicate coverage, not physical-link qualification.
+Existing real hardlink refusal remains. SQLite's fixture now checks that the
+selected upstream `build-release` owns `--force_build=1`, without reintroducing
+the obsolete npm source-build flag.
+
+All **three postinstall cases pass** (6.36 seconds total). Fresh native/patch
+verification exits zero and refreshes readiness without warnings. The 15 focused
+checks repair **10 additional historical failures**, giving latest scoped counts
+of **86 passing, 372 failing, one platform exclusion**, with all ten original
+timeouts still unresolved. Their separate candidates and reports are preserved
+in the second repair wave of the JSON inventory. Hosted CI and broader resulting-
+tree runtime acceptance remain outstanding; no local Linux or WSL check was run.
+
+The complete follow-up front gate passes, including all 40 cases and Markdown
+links. It first caught the obsolete privileged-cohort entry for the now-portable
+patch predicate. `9f94a3595` removes only that file-symlink cohort membership and
+asserts that ordinary CI still owns the full fixture. The resumed gate passes
+without creating links or weakening its completeness/timeout/retry guards. Both
+gate attempts are retained; no unexpected warning appears in focused transcripts.

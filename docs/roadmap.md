@@ -20,11 +20,11 @@ The next service batch repairs changing-lock contention and nested diagnostic
 redaction, with source-bound format, release-owner and lazy-posting fixtures.
 The [459-case re-check receipt](archived/windows-historical-rechecks-2026-10-24.md)
 records 32 baseline passes, 426 failures (10 timeouts) and one POSIX exclusion.
-Focused repairs through `adfdcc85b` move 44 failures to passing: latest scoped
-counts are 76 passes, 382 failures and one exclusion. The
+Focused repairs through `abf38e247` move 54 failures to passing: latest scoped
+counts are 86 passes, 372 failures and one exclusion. The
 [next repair receipt](archived/windows-failure-repairs-2026-10-24.md) records
-37 passing checks, dependency audit repair, regex autofix/PHP, provider preflight,
-Windows delegation, MCP, VSIX and directory fallback fixes. No access violation was
+37 passing checks plus 15 cache/setup checks, dependency audit repair, regex/PHP,
+provider preflight, Windows delegation, MCP, VSIX and fallback fixes. No access violation was
 recorded; these observations are not a final-tree deep-suite pass.
 The earlier CDB-attributed
 Node-API finalizer lifetime repair retains its fail-before, ten-process and

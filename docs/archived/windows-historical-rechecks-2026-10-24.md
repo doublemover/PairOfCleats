@@ -100,8 +100,10 @@ passing, 410 failing and one platform exclusion**. This is not a second frozen
 459-case pass. The [next repair wave](windows-failure-repairs-2026-10-24.md)
 adds 28 repaired historical failures and records 37 passing focused cases at
 `adfdcc85b`: latest scoped counts become **76 passing, 382 failing and one
-platform exclusion**. Its source/validation observations are a separate wave in
-the JSON inventory. All ten baseline timeout IDs remain unresolved:
+platform exclusion**. Its cache/setup follow-up adds ten more passing historical
+cases: latest scoped counts are **86 passing, 372 failing and one exclusion**.
+Source/validation observations remain separate waves in the JSON inventory.
+All ten baseline timeout IDs remain unresolved:
 
 - `shared/storage/probe-write-admission-preserves-unknown`;
 - `retrieval/filters/semantic-filter-contract-matrix`;
