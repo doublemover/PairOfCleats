@@ -311,11 +311,23 @@ export const runEmbeddingsStage = async ({
         }
         // The parent owns structured framing. Preserve the child's complete
         // diagnostic text before that framing instead of borrowing human width.
-        args.push(...buildEmbeddingLaunchArgs(embeddingPlan.options), '--progress', 'off', '--verbose');
+        args.push(...buildEmbeddingLaunchArgs(embeddingPlan.options), '--progress', 'jsonl');
         const embedResult = await runEmbeddingsTool(args, {
           baseEnv: attachEmbeddingExecutionPlan(runtimeEnv, embeddingPlan, launchObservability),
           signal: effectiveAbortSignal,
           onLine: (line, metadata = {}) => {
+            const event = metadata.event;
+            if (event?.event === 'log') {
+              logLine(event.message, { ...event.meta, kind: 'diagnostic', ...metadata });
+              return;
+            }
+            if (event?.event?.startsWith('task:')) {
+              showProgress(event.name || 'Files', event.current, event.total, {
+                stage: 'embeddings', mode: event.mode, taskId: `embeddings:child:${event.taskId}`,
+                ephemeral: true, status: event.status, message: event.message
+              });
+              return;
+            }
             if (metadata.truncated || metadata.stream === 'stderr') {
               logLine(line, { kind: 'diagnostic', ...metadata });
               return;

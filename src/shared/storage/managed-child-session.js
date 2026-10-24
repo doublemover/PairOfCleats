@@ -14,6 +14,7 @@ export const runManagedChildWithStorage = async ({ plan, authorizedRoots, coordi
     throw new TypeError('Managed write admission requires bounded explicit destination estimates.');
   }
   const roots = [...new Set([...plan.ownedRoots.filter(root => plan.locations.some(location => !location.external && isPathWithinRoot(location.path, root))),
+    ...plan.locations.filter(location => !location.external && !location.file).map(location => location.path),
     ...(admission?.writes || []).map(write => write.root)])];
   if (!roots.length) return { value: await execute({ env: plan.env, storage: { managed: true, externalOverridesOnly: true } }),
     resourceId: null, storage: { managed: true, externalOverridesOnly: true } };

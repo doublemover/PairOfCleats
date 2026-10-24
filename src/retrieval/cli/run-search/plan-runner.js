@@ -136,8 +136,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
   }
   const workspacePath = extractWorkspacePath(argv);
   const enumerationError = argv.cursor && !filterOnly
-    ? '--cursor requires a filter-only search without query text.'
-    : workspacePath && filterOnly ? 'Filter enumeration currently requires --repo, not --workspace.' : null;
+    ? '--cursor requires a filter-only search without query text.' : null;
   if (enumerationError) emitInvalidRequestAndThrow({
     message: enumerationError, jsonOutput, emitOutput, exitOnError, recordSearchMetrics
   });
