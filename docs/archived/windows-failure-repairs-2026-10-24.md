@@ -195,3 +195,75 @@ passes the dependency audit but fails the POSIX-only Git SIGTERM propagation
 control; downstream jobs remain unqualified. This Linux signal-lifetime path is
 outside the requested local Windows execution scope and has no speculative fix
 or disabled assertion.
+
+## Worker and artifact runtime follow-up
+
+Source `f5334185b35a512d8d6e34e2dcd8361d67a16522`, tree
+`93a183f5386793b68a03a6ad4f2f530055ca52b6`, passes **19 targeted Windows cases**
+in 13.6 seconds; the slowest is 4.12 seconds. Every case uses one job, one indexing
+thread, a 30-second deadline, zero retries and native-status redo disabled. No
+case fails, times out or skips; no access violation or unexpected warning is
+observed. This repairs **11 additional historical failures**, giving latest
+scoped totals of **98 passing, 360 failing and one platform exclusion**. The ten
+original timeouts remain unresolved. The JSON inventory preserves every ID,
+candidate and intermediate failure; these observations do not qualify the full
+suite or close the issue backlog.
+
+Four production defects are repaired:
+
+- **Worker heap acknowledgement:** Node 26/V8 rounds the young generation's
+  semi-space size up to a power of two. The old raw old-plus-young sum rejected a
+  real 256/32 MiB worker whose correctly bounded total is 304 MiB. The existing
+  owner now derives the total ceiling using the
+  [pinned V8 calculation](https://github.com/nodejs/node/blob/v26.12.1/deps/v8/src/heap/heap.cc#L4592-L4634).
+  Fresh-process controls cover 24/32/48 MiB young settings, CLI and NODE_OPTIONS
+  oversized old/young overrides, and stricter startup caps. The new 32 MiB control
+  fails before repair. This is measured V8 total-heap acknowledgement, not an
+  old-space measurement or native/addon memory qualification.
+- **Closed worker admission:** Closing the pool's own queue now gives waiting,
+  undispatched callers the same unavailable result as the checks before and
+  after acquisition. Caller cancellation still rejects, and dispatched failures
+  retain their original settlement owner. The original shutdown/permanent-disable
+  fixture and its new caller-abort/accounting control pass with physical threads
+  reaped and counters drained.
+- **Token batch byte receipts:** V8 can encode equal values differently after
+  structured cloning, as its [serialization contract](https://github.com/nodejs/node/blob/v26.12.1/doc/api/v8.md#serialization-api)
+  documents. Internal protocol version 2 carries actual serialized member bytes;
+  the coordinator verifies membership, source/policy identity and exact aggregate
+  bytes before decoding. The 8 MiB limit is unchanged. Old versions, malformed
+  encodings, shared mutable buffers, wrong counts and poisoned lookahead still
+  fail. Real Worker and process transports preserve every original token-content
+  comparison; the actual production chunk loop retains bounded inline recovery.
+- **Quantization warnings:** Valid inclusive endpoints and in-range values that
+  round to an endpoint no longer produce out-of-range diagnostics. Quantized
+  bytes are unchanged. The new endpoint assertion fails before repair; actual
+  out-of-range warning-once, no-wrap and normalization-parity controls still pass.
+
+Fixture repairs retain their original coverage owners. The direct checksum
+worker now uses the current bounded request/reply protocol and awaits actual
+termination. Process heap qualification awaits both real readiness observations
+instead of reading receipts while the second child still initializes; two unique
+PIDs, independent startup caps and the aggregate child budget remain asserted.
+Dense-vector invalid-shape checks first establish a canonical manifest and valid
+strict read, retaining a separate missing-authority negative. Binary byte-budget
+refusal asserts its actual contained-file error code rather than stale message
+text, and the existing explicit bypass decodes every expected posting. Packed
+short-read injection clears the descriptor on actual close, proving EOF hits the
+payload rather than a reused metadata descriptor. Bundle close injection accepts
+the owner's numeric read flags. Binary-frame recovery separately closes the row
+source before releasing the descriptor, with premature release still rejected.
+No test, production function, budget or public artifact contract is removed.
+
+The original failure receipts and the two new fail-before controls remain in the
+author workspace under `.tmp/tasks/windows-failure-repairs-20261024`; they are
+historical local evidence unavailable in clean checkouts. Dependency/patch setup
+is unchanged from the preceding verified installation. The last hosted checkpoint
+`7f2aa42bf` passes policy but still fails the POSIX-only Git SIGTERM propagation
+control, leaving downstream jobs unqualified. No local Linux/WSL run, signal
+assertion workaround or platform-acceptance claim is made.
+
+The publication front gate passes: full formatting, config budget, environment,
+generated freshness, command surface, workflow contract, all 40 gate cases,
+whitespace and Markdown links. Formatting leaves the committed runtime candidate
+unchanged. Publication adds only the durable observations and status documents;
+earlier waves retain their own candidates and verification scope.

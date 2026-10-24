@@ -131,6 +131,12 @@ useful latency qualification, Linux/macOS, optional sqlite-vec, real-model and
 release acceptance retain separate owners. No complete deep-suite, issue-closure
 or backlog-completion claim is made.
 
+The [runtime follow-up](windows-failure-repairs-2026-10-24.md#worker-and-artifact-runtime-follow-up)
+passes 19 focused cases at `f5334185b`, repairing 11 more historical failures.
+Latest scoped counts are **98 passing, 360 failing and one exclusion**. All ten
+original timeouts remain open; these are per-candidate observations, not another
+full 459-case or final-tree deep-suite run.
+
 ## Hosted workflow follow-up
 
 The [first published CI run](https://github.com/doublemover/PairOfCleats/actions/runs/40063882201)

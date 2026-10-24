@@ -6916,6 +6916,328 @@
         "gate": "failed",
         "failure": "The hosted POSIX-only Git SIGTERM propagation control reports a normal exit; no local Linux execution or signal-owner workaround was performed."
       }
+    },
+    {
+      "sourceHead": "f5334185b35a512d8d6e34e2dcd8361d67a16522",
+      "sourceTree": "93a183f5386793b68a03a6ad4f2f530055ca52b6",
+      "recordedAt": "2026-10-24T07:35:59.100Z",
+      "scope": "Targeted Windows worker heap, queue shutdown, token batch, quantization diagnostic and artifact resource regressions; not a full suite or 459-case rerun.",
+      "policy": {
+        "timeoutMs": 30000,
+        "retries": 0,
+        "nativeStatusRedo": false,
+        "indexingThreads": 1,
+        "jobs": 1
+      },
+      "summary": {
+        "durationMs": 13646,
+        "failed": 0,
+        "passed": 19,
+        "skipped": 0,
+        "total": 19
+      },
+      "newlyPassingHistoricalFailures": [
+        "indexing/workers/process-backend-startup-heap",
+        "indexing/workers/tokenize-batch-real-worker-receipt",
+        "indexing/workers/worker-pool-throttle-shutdown",
+        "shared/artifact-io/binary-frame-producer-resource-lifetime",
+        "shared/artifact-io/packed-postings-short-read",
+        "shared/artifact-io/prefer-binary-columnar-loaders",
+        "shared/bundle-transform-result-projection",
+        "shared/bundle-transform-scheduler-session",
+        "shared/dense-binary-resource-lifetime",
+        "shared/io/bundle-resource-outcomes",
+        "shared/io/bundle-transform-worker-checksum"
+      ],
+      "selectedLatest": {
+        "passed": 98,
+        "failed": 360,
+        "skipped": 1,
+        "remainingTimeouts": 10
+      },
+      "observations": [
+        {
+          "id": "indexing/embeddings/quantization-clamp-warning",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 81,
+          "timedOut": false,
+          "sourceHead": "f5334185b35a512d8d6e34e2dcd8361d67a16522",
+          "report": "runtime-final-focused.json"
+        },
+        {
+          "id": "indexing/embeddings/quantization-no-wrap",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 79,
+          "timedOut": false,
+          "sourceHead": "f5334185b35a512d8d6e34e2dcd8361d67a16522",
+          "report": "runtime-final-focused.json"
+        },
+        {
+          "id": "indexing/embeddings/quantize-normalization-parity",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 198,
+          "timedOut": false,
+          "sourceHead": "f5334185b35a512d8d6e34e2dcd8361d67a16522",
+          "report": "runtime-final-focused.json"
+        },
+        {
+          "id": "indexing/file-processor/tokenize-batch-bounds-order",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 1003,
+          "timedOut": false,
+          "sourceHead": "f5334185b35a512d8d6e34e2dcd8361d67a16522",
+          "report": "runtime-final-focused.json"
+        },
+        {
+          "id": "indexing/file-processor/tokenize-batch-receipt-lifetime",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 984,
+          "timedOut": false,
+          "sourceHead": "f5334185b35a512d8d6e34e2dcd8361d67a16522",
+          "report": "runtime-final-focused.json"
+        },
+        {
+          "id": "indexing/workers/process-backend-startup-heap",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 4115,
+          "timedOut": false,
+          "sourceHead": "f5334185b35a512d8d6e34e2dcd8361d67a16522",
+          "report": "runtime-final-focused.json"
+        },
+        {
+          "id": "indexing/workers/process-pool-demand-start",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 105,
+          "timedOut": false,
+          "sourceHead": "f5334185b35a512d8d6e34e2dcd8361d67a16522",
+          "report": "runtime-final-focused.json"
+        },
+        {
+          "id": "indexing/workers/tokenize-batch-real-worker-receipt",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 1082,
+          "timedOut": false,
+          "sourceHead": "f5334185b35a512d8d6e34e2dcd8361d67a16522",
+          "report": "runtime-final-focused.json"
+        },
+        {
+          "id": "indexing/workers/worker-pool-throttle-shutdown",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 243,
+          "timedOut": false,
+          "sourceHead": "f5334185b35a512d8d6e34e2dcd8361d67a16522",
+          "report": "runtime-final-focused.json"
+        },
+        {
+          "id": "indexing/workers/worker-startup-heap-contract",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 2928,
+          "timedOut": false,
+          "sourceHead": "f5334185b35a512d8d6e34e2dcd8361d67a16522",
+          "report": "runtime-final-focused.json"
+        },
+        {
+          "id": "shared/artifact-io/binary-frame-producer-resource-lifetime",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 183,
+          "timedOut": false,
+          "sourceHead": "f5334185b35a512d8d6e34e2dcd8361d67a16522",
+          "report": "runtime-final-focused.json"
+        },
+        {
+          "id": "shared/artifact-io/packed-postings-short-read",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 202,
+          "timedOut": false,
+          "sourceHead": "f5334185b35a512d8d6e34e2dcd8361d67a16522",
+          "report": "runtime-final-focused.json"
+        },
+        {
+          "id": "shared/artifact-io/prefer-binary-columnar-loaders",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 313,
+          "timedOut": false,
+          "sourceHead": "f5334185b35a512d8d6e34e2dcd8361d67a16522",
+          "report": "runtime-final-focused.json"
+        },
+        {
+          "id": "shared/bundle-transform-heap-acknowledgement",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 876,
+          "timedOut": false,
+          "sourceHead": "f5334185b35a512d8d6e34e2dcd8361d67a16522",
+          "report": "runtime-final-focused.json"
+        },
+        {
+          "id": "shared/bundle-transform-result-projection",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 190,
+          "timedOut": false,
+          "sourceHead": "f5334185b35a512d8d6e34e2dcd8361d67a16522",
+          "report": "runtime-final-focused.json"
+        },
+        {
+          "id": "shared/bundle-transform-scheduler-session",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 187,
+          "timedOut": false,
+          "sourceHead": "f5334185b35a512d8d6e34e2dcd8361d67a16522",
+          "report": "runtime-final-focused.json"
+        },
+        {
+          "id": "shared/dense-binary-resource-lifetime",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 219,
+          "timedOut": false,
+          "sourceHead": "f5334185b35a512d8d6e34e2dcd8361d67a16522",
+          "report": "runtime-final-focused.json"
+        },
+        {
+          "id": "shared/io/bundle-resource-outcomes",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 482,
+          "timedOut": false,
+          "sourceHead": "f5334185b35a512d8d6e34e2dcd8361d67a16522",
+          "report": "runtime-final-focused.json"
+        },
+        {
+          "id": "shared/io/bundle-transform-worker-checksum",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 157,
+          "timedOut": false,
+          "sourceHead": "f5334185b35a512d8d6e34e2dcd8361d67a16522",
+          "report": "runtime-final-focused.json"
+        }
+      ],
+      "failedBefore": [
+        {
+          "report": "heap-fail-before.json",
+          "owner": "Worker heap acknowledgement",
+          "result": "A real 256/32 MiB worker reports total 318767104 bytes and is incorrectly rejected by the old raw sum."
+        },
+        {
+          "report": "quantization-warning-fail-before.json",
+          "owner": "Quantization warning",
+          "result": "Valid inclusive endpoints produce an unexpected out-of-range warning."
+        }
+      ],
+      "intermediateReports": [
+        "artifact-focused-initial.json",
+        "bundle-shutdown-initial.json",
+        "token-protocol-focused.json",
+        "process-quantization-focused.json",
+        "process-heap-diagnostic.json",
+        "process-heap-final.json",
+        "process-batch-final.json"
+      ],
+      "frontGate": {
+        "steps": [
+          {
+            "name": "format",
+            "exitCode": 0,
+            "report": "runtime-format.log"
+          },
+          {
+            "name": "config-budget",
+            "durationMs": 2369,
+            "exitCode": 0
+          },
+          {
+            "name": "env-check",
+            "durationMs": 1390,
+            "exitCode": 0
+          },
+          {
+            "name": "generated-freshness",
+            "durationMs": 9653,
+            "exitCode": 0
+          },
+          {
+            "name": "command-surface",
+            "durationMs": 2986,
+            "exitCode": 0
+          },
+          {
+            "name": "workflow-contract",
+            "durationMs": 251,
+            "exitCode": 0
+          },
+          {
+            "name": "gate",
+            "durationMs": 7304,
+            "exitCode": 0
+          },
+          {
+            "name": "diff-check",
+            "durationMs": 90,
+            "exitCode": 0
+          }
+        ],
+        "gateCases": {
+          "durationMs": 4812,
+          "failed": 0,
+          "passed": 40,
+          "skipped": 0,
+          "total": 40
+        },
+        "markdownLinksExitCode": 0
+      },
+      "localEvidence": {
+        "root": ".tmp/tasks/windows-failure-repairs-20261024",
+        "historical": true,
+        "availableInCleanCheckout": false
+      },
+      "setup": {
+        "dependencyInstallationUnchanged": true,
+        "verificationScope": "The previously verified Node 26.12.1/ABI 147 installation and patches are unchanged; this wave changes no setup owner or dependency."
+      },
+      "nativeAccessViolations": 0,
+      "unexpectedWarningDiagnostics": 0,
+      "hostedCheckpoint": {
+        "head": "7f2aa42bfc0246dc6f97509210a61e955e04d400",
+        "run": "https://github.com/doublemover/PairOfCleats/actions/runs/40073344709",
+        "policy": "passed",
+        "gate": "failed",
+        "failure": "POSIX-only Git SIGTERM propagation still returns a normal exit; downstream jobs are unqualified. No local Linux or WSL execution."
+      }
     }
   ]
 }
