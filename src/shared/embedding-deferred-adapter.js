@@ -19,7 +19,8 @@ export const createDeferredEmbeddingAdapter = ({ acquire, provider, methods, req
     get provider() { return adapter?.provider || provider; },
     get supportsParallelDispatch() { return adapter?.supportsParallelDispatch === true; },
     executionInfo: () => adapter?.executionInfo?.() || { ...requested, provider, requestedProvider: provider,
-      loaded: false, loading: pending !== null, modelArtifact: null, sessions: [] },
+      loaded: adapter ? null : false, loading: adapter ? null : pending !== null,
+      modelArtifact: null, sessions: [] },
     get embedderPromise() { return ensure().then(value => { if (disposed) throw closed(); return value.embedderPromise; }); },
     dispose: () => {
       if (!disposing) {

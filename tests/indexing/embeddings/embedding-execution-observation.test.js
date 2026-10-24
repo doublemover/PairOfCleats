@@ -118,6 +118,7 @@ try {
   assert.equal(await unsupported.embedderPromise, 'acknowledged', 'explicit preload remains supported');
   assert.equal(getterReads, 1);
   assert.equal(unsupported.executionInfo().loaded, null, 'an acquired adapter without an observation remains unknown');
+  assert.equal(unsupported.executionInfo().loading, null, 'an acquired adapter cannot inherit the deferred loading flag');
 } finally {
   __setAdapterFactoryForTests(null);
 }

@@ -133,7 +133,7 @@ try {
 
   const cacheCalls = [];
   const resolve = createEmbeddingResolver({
-    throwIfAborted: () => {}, embeddingQueryText: 'alpha', modelConfig: {},
+    throwIfAborted: () => {}, embeddingQueryText: 'alpha', modelConfig: { dir: options.modelsDir },
     embeddingProvider: 'xenova', rootDir: process.cwd(),
     getQueryEmbeddingImpl: async (request) => { cacheCalls.push(request); return [1]; }
   });
