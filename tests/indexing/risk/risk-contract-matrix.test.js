@@ -144,14 +144,15 @@ const buildConfig = (caps) => normalizeRiskConfig({
 {
   const flowConfig = buildConfig({ maxBytes: 1024, maxLines: 10, maxMs: 1000, maxFlows: 1 });
   flowConfig.rules.sinks.push({ ...flowConfig.rules.sinks[0], id: 'sink.two', name: 'SINK2' });
-  const partial = detectRiskSignals({ text: 'SRC SINK', config: flowConfig });
+  const cappedText = 'const { token } = SRC;\nSINK(token);';
+  const partial = detectRiskSignals({ text: cappedText, config: flowConfig });
   assert.equal(partial.flows.length, 1);
   assert.equal(partial.analysisStatus.status, 'capped', 'omitted flows must not be reported as complete');
   assert.equal(partial.analysisStatus.reason, 'maxFlows');
   assert.equal(partial.analysisStatus.caps.maxFlows, 1);
 
   flowConfig.rules.sinks.pop();
-  const exact = detectRiskSignals({ text: 'SRC SINK', config: flowConfig });
+  const exact = detectRiskSignals({ text: cappedText, config: flowConfig });
   assert.equal(exact.analysisStatus.status, 'ok', 'exactly filling the cap does not omit any flow');
 }
 

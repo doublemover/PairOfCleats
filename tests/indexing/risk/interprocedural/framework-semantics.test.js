@@ -151,7 +151,8 @@ const runScenario = ({ semantics = [], frameworkId = 'express' } = {}) => {
 
 const noSemantics = runScenario();
 assert.equal(noSemantics.flowRows.length, 0, 'expected no interprocedural flow without framework semantics');
-assert.equal(noSemantics.partialFlowRows.length, 1, 'expected a retained partial flow without semantics');
+assert.equal(noSemantics.partialFlowRows.length, 1,
+  `expected a retained partial flow without semantics: ${JSON.stringify(noSemantics.partialFlowRows)}`);
 
 const semantics = [{
   id: 'sem.callback.register-handler-payload',

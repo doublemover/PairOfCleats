@@ -41,5 +41,5 @@ const stale = { ...chunk, phraseTokensCasePreserved: undefined };
 const sensitive = createQueryAstHelpers({ queryAst: { type: 'phrase', tokens: ['Café'], caseSensitive: true } });
 assert.throws(() => sensitive.matchesQueryAst({ chunkMeta: [stale] }, 0, stale), { code: 'ERR_LITERAL_ANALYZER_REBUILD' });
 assert.equal(sensitive.matchesQueryAst({ chunkMeta: [stale], state: { features: { literalAnalyzer: TEXT_ANALYZER_VERSION } } }, 0, stale), true);
-assert.ok(tokenizeQueryTerms(['Café'], new Set(), { caseSensitive: false }).includes('cafe'), 'literal NFC tokens remain separate from sparse NFKD scoring tokens');
+assert.ok(tokenizeQueryTerms(['Café'], new Set(), { caseSensitive: false }).includes('cafe\u0301'), 'literal NFC tokens remain separate from sparse NFKD scoring tokens without dropping the combining accent');
 console.log('literal and chargram identities passed');

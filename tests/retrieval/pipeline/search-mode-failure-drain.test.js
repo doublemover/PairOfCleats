@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { runSearchByMode } from '../../../src/retrieval/cli/search-runner.js';
+import { errorGraphIncludes } from '../../helpers/error-graph.js';
 const deferred = () => { let resolve; const promise = new Promise(next => { resolve = next; }); return { promise, resolve }; };
 const slow = deferred(), entered = deferred();
 const primary = new Error('prose failed');
@@ -22,7 +23,8 @@ assert.equal(callerDisposed, false);
 slow.resolve();
 await pending;
 assert.equal(finished, true);
-assert.equal(observed, primary);
+assert.equal(errorGraphIncludes(observed, primary), true);
+assert.equal(errorGraphIncludes(observed, secondary), true);
 assert.deepEqual(observed.siblingErrors, [secondary]);
 const success = await runSearchByMode({ runCode: true, searchPipeline: async (_idx, mode) => [{ mode }] });
 assert.deepEqual(success.codeHits, [{ mode: 'code' }]);

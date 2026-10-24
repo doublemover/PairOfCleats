@@ -63,7 +63,7 @@ try {
   const shapeType = byName('shape').metaV2.types.tooling.returns[0].type;
   assert.match(shapeType, /ok: boolean/);
   assert.match(shapeType, /count: number/);
-  const indexDir = await createCompatibilityIndex(root, { compatibilityKey: 'compiler-filter-fixture', profileId: 'default' });
+  const indexDir = await createCompatibilityIndex(root, { published: true, compatibilityKey: 'compiler-filter-fixture', profileId: 'default' });
   // Strip the compatibility docmeta carrier from one actual compiler result to
   // prove persisted metaV2.types.tooling remains a first-class fact source.
   delete byName('caller').docmeta;

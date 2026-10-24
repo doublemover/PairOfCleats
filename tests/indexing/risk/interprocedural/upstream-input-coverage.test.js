@@ -18,9 +18,11 @@ assert.equal(capped.stats.inputCoverage.status, 'partial');
 assert.ok(capped.stats.capsHit.includes('upstream:maxBytes'));
 assert.equal(capped.flowRows.length, 0);
 const complete = analyze({ maxBytes: 10000 });
-assert.equal(complete.stats.inputCoverage.status, 'complete');
-assert.equal(complete.status, 'ok');
-assert.equal(complete.flowRows.length, 0, 'a legitimate complete zero-risk result remains complete');
+assert.equal(complete.summaryRows[0].inputCoverage.status, 'complete', 'the uncapped local analysis is complete');
+assert.equal(complete.stats.inputCoverage.upstreamCoverage.analysis.status, 'unknown');
+assert.equal(complete.stats.inputCoverage.status, 'partial', 'local completion cannot qualify absent cross-file evidence');
+assert.equal(complete.status, 'partial');
+assert.equal(complete.flowRows.length, 0, 'a legitimate complete local zero-risk result remains empty');
 chunk.docmeta.risk = { analysisStatus: { status: 'ok', caps: {}, bytes: 1, lines: 1 },
   sources: Array.from({ length: 60 }, (_, n) => ({ id: `s${n}`, name: `s${n}`, tags: Array.from({ length: 12 }, (_, i) => `tag${i}`),
     evidence: Array.from({ length: 8 }, (_, i) => ({ line: i + 1, column: 1, excerpt: 'evidence' })) })),

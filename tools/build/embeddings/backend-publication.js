@@ -8,6 +8,7 @@ import { assertNoSymlinkPath, readContainedFile } from '../../../src/shared/cont
 import { resolveHnswPaths } from '../../../src/shared/hnsw.js';
 import { assertLanceDbPayload, resolveLanceDbPaths } from '../../../src/shared/lancedb.js';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
+import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
 
 const variants = ['merged', 'doc', 'code'];
 const prefix = variant => variant === 'merged' ? 'dense_vectors' : `dense_vectors_${variant}`;
@@ -187,7 +188,15 @@ export const publishBackendGeneration = async ({
     const target = path.join(indexDir, relativeDir);
     await fs.mkdir(path.dirname(target), { recursive: true });
     // Same-volume rename: no partially copied generation becomes manifest-visible.
-    await fs.rename(stageDir, target);
+    try { await fs.rename(stageDir, target); }
+    catch (error) {
+      throw addStorageFailureContext(error, { backendPublication: {
+        phase: 'same-volume-generation-rename', source: stageDir, destination: target,
+        sourcePathLength: stageDir.length, destinationPathLength: target.length,
+        availableVariants: Object.fromEntries(Object.entries(backends).map(([name, variants]) =>
+          [name, Object.entries(variants).filter(([, state]) => state.available).map(([variant]) => variant)]))
+      } });
+    }
   }
   return { pieces, backends };
 };

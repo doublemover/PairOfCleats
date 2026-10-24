@@ -14,6 +14,7 @@ const candidatePool = createCandidatePool({ maxSets: 2, maxEntries: 100 });
 const scoreBufferPool = createScoreBufferPool({ maxBuffers: 2, maxEntries: 100 });
 
 const pipeline = createSearchPipelineFixture({
+  annDiscovery: 'lexical-rerank',
   sqliteFtsWeights: null,
   postingsConfig: {
     enablePhraseNgrams: false,

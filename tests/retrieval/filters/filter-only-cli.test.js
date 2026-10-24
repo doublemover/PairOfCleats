@@ -13,7 +13,7 @@ import { createQueryPlanCache } from '../../../src/retrieval/query-plan-cache.js
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-filter-only-'));
 applyTestEnv({ cacheRoot: path.join(root, 'cache') });
 try {
-  const indexDir = await createCompatibilityIndex(root, { compatibilityKey: 'filter-only-fixture', profileId: 'default' });
+  const indexDir = await createCompatibilityIndex(root, { published: true, compatibilityKey: 'filter-only-fixture', profileId: 'default' });
   const chunks = Array.from({ length: 17 }, (_, id) => ({ id, file: `src/${id}.ts`, start: 0, end: 1,
     kind: 'FunctionDeclaration', name: `fn${id}`, chunkUid: `uid:${id}`, tokens: ['alpha'],
     docmeta: { returns: id % 2 ? 'boolean' : 'number' }, codeRelations: { calls: [[`fn${id}`, id % 2 ? 'read' : 'write']] } }));
@@ -47,13 +47,13 @@ try {
   const wrapped = JSON.parse(spawned.stdout);
   assert.equal(wrapped.pagination.total, 8);
   assert.equal(wrapped.code.length, 2);
-  const proseDir = await createCompatibilityIndex(root, {
+  const proseDir = await createCompatibilityIndex(root, { published: true,
     mode: 'prose', compatibilityKey: 'filter-only-fixture', profileId: 'default'
   });
   await fs.writeFile(path.join(proseDir, 'chunk_meta.json'), '[]');
   await assert.rejects(search(['--return-type', 'boolean'], 'both'), /index-extracted-prose/,
     'a requested missing index must fail explicitly rather than silently omit a mode');
-  const extractedDir = await createCompatibilityIndex(root, {
+  const extractedDir = await createCompatibilityIndex(root, { published: true,
     mode: 'extracted-prose', compatibilityKey: 'filter-only-fixture', profileId: 'default'
   });
   await fs.writeFile(path.join(extractedDir, 'chunk_meta.json'), '[]');

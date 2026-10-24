@@ -3,6 +3,7 @@ import os from 'node:os';
 import path from 'node:path';
 
 import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
+import { getBuildsRoot, getRepoCacheRoot, loadUserConfig } from '../../src/shared/dict-utils.js';
 
 const DEFAULT_TOKEN_POSTINGS = Object.freeze({
   vocab: ['alpha'],
@@ -53,10 +54,13 @@ export const createCompatibilityIndex = async (
     compatibilityKey,
     profileId = null,
     includeFileLists = true,
-    fileName = `src/${mode}.js`
+    fileName = `src/${mode}.js`,
+    published = false
   }
 ) => {
-  const indexDir = path.join(rootDir, directory || `index-${mode}`);
+  const config = published ? loadUserConfig(rootDir) : null;
+  const buildRoot = published ? path.join(getBuildsRoot(rootDir, config), 'compatibility-fixture') : rootDir;
+  const indexDir = path.join(buildRoot, directory || `index-${mode}`);
   await fs.mkdir(path.join(indexDir, 'pieces'), { recursive: true });
 
   const generatedAt = new Date().toISOString();
@@ -92,6 +96,17 @@ export const createCompatibilityIndex = async (
     });
   }
   await writeJson(path.join(indexDir, 'pieces', 'manifest.json'), manifest);
+
+  if (published) {
+    const pointerPath = path.join(getBuildsRoot(rootDir, config), 'current.json');
+    let previous = {};
+    try { previous = JSON.parse(await fs.readFile(pointerPath, 'utf8')); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; }
+    const relative = path.relative(getRepoCacheRoot(rootDir, config), buildRoot);
+    await writeJson(pointerPath, { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
+      buildId: 'compatibility-fixture', buildRoot: relative,
+      buildRootsByMode: { ...previous.buildRootsByMode, [mode]: relative } });
+  }
 
   return indexDir;
 };

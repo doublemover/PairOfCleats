@@ -15,7 +15,7 @@ const repoRoot = path.join(tempRoot, 'repo');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(repoRoot, { recursive: true });
-applyTestEnv();
+applyTestEnv({ embeddings: 'stub' });
 process.env.PAIROFCLEATS_CACHE_ROOT = tempRoot;
 
 const baseConfig = {
