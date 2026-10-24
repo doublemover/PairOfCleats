@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "recordedAt": "2026-10-24T11:01:24.565Z",
+  "recordedAt": "2026-10-24T11:29:07.196Z",
   "queueSourceHead": "a96699ab0e9e822320e008f5affc1d690f305cfe",
   "originalFailureSource": "893fe089458e7f7294b8d1f357f596fdecc7d5d4",
   "scope": "The 360 historical failures outstanding at the runtime-wave publication. Attempt every implementation before further batch tests. Seven repairs were completed and tested immediately before this instruction.",
   "validationPolicy": {
-    "furtherTests": "deferred-until-every-item-attempted",
+    "furtherTests": "initial-attempts-complete-bounded-batches-authorized",
     "formatLintTypecheck": "allowed",
     "batchTimeoutMs": 30000,
     "retries": 0,
@@ -19,11 +19,11 @@
   },
   "summary": {
     "selected": 360,
-    "implemented-unvalidated": 291,
-    "needs-further-implementation": 20,
-    "attempted-existing-owner-repair": 18,
+    "implemented-unvalidated": 308,
+    "needs-further-implementation": 25,
+    "attempted-existing-owner-repair": 20,
     "implemented": 7,
-    "not-attempted": 24,
+    "not-attempted": 0,
     "finalBatchPassed": 0
   },
   "items": [
@@ -601,15 +601,15 @@
       "id": "storage/lmdb/report-contract-matrix",
       "path": "storage/lmdb/report-contract-matrix.test.js",
       "owner": "storage/lmdb",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "4a226f59c",
       "originalTimedOut": false,
       "originalFailure": "Error: LMDB code throughput missing or invalid in report-artifacts.",
       "failureLocations": [
         "tests/storage/lmdb/report-contract-matrix.test.js:150:11",
         "tests/storage/lmdb/report-contract-matrix.test.js:222:9"
       ],
-      "notes": null,
+      "notes": "LMDB metrics now emit the selected indexDir required by report admission; real build/report assertions retained.",
       "finalBatchStatus": "pending"
     },
     {
@@ -824,14 +824,14 @@
       "id": "services/advanced-surface-goldens",
       "path": "services/advanced-surface-goldens.test.js",
       "owner": "services/advanced-surface-goldens",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "fb2102bb7",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: advanced surface golden drift detected",
       "failureLocations": [
         "tests/services/advanced-surface-goldens.test.js:442:8"
       ],
-      "notes": null,
+      "notes": "Fixture authority now explicitly selects its owned SCM/compiler/cache/format or supported output budget. Existing queries, meaningful content comparisons and negatives retained; see batch receipt for exact mapping.",
       "finalBatchStatus": "pending"
     },
     {
@@ -1555,14 +1555,14 @@
       "id": "tooling/config/runtime-diagnostics-readonly",
       "path": "tooling/config/runtime-diagnostics-readonly.test.js",
       "owner": "tooling/config",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "needs-further-implementation",
+      "sourceHead": "c14273391",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:",
       "failureLocations": [
         "tests/tooling/config/runtime-diagnostics-readonly.test.js:40:10"
       ],
-      "notes": null,
+      "notes": "Root-cause traced: diagnostic root selection retains process-lifetime reader admission and creates cache/lease paths before publication exists. Pure path selection must be separated from scoped actual-reader admission without weakening writer/collector handshakes. Original readonly assertions remain unchanged; no repair claimed.",
       "finalBatchStatus": "pending"
     },
     {
@@ -1676,14 +1676,14 @@
       "id": "tooling/eval/risk-pack-quality",
       "path": "tooling/eval/risk-pack-quality.test.js",
       "owner": "tooling/eval",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "fb2102bb7",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected risk-pack eval gates to pass: {\"generatedAt\":\"2026-10-24T04:25:57.970Z\",\"datasetPath\":\"C:\\\\Users\\\\sneak\\\\Development\\\\PairOfCleats\\\\.tmp\\\\dev\\\\tests\\\\cache\\\\eval-risk-pack-quality\\\\risk-pack-eval.dataset.json\",\"gatesPath\":\"C:\\\\Users\\\\sneak\\\\Development\\\\PairO",
       "failureLocations": [
         "tests/tooling/eval/risk-pack-quality.test.js:31:8"
       ],
-      "notes": null,
+      "notes": "Fixture authority now explicitly selects its owned SCM/compiler/cache/format or supported output budget. Existing queries, meaningful content comparisons and negatives retained; see batch receipt for exact mapping.",
       "finalBatchStatus": "pending"
     },
     {
@@ -1792,14 +1792,14 @@
       "id": "tooling/index/clean-artifacts-reader-exclusion",
       "path": "tooling/index/clean-artifacts-reader-exclusion.test.js",
       "owner": "tooling/index",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "fb2102bb7",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: missing: C:\\Users\\sneak\\AppData\\Local\\PairOfCleats\\cache\\repos\\repo-cb40b9be2456",
       "failureLocations": [
         "tests/tooling/index/clean-artifacts-reader-exclusion.test.js:31:10"
       ],
-      "notes": null,
+      "notes": "Fixture authority now explicitly selects its owned SCM/compiler/cache/format or supported output budget. Existing queries, meaningful content comparisons and negatives retained; see batch receipt for exact mapping.",
       "finalBatchStatus": "pending"
     },
     {
@@ -2704,12 +2704,12 @@
       "id": "tooling/release/verify-surface-archives",
       "path": "tooling/release/verify-surface-archives.test.js",
       "owner": "tooling/release",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "attempted-existing-owner-repair",
+      "sourceHead": "dbe962953",
       "originalTimedOut": false,
       "originalFailure": " DONE  Packaged: C:\\Users\\sneak\\Development\\PairOfCleats\\dist\\vscode\\.vsix-1VYXy9\\official.vsix (37 files, 133.7 KB)",
       "failureLocations": [],
-      "notes": null,
+      "notes": "Original InvalidVSIX failure is repaired by normalizing leading-dot VSIX manifest extensions in the existing container owner. Preserve host-install qualification negatives.",
       "finalBatchStatus": "pending"
     },
     {
@@ -2894,12 +2894,12 @@
       "id": "tooling/script-coverage/tools/ci-restore",
       "path": "tooling/script-coverage/tools.test.js",
       "owner": "tooling/script-coverage",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "c14273391",
       "originalTimedOut": true,
       "originalFailure": "CI artifacts written to C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\script... [full: --progress jsonl]",
       "failureLocations": [],
-      "notes": null,
+      "notes": "Restore coverage builds disposable code/prose inputs with closed compiler inventory while retaining real pack/restore commands, script claims and bounds.",
       "finalBatchStatus": "pending"
     },
     {
@@ -3057,12 +3057,12 @@
       "id": "tooling/triage/context-pack",
       "path": "tooling/triage/context-pack.test.js",
       "owner": "tooling/triage",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "fb2102bb7",
       "originalTimedOut": false,
       "originalFailure": "Context pack contains no evidence hits.",
       "failureLocations": [],
-      "notes": null,
+      "notes": "Fixture authority now explicitly selects its owned SCM/compiler/cache/format or supported output budget. Existing queries, meaningful content comparisons and negatives retained; see batch receipt for exact mapping.",
       "finalBatchStatus": "pending"
     },
     {
@@ -3240,14 +3240,14 @@
       "id": "tooling/workspace/onboarding-cli-fixtures",
       "path": "tooling/workspace/onboarding-cli-fixtures.test.js",
       "owner": "tooling/workspace",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "needs-further-implementation",
+      "sourceHead": "c14273391",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Missing expected rejection.",
       "failureLocations": [
         "tests/tooling/workspace/onboarding-cli-fixtures.test.js:43:3"
       ],
-      "notes": null,
+      "notes": "Root-cause traced: diagnostic root selection retains process-lifetime reader admission and creates cache/lease paths before publication exists. Pure path selection must be separated from scoped actual-reader admission without weakening writer/collector handshakes. Original readonly assertions remain unchanged; no repair claimed.",
       "finalBatchStatus": "pending"
     },
     {
@@ -3382,14 +3382,14 @@
       "id": "indexing/build-state/produced-contract",
       "path": "indexing/build-state/produced-contract.test.js",
       "owner": "indexing/build-state",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "1df6f55ab",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: [\"#/completedStages is not allowed\"]",
       "failureLocations": [
         "tests/indexing/build-state/produced-contract.test.js:30:8"
       ],
-      "notes": null,
+      "notes": "Closed completion-stage schema follows actual producer receipts and adds malformed/unknown field negatives.",
       "finalBatchStatus": "pending"
     },
     {
@@ -3476,12 +3476,12 @@
       "id": "indexing/build/stage4-explicit-index-root-no-promotion",
       "path": "indexing/build/stage4-explicit-index-root-no-promotion.test.js",
       "owner": "indexing/build",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "fb2102bb7",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected stage4 explicit root run to still write sqlite artifacts",
       "failureLocations": [],
-      "notes": null,
+      "notes": "Fixture authority now explicitly selects its owned SCM/compiler/cache/format or supported output budget. Existing queries, meaningful content comparisons and negatives retained; see batch receipt for exact mapping.",
       "finalBatchStatus": "pending"
     },
     {
@@ -3507,24 +3507,24 @@
       "id": "indexing/chunk-id/backend-parity",
       "path": "indexing/chunk-id/backend-parity.test.js",
       "owner": "indexing/chunk-id",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "fb2102bb7",
       "originalTimedOut": true,
       "originalFailure": "Embeddings 0/1 (0.0%)",
       "failureLocations": [],
-      "notes": null,
+      "notes": "Fixture authority now explicitly selects its owned SCM/compiler/cache/format or supported output budget. Existing queries, meaningful content comparisons and negatives retained; see batch receipt for exact mapping.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/determinism/symbol-artifact",
       "path": "indexing/determinism/symbol-artifact.test.js",
       "owner": "indexing/determinism",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "fb2102bb7",
       "originalTimedOut": true,
       "originalFailure": "Build evidence: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\symbol-artifact-determinism\\cache-b\\cache\\repos\\repo-0ab327a3a034\\builds\\20261024T043038Z_65b409e0_noscm_9accdd78/build_state.json",
       "failureLocations": [],
-      "notes": null,
+      "notes": "Fixture authority now explicitly selects its owned SCM/compiler/cache/format or supported output budget. Existing queries, meaningful content comparisons and negatives retained; see batch receipt for exact mapping.",
       "finalBatchStatus": "pending"
     },
     {
@@ -3848,12 +3848,12 @@
       "id": "indexing/extracted-prose/document-chunk-id-no-collision",
       "path": "indexing/extracted-prose/document-chunk-id-no-collision.test.js",
       "owner": "indexing/extracted-prose",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "fb2102bb7",
       "originalTimedOut": true,
       "originalFailure": "[sqlite] prose build start",
       "failureLocations": [],
-      "notes": null,
+      "notes": "Fixture authority now explicitly selects its owned SCM/compiler/cache/format or supported output budget. Existing queries, meaningful content comparisons and negatives retained; see batch receipt for exact mapping.",
       "finalBatchStatus": "pending"
     },
     {
@@ -3879,12 +3879,12 @@
       "id": "indexing/filter-index/atomic-swap",
       "path": "indexing/filter-index/atomic-swap.test.js",
       "owner": "indexing/filter-index",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "fb2102bb7",
       "originalTimedOut": false,
       "originalFailure": "filter-index atomic swap test failed: expected filter_index piece in second manifest.",
       "failureLocations": [],
-      "notes": null,
+      "notes": "Fixture authority now explicitly selects its owned SCM/compiler/cache/format or supported output budget. Existing queries, meaningful content comparisons and negatives retained; see batch receipt for exact mapping.",
       "finalBatchStatus": "pending"
     },
     {
@@ -3963,14 +3963,14 @@
       "id": "indexing/incremental/bundle-mapping-reasons",
       "path": "indexing/incremental/bundle-mapping-reasons.test.js",
       "owner": "indexing/incremental",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "fb2102bb7",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected embedding refresh to report one missing-parent incremental bundle mapping",
       "failureLocations": [
         "tests/indexing/incremental/bundle-mapping-reasons.test.js:107:8"
       ],
-      "notes": null,
+      "notes": "Fixture authority now explicitly selects its owned SCM/compiler/cache/format or supported output budget. Existing queries, meaningful content comparisons and negatives retained; see batch receipt for exact mapping.",
       "finalBatchStatus": "pending"
     },
     {
@@ -4005,14 +4005,14 @@
       "id": "indexing/policy/shared-module-review-files",
       "path": "indexing/policy/shared-module-review-files.test.js",
       "owner": "indexing/policy",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "needs-further-implementation",
+      "sourceHead": "c14273391",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: 410-root-core-primitives.json: review entries must exactly match ledger-owned files for issue 410",
       "failureLocations": [
         "tests/indexing/policy/shared-module-review-files.test.js:48:10"
       ],
-      "notes": null,
+      "notes": "Reviewed exact ledger/review inventory contract. Current owned-file census has drifted since March review. Refresh inventory, examine changed owners and reconcile JSON/Markdown assessments; do not fabricate generic reviewed classifications. No closure claimed.",
       "finalBatchStatus": "pending"
     },
     {
@@ -4509,14 +4509,14 @@
       "id": "indexing/shards/shard-progress-determinism",
       "path": "indexing/shards/shard-progress-determinism.test.js",
       "owner": "indexing/shards",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "4a226f59c",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected file-progress events",
       "failureLocations": [
         "tests/indexing/shards/shard-progress-determinism.test.js:86:8"
       ],
-      "notes": null,
+      "notes": "Runtime logger scopes explicitly inherit their selected progress handlers; independent scopes remain isolated and metadata is retained.",
       "finalBatchStatus": "pending"
     },
     {
@@ -4635,8 +4635,8 @@
       "id": "indexing/watch/edit-to-search",
       "path": "indexing/watch/edit-to-search.test.js",
       "owner": "indexing/watch",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "4a226f59c",
       "originalTimedOut": false,
       "originalFailure": "AggregateError: Scheduler task retired before nested wait.",
       "failureLocations": [
@@ -4647,7 +4647,7 @@
         "src/integrations/core/build-index/runtime.js:142:11",
         "src/integrations/core/build-index/index.js:210:7"
       ],
-      "notes": null,
+      "notes": "Append writer close owns independent scheduler admission after producer lease retirement; real handle sync/close regression added.",
       "finalBatchStatus": "pending"
     },
     {
@@ -4802,14 +4802,14 @@
       "id": "integrations/inference-history/hybrid-pagination-contract",
       "path": "integrations/inference-history/hybrid-pagination-contract.test.js",
       "owner": "integrations/inference-history",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "fb2102bb7",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/integrations/inference-history/hybrid-pagination-contract.test.js:44:10"
       ],
-      "notes": null,
+      "notes": "Fixture authority now explicitly selects its owned SCM/compiler/cache/format or supported output budget. Existing queries, meaningful content comparisons and negatives retained; see batch receipt for exact mapping.",
       "finalBatchStatus": "pending"
     },
     {
@@ -5237,14 +5237,14 @@
       "id": "map/remote-source-original-navigation",
       "path": "map/remote-source-original-navigation.test.js",
       "owner": "map/remote-source-original-navigation",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "needs-further-implementation",
+      "sourceHead": "c14273391",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/map/remote-source-original-navigation.test.js:45:98"
       ],
-      "notes": null,
+      "notes": "Traced superseded navigation catch through preserveSceneCleanupFailures to captureSceneFailure reading hostile diagnostic getters. Requires passive prerequisite retention with original cleanup/ownership channels preserved. Original zero-read assertion retained; no closure claimed.",
       "finalBatchStatus": "pending"
     },
     {
@@ -5279,8 +5279,8 @@
       "id": "map/workspace/published-fixture",
       "path": "map/workspace/published-fixture.test.js",
       "owner": "map/workspace",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "attempted-existing-owner-repair",
+      "sourceHead": "54286c779",
       "originalTimedOut": false,
       "originalFailure": "Error: Task target inventory is not registered and verified.",
       "failureLocations": [
@@ -5291,22 +5291,22 @@
         "src/semantic/enrichment.js:62:29",
         "tests/map/workspace/published-fixture.test.js:63:14"
       ],
-      "notes": null,
+      "notes": "Existing enrichment verifier now compares the sealed producer SHA256 plus bytes, rather than a different generic checksum; original published navigation/search evidence retained.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "map/workspace/reader-primary-cleanup-outcomes",
       "path": "map/workspace/reader-primary-cleanup-outcomes.test.js",
       "owner": "map/workspace",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "fb2102bb7",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/map/workspace/reader-primary-cleanup-outcomes.test.js:57:35",
         "tests/map/workspace/reader-primary-cleanup-outcomes.test.js:65:12"
       ],
-      "notes": null,
+      "notes": "Fixture authority now explicitly selects its owned SCM/compiler/cache/format or supported output budget. Existing queries, meaningful content comparisons and negatives retained; see batch receipt for exact mapping.",
       "finalBatchStatus": "pending"
     },
     {
@@ -5339,14 +5339,14 @@
       "id": "workspace/diagnostic-partial-members",
       "path": "workspace/diagnostic-partial-members.test.js",
       "owner": "workspace/diagnostic-partial-members",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "needs-further-implementation",
+      "sourceHead": "c14273391",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Missing expected rejection.",
       "failureLocations": [
         "tests/workspace/diagnostic-partial-members.test.js:34:3"
       ],
-      "notes": null,
+      "notes": "Root-cause traced: diagnostic root selection retains process-lifetime reader admission and creates cache/lease paths before publication exists. Pure path selection must be separated from scoped actual-reader admission without weakening writer/collector handshakes. Original readonly assertions remain unchanged; no repair claimed.",
       "finalBatchStatus": "pending"
     },
     {

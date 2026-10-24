@@ -621,3 +621,27 @@ checkpoint behavior and remaining keyword-language routes remain unresolved
 after strengthened attribution. Formatting/diff checks pass. PR #572 summary
 was refreshed/read back at `11d9f2c64` after 20 commits, preserving all 141
 closing references. Runtime tests remain deferred until every item is attempted.
+
+All 360 initial implementation attempts are recorded at source `c14273391`.
+This is not 360 fixes or passing tests: 308 authored repairs await re-check,
+25 causes still require implementation, 20 cases have existing owner repairs,
+and seven were tested before the deferral instruction. No new runtime checks
+have run during implementation-first work.
+
+Final implementation commits `1df6f55ab`, `4a226f59c`, `fb2102bb7` and
+`c14273391` close emitted completion contracts, restore selected progress
+handlers, give append-writer close independent scheduler ownership, emit LMDB
+report root identity, and qualify disposable SCM/compiler/cache inputs. Risk
+fixtures declare complete input coverage; changed filter inputs cannot advertise
+a stale filter piece. Hybrid pagination retains its default-budget rejection
+and explicitly selects the existing larger output budget for its 100-hit
+positive. CI restore retains actual pack/restore execution against bounded
+code/prose inputs. Existing VSIX extension and enrichment digest repairs match
+the original failures.
+
+Five final analyses remain unresolved: three readonly diagnostics allocate
+reader cache/lease directories before publication; shared-module review files
+need substantive reconciliation with current inventory; and superseded map
+navigation inspects original error getters while retaining prerequisites.
+Original negative/authority/content assertions are preserved. Formatting and
+diff checks pass; native verification and explicit batch validation follow.
