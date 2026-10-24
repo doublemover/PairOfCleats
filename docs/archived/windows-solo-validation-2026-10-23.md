@@ -546,3 +546,7 @@ Source checkpoints are `0c91b46e4` (lock contention and release controls),
 front gate passes, including all 40 gate cases; no failing check or timeout is
 counted as acceptance. All 145 latest targeted observations are passing; the
 failed-before and intermediate diagnostic receipts remain preserved separately.
+
+The [2026-10-24 historical re-check receipt](windows-historical-rechecks-2026-10-24.md)
+supersedes the unobserved 459-ID count above. It retains every new baseline
+outcome, follow-up ownership repairs and remaining failures separately.

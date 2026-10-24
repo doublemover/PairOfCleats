@@ -18,9 +18,11 @@ retained graph MCP repository owner and restores strict schema compilation;
 the graph/CLI/HTTP case, MCP schema/version/list and three generator checks pass.
 The next service batch repairs changing-lock contention and nested diagnostic
 redaction, with source-bound format, release-owner and lazy-posting fixtures.
-Targeted observations now cover 145 passing IDs, including 91 former failures
-and 40 gate cases; 459 old failure IDs await re-checks. These scoped observations
-are not a final-tree deep-suite pass.
+The [459-case re-check receipt](archived/windows-historical-rechecks-2026-10-24.md)
+records 32 baseline passes, 426 failures (10 timeouts) and one POSIX exclusion.
+Focused ownership/fixture repairs move 16 failures to passing: latest scoped
+counts are 48 passes, 410 failures and one exclusion. No access violation was
+recorded; these observations are not a final-tree deep-suite pass.
 The earlier CDB-attributed
 Node-API finalizer lifetime repair retains its fail-before, ten-process and
 exposing-fixture evidence; no crash workaround or Node downgrade is used.
