@@ -8,6 +8,7 @@ import { inspectStorageInventory } from './inventory.js';
 import { inspectStorageAccess } from './access.js';
 import { verifyStorageFile } from './transfer.js';
 import { storagePlanDigest } from './migration-plan.js';
+import { toRealPathSync } from '../../workspace/identity.js';
 
 const safeName = name => /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,199}$/u.test(name) && name !== '..';
 const record = value => value && typeof value === 'object' && !Array.isArray(value);
@@ -105,16 +106,16 @@ const posixPermissions = async ({ source, destination, inspection }) => {
  */
 export const createDictionaryMigrationOwner = ({ home, source, permissionOwner = null } = {}) => {
   if (!path.isAbsolute(home || '') || !path.isAbsolute(source || '')) throw new TypeError('Dictionary migration owner requires explicit application home and source.');
-  home = path.resolve(home); source = path.resolve(source);
+  home = toRealPathSync(home); source = toRealPathSync(source);
   const coordinationRoot = path.join(home, 'state', 'storage-access');
   return { id: 'dictionary-storage-v1', version: 1,
     inspect: async input => {
-      if (input.category !== 'dictionaries' || path.resolve(input.source) !== source || path.resolve(input.home) !== home
-        || path.resolve(input.coordinationRoot || coordinationRoot) !== coordinationRoot) return { complete: false, reason: 'wrong-dictionary-migration-owner' };
+      if (input.category !== 'dictionaries' || toRealPathSync(input.source) !== source || toRealPathSync(input.home) !== home
+        || toRealPathSync(input.coordinationRoot || coordinationRoot) !== coordinationRoot) return { complete: false, reason: 'wrong-dictionary-migration-owner' };
       if (!isPathWithinRoot(source, home)) return { complete: false, reason: 'external-or-shared-dictionary-root-requires-explicit-owner' };
       const access = await inspectStorageAccess(source, { coordinationRoot });
       const unexpected = access.owners.filter(owner => owner.protected && !(owner.role === 'cleanup'
-        && input.exclusiveOwners?.some(exclusive => exclusive.root === source && exclusive.lockId === owner.lockId && exclusive.pid === process.pid)));
+        && input.exclusiveOwners?.some(exclusive => toRealPathSync(exclusive.root) === source && exclusive.lockId === owner.lockId && exclusive.pid === process.pid)));
       if (!access.complete || unexpected.length) return { complete: false, reason: 'active-or-unknown-dictionary-resource-owner' };
       const inspection = await inspectDictionaryStorage({ root: source, ...input.limits, signal: input.signal });
       const permissions = await (permissionOwner || posixPermissions)({ source, destination: input.destination, inspection, phase: input.phase });

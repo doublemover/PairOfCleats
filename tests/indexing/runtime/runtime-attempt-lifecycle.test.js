@@ -33,7 +33,8 @@ try {
       const record = state.runtime.attempts[0];
       assert.equal(record.lifecycle, 'running');
       assert.equal(record.inputs.configSources.files[0].source, 'repository');
-      assert.equal(record.runtime.workers.tokenizationExecution, 'inline');
+      assert.equal(record.runtime.workers.tokenizationExecution, 'not-yet-observed',
+        'initialization alone cannot claim an observed tokenization route');
       assert.equal(record.embeddings.observation.state, 'not-started');
       await refreshRuntimeReceipt(runtime, { lifecycle: 'succeeded' });
       assert.equal(JSON.parse(await fs.readFile(statePath)).runtime.attempts[0].lifecycle, 'succeeded');

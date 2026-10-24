@@ -9,7 +9,7 @@ import { MAP_MODEL_VERSION } from '../map/model-version.js';
 
 export const GENERATED_ARTIFACT_PREFIX_BYTES = 8192;
 // Bump when recognition changes so older bundles cannot bypass new classifications.
-export const GENERATED_ARTIFACT_POLICY_VERSION = 'poc.generated-discovery@5';
+export const GENERATED_ARTIFACT_POLICY_VERSION = 'poc.generated-discovery@6';
 export const GENERATED_ARTIFACT_FLAGS = Object.freeze({ OMIT: 1, WARN: 2 });
 const FORMAT = 'poc.generated@1';
 const MAP_KIND = 'code-map-cache';

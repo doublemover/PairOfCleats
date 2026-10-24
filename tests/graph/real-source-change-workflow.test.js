@@ -35,7 +35,10 @@ try {
   assert.equal(report.fidelity.source, 'graph');
   const context = await buildCompositeContextPackPayload({ repoRoot: repo, seed: `file:${changed}`, hops: 2,
     includeGraph: true, includeRisk: false, includeSemantic: false, maxBytes: 512, maxNodes: 8, maxEdges: 16 });
-  assert.match(JSON.stringify(context), /compareStrings/);
+  assert.equal(context.primary.file, changed);
+  assert.ok(context.primary.excerpt.length > 0);
+  assert.ok((await fs.readFile(path.join(repo, changed), 'utf8')).includes(context.primary.excerpt),
+    'a file seed supplies actual selected source content, independent of which declaration ranks first');
   assert.match(JSON.stringify(context), /tests\/graph\/contracts\/graph-artifact-ordering-contract.test.js/);
   console.log(JSON.stringify({ changed, suggestions: report.suggestions, impact: impact.impacted }));
 } finally { await fs.rm(root, { recursive: true, force: true }); }

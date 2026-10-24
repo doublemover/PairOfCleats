@@ -102,7 +102,8 @@ export const captureSceneResource = (resource, label = 'scene resource', methodN
   const release = ({ retry = false } = {}) => {
     if (closed) return Object.freeze({ settled: true, pending: false });
     if (flight || (lastError && !retry)) throw lastError;
-    pending.add(owner);
+    // Register a pending parent only when its disposal actually fails or waits.
+    // Nested child owners then precede that parent during explicit recovery.
     try {
       if (captureFailed) throw captureError;
       assertReady();
@@ -122,7 +123,14 @@ export const captureSceneResource = (resource, label = 'scene resource', methodN
         disposed = true;
       }
       return confirm();
-    } catch (error) { if (lastError !== null && error === lastError) throw error; throw retain(error); }
+    } catch (error) {
+      if (lastError !== null && error === lastError) throw error;
+      // A later prerequisite failure cannot replace the original failed native
+      // disposal while this same resource remains retained.
+      const retained = lastError === null ? error : preserveSceneCleanupFailures(lastError, [error],
+        { hasPrimary: true, forceAggregate: true });
+      throw retain(retained);
+    }
   };
   const settleAsync = async retry => {
     try { return release({ retry }); }

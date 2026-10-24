@@ -22,8 +22,8 @@ assert.equal(canonicalMemberId(0,source),0);assert.equal(canonicalMemberId('0',s
 assert.equal(lookupMemberIdentity(slots,0,source).slot,7);assert.equal(lookupMemberIdentity(slots,'0',source).slot,13);
 aliases.clear();assert.equal(aliases.get(0),undefined);
 aliases.set('undefined',{id:'undefined'});assert.equal(aliases.get(undefined),undefined,'missing endpoints cannot alias an opaque symbol named undefined');
-// Synthetic renderer boundary exercises distinct typed slots. Existing saved
-// artifact admission continues to reject String-equivalent duplicate identities.
+// Renderer and saved-input owners preserve typed scalar identities. Only exact
+// typed duplicates are rejected; legacy textual aliases require source proof.
 const nodes=[{path:'a.ts',members:[{id:0,name:'numeric'}]},{path:'b.ts',members:[{id:'0',name:'text'}]}];
 const edge={from:{member:0},to:{member:'0'},type:'call'},model=buildStackModel(nodes,[edge]);
 assert.equal(model.memberById.get(0).file.key,'a.ts');assert.equal(model.memberById.get('0').file.key,'b.ts');
@@ -33,7 +33,9 @@ assert.equal(projectPipeRows(model.levels.segments,{level:'segments',tier:'segme
 const inventory=createSourceIndex({nodes,edges:[edge]});
 assert.equal(inventory.resolve({type:'member',id:0}).file,'a.ts');assert.equal(inventory.resolve({type:'member',id:'0'}).file,'b.ts');
 const match=selectionEndpointMatcher({type:'member',id:0},{sourceIndex:inventory});assert.equal(match(edge.from),true);assert.equal(match(edge.to),false);
-assert.throws(()=>parseSavedMap(JSON.stringify({version:MAP_MODEL_VERSION,root:{id:'fixture'},nodes,edges:[edge]})),/Duplicate map member identity/);
+assert.deepEqual(parseSavedMap(JSON.stringify({version:MAP_MODEL_VERSION,root:{id:'fixture'},nodes,edges:[edge]})).model.nodes,nodes);
+assert.throws(()=>parseSavedMap(JSON.stringify({version:MAP_MODEL_VERSION,root:{id:'fixture'},
+  nodes:[nodes[0],{path:'other.ts',members:[{id:0}]}],edges:[]})),/Duplicate map member identity/);
 const legacy={version:MAP_MODEL_VERSION,root:{id:'fixture'},nodes:[nodes[0]],edges:[{from:{member:'0'},to:{file:'a.ts'},type:'usage'}]};
 const transport=createMapSnapshotTransport({model:legacy,snapshotId:'legacy:a'});
 const summary=JSON.parse(transport.respond(snapshotRequest({snapshot:'legacy:a',request:1,kind:'adjacency-summary',entity:{type:'member',id:0}})));

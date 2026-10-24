@@ -7,6 +7,7 @@ import { buildMemberIndex, resolveMemberByName } from '../../src/map/build-map/s
 import { createRepoMapIterator } from '../../src/index/build/artifacts/writers/repo-map.js';
 import { prepareArtifactIoTestDir, writePiecesManifest } from '../helpers/artifact-io-fixture.js';
 import { applyTestEnv } from '../helpers/test-env.js';
+import { buildShardedJsonlMetaFields } from '../../src/index/build/artifacts/writers/_common.js';
 
 const dir = await prepareArtifactIoTestDir('map-canonical-member-inventory');
 applyTestEnv({ cacheRoot: path.join(dir, 'cache') });
@@ -36,11 +37,19 @@ try {
   // JSONL shards exercise the canonical owner instead of file_meta.json.
   const fileRows = ['src/a.js', 'src/b.js', 'src/empty.js', 'src/comment-only.js']
     .map((file, id) => ({ id, file, ext: '.js' }));
+  const parts = [];
   for (const [shard, rows] of [fileRows.slice(0, 2), fileRows.slice(2)].entries()) {
     const file = `file_meta.part-${String(shard).padStart(5, '0')}.jsonl`;
-    await fs.writeFile(path.join(dir, file), rows.map(row => JSON.stringify(row)).join('\n') + '\n');
+    const payload = rows.map(row => JSON.stringify(row)).join('\n') + '\n';
+    await fs.writeFile(path.join(dir, file), payload);
+    parts.push({ path: file, records: rows.length, bytes: Buffer.byteLength(payload) });
     pieces.push({ name: 'file_meta', path: file, format: 'jsonl' });
   }
+  await fs.writeFile(path.join(dir, 'file_meta.meta.json'), JSON.stringify(buildShardedJsonlMetaFields({
+    artifact: 'file_meta', parts, result: { total: fileRows.length,
+      totalBytes: parts.reduce((sum, part) => sum + part.bytes, 0) }
+  })));
+  pieces.push({ name: 'file_meta_meta', path: 'file_meta.meta.json', format: 'json' });
   await writePiecesManifest(dir, pieces);
   const options = { include: ['imports', 'exports', 'aliases'], onlyExported: true };
   const map = await buildCodeMap({ repoRoot: dir, indexDir: dir, options });

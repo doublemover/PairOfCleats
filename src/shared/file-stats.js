@@ -37,13 +37,24 @@ export async function countLinesForEntries(entries, { concurrency = 8, signal = 
   throwIfAborted(effectiveSignal);
   const lineCounts = new Map();
   if (!Array.isArray(entries) || entries.length === 0) return lineCounts;
-  await runWithConcurrency(entries, concurrency, async (entry) => {
-    throwIfAborted(effectiveSignal);
-    const rel = toPosix(entry.rel || entry.abs || '');
-    if (!rel) return;
-    const lines = await countFileLines(entry.abs, { signal: effectiveSignal });
-    lineCounts.set(rel, lines);
-  }, { collectResults: false, signal: effectiveSignal, requireSignal: true,
-    signalLabel: 'preprocess.count-lines' });
+  const activeReads = new Set();
+  try {
+    await runWithConcurrency(entries, concurrency, (entry) => {
+      throwIfAborted(effectiveSignal);
+      const rel = toPosix(entry.rel || entry.abs || '');
+      if (!rel) return;
+      const read = countFileLines(entry.abs, { signal: effectiveSignal }).then(lines => {
+        lineCounts.set(rel, lines);
+      });
+      activeReads.add(read);
+      read.then(() => activeReads.delete(read), () => activeReads.delete(read));
+      return read;
+    }, { collectResults: false, signal: effectiveSignal, requireSignal: true,
+      signalLabel: 'preprocess.count-lines' });
+  } finally {
+    // Queue cancellation stops admission promptly; this owner must still join
+    // its already-open streams before releasing file/cache ownership.
+    await Promise.allSettled([...activeReads]);
+  }
   return lineCounts;
 }

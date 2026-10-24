@@ -102,8 +102,14 @@ const createMetaSerializer = redact => {
   if (!redact) return encoded => encoded;
   let output = '';
   const serializer = pino({ level: 'trace', base: null, timestamp: false, redact,
-    formatters: { level: () => ({}) } }, { write(value) { output = String(value).trimEnd(); } });
-  return encoded => { output = ''; serializer.info(JSON.parse(encoded)); return output || '"[redaction unavailable]"'; };
+    formatters: { level: () => ({ level: 0 }) } }, { write(value) { output = String(value).trimEnd(); } });
+  return encoded => {
+    output = ''; serializer.info(JSON.parse(encoded));
+    // Pino requires a nonempty level fragment to emit valid JSON. Remove only
+    // that leading synthetic fragment; a caller's own level field survives.
+    if (output === '{"level":0}') return '{}';
+    return output.startsWith('{"level":0,') ? `{${output.slice(11)}` : '"[redaction unavailable]"';
+  };
 };
 
 export const createLoggerScope = (options = {}) => {

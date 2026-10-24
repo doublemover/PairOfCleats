@@ -13,7 +13,7 @@ try {
     context: { buildId: 'A', repoRoot: 'repo-A' }, redact: { paths: ['nested.secret'], remove: true } });
   let releaseA;
   const gate = new Promise(resolve => { releaseA = resolve; });
-  const workA = scopeA.run(async () => { await gate; log('A late', { nested: { secret: 'hide-A', keep: 1 } }); });
+  const workA = scopeA.run(async () => { await gate; log('A late', { level: 'caller-owned', nested: { secret: 'hide-A', keep: 1 } }); });
   const scopeB = createLoggerScope({ enabled: true, destination: { write: line => outputB.push(JSON.parse(line)) },
     context: { buildId: 'B', repoRoot: 'repo-B' }, redact: { paths: ['*.token'], censor: 'MASK' } });
   scopeB.log('B now', { nested: { token: 'hide-B' } });
@@ -26,6 +26,7 @@ try {
   assert.equal(outputB[0].buildId, 'B');
   assert.equal(outputB[0].nested.token, 'MASK');
   assert.deepEqual(JSON.parse(scopeA.getRecentLogEvents()[0].meta).nested, { keep: 1 });
+  assert.equal(JSON.parse(scopeA.getRecentLogEvents()[0].meta).level, 'caller-owned');
   assert.equal(JSON.parse(scopeB.getRecentLogEvents()[0].meta).nested.token, 'MASK');
   const circular = { secret: 'untouched', value: 1n }; circular.self = circular;
   const publicScope = createLoggerScope({ enabled: false, redact: false });

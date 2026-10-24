@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { errorGraphIncludes } from '../../helpers/error-graph.js';
 import { registerHooks } from 'node:module';
 import { EventEmitter } from 'node:events';
 import { assertSubprocessTerminationReceipt } from '../../../src/shared/subprocess/termination-receipt.js';
@@ -43,7 +44,7 @@ try {
     null
   ]) {
     state.error = Object.assign(new Error('original parser timeout'), { code: 'SUBPROCESS_TIMEOUT', result: { termination } });
-    await assert.rejects(execute(), error => error === state.error && error.cacheOwnershipPending === true);
+    await assert.rejects(execute(), error => errorGraphIncludes(error, state.error) && error.cacheOwnershipPending === true);
     assert.equal(state.snapshots, 0, 'unknown lifetime cannot be converted to completed parser degradation');
     assert.match(state.launches.at(-1).ownershipId, /^stage1:fixture-run::tree-sitter:grammar-1$/);
   }

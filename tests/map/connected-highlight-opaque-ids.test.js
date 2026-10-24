@@ -13,7 +13,7 @@ for (const [key, expected] of [
 
 const colored = new Map();
 const instance = id => ({ mesh: { setColorAt: (_index, color) => colored.set(id, color.clone()),
-  instanceColor: {} }, instanceId: 0 });
+  instanceColor: new THREE.InstancedBufferAttribute(new Float32Array(3), 3) }, instanceId: 0 });
 Object.assign(state, {
   THREE, selected: { object: { userData: { type: 'file', file: 'root.js' } } },
   selectedInfo: { type: 'file', file: 'root.js' },

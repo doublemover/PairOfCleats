@@ -21,5 +21,8 @@ assert.throws(() => parseSavedMap(JSON.stringify({ ...model, version: '99.0.0' }
 assert.throws(() => parseSavedMap(html + html), /one generated/);
 assert.throws(() => parseSavedMap('{"nested":' + '['.repeat(65)), /depth/);
 assert.throws(() => parseSavedMap(JSON.stringify({ ...model, nodes: [model.nodes[0], model.nodes[0]] })), /unique bounded paths/);
-assert.throws(() => parseSavedMap(JSON.stringify({ ...model, nodes: [{ path: 'x', members: [{ id: 0 }, { id: '0' }] }] })), /Duplicate map member identity/);
+assert.equal(parseSavedMap(JSON.stringify({ ...model, nodes: [{ path: 'x', members: [{ id: 0 }, { id: '0' }] }] })).model.nodes[0].members.length, 2);
+for (const id of [0, '0']) {
+  assert.throws(() => parseSavedMap(JSON.stringify({ ...model, nodes: [{ path: 'x', members: [{ id }, { id }] }] })), /Duplicate map member identity/);
+}
 console.log('Saved model/cache/HTML data admission preserves recorded provenance without requiring an index.');

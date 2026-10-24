@@ -138,15 +138,16 @@ try {
   }
 
   for (const location of ['owner', 'authority', 'manifest']) {
-    const { error, state } = pending(false); let scans = 0; const previousCalls = ownerCalls;
-    fsp.opendir = async (target, ...args) => { scans++; if (location === 'manifest' && target === source) throw error;
+    const { error, state } = pending(false); let sourceScans = 0; const previousCalls = ownerCalls;
+    fsp.opendir = async (target, ...args) => { if (target === source) sourceScans++;
+      if (location === 'manifest' && target === source) throw error;
       return originals.opendir(target, ...args); };
     fsp.open = async (target, ...args) => { if (location === 'authority' && target === marker) throw error;
       return originals.open(target, ...args); };
     const selectedOwner = location === 'owner' ? { ...owner, inspect: async () => { throw error; } } : owner;
     const failure = await rejected(() => createStorageMigrationPlan({ ...input, owner: selectedOwner }));
     assert.equal(contains(failure, error), true); assert.equal(state.codeReads, 0);
-    if (location !== 'manifest') assert.equal(scans, 0);
+    if (location !== 'manifest') assert.equal(sourceScans, 0, 'no source manifest scan follows unsettled authority or category ownership');
     if (location === 'authority') assert.equal(ownerCalls, previousCalls);
     error.cacheOwnershipReleased = () => true; assert.equal(failure.cacheOwnershipReleased(), false);
     state.ready = true; assert.equal(failure.cacheOwnershipReleased(), true); restore();

@@ -4,6 +4,7 @@ import PQueue from 'p-queue';
 import { runWithQueue } from '../../../src/shared/concurrency/run-with-queue.js';
 import { runShardSubsetsWithRetry } from '../../../src/index/build/indexer/steps/process-files/ordering.js';
 import { readPdfPages } from '../../../src/index/extractors/pdf.js';
+import { errorGraphIncludes } from '../../helpers/error-graph.js';
 import { createPdfExtractionLifetime, getPendingPdfExtractionOwners,
   isPendingPdfExtractionFailure } from '../../../src/index/extractors/pdf-lifetime.js';
 
@@ -42,7 +43,8 @@ try {
       }, { retries: 2, retryDelayMs: 0 });
     }
   }));
-  assert.equal(queuedFailure, failure);
+  assert.equal(errorGraphIncludes(queuedFailure, failure), true, 'queue ownership wrappers retain the exact PDF failure');
+  assert.equal(queuedFailure.cacheOwnershipReleased(), false);
   assert.equal(extractionAttempts, 1);
   assert.equal(shardAttempts, 1);
   assert.equal(failure.retryable, false);

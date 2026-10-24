@@ -213,8 +213,8 @@
       "scope": "graph",
       "cap": "maxFanoutPerNode",
       "limit": 3,
-      "observed": 78,
-      "omitted": 75,
+      "observed": 80,
+      "omitted": 77,
       "at": {
         "node": "chunk:chunk-000"
       }

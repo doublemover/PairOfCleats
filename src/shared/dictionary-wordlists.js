@@ -171,6 +171,9 @@ const readDictionaryWordsFromFile = async (
     stream.on('error', error => { if (error?.syscall === 'close') closeFailure = error; });
     closed = new Promise(resolve => stream.once('close', resolve));
     lineReader = readline.createInterface({ input: stream, crlfDelay: Infinity });
+    // Readline forwards input errors even after its async iterator has ended.
+    // Keep observing that exact interface through the native close barrier.
+    lineReader.on('error', error => { operationError ||= asDictionaryError(error); });
     for await (const line of lineReader) {
       addDictionaryWordFromLine(line, target, lowerCase);
     }
@@ -198,6 +201,7 @@ const readDictionaryWordsFromFile = async (
       catch (error) { cleanupError = cleanupError ? retainDictionaryFailure(cleanupError, error, 'dictionaryCleanupErrors') : asDictionaryError(error); }
     }
     if (cleanupError) throw operationError ? retainDictionaryFailure(operationError, cleanupError, 'dictionaryCleanupErrors') : cleanupError;
+    if (operationError) throw operationError;
   }
 };
 

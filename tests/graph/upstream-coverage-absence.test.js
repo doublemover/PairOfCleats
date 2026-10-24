@@ -24,13 +24,15 @@ assert.deepEqual(createGraphRelationsShell({ generatedAt: graph.generatedAt, ext
 const malformed = structuredClone(graph); malformed.upstreamCoverage.policy.mode = 'unlimited';
 assert.equal(validateArtifact('graph_relations', malformed).ok, false, 'strict artifact policy identity stays typed');
 const rules = [{ id: 'no-call', type: 'forbiddenCall', from: { anyOf: ['**'] }, to: { anyOf: ['**'] } }];
+const indexSignature = 'upstream-absence-fixture-v1';
+assert.throws(() => buildArchitectureReport({ graphRelations: graph, rules }), /requires indexSignature/);
 for (const input of [graph, { ...graph, upstreamCoverage: null }]) {
-  const architecture = buildArchitectureReport({ graphRelations: input, rules });
+  const architecture = buildArchitectureReport({ graphRelations: input, rules, indexSignature });
   assert.equal(architecture.violations.length, 0);
   assert.equal(architecture.summary.complete, false, 'zero observed violations cannot establish a clean verdict');
   assert.ok(architecture.warnings.some(warning => warning.code === 'UPSTREAM_RELATION_COVERAGE_INCOMPLETE'));
   const index = buildGraphIndex({ graphRelations: input });
-  const impact = buildImpactAnalysis({ seed: { type: 'chunk', chunkUid: 'owner' }, graphIndex: index });
+  const impact = buildImpactAnalysis({ seed: { type: 'chunk', chunkUid: 'owner' }, graphIndex: index, indexSignature });
   assert.ok(impact.warnings.some(warning => warning.code === 'UPSTREAM_RELATION_COVERAGE_INCOMPLETE'));
   assert.notEqual(impact.upstreamCoverage.analysis.status, 'complete');
 }

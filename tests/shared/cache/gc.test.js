@@ -3,6 +3,8 @@ import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { CACHE_OWNER_FILE } from '../../../src/shared/cache-deletion.js';
+import assert from 'node:assert/strict';
+import { withGeneratedCacheMetadata } from '../../../src/shared/generated-artifact-cache.js';
 
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
@@ -19,8 +21,9 @@ const env = applyTestEnv({ cacheRoot, syncProcess: false });
 const makeRepo = async (name, bytes, mtimeMs) => {
   const repoPath = path.join(repoRoot, name);
   await fsPromises.mkdir(repoPath, { recursive: true });
-  const payload = Buffer.alloc(bytes, 'a');
-  await fsPromises.writeFile(path.join(repoPath, 'data.bin'), payload);
+  const payload = withGeneratedCacheMetadata({ chunks: [], padding: '' }, 'tree-sitter-chunks');
+  payload.padding = 'a'.repeat(bytes - Buffer.byteLength(JSON.stringify(payload)));
+  await fsPromises.writeFile(path.join(repoPath, 'tree-sitter-chunk_lk1_' + 'a'.repeat(40) + '.json'), JSON.stringify(payload));
   const stamp = new Date(mtimeMs);
   await fsPromises.utimes(repoPath, stamp, stamp);
   return repoPath;
@@ -38,9 +41,15 @@ await fsPromises.writeFile(path.join(cacheRoot, CACHE_OWNER_FILE), JSON.stringif
 const now = Date.now();
 await makeRepo('old-repo', 2048, now - 5 * 24 * 60 * 60 * 1000);
 const newRepoPath = await makeRepo('new-repo', 2048, now);
+const unknown = path.join(repoRoot, 'unknown-repo');
+await fsPromises.mkdir(unknown);
+await fsPromises.writeFile(path.join(unknown, 'data.bin'), 'unknown bytes stay protected');
+await fsPromises.utimes(unknown, new Date(0), new Date(0));
 
 const ageOutput = run(['--max-age-days', '1', '--json'], 'cache-gc age');
 const agePayload = JSON.parse(ageOutput);
+assert.equal(await fsPromises.readFile(path.join(unknown, 'data.bin'), 'utf8'), 'unknown bytes stay protected');
+assert.ok(!agePayload.removals.some(entry => entry.id === 'unknown-repo'));
 if (!agePayload.removals.some((entry) => entry.id === 'old-repo')) {
   console.error('cache-gc age failed to remove old-repo');
   process.exit(1);

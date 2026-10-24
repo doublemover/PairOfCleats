@@ -26,7 +26,7 @@ import { buildGraphIndexCacheKey } from '../../../src/graph/store.js';
 import { buildMapCacheKey } from '../../../src/map/build-map.js';
 import { buildQueryCacheKey } from '../../../src/retrieval/cli-index.js';
 import { buildQueryPlanCacheKey } from '../../../src/retrieval/query-plan-cache.js';
-import { readCacheMeta, writeCacheMeta } from '../../../tools/build/embeddings/cache.js';
+import { readCacheMeta, writeCacheMeta, buildCacheIdentity } from '../../../tools/build/embeddings/cache.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { withTemporaryEnv } from '../../helpers/test-env.js';
 
@@ -178,11 +178,11 @@ assert.equal(normalizeCacheNamespace(' Repo/Cache Value '), 'repo-cache-value');
 const preflightTemp = resolveTestCachePath(process.cwd(), 'cache-preflight-meta');
 await fsp.rm(preflightTemp, { recursive: true, force: true });
 await fsp.mkdir(preflightTemp, { recursive: true });
-const identity = { provider: 'test', modelId: 'model', dims: 256 };
+const { identity, key: identityKey } = buildCacheIdentity({ provider: 'test', modelId: 'model', dims: 256 });
 assert.equal(readCacheMeta(preflightTemp, identity, 'code'), null);
 const meta = {
   version: 1,
-  identityKey: 'abc123',
+  identityKey,
   dims: 256,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString()
@@ -192,6 +192,8 @@ const loaded = readCacheMeta(preflightTemp, identity, 'code');
 assert.ok(loaded);
 assert.equal(loaded.identityKey, meta.identityKey);
 assert.equal(loaded.dims, meta.dims);
+await writeCacheMeta(preflightTemp, identity, 'code', { ...meta, identityKey: 'wrong-profile' });
+assert.equal(readCacheMeta(preflightTemp, identity, 'code'), null, 'a different identity cannot be reused');
 
 const sizeCache = createLruCache({
   name: 'size-test',

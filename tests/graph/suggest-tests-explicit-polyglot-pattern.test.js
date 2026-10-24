@@ -7,7 +7,9 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'polyglot-pattern-'));
 try {
   fs.mkdirSync(path.join(root,'tests'));
   for (const name of ['test_app.py','app_test.go','app.test.js','unrelated.py']) fs.writeFileSync(path.join(root,'tests',name), 'test');
-  const build = testPatterns => buildSuggestTestsReport({ changed: ['src/app.js'], repoRoot: root, testPatterns });
+  assert.throws(() => buildSuggestTestsReport({ changed: ['src/app.js'], repoRoot: root }), /requires indexSignature/);
+  const build = testPatterns => buildSuggestTestsReport({ changed: ['src/app.js'], repoRoot: root, testPatterns,
+    indexSignature: 'polyglot-pattern-fixture-v1' });
   assert.deepEqual(build(['**/test_*.py']).suggestions.map(row => row.testPath), ['tests/test_app.py']);
   assert.deepEqual(build(['**/*_test.go']).suggestions.map(row => row.testPath), ['tests/app_test.go']);
   assert.deepEqual(build(null).suggestions.map(row => row.testPath), ['tests/app.test.js']);
