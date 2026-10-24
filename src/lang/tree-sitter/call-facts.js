@@ -2,7 +2,7 @@ import { projectNativeCallArguments } from './call-arguments.js';
 import { getNamedChild, getNamedChildCount } from './ast.js';
 import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
 
-export const SYNTAX_CALL_FACTS_VERSION = 5;
+export const SYNTAX_CALL_FACTS_VERSION = 6;
 const callTypes = new Set(['call_expression', 'function_call', 'call', 'method_invocation', 'function_call_expression', 'juxt_function_call',
   'member_call_expression', 'nullsafe_member_call_expression', 'scoped_call_expression', 'object_creation_expression', 'command']);
 const scopeBarriers = new Set(['function_definition', 'function_declaration', 'method', 'singleton_method', 'function_item',
@@ -13,6 +13,15 @@ const scopeBarriers = new Set(['function_definition', 'function_declaration', 'm
 const field = (node, key) => node?.childForFieldName?.(key);
 const textOf = (node, text) => node ? text.slice(node.startIndex, node.endIndex) : '';
 const keyOf = node => `${node.startIndex}:${node.endIndex}`;
+const dartCallTarget = (node, text) => {
+  if (node.type !== 'argument_part' || node.parent?.type !== 'selector') return null;
+  const selector = node.parent;
+  let target = selector.previousNamedSibling;
+  for (let depth = 0; target?.type === 'selector' && depth < 32; depth++) target = target.previousNamedSibling;
+  if (!['identifier', 'this', 'super', 'type_identifier'].includes(target?.type)) return null;
+  return { type: 'dart-call-target', startIndex: target.startIndex, endIndex: selector.startIndex,
+    text: text.slice(target.startIndex, selector.startIndex).trim() };
+};
 
 /** Copy compact ordinary call-detail data before the parser-owned tree closes.
  * A traversal interruption fails closed; it never labels a partial tail complete.
@@ -51,7 +60,8 @@ export const attachSyntaxCallFacts = (root, text, chunks, { maxNodes = 250000, d
       return;
     }
     const { node, owner: inherited, blockedOwner: inheritedBlocked, exclusion: inheritedExclusion } = stack.pop();
-    const declared = owners.get(keyOf(node));
+    const declared = owners.get(keyOf(node)) || (languageId === 'dart' && node.type === 'function_body'
+      && node.previousNamedSibling ? owners.get(keyOf(node.previousNamedSibling)) : null);
     let owner = declared || inherited, blockedOwner = declared ? null : inheritedBlocked;
     let exclusion = declared ? null : inheritedExclusion;
     const declarationBody = node.type === 'closure' && owner
@@ -72,26 +82,29 @@ export const attachSyntaxCallFacts = (root, text, chunks, { maxNodes = 250000, d
       'noexcept', 'noexcept_specifier', 'decltype'].includes(node.type)) {
       blockedOwner = owner || blockedOwner; owner = null; exclusion = 'declarationHeaderCalls';
     }
-    if (!owner && blockedOwner && callTypes.has(node.type)) omissions.get(blockedOwner)[exclusion]++;
-    if (owner && callTypes.has(node.type)) {
-      const calleeNode = field(node, 'function') || field(node, 'name') || field(node, 'method') || field(node, 'constructor') || field(node, 'type')
+    const dartTarget = languageId === 'dart' ? dartCallTarget(node, text) : null;
+    const invocation = callTypes.has(node.type) || dartTarget !== null;
+    if (!owner && blockedOwner && invocation) omissions.get(blockedOwner)[exclusion]++;
+    if (owner && invocation) {
+      const calleeNode = dartTarget || field(node, 'function') || field(node, 'name') || field(node, 'method') || field(node, 'constructor') || field(node, 'type')
         || (languageId === 'perl' ? field(node, 'function_name') : null)
         || (['julia', 'kotlin'].includes(languageId) && node.type === 'call_expression' ? getNamedChild(node, 0) : null);
-      let callee = textOf(calleeNode, text);
+      let callee = dartTarget?.text ?? textOf(calleeNode, text);
       const receiver = field(node, 'receiver') || field(node, 'object') || field(node, 'scope')
         || (languageId === 'perl' ? field(node, 'package_name') : null);
       if (receiver && callee && receiver.endIndex <= calleeNode.startIndex) callee = `${textOf(receiver,text)}.${callee}`;
       const dynamicRole = ['subscript_expression', 'element_access_expression', 'index_expression',
         'array_access_expression', 'parenthesized_expression', 'call_expression', 'lambda_expression'].includes(calleeNode?.type);
       const staticName = !dynamicRole && /^[\p{L}_$][\p{L}\p{N}_$!.:\\?=+\-*/<>\[\]]*$/u.test(callee);
-      const startLine = offsetToLine(lines, node.startIndex), endLine = offsetToLine(lines, node.endIndex);
+      const start = dartTarget?.startIndex ?? node.startIndex;
+      const startLine = offsetToLine(lines, start), endLine = offsetToLine(lines, node.endIndex);
       const raw = callee || textOf(node, text);
       let previewEnd = Math.min(raw.length, 512);
       if (previewEnd < raw.length && /[\uD800-\uDBFF]/.test(raw[previewEnd - 1])) previewEnd -= 1;
       const detail = Object.freeze({ caller: owner.name, callee: staticName ? callee.replace(/::|:/g,'.') : null,
         calleeRaw: raw.slice(0, previewEnd), rawPreviewTruncated: previewEnd < raw.length,
-        start: node.startIndex, end: node.endIndex, line: startLine,
-        startLine, endLine, startCol: node.startIndex - lines[startLine - 1] + 1,
+        start, end: node.endIndex, line: startLine,
+        startLine, endLine, startCol: start - lines[startLine - 1] + 1,
         endCol: node.endIndex - lines[endLine - 1] + 1,
         role: node.type === 'object_creation_expression' ? 'constructor' : 'call',
         resolution: 'unresolved', reason: staticName ? 'syntax-target-unresolved' : 'dynamic-call-target',

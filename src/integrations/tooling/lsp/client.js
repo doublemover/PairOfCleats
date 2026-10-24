@@ -879,7 +879,8 @@ export function createLspClient(options) {
       }
       pending.set(id, entry);
       const onWriteFailure = (error, local = true) => failRequest(id, entry,
-        addStorageFailureContext(error, { code: 'ERR_LSP_REQUEST_WRITE' }, undefined, { forceAggregate: true }),
+        addStorageFailureContext(error, { code: local ? 'ERR_LSP_REQUEST_WRITE' : 'ERR_LSP_TRANSPORT_CLOSED' },
+          undefined, { forceAggregate: true }),
         local ? 'localWriteFailed' : null);
       try {
         if (!send({ jsonrpc: '2.0', id, method, params }, onWriteFailure)) {
