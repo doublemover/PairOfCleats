@@ -120,7 +120,7 @@ export const resolveCommandProfilePreflightResult = ({
   const definitelyMissing = isProbeCommandDefinitelyMissing(commandProfile.probe);
   const validationReasonCode = String(commandProfile?.probe?.validationFailure?.reasonCode || '').trim();
   const invalidLayout = validationReasonCode === 'broken-layout';
-  const denied = commandProfile?.resolved?.mode === 'blocked';
+  const denied = commandProfile?.resolved?.mode === 'blocked' && !definitelyMissing;
   const pendingSettlement = commandProfile?.probe?.cacheOwnershipPending === true
     || validationReasonCode === 'tooling_managed_installation_settlement_pending';
   const rawCheck = typeof unavailableCheck === 'function'

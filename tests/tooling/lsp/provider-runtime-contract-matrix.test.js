@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 import { registerDefaultToolingProviders } from '../../../src/index/tooling/providers/index.js';
 import { getToolingProvider } from '../../../src/index/tooling/provider-registry.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { grantFixtureRepositoryExecution } from '../../helpers/execution-authority.js';
+import { resolveLspFixtureCommand } from '../../helpers/lsp-provider-fixture.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 registerDefaultToolingProviders();
@@ -15,6 +17,7 @@ const makeTempRoot = async (name) => {
   const tempRoot = resolveTestCachePath(root, `${name}-${process.pid}-${Date.now()}`);
   await fs.rm(tempRoot, { recursive: true, force: true });
   await fs.mkdir(path.join(tempRoot, 'src'), { recursive: true });
+  grantFixtureRepositoryExecution(tempRoot);
   return tempRoot;
 };
 
@@ -41,7 +44,8 @@ const runOutputShapeCase = async ({
   const ctx = {
     repoRoot: tempRoot,
     buildRoot: tempRoot,
-    toolingConfig: {},
+    toolingConfig: { [providerId]: { enabled: true,
+      cmd: resolveLspFixtureCommand(providerId === 'pyright' ? 'pyright-langserver' : providerId) } },
     logger: () => {},
     strict: true
   };

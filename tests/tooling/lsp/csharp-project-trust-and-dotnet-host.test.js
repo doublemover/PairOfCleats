@@ -33,7 +33,7 @@ try {
   if (process.platform !== 'win32') await fs.chmod(path.join(root, hostName), 0o755);
   const provider = createCsharpProvider();
   await withTemporaryEnv({ PAIROFCLEATS_TRUSTED_REPOS: '[]' }, async () => {
-    const denied = await provider.preflight({ repoRoot: root, toolingConfig: { csharp: { cmd: 'must-not-be-probed' } } }, inputs);
+    const denied = await provider.preflight({ repoRoot: root, toolingConfig: { csharp: { enabled: true, cmd: 'must-not-be-probed' } } }, inputs);
     assert.equal(denied.blockProvider, true);
     assert.equal(denied.reasonCode, 'csharp-ls_workspace_trust_required');
     const renamed = createConfiguredLspProvider(normalizeServerConfig({ id: 'renamed-csharp', cmd: process.execPath,
