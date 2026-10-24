@@ -3,9 +3,10 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { getStatus } from '../../../../src/integrations/core/status.js';
-import { getIndexDir, loadUserConfig, toRealPathSync } from '../../../../tools/shared/dict-utils.js';
+import { getBuildsRoot, getRepoCacheRoot, loadUserConfig, toRealPathSync } from '../../../../tools/shared/dict-utils.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../../src/contracts/versioning.js';
 import { makeTempDir, rmDirRecursive } from '../../../helpers/temp.js';
+import { applyTestEnv } from '../../../helpers/test-env.js';
 
 const cacheRoot = await makeTempDir('pairofcleats-report-artifacts-manifest-');
 const repoRootInput = path.join(cacheRoot, 'repo');
@@ -16,14 +17,17 @@ const repoRoot = toRealPathSync(repoRootRaw);
 const prevCacheRoot = process.env.PAIROFCLEATS_CACHE_ROOT;
 const prevGitCeiling = process.env.GIT_CEILING_DIRECTORIES;
 const repoParent = path.dirname(repoRootRaw);
-process.env.PAIROFCLEATS_CACHE_ROOT = cacheRoot;
+applyTestEnv({ cacheRoot });
 process.env.GIT_CEILING_DIRECTORIES = prevGitCeiling
   ? `${repoParent}${path.delimiter}${prevGitCeiling}`
   : repoParent;
 
 try {
   const userConfig = loadUserConfig(repoRoot);
-  const codeDir = getIndexDir(repoRoot, 'code', userConfig);
+  const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
+  const buildsRoot = getBuildsRoot(repoRoot, userConfig);
+  const buildRoot = path.join(buildsRoot, 'manifest-fixture');
+  const codeDir = path.join(buildRoot, 'index-code');
   await fs.mkdir(codeDir, { recursive: true });
   await fs.writeFile(
     path.join(codeDir, 'chunk_meta.json'),
@@ -48,6 +52,14 @@ try {
     }, null, 2)
   );
 
+  const unpublished = await getStatus({ repoRoot });
+  assert.equal(unpublished.health.selection, 'no-publication');
+  assert.deepEqual(unpublished.health.modes, {});
+  await fs.writeFile(path.join(buildsRoot, 'current.json'), JSON.stringify({
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, buildId: 'manifest-fixture',
+    buildRoot: path.relative(repoCacheRoot, buildRoot),
+    buildRootsByMode: { code: path.relative(repoCacheRoot, buildRoot) }
+  }));
   const status = await getStatus({ repoRoot });
   const issues = status?.health?.issues || [];
   assert.ok(

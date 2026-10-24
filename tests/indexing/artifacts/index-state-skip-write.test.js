@@ -107,6 +107,8 @@ await runWrite();
 const statAfter = fs.statSync(indexStatePath);
 
 if (statAfter.mtimeMs !== statBefore.mtimeMs) {
+  console.error(JSON.stringify({ expected: stripIndexStateNondeterministicFields(indexState),
+    actual: stripIndexStateNondeterministicFields(JSON.parse(fs.readFileSync(indexStatePath, 'utf8'))) }, null, 2));
   fail('Expected index_state.json to be skipped when only volatile fields change.');
 }
 
