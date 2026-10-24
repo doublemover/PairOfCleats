@@ -44,8 +44,8 @@
     },
     "followUpClosure": {
       "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
-      "originalFailuresMovedToPassing": 40,
-      "originalFailuresWithoutPassingClosure": 60
+      "originalFailuresMovedToPassing": 48,
+      "originalFailuresWithoutPassingClosure": 52
     }
   },
   "items": [
@@ -98,7 +98,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 972
+      "recheckDurationMs": 972,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "8944d1e483f436c2428422f65619aeea21bc9bf6",
+      "latestRecheckDurationMs": 950
     },
     {
       "id": "indexing/runtime/runtime-attempt-lifecycle",
@@ -686,9 +689,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 379,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "4b86182818b8755b0d8d6503a73e2e2a784930d5",
-      "latestRecheckDurationMs": 327
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "8944d1e483f436c2428422f65619aeea21bc9bf6",
+      "latestRecheckDurationMs": 2337
     },
     {
       "id": "shared/storage/migration-marker-resource-outcomes",
@@ -1074,8 +1077,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 11237,
       "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "4b86182818b8755b0d8d6503a73e2e2a784930d5",
-      "latestRecheckDurationMs": 9945
+      "latestRecheckSourceHead": "8944d1e483f436c2428422f65619aeea21bc9bf6",
+      "latestRecheckDurationMs": 11923
     },
     {
       "id": "services/api/semantic-trace",
@@ -3985,9 +3988,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 7232,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "4b86182818b8755b0d8d6503a73e2e2a784930d5",
-      "latestRecheckDurationMs": 15113
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "8944d1e483f436c2428422f65619aeea21bc9bf6",
+      "latestRecheckDurationMs": 18942
     },
     {
       "id": "indexing/artifacts/artifact-size-guardrails",
@@ -4409,7 +4412,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 12666
+      "recheckDurationMs": 12666,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "8944d1e483f436c2428422f65619aeea21bc9bf6",
+      "latestRecheckDurationMs": 12512
     },
     {
       "id": "indexing/embeddings/build/process-outcome",
@@ -4553,7 +4559,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 246
+      "recheckDurationMs": 246,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "8944d1e483f436c2428422f65619aeea21bc9bf6",
+      "latestRecheckDurationMs": 189
     },
     {
       "id": "indexing/embeddings/embedding-text-kv-cache",
@@ -4570,7 +4579,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 1044
+      "recheckDurationMs": 1044,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "8944d1e483f436c2428422f65619aeea21bc9bf6",
+      "latestRecheckDurationMs": 1312
     },
     {
       "id": "indexing/embeddings/embeddinggemma2-contract",
@@ -4592,7 +4604,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 353
+      "recheckDurationMs": 353,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "8944d1e483f436c2428422f65619aeea21bc9bf6",
+      "latestRecheckDurationMs": 359
     },
     {
       "id": "indexing/embeddings/embeddinggemma2-prepared",
@@ -4660,7 +4675,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "passed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 127
+      "recheckDurationMs": 127,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "8944d1e483f436c2428422f65619aeea21bc9bf6",
+      "latestRecheckDurationMs": 115
     },
     {
       "id": "indexing/embeddings/stage3-perf-observability",
@@ -4694,7 +4712,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 246
+      "recheckDurationMs": 246,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "8944d1e483f436c2428422f65619aeea21bc9bf6",
+      "latestRecheckDurationMs": 212
     },
     {
       "id": "indexing/embeddings/xenova-output-tensor-ownership",
@@ -5322,9 +5343,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 931,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "4b86182818b8755b0d8d6503a73e2e2a784930d5",
-      "latestRecheckDurationMs": 1061
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "8944d1e483f436c2428422f65619aeea21bc9bf6",
+      "latestRecheckDurationMs": 1038
     },
     {
       "id": "indexing/semantic/compiler-reference-evaluation",
@@ -5768,7 +5789,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 102
+      "recheckDurationMs": 102,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "8944d1e483f436c2428422f65619aeea21bc9bf6",
+      "latestRecheckDurationMs": 104
     },
     {
       "id": "embeddings/runner/backend-variant-failures",

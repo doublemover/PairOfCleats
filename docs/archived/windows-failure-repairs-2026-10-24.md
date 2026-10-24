@@ -796,3 +796,29 @@ both leases acquire their resource, and TTL observation spans asynchronous
 acquisition. EG2 positive mocks supply required typed input IDs/masks while
 retaining strict malformed-input coverage. Mapping collisions retain refusal
 and assert their actual boundaryMismatch reason. This wave awaits focused tests.
+
+The 13-case cache/observation follow-up at
+`8944d1e483f436c2428422f65619aeea21bc9bf6` passed ten and failed three,
+without timeouts, skips or crashes. Eight additional original failures gained
+passing closure (48 cumulative; 52 remain). The actual cancellation receipt,
+corruption loop, profile/delta inventory, workspace cursor, CFG, warm model
+lifetime and quantized sibling controls passed. The admitted token/tensor
+resource negatives also passed. This evidence belongs to that exact source.
+
+The next wave makes a deferred adapter's unsupported post-acquisition load
+observation explicitly unknown; it cannot retain its pre-acquisition false/load
+flag forever. An EG2 query-cache fixture now supplies its selected model cache
+root so immutable profile authority can be resolved consistently. The public
+enumeration fixture includes response error details for the remaining
+cross-surface cursor rejection instead of hiding its HTTP 400.
+
+LSP generation fixtures enforce actual previous-child settlement before restart.
+The old-write race holds a real writer callback until after replacement, then
+rejects it and checks replacement requests and transport remain live. Deferred
+old server replies remain delayed until after replacement as well. Shutdown
+tests emit exact original close events and retain the no-respawn/no-exit-to-new-
+transport assertions. Managed-command recovery checks retained pending/cause
+authority rather than matching the outer diagnostic wording. The subprocess
+barrier fixture installs its module hook before test-env imports the tracking
+owner and asserts the controlled owner was actually invoked. These controls
+retain all release, unrelated-owner and original-identity negatives.

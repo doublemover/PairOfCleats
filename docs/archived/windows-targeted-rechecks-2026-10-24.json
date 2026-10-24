@@ -2004,11 +2004,382 @@
           "historicalAuthorWorkspaceEvidence": true
         }
       ]
+    },
+    {
+      "sourceHead": "8944d1e483f436c2428422f65619aeea21bc9bf6",
+      "startedAt": "2026-10-24T12:46:54.584Z",
+      "finishedAt": "2026-10-24T12:47:47.444Z",
+      "scope": "Cancellation writer evidence, physical row corruption, scoped service/cursor fixtures and model acquisition observations.",
+      "policy": {
+        "timeoutMs": 30000,
+        "retries": 0,
+        "nativeStatusRedo": false,
+        "threads": 1,
+        "platform": "win32",
+        "node": "v26.12.1",
+        "removedLaunchSetting": "PAIROFCLEATS_TRUSTED_CONFIG: missing configured file; no replacement authority granted"
+      },
+      "summary": {
+        "selected": 13,
+        "passed": 10,
+        "failed": 3,
+        "timeouts": 0,
+        "skipped": 0
+      },
+      "cohorts": [
+        {
+          "name": "cache-observation-wave-01",
+          "summary": {
+            "total": 5,
+            "passed": 4,
+            "failed": 1,
+            "skipped": 0,
+            "durationMs": 46765
+          },
+          "ids": [
+            "indexing/embeddings/build/inferred-dimensions-identity",
+            "indexing/semantic/compiler-flow",
+            "services/api/filter-enumeration-surfaces",
+            "shared/storage/embedding-delta-reference-inventory",
+            "tooling/workspace/onboarding-cli-fixtures"
+          ]
+        },
+        {
+          "name": "cache-observation-wave-02",
+          "summary": {
+            "total": 5,
+            "passed": 3,
+            "failed": 2,
+            "skipped": 0,
+            "durationMs": 3030
+          },
+          "ids": [
+            "indexing/embeddings/embedding-execution-observation",
+            "indexing/embeddings/embedding-text-kv-cache",
+            "indexing/embeddings/embeddinggemma2-contract",
+            "indexing/embeddings/query-warm-cache-lifetime",
+            "indexing/embeddings/transformers-quantized-compatibility"
+          ]
+        },
+        {
+          "name": "cache-observation-wave-03",
+          "summary": {
+            "total": 3,
+            "passed": 3,
+            "failed": 0,
+            "skipped": 0,
+            "durationMs": 311
+          },
+          "ids": [
+            "embeddings/pipeline/mapping-index-bounds",
+            "indexing/embeddings/embeddinggemma2-input-admission",
+            "indexing/embeddings/prepared-tensor-resource-ownership"
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "id": "indexing/embeddings/build/inferred-dimensions-identity",
+          "path": "indexing/embeddings/build/inferred-dimensions-identity.test.js",
+          "lane": "integration",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 12512,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8944d1e483f436c2428422f65619aeea21bc9bf6/cache-observation-wave-01-logs/run-1792846015516-x59smf/indexing_embeddings_build_inferred-dimensions-identity.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/semantic/compiler-flow",
+          "path": "indexing/semantic/compiler-flow.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 1038,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8944d1e483f436c2428422f65619aeea21bc9bf6/cache-observation-wave-01-logs/run-1792846015516-x59smf/indexing_semantic_compiler-flow.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "services/api/filter-enumeration-surfaces",
+          "path": "services/api/filter-enumeration-surfaces.test.js",
+          "lane": "api",
+          "tags": [
+            "api",
+            "services"
+          ],
+          "status": "failed",
+          "durationMs": 11923,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8944d1e483f436c2428422f65619aeea21bc9bf6/cache-observation-wave-01-logs/run-1792846015516-x59smf/services_api_filter-enumeration-surfaces.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8944d1e483f436c2428422f65619aeea21bc9bf6/cache-observation-wave-01-logs/run-1792846015516-x59smf/services_api_filter-enumeration-surfaces.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "shared/storage/embedding-delta-reference-inventory",
+          "path": "shared/storage/embedding-delta-reference-inventory.test.js",
+          "lane": "unit",
+          "tags": [
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 2337,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8944d1e483f436c2428422f65619aeea21bc9bf6/cache-observation-wave-01-logs/run-1792846015516-x59smf/shared_storage_embedding-delta-reference-inventory.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/workspace/onboarding-cli-fixtures",
+          "path": "tooling/workspace/onboarding-cli-fixtures.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 18942,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8944d1e483f436c2428422f65619aeea21bc9bf6/cache-observation-wave-01-logs/run-1792846015516-x59smf/tooling_workspace_onboarding-cli-fixtures.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/embeddings/embedding-execution-observation",
+          "path": "indexing/embeddings/embedding-execution-observation.test.js",
+          "lane": "integration",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "status": "failed",
+          "durationMs": 189,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8944d1e483f436c2428422f65619aeea21bc9bf6/cache-observation-wave-02-logs/run-1792846063176-7b9twj/indexing_embeddings_embedding-execution-observation.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8944d1e483f436c2428422f65619aeea21bc9bf6/cache-observation-wave-02-logs/run-1792846063176-7b9twj/indexing_embeddings_embedding-execution-observation.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/embeddings/embedding-text-kv-cache",
+          "path": "indexing/embeddings/embedding-text-kv-cache.test.js",
+          "lane": "integration",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 1312,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8944d1e483f436c2428422f65619aeea21bc9bf6/cache-observation-wave-02-logs/run-1792846063176-7b9twj/indexing_embeddings_embedding-text-kv-cache.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/embeddings/embeddinggemma2-contract",
+          "path": "indexing/embeddings/embeddinggemma2-contract.test.js",
+          "lane": "integration",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "status": "failed",
+          "durationMs": 359,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8944d1e483f436c2428422f65619aeea21bc9bf6/cache-observation-wave-02-logs/run-1792846063176-7b9twj/indexing_embeddings_embeddinggemma2-contract.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8944d1e483f436c2428422f65619aeea21bc9bf6/cache-observation-wave-02-logs/run-1792846063176-7b9twj/indexing_embeddings_embeddinggemma2-contract.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/embeddings/query-warm-cache-lifetime",
+          "path": "indexing/embeddings/query-warm-cache-lifetime.test.js",
+          "lane": "integration",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 950,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8944d1e483f436c2428422f65619aeea21bc9bf6/cache-observation-wave-02-logs/run-1792846063176-7b9twj/indexing_embeddings_query-warm-cache-lifetime.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/embeddings/transformers-quantized-compatibility",
+          "path": "indexing/embeddings/transformers-quantized-compatibility.test.js",
+          "lane": "integration",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 212,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8944d1e483f436c2428422f65619aeea21bc9bf6/cache-observation-wave-02-logs/run-1792846063176-7b9twj/indexing_embeddings_transformers-quantized-compatibility.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "embeddings/pipeline/mapping-index-bounds",
+          "path": "embeddings/pipeline/mapping-index-bounds.test.js",
+          "lane": "integration",
+          "tags": [
+            "embeddings",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 104,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8944d1e483f436c2428422f65619aeea21bc9bf6/cache-observation-wave-03-logs/run-1792846067119-uadh66/embeddings_pipeline_mapping-index-bounds.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/embeddings/embeddinggemma2-input-admission",
+          "path": "indexing/embeddings/embeddinggemma2-input-admission.test.js",
+          "lane": "integration",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 86,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8944d1e483f436c2428422f65619aeea21bc9bf6/cache-observation-wave-03-logs/run-1792846067119-uadh66/indexing_embeddings_embeddinggemma2-input-admission.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/embeddings/prepared-tensor-resource-ownership",
+          "path": "indexing/embeddings/prepared-tensor-resource-ownership.test.js",
+          "lane": "integration",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 115,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-8944d1e483f436c2428422f65619aeea21bc9bf6/cache-observation-wave-03-logs/run-1792846067119-uadh66/indexing_embeddings_prepared-tensor-resource-ownership.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        }
+      ]
     }
   ],
   "cumulativeClosure": {
     "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
-    "originalFailuresMovedToPassing": 40,
-    "originalFailuresWithoutPassingClosure": 60
+    "originalFailuresMovedToPassing": 48,
+    "originalFailuresWithoutPassingClosure": 52
   }
 }
