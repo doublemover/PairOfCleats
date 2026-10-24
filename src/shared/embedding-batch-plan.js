@@ -29,18 +29,20 @@ export const planEmbeddingBatches = ({ estimates, maxItems, tokenBudget, groups 
   }
   const bucket = index => Math.ceil(Math.log2(estimates[index]));
   let selected = baseline;
-  // Ascending buckets can strand long items in the final short batch. Compare
-  // both directions against the unchanged source-order plan. Never trade more
-  // calls or more estimated padded work for an unmeasured locality benefit.
-  for (const exact of [false, true]) for (const direction of [1, -1]) {
-    const length = exact ? index => estimates[index] : bucket;
-    const order = sourceOrder.slice().sort((a, b) => direction * (length(a) - length(b))
-      || (hasGroups ? groupOrder.get(groups[a]?.groupId) - groupOrder.get(groups[b]?.groupId) : 0) || a - b);
-    const candidate = pack(order, `${exact ? 'exact' : 'bucket'}-length-${direction === 1 ? 'ascending' : 'descending'}`);
-    if (candidate.batches.length > baseline.batches.length || candidate.paddedTokens > baseline.paddedTokens) continue;
-    if (candidate.paddedTokens < selected.paddedTokens
-      || (candidate.paddedTokens === selected.paddedTokens && candidate.batches.length < selected.batches.length)) {
-      selected = candidate;
+  // First establish the optimized ungrouped bound. Group-local tie ordering
+  // must improve that actual alternative, not only the source-order baseline.
+  for (const grouped of hasGroups ? [false, true] : [false]) {
+    const bound = selected;
+    for (const exact of [false, true]) for (const direction of [1, -1]) {
+      const length = exact ? index => estimates[index] : bucket;
+      const order = sourceOrder.slice().sort((a, b) => direction * (length(a) - length(b))
+        || (grouped ? groupOrder.get(groups[a]?.groupId) - groupOrder.get(groups[b]?.groupId) : 0) || a - b);
+      const candidate = pack(order, `${exact ? 'exact' : 'bucket'}-length-${direction === 1 ? 'ascending' : 'descending'}`);
+      if (candidate.batches.length > bound.batches.length || candidate.paddedTokens > bound.paddedTokens) continue;
+      if (candidate.paddedTokens < selected.paddedTokens
+        || (candidate.paddedTokens === selected.paddedTokens && candidate.batches.length < selected.batches.length)) {
+        selected = candidate;
+      }
     }
   }
   return { ...selected, baselinePaddedTokens: baseline.paddedTokens };

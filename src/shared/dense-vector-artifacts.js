@@ -44,7 +44,9 @@ export const writeDenseVectorArtifacts = async ({
   writeBinary = false
 }) => {
   const spec = resolveDenseQuantizationSpec(vectorFields);
-  for (const row of vectors) assertQuantizedEmbeddingRow(row, { spec, dims: vectorFields?.dims });
+  for (const row of vectors) {
+    if (row !== null) assertQuantizedEmbeddingRow(row, { spec, dims: vectorFields?.dims });
+  }
   vectorFields = { ...vectorFields, scale: spec.scale, minVal: spec.minVal, maxVal: spec.maxVal,
     levels: spec.levels, quantizationVersion: spec.version, zeroPoint: spec.zeroPoint,
     absence: spec.absence, validity: buildDenseVectorValidity(vectors) };

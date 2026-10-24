@@ -7,7 +7,10 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { MAX_JSON_BYTES } from '../../src/shared/artifact-io/constants.js';
 import { readJsonFile } from '../../src/shared/artifact-io/json.js';
-import { loadJsonObjectArtifact } from '../../src/shared/artifact-io/loaders.js';
+import { loadJsonArrayArtifact, loadJsonObjectArtifact } from '../../src/shared/artifact-io/loaders.js';
+import { materializeDenseVectorRows } from '../../src/shared/dense-vector-meta.js';
+import { buildDenseVectorValidity } from '../../src/shared/dense-vector-validity.js';
+import { resolveDenseQuantizationSpec } from '../../src/shared/embedding-quantization-spec.js';
 import { loadPiecesManifest, resolveArtifactPresence } from '../../src/shared/artifact-io/manifest.js';
 import {
   loadDenseVectorBinaryFromMetaAsync,
@@ -257,6 +260,30 @@ await runNativeDatabaseCommand({ commandIdentity: 'lmdb.build', delegated: true 
           // Logical dense rows also have a sharded JSON representation. Its
           // declaration does not imply that optional binary sidecars exist.
           if (!manifest.pieces.some(piece => piece.name === artifactName || piece.name === `${artifactName}_meta`)) return null;
+          const pieces = manifest.pieces.filter(piece => piece.name === artifactName);
+          if (pieces.length && pieces.every(piece => piece.format === 'jsonl')) {
+            // Stage 3 binds logical JSONL rows through this same manifest's
+            // index_state. Do not borrow an unregistered metadata sidecar.
+            const binding = indexState?.embeddings, identity = binding?.embeddingIdentity;
+            if (!identity || !/^[a-f0-9]{64}$/.test(binding.embeddingGeneration || '')
+              || pieces.some(piece => piece.dims !== identity.dims || !Number.isSafeInteger(piece.count) || piece.count < 0)) {
+              throw new Error(`[lmdb] ${artifactName} lacks its generation-bound row geometry.`);
+            }
+            const rows = await loadJsonArrayArtifact(indexDir, artifactName, { maxBytes: MAX_JSON_BYTES, manifest, strict: true });
+            if (rows.length !== chunkMeta.length || rows.length !== pieces.reduce((sum, piece) => sum + piece.count, 0)
+              || rows.some(row => !row || !Object.hasOwn(row, 'vector')
+                || (row.vector !== null && !Array.isArray(row.vector)))) {
+              throw new Error(`[lmdb] ${artifactName} row count or vector declaration is invalid.`);
+            }
+            const vectors = rows.map(row => row.vector);
+            const spec = resolveDenseQuantizationSpec({ ...identity.quantization, scale: identity.scale, embeddingIdentity: identity });
+            const payload = { dims: identity.dims, model: identity.modelId, minVal: spec.minVal, maxVal: spec.maxVal,
+              levels: spec.levels, scale: spec.scale, quantizationVersion: spec.version, zeroPoint: spec.zeroPoint,
+              absence: spec.absence, embeddingIdentity: identity, embeddingGeneration: binding.embeddingGeneration,
+              vectors, validity: buildDenseVectorValidity(vectors) };
+            materializeDenseVectorRows(payload);
+            return payload;
+          }
           return loadJsonObjectArtifact(indexDir, artifactName, { maxBytes: MAX_JSON_BYTES, manifest, strict: true });
         }
         const meta = await loadJsonObjectArtifact(indexDir, descriptor.metaName, {
