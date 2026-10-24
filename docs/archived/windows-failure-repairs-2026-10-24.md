@@ -267,3 +267,51 @@ generated freshness, command surface, workflow contract, all 40 gate cases,
 whitespace and Markdown links. Formatting leaves the committed runtime candidate
 unchanged. Publication adds only the durable observations and status documents;
 earlier waves retain their own candidates and verification scope.
+
+## Coverage and probe follow-up; implementation-first instruction
+
+Source `f6c7812a4b531cfa315a346c7b594c09eb421c4f`, tree
+`9599ee6abaca4b76f801066d09fdb57ebcb079f6`, passes eight targeted cases in
+13.0 seconds, repairing seven historical failures. Latest scoped counts are
+**105 passing, 353 failing and one exclusion**, with **nine original timeouts**
+remaining. These checks finished before the user instructed an implementation
+attempt for every remaining failure before further batch tests. The
+[360-item queue](windows-360-failure-repair-attempts-2026-10-24.json) freezes the
+preceding publication's failure IDs, including these seven completed repairs.
+Further tests and the next front gate are explicitly deferred under that
+instruction; formatting passes. No final-head gate or full-suite claim is made.
+
+The coverage policy schema now declares its seven required status counts, so
+strict compilation succeeds without changing the accepted value contract.
+Missing, negative, fractional and nonnumeric counts fail; existing additional
+integer counts remain compatible. Observed zero and unobserved/null inventory
+still differ. The real report generator and temporary Git-inventory cases pass.
+
+Probe invalidation now takes the same explicit environment identity as cache
+read/write. Previously it selected another key, missing both invalidation and
+the intended close/policy-recheck fault. Actual descriptor and policy failures
+now propagate; a two-environment positive proves precise deletion and preservation
+of the other entry. The canonical key owner is shared by production creation,
+ownership validation and fixture preparation. Cache reads omit a redundant third
+ancestor walk while retaining both contained-file admission checks, original
+descriptor identity, no-link and single-link predicates. Controlled linked metadata
+is rejected before open without creating physical links. No measured production
+latency speedup is claimed.
+
+The count-admission timeout was an oversized fixture preparation loop: 257
+complete inventory transactions repeated the same below-limit branch and scanned
+all previous prefixes. Replacement preparation uses one real producer entry,
+the same canonical producer key and identical payload inputs. It validates every
+seeded record's ownership and reads every entry through the actual public cache
+reader, then executes the real 256-to-257 write boundary. The unchanged default
+limit, exact oldest-entry removal, new-entry hit, oversized-payload refusal and
+protected pinned/unknown bytes remain asserted. The smaller reviewed-policy
+lifecycle retains repeated real mutations across count and byte bounds. The
+original 30-second timeout is preserved; the resulting case passes in 5.26 seconds.
+This qualifies a bounded correctness fixture, not 257 production writes in that
+time. Production writes still perform the complete category inventory.
+
+The sharded disk-account fixture checks the canonical aggregate's quota cause
+and exact original cleanup error instead of an obsolete mutable `cleanupError`
+field. Its physical-byte accounting, input closure, zero residual quota, refusal
+of unreserved copies and unchanged destination controls remain intact.

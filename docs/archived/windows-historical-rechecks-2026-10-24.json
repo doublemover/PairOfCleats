@@ -7238,6 +7238,140 @@
         "gate": "failed",
         "failure": "POSIX-only Git SIGTERM propagation still returns a normal exit; downstream jobs are unqualified. No local Linux or WSL execution."
       }
+    },
+    {
+      "sourceHead": "f6c7812a4b531cfa315a346c7b594c09eb421c4f",
+      "sourceTree": "9599ee6abaca4b76f801066d09fdb57ebcb079f6",
+      "recordedAt": "2026-10-24T07:48:16.537Z",
+      "scope": "Eight focused coverage/probe/disk cases completed before the instruction to attempt all remaining implementations before further tests.",
+      "summary": {
+        "durationMs": 12978,
+        "failed": 0,
+        "passed": 8,
+        "skipped": 0,
+        "total": 8
+      },
+      "policy": {
+        "timeoutMs": 30000,
+        "retries": 0,
+        "nativeStatusRedo": false,
+        "indexingThreads": 1,
+        "jobs": 1
+      },
+      "newlyPassingHistoricalFailures": [
+        "runner/harness/coverage-policy-schema-validation",
+        "shared/json-stream/sharded-disk-admission",
+        "shared/storage/probe-policy-failure-observation",
+        "shared/storage/probe-write-admission-preserves-unknown",
+        "tooling/cache/tooling-cache-contained-resource",
+        "tooling/ci/coverage-policy-report",
+        "tooling/ci/coverage-unobserved-inventory"
+      ],
+      "selectedLatest": {
+        "passed": 105,
+        "failed": 353,
+        "skipped": 1,
+        "remainingTimeouts": 9
+      },
+      "observations": [
+        {
+          "id": "runner/harness/coverage-policy-schema-validation",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 208,
+          "timedOut": false,
+          "sourceHead": "f6c7812a4b531cfa315a346c7b594c09eb421c4f",
+          "report": "coverage-probe-final.json"
+        },
+        {
+          "id": "shared/json-stream/sharded-disk-admission",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 2393,
+          "timedOut": false,
+          "sourceHead": "f6c7812a4b531cfa315a346c7b594c09eb421c4f",
+          "report": "coverage-probe-final.json"
+        },
+        {
+          "id": "shared/storage/probe-policy-failure-observation",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 656,
+          "timedOut": false,
+          "sourceHead": "f6c7812a4b531cfa315a346c7b594c09eb421c4f",
+          "report": "coverage-probe-final.json"
+        },
+        {
+          "id": "shared/storage/probe-policy-reviewed-lifecycle",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 1074,
+          "timedOut": false,
+          "sourceHead": "f6c7812a4b531cfa315a346c7b594c09eb421c4f",
+          "report": "coverage-probe-final.json"
+        },
+        {
+          "id": "shared/storage/probe-write-admission-preserves-unknown",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 5263,
+          "timedOut": false,
+          "sourceHead": "f6c7812a4b531cfa315a346c7b594c09eb421c4f",
+          "report": "coverage-probe-final.json"
+        },
+        {
+          "id": "tooling/cache/tooling-cache-contained-resource",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 499,
+          "timedOut": false,
+          "sourceHead": "f6c7812a4b531cfa315a346c7b594c09eb421c4f",
+          "report": "coverage-probe-final.json"
+        },
+        {
+          "id": "tooling/ci/coverage-policy-report",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 1620,
+          "timedOut": false,
+          "sourceHead": "f6c7812a4b531cfa315a346c7b594c09eb421c4f",
+          "report": "coverage-probe-final.json"
+        },
+        {
+          "id": "tooling/ci/coverage-unobserved-inventory",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 1255,
+          "timedOut": false,
+          "sourceHead": "f6c7812a4b531cfa315a346c7b594c09eb421c4f",
+          "report": "coverage-probe-final.json"
+        }
+      ],
+      "intermediateReports": [
+        "coverage-disk-focused.json",
+        "probe-read-disk-focused.json",
+        "probe-boundary-focused.json"
+      ],
+      "frontGate": {
+        "formatExitCode": 0,
+        "status": "deferred-by-user-until-every-failure-attempted",
+        "previousQualifiedSource": "f5334185b35a512d8d6e34e2dcd8361d67a16522"
+      },
+      "localEvidence": {
+        "root": ".tmp/tasks/windows-failure-repairs-20261024",
+        "historical": true,
+        "availableInCleanCheckout": false
+      },
+      "nativeAccessViolations": 0,
+      "unexpectedWarningDiagnostics": 0
     }
   ]
 }
