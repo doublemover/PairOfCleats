@@ -728,3 +728,38 @@ Nightly retirement coverage resolves every discovered canonical case, preserving
 the no-duplicate guard. LSP stale-child tests adopt the current structured spawn
 contract and retain actual child reaping and settlement assertions. These new
 repairs await the next focused batch.
+
+The 14-case follow-up at `fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3`
+passed nine and failed five, without timeouts, skips or crashes. Six more
+original failures acquired passing closure (28 cumulatively; 72 still open).
+Configuration, SQLite zero-state, both actual ANN variants, command override
+and nightly dispatch checks passed. The source-bound JSON preserves every
+result, including both stale-child fixtures' newly exposed restart backoff.
+
+The next source wave leases each declared managed child directory as well as
+its profile/category owners; diagnostic inspection and exact-target cleanup
+therefore see the active routed cache. Workspace enumeration now reaches its
+existing federated coordinator instead of an obsolete CLI prohibition. Child
+embedding diagnostics use the existing JSONL protocol and decoder, preserving
+full log messages before parent formatting while forwarding task progress.
+Verbose human mode is still width bounded and was insufficient for transport.
+
+TypeScript keyword filtering now distinguishes a bare keyword from a valid
+qualified member such as `ns.default`. Native Kotlin calls use their grammar's
+unnamed first child; Perl calls use function_name/package_name fields and keep
+the canonical qualified target. SourceChunking 24 invalidates those changed
+facts. Compiler completion work accepts the normalized zero-iteration policy
+as partial coverage without processing a state (cfgFlow 30), retaining invalid
+negative and noninteger budget rejection.
+
+Fixtures exercise actual candidate reuse by selecting lexical ANN reranking
+and matching ngram inputs, retaining exact result/score comparisons. RRF
+snapshots retain rank-only explanations; calibration additions apply only to
+blended scores. Replay fixtures inspect current format-qualified provider
+cache files and canonical argument slots, preserving all source-change and
+unknown-literal negatives. Delta inventory explicitly selects deterministic
+stub identity, since an unqualified artifact cannot authorize cache writes.
+MCP scoped cleanup retains a positive deletion control and adds explicit zero
+limit rejection. Stale-child fixtures observe configured backoff after actual
+resource closure, without retries or a longer deadline. This wave is pending
+focused validation.

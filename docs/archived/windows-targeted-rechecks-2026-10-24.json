@@ -1098,5 +1098,403 @@
       ],
       "historicalAuthorWorkspaceEvidence": true
     }
-  ]
+  ],
+  "followUps": [
+    {
+      "sourceHead": "fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3",
+      "startedAt": "2026-10-24T12:26:39.414Z",
+      "finishedAt": "2026-10-24T12:28:11.602Z",
+      "scope": "Windows selected-path, physical ANN rows, command probes and stale-child fixture follow-up; source-bound observations only.",
+      "policy": {
+        "timeoutMs": 30000,
+        "retries": 0,
+        "nativeStatusRedo": false,
+        "threads": 1,
+        "platform": "win32",
+        "node": "v26.12.1",
+        "removedLaunchSetting": "PAIROFCLEATS_TRUSTED_CONFIG: missing configured file; no replacement authority granted"
+      },
+      "summary": {
+        "selected": 14,
+        "passed": 9,
+        "failed": 5,
+        "timeouts": 0,
+        "skipped": 0
+      },
+      "cohorts": [
+        {
+          "name": "path-lifecycle-wave-01",
+          "summary": {
+            "total": 5,
+            "passed": 3,
+            "failed": 2,
+            "skipped": 0,
+            "durationMs": 31591
+          },
+          "ids": [
+            "retrieval/ann/generation-lmdb",
+            "retrieval/ann/generation-publication",
+            "shared/storage/configuration-cli-sealed-roundtrip",
+            "tooling/install/operational-storage-selected-layout",
+            "tooling/workspace/onboarding-cli-fixtures"
+          ]
+        },
+        {
+          "name": "path-lifecycle-wave-02",
+          "summary": {
+            "total": 5,
+            "passed": 4,
+            "failed": 1,
+            "skipped": 0,
+            "durationMs": 55263
+          },
+          "ids": [
+            "indexing/build-state/produced-contract",
+            "indexing/incremental/bundle-mapping-reasons",
+            "storage/sqlite/zero-state-proof-admission",
+            "tooling/ci/run-suite-script-coverage-plan",
+            "tooling/doctor/command-profile-contract-matrix"
+          ]
+        },
+        {
+          "name": "path-lifecycle-wave-03",
+          "summary": {
+            "total": 4,
+            "passed": 2,
+            "failed": 2,
+            "skipped": 0,
+            "durationMs": 1699
+          },
+          "ids": [
+            "indexing/embeddings/quantization-no-wrap",
+            "indexing/validate/index-sqlite-zero-state-db-required",
+            "tooling/lsp/reader-closed-restart-reaps-stale-process",
+            "tooling/lsp/writer-closed-restart-reaps-stale-process"
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "id": "retrieval/ann/generation-lmdb",
+          "path": "retrieval/ann/generation-lmdb.test.js",
+          "lane": "integration",
+          "tags": [
+            "integration",
+            "lmdb",
+            "retrieval"
+          ],
+          "status": "passed",
+          "durationMs": 13457,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3/path-lifecycle-wave-01-logs/run-1792844801107-uk80zi/retrieval_ann_generation-lmdb.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "retrieval/ann/generation-publication",
+          "path": "retrieval/ann/generation-publication.test.js",
+          "lane": "integration",
+          "tags": [
+            "integration",
+            "retrieval"
+          ],
+          "status": "passed",
+          "durationMs": 1272,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3/path-lifecycle-wave-01-logs/run-1792844801107-uk80zi/retrieval_ann_generation-publication.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "shared/storage/configuration-cli-sealed-roundtrip",
+          "path": "shared/storage/configuration-cli-sealed-roundtrip.test.js",
+          "lane": "unit",
+          "tags": [
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 4479,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3/path-lifecycle-wave-01-logs/run-1792844801107-uk80zi/shared_storage_configuration-cli-sealed-roundtrip.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/install/operational-storage-selected-layout",
+          "path": "tooling/install/operational-storage-selected-layout.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "failed",
+          "durationMs": 618,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3/path-lifecycle-wave-01-logs/run-1792844801107-uk80zi/tooling_install_operational-storage-selected-layout.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3/path-lifecycle-wave-01-logs/run-1792844801107-uk80zi/tooling_install_operational-storage-selected-layout.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/workspace/onboarding-cli-fixtures",
+          "path": "tooling/workspace/onboarding-cli-fixtures.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "failed",
+          "durationMs": 11751,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3/path-lifecycle-wave-01-logs/run-1792844801107-uk80zi/tooling_workspace_onboarding-cli-fixtures.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3/path-lifecycle-wave-01-logs/run-1792844801107-uk80zi/tooling_workspace_onboarding-cli-fixtures.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/build-state/produced-contract",
+          "path": "indexing/build-state/produced-contract.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 15828,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3/path-lifecycle-wave-02-logs/run-1792844833631-xyddaf/indexing_build-state_produced-contract.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/incremental/bundle-mapping-reasons",
+          "path": "indexing/incremental/bundle-mapping-reasons.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "failed",
+          "durationMs": 19500,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3/path-lifecycle-wave-02-logs/run-1792844833631-xyddaf/indexing_incremental_bundle-mapping-reasons.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3/path-lifecycle-wave-02-logs/run-1792844833631-xyddaf/indexing_incremental_bundle-mapping-reasons.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "storage/sqlite/zero-state-proof-admission",
+          "path": "storage/sqlite/zero-state-proof-admission.test.js",
+          "lane": "storage",
+          "tags": [
+            "sqlite",
+            "storage"
+          ],
+          "status": "passed",
+          "durationMs": 422,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3/path-lifecycle-wave-02-logs/run-1792844833631-xyddaf/storage_sqlite_zero-state-proof-admission.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/ci/run-suite-script-coverage-plan",
+          "path": "tooling/ci/run-suite-script-coverage-plan.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 15662,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3/path-lifecycle-wave-02-logs/run-1792844833631-xyddaf/tooling_ci_run-suite-script-coverage-plan.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/doctor/command-profile-contract-matrix",
+          "path": "tooling/doctor/command-profile-contract-matrix.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 3840,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3/path-lifecycle-wave-02-logs/run-1792844833631-xyddaf/tooling_doctor_command-profile-contract-matrix.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/embeddings/quantization-no-wrap",
+          "path": "indexing/embeddings/quantization-no-wrap.test.js",
+          "lane": "integration",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 115,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3/path-lifecycle-wave-03-logs/run-1792844889888-hpb1o6/indexing_embeddings_quantization-no-wrap.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/validate/index-sqlite-zero-state-db-required",
+          "path": "indexing/validate/index-sqlite-zero-state-db-required.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration",
+            "sqlite"
+          ],
+          "status": "passed",
+          "durationMs": 290,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3/path-lifecycle-wave-03-logs/run-1792844889888-hpb1o6/indexing_validate_index-sqlite-zero-state-db-required.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/lsp/reader-closed-restart-reaps-stale-process",
+          "path": "tooling/lsp/reader-closed-restart-reaps-stale-process.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "failed",
+          "durationMs": 653,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3/path-lifecycle-wave-03-logs/run-1792844889888-hpb1o6/tooling_lsp_reader-closed-restart-reaps-stale-process.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3/path-lifecycle-wave-03-logs/run-1792844889888-hpb1o6/tooling_lsp_reader-closed-restart-reaps-stale-process.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/lsp/writer-closed-restart-reaps-stale-process",
+          "path": "tooling/lsp/writer-closed-restart-reaps-stale-process.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "failed",
+          "durationMs": 629,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3/path-lifecycle-wave-03-logs/run-1792844889888-hpb1o6/tooling_lsp_writer-closed-restart-reaps-stale-process.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3/path-lifecycle-wave-03-logs/run-1792844889888-hpb1o6/tooling_lsp_writer-closed-restart-reaps-stale-process.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        }
+      ]
+    }
+  ],
+  "cumulativeClosure": {
+    "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
+    "originalFailuresMovedToPassing": 28,
+    "originalFailuresWithoutPassingClosure": 72
+  }
 }

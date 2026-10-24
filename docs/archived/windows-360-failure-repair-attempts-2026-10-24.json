@@ -41,6 +41,11 @@
       "skipped": 0,
       "originalFailuresMovedToPassing": 22,
       "originalFailuresWithoutPassingClosure": 78
+    },
+    "followUpClosure": {
+      "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
+      "originalFailuresMovedToPassing": 28,
+      "originalFailuresWithoutPassingClosure": 72
     }
   },
   "items": [
@@ -621,9 +626,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 1619,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
-      "latestRecheckDurationMs": 1394
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3",
+      "latestRecheckDurationMs": 4479
     },
     {
       "id": "shared/storage/dictionary-category-migration",
@@ -1196,9 +1201,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 11647,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
-      "latestRecheckDurationMs": 12092
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3",
+      "latestRecheckDurationMs": 13457
     },
     {
       "id": "retrieval/ann/generation-publication",
@@ -1216,9 +1221,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 966,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
-      "latestRecheckDurationMs": 1006
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3",
+      "latestRecheckDurationMs": 1272
     },
     {
       "id": "retrieval/ann/generation-rebuild-failure",
@@ -1882,9 +1887,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 16559,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
-      "latestRecheckDurationMs": 14809
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3",
+      "latestRecheckDurationMs": 15662
     },
     {
       "id": "tooling/config/runtime-diagnostics-readonly",
@@ -1980,9 +1985,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 5571,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
-      "latestRecheckDurationMs": 3721
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3",
+      "latestRecheckDurationMs": 3840
     },
     {
       "id": "tooling/doctor/command-profile-probe-cache-matrix",
@@ -2475,8 +2480,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 291,
       "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
-      "latestRecheckDurationMs": 267
+      "latestRecheckSourceHead": "fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3",
+      "latestRecheckDurationMs": 618
     },
     {
       "id": "tooling/install/parallel-patch-preparation",
@@ -3040,7 +3045,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 180
+      "recheckDurationMs": 180,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3",
+      "latestRecheckDurationMs": 653
     },
     {
       "id": "tooling/lsp/request-local-write-settlement",
@@ -3147,7 +3155,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 167
+      "recheckDurationMs": 167,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3",
+      "latestRecheckDurationMs": 629
     },
     {
       "id": "tooling/navigation-source-binding",
@@ -3957,8 +3968,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 7232,
       "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
-      "latestRecheckDurationMs": 8847
+      "latestRecheckSourceHead": "fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3",
+      "latestRecheckDurationMs": 11751
     },
     {
       "id": "indexing/artifacts/artifact-size-guardrails",
@@ -4137,9 +4148,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 17678,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
-      "latestRecheckDurationMs": 18242
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3",
+      "latestRecheckDurationMs": 15828
     },
     {
       "id": "indexing/build/immutable-graph-capability",
@@ -4848,8 +4859,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 20849,
       "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
-      "latestRecheckDurationMs": 19692
+      "latestRecheckSourceHead": "fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3",
+      "latestRecheckDurationMs": 19500
     },
     {
       "id": "indexing/incremental/piece-output-producer-identity",
@@ -5614,7 +5625,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "passed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 317
+      "recheckDurationMs": 317,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "fc7b3ea5a5be9dfebd3e0dd05f89aeb91e2b57a3",
+      "latestRecheckDurationMs": 290
     },
     {
       "id": "indexing/vfs/cdc-segmentation-contract",
