@@ -33,10 +33,10 @@ const capturePayload = bytes => {
   return Buffer.from(bytes);
 };
 
-const writers = new WeakMap();
-export const withSemanticDiskWriter = async (account, filename, write) => {
-  let pending = writers.get(account);
-  if (!pending) { pending = new Map(); writers.set(account, pending); }
+const writers = new WeakMap(), retentionWriters = new WeakMap();
+const withDiskWriter = async (owners, account, filename, write) => {
+  let pending = owners.get(account);
+  if (!pending) { pending = new Map(); owners.set(account, pending); }
   const key = path.resolve(filename), prior = pending.get(key) || Promise.resolve();
   const operation = prior.catch(error => {
     observeStorageResource(error, { phase: 'semantic-disk-writer-prerequisite' }).requireSettled();
@@ -50,6 +50,7 @@ export const withSemanticDiskWriter = async (account, filename, write) => {
   }
   finally { if (settled && pending.get(key) === operation) pending.delete(key); }
 };
+export const withSemanticDiskWriter = (account, filename, write) => withDiskWriter(writers, account, filename, write);
 
 /** Mutable metadata keeps both old and temporary bytes admitted until rename.
  * Uncertain failures retain credits; reopening counts the physical inventory.
@@ -78,70 +79,75 @@ export const writeSemanticJson = async ({ filename, value, diskAccount, signal =
 export const retainSemanticBytes = async ({ filename, bytes, diskAccount, signal = null,
   root = path.dirname(filename), metrics = null }) => {
   const payload = capturePayload(bytes);
-  const conflict = () => Object.assign(new Error('Conflicting immutable semantic bytes.'), { code: 'ERR_SEMANTIC_INTEGRITY' });
-  const verify = async () => {
-    const result = await withContainedFile(root, filename, async descriptor => {
-      throwIfAborted(signal);
-      const before = await descriptor.stat({ bigint: true });
-      if (before.size !== BigInt(payload.length)) throw new Error('Semantic immutable storage authority changed.');
-      // Compare bounded chunks to the captured payload. No readFile allocation,
-      // second source hash or mutable caller byte view crosses an awaited read.
-      const buffer = Buffer.alloc(Math.min(65536, payload.length));
-      let offset = 0;
-      while (offset < payload.length) {
+  // Source callers may already hold their source/receipt writer. A separate
+  // retention lane joins publication through temporary-link removal without
+  // re-entering that writer or allowing peers to change the inode's ctime.
+  return withDiskWriter(retentionWriters, diskAccount, filename, async () => {
+    const conflict = () => Object.assign(new Error('Conflicting immutable semantic bytes.'), { code: 'ERR_SEMANTIC_INTEGRITY' });
+    const verify = async () => {
+      const result = await withContainedFile(root, filename, async descriptor => {
         throwIfAborted(signal);
-        const length = Math.min(buffer.length, payload.length - offset);
-        const { bytesRead } = await descriptor.read(buffer, 0, length, offset);
+        const before = await descriptor.stat({ bigint: true });
+        if (before.size !== BigInt(payload.length)) throw conflict();
+        // Compare bounded chunks to the captured payload. No readFile allocation,
+        // second source hash or mutable caller byte view crosses an awaited read.
+        const buffer = Buffer.alloc(Math.min(65536, payload.length));
+        let offset = 0;
+        while (offset < payload.length) {
+          throwIfAborted(signal);
+          const length = Math.min(buffer.length, payload.length - offset);
+          const { bytesRead } = await descriptor.read(buffer, 0, length, offset);
+          throwIfAborted(signal);
+          if (!Number.isInteger(bytesRead) || bytesRead < 1 || bytesRead > length) throw conflict();
+          if (metrics) metrics.semanticRetentionBytesRead = (metrics.semanticRetentionBytesRead || 0) + bytesRead;
+          if (!buffer.subarray(0, bytesRead).equals(payload.subarray(offset, offset + bytesRead))) throw conflict();
+          offset += bytesRead;
+        }
+        const after = await descriptor.stat({ bigint: true }), current = await fs.lstat(filename, { bigint: true });
         throwIfAborted(signal);
-        if (!Number.isInteger(bytesRead) || bytesRead < 1 || bytesRead > length) throw conflict();
-        if (metrics) metrics.semanticRetentionBytesRead = (metrics.semanticRetentionBytesRead || 0) + bytesRead;
-        if (!buffer.subarray(0, bytesRead).equals(payload.subarray(offset, offset + bytesRead))) throw conflict();
-        offset += bytesRead;
-      }
-      const after = await descriptor.stat({ bigint: true }), current = await fs.lstat(filename, { bigint: true });
-      throwIfAborted(signal);
-      const stable = stat => stat.isFile() && !stat.isSymbolicLink() && stat.dev === before.dev && stat.ino === before.ino
+        const stable = stat => stat.isFile() && !stat.isSymbolicLink() && stat.dev === before.dev && stat.ino === before.ino
         && stat.size === before.size && stat.mtimeNs === before.mtimeNs && stat.ctimeNs === before.ctimeNs;
-      if (!stable(after) || !stable(current)) throw new Error('Semantic immutable storage changed during verification.');
-      descriptor.verify();
-      return after;
-    });
+        if (!stable(after) || !stable(current)) throw new Error('Semantic immutable storage changed during verification.');
+        descriptor.verify();
+        return after;
+      });
+      throwIfAborted(signal);
+      if (metrics) metrics.semanticRetentionVerifications = (metrics.semanticRetentionVerifications || 0) + 1;
+      return result;
+    };
     throwIfAborted(signal);
-    if (metrics) metrics.semanticRetentionVerifications = (metrics.semanticRetentionVerifications || 0) + 1;
-    return result;
-  };
-  throwIfAborted(signal);
-  try { return await verify(); } catch (error) { if (readPersistenceFailureCode(error) !== 'ENOENT') throw error; }
-  await fs.mkdir(path.dirname(filename), { recursive: true });
-  throwIfAborted(signal);
-  assertNoSymlinkPath(root, filename, { allowMissing: true });
-  diskAccount.reserve(payload.length);
-  const temporary = path.join(path.dirname(filename), '.pending-' + randomUUID());
-  let retained = false, primaryError = null;
-  try {
-    const handle = await fs.open(temporary, 'wx');
-    const owner = createContainedFileResource({ handle, sync: false, additionalMethods: ['writeFile', 'sync'] });
-    await owner.run(async descriptor => {
-      owner.inspect(fd => verifyContainedFileHandle(fd, root, temporary));
-      throwIfAborted(signal); requireVoid(await descriptor.writeFile(payload), 'temporary write');
-      throwIfAborted(signal); requireVoid(await descriptor.sync(), 'temporary sync');
-      owner.inspect(fd => verifyContainedFileHandle(fd, root, temporary));
-    });
+    try { return await verify(); } catch (error) { if (readPersistenceFailureCode(error) !== 'ENOENT') throw error; }
+    await fs.mkdir(path.dirname(filename), { recursive: true });
     throwIfAborted(signal);
     assertNoSymlinkPath(root, filename, { allowMissing: true });
-    try { requireVoid(await fs.link(temporary, filename), 'immutable publication'); retained = true; }
-    catch (error) { if (readPersistenceFailureCode(error) !== 'EEXIST') throw error; await verify(); }
-    await syncParentDirectory(filename);
-    await syncParentDirectory(path.dirname(filename));
-    return await verify();
-  } catch (error) {
-    primaryError = error; throw error;
-  } finally {
-    // A failed original close or directory operation cannot authorize unlink or
-    // credit release. Recovery retains only that exact original resource owner.
-    if (primaryError) observeStorageResource(primaryError, { phase: 'semantic-retention-cleanup' }).requireSettled();
-    try { requireVoid(await fs.rm(temporary, { force: true }), 'temporary removal'); }
-    catch (error) { if (primaryError) throw addStorageFailureContext(primaryError, {}, error, { secondaryPresent: true }); throw error; }
-    if (!retained) diskAccount.release(payload.length);
-  }
+    diskAccount.reserve(payload.length);
+    const temporary = path.join(path.dirname(filename), '.pending-' + randomUUID());
+    let retained = false, primaryError, primaryCaught = false;
+    try {
+      const handle = await fs.open(temporary, 'wx');
+      const owner = createContainedFileResource({ handle, sync: false, additionalMethods: ['writeFile', 'sync'] });
+      await owner.run(async descriptor => {
+        owner.inspect(fd => verifyContainedFileHandle(fd, root, temporary));
+        throwIfAborted(signal); requireVoid(await descriptor.writeFile(payload), 'temporary write');
+        throwIfAborted(signal); requireVoid(await descriptor.sync(), 'temporary sync');
+        owner.inspect(fd => verifyContainedFileHandle(fd, root, temporary));
+      });
+      throwIfAborted(signal);
+      assertNoSymlinkPath(root, filename, { allowMissing: true });
+      try { requireVoid(await fs.link(temporary, filename), 'immutable publication'); retained = true; }
+      catch (error) { if (readPersistenceFailureCode(error) !== 'EEXIST') throw error; await verify(); }
+      await syncParentDirectory(filename);
+      await syncParentDirectory(path.dirname(filename));
+    } catch (error) {
+      primaryCaught = true; primaryError = error; throw error;
+    } finally {
+      // A failed original close or directory operation cannot authorize unlink or
+      // credit release. Recovery retains only that exact original resource owner.
+      if (primaryCaught) observeStorageResource(primaryError, { phase: 'semantic-retention-cleanup' }).requireSettled();
+      try { requireVoid(await fs.rm(temporary, { force: true }), 'temporary removal'); }
+      catch (error) { if (primaryCaught) throw addStorageFailureContext(primaryError, {}, error, { secondaryPresent: true }); throw error; }
+      if (!retained) diskAccount.release(payload.length);
+    }
+    return verify();
+  });
 };
