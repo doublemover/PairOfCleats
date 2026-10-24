@@ -44,7 +44,8 @@ try {
   finally { closed++; throw cleanup; } })();
   const denied = createSemanticDiskAccount(1);
   await assert.rejects(writeJsonLinesSharded({ dir: quota, partsDirName: 'parts', partPrefix: 'part-', items: deniedItems,
-    maxBytes: 1024, diskAccount: denied }), error => error.code === 'ERR_SEMANTIC_DISK_LIMIT' && error.cleanupError === cleanup);
+    maxBytes: 1024, diskAccount: denied }), error => error.code === 'ERR_SEMANTIC_DISK_LIMIT'
+      && error.cause.code === 'ERR_SEMANTIC_DISK_LIMIT' && error.errors.includes(cleanup));
   assert.equal(closed, 1, 'quota denial settles the input generator before returning its primary failure');
   assert.equal(denied.used, 0); assert.equal(await physicalBytes(quota), 0);
   await assert.rejects(writeJsonLinesSharded({ dir: quota, partsDirName: 'compressed', partPrefix: 'part-', items: [],
