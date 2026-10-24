@@ -441,3 +441,23 @@ VSIX repair `dbe962953` is queued for the original two-package determinism check
 Selected-repository enumeration remains open with new pre-dispatch diagnostics.
 All 19 selected editor failures are attempted: 138/360 total, 222 unattempted.
 Only formatting has run; no runtime acceptance is claimed.
+
+Storage/artifact implementation `5b6e6e448` and `74c8c215e` attempts 24 cases.
+Cleanup preserves explicit thrown undefined and drains independent resources.
+Minhash uses its existing packed representation when a JSON companion exceeds
+the unchanged admission cap. Bundle-fallback mutations publish new canonical
+snapshots before retaining intentionally stale content counts. Semantic fixtures
+use valid coverage scopes and source-only ownership without enabling unsupported
+extractors. Boundary reads admit the exact positive size and assert default-cap
+rejection. SQLite fixtures explicitly select non-Git disposable discovery, real
+generation/main-DB paths and actual insert-context schema methods. Existing
+canonical-root/source-hash repairs cover three additional semantic consumers.
+The determinism-report wrapper uses the smaller sample input while preserving
+all report assertions; polyglot parsing stays covered by language owners. Cleanup
+now proves mixed evidence preservation and independent producer-qualified cache
+removal; neither arbitrary legacy database deletion nor removal of the repos
+control parent is an admitted product behavior. Manifest health first proves
+no publication, then inspects the explicitly published broken manifest. Skip-write
+still requires actual drift evidence, with its original assertions retained.
+The ledger now records 162/360 attempts and 198 unattempted; runtime re-tests,
+front gate and final-head acceptance remain deferred. Formatting passes.

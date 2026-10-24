@@ -19,11 +19,11 @@
   },
   "summary": {
     "selected": 360,
-    "not-attempted": 222,
-    "implemented-unvalidated": 107,
-    "needs-further-implementation": 9,
+    "not-attempted": 198,
+    "implemented-unvalidated": 127,
+    "needs-further-implementation": 10,
+    "attempted-existing-owner-repair": 18,
     "implemented": 7,
-    "attempted-existing-owner-repair": 15,
     "finalBatchPassed": 0
   },
   "items": [
@@ -202,8 +202,8 @@
       "id": "storage/semantic/explain-input-lifetime",
       "path": "storage/semantic/explain-input-lifetime.test.js",
       "owner": "storage/semantic",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "attempted-existing-owner-repair",
+      "sourceHead": "9438271dc",
       "originalTimedOut": false,
       "originalFailure": "Error: Requested repository differs from store scope.",
       "failureLocations": [
@@ -214,15 +214,15 @@
         "src/semantic/artifact-store.js:184:56",
         "src/semantic/reader-lifetime.js:21:22"
       ],
-      "notes": null,
+      "notes": "Shared recovery roots are canonical Windows identities and cache fixtures use actual SHA-1 source bytes. Original request immutability, scope mismatch, replay and completion assertions remain for later batch re-check.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "storage/semantic/retained-source-reader-lifetime",
       "path": "storage/semantic/retained-source-reader-lifetime.test.js",
       "owner": "storage/semantic",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5b6e6e448",
       "originalTimedOut": false,
       "originalFailure": "Error: Source excerpts exceed response byte limit.",
       "failureLocations": [
@@ -230,7 +230,7 @@
         "src/semantic/artifact-store.js:314:57",
         "tests/storage/semantic/retained-source-reader-lifetime.test.js:75:20"
       ],
-      "notes": null,
+      "notes": "Boundary-crossing source explicitly admits its exact byte count for the read-lifetime positive and additionally requires the default 64 KiB response cap to reject it. Original short reads, maximum read sizes, original faults, mutation and close checks retained.",
       "finalBatchStatus": "pending"
     },
     {
@@ -616,8 +616,8 @@
       "id": "storage/semantic/call-site-retained-source-handoff",
       "path": "storage/semantic/call-site-retained-source-handoff.test.js",
       "owner": "storage/semantic",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5b6e6e448",
       "originalTimedOut": false,
       "originalFailure": "TypeError: Invalid semantic policy: [{\"instancePath\":\"/languages/0\",\"schemaPath\":\"#/properties/languages/items/enum\",\"keyword\":\"enum\",\"params\":{\"allowedValues\":[\"javascript\",\"typescript\",\"wasm\",\"python\",\"c\",\"swift\",\"rust\"]},\"message\":\"must be equal to one of the allowed values\"}]",
       "failureLocations": [
@@ -625,15 +625,15 @@
         "src/index/semantic/config.js:13:43",
         "tests/storage/semantic/call-site-retained-source-handoff.test.js:28:16"
       ],
-      "notes": null,
+      "notes": "Use canonical generation/source/schema authority and real fixture prerequisites; original correctness, shape, cleanup and fallback assertions retained. Runtime batch deferred.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "storage/semantic/coalesced-durable-parts",
       "path": "storage/semantic/coalesced-durable-parts.test.js",
       "owner": "storage/semantic",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5b6e6e448",
       "originalTimedOut": false,
       "originalFailure": "Error: /scope must be object; /scope must be object; /scope must match a schema in anyOf",
       "failureLocations": [
@@ -642,29 +642,29 @@
         "src/index/build/artifacts/writers/semantic/partition.js:140:33",
         "tests/storage/semantic/coalesced-durable-parts.test.js:25:58"
       ],
-      "notes": null,
+      "notes": "Use canonical generation/source/schema authority and real fixture prerequisites; original correctness, shape, cleanup and fallback assertions retained. Runtime batch deferred.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "storage/semantic/first-stage-completion",
       "path": "storage/semantic/first-stage-completion.test.js",
       "owner": "storage/semantic",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "attempted-existing-owner-repair",
+      "sourceHead": "9438271dc",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:",
       "failureLocations": [
         "tests/storage/semantic/first-stage-completion.test.js:87:10"
       ],
-      "notes": null,
+      "notes": "Shared recovery roots are canonical Windows identities and cache fixtures use actual SHA-1 source bytes. Original request immutability, scope mismatch, replay and completion assertions remain for later batch re-check.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "storage/semantic/request-capture",
       "path": "storage/semantic/request-capture.test.js",
       "owner": "storage/semantic",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "attempted-existing-owner-repair",
+      "sourceHead": "9438271dc",
       "originalTimedOut": false,
       "originalFailure": "Error: Requested repository differs from the store scope.",
       "failureLocations": [
@@ -675,15 +675,15 @@
         "src/semantic/artifact-store.js:184:56",
         "src/semantic/reader-lifetime.js:21:22"
       ],
-      "notes": null,
+      "notes": "Shared recovery roots are canonical Windows identities and cache fixtures use actual SHA-1 source bytes. Original request immutability, scope mismatch, replay and completion assertions remain for later batch re-check.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "storage/semantic/runtime-cleanup-original-failures",
       "path": "storage/semantic/runtime-cleanup-original-failures.test.js",
       "owner": "storage/semantic",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5b6e6e448",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The validation function is expected to return \"true\". Received false",
       "failureLocations": [
@@ -694,29 +694,29 @@
         "tests/storage/semantic/runtime-cleanup-original-failures.test.js:10:98",
         "src/index/semantic/runtime/close-resources.js:10:24"
       ],
-      "notes": null,
+      "notes": "Remove the default-null argument substitution that overwrote an explicitly thrown undefined before canonical cleanup aggregation. Falsey/frozen original errors and independent cleanup observers remain covered.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "storage/sqlite/all-mode-published-roots",
       "path": "storage/sqlite/all-mode-published-roots.test.js",
       "owner": "storage/sqlite",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5b6e6e448",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/storage/sqlite/all-mode-published-roots.test.js:45:12"
       ],
-      "notes": null,
+      "notes": "Use canonical generation/source/schema authority and real fixture prerequisites; original correctness, shape, cleanup and fallback assertions retained. Runtime batch deferred.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "storage/sqlite/build-indexes",
       "path": "storage/sqlite/build-indexes.test.js",
       "owner": "storage/sqlite",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5b6e6e448",
       "originalTimedOut": false,
       "originalFailure": "TypeError: Cannot open database because the directory does not exist",
       "failureLocations": [
@@ -724,29 +724,29 @@
         "tests/helpers/test-env.js:92:18",
         "tests/storage/sqlite/build-indexes.test.js:44:9"
       ],
-      "notes": null,
+      "notes": "Use canonical generation/source/schema authority and real fixture prerequisites; original correctness, shape, cleanup and fallback assertions retained. Runtime batch deferred.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "storage/sqlite/build-root-active-generation-plan",
       "path": "storage/sqlite/build-root-active-generation-plan.test.js",
       "owner": "storage/sqlite",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5b6e6e448",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected sqlite mode planning to succeed",
       "failureLocations": [
         "tests/storage/sqlite/build-root-active-generation-plan.test.js:54:8"
       ],
-      "notes": null,
+      "notes": "Use canonical generation/source/schema authority and real fixture prerequisites; original correctness, shape, cleanup and fallback assertions retained. Runtime batch deferred.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "storage/sqlite/build/sqlite-core-contract",
       "path": "storage/sqlite/build/sqlite-core-contract.test.js",
       "owner": "storage/sqlite",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5b6e6e448",
       "originalTimedOut": false,
       "originalFailure": "TypeError: db.exec is not a function",
       "failureLocations": [
@@ -756,43 +756,43 @@
         "src/storage/sqlite/build/core.js:243:22",
         "tests/storage/sqlite/build/sqlite-core-contract.test.js:50:23"
       ],
-      "notes": null,
+      "notes": "Use canonical generation/source/schema authority and real fixture prerequisites; original correctness, shape, cleanup and fallback assertions retained. Runtime batch deferred.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "storage/sqlite/incremental/bundle-count-mismatch-fallback",
       "path": "storage/sqlite/incremental/bundle-count-mismatch-fallback.test.js",
       "owner": "storage/sqlite",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5b6e6e448",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The input did not match the regular expression /incremental bundle build failed for code: bundle row count mismatch \\(\\d+ !== \\d+\\); using artifacts\\./i. Input:",
       "failureLocations": [
         "tests/storage/sqlite/incremental/bundle-count-mismatch-fallback.test.js:28:8"
       ],
-      "notes": null,
+      "notes": "Publish fixture mutations through writeIncrementalBundleSnapshot and update selected manifest identities last. Deliberately stale row/embedding counts still reach their original fallback checks; checksum/snapshot authority is not bypassed.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "storage/sqlite/incremental/bundle-partial-chunk-fallback",
       "path": "storage/sqlite/incremental/bundle-partial-chunk-fallback.test.js",
       "owner": "storage/sqlite",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5b6e6e448",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The input did not match the regular expression /incremental bundle build failed for code: bundles missing embeddings; using artifacts\\./i. Input:",
       "failureLocations": [
         "tests/storage/sqlite/incremental/bundle-partial-chunk-fallback.test.js:38:8"
       ],
-      "notes": null,
+      "notes": "Publish fixture mutations through writeIncrementalBundleSnapshot and update selected manifest identities last. Deliberately stale row/embedding counts still reach their original fallback checks; checksum/snapshot authority is not bypassed.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "storage/sqlite/maintenance-sidecar-cleanup",
       "path": "storage/sqlite/maintenance-sidecar-cleanup.test.js",
       "owner": "storage/sqlite",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "74c8c215e",
       "originalTimedOut": false,
       "originalFailure": "Error: [sqlite] Orphaned WAL recovery requires its original database: c:\\users\\sneak\\development\\pairofcleats\\.tmp\\dev\\tests\\cache\\sqlite-maintenance-sidecar-cleanup\\cache\\repos\\repo-9f2817f0da89\\builds\\20261024t042248z_f390239c_noscm_2e85c667\\index-sqlite\\index-code.db",
       "failureLocations": [
@@ -803,21 +803,21 @@
         "tests/helpers/test-env.js:75:12",
         "tests/storage/sqlite/helpers/maintenance-scenarios.js:165:3"
       ],
-      "notes": null,
+      "notes": "Use outputPaths.code from the actual builder, create each generation main database before injecting sidecars, and retain both full/incremental cleanup assertions. Orphan WAL preservation remains separately covered by storage/sqlite/wal-publication-preservation.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "storage/sqlite/migrations/schema-mismatch-rebuild",
       "path": "storage/sqlite/migrations/schema-mismatch-rebuild.test.js",
       "owner": "storage/sqlite",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5b6e6e448",
       "originalTimedOut": false,
       "originalFailure": "TypeError: Cannot open database because the directory does not exist",
       "failureLocations": [
         "tests/storage/sqlite/migrations/schema-mismatch-rebuild.test.js:30:21"
       ],
-      "notes": null,
+      "notes": "Use canonical generation/source/schema authority and real fixture prerequisites; original correctness, shape, cleanup and fallback assertions retained. Runtime batch deferred.",
       "finalBatchStatus": "pending"
     },
     {
@@ -3254,70 +3254,70 @@
       "id": "indexing/artifacts/artifact-size-guardrails",
       "path": "indexing/artifacts/artifact-size-guardrails.test.js",
       "owner": "indexing/artifacts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5b6e6e448",
       "originalTimedOut": false,
       "originalFailure": "Failed: build_index (artifact guardrails (small max))",
       "failureLocations": [],
-      "notes": null,
+      "notes": "Minhash writer selects the existing packed representation when the JSON upper bound exceeds the unchanged reader admission limit, removing oversized JSON companions. All original small-size sharding/format cleanup assertions remain.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/artifacts/clean",
       "path": "indexing/artifacts/clean.test.js",
       "owner": "indexing/artifacts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "74c8c215e",
       "originalTimedOut": false,
       "originalFailure": "clean-artifacts test failed: script exited with non-zero status.",
       "failureLocations": [],
-      "notes": null,
+      "notes": "Original mixed index/metrics/legacy database input now proves protection and exact byte preservation. Independent positives remove only a registered derived-cache payload and retain shared assets. Pure cache path selection avoids creating a fixture-owned live reader lease; --all verifies the selected qualified repo, not deletion of the control parent.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/artifacts/determinism-report-artifact",
       "path": "indexing/artifacts/determinism-report-artifact.test.js",
       "owner": "indexing/artifacts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "74c8c215e",
       "originalTimedOut": true,
       "originalFailure": "[ordered] queue pending-drain waiting pending=52 elapsed=15s",
       "failureLocations": [],
-      "notes": null,
+      "notes": "Use the existing small sample fixture to produce the same determinism-report contract; all report schema/hash/exclusion/provenance assertions retained. Original 52-file polyglot input had no language-specific assertion here; native language coverage stays owned by lang/contracts and language runtime fixtures. No disabled backend or extended timeout.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/artifacts/index-state-skip-write",
       "path": "indexing/artifacts/index-state-skip-write.test.js",
       "owner": "indexing/artifacts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "needs-further-implementation",
+      "sourceHead": "74c8c215e",
       "originalTimedOut": false,
       "originalFailure": "Expected index_state.json to be skipped when only volatile fields change.",
       "failureLocations": [],
-      "notes": null,
+      "notes": "Writer and reader both use SHA-1 over the same declared stable-field normalizer; added actual normalized input/disk diagnostics while preserving mtime/fixed-point/hash assertions. No broader provenance exclusions or guessed hash-algorithm change made; later batch must identify semantic drift.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/artifacts/manifest/report-artifacts-driven",
       "path": "indexing/artifacts/manifest/report-artifacts-driven.test.js",
       "owner": "indexing/artifacts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "74c8c215e",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected chunk_meta manifest issue, got: ",
       "failureLocations": [
         "tests/indexing/artifacts/manifest/report-artifacts-driven.test.js:53:10"
       ],
-      "notes": null,
+      "notes": "Testing environment selects the disposable cache and the fixture publishes an exact mode pointer before requiring its intentionally missing manifest member to be reported. New no-publication negative precedes the original manifest-content assertion.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/artifacts/publication-record-contract",
       "path": "indexing/artifacts/publication-record-contract.test.js",
       "owner": "indexing/artifacts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5b6e6e448",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The input did not match the regular expression /missing committed artifact/. Input:",
       "failureLocations": [
@@ -3326,15 +3326,15 @@
         "tests/indexing/artifacts/publication-record-contract.test.js:33:11",
         "tests/indexing/artifacts/publication-record-contract.test.js:32:16"
       ],
-      "notes": null,
+      "notes": "Use canonical generation/source/schema authority and real fixture prerequisites; original correctness, shape, cleanup and fallback assertions retained. Runtime batch deferred.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/artifacts/sharded-meta/schema",
       "path": "indexing/artifacts/sharded-meta/schema.test.js",
       "owner": "indexing/artifacts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5b6e6e448",
       "originalTimedOut": false,
       "originalFailure": "Error: JSONL entry exceeds maxBytes (806 > 512).",
       "failureLocations": [
@@ -3342,15 +3342,15 @@
         "src/index/build/artifacts/helpers.js:241:19",
         "src/index/build/artifacts/writers/call-sites.js:257:27"
       ],
-      "notes": null,
+      "notes": "Call-site sharding limit derives from one complete current-contract row rather than an obsolete 512-byte shape. It still forces multiple bounded shards and validates unchanged metadata schemas.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/artifacts/symbolic-types-roundtrip",
       "path": "indexing/artifacts/symbolic-types-roundtrip.test.js",
       "owner": "indexing/artifacts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5b6e6e448",
       "originalTimedOut": false,
       "originalFailure": "Error: Invalid cross-file work receipt.",
       "failureLocations": [
@@ -3361,21 +3361,21 @@
         "src/index/build/indexer/steps/relations/physical-baseline.js:17:57",
         "src/index/build/indexer/steps/relations/cross-file-runner.js:54:47"
       ],
-      "notes": null,
+      "notes": "Use canonical generation/source/schema authority and real fixture prerequisites; original correctness, shape, cleanup and fallback assertions retained. Runtime batch deferred.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/artifacts/symbols/prepared-symbol-rows",
       "path": "indexing/artifacts/symbols/prepared-symbol-rows.test.js",
       "owner": "indexing/artifacts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5b6e6e448",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: admitted final rows encode once for fitting, statistics and measurement",
       "failureLocations": [
         "tests/indexing/artifacts/symbols/prepared-symbol-rows.test.js:39:14"
       ],
-      "notes": null,
+      "notes": "Bounded JSON encoding traverses scalar fields rather than stringifying whole objects. Count each actual unique symbolId encoding; keep exact one-encode-per-row, no re-encoding during deferred write, raw/gzip/shards/offset/content/trim assertions.",
       "finalBatchStatus": "pending"
     },
     {
