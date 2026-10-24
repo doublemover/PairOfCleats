@@ -4451,12 +4451,429 @@
           "historicalAuthorWorkspaceEvidence": true
         }
       ]
+    },
+    {
+      "sourceHead": "5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d",
+      "startedAt": "2026-10-24T13:47:30.185Z",
+      "finishedAt": "2026-10-24T13:49:29.788Z",
+      "scope": "Snapshot paths, Bazel package authority, LSP partitions and bounded real CLI build follow-up.",
+      "policy": {
+        "timeoutMs": 30000,
+        "retries": 0,
+        "nativeStatusRedo": false,
+        "threads": 1,
+        "platform": "win32",
+        "node": "v26.12.1",
+        "removedLaunchSetting": "PAIROFCLEATS_TRUSTED_CONFIG: missing configured file; no replacement authority granted"
+      },
+      "summary": {
+        "selected": 15,
+        "passed": 4,
+        "failed": 11,
+        "timeouts": 0,
+        "skipped": 0
+      },
+      "cohorts": [
+        {
+          "name": "authority-cli-wave-01",
+          "summary": {
+            "total": 5,
+            "passed": 4,
+            "failed": 1,
+            "skipped": 0,
+            "durationMs": 4206
+          },
+          "ids": [
+            "services/snapshot-freeze-integrity",
+            "indexing/snapshots/frozen-mode-provenance",
+            "indexing/imports/import-resolution-policy-contract-matrix",
+            "tooling/lsp/semantic-location-evidence",
+            "indexing/risk/interprocedural/framework-semantics"
+          ]
+        },
+        {
+          "name": "authority-cli-wave-02",
+          "summary": {
+            "total": 5,
+            "passed": 0,
+            "failed": 5,
+            "skipped": 0,
+            "durationMs": 44574
+          },
+          "ids": [
+            "tooling/install/install-download-resource-lifetime",
+            "tooling/lsp/pyright-health-source-context",
+            "tooling/api-contracts/export-identity-cli/js-fail",
+            "tooling/api-contracts/export-identity-cli/js-report",
+            "tooling/api-contracts/export-identity-cli/ts-fail"
+          ]
+        },
+        {
+          "name": "authority-cli-wave-03",
+          "summary": {
+            "total": 5,
+            "passed": 0,
+            "failed": 5,
+            "skipped": 0,
+            "durationMs": 67780
+          },
+          "ids": [
+            "tooling/api-contracts/export-identity-cli/ts-report",
+            "tooling/api-contracts/qualified-target-joins-cli/js-clean",
+            "tooling/api-contracts/qualified-target-joins-cli/js-violation",
+            "tooling/api-contracts/qualified-target-joins-cli/ts-clean",
+            "tooling/api-contracts/qualified-target-joins-cli/ts-violation"
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "id": "indexing/imports/import-resolution-policy-contract-matrix",
+          "path": "indexing/imports/import-resolution-policy-contract-matrix.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 1227,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d/authority-cli-wave-01-logs/run-1792849651113-qak38l/indexing_imports_import-resolution-policy-contract-matrix.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/risk/interprocedural/framework-semantics",
+          "path": "indexing/risk/interprocedural/framework-semantics.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "failed",
+          "durationMs": 121,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d/authority-cli-wave-01-logs/run-1792849651113-qak38l/indexing_risk_interprocedural_framework-semantics.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d/authority-cli-wave-01-logs/run-1792849651113-qak38l/indexing_risk_interprocedural_framework-semantics.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/snapshots/frozen-mode-provenance",
+          "path": "indexing/snapshots/frozen-mode-provenance.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 107,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d/authority-cli-wave-01-logs/run-1792849651113-qak38l/indexing_snapshots_frozen-mode-provenance.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "services/snapshot-freeze-integrity",
+          "path": "services/snapshot-freeze-integrity.test.js",
+          "lane": "services",
+          "tags": [
+            "services"
+          ],
+          "status": "passed",
+          "durationMs": 688,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d/authority-cli-wave-01-logs/run-1792849651113-qak38l/services_snapshot-freeze-integrity.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/lsp/semantic-location-evidence",
+          "path": "tooling/lsp/semantic-location-evidence.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 2054,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d/authority-cli-wave-01-logs/run-1792849651113-qak38l/tooling_lsp_semantic-location-evidence.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/js-fail",
+          "path": "tooling/api-contracts/export-identity-cli.test.js",
+          "lane": "gate",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "status": "failed",
+          "durationMs": 13049,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d/authority-cli-wave-02-logs/run-1792849656400-g0lci4/tooling_api-contracts_export-identity-cli_js-fail.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d/authority-cli-wave-02-logs/run-1792849656400-g0lci4/tooling_api-contracts_export-identity-cli_js-fail.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/js-report",
+          "path": "tooling/api-contracts/export-identity-cli.test.js",
+          "lane": "gate",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "status": "failed",
+          "durationMs": 13080,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d/authority-cli-wave-02-logs/run-1792849656400-g0lci4/tooling_api-contracts_export-identity-cli_js-report.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d/authority-cli-wave-02-logs/run-1792849656400-g0lci4/tooling_api-contracts_export-identity-cli_js-report.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/ts-fail",
+          "path": "tooling/api-contracts/export-identity-cli.test.js",
+          "lane": "gate",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "status": "failed",
+          "durationMs": 13176,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d/authority-cli-wave-02-logs/run-1792849656400-g0lci4/tooling_api-contracts_export-identity-cli_ts-fail.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d/authority-cli-wave-02-logs/run-1792849656400-g0lci4/tooling_api-contracts_export-identity-cli_ts-fail.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/install/install-download-resource-lifetime",
+          "path": "tooling/install/install-download-resource-lifetime.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "failed",
+          "durationMs": 334,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d/authority-cli-wave-02-logs/run-1792849656400-g0lci4/tooling_install_install-download-resource-lifetime.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d/authority-cli-wave-02-logs/run-1792849656400-g0lci4/tooling_install_install-download-resource-lifetime.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/lsp/pyright-health-source-context",
+          "path": "tooling/lsp/pyright-health-source-context.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "failed",
+          "durationMs": 4913,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d/authority-cli-wave-02-logs/run-1792849656400-g0lci4/tooling_lsp_pyright-health-source-context.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d/authority-cli-wave-02-logs/run-1792849656400-g0lci4/tooling_lsp_pyright-health-source-context.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/ts-report",
+          "path": "tooling/api-contracts/export-identity-cli.test.js",
+          "lane": "gate",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "status": "failed",
+          "durationMs": 12985,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d/authority-cli-wave-03-logs/run-1792849701986-hb57dm/tooling_api-contracts_export-identity-cli_ts-report.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d/authority-cli-wave-03-logs/run-1792849701986-hb57dm/tooling_api-contracts_export-identity-cli_ts-report.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/api-contracts/qualified-target-joins-cli/js-clean",
+          "path": "tooling/api-contracts/qualified-target-joins-cli.test.js",
+          "lane": "gate",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "status": "failed",
+          "durationMs": 14453,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d/authority-cli-wave-03-logs/run-1792849701986-hb57dm/tooling_api-contracts_qualified-target-joins-cli_js-clean.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d/authority-cli-wave-03-logs/run-1792849701986-hb57dm/tooling_api-contracts_qualified-target-joins-cli_js-clean.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/api-contracts/qualified-target-joins-cli/js-violation",
+          "path": "tooling/api-contracts/qualified-target-joins-cli.test.js",
+          "lane": "gate",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "status": "failed",
+          "durationMs": 12994,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d/authority-cli-wave-03-logs/run-1792849701986-hb57dm/tooling_api-contracts_qualified-target-joins-cli_js-violation.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d/authority-cli-wave-03-logs/run-1792849701986-hb57dm/tooling_api-contracts_qualified-target-joins-cli_js-violation.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/api-contracts/qualified-target-joins-cli/ts-clean",
+          "path": "tooling/api-contracts/qualified-target-joins-cli.test.js",
+          "lane": "gate",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "status": "failed",
+          "durationMs": 12903,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d/authority-cli-wave-03-logs/run-1792849701986-hb57dm/tooling_api-contracts_qualified-target-joins-cli_ts-clean.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d/authority-cli-wave-03-logs/run-1792849701986-hb57dm/tooling_api-contracts_qualified-target-joins-cli_ts-clean.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/api-contracts/qualified-target-joins-cli/ts-violation",
+          "path": "tooling/api-contracts/qualified-target-joins-cli.test.js",
+          "lane": "gate",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "status": "failed",
+          "durationMs": 14425,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d/authority-cli-wave-03-logs/run-1792849701986-hb57dm/tooling_api-contracts_qualified-target-joins-cli_ts-violation.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d/authority-cli-wave-03-logs/run-1792849701986-hb57dm/tooling_api-contracts_qualified-target-joins-cli_ts-violation.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        }
+      ]
     }
   ],
   "cumulativeClosure": {
     "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
-    "originalFailuresMovedToPassing": 66,
-    "originalFailuresWithoutPassingClosure": 34,
+    "originalFailuresMovedToPassing": 69,
+    "originalFailuresWithoutPassingClosure": 31,
     "additionalObservedFailuresOutsideOriginal100": []
   }
 }

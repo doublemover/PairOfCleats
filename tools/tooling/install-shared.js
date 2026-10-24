@@ -320,7 +320,9 @@ export const downloadToBuffer = async ({
           Object.defineProperties(primaryError, Object.fromEntries(Object.entries({ ...fields,
             cacheOwnershipPending: true, cacheOwnershipReleased: allReleased }).map(([key, value]) => [key,
             { value, configurable: true, writable: true, enumerable: !['downloadSession', 'downloadCleanupError'].includes(key) }])));
-          return primaryError;
+          // The response owner stays attached to the primary failure, while
+          // teardown is also an actual error edge for downstream diagnostics.
+          return secondary ? addStorageFailureContext(primaryError, {}, secondary) : primaryError;
         } catch { /* Preserve immutable or already nested context below. */ }
         const pending = Object.assign(new Error('Download response/resource settlement remains unconfirmed.', { cause: secondary || primaryError }), {
           cacheOwnershipPending: true, cacheOwnershipReleased: allReleased

@@ -44,8 +44,8 @@
     },
     "followUpClosure": {
       "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
-      "originalFailuresMovedToPassing": 66,
-      "originalFailuresWithoutPassingClosure": 34,
+      "originalFailuresMovedToPassing": 69,
+      "originalFailuresWithoutPassingClosure": 31,
       "additionalObservedFailuresOutsideOriginal100": []
     }
   },
@@ -356,7 +356,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 360
+      "recheckDurationMs": 360,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d",
+      "latestRecheckDurationMs": 334
     },
     {
       "id": "tooling/install/managed-detect-diagnostic-lifetime",
@@ -1199,9 +1202,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 576,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "6d08b130ff157bfb00692bb19e0855d34c522e48",
-      "latestRecheckDurationMs": 491
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d",
+      "latestRecheckDurationMs": 688
     },
     {
       "id": "services/snapshot-ref-contract-matrix",
@@ -3068,7 +3071,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 4934
+      "recheckDurationMs": 4934,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d",
+      "latestRecheckDurationMs": 4913
     },
     {
       "id": "tooling/lsp/reader-closed-restart-reaps-stale-process",
@@ -3167,7 +3173,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 1669
+      "recheckDurationMs": 1669,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d",
+      "latestRecheckDurationMs": 2054
     },
     {
       "id": "tooling/lsp/session-queued-cancellation",
@@ -4903,9 +4912,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 1310,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "6d08b130ff157bfb00692bb19e0855d34c522e48",
-      "latestRecheckDurationMs": 1165
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d",
+      "latestRecheckDurationMs": 1227
     },
     {
       "id": "indexing/imports/replay-harness",
@@ -5104,7 +5113,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 118
+      "recheckDurationMs": 118,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d",
+      "latestRecheckDurationMs": 121
     },
     {
       "id": "indexing/risk/interprocedural/partial-flows",
@@ -6676,7 +6688,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 13293
+      "recheckDurationMs": 13293,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d",
+      "latestRecheckDurationMs": 13049
     },
     {
       "id": "tooling/api-contracts/export-identity-cli/js-report",
@@ -6698,7 +6713,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 14060
+      "recheckDurationMs": 14060,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d",
+      "latestRecheckDurationMs": 13080
     },
     {
       "id": "tooling/api-contracts/export-identity-cli/ts-fail",
@@ -6720,7 +6738,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 13610
+      "recheckDurationMs": 13610,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d",
+      "latestRecheckDurationMs": 13176
     },
     {
       "id": "tooling/api-contracts/export-identity-cli/ts-report",
@@ -6742,7 +6763,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 13349
+      "recheckDurationMs": 13349,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d",
+      "latestRecheckDurationMs": 12985
     },
     {
       "id": "tooling/api-contracts/qualified-target-joins-cli/js-clean",
@@ -6759,7 +6783,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 13151
+      "recheckDurationMs": 13151,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d",
+      "latestRecheckDurationMs": 14453
     },
     {
       "id": "tooling/api-contracts/qualified-target-joins-cli/js-violation",
@@ -6781,7 +6808,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 13150
+      "recheckDurationMs": 13150,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d",
+      "latestRecheckDurationMs": 12994
     },
     {
       "id": "tooling/api-contracts/qualified-target-joins-cli/ts-clean",
@@ -6798,7 +6828,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 13436
+      "recheckDurationMs": 13436,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d",
+      "latestRecheckDurationMs": 12903
     },
     {
       "id": "tooling/api-contracts/qualified-target-joins-cli/ts-violation",
@@ -6815,7 +6848,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 13455
+      "recheckDurationMs": 13455,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d",
+      "latestRecheckDurationMs": 14425
     }
   ]
 }

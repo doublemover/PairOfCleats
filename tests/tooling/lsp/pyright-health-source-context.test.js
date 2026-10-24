@@ -42,6 +42,10 @@ try {
   assert.equal(changedSource.diagnostics.pyright.health.state, 'warming');
   assert.equal(changedSource.byChunkUid.has(target.chunkRef.chunkUid), true, 'edited source recovers through the actual provider consumer');
   await fs.writeFile(path.join(root, 'mode.txt'), 'stall-document-symbol');
+  // The fixture launcher reads its mode once at process creation. Retire the
+  // healthy pooled process before asking the next launch to simulate a stall;
+  // persisted source/config health remains intact across this real shutdown.
+  await cleanupLspTestRuntime({ reason: 'pyright_health_fixture_mode_change', strict: true });
   assert.equal((await run()).diagnostics.pyright.health.nextState, 'degraded_hard');
   await fs.writeFile(path.join(root, 'mode.txt'), 'pyright');
   await fs.writeFile(path.join(root, 'pyrightconfig.json'), '{"typeCheckingMode":"strict"}');

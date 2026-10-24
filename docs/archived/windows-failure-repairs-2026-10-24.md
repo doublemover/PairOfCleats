@@ -968,3 +968,19 @@ that legacy flag. LSP evidence assertions distinguish the actual structured
 observation partition from the definition-binding partition. Framework risk
 coverage compares both independently blocked paths rather than a stale count.
 These changes await the next focused cohort.
+
+The 15-case follow-up at `5cc02a6a66dfd40ffe0a76e7eb36137f050e7f0d`
+passed four and failed 11, with no runner timeouts/skips/native crashes.
+Snapshot freeze, frozen mode provenance, Bazel authority and LSP evidence passed.
+Sixty-nine original failures have passing closure; 31 remain. All eight API CLI
+cases still hit the unchanged 10-second build abort during stage snapshot
+publication, so excluding unrelated legacy propagation did not close them.
+
+Download reconciliation exposed a real secondary-error graph omission. The
+producer now preserves the actual teardown error alongside the original byte-
+limit failure; the fixture requires the exact thrown object, retained storage
+and eventual real release. Pyright's fixture explicitly retires its healthy
+pooled server before changing the launch-only simulated mode, retaining persisted
+health identity and recovery assertions. Framework risk coverage retains the
+terminal modeled flow frontier and both distinct argument-evidence gaps.
+These latest changes await focused validation.

@@ -173,11 +173,13 @@ const semantics = [{
 }];
 const withSemantics = runScenario({ semantics });
 assert.equal(withSemantics.flowRows.length, 1, 'expected framework semantics to recover the interprocedural flow');
-assert.equal(
-  withSemantics.partialFlowRows.length,
-  1,
-  'expected the engine to retain the terminal no-callees frontier even when semantics recover a full flow'
-);
+assert.deepEqual(withSemantics.partialFlowRows.map(row => ({
+  path: row.path.chunkUids,
+  reason: row.frontier.terminalReason
+})), [
+  { path: ['uid-source', 'uid-wrapper', 'uid-sink'], reason: 'noCallees' },
+  ...noSemantics.partialFlowRows.map(row => ({ path: row.path.chunkUids, reason: row.frontier.terminalReason }))
+], 'modeled callback propagation retains the terminal frontier and both independent argument-evidence gaps');
 assert.deepEqual(
   withSemantics.flowRows[0]?.path?.watchByStep?.[0]?.semanticIds,
   ['sem.callback.register-handler-payload'],

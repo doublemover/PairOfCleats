@@ -1,7 +1,7 @@
 // Source regression authored for the development batch; UNVALIDATED.
 // Actual install storage owners, inert HTTP transport; no network or tool runs.
 import assert from 'node:assert/strict';
-import { errorGraphMatches } from '../../helpers/error-graph.js';
+import { errorGraphIncludes } from '../../helpers/error-graph.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -27,13 +27,14 @@ try {
     for (const stage of ['go-index', 'go-archive', 'managed-archive']) {
       const toolingRoot = path.join(root, stage);
       let allowClose = false;
+      const teardownFailure = new Error('inert response teardown is blocked');
       const download = async request => {
         if (stage === 'go-archive' && request.url === GO_RELEASE_INDEX_URL) return {
           sourceUrl: request.url, body: Buffer.from(JSON.stringify(releases))
         };
         return downloadToBuffer({ ...request, fetchImpl: async () => ({ ok: true, status: 200, url: request.url,
           headers: { get: () => String(request.maxBytes + 1) },
-          body: { cancel: async () => { if (!allowClose) throw new Error('inert response teardown is blocked'); } }
+          body: { cancel: async () => { if (!allowClose) throw teardownFailure; } }
         }) });
       };
       const descriptor = { schemaVersion: 1, toolId: 'fixture-download', recipeId: 'fixture-download', version: '1.0.0',
@@ -45,14 +46,15 @@ try {
         ? installPinnedManagedTool({ toolingRoot, descriptor, approvedOrigins: ['https://official.example.test'], download,
           verify: async () => { throw new Error('pending download cannot start a verifier'); } })
         : ensureManagedGoSdk({ toolingRoot, storageEstimate, platform: 'linux', arch: 'x64', dependencies: { download } }),
-      error => { pending = error; return error.cacheOwnershipPending === true && Boolean(error.downloadSession); });
+      error => { pending = error; return error.cacheOwnershipPending === true && Boolean(error.downloadSession)
+        && errorGraphIncludes(error, teardownFailure); });
       const release = stage === 'go-index' ? () => pending.installDownloadSession.releaseAfterClosure()
         : stage === 'go-archive' ? () => pending.goSdkInstallSession.releaseAfterClosure()
           : () => pending.managedInstallSession.releaseAfterSettlement({ resourceId: pending.managedInstallSession.resourceId,
             settled: true, pending: false });
       active.push({ pending, release, close: () => { allowClose = true; } });
       assert.equal((await inspectStorageAccess(toolingRoot, { coordinationRoot })).protected, true);
-      await assert.rejects(release(), error => errorGraphMatches(error, /teardown is blocked/));
+      await assert.rejects(release(), error => errorGraphIncludes(error, teardownFailure));
       assert.equal((await inspectStorageAccess(toolingRoot, { coordinationRoot })).protected, true,
         'failed actual response teardown cannot release the install category or allocation');
       if (stage === 'go-archive') assert.equal((await fs.stat(pending.goSdkInstallSession.transaction)).isDirectory(), true);
