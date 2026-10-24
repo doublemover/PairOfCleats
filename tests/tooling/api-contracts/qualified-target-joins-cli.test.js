@@ -27,10 +27,12 @@ ${operation === 'violation' ? 'export function useB() { return foo(1); }' : ''}
 await fs.writeFile(path.join(repo, 'tsconfig.json'), JSON.stringify({ compilerOptions: { types: [], lib: ['es2022'] } }));
 // Exact API joins need completed compiler bindings. Default manual/deferred
 // enrichment deliberately leaves same-name targets ambiguous.
+// Keep the actual semantic compiler bindings; legacy cross-file type
+// propagation is independent work and supplies no authority to these joins.
 const env = applyTestEnv({ cacheRoot: path.join(dir, 'cache'), embeddings: 'stub',
   testConfig: { threads: 1, indexing: { semantic: { enabled: true,
     enrichment: { bindings: 'eager', localFlow: 'off', crossFileFlow: 'off' } }, embeddings: { enabled: false },
-  typeInference: false, typeInferenceCrossFile: true, riskAnalysis: false, riskAnalysisCrossFile: false },
+  typeInference: false, typeInferenceCrossFile: false, riskAnalysis: false, riskAnalysisCrossFile: false },
   tooling: { autoEnableOnDetect: false, lsp: { enabled: false } } }, extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null } });
 const signal = AbortSignal.timeout(10000);
 await buildIndex(repo, { mode: 'code', stage: 'stage2', 'stub-embeddings': true, 'scm-provider': 'none', threads: 1, abortSignal: signal });

@@ -151,8 +151,15 @@ const runScenario = ({ semantics = [], frameworkId = 'express' } = {}) => {
 
 const noSemantics = runScenario();
 assert.equal(noSemantics.flowRows.length, 0, 'expected no interprocedural flow without framework semantics');
-assert.equal(noSemantics.partialFlowRows.length, 1,
-  `expected a retained partial flow without semantics: ${JSON.stringify(noSemantics.partialFlowRows)}`);
+assert.deepEqual(noSemantics.partialFlowRows.map(row => ({
+  path: row.path.chunkUids,
+  frontier: row.frontier.chunkUid,
+  reason: row.frontier.terminalReason,
+  blocked: row.frontier.blockedExpansions.map(expansion => expansion.targetChunkUid)
+})), [
+  { path: ['uid-source'], frontier: 'uid-source', reason: 'incompleteArgumentEvidence', blocked: ['uid-wrapper'] },
+  { path: ['uid-source', 'uid-wrapper'], frontier: 'uid-wrapper', reason: 'incompleteArgumentEvidence', blocked: ['uid-sink'] }
+], 'without callback semantics, retain both missing-argument frontiers and their distinct paths');
 
 const semantics = [{
   id: 'sem.callback.register-handler-payload',

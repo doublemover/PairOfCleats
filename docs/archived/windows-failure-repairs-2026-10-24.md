@@ -952,3 +952,19 @@ A demonstrated risk producer defect returns ok when maxTotalFlows=0 leaves
 source roots unsearched. It now reports partial and the cap reason, retaining
 zero emitted rows and the existing timeout/depth controls. RiskPropagation 6
 invalidates old derived status meaning. This wave awaits focused validation.
+
+The 11-case follow-up at `6d08b130ff157bfb00692bb19e0855d34c522e48`
+passed nine and failed two, with no timeouts/skips/crashes. Retained-source
+bounds, native Groovy ownership, frozen mode provenance and the complete
+five-case risk control group passed. Sixty-six original failures have passing
+closure; 34 remain, with no separately observed adjacent failure outstanding.
+This is source-bound closure evidence, not final-tree acceptance.
+
+The next fixture repairs use the actual generation-local SQLite/LMDB paths and
+an explicit Bazel BUILD declaration. API fixtures retain eager real compiler
+bindings and all CLI assertions while excluding independent legacy cross-file
+type propagation; the production owner runs semantic work before, and outside,
+that legacy flag. LSP evidence assertions distinguish the actual structured
+observation partition from the definition-binding partition. Framework risk
+coverage compares both independently blocked paths rather than a stale count.
+These changes await the next focused cohort.

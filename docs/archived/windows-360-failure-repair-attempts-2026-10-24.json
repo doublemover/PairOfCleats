@@ -44,8 +44,8 @@
     },
     "followUpClosure": {
       "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
-      "originalFailuresMovedToPassing": 62,
-      "originalFailuresWithoutPassingClosure": 38,
+      "originalFailuresMovedToPassing": 66,
+      "originalFailuresWithoutPassingClosure": 34,
       "additionalObservedFailuresOutsideOriginal100": []
     }
   },
@@ -251,9 +251,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 944,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "2bd168e50d2032045478767e3a0188762a5816f5",
-      "latestRecheckDurationMs": 873
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "6d08b130ff157bfb00692bb19e0855d34c522e48",
+      "latestRecheckDurationMs": 906
     },
     {
       "id": "map/scene-shutdown-failure-ownership",
@@ -315,9 +315,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 478,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "2bd168e50d2032045478767e3a0188762a5816f5",
-      "latestRecheckDurationMs": 516
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "6d08b130ff157bfb00692bb19e0855d34c522e48",
+      "latestRecheckDurationMs": 550
     },
     {
       "id": "tooling/install/archive-resource-lifetime",
@@ -1198,7 +1198,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 576
+      "recheckDurationMs": 576,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "6d08b130ff157bfb00692bb19e0855d34c522e48",
+      "latestRecheckDurationMs": 491
     },
     {
       "id": "services/snapshot-ref-contract-matrix",
@@ -4878,7 +4881,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 1256
+      "recheckDurationMs": 1256,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "6d08b130ff157bfb00692bb19e0855d34c522e48",
+      "latestRecheckDurationMs": 1136
     },
     {
       "id": "indexing/imports/import-resolution-policy-contract-matrix",
@@ -4896,7 +4902,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 1310
+      "recheckDurationMs": 1310,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "6d08b130ff157bfb00692bb19e0855d34c522e48",
+      "latestRecheckDurationMs": 1165
     },
     {
       "id": "indexing/imports/replay-harness",
@@ -5075,7 +5084,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 119
+      "recheckDurationMs": 119,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "6d08b130ff157bfb00692bb19e0855d34c522e48",
+      "latestRecheckDurationMs": 144
     },
     {
       "id": "indexing/risk/interprocedural/framework-semantics",
@@ -5150,8 +5162,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 2229,
       "latestRecheckStatus": "passed",
-      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
-      "latestRecheckDurationMs": 1717
+      "latestRecheckSourceHead": "6d08b130ff157bfb00692bb19e0855d34c522e48",
+      "latestRecheckDurationMs": 1611
     },
     {
       "id": "indexing/risk/interprocedural/upstream-input-coverage",
@@ -5168,7 +5180,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "passed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 159
+      "recheckDurationMs": 159,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "6d08b130ff157bfb00692bb19e0855d34c522e48",
+      "latestRecheckDurationMs": 131
     },
     {
       "id": "indexing/risk/risk-contract-matrix",

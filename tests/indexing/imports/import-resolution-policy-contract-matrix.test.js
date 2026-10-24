@@ -331,10 +331,12 @@ const cases = [
       await fs.mkdir(path.join(tempRoot, 'src'), { recursive: true });
       await fs.writeFile(path.join(tempRoot, 'src', 'main.js'), 'import "./missing.js";\n', 'utf8');
       await fs.writeFile(path.join(tempRoot, 'MODULE.bazel'), 'module(name = "demo")\n', 'utf8');
+      await fs.writeFile(path.join(tempRoot, 'go', 'BUILD'), 'exports_files(["extensions.bzl"])\n', 'utf8');
       await fs.writeFile(path.join(tempRoot, 'go', 'extensions.bzl'), 'def go_deps():\n  pass\n', 'utf8');
 
       const entries = [
         { abs: path.join(tempRoot, 'MODULE.bazel'), rel: 'MODULE.bazel' },
+        { abs: path.join(tempRoot, 'go', 'BUILD'), rel: 'go/BUILD' },
         { abs: path.join(tempRoot, 'go', 'extensions.bzl'), rel: 'go/extensions.bzl' },
         { abs: path.join(tempRoot, 'src', 'main.js'), rel: 'src/main.js' }
       ];

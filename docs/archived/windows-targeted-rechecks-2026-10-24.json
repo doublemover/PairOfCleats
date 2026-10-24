@@ -4136,12 +4136,327 @@
           "historicalAuthorWorkspaceEvidence": true
         }
       ]
+    },
+    {
+      "sourceHead": "6d08b130ff157bfb00692bb19e0855d34c522e48",
+      "startedAt": "2026-10-24T13:37:52.572Z",
+      "finishedAt": "2026-10-24T13:38:01.721Z",
+      "scope": "Risk zero-cap status, retained-source bounds, Groovy native scope, snapshot provenance and import authority follow-up.",
+      "policy": {
+        "timeoutMs": 30000,
+        "retries": 0,
+        "nativeStatusRedo": false,
+        "threads": 1,
+        "platform": "win32",
+        "node": "v26.12.1",
+        "removedLaunchSetting": "PAIROFCLEATS_TRUSTED_CONFIG: missing configured file; no replacement authority granted"
+      },
+      "summary": {
+        "selected": 11,
+        "passed": 9,
+        "failed": 2,
+        "timeouts": 0,
+        "skipped": 0
+      },
+      "cohorts": [
+        {
+          "name": "risk-snapshot-wave-01",
+          "summary": {
+            "total": 5,
+            "passed": 4,
+            "failed": 1,
+            "skipped": 0,
+            "durationMs": 3204
+          },
+          "ids": [
+            "storage/semantic/retained-source-reader-lifetime",
+            "lang/contracts/native-call-scope-roles",
+            "services/snapshot-freeze-integrity",
+            "indexing/snapshots/frozen-mode-provenance",
+            "indexing/imports/import-build-context-plugins"
+          ]
+        },
+        {
+          "name": "risk-snapshot-wave-02",
+          "summary": {
+            "total": 5,
+            "passed": 4,
+            "failed": 1,
+            "skipped": 0,
+            "durationMs": 3168
+          },
+          "ids": [
+            "indexing/imports/import-resolution-policy-contract-matrix",
+            "indexing/risk/interprocedural/flows-cap-matrix",
+            "indexing/risk/interprocedural/upstream-input-coverage",
+            "indexing/risk/interprocedural/summary-only-status",
+            "indexing/risk/interprocedural/stats-effective-config"
+          ]
+        },
+        {
+          "name": "risk-snapshot-wave-03",
+          "summary": {
+            "total": 1,
+            "passed": 1,
+            "failed": 0,
+            "skipped": 0,
+            "durationMs": 99
+          },
+          "ids": [
+            "indexing/risk/interprocedural/config-normalization"
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "id": "indexing/imports/import-build-context-plugins",
+          "path": "indexing/imports/import-build-context-plugins.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 1136,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-6d08b130ff157bfb00692bb19e0855d34c522e48/risk-snapshot-wave-01-logs/run-1792849073484-75oozh/indexing_imports_import-build-context-plugins.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/snapshots/frozen-mode-provenance",
+          "path": "indexing/snapshots/frozen-mode-provenance.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 109,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-6d08b130ff157bfb00692bb19e0855d34c522e48/risk-snapshot-wave-01-logs/run-1792849073484-75oozh/indexing_snapshots_frozen-mode-provenance.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "lang/contracts/native-call-scope-roles",
+          "path": "lang/contracts/native-call-scope-roles.test.js",
+          "lane": "unit",
+          "tags": [
+            "lang",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 906,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-6d08b130ff157bfb00692bb19e0855d34c522e48/risk-snapshot-wave-01-logs/run-1792849073484-75oozh/lang_contracts_native-call-scope-roles.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "services/snapshot-freeze-integrity",
+          "path": "services/snapshot-freeze-integrity.test.js",
+          "lane": "services",
+          "tags": [
+            "services"
+          ],
+          "status": "failed",
+          "durationMs": 491,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-6d08b130ff157bfb00692bb19e0855d34c522e48/risk-snapshot-wave-01-logs/run-1792849073484-75oozh/services_snapshot-freeze-integrity.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-6d08b130ff157bfb00692bb19e0855d34c522e48/risk-snapshot-wave-01-logs/run-1792849073484-75oozh/services_snapshot-freeze-integrity.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "storage/semantic/retained-source-reader-lifetime",
+          "path": "storage/semantic/retained-source-reader-lifetime.test.js",
+          "lane": "storage",
+          "tags": [
+            "storage"
+          ],
+          "status": "passed",
+          "durationMs": 550,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-6d08b130ff157bfb00692bb19e0855d34c522e48/risk-snapshot-wave-01-logs/run-1792849073484-75oozh/storage_semantic_retained-source-reader-lifetime.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/imports/import-resolution-policy-contract-matrix",
+          "path": "indexing/imports/import-resolution-policy-contract-matrix.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "failed",
+          "durationMs": 1165,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-6d08b130ff157bfb00692bb19e0855d34c522e48/risk-snapshot-wave-02-logs/run-1792849077590-h954lb/indexing_imports_import-resolution-policy-contract-matrix.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-6d08b130ff157bfb00692bb19e0855d34c522e48/risk-snapshot-wave-02-logs/run-1792849077590-h954lb/indexing_imports_import-resolution-policy-contract-matrix.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/risk/interprocedural/flows-cap-matrix",
+          "path": "indexing/risk/interprocedural/flows-cap-matrix.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 144,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-6d08b130ff157bfb00692bb19e0855d34c522e48/risk-snapshot-wave-02-logs/run-1792849077590-h954lb/indexing_risk_interprocedural_flows-cap-matrix.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/risk/interprocedural/stats-effective-config",
+          "path": "indexing/risk/interprocedural/stats-effective-config.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 105,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-6d08b130ff157bfb00692bb19e0855d34c522e48/risk-snapshot-wave-02-logs/run-1792849077590-h954lb/indexing_risk_interprocedural_stats-effective-config.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/risk/interprocedural/summary-only-status",
+          "path": "indexing/risk/interprocedural/summary-only-status.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 1611,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-6d08b130ff157bfb00692bb19e0855d34c522e48/risk-snapshot-wave-02-logs/run-1792849077590-h954lb/indexing_risk_interprocedural_summary-only-status.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/risk/interprocedural/upstream-input-coverage",
+          "path": "indexing/risk/interprocedural/upstream-input-coverage.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 131,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-6d08b130ff157bfb00692bb19e0855d34c522e48/risk-snapshot-wave-02-logs/run-1792849077590-h954lb/indexing_risk_interprocedural_upstream-input-coverage.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/risk/interprocedural/config-normalization",
+          "path": "indexing/risk/interprocedural/config-normalization.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 95,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-6d08b130ff157bfb00692bb19e0855d34c522e48/risk-snapshot-wave-03-logs/run-1792849081608-nttd5l/indexing_risk_interprocedural_config-normalization.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        }
+      ]
     }
   ],
   "cumulativeClosure": {
     "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
-    "originalFailuresMovedToPassing": 62,
-    "originalFailuresWithoutPassingClosure": 38,
+    "originalFailuresMovedToPassing": 66,
+    "originalFailuresWithoutPassingClosure": 34,
     "additionalObservedFailuresOutsideOriginal100": []
   }
 }

@@ -37,10 +37,12 @@ await fs.writeFile(path.join(repo, `class-default.${language}`), 'export default
 await fs.writeFile(path.join(repo, 'tsconfig.json'), JSON.stringify({ compilerOptions: { types: [], lib: ['es2022'] } }));
 // Exact API joins need completed compiler bindings. Default manual/deferred
 // enrichment deliberately does not establish lexical call-target authority.
+// The semantic compiler pass owns bindings independently of legacy cross-file
+// type propagation, which is not an input to these API-contract assertions.
 const env = applyTestEnv({ cacheRoot: path.join(dir, 'cache'), embeddings: 'stub',
   testConfig: { threads: 1, indexing: { semantic: { enabled: true,
     enrichment: { bindings: 'eager', localFlow: 'off', crossFileFlow: 'off' } }, embeddings: { enabled: false },
-  typeInference: false, typeInferenceCrossFile: true, riskAnalysis: false, riskAnalysisCrossFile: false },
+  typeInference: false, typeInferenceCrossFile: false, riskAnalysis: false, riskAnalysisCrossFile: false },
   tooling: { autoEnableOnDetect: false, lsp: { enabled: false } } },
   extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null } });
 const signal = AbortSignal.timeout(10000);

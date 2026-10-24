@@ -18,7 +18,9 @@ await fs.mkdir(repoRoot, { recursive: true });
 const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
 const { buildRoot, indexDir } = await seedCodeSnapshotBuildRoot({ repoCacheRoot, buildId: 'build-integrity' });
 await setCurrentCodeSnapshotBuild({ repoCacheRoot, buildId: 'build-integrity' });
-for (const name of ['index-sqlite/code.db', 'index-lmdb/data.mdb']) {
+// These are the generation-local database paths selected by freezeSnapshot.
+const databaseFiles = ['index-sqlite/index-code.db', 'index-lmdb/index-code/data.mdb'];
+for (const name of databaseFiles) {
   await fs.mkdir(path.dirname(path.join(buildRoot, name)), { recursive: true });
   await fs.writeFile(path.join(buildRoot, name), 'original database bytes');
 }
@@ -49,10 +51,10 @@ try {
   }
 } finally { fs.rename = rename; observer.restore(); }
 await fs.writeFile(path.join(indexDir, 'chunk_meta.json'), Buffer.alloc(originalChunk.length, 32));
-for (const name of ['index-sqlite/code.db', 'index-lmdb/data.mdb']) await fs.writeFile(path.join(buildRoot, name), 'modified database bytes');
+for (const name of databaseFiles) await fs.writeFile(path.join(buildRoot, name), 'modified database bytes');
 for (const frozenRoot of frozen) {
   assert.deepEqual(await fs.readFile(path.join(frozenRoot, 'index-code/chunk_meta.json')), originalChunk);
-  for (const name of ['index-sqlite/code.db', 'index-lmdb/data.mdb']) {
+  for (const name of databaseFiles) {
     assert.equal(await fs.readFile(path.join(frozenRoot, name), 'utf8'), 'original database bytes');
   }
 }
