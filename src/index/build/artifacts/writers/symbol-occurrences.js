@@ -368,18 +368,8 @@ export const enqueueSymbolOccurrencesArtifacts = async ({
       trim: trimMetadata
     }
   });
-  if (!totalRows) {
-    await removeArtifacts([
-      ...buildJsonlVariantPaths({ outDir, baseName: 'symbol_occurrences' }),
-      path.join(outDir, 'symbol_occurrences.meta.json'),
-      path.join(outDir, 'symbol_occurrences.parts'),
-      perFileMetaPath,
-      perFileDataPath,
-      perFileOffsetsPath
-    ]);
-    if (collected?.cleanup) await collected.cleanup();
-    return;
-  }
+  // A completed empty family is still publication evidence. Use the same
+  // writer/cleanup owner as nonempty output, including its zero row count.
   const jsonlExtension = resolveJsonlExtension(compression);
   const occurrencesPath = path.join(outDir, `symbol_occurrences.${jsonlExtension}`);
   const occurrencesMetaPath = path.join(outDir, 'symbol_occurrences.meta.json');

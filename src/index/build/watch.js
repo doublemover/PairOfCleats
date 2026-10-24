@@ -24,6 +24,7 @@ import {
 } from '../../shared/metrics/core.js';
 import { fileExt, isRelativePathEscape, toPosix } from '../../shared/file-paths.js';
 import { runWithConcurrency, runWithQueue } from '../../shared/concurrency/run-with-queue.js';
+import { runWithIndependentSchedulerOwner } from '../../shared/concurrency/scheduler-task-scope.js';
 import { coerceAbortSignal, throwIfAborted, createAbortError, isAbortError } from '../../shared/abort.js';
 import { inspectGeneratedArtifact, isGeneratedArtifactCandidatePath } from '../../shared/generated-artifact.js';
 import { createDebouncedScheduler } from '../../shared/scheduler/debounce.js';
@@ -936,7 +937,7 @@ export async function watchIndex({
     debounceMs,
     // Continuous saves must not indefinitely postpone a searchable generation.
     maxWaitMs: Math.max(1000, debounceMs * 4),
-    onRun: runBuild,
+    onRun: () => runWithIndependentSchedulerOwner(runBuild),
     onSchedule: () => incWatchDebounce('scheduled'),
     onCancel: () => incWatchDebounce('canceled'),
     onFire: () => incWatchDebounce('fired'),

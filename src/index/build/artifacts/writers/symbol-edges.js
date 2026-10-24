@@ -350,18 +350,8 @@ export const enqueueSymbolEdgesArtifacts = async ({
       trim: trimMetadata
     }
   });
-  if (!totalRows) {
-    await removeArtifacts([
-      ...buildJsonlVariantPaths({ outDir, baseName: 'symbol_edges' }),
-      path.join(outDir, 'symbol_edges.meta.json'),
-      path.join(outDir, 'symbol_edges.parts'),
-      perFileMetaPath,
-      perFileDataPath,
-      perFileOffsetsPath
-    ]);
-    if (collected?.cleanup) await collected.cleanup();
-    return;
-  }
+  // Preserve explicit zero-row publication rather than making a completed
+  // empty edge family indistinguishable from a missing producer product.
 
   const jsonlExtension = resolveJsonlExtension(compression);
   const edgesPath = path.join(outDir, `symbol_edges.${jsonlExtension}`);
