@@ -102,7 +102,13 @@ export const createSemanticLspSession = async ({ state, runtime, signal = null, 
     parentSources.set(id, parent.source);
   }
   const sourceIndex = createLspSourceIndex({ inventory, parentSources, repoRoot: runtime.root });
-  const itemForDoc = sourceIndex.itemForDocument;
+  const itemForDoc = doc => {
+    const claimed = inventory.get(doc?.semanticSourceUnitId);
+    if (claimed && typeof doc.text === 'string' && doc.text !== claimed.text) {
+      throw Object.assign(new Error('LSP source snapshot mismatch.'), { code: 'ERR_SEMANTIC_SOURCE_MISMATCH' });
+    }
+    return sourceIndex.itemForDocument(doc);
+  };
   const contextFor = ({ item, uri, providerId, providerVersion, workspaceKey, positionEncoding }) => {
     const context = { providerId, providerVersion, compilerVersion: null,
       configHash: semanticHash('semantic.lsp-config.v1', { providerId, providerVersion, workspaceKey, positionEncoding,
