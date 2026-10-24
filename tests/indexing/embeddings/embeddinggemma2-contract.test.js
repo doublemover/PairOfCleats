@@ -184,14 +184,14 @@ try {
   __setTransformersModuleLoaderForTests(null);
 }
 
-for (const moduleOverride of [
-  { env: { version: '4.3.0' } },
-  { AutoConfig: { from_pretrained: async () => ({ model_type: 'other' }) } }
+for (const [moduleOverride, expected] of [
+  [{ env: { version: '4.3.0' } }, /requires its qualified Transformers.js runtime/],
+  [{ AutoConfig: { from_pretrained: async () => ({ model_type: 'other' }) } }, /unexpected model_type/]
 ]) {
   __setTransformersModuleLoaderForTests(async () => ({ ...fakeModule, ...moduleOverride }));
   try {
     await assert.rejects(() => getEmbeddingAdapter({ modelId }).embedOne('alpha'),
-      /cache identity|unexpected model_type/);
+      expected);
   } finally {
     __setTransformersModuleLoaderForTests(null);
   }

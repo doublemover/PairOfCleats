@@ -62,9 +62,11 @@ try {
     lease: { invalidate: () => { invalidations++; } }, release: () => { releases++; } });
   for (const failures of [0, 1]) {
     state.failures = failures; state.confirmed = false;
-    await assert.rejects(teardownRuntime(runtime), error => error.cacheOwnershipPending === true);
+    let failure;
+    try { await teardownRuntime(runtime); } catch (error) { failure = error; }
     assert.ok(state.terminations.some(value => value.ownershipPrefix === 'stage1:fixture-run:'),
       'the controlled termination owner must actually be invoked');
+    assert.equal(failure?.cacheOwnershipPending, true, 'unconfirmed child cleanup must retain the writer');
     await assert.rejects(release(false), /ownership retained/i);
   }
   assert.equal(invalidations, 0); assert.equal(releases, 0);

@@ -122,6 +122,14 @@ const createDeferred = () => {
   });
   return { promise, resolve, reject };
 };
+const closedFakeChildren = new WeakSet();
+const closeFakeChild = child => {
+  if (closedFakeChildren.has(child)) return;
+  closedFakeChildren.add(child);
+  child.exitCode = 0;
+  child.emit('exit', 0, null);
+  child.emit('close', 0, null);
+};
 
 const runLateWriteFailureCase = async () => {
   const { client: fakeClient, spawnedChildren, waitForMessage } = createFakeClient();
@@ -138,6 +146,7 @@ const runLateWriteFailureCase = async () => {
     // Native closure and an outstanding write callback are distinct events.
     const killing = fakeClient.kill();
     assert.throws(() => fakeClient.start(), { code: 'ERR_LSP_RESTART_STALE_PROCESS' });
+    closeFakeChild(original);
     await killing;
     assert.equal((await fakeClient.waitForResourceSettlement()).settled, true);
     const response = fakeClient.request('test/current', null, { timeoutMs: 1000 })
@@ -156,6 +165,7 @@ const runLateWriteFailureCase = async () => {
     assert.deepEqual(await response, { value: 'current result' }, 'expected replacement pending requests to survive');
     assert.equal(spawnedChildren.length, 2, 'expected no extra restart after the stale write rejection');
   } finally {
+    for (const child of spawnedChildren) closeFakeChild(child);
     await fakeClient.kill();
   }
 };
@@ -172,6 +182,7 @@ const runCurrentWriteFailureCase = async () => {
     );
     assert.equal(fakeClient.notify('test/closed', null, { startIfNeeded: false }), false);
   } finally {
+    for (const child of spawnedChildren) closeFakeChild(child);
     await fakeClient.kill();
   }
 };
@@ -193,6 +204,7 @@ const runDeferredServerRepliesCase = async () => {
     sendServerMessage(original, { jsonrpc: '2.0', id: 12, method: 'test/old-failure' });
     const killing = fakeClient.kill();
     assert.throws(() => fakeClient.start(), { code: 'ERR_LSP_RESTART_STALE_PROCESS' });
+    closeFakeChild(original);
     await killing;
     assert.equal((await fakeClient.waitForResourceSettlement()).settled, true);
     const replacement = fakeClient.start();
@@ -220,6 +232,7 @@ const runDeferredServerRepliesCase = async () => {
     assert.deepEqual(messagesByChild.get(original), [], 'expected no writes to the closed original transport');
     assert.equal(spawnedChildren.length, 2);
   } finally {
+    for (const child of spawnedChildren) closeFakeChild(child);
     await fakeClient.kill();
   }
 };
@@ -236,6 +249,7 @@ const runInitializeContinuationCase = async ({ restart = false, close = false } 
     if (close) {
       const killing = fakeClient.kill();
       if (restart) assert.throws(() => fakeClient.start(), { code: 'ERR_LSP_RESTART_STALE_PROCESS' });
+      closeFakeChild(original);
       await killing;
       assert.equal((await fakeClient.waitForResourceSettlement()).settled, true);
       if (restart) fakeClient.start();
@@ -265,6 +279,7 @@ const runInitializeContinuationCase = async ({ restart = false, close = false } 
       );
     }
   } finally {
+    for (const child of spawnedChildren) closeFakeChild(child);
     await fakeClient.kill();
   }
 };
