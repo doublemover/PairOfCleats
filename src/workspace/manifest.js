@@ -13,7 +13,8 @@ import {
   resolveCurrentBuildRoots
 } from '../shared/indexing/build-pointer.js';
 import { validateWorkspaceManifest } from '../contracts/validators/workspace.js';
-import { getRepoCacheRoot } from '../shared/repo-paths.js';
+import { resolveRepoCacheRootPath } from '../shared/repo-paths.js';
+import { retainRepoCacheAccess } from '../shared/cache/repo-access.js';
 import { assertCurrentIndexFormat } from '../contracts/index-format.js';
 import { describeStorageFailure, observeStorageResource } from '../shared/storage/failure-observation.js';
 import { addStorageFailureContext } from '../shared/storage/operation-error.js';
@@ -191,6 +192,7 @@ const readBuildPointerState = async ({ repoId, repoRootCanonical, repoCacheRoot,
   if (!currentStat) {
     return buildEmptyPointerState(currentJsonPath);
   }
+  retainRepoCacheAccess(repoCacheRoot);
   const pointer = buildEmptyPointerState(currentJsonPath);
   pointer.currentJsonExists = true;
   pointer.currentJsonMtimeMs = currentStat.mtimeMs;
@@ -395,7 +397,10 @@ const buildRepoManifestEntry = async (repoEntry, diagnostics, signal) => {
   assertWorkspaceMemberCurrent(repoEntry);
   const repoRootCanonical = repoEntry.repoRootCanonical;
   const userConfig = loadUserConfig(repoRootCanonical);
-  const repoCacheRoot = toRealPathSync(getRepoCacheRoot(repoRootCanonical, userConfig));
+  const repoCacheRoot = toRealPathSync(resolveRepoCacheRootPath(repoRootCanonical, userConfig));
+  // Missing cache roots have no resource to borrow. Existing data still
+  // retains the same cleanup exclusion before pointer/artifact inspection.
+  if (fs.existsSync(repoCacheRoot)) retainRepoCacheAccess(repoCacheRoot);
   const pointer = await readBuildPointerState({
     repoId: repoEntry.repoId,
     repoRootCanonical,

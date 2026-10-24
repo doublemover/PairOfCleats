@@ -104,7 +104,7 @@ const prepareConfigurationDirectory = async directory => {
     const stat = await fs.lstat(current, { bigint: true });
     if (!stat.isDirectory()) throw new Error('Configuration metadata ancestor is not a directory.');
     owned.set(current, storageFileIdentity(stat));
-    if (current === boundary) break;
+    if (path.relative(boundary, current) === '') break;
     if (!isPathWithinRoot(current, boundary) || path.dirname(current) === current) {
       throw new Error('Configuration directory preparation escaped its created owner.');
     }
