@@ -55,7 +55,7 @@ await harness.runCommand('pairofcleats.search');
 
 assert.equal(harness.errorMessages.length, 0, `unexpected search errors: ${harness.errorMessages.join('; ')}`);
 assert.equal(harness.spawnCalls.length, 1);
-assert.equal(harness.spawnCalls[0].command, process.execPath);
+assert.equal(harness.spawnCalls[0].command, fs.realpathSync(process.execPath));
 const searchArgs = harness.spawnCalls[0].args;
 assert.deepEqual(searchArgs, [
   workspace.resolvePath('packages', 'nested', 'bin', 'pairofcleats.js'),

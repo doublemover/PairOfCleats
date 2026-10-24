@@ -38,7 +38,7 @@ const cliResolution = extension._test.resolveCli(
   harness.fakeVscode.workspace.getConfiguration()
 );
 assert.equal(cliResolution.ok, true);
-assert.equal(cliResolution.command, process.execPath);
+assert.equal(cliResolution.command, fs.realpathSync(process.execPath));
 assert.deepEqual(
   cliResolution.argsPrefix,
   [workspace.resolvePath('bin', 'pairofcleats.js'), '--trace']

@@ -25,7 +25,8 @@ try {
   const capture = async (data = payload()) => {
     harness.queuedResults.push({ code: 0, stdout: JSON.stringify(data) });
     await harness.extension._test.runOperatorCommand(spec, { repoContext: { ok: true, repoRoot: fixture.root,
-      repoUri: harness.fakeVscode.Uri.file(fixture.root) }, inputContext: { seed: 'file:src/app.ts', hops: 0, presentationMode: 'output' } });
+      repoUri: harness.fakeVscode.Uri.file(fixture.root) }, inputContext: { seed: 'file:src/app.ts', hops: 1, presentationMode: 'output' } });
+    assert.ok(harness.spawnCalls.length, `capture reaches its selected command: ${harness.errorMessages.join('; ')}`);
   };
   const run = () => harness.registeredCommands.get('pairofcleats.openEvidence')();
   const reset = () => { fs.writeFileSync(file, text); harness.fakeVscode.workspace.textDocuments.length = 0;

@@ -33,12 +33,15 @@ const page = (chunkUid, hasMore) => ({ code: [], prose: [], extractedProse: [],
     hasMore, nextCursor: hasMore ? 'opaque' : null, coverage: 'indexed-metadata' } });
 try {
   harness.activate();
+  assert.equal(harness.extension._test.resolvePassiveRepoContext().repoRoot, second,
+    'the explicitly saved repository owns enumeration before dispatch');
   harness.queuedResults.push({ code: 0, stdout: JSON.stringify(page('one', true)) });
   await harness.extension._test.executeSearchCommand({ enumeration: true, optionOverrides: { filter: 'type:record' } });
   assert(resourceCalls.includes(second), 'selected target URI is passed into getConfiguration');
   const firstArgs = harness.spawnCalls[0].args;
   assert.equal(firstArgs[0], cli, 'application installation is distinct from the selected target');
-  assert.equal(firstArgs[firstArgs.indexOf('--repo') + 1], second);
+  assert.equal(firstArgs[firstArgs.indexOf('--repo') + 1], second,
+    `the selected repository survives dispatch: ${JSON.stringify({ errors: harness.errorMessages, resourceCalls })}`);
   assert.equal(firstArgs[firstArgs.indexOf('--mode') + 1], 'records');
   assert(!firstArgs.some(value => value.includes('malicious-cli.js')), 'resource-scoped runtime override has no authority');
   const original = harness.workspaceStateStore.get('pairofcleats.searchHistory')[0];

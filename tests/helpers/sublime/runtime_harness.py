@@ -69,7 +69,8 @@ class FakeRegion:
 
 
 class FakeSelection(list):
-    pass
+    def add(self, region):
+        self.append(region)
 
 
 class FakeView:
@@ -288,6 +289,10 @@ def install_fake_modules():
         @staticmethod
         def set_timeout(callback, delay=0):
             callback()
+
+        @staticmethod
+        def cache_path():
+            raise AssertionError('A fixture using editor storage must select its own disposable cache path.')
 
         @staticmethod
         def load_settings(name):

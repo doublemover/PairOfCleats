@@ -69,7 +69,7 @@ assert.deepEqual(
     repoRoot
   ]
 );
-assert.equal(harness.spawnCalls[0].command, process.execPath);
+assert.equal(harness.spawnCalls[0].command, fs.realpathSync(process.execPath));
 assert.ok(harness.outputEvents.some((event) => event.kind === 'append' && /quality: max \(config\)/i.test(event.line)));
 
 const doctorSpec = harness.extension._test.OPERATOR_COMMAND_SPECS.find((spec) => spec.id === 'pairofcleats.doctor');

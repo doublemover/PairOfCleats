@@ -19,7 +19,7 @@ for (const scenario of ['unchanged', 'replaced-manifest', 'wrong-resolved-chunk'
   const risk = { chunk: { chunkUid: scenario === 'wrong-risk-chunk' ? 'ck-other' : 'ck-original', file: 'src/app.ts' }, flows: [] };
   try {
     harness.activate(); harness.inputQueue.push('chunk:ck-original', '3');
-    harness.quickPickQueue.push(items => items.find(item => item.value === 'output'));
+    harness.quickPickQueue.push(items => items.find(item => item.value === 'export'));
     harness.queuedResults.push({ code: 0, stdout: JSON.stringify(source) });
     if (scenario !== 'wrong-resolved-chunk') harness.queuedResults.push(scenario === 'replaced-manifest'
       ? { persistent: true } : { code: 0, stdout: JSON.stringify(risk) });

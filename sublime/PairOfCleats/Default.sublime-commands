@@ -52,10 +52,6 @@
     "command": "pair_of_cleats_search_selection"
   },
   {
-    "caption": "PairOfCleats: Search Symbol Under Cursor",
-    "command": "pair_of_cleats_search_symbol_under_cursor"
-  },
-  {
     "caption": "PairOfCleats: Go To Definition",
     "command": "pair_of_cleats_goto_definition"
   },

@@ -52,7 +52,7 @@ try {
     'exact canonical byte identity plus actual BOM/CRLF host normalization gives adjusted UTF16 offsets');
   assert.throws(() => qualifiedDocumentOffsets({ ...observedDocument, isDirty: true }, target), /dirty/);
   assert.throws(() => qualifiedDocumentOffsets({ getText: () => 'changed' }, target), /differs/);
-  assert.throws(() => qualifiedDocumentOffsets(observedDocument, { ...target, start: 6 }), /normalization/);
+  assert.throws(() => qualifiedDocumentOffsets(observedDocument, { ...target, start: 6 }), /CRLF/);
   assert.throws(() => qualifiedDocumentOffsets(observedDocument, { ...target, start: 3 }), /surrogate/);
   assert.throws(() => sourceQualifiedSelection({ repoRoot: temporary }, { ...sourceRef, coordinateUnit: 'byte' }, { span: [1, 2] }), /UTF-16/);
   fs.appendFileSync(file, 'changed');

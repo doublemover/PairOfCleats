@@ -68,7 +68,7 @@ def validate_root(value):
     if (not root or '\0' in root or '\r' in root or '\n' in root
             or root.startswith(('\\\\?\\', '\\\\.\\'))
             or root.startswith('\\') and not root.startswith('\\\\')
-            or drive and (tail and not ntpath.isabs(tail) or not tail and len(drive) == 2)
+            or drive and not ntpath.isabs(root)
             or not (posixpath.isabs(root) or ntpath.isabs(root))
             or any(part in ('.', '..') for part in root.replace('\\', '/').split('/'))):
         raise ValueError('Use an absolute service-host repository path without traversal components.')

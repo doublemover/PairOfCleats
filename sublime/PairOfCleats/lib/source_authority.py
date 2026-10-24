@@ -26,7 +26,12 @@ def read_current_source(repo_root, filename):
             raise ValueError('Source is not a regular file within the 4 MiB editor verifier.')
         raw = handle.read(min(before.st_size + 1, MAX_SOURCE_BYTES + 1))
         after = os.fstat(handle.fileno())
-    current = os.stat(real)
+        # Compare file identities from the same API. Windows path stat and CRT
+        # descriptor stat can expose different inode/timestamp representations.
+        # Reopen the current name while retaining the original handle so a
+        # replaced path still has to identify that exact observed file.
+        with open(real, 'rb') as current_handle:
+            current = os.fstat(current_handle.fileno())
     if (len(raw) != before.st_size or _signature(before) != _signature(after)
             or _signature(current) != _signature(after) or os.path.realpath(filename) != real):
         raise ValueError('Source changed while its exact bytes were being verified.')

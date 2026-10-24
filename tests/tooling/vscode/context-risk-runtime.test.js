@@ -129,7 +129,7 @@ try {
     })
   });
   const contextPackSpec = harness.extension._test.OPERATOR_COMMAND_SPECS.find((entry) => entry.id === 'pairofcleats.contextPack');
-  await harness.extension._test.executeOperatorWorkflow(
+  const presentationFailure = await harness.extension._test.executeOperatorWorkflow(
     contextPackSpec,
     { repoRoot, repoLabel: 'repo' },
     {
@@ -166,11 +166,13 @@ try {
     '--includeRisk',
     '--includeTypes'
   ]);
-  assert.equal(harness.infoMessages.pop(), 'PairOfCleats: Context Pack completed.');
-  assert.ok(
-    harness.outputEvents.some((entry) => entry.kind === 'append' && /failed to present operator payload/i.test(entry.line)),
-    'expected fail-open payload presentation warning'
-  );
+  assert.ok(!harness.infoMessages.includes('PairOfCleats: Context Pack completed.'),
+    'failed presentation cannot claim workflow completion');
+  assert.match(harness.errorMessages.pop(), /Context Pack reported issues/);
+  assert.match(presentationFailure.primaryError.message, /json preview open failed/);
+  assert.ok(harness.outputEvents.some((entry) => entry.kind === 'append'
+    && /presentation failed: json preview open failed/i.test(entry.line)));
+  assert.equal(harness.workspaceStateStore.get('pairofcleats.workflowSessions')[0].status, 'failed');
 
   harness.quickPickQueue.push((items) => items.find((item) => item.label === 'Active file'));
   harness.inputQueue.push('file:src/app.ts');

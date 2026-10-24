@@ -8,6 +8,7 @@ const repoB = createVsCodeRuntimeTempRepo({ prefix: 'editor-semantic-b-' });
 const tools = createVsCodeRuntimeTempRepo({ prefix: 'separate-tool-owner-' });
 const cliPath = path.join(tools, 'bin/pairofcleats.js');
 const harness = createVsCodeRuntimeHarness({ repoRoot: repoA,
+  activeFile: path.join(repoA, 'src/app.ts'),
   workspaceFolders: [{ name: 'A', path: repoA }, { name: 'B', path: repoB }],
   globalConfigValues: { cliPath, cliArgs: ['--trace'] } });
 harness.activate();
