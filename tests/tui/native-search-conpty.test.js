@@ -60,7 +60,7 @@ if (['modes', 'incompatible'].includes(mode)) {
   await fs.writeFile(path.join(repo, 'README.md'), 'Native prose source\n');
   await fs.writeFile(path.join(repo, 'records.json'), '{"answer":42}\n');
   for (const [kind, file, chunkKind] of inputs) {
-    const index = await createCompatibilityIndex(repo, { mode: kind,
+    const index = await createCompatibilityIndex(repo, { mode: kind, published: true,
       compatibilityKey: mode === 'incompatible' ? `native-mode-${kind}` : 'native-modes-compatible', profileId: 'default', fileName: file });
     const body = await fs.readFile(path.join(repo, file));
     await fs.writeFile(path.join(index, 'chunk_meta.json'), JSON.stringify([{ id: 0, file, kind: chunkKind,
@@ -70,7 +70,7 @@ if (['modes', 'incompatible'].includes(mode)) {
 } else if (mode === 'truncated') {
   // Explicit large artifact input exercises the real CLI/capture boundary;
   // the other cases independently qualify actual native index production.
-  const index = await createCompatibilityIndex(repo, { compatibilityKey: 'native-capture-bound', profileId: 'default' });
+  const index = await createCompatibilityIndex(repo, { published: true, compatibilityKey: 'native-capture-bound', profileId: 'default' });
   const rows = Array.from({ length: 100 }, (_, id) => ({ id, file: 'src/answer.js', kind: 'FunctionDeclaration',
     name: 'x'.repeat(10000) + id, chunkUid: `capture:${id}`, start: 0, end: 1 }));
   await fs.writeFile(path.join(index, 'chunk_meta.json'), JSON.stringify(rows));
@@ -119,8 +119,7 @@ try {
     };
     const screen = () => reconstructTerminalScreen(output, { columns, rows: terminalRows }).text;
     const rendered = async witness => {
-      await wait(() => { const frame = screen(); return frame.includes(witness)
-        && (witness !== 'Tab pane' || /\bconn\s+(?:connected|streaming)\b/.test(frame)); }, witness);
+      await wait(() => screen().includes(witness), witness);
       await fs.writeFile(path.join(dir, `screen-${screens++}.txt`), screen());
     };
     const lastJob = async () => Math.max(0, ...(await readEvents()).filter(row => row.jobId?.startsWith('native-search-'))

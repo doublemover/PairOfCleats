@@ -263,6 +263,11 @@ export const reconstructTerminalScreen = (value, {
       index += 1;
       continue;
     }
+    if (char === '\b') {
+      moveCursor(state, state.row, state.column - 1);
+      index += 1;
+      continue;
+    }
     if (char < ' ') {
       index += 1;
       continue;
