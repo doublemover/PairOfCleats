@@ -30,10 +30,10 @@ const failure = (primary, errors, captured = captureSceneFailure(primary),
 };
 
 /** Keep the exact primary and every independently attempted cleanup outcome. */
-export const preserveSceneCleanupFailures = (primary, cleanupErrors, { hasPrimary = primary !== null && primary !== undefined, forceAggregate = false } = {}) => {
+export const preserveSceneCleanupFailures = (primary, cleanupErrors, { hasPrimary = primary !== null && primary !== undefined, forceAggregate = false, diagnostics = true } = {}) => {
   const errors = hasPrimary ? [primary, ...cleanupErrors] : cleanupErrors;
   if (!errors.length) return null;
-  const captured = errors.map(captureSceneFailure);
+  const captured = errors.map(error => captureSceneFailure(error, { diagnostics }));
   if (!hasPrimary && !forceAggregate && errors.length === 1 && objectLike(errors[0])
     && !captured[0].inspectionErrors.length && !captured[0].overflow) return errors[0];
   const inspectionErrors = captured.flatMap(snapshot => snapshot.inspectionErrors);

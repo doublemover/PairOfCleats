@@ -5,7 +5,7 @@ import { captureScenePrerequisiteProducer } from './scene-retirement.js';
  * original/cache/diagnostic observations remain prerequisites for every cap. */
 export const createSceneWorkPrerequisites = (label, initialOwners = []) => {
   const owners = new Set(initialOwners), records = new Map();
-  const observe = error => {
+  const observe = (error, diagnostics) => {
     const pending = [error], queued = new Set(pending), visited = new Set(), checks = [];
     let overflow = false, links = 0;
     const enqueue = values => {
@@ -19,7 +19,8 @@ export const createSceneWorkPrerequisites = (label, initialOwners = []) => {
     while (pending.length) {
       const original = pending.pop(); queued.delete(original);
       if (visited.has(original)) continue; visited.add(original);
-      const producer = captureScenePrerequisiteProducer(original, [...owners]), captured = captureSceneFailure(original);
+      const producer = captureScenePrerequisiteProducer(original, [...owners]),
+        captured = captureSceneFailure(original, { diagnostics });
       checks.push(() => captured.releasedOriginalExcept(producer?.observation));
       enqueue(captured.inspectionErrors); if (producer) enqueue(producer.errors);
       if (overflow) break;
@@ -27,7 +28,7 @@ export const createSceneWorkPrerequisites = (label, initialOwners = []) => {
     return () => !overflow && checks.every(check => check());
   };
   const refresh = () => {
-    for (const [error, record] of records) record.observe = observe(error);
+    for (const [error, record] of records) record.observe = observe(error, record.diagnostics);
     for (const owner of owners) for (const record of records.values()) owner.retainFailure(record.receipt);
   };
   return Object.freeze({
@@ -36,15 +37,16 @@ export const createSceneWorkPrerequisites = (label, initialOwners = []) => {
     refresh,
     get blocked() { return [...records.values()].some(record => !record.observe()); },
     assertReady() { for (const [error, record] of records) if (!record.observe()) throw error; },
-    retain(error) {
+    retain(error, { diagnostics = true } = {}) {
       if (!records.has(error)) {
-        const record = { observe: () => true, receipt: null };
+        const record = { observe: () => true, receipt: null, diagnostics };
         record.receipt = Object.freeze(Object.defineProperties(new AggregateError([error], label, { cause: error }), {
           sceneResourceOwners: { value: Object.freeze([...owners]) },
           sceneOwnershipReleased: { value: () => record.observe() }
         }));
         records.set(error, record);
       }
+      if (diagnostics) records.get(error).diagnostics = true;
       refresh();
     }
   });

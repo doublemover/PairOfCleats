@@ -116,8 +116,11 @@ export const createRemoteSource = config => {
       }catch(primary){
         let admitted=false;const authorityErrors=[];
         try{admitted=current();}catch(error){if(!Object.is(error,primary))authorityErrors.push(error);}
-        if(!admitted)return {ok:false,reason:currentFailed?'authority-unavailable':'superseded',primaryError:primary,
-          error:preserveSceneCleanupFailures(primary,authorityErrors,{hasPrimary:true})};
+        if(!admitted){
+          prerequisites.retain(primary,{diagnostics:false});
+          return {ok:false,reason:currentFailed?'authority-unavailable':'superseded',primaryError:primary,
+            error:preserveSceneCleanupFailures(primary,authorityErrors,{hasPrimary:true,diagnostics:false})};
+        }
         prerequisites.retain(primary);
         const captured=captureSceneFailure(primary),errors=[];
         try{if(current()&&captured.name!=='AbortError')summary.textContent=`Source selection unavailable: ${captured.message}`;}

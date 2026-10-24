@@ -57,6 +57,28 @@ const fixture = () => {
   f.remote.dispose();
 }
 {
+  const f = fixture(); let reads = 0, sceneReleased = false, cacheReleased = false;
+  const operation = f.remote.navigate({ type: 'file', file: 'retired.ts' }, () => assert.fail('stale work cannot publish'));
+  const primary = Object.freeze(Object.defineProperties({}, {
+    name: { get() { reads++; throw new Error('stale name must remain unread'); } },
+    message: { get() { reads++; throw new Error('stale message must remain unread'); } },
+    sceneOwnershipReleased: { value: () => sceneReleased },
+    cacheOwnershipReleased: { value: () => cacheReleased }
+  }));
+  state.remoteSource = {}; state.sourceIndex = {};
+  f.calls[0].reject(primary);
+  const result = await operation;
+  assert.equal(result.reason, 'superseded'); assert.equal(result.primaryError, primary); assert.equal(reads, 0);
+  assert.throws(() => f.remote.dispose(), error => contains(error, primary));
+  sceneReleased = true;
+  assert.throws(() => f.remote.resourceOwner.release(), error => contains(error, primary),
+    'a closed scene channel cannot release independent cache work');
+  cacheReleased = true;
+  f.remote.resourceOwner.release();
+  assert.equal(f.remote.resourceOwner.pending, false);
+  assert.equal(reads, 0, 'retirement retains ownership without inspecting stale diagnostic getters');
+}
+{
   // A failed original abort cannot be silently retried by another navigation.
   // Independent source cleanup still clears metadata and original page owners.
   const f = fixture(), OriginalController = globalThis.AbortController;

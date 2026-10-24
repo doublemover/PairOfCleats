@@ -4,15 +4,18 @@ const snapshots = new WeakMap(), details = new WeakMap();
 const objectLike = value => value !== null && (typeof value === 'object' || typeof value === 'function');
 const core = ['message', 'name', 'code', 'sceneResourceOwner', 'sceneResourceOwners',
   'rendererTransactionCommitted', 'rendererTransactionStamp', 'rendererTransactionPhase', 'rendererTransactionCleanupFailed'];
+const diagnosticFields = new Set(['message', 'name', 'code']);
 const skipped = new Set(['cause', 'errors', 'stack', ...core, 'sceneInspectionErrors', 'sceneInspectionOverflow',
   'sceneOwnershipPending', 'sceneOwnershipReleased', 'cacheOwnershipPending', 'cacheOwnershipReleased']);
 
 /** Diagnostic projection is observational: inspect each original field once,
  * skip lazy Error stack before descriptor access, and retain exact inspection
  * errors with their independent original ownership. Never coerce error objects. */
-export const captureSceneFailure = primary => {
+export const captureSceneFailure = (primary, { diagnostics = true } = {}) => {
   if (objectLike(primary) && snapshots.has(primary)) {
-    const captured = snapshots.get(primary); captured.refresh(); return captured;
+    const captured = snapshots.get(primary); captured.refresh();
+    if (diagnostics) details.get(captured).captureDiagnostics();
+    return captured;
   }
   const fields = new Map(), descriptors = new Map(), observers = new Map(), inspectionErrors = [], observedInspections = new Map();
   let overflow = false, owners = [];
@@ -30,6 +33,14 @@ export const captureSceneFailure = primary => {
     }
   };
   const remember = error => { inspectionErrors.push(error); refresh(); };
+  let diagnosticsCaptured = false;
+  const captureDiagnostics = () => {
+    if (diagnosticsCaptured || !objectLike(primary)) return;
+    diagnosticsCaptured = true;
+    for (const key of diagnosticFields) {
+      try { fields.set(key, Reflect.get(primary, key)); } catch (error) { remember(error); }
+    }
+  };
   const captured = Object.freeze({ primary, refresh,
     get inspectionErrors() { return Object.freeze([...inspectionErrors]); },
     get overflow() { return overflow; },
@@ -46,13 +57,15 @@ export const captureSceneFailure = primary => {
     get code() { return fields.get('code'); },
     get message() { return typeof fields.get('message') === 'string' ? fields.get('message') : 'Scene resource retirement remains pending.'; }
   });
-  details.set(captured, { fields, descriptors });
+  details.set(captured, { fields, descriptors, captureDiagnostics });
   if (objectLike(primary)) snapshots.set(primary, captured);
   refresh();
   if (!objectLike(primary)) return captured;
   for (const key of core) {
+    if (diagnosticFields.has(key)) continue;
     try { fields.set(key, Reflect.get(primary, key)); } catch (error) { remember(error); }
   }
+  if (diagnostics) captureDiagnostics();
   try {
     const multiple = fields.get('sceneResourceOwners'), single = fields.get('sceneResourceOwner');
     owners = Array.isArray(multiple) ? Array.prototype.slice.call(multiple) : objectLike(single) ? [single] : [];
