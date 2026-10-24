@@ -461,3 +461,36 @@ no publication, then inspects the explicitly published broken manifest. Skip-wri
 still requires actual drift evidence, with its original assertions retained.
 The ledger now records 162/360 attempts and 198 unattempted; runtime re-tests,
 front gate and final-head acceptance remain deferred. Formatting passes.
+
+Retrieval/risk implementation `a39173caf` attempts another 22 failures (184 total,
+176 unattempted). CLI fixtures publish actual per-mode generations; direct-loader
+fixtures pass their exact authored index directories. Shape/MinHash identities
+are current while absent/stale negatives remain. Risk fixtures distinguish local
+completion and completed execution from unqualified cross-file coverage; original
+flow/cap/path assertions remain. The filter wrapper retains its original three
+JavaScript risk inputs in a small fixture and removes success-shaped empty-hit
+early returns. Historical fusion numbers now declare their original cosine
+calibration explicitly; numerical snapshots and pool bounds remain unchanged.
+Candidate-pool qualification selects the actual lexical-rerank path; independent
+search no longer needs unused candidate sets. Backend EPERM publication and extra
+framework partial frontiers remain unresolved with original-error-preserving
+diagnostics. No runtime re-test or final-head qualification occurred.
+
+Report/federation/API implementation `d14c0bbc1` attempts 24 more cases
+(208/360; 152 unattempted). Current map cache model 1.1.0 was rejected
+by renamed-content recognition restricted to 1.0.0. Shared producer identity and
+discovery policy 5/ignore-rules 3 now invalidate affected replay. Compact output
+projects SQLite's metaV2 chunk identity before discarding metadata, preserving
+cross-backend comparisons with different local ordinals. Model fixtures carry
+actual file hashes; summary fixtures declare stable identities and retain the
+unscoped-ordinal negative. Windows graph/render mocks use canonical paths.
+Federation fixtures establish independent Git members, canonical generations,
+valid public error classifications and actual descriptor-read instrumentation.
+Selected bench logs include a real material parity discrepancy; throughput
+positives publish contained pointers and independently reject external roots.
+API fixtures request eager compiler bindings instead of expecting qualified
+joins after explicit manual deferral. Existing f5334185b queue-close repair owns
+original abort propagation. Cold-build cleanup retains its 15-second deadline
+and all reaping/deletion assertions; closed ambient inputs and better diagnostics
+are implemented, but timing closure remains unresolved. Formatting/diff checks
+pass; runtime acceptance and the front gate remain deferred by instruction.

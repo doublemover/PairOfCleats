@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "recordedAt": "2026-10-24T07:47:30.140Z",
+  "recordedAt": "2026-10-24T09:43:56.056Z",
   "queueSourceHead": "a96699ab0e9e822320e008f5affc1d690f305cfe",
   "originalFailureSource": "893fe089458e7f7294b8d1f357f596fdecc7d5d4",
   "scope": "The 360 historical failures outstanding at the runtime-wave publication. Attempt every implementation before further batch tests. Seven repairs were completed and tested immediately before this instruction.",
@@ -19,9 +19,9 @@
   },
   "summary": {
     "selected": 360,
-    "not-attempted": 198,
-    "implemented-unvalidated": 127,
-    "needs-further-implementation": 10,
+    "not-attempted": 152,
+    "implemented-unvalidated": 170,
+    "needs-further-implementation": 13,
     "attempted-existing-owner-repair": 18,
     "implemented": 7,
     "finalBatchPassed": 0
@@ -1081,36 +1081,36 @@
       "id": "retrieval/federation/prose-enumeration-mode-scope",
       "path": "retrieval/federation/prose-enumeration-mode-scope.test.js",
       "owner": "retrieval/federation",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "d14c0bbc1",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: ranked prose-only plans also avoid unadmitted extracted-prose reads",
       "failureLocations": [
         "tests/retrieval/federation/prose-enumeration-mode-scope.test.js:42:10"
       ],
-      "notes": null,
+      "notes": "Independent Git fixture roots prevent inherited parent identity; canonical Windows generation mocks, canonical error-code positives/unknown-code rejection, descriptor-open cache instrumentation and token/posting-consistent prose rows retain strict admission, generation, cancellation and cache assertions.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "retrieval/federation/query-cache-touch-generation",
       "path": "retrieval/federation/query-cache-touch-generation.test.js",
       "owner": "retrieval/federation",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "d14c0bbc1",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/retrieval/federation/query-cache-touch-generation.test.js:37:12"
       ],
-      "notes": null,
+      "notes": "Independent Git fixture roots prevent inherited parent identity; canonical Windows generation mocks, canonical error-code positives/unknown-code rejection, descriptor-open cache instrumentation and token/posting-consistent prose rows retain strict admission, generation, cancellation and cache assertions.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "retrieval/federation/ranked-result-admission",
       "path": "retrieval/federation/ranked-result-admission.test.js",
       "owner": "retrieval/federation",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "d14c0bbc1",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:",
       "failureLocations": [
@@ -1120,15 +1120,15 @@
         "src/retrieval/federation/results.js:38:11",
         "src/retrieval/federation/coordinator.js:938:13"
       ],
-      "notes": null,
+      "notes": "Independent Git fixture roots prevent inherited parent identity; canonical Windows generation mocks, canonical error-code positives/unknown-code rejection, descriptor-open cache instrumentation and token/posting-consistent prose rows retain strict admission, generation, cancellation and cache assertions.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "retrieval/federation/repo-generation-context-forwarding",
       "path": "retrieval/federation/repo-generation-context-forwarding.test.js",
       "owner": "retrieval/federation",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "d14c0bbc1",
       "originalTimedOut": false,
       "originalFailure": "Error: Federated search failed in strict mode: Repository repo-86aa0e6e27a0 generation changed after workspace admission. Retry the search.",
       "failureLocations": [
@@ -1138,15 +1138,15 @@
         "tests/retrieval/federation/repo-generation-context-forwarding.test.js:54:18",
         "src/retrieval/federation/coordinator.js:897:17"
       ],
-      "notes": null,
+      "notes": "Independent Git fixture roots prevent inherited parent identity; canonical Windows generation mocks, canonical error-code positives/unknown-code rejection, descriptor-open cache instrumentation and token/posting-consistent prose rows retain strict admission, generation, cancellation and cache assertions.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "retrieval/federation/strict-failure-stops-admission",
       "path": "retrieval/federation/strict-failure-stops-admission.test.js",
       "owner": "retrieval/federation",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "d14c0bbc1",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:",
       "failureLocations": [
@@ -1157,15 +1157,15 @@
         "src/retrieval/federation/coordinator.js:921:34",
         "src/retrieval/federation/coordinator.js:845:25"
       ],
-      "notes": null,
+      "notes": "Independent Git fixture roots prevent inherited parent identity; canonical Windows generation mocks, canonical error-code positives/unknown-code rejection, descriptor-open cache instrumentation and token/posting-consistent prose rows retain strict admission, generation, cancellation and cache assertions.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "retrieval/federation/strict-missing-requested-mode",
       "path": "retrieval/federation/strict-missing-requested-mode.test.js",
       "owner": "retrieval/federation",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "d14c0bbc1",
       "originalTimedOut": false,
       "originalFailure": "Error: Duplicate canonical repo root: c:\\users\\sneak\\development\\pairofcleats",
       "failureLocations": [
@@ -1176,42 +1176,42 @@
         "src/workspace/config.js:564:10",
         "src/retrieval/federation/coordinator.js:475:12"
       ],
-      "notes": null,
+      "notes": "Independent Git fixture roots prevent inherited parent identity; canonical Windows generation mocks, canonical error-code positives/unknown-code rejection, descriptor-open cache instrumentation and token/posting-consistent prose rows retain strict admission, generation, cancellation and cache assertions.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "retrieval/filters/filter-index-artifact",
       "path": "retrieval/filters/filter-index-artifact.test.js",
       "owner": "retrieval/filters",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "needs-further-implementation",
+      "sourceHead": "a39173caf",
       "originalTimedOut": false,
       "originalFailure": "EPERM: operation not permitted, rename 'C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\filter-index-artifact\\cache\\repos\\repo-7ca8fe01acd6\\builds\\20261024T042441Z_34828ebc_noscm_8cb901f6\\.ann-HWMzRp' -> 'C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\filter-index-artifact",
       "failureLocations": [],
-      "notes": null,
+      "notes": "Historical failure is EPERM during actual backend generation rename after HNSW/LanceDB writes. Added original-error-preserving publication diagnostics with exact source/destination path lengths and available backend variants. No guessed long-path attribution, retry or disabled backend; actual lifecycle evidence is still required.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "retrieval/filters/filter-index-shape-guards",
       "path": "retrieval/filters/filter-index-shape-guards.test.js",
       "owner": "retrieval/filters",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "a39173caf",
       "originalTimedOut": false,
       "originalFailure": "TypeError: Cannot read properties of null (reading 'fileChunksById')",
       "failureLocations": [
         "tests/retrieval/filters/filter-index-shape-guards.test.js:45",
         "tests/retrieval/filters/filter-index-shape-guards.test.js:45:23"
       ],
-      "notes": null,
+      "notes": "Current factsVersion is explicit for malformed-bucket shape positives; missing and stale versions additionally must reject for authoritative rebuild.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "retrieval/filters/filter-only-cli",
       "path": "retrieval/filters/filter-only-cli.test.js",
       "owner": "retrieval/filters",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "a39173caf",
       "originalTimedOut": false,
       "originalFailure": "Error: [search] code index not found at C:\\Users\\sneak\\AppData\\Local\\Temp\\poc-filter-only-BY7j5H\\cache\\repos\\poc-filter-only-by7j5h-3c8cce69a9f4\\index-code. Run \"pairofcleats index build\" (build-index) or \"node build_index.js\".",
       "failureLocations": [
@@ -1222,27 +1222,27 @@
         "src/retrieval/cli/load-indexes.js:67:26",
         "src/retrieval/cli/run-search/plan-runner.js:1098:15"
       ],
-      "notes": null,
+      "notes": "CLI positives publish a mode-scoped compatibility fixture under the actual cache generation, preserving all filter/cursor/compiler-content assertions. Direct-loader fixture defaults remain unchanged.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "retrieval/filters/filter-only-cold-cli",
       "path": "retrieval/filters/filter-only-cold-cli.test.js",
       "owner": "retrieval/filters",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "a39173caf",
       "originalTimedOut": false,
       "originalFailure": "Error: Command failed: C:\\nvm4w\\nodejs\\node.exe bin/pairofcleats.js search --repo C:\\Users\\sneak\\AppData\\Local\\Temp\\poc-filter-cli-cold-aQdmYQ --backend memory --mode code --json --compact --no-comments --type FunctionDeclaration --top 257",
       "failureLocations": [],
-      "notes": null,
+      "notes": "CLI positives publish a mode-scoped compatibility fixture under the actual cache generation, preserving all filter/cursor/compiler-content assertions. Direct-loader fixture defaults remain unchanged.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "retrieval/filters/filter-only-compiler-facts",
       "path": "retrieval/filters/filter-only-compiler-facts.test.js",
       "owner": "retrieval/filters",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "a39173caf",
       "originalTimedOut": false,
       "originalFailure": "Error: [search] code index not found at C:\\Users\\sneak\\AppData\\Local\\Temp\\poc-filter-compiler-xTI2LS\\cache\\repos\\poc-filter-compiler-xti2-459601b6569e\\index-code. Run \"pairofcleats index build\" (build-index) or \"node build_index.js\".",
       "failureLocations": [
@@ -1253,19 +1253,19 @@
         "src/retrieval/cli/load-indexes.js:67:26",
         "src/retrieval/cli/run-search/plan-runner.js:1098:15"
       ],
-      "notes": null,
+      "notes": "CLI positives publish a mode-scoped compatibility fixture under the actual cache generation, preserving all filter/cursor/compiler-content assertions. Direct-loader fixture defaults remain unchanged.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "retrieval/filters/semantic-filter-contract-matrix",
       "path": "retrieval/filters/semantic-filter-contract-matrix.test.js",
       "owner": "retrieval/filters",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "a39173caf",
       "originalTimedOut": true,
       "originalFailure": "[ordered] queue pending-drain waiting pending=52 elapsed=15s",
       "failureLocations": [],
-      "notes": null,
+      "notes": "Use the same three JavaScript risk source/sink inputs in a dedicated small real fixture instead of indexing 52 unrelated polyglot files. All original filter queries remain; removed early returns that previously silently accepted missing type/risk hits. Language coverage stays with language owners.",
       "finalBatchStatus": "pending"
     },
     {
@@ -1298,23 +1298,23 @@
       "id": "retrieval/pipeline/candidates-buffer-reuse",
       "path": "retrieval/pipeline/candidates-buffer-reuse.test.js",
       "owner": "retrieval/pipeline",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "a39173caf",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected candidate pool reuse",
       "failureLocations": [
         "tests/retrieval/pipeline/candidates-buffer-reuse.test.js:65:14",
         "tests/retrieval/pipeline/candidates-buffer-reuse.test.js:100:3"
       ],
-      "notes": null,
+      "notes": "Explicitly select lexical-rerank, the route that actually requires candidate sets, for pool reuse qualification. Allocation/reuse/oversize/clearing bounds stay unchanged; the independent route no longer constructs unused lexical candidates.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "retrieval/pipeline/default-ann-sparse-artifact-availability",
       "path": "retrieval/pipeline/default-ann-sparse-artifact-availability.test.js",
       "owner": "retrieval/pipeline",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "a39173caf",
       "originalTimedOut": false,
       "originalFailure": "Error: MinHash hash identity is missing or incompatible; rebuild the index.",
       "failureLocations": [
@@ -1325,15 +1325,15 @@
         "src/retrieval/pipeline.js:648:9",
         "src/retrieval/pipeline/stage-checkpoints.js:63:26"
       ],
-      "notes": null,
+      "notes": "Use current canonical producer/schema identities and explicit fixture prerequisites while preserving original positive content and negative authority assertions; runtime batch deferred.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "retrieval/pipeline/extracted-prose-optional-sqlite-fallback",
       "path": "retrieval/pipeline/extracted-prose-optional-sqlite-fallback.test.js",
       "owner": "retrieval/pipeline",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "a39173caf",
       "originalTimedOut": false,
       "originalFailure": "Error: ERR_INDEX_FORMAT_UNSUPPORTED: Cannot read pieces manifest at C:\\Users\\sneak\\AppData\\Local\\PairOfCleats\\cache\\repos\\poc-extracted-sqlite-fal-0c4089c4b078\\index-code\\pieces\\manifest.json.",
       "failureLocations": [
@@ -1344,15 +1344,15 @@
         "src/retrieval/cli/load-indexes/metadata.js:29:3",
         "src/retrieval/cli/load-indexes/metadata.js:114:18"
       ],
-      "notes": null,
+      "notes": "Direct loader receives the exact local code and extracted-prose directories authored by the fixture. Original strict manifest/compatibility negatives and SQLite-to-artifact fallback content remain.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "retrieval/pipeline/extracted-prose-optional-strict-compatibility-mismatch",
       "path": "retrieval/pipeline/extracted-prose-optional-strict-compatibility-mismatch.test.js",
       "owner": "retrieval/pipeline",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "a39173caf",
       "originalTimedOut": false,
       "originalFailure": "Error: [search] code index not found at C:\\Users\\sneak\\AppData\\Local\\PairOfCleats\\cache\\repos\\poc-optional-extracted-s-ad8042cdfdf3\\index-code. Run \"pairofcleats index build\" (build-index) or \"node build_index.js\".",
       "failureLocations": [
@@ -1363,15 +1363,15 @@
         "src/retrieval/cli/load-indexes.js:67:26",
         "tests/retrieval/pipeline/helpers/optional-extracted-prose-index-fixture.js:68:79"
       ],
-      "notes": null,
+      "notes": "Direct loader receives the exact local code and extracted-prose directories authored by the fixture. Original strict manifest/compatibility negatives and SQLite-to-artifact fallback content remain.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "retrieval/pipeline/extracted-prose-optional-strict-manifest-fallback",
       "path": "retrieval/pipeline/extracted-prose-optional-strict-manifest-fallback.test.js",
       "owner": "retrieval/pipeline",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "a39173caf",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: optional extracted prose cannot silently reuse a superseded manifestless index",
       "failureLocations": [
@@ -1382,50 +1382,50 @@
         "src/retrieval/cli/load-indexes.js:67:26",
         "tests/retrieval/pipeline/helpers/optional-extracted-prose-index-fixture.js:68:79"
       ],
-      "notes": null,
+      "notes": "Direct loader receives the exact local code and extracted-prose directories authored by the fixture. Original strict manifest/compatibility negatives and SQLite-to-artifact fallback content remain.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "retrieval/pipeline/fusion-accumulator-reuse",
       "path": "retrieval/pipeline/fusion-accumulator-reuse.test.js",
       "owner": "retrieval/pipeline",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "a39173caf",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: bm25-blend: unchanged original fusion output",
       "failureLocations": [
         "tests/retrieval/pipeline/fusion-accumulator-reuse.test.js:16:10"
       ],
-      "notes": null,
+      "notes": "Historical numerical snapshots assume cosine calibration. Inputs now carry explicit cosine score-space evidence; every historical score is unchanged and current explanation fields are asserted. Original pooled/non-pooled parity, immutable inputs and 128-contributions/64-accumulators bounds remain.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "retrieval/pipeline/literal-and-chargram-identities",
       "path": "retrieval/pipeline/literal-and-chargram-identities.test.js",
       "owner": "retrieval/pipeline",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "a39173caf",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: literal NFC tokens remain separate from sparse NFKD scoring tokens",
       "failureLocations": [
         "tests/retrieval/pipeline/literal-and-chargram-identities.test.js:44:8"
       ],
-      "notes": null,
+      "notes": "Sparse NFKD normalization decomposes the accent rather than deleting its combining mark. Expected sparse token now reflects that exact contract; literal NFC/case, Unicode and independent polynomial hash assertions remain.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "retrieval/pipeline/search-mode-failure-drain",
       "path": "retrieval/pipeline/search-mode-failure-drain.test.js",
       "owner": "retrieval/pipeline",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "a39173caf",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected \"actual\" to be reference-equal to \"expected\":",
       "failureLocations": [
         "tests/retrieval/pipeline/search-mode-failure-drain.test.js:6:19",
         "tests/retrieval/pipeline/search-mode-failure-drain.test.js:25:8"
       ],
-      "notes": null,
+      "notes": "Assert both original errors through canonical cause/aggregate edges plus exact siblingErrors, without requiring the outer contextual error to be the original mutable Error. Sibling drain precedes cleanup as before.",
       "finalBatchStatus": "pending"
     },
     {
@@ -2735,50 +2735,50 @@
       "id": "tooling/reports/bench-language-single-pass-streams",
       "path": "tooling/reports/bench-language-single-pass-streams.test.js",
       "owner": "tooling/reports",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "d14c0bbc1",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: independent stream/log discrepancies remain visible",
       "failureLocations": [
         "tests/tooling/reports/bench-language-single-pass-streams.test.js:41:10"
       ],
-      "notes": null,
+      "notes": "Current map-cache model recognition uses shared producer version with replay invalidation; compact SQLite output retains canonical metaV2 chunk identity; Windows graph/render fixtures use canonical roots. Model comparison seeds actual source hashes, summaries use stable chunk identities plus ordinal-only negative, bench parity seeds a material unmatched event, throughput pointer positive stays within cache and external-root negative remains.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/reports/compare-models-partial-ranks/opposite-orders",
       "path": "tooling/reports/compare-models-partial-ranks.test.js",
       "owner": "tooling/reports",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "d14c0bbc1",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: the actual report evaluates shifted/reversed/one-common sparse hit lists",
       "failureLocations": [
         "tests/tooling/reports/compare-models-partial-ranks.test.js:67:8"
       ],
-      "notes": null,
+      "notes": "Current map-cache model recognition uses shared producer version with replay invalidation; compact SQLite output retains canonical metaV2 chunk identity; Windows graph/render fixtures use canonical roots. Model comparison seeds actual source hashes, summaries use stable chunk identities plus ordinal-only negative, bench parity seeds a material unmatched event, throughput pointer positive stays within cache and external-root negative remains.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/reports/map-cache-isolation",
       "path": "tooling/reports/map-cache-isolation.test.js",
       "owner": "tooling/reports",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "d14c0bbc1",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: build-map-rebuild must not ingest current, renamed or legacy map cache data",
       "failureLocations": [
         "tests/tooling/reports/map-cache-isolation.test.js:65:10"
       ],
-      "notes": null,
+      "notes": "Current map-cache model recognition uses shared producer version with replay invalidation; compact SQLite output retains canonical metaV2 chunk identity; Windows graph/render fixtures use canonical roots. Model comparison seeds actual source hashes, summaries use stable chunk identities plus ordinal-only negative, bench parity seeds a material unmatched event, throughput pointer positive stays within cache and external-root negative remains.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/reports/map-graph-capability-consumer",
       "path": "tooling/reports/map-graph-capability-consumer.test.js",
       "owner": "tooling/reports",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "d14c0bbc1",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: file:///C:/Users/sneak/Development/PairOfCleats/src/integrations/core/build-index/index.js:5\r",
       "failureLocations": [
@@ -2787,27 +2787,27 @@
         "tools/reports/report-code-map.js:280:11",
         "tests/tooling/reports/map-graph-capability-consumer.test.js:58:10"
       ],
-      "notes": null,
+      "notes": "Current map-cache model recognition uses shared producer version with replay invalidation; compact SQLite output retains canonical metaV2 chunk identity; Windows graph/render fixtures use canonical roots. Model comparison seeds actual source hashes, summaries use stable chunk identities plus ordinal-only negative, bench parity seeds a material unmatched event, throughput pointer positive stays within cache and external-root negative remains.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/reports/map-operational-render",
       "path": "tooling/reports/map-operational-render.test.js",
       "owner": "tooling/reports",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "d14c0bbc1",
       "originalTimedOut": false,
       "originalFailure": "Node.js v26.12.1",
       "failureLocations": [],
-      "notes": null,
+      "notes": "Current map-cache model recognition uses shared producer version with replay invalidation; compact SQLite output retains canonical metaV2 chunk identity; Windows graph/render fixtures use canonical roots. Model comparison seeds actual source hashes, summaries use stable chunk identities plus ordinal-only negative, bench parity seeds a material unmatched event, throughput pointer positive stays within cache and external-root negative remains.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/reports/parity-cold-build-cleanup",
       "path": "tooling/reports/parity-cold-build-cleanup.test.js",
       "owner": "tooling/reports",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "needs-further-implementation",
+      "sourceHead": "d14c0bbc1",
       "originalTimedOut": false,
       "originalFailure": "AggregateError: Cold setup and cleanup results",
       "failureLocations": [
@@ -2815,65 +2815,65 @@
         "tests/tooling/reports/parity-cold-build-cleanup.test.js:43:43",
         "tests/tooling/reports/parity-cold-build-cleanup.test.js:35:10"
       ],
-      "notes": null,
+      "notes": "Closed fixture tsconfig excludes parent ambient types and timeout diagnostics retain elapsed time plus stdout/stderr. Original 15-second bound, descendant trace/reaping and immediate directory deletion remain. Timing cause and closure still require the deferred batch; no pass claimed.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/reports/parity-matrix-execution",
       "path": "tooling/reports/parity-matrix-execution.test.js",
       "owner": "tooling/reports",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "d14c0bbc1",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: the real backends must agree on the fixture hits",
       "failureLocations": [
         "tests/tooling/reports/parity-matrix-execution.test.js:151:10"
       ],
-      "notes": null,
+      "notes": "Current map-cache model recognition uses shared producer version with replay invalidation; compact SQLite output retains canonical metaV2 chunk identity; Windows graph/render fixtures use canonical roots. Model comparison seeds actual source hashes, summaries use stable chunk identities plus ordinal-only negative, bench parity seeds a material unmatched event, throughput pointer positive stays within cache and external-root negative remains.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/reports/show-throughput-refresh-cache-contract",
       "path": "tooling/reports/show-throughput-refresh-cache-contract.test.js",
       "owner": "tooling/reports",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "d14c0bbc1",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected build-root resolution to prefer current build pointer over directory sort order",
       "failureLocations": [
         "tests/tooling/reports/show-throughput-refresh-cache-contract.test.js:181:10"
       ],
-      "notes": null,
+      "notes": "Current map-cache model recognition uses shared producer version with replay invalidation; compact SQLite output retains canonical metaV2 chunk identity; Windows graph/render fixtures use canonical roots. Model comparison seeds actual source hashes, summaries use stable chunk identities plus ordinal-only negative, bench parity seeds a material unmatched event, throughput pointer positive stays within cache and external-root negative remains.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/reports/summary/report-parity-sqlite",
       "path": "tooling/reports/summary/report-parity-sqlite.test.js",
       "owner": "tooling/reports",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "d14c0bbc1",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: summary report parity (sqlite) should compare code hits",
       "failureLocations": [
         "tests/tooling/reports/summary/summary-report-helpers.js:285:10",
         "tests/tooling/reports/summary/report-parity-sqlite.test.js:4:1"
       ],
-      "notes": null,
+      "notes": "Current map-cache model recognition uses shared producer version with replay invalidation; compact SQLite output retains canonical metaV2 chunk identity; Windows graph/render fixtures use canonical roots. Model comparison seeds actual source hashes, summaries use stable chunk identities plus ordinal-only negative, bench parity seeds a material unmatched event, throughput pointer positive stays within cache and external-root negative remains.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/reports/summary/report-parity-sqlite-fts",
       "path": "tooling/reports/summary/report-parity-sqlite-fts.test.js",
       "owner": "tooling/reports",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "d14c0bbc1",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: summary report parity (sqlite-fts) should compare code hits",
       "failureLocations": [
         "tests/tooling/reports/summary/summary-report-helpers.js:285:10",
         "tests/tooling/reports/summary/report-parity-sqlite-fts.test.js:4:1"
       ],
-      "notes": null,
+      "notes": "Current map-cache model recognition uses shared producer version with replay invalidation; compact SQLite output retains canonical metaV2 chunk identity; Windows graph/render fixtures use canonical roots. Model comparison seeds actual source hashes, summaries use stable chunk identities plus ordinal-only negative, bench parity seeds a material unmatched event, throughput pointer positive stays within cache and external-root negative remains.",
       "finalBatchStatus": "pending"
     },
     {
@@ -4066,65 +4066,65 @@
       "id": "indexing/risk/interprocedural/engine-shape-guards",
       "path": "indexing/risk/interprocedural/engine-shape-guards.test.js",
       "owner": "indexing/risk",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "a39173caf",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: summary-only mode should complete with malformed chunk collections",
       "failureLocations": [
         "tests/indexing/risk/interprocedural/engine-shape-guards.test.js:19:8"
       ],
-      "notes": null,
+      "notes": "Risk status distinguishes completed execution from unknown cross-file input coverage; local uncapped zero-risk coverage is asserted separately. Flow/cap/path assertions retained, runtime-gating explicitly chooses stub embeddings, and maxFlows uses the existing real destructured source-to-sink witness rather than file-wide co-occurrence.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/risk/interprocedural/flows-cap-matrix",
       "path": "indexing/risk/interprocedural/flows-cap-matrix.test.js",
       "owner": "indexing/risk",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "a39173caf",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/indexing/risk/interprocedural/flows-cap-matrix.test.js:13:14",
         "tests/indexing/risk/interprocedural/flows-cap-matrix.test.js:55:12"
       ],
-      "notes": null,
+      "notes": "Risk status distinguishes completed execution from unknown cross-file input coverage; local uncapped zero-risk coverage is asserted separately. Flow/cap/path assertions retained, runtime-gating explicitly chooses stub embeddings, and maxFlows uses the existing real destructured source-to-sink witness rather than file-wide co-occurrence.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/risk/interprocedural/framework-semantics",
       "path": "indexing/risk/interprocedural/framework-semantics.test.js",
       "owner": "indexing/risk",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "needs-further-implementation",
+      "sourceHead": "a39173caf",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected a retained partial flow without semantics",
       "failureLocations": [
         "tests/indexing/risk/interprocedural/framework-semantics.test.js:154:8"
       ],
-      "notes": null,
+      "notes": "Preserved original full/partial-flow and callback semantics assertions; added retained frontier diagnostics to identify why two partial flows appear where one was expected. No count relaxation or deduplication without evidence.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/risk/interprocedural/partial-flows",
       "path": "indexing/risk/interprocedural/partial-flows.test.js",
       "owner": "indexing/risk",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "a39173caf",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/indexing/risk/interprocedural/partial-flows.test.js:11:8"
       ],
-      "notes": null,
+      "notes": "Risk status distinguishes completed execution from unknown cross-file input coverage; local uncapped zero-risk coverage is asserted separately. Flow/cap/path assertions retained, runtime-gating explicitly chooses stub embeddings, and maxFlows uses the existing real destructured source-to-sink witness rather than file-wide co-occurrence.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/risk/interprocedural/runtime-gating",
       "path": "indexing/risk/interprocedural/runtime-gating.test.js",
       "owner": "indexing/risk",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "a39173caf",
       "originalTimedOut": false,
       "originalFailure": "Error: Inline embeddings require verified model artifacts before cache/signature selection. Download/verify the selected model, then retry the build.",
       "failureLocations": [
@@ -4135,49 +4135,49 @@
         "src/index/build/runtime/runtime.js:207:12",
         "src/index/build/runtime/receipt.js:14:16"
       ],
-      "notes": null,
+      "notes": "Risk status distinguishes completed execution from unknown cross-file input coverage; local uncapped zero-risk coverage is asserted separately. Flow/cap/path assertions retained, runtime-gating explicitly chooses stub embeddings, and maxFlows uses the existing real destructured source-to-sink witness rather than file-wide co-occurrence.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/risk/interprocedural/summary-only-status",
       "path": "indexing/risk/interprocedural/summary-only-status.test.js",
       "owner": "indexing/risk",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "a39173caf",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/indexing/risk/interprocedural/summary-only-status.test.js:70:8"
       ],
-      "notes": null,
+      "notes": "Risk status distinguishes completed execution from unknown cross-file input coverage; local uncapped zero-risk coverage is asserted separately. Flow/cap/path assertions retained, runtime-gating explicitly chooses stub embeddings, and maxFlows uses the existing real destructured source-to-sink witness rather than file-wide co-occurrence.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/risk/interprocedural/upstream-input-coverage",
       "path": "indexing/risk/interprocedural/upstream-input-coverage.test.js",
       "owner": "indexing/risk",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "a39173caf",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/indexing/risk/interprocedural/upstream-input-coverage.test.js:21:8"
       ],
-      "notes": null,
+      "notes": "Risk status distinguishes completed execution from unknown cross-file input coverage; local uncapped zero-risk coverage is asserted separately. Flow/cap/path assertions retained, runtime-gating explicitly chooses stub embeddings, and maxFlows uses the existing real destructured source-to-sink witness rather than file-wide co-occurrence.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/risk/risk-contract-matrix",
       "path": "indexing/risk/risk-contract-matrix.test.js",
       "owner": "indexing/risk",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "a39173caf",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/indexing/risk/risk-contract-matrix.test.js:148:10"
       ],
-      "notes": null,
+      "notes": "Risk status distinguishes completed execution from unknown cross-file input coverage; local uncapped zero-risk coverage is asserted separately. Flow/cap/path assertions retained, runtime-gating explicitly chooses stub embeddings, and maxFlows uses the existing real destructured source-to-sink witness rather than file-wide co-occurrence.",
       "finalBatchStatus": "pending"
     },
     {
@@ -5353,8 +5353,8 @@
       "id": "tooling/api-contracts/export-identity-cli/js-fail",
       "path": "tooling/api-contracts/export-identity-cli.test.js",
       "owner": "tooling/api-contracts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "d14c0bbc1",
       "originalTimedOut": false,
       "originalFailure": "Error [AbortError]: Operation aborted",
       "failureLocations": [
@@ -5365,15 +5365,15 @@
         "src/shared/contained-file-resource.js:283:53",
         "src/semantic/artifact-store.js:501:7"
       ],
-      "notes": null,
+      "notes": "Historical logs explicitly defer compiler work (manual_deferred_compiler_tasks). Fixtures now request eager bindings with unrelated flow phases off; exact target, duplicate-name, export, report and warning-cap assertions remain. Existing f5334185b queue-close repair also applies to the original abort propagation; 10-second build deadlines unchanged.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/api-contracts/export-identity-cli/js-report",
       "path": "tooling/api-contracts/export-identity-cli.test.js",
       "owner": "tooling/api-contracts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "d14c0bbc1",
       "originalTimedOut": false,
       "originalFailure": "AggregateError [AbortError]: Operation aborted",
       "failureLocations": [
@@ -5384,15 +5384,15 @@
         "src/shared/artifact-io/offsets.js:436:60",
         "src/shared/artifact-io/offsets.js:470:11"
       ],
-      "notes": null,
+      "notes": "Historical logs explicitly defer compiler work (manual_deferred_compiler_tasks). Fixtures now request eager bindings with unrelated flow phases off; exact target, duplicate-name, export, report and warning-cap assertions remain. Existing f5334185b queue-close repair also applies to the original abort propagation; 10-second build deadlines unchanged.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/api-contracts/export-identity-cli/ts-fail",
       "path": "tooling/api-contracts/export-identity-cli.test.js",
       "owner": "tooling/api-contracts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "d14c0bbc1",
       "originalTimedOut": false,
       "originalFailure": "Error [AbortError]: Operation aborted",
       "failureLocations": [
@@ -5403,15 +5403,15 @@
         "src/shared/contained-file.js:228:5",
         "src/shared/contained-file-resource.js:283:53"
       ],
-      "notes": null,
+      "notes": "Historical logs explicitly defer compiler work (manual_deferred_compiler_tasks). Fixtures now request eager bindings with unrelated flow phases off; exact target, duplicate-name, export, report and warning-cap assertions remain. Existing f5334185b queue-close repair also applies to the original abort propagation; 10-second build deadlines unchanged.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/api-contracts/export-identity-cli/ts-report",
       "path": "tooling/api-contracts/export-identity-cli.test.js",
       "owner": "tooling/api-contracts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "d14c0bbc1",
       "originalTimedOut": false,
       "originalFailure": "Error [AbortError]: Operation aborted",
       "failureLocations": [
@@ -5422,29 +5422,29 @@
         "src/shared/contained-file-resource.js:283:53",
         "src/semantic/artifact-store.js:501:7"
       ],
-      "notes": null,
+      "notes": "Historical logs explicitly defer compiler work (manual_deferred_compiler_tasks). Fixtures now request eager bindings with unrelated flow phases off; exact target, duplicate-name, export, report and warning-cap assertions remain. Existing f5334185b queue-close repair also applies to the original abort propagation; 10-second build deadlines unchanged.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/api-contracts/qualified-target-joins-cli/js-clean",
       "path": "tooling/api-contracts/qualified-target-joins-cli.test.js",
       "owner": "tooling/api-contracts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "d14c0bbc1",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/tooling/api-contracts/qualified-target-joins-cli.test.js:46:8"
       ],
-      "notes": null,
+      "notes": "Historical logs explicitly defer compiler work (manual_deferred_compiler_tasks). Fixtures now request eager bindings with unrelated flow phases off; exact target, duplicate-name, export, report and warning-cap assertions remain. Existing f5334185b queue-close repair also applies to the original abort propagation; 10-second build deadlines unchanged.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/api-contracts/qualified-target-joins-cli/js-violation",
       "path": "tooling/api-contracts/qualified-target-joins-cli.test.js",
       "owner": "tooling/api-contracts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "d14c0bbc1",
       "originalTimedOut": false,
       "originalFailure": "AggregateError [AbortError]: Operation aborted",
       "failureLocations": [
@@ -5455,35 +5455,35 @@
         "src/index/build/stage-snapshot.js:35:3",
         "src/index/build/completed-stage.js:75:20"
       ],
-      "notes": null,
+      "notes": "Historical logs explicitly defer compiler work (manual_deferred_compiler_tasks). Fixtures now request eager bindings with unrelated flow phases off; exact target, duplicate-name, export, report and warning-cap assertions remain. Existing f5334185b queue-close repair also applies to the original abort propagation; 10-second build deadlines unchanged.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/api-contracts/qualified-target-joins-cli/ts-clean",
       "path": "tooling/api-contracts/qualified-target-joins-cli.test.js",
       "owner": "tooling/api-contracts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "d14c0bbc1",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/tooling/api-contracts/qualified-target-joins-cli.test.js:46:8"
       ],
-      "notes": null,
+      "notes": "Historical logs explicitly defer compiler work (manual_deferred_compiler_tasks). Fixtures now request eager bindings with unrelated flow phases off; exact target, duplicate-name, export, report and warning-cap assertions remain. Existing f5334185b queue-close repair also applies to the original abort propagation; 10-second build deadlines unchanged.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/api-contracts/qualified-target-joins-cli/ts-violation",
       "path": "tooling/api-contracts/qualified-target-joins-cli.test.js",
       "owner": "tooling/api-contracts",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "d14c0bbc1",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/tooling/api-contracts/qualified-target-joins-cli.test.js:46:8"
       ],
-      "notes": null,
+      "notes": "Historical logs explicitly defer compiler work (manual_deferred_compiler_tasks). Fixtures now request eager bindings with unrelated flow phases off; exact target, duplicate-name, export, report and warning-cap assertions remain. Existing f5334185b queue-close repair also applies to the original abort propagation; 10-second build deadlines unchanged.",
       "finalBatchStatus": "pending"
     }
   ]
