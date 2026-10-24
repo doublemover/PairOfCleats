@@ -50,6 +50,44 @@ See `docs/specs/editor-packaging-determinism.md` for contract details.
 
 Use the self-contained [VS Code installation and first-search guide](../../extensions/vscode/README.md) or [Sublime Text user guide](../../sublime/PairOfCleats/README.md). They distinguish the PairOfCleats application installation from the target repository and document native commands, scoped settings, execution-host policy, bounded evidence, progress and recovery. Packaged walkthroughs link back to their bundled guide.
 
+## VS Code settings reference
+
+The extension's Settings UI supplies defaults and accepted values. Executable,
+environment and service-destination authority belongs in User Settings; search
+and presentation settings follow the selected repository resource. The canonical
+[editor contract](../../src/contracts/editor-config-contract.json) and extension
+manifest define these names:
+
+- `pairofcleats.cliPath`: installed CLI executable or JavaScript entrypoint.
+- `pairofcleats.nodePath`: Node executable for a JavaScript CLI entrypoint.
+- `pairofcleats.cliArgs`: installation-level CLI arguments.
+- `pairofcleats.apiServerUrl`: selected service destination.
+- `pairofcleats.apiTimeoutMs`: service request deadline.
+- `pairofcleats.apiExecutionMode`: CLI, preferred API, or required API transport.
+- `pairofcleats.env`: explicit environment overrides for owned commands.
+- `pairofcleats.extraSearchArgs`: additional search arguments.
+- `pairofcleats.searchMode`: indexed content mode.
+- `pairofcleats.searchBackend`: retrieval backend.
+- `pairofcleats.searchAnn`: approximate-nearest-neighbor selection.
+- `pairofcleats.maxResults`: result count limit.
+- `pairofcleats.searchFile`: file selector.
+- `pairofcleats.searchPath`: path selector.
+- `pairofcleats.searchLang`: language selector.
+- `pairofcleats.searchExt`: extension selector.
+- `pairofcleats.searchType`: chunk type selector.
+- `pairofcleats.searchAsOf`: temporal selector.
+- `pairofcleats.searchSnapshot`: saved snapshot selector.
+- `pairofcleats.searchFilter`: structured filter expression.
+- `pairofcleats.searchAuthor`: author selector.
+- `pairofcleats.searchModifiedAfter`: modification timestamp lower bound.
+- `pairofcleats.searchModifiedSince`: relative modification selector.
+- `pairofcleats.searchChurn`: churn selector.
+- `pairofcleats.searchCaseSensitive`: case-sensitive search selection.
+- `pairofcleats.inlineHoverEnabled`: inline hover presentation.
+- `pairofcleats.inlineDiagnosticsEnabled`: inline diagnostic presentation.
+- `pairofcleats.inlineDecorationsEnabled`: inline decoration presentation.
+- `pairofcleats.inlineMaxItems`: inline item limit.
+
 
 ## Sublime package
 

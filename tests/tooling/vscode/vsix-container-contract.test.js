@@ -14,6 +14,13 @@ assert.equal(qualified.extensionId, `${manifest.publisher}.${manifest.name}`);
 assert.equal(qualified.version, manifest.version);
 assert.equal(qualified.engine, manifest.engines.vscode);
 assert.ok(qualified.runtimeModules > 1, 'qualification must traverse shipped runtime modules');
+const undotted = new AdmZip(archive);
+const undottedPath = path.join(dir, 'undotted.vsix');
+const originalTypes = undotted.readAsText('[Content_Types].xml');
+assert.match(originalTypes, /Extension="\.vsixmanifest"/u, 'retain the actual pinned official packager spelling');
+undotted.updateFile('[Content_Types].xml', Buffer.from(originalTypes.replace(/Extension="\./gu, 'Extension="')));
+undotted.writeZip(undottedPath);
+assert.deepEqual(await validateVsixContainer(undottedPath), qualified, 'both extension spellings describe the same actual payload');
 
 let sequence = 0;
 const rejectMutation = async (mutate, expected) => {

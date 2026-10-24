@@ -79,7 +79,9 @@ export const validateVsixContainer = async (archivePath) => {
   for (const asset of assets) {
     if (!safePath(asset?.$?.Path) || !files.has(asset.$.Path)) fail(`missing asset ${asset?.$?.Path}`);
   }
-  const defaults = new Map(array(types?.Default).map((entry) => [entry?.$?.Extension?.toLowerCase(), entry?.$?.ContentType]));
+  // The pinned official packager emits dotted extensions (including
+  // .vsixmanifest); readers may also receive the equivalent undotted spelling.
+  const defaults = new Map(array(types?.Default).map((entry) => [entry?.$?.Extension?.replace(/^\./u, '').toLowerCase(), entry?.$?.ContentType]));
   const overrides = new Map(array(types?.Override).map((entry) => [entry?.$?.PartName, entry?.$?.ContentType]));
   if (!types || (!defaults.get('vsixmanifest') && !overrides.get('/extension.vsixmanifest'))) {
     fail('content types do not describe the VSIX manifest');

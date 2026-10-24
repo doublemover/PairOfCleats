@@ -20,6 +20,13 @@
     "developer-tools"
   ],
   "markdown": "github",
+  "files": [
+    "*.js",
+    "*.cjs",
+    "*.json",
+    "README.md",
+    "walkthroughs/**"
+  ],
   "engines": {
     "vscode": "^1.86.0"
   },

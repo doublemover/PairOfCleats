@@ -286,7 +286,7 @@ for (const entry of [
   'extension/analysis-renderers.js',
   'extension/windows-cmd.js',
   'extension/windows-cmd-core.cjs',
-  'extension/README.md',
+  'extension/readme.md',
   'extension/walkthroughs/first-search.md',
   'extension/walkthroughs/operations.md'
 ]) {
