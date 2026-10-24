@@ -54,6 +54,10 @@ const hooks = registerHooks({
   }
 });
 const fixtures = [], adapters = [];
+const embeddingOutput = feeds => {
+  const count = feeds.input_ids.dims[0];
+  return { sentence_embedding: { type: 'float32', data: new Float32Array(count * 2).fill(1), dims: [count, 2] } };
+};
 const fixture = async name => {
   const modelPath = path.join(dir, `${name}.onnx`); await fs.writeFile(modelPath, 'inert owned graph fixture');
   const value = { name, creates: 0, verifications: 0, nativeCloses: 0, tokenizerCloses: 0, runs: 0,
@@ -64,10 +68,10 @@ const fixture = async name => {
   }, { dispose: async () => { value.tokenizerCloses++; if (value.tokenizerErrors.length) throw value.tokenizerErrors.shift(); } });
   value.session = { inputNames: ['input_ids', 'attention_mask'],
     release: async () => { value.nativeCloses++; if (value.releaseErrors.length) throw value.releaseErrors.shift(); value.nativeClosed = true; },
-    run: async () => {
+    run: async feeds => {
       value.runs++; value.runEntered?.resolve(); if (value.runGate) await value.runGate.promise;
       assert.equal(value.nativeClosed, undefined, 'accepted inference retains its session through actual settlement');
-      return {};
+      return embeddingOutput(feeds);
     } };
   value.options = { rootDir: dir, modelId: name, onnxConfig: { modelPath }, modelArtifact: value.modelArtifact };
   values.set(name, value); values.set(modelPath, value); fixtures.push(value); return value;
@@ -207,6 +211,19 @@ try {
   // The private lifetime owner cannot manufacture successful empty cleanup when
   // startup rejected without ever supplying an authoritative resource owner.
   const isolatedCache = new Map(), lifetime = createOnnxCacheLifetime(isolatedCache);
+  for (const thrown of [undefined, null, false, 0, '']) {
+    let closed = false, calls = 0;
+    const entry = lifetime.adopt({ key: `falsey-${String(thrown)}`, references: 0, queue: { onIdle: async () => {} } });
+    entry.promise = Promise.resolve(); lifetime.startupLoaded(entry);
+    lifetime.observeResourceOwner(entry, { get settled() { return closed; }, release: async () => {
+      if (++calls === 1) throw thrown;
+      closed = true; return true;
+    } });
+    const failure = await rejection(lifetime.retire(entry.key, entry));
+    assert.ok(failure instanceof AggregateError); assert.equal(failure.cause, thrown);
+    assert.equal(await rejection(lifetime.retire(entry.key, entry)), failure); assert.equal(calls, 1);
+    await entry.cacheOwner.release(); assert.equal(calls, 2); assert.equal(failure.cacheOwnershipReleased(), true);
+  }
   const unobserved = lifetime.adopt({ key: 'unknown-startup', references: 0, queue: { onIdle: async () => {} } });
   const startupCause = Object.freeze(new Error('startup owner was not observed'));
   unobserved.promise = Promise.reject(startupCause); unobserved.promise.catch(() => {});
@@ -236,7 +253,7 @@ try {
   const direct = await fixture('direct-cap-accepted-work'), directAdapter = create(direct);
   const directLoaded = await directAdapter.embedderPromise;
   direct.runGate = deferred(); direct.runEntered = deferred();
-  direct.session.run = async () => { direct.runEntered.resolve(); await direct.runGate.promise; return {}; };
+  direct.session.run = async feeds => { direct.runEntered.resolve(); await direct.runGate.promise; return embeddingOutput(feeds); };
   const directWork = directAdapter.prewarm({ model: true, texts: ['accepted work'] });
   await direct.runEntered.promise; api.__resetOnnxSessionCacheForTests();
   let directDisposed = false;

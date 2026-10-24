@@ -35,9 +35,10 @@ const owner = captureSceneResource(resource, 'two independent observers');
 const failure = caught(() => owner.retire());
 assert.equal(failure.cause, original); assert.equal(Object.hasOwn(failure, 'cacheOwnershipReleased'), false, 'original observer is not copied onto a different receiver');
 sceneReleased = true;
-caught(() => owner.release()); assert.equal(closes, 2); assert.equal(owner.pending, true);
+caught(() => owner.release()); assert.equal(closes, 1, 'an independent pending receipt blocks another disposal attempt'); assert.equal(owner.pending, true);
 assert.ok(sceneObservations > 0); assert.ok(cacheObservations > 0, 'both original receipts are observed independently');
-cacheReleased = true; owner.release(); assert.equal(closes, 2, 'successful disposer is not repeated while independent receipt settles');
+cacheReleased = true; owner.release(); assert.equal(closes, 2, 'both original receipts settle before exact disposal retries');
+owner.release(); assert.equal(closes, 2, 'successful disposal is never repeated');
 assert.equal(failure.sceneOwnershipReleased(), true);
 
 sceneReleased = true; cacheReleased = false;

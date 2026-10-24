@@ -65,7 +65,7 @@ export const captureTransformersResource = (resource, role = 'transformers resou
       closed = true; pendingResources.delete(owner); return true;
     }).catch(error => {
       record(error); pendingResources.add(owner);
-      lastError = error === lastError ? error : transformersCleanupFailure(owner, [error]);
+      lastError = lastError !== null && error === lastError ? error : transformersCleanupFailure(owner, [error]);
       throw lastError;
     }).finally(() => { flight = null; });
     flight.catch(() => {}); return flight;

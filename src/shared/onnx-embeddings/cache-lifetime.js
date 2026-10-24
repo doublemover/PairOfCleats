@@ -57,7 +57,7 @@ export const createOnnxCacheLifetime = cache => {
       return receipt(entry);
     }).catch(error => {
       retainDiagnostics(entry, error);
-      entry.releaseError = error === entry.releaseError ? error : retainedFailure(error, entry.cacheOwner);
+      entry.releaseError = entry.releaseError !== null && error === entry.releaseError ? error : retainedFailure(error, entry.cacheOwner);
       throw entry.releaseError;
     }).finally(() => { entry.releasing = null; });
     // Fire-and-forget cache/finalizer retirement observes the rejection, while

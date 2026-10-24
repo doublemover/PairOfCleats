@@ -79,7 +79,7 @@ export const createEmbeddingCacheLifetime = ({ cache, kind }) => {
     entry.waiting = null; entry.resolveWaiting = null; entry.rejectWaiting = null;
   };
   const retainFailure = (entry, error) => {
-    if (error === entry.releaseError) return error;
+    if (entry.releaseError !== null && error === entry.releaseError) return error;
     const failure = copyFailure(error, [error]);
     if (!Object.hasOwn(failure, 'code')) failure.code = 'ERR_EMBEDDING_CACHE_RESOURCE_PENDING';
     Object.defineProperties(failure, { embeddingCacheOwner: { value: entry.owner },

@@ -122,7 +122,7 @@ export const captureSceneResource = (resource, label = 'scene resource', methodN
         disposed = true;
       }
       return confirm();
-    } catch (error) { if (error === lastError) throw error; throw retain(error); }
+    } catch (error) { if (lastError !== null && error === lastError) throw error; throw retain(error); }
   };
   const settleAsync = async retry => {
     try { return release({ retry }); }
