@@ -868,6 +868,7 @@ export function resolveImportLinks({
         } else if (hasBazelLabel) {
           // Labels own their exact spelling and package boundary. Generic path,
           // alias and package fallbacks cannot supply a different target.
+          stageTracker.markAttempt(IMPORT_RESOLVER_STAGES.BUILD_SYSTEM_RESOLVER);
           resolvedType = bazelLabel.state === 'resolved' ? 'bazel-label' : 'unresolved';
           resolvedPath = bazelLabel.resolvedPath || null;
           if (resolvedPath) stageTracker.markHit(IMPORT_RESOLVER_STAGES.BUILD_SYSTEM_RESOLVER);

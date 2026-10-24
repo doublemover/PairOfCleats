@@ -28,7 +28,7 @@ try {
   const lookup = createFileLookup({ root, entries: files.map(rel => ({ rel, abs: path.join(root, rel) })), caseSensitive: true });
   const config = createTsConfigLoader({ rootAbs: root }).resolveForFile(path.join(root, 'app/main.ts'));
   assert.equal(config.compilerOptions.strict, true);
-  assert.equal(config.baseUrlAbs, path.join(root, 'configs'));
+  assert.equal(config.baseUrlAbs, path.join(root, 'configs').replace(/\\/g, '/'));
   assert.equal(resolveTsPaths({ spec: '@scope/value', tsconfig: config, lookup }).resolved,
     'configs/source/value.ts', 'replacement declaration order outranks alphabetical order');
   assert.equal(resolveTsPaths({ spec: '@scope/absent/value', tsconfig: config, lookup }), null,

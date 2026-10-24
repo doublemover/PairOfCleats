@@ -194,7 +194,7 @@ export function appendChunk(
   const phraseMinN = phraseMinRaw <= phraseMaxRaw ? phraseMinRaw : phraseMaxRaw;
   const phraseMaxN = phraseMaxRaw >= phraseMinRaw ? phraseMaxRaw : phraseMinRaw;
   const phraseSource = config.phraseSource === 'full' ? 'full' : 'fields';
-  const phraseHashEnabled = config.phraseHash === true
+  const phraseHashEnabled = config.phraseHash !== false
     && phraseSource === 'full'
     && useTokenIds
     && state?.phrasePostHashBuckets

@@ -15,7 +15,8 @@ try {
   assert.deepEqual(relations.exports, ['f']);
   assert.deepEqual(relations.calls, [['f', 'pkg.g'], ['f', 'helper']]);
   assert.deepEqual(relations.callDetails, [
-    { caller: 'f', callee: 'pkg.g', args: ['helper(...)'] }, { caller: 'f', callee: 'helper', args: ['value'] }
+    { caller: 'f', callerScopeId: 'f@3:0', callee: 'pkg.g', args: ['helper(...)'] },
+    { caller: 'f', callerScopeId: 'f@3:0', callee: 'helper', args: ['value'] }
   ]);
   assert.ok(relations.usages.includes('pkg') && relations.usages.includes('helper') && relations.usages.includes('value'));
   for (const field of ['imports', 'exports', 'calls', 'callDetails', 'usages']) assert.deepEqual(relations[field], context.pythonAst[field]);

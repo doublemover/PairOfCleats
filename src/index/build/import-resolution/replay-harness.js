@@ -182,7 +182,9 @@ export const discoverImportResolutionGraphReports = async ({
   const roots = (Array.isArray(scanRoots) ? scanRoots : DEFAULT_REPLAY_SCAN_ROOTS)
     .map((entry) => String(entry || '').trim())
     .filter(Boolean)
-    .map((entry) => path.join(rootDir, entry)).sort(sortStrings);
+    // The configured order admits current reports before historical caches
+    // when the bounded discovery limit is reached. Sort within each root only.
+    .map((entry) => path.join(rootDir, entry));
   const discovered = [];
   for (const scanRoot of roots) {
     if (discovered.length >= limit) break;

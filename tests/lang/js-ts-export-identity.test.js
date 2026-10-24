@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import { withFixtureCallArguments } from '../helpers/call-arguments.js';
+import { summarizeCallableParameters } from '../../src/contracts/callable-parameters.js';
 import { parseJavaScriptAst, buildJsChunks } from '../../src/lang/javascript.js';
 import { buildTypeScriptChunksFromAst } from '../../src/lang/typescript/chunks-ast.js';
 import { buildTypeScriptChunksFromBabel } from '../../src/lang/typescript/chunks-babel.js';
@@ -103,8 +105,10 @@ const { moduleExports: _oldAbsent, ...oldVersions } = SEMANTIC_ANALYSIS_VERSIONS
 assert.notEqual(semanticAnalysisPolicyIdentity({ enrichment: {} }), semanticAnalysisPolicyIdentity({ enrichment: {} }, oldVersions));
 
 const symbol = { symbolId: 'api', chunkUid: 'api-chunk', file: 'api.ts', lang: 'typescript',
-  name: 'api', kind: 'FunctionDeclaration', signature: 'export function api(a,b)' };
-const callSites = [{ callSiteId: 'bad', targetChunkUid: 'api-chunk', args: ['1'] }];
+  name: 'api', kind: 'FunctionDeclaration', signature: 'export function api(a,b)',
+  extensions: { callableParameters: summarizeCallableParameters(
+    buildTypeScriptChunksFromBabel('export function api(a,b) {}', { ext: '.ts' })[0].meta.callableParameters) } };
+const callSites = [withFixtureCallArguments({ callSiteId: 'bad', targetChunkUid: 'api-chunk', args: ['1'] })];
 const report = buildApiContractsReport({ symbols: [{ ...symbol, exported: true }], callSites, onlyExports: true });
 assert.equal(report.symbols.length, 1); assert.equal(report.warnings[0].code, 'ARITY_MISMATCH');
 assert.equal(validateApiContracts(report).ok, true);

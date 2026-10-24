@@ -61,7 +61,7 @@ export const prepareCssSource = (text, options = {}) => {
   const advance = () => {
     const char = source[index++];
     if ((char === '\n' || char === '\r' && source[index] !== '\n' || char === '\f') && !scanBudget.consumeLine()) {
-      fail('scan_lines'); stopped = true;
+      fail(scanBudget.timedOut ? 'scan_time' : 'scan_lines'); stopped = true;
     }
     if ((index & 255) === 0) check();
     return char;
@@ -163,7 +163,7 @@ export const prepareCssSource = (text, options = {}) => {
     if (pushed) { const token = pushed; pushed = null; return token; }
     trivia();
     if (!check() || index >= source.length) return null;
-    if (!scanBudget.consumeToken()) { fail('scan_tokens'); stopped = true; return null; }
+    if (!scanBudget.consumeToken()) { fail(scanBudget.timedOut ? 'scan_time' : 'scan_tokens'); stopped = true; return null; }
     tokens++;
     const start = index, char = source[index];
     if (char === '"' || char === "'") return readString();
@@ -206,7 +206,7 @@ export const prepareCssSource = (text, options = {}) => {
     if (!importRegionOpen) { fail('invalid-import-position'); return; }
     const specifier = sanitizeImportSpecifier(literal.value, { literal: true });
     if (!specifier) { fail('empty-or-unsupported-url'); return; }
-    if (!scanBudget.consumeMatch()) { fail('scan_matches'); stopped = true; return; }
+    if (!scanBudget.consumeMatch()) { fail(scanBudget.timedOut ? 'scan_time' : 'scan_matches'); stopped = true; return; }
     const qualifierStart = literal.end, qualifierEnd = source[end - 1] === ';' ? end - 1 : end;
     const qualified = qualify(qualifiers, source, qualifierStart, qualifierEnd);
     if (!qualified.valid) { fail('unsupported-import-qualifiers'); return; }

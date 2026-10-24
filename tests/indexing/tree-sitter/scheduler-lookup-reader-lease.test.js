@@ -112,6 +112,7 @@ const resultsPathC = paths.resultsPathForGrammarKey(grammarC, 'binary-v1');
 const resultsPathD = paths.resultsPathForGrammarKey(grammarD, 'binary-v1');
 
 const originalOpen = fs.open;
+const wedgedCloses = new Set();
 const installDelayedCloseForPath = (delayedPath, delayMs = 75) => {
   fs.open = async (...args) => {
     const [targetPath] = args;
@@ -277,14 +278,27 @@ try {
 
   // Regression: a wedged reader close should keep lookup shutdown bounded but
   // fail deterministically instead of force-closing the shared reader entry.
+  let hangNextClose = true;
   fs.open = async (...args) => {
     const [targetPath] = args;
     const handle = await originalOpen(...args);
-    const shouldHangClose = String(targetPath) === String(resultsPathA);
+    const shouldHangClose = hangNextClose && String(targetPath) === String(resultsPathA);
+    if (shouldHangClose) hangNextClose = false;
+    let closeGate;
+    if (shouldHangClose) {
+      const originalClose = handle.close.bind(handle);
+      let finish, fail, closing;
+      closeGate = { promise: new Promise((resolve, reject) => { finish = resolve; fail = reject; }),
+        release() {
+          closing ||= originalClose().then(finish, fail);
+          return closing;
+        } };
+      wedgedCloses.add(closeGate);
+    }
     return new Proxy(handle, {
       get(target, prop, receiver) {
         if (prop === 'close' && shouldHangClose) {
-          return async () => new Promise(() => {});
+          return () => closeGate.promise;
         }
         const value = Reflect.get(target, prop, receiver);
         return typeof value === 'function' ? value.bind(target) : value;
@@ -320,6 +334,7 @@ try {
     'ERR_TREE_SITTER_LOOKUP_CLOSE_TIMEOUT',
     'expected lookup stats to retain close timeout diagnostics'
   );
+  for (const close of wedgedCloses) await close.release();
 
   // Regression: non-positive force-close config must still stay bounded.
   const nonPositiveForceCloseLookup = createTreeSitterSchedulerLookup({
@@ -345,6 +360,7 @@ try {
   }
 } finally {
   fs.open = originalOpen;
+  for (const close of wedgedCloses) await close.release();
 }
 
 console.log('scheduler lookup reader lease test passed');

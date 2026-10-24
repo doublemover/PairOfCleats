@@ -101,7 +101,7 @@ class Greeter:
     languageId: 'yaml',
     file: 'sample.yaml',
     grammarKey: 'native:yaml',
-    expectedNames: ['database', 'host'],
+    expectedNames: ['database', 'database.host'],
     content: `database:
   host: localhost
   port: 5432
@@ -121,7 +121,7 @@ port = 5432
     languageId: 'xml',
     file: 'sample.xml',
     grammarKey: 'native:xml',
-    expectedNames: ['config', 'database'],
+    expectedNames: ['config', 'config.database'],
     content: `<config>
   <database host="localhost" port="5432">
     <pool size="5" />

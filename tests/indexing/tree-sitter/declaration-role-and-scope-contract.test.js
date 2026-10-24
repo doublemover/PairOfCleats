@@ -28,7 +28,7 @@ check('go','package p\ntype (\n First struct { X int }\n Second interface { Run(
   [['First','StructDeclaration'],['Second','InterfaceDeclaration'],['Alias','TypeAlias'],['Run','FunctionDeclaration']]);
 check('swift','public struct Public {}\nenum Mode {case one}\nactor Worker {}\nclass Box { init() {} deinit {} subscript(i:Int)->Int{return i} func normal(){} }\n',
   [['Public','StructDeclaration'],['Mode','EnumDeclaration'],['Worker','ActorDeclaration'],['Box.init','Initializer'],['Box.deinit','Deinitializer'],['Box.subscript','SubscriptDeclaration'],['Box.normal','MethodDeclaration']],['Box.i']);
-check('kotlin','interface Greeter { fun hello(): String }\nenum class Color { RED, BLUE }\nclass Box { constructor() {} fun normal() {} }\n',
+check('kotlin','interface Greeter { fun hello(): String\n}\nenum class Color { RED, BLUE }\nclass Box { constructor() {}\n fun normal() {}\n}\n',
   [['Greeter','InterfaceDeclaration'],['Greeter.hello','MethodDeclaration'],['Color','EnumDeclaration'],['Box.constructor','ConstructorDeclaration'],['Box.normal','MethodDeclaration']],['RED']);
 check('clike','typedef int Count; struct Item {int x;}; struct Future; Count getCount(void){return 1;} Count otherCount(void){return 2;} void consume(struct Item *item){struct Item local;} int external(int value); int (*callback)(int);\n',
   [['Item','StructDeclaration'],['Future','StructDeclaration'],['getCount','FunctionDeclaration'],['otherCount','FunctionDeclaration'],['consume','FunctionDeclaration'],['external','FunctionDeclaration']],['Count','callback']);

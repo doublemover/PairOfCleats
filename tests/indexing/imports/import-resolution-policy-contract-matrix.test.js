@@ -328,18 +328,23 @@ const cases = [
     async run() {
       const tempRoot = await createImportResolutionTempRoot('imports-contract-stage-pipeline');
       await fs.mkdir(path.join(tempRoot, 'go'), { recursive: true });
+      await fs.mkdir(path.join(tempRoot, 'src'), { recursive: true });
+      await fs.writeFile(path.join(tempRoot, 'src', 'main.js'), 'import "./missing.js";\n', 'utf8');
       await fs.writeFile(path.join(tempRoot, 'MODULE.bazel'), 'module(name = "demo")\n', 'utf8');
       await fs.writeFile(path.join(tempRoot, 'go', 'extensions.bzl'), 'def go_deps():\n  pass\n', 'utf8');
 
       const entries = [
         { abs: path.join(tempRoot, 'MODULE.bazel'), rel: 'MODULE.bazel' },
-        { abs: path.join(tempRoot, 'go', 'extensions.bzl'), rel: 'go/extensions.bzl' }
+        { abs: path.join(tempRoot, 'go', 'extensions.bzl'), rel: 'go/extensions.bzl' },
+        { abs: path.join(tempRoot, 'src', 'main.js'), rel: 'src/main.js' }
       ];
       const importsByFile = {
-        'MODULE.bazel': ['//go:extensions.bzl', '//go:missing_extension.bzl']
+        'MODULE.bazel': ['//go:extensions.bzl', '//go:missing_extension.bzl'],
+        'src/main.js': ['./missing.js']
       };
       const fileRelations = new Map([
-        ['MODULE.bazel', { imports: importsByFile['MODULE.bazel'].slice() }]
+        ['MODULE.bazel', { imports: importsByFile['MODULE.bazel'].slice() }],
+        ['src/main.js', { imports: importsByFile['src/main.js'].slice() }]
       ]);
 
       const resolution = resolveImportLinks({
@@ -353,7 +358,9 @@ const cases = [
       const stages = resolution?.stats?.resolverPipelineStages || {};
       assert.equal((stages.normalize?.attempts || 0) >= 2, true);
       assert.equal((stages.language_resolver?.attempts || 0) >= 2, true);
-      assert.equal((stages.build_system_resolver?.attempts || 0) >= 1, true);
+      assert.equal((stages.build_system_resolver?.attempts || 0) >= 2, true);
+      assert.equal((stages.build_system_resolver?.hits || 0) >= 1, true);
+      assert.equal((stages.build_system_resolver?.misses || 0) >= 1, true);
       assert.equal((stages.classify?.attempts || 0) >= 1, true);
       assert.equal((stages.filesystem_probe?.attempts || 0) >= 1, true);
       assert.equal(Number.isFinite(Number(stages.classify?.elapsedMs)), true);
@@ -361,11 +368,12 @@ const cases = [
       assert.equal(Number.isFinite(Number(stages.classify?.degraded)), true);
 
       const warnings = Array.isArray(resolution?.unresolvedSamples) ? resolution.unresolvedSamples : [];
-      assert.equal(warnings.length, 1);
-      assert.equal(warnings[0].reasonCode, 'IMP_U_BAZEL_LABEL_TARGET_MISSING');
-      assert.equal(warnings[0].resolverStage, 'build_system_resolver');
-      assert.equal(warnings[0].resolverAdapter, 'bazel-label');
-      assert.equal(Array.isArray(warnings[0].resolverTrace), true);
+      assert.equal(warnings.length, 2);
+      const bazelWarning = warnings.find(warning => warning.reasonCode === 'IMP_U_BAZEL_LABEL_TARGET_MISSING');
+      assert.ok(bazelWarning);
+      assert.equal(bazelWarning.resolverStage, 'build_system_resolver');
+      assert.equal(bazelWarning.resolverAdapter, 'bazel-label');
+      assert.equal(Array.isArray(bazelWarning.resolverTrace), true);
       assert.equal((stages.build_system_resolver?.reasonCodes?.IMP_U_BAZEL_LABEL_TARGET_MISSING || 0) >= 1, true);
       assert.deepEqual(resolution?.graph?.stats?.resolverPipelineStages || {}, stages);
     }

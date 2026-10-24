@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { MINHASH_HASH_IDENTITY } from '../../../src/index/minhash.js';
+import assert from 'node:assert/strict';
 import { buildPostings } from '../../../src/index/build/postings.js';
 import { quantizeVec } from '../../../src/index/embedding.js';
 
@@ -36,8 +37,8 @@ const tokenPostings = new Map([
   ['d', [[3, 1]]]
 ]);
 
-const postings = await buildPostings({
-  chunks,
+const build = chunkInput => buildPostings({
+  chunks: chunkInput,
   df: new Map(),
   tokenPostings,
   docLengths: [1, 1, 1, 1],
@@ -52,6 +53,11 @@ const postings = await buildPostings({
   workerPool: null,
   embeddingsEnabled: true
 });
+await assert.rejects(build(chunks), /embedding dimensions differ/,
+  'inconsistent model rows cannot be silently padded or truncated');
+chunks[3].embedding = [0.2, 0.4];
+chunks[3].embed_code = null;
+const postings = await build(chunks);
 
 const dims = chunks[0].embedding.length;
 if (postings.dims !== dims) {
@@ -59,12 +65,8 @@ if (postings.dims !== dims) {
   process.exit(1);
 }
 const normalize = (vec) => {
-  if (!Array.isArray(vec)) return new Array(dims).fill(0);
-  if (vec.length === dims) return vec;
-  if (vec.length > dims) return vec.slice(0, dims);
-  const out = vec.slice();
-  while (out.length < dims) out.push(0);
-  return out;
+  assert.equal(vec.length, dims);
+  return vec;
 };
 
 const expectedMerged = chunks.map((chunk) => quantizeVec(normalize(chunk.embedding)));
@@ -72,13 +74,13 @@ const expectedDoc = chunks.map((chunk) => {
   if (Array.isArray(chunk.embed_doc)) {
     return chunk.embed_doc.length
       ? quantizeVec(normalize(chunk.embed_doc))
-      : quantizeVec(new Array(dims).fill(0));
+      : new Uint8Array(0);
   }
   return quantizeVec(normalize(chunk.embedding));
 });
 const expectedCode = chunks.map((chunk) => (
-  Array.isArray(chunk.embed_code) && chunk.embed_code.length
-    ? quantizeVec(normalize(chunk.embed_code))
+  Object.hasOwn(chunk, 'embed_code')
+    ? chunk.embed_code?.length ? quantizeVec(normalize(chunk.embed_code)) : new Uint8Array(0)
     : quantizeVec(normalize(chunk.embedding))
 ));
 

@@ -99,40 +99,42 @@ const htmlFixtureReference = buildContext.classifyUnresolved({
   spec: '/dist/app.js',
   rawSpec: '/dist/app.js'
 });
-assert.equal(htmlFixtureReference?.reasonCode, 'IMP_U_FIXTURE_REFERENCE');
+assert.equal(htmlFixtureReference?.reasonCode, 'IMP_U_CONFIG_ROOT_ANCHORED_PATH');
 assert.equal(htmlFixtureReference?.pluginId, 'path-context');
+
+const fixtureAssetReference = buildContext.classifyUnresolved({
+  importerRel: 'tests/manual/index.html', spec: '/dist/icon.svg', rawSpec: '/dist/icon.svg'
+});
+assert.equal(fixtureAssetReference?.reasonCode, 'IMP_U_FIXTURE_REFERENCE');
+assert.equal(fixtureAssetReference?.pluginId, 'path-context');
 
 const testingHarnessReference = buildContext.classifyUnresolved({
   importerRel: 'testing/e2e.sh',
   spec: './testing/e2e/util.sh',
   rawSpec: './testing/e2e/util.sh'
 });
-assert.equal(testingHarnessReference?.reasonCode, 'IMP_U_FIXTURE_REFERENCE');
-assert.equal(testingHarnessReference?.pluginId, 'path-context');
+assert.equal(testingHarnessReference, null, 'missing source modules require resolution evidence even on fixture surfaces');
 
 const specSupportReference = buildContext.classifyUnresolved({
   importerRel: 'spec/models/agents/mqtt_agent_spec.rb',
   spec: './spec/support/fake_mqtt_server',
   rawSpec: './spec/support/fake_mqtt_server'
 });
-assert.equal(specSupportReference?.reasonCode, 'IMP_U_FIXTURE_REFERENCE');
-assert.equal(specSupportReference?.pluginId, 'path-context');
+assert.equal(specSupportReference, null, 'missing source modules require resolution evidence even on fixture surfaces');
 
 const fixtureDotReference = buildContext.classifyUnresolved({
   importerRel: 'tests/inputs/Makefile',
   spec: '.o',
   rawSpec: '.o'
 });
-assert.equal(fixtureDotReference?.reasonCode, 'IMP_U_FIXTURE_REFERENCE');
-assert.equal(fixtureDotReference?.pluginId, 'path-context');
+assert.equal(fixtureDotReference, null, 'missing source modules require resolution evidence even on fixture surfaces');
 
 const vendoredSurfaceReference = buildContext.classifyUnresolved({
   importerRel: 'src/main/webapp/assets/vendors/ace/ext-beautify.js',
   spec: '../token_iterator',
   rawSpec: '../token_iterator'
 });
-assert.equal(vendoredSurfaceReference?.reasonCode, 'IMP_U_FIXTURE_REFERENCE');
-assert.equal(vendoredSurfaceReference?.pluginId, 'path-context');
+assert.equal(vendoredSurfaceReference, null, 'missing source modules require resolution evidence even on fixture surfaces');
 
 const optionalDependency = buildContext.classifyUnresolved({
   importerRel: 'src/main.ts',
