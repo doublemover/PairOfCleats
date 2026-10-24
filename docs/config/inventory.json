@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-24T03:58:26.804Z",
+  "generatedAt": "2026-10-24T11:29:40.970Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -3758,7 +3758,9 @@
         "tests/tooling/install/provisioning-version-constraints.test.js",
         "tests/tooling/install/setup-json-prompts.test.js",
         "tests/tooling/install/setup-model-readiness.test.js",
+        "tests/tooling/install/setup-readiness-exit.test.js",
         "tests/tooling/install/storage-admission-frozen-recovery.test.js",
+        "tests/tooling/install/tooling-install-test-helper.js",
         "tests/tooling/install/tooling-post-install-verification.test.js",
         "tests/tooling/install/tooling-report-cancellation.test.js",
         "tests/tooling/install/tooling-report-prerequisite-readiness.test.js",
@@ -4920,6 +4922,8 @@
         "tests/shared/storage/cli-reviewed-context-and-selectors.test.js",
         "tests/tooling/install/install-dry-run-cli-no-probe.test.js",
         "tests/tooling/install/phpactor-platform-contract.test.js",
+        "tests/tooling/install/tooling-install-test-helper.js",
+        "tests/tooling/install/tooling-post-install-verification.test.js",
         "tests/tooling/providers/managed-command-settlement.test.js",
         "tools/bench/language/prerequisite-runtime.js",
         "tools/bench/language/resource-roots.js",
@@ -5030,7 +5034,9 @@
         "tests/tooling/install/provisioning-version-constraints.test.js",
         "tests/tooling/install/setup-json-prompts.test.js",
         "tests/tooling/install/setup-model-readiness.test.js",
+        "tests/tooling/install/setup-readiness-exit.test.js",
         "tests/tooling/install/tooling-install-test-helper.js",
+        "tests/tooling/install/tooling-post-install-verification.test.js",
         "tests/tooling/install/tooling-report-cancellation.test.js",
         "tests/tooling/install/tooling-report-prerequisite-readiness.test.js",
         "tests/tooling/install/uninstall.test.js",
@@ -5129,6 +5135,7 @@
         "tests/tooling/providers/explicit-official-kotlin-profile.test.js",
         "tests/tooling/providers/explicit-script-lsp-profiles.test.js",
         "tests/tooling/service/runtime-config-revalidation.test.js",
+        "tests/tooling/structural/search.test.js",
         "tests/tooling/typescript-compiler-compatibility.test.js",
         "tests/tooling/typescript-loader-parity.test.js",
         "tests/tooling/typescript-runtime-subprocess.test.js",
@@ -6594,6 +6601,18 @@
         ]
       },
       {
+        "file": "tests/lang/kotlin/perf-guard.test.js",
+        "flags": [
+          "treeSitter"
+        ]
+      },
+      {
+        "file": "tests/lang/perl/package-chunks.test.js",
+        "flags": [
+          "treeSitter"
+        ]
+      },
+      {
         "file": "tests/lang/python/positional-defaults.test.js",
         "flags": [
           "pythonAst"
@@ -6622,6 +6641,12 @@
         "flags": [
           "collectorDiagnostics",
           "collectorScanBudgets"
+        ]
+      },
+      {
+        "file": "tests/lang/ruby/modules.test.js",
+        "flags": [
+          "treeSitter"
         ]
       },
       {
@@ -8312,7 +8337,7 @@
       },
       {
         "flag": "treeSitter",
-        "count": 19,
+        "count": 22,
         "files": [
           "src/lang/javascript/chunks.js",
           "src/lang/typescript/chunks.js",
@@ -8330,6 +8355,9 @@
           "tests/lang/contracts/native-call-scope-roles.test.js",
           "tests/lang/contracts/swift-prepare-tree-sitter-disabled.test.js",
           "tests/lang/contracts/syntax-call-canonical-handoff.test.js",
+          "tests/lang/kotlin/perf-guard.test.js",
+          "tests/lang/perl/package-chunks.test.js",
+          "tests/lang/ruby/modules.test.js",
           "tests/security/java-workspace-execution-authority.test.js",
           "tests/security/rust-workspace-execution-authority.test.js",
           "tools/bench/index/tree-sitter-load.js"
