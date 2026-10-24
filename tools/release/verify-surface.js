@@ -751,7 +751,7 @@ const verifyVsCode = async () => {
       '[Content_Types].xml',
       'extension/package.json',
       'extension/extension.js',
-      'extension/README.md'
+      'extension/readme.md'
     ]
   });
   const container = await validateVsixContainer(archivePath);

@@ -78,7 +78,7 @@ await withReleaseArchiveFixture(async () => {
     const zip = new AdmZip();
     zip.addFile('extension/package.json', Buffer.from('{"name":"pairofcleats"}\n'));
     zip.addFile('extension/extension.js', Buffer.from('module.exports = {};\n'));
-    zip.addFile('extension/README.md', Buffer.from('# PairOfCleats\n'));
+    zip.addFile('extension/readme.md', Buffer.from('# PairOfCleats\n'));
     zip.addFile('archive-entry-escape.txt', Buffer.from('escaped\n'));
     zip.getEntries().at(-1).entryName = '../archive-entry-escape.txt';
     zip.writeZip(archivePath);
@@ -104,7 +104,7 @@ await withReleaseArchiveFixture(async () => {
     const symlinkZip = new AdmZip();
     symlinkZip.addFile('extension/package.json', Buffer.from('{"name":"pairofcleats"}\n'));
     symlinkZip.addFile('extension/extension.js', Buffer.from('module.exports = {};\n'));
-    symlinkZip.addFile('extension/README.md', Buffer.from('# PairOfCleats\n'));
+    symlinkZip.addFile('extension/readme.md', Buffer.from('# PairOfCleats\n'));
     symlinkZip.addFile('extension/symlink-entry', Buffer.from('extension/package.json'));
     symlinkZip.getEntries().at(-1).header.attr = 0o120777 * 0x10000;
     symlinkZip.writeZip(archivePath);
@@ -137,7 +137,7 @@ await withReleaseArchiveFixture(async () => {
     const validZip = new AdmZip();
     validZip.addFile('extension/package.json', Buffer.from('{"name":"pairofcleats"}\n'));
     validZip.addFile('extension/extension.js', Buffer.from('module.exports = {};\n'));
-    validZip.addFile('extension/README.md', Buffer.from('# PairOfCleats\n'));
+    validZip.addFile('extension/readme.md', Buffer.from('# PairOfCleats\n'));
     validZip.writeZip(archivePath);
     fs.writeFileSync(manifestPath, '{ invalid json');
 
@@ -193,7 +193,7 @@ await withReleaseArchiveFixture(async () => {
     );
 
     writeManifestForZip(validZip, {
-      entries: zipEntryRecords(validZip).filter((entry) => entry.path !== 'extension/README.md')
+      entries: zipEntryRecords(validZip).filter((entry) => entry.path !== 'extension/readme.md')
     });
     const missingEntryRun = runNode(
       [
@@ -312,9 +312,9 @@ await withReleaseArchiveFixture(async () => {
     const duplicateArchiveZip = new AdmZip();
     duplicateArchiveZip.addFile('extension/package.json', Buffer.from('{"name":"pairofcleats"}\n'));
     duplicateArchiveZip.addFile('extension/extension.js', Buffer.from('module.exports = {};\n'));
-    duplicateArchiveZip.addFile('extension/README.md', Buffer.from('# PairOfCleats\n'));
+    duplicateArchiveZip.addFile('extension/readme.md', Buffer.from('# PairOfCleats\n'));
     duplicateArchiveZip.addFile('extension/DUPLICATE.md', Buffer.from('duplicate\n'));
-    duplicateArchiveZip.getEntries().at(-1).entryName = 'extension/README.md';
+    duplicateArchiveZip.getEntries().at(-1).entryName = 'extension/readme.md';
     duplicateArchiveZip.writeZip(archivePath);
     writeManifestForZip(duplicateArchiveZip, { entries: zipEntryRecords(validZip) });
     const duplicateArchiveRun = runNode(
