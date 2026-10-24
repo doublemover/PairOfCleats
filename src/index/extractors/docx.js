@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import zlib from 'node:zlib';
+import sax from 'sax';
 import { tryImport } from '../../shared/optional-deps.js';
 import { getDocumentExtractorTestConfig } from '../../shared/env/testing.js';
 import {
@@ -23,36 +24,10 @@ const LOCAL_SIGNATURE = 0x04034b50;
 
 let cachedRuntime = null;
 
-const decodeXmlEntities = (value) => (
-  String(value || '').replace(
-    /&(#x[0-9a-fA-F]+|#[0-9]+|lt|gt|amp|quot|#39);/g,
-    (_, token) => {
-      switch (token) {
-        case 'lt':
-          return '<';
-        case 'gt':
-          return '>';
-        case 'amp':
-          return '&';
-        case 'quot':
-          return '"';
-        case '#39':
-          return '\'';
-        default:
-          break;
-      }
-      if (token.startsWith('#x')) {
-        const code = Number.parseInt(token.slice(2), 16);
-        return Number.isFinite(code) ? String.fromCodePoint(code) : '';
-      }
-      if (token.startsWith('#')) {
-        const code = Number.parseInt(token.slice(1), 10);
-        return Number.isFinite(code) ? String.fromCodePoint(code) : '';
-      }
-      return '';
-    }
-  )
-);
+const WORD_NS = new Set([
+  'http://schemas.openxmlformats.org/wordprocessingml/2006/main',
+  'http://purl.oclc.org/ooxml/wordprocessingml/main'
+]);
 
 const resolveDocxFailureReason = (err) => {
   const code = String(err?.code || '');
@@ -140,27 +115,57 @@ export const extractZipEntry = (buffer, entry, maxOutputBytes) => {
 
 export const parseDocxParagraphsFromXml = (xml) => {
   const paragraphs = [];
-  const paragraphMatches = xml.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g);
+  const parser = sax.parser(true, { xmlns: true });
+  const stack = [];
+  const excludedRanges = new Set();
+  let paragraph = null;
   let index = 0;
-  for (const match of paragraphMatches) {
-    const paragraphXml = match[0] || '';
-    const styleMatch = paragraphXml.match(/<w:pStyle\b[^>]*w:val=(?:"([^"]+)"|'([^']+)')/i);
-    const style = styleMatch ? (styleMatch[1] || styleMatch[2] || null) : null;
-    const textRuns = [];
-    // Read supported text and separators in document order; separators outside
-    // w:t nodes must not disappear when collecting styled text runs.
-    for (const token of paragraphXml.matchAll(/<w:t\b[^>]*>([\s\S]*?)<\/w:t>|<w:(tab|br|cr)\b[^>]*\/?>/gi)) {
-      textRuns.push(token[2] ? (token[2].toLowerCase() === 'tab' ? '\t' : '\n') : decodeXmlEntities(token[1]));
+  const isWord = (node, local) => WORD_NS.has(node?.uri) && node.local === local;
+  const wordAttribute = (node, local) => Object.values(node.attributes).find(
+    (attribute) => WORD_NS.has(attribute.uri) && attribute.local === local
+  )?.value;
+  const canRead = () => paragraph && !stack.at(-1)?.excluded && excludedRanges.size === 0;
+  parser.ondoctype = () => { throw new Error('DOCX document XML must not contain a DTD.'); };
+  parser.onopentag = (node) => {
+    const excluded = Boolean(stack.at(-1)?.excluded)
+      || isWord(node, 'del') || isWord(node, 'moveFrom');
+    stack.push({ node, excluded });
+    if (isWord(node, 'moveFromRangeStart')) {
+      const id = wordAttribute(node, 'id');
+      if (!id || excludedRanges.has(id)) throw new Error('Invalid DOCX moved-from range start.');
+      excludedRanges.add(id);
+    } else if (isWord(node, 'moveFromRangeEnd')) {
+      const id = wordAttribute(node, 'id');
+      if (!id || !excludedRanges.delete(id)) throw new Error('Invalid DOCX moved-from range end.');
     }
-    const text = normalizeExtractedText(textRuns.join(''));
-    index += 1;
-    if (!text) continue;
-    paragraphs.push({
-      index,
-      text,
-      ...(style ? { style } : {})
-    });
-  }
+    if (excluded) return;
+    if (isWord(node, 'p') && excludedRanges.size === 0) {
+      if (paragraph) throw new Error('Nested DOCX paragraphs cannot be ordered.');
+      paragraph = { index: ++index, runs: [], style: null };
+    } else if (isWord(node, 'pStyle') && paragraph) {
+      paragraph.style = wordAttribute(node, 'val') || null;
+    } else if (canRead() && (isWord(node, 'tab') || isWord(node, 'br') || isWord(node, 'cr'))) {
+      paragraph.runs.push(isWord(node, 'tab') ? '\t' : '\n');
+    }
+  };
+  parser.ontext = (value) => {
+    if (canRead() && isWord(stack.at(-1)?.node, 't')) paragraph.runs.push(value);
+  };
+  parser.oncdata = parser.ontext;
+  parser.onclosetag = () => {
+    const { node, excluded } = stack.pop();
+    if (isWord(node, 'p') && !excluded && paragraph) {
+      const text = normalizeExtractedText(paragraph.runs.join(''));
+      if (text) paragraphs.push({
+        index: paragraph.index,
+        text,
+        ...(paragraph.style ? { style: paragraph.style } : {})
+      });
+      paragraph = null;
+    }
+  };
+  parser.write(xml).close();
+  if (excludedRanges.size) throw new Error('Unclosed DOCX moved-from range.');
   return paragraphs;
 };
 

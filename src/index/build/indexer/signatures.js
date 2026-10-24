@@ -16,6 +16,7 @@ import { MODULE_EXPORTS_VERSION } from '../../../lang/js-ts-exports.js';
 import { TREE_SITTER_CHUNK_VERSION } from '../../../lang/tree-sitter/config.js';
 import { MINHASH_HASH_IDENTITY } from '../../minhash.js';
 import { SEMANTIC_ANALYSIS_VERSIONS } from '../../semantic/analysis-versions.js';
+import { DOCX_STRUCTURAL_EXTRACTION_VERSION } from '../../extractors/common.js';
 
 export { ARTIFACT_SCHEMA_HASH };
 
@@ -240,6 +241,7 @@ export const buildDependencySignatures = (runtime, mode, tokenizationKey) => {
     parsers: payload.parsers, treeSitter: payload.treeSitter, yamlChunking: payload.yamlChunking,
     moduleExportsProducer: payload.moduleExportsProducer, nativeChunkProducer: payload.nativeChunkProducer,
     kotlin: payload.kotlin, chunkIdAlgoVersion: payload.chunkIdAlgoVersion,
+    ...(mode === 'extracted-prose' ? { docxStructuralExtractionVersion: DOCX_STRUCTURAL_EXTRACTION_VERSION } : {}),
     fileCaps: payload.fileCaps, fileScan: payload.fileScan,
     segments: runtime.segmentsConfig || {}, comments: runtime.commentsConfig || {}
   };

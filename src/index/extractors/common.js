@@ -14,6 +14,8 @@ export const DOCUMENT_EXTRACTION_REASON_CODES = Object.freeze([
 ]);
 
 export const DOCUMENT_EXTRACTION_FIDELITY_SCHEMA_VERSION = 1;
+// Structural DOCX paragraph meaning changes invalidate extraction and bundle reuse.
+export const DOCX_STRUCTURAL_EXTRACTION_VERSION = 2;
 export const DOCUMENT_EXTRACTION_POLICY_MODES = Object.freeze([
   'permissive',
   'quality-sensitive'

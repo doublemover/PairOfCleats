@@ -33,6 +33,7 @@ import { resolvePreCpuFileContent } from './file-processor/pre-cpu-content.js';
 import { getLanguageForFile } from '../language-registry.js';
 import {
   EXTRACTION_NORMALIZATION_POLICY,
+  DOCX_STRUCTURAL_EXTRACTION_VERSION,
   buildDocumentExtractionFidelity,
   buildDocumentExtractionPolicySummary,
   sha256Hex,
@@ -227,7 +228,7 @@ export function createFileProcessor(options) {
       target: runtimeInfo?.target || null
     };
   };
-  const buildDocumentExtractionCacheKey = ({ sourceBytesHash, extractor }) => {
+  const buildDocumentExtractionCacheKey = ({ sourceBytesHash, extractor, sourceType }) => {
     const bytesHash = typeof sourceBytesHash === 'string' ? sourceBytesHash.trim() : '';
     if (!bytesHash) return null;
     return sha256Hex([
@@ -235,6 +236,7 @@ export function createFileProcessor(options) {
       extractor?.name || 'unknown',
       extractor?.version || 'unknown',
       extractor?.target || '',
+      sourceType === 'docx' ? DOCX_STRUCTURAL_EXTRACTION_VERSION : '',
       documentExtractionPolicyCacheKey
     ].join('|'));
   };
@@ -627,7 +629,8 @@ export function createFileProcessor(options) {
         documentExtractionIdentity = await resolveDocumentExtractorIdentity(documentSourceType);
         documentExtractionCacheKey = buildDocumentExtractionCacheKey({
           sourceBytesHash,
-          extractor: documentExtractionIdentity
+          extractor: documentExtractionIdentity,
+          sourceType: documentSourceType
         });
         const cachedExtraction = loadCachedDocumentExtraction(documentExtractionCacheKey);
         if (cachedExtraction?.text) {
