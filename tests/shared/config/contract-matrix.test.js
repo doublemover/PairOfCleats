@@ -2,12 +2,14 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import Module from 'node:module';
 
 import { buildAutoPolicy } from '../../../src/shared/auto-policy/build.js';
 import { validateConfig } from '../../../src/config/validate.js';
 import { resolveRuntimeEnvelope } from '../../../src/shared/runtime-envelope/resolve.js';
 import { loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { getCapabilities } from '../../../src/shared/capabilities.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'shared-config-contract-matrix');
@@ -26,13 +28,28 @@ await fs.mkdir(tempRoot, { recursive: true });
   await fs.writeFile(path.join(scanRoot, '.gitignore'), 'benchmarks/\n', 'utf8');
 
   const logs = [];
-  const policy = await buildAutoPolicy({
-    repoRoot: scanRoot,
-    config: { quality: 'max' },
-    resources: { cpuCount: 16, memoryGb: 64 },
-    scanLimits: { statConcurrency: 4 },
-    logger: (line) => logs.push(String(line || ''))
-  });
+  const loads = [], originalLoad = Module._load;
+  let policy;
+  try {
+    Module._load = function(name, ...args) { loads.push(name); return originalLoad.call(this, name, ...args); };
+    policy = await buildAutoPolicy({
+      repoRoot: scanRoot,
+      config: { quality: 'max' },
+      resources: { cpuCount: 16, memoryGb: 64 },
+      scanLimits: { statConcurrency: 4 },
+      logger: (line) => logs.push(String(line || ''))
+    });
+    const unrelated = ['chokidar', '@parcel/watcher', 're2', 're2js', '@mongodb-js/zstd', 'mammoth', 'docx'];
+    assert.deepEqual(loads.filter(name => unrelated.includes(name) || name.startsWith('pdfjs-dist')
+      || name.startsWith('@modelcontextprotocol/sdk')), [], 'policy selection probes only the backend it consumes');
+    assert.equal(typeof policy.retrieval.ann.enabled, 'boolean');
+    const report = policy.capabilities;
+    assert.equal(policy.retrieval.ann.enabled, report.externalBackends.lancedb);
+    assert.strictEqual(report, policy.capabilities, 'an explicit full report retains its snapshot');
+    assert.deepEqual(report, getCapabilities());
+    assert.deepEqual(JSON.parse(JSON.stringify(policy)).capabilities, report, 'serialized policy retains every capability field');
+    assert.ok(loads.some(name => name.startsWith('pdfjs-dist')), 'explicit report still performs actual dependency probes');
+  } finally { Module._load = originalLoad; }
   assert.equal(policy.quality.value, 'max');
   assert.equal(policy.repo.fileCount, 2);
   assert.ok(logs.some((line) => line.includes('loaded ignore files') && line.includes('.gitignore')));

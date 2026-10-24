@@ -1391,3 +1391,30 @@ fstat also supplies its byte extent, avoiding a redundant async stat. Frozen and
 falsey read failures, independent close failure, explicit close-only recovery,
 and delayed actual close are covered. SHA1/SHA256/xxh64, fresh byte hashing and
 path/descriptor authority remain unchanged. Repaired-source checks are pending.
+
+At `7b6239166eb706a3fd4ebe5a415c04e53cb51257`, all ten checksum,
+artifact and SSR controls passed; only the four original export cases failed.
+There were zero outer timeouts, skips or native crashes. Original closure is
+96/100. The checksum lifetime regression now proves failed and delayed closes
+cannot publish, falsey/frozen primary and independent close failures survive,
+and explicit recovery only closes the retained original descriptor.
+
+Bounded, instrumented export diagnostics identified unrelated optional dependency
+activation during automatic policy selection. A diagnostic that allowed the
+internal build to finish reached all original JS report assertions successfully
+in 15 seconds overall, including CLI startup. This altered-bound diagnostic is
+NOT passing/closure evidence; original deadlines remain unchanged in source.
+Raw profiling is historical author-workspace evidence in the task-owned .tmp
+folder. An initial relative preload failed in a changed child cwd; its corrected
+absolute-URL run is the diagnostic cited here.
+
+A real-module-load policy regression failed before repair (700ms): selecting
+runtime policy activated watcher, regex, compression, PDF/Word and MCP providers
+although its only capability input is ANN backend availability. Backend probing
+now has a shared narrow owner; explicit full reporting remains cached and keeps
+all serialized capability fields. Automatic policy requests that complete report
+only when consumed, avoiding unrelated activation on indexing startup. No native
+backend is disabled or silently substituted. The JS export fixture also now
+explicitly admits its actual JS inputs in tsconfig, avoiding the proven spurious
+'No inputs' configuration warning; source/assertions and deadlines are unchanged.
+Repaired-source checks are pending.

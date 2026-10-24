@@ -34,7 +34,9 @@ await fs.writeFile(path.join(repo, `arrow-default.${language}`), `export default
 await fs.writeFile(path.join(repo, `class-default.${language}`), 'export default class { method() {} }');
 // The fixture is a closed source project. Parent checkout ambient @types and
 // browser libraries are not inputs to these ECMAScript callable assertions.
-await fs.writeFile(path.join(repo, 'tsconfig.json'), JSON.stringify({ compilerOptions: { types: [], lib: ['es2022'] } }));
+await fs.writeFile(path.join(repo, 'tsconfig.json'), JSON.stringify({ compilerOptions: {
+  types: [], lib: ['es2022'], allowJs: language === 'js'
+} }));
 // Exact API joins need completed compiler bindings. Default manual/deferred
 // enrichment deliberately does not establish lexical call-target authority.
 // The semantic compiler pass owns bindings independently of legacy cross-file

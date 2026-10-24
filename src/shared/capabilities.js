@@ -3,6 +3,7 @@ import { getNativeAccelCapabilities } from './native-accel.js';
 import { toArray } from './iterables.js';
 
 let cached = null;
+let cachedBackends = null;
 
 /**
  * Stable defaults used when capability providers are missing or when we skip probing.
@@ -69,6 +70,18 @@ const checkCandidates = (candidates, options, {
     if (allowEsm && result.reason === 'unsupported') return true;
   }
   return false;
+};
+
+/** Policy selection needs backend availability, not watcher/extractor/MCP
+ * activation. Share these actual probes with the explicit complete report.
+ */
+export const getExternalBackendCapabilities = (options = {}) => {
+  if (!cachedBackends || options.refresh === true) {
+    const opts = { verbose: options.verbose === true, logger: options.logger };
+    cachedBackends = { tantivy: check('tantivy', opts),
+      lancedb: check('@lancedb/lancedb', opts, { allowEsm: true }) };
+  }
+  return cachedBackends;
 };
 
 /**
@@ -157,8 +170,7 @@ export function getCapabilities(options = {}) {
     opts,
     { allowEsm: true, validate: (mod) => Boolean(mod?.CallToolRequestSchema && mod?.ListToolsRequestSchema) }
   );
-  cached.externalBackends.tantivy = check('tantivy', opts);
-  cached.externalBackends.lancedb = check('@lancedb/lancedb', opts, { allowEsm: true });
+  cached.externalBackends = getExternalBackendCapabilities(options);
   const nativeAccel = getNativeAccelCapabilities();
   cached.nativeAccel.enabled = nativeAccel.enabled === true;
   cached.nativeAccel.runtimeKind = String(nativeAccel.runtimeKind || 'js');
