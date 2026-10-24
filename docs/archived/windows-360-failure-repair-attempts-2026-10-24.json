@@ -44,11 +44,9 @@
     },
     "followUpClosure": {
       "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
-      "originalFailuresMovedToPassing": 60,
-      "originalFailuresWithoutPassingClosure": 40,
-      "additionalObservedFailuresOutsideOriginal100": [
-        "tooling/lsp/request-local-write-settlement"
-      ]
+      "originalFailuresMovedToPassing": 62,
+      "originalFailuresWithoutPassingClosure": 38,
+      "additionalObservedFailuresOutsideOriginal100": []
     }
   },
   "items": [
@@ -252,7 +250,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 944
+      "recheckDurationMs": 944,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "2bd168e50d2032045478767e3a0188762a5816f5",
+      "latestRecheckDurationMs": 873
     },
     {
       "id": "map/scene-shutdown-failure-ownership",
@@ -293,8 +294,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 1090,
       "latestRecheckStatus": "passed",
-      "latestRecheckSourceHead": "277508fb31961cc97a6a4f3c54534d50cd895dd8",
-      "latestRecheckDurationMs": 1367
+      "latestRecheckSourceHead": "2bd168e50d2032045478767e3a0188762a5816f5",
+      "latestRecheckDurationMs": 1444
     },
     {
       "id": "storage/semantic/retained-source-reader-lifetime",
@@ -315,8 +316,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 478,
       "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "277508fb31961cc97a6a4f3c54534d50cd895dd8",
-      "latestRecheckDurationMs": 511
+      "latestRecheckSourceHead": "2bd168e50d2032045478767e3a0188762a5816f5",
+      "latestRecheckDurationMs": 516
     },
     {
       "id": "tooling/install/archive-resource-lifetime",
@@ -3105,9 +3106,9 @@
       "recheckStatus": "passed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 186,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "277508fb31961cc97a6a4f3c54534d50cd895dd8",
-      "latestRecheckDurationMs": 194
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "2bd168e50d2032045478767e3a0188762a5816f5",
+      "latestRecheckDurationMs": 173
     },
     {
       "id": "tooling/lsp/restart-generation-safety",
@@ -3128,8 +3129,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 4278,
       "latestRecheckStatus": "passed",
-      "latestRecheckSourceHead": "277508fb31961cc97a6a4f3c54534d50cd895dd8",
-      "latestRecheckDurationMs": 1913
+      "latestRecheckSourceHead": "2bd168e50d2032045478767e3a0188762a5816f5",
+      "latestRecheckDurationMs": 1768
     },
     {
       "id": "tooling/lsp/rust-quoted-const-type-inputs",
@@ -3964,7 +3965,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 127
+      "recheckDurationMs": 127,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "2bd168e50d2032045478767e3a0188762a5816f5",
+      "latestRecheckDurationMs": 147
     },
     {
       "id": "tooling/vscode/risk-generation-registered-lifetime",
@@ -6134,9 +6138,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 532,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "277508fb31961cc97a6a4f3c54534d50cd895dd8",
-      "latestRecheckDurationMs": 531
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "2bd168e50d2032045478767e3a0188762a5816f5",
+      "latestRecheckDurationMs": 500
     },
     {
       "id": "lang/contracts/mustache-parse-token-boundaries",

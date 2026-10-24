@@ -3756,14 +3756,392 @@
           "historicalAuthorWorkspaceEvidence": true
         }
       ]
+    },
+    {
+      "sourceHead": "2bd168e50d2032045478767e3a0188762a5816f5",
+      "startedAt": "2026-10-24T13:25:54.695Z",
+      "finishedAt": "2026-10-24T13:26:06.870Z",
+      "scope": "Abort reason, partial-frame write, Groovy control-body and editor resource selection closure; complete front gate also passed at this source.",
+      "policy": {
+        "timeoutMs": 30000,
+        "retries": 0,
+        "nativeStatusRedo": false,
+        "threads": 1,
+        "platform": "win32",
+        "node": "v26.12.1",
+        "removedLaunchSetting": "PAIROFCLEATS_TRUSTED_CONFIG: missing configured file; no replacement authority granted"
+      },
+      "summary": {
+        "selected": 14,
+        "passed": 12,
+        "failed": 2,
+        "timeouts": 0,
+        "skipped": 0
+      },
+      "cohorts": [
+        {
+          "name": "abort-groovy-wave-01",
+          "summary": {
+            "total": 5,
+            "passed": 4,
+            "failed": 1,
+            "skipped": 0,
+            "durationMs": 3993
+          },
+          "ids": [
+            "shared/concurrency/abort-reason-provenance",
+            "storage/semantic/explain-input-lifetime",
+            "storage/semantic/retained-source-reader-lifetime",
+            "tooling/lsp/request-local-write-settlement",
+            "tooling/lsp/restart-generation-safety"
+          ]
+        },
+        {
+          "name": "abort-groovy-wave-02",
+          "summary": {
+            "total": 5,
+            "passed": 4,
+            "failed": 1,
+            "skipped": 0,
+            "durationMs": 2989
+          },
+          "ids": [
+            "lang/contracts/managed-heuristic-adapters",
+            "lang/contracts/native-call-owner-projection",
+            "lang/contracts/native-call-ownership-and-metadata",
+            "lang/contracts/native-call-scope-roles",
+            "tooling/vscode/resource-scoped-enumeration-runtime"
+          ]
+        },
+        {
+          "name": "abort-groovy-wave-03",
+          "summary": {
+            "total": 4,
+            "passed": 4,
+            "failed": 0,
+            "skipped": 0,
+            "durationMs": 2508
+          },
+          "ids": [
+            "lang/contracts/native-call-argument-authority",
+            "shared/json-stream/abort-closes-stream",
+            "shared/subprocess/abort-kill-grace-unref",
+            "shared/subprocess/abort-kills-child"
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "id": "shared/concurrency/abort-reason-provenance",
+          "path": "shared/concurrency/abort-reason-provenance.test.js",
+          "lane": "unit",
+          "tags": [
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 81,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-2bd168e50d2032045478767e3a0188762a5816f5/abort-groovy-wave-01-logs/run-1792848355592-wgsnkh/shared_concurrency_abort-reason-provenance.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "storage/semantic/explain-input-lifetime",
+          "path": "storage/semantic/explain-input-lifetime.test.js",
+          "lane": "storage",
+          "tags": [
+            "storage"
+          ],
+          "status": "passed",
+          "durationMs": 1444,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-2bd168e50d2032045478767e3a0188762a5816f5/abort-groovy-wave-01-logs/run-1792848355592-wgsnkh/storage_semantic_explain-input-lifetime.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "storage/semantic/retained-source-reader-lifetime",
+          "path": "storage/semantic/retained-source-reader-lifetime.test.js",
+          "lane": "storage",
+          "tags": [
+            "storage"
+          ],
+          "status": "failed",
+          "durationMs": 516,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-2bd168e50d2032045478767e3a0188762a5816f5/abort-groovy-wave-01-logs/run-1792848355592-wgsnkh/storage_semantic_retained-source-reader-lifetime.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-2bd168e50d2032045478767e3a0188762a5816f5/abort-groovy-wave-01-logs/run-1792848355592-wgsnkh/storage_semantic_retained-source-reader-lifetime.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/lsp/request-local-write-settlement",
+          "path": "tooling/lsp/request-local-write-settlement.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 173,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-2bd168e50d2032045478767e3a0188762a5816f5/abort-groovy-wave-01-logs/run-1792848355592-wgsnkh/tooling_lsp_request-local-write-settlement.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/lsp/restart-generation-safety",
+          "path": "tooling/lsp/restart-generation-safety.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 1768,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-2bd168e50d2032045478767e3a0188762a5816f5/abort-groovy-wave-01-logs/run-1792848355592-wgsnkh/tooling_lsp_restart-generation-safety.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "lang/contracts/managed-heuristic-adapters",
+          "path": "lang/contracts/managed-heuristic-adapters.test.js",
+          "lane": "unit",
+          "tags": [
+            "lang",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 500,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-2bd168e50d2032045478767e3a0188762a5816f5/abort-groovy-wave-02-logs/run-1792848360482-jgnzbj/lang_contracts_managed-heuristic-adapters.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "lang/contracts/native-call-owner-projection",
+          "path": "lang/contracts/native-call-owner-projection.test.js",
+          "lane": "unit",
+          "tags": [
+            "lang",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 919,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-2bd168e50d2032045478767e3a0188762a5816f5/abort-groovy-wave-02-logs/run-1792848360482-jgnzbj/lang_contracts_native-call-owner-projection.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "lang/contracts/native-call-ownership-and-metadata",
+          "path": "lang/contracts/native-call-ownership-and-metadata.test.js",
+          "lane": "unit",
+          "tags": [
+            "lang",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 540,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-2bd168e50d2032045478767e3a0188762a5816f5/abort-groovy-wave-02-logs/run-1792848360482-jgnzbj/lang_contracts_native-call-ownership-and-metadata.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "lang/contracts/native-call-scope-roles",
+          "path": "lang/contracts/native-call-scope-roles.test.js",
+          "lane": "unit",
+          "tags": [
+            "lang",
+            "unit"
+          ],
+          "status": "failed",
+          "durationMs": 873,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-2bd168e50d2032045478767e3a0188762a5816f5/abort-groovy-wave-02-logs/run-1792848360482-jgnzbj/lang_contracts_native-call-scope-roles.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-2bd168e50d2032045478767e3a0188762a5816f5/abort-groovy-wave-02-logs/run-1792848360482-jgnzbj/lang_contracts_native-call-scope-roles.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/vscode/resource-scoped-enumeration-runtime",
+          "path": "tooling/vscode/resource-scoped-enumeration-runtime.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 147,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-2bd168e50d2032045478767e3a0188762a5816f5/abort-groovy-wave-02-logs/run-1792848360482-jgnzbj/tooling_vscode_resource-scoped-enumeration-runtime.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "lang/contracts/native-call-argument-authority",
+          "path": "lang/contracts/native-call-argument-authority.test.js",
+          "lane": "unit",
+          "tags": [
+            "lang",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 1105,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-2bd168e50d2032045478767e3a0188762a5816f5/abort-groovy-wave-03-logs/run-1792848364348-nnt8p1/lang_contracts_native-call-argument-authority.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "shared/json-stream/abort-closes-stream",
+          "path": "shared/json-stream/abort-closes-stream.test.js",
+          "lane": "unit",
+          "tags": [
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 139,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-2bd168e50d2032045478767e3a0188762a5816f5/abort-groovy-wave-03-logs/run-1792848364348-nnt8p1/shared_json-stream_abort-closes-stream.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "shared/subprocess/abort-kill-grace-unref",
+          "path": "shared/subprocess/abort-kill-grace-unref.test.js",
+          "lane": "unit",
+          "tags": [
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 604,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-2bd168e50d2032045478767e3a0188762a5816f5/abort-groovy-wave-03-logs/run-1792848364348-nnt8p1/shared_subprocess_abort-kill-grace-unref.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "shared/subprocess/abort-kills-child",
+          "path": "shared/subprocess/abort-kills-child.test.js",
+          "lane": "unit",
+          "tags": [
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 654,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-2bd168e50d2032045478767e3a0188762a5816f5/abort-groovy-wave-03-logs/run-1792848364348-nnt8p1/shared_subprocess_abort-kills-child.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        }
+      ]
     }
   ],
   "cumulativeClosure": {
     "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
-    "originalFailuresMovedToPassing": 60,
-    "originalFailuresWithoutPassingClosure": 40,
-    "additionalObservedFailuresOutsideOriginal100": [
-      "tooling/lsp/request-local-write-settlement"
-    ]
+    "originalFailuresMovedToPassing": 62,
+    "originalFailuresWithoutPassingClosure": 38,
+    "additionalObservedFailuresOutsideOriginal100": []
   }
 }

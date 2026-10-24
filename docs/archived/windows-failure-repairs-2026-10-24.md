@@ -923,3 +923,32 @@ and SourceChunking 27 invalidate changed ownership. The VS Code enumeration
 fixture disables unrelated inline background commands using its existing
 settings while retaining selected-resource, continuation and trust assertions.
 These changes await focused checks.
+
+The 14-case follow-up at `2bd168e50d2032045478767e3a0188762a5816f5`
+passed 12 and failed two, with no timeouts/skips/crashes. Abort provenance,
+partial-frame/current-generation LSP controls, Groovy control bodies, selected
+VS Code resources and actual abort/reaping regressions passed. The adjacent
+request-local regression is closed. Sixty-two original failures have passing
+closure; 38 remain, with no separately observed adjacent failures outstanding.
+The complete front gate passed at this source, including 40/40 gate fixtures.
+Remote and PR head/body were read back after push, preserving 141 closing
+references; the new head initially had no hosted check results.
+
+The remaining retained-source fixture's final positive now uses its established
+explicit response allowance; its own preceding assertion proves the boundary-
+crossing source exceeds the unchanged default. Groovy's actual juxt invocation
+is exercised in a supported top-level closure body, while recovered class-method
+syntax remains a negative that must not invent calls. The grammar's declared
+partial capability is preserved; this does not qualify every Groovy syntax form.
+
+Snapshot fixture manifests now include their canonical mode as well as build ID.
+Import fixtures retain original queries: source-like build outputs remain
+unproven, non-module generated assets retain the positive, and TypeScript emit
+projection requires its actual indexed counterpart with a missing-counterpart
+negative. Pipeline counters distinguish Bazel build resolution from the one
+JavaScript language-resolution attempt rather than counting bypassed work.
+
+A demonstrated risk producer defect returns ok when maxTotalFlows=0 leaves
+source roots unsearched. It now reports partial and the cap reason, retaining
+zero emitted rows and the existing timeout/depth controls. RiskPropagation 6
+invalidates old derived status meaning. This wave awaits focused validation.
