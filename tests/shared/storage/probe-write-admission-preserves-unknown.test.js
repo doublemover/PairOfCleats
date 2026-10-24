@@ -3,7 +3,9 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 import { writePersistentCommandProbeCache, readPersistentCommandProbeCache,
-  invalidatePersistentCommandProbeCache } from '../../../src/index/tooling/command-probe-persistent-cache.js';
+  invalidatePersistentCommandProbeCache, createCommandProbeCacheKey,
+  isOwnedCommandProbeCacheEntry } from '../../../src/index/tooling/command-probe-persistent-cache.js';
+import { COMMAND_PROBE_POLICY_DEFAULTS } from '../../../src/contracts/schemas/storage-policy.js';
 
 const temporary = await makeTempDir('poc-probe-write-admission-');
 try {
@@ -28,8 +30,30 @@ try {
   // A separate producer-owned category exercises hard count admission without
   // converting the protected category above into disposable data.
   const bounded = { ...base, toolingConfig: { cache: { dir: path.join(temporary, 'bounded') } } };
-  for (let index = 0; index < 257; index += 1) assert.equal(writePersistentCommandProbeCache({ ...bounded, args: [`fixture-${index}`] }), true);
-  assert.equal((await fs.readdir(path.join(temporary, 'bounded', 'command-probes'))).length, 256);
+  const limit = COMMAND_PROBE_POLICY_DEFAULTS.entryLimit;
+  assert.equal(limit, 256, 'the default count qualification is unchanged');
+  assert.equal(writePersistentCommandProbeCache({ ...bounded, args: ['fixture-0'] }), true);
+  const boundedDir = path.join(temporary, 'bounded', 'command-probes');
+  const [firstName] = await fs.readdir(boundedDir);
+  const prototype = JSON.parse(await fs.readFile(path.join(boundedDir, firstName), 'utf8'));
+  await fs.utimes(path.join(boundedDir, firstName), new Date(0), new Date(0));
+  // Intermediate below-limit writes repeat the same admission branch. Seed the
+  // identical canonical records, prove every member's ownership and read path,
+  // then execute the actual default-limit overflow through the public writer.
+  for (let index = 1; index < limit; index += 1) {
+    const payload = { ...prototype, args: [`fixture-${index}`] };
+    const filename = `${createCommandProbeCacheKey(payload).digest}.json`;
+    assert.equal(isOwnedCommandProbeCacheEntry(payload, filename), true);
+    await fs.writeFile(path.join(boundedDir, filename), JSON.stringify(payload));
+  }
+  for (let index = 0; index < limit; index += 1) {
+    assert.equal(readPersistentCommandProbeCache({ ...bounded, args: [`fixture-${index}`] })?.cached, true);
+  }
+  assert.equal((await fs.readdir(boundedDir)).length, limit);
+  assert.equal(writePersistentCommandProbeCache({ ...bounded, args: [`fixture-${limit}`] }), true);
+  assert.equal((await fs.readdir(boundedDir)).length, limit);
+  assert.equal(readPersistentCommandProbeCache({ ...bounded, args: [`fixture-${limit}`] })?.cached, true);
+  await assert.rejects(fs.lstat(path.join(boundedDir, firstName)), { code: 'ENOENT' });
   assert.equal(writePersistentCommandProbeCache({ ...bounded, attempted: [{ stdout: 'x'.repeat(8 * 1024 * 1024) }] }), false,
     'oversized payload cannot be written and pruned only afterward');
   assert.deepEqual(await fs.readFile(file), protectedBytes);

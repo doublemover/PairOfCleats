@@ -26,7 +26,10 @@ export const readToolingCacheEntry = (target, maxBytes = 8 * 1024 * 1024) => {
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 0 || maxBytes > bufferConstants.MAX_LENGTH) {
     throw new TypeError('Tooling cache reads require a bounded nonnegative byte allowance.');
   }
-  const resolved = assertToolingCachePath(target);
+  // The contained-file owner performs the full no-link walk both before open
+  // and while binding the descriptor. Preserve alias resolution without adding
+  // a third identical physical ancestor walk for every cache inventory entry.
+  const resolved = resolveSystemCacheAlias(path.resolve(target));
   return withContainedFileSync(path.parse(resolved).root, resolved, descriptor => {
     const stat = descriptor.stat();
     if (!stat.isFile() || stat.nlink !== 1 || !Number.isSafeInteger(stat.size) || stat.size < 0 || stat.size > maxBytes) {

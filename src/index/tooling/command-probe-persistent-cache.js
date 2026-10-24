@@ -25,6 +25,15 @@ const SHARED_COMMAND_PROBE_CACHE_SUBDIR = path.join('tooling', 'command-probes')
 const TOOLING_CACHE_COMMAND_PROBE_SUBDIR = 'command-probes';
 const COMMAND_PROBE_CACHE_MAX_ENTRY_BYTES = 8 * 1024 * 1024;
 
+/** Shared producer/key authority for persisted command-probe records. */
+export const createCommandProbeCacheKey = payload => buildLocalCacheKey({
+  namespace: 'tooling-command-probe',
+  version: COMMAND_PROBE_CACHE_KEY_VERSION,
+  payload: { schemaVersion: COMMAND_PROBE_CACHE_SCHEMA_VERSION, providerId: payload.providerId,
+    commandPath: payload.command.path, cwd: payload.cwd, environmentIdentity: payload.environmentIdentity,
+    args: payload.args, size: payload.command.size, mtimeMs: payload.command.mtimeMs }
+});
+
 let persistentReadCount = 0;
 let persistentHitCount = 0;
 let persistentWriteCount = 0;
@@ -141,19 +150,9 @@ const resolvePersistentCacheDescriptor = ({
   const environmentIdentity = createCommandProbeEnvironmentIdentity(probeEnv
     || resolveNoProvisionToolingEnvironment(process.env, { command, providerId, cwd,
       toolingRoot: toolingConfig?.dir || null }));
-  const keyInfo = buildLocalCacheKey({
-    namespace: 'tooling-command-probe',
-    version: COMMAND_PROBE_CACHE_KEY_VERSION,
-    payload: {
-      schemaVersion: COMMAND_PROBE_CACHE_SCHEMA_VERSION,
-      providerId: normalizedProviderId,
-      commandPath: fingerprint.path,
-      cwd: normalizedCwd,
-      environmentIdentity,
-      args: normalizedArgs,
-      size: fingerprint.size,
-      mtimeMs: fingerprint.mtimeMs
-    }
+  const keyInfo = createCommandProbeCacheKey({
+    providerId: normalizedProviderId, command: fingerprint, cwd: normalizedCwd,
+    environmentIdentity, args: normalizedArgs
   });
   return {
     cacheDir,
@@ -180,20 +179,7 @@ const isCommandProbeEntry = (payload, fileName, { requireOwnership = true } = {}
     || !/^[a-f0-9]{64}$/u.test(payload.environmentIdentity || '')
     || typeof payload.command?.path !== 'string' || !path.isAbsolute(payload.command.path)
     || !Array.isArray(payload.args)) return false;
-  const key = buildLocalCacheKey({
-    namespace: 'tooling-command-probe',
-    version: COMMAND_PROBE_CACHE_KEY_VERSION,
-    payload: {
-      schemaVersion: COMMAND_PROBE_CACHE_SCHEMA_VERSION,
-      providerId: payload.providerId,
-      commandPath: payload.command.path,
-      cwd: payload.cwd,
-      environmentIdentity: payload.environmentIdentity,
-      args: payload.args,
-      size: payload.command.size,
-      mtimeMs: payload.command.mtimeMs
-    }
-  });
+  const key = createCommandProbeCacheKey(payload);
   return fileName === `${key.digest}.json`;
 };
 
@@ -411,7 +397,8 @@ export const invalidatePersistentCommandProbeCache = ({
   command,
   args = [],
   toolingConfig,
-  cwd = process.cwd()
+  cwd = process.cwd(),
+  probeEnv = null
 } = {}) => {
   const selected = readAdmittedPolicy();
   if (!selected) return false;
@@ -420,7 +407,8 @@ export const invalidatePersistentCommandProbeCache = ({
     command,
     args,
     toolingConfig,
-    cwd
+    cwd,
+    probeEnv
   });
   if (!descriptor) return false;
   try {

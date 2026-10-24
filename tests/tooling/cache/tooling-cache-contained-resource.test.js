@@ -8,7 +8,7 @@ import { writePersistentCommandProbeCache, readPersistentCommandProbeCache,
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 import { ensureTestingEnv, withTemporaryEnv } from '../../helpers/test-env.js';
 
-// UNVALIDATED: actual disposable cache/producer readers and sync descriptors.
+// Actual disposable cache/producer readers and sync descriptors.
 // No executable, physical links, native bindings, children or user-cache work.
 const caught = action => {
   let failed = false, error;
@@ -28,11 +28,26 @@ const contains = (value, expected) => {
 };
 const root = await makeTempDir('poc-tool-cache-contained-resource-');
 const originalOpen = fs.openSync, originalRead = fs.readSync, originalClose = fs.closeSync, originalStat = fs.fstatSync;
+const originalLstat = fs.lstatSync;
 const disposal = new Set();
 try {
   const file = path.join(root, 'entry.json'), bytes = Buffer.from('{"result":"original"}'); fs.writeFileSync(file, bytes);
   assert.equal(readToolingCacheEntry(file).payload.result, 'original');
   assert.throws(() => readToolingCacheEntry(file, bytes.length - 1), { code: 'ERR_TOOLING_CACHE_ENTRY' });
+  {
+    let opens = 0;
+    fs.lstatSync = (target, ...args) => {
+      const stat = originalLstat(target, ...args);
+      return target === file ? new Proxy(stat, { get(value, key) {
+        return key === 'isSymbolicLink' ? () => true : Reflect.get(value, key, value);
+      } }) : stat;
+    };
+    fs.openSync = (...args) => { opens++; return originalOpen(...args); };
+    try {
+      assert.throws(() => readToolingCacheEntry(file), { code: 'ERR_UNSAFE_FILE_PATH' });
+      assert.equal(opens, 0, 'the retained contained-file admission rejects linked metadata before open');
+    } finally { fs.lstatSync = originalLstat; fs.openSync = originalOpen; }
+  }
   for (const maximum of [-1, Infinity, Number.MAX_SAFE_INTEGER + 1, 1.5]) assert.throws(() => readToolingCacheEntry(file, maximum), TypeError);
   for (const value of [undefined, null, false, 0, '']) {
     let fd, reads = 0, closes = 0;
@@ -114,10 +129,18 @@ try {
       assert.deepEqual(fs.readFileSync(entry), originalBytes);
     }
     assert.equal(readPersistentCommandProbeCache(base)?.cached, true);
+    const firstEnvironment = { ...base, toolingConfig: { cache: { dir: path.join(root, 'env-cache') } }, probeEnv: { MODE: 'one' } };
+    const secondEnvironment = { ...firstEnvironment, probeEnv: { MODE: 'two' } };
+    assert.equal(writePersistentCommandProbeCache(firstEnvironment), true);
+    assert.equal(writePersistentCommandProbeCache(secondEnvironment), true);
+    assert.equal(invalidatePersistentCommandProbeCache(firstEnvironment), true);
+    assert.equal(readPersistentCommandProbeCache(firstEnvironment), null);
+    assert.equal(readPersistentCommandProbeCache(secondEnvironment)?.cached, true, 'invalidation uses the original environment key and preserves other environments');
+    assert.equal(invalidatePersistentCommandProbeCache(secondEnvironment), true);
   });
   assert.deepEqual(fs.readFileSync(file), bytes);
 } finally {
-  fs.openSync = originalOpen; fs.readSync = originalRead; fs.closeSync = originalClose; fs.fstatSync = originalStat;
+  fs.openSync = originalOpen; fs.readSync = originalRead; fs.closeSync = originalClose; fs.fstatSync = originalStat; fs.lstatSync = originalLstat;
   for (const fd of disposal) { try { originalClose(fd); } catch {} }
   await rmDirRecursive(root);
 }
