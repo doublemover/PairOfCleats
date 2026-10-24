@@ -700,6 +700,10 @@ export async function createIndexerWorkerPool(input = {}) {
           hasPrimaryFailure = true;
           if (isQueueRecoveryUnsafe(err) || err instanceof AggregateError) throw err;
           throwIfAborted(signal);
+          // Closing our admission queue settles undispatched callers with the
+          // same unavailable result as the checks before/after acquisition.
+          // Caller cancellation and dispatched backend failures still reject.
+          if (!dispatched && queueController.isClosed() && isAbortError(err)) return null;
           if (isAbortError(err)) throw err;
           if (err?.code === 'ERR_PROCESS_TASK_BUDGET' || err?.code === 'ERR_TOKENIZER_RESOURCE_PRESSURE') throw err;
           try {

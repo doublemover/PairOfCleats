@@ -15,6 +15,12 @@ const physicalPool = pool.pool;
 let tasks = [];
 try {
   process.memoryUsage = highPressure;
+  const controller = new AbortController();
+  const cancelled = assert.rejects(pool.tokenizeChunk({ mode: 'code', languageId: 'typescript', text: 'const cancelled = 1;' },
+    { signal: controller.signal }), { name: 'AbortError', code: 'ABORT_ERR' });
+  await new Promise(resolve => setImmediate(resolve));
+  controller.abort(); await cancelled;
+  assert.equal(pool.stats().activeTasks, 0, 'external cancellation rejects and drains its admission accounting');
   let completed = 0;
   tasks = throttle.heavyLanguages.map(languageId => pool.tokenizeChunk({ mode: 'code', languageId, text: 'const x = 1;' })
     .then(value => { completed++; return value; }));
