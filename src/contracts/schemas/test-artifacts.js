@@ -1,7 +1,8 @@
+const coverageStatuses = ['observed', 'unobserved', 'deleted', 'absent', 'unsupported', 'excluded', 'unavailable'];
 const coverageChangedInventory = { type: 'array', items: {
   type: 'object', additionalProperties: false,
   required: ['path', 'status', 'reason', 'coveredRanges', 'totalRanges', 'coverageFraction'],
-  properties: { path: { type: 'string' }, status: { enum: ['observed', 'unobserved', 'deleted', 'absent', 'unsupported', 'excluded', 'unavailable'] },
+  properties: { path: { type: 'string' }, status: { enum: coverageStatuses },
     reason: { type: ['string', 'null'] }, coveredRanges: { type: ['number', 'null'] },
     totalRanges: { type: ['number', 'null'] }, coverageFraction: { type: ['number', 'null'] } }
   , allOf: [{ if: { properties: { status: { const: 'observed' } } },
@@ -13,7 +14,8 @@ const coverageMeasurement = { type: 'object', additionalProperties: false,
   properties: { changedFiles: { type: 'integer', minimum: 0 }, eligibleFiles: { type: 'integer', minimum: 0 },
     measuredFiles: { type: 'integer', minimum: 0 }, denominator: { const: 'observed-ranges-only' },
     status: { enum: ['complete', 'partial', 'unavailable', 'not-applicable'] },
-    counts: { type: 'object', required: ['observed', 'unobserved', 'deleted', 'absent', 'unsupported', 'excluded', 'unavailable'],
+    counts: { type: 'object', required: coverageStatuses,
+      properties: Object.fromEntries(coverageStatuses.map(status => [status, { type: 'integer', minimum: 0 }])),
       additionalProperties: { type: 'integer', minimum: 0 } } }
 };
 
