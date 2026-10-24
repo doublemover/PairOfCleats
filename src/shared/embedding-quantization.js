@@ -46,10 +46,10 @@ export const quantizeEmbeddingVector = (vec, minVal = -1, maxVal = 1, levels = 2
     const q = Math.round(((f - min) * scale));
     if (q <= 0) {
       out[i] = 0;
-      clamped += 1;
+      if (f < min) clamped += 1;
     } else if (q >= maxQ) {
       out[i] = maxQ;
-      clamped += 1;
+      if (f > max) clamped += 1;
     } else {
       out[i] = q;
     }
@@ -98,10 +98,10 @@ export const quantizeEmbeddingVectorUint8 = (vec, minVal = -1, maxVal = 1, level
     const q = Math.round((Number(f) - min) * scale);
     if (q <= 0) {
       out[i] = 0;
-      clamped += 1;
+      if (f < min) clamped += 1;
     } else if (q >= maxQ) {
       out[i] = maxQ;
-      clamped += 1;
+      if (f > max) clamped += 1;
     } else {
       out[i] = q;
     }
