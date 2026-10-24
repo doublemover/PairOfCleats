@@ -1005,3 +1005,12 @@ cleanup still remains staged until the publication owner commits it. The fixed-
 point test retains marker migration, content/meta hashes, determinism and missing-
 file recovery, and now checks the actual filter-index byte count and snapshot.
 This source repair awaits its focused publication controls.
+
+The 12-case follow-up at `eab4aabb9add7494131fe260a419c67e16a6c60e`
+passed all 12, with no timeouts/skips/crashes. Both adjacent direct-download
+identity regressions are closed; actual installer teardown/storage release,
+Pyright recovery, modeled risk frontiers, index-state stable writes, cleanup
+transactions, immutable-generation rejection, publication records, copy lifetime
+and full JSONL stage3 observability passed. Seventy-four original failures now
+have source-bound passing closure; 26 remain. No separately observed adjacent
+failure is outstanding. This is not a final-tree or full-suite acceptance claim.

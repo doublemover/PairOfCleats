@@ -44,12 +44,9 @@
     },
     "followUpClosure": {
       "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
-      "originalFailuresMovedToPassing": 72,
-      "originalFailuresWithoutPassingClosure": 28,
-      "additionalObservedFailuresOutsideOriginal100": [
-        "tooling/install/download-body-ownership",
-        "tooling/install/download-node-iterator-native-close"
-      ]
+      "originalFailuresMovedToPassing": 74,
+      "originalFailuresWithoutPassingClosure": 26,
+      "additionalObservedFailuresOutsideOriginal100": []
     }
   },
   "items": [
@@ -361,8 +358,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 360,
       "latestRecheckStatus": "passed",
-      "latestRecheckSourceHead": "62691aea51b8d26198a43555f51b7e85da3db1a3",
-      "latestRecheckDurationMs": 537
+      "latestRecheckSourceHead": "eab4aabb9add7494131fe260a419c67e16a6c60e",
+      "latestRecheckDurationMs": 554
     },
     {
       "id": "tooling/install/managed-detect-diagnostic-lifetime",
@@ -3076,8 +3073,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 4934,
       "latestRecheckStatus": "passed",
-      "latestRecheckSourceHead": "62691aea51b8d26198a43555f51b7e85da3db1a3",
-      "latestRecheckDurationMs": 7128
+      "latestRecheckSourceHead": "eab4aabb9add7494131fe260a419c67e16a6c60e",
+      "latestRecheckDurationMs": 7273
     },
     {
       "id": "tooling/lsp/reader-closed-restart-reaps-stale-process",
@@ -4099,7 +4096,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 1609
+      "recheckDurationMs": 1609,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "eab4aabb9add7494131fe260a419c67e16a6c60e",
+      "latestRecheckDurationMs": 2227
     },
     {
       "id": "indexing/artifacts/manifest/report-artifacts-driven",
@@ -4141,8 +4141,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 216,
       "latestRecheckStatus": "passed",
-      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
-      "latestRecheckDurationMs": 217
+      "latestRecheckSourceHead": "eab4aabb9add7494131fe260a419c67e16a6c60e",
+      "latestRecheckDurationMs": 201
     },
     {
       "id": "indexing/artifacts/sharded-meta/schema",
@@ -4744,7 +4744,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 15326
+      "recheckDurationMs": 15326,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "eab4aabb9add7494131fe260a419c67e16a6c60e",
+      "latestRecheckDurationMs": 15730
     },
     {
       "id": "indexing/embeddings/transformers-quantized-compatibility",
@@ -5118,8 +5121,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 118,
       "latestRecheckStatus": "passed",
-      "latestRecheckSourceHead": "62691aea51b8d26198a43555f51b7e85da3db1a3",
-      "latestRecheckDurationMs": 112
+      "latestRecheckSourceHead": "eab4aabb9add7494131fe260a419c67e16a6c60e",
+      "latestRecheckDurationMs": 116
     },
     {
       "id": "indexing/risk/interprocedural/partial-flows",

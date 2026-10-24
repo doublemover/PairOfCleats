@@ -5104,15 +5104,351 @@
           "historicalAuthorWorkspaceEvidence": true
         }
       ]
+    },
+    {
+      "sourceHead": "eab4aabb9add7494131fe260a419c67e16a6c60e",
+      "startedAt": "2026-10-24T13:59:57.801Z",
+      "finishedAt": "2026-10-24T14:00:27.453Z",
+      "scope": "Publication ordering, physical state metrics, cleanup and direct/download installer identity closure.",
+      "policy": {
+        "timeoutMs": 30000,
+        "retries": 0,
+        "nativeStatusRedo": false,
+        "threads": 1,
+        "platform": "win32",
+        "node": "v26.12.1",
+        "removedLaunchSetting": "PAIROFCLEATS_TRUSTED_CONFIG: missing configured file; no replacement authority granted"
+      },
+      "summary": {
+        "selected": 12,
+        "passed": 12,
+        "failed": 0,
+        "timeouts": 0,
+        "skipped": 0
+      },
+      "cohorts": [
+        {
+          "name": "publication-download-wave-01",
+          "summary": {
+            "total": 5,
+            "passed": 5,
+            "failed": 0,
+            "skipped": 0,
+            "durationMs": 8206
+          },
+          "ids": [
+            "tooling/install/install-download-resource-lifetime",
+            "tooling/install/download-body-ownership",
+            "tooling/install/download-node-iterator-native-close",
+            "tooling/install/official-release-response-lifetime",
+            "tooling/lsp/pyright-health-source-context"
+          ]
+        },
+        {
+          "name": "publication-download-wave-02",
+          "summary": {
+            "total": 5,
+            "passed": 5,
+            "failed": 0,
+            "skipped": 0,
+            "durationMs": 2891
+          },
+          "ids": [
+            "indexing/risk/interprocedural/framework-semantics",
+            "indexing/artifacts/index-state-skip-write",
+            "indexing/artifacts/publication-cleanup-transaction",
+            "indexing/artifacts/publication-immutable-generation-cleanup",
+            "indexing/artifacts/publication-record-contract"
+          ]
+        },
+        {
+          "name": "publication-download-wave-03",
+          "summary": {
+            "total": 2,
+            "passed": 2,
+            "failed": 0,
+            "skipped": 0,
+            "durationMs": 15921
+          },
+          "ids": [
+            "indexing/artifacts/stage-copy-batch-lifetime",
+            "indexing/embeddings/stage3-perf-observability"
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "id": "tooling/install/download-body-ownership",
+          "path": "tooling/install/download-body-ownership.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 127,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-eab4aabb9add7494131fe260a419c67e16a6c60e/publication-download-wave-01-logs/run-1792850398657-v0b1sb/tooling_install_download-body-ownership.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/install/download-node-iterator-native-close",
+          "path": "tooling/install/download-node-iterator-native-close.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 136,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-eab4aabb9add7494131fe260a419c67e16a6c60e/publication-download-wave-01-logs/run-1792850398657-v0b1sb/tooling_install_download-node-iterator-native-close.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/install/install-download-resource-lifetime",
+          "path": "tooling/install/install-download-resource-lifetime.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 554,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-eab4aabb9add7494131fe260a419c67e16a6c60e/publication-download-wave-01-logs/run-1792850398657-v0b1sb/tooling_install_install-download-resource-lifetime.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/install/official-release-response-lifetime",
+          "path": "tooling/install/official-release-response-lifetime.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 108,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-eab4aabb9add7494131fe260a419c67e16a6c60e/publication-download-wave-01-logs/run-1792850398657-v0b1sb/tooling_install_official-release-response-lifetime.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/lsp/pyright-health-source-context",
+          "path": "tooling/lsp/pyright-health-source-context.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 7273,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-eab4aabb9add7494131fe260a419c67e16a6c60e/publication-download-wave-01-logs/run-1792850398657-v0b1sb/tooling_lsp_pyright-health-source-context.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/artifacts/index-state-skip-write",
+          "path": "indexing/artifacts/index-state-skip-write.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 2227,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-eab4aabb9add7494131fe260a419c67e16a6c60e/publication-download-wave-02-logs/run-1792850407735-bk2jy4/indexing_artifacts_index-state-skip-write.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/artifacts/publication-cleanup-transaction",
+          "path": "indexing/artifacts/publication-cleanup-transaction.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 102,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-eab4aabb9add7494131fe260a419c67e16a6c60e/publication-download-wave-02-logs/run-1792850407735-bk2jy4/indexing_artifacts_publication-cleanup-transaction.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/artifacts/publication-immutable-generation-cleanup",
+          "path": "indexing/artifacts/publication-immutable-generation-cleanup.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 237,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-eab4aabb9add7494131fe260a419c67e16a6c60e/publication-download-wave-02-logs/run-1792850407735-bk2jy4/indexing_artifacts_publication-immutable-generation-cleanup.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/artifacts/publication-record-contract",
+          "path": "indexing/artifacts/publication-record-contract.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 201,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-eab4aabb9add7494131fe260a419c67e16a6c60e/publication-download-wave-02-logs/run-1792850407735-bk2jy4/indexing_artifacts_publication-record-contract.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/risk/interprocedural/framework-semantics",
+          "path": "indexing/risk/interprocedural/framework-semantics.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 116,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-eab4aabb9add7494131fe260a419c67e16a6c60e/publication-download-wave-02-logs/run-1792850407735-bk2jy4/indexing_risk_interprocedural_framework-semantics.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/artifacts/stage-copy-batch-lifetime",
+          "path": "indexing/artifacts/stage-copy-batch-lifetime.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 187,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-eab4aabb9add7494131fe260a419c67e16a6c60e/publication-download-wave-03-logs/run-1792850411517-g38j4p/indexing_artifacts_stage-copy-batch-lifetime.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/embeddings/stage3-perf-observability",
+          "path": "indexing/embeddings/stage3-perf-observability.test.js",
+          "lane": "integration",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 15730,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-eab4aabb9add7494131fe260a419c67e16a6c60e/publication-download-wave-03-logs/run-1792850411517-g38j4p/indexing_embeddings_stage3-perf-observability.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        }
+      ]
     }
   ],
   "cumulativeClosure": {
     "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
-    "originalFailuresMovedToPassing": 72,
-    "originalFailuresWithoutPassingClosure": 28,
-    "additionalObservedFailuresOutsideOriginal100": [
-      "tooling/install/download-body-ownership",
-      "tooling/install/download-node-iterator-native-close"
-    ]
+    "originalFailuresMovedToPassing": 74,
+    "originalFailuresWithoutPassingClosure": 26,
+    "additionalObservedFailuresOutsideOriginal100": []
   }
 }
