@@ -384,6 +384,7 @@ await runNativeDatabaseCommand({ commandIdentity: 'lmdb.build', delegated: true 
       const metrics = {
         generatedAt: new Date().toISOString(),
         mode,
+        indexDir,
         sourceIndex: meta.sourceIndex,
         artifacts: meta.artifacts,
         files: { candidates: stats.fileCount },

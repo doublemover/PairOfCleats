@@ -114,6 +114,9 @@ const createMetaSerializer = redact => {
 
 export const createLoggerScope = (options = {}) => {
   const state = createLoggerState();
+  // Runtime scopes keep their caller's selected display. Later global handler
+  // replacement cannot redirect that scope; independent scopes stay isolated.
+  if (options.inheritProgressHandlers === true) state.progressHandlers = currentLoggerState().progressHandlers;
   loggerScope.run(state, () => configureLogger(options));
   const run = (fn, ...args) => loggerScope.run(state, fn, ...args);
   return { run, log: (...args) => run(log, ...args), logLine: (...args) => run(logLine, ...args),

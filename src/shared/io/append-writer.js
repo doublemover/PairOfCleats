@@ -164,13 +164,13 @@ export const createQueuedAppendWriter = ({
   const close = () => {
     if (closePromise) return closePromise;
     acceptingWrites = false;
-    closePromise = (async () => {
+    closePromise = runWithIndependentSchedulerOwner(async () => {
       await writeChain;
       if (terminalFailure) throw terminalFailure;
       await sync();
       if (terminalFailure) throw terminalFailure;
       await finishOwner();
-    })();
+    });
     closePromise.catch(() => {});
     return closePromise;
   };

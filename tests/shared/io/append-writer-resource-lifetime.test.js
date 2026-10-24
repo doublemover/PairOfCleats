@@ -4,6 +4,7 @@ import path from 'node:path';
 import { createQueuedAppendWriter } from '../../../src/shared/io/append-writer.js';
 import { getContainedFileSession } from '../../../src/shared/contained-file-resource.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
+import { runWithSchedulerTaskLease } from '../../../src/shared/concurrency/scheduler-task-scope.js';
 
 // UNVALIDATED: public append writer with actual FileHandles and disposable files.
 const root = await makeTempDir('poc-append-resource-'), open = fs.open, disposal = new Map(); let sequence = 0;
@@ -63,6 +64,15 @@ const capture = ({ writeFailure, failWrite = false, syncFailure, failSync = fals
   return state;
 };
 try {
+  {
+    const state = capture();
+    const writer = createQueuedAppendWriter({ filePath: state.file, syncOnFlush: true });
+    await writer.enqueue('owned diagnostic bytes');
+    await runWithSchedulerTaskLease({ suspendCpu() { throw new Error('producer task already retired'); } }, () => writer.close());
+    assert.equal(state.closes, 1, 'the independent writer closes its actual original handle');
+    assert.equal(state.syncs, 1);
+    assert.equal(await fs.readFile(state.file, 'utf8'), 'owned diagnostic bytes');
+  }
   {
     const state = capture({ replaceMethods: true }), errors = [];
     const writer = createQueuedAppendWriter({ filePath: state.file, syncOnFlush: true, onError: (...args) => { errors.push(args); } });

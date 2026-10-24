@@ -3,6 +3,17 @@ import { configureLogger, createLoggerScope, getRecentLogEvents, log, setProgres
 
 const restoreHandlers = setProgressHandlers({ log() {}, logLine() {}, logError() {} });
 try {
+  const selected = [];
+  const restoreA = setProgressHandlers({ logLine: (message, meta) => selected.push(['A', message, meta.fileIndex]) });
+  const displayA = createLoggerScope({ enabled: false, inheritProgressHandlers: true });
+  restoreA();
+  const restoreB = setProgressHandlers({ logLine: (message, meta) => selected.push(['B', message, meta.fileIndex]) });
+  const displayB = createLoggerScope({ enabled: false, inheritProgressHandlers: true });
+  restoreB();
+  displayA.logLine('first file', { kind: 'file-progress', fileIndex: 1 });
+  displayB.logLine('second file', { kind: 'file-progress', fileIndex: 2 });
+  assert.deepEqual(selected, [['A', 'first file', 1], ['B', 'second file', 2]]);
+  await Promise.all([displayA.close(), displayB.close()]);
   configureLogger({ enabled: false, ringMax: 4, ringMaxBytes: 4096 });
   for (let index = 0; index < 4; index += 1) log(`text${index}`, { secret: 'synthetic-secret', ok: index });
   configureLogger({ enabled: false, ringMax: 1, ringMaxBytes: 1024 });

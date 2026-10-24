@@ -24,6 +24,7 @@ export const configureRuntimeLogger = ({
   const ringMax = normalizeLogRingMax(loggingConfig.ringMax);
   const ringMaxBytes = normalizeLogRingMaxBytes(loggingConfig.ringMaxBytes);
   const loggerScope = createLoggerScope({
+    inheritProgressHandlers: true,
     enabled: effectiveFormat !== 'text',
     pretty: effectiveFormat === 'pretty',
     level: logLevel,
