@@ -19,14 +19,17 @@ cleanup handle now preserves that lifetime; the preserved old binding fails
 cancellation, while ten fresh-process cases and the exposing fixture pass.
 Complete locked setup, remaining failure repairs and portable coverage in mixed
 link wrappers precede a new candidate freeze.
-After the 2026-10-23 remote history cleanup, the rewritten branch tip has the
-same committed file tree; local repairs were preserved. The next repair batch
-fixes provider record projection, same-line repo-map source identities, Windows
-embedding stage paths, SQLite dense encoding admission and several stale fixture
-assumptions. Focused cold compiler indexing passes in 22.4s. A separate 24.9s
-warm replay case proves that unchanged syntax can publish without its prior
-compiler bindings; replay admission/publication remains a high-priority defect.
-The next committed batch triggers the requested full Windows validation pass.
+After the 2026-10-23 remote history cleanup, commit `59fde1d2d` fixed provider
+record projection, same-line repo-map source identities, Windows embedding stage
+paths, SQLite dense encoding admission and stale fixtures. The attempted warm
+compiler replay case omitted its original 2 GiB admission allowance and does
+not establish a replay defect. A frozen Windows campaign at that commit covered
+most explicit cohorts but exposed many failures and stopped during repeatedly
+failing native TUI cases; it is historical evidence, not final-tree acceptance.
+The current narrow security repair excludes DOCX deleted/moved-from text,
+versions extraction and bundle reuse, and corrects UNC service-root authority.
+Focused regressions and the 40-case front gate pass; publication remains pending. Existing
+published document indexes need a normal rebuild to reflect corrected extraction.
 
 Continue on `codex/pr557-audit-repairs-20261012` through
 [PR #572](https://github.com/doublemover/PairOfCleats/pull/572), retaining its

@@ -31,7 +31,8 @@ for (const scenario of ['current', 'windows-case-root', 'unc-case-root', 'editor
     assert.equal(harness.spawnCalls.length, 0); assert.equal(statusReads, 2);
     const session = harness.workspaceStateStore.get('pairofcleats.workflowSessions')[0];
     const current = ['current', 'windows-case-root', 'unc-case-root'].includes(scenario);
-    assert.equal(session.status, current ? 'succeeded' : 'failed');
+    assert.equal(session.status, current ? 'succeeded' : 'failed',
+      `${scenario}: ${harness.errorMessages.at(-1) || 'no error message'}`);
     if (current) assert(harness.infoMessages.some(message => /Index Health completed/.test(message)));
     else {
       assert(!harness.infoMessages.some(message => /Index Health completed/.test(message)));

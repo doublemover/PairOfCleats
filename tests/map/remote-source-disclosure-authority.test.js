@@ -60,7 +60,8 @@ const currentCall = calls.at(-1); let currentReads = 0;
 const currentFailure = Object.freeze(Object.defineProperties({}, { name: { value: 'Error' }, message: { get() { currentReads++; throw null; } } }));
 currentCall.reject(currentFailure); await turn();
 assert.equal(currentReads, 1); assert.match(currentGroup.textContent, /Retry member page/);
-const retry = currentGroup.querySelector('button'); retry.click(); calls.at(-1).reject(undefined); await turn();
+const retry = currentGroup.querySelector('button'); retry.click(); assert.equal(currentGroup.open, true);
+calls.at(-1).reject(undefined); await turn();
 assert.match(currentGroup.textContent, /Retry member page/);
 
 // A source-index replacement alone revokes the disclosure, even when the source

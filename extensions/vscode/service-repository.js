@@ -37,7 +37,8 @@ function readGitHead(root) {
   return null;
 }
 
-const servicePathApi = root => /^[a-z]:[\\/]|^(?:\\\|\/\/)[^\\/]+[\\/][^\\/]+/i.test(root) ? path.win32 : path.posix;
+const servicePathApi = root => /^[a-z]:[\\/]/i.test(root) || root.startsWith('\\\\') || root.startsWith('//')
+  ? path.win32 : path.posix;
 
 function validateServiceRoot(value) {
   const raw = String(value || '').trim();

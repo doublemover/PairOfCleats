@@ -380,9 +380,11 @@ repeated or missing IDs. The rich cold compiler fixture passes in 22.4s.
 Its combined cold/warm wrapper exceeded 30s, so a small independent warm case
 keeps the original syntax/binding/call-target parity checks within one bounded
 process. That case fails in 24.9s: the new generation reuses the same syntax
-hashes but publishes no binding rows. This is an open replay correctness defect,
-not passing evidence. A subsequent diagnostic attempt exceeded 30s during
-warm preparation and is also recorded as a timeout, never a pass.
+hashes but publishes no binding rows. Later inspection found that this warm
+fixture omitted the original 2 GiB `execution.compilerAdmission.maxResidentBytes`
+setting; the default 512 MiB limit intentionally defers compiler work. This
+failure does not establish a replay defect. A subsequent diagnostic attempt
+exceeded 30s during warm preparation and is recorded as a timeout, never a pass.
 
 The code-map SVG negative now asserts the intentional exit-1 error contract and
 checks that the DOT recovery file exists. The provider alias fixture supplies a
@@ -394,3 +396,32 @@ scheduler from token-bearing build scheduler calls. The SQLite crash fixture
 reads the attempt-owned forensic index rather than the obsolete shared path.
 No remote rewrite changed product files. The frozen 720-case report belongs to
 the prior source and remains historical; a fresh full candidate pass is pending.
+
+## Windows security-repair follow-up, 2026-10-23
+
+A frozen campaign at `59fde1d2d40e3a05a8dbec3077b82f36aff3ad59` reached its
+native TUI cohort after many correctness failures. Repeated 30-second native
+workflow cases made that cohort unsuitable for a final pass, so it was stopped;
+completed receipts remain under the historical task-owned `.tmp/` tree. The
+dedicated six-case security cohort passed, but the DOCX migration fixture exposed
+a real disclosure: the structural reparser included `w:moveFrom` text that
+Mammoth itself excluded. Namespace-aware paragraph parsing now omits deletion
+and move-origin content and rejects malformed moved-from ranges/DTDs. A new
+internal producer version changes both persistent extraction cache keys and the
+extracted-prose parse signature, so a normal rebuild will not reuse the old
+paragraphs or per-file bundles. Already published indexes still require that
+normal rebuild; no user cache was invalidated during this repair.
+
+The VS Code service mapping now classifies UNC roots with the Windows path
+rules before comparing equivalent service and reviewed roots. The remote map's
+retry buttons retain their panel lifetime when clicked inside a details element.
+Fixture corrections retain negative checks for traversal, invalid recovery
+selectors, stale disclosures, API credentials and original read ownership.
+Focused DOCX, cache-policy, service-root, map, path, recovery and editor-auth
+checks pass with one job, 30-second case deadlines and zero retries. Locked
+bootstrap on Node 26.12.1 verified native activation and eight patches. The
+front gate passes after clearing an inherited nonexistent trusted-config path
+from the check process: format, config budget, environment, generated surfaces,
+command surface, workflow contract, 40 gate cases and diff whitespace. This
+focused repair is not a full Windows deep-suite acceptance; the campaign's
+unrelated failures and optional/platform qualifications remain open.

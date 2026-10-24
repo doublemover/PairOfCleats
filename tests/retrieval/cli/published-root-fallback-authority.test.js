@@ -8,6 +8,7 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { seedPublishedArtifacts } from '../../helpers/artifact-publication.js';
 
+const comparablePath = value => process.platform === 'win32' ? value.toLowerCase() : value;
 const { dir: root } = await prepareIsolatedTestCacheDir('published-root-fallback-authority');
 applyTestEnv({ cacheRoot: root });
 const repoRoot = path.join(root, 'repo');
@@ -25,15 +26,16 @@ try {
   const publish = roots => fs.writeFile(pointer, JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     buildId: 'pinned', buildRoot: path.relative(cache, pinned), buildRootsByMode: roots }));
   await publish({ code: path.relative(cache, pinned) });
-  assert.equal(resolveIndexDir(repoRoot, 'code', {}), path.join(pinned, 'index-code'));
+  assert.equal(comparablePath(resolveIndexDir(repoRoot, 'code', {})), comparablePath(path.join(pinned, 'index-code')));
   await fs.rm(path.join(pinned, 'index-code'), { recursive: true });
   assert.throws(() => resolveIndexDir(repoRoot, 'code', {}), /published generation is unavailable/,
     'neither newer marker files nor repo-local/cache-root markers replace a broken promoted pointer');
   await publish({ prose: path.relative(cache, pinned) });
   assert.throws(() => resolveIndexDir(repoRoot, 'code', {}), /published generation is unavailable/,
     'an explicitly absent mode cannot fall back to the primary generation');
-  assert.equal(resolveIndexDir(repoRoot, 'code', {}, { explicitRef: true, indexDirByMode: { code: path.join(staging, 'index-code') } }),
-    path.join(staging, 'index-code'), 'explicit reference resolution remains separate from normal fallback authority');
+  assert.equal(comparablePath(resolveIndexDir(repoRoot, 'code', {}, { explicitRef: true,
+    indexDirByMode: { code: path.join(staging, 'index-code') } })),
+  comparablePath(path.join(staging, 'index-code')), 'explicit reference resolution remains separate from normal fallback authority');
   assert.throws(() => resolveIndexDir(repoRoot, 'code', {}, { explicitRef: true, indexDirByMode: {} }), /explicit as-of target/);
 } finally { await fs.rm(root, { recursive: true, force: true }); }
 console.log('Normal search never replaces missing promoted modes with staging or local marker-only data.');

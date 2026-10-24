@@ -6,8 +6,9 @@ import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
+const env = applyTestEnv({ extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null } });
 const policy = runNode([path.join(root, 'tools/tooling/python-check.js'), '--json'],
-  'Python for destination-bound editor API authentication', root, applyTestEnv({ syncProcess: false }), { stdio: 'pipe' });
+  'Python for destination-bound editor API authentication', root, env, { stdio: 'pipe' });
 assert.equal(policy.status, 0, policy.stderr);
 const python = JSON.parse(policy.stdout).python;
 const helper = path.join(root, 'tests/helpers/sublime/api_authentication.py');
@@ -15,7 +16,7 @@ const control = spawnSync(python, ['-E', '-S', helper],
   { cwd: root, encoding: 'utf8', timeout: 5000, windowsHide: true });
 assert.equal(control.error, undefined, String(control.error));
 assert.equal(control.status, 0, control.stderr);
-assert.match(control.stderr, /Ran 5 tests/);
+assert.match(control.stderr, /Ran 6 tests/);
 assert.match(control.stderr, /\bOK\b/);
 
 const cohort = await prepareFixtureApiServerCohort({ cacheName: 'sublime-api-authentication',

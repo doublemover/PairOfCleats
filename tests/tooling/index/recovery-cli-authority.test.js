@@ -14,7 +14,7 @@ try {
   await fs.mkdir(repo); await fs.mkdir(root);
   const preload = path.join(fixture, 'named-recording-backend.mjs');
   const backend = `import fs from 'node:fs/promises'; export async function buildIndex(repo,options){
-    await fs.appendFile(${JSON.stringify(trace)},JSON.stringify({repo,recovery:options.recovery})+'\n');
+    await fs.appendFile(${JSON.stringify(trace)},JSON.stringify({repo,recovery:options.recovery})+'\\n');
     return options.recovery.action==='inspect'?{schemaVersion:1,planId:'fixture-plan',repoRoot:repo,buildRoot:options.recovery.indexRoot}: {action:options.recovery.action};
   }`;
   await fs.writeFile(preload, `import {registerHooks} from 'node:module';registerHooks({load(url,context,next){

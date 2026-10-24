@@ -3,7 +3,7 @@ import { inspectValue } from '../../workspace/inspect.js';
 import { createSourceViewRequestOwner } from './data/view-request-owner.js';
 import { captureSceneFailure } from './scene-failure-inspection.js';
 const button=(text,callback,current)=>{const value=document.createElement('button');value.type='button';value.textContent=text;
-  value.onclick=function(...args){if(current()&&value.isConnected)return Reflect.apply(callback,this,args);};return value;};
+  value.onclick=function(...args){args[0]?.stopPropagation?.();if(current()&&value.isConnected)return Reflect.apply(callback,this,args);};return value;};
 const preview=value=>String(value??'unresolved').slice(0,160);
 const captureView=(host)=>{
   const source=state.remoteSource,index=state.sourceIndex,request=source.request;

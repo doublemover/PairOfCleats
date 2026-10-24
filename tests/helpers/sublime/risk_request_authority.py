@@ -189,6 +189,7 @@ with isolated_temp_directory() as temporary:
 
         operations.activate()
         paths.select_repo(window, second)
+        window.set_active_view(source)
         # A contextual source seed belongs to its own file repository even if
         # the window's explicit general read-only selection points elsewhere.
         analysis.PairOfCleatsContextPackCommand(window).run()
