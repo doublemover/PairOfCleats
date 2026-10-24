@@ -13,7 +13,12 @@ implementation. Workers remain parked. The [current validation receipt](archived
 separates current observations from older qualified sources. Both 60-case CLI
 cohorts passed at `a11b64278`; API failures exposed module-call ownership, report
 qualification and publication-seal defects. The repair tree remains unqualified;
-clean-candidate API reruns and portable coverage in mixed link wrappers are next.
+the frozen pass reproduced a parser-worker access violation. CDB identified a
+Node-API finalizer callback reading its freed environment. A supported async
+cleanup handle now preserves that lifetime; the preserved old binding fails
+cancellation, while ten fresh-process cases and the exposing fixture pass.
+Complete locked setup, remaining failure repairs and portable coverage in mixed
+link wrappers precede a new candidate freeze.
 
 Continue on `codex/pr557-audit-repairs-20261012` through
 [PR #572](https://github.com/doublemover/PairOfCleats/pull/572), retaining its

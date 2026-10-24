@@ -9,6 +9,7 @@ import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 const { dir } = await prepareIsolatedTestCacheDir('tree-sitter-patch-roundtrip');
 const name = 'tree-sitter+0.25.0.patch';
 const blobs = {
+  'src/binding.cc': '0ccee9b8c5fa3fd9f1db42c33407a19a9cba1a8e',
   'binding.gyp': 'bb40aa7e8d41644ba690761e9064fc1d0f2dcd6b',
   'src/tree.cc': '32241baff0722023a97de9488cb153ce4356e94d',
   'src/language.h': '9aacb813814926e664d036482d28022464499bba',
@@ -47,4 +48,4 @@ for (const [file, expected] of Object.entries(blobs)) {
 assert.equal(applyPatches(dir), Object.keys(blobs).length);
 assert.equal(applyPatches(dir, { verifyOnly: true }), Object.keys(blobs).length);
 for (const [relative, expected] of snapshots) assert.equal(await fs.readFile(path.join(dir, relative), 'utf8'), expected);
-console.log('The complete Tree-sitter patch restores eight verified locked package blobs and reapplies exactly.');
+console.log('The complete Tree-sitter patch restores nine verified locked package blobs and reapplies exactly.');

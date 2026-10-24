@@ -117,6 +117,14 @@ node bin/pairofcleats.js checkout diagnose --prerequisites --json
 
 The report names runtime, executable, ABI, physical checkout and individual
 receipt mismatch fields. Metadata inspection does not activate native packages.
+The required Tree-sitter patch also owns an async Node-API cleanup handle.
+On Node 26.12.1, an interrupted parser worker can otherwise drain a queued
+finalizer after its environment has been freed. The handle releases through the
+supported async cleanup API; parser operations, worker cancellation and strict
+callback errors remain enabled. Setup activation is separate from the ten
+fresh-process natural/cancelled worker cases in
+`tests/tooling/install/native-parser-error-contract.test.js`.
+
 For intact dependencies and patches under the selected runtime,
 `node tools/setup/rebuild-native.js --verify` can verify and refresh readiness;
 it cannot repair missing patches. Input/lock/patch drift needs locked bootstrap.

@@ -15,7 +15,13 @@ expand it to 4350. Splitting four aggregate CLI wrappers into all 77 original
 command cases yields 4423 discovered cases. Five new ownership regressions bring discovery
 to 4428, with 4366 required and the same 62
 documented exclusions. Native build/query lifecycle cases run serially. Older
-inventory totals below are historical. Current source is not fully qualified.
+inventory totals below are historical. The frozen fca634233 pass stopped on an
+actual parser-worker access violation. Matching CDB symbols identify a Node-API
+queued-finalizer environment lifetime defect. The parser binding now retains an
+async cleanup handle through that queue; old-binary cancellation fails and ten
+fresh-process lifecycle cases plus the exposing document-cache fixture pass.
+Locked setup and final-candidate qualification remain required. Current source
+is not fully qualified.
 
 The following earlier post-wave checkpoint remains revision-specific. The post-wave source
 checkpoint 85be53744 has fresh locked bootstrap and separate native/patch

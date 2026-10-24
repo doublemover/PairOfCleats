@@ -97,3 +97,32 @@ index 61991c2da..f894a6483 100644
 -      state->start_depth + next_step->depth > self->depth
 +      (uint32_t)state->start_depth + next_step->depth > self->depth
      ) {
+diff --git a/node_modules/tree-sitter/src/binding.cc b/node_modules/tree-sitter/src/binding.cc
+index 0ccee9b8c..70c3ecb63 100644
+--- a/node_modules/tree-sitter/src/binding.cc
++++ b/node_modules/tree-sitter/src/binding.cc
+@@ -14,9 +14,21 @@
+-
++
+ namespace node_tree_sitter {
+-
++
++// Hold the Node-API environment through the queued finalizer drain. Node 26.12.1
++// releases its scheduled-finalizer reference before reading the queue again;
++// an async cleanup handle releases its environment reference in a later native
++// immediate, after callbacks admitted before cleanup have finished.
++static void FinishEnvironmentCleanup(napi_async_cleanup_hook_handle handle, void*) {
++  napi_status status = napi_remove_async_cleanup_hook(handle);
++  if (status != napi_ok) napi_fatal_error("tree-sitter", NAPI_AUTO_LENGTH,
++      "Failed to release parser environment cleanup", NAPI_AUTO_LENGTH);
++}
++
+ Napi::Object InitAll(Napi::Env env, Napi::Object exports) {
+   auto* data = new AddonData(env);
+   env.SetInstanceData(data);
++  napi_status status = napi_add_async_cleanup_hook(env, FinishEnvironmentCleanup, nullptr, nullptr);
++  if (status != napi_ok) throw Napi::Error::New(env, "Failed to own parser environment cleanup");
+-
++
+   InitConversions(env, exports);
+   node_methods::Init(env, exports);

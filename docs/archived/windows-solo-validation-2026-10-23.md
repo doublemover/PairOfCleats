@@ -274,3 +274,83 @@ budget, environment usage, generated freshness, command/workflow contracts and
 the final 40-case gate pass; the versioned schema regression passes after its
 last compatibility adjustment. Original source/fixture failure receipts remain.
 The following documentation commit does not certify the remaining API/deep pass.
+
+## Frozen-pass native failure and cleanup repair
+
+The fca63423370943e2315b0adf946981fcf771ab96 candidate stopped during
+`correctness-indexing-06`: the document-extraction cache-policy fixture's
+bootstrap descendant returned 3221225477 (0xC0000005). No crash-status redo ran.
+The runner fixture exited 1; the descendant native status is separate evidence.
+Dependency versions, native hashes, original receipt, binding/PDB copies, exact
+child command and relevant environment were captured before rebuilding. Historical
+workspace receipts live in `.tmp/tasks/windows-native-worker-crash-20261023-fca634233/`;
+they are not clean-checkout artifacts.
+
+Installed x64 CDB ran with child-process debugging and an unhandled-AV capture.
+A small 85064-byte dump, all-thread stacks, matching official Node 26.12.1 PDB,
+Microsoft OS symbols and exception analysis identify `node.exe` at
+`node_napi_env__::EnqueueFinalizer`'s native immediate, source node_api.cc:109–112.
+Its `Unref()` deletes the environment before `DrainFinalizerQueue()` reads it.
+A second live trace records deletion of 000001517d46d940 immediately before the
+same address is reused by the faulting callback; the pending queue contains
+Windows freed-heap fill. This is actual exception attribution, not inference
+from the last JavaScript log or an unloaded-module list.
+
+The preserved old binding passes a one-worker natural-exit control and fails a
+one-worker active-parse cancellation control at that same stack. The parser
+binding patch registers a supported async cleanup handle, whose removal releases
+its environment reference in a later native immediate. This keeps callbacks
+admitted before cleanup alive through their queue drain. CDB completes the
+original two-worker command with the repaired binding and shows all four addon
+environments deleted (runtime and grammar in each worker), with no AV. The
+ordinary strict input-callback identity, language and range negatives remain.
+Node stays at 26.12.1; no backend, worker, error contract or deadline is relaxed.
+
+The focused three-case pass has zero failures/timeouts/skips: document-cache
+policy hit 23.0s, native parser error/lifecycle contract 1.44s, and complete patch
+reverse/reapply 3.46s. The lifecycle fixture records ten independent fresh Node
+processes, each with natural disposal and cancellation; no case is retried. The
+patch round trip now covers nine exact original locked-package blobs. Native/
+patch verification exits 0 with eight packages, 26 targets and 61 hunks. These
+observations precede the required locked-bootstrap refresh and final candidate;
+they do not certify all historical crash fixtures or the rest of the deep suite.
+
+The stopped frozen campaign retained 24 report files containing 720 cases: 632
+strict passes and 88 failures, including five timeouts. Remaining cohorts have
+not run, and mixed physical-link wrappers still require portable coverage.
+Locked install also reports seven npm audit findings (one moderate, six high):
+MSAL/identity, body-parser, fast-uri, happy-dom, undici and Zod. These are tracked
+separately from native activation and are not a warning-free setup observation.
+The recorded advisory/consumer compatibility review precedes dependency edits;
+no automatic audit-force update or backend substitution ran.
+
+Locked `npm run bootstrap:ci` subsequently exits 0: all 812 locked packages
+install, required native builds/activation succeed and the refreshed readiness
+receipt verifies eight patches/26 targets/61 hunks. Optional sharp is not
+installed and is explicitly outside this acceptance target. The npm audit findings
+above remain open; native setup success does not erase them. Final rebuilt
+binding/patch/receipt hashes are recorded separately from the preserved failure
+installation. Original crash-route checks now use this locked installation.
+
+After locked bootstrap, all seven historically crashing routes plus the new
+exposing fixture and three native/setup controls run serially: 6/11 pass, five
+fail, zero timeouts/skips and no native access violation in any failed child
+log. The document-cache route passes in 23.7s and the ten-process lifecycle
+contract in 1.52s. Embedded-source and summary reporting pass. Remaining
+failures are real open work: stub embedding cache build, compiler provider joins,
+the code-map matrix, default tooling diagnostics in core observability and triage
+context. In particular, provider-call joins request an empty record projection
+then read `data.sourceRef`; the canonical store correctly omits unrequested data.
+The failure is a JavaScript producer bug, not another native crash. Full historical
+fixture acceptance is still incomplete; this repair closes the demonstrated
+worker-lifetime cause, not every assertion in those routes.
+
+After the locked rebuild and final patch-format round trip, CDB again completes
+the unchanged original command, records all four addon-environment deletions and
+captures no access violation. Node's downloaded symbol archive matches its
+official release SHA256. Bulky downloaded symbols and the inconclusive auxiliary
+NAPI-only probe build are removed after analysis; compact dump, matching native
+binary/PDB, exact commands, hashes and symbolized traces remain. Formatting, config
+budget, environment usage, generated freshness, command/workflow contracts, all
+40 gate cases and diff whitespace checks pass for this native repair source.
+Seven npm audit findings and the five functional route failures remain open.

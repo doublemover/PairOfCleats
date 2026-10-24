@@ -17,6 +17,11 @@ assert.throws(() => parser.parse('let x = 1;', null, { includedRanges: [
 ] }), /Overlapping ranges/);
 parser.reset();
 assert.equal(parser.parse('function recovered(){ return 1; }').rootNode.hasError, false);
-const result = probeNativeParserWorkerLifecycle(process.cwd());
-assert.equal(result.ok, true, result.message);
+// Each probe owns a fresh Node process and both natural and interrupted workers.
+// These are ten independent lifecycle cases; failures are never retried.
+for (let caseIndex = 1; caseIndex <= 10; caseIndex += 1) {
+  const result = probeNativeParserWorkerLifecycle(process.cwd());
+  assert.equal(result.ok, true, `fresh lifecycle ${caseIndex}: ${result.message}`);
+  console.log(`native parser fresh lifecycle ${caseIndex}/10 passed`);
+}
 console.log('Native parser shutdown succeeds and ordinary callback, language and range errors remain strict.');
