@@ -17,6 +17,7 @@ for (const [flags, nodeOptions] of [[['--max-old-space-size=16384'], ''], [[], '
   assert.equal(receipt.observations.length, 2);
   for (const observed of receipt.observations) assert.equal(observed.heapSizeLimitBytes, controlHeap,
     'independent child startup matches a separately launched 128-MiB-old-space control');
-  assert.ok(receipt.process.peakChildren <= 2);
+  assert.ok(receipt.processes.reduce((total, pool) => total + pool.peakChildren, 0) <= 2,
+    'the split token/quantization pools share one aggregate two-child budget');
 }
 console.log('CLI/NODE_OPTIONS large parent heaps retain bounded independent process execution with exact task parity.');
