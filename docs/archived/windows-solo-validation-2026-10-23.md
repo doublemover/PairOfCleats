@@ -425,3 +425,76 @@ from the check process: format, config budget, environment, generated surfaces,
 command surface, workflow contract, 40 gate cases and diff whitespace. This
 focused repair is not a full Windows deep-suite acceptance; the campaign's
 unrelated failures and optional/platform qualifications remain open.
+
+## Targeted failure repairs after the security batch, 2026-10-23
+
+The user explicitly replaced another full rerun with targeted re-checks. No new
+unfiltered campaign is planned. The old `59fde1d2d40e3a05a8dbec3077b82f36aff3ad59`
+campaign has 4,093 completed observations: 3,543 passes and 550 failures including
+25 timeouts. Its remaining planned fixtures and provisional exclusions are not
+passing evidence. Author-workspace `.tmp/tasks/windows-validation-20261023/` and
+`.testLogs/` receipts are historical local evidence, not files promised in a clean
+checkout. Failed observations are retained, including diagnostic timeouts.
+
+The next source checkpoints, committed and remote-SHA verified through
+`f273a45d6ab624d6206c9fc8aa68e378423ccf13`, are:
+
+- `eafa4c73d`: SQLite filter facts accept canonical nullable `metaV2`, while still
+  rejecting malformed JSON, wrong types and conflicting chunk identities.
+  Fielded pure-NOT ranking retains the qualified universe with zero scores.
+  ANN fixtures store real quantized bytes and retain their float query inputs.
+  SQLite rollback and MinHash negatives now use valid immutable source-bound
+  bundles, so they reach the intended injection/identity checks.
+- `fdf41fd7d`: coarse file analysis projects/restores normalized comment regex
+  policy and preserves null-prototype dictionaries and aliases across V8
+  serialization. Its internal transport contract advances to 2. Worker and
+  process facades, content parity, replay and hostile dictionary names remain
+  covered. Optional CPU caches no longer cause null dereferences. Pressure and
+  compiler replay fixtures explicitly satisfy their unchanged admission policy.
+- `41efa4bcd`: cache-only admission recognizes canonical null input formatting;
+  missing formatting still refuses reuse. The original cache-only fixture now
+  builds its required incremental manifest and reads the versioned cache root.
+  Windows vector-spool allocation uses an extended path in the same generation,
+  retaining the existing cleanup owner. Cache I/O counters observe numeric read
+  flags; filename, cancellation, quantization-padding and immutable-profile
+  fixtures retain exact identity and resource assertions.
+- `f273a45d6`: API mocks implement request/response events and writable completion;
+  the LSP fixture models the strict stale-child settlement barrier. JSONL
+  cancellation occurs even when consumers never trigger backpressure, retaining
+  plain/gzip/zstd descriptor and decoder closure plus independent failure checks.
+  The native command catalog explicitly dispositions recovery and SourceKit
+  preparation instead of failing globally on discovery.
+
+The scoped latest-observation inventory contains 118 distinct passing IDs:
+75 historical failures, three controls and 40 gate cases. All 34 original
+filter-fact failures now pass after the two newly exposed fixture defects were
+repaired. The original fielded Boolean universe, seven coarse parity cases,
+cache-only provider admission (27.9s), compiler warm replay (21.9s), JSONL resource
+ownership (22.4s), native snapshot-freeze (26.5s), LSP child exit, ANN and API
+fixtures pass with zero retries, 30-second case limits and native-status redo
+disabled. These observations were taken while repairing the batch; they are
+not a new full campaign at one frozen head. The 475 other historical failure IDs
+were not rechecked in this batch and are not claimed to remain failing unchanged.
+
+Fresh native/patch verification exited 0 on Windows x64, Node 26.12.1, verifying
+eight patches across 26 target files and 61 hunks. The ready-batch front gate
+passes: format, config budget, environment, generated freshness, command surface,
+workflow contract, all 40 gate cases and diff whitespace. The inherited nonexistent
+trusted-config path is removed only from check subprocesses; no machine setting,
+user cache or security policy is changed. No new latency/throughput improvement,
+GitHub issue closure, optional-backend or release qualification is claimed.
+
+Follow-up source `f4c47f641` fixes strict AJV compilation of graph direction
+requirements without weakening any request. MCP graph evidence now invokes
+the retained request's exact repository owner instead of generic ancestor/current
+index discovery. Its original CLI/MCP/HTTP fixture passes in 6.4s, preserving
+retained-generation selection, foreign-root refusal, invalid directions, cursor
+scope and output/scan bounds. The MCP 1.10.0 snapshot now reflects already
+versioned context-policy and semantic path contracts. A registered generator
+and shared freshness comparison prevent this document from drifting silently.
+MCP schema/version/list and three generated-surface fixtures pass. Formatting,
+config budget, generated freshness, command surface and whitespace follow-up
+checks pass; unchanged gate behavior retains the preceding 40-case observation.
+The cumulative targeted inventory is 125 passing IDs, including 77 former
+failures. Another 473 historical failure IDs await targeted re-checks. No new full
+rerun, native crash campaign or measured performance claim is made.

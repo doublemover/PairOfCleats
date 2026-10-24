@@ -7,18 +7,21 @@ Canonical for: initiative status, execution order, and remaining work
 
 ## Current GitHub repair program
 
-Current reconciliation, 2026-10-23: after source commit `d256540ac`, the user
-requested a full Windows validation pass and failure repairs before more backlog
-implementation. Workers remain parked. The [current validation receipt](archived/windows-solo-validation-2026-10-23.md)
-separates current observations from older qualified sources. Both 60-case CLI
-cohorts passed at `a11b64278`; API failures exposed module-call ownership, report
-qualification and publication-seal defects. The repair tree remains unqualified;
-the frozen pass reproduced a parser-worker access violation. CDB identified a
-Node-API finalizer callback reading its freed environment. A supported async
-cleanup handle now preserves that lifetime; the preserved old binding fails
-cancellation, while ten fresh-process cases and the exposing fixture pass.
-Complete locked setup, remaining failure repairs and portable coverage in mixed
-link wrappers precede a new candidate freeze.
+Current reconciliation, 2026-10-23: the user replaced the proposed full Windows
+rerun with **targeted re-checks** of failures and changed shared owners. Work is
+solo; workers remain parked. The [current validation receipt](archived/windows-solo-validation-2026-10-23.md)
+separates current observations from older qualified sources. Four pushed repairs
+through `f273a45d6` restore SQLite nullable facts, fielded pure-NOT results,
+coarse-worker regex/dictionary parity, cache-only admission and Windows spool
+paths. Targeted observations include 75 previously failing IDs now passing and
+all 40 gate cases; 475 old failure IDs still await re-checks. These are scoped
+observations, not a final-tree deep-suite pass. Follow-up `f4c47f641` fixes the
+retained graph MCP repository owner and restores strict schema compilation;
+the graph/CLI/HTTP case, MCP schema/version/list and three generator checks pass.
+Including this follow-up, 77 old failure IDs pass and 473 await re-checks.
+The earlier CDB-attributed
+Node-API finalizer lifetime repair retains its fail-before, ten-process and
+exposing-fixture evidence; no crash workaround or Node downgrade is used.
 After the 2026-10-23 remote history cleanup, commit `59fde1d2d` fixed provider
 record projection, same-line repo-map source identities, Windows embedding stage
 paths, SQLite dense encoding admission and stale fixtures. The attempted warm
@@ -28,7 +31,7 @@ most explicit cohorts but exposed many failures and stopped during repeatedly
 failing native TUI cases; it is historical evidence, not final-tree acceptance.
 The current narrow security repair excludes DOCX deleted/moved-from text,
 versions extraction and bundle reuse, and corrects UNC service-root authority.
-Focused regressions and the 40-case front gate pass; publication remains pending. Existing
+Focused regressions and the 40-case front gate passed and were published. Existing
 published document indexes need a normal rebuild to reflect corrected extraction.
 
 Continue on `codex/pr557-audit-repairs-20261012` through
@@ -78,15 +81,15 @@ intake remain unfinished. LSP identity is 46/rq11; offline runtime parser is 4.
 5. After source integration, refresh generated contracts, fixture inventories,
    ordered lanes and MCP schemas/snapshots through their registered generators.
    Prepare/verify locked dependencies, run affected regressions and the complete
-   front gate, then freeze the candidate for explicit Windows cohorts. Preserve
+   front gate for each ready publication batch. Continue targeted failure groups;
+   do not repeat the full campaign without a new user request. Preserve
    original assertions, 30-second limits, zero retries and native redo disabled.
 
-The current solo batches have only scoped `npm run format` and Git whitespace
-checks. Authored regressions are **unrun**. No current-head deep-suite pass, issue
-closure or measured speedup is claimed. The latest qualified production/test source
-remains `d4dcba4134f6103e3a59703d90fdbde5ca54d09e`. Historical locked setup passed
-37 required packages/33 routes without warnings/errors; it is not new final-head
-runtime evidence. At frozen `245be5fc2`, 70 broad cases produced 60 passes,
+Many earlier authored regressions remain unrun; current targeted acceptance is
+limited to the exact cases in the receipt. No current-head deep-suite pass, issue
+closure or measured speedup is claimed. Fresh native/patch verification passed
+on Node 26.12.1 (eight patches, 26 targets, 61 hunks); setup activation is not
+runtime qualification. At historical frozen `245be5fc2`, 70 broad cases produced 60 passes,
 9 failures and 1 timeout; a subsequent focused selection produced 11 passes and
 3 wrapper timeouts. Source repairs followed and await execution. The
 [Windows receipt](archived/windows-post-wave-validation-2026-10-22.md) preserves
