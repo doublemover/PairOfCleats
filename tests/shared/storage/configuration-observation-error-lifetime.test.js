@@ -47,7 +47,7 @@ try {
   const secondary = Object.freeze(Object.assign(new Error('destination close diagnostic failed'), { code: 'EACCES' }));
   const lockPath = path.join(home, 'config', 'storage-locator.lock');
   const lstat = fs.lstat, opendir = fs.opendir, remove = fs.rm;
-  let announce, permit, completed = false, denyRelease = true;
+  let announce, permit, completed = false, denyRelease = true, denyClose = true;
   const closing = new Promise(resolve => { announce = resolve; });
   const permitted = new Promise(resolve => { permit = resolve; });
   let failure;
@@ -57,7 +57,9 @@ try {
       const directory = await opendir(target, ...args);
       if (target !== destination) return directory;
       return { read: directory.read.bind(directory), close: async () => {
-        announce(); await permitted; await directory.close(); throw secondary;
+        announce(); await permitted;
+        if (denyClose) throw secondary;
+        await directory.close();
       } };
     };
     fs.rm = async (target, options) => {
@@ -82,6 +84,12 @@ try {
     assert.equal(Object.keys(failure).includes('storageOperationLocks'), false, 'actual metadata capabilities are not serialized diagnostic data');
     assert.equal(readStorageLocator(home).status, 'missing');
     denyRelease = false;
+    await assert.rejects(failure.storageOperationLocks[0].release(), /Original published lock work prohibits metadata release/,
+      'metadata recovery cannot replace the original unresolved directory close');
+    const directorySession = [...seen].map(getStorageDirectorySession).find(Boolean);
+    assert.ok(directorySession);
+    denyClose = false;
+    await directorySession.releaseAfterClose();
     assert.equal(await failure.storageOperationLocks[0].release(), true, 'only the original metadata lock capability can retry its failed cleanup');
     await assert.rejects(lstat(lockPath), { code: 'ENOENT' });
     assert.deepEqual(await fs.readdir(source), []);
@@ -96,7 +104,7 @@ try {
       return { read: async () => { throw readFailure; }, close: async () => { await directory.close(); throw closeFailure; } };
     };
     await assert.rejects(planStorageConfiguration({ layout: resolveStorageLayout({ home, env: {} }),
-      category: 'models', currentPath: source, target: destination }), error => error.cause === readFailure
+      category: 'models', currentPath: source, target: destination }), error => contains(error, readFailure)
         && contains(error, closeFailure) && error.code === 'EIO' && Boolean(getStorageDirectorySession(error)),
     'an observed directory read/close failure retains both originals rather than becoming a missing-directory preview');
   } finally { fs.opendir = opendir; }

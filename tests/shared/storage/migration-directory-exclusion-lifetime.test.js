@@ -47,6 +47,9 @@ try {
   assert.equal(failure.cacheOwnershipReleased(), false);
   for (const root of [source, destination]) assert.equal((await inspectStorageAccess(root, { coordinationRoot })).protected, true);
   const held = failure.storageMigrationTransferSession;
+  const operationLock = failure.storageOperationLocks?.[0];
+  assert.ok(operationLock, 'the failed coordinator retains its distinct metadata lock');
+  await assert.rejects(operationLock.release(), /Original published lock work prohibits metadata release/);
   denyClose = false; denyMetadata = true; replace = true;
   let latest;
   try { await held.releaseAfterClose(); } catch (error) { latest = error; }
@@ -59,6 +62,7 @@ try {
   denyMetadata = false;
   assert.deepEqual(await Promise.all([held.releaseAfterClose(), latest.storageMigrationTransferSession.releaseAfterClose()]), [true, true]);
   assert.equal(closes, 2);
+  assert.equal(await operationLock.release(), true, 'settled directory and exclusion owners permit exact coordinator cleanup');
   assert.equal(failure.cacheOwnershipReleased(), true);
   assert.equal((await inspectStorageAccess(source, { coordinationRoot })).protected, false);
   fs.opendir = opendir;

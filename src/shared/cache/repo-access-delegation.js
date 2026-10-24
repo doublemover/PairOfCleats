@@ -3,7 +3,6 @@ import path from 'node:path';
 import os from 'node:os';
 import { spawn } from 'node:child_process';
 import { createHash, createHmac, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
-import { fileURLToPath } from 'node:url';
 import { atomicWriteJson } from '../io/atomic-write.js';
 import { readVerifiedContainedFileSync, assertNoSymlinkPath } from '../contained-file.js';
 import { createLockPayload, readLockInfoSync, removeLockFileSyncIfOwned } from '../locks/file-lock-info.js';
@@ -12,7 +11,7 @@ import { withExclusiveRepoCacheCleanup } from './repo-access.js';
 import { inspectRepoCacheDelegation, repoDelegationPath } from './repo-access-delegation-guard.js';
 
 const PROTOCOL = 'pairofcleats-cache-delegation-v1';
-const preload = fileURLToPath(new URL('./repo-access-delegation-preload.js', import.meta.url));
+const preload = new URL('./repo-access-delegation-preload.js', import.meta.url).href;
 const digest = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const token = () => randomBytes(32).toString('hex');
 const bounded = value => typeof value === 'string' && value.length > 0 && value.length <= 256;

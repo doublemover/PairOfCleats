@@ -1,14 +1,16 @@
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { retainRepoCacheAccess } from '../../../src/shared/cache/repo-access.js';
+import { retainRepoCacheAccess, repoAccessPaths } from '../../../src/shared/cache/repo-access.js';
 import { getDelegatedRepoCacheOwner, settleDelegatedRepoCacheOwner } from '../../../src/shared/cache/repo-access-delegation.js';
 
 // This entry is imported only after the managed IPC preload admits this exact
 // child. It exercises a real native SQLite handle, never a Promise-only stand-in.
 const [mode, root, coordinationRoot] = process.argv.slice(2);
 const owner = getDelegatedRepoCacheOwner();
-if (!owner || owner.root !== root) throw new Error('Native fixture was imported without exact delegated ownership.');
+if (!owner || owner.root !== repoAccessPaths(root, coordinationRoot ? { coordinationRoot } : {}).root) {
+  throw new Error('Native fixture was imported without exact delegated ownership.');
+}
 retainRepoCacheAccess(root, coordinationRoot ? { coordinationRoot } : {});
 const database = new DatabaseSync(path.join(root, 'fixture.sqlite'));
 database.exec('CREATE TABLE IF NOT EXISTS fixture (value TEXT)');

@@ -2,7 +2,6 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
@@ -20,17 +19,21 @@ try {
   for (const forged of ['wrong-child', 'stale-startup-nonce']) {
     const root = path.join(temporary, forged);
     await fs.mkdir(root);
-    const preload = fileURLToPath(new URL('../../../src/shared/cache/repo-access-delegation-preload.js', import.meta.url));
+    const preload = new URL('../../../src/shared/cache/repo-access-delegation-preload.js', import.meta.url).href;
     const rogue = spawn(process.execPath, ['--import', preload, entry, 'settled', root, coordinationRoot], {
       env, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe', 'ipc']
     });
-    rogue.stdout.resume(); rogue.stderr.resume();
+    let admissionErrors = '';
+    rogue.stdout.resume();
+    rogue.stderr.on('data', bytes => { admissionErrors = (admissionErrors + bytes.toString('utf8')).slice(-8192); });
     rogue.once('message', hello => rogue.send({ protocol: 'pairofcleats-cache-delegation-v1', type: 'grant', capability: '0'.repeat(64),
       record: { protocol: 'pairofcleats-cache-delegation-v1', schemaVersion: 1, phase: 'issued',
         parentPid: process.pid, childPid: forged === 'wrong-child' ? rogue.pid + 1 : rogue.pid,
         childNonce: forged === 'wrong-child' ? hello.nonce : '0'.repeat(64) } }));
     const code = await new Promise((resolve, reject) => { rogue.once('close', resolve); rogue.once('error', reject); });
     assert.notEqual(code, 0, 'serialized wrong-child/stale grant cannot admit the entry');
+    assert.match(admissionErrors, /Delegated child grant is forged or belongs to another process/,
+      'the real import gate must reject the grant, rather than failing to load on Windows');
     assert.deepEqual(await fs.readdir(root), [], 'native command must not import or open a database before admission');
   }
   for (const mode of ['settled', 'no-settlement', 'forged-receipt', 'failed-settlement-send']) {
@@ -48,13 +51,15 @@ try {
       drain: async ({ leaseId }) => ({ leaseId, drained: true, pending: false }) }) : handoff;
     const controller = await startDelegatedRepoCacheOwner(root, { localAccessHandoff: actual, resourceId: 'fixture-native',
       commandIdentity: 'fixture-sqlite-create', entry, args: [mode, root, coordinationRoot], coordinationRoot, env });
-    let childProof = '';
+    let childProof = '', childErrors = '';
     controller.child.stdout?.on('data', bytes => { childProof += bytes.toString('utf8'); });
-    controller.child.stderr?.resume();
+    controller.child.stderr?.on('data', bytes => { childErrors = (childErrors + bytes.toString('utf8')).slice(-8192); });
     if (mode === 'settled') {
-      const result = await controller.completion;
+      const result = await controller.completion.catch(error => {
+        throw new Error(`Settled native child failed (${error.code}): ${childErrors}`);
+      });
       assert.equal(result.result.settled, true);
-      assert.equal(controller.child.exitCode, 0);
+      assert.equal(controller.child.exitCode, 0, childErrors);
       assert.match(childProof, /actual settlement transmission controls passed/);
       assert.equal(inspectRepoCacheDelegation(repoAccessPaths(root, { coordinationRoot })).protected, false);
       retainRepoCacheAccess(root, { coordinationRoot });
@@ -62,7 +67,7 @@ try {
     } else {
       await assert.rejects(controller.completion, { code: 'ERR_REPO_CACHE_DELEGATION_PENDING' });
       if (mode === 'failed-settlement-send') {
-        assert.equal(controller.child.exitCode, 0, 'expected pending ownership cannot mask failed child assertions');
+        assert.equal(controller.child.exitCode, 0, `expected pending ownership cannot mask failed child assertions: ${childErrors}`);
         assert.match(childProof, /original settlement send failure controls passed/);
       }
       const paths = repoAccessPaths(root, { coordinationRoot });

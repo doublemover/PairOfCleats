@@ -7,6 +7,7 @@ import { withTemporaryEnv } from '../../helpers/test-env.js';
 import { createManagedCommandFixture } from '../../helpers/managed-command-fixture.js';
 import { verifyStorageFile, isStorageTransferSession } from '../../../src/shared/storage/transfer.js';
 import { inspectManagedInstallation } from '../../../tools/tooling/managed-install.js';
+import { getStorageDirectorySession } from '../../../src/shared/storage/directory.js';
 
 // UNVALIDATED: actual source/output FileHandles, with inert close/read failures.
 const temporary = await makeTempDir('poc-transfer-descriptor-close-');
@@ -61,7 +62,7 @@ try {
   assert.equal(isStorageTransferSession(held), true);
   assert.equal(isStorageTransferSession({ ...held }), false, 'copied method/property data does not supply producer identity');
   assert.equal(Object.keys(failure).includes('storageTransferSession'), false);
-  assert.deepEqual(closeReads, { source: 1, output: 1 });
+  assert.deepEqual(closeReads, { source: 2, output: 1 }, 'contained admission transfers the source handle to its separate streaming owner');
   replacedClose = true;
   denied.delete('source');
   let latest;
@@ -75,7 +76,7 @@ try {
     { resourceId: held.resourceId, settled: true, pending: false }]);
   assert.deepEqual(attempts, { source: 2, output: 3 }, 'actual confirmed close is not repeated on an already closed owner');
   assert.equal(failure.cacheOwnershipReleased(), true);
-  assert.deepEqual(closeReads, { source: 1, output: 1 }, 'cleanup retains both exact original methods');
+  assert.deepEqual(closeReads, { source: 2, output: 1 }, 'recovery performs no new close-method lookup in either owner');
   fs.open = open;
   const copied = path.join(temporary, 'successful.bin');
   const successful = await verifyStorageFile({ root: temporary, file: source, destination: copied });
@@ -136,9 +137,13 @@ try {
     let pending;
     try { await inspectManagedInstallation({ toolingRoot: fixture.toolingRoot, toolId: fixture.toolId }); } catch (error) { pending = error; }
     assert.equal(isStorageTransferSession(pending.storageTransferSession), true,
-      'actual managed inspection cannot flatten unclosed descriptor ownership to repair-required');
+      `actual managed inspection cannot flatten unclosed descriptor ownership to repair-required: ${pending?.stack}`);
     deny = false;
     await pending.storageTransferSession.releaseAfterClose();
+    assert.equal(pending.cacheOwnershipReleased(), false, 'the enclosing inventory directory remains independently owned');
+    const directorySession = getStorageDirectorySession(pending);
+    assert.ok(directorySession);
+    await directorySession.releaseAfterClose();
     assert.equal(pending.cacheOwnershipReleased(), true);
     fs.open = open;
     assert.equal((await inspectManagedInstallation({ toolingRoot: fixture.toolingRoot, toolId: fixture.toolId })).ok, true);

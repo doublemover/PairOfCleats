@@ -47,6 +47,9 @@ try {
   assert.equal((await inspectStorageAccess(destination, { coordinationRoot })).protected, true);
   assert.equal(Object.keys(failure).includes('storageMigrationTransferSession'), false);
   const held = failure.storageMigrationTransferSession;
+  const operationLock = failure.storageOperationLocks?.[0];
+  assert.ok(operationLock, 'the failed coordinator retains its distinct metadata lock');
+  await assert.rejects(operationLock.release(), /Original published lock work prohibits metadata release/);
   denyClose = false; denyLock = true;
   let latest;
   try { await held.releaseAfterClose(); } catch (error) { latest = error; }
@@ -59,6 +62,7 @@ try {
   denyLock = false;
   assert.deepEqual(await Promise.all([held.releaseAfterClose(), latest.storageMigrationTransferSession.releaseAfterClose()]), [true, true]);
   assert.equal(closes, 2);
+  assert.equal(await operationLock.release(), true, 'settled descriptors and exclusions permit exact coordinator cleanup');
   assert.equal(failure.cacheOwnershipReleased(), true);
   assert.equal((await inspectStorageAccess(source, { coordinationRoot })).protected, false);
   fs.open = open;

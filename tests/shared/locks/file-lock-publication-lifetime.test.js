@@ -30,6 +30,8 @@ const intercept = (lockPath, decorate) => {
     calls += 1;
     handles.push(handle);
     const wrapper = {
+      get fd() { return handle.fd; },
+      read(...args) { assert.equal(this, wrapper); return handle.read(...args); },
       stat(options) { assert.equal(this, wrapper); return handle.stat(options); },
       writeFile(contents) { assert.equal(this, wrapper); return handle.writeFile(contents); },
       close() { assert.equal(this, wrapper); return handle.close(); }

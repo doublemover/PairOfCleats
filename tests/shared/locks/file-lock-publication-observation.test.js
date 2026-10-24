@@ -24,6 +24,8 @@ const intercept = (selected, decorate) => {
     const close = actual.close;
     disposal.set(actual, () => close.call(actual));
     const owned = {
+      get fd() { return actual.fd; },
+      read(...args) { assert.equal(this, owned); return actual.read(...args); },
       stat(options) { assert.equal(this, owned); state.stats += 1; return actual.stat(options); },
       writeFile(contents) { assert.equal(this, owned); state.writes += 1; return actual.writeFile(contents); },
       async close() {
