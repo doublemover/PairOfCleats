@@ -1,3 +1,4 @@
+import { withFixtureCallArguments } from '../../helpers/call-arguments.js';
 import assert from 'node:assert/strict';
 import { buildApiContractsReport } from '../../../src/integrations/tooling/api-contracts.js';
 import { createApiContractCallTargetIndex } from '../../../src/integrations/tooling/api-contract-targets.js';
@@ -9,8 +10,8 @@ const symbols = [
   { symbolId: 'moduleA.foo', chunkUid: 'chunk-A', file: 'a.ts', name: 'foo', signature: 'foo(a)', exported: true, scheme: 'heur' },
   { symbolId: 'moduleB.foo', chunkUid: 'chunk-B', file: 'b.ts', name: 'foo', signature: 'foo(a,b)', exported: false, scheme: 'heur' }
 ];
-const call = { callSiteId: 'call-A', file: 'use-a.ts', callerChunkUid: 'caller-A', startLine: 1,
-  targetChunkUid: 'chunk-A', calleeNormalized: 'foo', args: ['1'], confidence: 1 };
+const call = withFixtureCallArguments({ callSiteId: 'call-A', file: 'use-a.ts', callerChunkUid: 'caller-A', startLine: 1,
+  targetChunkUid: 'chunk-A', calleeNormalized: 'foo', args: ['1'], confidence: 1 });
 const fixed = { indexSignature: 'generation-A', indexCompatKey: 'compat', now: () => '2026-10-23T00:00:00.000Z' };
 const build = input => buildApiContractsReport({ ...fixed, symbols, callSites: [call], ...input });
 const report = build({ failOnWarn: true, caps: { maxWarnings: 0 } });

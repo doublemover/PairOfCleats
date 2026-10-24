@@ -2,6 +2,9 @@ import { CALL_ARGUMENTS_SCHEMA, callArgumentProjectionErrors, exactCallArity } f
 import { CALL_SITE_SEMANTIC_REF_SCHEMA } from './call-site-semantic-ref.js';
 import { CALLABLE_PARAMETER_SUMMARY_SCHEMA, callableSummaryProjectionErrors } from '../callable-parameters.js';
 export const API_CONTRACT_REPORT_VERSION = '1.2.0';
+// Keep historical format obligations independent of the next producer version.
+const PARAMETER_AUTHORITY_REPORT_VERSIONS = new Set(['1.1.0', '1.2.0', API_CONTRACT_REPORT_VERSION]);
+const ARGUMENT_AUTHORITY_REPORT_VERSIONS = new Set(['1.2.0', API_CONTRACT_REPORT_VERSION]);
 
 const nullableString = { type: ['string', 'null'] };
 const nullableNumber = { type: ['number', 'null'] };
@@ -65,11 +68,11 @@ export const apiContractProjectionErrors = report => {
   const seenCalls = new Set();
   let reported = 0;
   for (const entry of report.symbols || []) {
-    if (report.version === API_CONTRACT_REPORT_VERSION && !entry.signature?.parameters) errors.push('API report entry is missing parameter authority qualification.');
+    if (PARAMETER_AUTHORITY_REPORT_VERSIONS.has(report.version) && !entry.signature?.parameters) errors.push('API report entry is missing parameter authority qualification.');
     errors.push(...apiContractEntryProjectionErrors(entry, scope, Boolean(evidence)));
     for (const call of entry.observedCalls || []) {
       reported++;
-      if (report.version === API_CONTRACT_REPORT_VERSION && !call.arguments) errors.push('API report call is missing argument authority qualification.');
+      if (ARGUMENT_AUTHORITY_REPORT_VERSIONS.has(report.version) && !call.arguments) errors.push('API report call is missing argument authority qualification.');
       if (!call.join) continue;
       if (call.callSiteId) {
         const key = JSON.stringify([call.callSiteId, call.join.indexSignature]);

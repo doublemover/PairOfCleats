@@ -16,9 +16,14 @@ await fs.mkdir(repo); initGitRepo(repo);
 await fs.writeFile(path.join(repo, 'input.js'), `function doThing(a,b) { return a+b; }
 export function run() { return doThing(${selected === 'clean' ? '1,2' : '1'}); }
 `);
+// The fixture is a closed source project. Parent checkout ambient @types and
+// browser libraries are not inputs to these ECMAScript callable assertions.
+await fs.writeFile(path.join(repo, 'tsconfig.json'), JSON.stringify({ compilerOptions: { types: [], lib: ['es2022'] } }));
+// Exact API target joins require the existing cross-file resolver even when
+// value/type inference and risk analysis are outside this fixture.
 const env = applyTestEnv({ cacheRoot: path.join(dir, 'cache'), embeddings: 'stub',
   testConfig: { threads: 1, indexing: { semantic: { enabled: true }, embeddings: { enabled: false },
-    typeInference: false, typeInferenceCrossFile: false, riskAnalysis: false, riskAnalysisCrossFile: false },
+    typeInference: false, typeInferenceCrossFile: true, riskAnalysis: false, riskAnalysisCrossFile: false },
   tooling: { autoEnableOnDetect: false, lsp: { enabled: false } } },
   extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null } });
 const signal = AbortSignal.timeout(10000);

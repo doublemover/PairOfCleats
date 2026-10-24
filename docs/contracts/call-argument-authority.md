@@ -39,8 +39,21 @@ metadata cannot establish zero. Bounded/unavailable counts emit an actionable
 qualification warning, preserving fail-on-warning policy and exact target joins.
 Legacy report/artifact reads remain supported, with no invented source authority.
 
-Meaning changes bump RecordsProducer 6, SourceChunking 21, TypeNormalization 11,
+The initial argument handoff bumped RecordsProducer 6, SourceChunking 21, TypeNormalization 11,
 CallFlow 47, RiskPropagation 5 and BoundaryFlow 12. SyntaxCallFacts is 4.
 Authored actual JS/TS/native parser, writer/reload/report, cross-file replay,
 risk-frontier and compiler timer fixtures are unrun at the implementation commit;
 Windows validation follows that commit.
+
+
+Windows validation found source-level module calls outside declaration chunks
+were omitted from the canonical call-site artifact. JS/TS now retain such calls
+in bounded `(module)` chunks spanning only unowned source gaps. Existing
+function/declaration ranges remain unchanged; a call crossing a declaration
+boundary cannot borrow that owner's authority. Replayed parse checkpoints do not
+add duplicate owners. Exact targets still require the existing resolver; names
+and argument previews cannot establish a join. RecordsProducer is now 7 and
+SourceChunking is 22 so earlier derived caches cannot reuse this meaning.
+
+API readers retain the version-1.1.0 requirement for formal parameter authority;
+1.2.0 additionally requires argument authority. Version 1.0.0 remains readable.

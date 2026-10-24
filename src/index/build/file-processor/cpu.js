@@ -14,6 +14,7 @@ import {
 } from './lexicon-relations-filter.js';
 import {
   sanitizeChunkBounds,
+  retainModuleCallChunks,
   validateChunkBounds
 } from './cpu/chunking.js';
 import { buildLanguageAnalysisContext } from './cpu/analyze.js';
@@ -913,6 +914,7 @@ export const processFileCpu = async (context) => {
     }
     throw err;
   }
+  sc = retainModuleCallChunks({ chunks: sc, callIndex, languageId: fileLanguageId || lang?.id, textLength: text.length });
   sanitizeChunkBounds(sc, text.length);
   const chunkIssue = validateChunkBounds(sc, text.length);
   if (chunkIssue) {

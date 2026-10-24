@@ -1,3 +1,4 @@
+import { withFixtureCallArguments } from '../../helpers/call-arguments.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -18,11 +19,11 @@ const symbols = [
   { symbolId: 'moduleA.foo', chunkUid: 'chunk-A', file: 'a.ts', name: 'foo', signature: 'foo(a)' },
   { symbolId: 'moduleB.foo', chunkUid: 'chunk-B', file: 'b.ts', name: 'foo', signature: 'foo(a,b)' }
 ];
-const call = { callSiteId: 'sha1:' + createHash('sha1').update('call-A').digest('hex'), callerChunkUid: 'caller-A',
+const call = withFixtureCallArguments({ callSiteId: 'sha1:' + createHash('sha1').update('call-A').digest('hex'), callerChunkUid: 'caller-A',
   callerDocId: null, file: 'use-a.ts', languageId: 'typescript', segmentId: null, start: 0, end: 6,
   startLine: 1, startCol: 1, endLine: 1, endCol: 7, calleeRaw: 'foo', calleeNormalized: 'foo', receiver: null,
   args: ['1'], kwargs: null, confidence: 1, evidence: [], targetChunkUid: 'chunk-A', targetDocId: null,
-  targetCandidates: [], snippetHash: null };
+  targetCandidates: [], snippetHash: null });
 assert.equal(validateArtifact('call_sites', [call]).ok, true);
 const fixed = { symbols, failOnWarn: true, caps: { maxWarnings: 0 }, indexSignature: 'generation-A',
   indexCompatKey: 'compat-A', now: () => '2026-10-23T00:00:00.000Z' };

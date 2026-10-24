@@ -1,3 +1,4 @@
+import { withFixtureCallArguments } from '../../helpers/call-arguments.js';
 import assert from 'node:assert/strict';
 import { buildApiContractsReport } from '../../../src/integrations/tooling/api-contracts.js';
 import { renderApiContracts } from '../../../src/retrieval/output/api-contracts.js';
@@ -7,7 +8,7 @@ import { emitReportOutcome } from '../../../src/integrations/tooling/report-outc
 
 const symbol = { symbolId: 'sym-api', chunkUid: 'chunk-api', file: 'api.js', name: 'doThing',
   signature: 'doThing(a, b)', kind: 'Function', exported: true, scheme: 'heur' };
-const calls = Array.from({ length: 4 }, (_, index) => ({ callSiteId: `call-${index + 1}`, targetChunkUid: 'chunk-api',
+const calls = Array.from({ length: 4 }, (_, index) => withFixtureCallArguments({ callSiteId: `call-${index + 1}`, targetChunkUid: 'chunk-api',
   callerChunkUid: 'caller', file: 'caller.js', startLine: (index + 1) * 10, startCol: 7,
   calleeNormalized: 'doThing', args: index === 3 ? ['1'] : ['1', '2'] }));
 const build = input => buildApiContractsReport({ symbols: [symbol], callSites: calls, indexSignature: 'generation-actionable',

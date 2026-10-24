@@ -1,3 +1,4 @@
+import { withFixtureCallArguments } from '../../helpers/call-arguments.js';
 import { API_CONTRACT_REPORT_VERSION } from '../../../src/contracts/schemas/api-contracts.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
@@ -42,7 +43,7 @@ try {
   for (const [parser, build] of [['typescript', buildTypeScriptChunksFromAst], ['babel', buildTypeScriptChunksFromBabel]]) {
     const chunks = build(text, { ext: '.ts', ts, sourceFile });
     const payloads = chunks.filter(chunk => chunk.meta.callableParameters).map((chunk, index) => buildChunkPayload({
-      chunk: { ...chunk, startLine: chunk.meta.startLine, endLine: chunk.meta.endLine, chunkUid: `callable-${index}`, spanIndex: index },
+      chunk: { ...chunk, virtualPath: 'input.ts', startLine: chunk.meta.startLine, endLine: chunk.meta.endLine, chunkUid: `ck64:v1:repo:input.ts:${index.toString(16).padStart(16, '0')}`, spanIndex: index },
       rel: 'input.ts', relKey: 'input.ts', ext: '.ts', effectiveExt: '.ts', languageId: 'typescript', fileSize: text.length,
       tokens: [], tokenIds: [], identifierTokens: [], keywordTokens: [], operatorTokens: [], literalTokens: [], seq: [],
       codeRelations: {}, docmeta: { ...extractTypeScriptDocMeta(chunk), exported: true, exportNames: [chunk.name] }, stats: {},
@@ -98,7 +99,7 @@ try {
     assert.equal(validateArtifact('symbols', [trimmed]).ok, true);
   }
   const symbol = { symbolId: 'legacy', chunkUid: 'legacy-chunk', file: 'legacy.ts', lang: 'typescript', signature: 'accept(callback: () => void)' };
-  const call = { callSiteId: 'legacy-call', targetChunkUid: 'legacy-chunk', file: 'use.ts', args: [] };
+  const call = withFixtureCallArguments({ callSiteId: 'legacy-call', targetChunkUid: 'legacy-chunk', file: 'use.ts', args: [] });
   const legacy = signature => buildApiContractsReport({ symbols: [{ ...symbol, signature }], callSites: [call], indexSignature: 'legacy-generation' });
   assert.equal(legacy(symbol.signature).warnings[0].code, 'ARITY_MISMATCH');
   assert.equal(legacy('accept(callback?: () => void)').warnings, null);

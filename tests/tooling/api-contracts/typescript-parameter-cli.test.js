@@ -1,3 +1,4 @@
+import { API_CONTRACT_REPORT_VERSION } from '../../../src/contracts/schemas/api-contracts.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -20,9 +21,14 @@ export function onlyThis(this: void) {}
 required(() => {}); optional(); defaulted(); receiver(1); onlyThis();
 ${selected === 'policy' ? 'required(); receiver();' : ''}
 `);
+// The fixture is a closed source project. Parent checkout ambient @types and
+// browser libraries are not inputs to these ECMAScript callable assertions.
+await fs.writeFile(path.join(repo, 'tsconfig.json'), JSON.stringify({ compilerOptions: { types: [], lib: ['es2022'] } }));
+// Exact API target joins require the existing cross-file resolver even when
+// value/type inference and risk analysis are outside this fixture.
 const env = applyTestEnv({ cacheRoot: path.join(dir, 'cache'), embeddings: 'stub',
   testConfig: { threads: 1, indexing: { semantic: { enabled: true }, embeddings: { enabled: false },
-    typeInference: false, typeInferenceCrossFile: false, riskAnalysis: false, riskAnalysisCrossFile: false },
+    typeInference: false, typeInferenceCrossFile: true, riskAnalysis: false, riskAnalysisCrossFile: false },
   tooling: { autoEnableOnDetect: false, lsp: { enabled: false } } }, extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null } });
 const signal = AbortSignal.timeout(10000);
 await buildIndex(repo, { mode: 'code', stage: 'stage2', 'stub-embeddings': true, 'scm-provider': 'none', threads: 1, abortSignal: signal });
@@ -33,7 +39,7 @@ const result = await spawnSubprocess(process.execPath, [path.join(process.cwd(),
 assert.equal(result.exitCode, selected === 'policy' ? 2 : 0, result.stderr);
 const report = JSON.parse(result.stdout);
 assert.equal(validateApiContracts(report).ok, true);
-assert.equal(report.version, '1.1.0');
+assert.equal(report.version, API_CONTRACT_REPORT_VERSION);
 assert.equal(report.callEvidence.qualifiedCallCount, selected === 'policy' ? 7 : 5);
 if (selected === 'policy') {
   assert.equal(report.warnings.length, 2);
