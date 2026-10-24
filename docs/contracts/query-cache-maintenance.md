@@ -20,6 +20,13 @@ touch. Each local session owns its entry metadata. Cached payloads are immutable
 hit rendering receives an independent mutable copy, so enrichment and caller
 mutation cannot alter a later hit.
 
+A session freshness window of zero validates canonical disk data on every
+lookup; it does not grant an infinite hot-cache grace period. Nonzero windows
+retain the bounded hot path. Low-level explicit in-memory cache consumers keep
+their existing independent policy. Pre-cancelled core search uses the same
+`CANCELLED` error and `cancelled:true` marker as cancellation after admission,
+before loading indexes or publishing successful-search history.
+
 Hot retention orders newest write timestamps first. Overflow preserves the stable
 order established by the preceding overflow, including equal timestamps; reading
 an entry is not access-LRU. The cache-owned balanced index reconciles caller-mutated
@@ -67,6 +74,8 @@ envelopes are misses and receive no hit touch. Qualified warm responses receive
 an independent mutable clone without encoding the cached result as JSON for
 that ownership transfer; the selected transport still owns output encoding.
 
-The source and authored fixtures have not been executed or benchmarked during the
-current development pass. These operation changes do not establish latency,
-allocation, cross-process crash qualification or a production speedup.
+The October 24 focused cache checks exercise canonical proof admission,
+transient ANN/FTS recovery, payload/session ownership, cancellation, identity and
+bounded prewarming. Other authored controls retain their individual evidence
+scope. These operation checks do not establish latency, allocation, cross-process
+crash qualification or a production speedup.

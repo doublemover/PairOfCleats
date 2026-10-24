@@ -53,7 +53,9 @@ try {
   const controller = new AbortController();
   controller.abort();
   await assert.rejects(coreSearch(repoRoot, { ...options, signal: controller.signal }), error => {
-    assert.ok(error.code === 'CANCELLED' || error.code === 'ABORT_ERR' || error.name === 'AbortError'); return true;
+    assert.equal(error.code, 'CANCELLED'); assert.equal(error.cancelled, true); return true;
   });
+  assert.equal((await fs.readFile(path.join(metricsDir, 'searchHistory'), 'utf8')).trim().split('\n').length, 5,
+    'pre-cancelled requests cannot publish successful-search history');
 } finally { await fs.rm(root, { recursive: true, force: true }); }
 console.log('Actual core search preserves cold/warm payload ownership, generation invalidation, awaited touches, cancellation, and authoritative metrics.');

@@ -260,11 +260,16 @@ export async function resolveQueryCacheLookup({
   });
   cacheKey = cacheKeyInfo.key;
 
+  // Zero disables the canonical-validation grace period. The low-level hot
+  // cache also supports unbounded in-memory consumers, so enforce this session
+  // policy at both lookup sites rather than interpreting zero as infinite.
+  const lookupStrategy = cacheStrategy === 'memory-first' && cacheMemoryFreshMs > 0
+    ? 'memory-first' : 'disk-first';
   let entry = null;
-  if (cacheStrategy === 'memory-first') {
+  if (lookupStrategy === 'memory-first') {
     entry = findQueryCacheEntry(null, cacheKey, cacheSignature, {
       cachePath: queryCachePath,
-      strategy: cacheStrategy,
+      strategy: lookupStrategy,
       memoryFreshMs: cacheMemoryFreshMs,
       maxHotEntries: queryCacheMaxEntries
     });
@@ -280,7 +285,7 @@ export async function resolveQueryCacheLookup({
       : null;
     entry = findQueryCacheEntry(cacheData, cacheKey, cacheSignature, {
       cachePath: queryCachePath,
-      strategy: cacheStrategy,
+      strategy: lookupStrategy,
       memoryFreshMs: cacheMemoryFreshMs,
       maxHotEntries: queryCacheMaxEntries
     });

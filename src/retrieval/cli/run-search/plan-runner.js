@@ -107,9 +107,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
   const disposeBackends = createBackendDisposer(backendDisposers);
 
   if (signal?.aborted) {
-    const err = createError(ERROR_CODES.INVALID_REQUEST, 'Search aborted.');
-    err.code = 'ERR_ABORTED';
-    throw err;
+    throw createError(ERROR_CODES.CANCELLED, 'Search cancelled.', { cancelled: true });
   }
   const argv = parseCliArgsOrThrow({
     rawArgs,

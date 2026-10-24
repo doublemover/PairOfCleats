@@ -12,7 +12,9 @@ try {
   const input = createQueryCacheLookupInput(dir, { cacheMemoryFreshMs: 0 });
   const miss = await resolveQueryCacheLookup(input);
   await persistSearchSession(createQueryCachePersistInput(miss));
-  assert.equal((await resolveQueryCacheLookup(input)).cacheHit, true);
+  const canonicalHit = await resolveQueryCacheLookup(input);
+  assert.equal(canonicalHit.cacheHit, true);
+  assert.equal(canonicalHit.cacheHotPathHit, false, 'zero freshness validates the canonical disk entry on each lookup');
   const original = JSON.parse(await fs.readFile(miss.queryCachePath, 'utf8'));
   const touchPath = `${miss.queryCachePath}.touches.json`;
   const touchBytes = await fs.readFile(touchPath, 'utf8');
