@@ -60,7 +60,12 @@ try {
         assert.deepEqual(report.warnings, ['selected SVG plugin unavailable']);
       } else {
         assert.deepEqual(report.warnings, []);
-        assert.match(await fs.readFile(out, 'utf8'), /verified render/);
+        const rendered = await fs.readFile(out, 'utf8');
+        if (scenario === 'html') {
+          const source = /src="data:image\/svg\+xml;utf8,([^"]+)"/.exec(rendered);
+          assert.ok(source, 'HTML retains the actual rendered SVG image');
+          assert.match(decodeURIComponent(source[1]), /verified render/);
+        } else assert.match(rendered, /verified render/);
       }
     }
   }

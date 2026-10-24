@@ -5,6 +5,7 @@ import path from 'node:path';
 import { CACHE_OWNER_FILE } from '../../../src/shared/cache-deletion.js';
 import assert from 'node:assert/strict';
 import { withGeneratedCacheMetadata } from '../../../src/shared/generated-artifact-cache.js';
+import { getRepoId } from '../../../src/shared/repo-paths.js';
 
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
@@ -17,9 +18,10 @@ const repoRoot = path.join(cacheRoot, 'repos');
 const toolPath = path.join(root, 'tools', 'index', 'cache-gc.js');
 
 const env = applyTestEnv({ cacheRoot, syncProcess: false });
+const repoId = name => getRepoId(path.join(tempRoot, 'sources', name));
 
 const makeRepo = async (name, bytes, mtimeMs) => {
-  const repoPath = path.join(repoRoot, name);
+  const repoPath = path.join(repoRoot, repoId(name));
   await fsPromises.mkdir(repoPath, { recursive: true });
   const payload = withGeneratedCacheMetadata({ chunks: [], padding: '' }, 'tree-sitter-chunks');
   payload.padding = 'a'.repeat(bytes - Buffer.byteLength(JSON.stringify(payload)));
@@ -50,7 +52,7 @@ const ageOutput = run(['--max-age-days', '1', '--json'], 'cache-gc age');
 const agePayload = JSON.parse(ageOutput);
 assert.equal(await fsPromises.readFile(path.join(unknown, 'data.bin'), 'utf8'), 'unknown bytes stay protected');
 assert.ok(!agePayload.removals.some(entry => entry.id === 'unknown-repo'));
-if (!agePayload.removals.some((entry) => entry.id === 'old-repo')) {
+if (!agePayload.removals.some((entry) => entry.id === repoId('old-repo'))) {
   console.error('cache-gc age failed to remove old-repo');
   process.exit(1);
 }
@@ -66,7 +68,7 @@ const repoBPath = await makeRepo('repo-b', 4096, now - 1 * 24 * 60 * 60 * 1000);
 
 const sizeOutput = run(['--max-bytes', '4096', '--json'], 'cache-gc size');
 const sizePayload = JSON.parse(sizeOutput);
-if (!sizePayload.removals.some((entry) => entry.id === 'repo-a')) {
+if (!sizePayload.removals.some((entry) => entry.id === repoId('repo-a'))) {
   console.error('cache-gc size failed to remove oldest repo-a');
   process.exit(1);
 }

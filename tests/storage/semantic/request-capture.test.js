@@ -169,7 +169,7 @@ try {
     };
     const create = mode === 'detail' ? createSemanticDetailRunner : mode === 'find' ? createSemanticFindRunner : createSemanticTraceRunner;
     const result = await create({ openStore })(request, { userConfig: {} });
-    assert.equal(opened, 1); assert.equal(closed, mode === 'detail' ? 0 : 1);
+    assert.equal(opened, 1); assert.equal(closed, 1, 'every runner settles the store borrowed for this request');
     assert.deepEqual(result.records.map(row => row.ref.localId), [0]);
     assert.deepEqual(result.generation, f.generation);
   }

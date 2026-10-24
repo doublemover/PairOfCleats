@@ -58,7 +58,7 @@ assert.equal(harness.spawnCalls.length, 1);
 assert.equal(harness.spawnCalls[0].command, fs.realpathSync(process.execPath));
 const searchArgs = harness.spawnCalls[0].args;
 assert.deepEqual(searchArgs, [
-  workspace.resolvePath('packages', 'nested', 'bin', 'pairofcleats.js'),
+  workspace.resolvePath('bin', 'pairofcleats.js'),
   '--trace',
   'search',
   '--json',
@@ -95,7 +95,7 @@ assert.equal(harness.spawnCalls.length, 2);
 assert.deepEqual(
   harness.spawnCalls[1].args,
   [
-    workspace.resolvePath('packages', 'nested', 'bin', 'pairofcleats.js'),
+    workspace.resolvePath('bin', 'pairofcleats.js'),
     '--trace',
     'report',
     'map',

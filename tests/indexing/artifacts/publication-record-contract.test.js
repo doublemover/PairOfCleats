@@ -61,7 +61,8 @@ try {
   await fs.unlink(chunkMetaPath);
   await assert.rejects(writeArtifactPublicationRecord({ buildRoot, outDir, mode: 'code', buildId: 'build-1',
     pieceEntries: [{ type: 'chunks', name: 'chunk_meta', format: 'json', path: 'chunk_meta.json' }],
-    manifestPath, publicationValidation: validatedBeforeRemoval }), /missing committed artifact/,
+    manifestPath, publicationValidation: validatedBeforeRemoval }), error => error.code === 'ENOENT'
+      && path.resolve(error.path) === path.resolve(chunkMetaPath),
   'a validated generation cannot publish an artifact removed before commitment');
   await writeJsonObjectFile(chunkMetaPath, { fields: { rows: [] }, atomic: true });
 

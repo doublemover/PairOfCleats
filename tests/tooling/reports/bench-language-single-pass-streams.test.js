@@ -44,7 +44,9 @@ try {
   assert.equal(output.diagnostics.parity.status, 'error', 'independent stream/log discrepancies remain visible');
 
   const taskSummary = { schemaVersion: 1, observationCount: 1, observations: [{ reuseSurface: 'provider-result', reuseSource: 'cache', causeClass: 'cache_hit' }] };
-  const withPayload = await buildReportOutput({ ...input, results: [{ language: 'javascript', tier: 'small', repo: 'repo-a', payload: { scanProfile: { reuse: taskSummary } } }] });
+  const taskOutput = path.join(root, 'repo-a-result.json');
+  await fs.writeFile(taskOutput, JSON.stringify({ scanProfile: { reuse: taskSummary } }));
+  const withPayload = await buildReportOutput({ ...input, results: [{ language: 'javascript', tier: 'small', repo: 'repo-a', outFile: taskOutput }] });
   assert.equal(withPayload.diagnostics.reuse.observationCount, 1, 'task payload remains authoritative for reuse');
   assert.equal(withPayload.diagnostics.streamRead.metrics.fileOpens, 9, 'payload precedence does not add or remove log reads needed by other reducers');
 

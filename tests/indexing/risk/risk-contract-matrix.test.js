@@ -189,7 +189,7 @@ const buildConfig = (caps) => normalizeRiskConfig({
   for (const category of ['sources', 'sinks']) {
     const zeroConfig = buildConfig({ maxMs: 1000 });
     zeroConfig.rules[category][0].confidence = 0;
-    const zeroConfidence = detectRiskSignals({ text: 'SRC SINK', config: zeroConfig });
+    const zeroConfidence = detectRiskSignals({ text: 'const value = SRC;\nSINK(value);', config: zeroConfig });
     assert.equal(zeroConfidence.flows[0].confidence, 0.1,
       'explicit zero confidence must not be replaced with the default confidence');
   }

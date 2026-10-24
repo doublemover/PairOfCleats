@@ -54,7 +54,8 @@ try {
 
   const unpublished = await getStatus({ repoRoot });
   assert.equal(unpublished.health.selection, 'no-publication');
-  assert.deepEqual(unpublished.health.modes, {});
+  assert.deepEqual(unpublished.health.modes, Object.fromEntries(['code', 'prose', 'extracted-prose', 'records']
+    .map(mode => [mode, { path: null, selected: false, status: 'not-built' }])));
   await fs.writeFile(path.join(buildsRoot, 'current.json'), JSON.stringify({
     artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, buildId: 'manifest-fixture',
     buildRoot: path.relative(repoCacheRoot, buildRoot),

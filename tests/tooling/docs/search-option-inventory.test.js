@@ -24,7 +24,7 @@ assert.equal(collectSearchOptionFlags(withoutCursor).has('--cursor'), false);
 const fixture = path.join(dir, 'docs-root');
 const files = ['docs/contracts/search-cli.md', 'docs/contracts/search-contract.md',
   'docs/contracts/artifact-schemas.md', 'docs/testing/test-runner-interface.md',
-  'docs/testing/test-decomposition-regrouping.md', 'src/retrieval/pipeline.js', 'tests/run.rules.jsonc'];
+  'docs/testing/test-decomposition-regrouping.md', 'src/retrieval/pipeline/rank-stage.js', 'tests/run.rules.jsonc'];
 try {
   for (const file of files) {
     const target = path.join(fixture, file);
@@ -38,7 +38,7 @@ try {
   const run = async () => {
     const output = path.join(dir, `result-${++sequence}.json`);
     const result = runNodeFixture(['tools/docs/contract-drift.js', '--root', fixture, '--fail',
-      '--out-json', output, '--out-md', path.join(dir, `result-${sequence}.md`)], 'isolated Node fixture', process.cwd(), process.env, { allowFailure: true, spawnOptions: { env, encoding: 'utf8', timeout: 5000 } });
+      '--out-json', output, '--out-md', path.join(dir, `result-${sequence}.md`)], 'isolated Node fixture', process.cwd(), process.env, { stdio: 'pipe', allowFailure: true, spawnOptions: { env, encoding: 'utf8', timeout: 5000 } });
     assert.ifError(result.error);
     return { result, report: JSON.parse(await fs.readFile(output, 'utf8')) };
   };

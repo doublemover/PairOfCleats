@@ -51,8 +51,9 @@ try {
     mode: 'prose', compatibilityKey: 'filter-only-fixture', profileId: 'default'
   });
   await fs.writeFile(path.join(proseDir, 'chunk_meta.json'), '[]');
-  await assert.rejects(search(['--return-type', 'boolean'], 'both'), /index-extracted-prose/,
-    'a requested missing index must fail explicitly rather than silently omit a mode');
+  await assert.rejects(search(['--return-type', 'boolean'], 'both'), error => error.code === 'NO_INDEX'
+    && /extracted-prose.*published generation is unavailable/.test(error.message),
+  'a requested missing index must fail explicitly rather than silently omit a mode');
   const extractedDir = await createCompatibilityIndex(root, { published: true,
     mode: 'extracted-prose', compatibilityKey: 'filter-only-fixture', profileId: 'default'
   });

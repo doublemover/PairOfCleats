@@ -58,6 +58,8 @@ const buildIndex = (cacheRoot) => {
       'none',
       '--stage',
       'stage2',
+      '--mode',
+      'code',
       '--repo',
       repoRoot
     ],

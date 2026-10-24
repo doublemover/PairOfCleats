@@ -107,7 +107,7 @@ const budgetPlan = buildCrossFileInferenceBudgetPlan({
   fileRelations,
   inferenceLiteEnabled: true
 });
-assert.equal(budgetPlan?.schemaVersion, 1);
+assert.equal(budgetPlan?.schemaVersion, 2);
 assert.equal(budgetPlan?.inferenceLiteEnabled, true);
 
 const budgeted = applyCrossFileInferenceBudgetPlan({

@@ -32,7 +32,8 @@ assert.deepEqual(state.orderingLedger.stages['stage1:code'].artifacts, {});
 assert.ok(state.analysisShortcuts.code);
 assert.ok(state.byteBudgets.policies.chunk_meta);
 assert.deepEqual(Object.keys(state.signatures.code.dependencySignatures).sort(), ['artifacts', 'embeddings', 'enrichment', 'lexical', 'parse']);
-assert.equal((await observeIndexPublication(repo, config)).ready, true);
+const publication = await observeIndexPublication(repo, config);
+assert.equal(publication.ready, true, JSON.stringify(publication));
 for (const mutate of [
   value => { value.unsupportedRootField = true; },
   value => { value.analysisShortcuts.code.disableImportGraph = 'false'; },

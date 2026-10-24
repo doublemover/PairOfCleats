@@ -51,7 +51,7 @@ const env = applyTestEnv({
 });
 
 const buildResult = runNode(
-  [path.join(root, 'build_index.js'), '--repo', repoRoot, '--mode', 'all', '--stub-embeddings'],
+  [path.join(root, 'build_index.js'), '--repo', repoRoot, '--mode', 'all', '--stage', 'stage2', '--stub-embeddings'],
   'document chunk id no collision build index',
   repoRoot,
   env,

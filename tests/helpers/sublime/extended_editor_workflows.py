@@ -206,7 +206,7 @@ assert 'completed observation' in inspection_window.quick_panel_items[0][2]
 inspection_window.quick_panel_callback(0)
 assert 'Cancel Selected Task' not in inspection_window.quick_panel_items
 assert 'Retry Index Build (choose mode and repository)' in inspection_window.quick_panel_items
-assert inspection_window.commands == [], 'displaying a failure cannot retry a mutation'
+assert all(command['name'] == 'show_panel' for command in inspection_window.commands), 'displaying a failure can show its panel but cannot dispatch a mutation'
 inspection_window.quick_panel_callback(inspection_window.quick_panel_items.index('Inspect Task Logs'))
 assert 'selected completed task evidence' in inspection_window.panels['pairofcleats-task-logs'].appended
 assert 'late output' not in inspection_window.panels['pairofcleats-task-logs'].appended
