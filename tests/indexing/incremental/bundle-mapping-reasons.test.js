@@ -95,6 +95,8 @@ const stage3Result = runCapture(
     'none',
     '--stage',
     'stage3',
+    '--progress',
+    'jsonl',
     '--mode',
     'code',
     '--repo',

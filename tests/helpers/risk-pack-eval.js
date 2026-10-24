@@ -167,6 +167,8 @@ export const buildRiskStatsFields = ({
       order: 'deterministic'
     },
     capsHit: [],
+    inputCoverage: { status: 'complete' },
+    droppedRecords: [],
     timingMs: {
       summaries: 1,
       propagation: 1,

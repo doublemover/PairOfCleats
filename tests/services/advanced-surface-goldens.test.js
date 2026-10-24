@@ -36,7 +36,7 @@ const markerFile = 'src/phase14-advanced-surface.js';
 
 const env = applyTestEnv({ cacheRoot, embeddings: 'stub', testConfig: {
   sqlite: { use: false },
-  indexing: { embeddings: { enabled: false, mode: 'off' }, semantic: { enabled: false },
+  indexing: { scm: { provider: 'none' }, embeddings: { enabled: false, mode: 'off' }, semantic: { enabled: false },
     typeInference: false, typeInferenceCrossFile: false, riskAnalysis: false, riskAnalysisCrossFile: false },
   tooling: { autoEnableOnDetect: false, lsp: { enabled: false } }
 }, extraEnv: { PAIROFCLEATS_WORKER_POOL: 'off' } });

@@ -21,7 +21,7 @@ await fs.mkdir(path.dirname(sentinel), { recursive: true });
 const bytes = JSON.stringify(withGeneratedCacheMetadata({ chunks: [] }, 'tree-sitter-chunks'));
 await fs.writeFile(sentinel, bytes);
 const originalTrusted = process.env.PAIROFCLEATS_TRUSTED_CONFIG;
-const env = applyTestEnv({ syncProcess: true, extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null } });
+const env = applyTestEnv({ cacheRoot, syncProcess: true, extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null } });
 let reader = acquireRepoCacheAccessLease(selected);
 const cli = extra => runNode([path.resolve('tools/index/clean-artifacts.js'), '--repo', repo, ...extra],
   'clean-artifacts actual reader admission', process.cwd(), env,

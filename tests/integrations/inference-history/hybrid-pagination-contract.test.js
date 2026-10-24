@@ -40,9 +40,15 @@ try {
     assert.equal(seen.size, 10); assert.equal(pages, 4);
     assert.equal(page.page.contract.furtherContinuation, 'unavailable', 'do not skip the unreturned lexical window');
   }
-  const lexical = await reader.execute('search', { query: 'cobalt', mode: 'lexical', top: 100 });
+  const lexicalRequest = { query: 'cobalt', mode: 'lexical', top: 100 };
+  const bounded = await reader.execute('search', lexicalRequest);
+  assert.equal(bounded.ok, false);
+  assert.equal(bounded.error.code, 'OUTPUT_BUDGET', '100 full evidence records cannot silently exceed the default transport budget');
+  const outputOptions = { maxOutputBytes: 2097152 };
+  const lexical = await reader.execute('search', lexicalRequest, outputOptions);
   assert.equal(lexical.ok, true); assert.ok(lexical.page.next);
-  const next = await reader.execute(lexical.page.next.command, lexical.page.next.request);
+  assert.equal(lexical.evidence.length, 100, 'the explicitly selected supported output budget retains the original page');
+  const next = await reader.execute(lexical.page.next.command, lexical.page.next.request, outputOptions);
   assert.equal(next.ok, true, 'lexical continuation retains its independent contract');
   const wrong = await reader.execute('search', { query: 'cobalt', mode: 'hybrid', expectedGeneration: 'f'.repeat(64) });
   assert.equal(wrong.ok, false); assert.equal(wrong.error.code, 'ERR_INFERENCE_HISTORY_STALE');

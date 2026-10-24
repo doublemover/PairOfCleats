@@ -7,6 +7,7 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { writeClosedJavaScriptProject } from '../../helpers/closed-javascript-project.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'symbol-artifact-determinism');
@@ -29,7 +30,9 @@ await fsPromises.writeFile(
   `import { createWidget, Widget } from './creator.js';\n\nexport function buildWidget() {\n  const widget = new Widget();\n  return createWidget();\n}\n`
 );
 
+await writeClosedJavaScriptProject(repoRoot, ['src/**/*.js']);
 const testConfig = {
+  threads: 1,
   indexing: {
     typeInference: true,
     typeInferenceCrossFile: true
