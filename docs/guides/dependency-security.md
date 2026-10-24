@@ -9,6 +9,30 @@ below retain their original provenance. Current acceptance belongs in the
 [roadmap](../roadmap.md); neither those inventories nor an offline contract
 establish a fresh hosted security scan.
 
+## October 24 advisory repair
+
+The hosted gate at `50c62e7ea` stopped on seven affected npm entries (six high,
+one moderate). The revised lock graph uses Happy DOM 21.0.4, body-parser 2.4.0,
+fast-uri 3.1.9, Undici 8.12.3 and Zod 4.6.7. Their normal resolutions also update
+qs and iconv-lite. The SDK's declared Zod range admits this major; real SDK
+stdio and DOM consumer checks cover the affected integrations.
+
+Azure Identity 4.14.0 still selects MSAL 6. The scoped `@azure/identity` override
+selects the fixed MSAL 7.1.0 and its MSAL Common 16.14.2 dependency. Remove this
+bridge when Identity's own compatible range selects a fixed release. The offline
+security contract exercises the real Identity/MSAL adapter through authority
+discovery, client-credential acquisition and cached reuse with a fixture-only
+transport; it never authenticates against a live account.
+
+On Windows x64 and Node 26.12.1, locked `npm run bootstrap:ci` completed native
+rebuild, parser activation, all eight required patch verifications and readiness
+publication. Its log contained no warning/error diagnostics. The subsequent full
+graph `npm audit --json` reported zero vulnerabilities. Optional Sharp was absent
+and explicitly excluded by setup. These are dated local observations; hosted
+CI, runtime lifecycle and release qualification remain distinct. The immutable
+October 24 advisory inventory supplements the older baselines and the unchanged
+live `npm audit --audit-level=low` gate.
+
 ## October 22 Windows validation preparation
 
 The locked install at source c849bf600 resolves optional `ip-address` 10.7.3 to
