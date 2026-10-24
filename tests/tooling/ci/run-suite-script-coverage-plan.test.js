@@ -58,9 +58,14 @@ for (const line of planLines.filter(line => line.startsWith('[dry-run] ') && lin
 }
 const retirement = JSON.parse(await fs.readFile(path.join(root,
   'docs/archived/script-coverage-retirement-2026-10-20.json'), 'utf8'));
+const discoveredIds = runNode(['tests/run.js', '--lane', 'all', '--list'],
+  'resolve current canonical fixture cases', root, env, { stdio: 'pipe' }).stdout.trim().split(/\r?\n/);
 for (const entry of retirement.delegations) {
-  assert.ok(plannedOwners.has(entry.canonicalOwner), `retirement cannot omit ${entry.canonicalOwner}`);
-  assert.ok(!plannedOwners.has(entry.wrapperId), `retired wrapper remains scheduled: ${entry.wrapperId}`);
+  const replacements = discoveredIds.filter(id => id === entry.canonicalOwner || id.startsWith(entry.canonicalOwner + '/'));
+  assert.ok(replacements.length, `retirement requires a discovered replacement for ${entry.canonicalOwner}`);
+  for (const id of replacements) assert.ok(plannedOwners.has(id), `retirement cannot omit ${id}`);
+  assert.ok(![...plannedOwners.keys()].some(id => id === entry.wrapperId || id.startsWith(entry.wrapperId + '/')),
+    `retired wrapper remains scheduled: ${entry.wrapperId}`);
 }
 console.log(JSON.stringify({ retainedCanonicalOwners: retirement.delegations.length,
   plannedCases: plannedOwners.size, repeatedCases: 0 }));

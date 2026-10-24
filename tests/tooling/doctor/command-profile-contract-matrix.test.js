@@ -575,25 +575,30 @@ const runProviderOverrideCase = async () => {
     'solargraph'
   ];
 
-  await runToolingDoctor({
-    repoRoot: tempRoot,
-    buildRoot: tempRoot,
-    toolingConfig: {
-      enabledTools: providerIds,
-      pyright: { command: 'pyright-custom', args: ['--stdio', '--watch'] },
-      csharp: { cmd: 'csharp-custom' },
-      dart: { cmd: 'dart-custom' },
-      elixir: { cmd: 'elixir-custom' },
-      haskell: { cmd: 'hls-custom' },
-      phpactor: { cmd: 'phpactor-custom' },
-      solargraph: { cmd: 'solargraph-custom' }
-    },
-    strict: false
-  }, providerIds, {
-    log: () => {},
-    probeHandshake: false,
-    resolveCommandProfile
-  });
+  const restoreExecution = grantFixtureRepositoryExecution(tempRoot);
+  try {
+    await runToolingDoctor({
+      repoRoot: tempRoot,
+      buildRoot: tempRoot,
+      toolingConfig: {
+        enabledTools: providerIds,
+        pyright: { command: 'pyright-custom', args: ['--stdio', '--watch'] },
+        csharp: { cmd: 'csharp-custom' },
+        dart: { cmd: 'dart-custom' },
+        elixir: { cmd: 'elixir-custom' },
+        haskell: { cmd: 'hls-custom' },
+        phpactor: { cmd: 'phpactor-custom' },
+        solargraph: { cmd: 'solargraph-custom' }
+      },
+      strict: false
+    }, providerIds, {
+      log: () => {},
+      probeHandshake: false,
+      resolveCommandProfile
+    });
+  } finally {
+    restoreExecution();
+  }
 
   assert.equal(requestedByProvider.get('pyright')?.cmd, 'pyright-custom');
   assert.deepEqual(requestedByProvider.get('pyright')?.args, ['--stdio', '--watch']);

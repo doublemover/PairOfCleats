@@ -15,7 +15,7 @@ const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-workspace-onboarding-'
 const workspacePath = path.join(root, 'workspace with spaces.jsonc');
 const repos = ['alpha', 'beta'].map(alias => ({ alias, root: path.join(root, `${alias} project`) }));
 const cacheRoot = path.join(root, 'cache');
-const env = applyTestEnv({ cacheRoot, embeddings: 'off', syncProcess: false });
+const env = applyTestEnv({ cacheRoot, embeddings: 'off' });
 const run = (args, allowFailure = false) => runNode([path.join(checkout, 'bin/pairofcleats.js'), ...args],
   'workspace onboarding CLI fixtures', checkout, env, { stdio: 'pipe', timeoutMs: 5000, allowFailure });
 const json = args => JSON.parse(run([...args, '--json']).stdout);

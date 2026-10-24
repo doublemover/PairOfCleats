@@ -12,7 +12,13 @@ const checkout = process.cwd();
 const { dir: root } = await prepareIsolatedTestCacheDir('ann-generation-lmdb');
 const repo = path.join(root, 'repo');
 await fs.mkdir(repo);
-await fs.writeFile(path.join(repo, 'sample.js'), '/** Computes the fixture answer. */\nexport function lmdbGenerationWitness() { return 42; }\n');
+await fs.writeFile(path.join(repo, 'sample.js'), [
+  'export function lmdbGenerationWitness() {',
+  '  // Computes the fixture answer inside the indexed function span.',
+  '  return 42;',
+  '}',
+  ''
+].join('\n'));
 const env = applyTestEnv({ cacheRoot: path.join(root, 'cache'), embeddings: 'stub', testConfig: {
   indexing: { scm: { provider: 'none' }, typeInference: false, typeInferenceCrossFile: false,
     riskAnalysis: false, riskAnalysisCrossFile: false,

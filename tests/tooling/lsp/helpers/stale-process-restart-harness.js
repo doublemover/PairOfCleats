@@ -10,8 +10,8 @@ export const createStaleProcessRestartHarness = () => {
     args: ['-e', 'process.stdin.resume(); setInterval(() => {}, 1000);'],
     log: () => {},
     onLifecycleEvent: (event) => lifecycleEvents.push(event),
-    spawnProcess: (command, args, options) => {
-      const child = spawn(command, args, options);
+    spawnProcess: ({ cmd, args, options }) => {
+      const child = spawn(cmd, args, options);
       spawnedChildren.push(child);
       return child;
     }
