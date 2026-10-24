@@ -58,7 +58,13 @@ try {
   assert.deepEqual(catalog.nextActions, ready.nextActions);
   const searchArgs = ['search', '--workspace', workspacePath, '--mode', 'code', '--backend', 'memory',
     '--type', 'FunctionDeclaration', '--top', '5'];
-  const hits = json(searchArgs).code;
+  const hits = [];
+  let cursor = null;
+  do {
+    const page = json([...searchArgs, ...(cursor ? ['--cursor', cursor] : [])]);
+    hits.push(...page.code);
+    cursor = page.pagination.nextCursor;
+  } while (cursor);
   assert.deepEqual(hits.map(hit => hit.repoAlias).sort(), ['alpha', 'beta']);
   for (const hit of hits) { assert.ok(hit.repoId); assert.ok(hit.globalId); }
   const member = ready.nextCommands.members.find(repo => repo.alias === 'alpha');

@@ -19,9 +19,9 @@ try {
   const fileKey = 'b'.repeat(40);
   for (const [directory, entryKey, extra] of [[global, chunkKey, {}],
     [files, fileKey, { chunkReferences: { schemaVersion: 1, identityKey: key, keys: [chunkKey] } }]]) {
+    await writeCacheIndex(directory, createCacheIndex(key));
     await fs.mkdir(path.join(directory, 'shards'), { recursive: true });
     await fs.writeFile(path.join(directory, 'shards', 'shard-00000.bin'), Buffer.alloc(8));
-    await writeCacheIndex(directory, createCacheIndex(key));
     await withEmbeddingCacheReadLock(directory, async () => {
       const index = await readEmbeddingIndex(directory, key, { forUpdate: true });
       assert.equal(index.journal?.version, 1, 'the canonical initial checkpoint must establish its journal generation');

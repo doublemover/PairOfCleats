@@ -28,7 +28,8 @@ const server = http.createServer(router.handleRequest);
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const base = 'http://127.0.0.1:' + server.address().port;
 const transport = new StdioClientTransport({ command: process.execPath,
-  args: [path.resolve('bin/pairofcleats.js'), 'service', 'mcp', '--repo', root, '--mcp-mode', 'sdk'], stderr: 'pipe' });
+  args: [path.resolve('bin/pairofcleats.js'), 'service', 'mcp', '--repo', root, '--mcp-mode', 'sdk'],
+  env: { ...process.env }, stderr: 'pipe' });
 const client = new Client({ name: 'public-enumeration', version: '1' });
 const input = { repoPath: root, mode: 'code', backend: 'memory', returnType: 'boolean', top: 2 };
 const post = async value => {
@@ -53,7 +54,7 @@ try {
       return (await response.json()).result;
     },
     mcp: async value => { const response = await client.callTool({ name: 'search', arguments: value });
-      assert.equal(response.isError, undefined); return JSON.parse(response.content[0].text); },
+      assert.equal(response.isError, undefined, JSON.stringify(response)); return JSON.parse(response.content[0].text); },
     viewer: async value => (await viewer.request('search', value)).result
   };
   for (const [name, call] of Object.entries(callers)) {
