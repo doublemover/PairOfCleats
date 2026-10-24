@@ -23,7 +23,7 @@ const rejected = async action => {
   try { await action(); } catch (value) { failed = true; failure = value; }
   assert.equal(failed, true); return failure;
 };
-const intercept = ({ primary = null, failClose = false, short = false, replace = false } = {}) => {
+const intercept = ({ primary = null, failClose = false, short = false, replace = false, changing = false } = {}) => {
   const state = { opens: 0, reads: 0, closes: 0, removals: 0, stats: 0, allowClose: !failClose, allowRead: primary === null };
   fsp.open = async (name, ...args) => {
     const actual = await open(name, ...args); if (name !== file) return actual;
@@ -38,7 +38,12 @@ const intercept = ({ primary = null, failClose = false, short = false, replace =
     actual.read = async function (buffer, offset, length, position) {
       assert.equal(this, actual); state.reads += 1;
       if (!state.allowRead) throw primary;
-      return read.call(actual, buffer, offset, short ? Math.min(length, 7) : length, position);
+      const result = await read.call(actual, buffer, offset, short ? Math.min(length, 7) : length, position);
+      if (changing) {
+        const updated = new Date(Date.now() + 1000);
+        await fsp.utimes(file, updated, updated);
+      }
+      return result;
     };
     actual.close = async function () {
       assert.equal(this, actual); state.closes += 1;
@@ -58,6 +63,21 @@ try {
   assert.deepEqual(await readLockInfo(file), payload); assert.deepEqual(readLockInfoSync(file), payload);
   assert.equal(await readLockInfo(path.join(root, 'missing')), null);
   assert.equal(readLockInfoSync(path.join(root, 'missing')), null);
+  for (const failClose of [false, true]) {
+    const state = intercept({ changing: true, failClose });
+    if (failClose) {
+      const failure = await rejected(() => acquireFileLock({ lockPath: file, waitMs: 0 }));
+      const session = getContainedFileSession(failure);
+      assert.ok(session); assert.equal(failure.cacheOwnershipReleased(), false);
+      assert.equal(state.closes, 1); assert.equal(state.removals, 0);
+      state.allowClose = true; await session.releaseAfterClose();
+    } else {
+      assert.equal(await acquireFileLock({ lockPath: file, waitMs: 0 }), null,
+        'a changing live record is busy, never an unreadable/stale owner to remove');
+      assert.equal(state.closes, 1); assert.equal(state.removals, 0);
+    }
+    restore();
+  }
   {
     const state = intercept({ short: true, replace: true });
     fsp.stat = () => assert.fail('snapshot stat and raw bytes must come from the same opened descriptor');

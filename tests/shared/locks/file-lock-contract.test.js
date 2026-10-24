@@ -7,6 +7,7 @@ import {
   acquireFileLock,
   getFileLockRuntimeMetrics,
   readLockInfo,
+  releaseFileLockOrThrow,
   resetFileLockRuntimeMetricsForTests,
   withFileLock
 } from '../../../src/shared/locks/file-lock.js';
@@ -264,26 +265,44 @@ await assert.rejects(
 );
 await fsPromises.rm(lockPath, { force: true });
 
-await assert.rejects(
-  () => withFileLock({ lockPath }, async (lockHandle) => {
-    lockHandle.release = async () => {
-      const releaseError = new Error('simulated release I/O failure');
-      releaseError.code = 'EIO';
-      throw releaseError;
-    };
-    return 'worker-value';
-  }),
-  (error) => (
-    error?.code === 'ERR_FILE_LOCK_RELEASE_FAILED'
-    && error?.causeCode === 'EIO'
-  ),
-  'expected withFileLock to throw structured error when release throws'
-);
+const originalRemove = fsPromises.rm;
+const releaseFailurePath = path.join(tempRoot, 'native-release-failure.lock');
+let releasingLock;
+try {
+  fsPromises.rm = async (filename, ...args) => {
+    if (filename === releaseFailurePath) throw Object.assign(new Error('simulated release I/O failure'), { code: 'EIO' });
+    return originalRemove(filename, ...args);
+  };
+  await assert.rejects(
+    () => withFileLock({ lockPath: releaseFailurePath }, async (lockHandle) => {
+      releasingLock = lockHandle;
+      return 'worker-value';
+    }),
+    (error) => error?.code === 'ERR_FILE_LOCK_RELEASE_FAILED' && error?.causeCode === 'EIO',
+    'expected withFileLock to retain the original native removal failure'
+  );
+} finally {
+  fsPromises.rm = originalRemove;
+  if (releasingLock) await releaseFileLockOrThrow(releasingLock);
+}
 await fsPromises.rm(lockPath, { force: true });
 
+let overriddenLock, originalRelease;
+try {
+  await assert.rejects(() => withFileLock({ lockPath: path.join(tempRoot, 'override-release-failure.lock') }, async lockHandle => {
+    overriddenLock = lockHandle; originalRelease = lockHandle.release;
+    lockHandle.release = async () => { throw Object.assign(new Error('custom release failed'), { code: 'EIO' }); };
+    return 'worker-value';
+  }), error => error?.code === 'ERR_FILE_LOCK_RELEASE_FAILED' && error?.causeCode === 'EIO',
+  'an explicit release-method failure retains the structured wrapper contract');
+} finally {
+  if (overriddenLock) { overriddenLock.release = originalRelease; await releaseFileLockOrThrow(overriddenLock); }
+}
+
+const workerReleasePath = path.join(tempRoot, 'worker-release-failure.lock');
 await assert.rejects(
-  () => withFileLock({ lockPath }, async () => {
-    await fsPromises.rm(lockPath, { force: true });
+  () => withFileLock({ lockPath: workerReleasePath }, async () => {
+    await fsPromises.rm(workerReleasePath, { force: true });
     throw new Error('worker exploded');
   }),
   (error) => (

@@ -175,7 +175,12 @@ export const acquireFileLock = async ({
       let record;
       try { record = await readLockRecord(lockPath); }
       catch (readError) {
-        if (readFileLockFailureCode(readError) !== 'ENOENT') throw readError;
+        // A publishing/retiring owner may change its record during the
+        // verified read. Only a fully settled read may become contention;
+        // the existing deadline bounds re-observation and no stale-removal
+        // authority is inferred from this incomplete snapshot.
+        const readCode = readFileLockFailureCode(readError);
+        if (readCode !== 'ENOENT' && readCode !== 'ERR_FILE_CHANGED') throw readError;
         if (deadline != null && Date.now() < deadline) { await sleepWithAbort(resolvedPollMs, lockSignal); continue; }
         safeInvokeHook(onBusy, { lockPath, info: null, pid: null });
         if (timeoutBehavior === 'throw') throw new Error(timeoutMessage || 'Lock timeout.');
