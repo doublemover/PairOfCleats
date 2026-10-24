@@ -84,7 +84,11 @@ try {
     https.request = (_url, _options, callback) => {
       const request = new EventEmitter();
       request.destroy = () => {};
-      request.end = () => callback({ statusCode: 302, headers: { location: `${baseUrl}/ok` }, resume() { request.emit('close'); } });
+      request.end = () => {
+        const response = Object.assign(new EventEmitter(), { statusCode: 302, headers: { location: `${baseUrl}/ok` },
+          resume() { response.emit('close'); request.emit('close'); } });
+        callback(response);
+      };
       return request;
     };
     await assert.rejects(() => fetchDownloadUrl('https://example.invalid/redirect'), /downgrade/);

@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { spawnSync } from 'node:child_process';
+import { runNode as runNodeFixture } from '../../helpers/run-node.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { loadChunkMeta, loadTokenPostings } from '../../../src/shared/artifact-io/loaders.js';
 import { getIndexDir } from '../../../src/shared/dict-utils.js';
@@ -53,7 +53,7 @@ try {
   for (const boundary of ['meta-fail', 'manifest-fail', 'crash-before', 'crash-after', 'success']) {
     const { repo, dir, manifest: old } = await seed(boundary);
     const manifestPath = path.join(dir, 'pieces', 'manifest.json');
-    const child = spawnSync(process.execPath, ['--input-type=module', '-e', `
+    const child = runNodeFixture(['--input-type=module', '-e', `
       import fs from 'node:fs/promises';
       const rename = fs.rename, boundary = ${JSON.stringify(boundary)}, manifest = ${JSON.stringify(manifestPath)};
       fs.rename = async (from, to) => {
@@ -69,7 +69,7 @@ try {
       };
       process.argv = [process.execPath, ${JSON.stringify(script)}, '--repo', ${JSON.stringify(repo)}, '--mode', 'code', '--chunk-meta-size', '2', '--token-postings-size', '2'];
       await import(${JSON.stringify(script)});
-    `], { cwd: process.cwd(), encoding: 'utf8', timeout: 10000 });
+    `], 'isolated Node fixture', process.cwd(), process.env, { allowFailure: true, spawnOptions: { cwd: process.cwd(), encoding: 'utf8', timeout: 10000 } });
     assert.equal(child.status, boundary.startsWith('crash') ? 73 : boundary.endsWith('fail') ? 1 : 0, child.stderr || child.error?.message);
     const current = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
     await verify(dir, old);

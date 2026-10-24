@@ -9,6 +9,7 @@ import { runEmbeddingsStage } from '../../../src/integrations/core/build-index/s
 import { enqueueEmbeddingJob } from '../../../src/index/build/indexer/embedding-queue.js';
 import { claimNextJob, completeJob, loadQueue, loadQuarantine, quarantineJob } from '../../../tools/service/queue.js';
 import { createJobCompletion } from '../../../tools/service/indexer-service/job-completion.js';
+import { getRepoCacheRoot, loadUserConfig } from '../../../src/shared/dict-utils.js';
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-background-retry-'));
 const repo = path.join(root, 'repo'), cache = path.join(root, 'cache'), stage2Queue = path.join(root, 'stage2-queue');
@@ -44,9 +45,9 @@ try {
   const stage3Queue = path.join(root, 'stage3-queue');
   const stage3 = await runEmbeddingsStage({ root: repo, argv: {}, embedModes: ['code'],
     embeddingRuntime: { embeddingEnabled: true, embeddingService: true, queueDir: stage3Queue,
-      queueMaxQueued: 10, useStubEmbeddings: false }, userConfig: {}, indexRoot: build,
+      queueMaxQueued: 10, useStubEmbeddings: false }, userConfig: loadUserConfig(repo), indexRoot: build,
     includeEmbeddings: true, overallProgressRef: { current: null }, log: () => {}, abortSignal: null,
-    repoCacheRoot: cache, runtimeEnv: process.env, recordIndexMetric: () => {}, buildEmbeddingsPath: '' });
+    repoCacheRoot: getRepoCacheRoot(repo, loadUserConfig(repo)), runtimeEnv: process.env, recordIndexMetric: () => {}, buildEmbeddingsPath: '' });
   assert.equal(stage3.embeddings.queued, true);
   await assertInheritedRetry(stage3Queue, 'embeddings', 'stage3');
   const indexerQueue = path.join(root, 'indexer-queue');

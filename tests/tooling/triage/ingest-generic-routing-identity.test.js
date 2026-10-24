@@ -5,6 +5,7 @@ import { getTriageContext } from '../../helpers/triage.js';
 import { runNode } from '../../helpers/run-node.js';
 import { normalizeGeneric } from '../../../src/integrations/triage/normalize/generic.js';
 import { buildRecordId, promoteRecordFields } from '../../../src/integrations/triage/record-utils.js';
+import { toRealPathSync } from '../../../src/workspace/identity.js';
 
 // UNVALIDATED: direct normalization plus actual bounded ingest/persisted views.
 // No index, database, model, user record or external service is exercised.
@@ -62,7 +63,7 @@ for (const [index, artifact] of receipt.records.entries()) {
   const persisted = JSON.parse(await fs.readFile(artifact.jsonPath, 'utf8'));
   const raw = mixed[index];
   assert.equal(persisted.service, raw.service?.trim() || null); assert.equal(persisted.env, 'staging');
-  assert.equal(persisted.repo, raw.repo?.trim() || repoRoot);
+  assert.equal(persisted.repo, raw.repo?.trim() || toRealPathSync(repoRoot));
   for (const key of ['team', 'owner']) assert.equal(persisted[key], raw[key]?.trim() || null);
   assert.deepEqual(promoteRecordFields(persisted, ['service', 'env', 'repo']), {
     ...(persisted.service ? { service: persisted.service } : {}), env: 'staging', repo: persisted.repo

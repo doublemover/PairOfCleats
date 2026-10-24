@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { runNode as runNodeFixture } from '../../helpers/run-node.js';
 import { SEARCH_OPTIONS } from '../../../src/retrieval/cli-options.js';
 import { parseSearchArgs } from '../../../src/retrieval/cli-args.js';
 import { collectSearchOptionFlags } from '../../../tools/docs/search-option-inventory.js';
@@ -37,9 +37,8 @@ try {
   let sequence = 0;
   const run = async () => {
     const output = path.join(dir, `result-${++sequence}.json`);
-    const result = spawnSync(process.execPath, ['tools/docs/contract-drift.js', '--root', fixture, '--fail',
-      '--out-json', output, '--out-md', path.join(dir, `result-${sequence}.md`)],
-    { env, encoding: 'utf8', timeout: 5000 });
+    const result = runNodeFixture(['tools/docs/contract-drift.js', '--root', fixture, '--fail',
+      '--out-json', output, '--out-md', path.join(dir, `result-${sequence}.md`)], 'isolated Node fixture', process.cwd(), process.env, { allowFailure: true, spawnOptions: { env, encoding: 'utf8', timeout: 5000 } });
     assert.ifError(result.error);
     return { result, report: JSON.parse(await fs.readFile(output, 'utf8')) };
   };

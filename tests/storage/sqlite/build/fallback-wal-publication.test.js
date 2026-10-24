@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { runNode as runNodeFixture } from '../../../helpers/run-node.js';
 import Database from 'better-sqlite3';
 import { closeSqliteBuildDatabase } from '../../../../src/storage/sqlite/build/core.js';
 
@@ -23,13 +23,13 @@ try {
   for (const outcome of ['success', 'failure', 'cancelled']) {
     const final = path.join(root, `${outcome}-final.db`);
     const staged = path.join(root, `${outcome}-short-staged.db`);
-    const child = spawnSync(process.execPath, ['--input-type=module', '-e', `
+    const child = runNodeFixture(['--input-type=module', '-e', `
       import Database from 'better-sqlite3';
       const db = new Database(${JSON.stringify(final)});
       db.pragma('journal_mode=WAL'); db.pragma('wal_autocheckpoint=0');
       db.exec("CREATE TABLE witness(value TEXT); INSERT INTO witness VALUES ('committed-old')");
       process.exit(0);
-    `], { cwd: process.cwd(), windowsHide: true, encoding: 'utf8', timeout: 5000 });
+    `], 'isolated Node fixture', process.cwd(), process.env, { allowFailure: true, spawnOptions: { cwd: process.cwd(), windowsHide: true, encoding: 'utf8', timeout: 5000 } });
     assert.equal(child.status, 0, child.stderr);
     assert.ok((await fs.stat(`${final}-wal`)).size > 0);
     const db = create(staged, 'replacement');

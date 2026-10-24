@@ -24,10 +24,10 @@ const outOfRangeStableId = resolveBundleChunkVectorIndex({
   fallbackState: { cursor: 0 },
   vectorCount: 2
 });
-assert.equal(
-  outOfRangeStableId.vectorIndex,
-  1,
-  'expected out-of-range stable-id match to fall through to next in-range fallback mapping'
+assert.deepEqual(
+  outOfRangeStableId,
+  { vectorIndex: null, reason: 'parserOmission' },
+  'an out-of-range explicit identity cannot adopt an unrelated in-range vector'
 );
 
 const outOfRangeNumericFallback = resolveBundleChunkVectorIndex({

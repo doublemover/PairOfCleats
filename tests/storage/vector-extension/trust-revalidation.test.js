@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { spawnSync } from 'node:child_process';
+import { runNode as runNodeFixture } from '../../helpers/run-node.js';
 import { loadVectorExtension } from '../../../tools/sqlite/vector-extension.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 
@@ -34,10 +34,10 @@ try {
   const env = { ...process.env };
   delete env.PAIROFCLEATS_TRUSTED_CONFIG;
   for (const [digest, expectedStatus] of [[hash('new approved bytes'), 0], ['0'.repeat(64), 1]]) {
-    const result = spawnSync(process.execPath, ['tools/sqlite/verify-extensions.js', '--repo', dir,
-      '--path', file, '--sha256', digest, '--json', '--no-load'], {
+    const result = runNodeFixture(['tools/sqlite/verify-extensions.js', '--repo', dir,
+      '--path', file, '--sha256', digest, '--json', '--no-load'], 'isolated Node fixture', process.cwd(), process.env, { allowFailure: true, spawnOptions: {
       cwd: process.cwd(), env, encoding: 'utf8', timeout: 10000
-    });
+    } });
     assert.equal(result.status, expectedStatus, result.stderr);
     const payload = JSON.parse(result.stdout);
     assert.equal(payload.exists, true);

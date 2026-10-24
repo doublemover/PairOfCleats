@@ -22,7 +22,8 @@ export const seedCodeSnapshotBuildRoot = async ({
   await fs.mkdir(buildRoot, { recursive: true });
   const { indexDir } = await createBaseIndex({
     rootDir: buildRoot,
-    manifestOverrides,
+    manifestOverrides: { buildId, ...manifestOverrides },
+    indexState: { generatedAt: new Date().toISOString(), mode: 'code', artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, buildId },
     chunkMeta,
     fileMeta,
     tokenPostings

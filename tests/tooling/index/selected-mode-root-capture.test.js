@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { getRepoCacheRoot } from '../../../src/shared/dict-utils.js';
+import { toRealPathSync } from '../../../src/workspace/identity.js';
 import { captureSelectedModeRoots } from '../../../src/shared/indexing/selected-mode-roots.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { parseModes } from '../../../tools/index/validate.js';
@@ -17,8 +18,8 @@ try {
   await fs.writeFile(path.join(cache, 'builds', 'current.json'), JSON.stringify(pointer));
   const selected = captureSelectedModeRoots({ root, userConfig });
   assert.deepEqual(selected.modes, ['code', 'prose']);
-  assert.equal(selected.roots.code, path.join(cache, 'builds', 'B'));
-  assert.equal(selected.roots.prose, path.join(cache, 'builds', 'A'));
+  assert.equal(selected.roots.code, toRealPathSync(path.join(cache, 'builds', 'B')));
+  assert.equal(selected.roots.prose, toRealPathSync(path.join(cache, 'builds', 'A')));
   const explicit = path.join(root, 'old'); await fs.mkdir(explicit);
   await fs.writeFile(path.join(explicit, 'build_state.json'), JSON.stringify({ modes: ['records'] }));
   assert.deepEqual(parseModes(null, root, userConfig, explicit), ['records'], 'declared missing mode must still be validated');

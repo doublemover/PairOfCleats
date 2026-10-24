@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { runNode as runNodeFixture } from '../helpers/run-node.js';
 import { applyTestEnv } from '../helpers/test-env.js';
 import { prepareIsolatedTestCacheDir } from '../helpers/test-cache.js';
 
@@ -22,9 +22,9 @@ try {
       await fs.mkdir(out);
       await fs.writeFile(outMarker, 'existing output must survive invalid input');
     }
-    const result = spawnSync(process.execPath, ['tools/index/assemble-pieces.js', '--repo', process.cwd(),
+    const result = runNodeFixture(['tools/index/assemble-pieces.js', '--repo', process.cwd(),
       '--input', kind === 'missing-input' ? path.join(fixture, 'absent') : input,
-      '--out', out, '--force'], { cwd: process.cwd(), env, encoding: 'utf8', timeout: 5000 });
+      '--out', out, '--force'], 'isolated Node fixture', process.cwd(), process.env, { allowFailure: true, spawnOptions: { cwd: process.cwd(), env, encoding: 'utf8', timeout: 5000 } });
     assert.ifError(result.error);
     assert.equal(result.status, 1);
     assert.equal(await fs.readFile(marker, 'utf8'), 'source pieces must survive');

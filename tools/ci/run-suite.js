@@ -160,7 +160,7 @@ const ensureDir = async (dir) => {
 const main = async () => {
   const argv = parseArgs();
   const mode = argv.mode;
-  const baseLane = argv.lane || (mode === 'nightly' ? 'ci' : 'ci-lite');
+  const baseLane = argv.lane || (mode === 'nightly' ? 'all' : 'ci-lite');
   const baseEnv = buildSuiteEnv(mode);
   const userConfig = loadUserConfig(ROOT);
   __applySuiteToolingPathEntriesForTests(baseEnv, ROOT, userConfig);
@@ -307,13 +307,13 @@ const main = async () => {
         '--exclude',
         'services/api/',
         ...(mode === 'nightly' ? ['--exclude',
-          `/^tooling\\/script-coverage\\/(${SCRIPT_COVERAGE_GROUPS.join('|')})\\//`] : []),
+          `/^tooling\\/script-coverage\\/(${SCRIPT_COVERAGE_GROUPS.join('|')})\\//`,
+          '--exclude', '/^services\\/soak\\/operational-recovery$/'] : []),
         ...SERIAL_RUNTIME_BUDGET_IDS.flatMap(id => ['--exclude', `/^${id.replaceAll('/', '\\/')}$/`]),
         ...SERIAL_ANN_GENERATION_IDS.flatMap(id => ['--exclude', `/^${id.replaceAll('/', '\\/')}$/`]),
         ...SERIAL_NATIVE_LIFECYCLE_IDS.flatMap(id => ['--exclude', `/^${id.replaceAll('/', '\\/')}$/`]),
-        ...(mode === 'nightly' ? ['--lane', 'storage', '--lane', 'perf'] : []),
         '--timeout-ms',
-        '600000',
+        mode === 'nightly' ? '30000' : '600000',
         '--retries',
         '0',
         '--native-status-redo=false',

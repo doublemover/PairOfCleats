@@ -29,6 +29,8 @@ try {
   assert.equal((await runToolingProviders(ctx, request(base))).byChunkUid.get(chunkUid).payload.returnType, 'First');
   await runToolingProviders(ctx, request(base));
   assert.equal(calls, 1, 'control proves a real persisted cache hit');
+  const files = await fs.readdir(ctx.cache.dir);
+  assert.ok(files.some(file => file.includes('tooling-provider_lk5_')));
   const edited = { ...base, text: 'other' };
   assert.equal((await runToolingProviders(ctx, request(edited))).byChunkUid.get(chunkUid).payload.returnType, 'Second');
   assert.equal(calls, 2, 'claimed docHash cannot hide different actual source bytes');
@@ -41,8 +43,6 @@ try {
   await runToolingProviders(ctx, request(unknown));
   await runToolingProviders(ctx, request(unknown));
   assert.equal(calls, 6, 'unavailable source bytes retain live execution without durable replay');
-  const files = await fs.readdir(ctx.cache.dir);
-  assert.ok(files.some(file => file.includes('tooling-provider_lk5_')));
 } finally {
   TOOLING_PROVIDERS.clear();
   for (const [id, provider] of saved) TOOLING_PROVIDERS.set(id, provider);

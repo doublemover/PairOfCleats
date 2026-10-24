@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { runNode as runNodeFixture } from '../../helpers/run-node.js';
 import { replaceFile, replaceFileSync } from '../../../src/shared/io/replace-file.js';
 
 const root = await fsp.mkdtemp(path.join(os.tmpdir(), 'poc-replace-visibility-'));
@@ -109,7 +109,7 @@ try {
       for (const boundary of ['before', 'after']) {
         const final = path.join(root, 'crash.json'), temp = path.join(root, 'crash.tmp');
         await fsp.writeFile(final, '{"version":1}'); await fsp.writeFile(temp, '{"version":2}');
-        const child = spawnSync(process.execPath, ['--input-type=module', '-e', `
+        const child = runNodeFixture(['--input-type=module', '-e', `
           import fs from 'node:fs'; import fsp from 'node:fs/promises';
           import { replaceFile, replaceFileSync } from ${JSON.stringify(new URL('../../../src/shared/io/replace-file.js', import.meta.url).href)};
           const final = ${JSON.stringify(final)}, temp = ${JSON.stringify(temp)};
@@ -121,7 +121,7 @@ try {
             exit(); return result;
           };
           ${sync ? '' : 'await '} ${sync ? 'replaceFileSync' : 'replaceFile'}(temp, final, { keepBackup: ${keepBackup} });
-        `], { encoding: 'utf8', timeout: 5000 });
+        `], 'isolated Node fixture', process.cwd(), process.env, { allowFailure: true, spawnOptions: { encoding: 'utf8', timeout: 5000 } });
         assert.equal(child.status, 23, child.stderr || child.error?.message);
         assert.deepEqual(JSON.parse(await fsp.readFile(final, 'utf8')),
           { version: boundary === 'before' ? 1 : 2 }, 'abrupt process exit never strands the authoritative target');

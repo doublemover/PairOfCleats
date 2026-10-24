@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { runNode as runNodeFixture } from '../helpers/run-node.js';
 import { splitUnicodeChunks } from '../../src/shared/unicode-chunks.js';
 for (const text of ['', 'ASCII', '界'.repeat(12), 'x😀𐐷é"\\y'.repeat(50)]) {
   for (const size of [2, 3, 4, 17]) {
@@ -11,9 +11,9 @@ for (const text of ['', 'ASCII', '界'.repeat(12), 'x😀𐐷é"\\y'.repeat(50)
     }
   }
 }
-const producer = spawnSync(process.execPath, ['tests/helpers/tui/unicode-frames.js'], {
+const producer = runNodeFixture(['tests/helpers/tui/unicode-frames.js'], 'isolated Node fixture', process.cwd(), process.env, { allowFailure: true, spawnOptions: {
   cwd: process.cwd(), encoding: 'utf8', timeout: 8000, maxBuffer: 8 * 1024 * 1024
-});
+} });
 assert.equal(producer.status, 0, producer.stderr || producer.error?.message);
 const expected = new Map(), chunks = new Map();
 for (const line of producer.stdout.trim().split('\n')) {

@@ -14,7 +14,7 @@ const stubs = {
     globalThis.taskSpanRunnerFixture.calls.push({root,query:options.query,args:[...options.args]});
     return {code:[{file:'first/shared.ts',name:'fixture',score:1}]};
   };`,
-  '../../src/retrieval/sqlite-cache.js': 'export const createSqliteDbCache = () => ({});'
+  '../../src/retrieval/sqlite-cache.js': 'export const createSqliteDbCache = () => ({dispose(){},retainFailure(){},pendingOwners(){return [];}});'
 };
 const hooks = registerHooks({
   resolve(specifier, context, next) {

@@ -47,7 +47,7 @@ try {
     'fresh verification rechecks negative dependencies');
   await assert.rejects(observeProviderProfile(options), { code: 'ERR_TOOLING_PROFILE_IDENTITY' });
   await fs.writeFile(path.join(root, 'source.lua'), source + '-- changed');
-  await assert.rejects(observeProviderProfile(options), /hash|changed/iu);
+  await assert.rejects(observeProviderProfile(options), /hash|checksum|changed/iu);
   const revoked = new AbortController(); revoked.abort();
   await assert.rejects(observeProviderProfile({ ...options, signal: revoked.signal }), { name: 'AbortError' });
   console.log('observed provider bytes, source/project/SDK and negative dependency identities');

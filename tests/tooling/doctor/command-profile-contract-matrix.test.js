@@ -325,9 +325,9 @@ const runCommandResolutionCases = async () => {
 
     const csharpProfile = resolveToolingCommandProfile({
       providerId: 'csharp-ls',
-      cmd: 'csharp-ls',
+      cmd: path.join(dotnetDir, process.platform === 'win32' ? 'csharp-ls.cmd' : 'csharp-ls'),
       args: [],
-      repoRoot: root,
+      repoRoot: testRoot,
       toolingConfig: { dir: path.join(runtimeDir, 'tooling') }
     });
     assert.equal(csharpProfile.probe.ok, true);
@@ -337,7 +337,7 @@ const runCommandResolutionCases = async () => {
       providerId: 'phpactor',
       cmd: 'phpactor',
       args: ['language-server'],
-      repoRoot: root,
+      repoRoot: testRoot,
       toolingConfig: { dir: path.join(runtimeDir, 'tooling') }
     });
     assert.equal(phpactorProfile.probe.ok, true);
@@ -372,7 +372,7 @@ const runCommandResolutionCases = async () => {
       providerId: 'csharp-ls',
       cmd: 'csharp-ls',
       args: [],
-      repoRoot: root,
+      repoRoot: testRoot,
       toolingConfig: {}
     });
     assert.equal(csharpProfile.probe.ok, true);
@@ -382,7 +382,7 @@ const runCommandResolutionCases = async () => {
       providerId: 'phpactor',
       cmd: 'phpactor',
       args: ['language-server'],
-      repoRoot: root,
+      repoRoot: testRoot,
       toolingConfig: {}
     });
     assert.equal(phpactorProfile.probe.ok, true);
@@ -455,7 +455,7 @@ const runDirectProbeCases = async () => {
     providerId: 'elixir-ls-erl',
     cmd: 'erl',
     args: ['-version'],
-    repoRoot: root,
+    repoRoot: testRoot,
     toolingConfig: {}
   });
   assert.equal(erlProfile.probe.attempted?.[0]?.args?.[0], '-version', 'expected erl probe to prefer `erl -version`');
@@ -478,7 +478,7 @@ const runPyrightOverrideCases = async () => {
       providerId: 'pyright',
       cmd: fixtureCmd,
       args: ['--stdio'],
-      repoRoot: root,
+      repoRoot: testRoot,
       toolingConfig: {}
     });
     assertCommandProbeSucceeded(explicitProfile, 'expected explicit pyright command path probe to succeed', Date.now() - startedAt);
@@ -496,7 +496,7 @@ const runProbeTimeoutCase = async () => {
     providerId: 'timeout-probe',
     cmd: 'hang-probe',
     args: [],
-    repoRoot: root,
+    repoRoot: testRoot,
     toolingConfig: {},
     probeTimeoutMs: 120
   });
@@ -531,7 +531,7 @@ const runLuaManagedLayoutValidationCase = async () => {
       providerId: 'lua-language-server',
       cmd: 'lua-language-server',
       args: ['-v'],
-      repoRoot: root,
+      repoRoot: testRoot,
       toolingConfig: { dir: toolingRoot }
     });
     assert.equal(profile.probe.ok, false, 'expected broken managed Lua layout to fail validation');

@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { errorGraphMatches } from '../../helpers/error-graph.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
@@ -32,7 +33,7 @@ try {
     assert.equal(pending.cacheOwnershipReleased(), false); assert.equal(await f.protected(), true);
     child.emit('close', null, 'SIGTERM');
     assert.equal(await f.protected(), true, 'exact close alone cannot erase an independent native owner');
-    assert.throws(() => pending.managedCommandSession.releaseAfterClosure(), /pending|unconfirmed/);
+    assert.throws(() => pending.managedCommandSession.releaseAfterClosure(), error => errorGraphMatches(error, /pending|unconfirmed/));
     observed = true;
     assert.equal(pending.managedCommandSession.releaseAfterClosure(), true,
       'the original observer retains its original receiver and exact metadata owner');
