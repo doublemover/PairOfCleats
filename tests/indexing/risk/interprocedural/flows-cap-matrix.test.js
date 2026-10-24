@@ -33,6 +33,7 @@ const cases = [
     run: () => runFlowCapScenario({ caps: { maxTotalFlows: 0 } }),
     verify: (result) => {
       assert.equal(result.status, 'partial');
+      assert.equal(result.stats.reason, 'maxTotalFlows', 'unsearched source roots cannot advertise complete analysis');
       assert.equal(result.flowRows.length, 0, 'maxTotalFlows=0 should emit zero flows');
       assert.ok(
         Array.isArray(result.stats?.capsHit) && result.stats.capsHit.includes('maxTotalFlows'),

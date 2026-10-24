@@ -558,7 +558,8 @@ export const computeInterproceduralRisk = ({
 
   if (maxTotalFlows === 0) {
     capsHit.add('maxTotalFlows');
-    stats.status = 'ok';
+    stats.status = roots.length > 0 || stats.inputCoverage.status !== 'complete' ? 'partial' : 'ok';
+    if (stats.status === 'partial') stats.reason = roots.length > 0 ? 'maxTotalFlows' : 'upstream-input-incomplete';
     stats.counts.flowsEmitted = 0;
     stats.counts.partialFlowsEmitted = 0;
     stats.counts.risksWithFlows = 0;
