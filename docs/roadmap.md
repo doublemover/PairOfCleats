@@ -20,8 +20,11 @@ The next service batch repairs changing-lock contention and nested diagnostic
 redaction, with source-bound format, release-owner and lazy-posting fixtures.
 The [459-case re-check receipt](archived/windows-historical-rechecks-2026-10-24.md)
 records 32 baseline passes, 426 failures (10 timeouts) and one POSIX exclusion.
-Focused ownership/fixture repairs move 16 failures to passing: latest scoped
-counts are 48 passes, 410 failures and one exclusion. No access violation was
+Focused repairs through `adfdcc85b` move 44 failures to passing: latest scoped
+counts are 76 passes, 382 failures and one exclusion. The
+[next repair receipt](archived/windows-failure-repairs-2026-10-24.md) records
+37 passing checks, dependency audit repair, regex autofix/PHP, provider preflight,
+Windows delegation, MCP, VSIX and directory fallback fixes. No access violation was
 recorded; these observations are not a final-tree deep-suite pass.
 The earlier CDB-attributed
 Node-API finalizer lifetime repair retains its fail-before, ten-process and
@@ -63,7 +66,7 @@ transactional TUI installation, document/wire/lease/method LSP lifetimes, and
 original SQLite/profile/native-read failure propagation. The refreshed GitHub
 snapshot still has 1,151 open reports. These implementations and their authored
 regressions remain unqualified; category cleanup/parent drain and the broader
-intake remain unfinished. LSP identity is 46/rq11; offline runtime parser is 4.
+intake remain unfinished. LSP identity is 47/rq11; offline runtime parser is 4.
 
 ### Execution order
 
@@ -142,7 +145,7 @@ consumers. Complete source-checked semantic tokens and iterative symbols preserv
 source authority. Accessor calls distinguish reads/writes/deletion; computed keys
 retain evaluation/conversion order and creation-context captures. Current versions:
 moduleExports3/recordsProducer7/sourceChunking22/importResolution15/pieceAssembly3/typeNormalization11/compilerBindings23/
-lspBindings46/rq11/cfgFlow28/callFlow48/valueSlice10/boundaryFlow12/workerFlow11. VSCode and Sublime retain
+lspBindings47/rq11/cfgFlow28/callFlow48/valueSlice10/boundaryFlow12/workerFlow11. VSCode and Sublime retain
 original opened-file/URI/request identity through deferred native selection.
 Proto/SemanticDB/ShellCheck report adapters are3 and SCIP importer is5; the other
 five report adapters remain2.

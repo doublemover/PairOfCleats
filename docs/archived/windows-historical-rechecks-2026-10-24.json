@@ -5667,5 +5667,583 @@
         "total": 1
       }
     }
-  }
+  },
+  "repairWaves": [
+    {
+      "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+      "sourceTree": "594e8338c88ae385a2a32484c85bfcbb2336742f",
+      "recordedAt": "2026-10-24T06:38:55.547Z",
+      "scope": "Next focused Windows repair batch; original baseline and followUp checkpoints remain unchanged.",
+      "policy": {
+        "jobs": 1,
+        "indexingThreads": 1,
+        "timeoutMs": 30000,
+        "retries": 0,
+        "nativeStatusRedo": false
+      },
+      "summary": {
+        "durationMs": 142976,
+        "failed": 0,
+        "passed": 37,
+        "skipped": 0,
+        "total": 37
+      },
+      "newlyPassingHistoricalFailures": [
+        "services/mcp/sdk-cancel-progress",
+        "services/mcp/sdk-search-context-workflow",
+        "shared/fs/atomic-replace-contract-matrix",
+        "shared/io/directory-replacement-resource-lifetime",
+        "shared/json-stream/compression-pool-transfer",
+        "shared/json-stream/output-failure-finalizers",
+        "shared/locks/file-lock-publication-lifetime",
+        "shared/locks/file-lock-publication-observation",
+        "shared/storage/configuration-observation-error-lifetime",
+        "shared/storage/delegated-native-owner-lifetime",
+        "shared/storage/migration-directory-exclusion-lifetime",
+        "shared/storage/migration-transfer-exclusion-lifetime",
+        "shared/storage/transfer-descriptor-close-lifetime",
+        "tooling/doctor/runtime-requirements-provider-matrix",
+        "tooling/lsp/configured-provider-runtime-requirement-preflight-degraded",
+        "tooling/lsp/dart-provider-command-fallback",
+        "tooling/lsp/dart-provider-package-config-missing-preflight",
+        "tooling/lsp/dedicated-provider-bootstrap-matrix",
+        "tooling/lsp/dedicated-provider-preflight-blocking",
+        "tooling/lsp/dedicated-providers-multifile-session-reuse-elixir-ls",
+        "tooling/lsp/dedicated-providers-multifile-session-reuse-phpactor",
+        "tooling/lsp/elixir-provider-mix-lock-missing-preflight",
+        "tooling/lsp/haskell-provider-ambiguous-cradle-preflight",
+        "tooling/lsp/phpactor-provider-composer-lock-missing-preflight",
+        "tooling/lsp/phpactor-retained-signatures-and-context",
+        "tooling/vscode/package-archive-metadata",
+        "tooling/vscode/package-contract-matrix",
+        "tooling/vscode/vsix-container-contract"
+      ],
+      "selectedLatest": {
+        "passed": 76,
+        "failed": 382,
+        "skipped": 1,
+        "remainingTimeouts": 10
+      },
+      "localEvidence": {
+        "root": ".tmp/tasks/windows-failure-repairs-20261024",
+        "historical": true,
+        "availableInCleanCheckout": false
+      },
+      "setup": {
+        "command": "npm run bootstrap:ci",
+        "exitCode": 0,
+        "node": "v26.12.1",
+        "abi": 147,
+        "platform": "win32",
+        "arch": "x64",
+        "optionalAbsent": [
+          "sharp"
+        ],
+        "patches": {
+          "packages": 8,
+          "targetFiles": 26,
+          "hunks": 61
+        },
+        "unexpectedWarningDiagnostics": 0,
+        "bootstrapLogSha256": "c3040ce9014d0da742246b1b688322c9fbefcfd1b8303bb60dae00f1b0e06c3a",
+        "lockfileSha256": "f0e510a4d22802873b02dbb9d5cac1505db8efa137c1a5a605c871819cd94850",
+        "audit": {
+          "command": "npm audit --json",
+          "exitCode": 0,
+          "vulnerabilities": {
+            "info": 0,
+            "low": 0,
+            "moderate": 0,
+            "high": 0,
+            "critical": 0,
+            "total": 0
+          }
+        }
+      },
+      "failedBefore": {
+        "eslintOperatorPreservation": {
+          "sourceOwner": "eslint-rules/no-regex-double-escape.js",
+          "originalRevision": "50c62e7ea501718b0289930d90427987a29d0b91",
+          "exitCode": 1,
+          "logSha256": "a311a83894dbea4ec7969b5489bd5a65d7866106f4aed4caae7725250d5b4adb"
+        }
+      },
+      "observations": [
+        {
+          "id": "ci/dependency-security-contract",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 323,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "ci/eslint-rule-compatibility",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 296,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "map/remote-source-disclosure-authority",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 635,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "map/source-panel-request-ownership",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 605,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "map/stack-viewer",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 730,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "map/workspace/dom-interaction",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 7991,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "services/mcp/schema-version",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 247,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "services/mcp/sdk-cancel-progress",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 10480,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "services/mcp/sdk-search-context-workflow",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 18004,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "services/mcp/tools-registry",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 3231,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "shared/fs/atomic-replace-contract-matrix",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 10904,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "shared/io/directory-replacement-resource-lifetime",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 8205,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "shared/json-stream/compression-pool-transfer",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 147,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "shared/json-stream/output-failure-finalizers",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 170,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "shared/locks/file-lock-publication-lifetime",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 167,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "shared/locks/file-lock-publication-observation",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 158,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "shared/storage/configuration-observation-error-lifetime",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 236,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "shared/storage/delegated-native-owner-lifetime",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 1976,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "shared/storage/migration-directory-exclusion-lifetime",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 802,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "shared/storage/migration-transfer-exclusion-lifetime",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 861,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "shared/storage/transfer-descriptor-close-lifetime",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 283,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "tooling/doctor/runtime-requirements-provider-matrix",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 2025,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "tooling/lsp/configured-provider-runtime-requirement-preflight-degraded",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 5093,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "tooling/lsp/dart-provider-command-fallback",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 797,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "tooling/lsp/dart-provider-package-config-missing-preflight",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 5029,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "tooling/lsp/dedicated-provider-bootstrap-matrix",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 22687,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "tooling/lsp/dedicated-provider-denied-command-preflight",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 660,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "tooling/lsp/dedicated-provider-preflight-blocking",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 4943,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "tooling/lsp/dedicated-providers-multifile-session-reuse-elixir-ls",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 8613,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "tooling/lsp/dedicated-providers-multifile-session-reuse-phpactor",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 6013,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "tooling/lsp/elixir-provider-mix-lock-missing-preflight",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 6142,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "tooling/lsp/haskell-provider-ambiguous-cradle-preflight",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 3392,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "tooling/lsp/phpactor-provider-composer-lock-missing-preflight",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 5384,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "tooling/lsp/phpactor-retained-signatures-and-context",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 1752,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "tooling/vscode/package-archive-metadata",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 1567,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "tooling/vscode/package-contract-matrix",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 1410,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        },
+        {
+          "id": "tooling/vscode/vsix-container-contract",
+          "status": "passed",
+          "attempts": 1,
+          "exitCode": 0,
+          "durationMs": 976,
+          "timedOut": false,
+          "sourceHead": "adfdcc85b790dab767915b47c775f6a4efeb539d",
+          "report": "final-focused.json"
+        }
+      ],
+      "frontGate": {
+        "status": "passed",
+        "attempts": [
+          {
+            "durationMs": 42367,
+            "name": "format",
+            "exitCode": 0
+          },
+          {
+            "durationMs": 2303,
+            "name": "config-budget",
+            "exitCode": 0
+          },
+          {
+            "durationMs": 1433,
+            "name": "env-check",
+            "exitCode": 0
+          },
+          {
+            "durationMs": 9603,
+            "name": "generated-freshness",
+            "exitCode": 1
+          },
+          {
+            "name": "generated-freshness",
+            "exitCode": 0,
+            "durationMs": 9968
+          },
+          {
+            "name": "command-surface",
+            "exitCode": 0,
+            "durationMs": 3106
+          },
+          {
+            "name": "workflow-contract",
+            "exitCode": 0,
+            "durationMs": 270
+          },
+          {
+            "name": "gate",
+            "exitCode": 0,
+            "durationMs": 7171
+          },
+          {
+            "name": "diff-check",
+            "exitCode": 0,
+            "durationMs": 86
+          }
+        ],
+        "checks": [
+          {
+            "durationMs": 42367,
+            "name": "format",
+            "exitCode": 0
+          },
+          {
+            "durationMs": 2303,
+            "name": "config-budget",
+            "exitCode": 0
+          },
+          {
+            "durationMs": 1433,
+            "name": "env-check",
+            "exitCode": 0
+          },
+          {
+            "name": "generated-freshness",
+            "exitCode": 0,
+            "durationMs": 9968
+          },
+          {
+            "name": "command-surface",
+            "exitCode": 0,
+            "durationMs": 3106
+          },
+          {
+            "name": "workflow-contract",
+            "exitCode": 0,
+            "durationMs": 270
+          },
+          {
+            "name": "gate",
+            "exitCode": 0,
+            "durationMs": 7171
+          },
+          {
+            "name": "diff-check",
+            "exitCode": 0,
+            "durationMs": 86
+          }
+        ],
+        "gateCases": {
+          "durationMs": 4611,
+          "failed": 0,
+          "passed": 40,
+          "skipped": 0,
+          "total": 40
+        },
+        "markdownLinksExitCode": 0,
+        "repairedFailure": "Generated freshness found the old MCP version in docs/specs/tooling-and-api-contract.md; corrected to 1.10.1 and reran freshness.",
+        "candidateNote": "37 focused cases use adfdcc85b. Front gate uses that executable source plus the linked documentation/status receipt edits; publication adds documentation only."
+      },
+      "nativeAccessViolations": 0,
+      "unexpectedWarningDiagnostics": 0
+    }
+  ]
 }

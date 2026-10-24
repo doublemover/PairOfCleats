@@ -95,9 +95,13 @@ was removed only from the check subprocess environment, without changing user
 or machine configuration. The JSON inventory records the focused observations
 and gate separately from the frozen baseline.
 
-Within the selected historical inventory, latest scoped observations are **48
+Within the selected historical inventory, observations at that checkpoint are **48
 passing, 410 failing and one platform exclusion**. This is not a second frozen
-459-case pass. All ten baseline timeout IDs remain unresolved:
+459-case pass. The [next repair wave](windows-failure-repairs-2026-10-24.md)
+adds 28 repaired historical failures and records 37 passing focused cases at
+`adfdcc85b`: latest scoped counts become **76 passing, 382 failing and one
+platform exclusion**. Its source/validation observations are a separate wave in
+the JSON inventory. All ten baseline timeout IDs remain unresolved:
 
 - `shared/storage/probe-write-admission-preserves-unknown`;
 - `retrieval/filters/semantic-filter-contract-matrix`;
