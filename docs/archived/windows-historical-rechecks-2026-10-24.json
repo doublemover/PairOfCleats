@@ -5645,6 +5645,27 @@
       },
       "markdownLinksExitCode": 0
     },
-    "failedBeforeReceipt": "onnx-active-tensors-before.json"
+    "failedBeforeReceipt": "onnx-active-tensors-before.json",
+    "workflowRepair": {
+      "sourceHead": "d0a834b7f2f404a63e289d5b1f419a098b4a09a8",
+      "failedRun": "https://github.com/doublemover/PairOfCleats/actions/runs/40063882201",
+      "failedRunHead": "c18c766b58489901a1a20268fe2cfe822cfee798",
+      "failedRunJobs": 0,
+      "cause": "Six job-level .NET/NuGet environment values used runner.temp where runner context is unavailable.",
+      "fix": "Use supported github.workspace paths under .tmp/ci/; preserve runner context in permitted step environments.",
+      "regression": {
+        "beforeExitCode": 1,
+        "afterExitCode": 0,
+        "fixture": "ci/workflow-contract",
+        "localBeforeReceipt": "workflow-context-before.log"
+      },
+      "nativePolicy": {
+        "durationMs": 360,
+        "failed": 0,
+        "passed": 1,
+        "skipped": 0,
+        "total": 1
+      }
+    }
   }
 }

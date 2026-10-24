@@ -121,3 +121,21 @@ an import-count failure, not measured latency evidence. Native terminal lifetime
 useful latency qualification, Linux/macOS, optional sqlite-vec, real-model and
 release acceptance retain separate owners. No complete deep-suite, issue-closure
 or backlog-completion claim is made.
+
+## Hosted workflow follow-up
+
+The [first published CI run](https://github.com/doublemover/PairOfCleats/actions/runs/40063882201)
+at documentation head `c18c766b5` failed before creating any jobs. The same
+pre-existing failure appears on earlier branch pushes. GitHub's annotation
+identifies six job-level .NET/NuGet environment values using `runner.temp`;
+[the context rules](https://docs.github.com/en/actions/reference/workflows-and-actions/contexts#context-availability)
+permit runner context in step environments but not job environments.
+
+`d0a834b7f` uses supported `github.workspace` paths under ignored `.tmp/ci/` for
+those six values, retaining per-job isolation. A workflow guard now rejects
+runner context in job env across every workflow, with dot/bracket negative
+controls and permitted workspace, quoted-string and step-env positives. It fails
+on the old CI file and passes on the repaired one. Formatting, the workflow
+contract, the real CPU install-policy case and whitespace pass. Runtime source
+and the 459-case observations above are unchanged; hosted CI execution remains
+a separate observation from these local checks.
