@@ -52,8 +52,9 @@ if (process.platform === 'win32') {
   const quote = value => `'${value.replace(/'/g, `'\\''`)}'`;
   await fs.writeFile(command, `#!/bin/sh\nexec ${quote(process.execPath)} ${quote(program)} "$@"\n`, { mode: 0o755 });
 }
+const qualificationWorkspace = path.join(dir, 'diagnostics', '.lsp-qualification', providerId);
 const env = applyTestEnv({ syncProcess: false, cacheRoot: path.join(dir, 'cache'), extraEnv: {
-  PAIROFCLEATS_TRUSTED_REPOS: JSON.stringify(selected === 'untrusted-command' ? [] : [dir])
+  PAIROFCLEATS_TRUSTED_REPOS: JSON.stringify(selected === 'untrusted-command' ? [] : [dir, qualificationWorkspace])
 } });
 await withTemporaryEnv(env, async () => {
   try {
@@ -80,6 +81,7 @@ await withTemporaryEnv(env, async () => {
         await assert.rejects(fs.access(marker), { code: 'ENOENT' }, 'non-testing qualification cannot execute fixture commands');
         return;
       } else if (['success', 'phpactor-info'].includes(selected)) {
+        assert.equal(result.receipt.workspace, qualificationWorkspace, 'the simulated protocol uses only its explicitly granted fixture workspace');
         assert.equal(result.process.exitCode, 0);
         assert.equal(result.process.stderr, '');
         assert.equal(result.receipt.evidence, 'explicit-simulated-command');
