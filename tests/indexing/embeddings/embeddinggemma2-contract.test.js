@@ -70,17 +70,28 @@ for (const changed of [{ ...profile, dimensions: 256 }, { ...profile, dtype: 'fp
 assert.equal('modelProfile' in buildEmbeddingIdentity({ modelId: 'legacy-model' }), false);
 
 const calls = { loads: [], tokens: [], generic: 0 };
+class Tensor {
+  constructor(type, data, dims) { Object.assign(this, { type, data, dims }); }
+  dispose() {}
+}
 const fakeModule = {
   env: { version: '4.3.1' },
+  Tensor,
   EmbeddingGemma2Model: class {},
   AutoConfig: { from_pretrained: async () => ({ model_type: 'embedding_gemma2', vision_config: {}, audio_config: {} }) },
   AutoTokenizer: { from_pretrained: async () => async (texts, options) => {
     calls.tokens.push({ texts, options });
-    return { count: texts.length };
+    if (options.return_tensor === false) return {
+      input_ids: texts.map(() => [1, 2]), attention_mask: texts.map(() => [1, 1])
+    };
+    return {
+      input_ids: new Tensor('int64', new BigInt64Array(texts.length * 2).fill(1n), [texts.length, 2]),
+      attention_mask: new Tensor('int64', new BigInt64Array(texts.length * 2).fill(1n), [texts.length, 2])
+    };
   } },
   AutoModel: { from_pretrained: async (id, options) => {
     calls.loads.push({ id, options });
-    return async ({ count }) => tensor(count);
+    return async ({ input_ids }) => tensor(input_ids.dims[0]);
   } },
   pipeline: async (task, id, options) => {
     calls.generic += 1;
@@ -161,7 +172,7 @@ __setTransformersModuleLoaderForTests(async () => ({
   AutoModel: { from_pretrained: async () => {
     attempts += 1;
     if (attempts === 1) throw new Error('temporary model initialization failure');
-    return async ({ count }) => tensor(count);
+    return async ({ input_ids }) => tensor(input_ids.dims[0]);
   } }
 }));
 try {

@@ -52,10 +52,13 @@ try {
   assert.equal(ready.effectiveSessionOptions, null);
   const cached = createEmbedder(options);
   assert.equal(cached.executionInfo().loaded, false, 'unknown artifact provenance cannot reuse a loaded adapter across attempts');
-  assert.notEqual(cached.executionInfo().modelArtifact.attempt, ready.modelArtifact.attempt);
+  assert.equal(cached.executionInfo().modelArtifact, null, 'a lazy wrapper has not acquired artifact authority');
   assert.equal(cached.executionInfo().observedDims, null, 'a fresh attempt has no fresh vector evidence');
   assert.equal(cached.executionInfo().inferenceSucceeded, false);
   assert.equal(loads, 1);
+  await cached.getChunkEmbedding('beta');
+  assert.equal(loads, 2, 'unknown artifact provenance requires a fresh actual load');
+  assert.notEqual(cached.executionInfo().modelArtifact.attempt, ready.modelArtifact.attempt);
   await Promise.all([embedder.dispose(), cached.dispose()]);
 } finally {
   __setTransformersModuleLoaderForTests(null);

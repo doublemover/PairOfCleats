@@ -51,8 +51,8 @@ try {
   const second = getEmbeddingAdapter(options);
   leases.push(second);
   assert.notEqual(second, adapter, 'each caller owns an independent lease over the cached adapter');
-  await adapter.dispose();
   await second.embedOne('third');
+  await adapter.dispose();
   assert.equal(pipelineCalls.length, 1, 'the cached pipeline must be reused');
   assert.equal(disposals, 0, 'disposing a lease retains the pipeline owned by another caller');
   await second.dispose();

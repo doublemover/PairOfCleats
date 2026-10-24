@@ -111,9 +111,10 @@ try {
       return timer;
     };
     idle = getEmbeddingAdapter({ ...options, retainInCache: true });
+    await idle.embed(['idle']);
+    await idle.dispose();
   } finally { globalThis.setTimeout = originalSetTimeout; }
-  await idle.embed(['idle']);
-  await idle.dispose();
+  assert.ok(retentionTimer, 'the actual deferred acquisition establishes the idle retention timer');
   assert.equal(retentionTimer.hasRef(), false);
   expire();
   await tick();

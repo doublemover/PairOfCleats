@@ -49,7 +49,7 @@ const collisions = createIncrementalChunkMappingIndex(new Map([
 for (const chunk of [identical('c.js'), { id: 0 }, { chunkId: 'duplicate' }]) {
   const result = resolveBundleChunkVectorIndex({ chunk, normalizedFile: 'c.js',
     fileMapping: null, mappingIndex: collisions, fallbackState: { cursor: 0 }, vectorCount: 2 });
-  assert.deepEqual(result, { vectorIndex: null, reason: 'missingParent' },
+  assert.deepEqual(result, { vectorIndex: null, reason: chunk.chunkId === 'duplicate' ? 'boundaryMismatch' : 'missingParent' },
     'an unknown file cannot inherit a structural/numeric/ambiguous stable match');
 }
 const stable = createIncrementalChunkMappingIndex(new Map([
