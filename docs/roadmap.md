@@ -18,7 +18,8 @@ Focused repairs through `f6c7812a4` move 73 failures to passing: latest scoped
 counts are 105 passes, 353 failures and one exclusion (nine timeouts remain).
 The [360-item implementation queue](archived/windows-360-failure-repair-attempts-2026-10-24.json)
 tracks all 360 initial attempts: 308 unvalidated repairs, 25 unresolved causes,
-20 existing owner repairs and seven earlier tested repairs. Bounded re-checks are next.
+20 existing owner repairs and seven earlier tested repairs. The [360-case re-check](archived/windows-360-recheck-2026-10-24.json)
+passed 260; 100 failed (seven timeouts), with no skips or access violations. Shared-cause repairs continue.
 The
 [next repair receipt](archived/windows-failure-repairs-2026-10-24.md) records
 37 passing checks plus 15 cache/setup, 12 import/lease, 19 runtime and eight coverage/probe checks; heap

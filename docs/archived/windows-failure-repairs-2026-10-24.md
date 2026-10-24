@@ -645,3 +645,48 @@ need substantive reconciliation with current inventory; and superseded map
 navigation inspects original error getters while retaining prerequisites.
 Original negative/authority/content assertions are preserved. Formatting and
 diff checks pass; native verification and explicit batch validation follow.
+
+The complete initial-attempt re-check froze source `1aa6e757e743dcb113b360783d004649bf019ff9`
+and executed all 360 exact discovered IDs in explicit cohorts: 260 passed,
+100 failed including seven timeouts, zero skips, zero access violations.
+No fixture was omitted. Native lifecycle/performance cohorts ran serially;
+other correctness cohorts used at most two jobs. Every fixture had a 30-second
+deadline, zero retries, native-status redo disabled and one indexing-thread
+environment hint. Fixture configuration can override that hint; no claim of
+a globally capped native worker pool is made. Raw logs under author-workspace
+`.tmp/tasks/windows-failure-repairs-20261024/candidate-1aa6e757e743dcb113b360783d004649bf019ff9`
+are historical and unavailable in clean checkouts. The committed JSON receipt
+retains exact selection, source, outcomes, durations and local evidence paths.
+
+Native/patch verification exited 0 without warnings/errors before execution.
+The complete front gate passed, including 40/40 gate fixtures. Its initial
+command-surface attempt exposed a missing launch-selected trusted-config file;
+validation children omitted that stale setting without granting replacement
+trust or changing machine configuration. The corrected command-surface check
+and workflow contract passed. Remote branch and PR head were verified at
+`1aa6e757e`; GitHub returned an empty check rollup, not a hosted CI pass.
+
+The next source wave addresses demonstrated owners before focused re-checks:
+Windows mkdir return casing must compare paths with Windows semantics; missing
+cache diagnostics must select paths without allocating reader leases, while
+existing data retains cleanup exclusion. Empty symbol occurrence/edge families
+now publish explicit zero rows through their normal writers (pieceAssembly 4).
+Watcher generations enter an independent scheduler owner. Logical dense JSONL
+rows use the same manifest's index-state identity/codec and strict count/width
+checks before LMDB opens; null dense rows retain their validity-mask meaning.
+Grouped batching is bounded by the actual optimized ungrouped alternative.
+A timed-out command probe cannot retry alternate help/version forms; ordinary
+nonzero exits retain their alternatives. Parent structured logging preserves
+complete child diagnostics. Existing map preview flags reach the tool through
+strict dispatch; nightly canonical replacements have one execution owner.
+
+Fixture repairs retain exact source/query assertions: canonical GC repository
+IDs retain the unowned-data negative; map HTML checks decode its actual SVG;
+report precedence uses the producer's actual outFile; request runners close
+their borrowed store; VS Code invokes the user-selected installation while
+keeping the nested repository target. Error negatives assert typed outcomes
+and exact missing paths. Symbol determinism builds its code mode twice, and
+the cross-mode UID fixture stops after stage2; all original content comparisons
+remain. These checks do not require extra unrelated prose/records, ANN or
+SQLite work to establish their respective assertions. New repairs remain
+unvalidated until the next focused cohort.
