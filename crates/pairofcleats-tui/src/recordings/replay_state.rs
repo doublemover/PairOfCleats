@@ -1,7 +1,9 @@
+use super::super::{
+    inspection, AlertEntry, AppModel, BenchSummary, ChunkAssembly, IndexingSummary, LogEntry,
+    RuntimeTelemetry, ServiceSummary, SessionState, TaskState, WorkloadKind,
+};
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::mem::size_of;
-use super::super::{AppModel, AlertEntry, BenchSummary, ChunkAssembly, IndexingSummary,
-    LogEntry, RuntimeTelemetry, ServiceSummary, SessionState, TaskState, WorkloadKind, inspection};
 
 /// Only reducer-derived state belongs to a checkpoint. Input, view filters,
 /// selection, transport handles, request outboxes and live authority stay outside.
@@ -63,7 +65,15 @@ impl ReplayState {
         model.task_order = self.task_order.clone();
         model.logs = self.logs.clone();
         model.log_layout_cache.borrow_mut().clear();
-        model.next_log_id = model.next_log_id.max(model.logs.iter().map(|entry| entry.id).max().unwrap_or(0).saturating_add(1));
+        model.next_log_id = model.next_log_id.max(
+            model
+                .logs
+                .iter()
+                .map(|entry| entry.id)
+                .max()
+                .unwrap_or(0)
+                .saturating_add(1),
+        );
         model.alerts = self.alerts.clone();
         model.session = self.session.clone();
         model.workload_kind = self.workload_kind;
@@ -74,7 +84,9 @@ impl ReplayState {
         model.chunk_assembly_bytes = self.chunk_assembly_bytes;
         model.telemetry = self.telemetry.clone();
         model.recorded_ms = self.recorded_ms;
-        model.job_inspection.restore_replay_history(&self.inspection);
+        model
+            .job_inspection
+            .restore_replay_history(&self.inspection);
         model.content_changed();
         model.last_render_signature.clear();
     }
@@ -83,43 +95,111 @@ impl ReplayState {
     // immutable inspection records are charged in full for every checkpoint.
     // Container reserves include per-node/table overhead as well as payloads.
     pub(super) fn retained_bytes(model: &AppModel) -> usize {
-        let strings = |values: &[&String]| values.iter().map(|value| value.capacity()).sum::<usize>();
-        let string_queue = |values: &VecDeque<String>| values.capacity() * size_of::<String>()
-            + values.iter().map(String::capacity).sum::<usize>();
-        let string_map = |values: &BTreeMap<String, String>| values.len() * (size_of::<(String, String)>() + 128)
-            + values.iter().map(|(key, value)| key.capacity() + value.capacity()).sum::<usize>();
-        size_of::<Self>() + model.run_id.capacity()
-            + string_map(&model.job_status) + string_map(&model.job_titles)
-            + string_queue(&model.job_order) + string_queue(&model.task_order)
+        let strings =
+            |values: &[&String]| values.iter().map(|value| value.capacity()).sum::<usize>();
+        let string_queue = |values: &VecDeque<String>| {
+            values.capacity() * size_of::<String>()
+                + values.iter().map(String::capacity).sum::<usize>()
+        };
+        let string_map = |values: &BTreeMap<String, String>| {
+            values.len() * (size_of::<(String, String)>() + 128)
+                + values
+                    .iter()
+                    .map(|(key, value)| key.capacity() + value.capacity())
+                    .sum::<usize>()
+        };
+        size_of::<Self>()
+            + model.run_id.capacity()
+            + string_map(&model.job_status)
+            + string_map(&model.job_titles)
+            + string_queue(&model.job_order)
+            + string_queue(&model.task_order)
             + model.task_status.len() * (size_of::<(String, TaskState)>() + 128)
-            + model.task_status.iter().map(|(key, value)| key.capacity() + value.status.capacity()
-                + value.message.as_ref().map_or(0, String::capacity)
-                + value.unit.as_ref().map_or(0, String::capacity) + value.stage.as_ref().map_or(0, String::capacity)
-                + value.state.as_ref().map_or(0, String::capacity) + value.phase.as_ref().map_or(0, String::capacity)).sum::<usize>()
+            + model
+                .task_status
+                .iter()
+                .map(|(key, value)| {
+                    key.capacity()
+                        + value.status.capacity()
+                        + value.message.as_ref().map_or(0, String::capacity)
+                        + value.unit.as_ref().map_or(0, String::capacity)
+                        + value.stage.as_ref().map_or(0, String::capacity)
+                        + value.state.as_ref().map_or(0, String::capacity)
+                        + value.phase.as_ref().map_or(0, String::capacity)
+                })
+                .sum::<usize>()
             + model.task_identity.len() * (size_of::<(String, (String, String))>() + 128)
-            + model.task_identity.iter().map(|(key, (job, task))| key.capacity() + job.capacity() + task.capacity()).sum::<usize>()
+            + model
+                .task_identity
+                .iter()
+                .map(|(key, (job, task))| key.capacity() + job.capacity() + task.capacity())
+                .sum::<usize>()
             + model.logs.capacity() * size_of::<LogEntry>()
-            + model.logs.iter().map(|entry| strings(&[&entry.text, &entry.level, &entry.source])
-                + entry.job_id.as_ref().map_or(0, String::capacity)).sum::<usize>()
+            + model
+                .logs
+                .iter()
+                .map(|entry| {
+                    strings(&[&entry.text, &entry.level, &entry.source])
+                        + entry.job_id.as_ref().map_or(0, String::capacity)
+                })
+                .sum::<usize>()
             + model.alerts.capacity() * size_of::<AlertEntry>()
-            + model.alerts.iter().map(|entry| strings(&[&entry.level, &entry.message])).sum::<usize>()
-            + strings(&[&model.session.mode, &model.session.source, &model.session.scope,
-                &model.session.connection, &model.session.note,
-                &model.bench_summary.lane, &model.bench_summary.tier, &model.bench_summary.active_repo,
-                &model.bench_summary.artifact_stall, &model.bench_summary.timeout_state,
-                &model.indexing_summary.repo, &model.indexing_summary.stage, &model.indexing_summary.mode,
-                &model.indexing_summary.artifact_write_progress, &model.indexing_summary.sqlite_state,
-                &model.indexing_summary.validation_state, &model.indexing_summary.promotion_state,
-                &model.service_summary.service, &model.service_summary.quarantine_state,
-                &model.service_summary.shutdown_state])
+            + model
+                .alerts
+                .iter()
+                .map(|entry| strings(&[&entry.level, &entry.message]))
+                .sum::<usize>()
+            + strings(&[
+                &model.session.mode,
+                &model.session.source,
+                &model.session.scope,
+                &model.session.connection,
+                &model.session.note,
+                &model.bench_summary.lane,
+                &model.bench_summary.tier,
+                &model.bench_summary.active_repo,
+                &model.bench_summary.artifact_stall,
+                &model.bench_summary.timeout_state,
+                &model.indexing_summary.repo,
+                &model.indexing_summary.stage,
+                &model.indexing_summary.mode,
+                &model.indexing_summary.artifact_write_progress,
+                &model.indexing_summary.sqlite_state,
+                &model.indexing_summary.validation_state,
+                &model.indexing_summary.promotion_state,
+                &model.service_summary.service,
+                &model.service_summary.quarantine_state,
+                &model.service_summary.shutdown_state,
+            ])
             + model.bench_summary.degraded_providers.capacity() * size_of::<String>()
-            + model.bench_summary.degraded_providers.iter().map(String::capacity).sum::<usize>()
+            + model
+                .bench_summary
+                .degraded_providers
+                .iter()
+                .map(String::capacity)
+                .sum::<usize>()
             + model.bench_summary.quality_signals.capacity() * size_of::<String>()
-            + model.bench_summary.quality_signals.iter().map(String::capacity).sum::<usize>()
+            + model
+                .bench_summary
+                .quality_signals
+                .iter()
+                .map(String::capacity)
+                .sum::<usize>()
             + model.chunk_assemblies.capacity() * (size_of::<(String, ChunkAssembly)>() + 128)
-            + model.chunk_assemblies.iter().map(|(key, assembly)| key.capacity()
-                + assembly.parts.capacity() * size_of::<Option<String>>()
-                + assembly.parts.iter().flatten().map(String::capacity).sum::<usize>()).sum::<usize>()
+            + model
+                .chunk_assemblies
+                .iter()
+                .map(|(key, assembly)| {
+                    key.capacity()
+                        + assembly.parts.capacity() * size_of::<Option<String>>()
+                        + assembly
+                            .parts
+                            .iter()
+                            .flatten()
+                            .map(String::capacity)
+                            .sum::<usize>()
+                })
+                .sum::<usize>()
             + model.job_inspection.replay_history().retained_bytes()
     }
 }

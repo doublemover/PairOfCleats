@@ -1,6 +1,6 @@
-use std::cell::RefCell;
 use crossterm::event::{KeyCode, KeyEvent};
 use serde_json::{json, Value};
+use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 
@@ -340,24 +340,57 @@ impl ReplayHistory {
     pub(crate) fn retained_bytes(&self) -> usize {
         self.order.capacity() * std::mem::size_of::<String>()
             + self.order.iter().map(String::capacity).sum::<usize>()
-            + self.records.iter().map(|(key, record)| {
-                key.capacity() + std::mem::size_of::<Record>() + 128
-                    + [&record.title, &record.status, &record.cwd, &record.started,
-                       &record.signal, &record.termination, &record.cancel_reason,
-                       &record.error_code, &record.error_message, &record.capture_kind,
-                       &record.result_state, &record.result_capture, &record.result_notice,
-                       &record.artifact_notice, &record.artifact_source,
-                       &record.artifact_observed, &record.inventory_id]
-                       .iter().map(|value| value.capacity()).sum::<usize>()
-                    + record.result_body.as_ref().map_or(0, String::capacity)
-                    + record.artifacts.capacity() * std::mem::size_of::<Artifact>()
-                    + record.artifacts.iter().map(|item| {
-                        [&item.id, &item.label, &item.kind, &item.path, &item.modified]
-                            .iter().map(|value| value.capacity()).sum::<usize>()
-                            + item.actions.capacity() * std::mem::size_of::<String>()
-                            + item.actions.iter().map(String::capacity).sum::<usize>()
-                    }).sum::<usize>()
-            }).sum::<usize>()
+            + self
+                .records
+                .iter()
+                .map(|(key, record)| {
+                    key.capacity()
+                        + std::mem::size_of::<Record>()
+                        + 128
+                        + [
+                            &record.title,
+                            &record.status,
+                            &record.cwd,
+                            &record.started,
+                            &record.signal,
+                            &record.termination,
+                            &record.cancel_reason,
+                            &record.error_code,
+                            &record.error_message,
+                            &record.capture_kind,
+                            &record.result_state,
+                            &record.result_capture,
+                            &record.result_notice,
+                            &record.artifact_notice,
+                            &record.artifact_source,
+                            &record.artifact_observed,
+                            &record.inventory_id,
+                        ]
+                        .iter()
+                        .map(|value| value.capacity())
+                        .sum::<usize>()
+                        + record.result_body.as_ref().map_or(0, String::capacity)
+                        + record.artifacts.capacity() * std::mem::size_of::<Artifact>()
+                        + record
+                            .artifacts
+                            .iter()
+                            .map(|item| {
+                                [
+                                    &item.id,
+                                    &item.label,
+                                    &item.kind,
+                                    &item.path,
+                                    &item.modified,
+                                ]
+                                .iter()
+                                .map(|value| value.capacity())
+                                .sum::<usize>()
+                                    + item.actions.capacity() * std::mem::size_of::<String>()
+                                    + item.actions.iter().map(String::capacity).sum::<usize>()
+                            })
+                            .sum::<usize>()
+                })
+                .sum::<usize>()
     }
 }
 
@@ -375,19 +408,32 @@ struct ResultLineIndex {
 impl ResultLineIndex {
     fn refresh(&mut self, record: &Record) {
         let identity = (record.generation, record.result_revision);
-        if self.identity == Some(identity) { return; }
-        self.rows.clear(); self.more = false; self.identity = Some(identity);
+        if self.identity == Some(identity) {
+            return;
+        }
+        self.rows.clear();
+        self.more = false;
+        self.identity = Some(identity);
         if let Some(body) = &record.result_body {
             for line in body.lines().take(MAX_VIEW_LINES) {
                 let start = line.as_ptr() as usize - body.as_ptr() as usize;
                 self.rows.push([start as u32, (start + line.len()) as u32]);
             }
             self.more = self.rows.len() >= MAX_VIEW_LINES;
-            if self.more { self.rows.truncate(MAX_VIEW_LINES - 1); }
+            if self.more {
+                self.rows.truncate(MAX_VIEW_LINES - 1);
+            }
         }
-        #[cfg(test)] { self.builds += 1; }
+        #[cfg(test)]
+        {
+            self.builds += 1;
+        }
     }
-    fn clear(&mut self) { self.identity = None; self.rows = Vec::new(); self.more = false; }
+    fn clear(&mut self) {
+        self.identity = None;
+        self.rows = Vec::new();
+        self.more = false;
+    }
 }
 
 pub struct InspectionUi {
@@ -440,8 +486,11 @@ impl Default for InspectionUi {
 
 impl InspectionUi {
     pub(crate) fn replay_history(&self) -> ReplayHistory {
-        ReplayHistory { records: self.records.clone(), order: self.order.clone(),
-            next_generation: self.next_generation }
+        ReplayHistory {
+            records: self.records.clone(),
+            order: self.order.clone(),
+            next_generation: self.next_generation,
+        }
     }
 
     pub(crate) fn restore_replay_history(&mut self, history: &ReplayHistory) {
@@ -737,19 +786,35 @@ impl InspectionUi {
     }
 
     pub fn click(&mut self, row: usize) {
-        if self.page != Page::Artifacts || self.pending.is_some() || self.prompt.is_some()
-            || self.rendered_revision.get() != Some(self.revision) { return; }
-        let selected = self.rendered_clicks.borrow().iter().find(|(line, _, _, _)| *line == row)
+        if self.page != Page::Artifacts
+            || self.pending.is_some()
+            || self.prompt.is_some()
+            || self.rendered_revision.get() != Some(self.revision)
+        {
+            return;
+        }
+        let selected = self
+            .rendered_clicks
+            .borrow()
+            .iter()
+            .find(|(line, _, _, _)| *line == row)
             .map(|(_, index, id, path)| (*index, id.clone(), path.clone()));
         if let Some((index, id, path)) = selected {
-            let matching = self.current_record().and_then(|record| record.artifacts.get(index))
+            let matching = self
+                .current_record()
+                .and_then(|record| record.artifacts.get(index))
                 .is_some_and(|artifact| artifact.id == id && artifact.path == path);
-            if matching { self.selected_artifact = index; self.revision += 1; }
+            if matching {
+                self.selected_artifact = index;
+                self.revision += 1;
+            }
         }
     }
 
     pub fn lines(&self, width: usize, height: usize) -> Vec<String> {
-        let mut clicks = self.rendered_clicks.borrow_mut(); clicks.clear(); self.rendered_revision.set(Some(self.revision));
+        let mut clicks = self.rendered_clicks.borrow_mut();
+        clicks.clear();
+        self.rendered_revision.set(Some(self.revision));
         let fit = |output: Vec<String>| {
             output
                 .into_iter()
@@ -789,21 +854,36 @@ impl InspectionUi {
             let start = self.scroll.min(total.saturating_sub(available));
             for ordinal in start..total.min(start.saturating_add(available)) {
                 let line = if ordinal == 0 {
-                    format!("Capture: {} | {}", record.result_state, record.result_notice)
+                    format!(
+                        "Capture: {} | {}",
+                        record.result_state, record.result_notice
+                    )
                 } else if let Some([start, end]) = index.rows.get(ordinal - 1) {
-                    let line = &record.result_body.as_deref().unwrap_or_default()[*start as usize..*end as usize];
-                    ratatui::text::Span::raw(line).styled_graphemes(ratatui::style::Style::default())
-                        .skip(self.column).map(|grapheme| grapheme.symbol).collect::<String>()
+                    let line = &record.result_body.as_deref().unwrap_or_default()
+                        [*start as usize..*end as usize];
+                    ratatui::text::Span::raw(line)
+                        .styled_graphemes(ratatui::style::Style::default())
+                        .skip(self.column)
+                        .map(|grapheme| grapheme.symbol)
+                        .collect::<String>()
                 } else {
                     "Native line limit reached; payload capture state is unchanged".into()
                 };
                 // Header/notice use the same horizontal pan as body rows.
                 let line = if ordinal == 0 || ordinal > index.rows.len() {
-                    ratatui::text::Span::raw(&line).styled_graphemes(ratatui::style::Style::default())
-                        .skip(self.column).map(|grapheme| grapheme.symbol).collect::<String>()
-                } else { line };
+                    ratatui::text::Span::raw(&line)
+                        .styled_graphemes(ratatui::style::Style::default())
+                        .skip(self.column)
+                        .map(|grapheme| grapheme.symbol)
+                        .collect::<String>()
+                } else {
+                    line
+                };
                 output.push(line);
-                #[cfg(test)] { index.owned_lines += 1; }
+                #[cfg(test)]
+                {
+                    index.owned_lines += 1;
+                }
             }
             output.push("Arrows/j/k select | Left/Right pan | o Open | y Copy path | e Export file | actions reverify current disk identity".into());
             return fit(output);
@@ -819,8 +899,15 @@ impl InspectionUi {
                 for (index, artifact) in record.artifacts.iter().enumerate().skip(start).take(count)
                 {
                     for part in 0..3 {
-                        if lines.len() + part < available.saturating_sub(1) && output.len() + lines.len() + part < height {
-                            clicks.push((output.len() + lines.len() + part, index, artifact.id.clone(), artifact.path.clone()));
+                        if lines.len() + part < available.saturating_sub(1)
+                            && output.len() + lines.len() + part < height
+                        {
+                            clicks.push((
+                                output.len() + lines.len() + part,
+                                index,
+                                artifact.id.clone(),
+                                artifact.path.clone(),
+                            ));
                         }
                     }
                     lines.push(format!(
@@ -929,21 +1016,37 @@ mod tests {
 
     #[test]
     fn rendered_artifact_clicks_pin_recorded_identity_without_authorizing_a_side_effect() {
-        let mut ui = InspectionUi::default(); actionable(&mut ui);
+        let mut ui = InspectionUi::default();
+        actionable(&mut ui);
         ui.record(&json!({"event":"job:artifacts","jobId":"selected","artifactsIndexed":true,
             "inventoryId":"11111111-1111-1111-1111-111111111111","artifacts":[
             {"path":"/selected/first","artifactId":"22222222-2222-2222-2222-222222222222","snapshotVerified":true,"actions":["open"]},
             {"path":"/selected/second","artifactId":"33333333-3333-3333-3333-333333333333","snapshotVerified":true,"actions":["open"]}]}));
         let rows = ui.lines(80, 24);
-        let row = rows.iter().position(|line| line.contains("/selected/second")).unwrap();
-        ui.click(row); assert_eq!(ui.selected_artifact, 1);
-        assert!(ui.outbox.is_empty() && ui.prompt.is_none(), "passive artifact selection never grants disk authority");
-        ui.available = true; ui.key(KeyCode::Char('o').into());
-        ui.lines(80, 24); ui.click(4);
-        assert_eq!(ui.selected_artifact, 1, "a confirmation cannot be retargeted by clicking another row");
+        let row = rows
+            .iter()
+            .position(|line| line.contains("/selected/second"))
+            .unwrap();
+        ui.click(row);
+        assert_eq!(ui.selected_artifact, 1);
+        assert!(
+            ui.outbox.is_empty() && ui.prompt.is_none(),
+            "passive artifact selection never grants disk authority"
+        );
+        ui.available = true;
+        ui.key(KeyCode::Char('o').into());
+        ui.lines(80, 24);
+        ui.click(4);
+        assert_eq!(
+            ui.selected_artifact, 1,
+            "a confirmation cannot be retargeted by clicking another row"
+        );
         assert!(ui.outbox.is_empty());
         ui.key(KeyCode::Enter.into());
-        assert_eq!(ui.outbox.back().unwrap()["params"]["artifactId"], "33333333-3333-3333-3333-333333333333");
+        assert_eq!(
+            ui.outbox.back().unwrap()["params"]["artifactId"],
+            "33333333-3333-3333-3333-333333333333"
+        );
     }
 
     #[test]
@@ -1210,29 +1313,41 @@ mod tests {
     fn result_view_indexes_borrowed_lines_and_owns_only_the_visible_window() {
         let mut ui = InspectionUi::default();
         ui.record(&json!({"event":"job:start","jobId":"many","requested":{"resultPolicy":{"captureStdout":"text"}}}));
-        let body = (0..8000).map(|index| format!("row-{index:04} payload\n")).collect::<String>();
+        let body = (0..8000)
+            .map(|index| format!("row-{index:04} payload\n"))
+            .collect::<String>();
         ui.record(&json!({"event":"job:end","jobId":"many","status":"done","resultState":"complete","result":body.as_str()}));
-        ui.open("many"); ui.page = Page::Result;
+        ui.open("many");
+        ui.page = Page::Result;
         assert!(ui.lines(80, 24).join("\n").contains("row-0000"));
         assert_eq!(ui.result_lines.borrow().owned_lines, 20);
         let builds = ui.result_lines.borrow().builds;
         for offset in 1..20 {
-            ui.scroll = offset; ui.column = 0; ui.result_lines.borrow_mut().owned_lines = 0;
+            ui.scroll = offset;
+            ui.column = 0;
+            ui.result_lines.borrow_mut().owned_lines = 0;
             ui.lines(80, 24);
             assert_eq!(ui.result_lines.borrow().owned_lines, 20);
             assert_eq!(ui.result_lines.borrow().builds, builds);
         }
-        assert_eq!(ui.current_record().unwrap().result_body.as_deref(), Some(body.as_str()));
-        let bigger = (0..9000).map(|index| format!("fresh-{index:04}\n")).collect::<String>();
+        assert_eq!(
+            ui.current_record().unwrap().result_body.as_deref(),
+            Some(body.as_str())
+        );
+        let bigger = (0..9000)
+            .map(|index| format!("fresh-{index:04}\n"))
+            .collect::<String>();
         ui.record(&json!({"event":"job:end","jobId":"many","status":"done","resultState":"complete","result":bigger}));
-        ui.scroll = MAX_VIEW_LINES; ui.column = 0;
+        ui.scroll = MAX_VIEW_LINES;
+        ui.column = 0;
         let tail = ui.lines(80, 24).join("\n");
-        assert!(tail.contains("Native line limit reached")); assert!(tail.contains("fresh-8190"));
+        assert!(tail.contains("Native line limit reached"));
+        assert!(tail.contains("fresh-8190"));
         assert_eq!(ui.result_lines.borrow().builds, builds + 1);
         ui.record(&json!({"event":"job:start","jobId":"many","requested":{"resultPolicy":{"captureStdout":"text"}}}));
         assert!(ui.lines(80, 24).join("\n").contains("superseded"));
-        ui.open("many"); ui.page = Page::Result;
+        ui.open("many");
+        ui.page = Page::Result;
         assert!(!ui.lines(80, 24).join("\n").contains("fresh-8190"));
     }
-
 }

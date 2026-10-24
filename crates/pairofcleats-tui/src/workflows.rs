@@ -1,13 +1,17 @@
-use std::cell::RefCell;
 use crate::review_presentation::ReviewPresentation;
+use std::cell::RefCell;
 use std::collections::VecDeque;
 
+use crate::overlay_viewport::{selected_rows, selected_window, ReviewViewport};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use serde_json::{json, Map, Value};
-use crate::overlay_viewport::{ReviewViewport, selected_rows, selected_window};
 
 #[derive(Clone)]
-enum ClickTarget { Command(String), Field(String), Service(String) }
+enum ClickTarget {
+    Command(String),
+    Field(String),
+    Service(String),
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Page {
@@ -138,14 +142,23 @@ impl WorkflowUi {
     }
 
     fn selected_service(&self) -> Option<&Value> {
-        self.services.iter().find(|service| service["serviceId"].as_str() == self.service_selection.as_deref())
+        self.services
+            .iter()
+            .find(|service| service["serviceId"].as_str() == self.service_selection.as_deref())
     }
 
     fn open_services(&mut self) {
-        if self.scope.is_none() { return; }
-        if !matches!(self.page, Page::Services | Page::ServiceReview) { self.services_return = self.page; }
-        self.page = Page::Services; self.service_armed = None;
-        if let Some(scope) = &self.scope { self.request("services", json!({"scopeId":scope["id"]})); }
+        if self.scope.is_none() {
+            return;
+        }
+        if !matches!(self.page, Page::Services | Page::ServiceReview) {
+            self.services_return = self.page;
+        }
+        self.page = Page::Services;
+        self.service_armed = None;
+        if let Some(scope) = &self.scope {
+            self.request("services", json!({"scopeId":scope["id"]}));
+        }
     }
 
     pub fn key(&mut self, key: KeyEvent) -> bool {
@@ -175,12 +188,19 @@ impl WorkflowUi {
             }
             return false;
         }
-        if matches!(self.page, Page::Edit | Page::Scope) && matches!(key.code, KeyCode::Char(_) | KeyCode::Backspace) {
+        if matches!(self.page, Page::Edit | Page::Scope)
+            && matches!(key.code, KeyCode::Char(_) | KeyCode::Backspace)
+        {
             self.scroll.tail();
         }
-        let editing = match self.page { Page::Scope => Some(&mut self.target),
-            Page::Edit => Some(&mut self.draft), _ => None };
-        if editing.is_some_and(|text| self.cursor.key(text, key, 4096)) { return false; }
+        let editing = match self.page {
+            Page::Scope => Some(&mut self.target),
+            Page::Edit => Some(&mut self.draft),
+            _ => None,
+        };
+        if editing.is_some_and(|text| self.cursor.key(text, key, 4096)) {
+            return false;
+        }
         match self.page {
             Page::Scope => match key.code {
                 KeyCode::Down => self.scroll.down(),
@@ -335,42 +355,92 @@ impl WorkflowUi {
     fn edited_value(&self) -> Result<Value, serde_json::Error> {
         let field = self.fields().get(self.selected).unwrap_or(&Value::Null);
         if self.array_item {
-            let mut values = field["name"].as_str().and_then(|name| self.values.get(name)).or_else(|| field.get("default"))
-                .and_then(Value::as_array).cloned().unwrap_or_default();
-            if values.len() >= 32 { return serde_json::from_str("array editor limit exceeded"); }
-            values.push(json!(self.draft)); Ok(json!(values))
-        } else { crate::text_editor::input_value(&self.draft, &field["schema"], self.advanced) }
+            let mut values = field["name"]
+                .as_str()
+                .and_then(|name| self.values.get(name))
+                .or_else(|| field.get("default"))
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
+            if values.len() >= 32 {
+                return serde_json::from_str("array editor limit exceeded");
+            }
+            values.push(json!(self.draft));
+            Ok(json!(values))
+        } else {
+            crate::text_editor::input_value(&self.draft, &field["schema"], self.advanced)
+        }
     }
 
     fn continuation_params(&self) -> Option<Value> {
         let result = self.result.as_ref()?;
-        let continuation = if result["nativeContinuation"].is_object() { &result["nativeContinuation"] }
-            else { &result["result"]["nativeContinuation"] };
+        let continuation = if result["nativeContinuation"].is_object() {
+            &result["nativeContinuation"]
+        } else {
+            &result["result"]["nativeContinuation"]
+        };
         let scope = self.scope.as_ref()?;
-        if continuation["scopeId"] != scope["id"] || !continuation["id"].is_string() { return None; }
+        if continuation["scopeId"] != scope["id"] || !continuation["id"].is_string() {
+            return None;
+        }
         Some(json!({"scopeId":scope["id"], "continuationId":continuation["id"]}))
     }
 
     pub fn paste(&mut self, text: &str) {
-        if !self.available || self.pending.is_some() { return; }
-        let field = match self.page { Page::Scope => Some(&mut self.target),
-            Page::Edit => Some(&mut self.draft), _ => None };
-        if let Some(field) = field { self.cursor.paste(field, text, 4096); self.revision += 1; }
+        if !self.available || self.pending.is_some() {
+            return;
+        }
+        let field = match self.page {
+            Page::Scope => Some(&mut self.target),
+            Page::Edit => Some(&mut self.draft),
+            _ => None,
+        };
+        if let Some(field) = field {
+            self.cursor.paste(field, text, 4096);
+            self.revision += 1;
+        }
     }
 
     pub fn click(&mut self, row: usize) {
-        if !self.available || self.pending.is_some() || self.rendered_revision.get() != Some(self.revision) { return; }
-        let target = self.rendered_clicks.borrow().iter().find(|(line, _)| *line == row).map(|(_, target)| target.clone());
+        if !self.available
+            || self.pending.is_some()
+            || self.rendered_revision.get() != Some(self.revision)
+        {
+            return;
+        }
+        let target = self
+            .rendered_clicks
+            .borrow()
+            .iter()
+            .find(|(line, _)| *line == row)
+            .map(|(_, target)| target.clone());
         match target {
             Some(ClickTarget::Command(id)) if self.page == Page::Commands => {
-                if let Some(index) = self.commands().iter().position(|command| command["id"].as_str() == Some(id.as_str())) { self.selected = index; }
+                if let Some(index) = self
+                    .commands()
+                    .iter()
+                    .position(|command| command["id"].as_str() == Some(id.as_str()))
+                {
+                    self.selected = index;
+                }
             }
             Some(ClickTarget::Field(name)) if self.page == Page::Fields => {
-                if let Some(index) = self.fields().iter().position(|field| field["name"].as_str() == Some(name.as_str())) { self.selected = index; }
+                if let Some(index) = self
+                    .fields()
+                    .iter()
+                    .position(|field| field["name"].as_str() == Some(name.as_str()))
+                {
+                    self.selected = index;
+                }
             }
             Some(ClickTarget::Service(id)) if self.page == Page::Services => {
-                if self.services.iter().any(|service| service["serviceId"].as_str() == Some(id.as_str())) {
-                    self.service_selection = Some(id); self.service_armed = None;
+                if self
+                    .services
+                    .iter()
+                    .any(|service| service["serviceId"].as_str() == Some(id.as_str()))
+                {
+                    self.service_selection = Some(id);
+                    self.service_armed = None;
                 }
             }
             _ => return,
@@ -379,14 +449,18 @@ impl WorkflowUi {
     }
 
     fn completed(&mut self, event: &Value) {
-        self.presentation.get_mut().clear(); self.result = Some(
+        self.presentation.get_mut().clear();
+        self.result = Some(
             json!({"jobId":event["jobId"], "processStatus":event["status"],
                 "resultState":event["resultState"], "error":event["error"], "publicationEvidence":event["workflow"], "result":event["result"]}),
         );
         self.status = if event["workflow"]["maintenance"]["pending"] == true {
             "Backend ownership unresolved; cache admission remains fenced. Status reads do not inspect cache artifacts.".into()
         } else if event["error"]["code"] == "ERR_TUI_RESOURCE_PENDING"
-            || event["workflow"]["graphRetirements"].as_array().is_some_and(|owners| !owners.is_empty()) {
+            || event["workflow"]["graphRetirements"]
+                .as_array()
+                .is_some_and(|owners| !owners.is_empty())
+        {
             "Original resource ownership unresolved; cache admission remains fenced until its exact cleanup settles.".into()
         } else if event["workflow"]["graphOnly"] == true {
             "Retained graph command ended; inspect its exact graph receipt. Normal search readiness was not requested.".into()
@@ -401,9 +475,11 @@ impl WorkflowUi {
         if event["event"] == "job:end" {
             for service in &mut self.services {
                 if service["jobId"].as_str().is_some() && service["jobId"] == event["jobId"] {
-                    service["canStop"] = json!(false); service["phase"] = event["status"].clone();
+                    service["canStop"] = json!(false);
+                    service["phase"] = event["status"].clone();
                     if service["serviceId"].as_str() == self.service_armed.as_deref() {
-                        self.service_armed = None; self.page = Page::Services;
+                        self.service_armed = None;
+                        self.page = Page::Services;
                     }
                 }
             }
@@ -455,9 +531,12 @@ impl WorkflowUi {
                     .unwrap_or("ERR_TUI_WORKFLOW_RESPONSE")
             );
             if matches!(method.as_str(), "services" | "stop-service") {
-                self.page = Page::Services; self.service_armed = None; return true;
+                self.page = Page::Services;
+                self.service_armed = None;
+                return true;
             }
-            self.presentation.get_mut().clear(); self.preview = None;
+            self.presentation.get_mut().clear();
+            self.preview = None;
             self.early_completion = None;
             self.page = if self.scope.is_some() {
                 Page::Commands
@@ -470,14 +549,19 @@ impl WorkflowUi {
         let data = &event["result"]["data"];
         match method.as_str() {
             "select" => {
-                self.services.clear(); self.service_selection = None; self.service_armed = None;
-                self.service_outcome = None; self.service_resources.clear();
-                self.presentation.get_mut().clear(); self.scope = Some(data.clone());
+                self.services.clear();
+                self.service_selection = None;
+                self.service_armed = None;
+                self.service_outcome = None;
+                self.service_resources.clear();
+                self.presentation.get_mut().clear();
+                self.scope = Some(data.clone());
                 self.owned_job = None;
                 self.early_completion = None;
                 self.command = None;
                 self.values.clear();
-                self.presentation.get_mut().clear(); self.preview = None;
+                self.presentation.get_mut().clear();
+                self.preview = None;
                 self.selected = 0;
                 self.request("describe", json!({}));
             }
@@ -487,7 +571,8 @@ impl WorkflowUi {
                 self.status = "Canonical command catalog loaded; no work started. Unsupported rows explain the missing adapter.".into();
             }
             "preview" => {
-                self.presentation.get_mut().clear(); self.preview = Some(data.clone());
+                self.presentation.get_mut().clear();
+                self.preview = Some(data.clone());
                 self.page = Page::Preview;
                 self.scroll.reset();
                 self.status = if data["launchable"] == true {
@@ -505,14 +590,17 @@ impl WorkflowUi {
                     self.status =
                         "Launch identity mismatch; no control granted. Inspect actual jobs.".into();
                     self.owned_job = None;
-                    self.presentation.get_mut().clear(); self.preview = None;
+                    self.presentation.get_mut().clear();
+                    self.preview = None;
                     self.early_completion = None;
                     self.page = Page::Commands;
                     return true;
                 }
                 self.owned_job = data["jobId"].as_str().map(str::to_owned);
-                self.presentation.get_mut().clear(); self.result = Some(data.clone());
-                self.presentation.get_mut().clear(); self.preview = None;
+                self.presentation.get_mut().clear();
+                self.result = Some(data.clone());
+                self.presentation.get_mut().clear();
+                self.preview = None;
                 self.page = Page::Result;
                 self.scroll.reset();
                 self.status = "Owned job admitted; c cancels. Process completion alone does not establish readiness.".into();
@@ -523,47 +611,84 @@ impl WorkflowUi {
                 }
             }
             "status" => {
-                self.presentation.get_mut().clear(); self.result = Some(data.clone());
+                self.presentation.get_mut().clear();
+                self.result = Some(data.clone());
                 self.page = Page::Result;
                 self.scroll.reset();
                 self.status = if data["maintenance"]["blocked"] == true {
-                    "Backend maintenance fences cache admission; no publication artifacts were read".into()
-                } else if data["graphRetirements"].as_array().is_some_and(|owners| !owners.is_empty()) {
-                    "Original graph cleanup remains pending; no publication artifacts were read".into()
+                    "Backend maintenance fences cache admission; no publication artifacts were read"
+                        .into()
+                } else if data["graphRetirements"]
+                    .as_array()
+                    .is_some_and(|owners| !owners.is_empty())
+                {
+                    "Original graph cleanup remains pending; no publication artifacts were read"
+                        .into()
                 } else {
                     "Published generation observation; independent of process success".into()
                 };
             }
             "services" => {
                 let initial = self.services.is_empty() && self.service_selection.is_none();
-                self.services = data["ownedServices"].as_array().map(|services| services.iter()
-                    .filter(|service| service["serviceId"].is_string() && service["jobId"].is_string())
-                    .take(6).cloned().collect()).unwrap_or_default();
-                if !self.services.iter().any(|service| service["serviceId"].as_str() == self.service_selection.as_deref()) {
-                    self.service_selection = if initial { self.services.first().and_then(|service| service["serviceId"].as_str()).map(str::to_owned) } else { None };
+                self.services = data["ownedServices"]
+                    .as_array()
+                    .map(|services| {
+                        services
+                            .iter()
+                            .filter(|service| {
+                                service["serviceId"].is_string() && service["jobId"].is_string()
+                            })
+                            .take(6)
+                            .cloned()
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                if !self.services.iter().any(|service| {
+                    service["serviceId"].as_str() == self.service_selection.as_deref()
+                }) {
+                    self.service_selection = if initial {
+                        self.services
+                            .first()
+                            .and_then(|service| service["serviceId"].as_str())
+                            .map(str::to_owned)
+                    } else {
+                        None
+                    };
                 }
-                self.service_armed = None; self.page = Page::Services;
-                self.service_resources = data["resources"].as_array().map(|resources| resources.iter().take(6).cloned().collect()).unwrap_or_default();
+                self.service_armed = None;
+                self.page = Page::Services;
+                self.service_resources = data["resources"]
+                    .as_array()
+                    .map(|resources| resources.iter().take(6).cloned().collect())
+                    .unwrap_or_default();
                 self.status = "Current-session services only; health and index readiness are separate observations".into();
             }
             "stop-service" => {
                 self.service_outcome = Some(data.clone());
-                self.service_armed = None; self.page = Page::Services;
+                self.service_armed = None;
+                self.page = Page::Services;
                 self.status = if data["settled"] == true {
                     "Exact owned service execution and resource closure settled; t refreshes services".into()
-                } else { "Stop requested; resource closure remains pending. No closure or readiness is claimed".into() };
+                } else {
+                    "Stop requested; resource closure remains pending. No closure or readiness is claimed".into()
+                };
                 self.open_services();
             }
             "next" => {
-                self.result = Some(data.clone()); self.page = Page::Result; self.scroll.reset();
+                self.result = Some(data.clone());
+                self.page = Page::Result;
+                self.scroll.reset();
                 self.status = "Canonical semantic page received; n continues in the same owned process, Esc disposes".into();
             }
             "close-continuation" => {
-                self.result = None; self.page = Page::Commands; self.selected = 0;
+                self.result = None;
+                self.page = Page::Commands;
+                self.selected = 0;
                 self.status = "Semantic continuation disposed; no cursor persisted".into();
             }
             "discard" => {
-                self.presentation.get_mut().clear(); self.preview = None;
+                self.presentation.get_mut().clear();
+                self.preview = None;
                 self.page = Page::Fields;
                 self.status = "Launch preview discarded; no job started".into();
             }
@@ -573,7 +698,9 @@ impl WorkflowUi {
     }
 
     pub fn lines(&self, height: usize, width: usize) -> Vec<String> {
-        let mut clicks = self.rendered_clicks.borrow_mut(); clicks.clear(); self.rendered_revision.set(Some(self.revision));
+        let mut clicks = self.rendered_clicks.borrow_mut();
+        clicks.clear();
+        self.rendered_revision.set(Some(self.revision));
         let mut lines = vec![
             format!(
                 "Scope: {}",
@@ -587,81 +714,238 @@ impl WorkflowUi {
         if !self.available {
             lines
                 .push("Index workflows unavailable in replay/passive/disconnected sessions".into());
-            return lines.into_iter().take(height).map(|line| crate::fit_text(&line, width)).collect();
+            return lines
+                .into_iter()
+                .take(height)
+                .map(|line| crate::fit_text(&line, width))
+                .collect();
         }
         match self.page {
             Page::Scope => {
-                lines.push(format!("Workflow scope: {} | Tab kind | Enter selects | Esc closes | arrows review", if self.workspace {"workspace file"} else {"repository directory"}));
-                return self.scroll.lines(lines, &self.cursor.visible(&self.target, width), height, width);
+                lines.push(format!(
+                    "Workflow scope: {} | Tab kind | Enter selects | Esc closes | arrows review",
+                    if self.workspace {
+                        "workspace file"
+                    } else {
+                        "repository directory"
+                    }
+                ));
+                return self.scroll.lines(
+                    lines,
+                    &self.cursor.visible(&self.target, width),
+                    height,
+                    width,
+                );
             }
             Page::Commands => {
                 lines.push(format!("Arrows select | Enter form/reason | X experimental {} | t status | v owned services | s scope | Esc closes", self.experimental));
-                let (headers, start, count) = selected_window(lines.len(), self.commands().len(), self.selected, height);
-                for (offset, command) in self.commands().iter().skip(start).take(count).enumerate() {
-                    if let Some(id) = command["id"].as_str() { clicks.push((headers + offset, ClickTarget::Command(id.to_owned()))); }
+                let (headers, start, count) =
+                    selected_window(lines.len(), self.commands().len(), self.selected, height);
+                for (offset, command) in self.commands().iter().skip(start).take(count).enumerate()
+                {
+                    if let Some(id) = command["id"].as_str() {
+                        clicks.push((headers + offset, ClickTarget::Command(id.to_owned())));
+                    }
                 }
-                let rows = self.commands().iter().enumerate().map(|(i, command)| format!("{} {} [{}] {}", if i == self.selected {">"} else {" "}, command["id"].as_str().unwrap_or_default(), command["supportTier"].as_str().unwrap_or_default(), command["description"].as_str().unwrap_or_default())).collect();
+                let rows = self
+                    .commands()
+                    .iter()
+                    .enumerate()
+                    .map(|(i, command)| {
+                        format!(
+                            "{} {} [{}] {}",
+                            if i == self.selected { ">" } else { " " },
+                            command["id"].as_str().unwrap_or_default(),
+                            command["supportTier"].as_str().unwrap_or_default(),
+                            command["description"].as_str().unwrap_or_default()
+                        )
+                    })
+                    .collect();
                 return selected_rows(lines, rows, self.selected, height, width);
             }
             Page::Fields => {
                 lines.push(format!("Typed form: {} | Enter literal | Space choice | e JSON | a item | Delete unset | p preview | Esc catalog", self.command.as_ref().and_then(|command| command["id"].as_str()).unwrap_or_default()));
-                let count = height.saturating_sub(lines.len() + 3).max(1); let start = self.selected.saturating_sub(count / 2).min(self.fields().len().saturating_sub(count));
+                let count = height.saturating_sub(lines.len() + 3).max(1);
+                let start = self
+                    .selected
+                    .saturating_sub(count / 2)
+                    .min(self.fields().len().saturating_sub(count));
                 for (i, field) in self.fields().iter().enumerate().skip(start).take(count) {
                     let name = field["name"].as_str().unwrap_or_default();
-                    if lines.len() < height { clicks.push((lines.len(), ClickTarget::Field(name.to_owned()))); }
-                    lines.push(format!("{} {} ({}) = {}", if i == self.selected {">"} else {" "}, name, field["schema"]["type"].as_str().unwrap_or_default(), self.values.get(name).map(Value::to_string).unwrap_or_else(|| format!("unset; default {}", field["default"]))));
+                    if lines.len() < height {
+                        clicks.push((lines.len(), ClickTarget::Field(name.to_owned())));
+                    }
+                    lines.push(format!(
+                        "{} {} ({}) = {}",
+                        if i == self.selected { ">" } else { " " },
+                        name,
+                        field["schema"]["type"].as_str().unwrap_or_default(),
+                        self.values
+                            .get(name)
+                            .map(Value::to_string)
+                            .unwrap_or_else(|| format!("unset; default {}", field["default"]))
+                    ));
                 }
-                if let Some(field) = self.fields().get(self.selected) { lines.push(format!("{} | required: {}", field["description"].as_str().unwrap_or_default(), field["required"])); }
-                if let Some(field) = self.fields().get(self.selected) { lines.push(crate::text_editor::schema_hint(&field["schema"])); }
+                if let Some(field) = self.fields().get(self.selected) {
+                    lines.push(format!(
+                        "{} | required: {}",
+                        field["description"].as_str().unwrap_or_default(),
+                        field["required"]
+                    ));
+                }
+                if let Some(field) = self.fields().get(self.selected) {
+                    lines.push(crate::text_editor::schema_hint(&field["schema"]));
+                }
                 lines.push("Provider/mode and model assets use Settings and canonical build contracts; no separate embeddings command.".into());
             }
             Page::Edit => {
-                lines.push(format!("Edit {} | Ctrl+U clear | Enter applies | Esc discards | cursor/Home/End", if self.array_item { "array item" } else if self.advanced { "advanced JSON" } else { "schema literal" }));
-                if let Some(field) = self.fields().get(self.selected) { lines.push(crate::text_editor::schema_hint(&field["schema"])); }
-                let name = self.fields().get(self.selected).and_then(|field| field["name"].as_str()).unwrap_or_default();
-                return self.scroll.lines(lines, &format!("Field: {name}\n{}", self.cursor.visible(&self.draft, width)), height, width);
+                lines.push(format!(
+                    "Edit {} | Ctrl+U clear | Enter applies | Esc discards | cursor/Home/End",
+                    if self.array_item {
+                        "array item"
+                    } else if self.advanced {
+                        "advanced JSON"
+                    } else {
+                        "schema literal"
+                    }
+                ));
+                if let Some(field) = self.fields().get(self.selected) {
+                    lines.push(crate::text_editor::schema_hint(&field["schema"]));
+                }
+                let name = self
+                    .fields()
+                    .get(self.selected)
+                    .and_then(|field| field["name"].as_str())
+                    .unwrap_or_default();
+                return self.scroll.lines(
+                    lines,
+                    &format!("Field: {name}\n{}", self.cursor.visible(&self.draft, width)),
+                    height,
+                    width,
+                );
             }
             Page::Preview | Page::Result => {
                 lines.push(if self.page == Page::Preview {"Review exact scope/argv/readiness | Enter confirms | Esc discards | arrows scroll"} else {"Owned job result | n semantic next | c cancel | t status | v services | Esc disposes continuation/catalog | arrows scroll"}.into());
-                if let Some(job) = &self.owned_job { lines.push(format!("Owned job: {job}")); }
+                if let Some(job) = &self.owned_job {
+                    lines.push(format!("Owned job: {job}"));
+                }
                 if self.page == Page::Preview {
                     let empty = Value::Null;
                     let preview = self.preview.as_ref().unwrap_or(&empty);
-                    let projection: std::collections::BTreeMap<_, _> = ["canonicalArgv", "executionOwner", "backendReview", "serviceReview", "storageReview", "graphReview", "launchable", "errors", "effect", "observations"]
-                        .into_iter().map(|key| (key, &preview[key])).collect();
-                    return self.presentation.borrow_mut().lines(1, self.scope.as_ref(), &projection,
-                        &self.scroll, lines, height, width);
+                    let projection: std::collections::BTreeMap<_, _> = [
+                        "canonicalArgv",
+                        "executionOwner",
+                        "backendReview",
+                        "serviceReview",
+                        "storageReview",
+                        "graphReview",
+                        "launchable",
+                        "errors",
+                        "effect",
+                        "observations",
+                    ]
+                    .into_iter()
+                    .map(|key| (key, &preview[key]))
+                    .collect();
+                    return self.presentation.borrow_mut().lines(
+                        1,
+                        self.scope.as_ref(),
+                        &projection,
+                        &self.scroll,
+                        lines,
+                        (width, height),
+                    );
                 }
-                return self.presentation.borrow_mut().lines(2, self.scope.as_ref(), self.result.as_ref().unwrap_or(&Value::Null),
-                    &self.scroll, lines, height, width);
+                return self.presentation.borrow_mut().lines(
+                    2,
+                    self.scope.as_ref(),
+                    self.result.as_ref().unwrap_or(&Value::Null),
+                    &self.scroll,
+                    lines,
+                    (width, height),
+                );
             }
             Page::Services => {
-                lines.push("Owned services | arrows select | Enter/c review stop | t refresh | Esc back".into());
+                lines.push(
+                    "Owned services | arrows select | Enter/c review stop | t refresh | Esc back"
+                        .into(),
+                );
                 if let Some(outcome) = &self.service_outcome {
-                    lines.push(format!("Last stop: {} | {}", outcome["jobId"].as_str().unwrap_or("unknown"),
-                        if outcome["settled"] == true { "resource closure settled" } else { "closure pending; no success receipt" }));
+                    lines.push(format!(
+                        "Last stop: {} | {}",
+                        outcome["jobId"].as_str().unwrap_or("unknown"),
+                        if outcome["settled"] == true {
+                            "resource closure settled"
+                        } else {
+                            "closure pending; no success receipt"
+                        }
+                    ));
                 }
                 for resource in &self.service_resources {
                     if resource["phase"] == "closure-failed" || resource["closurePending"] == true {
-                        lines.push(format!("Retained owner {} {}: {}", resource["service"].as_str().unwrap_or("service"),
-                            resource["jobId"].as_str().unwrap_or("unknown"), resource["closeErrorCode"].as_str().unwrap_or("closure pending")));
+                        lines.push(format!(
+                            "Retained owner {} {}: {}",
+                            resource["service"].as_str().unwrap_or("service"),
+                            resource["jobId"].as_str().unwrap_or("unknown"),
+                            resource["closeErrorCode"]
+                                .as_str()
+                                .unwrap_or("closure pending")
+                        ));
                     }
                 }
-                if self.services.is_empty() { lines.push("No active service control is retained for this selected scope".into()); }
-                if self.service_selection.is_none() && !self.services.is_empty() { lines.push("Previous service disappeared; arrows choose a new exact service".into()); }
-                let selected = self.services.iter().position(|service| service["serviceId"].as_str() == self.service_selection.as_deref()).unwrap_or(0);
-                let (headers, start, count) = selected_window(lines.len(), self.services.len(), selected, height);
-                for (offset, service) in self.services.iter().skip(start).take(count).enumerate() {
-                    if let Some(id) = service["serviceId"].as_str() { clicks.push((headers + offset, ClickTarget::Service(id.to_owned()))); }
+                if self.services.is_empty() {
+                    lines.push(
+                        "No active service control is retained for this selected scope".into(),
+                    );
                 }
-                let rows = self.services.iter().map(|service| format!("{} {} | {} | {} | stop {}",
-                    if service["serviceId"].as_str() == self.service_selection.as_deref() { ">" } else { " " },
-                    service["service"].as_str().unwrap_or("service"), service["jobId"].as_str().unwrap_or("unknown"),
-                    service["phase"].as_str().unwrap_or("unverified"), if service["canStop"] == true { "available" } else { "unavailable" })).collect();
+                if self.service_selection.is_none() && !self.services.is_empty() {
+                    lines.push(
+                        "Previous service disappeared; arrows choose a new exact service".into(),
+                    );
+                }
+                let selected = self
+                    .services
+                    .iter()
+                    .position(|service| {
+                        service["serviceId"].as_str() == self.service_selection.as_deref()
+                    })
+                    .unwrap_or(0);
+                let (headers, start, count) =
+                    selected_window(lines.len(), self.services.len(), selected, height);
+                for (offset, service) in self.services.iter().skip(start).take(count).enumerate() {
+                    if let Some(id) = service["serviceId"].as_str() {
+                        clicks.push((headers + offset, ClickTarget::Service(id.to_owned())));
+                    }
+                }
+                let rows = self
+                    .services
+                    .iter()
+                    .map(|service| {
+                        format!(
+                            "{} {} | {} | {} | stop {}",
+                            if service["serviceId"].as_str() == self.service_selection.as_deref() {
+                                ">"
+                            } else {
+                                " "
+                            },
+                            service["service"].as_str().unwrap_or("service"),
+                            service["jobId"].as_str().unwrap_or("unknown"),
+                            service["phase"].as_str().unwrap_or("unverified"),
+                            if service["canStop"] == true {
+                                "available"
+                            } else {
+                                "unavailable"
+                            }
+                        )
+                    })
+                    .collect();
                 return selected_rows(lines, rows, selected, height, width);
             }
             Page::ServiceReview => {
-                lines.push("Enter stops this exact session-owned service | Esc returns | arrows review".into());
+                lines.push(
+                    "Enter stops this exact session-owned service | Esc returns | arrows review"
+                        .into(),
+                );
                 if let Some(service) = self.selected_service() {
                     let review = format!("Service: {}\nJob: {}\nControl identity: {}\nState: {}\nStop only this owned job; await actual execution and resource closure. No published-index readiness is inferred.",
                         service["service"].as_str().unwrap_or("unknown"), service["jobId"].as_str().unwrap_or("unknown"),
@@ -670,7 +954,11 @@ impl WorkflowUi {
                 }
             }
         }
-        lines.into_iter().take(height).map(|line| crate::fit_text(&line, width)).collect()
+        lines
+            .into_iter()
+            .take(height)
+            .map(|line| crate::fit_text(&line, width))
+            .collect()
     }
 }
 
@@ -679,121 +967,218 @@ mod presentation_tests {
     use super::*;
     fn end(ui: &mut WorkflowUi, data: Value) {
         let (id, method) = ui.pending.clone().unwrap();
-        assert!(ui.event(&json!({"event":"job:end","jobId":id,"status":"done",
-            "resultState":"complete","result":{"method":method,"data":data}})));
+        assert!(
+            ui.event(&json!({"event":"job:end","jobId":id,"status":"done",
+            "resultState":"complete","result":{"method":method,"data":data}}))
+        );
     }
     #[test]
     fn accepted_workflow_projection_and_results_serialize_once_per_identity() {
-        let mut ui = WorkflowUi { available: true, scope: Some(json!({"id":"scope","target":"repo"})),
-            ..WorkflowUi::default() };
+        let mut ui = WorkflowUi {
+            available: true,
+            scope: Some(json!({"id":"scope","target":"repo"})),
+            ..WorkflowUi::default()
+        };
         ui.request("preview", json!({}));
-        end(&mut ui, json!({"plannedJobId":"workflow-owned", "launchable":true,
-            "canonicalArgv":["node","FIRST-PREVIEW"],"errors":[],"observations":{"version":1}}));
-        let preview = ui.lines(24, 80).join("\n"); assert!(preview.contains("FIRST-PREVIEW"));
-        for _ in 0..20 { ui.scroll.down(); ui.revision += 1; ui.lines(24, 80); }
-        ui.lines(24, 90); assert_eq!(ui.presentation.borrow().builds, 1);
-        ui.request("launch", json!({})); end(&mut ui, json!({"jobId":"workflow-owned"}));
+        end(
+            &mut ui,
+            json!({"plannedJobId":"workflow-owned", "launchable":true,
+            "canonicalArgv":["node","FIRST-PREVIEW"],"errors":[],"observations":{"version":1}}),
+        );
+        let preview = ui.lines(24, 80).join("\n");
+        assert!(preview.contains("FIRST-PREVIEW"));
+        for _ in 0..20 {
+            ui.scroll.down();
+            ui.revision += 1;
+            ui.lines(24, 80);
+        }
+        ui.lines(24, 90);
+        assert_eq!(ui.presentation.borrow().builds, 1);
+        ui.request("launch", json!({}));
+        end(&mut ui, json!({"jobId":"workflow-owned"}));
         ui.lines(24, 80);
-        ui.completed(&json!({"jobId":"workflow-owned","status":"done","resultState":"complete",
-            "result":{"marker":"OWNED-RESULT"}}));
-        let result = ui.lines(24, 80).join("\n"); assert!(result.contains("OWNED-RESULT"));
+        ui.completed(
+            &json!({"jobId":"workflow-owned","status":"done","resultState":"complete",
+            "result":{"marker":"OWNED-RESULT"}}),
+        );
+        let result = ui.lines(24, 80).join("\n");
+        assert!(result.contains("OWNED-RESULT"));
         assert!(!result.contains("FIRST-PREVIEW"));
         let builds = ui.presentation.borrow().builds;
-        for _ in 0..20 { ui.scroll.down(); ui.lines(24, 80); }
+        for _ in 0..20 {
+            ui.scroll.down();
+            ui.lines(24, 80);
+        }
         assert_eq!(ui.presentation.borrow().builds, builds);
-        ui.request("status", json!({})); end(&mut ui, json!({"marker":"REFRESHED-STATUS"}));
+        ui.request("status", json!({}));
+        end(&mut ui, json!({"marker":"REFRESHED-STATUS"}));
         assert!(ui.lines(24, 80).join("\n").contains("REFRESHED-STATUS"));
         assert_eq!(ui.presentation.borrow().builds, builds + 1);
         assert!(ui.preview.is_none());
     }
     #[test]
     fn pending_backend_owner_is_presented_without_a_publication_read_claim() {
-        let mut ui = WorkflowUi { available: true, scope: Some(json!({"id":"scope","target":"repo"})),
-            ..WorkflowUi::default() };
+        let mut ui = WorkflowUi {
+            available: true,
+            scope: Some(json!({"id":"scope","target":"repo"})),
+            ..WorkflowUi::default()
+        };
         ui.request("status", json!({}));
-        end(&mut ui, json!({"maintenance":{"blocked":true,"pending":true},"publications":[]}));
+        end(
+            &mut ui,
+            json!({"maintenance":{"blocked":true,"pending":true},"publications":[]}),
+        );
         assert!(ui.status.contains("no publication artifacts were read"));
         ui.completed(&json!({"jobId":"workflow-backend","status":"cancelled",
             "error":{"code":"ERR_TUI_BACKEND_OWNERSHIP_PENDING"},
             "workflow":{"maintenance":{"blocked":true,"pending":true},"publications":[]}}));
         assert!(ui.status.contains("ownership unresolved"));
-        assert_eq!(ui.result.as_ref().unwrap()["publicationEvidence"]["maintenance"]["pending"], true);
+        assert_eq!(
+            ui.result.as_ref().unwrap()["publicationEvidence"]["maintenance"]["pending"],
+            true
+        );
     }
     #[test]
     fn retained_graph_review_is_visible_without_current_search_readiness() {
-        let mut ui = WorkflowUi { available: true, scope: Some(json!({"id":"scope","target":"repo"})),
-            ..WorkflowUi::default() };
+        let mut ui = WorkflowUi {
+            available: true,
+            scope: Some(json!({"id":"scope","target":"repo"})),
+            ..WorkflowUi::default()
+        };
         ui.request("preview", json!({}));
-        end(&mut ui, json!({"plannedJobId":"retained-map", "launchable":true,"canonicalArgv":null,
+        end(
+            &mut ui,
+            json!({"plannedJobId":"retained-map", "launchable":true,"canonicalArgv":null,
             "graphReview":{"canonicalPlan":{"operation":"graph","buildId":"EXACT-RETAINED-GRAPH"},
-                "effect":"Original failure preserved; publication and search readiness are not requested"}}));
+                "effect":"Original failure preserved; publication and search readiness are not requested"}}),
+        );
         let review = ui.lines(40, 160).join("\n");
         assert!(review.contains("EXACT-RETAINED-GRAPH"));
         assert!(review.contains("Original failure preserved"));
-        assert!(!ui.outbox.iter().any(|request| request["method"] == "launch"));
+        assert!(!ui
+            .outbox
+            .iter()
+            .any(|request| request["method"] == "launch"));
         ui.completed(&json!({"jobId":"retained-map","status":"done","workflow":{"graphOnly":true,"publications":[]}}));
-        assert!(ui.status.contains("Normal search readiness was not requested"));
+        assert!(ui
+            .status
+            .contains("Normal search readiness was not requested"));
         ui.request("status", json!({}));
-        end(&mut ui, json!({"graphRetirements":[{"closurePending":true}],"publications":[]}));
+        end(
+            &mut ui,
+            json!({"graphRetirements":[{"closurePending":true}],"publications":[]}),
+        );
         assert!(ui.status.contains("no publication artifacts were read"));
     }
 
     #[test]
     fn rendered_command_and_service_clicks_never_launch_or_retarget_stop_authority() {
-        let mut ui = WorkflowUi { available: true, scope: Some(json!({"id":"scope"})),
-            page: Page::Commands, commands: vec![json!({"id":"first","supportTier":"stable"}),
-                json!({"id":"second","supportTier":"stable"})], ..WorkflowUi::default() };
+        let mut ui = WorkflowUi {
+            available: true,
+            scope: Some(json!({"id":"scope"})),
+            page: Page::Commands,
+            commands: vec![
+                json!({"id":"first","supportTier":"stable"}),
+                json!({"id":"second","supportTier":"stable"}),
+            ],
+            ..WorkflowUi::default()
+        };
         let lines = ui.lines(20, 80);
-        let row = lines.iter().position(|line| line.contains("second [stable]")).unwrap();
-        ui.click(row); assert_eq!(ui.selected, 1); assert!(ui.outbox.is_empty());
-        ui.commands.reverse(); ui.revision += 1; ui.click(row);
-        assert_eq!(ui.selected, 1, "a stale click cannot reinterpret a replaced command row");
+        let row = lines
+            .iter()
+            .position(|line| line.contains("second [stable]"))
+            .unwrap();
+        ui.click(row);
+        assert_eq!(ui.selected, 1);
+        assert!(ui.outbox.is_empty());
+        ui.commands.reverse();
+        ui.revision += 1;
+        ui.click(row);
+        assert_eq!(
+            ui.selected, 1,
+            "a stale click cannot reinterpret a replaced command row"
+        );
         ui.page = Page::Services;
-        ui.services = vec![json!({"serviceId":"exact-service","jobId":"owned-job","service":"api","canStop":true})];
+        ui.services = vec![
+            json!({"serviceId":"exact-service","jobId":"owned-job","service":"api","canStop":true}),
+        ];
         ui.service_armed = Some("previous-service".into());
         let lines = ui.lines(20, 80);
-        let row = lines.iter().position(|line| line.contains("owned-job")).unwrap();
+        let row = lines
+            .iter()
+            .position(|line| line.contains("owned-job"))
+            .unwrap();
         ui.click(row);
         assert_eq!(ui.service_selection.as_deref(), Some("exact-service"));
         assert!(ui.service_armed.is_none() && ui.outbox.is_empty());
-        assert!(ui.page == Page::Services, "click does not arm or confirm service stop");
+        assert!(
+            ui.page == Page::Services,
+            "click does not arm or confirm service stop"
+        );
     }
     #[test]
     fn service_stop_reviews_exact_identity_and_preserves_pending_resource_outcome() {
-        let mut ui = WorkflowUi { available: true, scope: Some(json!({"id":"scope"})),
-            page: Page::Commands, ..WorkflowUi::default() };
+        let mut ui = WorkflowUi {
+            available: true,
+            scope: Some(json!({"id":"scope"})),
+            page: Page::Commands,
+            ..WorkflowUi::default()
+        };
         ui.key(KeyEvent::new(KeyCode::Char('v'), KeyModifiers::NONE));
-        end(&mut ui, json!({"ownedServices":[{"serviceId":"opaque-api","service":"api",
-            "jobId":"owned-api","phase":"running","canStop":true}],"resources":[]}));
+        end(
+            &mut ui,
+            json!({"ownedServices":[{"serviceId":"opaque-api","service":"api",
+            "jobId":"owned-api","phase":"running","canStop":true}],"resources":[]}),
+        );
         ui.key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
         assert!(matches!(ui.page, Page::ServiceReview));
         assert_eq!(ui.service_armed.as_deref(), Some("opaque-api"));
         ui.key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
         let request = ui.outbox.back().unwrap();
         assert_eq!(request["method"], "stop-service");
-        assert_eq!(request["params"], json!({"scopeId":"scope","serviceId":"opaque-api","confirmed":true}));
-        end(&mut ui, json!({"jobId":"owned-api","stopRequested":true,"executionSettled":true,
-            "settled":false,"pending":true,"errorCode":"ERR_TUI_SERVICE_CLOSURE_PENDING"}));
+        assert_eq!(
+            request["params"],
+            json!({"scopeId":"scope","serviceId":"opaque-api","confirmed":true})
+        );
+        end(
+            &mut ui,
+            json!({"jobId":"owned-api","stopRequested":true,"executionSettled":true,
+            "settled":false,"pending":true,"errorCode":"ERR_TUI_SERVICE_CLOSURE_PENDING"}),
+        );
         assert!(matches!(ui.page, Page::Services));
         assert!(ui.lines(20, 120).join("\n").contains("closure pending"));
         assert_eq!(ui.outbox.back().unwrap()["method"], "services");
     }
     #[test]
     fn service_refresh_and_job_end_never_retarget_an_armed_stop() {
-        let mut ui = WorkflowUi { available: true, scope: Some(json!({"id":"scope"})),
-            page: Page::Commands, ..WorkflowUi::default() };
+        let mut ui = WorkflowUi {
+            available: true,
+            scope: Some(json!({"id":"scope"})),
+            page: Page::Commands,
+            ..WorkflowUi::default()
+        };
         ui.open_services();
-        end(&mut ui, json!({"ownedServices":[{"serviceId":"old","jobId":"old-job","canStop":true}]}));
+        end(
+            &mut ui,
+            json!({"ownedServices":[{"serviceId":"old","jobId":"old-job","canStop":true}]}),
+        );
         ui.key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
         ui.event(&json!({"event":"job:end","jobId":"old-job","status":"failed"}));
         assert!(ui.service_armed.is_none());
         assert!(matches!(ui.page, Page::Services));
         ui.open_services();
-        end(&mut ui, json!({"ownedServices":[{"serviceId":"replacement","jobId":"new-job","canStop":true}]}));
+        end(
+            &mut ui,
+            json!({"ownedServices":[{"serviceId":"replacement","jobId":"new-job","canStop":true}]}),
+        );
         assert!(ui.service_selection.is_none());
         let count = ui.outbox.len();
         ui.key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
-        assert_eq!(ui.outbox.len(), count, "replacement requires its own selection and review");
+        assert_eq!(
+            ui.outbox.len(),
+            count,
+            "replacement requires its own selection and review"
+        );
         assert!(ui.pending.is_none());
     }
 }

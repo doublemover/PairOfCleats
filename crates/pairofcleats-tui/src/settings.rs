@@ -1,10 +1,10 @@
-use std::cell::RefCell;
 use crate::review_presentation::ReviewPresentation;
+use std::cell::RefCell;
 use std::collections::VecDeque;
 
+use crate::overlay_viewport::ReviewViewport;
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use serde_json::{json, Value};
-use crate::overlay_viewport::ReviewViewport;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Page {
@@ -161,22 +161,42 @@ impl SettingsUi {
             let Some(field) = self.selected_field() else {
                 return;
             };
-            let valid_binding = self.draft_binding.as_ref().map(|binding| {
-                binding["scopeId"] == info["scope"]["id"] && binding["path"] == field["path"]
-                    && binding["revision"] == info["revision"] && binding["schemaRevision"] == info["schemaRevision"]
-            }).unwrap_or(false);
+            let valid_binding = self
+                .draft_binding
+                .as_ref()
+                .map(|binding| {
+                    binding["scopeId"] == info["scope"]["id"]
+                        && binding["path"] == field["path"]
+                        && binding["revision"] == info["revision"]
+                        && binding["schemaRevision"] == info["schemaRevision"]
+                })
+                .unwrap_or(false);
             if !valid_binding {
                 self.draft_needs_reload = true;
-                self.status = "Unsaved draft has stale field authority; Ctrl-r reloads before revalidation".into();
+                self.status =
+                    "Unsaved draft has stale field authority; Ctrl-r reloads before revalidation"
+                        .into();
                 return;
             }
             let parsed = if self.array_item {
-                let mut values = if field["requestedPresent"] == true { field["requested"].as_array() }
-                    else if field["effectiveRecorded"] == true { field["effective"].as_array() }
-                    else { field["schema"]["default"].as_array() }.cloned().unwrap_or_default();
-                if values.len() >= 32 { self.status = "Array item editor is bounded to 32 items; use advanced JSON or a private editor".into(); return; }
-                values.push(json!(self.draft)); Ok(json!(values))
-            } else { crate::text_editor::input_value(&self.draft, &field["schema"], self.advanced) };
+                let mut values = if field["requestedPresent"] == true {
+                    field["requested"].as_array()
+                } else if field["effectiveRecorded"] == true {
+                    field["effective"].as_array()
+                } else {
+                    field["schema"]["default"].as_array()
+                }
+                .cloned()
+                .unwrap_or_default();
+                if values.len() >= 32 {
+                    self.status = "Array item editor is bounded to 32 items; use advanced JSON or a private editor".into();
+                    return;
+                }
+                values.push(json!(self.draft));
+                Ok(json!(values))
+            } else {
+                crate::text_editor::input_value(&self.draft, &field["schema"], self.advanced)
+            };
             let Ok(value) = parsed else {
                 self.status = "Invalid JSON value; nothing saved".into();
                 return;
@@ -189,19 +209,27 @@ impl SettingsUi {
             self.draft.clear();
             self.draft_binding = None;
         }
-        self.presentation.get_mut().clear(); self.preview = None;
+        self.presentation.get_mut().clear();
+        self.preview = None;
         self.request("preview", params);
     }
 
     fn remove_override(&mut self) {
-        let (Some(info), Some(field)) = (&self.inspection, self.selected_field()) else { return; };
+        let (Some(info), Some(field)) = (&self.inspection, self.selected_field()) else {
+            return;
+        };
         if field["editable"] != true {
-            self.status = field["readOnlyReason"].as_str().unwrap_or("Read only").into();
+            self.status = field["readOnlyReason"]
+                .as_str()
+                .unwrap_or("Read only")
+                .into();
             return;
         }
         let params = json!({"scopeId":info["scope"]["id"], "revision":info["revision"],
             "schemaRevision":info["schemaRevision"], "operation":"remove", "path":field["path"]});
-        self.draft.clear(); self.draft_binding = None; self.reset = false;
+        self.draft.clear();
+        self.draft_binding = None;
+        self.reset = false;
         self.preview = None;
         self.request("preview", params);
     }
@@ -224,8 +252,10 @@ impl SettingsUi {
             }
             return false;
         }
-        if self.page == Page::Edit && key.modifiers.contains(KeyModifiers::CONTROL)
-            && key.code == KeyCode::Char('r') {
+        if self.page == Page::Edit
+            && key.modifiers.contains(KeyModifiers::CONTROL)
+            && key.code == KeyCode::Char('r')
+        {
             self.inspect();
             return false;
         }
@@ -243,14 +273,20 @@ impl SettingsUi {
             }
             return false;
         }
-        if matches!(self.page, Page::Edit | Page::Scope) && matches!(key.code, KeyCode::Char(_) | KeyCode::Backspace) {
+        if matches!(self.page, Page::Edit | Page::Scope)
+            && matches!(key.code, KeyCode::Char(_) | KeyCode::Backspace)
+        {
             self.scroll.tail();
         }
         let editing = match self.page {
-            Page::Scope => Some(&mut self.target), Page::Edit => Some(&mut self.draft),
-            Page::Filter => Some(&mut self.query), _ => None,
+            Page::Scope => Some(&mut self.target),
+            Page::Edit => Some(&mut self.draft),
+            Page::Filter => Some(&mut self.query),
+            _ => None,
         };
-        if editing.is_some_and(|text| self.cursor.key(text, key, 4096)) { return false; }
+        if editing.is_some_and(|text| self.cursor.key(text, key, 4096)) {
+            return false;
+        }
         match self.page {
             Page::Scope => match key.code {
                 KeyCode::Down => self.scroll.down(),
@@ -279,24 +315,40 @@ impl SettingsUi {
             Page::Fields => match key.code {
                 KeyCode::Delete => self.remove_override(),
                 KeyCode::Char(' ') => {
-                    let choice = self.selected_field().and_then(|field| crate::text_editor::next_choice(&field["schema"],
-                        if field["requestedPresent"] == true { field.get("requested") } else { field.get("effective") }));
+                    let choice = self.selected_field().and_then(|field| {
+                        crate::text_editor::next_choice(
+                            &field["schema"],
+                            if field["requestedPresent"] == true {
+                                field.get("requested")
+                            } else {
+                                field.get("effective")
+                            },
+                        )
+                    });
                     if let Some(choice) = choice {
                         self.key(KeyCode::Enter.into());
                         if self.page == Page::Edit {
-                            self.draft = crate::text_editor::input_text(&choice, &self.selected_field().unwrap()["schema"], false);
+                            self.draft = crate::text_editor::input_text(
+                                &choice,
+                                &self.selected_field().unwrap()["schema"],
+                                false,
+                            );
                             self.preview(false);
                         }
-                    } else { self.status = "Space cycles enums and booleans; Enter edits a literal; e opens advanced JSON".into(); }
+                    } else {
+                        self.status = "Space cycles enums and booleans; Enter edits a literal; e opens advanced JSON".into();
+                    }
                 }
                 KeyCode::Esc => {
-                    self.draft.clear(); self.draft_binding = None;
+                    self.draft.clear();
+                    self.draft_binding = None;
                     return true;
-                },
+                }
                 KeyCode::Char('s') => {
-                    self.draft.clear(); self.draft_binding = None;
+                    self.draft.clear();
+                    self.draft_binding = None;
                     self.page = Page::Scope;
-                },
+                }
                 KeyCode::Char('r') => self.inspect(),
                 KeyCode::Char('R') => self.preview(true),
                 KeyCode::Char('p') => {
@@ -318,8 +370,12 @@ impl SettingsUi {
                         } else {
                             let advanced = key.code == KeyCode::Char('e');
                             let array_item = key.code == KeyCode::Char('a');
-                            if array_item && (field["schema"]["type"] != "array" || field["schema"]["items"]["type"] != "string") {
-                                self.status = "Item editor requires a string array; use advanced JSON for structured arrays".into(); return false;
+                            if array_item
+                                && (field["schema"]["type"] != "array"
+                                    || field["schema"]["items"]["type"] != "string")
+                            {
+                                self.status = "Item editor requires a string array; use advanced JSON for structured arrays".into();
+                                return false;
                             }
                             let value = if field["requestedPresent"].as_bool() == Some(true) {
                                 field["requested"].clone()
@@ -332,16 +388,22 @@ impl SettingsUi {
                             } else {
                                 Value::Null
                             };
-                            let draft = if array_item { String::new() } else { crate::text_editor::input_text(&value, &field["schema"], advanced) };
+                            let draft = if array_item {
+                                String::new()
+                            } else {
+                                crate::text_editor::input_text(&value, &field["schema"], advanced)
+                            };
                             if draft.len() > 4096 {
-                                self.status = "Value exceeds the bounded editor; use a private editor".into();
+                                self.status =
+                                    "Value exceeds the bounded editor; use a private editor".into();
                                 return false;
                             }
                             let binding = json!({"scopeId":self.inspection.as_ref().unwrap()["scope"]["id"],
                                 "path":field["path"], "revision":self.inspection.as_ref().unwrap()["revision"],
                                 "schemaRevision":self.inspection.as_ref().unwrap()["schemaRevision"]});
                             self.draft = draft;
-                            self.advanced = advanced; self.array_item = array_item;
+                            self.advanced = advanced;
+                            self.array_item = array_item;
                             self.cursor.reset();
                             self.draft_binding = Some(binding);
                             self.draft_needs_reload = false;
@@ -430,19 +492,39 @@ impl SettingsUi {
     }
 
     pub fn paste(&mut self, text: &str) {
-        if !self.available || self.pending.is_some() { return; }
-        let field = match self.page { Page::Scope => Some(&mut self.target),
-            Page::Edit => Some(&mut self.draft), Page::Filter => Some(&mut self.query), _ => None };
-        if let Some(field) = field { self.cursor.paste(field, text, 4096); self.revision += 1; }
+        if !self.available || self.pending.is_some() {
+            return;
+        }
+        let field = match self.page {
+            Page::Scope => Some(&mut self.target),
+            Page::Edit => Some(&mut self.draft),
+            Page::Filter => Some(&mut self.query),
+            _ => None,
+        };
+        if let Some(field) = field {
+            self.cursor.paste(field, text, 4096);
+            self.revision += 1;
+        }
     }
 
     pub fn click(&mut self, row: usize) {
-        if !self.available || self.pending.is_some() || self.rendered_revision.get() != Some(self.revision)
-            || !matches!(self.page, Page::Fields | Page::Filter) { return; }
-        let path = self.rendered_clicks.borrow().iter().find(|(line, _)| *line == row).map(|(_, path)| path.clone());
+        if !self.available
+            || self.pending.is_some()
+            || self.rendered_revision.get() != Some(self.revision)
+            || !matches!(self.page, Page::Fields | Page::Filter)
+        {
+            return;
+        }
+        let path = self
+            .rendered_clicks
+            .borrow()
+            .iter()
+            .find(|(line, _)| *line == row)
+            .map(|(_, path)| path.clone());
         if let Some(path) = path {
             if let Some(index) = self.fields().iter().position(|field| field["path"] == path) {
-                self.selected = index; self.revision += 1;
+                self.selected = index;
+                self.revision += 1;
             }
         }
     }
@@ -462,11 +544,19 @@ impl SettingsUi {
         self.pending = None;
         self.revision += 1;
         if event["status"] != "done" || event["resultState"] != "complete" {
-            self.presentation.get_mut().clear(); self.preview = None;
-            let code = event["error"]["code"].as_str().unwrap_or("ERR_TUI_OPERATION_FAILED");
-            let keep_draft = self.draft_binding.is_some() && (method == "preview" || method == "commit" || method == "inspect");
-            self.draft_needs_reload = keep_draft && (method == "commit" || method == "inspect"
-                || code.contains("STALE") || code.contains("REVISION") || code.contains("CONFLICT"));
+            self.presentation.get_mut().clear();
+            self.preview = None;
+            let code = event["error"]["code"]
+                .as_str()
+                .unwrap_or("ERR_TUI_OPERATION_FAILED");
+            let keep_draft = self.draft_binding.is_some()
+                && (method == "preview" || method == "commit" || method == "inspect");
+            self.draft_needs_reload = keep_draft
+                && (method == "commit"
+                    || method == "inspect"
+                    || code.contains("STALE")
+                    || code.contains("REVISION")
+                    || code.contains("CONFLICT"));
             self.page = if keep_draft {
                 Page::Edit
             } else if self.scope.is_some() {
@@ -485,7 +575,8 @@ impl SettingsUi {
         }
         let data = &event["result"]["data"];
         if event["result"]["method"] != method {
-            self.presentation.get_mut().clear(); self.preview = None;
+            self.presentation.get_mut().clear();
+            self.preview = None;
             if self.draft_binding.is_some() {
                 self.draft_needs_reload = true;
                 self.page = Page::Edit;
@@ -495,10 +586,13 @@ impl SettingsUi {
         }
         match method.as_str() {
             "select" => {
-                self.presentation.get_mut().clear(); self.scope = Some(data.clone());
+                self.presentation.get_mut().clear();
+                self.scope = Some(data.clone());
                 self.target = data["target"].as_str().unwrap_or_default().into();
-                self.presentation.get_mut().clear(); self.inspection = None;
-                self.presentation.get_mut().clear(); self.preview = None;
+                self.presentation.get_mut().clear();
+                self.inspection = None;
+                self.presentation.get_mut().clear();
+                self.preview = None;
                 self.draft.clear();
                 self.draft_binding = None;
                 self.draft_needs_reload = false;
@@ -509,7 +603,8 @@ impl SettingsUi {
             }
             "inspect" => {
                 if self.scope.as_ref().map(|scope| &scope["id"]) == Some(&data["scope"]["id"]) {
-                    self.presentation.get_mut().clear(); self.inspection = Some(data.clone());
+                    self.presentation.get_mut().clear();
+                    self.inspection = Some(data.clone());
                     self.selected = self.selected.min(self.fields().len().saturating_sub(1));
                     self.page = Page::Fields;
                     self.status = if data["validation"]["ok"] == true {
@@ -518,8 +613,9 @@ impl SettingsUi {
                         format!("Invalid configuration: {}", compact(&data["validation"]))
                     };
                     if let Some(binding) = self.draft_binding.as_ref() {
-                        let matching = self.fields().iter().position(|field| field["path"] == binding["path"]
-                            && field["editable"] == true);
+                        let matching = self.fields().iter().position(|field| {
+                            field["path"] == binding["path"] && field["editable"] == true
+                        });
                         if binding["scopeId"] == data["scope"]["id"] {
                             if let Some(index) = matching {
                                 self.selected = index;
@@ -539,13 +635,19 @@ impl SettingsUi {
             }
             "preview" => {
                 if data["ok"] == true {
-                    self.presentation.get_mut().clear(); self.preview = Some(data.clone());
+                    self.presentation.get_mut().clear();
+                    self.preview = Some(data.clone());
                     self.page = Page::Preview;
                     self.scroll.reset();
                     self.status = "Validated preview; no file has been changed".into();
                 } else {
-                    self.presentation.get_mut().clear(); self.preview = None;
-                    self.page = if self.draft_binding.is_some() { Page::Edit } else { Page::Fields };
+                    self.presentation.get_mut().clear();
+                    self.preview = None;
+                    self.page = if self.draft_binding.is_some() {
+                        Page::Edit
+                    } else {
+                        Page::Fields
+                    };
                     self.status = format!(
                         "Invalid value; nothing saved: {}",
                         compact(&data["validation"])
@@ -553,7 +655,8 @@ impl SettingsUi {
                 }
             }
             "commit" => {
-                self.presentation.get_mut().clear(); self.preview = None;
+                self.presentation.get_mut().clear();
+                self.preview = None;
                 self.draft.clear();
                 self.draft_binding = None;
                 self.draft_needs_reload = false;
@@ -562,7 +665,8 @@ impl SettingsUi {
                 self.inspect();
             }
             "cancel" => {
-                self.presentation.get_mut().clear(); self.preview = None;
+                self.presentation.get_mut().clear();
+                self.preview = None;
                 self.draft.clear();
                 self.draft_binding = None;
                 self.draft_needs_reload = false;
@@ -575,7 +679,9 @@ impl SettingsUi {
     }
 
     pub fn lines(&self, height: usize, width: usize) -> Vec<String> {
-        let mut clicks = self.rendered_clicks.borrow_mut(); clicks.clear(); self.rendered_revision.set(Some(self.revision));
+        let mut clicks = self.rendered_clicks.borrow_mut();
+        clicks.clear();
+        self.rendered_revision.set(Some(self.revision));
         let scope = self
             .scope
             .as_ref()
@@ -595,12 +701,15 @@ impl SettingsUi {
         ];
         if !self.available {
             lines.push("Read only: settings are unavailable in this session. Esc closes".into());
-            return lines.into_iter().take(height).map(|line| crate::fit_text(&line, width)).collect();
+            return lines
+                .into_iter()
+                .take(height)
+                .map(|line| crate::fit_text(&line, width))
+                .collect();
         }
         match self.page {
             Page::Scope => {
-                lines.push(
-                format!(
+                lines.push(format!(
                     "Select {} | Tab changes kind | Enter selects | Esc cancels",
                     if self.workspace {
                         "workspace file"
@@ -608,7 +717,12 @@ impl SettingsUi {
                         "repository directory"
                     }
                 ));
-                return self.scroll.lines(lines, &self.cursor.visible(&self.target, width), height, width);
+                return self.scroll.lines(
+                    lines,
+                    &self.cursor.visible(&self.target, width),
+                    height,
+                    width,
+                );
             }
             Page::Fields | Page::Filter => {
                 lines.push(format!("Filter: {} | arrows | Enter literal | Space choice | e JSON | a item | Delete unset | r reload | R reset | Esc close", self.query));
@@ -619,16 +733,18 @@ impl SettingsUi {
                     .saturating_sub(count / 2)
                     .min(fields.len().saturating_sub(count));
                 for (index, field) in fields.iter().enumerate().skip(start).take(count) {
-                    if lines.len() < height { clicks.push((lines.len(), field["path"].clone())); }
+                    if lines.len() < height {
+                        clicks.push((lines.len(), field["path"].clone()));
+                    }
                     lines.push(format!(
-                            "{} {}{}",
-                            if index == self.selected { ">" } else { " " },
-                            field_name(field),
-                            if field["editable"] == true {
-                                ""
-                            } else {
-                                " [read only]"
-                            }
+                        "{} {}{}",
+                        if index == self.selected { ">" } else { " " },
+                        field_name(field),
+                        if field["editable"] == true {
+                            ""
+                        } else {
+                            " [read only]"
+                        }
                     ));
                 }
                 if let Some(field) = self.selected_field() {
@@ -665,13 +781,29 @@ impl SettingsUi {
                 }
             }
             Page::Edit => {
-                lines.push(format!("Edit {} | Enter previews | Esc discards | cursor/Home/End", if self.array_item { "array string item" } else if self.advanced { "advanced JSON" } else { "schema literal" }));
+                lines.push(format!(
+                    "Edit {} | Enter previews | Esc discards | cursor/Home/End",
+                    if self.array_item {
+                        "array string item"
+                    } else if self.advanced {
+                        "advanced JSON"
+                    } else {
+                        "schema literal"
+                    }
+                ));
                 let name = self.selected_field().map(field_name).unwrap_or_default();
                 if let Some(field) = self.selected_field() {
                     lines.push(crate::text_editor::schema_hint(&field["schema"]));
-                    if let Some(description) = field["description"].as_str() { lines.push(description.into()); }
+                    if let Some(description) = field["description"].as_str() {
+                        lines.push(description.into());
+                    }
                 }
-                return self.scroll.lines(lines, &format!("Field: {name}\n{}", self.cursor.visible(&self.draft, width)), height, width);
+                return self.scroll.lines(
+                    lines,
+                    &format!("Field: {name}\n{}", self.cursor.visible(&self.draft, width)),
+                    height,
+                    width,
+                );
             }
             Page::Preview => {
                 let preview = self.preview.as_ref().unwrap_or(&Value::Null);
@@ -689,8 +821,14 @@ impl SettingsUi {
                         preview["backupPath"], preview["overwritesBackup"]
                     ));
                 }
-                return self.presentation.borrow_mut().lines(1, self.scope.as_ref(), &preview["diff"],
-                    &self.scroll, lines, height, width);
+                return self.presentation.borrow_mut().lines(
+                    1,
+                    self.scope.as_ref(),
+                    &preview["diff"],
+                    &self.scroll,
+                    lines,
+                    (width, height),
+                );
             }
             Page::Provenance => {
                 lines.push(
@@ -698,12 +836,26 @@ impl SettingsUi {
                         .into(),
                 );
                 let empty = Value::Null;
-                let effective = self.inspection.as_ref().map(|info| &info["effective"]).unwrap_or(&empty);
-                return self.presentation.borrow_mut().lines(2, self.scope.as_ref(),
-                    &crate::review_presentation::WithoutUserConfig(effective), &self.scroll, lines, height, width);
+                let effective = self
+                    .inspection
+                    .as_ref()
+                    .map(|info| &info["effective"])
+                    .unwrap_or(&empty);
+                return self.presentation.borrow_mut().lines(
+                    2,
+                    self.scope.as_ref(),
+                    &crate::review_presentation::WithoutUserConfig(effective),
+                    &self.scroll,
+                    lines,
+                    (width, height),
+                );
             }
         }
-        lines.into_iter().take(height).map(|line| crate::fit_text(&line, width)).collect()
+        lines
+            .into_iter()
+            .take(height)
+            .map(|line| crate::fit_text(&line, width))
+            .collect()
     }
 }
 
@@ -719,43 +871,72 @@ mod tests {
         assert_eq!(request["params"]["operation"], "remove");
         assert_eq!(request["params"]["path"], json!(["threads"]));
         assert!(request["params"].get("value").is_none());
-        end(&mut ui, json!({"ok":true,"scope":{"id":"scope-1"},"previewId":"remove-plan",
-            "diff":[{"before":2,"beforePresent":true,"afterPresent":false}]}));
+        end(
+            &mut ui,
+            json!({"ok":true,"scope":{"id":"scope-1"},"previewId":"remove-plan",
+            "diff":[{"before":2,"beforePresent":true,"afterPresent":false}]}),
+        );
         assert!(ui.page == Page::Preview);
-        assert!(!ui.outbox.iter().any(|request| request["method"] == "commit"));
+        assert!(!ui
+            .outbox
+            .iter()
+            .any(|request| request["method"] == "commit"));
         key(&mut ui, KeyCode::Enter);
         assert_eq!(ui.outbox.back().unwrap()["method"], "commit");
-        assert_eq!(ui.outbox.back().unwrap()["params"]["previewId"], "remove-plan");
+        assert_eq!(
+            ui.outbox.back().unwrap()["params"]["previewId"],
+            "remove-plan"
+        );
     }
 
     #[test]
     fn rendered_field_clicks_select_exact_paths_without_opening_or_confirming() {
         let mut ui = selected();
         let lines = ui.lines(22, 76);
-        let row = lines.iter().position(|line| line.contains("tooling.lsp.servers")).unwrap();
+        let row = lines
+            .iter()
+            .position(|line| line.contains("tooling.lsp.servers"))
+            .unwrap();
         ui.click(row);
-        assert_eq!(ui.selected_field().unwrap()["path"], json!(["tooling","lsp","servers"]));
+        assert_eq!(
+            ui.selected_field().unwrap()["path"],
+            json!(["tooling", "lsp", "servers"])
+        );
         assert!(ui.outbox.is_empty() && ui.page == Page::Fields);
         let selected = ui.selected;
-        ui.revision += 1; ui.click(row.saturating_sub(1));
-        assert_eq!(ui.selected, selected, "stale rendered rows cannot select a different field");
-        ui.page = Page::Preview; ui.preview = Some(json!({"scope":{"id":"scope-1"},"previewId":"exact-token"}));
-        ui.lines(22, 76); ui.click(row);
-        assert!(ui.outbox.is_empty(), "mouse selection never confirms a settings token");
+        ui.revision += 1;
+        ui.click(row.saturating_sub(1));
+        assert_eq!(
+            ui.selected, selected,
+            "stale rendered rows cannot select a different field"
+        );
+        ui.page = Page::Preview;
+        ui.preview = Some(json!({"scope":{"id":"scope-1"},"previewId":"exact-token"}));
+        ui.lines(22, 76);
+        ui.click(row);
+        assert!(
+            ui.outbox.is_empty(),
+            "mouse selection never confirms a settings token"
+        );
     }
 
     #[test]
     fn literal_string_paste_stays_inert_until_explicit_preview() {
         let mut ui = selected();
         let field = &mut ui.inspection.as_mut().unwrap()["fields"][0];
-        field["schema"] = json!({"type":"string"}); field["requested"] = json!("before");
+        field["schema"] = json!({"type":"string"});
+        field["requested"] = json!("before");
         key(&mut ui, KeyCode::Enter);
         assert_eq!(ui.draft, "before");
         ui.key(KeyEvent::new(KeyCode::Char('u'), KeyModifiers::CONTROL));
         ui.paste("false\n\u{1b}\u{3}");
-        assert_eq!(ui.draft, "false "); assert!(ui.outbox.is_empty());
+        assert_eq!(ui.draft, "false ");
+        assert!(ui.outbox.is_empty());
         key(&mut ui, KeyCode::Enter);
-        assert_eq!(ui.outbox.back().unwrap()["params"]["value"], json!("false "));
+        assert_eq!(
+            ui.outbox.back().unwrap()["params"]["value"],
+            json!("false ")
+        );
         assert_eq!(ui.outbox.back().unwrap()["method"], "preview");
     }
 
@@ -764,16 +945,39 @@ mod tests {
         use crate::overlay_viewport::render_test_rows;
         for (width, height) in [(80u16, 24u16), (90, 18)] {
             let mut ui = selected();
-            ui.scope = Some(json!({"id":"scope-1","kind":"repo","target":format!("FIRST/{}", "directory/".repeat(200))}));
-            ui.page = Page::Preview; ui.reset = true; ui.draft = "RESET".into();
-            ui.preview = Some(json!({"diff":{"first":"START","long":"界😀 ".repeat(500),"zz_end":"LAST"}}));
-            let screen = render_test_rows(ui.lines((height - 2) as usize, (width - 2) as usize), width, height);
+            ui.scope = Some(
+                json!({"id":"scope-1","kind":"repo","target":format!("FIRST/{}", "directory/".repeat(200))}),
+            );
+            ui.page = Page::Preview;
+            ui.reset = true;
+            ui.draft = "RESET".into();
+            ui.preview =
+                Some(json!({"diff":{"first":"START","long":"界😀 ".repeat(500),"zz_end":"LAST"}}));
+            let screen = render_test_rows(
+                ui.lines((height - 2) as usize, (width - 2) as usize),
+                width,
+                height,
+            );
             assert!(screen.contains("confirmation: RESET"));
             assert!(screen.contains("FIRST"));
-            for _ in 0..10000 { key(&mut ui, KeyCode::Down); }
-            assert!(render_test_rows(ui.lines((height - 2) as usize, (width - 2) as usize), width, height).contains("LAST"));
-            for _ in 0..10000 { key(&mut ui, KeyCode::Up); }
-            assert!(render_test_rows(ui.lines((height - 2) as usize, (width - 2) as usize), width, height).contains("FIRST"));
+            for _ in 0..10000 {
+                key(&mut ui, KeyCode::Down);
+            }
+            assert!(render_test_rows(
+                ui.lines((height - 2) as usize, (width - 2) as usize),
+                width,
+                height
+            )
+            .contains("LAST"));
+            for _ in 0..10000 {
+                key(&mut ui, KeyCode::Up);
+            }
+            assert!(render_test_rows(
+                ui.lines((height - 2) as usize, (width - 2) as usize),
+                width,
+                height
+            )
+            .contains("FIRST"));
         }
     }
 
@@ -851,7 +1055,10 @@ mod tests {
         key(&mut ui, KeyCode::Enter);
         ui.draft = "\"wrong-enum\"".into();
         key(&mut ui, KeyCode::Enter);
-        end(&mut ui, json!({"ok":false,"validation":{"ok":false,"errors":["expected integer"]}}));
+        end(
+            &mut ui,
+            json!({"ok":false,"validation":{"ok":false,"errors":["expected integer"]}}),
+        );
         assert!(ui.page == Page::Edit);
         assert_eq!(ui.draft, "\"wrong-enum\"");
         assert!(ui.preview.is_none());
@@ -862,7 +1069,10 @@ mod tests {
         assert!(ui.page == Page::Edit);
         assert_eq!(ui.draft, "3");
         key(&mut ui, KeyCode::Enter);
-        end(&mut ui, json!({"ok":true,"scope":{"id":"scope-1"},"previewId":"corrected","diff":[]}));
+        end(
+            &mut ui,
+            json!({"ok":true,"scope":{"id":"scope-1"},"previewId":"corrected","diff":[]}),
+        );
         key(&mut ui, KeyCode::Enter);
         end(&mut ui, json!({"saved":true}));
         assert!(ui.draft.is_empty());
@@ -870,7 +1080,8 @@ mod tests {
     }
 
     #[test]
-    fn atomic_retrieval_editor_preserves_correctable_object_draft_and_never_copies_effective_defaults() {
+    fn atomic_retrieval_editor_preserves_correctable_object_draft_and_never_copies_effective_defaults(
+    ) {
         let mut ui = selected();
         ui.inspection.as_mut().unwrap()["fields"][0] = json!({"path":["retrieval"],"editable":true,
             "schema":{"type":"object","properties":{"annCandidateCap":{"type":"number"}}},
@@ -884,16 +1095,31 @@ mod tests {
         let submitted = ui.outbox.back().unwrap();
         assert_eq!(submitted["params"]["path"], json!(["retrieval"]));
         assert_eq!(submitted["params"]["value"]["annCandidateMinDocCount"], 100);
-        end(&mut ui, json!({"ok":false,"validation":{"ok":false,"errors":["annCandidateCap must be a number"]}}));
+        end(
+            &mut ui,
+            json!({"ok":false,"validation":{"ok":false,"errors":["annCandidateCap must be a number"]}}),
+        );
         assert!(ui.page == Page::Edit && ui.preview.is_none());
         assert!(ui.draft.contains("annCandidateMinDocCount"));
-        assert!(!ui.outbox.iter().any(|request| request["method"] == "commit"));
+        assert!(!ui
+            .outbox
+            .iter()
+            .any(|request| request["method"] == "commit"));
         ui.draft = ui.draft.replace("\"wrong\"", "1000");
         key(&mut ui, KeyCode::Enter);
-        assert_eq!(ui.outbox.back().unwrap()["params"]["value"]["annCandidateCap"], 1000);
-        end(&mut ui, json!({"ok":true,"scope":{"id":"scope-1"},"previewId":"valid-object", "diff":[]}));
+        assert_eq!(
+            ui.outbox.back().unwrap()["params"]["value"]["annCandidateCap"],
+            1000
+        );
+        end(
+            &mut ui,
+            json!({"ok":true,"scope":{"id":"scope-1"},"previewId":"valid-object", "diff":[]}),
+        );
         key(&mut ui, KeyCode::Enter);
-        assert_eq!(ui.outbox.back().unwrap()["params"]["previewId"], "valid-object");
+        assert_eq!(
+            ui.outbox.back().unwrap()["params"]["previewId"],
+            "valid-object"
+        );
         end(&mut ui, json!({"saved":true}));
         assert!(ui.draft.is_empty() && ui.draft_binding.is_none());
     }
@@ -910,15 +1136,28 @@ mod tests {
         assert!(ui.draft_needs_reload && ui.preview.is_none());
         let count = ui.outbox.len();
         key(&mut ui, KeyCode::Enter);
-        assert_eq!(ui.outbox.len(), count, "stale drafts cannot acquire write authority");
+        assert_eq!(
+            ui.outbox.len(),
+            count,
+            "stale drafts cannot acquire write authority"
+        );
         ui.key(KeyEvent::new(KeyCode::Char('r'), KeyModifiers::CONTROL));
-        end(&mut ui, json!({"scope":{"id":"scope-1"},"revision":"revision-2","schemaRevision":"schema-2",
-            "validation":{"ok":true},"fields":[{"path":["threads"],"editable":true,"requestedPresent":true,"requested":2}]}));
+        end(
+            &mut ui,
+            json!({"scope":{"id":"scope-1"},"revision":"revision-2","schemaRevision":"schema-2",
+            "validation":{"ok":true},"fields":[{"path":["threads"],"editable":true,"requestedPresent":true,"requested":2}]}),
+        );
         assert!(ui.page == Page::Edit && !ui.draft_needs_reload);
         assert_eq!(ui.draft, "4");
         key(&mut ui, KeyCode::Enter);
-        assert_eq!(ui.outbox.back().unwrap()["params"]["revision"], "revision-2");
-        assert_eq!(ui.outbox.back().unwrap()["params"]["schemaRevision"], "schema-2");
+        assert_eq!(
+            ui.outbox.back().unwrap()["params"]["revision"],
+            "revision-2"
+        );
+        assert_eq!(
+            ui.outbox.back().unwrap()["params"]["schemaRevision"],
+            "schema-2"
+        );
         end(&mut ui, json!({"ok":false,"validation":{"ok":false}}));
         key(&mut ui, KeyCode::Esc);
         assert!(ui.draft.is_empty() && ui.draft_binding.is_none());
@@ -1009,33 +1248,56 @@ mod tests {
     fn accepted_preview_and_provenance_reuse_text_until_their_owner_changes() {
         let mut ui = selected();
         ui.request("preview", json!({}));
-        end(&mut ui, json!({"ok":true,"scope":{"id":"scope-1"},"previewId":"first",
-            "diff":[{"value":"FIRST-DIFF"}]}));
+        end(
+            &mut ui,
+            json!({"ok":true,"scope":{"id":"scope-1"},"previewId":"first",
+            "diff":[{"value":"FIRST-DIFF"}]}),
+        );
         assert!(ui.lines(24, 80).join("\n").contains("FIRST-DIFF"));
         let builds = ui.presentation.borrow().builds;
-        for _ in 0..20 { key(&mut ui, KeyCode::Down); ui.lines(24, 80); }
-        ui.status = "unrelated live redraw".into(); ui.lines(24, 80); ui.lines(24, 90);
+        for _ in 0..20 {
+            key(&mut ui, KeyCode::Down);
+            ui.lines(24, 80);
+        }
+        ui.status = "unrelated live redraw".into();
+        ui.lines(24, 80);
+        ui.lines(24, 90);
         assert_eq!(ui.presentation.borrow().builds, builds);
         assert!(!ui.event(&json!({"event":"job:end","jobId":"unrelated","status":"done"})));
-        key(&mut ui, KeyCode::Esc); end(&mut ui, json!({}));
+        key(&mut ui, KeyCode::Esc);
+        end(&mut ui, json!({}));
         assert!(ui.preview.is_none());
         ui.request("preview", json!({}));
-        end(&mut ui, json!({"ok":true,"scope":{"id":"scope-1"},"previewId":"second",
-            "diff":[{"value":"SECOND-DIFF"}]}));
+        end(
+            &mut ui,
+            json!({"ok":true,"scope":{"id":"scope-1"},"previewId":"second",
+            "diff":[{"value":"SECOND-DIFF"}]}),
+        );
         let second = ui.lines(24, 80).join("\n");
-        assert!(second.contains("SECOND-DIFF")); assert!(!second.contains("FIRST-DIFF"));
+        assert!(second.contains("SECOND-DIFF"));
+        assert!(!second.contains("FIRST-DIFF"));
         assert_eq!(ui.presentation.borrow().builds, builds + 1);
-        key(&mut ui, KeyCode::Esc); end(&mut ui, json!({}));
+        key(&mut ui, KeyCode::Esc);
+        end(&mut ui, json!({}));
         ui.inspect();
-        end(&mut ui, json!({"scope":{"id":"scope-1"},"revision":"fresh","schemaRevision":"schema-1",
-            "fields":[],"effective":{"sources":["PUBLIC-SOURCE"],"userConfig":{"secret":"PRIVATE-CONFIG"}}}));
+        end(
+            &mut ui,
+            json!({"scope":{"id":"scope-1"},"revision":"fresh","schemaRevision":"schema-1",
+            "fields":[],"effective":{"sources":["PUBLIC-SOURCE"],"userConfig":{"secret":"PRIVATE-CONFIG"}}}),
+        );
         key(&mut ui, KeyCode::Char('p'));
         let provenance = ui.lines(24, 80).join("\n");
-        assert!(provenance.contains("PUBLIC-SOURCE")); assert!(!provenance.contains("PRIVATE-CONFIG"));
-        assert_eq!(ui.inspection.as_ref().unwrap()["effective"]["userConfig"]["secret"], "PRIVATE-CONFIG");
+        assert!(provenance.contains("PUBLIC-SOURCE"));
+        assert!(!provenance.contains("PRIVATE-CONFIG"));
+        assert_eq!(
+            ui.inspection.as_ref().unwrap()["effective"]["userConfig"]["secret"],
+            "PRIVATE-CONFIG"
+        );
         let builds = ui.presentation.borrow().builds;
-        for _ in 0..20 { key(&mut ui, KeyCode::Down); ui.lines(24, 80); }
+        for _ in 0..20 {
+            key(&mut ui, KeyCode::Down);
+            ui.lines(24, 80);
+        }
         assert_eq!(ui.presentation.borrow().builds, builds);
     }
-
 }

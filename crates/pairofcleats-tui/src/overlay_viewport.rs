@@ -1,6 +1,6 @@
-use std::cell::Cell;
 use ratatui::style::Style;
 use ratatui::text::Span;
+use std::cell::Cell;
 
 #[derive(Default)]
 pub struct ReviewViewport {
@@ -11,7 +11,9 @@ pub struct ReviewViewport {
 }
 
 pub fn rendered_rows(text: &str, width: usize) -> Vec<String> {
-    if width == 0 { return Vec::new(); }
+    if width == 0 {
+        return Vec::new();
+    }
     let mut rows = Vec::new();
     for line in text.split('\n') {
         let span = Span::raw(line);
@@ -20,10 +22,15 @@ pub fn rendered_rows(text: &str, width: usize) -> Vec<String> {
         for grapheme in span.styled_graphemes(Style::default()) {
             let size = Span::raw(grapheme.symbol).width();
             if columns + size > width && !row.is_empty() {
-                rows.push(std::mem::take(&mut row)); columns = 0;
+                rows.push(std::mem::take(&mut row));
+                columns = 0;
             }
-            if size > width { rows.push("…".into()); continue; }
-            row.push_str(grapheme.symbol); columns += size;
+            if size > width {
+                rows.push("…".into());
+                continue;
+            }
+            row.push_str(grapheme.symbol);
+            columns += size;
         }
         rows.push(row);
     }
@@ -32,62 +39,152 @@ pub fn rendered_rows(text: &str, width: usize) -> Vec<String> {
 
 impl ReviewViewport {
     pub fn range_label(&self) -> String {
-        let (start, end, total) = self.range.get(); format!("rows {start}-{end}/{total}")
+        let (start, end, total) = self.range.get();
+        format!("rows {start}-{end}/{total}")
     }
-    pub fn reset(&self) { self.offset.set(0); self.follow_tail.set(false); }
-    pub fn tail(&self) { self.follow_tail.set(true); }
-    pub fn down(&self) { self.offset.set(self.offset.get().saturating_add(1).min(self.maximum.get())); self.follow_tail.set(false); }
-    pub fn up(&self) { self.offset.set(self.offset.get().saturating_sub(1)); self.follow_tail.set(false); }
-    pub(crate) fn indexed_lines(&self, headers: Vec<String>, text: &str, rows: &[[u32; 2]], height: usize, width: usize) -> Vec<String> {
-        if height == 0 || width == 0 { return Vec::new(); }
-        let mut output: Vec<_> = headers.into_iter().take(height.saturating_sub(1)).map(|line| crate::fit_text(&line, width)).collect();
+    pub fn reset(&self) {
+        self.offset.set(0);
+        self.follow_tail.set(false);
+    }
+    pub fn tail(&self) {
+        self.follow_tail.set(true);
+    }
+    pub fn down(&self) {
+        self.offset
+            .set(self.offset.get().saturating_add(1).min(self.maximum.get()));
+        self.follow_tail.set(false);
+    }
+    pub fn up(&self) {
+        self.offset.set(self.offset.get().saturating_sub(1));
+        self.follow_tail.set(false);
+    }
+    pub(crate) fn indexed_lines(
+        &self,
+        headers: Vec<String>,
+        text: &str,
+        rows: &[[u32; 2]],
+        height: usize,
+        width: usize,
+    ) -> Vec<String> {
+        if height == 0 || width == 0 {
+            return Vec::new();
+        }
+        let mut output: Vec<_> = headers
+            .into_iter()
+            .take(height.saturating_sub(1))
+            .map(|line| crate::fit_text(&line, width))
+            .collect();
         let count = height - output.len();
         let maximum = rows.len().saturating_sub(count);
         self.maximum.set(maximum);
-        let offset = if self.follow_tail.get() { maximum } else { self.offset.get().min(maximum) };
+        let offset = if self.follow_tail.get() {
+            maximum
+        } else {
+            self.offset.get().min(maximum)
+        };
         self.offset.set(offset);
-        self.range.set((if rows.is_empty() { 0 } else { offset + 1 }, (offset + count).min(rows.len()), rows.len()));
+        self.range.set((
+            if rows.is_empty() { 0 } else { offset + 1 },
+            (offset + count).min(rows.len()),
+            rows.len(),
+        ));
         output.extend(rows.iter().skip(offset).take(count).map(|[start, end]| {
-            if *start == u32::MAX { "…".into() } else { text[*start as usize..*end as usize].to_owned() }
+            if *start == u32::MAX {
+                "…".into()
+            } else {
+                text[*start as usize..*end as usize].to_owned()
+            }
         }));
         output
     }
-    pub fn lines(&self, headers: Vec<String>, text: &str, height: usize, width: usize) -> Vec<String> {
-        if height == 0 || width == 0 { return Vec::new(); }
-        let mut output: Vec<_> = headers.into_iter().take(height.saturating_sub(1)).map(|line| crate::fit_text(&line, width)).collect();
+    pub fn lines(
+        &self,
+        headers: Vec<String>,
+        text: &str,
+        height: usize,
+        width: usize,
+    ) -> Vec<String> {
+        if height == 0 || width == 0 {
+            return Vec::new();
+        }
+        let mut output: Vec<_> = headers
+            .into_iter()
+            .take(height.saturating_sub(1))
+            .map(|line| crate::fit_text(&line, width))
+            .collect();
         let rows = rendered_rows(text, width);
         let count = height - output.len();
         let maximum = rows.len().saturating_sub(count);
         self.maximum.set(maximum);
-        let offset = if self.follow_tail.get() { maximum } else { self.offset.get().min(maximum) };
+        let offset = if self.follow_tail.get() {
+            maximum
+        } else {
+            self.offset.get().min(maximum)
+        };
         self.offset.set(offset);
-        self.range.set((if rows.is_empty() { 0 } else { offset + 1 }, (offset + count).min(rows.len()), rows.len()));
+        self.range.set((
+            if rows.is_empty() { 0 } else { offset + 1 },
+            (offset + count).min(rows.len()),
+            rows.len(),
+        ));
         output.extend(rows.into_iter().skip(offset).take(count));
         output
     }
 }
 
-pub fn selected_window(headers: usize, rows: usize, selected: usize, height: usize) -> (usize, usize, usize) {
+pub fn selected_window(
+    headers: usize,
+    rows: usize,
+    selected: usize,
+    height: usize,
+) -> (usize, usize, usize) {
     let headers = headers.min(height.saturating_sub(1));
     let count = height.saturating_sub(headers);
-    (headers, selected.saturating_sub(count / 2).min(rows.saturating_sub(count)), count)
+    (
+        headers,
+        selected
+            .saturating_sub(count / 2)
+            .min(rows.saturating_sub(count)),
+        count,
+    )
 }
-pub fn selected_rows(mut headers: Vec<String>, rows: Vec<String>, selected: usize, height: usize, width: usize) -> Vec<String> {
+pub fn selected_rows(
+    mut headers: Vec<String>,
+    rows: Vec<String>,
+    selected: usize,
+    height: usize,
+    width: usize,
+) -> Vec<String> {
     let (header_count, start, count) = selected_window(headers.len(), rows.len(), selected, height);
     headers.truncate(header_count);
     headers.extend(rows.into_iter().skip(start).take(count));
-    headers.into_iter().map(|line| crate::fit_text(&line, width)).collect()
+    headers
+        .into_iter()
+        .map(|line| crate::fit_text(&line, width))
+        .collect()
 }
 
 #[cfg(test)]
 pub fn render_test_rows(rows: Vec<String>, width: u16, height: u16) -> String {
-    use ratatui::{Terminal, backend::TestBackend, widgets::{Block, Borders, Paragraph}};
+    use ratatui::{
+        backend::TestBackend,
+        widgets::{Block, Borders, Paragraph},
+        Terminal,
+    };
     let mut terminal = Terminal::new(TestBackend::new(width, height)).unwrap();
-    terminal.draw(|frame| frame.render_widget(Paragraph::new(rows.join("\n"))
-        .block(Block::default().borders(Borders::ALL)), frame.area())).unwrap();
+    terminal
+        .draw(|frame| {
+            frame.render_widget(
+                Paragraph::new(rows.join("\n")).block(Block::default().borders(Borders::ALL)),
+                frame.area(),
+            )
+        })
+        .unwrap();
     let mut text = String::new();
     for y in 0..height {
-        for x in 0..width { text.push_str(terminal.backend().buffer()[(x, y)].symbol()); }
+        for x in 0..width {
+            text.push_str(terminal.backend().buffer()[(x, y)].symbol());
+        }
         text.push('\n');
     }
     text
@@ -104,13 +201,30 @@ mod tests {
         assert_eq!(exact, text.replace('\n', ""));
         for (width, height) in [(80u16, 24u16), (90, 18)] {
             let viewport = ReviewViewport::default();
-            let headers = vec![format!("Scope: {}", "long-directory/".repeat(100)), "Review exact values | arrows scroll".into()];
-            let rows = viewport.lines(headers.clone(), &text, (height - 2) as usize, (width - 2) as usize);
+            let headers = vec![
+                format!("Scope: {}", "long-directory/".repeat(100)),
+                "Review exact values | arrows scroll".into(),
+            ];
+            let rows = viewport.lines(
+                headers.clone(),
+                &text,
+                (height - 2) as usize,
+                (width - 2) as usize,
+            );
             assert!(render_test_rows(rows, width, height).contains("START"));
-            for _ in 0..10000 { viewport.down(); }
-            let rows = viewport.lines(headers.clone(), &text, (height - 2) as usize, (width - 2) as usize);
+            for _ in 0..10000 {
+                viewport.down();
+            }
+            let rows = viewport.lines(
+                headers.clone(),
+                &text,
+                (height - 2) as usize,
+                (width - 2) as usize,
+            );
             assert!(render_test_rows(rows, width, height).contains("END"));
-            for _ in 0..10000 { viewport.up(); }
+            for _ in 0..10000 {
+                viewport.up();
+            }
             let rows = viewport.lines(headers, &text, (height - 2) as usize, (width - 2) as usize);
             assert!(render_test_rows(rows, width, height).contains("START"));
         }

@@ -35,12 +35,20 @@ fn job_inspection_renders_payload_without_putting_it_in_layout_or_frame_identity
         &mut model,
         KeyEvent::new(KeyCode::Char('2'), KeyModifiers::NONE),
     );
+    let (_, InputCommand::TerminalKey(key)) = model.input_queue.pop_front().unwrap() else {
+        panic!("result key must enter through the raw-key queue")
+    };
+    interpret_terminal_key(&mut model, key);
     assert!(screen(&model, 170, 40).contains("PAYLOAD_ONLY_MARKER"));
     assert!(!frame_signature(&model).contains("PAYLOAD_ONLY_MARKER"));
     assert!(!serde_json::to_string(&snapshot_from_model(&model))
         .unwrap()
         .contains("PAYLOAD_ONLY_MARKER"));
     enqueue_terminal_key(&mut model, KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
+    let (_, InputCommand::TerminalKey(key)) = model.input_queue.pop_front().unwrap() else {
+        panic!("escape must enter through the raw-key queue")
+    };
+    interpret_terminal_key(&mut model, key);
     assert!(model.overlay == OverlayMode::None);
 }
 
@@ -236,7 +244,9 @@ fn job_selection_keys_are_distinct_from_scroll_and_log_follow() {
         model.input_queue.clear();
         model.last_input_at = Instant::now() - Duration::from_secs(1);
         enqueue_terminal_key(&mut model, KeyEvent::new(key, KeyModifiers::NONE));
-        let (_, InputCommand::TerminalKey(raw)) = model.input_queue.pop_front().unwrap() else { panic!("raw key expected") };
+        let (_, InputCommand::TerminalKey(raw)) = model.input_queue.pop_front().unwrap() else {
+            panic!("raw key expected")
+        };
         interpret_terminal_key(&mut model, raw);
         let command = &model.input_queue.back().unwrap().1;
         assert!(match expected {
@@ -387,7 +397,10 @@ fn rendered_viewports_scroll_independently_in_both_layouts() {
         assert!(tasks.contains("TMARK01"));
         model.focus_panel = FocusPanel::Logs;
         let latest_logs = screen(&model, width, height);
-        assert!(latest_logs.contains("LMARK19"), "Focused live log view must contain newest log");
+        assert!(
+            latest_logs.contains("LMARK19"),
+            "Focused live log view must contain newest log"
+        );
         assert!(!latest_logs.contains("LMARK00"));
         apply_local_input(&mut model, "logs_up");
         let logs = screen(&model, width, height);
@@ -492,23 +505,35 @@ fn log_presentation_cache_reuses_immutable_tail_and_tracks_entry_eviction() {
     model.log_layout_cache.borrow_mut().clear();
     model.push_log("long-tail ".repeat(6554));
     let actual = build_log_lines(&model, 80, 10);
-    let all = wrap_text_lines(&render_log_entry(model.logs.back().unwrap()), 80, usize::MAX);
+    let all = wrap_text_lines(
+        &render_log_entry(model.logs.back().unwrap()),
+        80,
+        usize::MAX,
+    );
     assert_eq!(actual, all[all.len().saturating_sub(10)..].join("\n"));
     let scans = model.log_layout_cache.borrow().scans;
     let owned = model.log_layout_cache.borrow().owned_rows;
-    assert_eq!(owned, 10, "hidden wrapped rows never become owned presentation strings");
-    for _ in 0..20 { assert_eq!(build_log_lines(&model, 80, 10), actual); }
+    assert_eq!(
+        owned, 10,
+        "hidden wrapped rows never become owned presentation strings"
+    );
+    for _ in 0..20 {
+        assert_eq!(build_log_lines(&model, 80, 10), actual);
+    }
     assert_eq!(model.log_layout_cache.borrow().scans, scans);
     assert!(model.log_layout_cache.borrow().hits >= 20);
     build_log_lines(&model, 79, 10);
     assert_eq!(model.log_layout_cache.borrow().scans, scans + 1);
     let old_id = model.logs.back().unwrap().id;
-    for index in 0..LOG_RING_LIMIT { model.push_log(format!("replacement-{index}")); }
+    for index in 0..LOG_RING_LIMIT {
+        model.push_log(format!("replacement-{index}"));
+    }
     model.log_scroll = usize::MAX;
     assert!(build_log_lines(&model, 80, 1).contains("replacement-0"));
     assert!(!model.logs.iter().any(|entry| entry.id == old_id));
     assert!(model.log_layout_cache.borrow().bytes() <= 2 * 1024 * 1024);
-    model.search_logs = "REPLACEMENT-19".into(); model.log_scroll = 0;
+    model.search_logs = "REPLACEMENT-19".into();
+    model.log_scroll = 0;
     assert!(build_log_lines(&model, 80, 10).contains("replacement-19"));
 }
 
@@ -516,16 +541,30 @@ fn log_presentation_cache_reuses_immutable_tail_and_tracks_entry_eviction() {
 fn empty_log_search_formats_only_visible_entries_and_identity_rollover_is_safe() {
     let mut model = model();
     model.logs.clear();
-    for index in 0..LOG_RING_LIMIT { model.push_log(format!("entry-{index}")); }
+    for index in 0..LOG_RING_LIMIT {
+        model.push_log(format!("entry-{index}"));
+    }
     LOG_FORMATS.with(|count| count.set(0));
     let first = build_log_lines(&model, 80, 10);
     assert_eq!(LOG_FORMATS.with(|count| count.get()), 10);
     assert_eq!(build_log_lines(&model, 80, 10), first);
-    assert_eq!(LOG_FORMATS.with(|count| count.get()), 10, "unchanged redraw does not reformat cached text");
+    assert_eq!(
+        LOG_FORMATS.with(|count| count.get()),
+        10,
+        "unchanged redraw does not reformat cached text"
+    );
     let retained = model.log_layout_cache.borrow().bytes();
     model.next_log_id = u64::MAX;
     model.push_log("after-renumber".into());
     assert!(build_log_lines(&model, 80, 1).contains("after-renumber"));
     assert!(model.log_layout_cache.borrow().bytes() <= retained + 4096);
-    assert_eq!(model.logs.iter().map(|entry| entry.id).collect::<std::collections::HashSet<_>>().len(), LOG_RING_LIMIT);
+    assert_eq!(
+        model
+            .logs
+            .iter()
+            .map(|entry| entry.id)
+            .collect::<std::collections::HashSet<_>>()
+            .len(),
+        LOG_RING_LIMIT
+    );
 }

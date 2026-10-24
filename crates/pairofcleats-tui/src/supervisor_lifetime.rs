@@ -1,31 +1,45 @@
+use crate::event_ingress::{InboundEvent, Receiver};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::ops::{Deref, DerefMut};
 use std::process::Child;
 use std::sync::mpsc::TryRecvError;
-use crate::event_ingress::{InboundEvent, Receiver};
 use std::time::{Duration, Instant};
 
 const SHUTDOWN_GRACE: Duration = Duration::from_secs(10);
 
 /// Keep the original terminal/transport/supervisor error as the source while
 /// reporting a simultaneous containment failure instead of silently hiding it.
-pub fn combine_session_outcomes(execution: anyhow::Result<()>, shutdown: anyhow::Result<()>) -> anyhow::Result<()> {
+pub fn combine_session_outcomes(
+    execution: anyhow::Result<()>,
+    shutdown: anyhow::Result<()>,
+) -> anyhow::Result<()> {
     match (execution, shutdown) {
-        (Err(primary), Err(cleanup)) => Err(primary.context(format!("Owned supervisor shutdown also failed: {cleanup:#}"))),
+        (Err(primary), Err(cleanup)) => Err(primary.context(format!(
+            "Owned supervisor shutdown also failed: {cleanup:#}"
+        ))),
         (Err(primary), Ok(())) => Err(primary),
         (Ok(()), shutdown) => shutdown,
     }
 }
 
 fn shutdown_outcome(status: std::process::ExitStatus, forced: bool) -> anyhow::Result<()> {
-    if forced { anyhow::bail!("Owned supervisor exceeded its graceful shutdown deadline; containment was required ({status})"); }
-    if !status.success() { anyhow::bail!("Owned supervisor exited unsuccessfully during shutdown: {status}"); }
+    if forced {
+        anyhow::bail!("Owned supervisor exceeded its graceful shutdown deadline; containment was required ({status})");
+    }
+    if !status.success() {
+        anyhow::bail!("Owned supervisor exited unsuccessfully during shutdown: {status}");
+    }
     Ok(())
 }
 
-fn join_shutdown_outcomes(primary: anyhow::Result<()>, cleanup: impl IntoIterator<Item = std::io::Result<()>>) -> anyhow::Result<()> {
-    cleanup.into_iter().fold(primary, |outcome, next| combine_session_outcomes(outcome, next.map_err(Into::into)))
+fn join_shutdown_outcomes(
+    primary: anyhow::Result<()>,
+    cleanup: impl IntoIterator<Item = std::io::Result<()>>,
+) -> anyhow::Result<()> {
+    cleanup.into_iter().fold(primary, |outcome, next| {
+        combine_session_outcomes(outcome, next.map_err(Into::into))
+    })
 }
 
 #[cfg(target_os = "linux")]
@@ -188,7 +202,10 @@ impl SupervisorLifetime {
                 let reaped = self.child.wait().map(|_| ());
                 let drained = self.drain_closed_output(&mut observe);
                 self.closed = containment.is_ok() && reaped.is_ok() && drained.is_ok();
-                return join_shutdown_outcomes(shutdown_outcome(status, false), [containment, reaped, drained]);
+                return join_shutdown_outcomes(
+                    shutdown_outcome(status, false),
+                    [containment, reaped, drained],
+                );
             }
             std::thread::sleep(Duration::from_millis(20));
         }
@@ -197,15 +214,22 @@ impl SupervisorLifetime {
         let reaped = self.child.wait();
         let final_containment = self.contain_remaining();
         let drained = self.drain_closed_output(&mut observe);
-        self.closed = containment.is_ok() && reaped.is_ok() && final_containment.is_ok() && drained.is_ok();
+        self.closed =
+            containment.is_ok() && reaped.is_ok() && final_containment.is_ok() && drained.is_ok();
         let primary = match &reaped {
             Ok(status) => shutdown_outcome(*status, true),
             Err(_) => Err(anyhow::anyhow!("Owned supervisor exceeded its graceful shutdown deadline; containment was required")),
         };
-        join_shutdown_outcomes(primary, [containment, reaped.map(|_| ()), final_containment, drained])
+        join_shutdown_outcomes(
+            primary,
+            [containment, reaped.map(|_| ()), final_containment, drained],
+        )
     }
 
-    fn drain_closed_output(&mut self, observe: &mut impl FnMut(InboundEvent)) -> std::io::Result<()> {
+    fn drain_closed_output(
+        &mut self,
+        observe: &mut impl FnMut(InboundEvent),
+    ) -> std::io::Result<()> {
         let until = Instant::now() + Duration::from_millis(500);
         loop {
             if Instant::now() >= until {
@@ -215,10 +239,17 @@ impl SupervisorLifetime {
             }
             match self.poll() {
                 Ok(event) => observe(event),
-                Err(TryRecvError::Disconnected) => return match self.events.transport_failure() {
-                    Some(kind) => Err(std::io::Error::new(kind, format!("Supervisor output transport failed during shutdown ({kind:?})"))),
-                    None => Ok(()),
-                },
+                Err(TryRecvError::Disconnected) => {
+                    return match self.events.transport_failure() {
+                        Some(kind) => Err(std::io::Error::new(
+                            kind,
+                            format!(
+                                "Supervisor output transport failed during shutdown ({kind:?})"
+                            ),
+                        )),
+                        None => Ok(()),
+                    }
+                }
                 Err(TryRecvError::Empty) => {
                     if Instant::now() >= until {
                         return Err(std::io::Error::other(
@@ -311,27 +342,47 @@ mod outcome_tests {
     use super::*;
     #[test]
     fn original_failure_and_unknown_containment_are_both_reported() {
-        let error = combine_session_outcomes(Err(anyhow::anyhow!("original terminal transport failure")),
-            Err(anyhow::anyhow!("owned Windows job termination remains pending"))).unwrap_err();
+        let error = combine_session_outcomes(
+            Err(anyhow::anyhow!("original terminal transport failure")),
+            Err(anyhow::anyhow!(
+                "owned Windows job termination remains pending"
+            )),
+        )
+        .unwrap_err();
         let displayed = format!("{error:#}");
         assert!(displayed.contains("owned Windows job termination remains pending"));
-        assert_eq!(error.root_cause().to_string(), "original terminal transport failure");
+        assert_eq!(
+            error.root_cause().to_string(),
+            "original terminal transport failure"
+        );
         assert!(combine_session_outcomes(Ok(()), Err(anyhow::anyhow!("cleanup failure"))).is_err());
         assert!(combine_session_outcomes(Ok(()), Ok(())).is_ok());
     }
 
     #[test]
     fn every_independent_shutdown_failure_remains_visible() {
-        let error = join_shutdown_outcomes(Err(anyhow::anyhow!("original supervisor exit failure")), [
-            Err(std::io::Error::other("exact job termination unknown")),
-            Err(std::io::Error::other("child wait failed")),
-            Err(std::io::Error::other("last output frame not drained")),
-        ]).unwrap_err();
+        let error = join_shutdown_outcomes(
+            Err(anyhow::anyhow!("original supervisor exit failure")),
+            [
+                Err(std::io::Error::other("exact job termination unknown")),
+                Err(std::io::Error::other("child wait failed")),
+                Err(std::io::Error::other("last output frame not drained")),
+            ],
+        )
+        .unwrap_err();
         let text = format!("{error:#}");
-        for expected in ["original supervisor exit failure", "exact job termination unknown", "child wait failed", "last output frame not drained"] {
+        for expected in [
+            "original supervisor exit failure",
+            "exact job termination unknown",
+            "child wait failed",
+            "last output frame not drained",
+        ] {
             assert!(text.contains(expected));
         }
-        assert_eq!(error.root_cause().to_string(), "original supervisor exit failure");
+        assert_eq!(
+            error.root_cause().to_string(),
+            "original supervisor exit failure"
+        );
     }
 
     #[cfg(windows)]
@@ -339,8 +390,18 @@ mod outcome_tests {
     fn nonzero_exit_and_forced_containment_cannot_be_clean_shutdown() {
         use std::os::windows::process::ExitStatusExt;
         assert!(shutdown_outcome(std::process::ExitStatus::from_raw(0), false).is_ok());
-        assert!(shutdown_outcome(std::process::ExitStatus::from_raw(19), false).unwrap_err().to_string().contains("unsuccessfully"));
-        assert!(shutdown_outcome(std::process::ExitStatus::from_raw(0), true).unwrap_err().to_string().contains("containment was required"));
+        assert!(
+            shutdown_outcome(std::process::ExitStatus::from_raw(19), false)
+                .unwrap_err()
+                .to_string()
+                .contains("unsuccessfully")
+        );
+        assert!(
+            shutdown_outcome(std::process::ExitStatus::from_raw(0), true)
+                .unwrap_err()
+                .to_string()
+                .contains("containment was required")
+        );
     }
 }
 
@@ -394,8 +455,13 @@ mod windows {
         ) -> i32;
         fn AssignProcessToJobObject(job: Handle, process: Handle) -> i32;
         fn TerminateJobObject(job: Handle, exit_code: u32) -> i32;
-        fn QueryInformationJobObject(job: Handle, class: u32, info: *mut c_void,
-            length: u32, returned: *mut u32) -> i32;
+        fn QueryInformationJobObject(
+            job: Handle,
+            class: u32,
+            info: *mut c_void,
+            length: u32,
+            returned: *mut u32,
+        ) -> i32;
         fn CloseHandle(handle: Handle) -> i32;
     }
     pub struct Job(Handle);
@@ -432,13 +498,25 @@ mod windows {
             let deadline = Instant::now() + Duration::from_millis(500);
             loop {
                 let mut accounting = Accounting::default();
-                if unsafe { QueryInformationJobObject(self.0, 1, &mut accounting as *mut _ as *mut c_void,
-                    std::mem::size_of::<Accounting>() as u32, std::ptr::null_mut()) } == 0 {
+                if unsafe {
+                    QueryInformationJobObject(
+                        self.0,
+                        1,
+                        &mut accounting as *mut _ as *mut c_void,
+                        std::mem::size_of::<Accounting>() as u32,
+                        std::ptr::null_mut(),
+                    )
+                } == 0
+                {
                     return Err(std::io::Error::last_os_error());
                 }
-                if accounting.active_processes == 0 { return Ok(()); }
+                if accounting.active_processes == 0 {
+                    return Ok(());
+                }
                 if Instant::now() >= deadline {
-                    return Err(std::io::Error::other("Owned Windows job termination remains pending"));
+                    return Err(std::io::Error::other(
+                        "Owned Windows job termination remains pending",
+                    ));
                 }
                 std::thread::sleep(Duration::from_millis(10));
             }

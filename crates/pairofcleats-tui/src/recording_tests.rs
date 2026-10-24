@@ -63,7 +63,10 @@ fn loaded_replay_events(events: Vec<Value>) -> recordings::RecordingUi {
     );
     ui.key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
     let total = events.len();
-    let bytes: usize = events.iter().map(|event| serde_json::to_vec(event).unwrap().len()).sum();
+    let bytes: usize = events
+        .iter()
+        .map(|event| serde_json::to_vec(event).unwrap().len())
+        .sum();
     respond(
         &mut ui,
         "load",
@@ -73,9 +76,13 @@ fn loaded_replay_events(events: Vec<Value>) -> recordings::RecordingUi {
     for (page, rows) in events.chunks(128).enumerate() {
         let offset = page * 128;
         let next = offset + rows.len();
-        respond(&mut ui, "page", json!({"recordingId":id,"identity":"a".repeat(64),"runId":"saved-run",
+        respond(
+            &mut ui,
+            "page",
+            json!({"recordingId":id,"identity":"a".repeat(64),"runId":"saved-run",
             "offset":offset,"nextOffset":if next < total { Some(next) } else { None },
-            "total":total,"events":rows}));
+            "total":total,"events":rows}),
+        );
     }
     ui
 }
@@ -132,9 +139,13 @@ fn replay_seek_and_detach_keep_live_jobs_and_authority_separate() {
         .all(|r| r["op"] == "recording:run" && r["method"] == "discard"));
 }
 
-
-fn seek_until_settled(ui: &mut recordings::RecordingUi, model: &mut AppModel, target: usize) -> usize {
-    let (maximum_events, per_tick, max_checkpoints, max_bytes) = recordings::RecordingUi::replay_limits();
+fn seek_until_settled(
+    ui: &mut recordings::RecordingUi,
+    model: &mut AppModel,
+    target: usize,
+) -> usize {
+    let (maximum_events, per_tick, max_checkpoints, max_bytes) =
+        recordings::RecordingUi::replay_limits();
     ui.seek_requested = Some(target);
     let mut reductions = 0;
     for _ in 0..=maximum_events {
@@ -170,11 +181,19 @@ fn replay_signature(model: &AppModel) -> Value {
 #[test]
 fn mismatched_chunk_disposal_releases_its_retained_byte_charge() {
     let mut model = passive_model();
-    apply_protocol_event(&mut model, json!({"event":"event:chunk","chunkId":"mismatch",
-        "chunkIndex":0,"chunkCount":2,"chunk":"retained"}), 0);
+    apply_protocol_event(
+        &mut model,
+        json!({"event":"event:chunk","chunkId":"mismatch",
+        "chunkIndex":0,"chunkCount":2,"chunk":"retained"}),
+        0,
+    );
     assert_eq!(model.chunk_assembly_bytes, 8);
-    apply_protocol_event(&mut model, json!({"event":"event:chunk","chunkId":"mismatch",
-        "chunkIndex":1,"chunkCount":3,"chunk":"rejected"}), 0);
+    apply_protocol_event(
+        &mut model,
+        json!({"event":"event:chunk","chunkId":"mismatch",
+        "chunkIndex":1,"chunkCount":3,"chunk":"rejected"}),
+        0,
+    );
     assert!(model.chunk_assemblies.is_empty());
     assert_eq!(model.chunk_assembly_bytes, 0);
     assert_eq!(model.telemetry.dropped_chunks, 1);
@@ -194,23 +213,32 @@ fn maximum_recording_seeks_use_bounded_checkpoints_and_preserve_view_identity() 
     let chunked = json!({"event":"job:start","runId":"saved-run","jobId":"chunked-job","title":"Chunk owner"}).to_string();
     let split = chunked.len() / 2;
     for (index, chunk) in [&chunked[..split], &chunked[split..]].iter().enumerate() {
-        events.push(json!({"event":"event:chunk","runId":"saved-run","chunkId":"split-at-checkpoint",
-            "chunkIndex":index,"chunkCount":2,"chunk":chunk}));
+        events.push(
+            json!({"event":"event:chunk","runId":"saved-run","chunkId":"split-at-checkpoint",
+            "chunkIndex":index,"chunkCount":2,"chunk":chunk}),
+        );
     }
     while events.len() < maximum - 2 {
-        events.push(json!({"event":"task:progress","runId":"saved-run","jobId":"pinned-job",
-            "taskId":"work","message":format!("step {}",events.len())}));
+        events.push(
+            json!({"event":"task:progress","runId":"saved-run","jobId":"pinned-job",
+            "taskId":"work","message":format!("step {}",events.len())}),
+        );
     }
     events.push(json!({"event":"task:end","runId":"saved-run","jobId":"pinned-job","taskId":"work","status":"done"}));
-    events.push(json!({"event":"job:end","runId":"saved-run","jobId":"pinned-job","status":"done"}));
+    events
+        .push(json!({"event":"job:end","runId":"saved-run","jobId":"pinned-job","status":"done"}));
     let mut reference = passive_model();
-    for event in &events { apply_protocol_event(&mut reference, event.clone(), 0); }
+    for event in &events {
+        apply_protocol_event(&mut reference, event.clone(), 0);
+    }
     let expected = replay_signature(&reference);
     let mut ui = loaded_replay_events(events);
     let mut model = passive_model();
     model.owns_control_channel = true;
     model.session.controllable = true;
-    model.job_status.insert("live-only".into(), "running".into());
+    model
+        .job_status
+        .insert("live-only".into(), "running".into());
     ui.update_view(&mut model);
     ui.seek_requested = Some(maximum);
     ui.update_view(&mut model);
@@ -221,16 +249,26 @@ fn maximum_recording_seeks_use_bounded_checkpoints_and_preserve_view_identity() 
     assert_eq!(ui.active.as_ref().unwrap().position, 2);
     model.selected_job = Some("pinned-job".into());
     model.selected_job_pinned = true;
-    model.job_scroll = 7; model.task_scroll = 5; model.log_scroll = 9;
-    model.search_jobs = "Pinned".into(); model.follow_updates = false;
+    model.job_scroll = 7;
+    model.task_scroll = 5;
+    model.log_scroll = 9;
+    model.search_jobs = "Pinned".into();
+    model.follow_updates = false;
     seek_until_settled(&mut ui, &mut model, maximum);
     assert_eq!(replay_signature(&model), expected);
-    assert_eq!(seek_until_settled(&mut ui, &mut model, maximum), 0, "identical End is a no-op");
+    assert_eq!(
+        seek_until_settled(&mut ui, &mut model, maximum),
+        0,
+        "identical End is a no-op"
+    );
     for target in (maximum - 64..maximum).rev() {
         assert!(seek_until_settled(&mut ui, &mut model, target) < 256);
         assert_eq!(model.selected_job.as_deref(), Some("pinned-job"));
         assert!(!model.selected_job_expired);
-        assert_eq!((model.job_scroll, model.task_scroll, model.log_scroll), (7,5,9));
+        assert_eq!(
+            (model.job_scroll, model.task_scroll, model.log_scroll),
+            (7, 5, 9)
+        );
         assert_eq!(model.search_jobs, "Pinned");
     }
     seek_until_settled(&mut ui, &mut model, 256);
@@ -240,7 +278,10 @@ fn maximum_recording_seeks_use_bounded_checkpoints_and_preserve_view_identity() 
     assert!(model.job_status.contains_key("chunked-job"));
     seek_until_settled(&mut ui, &mut model, 0);
     assert_eq!(model.selected_job.as_deref(), Some("pinned-job"));
-    assert!(model.selected_job_expired, "missing replay identity is explicit, never substituted");
+    assert!(
+        model.selected_job_expired,
+        "missing replay identity is explicit, never substituted"
+    );
     ui.detach_requested = true;
     ui.update_view(&mut model);
     assert!(has_live_control(&model));

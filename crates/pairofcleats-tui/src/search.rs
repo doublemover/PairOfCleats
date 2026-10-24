@@ -14,7 +14,10 @@ enum Page {
 }
 
 #[derive(Clone)]
-enum ClickTarget { Field(usize), Result(String) }
+enum ClickTarget {
+    Field(usize),
+    Result(String),
+}
 
 /// Volatile query/source data stays outside layout snapshots and telemetry.
 pub(crate) struct SearchUi {
@@ -143,7 +146,12 @@ impl SearchUi {
         {
             status.push_str("; output budget omitted hits");
         }
-        if self.result.as_ref().and_then(|result| result["searchDiagnostics"]["backend"]["fidelity"].as_str()) == Some("fallback-derived") {
+        if self
+            .result
+            .as_ref()
+            .and_then(|result| result["searchDiagnostics"]["backend"]["fidelity"].as_str())
+            == Some("fallback-derived")
+        {
             status.push_str("; fallback results (d for diagnostics)");
         }
         status
@@ -253,19 +261,37 @@ impl SearchUi {
             Page::Composer => match key.code {
                 KeyCode::Down | KeyCode::Up if matches!(self.field, 2 | 3) => {
                     let name = if self.field == 2 { "mode" } else { "backend" };
-                    if let Some(choices) = self.schema.as_ref().and_then(|schema| schema["properties"][name]["enum"].as_array()) {
+                    if let Some(choices) = self
+                        .schema
+                        .as_ref()
+                        .and_then(|schema| schema["properties"][name]["enum"].as_array())
+                    {
                         if !choices.is_empty() {
-                            let current = choices.iter().position(|value| value.as_str() == Some(self.fields[self.field].as_str())).unwrap_or(0);
-                            let next = if key.code == KeyCode::Down { (current + 1) % choices.len() }
-                                else { (current + choices.len() - 1) % choices.len() };
-                            if let Some(value) = choices[next].as_str() { self.fields[self.field] = value.into(); self.cursor.reset(); }
+                            let current = choices
+                                .iter()
+                                .position(|value| {
+                                    value.as_str() == Some(self.fields[self.field].as_str())
+                                })
+                                .unwrap_or(0);
+                            let next = if key.code == KeyCode::Down {
+                                (current + 1) % choices.len()
+                            } else {
+                                (current + choices.len() - 1) % choices.len()
+                            };
+                            if let Some(value) = choices[next].as_str() {
+                                self.fields[self.field] = value.into();
+                                self.cursor.reset();
+                            }
                         }
                     }
                 }
-                KeyCode::Tab => { self.field = (self.field + 1) % self.fields.len(); self.cursor.reset(); }
+                KeyCode::Tab => {
+                    self.field = (self.field + 1) % self.fields.len();
+                    self.cursor.reset();
+                }
                 KeyCode::BackTab => {
-                    self.field = (self.field + self.fields.len() - 1) % self.fields.len()
-                    ; self.cursor.reset();
+                    self.field = (self.field + self.fields.len() - 1) % self.fields.len();
+                    self.cursor.reset();
                 }
                 KeyCode::Enter => self.submit(),
                 KeyCode::Backspace => {
@@ -315,13 +341,28 @@ impl SearchUi {
                 _ => {}
             },
             Page::Diagnostics => match key.code {
-                KeyCode::Down | KeyCode::Char('j') => self.diagnostics_scroll = self.diagnostics_scroll.saturating_add(1),
-                KeyCode::Up | KeyCode::Char('k') => self.diagnostics_scroll = self.diagnostics_scroll.saturating_sub(1),
-                KeyCode::PageDown => self.diagnostics_scroll = self.diagnostics_scroll.saturating_add(10),
-                KeyCode::PageUp => self.diagnostics_scroll = self.diagnostics_scroll.saturating_sub(10),
-                KeyCode::Right => self.diagnostics_column = self.diagnostics_column.saturating_add(8).min(768),
-                KeyCode::Left => self.diagnostics_column = self.diagnostics_column.saturating_sub(8),
-                KeyCode::Home => { self.diagnostics_scroll = 0; self.diagnostics_column = 0; }
+                KeyCode::Down | KeyCode::Char('j') => {
+                    self.diagnostics_scroll = self.diagnostics_scroll.saturating_add(1)
+                }
+                KeyCode::Up | KeyCode::Char('k') => {
+                    self.diagnostics_scroll = self.diagnostics_scroll.saturating_sub(1)
+                }
+                KeyCode::PageDown => {
+                    self.diagnostics_scroll = self.diagnostics_scroll.saturating_add(10)
+                }
+                KeyCode::PageUp => {
+                    self.diagnostics_scroll = self.diagnostics_scroll.saturating_sub(10)
+                }
+                KeyCode::Right => {
+                    self.diagnostics_column = self.diagnostics_column.saturating_add(8).min(768)
+                }
+                KeyCode::Left => {
+                    self.diagnostics_column = self.diagnostics_column.saturating_sub(8)
+                }
+                KeyCode::Home => {
+                    self.diagnostics_scroll = 0;
+                    self.diagnostics_column = 0;
+                }
                 _ => {}
             },
             Page::OpenConfirm => {
@@ -383,12 +424,28 @@ impl SearchUi {
     }
 
     pub fn click(&mut self, row: usize) {
-        if !self.available || self.rendered_revision.get() != Some(self.revision) { return; }
-        let target = self.rendered_clicks.borrow().iter().find(|(line, _)| *line == row).map(|(_, target)| target.clone());
+        if !self.available || self.rendered_revision.get() != Some(self.revision) {
+            return;
+        }
+        let target = self
+            .rendered_clicks
+            .borrow()
+            .iter()
+            .find(|(line, _)| *line == row)
+            .map(|(_, target)| target.clone());
         match target {
-            Some(ClickTarget::Field(field)) if self.page == Page::Composer => { self.field = field; self.cursor.reset(); }
+            Some(ClickTarget::Field(field)) if self.page == Page::Composer => {
+                self.field = field;
+                self.cursor.reset();
+            }
             Some(ClickTarget::Result(id)) if self.page == Page::Results => {
-                if let Some(index) = self.rows.iter().position(|hit| hit["hitId"].as_str() == Some(id.as_str())) { self.selected = index; }
+                if let Some(index) = self
+                    .rows
+                    .iter()
+                    .position(|hit| hit["hitId"].as_str() == Some(id.as_str()))
+                {
+                    self.selected = index;
+                }
             }
             _ => return,
         }
@@ -490,11 +547,19 @@ impl SearchUi {
                         hit["rank"].as_u64(),
                     )
                 });
-                let selected_id = self.rows.get(self.selected)
-                    .and_then(|hit| hit["hitId"].as_str()).map(str::to_owned);
+                let selected_id = self
+                    .rows
+                    .get(self.selected)
+                    .and_then(|hit| hit["hitId"].as_str())
+                    .map(str::to_owned);
                 self.rows = combined;
-                self.selected = selected_id.as_deref()
-                    .and_then(|id| self.rows.iter().position(|hit| hit["hitId"].as_str() == Some(id)))
+                self.selected = selected_id
+                    .as_deref()
+                    .and_then(|id| {
+                        self.rows
+                            .iter()
+                            .position(|hit| hit["hitId"].as_str() == Some(id))
+                    })
                     .unwrap_or_else(|| self.selected.min(self.rows.len().saturating_sub(1)));
                 self.result = Some(data.clone());
                 self.page = Page::Results;
@@ -536,7 +601,8 @@ impl SearchUi {
 
     pub fn lines(&self, height: usize, width: usize) -> Vec<String> {
         let mut click_targets = self.rendered_clicks.borrow_mut();
-        click_targets.clear(); self.rendered_revision.set(Some(self.revision));
+        click_targets.clear();
+        self.rendered_revision.set(Some(self.revision));
         let mut lines = vec![self.status.clone()];
         if !self.available {
             lines.push("Read only: repository search requires a controllable local supervisor. Esc closes.".into());
@@ -548,11 +614,18 @@ impl SearchUi {
                     "Tab field; mode/backend Up/Down choices; Ctrl+U clear; Enter search; Esc close".into(),
                 );
                 for (i, label) in LABELS.iter().enumerate() {
-                    if lines.len() < height { click_targets.push((lines.len(), ClickTarget::Field(i))); }
+                    if lines.len() < height {
+                        click_targets.push((lines.len(), ClickTarget::Field(i)));
+                    }
                     lines.push(format!(
                         "{} {label}: {}",
                         if self.field == i { ">" } else { " " },
-                        if self.field == i { self.cursor.visible(&self.fields[i], width.saturating_sub(label.len() + 5)) } else { self.fields[i].clone() }
+                        if self.field == i {
+                            self.cursor
+                                .visible(&self.fields[i], width.saturating_sub(label.len() + 5))
+                        } else {
+                            self.fields[i].clone()
+                        }
                     ));
                 }
                 if let Some(schema) = &self.schema {
@@ -572,8 +645,12 @@ impl SearchUi {
                         "Repository: {}",
                         result["repoPath"].as_str().unwrap_or("unknown")
                     ));
-                    lines.push(result["searchDiagnostics"]["summary"].as_str()
-                        .unwrap_or("Search diagnostics were not recorded for this response.").into());
+                    lines.push(
+                        result["searchDiagnostics"]["summary"]
+                            .as_str()
+                            .unwrap_or("Search diagnostics were not recorded for this response.")
+                            .into(),
+                    );
                 }
                 if self.rows.is_empty() && self.pending.is_none() {
                     lines.push(self.result.as_ref().and_then(|result| result["searchDiagnostics"]["reasons"][0]["message"].as_str())
@@ -583,7 +660,9 @@ impl SearchUi {
                 let offset = self.selected.saturating_sub(budget - 1);
                 for (i, hit) in self.rows.iter().enumerate().skip(offset).take(budget) {
                     if lines.len() < height {
-                        if let Some(id) = hit["hitId"].as_str() { click_targets.push((lines.len(), ClickTarget::Result(id.to_owned()))); }
+                        if let Some(id) = hit["hitId"].as_str() {
+                            click_targets.push((lines.len(), ClickTarget::Result(id.to_owned())));
+                        }
                     }
                     let text = format!(
                         "{} {} #{} score={} {}:{}-{} {}",
@@ -602,18 +681,38 @@ impl SearchUi {
             Page::Diagnostics => {
                 lines.push("Recorded search diagnostics; Up/Down scroll; Left/Right pan; Home reset; Esc results".into());
                 lines.push("Use Index Health or Tooling Doctor deliberately; viewing diagnostics runs no command.".into());
-                let details = self.result.as_ref().and_then(|result| result["searchDiagnostics"]["details"].as_array());
+                let details = self
+                    .result
+                    .as_ref()
+                    .and_then(|result| result["searchDiagnostics"]["details"].as_array());
                 if let Some(details) = details {
                     let count = details.len().min(24);
                     let offset = self.diagnostics_scroll.min(count.saturating_sub(1));
-                    for value in details.iter().take(24).skip(offset).take(height.saturating_sub(lines.len())) {
+                    for value in details
+                        .iter()
+                        .take(24)
+                        .skip(offset)
+                        .take(height.saturating_sub(lines.len()))
+                    {
                         if let Some(text) = value.as_str() {
-                            lines.push(Span::raw(text).styled_graphemes(Style::default())
-                                .skip(self.diagnostics_column).map(|grapheme| grapheme.symbol).collect());
+                            lines.push(
+                                Span::raw(text)
+                                    .styled_graphemes(Style::default())
+                                    .skip(self.diagnostics_column)
+                                    .map(|grapheme| grapheme.symbol)
+                                    .collect(),
+                            );
                         }
                     }
-                    if self.result.as_ref().map(|result| result["searchDiagnostics"]["truncated"] == true).unwrap_or(false) {
-                        lines.push("Diagnostic projection was truncated by its display bound.".into());
+                    if self
+                        .result
+                        .as_ref()
+                        .map(|result| result["searchDiagnostics"]["truncated"] == true)
+                        .unwrap_or(false)
+                    {
+                        lines.push(
+                            "Diagnostic projection was truncated by its display bound.".into(),
+                        );
                     }
                 } else {
                     lines.push("Search diagnostics were not recorded for this response.".into());
@@ -689,19 +788,26 @@ mod tests {
 
     #[test]
     fn pasted_middle_query_and_rendered_result_click_never_submit_or_open_implicitly() {
-        let mut ui = ready(); ui.outbox.clear();
+        let mut ui = ready();
+        ui.outbox.clear();
         ui.fields[1] = "ab界e\u{301}😀".into();
-        ui.key(KeyCode::Left.into()); ui.key(KeyCode::Backspace.into());
+        ui.key(KeyCode::Left.into());
+        ui.key(KeyCode::Backspace.into());
         ui.paste("echo q\n\u{1b}\u{3}");
         assert_eq!(ui.fields[1], "ab界echo q 😀");
         assert!(ui.outbox.is_empty());
-        ui.page = Page::Results; ui.rows = vec![hit("code",1,"first"), hit("code",2,"second")];
-        ui.result = Some(page(ui.rows.clone())); ui.selected = 0;
-        let rows = ui.lines(20,76);
+        ui.page = Page::Results;
+        ui.rows = vec![hit("code", 1, "first"), hit("code", 2, "second")];
+        ui.result = Some(page(ui.rows.clone()));
+        ui.selected = 0;
+        let rows = ui.lines(20, 76);
         let second = rows.iter().position(|row| row.contains("#2")).unwrap();
         ui.click(second);
         assert_eq!(ui.rows[ui.selected]["hitId"], "second");
-        assert!(ui.outbox.is_empty(), "click selects; Enter alone requests source");
+        assert!(
+            ui.outbox.is_empty(),
+            "click selects; Enter alone requests source"
+        );
         ui.key(KeyCode::Enter.into());
         assert_eq!(ui.outbox.back().unwrap()["params"]["hitId"], "second");
         assert_eq!(ui.outbox.back().unwrap()["method"], "source");
@@ -726,11 +832,21 @@ mod tests {
         key(&mut ui, KeyCode::Char('d'));
         assert!(ui.page == Page::Diagnostics);
         let text = ui.lines(20, 100).join("\n");
-        for expected in ["old-generation", "coverage-check", "does not verify", "runs no command"] {
+        for expected in [
+            "old-generation",
+            "coverage-check",
+            "does not verify",
+            "runs no command",
+        ] {
             assert!(text.contains(expected), "{expected}");
         }
-        for _ in 0..40 { key(&mut ui, KeyCode::PageDown); }
-        assert!(ui.lines(8, 20).iter().all(|line| line.chars().count() <= 20));
+        for _ in 0..40 {
+            key(&mut ui, KeyCode::PageDown);
+        }
+        assert!(ui
+            .lines(8, 20)
+            .iter()
+            .all(|line| line.chars().count() <= 20));
         key(&mut ui, KeyCode::Home);
         assert!(ui.lines(20, 100).join("\n").contains("old-generation"));
         assert!(ui.outbox.is_empty());
@@ -742,7 +858,10 @@ mod tests {
         key(&mut ui, KeyCode::Enter);
         ui.outbox.clear();
         reply(&mut ui, "query", page(vec![]));
-        assert!(ui.lines(20, 100).join("\n").contains("diagnostics were not recorded"));
+        assert!(ui
+            .lines(20, 100)
+            .join("\n")
+            .contains("diagnostics were not recorded"));
         key(&mut ui, KeyCode::Char('d'));
         assert!(!ui.lines(20, 100).join("\n").contains("old-generation"));
         assert!(ui.outbox.is_empty());

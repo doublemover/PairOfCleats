@@ -1,48 +1,48 @@
-mod review_presentation;
-mod log_layout;
-mod inspection;
+mod actions;
+#[cfg(test)]
+mod activity_tests;
 mod event_ingress;
 #[cfg(test)]
 mod input_ingress_tests;
+mod inspection;
+mod interaction;
+mod log_layout;
 #[cfg(test)]
 mod recording_tests;
 mod recordings;
+mod review_presentation;
 mod search;
 mod settings;
 mod supervisor_lifetime;
 mod supervisor_transport;
+mod text_editor;
 #[cfg(test)]
 mod viewport_tests;
 #[cfg(test)]
-mod activity_tests;
-#[cfg(test)]
 mod workflow_tests;
 mod workflows;
-mod text_editor;
-mod interaction;
-mod actions;
 use supervisor_lifetime::SupervisorLifetime;
 
 use std::collections::{BTreeMap, HashMap, VecDeque};
-mod task_state;
 mod overlay_viewport;
-use task_state::{Lifecycle, TaskState};
+mod task_state;
 use std::fs;
 use std::io::{BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use task_state::{Lifecycle, TaskState};
 
 use crossterm::event::{
-    self, DisableMouseCapture, EnableMouseCapture, DisableBracketedPaste, EnableBracketedPaste, Event as CEvent, KeyCode, KeyEvent,
-    KeyEventKind, KeyModifiers,
+    self, DisableBracketedPaste, DisableMouseCapture, EnableBracketedPaste, EnableMouseCapture,
+    Event as CEvent, KeyCode, KeyEvent, KeyEventKind, KeyModifiers,
 };
 use crossterm::execute;
 use crossterm::terminal::{
     disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen,
 };
 use ratatui::backend::{CrosstermBackend, TestBackend};
-use ratatui::layout::{Constraint, Direction, Layout};
+use ratatui::layout::{Constraint, Direction, Layout, Rect};
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Span;
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap};
@@ -757,7 +757,9 @@ impl AppModel {
     ) {
         if self.next_log_id == u64::MAX {
             self.log_layout_cache.borrow_mut().clear();
-            for (index, retained) in self.logs.iter_mut().enumerate() { retained.id = index as u64 + 1; }
+            for (index, retained) in self.logs.iter_mut().enumerate() {
+                retained.id = index as u64 + 1;
+            }
             self.next_log_id = self.logs.len() as u64 + 1;
         }
         let id = self.next_log_id;
@@ -773,7 +775,9 @@ impl AppModel {
             self.log_scroll = self.log_scroll.saturating_add(1);
         }
         if self.logs.len() >= LOG_RING_LIMIT {
-            if let Some(old) = self.logs.pop_front() { self.log_layout_cache.borrow_mut().remove(old.id); }
+            if let Some(old) = self.logs.pop_front() {
+                self.log_layout_cache.borrow_mut().remove(old.id);
+            }
         }
         self.logs.push_back(entry);
         self.content_changed();
@@ -897,7 +901,11 @@ impl AppModel {
         message: Option<&str>,
     ) {
         if Lifecycle::from_status(status) == Lifecycle::Active
-            && self.job_status.get(job_id).is_some_and(|owner| Lifecycle::from_status(owner) != Lifecycle::Active) {
+            && self
+                .job_status
+                .get(job_id)
+                .is_some_and(|owner| Lifecycle::from_status(owner) != Lifecycle::Active)
+        {
             return;
         }
         let key = json!([job_id, task_id]).to_string();
@@ -913,23 +921,42 @@ impl AppModel {
             }
         }
         if let Some(task) = self.task_status.get_mut(&key) {
-            task.status = status.into(); task.message = message.filter(|text| !text.trim().is_empty()).map(str::to_owned);
-        } else { self.task_status.insert(key, TaskState::new(status, message)); }
+            task.status = status.into();
+            task.message = message
+                .filter(|text| !text.trim().is_empty())
+                .map(str::to_owned);
+        } else {
+            self.task_status
+                .insert(key, TaskState::new(status, message));
+        }
         self.content_changed();
     }
 
     fn reconcile_terminal_tasks(&mut self, job_id: &str, owner_status: &str) {
         for (key, task) in &mut self.task_status {
-            if self.task_identity.get(key).is_some_and(|(owner, _)| owner == job_id)
-                && task.lifecycle() == Lifecycle::Active {
+            if self
+                .task_identity
+                .get(key)
+                .is_some_and(|(owner, _)| owner == job_id)
+                && task.lifecycle() == Lifecycle::Active
+            {
                 let status = if Lifecycle::from_status(owner_status) == Lifecycle::Cancelled {
                     "cancelled"
-                } else { "unfinished" };
+                } else {
+                    "unfinished"
+                };
                 task.status = status.into();
                 task.message = Some(format!("owner ended {owner_status} before task:end"));
                 if self.owns_control_channel && self.session.mode != "replay" {
-                    task.ended_ms = Some(self.activity_origin.elapsed().as_millis().min(u64::MAX as u128) as u64);
-                } else { task.ended_ms = self.recorded_ms; }
+                    task.ended_ms = Some(
+                        self.activity_origin
+                            .elapsed()
+                            .as_millis()
+                            .min(u64::MAX as u128) as u64,
+                    );
+                } else {
+                    task.ended_ms = self.recorded_ms;
+                }
             }
         }
         self.content_changed();
@@ -1317,14 +1344,6 @@ fn clear_search(model: &mut AppModel, panel: FocusPanel) {
     model.dirty = true;
 }
 
-fn contains_query(text: &str, query: &str) -> bool {
-    let needle = query.trim().to_lowercase();
-    if needle.is_empty() {
-        return true;
-    }
-    text.to_lowercase().contains(&needle)
-}
-
 fn matches_job_filter(status: &str, filter: JobFilter) -> bool {
     match filter {
         JobFilter::All => true,
@@ -1670,9 +1689,16 @@ fn apply_workload_descriptor(model: &mut AppModel, event: &Value) {
                 .and_then(|value| value.as_u64())
             {
                 model.indexing_summary.heartbeat_age_ms = Some(value);
-                model.indexing_summary.heartbeat_observed_ms = Some(if model.session.mode == "replay" {
-                    model.recorded_ms.unwrap_or(0)
-                } else { model.activity_origin.elapsed().as_millis().min(u64::MAX as u128) as u64 });
+                model.indexing_summary.heartbeat_observed_ms =
+                    Some(if model.session.mode == "replay" {
+                        model.recorded_ms.unwrap_or(0)
+                    } else {
+                        model
+                            .activity_origin
+                            .elapsed()
+                            .as_millis()
+                            .min(u64::MAX as u128) as u64
+                    });
             }
             if let Some(value) = workload
                 .get("artifactWriteProgress")
@@ -1808,9 +1834,22 @@ fn workload_summary_text(model: &AppModel, width: usize) -> String {
                 ));
             }
             if let Some(value) = model.indexing_summary.heartbeat_age_ms {
-                let now = if model.session.mode == "replay" { model.recorded_ms.unwrap_or(0) } else { model.activity_second * 1000 };
-                let age = value.saturating_add(now.saturating_sub(model.indexing_summary.heartbeat_observed_ms.unwrap_or(now)));
-                parts.push(format!("heartbeat {age}ms since observed{}", if model.session.mode == "replay" { " (recorded time)" } else { "" }));
+                let now = if model.session.mode == "replay" {
+                    model.recorded_ms.unwrap_or(0)
+                } else {
+                    model.activity_second * 1000
+                };
+                let age = value.saturating_add(
+                    now.saturating_sub(model.indexing_summary.heartbeat_observed_ms.unwrap_or(now)),
+                );
+                parts.push(format!(
+                    "heartbeat {age}ms since observed{}",
+                    if model.session.mode == "replay" {
+                        " (recorded time)"
+                    } else {
+                        ""
+                    }
+                ));
             }
             if !model.indexing_summary.artifact_write_progress.is_empty() {
                 parts.push(format!(
@@ -1905,20 +1944,45 @@ fn operator_summary_text(model: &AppModel, width: usize) -> String {
 }
 
 fn metric_label(value: Option<f64>) -> String {
-    value.map(|number| format!("{number:.0}")).unwrap_or_else(|| "?".to_string())
+    value
+        .map(|number| format!("{number:.0}"))
+        .unwrap_or_else(|| "?".to_string())
 }
 
 fn runtime_summary_text(model: &AppModel, width: usize) -> String {
     let (running_jobs, failed_jobs, done_jobs, cancelled_jobs) = job_status_counts(model);
-    let interrupted = model.job_status.values().filter(|status| Lifecycle::from_status(status) == Lifecycle::Interrupted).count();
+    let interrupted = model
+        .job_status
+        .values()
+        .filter(|status| Lifecycle::from_status(status) == Lifecycle::Interrupted)
+        .count();
     let (active_tasks, failed_tasks) = task_status_counts(model);
     let parts = [
-        format!("jobs {running_jobs}run/{failed_jobs}fail/{done_jobs}done/{cancelled_jobs}cancel{}",
-            if interrupted > 0 { format!("/{interrupted}interrupted") } else { String::new() }),
+        format!(
+            "jobs {running_jobs}run/{failed_jobs}fail/{done_jobs}done/{cancelled_jobs}cancel{}",
+            if interrupted > 0 {
+                format!("/{interrupted}interrupted")
+            } else {
+                String::new()
+            }
+        ),
         format!("tasks {active_tasks}a/{failed_tasks}f"),
-        format!("flow queue {}", metric_label(model.telemetry.queue_depth_ewma)),
-        format!("ingress lag {}ms", metric_label(model.telemetry.event_lag_ms_ewma)),
-        format!("native pending {}", model.telemetry.native_inbound_pending.map(|value| value.to_string()).unwrap_or_else(|| "?".to_string())),
+        format!(
+            "flow queue {}",
+            metric_label(model.telemetry.queue_depth_ewma)
+        ),
+        format!(
+            "ingress lag {}ms",
+            metric_label(model.telemetry.event_lag_ms_ewma)
+        ),
+        format!(
+            "native pending {}",
+            model
+                .telemetry
+                .native_inbound_pending
+                .map(|value| value.to_string())
+                .unwrap_or_else(|| "?".to_string())
+        ),
         format!("render {:.0}ms", model.telemetry.render_ms_ewma),
         format!("note {}", model.session.note),
     ];
@@ -1926,7 +1990,9 @@ fn runtime_summary_text(model: &AppModel, width: usize) -> String {
 }
 
 fn footer_hint_text(model: &AppModel, width: usize) -> String {
-    if model.overlay == OverlayMode::None { return fit_text(&actions::footer(), width); }
+    if model.overlay == OverlayMode::None {
+        return fit_text(&actions::footer(), width);
+    }
     let text = match model.overlay {
         OverlayMode::Help => "help | arrows/Page/Home/End scroll | Esc or ? close",
         OverlayMode::Palette => "action palette | type filter | arrows move | Enter select | Esc close",
@@ -1964,7 +2030,10 @@ fn visible_job_ids(model: &AppModel) -> Vec<&str> {
         .filter_map(|id| {
             let status = model.job_status.get(id)?;
             (matches_job_filter(status, model.job_filter)
-                && (query.is_empty() || job_row_text(model, id, status).to_lowercase().contains(&query)))
+                && (query.is_empty()
+                    || job_row_text(model, id, status)
+                        .to_lowercase()
+                        .contains(&query)))
             .then_some(id.as_str())
         })
         .collect()
@@ -1994,9 +2063,14 @@ fn select_job(model: &mut AppModel, direction: isize) {
 }
 
 fn pin_visible_job(model: &mut AppModel, id: &str) {
-    if !visible_job_ids(model).contains(&id) { return; }
-    model.selected_job = Some(id.into()); model.selected_job_pinned = true;
-    model.selected_job_expired = false; model.task_scroll = 0; model.log_scroll = 0;
+    if !visible_job_ids(model).contains(&id) {
+        return;
+    }
+    model.selected_job = Some(id.into());
+    model.selected_job_pinned = true;
+    model.selected_job_expired = false;
+    model.task_scroll = 0;
+    model.log_scroll = 0;
     model.dirty = true;
 }
 
@@ -2014,10 +2088,15 @@ fn follow_latest_job(model: &mut AppModel) {
 }
 
 fn selected_job_cancelable(model: &AppModel) -> bool {
-    !model.selected_job_expired && has_live_control(model) && model.selected_job.as_ref().is_some_and(|id| {
-        visible_job_ids(model).contains(&id.as_str()) && model.job_status.get(id)
-            .is_some_and(|status| matches!(status.as_str(), "accepted" | "running"))
-    })
+    !model.selected_job_expired
+        && has_live_control(model)
+        && model.selected_job.as_ref().is_some_and(|id| {
+            visible_job_ids(model).contains(&id.as_str())
+                && model
+                    .job_status
+                    .get(id)
+                    .is_some_and(|status| matches!(status.as_str(), "accepted" | "running"))
+        })
 }
 
 fn selected_job_cancel_request(model: &mut AppModel) -> Option<Value> {
@@ -2043,7 +2122,10 @@ fn selected_job_cancel_request(model: &mut AppModel) -> Option<Value> {
     Some(json!({"proto":"poc.tui@1", "op":"job:cancel", "jobId":id, "reason":"user_cancel"}))
 }
 
-fn send_selected_job_cancel(model: &mut AppModel, supervisor: &mut std::process::Child) -> anyhow::Result<()> {
+fn send_selected_job_cancel(
+    model: &mut AppModel,
+    supervisor: &mut std::process::Child,
+) -> anyhow::Result<()> {
     if let Some(request) = selected_job_cancel_request(model) {
         let id = request["jobId"].as_str().unwrap().to_owned();
         send_request(supervisor, request)?;
@@ -2057,33 +2139,50 @@ fn send_selected_job_cancel(model: &mut AppModel, supervisor: &mut std::process:
 #[cfg(test)]
 thread_local! { static ROW_PRESENTATIONS: std::cell::Cell<(usize, usize)> = const { std::cell::Cell::new((0, 0)) }; }
 
-fn build_job_rows(model: &AppModel, width: usize, height: usize) -> (Vec<ListItem<'static>>, Option<usize>) {
-    if height == 0 { return (Vec::new(), None); }
+fn build_job_rows(
+    model: &AppModel,
+    width: usize,
+    height: usize,
+) -> (Vec<ListItem<'static>>, Option<usize>) {
+    if height == 0 {
+        return (Vec::new(), None);
+    }
     let ids = visible_job_ids(model);
     if ids.is_empty() {
-        return (vec![ListItem::new(fit_text(&jobs_empty_reason(model), width))], None);
+        return (
+            vec![ListItem::new(fit_text(&jobs_empty_reason(model), width))],
+            None,
+        );
     }
     let start = model.job_scroll.min(ids.len().saturating_sub(height));
-    let selected_row = if model.selected_job_expired { None } else {
-        ids.iter().position(|id| Some(*id) == model.selected_job.as_deref())
-            .filter(|index| *index >= start && *index < start + height).map(|index| index - start)
+    let selected_row = if model.selected_job_expired {
+        None
+    } else {
+        ids.iter()
+            .position(|id| Some(*id) == model.selected_job.as_deref())
+            .filter(|index| *index >= start && *index < start + height)
+            .map(|index| index - start)
     };
     let mut rows = Vec::with_capacity(height.min(ids.len()));
     for job_id in ids.into_iter().skip(start).take(height) {
         let status = &model.job_status[job_id];
         let rendered = job_row_text(model, job_id, status);
-        #[cfg(test)] ROW_PRESENTATIONS.with(|count| { let (jobs, tasks) = count.get(); count.set((jobs + 1, tasks)); });
+        #[cfg(test)]
+        ROW_PRESENTATIONS.with(|count| {
+            let (jobs, tasks) = count.get();
+            count.set((jobs + 1, tasks));
+        });
         let style = if !model.terminal_caps.color {
             Style::default()
-        } else if !model.selected_job_expired
-            && model.selected_job.as_deref() == Some(job_id)
-        {
+        } else if !model.selected_job_expired && model.selected_job.as_deref() == Some(job_id) {
             Style::default()
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD)
         } else if Lifecycle::from_status(status) == Lifecycle::Done {
             Style::default().fg(Color::Green)
-        } else if Lifecycle::from_status(status).is_problem() && Lifecycle::from_status(status) != Lifecycle::Cancelled {
+        } else if Lifecycle::from_status(status).is_problem()
+            && Lifecycle::from_status(status) != Lifecycle::Cancelled
+        {
             Style::default().fg(Color::Red)
         } else if Lifecycle::from_status(status) == Lifecycle::Cancelled {
             Style::default().fg(Color::Yellow)
@@ -2102,8 +2201,7 @@ fn render_job_panel(frame: &mut ratatui::Frame<'_>, model: &AppModel, area: rata
     let height = area.height.saturating_sub(2) as usize;
     let query = model.search_jobs.trim();
     let (rows, selected_row) = build_job_rows(model, area.width.saturating_sub(2) as usize, height);
-    let list = List::new(rows)
-    .block(panel_block(
+    let list = List::new(rows).block(panel_block(
         block_title(
             "Jobs",
             model.focus_panel == FocusPanel::Jobs,
@@ -2132,44 +2230,80 @@ fn render_job_panel(frame: &mut ratatui::Frame<'_>, model: &AppModel, area: rata
 fn visible_task_keys(model: &AppModel) -> Vec<&String> {
     let selected = model.selected_job.as_deref().unwrap_or("");
     let query = model.search_tasks.trim().to_lowercase();
-    model.task_order.iter().filter(|key| {
-        let identity = model.task_identity.get(*key);
-        if !selected.is_empty() && identity.map(|(owner, _)| owner.as_str()) != Some(selected) { return false; }
-        let Some(task) = model.task_status.get(*key) else { return false; };
-        if !matches_task_filter(&task.status, model.task_filter) { return false; }
-        if query.is_empty() { return true; }
-        let name = identity.map(|(_, id)| id.as_str()).unwrap_or(key);
-        format!("{name} | {task}").to_lowercase().contains(&query)
-    }).collect()
+    model
+        .task_order
+        .iter()
+        .filter(|key| {
+            let identity = model.task_identity.get(*key);
+            if !selected.is_empty() && identity.map(|(owner, _)| owner.as_str()) != Some(selected) {
+                return false;
+            }
+            let Some(task) = model.task_status.get(*key) else {
+                return false;
+            };
+            if !matches_task_filter(&task.status, model.task_filter) {
+                return false;
+            }
+            if query.is_empty() {
+                return true;
+            }
+            let name = identity.map(|(_, id)| id.as_str()).unwrap_or(key);
+            format!("{name} | {task}").to_lowercase().contains(&query)
+        })
+        .collect()
 }
 
 fn build_task_rows(model: &AppModel, width: usize, height: usize) -> Vec<ListItem<'static>> {
-    if height == 0 { return Vec::new(); }
+    if height == 0 {
+        return Vec::new();
+    }
     if model.selected_job_expired {
         return vec![ListItem::new(fit_text(
-            "Selected job instance expired; reselect a visible job", width))];
+            "Selected job instance expired; reselect a visible job",
+            width,
+        ))];
     }
     let keys = visible_task_keys(model);
-    if keys.is_empty() { return vec![ListItem::new(fit_text(&tasks_empty_reason(model), width))]; }
+    if keys.is_empty() {
+        return vec![ListItem::new(fit_text(&tasks_empty_reason(model), width))];
+    }
     let start = model.task_scroll.min(keys.len().saturating_sub(height));
-    keys.into_iter().skip(start).take(height).map(|key| {
-        let task = &model.task_status[key];
-        let name = model.task_identity.get(key).map(|(_, id)| id.as_str()).unwrap_or(key);
-        let rendered = format!("{name} | {task}");
-        #[cfg(test)] ROW_PRESENTATIONS.with(|count| { let (jobs, tasks) = count.get(); count.set((jobs, tasks + 1)); });
-        let style = if !model.terminal_caps.color { Style::default() }
-            else if task.lifecycle().is_problem() { Style::default().fg(Color::Red) }
-            else if task.lifecycle() == Lifecycle::Done { Style::default().fg(Color::Green) }
-            else { Style::default().fg(Color::Yellow) };
-        ListItem::new(fit_text(&rendered, width)).style(style)
-    }).collect()
+    keys.into_iter()
+        .skip(start)
+        .take(height)
+        .map(|key| {
+            let task = &model.task_status[key];
+            let name = model
+                .task_identity
+                .get(key)
+                .map(|(_, id)| id.as_str())
+                .unwrap_or(key);
+            let rendered = format!("{name} | {task}");
+            #[cfg(test)]
+            ROW_PRESENTATIONS.with(|count| {
+                let (jobs, tasks) = count.get();
+                count.set((jobs, tasks + 1));
+            });
+            let style = if !model.terminal_caps.color {
+                Style::default()
+            } else if task.lifecycle().is_problem() {
+                Style::default().fg(Color::Red)
+            } else if task.lifecycle() == Lifecycle::Done {
+                Style::default().fg(Color::Green)
+            } else {
+                Style::default().fg(Color::Yellow)
+            };
+            ListItem::new(fit_text(&rendered, width)).style(style)
+        })
+        .collect()
 }
 
 #[cfg(test)]
 thread_local! { static LOG_FORMATS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) }; }
 
 fn render_log_entry(entry: &LogEntry) -> String {
-    #[cfg(test)] LOG_FORMATS.with(|count| count.set(count.get() + 1));
+    #[cfg(test)]
+    LOG_FORMATS.with(|count| count.set(count.get() + 1));
     let text = entry.text.trim();
     match entry.level.as_str() {
         "warn" | "error" => format!("{} | {} | {}", entry.level, entry.source, text),
@@ -2188,28 +2322,49 @@ fn logs_empty_reason(model: &AppModel) -> String {
 }
 
 fn cached_log_tail(model: &AppModel, entry: &LogEntry, width: usize, height: usize) -> Vec<String> {
-    model.log_layout_cache.borrow_mut().tail(entry.id, width, height, || render_log_entry(entry))
+    model
+        .log_layout_cache
+        .borrow_mut()
+        .tail(entry.id, width, height, || render_log_entry(entry))
 }
 
 fn build_log_lines(model: &AppModel, width: usize, height: usize) -> String {
-    if width == 0 || height == 0 { return String::new(); }
+    if width == 0 || height == 0 {
+        return String::new();
+    }
     let query = model.search_logs.trim().to_lowercase();
-    let mut matched = 0usize;
     let mut oldest_match = None;
     let mut lines = Vec::new();
-    for entry in model.logs.iter().rev().filter(|entry| matches_log_entry_with_query(model, entry, &query)) {
+    for (matched, entry) in model
+        .logs
+        .iter()
+        .rev()
+        .filter(|entry| matches_log_entry_with_query(model, entry, &query))
+        .enumerate()
+    {
         oldest_match = Some(entry);
         if matched >= model.log_scroll {
-            lines.extend(cached_log_tail(model, entry, width, height - lines.len()).into_iter().rev());
-            if lines.len() >= height { break; }
+            lines.extend(
+                cached_log_tail(model, entry, width, height - lines.len())
+                    .into_iter()
+                    .rev(),
+            );
+            if lines.len() >= height {
+                break;
+            }
         }
-        matched += 1;
     }
     // Retain the original entry-based clamp when scroll exceeds all matches.
     if lines.is_empty() {
         if let Some(entry) = oldest_match {
-            lines.extend(cached_log_tail(model, entry, width, height).into_iter().rev());
-        } else { lines.push(logs_empty_reason(model)); }
+            lines.extend(
+                cached_log_tail(model, entry, width, height)
+                    .into_iter()
+                    .rev(),
+            );
+        } else {
+            lines.push(logs_empty_reason(model));
+        }
     }
     lines.reverse();
     lines.join("\n")
@@ -2252,15 +2407,35 @@ fn render_help_overlay(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
     let area = interaction::overlay_rect(OverlayMode::Help, frame.area());
     if area.width < 24 || area.height < 5 {
         frame.render_widget(Clear, frame.area());
-        frame.render_widget(Paragraph::new("Help: Esc/F1 back\nCtrl+C quit\nResize for reference"), frame.area());
+        frame.render_widget(
+            Paragraph::new("Help: Esc/F1 back\nCtrl+C quit\nResize for reference"),
+            frame.area(),
+        );
         return;
     }
-    let rows = model.help_viewport.lines(vec![format!("Help | arrows/Page/Home/End | / filter: {}{} | Esc close",
-        model.help_query, if model.help_editing { " (typing; Enter ends)" } else { "" })],
-        &interaction::help_text(model), area.height.saturating_sub(2) as usize, area.width.saturating_sub(2) as usize);
+    let rows = model.help_viewport.lines(
+        vec![format!(
+            "Help | arrows/Page/Home/End | / filter: {}{} | Esc close",
+            model.help_query,
+            if model.help_editing {
+                " (typing; Enter ends)"
+            } else {
+                ""
+            }
+        )],
+        &interaction::help_text(model),
+        area.height.saturating_sub(2) as usize,
+        area.width.saturating_sub(2) as usize,
+    );
     frame.render_widget(Clear, area);
-    frame.render_widget(Paragraph::new(rows.join("\n")).block(panel_block(
-        format!("Help | Esc close | {}", model.help_viewport.range_label()), true, model.terminal_caps.color)), area);
+    frame.render_widget(
+        Paragraph::new(rows.join("\n")).block(panel_block(
+            format!("Help | Esc close | {}", model.help_viewport.range_label()),
+            true,
+            model.terminal_caps.color,
+        )),
+        area,
+    );
 }
 
 fn palette_actions() -> Vec<PaletteAction> {
@@ -2272,26 +2447,86 @@ fn render_palette_overlay(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
     let area = interaction::overlay_rect(OverlayMode::Palette, frame.area());
     if area.width < 24 || area.height < 6 {
         frame.render_widget(Clear, frame.area());
-        frame.render_widget(Paragraph::new("Actions: Esc close\nCtrl+C quit\nResize for actions"), frame.area());
+        frame.render_widget(
+            Paragraph::new("Actions: Esc close\nCtrl+C quit\nResize for actions"),
+            frame.area(),
+        );
         return;
     }
     let height = area.height.saturating_sub(5) as usize;
-    let start = (if model.palette_index < actions.len() { model.palette_index } else { 0 })
-        .saturating_sub(height.saturating_sub(1))
-        .min(actions.len().saturating_sub(height));
-    let inner = Rect::new(area.x + 1, area.y + 1, area.width.saturating_sub(2), area.height.saturating_sub(2));
+    let start = (if model.palette_index < actions.len() {
+        model.palette_index
+    } else {
+        0
+    })
+    .saturating_sub(height.saturating_sub(1))
+    .min(actions.len().saturating_sub(height));
+    let inner = Rect::new(
+        area.x + 1,
+        area.y + 1,
+        area.width.saturating_sub(2),
+        area.height.saturating_sub(2),
+    );
     let selected = actions.get(model.palette_index).copied();
-    let selection = selected.map(|action| interaction::disabled(model, action).map(|reason| format!("Disabled: {reason}"))
-        .unwrap_or_else(|| format!("Selected: {}", action.label()))).unwrap_or_else(|| "Arrows choose a visible action; Enter requires selection".into());
+    let selection = selected
+        .map(|action| {
+            interaction::disabled(model, action)
+                .map(|reason| format!("Disabled: {reason}"))
+                .unwrap_or_else(|| format!("Selected: {}", action.label()))
+        })
+        .unwrap_or_else(|| "Arrows choose a visible action; Enter requires selection".into());
     frame.render_widget(Clear, area);
-    frame.render_widget(panel_block("Actions | Esc close".into(), true, model.terminal_caps.color), area);
-    frame.render_widget(Paragraph::new(format!("{}\n{}", fit_text(&format!("{}-{} / {} | filter {}",
-        if actions.is_empty() { 0 } else { start + 1 }, (start + height).min(actions.len()), actions.len(),
-        model.panel_cursor.visible(&model.palette_query, inner.width.saturating_sub(20) as usize)), inner.width as usize),
-        selection)).wrap(Wrap { trim: false }), Rect::new(inner.x, inner.y, inner.width, 3));
+    frame.render_widget(
+        panel_block(
+            "Actions | Esc close".into(),
+            true,
+            model.terminal_caps.color,
+        ),
+        area,
+    );
+    frame.render_widget(
+        Paragraph::new(format!(
+            "{}\n{}",
+            fit_text(
+                &format!(
+                    "{}-{} / {} | filter {}",
+                    if actions.is_empty() { 0 } else { start + 1 },
+                    (start + height).min(actions.len()),
+                    actions.len(),
+                    model.panel_cursor.visible(
+                        &model.palette_query,
+                        inner.width.saturating_sub(20) as usize
+                    )
+                ),
+                inner.width as usize
+            ),
+            selection
+        ))
+        .wrap(Wrap { trim: false }),
+        Rect::new(inner.x, inner.y, inner.width, 3),
+    );
     let list_area = Rect::new(inner.x, inner.y + 3, inner.width, height as u16);
-    interaction::record_palette(model, actions.iter().copied().enumerate().skip(start).take(height)
-        .map(|(index, action)| (Rect::new(list_area.x, list_area.y + (index-start) as u16, list_area.width, 1), action)).collect());
+    interaction::record_palette(
+        model,
+        actions
+            .iter()
+            .copied()
+            .enumerate()
+            .skip(start)
+            .take(height)
+            .map(|(index, action)| {
+                (
+                    Rect::new(
+                        list_area.x,
+                        list_area.y + (index - start) as u16,
+                        list_area.width,
+                        1,
+                    ),
+                    action,
+                )
+            })
+            .collect(),
+    );
     let rows: Vec<ListItem<'static>> = actions
         .iter()
         .enumerate()
@@ -2311,8 +2546,14 @@ fn render_palette_overlay(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
                 Style::default()
             };
             ListItem::new(fit_text(
-                &format!("{prefix} [{}] {}{}", interaction::action_shortcut(*action), action.label(),
-                    interaction::disabled(model, *action).map(|reason| format!(" [disabled: {reason}]")).unwrap_or_default()),
+                &format!(
+                    "{prefix} [{}] {}{}",
+                    interaction::action_shortcut(*action),
+                    action.label(),
+                    interaction::disabled(model, *action)
+                        .map(|reason| format!(" [disabled: {reason}]"))
+                        .unwrap_or_default()
+                ),
                 area.width.saturating_sub(2) as usize,
             ))
             .style(style)
@@ -2329,7 +2570,9 @@ fn render_search_overlay(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
         if model.search_draft.is_empty() {
             "Type to filter".to_string()
         } else {
-            model.panel_cursor.visible(&model.search_draft, area.width.saturating_sub(2) as usize)
+            model
+                .panel_cursor
+                .visible(&model.search_draft, area.width.saturating_sub(2) as usize)
         }
     );
     let overlay = Paragraph::new(text)
@@ -2371,194 +2614,193 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
     if interaction::compact(model, frame.area()) {
         interaction::render_compact(frame, model);
     } else {
-    let session_width = frame.area().width.saturating_sub(2) as usize;
-    let rows = Layout::default()
-        .direction(Direction::Vertical)
-        .constraints([
-            Constraint::Length(3),
-            Constraint::Length(3),
-            Constraint::Length(3),
-            Constraint::Length(3),
-            Constraint::Length(3),
-            Constraint::Length(1),
-            Constraint::Min(1),
-        ])
-        .split(frame.area());
-
-    let session_block = Paragraph::new(session_summary_text(model, session_width))
-        .wrap(Wrap { trim: true })
-        .block(Block::default().borders(Borders::ALL).title("Session"));
-    frame.render_widget(session_block, rows[0]);
-
-    let control_block = Paragraph::new(operator_summary_text(model, session_width))
-        .wrap(Wrap { trim: true })
-        .block(Block::default().borders(Borders::ALL).title("Operator"));
-    frame.render_widget(control_block, rows[1]);
-
-    let metrics_block = Paragraph::new(runtime_summary_text(model, session_width))
-        .wrap(Wrap { trim: true })
-        .block(Block::default().borders(Borders::ALL).title("Runtime"));
-    frame.render_widget(metrics_block, rows[2]);
-
-    let workload_block = Paragraph::new(workload_summary_text(model, session_width))
-        .wrap(Wrap { trim: true })
-        .block(
-            Block::default()
-                .borders(Borders::ALL)
-                .title(model.workload_kind.label()),
-        );
-    frame.render_widget(workload_block, rows[3]);
-
-    let footer_block = Paragraph::new(footer_hint_text(model, session_width))
-        .wrap(Wrap { trim: true })
-        .block(Block::default().borders(Borders::ALL).title("Hints"));
-    frame.render_widget(footer_block, rows[4]);
-    frame.render_widget(Paragraph::new(interaction::activity_text(model)), rows[5]);
-
-    if rows[6].width < 100 {
-        let stacked = Layout::default()
+        let session_width = frame.area().width.saturating_sub(2) as usize;
+        let rows = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
-                Constraint::Percentage(30),
-                Constraint::Percentage(30),
-                Constraint::Percentage(40),
+                Constraint::Length(3),
+                Constraint::Length(3),
+                Constraint::Length(3),
+                Constraint::Length(3),
+                Constraint::Length(3),
+                Constraint::Length(1),
+                Constraint::Min(1),
             ])
-            .split(rows[6]);
-        let tasks_width = stacked[1].width.saturating_sub(2) as usize;
-        let logs_width = stacked[2].width.saturating_sub(2) as usize;
-        render_job_panel(frame, model, stacked[0]);
-        let tasks = List::new(build_task_rows(
-            model,
-            tasks_width,
-            stacked[1].height.saturating_sub(2) as usize,
-        ))
-        .block(panel_block(
-            block_title(
-                "Tasks",
-                model.focus_panel == FocusPanel::Tasks,
-                &[format!("filter {}", model.task_filter.label()), {
-                    let query = model.search_tasks.trim();
-                    if query.is_empty() {
-                        String::new()
-                    } else {
-                        format!("search {query}")
-                    }
-                }],
-            ),
-            model.focus_panel == FocusPanel::Tasks,
-            model.terminal_caps.color,
-        ));
-        frame.render_widget(tasks, stacked[1]);
-        let logs = Paragraph::new(build_log_lines(
-            model,
-            logs_width,
-            stacked[2].height.saturating_sub(2) as usize,
-        ))
-        .wrap(Wrap { trim: true })
-        .block(panel_block(
-            block_title(
-                "Logs",
-                model.focus_panel == FocusPanel::Logs,
-                &[
-                    format!(
-                        "filter {}/{}",
-                        model.log_level_filter.label(),
-                        model.log_source_filter.label()
-                    ),
-                    if model.follow_updates {
-                        "follow live".to_string()
-                    } else {
-                        "follow paused".to_string()
-                    },
-                    {
-                        let query = model.search_logs.trim();
+            .split(frame.area());
+
+        let session_block = Paragraph::new(session_summary_text(model, session_width))
+            .wrap(Wrap { trim: true })
+            .block(Block::default().borders(Borders::ALL).title("Session"));
+        frame.render_widget(session_block, rows[0]);
+
+        let control_block = Paragraph::new(operator_summary_text(model, session_width))
+            .wrap(Wrap { trim: true })
+            .block(Block::default().borders(Borders::ALL).title("Operator"));
+        frame.render_widget(control_block, rows[1]);
+
+        let metrics_block = Paragraph::new(runtime_summary_text(model, session_width))
+            .wrap(Wrap { trim: true })
+            .block(Block::default().borders(Borders::ALL).title("Runtime"));
+        frame.render_widget(metrics_block, rows[2]);
+
+        let workload_block = Paragraph::new(workload_summary_text(model, session_width))
+            .wrap(Wrap { trim: true })
+            .block(
+                Block::default()
+                    .borders(Borders::ALL)
+                    .title(model.workload_kind.label()),
+            );
+        frame.render_widget(workload_block, rows[3]);
+
+        let footer_block = Paragraph::new(footer_hint_text(model, session_width))
+            .wrap(Wrap { trim: true })
+            .block(Block::default().borders(Borders::ALL).title("Hints"));
+        frame.render_widget(footer_block, rows[4]);
+        frame.render_widget(Paragraph::new(interaction::activity_text(model)), rows[5]);
+
+        if rows[6].width < 100 {
+            let stacked = Layout::default()
+                .direction(Direction::Vertical)
+                .constraints([
+                    Constraint::Percentage(30),
+                    Constraint::Percentage(30),
+                    Constraint::Percentage(40),
+                ])
+                .split(rows[6]);
+            let tasks_width = stacked[1].width.saturating_sub(2) as usize;
+            let logs_width = stacked[2].width.saturating_sub(2) as usize;
+            render_job_panel(frame, model, stacked[0]);
+            let tasks = List::new(build_task_rows(
+                model,
+                tasks_width,
+                stacked[1].height.saturating_sub(2) as usize,
+            ))
+            .block(panel_block(
+                block_title(
+                    "Tasks",
+                    model.focus_panel == FocusPanel::Tasks,
+                    &[format!("filter {}", model.task_filter.label()), {
+                        let query = model.search_tasks.trim();
                         if query.is_empty() {
                             String::new()
                         } else {
                             format!("search {query}")
                         }
-                    },
-                ],
-            ),
-            model.focus_panel == FocusPanel::Logs,
-            model.terminal_caps.color,
-        ));
-        frame.render_widget(logs, stacked[2]);
-    } else {
-        let cols = Layout::default()
-            .direction(Direction::Horizontal)
-            .constraints([
-                Constraint::Percentage(28),
-                Constraint::Percentage(28),
-                Constraint::Percentage(44),
-            ])
-            .split(rows[6]);
-
-        let tasks_width = cols[1].width.saturating_sub(2) as usize;
-        let logs_width = cols[2].width.saturating_sub(2) as usize;
-
-        render_job_panel(frame, model, cols[0]);
-
-        let tasks = List::new(build_task_rows(
-            model,
-            tasks_width,
-            cols[1].height.saturating_sub(2) as usize,
-        ))
-        .block(panel_block(
-            block_title(
-                "Tasks",
+                    }],
+                ),
                 model.focus_panel == FocusPanel::Tasks,
-                &[format!("filter {}", model.task_filter.label()), {
-                    let query = model.search_tasks.trim();
-                    if query.is_empty() {
-                        String::new()
-                    } else {
-                        format!("search {query}")
-                    }
-                }],
-            ),
-            model.focus_panel == FocusPanel::Tasks,
-            model.terminal_caps.color,
-        ));
-        frame.render_widget(tasks, cols[1]);
-
-        let logs = Paragraph::new(build_log_lines(
-            model,
-            logs_width,
-            cols[2].height.saturating_sub(2) as usize,
-        ))
-        .wrap(Wrap { trim: true })
-        .block(panel_block(
-            block_title(
-                "Logs",
+                model.terminal_caps.color,
+            ));
+            frame.render_widget(tasks, stacked[1]);
+            let logs = Paragraph::new(build_log_lines(
+                model,
+                logs_width,
+                stacked[2].height.saturating_sub(2) as usize,
+            ))
+            .wrap(Wrap { trim: true })
+            .block(panel_block(
+                block_title(
+                    "Logs",
+                    model.focus_panel == FocusPanel::Logs,
+                    &[
+                        format!(
+                            "filter {}/{}",
+                            model.log_level_filter.label(),
+                            model.log_source_filter.label()
+                        ),
+                        if model.follow_updates {
+                            "follow live".to_string()
+                        } else {
+                            "follow paused".to_string()
+                        },
+                        {
+                            let query = model.search_logs.trim();
+                            if query.is_empty() {
+                                String::new()
+                            } else {
+                                format!("search {query}")
+                            }
+                        },
+                    ],
+                ),
                 model.focus_panel == FocusPanel::Logs,
-                &[
-                    format!(
-                        "filter {}/{}",
-                        model.log_level_filter.label(),
-                        model.log_source_filter.label()
-                    ),
-                    if model.follow_updates {
-                        "follow live".to_string()
-                    } else {
-                        "follow paused".to_string()
-                    },
-                    {
-                        let query = model.search_logs.trim();
+                model.terminal_caps.color,
+            ));
+            frame.render_widget(logs, stacked[2]);
+        } else {
+            let cols = Layout::default()
+                .direction(Direction::Horizontal)
+                .constraints([
+                    Constraint::Percentage(28),
+                    Constraint::Percentage(28),
+                    Constraint::Percentage(44),
+                ])
+                .split(rows[6]);
+
+            let tasks_width = cols[1].width.saturating_sub(2) as usize;
+            let logs_width = cols[2].width.saturating_sub(2) as usize;
+
+            render_job_panel(frame, model, cols[0]);
+
+            let tasks = List::new(build_task_rows(
+                model,
+                tasks_width,
+                cols[1].height.saturating_sub(2) as usize,
+            ))
+            .block(panel_block(
+                block_title(
+                    "Tasks",
+                    model.focus_panel == FocusPanel::Tasks,
+                    &[format!("filter {}", model.task_filter.label()), {
+                        let query = model.search_tasks.trim();
                         if query.is_empty() {
                             String::new()
                         } else {
                             format!("search {query}")
                         }
-                    },
-                ],
-            ),
-            model.focus_panel == FocusPanel::Logs,
-            model.terminal_caps.color,
-        ));
-        frame.render_widget(logs, cols[2]);
-    }
+                    }],
+                ),
+                model.focus_panel == FocusPanel::Tasks,
+                model.terminal_caps.color,
+            ));
+            frame.render_widget(tasks, cols[1]);
 
+            let logs = Paragraph::new(build_log_lines(
+                model,
+                logs_width,
+                cols[2].height.saturating_sub(2) as usize,
+            ))
+            .wrap(Wrap { trim: true })
+            .block(panel_block(
+                block_title(
+                    "Logs",
+                    model.focus_panel == FocusPanel::Logs,
+                    &[
+                        format!(
+                            "filter {}/{}",
+                            model.log_level_filter.label(),
+                            model.log_source_filter.label()
+                        ),
+                        if model.follow_updates {
+                            "follow live".to_string()
+                        } else {
+                            "follow paused".to_string()
+                        },
+                        {
+                            let query = model.search_logs.trim();
+                            if query.is_empty() {
+                                String::new()
+                            } else {
+                                format!("search {query}")
+                            }
+                        },
+                    ],
+                ),
+                model.focus_panel == FocusPanel::Logs,
+                model.terminal_caps.color,
+            ));
+            frame.render_widget(logs, cols[2]);
+        }
     }
     match model.overlay {
         OverlayMode::Recordings => {
@@ -2582,16 +2824,18 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
             let area = interaction::overlay_rect(OverlayMode::IndexWorkflows, frame.area());
             let text = model
                 .index_workflows
-                .lines(area.height.saturating_sub(2) as usize, area.width.saturating_sub(2) as usize)
+                .lines(
+                    area.height.saturating_sub(2) as usize,
+                    area.width.saturating_sub(2) as usize,
+                )
                 .join("\n");
             frame.render_widget(Clear, area);
             frame.render_widget(
-                Paragraph::new(text)
-                    .block(panel_block(
-                        "Command workflows".into(),
-                        true,
-                        model.terminal_caps.color,
-                    )),
+                Paragraph::new(text).block(panel_block(
+                    "Command workflows".into(),
+                    true,
+                    model.terminal_caps.color,
+                )),
                 area,
             );
         }
@@ -2599,16 +2843,18 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
             let area = interaction::overlay_rect(OverlayMode::Settings, frame.area());
             let text = model
                 .settings
-                .lines(area.height.saturating_sub(2) as usize, area.width.saturating_sub(2) as usize)
+                .lines(
+                    area.height.saturating_sub(2) as usize,
+                    area.width.saturating_sub(2) as usize,
+                )
                 .join("\n");
             frame.render_widget(Clear, area);
             frame.render_widget(
-                Paragraph::new(text)
-                    .block(panel_block(
-                        "Settings".into(),
-                        true,
-                        model.terminal_caps.color,
-                    )),
+                Paragraph::new(text).block(panel_block(
+                    "Settings".into(),
+                    true,
+                    model.terminal_caps.color,
+                )),
                 area,
             );
         }
@@ -2714,8 +2960,14 @@ fn apply_local_input(model: &mut AppModel, input: &str) {
             interaction::move_palette(model, 1);
         }
         "palette_select" => {
-            if let Some(action) = interaction::actions(model).get(model.palette_index).copied() {
-                if let Some(reason) = interaction::disabled(model, action) { model.push_alert("info", reason); return; }
+            if let Some(action) = interaction::actions(model)
+                .get(model.palette_index)
+                .copied()
+            {
+                if let Some(reason) = interaction::disabled(model, action) {
+                    model.push_alert("info", reason);
+                    return;
+                }
                 match action {
                     PaletteAction::ToggleFollow => toggle_follow(model),
                     PaletteAction::FocusJobs => model.focus_panel = FocusPanel::Jobs,
@@ -2742,7 +2994,11 @@ fn apply_local_input(model: &mut AppModel, input: &str) {
                     }
                 }
             }
-            if model.overlay == OverlayMode::Palette && interaction::actions(model).get(model.palette_index).is_some() {
+            if model.overlay == OverlayMode::Palette
+                && interaction::actions(model)
+                    .get(model.palette_index)
+                    .is_some()
+            {
                 model.overlay = OverlayMode::None;
             }
             model.dirty = true;
@@ -3105,7 +3361,8 @@ fn apply_palette_action(
     action: PaletteAction,
 ) -> anyhow::Result<bool> {
     if let Some(reason) = interaction::disabled(model, action) {
-        model.push_alert("info", format!("{}: {reason}", action.label())); return Ok(false);
+        model.push_alert("info", &format!("{}: {reason}", action.label()));
+        return Ok(false);
     }
     match action {
         PaletteAction::ToggleFollow => {
@@ -3164,7 +3421,10 @@ fn enqueue_input(model: &mut AppModel, command: InputCommand, _token: &str) {
     model.input_queue.push_back((seq, command));
 }
 
-fn flush_flow_credits(model: &mut AppModel, supervisor: &mut std::process::Child) -> anyhow::Result<()> {
+fn flush_flow_credits(
+    model: &mut AppModel,
+    supervisor: &mut std::process::Child,
+) -> anyhow::Result<()> {
     if model.flow_credit_pending == 0 {
         return Ok(());
     }
@@ -3284,7 +3544,10 @@ fn handle_chunk_event(model: &mut AppModel, event: &Value) -> Option<Value> {
         Err(_) => {
             model.telemetry.dropped_chunks += 1;
             if model.telemetry.dropped_chunks <= 8 {
-                model.push_alert("warn", "Reassembled supervisor event is invalid JSON; event was not applied");
+                model.push_alert(
+                    "warn",
+                    "Reassembled supervisor event is invalid JSON; event was not applied",
+                );
             }
             None
         }
@@ -3502,11 +3765,15 @@ fn summarize_protocol_event(event_name: &str, event: &Value) -> String {
     }
 }
 
-fn apply_ingress_event_at(model: &mut AppModel, received: event_ingress::InboundEvent, now: Instant) {
+fn apply_ingress_event_at(
+    model: &mut AppModel,
+    received: event_ingress::InboundEvent,
+    now: Instant,
+) {
     if let Some(age) = now.checked_duration_since(received.received_at) {
         let milliseconds = age.as_secs_f64() * 1000.0;
-        model.telemetry.event_lag_ms_ewma = RuntimeTelemetry::update_known_ewma(
-            model.telemetry.event_lag_ms_ewma, milliseconds);
+        model.telemetry.event_lag_ms_ewma =
+            RuntimeTelemetry::update_known_ewma(model.telemetry.event_lag_ms_ewma, milliseconds);
     }
     model.telemetry.native_inbound_pending = Some(received.pending_at_dispatch);
     apply_protocol_event(model, received.value, 0);
@@ -3514,7 +3781,10 @@ fn apply_ingress_event_at(model: &mut AppModel, received: event_ingress::Inbound
 
 fn apply_protocol_event(model: &mut AppModel, event: Value, _queue_depth: usize) {
     if !model.owns_control_channel {
-        if let Some(timestamp) = event["ts"].as_str().and_then(task_state::recorded_timestamp) {
+        if let Some(timestamp) = event["ts"]
+            .as_str()
+            .and_then(task_state::recorded_timestamp)
+        {
             model.recorded_ms = Some(model.recorded_ms.unwrap_or(timestamp).max(timestamp));
         }
     }
@@ -3644,13 +3914,27 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, _queue_depth: usize)
                 .and_then(|value| value.as_str())
                 .unwrap_or("task");
             let task_key = json!([job_id, task_id]).to_string();
-            if event_name == "task:progress" && model.task_status.get(&task_key)
-                .is_some_and(|task| task.lifecycle() != Lifecycle::Active) {
+            if event_name == "task:progress"
+                && model
+                    .task_status
+                    .get(&task_key)
+                    .is_some_and(|task| task.lifecycle() != Lifecycle::Active)
+            {
                 return;
             }
-            if event["ts"].as_str().and_then(task_state::recorded_timestamp)
-                .zip(model.task_status.get(&task_key).and_then(|task| task.producer_ms))
-                .is_some_and(|(incoming, retained)| incoming < retained) { return; }
+            if event["ts"]
+                .as_str()
+                .and_then(task_state::recorded_timestamp)
+                .zip(
+                    model
+                        .task_status
+                        .get(&task_key)
+                        .and_then(|task| task.producer_ms),
+                )
+                .is_some_and(|(incoming, retained)| incoming < retained)
+            {
+                return;
+            }
             let status = event
                 .get("status")
                 .and_then(|value| value.as_str())
@@ -3662,16 +3946,30 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, _queue_depth: usize)
             // A delayed start must not reset the already reconciled task merely
             // because update_task_status declined its terminal owner below.
             if Lifecycle::from_status(status) == Lifecycle::Active
-                && model.job_status.get(job_id).is_some_and(|owner| Lifecycle::from_status(owner) != Lifecycle::Active) {
+                && model
+                    .job_status
+                    .get(job_id)
+                    .is_some_and(|owner| Lifecycle::from_status(owner) != Lifecycle::Active)
+            {
                 return;
             }
             let msg = event.get("message").and_then(|value| value.as_str());
             model.update_task_status(job_id, task_id, status, msg);
             let now = if model.owns_control_channel && model.session.mode != "replay" {
-                Some(model.activity_origin.elapsed().as_millis().min(u64::MAX as u128) as u64)
-            } else { model.recorded_ms };
+                Some(
+                    model
+                        .activity_origin
+                        .elapsed()
+                        .as_millis()
+                        .min(u64::MAX as u128) as u64,
+                )
+            } else {
+                model.recorded_ms
+            };
             if let Some(task) = model.task_status.get_mut(&task_key) {
-                if event_name == "task:start" { *task = TaskState::new(status, msg); }
+                if event_name == "task:start" {
+                    *task = TaskState::new(status, msg);
+                }
                 task.observe(&event, now);
             }
         }
@@ -3683,7 +3981,10 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, _queue_depth: usize)
                 if lost > model.telemetry.lifecycle_dropped {
                     for task in model.task_status.values_mut() {
                         if task.lifecycle() == Lifecycle::Active {
-                            *task = TaskState::new("unknown", Some("task lifecycle transport incomplete"));
+                            *task = TaskState::new(
+                                "unknown",
+                                Some("task lifecycle transport incomplete"),
+                            );
                         }
                     }
                     model.push_alert("warn", "Task lifecycle transport incomplete; running states are unknown until a new lifecycle event.");
@@ -3692,7 +3993,9 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, _queue_depth: usize)
             }
             if let Some(queue_depth) = flow.get("queueDepth").and_then(Value::as_u64) {
                 model.telemetry.queue_depth_ewma = RuntimeTelemetry::update_known_ewma(
-                    model.telemetry.queue_depth_ewma, queue_depth as f64);
+                    model.telemetry.queue_depth_ewma,
+                    queue_depth as f64,
+                );
                 if model.workload_kind == WorkloadKind::Service {
                     model.service_summary.queue_depth = Some(queue_depth);
                 }
@@ -3752,9 +4055,10 @@ fn drain_ingress_turn(
     mut elapsed: impl FnMut() -> Duration,
 ) -> u64 {
     let mut consumed = 0;
-    while consumed < INGRESS_EVENTS_PER_TURN
-        && (consumed == 0 || elapsed() < INGRESS_TURN_BUDGET) {
-        let Some(event) = poll() else { break; };
+    while consumed < INGRESS_EVENTS_PER_TURN && (consumed == 0 || elapsed() < INGRESS_TURN_BUDGET) {
+        let Some(event) = poll() else {
+            break;
+        };
         apply(event);
         consumed += 1;
     }
@@ -3762,7 +4066,11 @@ fn drain_ingress_turn(
 }
 
 fn input_poll_wait(inbound_pending: usize, replay_pending: bool) -> Duration {
-    if inbound_pending > 0 || replay_pending { Duration::ZERO } else { INPUT_POLL_INTERVAL }
+    if inbound_pending > 0 || replay_pending {
+        Duration::ZERO
+    } else {
+        INPUT_POLL_INTERVAL
+    }
 }
 
 fn enqueue_terminal_key(model: &mut AppModel, key: KeyEvent) {
@@ -3828,15 +4136,9 @@ fn interpret_terminal_key(model: &mut AppModel, key: KeyEvent) {
         }
         OverlayMode::Help => interaction::help_key(model, key),
         OverlayMode::Palette => match key.code {
-            KeyCode::Esc => {
-                enqueue_input(model, InputCommand::TogglePalette, "palette-close")
-            }
-            KeyCode::Down => {
-                enqueue_input(model, InputCommand::PaletteDown, "palette-down")
-            }
-            KeyCode::Up => {
-                enqueue_input(model, InputCommand::PaletteUp, "palette-up")
-            }
+            KeyCode::Esc => enqueue_input(model, InputCommand::TogglePalette, "palette-close"),
+            KeyCode::Down => enqueue_input(model, InputCommand::PaletteDown, "palette-down"),
+            KeyCode::Up => enqueue_input(model, InputCommand::PaletteUp, "palette-up"),
             KeyCode::Enter => enqueue_input(model, InputCommand::PaletteSelect, "palette-select"),
             _ => {
                 interaction::edit_palette(model, |cursor, query| cursor.key(query, key, 256));
@@ -3845,19 +4147,38 @@ fn interpret_terminal_key(model: &mut AppModel, key: KeyEvent) {
         OverlayMode::Search => match key.code {
             KeyCode::Esc => enqueue_input(model, InputCommand::SearchCancel, "search-cancel"),
             KeyCode::Enter => enqueue_input(model, InputCommand::SearchAccept, "search-accept"),
-            KeyCode::Backspace => enqueue_input(model, InputCommand::SearchBackspace, "search-backspace"),
-            KeyCode::Char(ch) if !ch.is_control() && !key.modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) =>
-                enqueue_input(model, InputCommand::SearchChar(ch), "search-char"),
-            _ => { if model.panel_cursor.key(&mut model.search_draft, key, 4096) { model.dirty = true; } }
-        },
-        OverlayMode::None => {
-            if let Some(input) = interaction::bound_input(key) { enqueue_input(model, input, "bound-action"); return; }
-            match key.code {
-                KeyCode::Up if model.focus_panel == FocusPanel::Jobs => enqueue_input(model, InputCommand::SelectPreviousJob, "previous-job"),
-                KeyCode::Down if model.focus_panel == FocusPanel::Jobs => enqueue_input(model, InputCommand::SelectNextJob, "next-job"),
-                _ => {}
+            KeyCode::Backspace => {
+                enqueue_input(model, InputCommand::SearchBackspace, "search-backspace")
+            }
+            KeyCode::Char(ch)
+                if !ch.is_control()
+                    && !key
+                        .modifiers
+                        .intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) =>
+            {
+                enqueue_input(model, InputCommand::SearchChar(ch), "search-char")
+            }
+            _ => {
+                if model.panel_cursor.key(&mut model.search_draft, key, 4096) {
+                    model.dirty = true;
+                }
             }
         },
+        OverlayMode::None => {
+            if let Some(input) = interaction::bound_input(key) {
+                enqueue_input(model, input, "bound-action");
+                return;
+            }
+            match key.code {
+                KeyCode::Up if model.focus_panel == FocusPanel::Jobs => {
+                    enqueue_input(model, InputCommand::SelectPreviousJob, "previous-job")
+                }
+                KeyCode::Down if model.focus_panel == FocusPanel::Jobs => {
+                    enqueue_input(model, InputCommand::SelectNextJob, "next-job")
+                }
+                _ => {}
+            }
+        }
     }
 }
 
@@ -3881,15 +4202,26 @@ fn dispatch_input_with_recordings_at(
         return Ok(false);
     }
     if !matches!(model.input_queue.front(), Some((_, InputCommand::Quit)))
-        && now.saturating_duration_since(model.last_input_at).as_millis() < INPUT_DISPATCH_INTERVAL_MS {
+        && now
+            .saturating_duration_since(model.last_input_at)
+            .as_millis()
+            < INPUT_DISPATCH_INTERVAL_MS
+    {
         return Ok(false);
     }
-    if matches!(model.input_queue.front(), Some((_, InputCommand::TerminalKey(_)))) {
-        let (_, InputCommand::TerminalKey(key)) = model.input_queue.pop_front().unwrap() else { unreachable!() };
+    if matches!(
+        model.input_queue.front(),
+        Some((_, InputCommand::TerminalKey(_)))
+    ) {
+        let (_, InputCommand::TerminalKey(key)) = model.input_queue.pop_front().unwrap() else {
+            unreachable!()
+        };
         let mut consumed = false;
         if let Some(recordings) = recordings.as_mut() {
             if model.overlay == OverlayMode::Recordings {
-                if recordings.key(key) { model.overlay = OverlayMode::None; }
+                if recordings.key(key) {
+                    model.overlay = OverlayMode::None;
+                }
                 model.dirty = true;
                 consumed = true;
             } else if model.overlay == OverlayMode::None && recordings.playback_key(key) {
@@ -3900,35 +4232,52 @@ fn dispatch_input_with_recordings_at(
         // Interpret only now, against the state produced by the preceding key.
         // Commands produced by this key precede every later raw key.
         let mut later_keys = std::mem::take(&mut model.input_queue);
-        if !consumed { interpret_terminal_key(model, key); }
+        if !consumed {
+            interpret_terminal_key(model, key);
+        }
         let interpreted = !model.input_queue.is_empty();
         model.input_queue.append(&mut later_keys);
-        if !interpreted { model.last_input_at = now; return Ok(false); }
+        if !interpreted {
+            model.last_input_at = now;
+            return Ok(false);
+        }
     }
     let (_, cmd) = model.input_queue.pop_front().unwrap();
     model.last_input_at = now;
     if let Some(reason) = interaction::input_disabled(model, &cmd) {
-        model.push_alert("info", reason); return Ok(false);
+        model.push_alert("info", reason);
+        return Ok(false);
     }
     match cmd {
         InputCommand::ContextHelp => interaction::context_help(model),
         InputCommand::Paste(text) => {
             if model.overlay == OverlayMode::Recordings {
-                if let Some(recordings) = recordings.as_mut() { recordings.paste(&text); model.dirty = true; }
-            } else { interaction::paste(model, &text); }
-        },
+                if let Some(recordings) = recordings.as_mut() {
+                    recordings.paste(&text);
+                    model.dirty = true;
+                }
+            } else {
+                interaction::paste(model, &text);
+            }
+        }
         InputCommand::Mouse(input) => {
             if let Some(input) = interaction::apply_mouse(model, input) {
                 if let Some(recordings) = recordings.as_mut() {
                     if recordings.revision == model.recording_revision {
-                        match input { interaction::RecordingMouse::Key(key) => { recordings.key(key); },
-                            interaction::RecordingMouse::Row(row) => recordings.click(row) }
+                        match input {
+                            interaction::RecordingMouse::Key(key) => {
+                                recordings.key(key);
+                            }
+                            interaction::RecordingMouse::Row(row) => recordings.click(row),
+                        }
                         model.dirty = true;
                     }
                 }
             }
         }
-        InputCommand::TerminalKey(_) => unreachable!("raw key must be interpreted before command dispatch"),
+        InputCommand::TerminalKey(_) => {
+            unreachable!("raw key must be interpreted before command dispatch")
+        }
         InputCommand::InspectJob => open_job_inspection(model),
         InputCommand::Recordings => open_recordings(model),
         InputCommand::SelectPreviousJob => select_job(model, -1),
@@ -3956,7 +4305,10 @@ fn dispatch_input_with_recordings_at(
             model.focus_panel = model.focus_panel.next();
             model.dirty = true;
         }
-        InputCommand::ToggleMaximized => { model.maximized = !model.maximized; model.dirty = true; }
+        InputCommand::ToggleMaximized => {
+            model.maximized = !model.maximized;
+            model.dirty = true;
+        }
         InputCommand::FocusJobs => {
             model.focus_panel = FocusPanel::Jobs;
             model.dirty = true;
@@ -3994,7 +4346,8 @@ fn dispatch_input_with_recordings_at(
             let actions = interaction::actions(model);
             if let Some(action) = actions.get(model.palette_index).copied() {
                 if let Some(reason) = interaction::disabled(model, action) {
-                    model.push_alert("info", format!("{}: {reason}", action.label())); return Ok(false);
+                    model.push_alert("info", &format!("{}: {reason}", action.label()));
+                    return Ok(false);
                 }
                 if apply_palette_action(model, supervisor, next_job_idx, action)? {
                     return Ok(true);
@@ -4017,11 +4370,15 @@ fn dispatch_input_with_recordings_at(
             model.dirty = true;
         }
         InputCommand::SearchBackspace => {
-            model.panel_cursor.key(&mut model.search_draft, KeyCode::Backspace.into(), 4096);
+            model
+                .panel_cursor
+                .key(&mut model.search_draft, KeyCode::Backspace.into(), 4096);
             model.dirty = true;
         }
         InputCommand::SearchChar(ch) => {
-            model.panel_cursor.key(&mut model.search_draft, KeyCode::Char(ch).into(), 4096);
+            model
+                .panel_cursor
+                .key(&mut model.search_draft, KeyCode::Char(ch).into(), 4096);
             model.dirty = true;
         }
         InputCommand::ClearSearch => clear_search(model, model.focus_panel),
@@ -4133,25 +4490,35 @@ fn main() -> anyhow::Result<()> {
     let mut last_frame = Instant::now();
 
     let execution = (|| -> anyhow::Result<()> {
-        send_request(&mut supervisor, json!({"proto":"poc.tui@1", "op":"flow:credit",
-            "credits":FLOW_CREDIT_BATCH * 4}))?;
+        send_request(
+            &mut supervisor,
+            json!({"proto":"poc.tui@1", "op":"flow:credit",
+            "credits":FLOW_CREDIT_BATCH * 4}),
+        )?;
         loop {
             let ingress_started = Instant::now();
             let mut transport_closed = false;
-            let processed = drain_ingress_turn(|| match supervisor.poll() {
-                Ok(event) => Some(event),
-                Err(std::sync::mpsc::TryRecvError::Disconnected) => { transport_closed = true; None },
-                Err(std::sync::mpsc::TryRecvError::Empty) => None,
-            }, |received| {
-                let owned_channel = recordings
-                    .live_model
-                    .as_ref()
-                    .map(|live| live.owns_control_channel)
-                    .unwrap_or(model.owns_control_channel);
-                recordings.supervisor_event(&received.value, owned_channel);
-                let live = recordings.live_model.as_deref_mut().unwrap_or(&mut model);
-                apply_ingress_event_at(live, received, Instant::now());
-            }, || ingress_started.elapsed());
+            let processed = drain_ingress_turn(
+                || match supervisor.poll() {
+                    Ok(event) => Some(event),
+                    Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                        transport_closed = true;
+                        None
+                    }
+                    Err(std::sync::mpsc::TryRecvError::Empty) => None,
+                },
+                |received| {
+                    let owned_channel = recordings
+                        .live_model
+                        .as_ref()
+                        .map(|live| live.owns_control_channel)
+                        .unwrap_or(model.owns_control_channel);
+                    recordings.supervisor_event(&received.value, owned_channel);
+                    let live = recordings.live_model.as_deref_mut().unwrap_or(&mut model);
+                    apply_ingress_event_at(live, received, Instant::now());
+                },
+                || ingress_started.elapsed(),
+            );
             if processed > 0 {
                 let live = recordings.live_model.as_deref_mut().unwrap_or(&mut model);
                 live.flow_credit_pending = live.flow_credit_pending.saturating_add(processed);
@@ -4166,7 +4533,9 @@ fn main() -> anyhow::Result<()> {
                 ));
             }
             if transport_closed {
-                return Err(anyhow::anyhow!("supervisor event transport closed while the owned child remained active"));
+                return Err(anyhow::anyhow!(
+                    "supervisor event transport closed while the owned child remained active"
+                ));
             }
 
             recordings.tick();
@@ -4179,9 +4548,16 @@ fn main() -> anyhow::Result<()> {
             if model.recording_revision != recordings.revision {
                 model.recording_revision = recordings.revision;
                 let size = terminal.size()?;
-                let area = interaction::overlay_rect(OverlayMode::Recordings, ratatui::layout::Rect::new(0, 0, size.width, size.height));
-                model.recording_overlay_text = recordings.lines(area.height.saturating_sub(2) as usize,
-                    area.width.saturating_sub(2) as usize).join("\n");
+                let area = interaction::overlay_rect(
+                    OverlayMode::Recordings,
+                    ratatui::layout::Rect::new(0, 0, size.width, size.height),
+                );
+                model.recording_overlay_text = recordings
+                    .lines(
+                        area.height.saturating_sub(2) as usize,
+                        area.width.saturating_sub(2) as usize,
+                    )
+                    .join("\n");
                 model.dirty = true;
             }
 
@@ -4204,7 +4580,10 @@ fn main() -> anyhow::Result<()> {
                 last_frame = Instant::now();
             }
 
-            if event::poll(input_poll_wait(supervisor.pending_events(), recordings.reconstruction_pending()))? {
+            if event::poll(input_poll_wait(
+                supervisor.pending_events(),
+                recordings.reconstruction_pending(),
+            ))? {
                 let terminal_event = event::read()?;
                 if matches!(terminal_event, CEvent::Resize(_, _)) {
                     // Terminal::draw performs autoresize through the normal backend.
@@ -4215,13 +4594,21 @@ fn main() -> anyhow::Result<()> {
                 } else if let CEvent::Key(key) = terminal_event {
                     enqueue_terminal_key(&mut model, key);
                 } else if let CEvent::Paste(text) = terminal_event {
-                    if text.len() <= 8192 { enqueue_input(&mut model, InputCommand::Paste(text), "paste-data"); }
+                    if text.len() <= 8192 {
+                        enqueue_input(&mut model, InputCommand::Paste(text), "paste-data");
+                    }
                 } else if let CEvent::Mouse(mouse) = terminal_event {
                     interaction::mouse(&mut model, mouse);
                 }
             }
 
-            if dispatch_input_with_recordings_at(&mut model, &mut supervisor, &mut next_job_idx, Some(&mut recordings), Instant::now())? {
+            if dispatch_input_with_recordings_at(
+                &mut model,
+                &mut supervisor,
+                &mut next_job_idx,
+                Some(&mut recordings),
+                Instant::now(),
+            )? {
                 break;
             }
             flush_model_requests(
@@ -4245,9 +4632,12 @@ fn main() -> anyhow::Result<()> {
 }
 
 fn interrupt_unobserved_jobs(model: &mut AppModel) {
-    let unfinished: Vec<_> = model.job_status.iter()
+    let unfinished: Vec<_> = model
+        .job_status
+        .iter()
         .filter(|(_, status)| Lifecycle::from_status(status) == Lifecycle::Active)
-        .map(|(id, _)| id.clone()).collect();
+        .map(|(id, _)| id.clone())
+        .collect();
     for id in unfinished {
         // Process-family containment does not supply the lost producer outcome.
         model.update_job_status(&id, "interrupted", None);
@@ -4262,22 +4652,36 @@ mod redraw_tests {
     #[test]
     fn actual_javascript_unicode_frames_decode_and_settle_terminal_jobs() {
         let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
-        let output = Command::new("node").arg("tests/helpers/tui/unicode-frames.js")
-            .current_dir(root).output().expect("launch bounded actual producer fixture");
-        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        let output = Command::new("node")
+            .arg("tests/helpers/tui/unicode-frames.js")
+            .current_dir(root)
+            .output()
+            .expect("launch bounded actual producer fixture");
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
         assert!(output.stdout.len() < 8 * 1024 * 1024);
         let mut expected = BTreeMap::new();
         let mut observed = BTreeMap::new();
         let mut model = model();
         for line in String::from_utf8(output.stdout).unwrap().lines() {
-            let frame: Value = serde_json::from_str(line).expect("each actual wire frame must decode with serde_json Value");
+            let frame: Value = serde_json::from_str(line)
+                .expect("each actual wire frame must decode with serde_json Value");
             if frame["event"] == "fixture:expected" {
-                expected.insert(frame["jobId"].as_str().unwrap().to_owned(), frame["value"].as_str().unwrap().to_owned());
+                expected.insert(
+                    frame["jobId"].as_str().unwrap().to_owned(),
+                    frame["value"].as_str().unwrap().to_owned(),
+                );
                 continue;
             }
             let rebuilt = handle_chunk_event(&mut model, &frame);
             if let Some(event) = rebuilt {
-                observed.insert(event["jobId"].as_str().unwrap().to_owned(), event["result"]["value"].as_str().unwrap().to_owned());
+                observed.insert(
+                    event["jobId"].as_str().unwrap().to_owned(),
+                    event["result"]["value"].as_str().unwrap().to_owned(),
+                );
                 apply_protocol_event(&mut model, event, 0);
             }
         }
@@ -4293,8 +4697,12 @@ mod redraw_tests {
             let mut model = model();
             for job in ["owner", "other"] {
                 apply_protocol_event(&mut model, json!({"event":"job:start","jobId":job}), 0);
-                apply_protocol_event(&mut model, json!({"event":"task:progress","jobId":job,"taskId":"live",
-                    "status":"running","message":"batch done failed cancelled.rs"}), 0);
+                apply_protocol_event(
+                    &mut model,
+                    json!({"event":"task:progress","jobId":job,"taskId":"live",
+                    "status":"running","message":"batch done failed cancelled.rs"}),
+                    0,
+                );
             }
             model.update_task_status("owner", "complete", "done", Some("preserved"));
             assert_eq!(task_status_counts(&model), (2, 0));
@@ -4304,12 +4712,24 @@ mod redraw_tests {
             assert!(screen(&model, 80, 24).contains("live"));
             model.task_filter = TaskFilter::Done;
             assert!(!screen(&model, 80, 24).contains("batch done failed"));
-            apply_protocol_event(&mut model, json!({"event":"job:end","jobId":"owner","status":terminal}), 0);
+            apply_protocol_event(
+                &mut model,
+                json!({"event":"job:end","jobId":"owner","status":terminal}),
+                0,
+            );
             assert_eq!(task_status_counts(&model), (1, 1));
-            let key = json!(["owner","complete"]).to_string();
+            let key = json!(["owner", "complete"]).to_string();
             assert_eq!(model.task_status[&key].status, "done");
-            apply_protocol_event(&mut model, json!({"event":"task:progress","jobId":"owner","taskId":"live","status":"running"}), 0);
-            assert_eq!(task_status_counts(&model), (1, 1), "late progress cannot resurrect terminal ownership");
+            apply_protocol_event(
+                &mut model,
+                json!({"event":"task:progress","jobId":"owner","taskId":"live","status":"running"}),
+                0,
+            );
+            assert_eq!(
+                task_status_counts(&model),
+                (1, 1),
+                "late progress cannot resurrect terminal ownership"
+            );
             assert!(!matches_job_filter(terminal, JobFilter::Active));
             apply_protocol_event(&mut model, json!({"event":"job:start","jobId":"owner"}), 0);
             model.update_task_status("owner", "new", "running", None);
@@ -4336,7 +4756,10 @@ mod redraw_tests {
             );
         }
         assert_eq!(model.telemetry.processed_events, before + 100);
-        assert!(model.telemetry.queue_depth_ewma.is_some_and(|value| value > 0.0));
+        assert!(model
+            .telemetry
+            .queue_depth_ewma
+            .is_some_and(|value| value > 0.0));
         assert_eq!(model.logs.len(), 1);
         assert_eq!(model.logs[0].text, "retained user log");
         assert_eq!(model.logs[0].job_id.as_deref(), Some("selected"));
@@ -4471,14 +4894,20 @@ mod redraw_tests {
                     &mut model,
                     KeyEvent::new(KeyCode::Char('c'), KeyModifiers::NONE),
                 );
-                let (_, InputCommand::TerminalKey(key)) = model.input_queue.pop_front().unwrap() else { panic!("plain key must retain raw FIFO identity") };
+                let (_, InputCommand::TerminalKey(key)) = model.input_queue.pop_front().unwrap()
+                else {
+                    panic!("plain key must retain raw FIFO identity")
+                };
                 interpret_terminal_key(&mut model, key);
                 match overlay {
                     OverlayMode::None => assert!(matches!(
                         model.input_queue.front(),
                         Some((_, InputCommand::CancelSelected))
                     )),
-                    OverlayMode::Search => assert!(matches!(model.input_queue.front(), Some((_, InputCommand::SearchChar('c'))))),
+                    OverlayMode::Search => assert!(matches!(
+                        model.input_queue.front(),
+                        Some((_, InputCommand::SearchChar('c')))
+                    )),
                     _ => assert!(model.input_queue.is_empty()),
                 }
             }

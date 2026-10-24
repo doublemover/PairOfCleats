@@ -5,10 +5,10 @@ use std::path::Path;
 use std::time::{Duration, Instant};
 
 use super::{apply_protocol_event, AppModel};
+use crate::overlay_viewport::{selected_rows, selected_window};
+use crate::text_editor::TextCursor;
 use crossterm::event::{KeyCode, KeyEvent};
 use serde_json::{json, Value};
-use crate::text_editor::TextCursor;
-use crate::overlay_viewport::{selected_rows, selected_window};
 
 const MAX_EVENTS: usize = 32768;
 const MAX_BYTES: usize = 8 * 1024 * 1024;
@@ -130,7 +130,8 @@ impl RecordingUi {
 
     fn discard_cached(&mut self, recording_id: Value) {
         if self.available && recording_id.is_string() {
-            self.outbox.push_back(json!({"proto":"poc.tui@1","op":"recording:run",
+            self.outbox
+                .push_back(json!({"proto":"poc.tui@1","op":"recording:run",
                 "jobId":format!("native-recording-{}", self.next_id), "method":"discard",
                 "params":{"recordingId":recording_id}}));
             self.next_id += 1;
@@ -138,17 +139,36 @@ impl RecordingUi {
     }
 
     pub fn paste(&mut self, text: &str) {
-        if !self.available || self.pending.is_some() || self.page != Page::Path { return; }
-        if self.cursor.paste(&mut self.draft, text, 4096) { self.revision += 1; }
+        if !self.available || self.pending.is_some() || self.page != Page::Path {
+            return;
+        }
+        if self.cursor.paste(&mut self.draft, text, 4096) {
+            self.revision += 1;
+        }
     }
 
     pub fn click(&mut self, row: usize) {
-        if !self.available || self.pending.is_some() || self.page != Page::Entries
-            || self.rendered_revision.get() != Some(self.revision) { return; }
-        let id = self.rendered_clicks.borrow().iter().find(|(line, _)| *line == row).map(|(_, id)| id.clone());
+        if !self.available
+            || self.pending.is_some()
+            || self.page != Page::Entries
+            || self.rendered_revision.get() != Some(self.revision)
+        {
+            return;
+        }
+        let id = self
+            .rendered_clicks
+            .borrow()
+            .iter()
+            .find(|(line, _)| *line == row)
+            .map(|(_, id)| id.clone());
         if let Some(id) = id {
-            if let Some(index) = self.entries.iter().position(|entry| entry["id"].as_str() == Some(id.as_str())) {
-                self.selected = index; self.revision += 1;
+            if let Some(index) = self
+                .entries
+                .iter()
+                .position(|entry| entry["id"].as_str() == Some(id.as_str()))
+            {
+                self.selected = index;
+                self.revision += 1;
             }
         }
     }
@@ -165,7 +185,9 @@ impl RecordingUi {
                     "jobId":job,"reason":"recording_read_cancelled"}));
                 self.loaded.clear();
                 self.loaded_bytes = 0;
-                if let Some(summary) = self.summary.take() { self.discard_cached(summary["recordingId"].clone()); }
+                if let Some(summary) = self.summary.take() {
+                    self.discard_cached(summary["recordingId"].clone());
+                }
                 self.page = Page::Path;
                 self.status = "Recording read cancelled; live work continues".into();
                 return false;
@@ -179,12 +201,15 @@ impl RecordingUi {
         if self.pending.is_some() {
             return false;
         }
-        if self.page == Page::Path && key.code != KeyCode::Enter && self.cursor.key(&mut self.draft, key, 4096) {
+        if self.page == Page::Path
+            && key.code != KeyCode::Enter
+            && self.cursor.key(&mut self.draft, key, 4096)
+        {
             return false;
         }
         match self.page {
-            Page::Path => match key.code {
-                KeyCode::Enter => {
+            Page::Path => {
+                if key.code == KeyCode::Enter {
                     let selected = self.draft.trim().to_owned();
                     let path = Path::new(&selected);
                     if !path.is_absolute() {
@@ -197,8 +222,7 @@ impl RecordingUi {
                         self.request("list", json!({"directory":selected}));
                     }
                 }
-                _ => {}
-            },
+            }
             Page::Entries => match key.code {
                 KeyCode::Up | KeyCode::Char('k') => self.selected = self.selected.saturating_sub(1),
                 KeyCode::Down | KeyCode::Char('j') => {
@@ -228,7 +252,9 @@ impl RecordingUi {
 
     fn fail(&mut self, message: &str) {
         self.pending = None;
-        if let Some(summary) = self.summary.take() { self.discard_cached(summary["recordingId"].clone()); }
+        if let Some(summary) = self.summary.take() {
+            self.discard_cached(summary["recordingId"].clone());
+        }
         self.loaded.clear();
         self.loaded_bytes = 0;
         self.page = Page::Path;
@@ -345,7 +371,9 @@ impl RecordingUi {
                 }
                 self.loaded.extend(events.iter().cloned());
                 if self.loaded.len() == total && data["nextOffset"].is_null() {
-                    if let Some(previous) = self.active.take() { self.discard_cached(previous.summary["recordingId"].clone()); }
+                    if let Some(previous) = self.active.take() {
+                        self.discard_cached(previous.summary["recordingId"].clone());
+                    }
                     self.active = Some(Recording {
                         summary,
                         events: std::mem::take(&mut self.loaded),
@@ -376,7 +404,10 @@ impl RecordingUi {
         let Some(recording) = &mut self.active else {
             return false;
         };
-        let requested = self.seek_requested.or(recording.seek_target).unwrap_or(recording.position);
+        let requested = self
+            .seek_requested
+            .or(recording.seek_target)
+            .unwrap_or(recording.position);
         let seek = match key.code {
             KeyCode::Left => Some(requested.saturating_sub(1)),
             KeyCode::Right => Some((requested + 1).min(recording.events.len())),
@@ -410,8 +441,11 @@ impl RecordingUi {
         let Some(recording) = &mut self.active else {
             return;
         };
-        if recording.playing && recording.seek_target.is_none() && self.seek_requested.is_none()
-            && recording.last_tick.elapsed() >= Duration::from_millis(50) {
+        if recording.playing
+            && recording.seek_target.is_none()
+            && self.seek_requested.is_none()
+            && recording.last_tick.elapsed() >= Duration::from_millis(50)
+        {
             recording.last_tick = Instant::now();
             if recording.position < recording.events.len() {
                 self.seek_requested = Some(recording.position + 1);
@@ -423,7 +457,11 @@ impl RecordingUi {
     }
 
     pub fn reconstruction_pending(&self) -> bool {
-        self.seek_requested.is_some() || self.active.as_ref().is_some_and(|recording| recording.seek_target.is_some())
+        self.seek_requested.is_some()
+            || self
+                .active
+                .as_ref()
+                .is_some_and(|recording| recording.seek_target.is_some())
     }
 
     pub fn detach(&mut self) {
@@ -440,13 +478,24 @@ impl RecordingUi {
 
     #[cfg(test)]
     pub(crate) fn replay_limits() -> (usize, usize, usize, usize) {
-        (MAX_EVENTS, SEEK_EVENTS_PER_TICK, MAX_CHECKPOINTS, MAX_CHECKPOINT_BYTES)
+        (
+            MAX_EVENTS,
+            SEEK_EVENTS_PER_TICK,
+            MAX_CHECKPOINTS,
+            MAX_CHECKPOINT_BYTES,
+        )
     }
 
     #[cfg(test)]
     pub(crate) fn replay_work(&self) -> (usize, usize, usize, Option<usize>) {
-        (self.last_seek_reductions, self.checkpoints.len(), self.checkpoint_bytes,
-            self.active.as_ref().and_then(|recording| recording.seek_target))
+        (
+            self.last_seek_reductions,
+            self.checkpoints.len(),
+            self.checkpoint_bytes,
+            self.active
+                .as_ref()
+                .and_then(|recording| recording.seek_target),
+        )
     }
 
     pub fn update_view(&mut self, model: &mut AppModel) {
@@ -490,15 +539,23 @@ impl RecordingUi {
             if position != recording.seek_target.unwrap_or(recording.position) {
                 recording.seek_target = (position != recording.position).then_some(position);
                 if position < recording.position {
-                    if let Some(checkpoint) = self.checkpoints.iter()
+                    if let Some(checkpoint) = self
+                        .checkpoints
+                        .iter()
                         .filter(|checkpoint| checkpoint.position <= position)
-                        .max_by_key(|checkpoint| checkpoint.position) {
+                        .max_by_key(|checkpoint| checkpoint.position)
+                    {
                         checkpoint.state.restore(model);
                         recording.position = checkpoint.position;
                     } else {
                         let mut empty = AppModel::new(
-                            recording.summary["runId"].as_str().unwrap_or("saved-session").into(),
-                            model.terminal_caps.clone(), None);
+                            recording.summary["runId"]
+                                .as_str()
+                                .unwrap_or("saved-session")
+                                .into(),
+                            model.terminal_caps.clone(),
+                            None,
+                        );
                         empty.session.scope = "recorded scope not reached".into();
                         ReplayState::capture(&empty).restore(model);
                         recording.position = 0;
@@ -508,26 +565,43 @@ impl RecordingUi {
         }
         let selected = model.selected_job.clone();
         let pinned = model.selected_job_pinned;
-        if selected.is_some() { model.selected_job_pinned = true; }
+        let view_scroll = (model.job_scroll, model.task_scroll, model.log_scroll);
+        if selected.is_some() {
+            model.selected_job_pinned = true;
+        }
         let started = Instant::now();
-        while recording.seek_target.is_some_and(|target| recording.position < target)
+        while recording
+            .seek_target
+            .is_some_and(|target| recording.position < target)
             && self.last_seek_reductions < SEEK_EVENTS_PER_TICK
-            && (self.last_seek_reductions == 0 || started.elapsed() < SEEK_TICK_BUDGET) {
+            && (self.last_seek_reductions == 0 || started.elapsed() < SEEK_TICK_BUDGET)
+        {
             apply_protocol_event(model, recording.events[recording.position].clone(), 0);
             recording.position += 1;
             self.last_seek_reductions += 1;
             Self::force_passive(model, recording);
             if recording.position % CHECKPOINT_INTERVAL == 0
-                && !self.checkpoints.iter().any(|checkpoint| checkpoint.position == recording.position) {
+                && !self
+                    .checkpoints
+                    .iter()
+                    .any(|checkpoint| checkpoint.position == recording.position)
+            {
                 let charge = ReplayState::retained_bytes(model);
                 if charge <= MAX_CHECKPOINT_BYTES {
                     while self.checkpoints.len() >= MAX_CHECKPOINTS
-                        || self.checkpoint_bytes + charge > MAX_CHECKPOINT_BYTES {
-                        if let Some(old) = self.checkpoints.pop_front() { self.checkpoint_bytes -= old.bytes; }
-                        else { break; }
+                        || self.checkpoint_bytes + charge > MAX_CHECKPOINT_BYTES
+                    {
+                        if let Some(old) = self.checkpoints.pop_front() {
+                            self.checkpoint_bytes -= old.bytes;
+                        } else {
+                            break;
+                        }
                     }
-                    self.checkpoints.push_back(ReplayCheckpoint { position: recording.position,
-                        state: ReplayState::capture(model), bytes: charge });
+                    self.checkpoints.push_back(ReplayCheckpoint {
+                        position: recording.position,
+                        state: ReplayState::capture(model),
+                        bytes: charge,
+                    });
                     self.checkpoint_bytes += charge;
                 }
             }
@@ -537,10 +611,16 @@ impl RecordingUi {
             model.selected_job = Some(id);
             model.selected_job_pinned = pinned;
         }
+        // Historical reducer work is not a live arrival at a paused viewport.
+        // Keep user scroll offsets across every bounded seek batch/checkpoint.
+        (model.job_scroll, model.task_scroll, model.log_scroll) = view_scroll;
         if recording.seek_target == Some(recording.position) {
             recording.seek_target = None;
         }
-        if self.last_seek_reductions > 0 { self.revision += 1; model.dirty = true; }
+        if self.last_seek_reductions > 0 {
+            self.revision += 1;
+            model.dirty = true;
+        }
         Self::force_passive(model, recording);
     }
 
@@ -553,10 +633,16 @@ impl RecordingUi {
             .into();
         model.session.connection = "offline".into();
         model.session.controllable = false;
-        let progress = recording.seek_target.map(|target| format!("seeking {} -> {}", recording.position, target));
+        let progress = recording
+            .seek_target
+            .map(|target| format!("seeking {} -> {}", recording.position, target));
         let note = format!(
             "Saved {} {}/{} | Space play/pause; arrows step; Home/End seek; Esc detach",
-            progress.as_deref().unwrap_or(if recording.playing { "playing" } else { "paused" }),
+            progress.as_deref().unwrap_or(if recording.playing {
+                "playing"
+            } else {
+                "paused"
+            }),
             recording.position,
             recording.events.len()
         );
@@ -575,23 +661,63 @@ impl RecordingUi {
     }
 
     pub fn lines(&self, height: usize, width: usize) -> Vec<String> {
-        let mut clicks = self.rendered_clicks.borrow_mut(); clicks.clear(); self.rendered_revision.set(Some(self.revision));
-        let headers = vec![format!("Saved sessions {}/{} | Esc back/cancel | Ctrl+C quit",
-            if self.entries.is_empty() { 0 } else { self.selected + 1 }, self.entries.len()),
-            if self.available { "Enter absolute JSONL/directory | cursor/Home/End | Ctrl+U clear | paste is data".into() }
-            else { "The owned supervisor has not advertised recording support".into() },
-            format!("Path: {}", self.cursor.visible(&self.draft, width.saturating_sub(6))), self.status.clone()];
+        let mut clicks = self.rendered_clicks.borrow_mut();
+        clicks.clear();
+        self.rendered_revision.set(Some(self.revision));
+        let headers = vec![
+            format!(
+                "Saved sessions {}/{} | Esc back/cancel | Ctrl+C quit",
+                if self.entries.is_empty() {
+                    0
+                } else {
+                    self.selected + 1
+                },
+                self.entries.len()
+            ),
+            if self.available {
+                "Enter absolute JSONL/directory | cursor/Home/End | Ctrl+U clear | paste is data"
+                    .into()
+            } else {
+                "The owned supervisor has not advertised recording support".into()
+            },
+            format!(
+                "Path: {}",
+                self.cursor.visible(&self.draft, width.saturating_sub(6))
+            ),
+            self.status.clone(),
+        ];
         if self.page == Page::Entries {
-            let (header_count, start, count) = selected_window(headers.len(), self.entries.len(), self.selected, height);
+            let (header_count, start, count) =
+                selected_window(headers.len(), self.entries.len(), self.selected, height);
             for (offset, entry) in self.entries.iter().skip(start).take(count).enumerate() {
-                if let Some(id) = entry["id"].as_str() { clicks.push((header_count + offset, id.to_owned())); }
+                if let Some(id) = entry["id"].as_str() {
+                    clicks.push((header_count + offset, id.to_owned()));
+                }
             }
-            let rows = self.entries.iter().enumerate().map(|(i, entry)| format!("{} {}{}",
-                if i == self.selected { ">" } else { " " }, entry["filename"].as_str().unwrap_or("?"),
-                if entry["valid"] == true { "" } else { " [invalid]" })).collect();
+            let rows = self
+                .entries
+                .iter()
+                .enumerate()
+                .map(|(i, entry)| {
+                    format!(
+                        "{} {}{}",
+                        if i == self.selected { ">" } else { " " },
+                        entry["filename"].as_str().unwrap_or("?"),
+                        if entry["valid"] == true {
+                            ""
+                        } else {
+                            " [invalid]"
+                        }
+                    )
+                })
+                .collect();
             selected_rows(headers, rows, self.selected, height, width)
         } else {
-            headers.into_iter().take(height).map(|line| crate::fit_text(&line, width)).collect()
+            headers
+                .into_iter()
+                .take(height)
+                .map(|line| crate::fit_text(&line, width))
+                .collect()
         }
     }
 }
@@ -603,29 +729,59 @@ mod picker_tests {
 
     #[test]
     fn recording_path_reuses_grapheme_cursor_and_inert_bounded_paste() {
-        let mut ui = RecordingUi { available: true, draft: "界e\u{301}😀".into(), ..RecordingUi::default() };
+        let mut ui = RecordingUi {
+            available: true,
+            draft: "界e\u{301}😀".into(),
+            ..RecordingUi::default()
+        };
         ui.key(KeyEvent::new(KeyCode::Left, KeyModifiers::NONE));
         ui.key(KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE));
         assert_eq!(ui.draft, "界😀");
         ui.paste("\r\n\u{1b}q\u{3}");
         assert_eq!(ui.draft, "界  q😀");
-        assert!(ui.outbox.is_empty(), "paste cannot request a file load, detach or shutdown");
+        assert!(
+            ui.outbox.is_empty(),
+            "paste cannot request a file load, detach or shutdown"
+        );
         assert!(ui.lines(8, 20).join("\n").contains('|'));
-        let before = ui.draft.clone(); ui.paste(&"x".repeat(4097)); assert_eq!(ui.draft, before);
-        ui.available = false; ui.paste("read-only"); assert_eq!(ui.draft, before);
+        let before = ui.draft.clone();
+        ui.paste(&"x".repeat(4097));
+        assert_eq!(ui.draft, before);
+        ui.available = false;
+        ui.paste("read-only");
+        assert_eq!(ui.draft, before);
     }
 
     #[test]
     fn rendered_recording_click_only_selects_the_original_entry_without_loading() {
-        let mut ui = RecordingUi { available: true, page: Page::Entries,
-            entries: vec![json!({"id":"first","filename":"first.jsonl","valid":true}),
-                json!({"id":"second","filename":"second.jsonl","valid":true})], ..RecordingUi::default() };
+        let mut ui = RecordingUi {
+            available: true,
+            page: Page::Entries,
+            entries: vec![
+                json!({"id":"first","filename":"first.jsonl","valid":true}),
+                json!({"id":"second","filename":"second.jsonl","valid":true}),
+            ],
+            ..RecordingUi::default()
+        };
         let rows = ui.lines(12, 60);
-        let row = rows.iter().position(|line| line.contains("second.jsonl")).unwrap();
-        ui.click(row); assert_eq!(ui.selected, 1); assert!(ui.outbox.is_empty());
-        ui.entries.reverse(); ui.revision += 1; ui.click(row);
-        assert_eq!(ui.selected, 1, "changed inventory cannot retarget a captured row");
-        assert!(ui.outbox.is_empty(), "only explicit Enter may load or attach a saved session");
+        let row = rows
+            .iter()
+            .position(|line| line.contains("second.jsonl"))
+            .unwrap();
+        ui.click(row);
+        assert_eq!(ui.selected, 1);
+        assert!(ui.outbox.is_empty());
+        ui.entries.reverse();
+        ui.revision += 1;
+        ui.click(row);
+        assert_eq!(
+            ui.selected, 1,
+            "changed inventory cannot retarget a captured row"
+        );
+        assert!(
+            ui.outbox.is_empty(),
+            "only explicit Enter may load or attach a saved session"
+        );
     }
 
     #[test]
@@ -638,7 +794,9 @@ mod picker_tests {
                 ui.selected = selected;
                 let rows = ui.lines(height, width);
                 assert!(rows.len() <= height);
-                assert!(rows.iter().any(|row| row.contains(&format!("> saved-{selected:02}.jsonl"))));
+                assert!(rows
+                    .iter()
+                    .any(|row| row.contains(&format!("> saved-{selected:02}.jsonl"))));
             }
         }
     }
@@ -646,14 +804,21 @@ mod picker_tests {
     #[test]
     fn cancelling_page_load_discards_only_its_exact_retained_replay() {
         let id = "cda931bc-9b07-48a2-a2b8-80e53e828541";
-        let mut ui = RecordingUi { available: true, page: Page::Loading,
-            pending: Some(("owned-read".into(), "page".into())), summary: Some(json!({"recordingId":id})),
-            ..RecordingUi::default() };
+        let mut ui = RecordingUi {
+            available: true,
+            page: Page::Loading,
+            pending: Some(("owned-read".into(), "page".into())),
+            summary: Some(json!({"recordingId":id})),
+            ..RecordingUi::default()
+        };
         ui.key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
         let cancel = ui.outbox.pop_front().unwrap();
-        assert_eq!(cancel["op"], "job:cancel"); assert_eq!(cancel["jobId"], "owned-read");
+        assert_eq!(cancel["op"], "job:cancel");
+        assert_eq!(cancel["jobId"], "owned-read");
         let discard = ui.outbox.pop_front().unwrap();
-        assert_eq!(discard["method"], "discard"); assert_eq!(discard["params"]["recordingId"], id);
-        assert!(ui.outbox.is_empty()); assert!(ui.pending.is_none() && ui.summary.is_none());
+        assert_eq!(discard["method"], "discard");
+        assert_eq!(discard["params"]["recordingId"], id);
+        assert!(ui.outbox.is_empty());
+        assert!(ui.pending.is_none() && ui.summary.is_none());
     }
 }
