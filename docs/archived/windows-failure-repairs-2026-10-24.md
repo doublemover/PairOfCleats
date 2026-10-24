@@ -1372,3 +1372,22 @@ all observed peer failures. Unknown original resource observations still reject
 before diagnostic classification. Large inventories never enqueue more than four
 stat tasks at once. This is an internal I/O scheduling change; family, manifest,
 identity, cleanup and publication requirements are unchanged and await validation.
+
+At `9ba30f5dd206b4f387333d3717bb48d00117947a`, eight of thirteen
+focused cases passed; four export fixtures failed their original internal build
+bound and one SSR fixture exceeded 30 seconds (zero skips/native crashes). All
+seven publication/planning/lifetime controls passed. The latest-observation
+accounting returns original closure to 95/100; the earlier SSR green is retained
+as historical evidence rather than promoted to final-tree acceptance.
+
+The checksum-only final-validator path was found to detach its descriptor owner,
+publish integrity evidence before confirming close, accept a false close result,
+and mutate an independent primary error while handling close failure. A real
+FileHandle regression failed before repair in 609ms: checksum returned success
+when original close resolved false without closing. The repair borrows the
+existing contained descriptor owner, verifies the live descriptor, and publishes
+the prepared witness only after confirmed closure. The original witness's fresh
+fstat also supplies its byte extent, avoiding a redundant async stat. Frozen and
+falsey read failures, independent close failure, explicit close-only recovery,
+and delayed actual close are covered. SHA1/SHA256/xxh64, fresh byte hashing and
+path/descriptor authority remain unchanged. Repaired-source checks are pending.

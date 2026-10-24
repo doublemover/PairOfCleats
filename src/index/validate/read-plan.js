@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { assertNoSymlinkPath, openContainedFile, verifyContainedFileHandle } from '../../shared/contained-file.js';
+import { assertNoSymlinkPath, withContainedFile } from '../../shared/contained-file.js';
 import { readExactAt } from '../../shared/io/read-exact.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { artifactReadStamp, sameArtifactReadStamp, beginVerifiedArtifactRead } from '../../shared/artifact-io/verified-read-scope.js';
@@ -110,36 +110,32 @@ export const createValidationReadPlan = ({ root, signal = null, metrics = {} }) 
       // A declared algorithm may need a certificate when a format consumed only an auxiliary span.
       const beforeAlgorithms = expectedAlgorithms.get(resolved);
       if (!beforeAlgorithms?.has(algorithm)) expectedAlgorithms.set(resolved, new Set([...(beforeAlgorithms || []), algorithm]));
-      let handle = null;
-      let primary = null;
-      let digest = null;
       try {
-        handle = await openContainedFile(resolvedRoot, resolved);
-        const stat = await handle.stat();
-        if (!Number.isSafeInteger(stat.size) || stat.size < 0) throw changed();
-        const witness = beginVerifiedArtifactRead(resolvedRoot, resolved, handle.fd);
-        const buffer = Buffer.alloc(Math.min(65536, Math.max(1, stat.size)));
-        for (let position = 0; position < stat.size;) {
-          const length = Math.min(buffer.length, stat.size - position);
-          const { bytesRead } = await readExactAt(handle, buffer, 0, length, position, { signal });
-          if (bytesRead !== length) throw changed();
-          const bytes = buffer.subarray(0, bytesRead);
-          witness.update(bytes, position); position += bytesRead;
-        }
-        const proof = witness.finish(() => verifyContainedFileHandle(handle, resolvedRoot, resolved));
-        digest = proof?.digests?.[algorithm];
+        const publish = await withContainedFile(resolvedRoot, resolved, async descriptor => {
+          const witness = beginVerifiedArtifactRead(resolvedRoot, resolved, descriptor.fd);
+          const size = witness?.byteLength;
+          if (!Number.isSafeInteger(size) || size < 0) throw changed();
+          const buffer = Buffer.alloc(Math.min(65536, Math.max(1, size)));
+          for (let position = 0; position < size;) {
+            const length = Math.min(buffer.length, size - position);
+            const { bytesRead } = await readExactAt(descriptor, buffer, 0, length, position, { signal });
+            if (bytesRead !== length) throw changed();
+            const bytes = buffer.subarray(0, bytesRead);
+            witness.update(bytes, position); position += bytesRead;
+          }
+          return witness.prepare(() => descriptor.verify());
+        });
+        // The live descriptor proves bytes/identity; only its confirmed close
+        // permits publication. Failed-close recovery cannot invoke this callback.
+        const digest = publish?.()?.digests?.[algorithm];
         if (typeof digest !== 'string') throw changed();
         metrics.checksumOnlyReads = (metrics.checksumOnlyReads || 0) + 1;
-      } catch (error) { primary = error; throw error; }
+        return digest;
+      }
       finally {
         if (!beforeAlgorithms) expectedAlgorithms.delete(resolved);
         else expectedAlgorithms.set(resolved, beforeAlgorithms);
-        try { if (handle) await handle.close(); } catch (error) {
-          if (primary && typeof primary === 'object') primary.closeError = error;
-          else throw error;
-        }
       }
-      return digest;
     },
     finish() {
       throwIfAborted(signal);

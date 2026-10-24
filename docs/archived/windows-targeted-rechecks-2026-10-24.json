@@ -10132,12 +10132,382 @@
           "historicalAuthorWorkspaceEvidence": true
         }
       ]
+    },
+    {
+      "sourceHead": "9ba30f5dd206b4f387333d3717bb48d00117947a",
+      "startedAt": "2026-10-24T17:02:50.363Z",
+      "finishedAt": "2026-10-24T17:05:00.675Z",
+      "scope": "Private-copy late source/target authority and bounded publication stat controls with API/SSR rechecks",
+      "policy": {
+        "timeoutMs": 30000,
+        "retries": 0,
+        "nativeStatusRedo": false,
+        "threads": 1,
+        "platform": "win32",
+        "node": "v26.12.1",
+        "removedLaunchSetting": "PAIROFCLEATS_TRUSTED_CONFIG: missing configured file; no replacement authority granted"
+      },
+      "summary": {
+        "selected": 13,
+        "passed": 8,
+        "failed": 5,
+        "timeouts": 1,
+        "skipped": 0
+      },
+      "cohorts": [
+        {
+          "name": "publication-io-wave-01",
+          "summary": {
+            "total": 5,
+            "passed": 5,
+            "failed": 0,
+            "skipped": 0,
+            "durationMs": 2581
+          },
+          "ids": [
+            "indexing/artifacts/unpublished-stage-copy",
+            "indexing/build/artifact-publication-identity-gate",
+            "shared/artifact-io/paired-reader-resource-lifetime",
+            "indexing/artifacts/stage-producer-observation",
+            "indexing/policy/shared-module-review-files"
+          ]
+        },
+        {
+          "name": "publication-io-wave-02",
+          "summary": {
+            "total": 5,
+            "passed": 3,
+            "failed": 2,
+            "skipped": 0,
+            "durationMs": 85238
+          },
+          "ids": [
+            "indexing/artifacts/completed-stage-recovery",
+            "indexing/build/immutable-graph-capability",
+            "indexing/semantic/ssr-snapshot-witness-incremental",
+            "indexing/semantic/ssr-snapshot-witness-incremental-parity",
+            "tooling/api-contracts/export-identity-cli/js-fail"
+          ]
+        },
+        {
+          "name": "publication-io-wave-03",
+          "summary": {
+            "total": 3,
+            "passed": 0,
+            "failed": 3,
+            "skipped": 0,
+            "durationMs": 39666
+          },
+          "ids": [
+            "tooling/api-contracts/export-identity-cli/js-report",
+            "tooling/api-contracts/export-identity-cli/ts-fail",
+            "tooling/api-contracts/export-identity-cli/ts-report"
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "id": "indexing/artifacts/stage-producer-observation",
+          "path": "indexing/artifacts/stage-producer-observation.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 643,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-9ba30f5dd206b4f387333d3717bb48d00117947a/publication-io-wave-01-logs/run-1792861371301-6kova2/indexing_artifacts_stage-producer-observation.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/artifacts/unpublished-stage-copy",
+          "path": "indexing/artifacts/unpublished-stage-copy.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 255,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-9ba30f5dd206b4f387333d3717bb48d00117947a/publication-io-wave-01-logs/run-1792861371301-6kova2/indexing_artifacts_unpublished-stage-copy.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/build/artifact-publication-identity-gate",
+          "path": "indexing/build/artifact-publication-identity-gate.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 655,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-9ba30f5dd206b4f387333d3717bb48d00117947a/publication-io-wave-01-logs/run-1792861371301-6kova2/indexing_build_artifact-publication-identity-gate.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/policy/shared-module-review-files",
+          "path": "indexing/policy/shared-module-review-files.test.js",
+          "lane": "gate",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "status": "passed",
+          "durationMs": 897,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-9ba30f5dd206b4f387333d3717bb48d00117947a/publication-io-wave-01-logs/run-1792861371301-6kova2/indexing_policy_shared-module-review-files.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "shared/artifact-io/paired-reader-resource-lifetime",
+          "path": "shared/artifact-io/paired-reader-resource-lifetime.test.js",
+          "lane": "unit",
+          "tags": [
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 122,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-9ba30f5dd206b4f387333d3717bb48d00117947a/publication-io-wave-01-logs/run-1792861371301-6kova2/shared_artifact-io_paired-reader-resource-lifetime.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/artifacts/completed-stage-recovery",
+          "path": "indexing/artifacts/completed-stage-recovery.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 3266,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-9ba30f5dd206b4f387333d3717bb48d00117947a/publication-io-wave-02-logs/run-1792861374739-zyddua/indexing_artifacts_completed-stage-recovery.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/build/immutable-graph-capability",
+          "path": "indexing/build/immutable-graph-capability.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 10944,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-9ba30f5dd206b4f387333d3717bb48d00117947a/publication-io-wave-02-logs/run-1792861374739-zyddua/indexing_build_immutable-graph-capability.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/semantic/ssr-snapshot-witness-incremental",
+          "path": "indexing/semantic/ssr-snapshot-witness-incremental.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "failed",
+          "durationMs": 30499,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": true,
+          "timeoutClass": "timed_out_with_failure",
+          "skipReason": null,
+          "termination": {
+            "terminated": true,
+            "forced": true,
+            "fallbackAttempted": false,
+            "fallbackTerminated": 0
+          },
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-9ba30f5dd206b4f387333d3717bb48d00117947a/publication-io-wave-02-logs/run-1792861374739-zyddua/indexing_semantic_ssr-snapshot-witness-incremental.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-9ba30f5dd206b4f387333d3717bb48d00117947a/publication-io-wave-02-logs/run-1792861374739-zyddua/indexing_semantic_ssr-snapshot-witness-incremental.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/semantic/ssr-snapshot-witness-incremental-parity",
+          "path": "indexing/semantic/ssr-snapshot-witness-incremental-parity.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 27648,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-9ba30f5dd206b4f387333d3717bb48d00117947a/publication-io-wave-02-logs/run-1792861374739-zyddua/indexing_semantic_ssr-snapshot-witness-incremental-parity.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/js-fail",
+          "path": "tooling/api-contracts/export-identity-cli.test.js",
+          "lane": "gate",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "status": "failed",
+          "durationMs": 12865,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-9ba30f5dd206b4f387333d3717bb48d00117947a/publication-io-wave-02-logs/run-1792861374739-zyddua/tooling_api-contracts_export-identity-cli_js-fail.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-9ba30f5dd206b4f387333d3717bb48d00117947a/publication-io-wave-02-logs/run-1792861374739-zyddua/tooling_api-contracts_export-identity-cli_js-fail.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/js-report",
+          "path": "tooling/api-contracts/export-identity-cli.test.js",
+          "lane": "gate",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "status": "failed",
+          "durationMs": 13210,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-9ba30f5dd206b4f387333d3717bb48d00117947a/publication-io-wave-03-logs/run-1792861460988-bslzgv/tooling_api-contracts_export-identity-cli_js-report.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-9ba30f5dd206b4f387333d3717bb48d00117947a/publication-io-wave-03-logs/run-1792861460988-bslzgv/tooling_api-contracts_export-identity-cli_js-report.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/ts-fail",
+          "path": "tooling/api-contracts/export-identity-cli.test.js",
+          "lane": "gate",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "status": "failed",
+          "durationMs": 13206,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-9ba30f5dd206b4f387333d3717bb48d00117947a/publication-io-wave-03-logs/run-1792861460988-bslzgv/tooling_api-contracts_export-identity-cli_ts-fail.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-9ba30f5dd206b4f387333d3717bb48d00117947a/publication-io-wave-03-logs/run-1792861460988-bslzgv/tooling_api-contracts_export-identity-cli_ts-fail.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/ts-report",
+          "path": "tooling/api-contracts/export-identity-cli.test.js",
+          "lane": "gate",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "status": "failed",
+          "durationMs": 13231,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-9ba30f5dd206b4f387333d3717bb48d00117947a/publication-io-wave-03-logs/run-1792861460988-bslzgv/tooling_api-contracts_export-identity-cli_ts-report.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-9ba30f5dd206b4f387333d3717bb48d00117947a/publication-io-wave-03-logs/run-1792861460988-bslzgv/tooling_api-contracts_export-identity-cli_ts-report.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        }
+      ]
     }
   ],
   "cumulativeClosure": {
     "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
-    "originalFailuresMovedToPassing": 96,
-    "originalFailuresWithoutPassingClosure": 4,
+    "originalFailuresMovedToPassing": 95,
+    "originalFailuresWithoutPassingClosure": 5,
     "additionalObservedFailuresOutsideOriginal100": []
   }
 }

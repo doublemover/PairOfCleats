@@ -13,6 +13,7 @@ import { withVerifiedArtifactReadScope } from '../../../src/shared/artifact-io/v
 import { loadChunkMetaRows } from '../../../src/shared/artifact-io.js';
 import { createXxhash64Hasher } from '../../../src/shared/hash/xxhash-backend.js';
 import { validateIndexArtifacts } from '../../../src/index/validate.js';
+import { getContainedFileSession } from '../../../src/shared/contained-file.js';
 
 ensureTestingEnv(process.env);
 const root = resolveTestCachePath(process.cwd(), 'manifest-shared-read-plan');
@@ -57,6 +58,85 @@ const evaluate = async ({ algorithm = 'sha256', mismatch = false, mutate = null 
   return { ...state, metrics };
 };
 try {
+  // Exercise the actual checksum-only descriptor, including its original close.
+  // A recovered close must never resume reads or publish a failed invocation.
+  await seed();
+  const originalOpen = fs.open;
+  const disposal = new Map();
+  const contains = (error, expected, seen = new Set()) => {
+    if (error === expected) return true;
+    if (!error || typeof error !== 'object' || seen.has(error)) return false;
+    seen.add(error);
+    return (Object.hasOwn(error, 'cause') && contains(error.cause, expected, seen))
+      || (Array.isArray(error.errors) && error.errors.some(value => contains(value, expected, seen)));
+  };
+  try {
+    for (const readFailure of [null, Object.freeze(new Error('frozen checksum read failure')), false, undefined]) {
+      let reads = 0, closes = 0, recover = false;
+      const closeFailure = Object.freeze(new Error('independent checksum close failure'));
+      fs.open = async (target, ...args) => {
+        const handle = await originalOpen(target, ...args);
+        if (path.resolve(target) !== path.join(dir, 'opaque.bin')) return handle;
+        const close = handle.close.bind(handle), read = handle.read.bind(handle);
+        disposal.set(handle, close);
+        handle.read = (...input) => { reads += 1; if (readFailure !== null) throw readFailure; return read(...input); };
+        handle.close = async () => {
+          closes += 1;
+          if (!recover) { if (readFailure === null) return false; throw closeFailure; }
+          await close(); disposal.delete(handle);
+        };
+        return handle;
+      };
+      const metrics = {}, plan = createValidationReadPlan({ root: dir, metrics });
+      await plan.prepare({ pieces: [{ path: 'opaque.bin', checksum: `sha256:${await digest('sha256', opaqueBytes)}` }] });
+      let failure;
+      await assert.rejects(withVerifiedArtifactReadScope(plan, () => plan.checksum(path.join(dir, 'opaque.bin'), 'sha256')),
+        error => { failure = error; return true; });
+      assert.equal(metrics.verifiedReads || 0, 0, 'unconfirmed close cannot publish integrity evidence');
+      assert.equal(metrics.checksumOnlyReads || 0, 0);
+      if (readFailure !== null) {
+        assert.ok(contains(failure, readFailure), 'original falsey/frozen read failure remains reachable');
+        assert.ok(contains(failure, closeFailure), 'independent original close failure remains reachable');
+      }
+      const session = getContainedFileSession(failure);
+      assert.ok(session, 'retain the exact original descriptor owner');
+      assert.equal(session.isSettled(), false);
+      assert.equal(closes, 1, 'no automatic native close retry');
+      const readsBeforeRecovery = reads;
+      recover = true;
+      await session.releaseAfterClose();
+      assert.equal(session.isSettled(), true);
+      assert.equal(closes, 2);
+      assert.equal(reads, readsBeforeRecovery);
+      assert.equal(metrics.verifiedReads || 0, 0, 'close-only recovery cannot publish a failed invocation');
+    }
+    let releaseClose, enteredClose;
+    const closing = new Promise(resolve => { enteredClose = resolve; });
+    const released = new Promise(resolve => { releaseClose = resolve; });
+    fs.open = async (target, ...args) => {
+      const handle = await originalOpen(target, ...args);
+      if (path.resolve(target) !== path.join(dir, 'opaque.bin')) return handle;
+      const close = handle.close.bind(handle);
+      disposal.set(handle, close);
+      handle.close = async () => { enteredClose(); await released; await close(); disposal.delete(handle); };
+      return handle;
+    };
+    const metrics = {}, plan = createValidationReadPlan({ root: dir, metrics });
+    let settled = false;
+    const pending = withVerifiedArtifactReadScope(plan, () => plan.checksum(path.join(dir, 'opaque.bin'), 'sha256'));
+    pending.then(() => { settled = true; }, () => { settled = true; });
+    try {
+      await closing;
+      assert.equal(settled, false);
+      assert.equal(metrics.verifiedReads || 0, 0, 'even successful verification waits for actual native closure');
+    } finally { releaseClose(); }
+    assert.equal(await pending, await digest('sha256', opaqueBytes));
+    assert.equal(metrics.verifiedReads, 1);
+    assert.equal(metrics.checksumOnlyReads, 1);
+  } finally {
+    fs.open = originalOpen;
+    await Promise.all([...disposal.values()].map(close => close()));
+  }
   for (const algorithm of ['sha1', 'sha256', 'xxh64']) {
     const shared = await evaluate({ algorithm });
     assert.equal(shared.report.issues.some(issue => issue.includes('checksum')), false);

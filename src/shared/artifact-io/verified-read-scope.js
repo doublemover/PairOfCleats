@@ -62,6 +62,7 @@ export const beginVerifiedArtifactRead = (root, target, fd, { stat = null } = {}
   };
   return {
     signal: active.signal || null,
+    byteLength: before.size,
     update(bytes, offset = position) {
       throwIfAborted(active.signal);
       if (finished || offset !== position) { valid = false; return; }
