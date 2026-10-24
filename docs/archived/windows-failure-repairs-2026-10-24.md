@@ -594,3 +594,30 @@ serial/API/script/soak cases keep separate owners. The roadmap preserves Gate B
 controls without reviving historical green claims. Search-option drift, command
 profile distinctions and provider-cache inventory timing remain unresolved
 after these initial repairs. Formatting/diff checks pass; runtime tests deferred.
+
+Storage/retention implementation `03b620261` plus analysis-option ownership
+`11d9f2c64` attempts 22 more cases (336/360; 24 unattempted). Configuration
+preview was invalidated by its own home/config lock preparation. Apply now
+validates before preparation, records only directories it created, and checks
+those original ancestor identities after lock admission. External source or
+destination ancestor creation still fails; new CLI negatives preserve both.
+Watch retention counts unpinned attempts independently from published modes,
+while rereading pointer authority before deletion. Recovery uses canonical
+repository identity so direct/core plans compare exactly; full immediate error
+evidence and bounded durable-result coverage remain. Promotion cancellation
+starts with a valid pointer, read faults use the actual descriptor boundary,
+and incremental freshness uses actual source hashes. Zero-state coverage has a
+canonical source proof/checksum plus a corrupt-marker negative. Discovery's
+missing candidate precedes the good file under deterministic sorting, and IPC
+assertions compare the message payload separately from Node's handle argument.
+Impact fixtures publish their mode root; navigation compares exact opens/closes,
+SCM cancellation stays typed, and EXDEV injection follows only its original
+source through replacement retries. Structural fixtures copy owned commands
+into their disposable trusted repo, include Windows launchers and identify
+valid fixture versions. Records distinguish unsupported format errors from
+current-format corrupt products. Analysis option declarations move to their
+library owner without public surface changes. Graph-capability closure, delta
+checkpoint behavior and remaining keyword-language routes remain unresolved
+after strengthened attribution. Formatting/diff checks pass. PR #572 summary
+was refreshed/read back at `11d9f2c64` after 20 commits, preserving all 141
+closing references. Runtime tests remain deferred until every item is attempted.

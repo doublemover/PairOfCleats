@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "recordedAt": "2026-10-24T10:44:15.558Z",
+  "recordedAt": "2026-10-24T11:01:24.565Z",
   "queueSourceHead": "a96699ab0e9e822320e008f5affc1d690f305cfe",
   "originalFailureSource": "893fe089458e7f7294b8d1f357f596fdecc7d5d4",
   "scope": "The 360 historical failures outstanding at the runtime-wave publication. Attempt every implementation before further batch tests. Seven repairs were completed and tested immediately before this instruction.",
@@ -19,11 +19,11 @@
   },
   "summary": {
     "selected": 360,
-    "implemented-unvalidated": 272,
-    "needs-further-implementation": 17,
+    "implemented-unvalidated": 291,
+    "needs-further-implementation": 20,
     "attempted-existing-owner-repair": 18,
     "implemented": 7,
-    "not-attempted": 46,
+    "not-attempted": 24,
     "finalBatchPassed": 0
   },
   "items": [
@@ -496,14 +496,14 @@
       "id": "shared/storage/configuration-cli-sealed-roundtrip",
       "path": "shared/storage/configuration-cli-sealed-roundtrip.test.js",
       "owner": "shared/storage",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "03b620261",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: {",
       "failureLocations": [
         "tests/shared/storage/configuration-cli-sealed-roundtrip.test.js:29:10"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: configuration preparation records only operation-created ancestors and revalidates sealed source/destination observations; external new ancestors remain negative. Pinned generations no longer consume unpinned watch budgets, and pointer authority is rechecked before deletion. Recovery plans canonicalize repository identity and retain exact core/direct comparisons. Promotion fixtures own valid format and real descriptor failures, reuse proves actual source hashes, zero-state uses checksum-backed proof plus corrupt negatives, and cancellation remains typed. Impact fixtures publish explicit mode authority; navigation closes exactly every acquired store; structural fixtures own trusted copied Windows commands and valid identities. See durable receipt; runtime acceptance pending.",
       "finalBatchStatus": "pending"
     },
     {
@@ -544,14 +544,14 @@
       "id": "shared/storage/embedding-delta-reference-inventory",
       "path": "shared/storage/embedding-delta-reference-inventory.test.js",
       "owner": "shared/storage",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "needs-further-implementation",
+      "sourceHead": "03b620261",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: fixture entry exists only in the committed delta",
       "failureLocations": [
         "tests/shared/storage/embedding-delta-reference-inventory.test.js:33:10"
       ],
-      "notes": null,
+      "notes": "Initial attempt preserves the original failure and strengthens attribution: graph readiness now exposes the actual validation reason; delta inventory asserts that its initial canonical checkpoint owns a journal generation; the first C-like call assertion retains its actual receiver spelling. Graph closure, checkpoint-only-versus-delta behavior and the other language routes still require deferred batch evidence and further repair.",
       "finalBatchStatus": "pending"
     },
     {
@@ -956,8 +956,8 @@
       "id": "services/snapshot-ref-contract-matrix",
       "path": "services/snapshot-ref-contract-matrix.test.js",
       "owner": "services/snapshot-ref-contract-matrix",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "03b620261",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The input did not match the regular expression /missing build root/i. Input:",
       "failureLocations": [
@@ -967,7 +967,7 @@
         "src/retrieval/cli/runner.js:59:19",
         "src/retrieval/cli/run-search/plan-runner.js:343:14"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: configuration preparation records only operation-created ancestors and revalidates sealed source/destination observations; external new ancestors remain negative. Pinned generations no longer consume unpinned watch budgets, and pointer authority is rechecked before deletion. Recovery plans canonicalize repository identity and retain exact core/direct comparisons. Promotion fixtures own valid format and real descriptor failures, reuse proves actual source hashes, zero-state uses checksum-backed proof plus corrupt negatives, and cancellation remains typed. Impact fixtures publish explicit mode authority; navigation closes exactly every acquired store; structural fixtures own trusted copied Windows commands and valid identities. See durable receipt; runtime acceptance pending.",
       "finalBatchStatus": "pending"
     },
     {
@@ -1764,28 +1764,28 @@
       "id": "tooling/impact/seed-and-changed-behavior",
       "path": "tooling/impact/seed-and-changed-behavior.test.js",
       "owner": "tooling/impact",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "03b620261",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/tooling/impact/seed-and-changed-behavior.test.js:67:10"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: configuration preparation records only operation-created ancestors and revalidates sealed source/destination observations; external new ancestors remain negative. Pinned generations no longer consume unpinned watch budgets, and pointer authority is rechecked before deletion. Recovery plans canonicalize repository identity and retain exact core/direct comparisons. Promotion fixtures own valid format and real descriptor failures, reuse proves actual source hashes, zero-state uses checksum-backed proof plus corrupt negatives, and cancellation remains typed. Impact fixtures publish explicit mode authority; navigation closes exactly every acquired store; structural fixtures own trusted copied Windows commands and valid identities. See durable receipt; runtime acceptance pending.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/index-stats/contract-matrix",
       "path": "tooling/index-stats/contract-matrix.test.js",
       "owner": "tooling/index-stats",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "03b620261",
       "originalTimedOut": false,
       "originalFailure": "Error: No selected index modes are published for this repository.",
       "failureLocations": [
         "tools/index/stats.js:100"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: configuration preparation records only operation-created ancestors and revalidates sealed source/destination observations; external new ancestors remain negative. Pinned generations no longer consume unpinned watch budgets, and pointer authority is rechecked before deletion. Recovery plans canonicalize repository identity and retain exact core/direct comparisons. Promotion fixtures own valid format and real descriptor failures, reuse proves actual source hashes, zero-state uses checksum-backed proof plus corrupt negatives, and cancellation remains typed. Impact fixtures publish explicit mode authority; navigation closes exactly every acquired store; structural fixtures own trusted copied Windows commands and valid identities. See durable receipt; runtime acceptance pending.",
       "finalBatchStatus": "pending"
     },
     {
@@ -2596,14 +2596,14 @@
       "id": "tooling/navigation-source-binding",
       "path": "tooling/navigation-source-binding.test.js",
       "owner": "tooling/navigation-source-binding",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "03b620261",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: every opened store closes including partial and stale paths",
       "failureLocations": [
         "tests/tooling/navigation-source-binding.test.js:104:10"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: configuration preparation records only operation-created ancestors and revalidates sealed source/destination observations; external new ancestors remain negative. Pinned generations no longer consume unpinned watch budgets, and pointer authority is rechecked before deletion. Recovery plans canonicalize repository identity and retain exact core/direct comparisons. Promotion fixtures own valid format and real descriptor failures, reuse proves actual source hashes, zero-state uses checksum-backed proof plus corrupt negatives, and cancellation remains typed. Impact fixtures publish explicit mode authority; navigation closes exactly every acquired store; structural fixtures own trusted copied Windows commands and valid identities. See durable receipt; runtime acceptance pending.",
       "finalBatchStatus": "pending"
     },
     {
@@ -2716,8 +2716,8 @@
       "id": "tooling/repo/config-status-durability-warning",
       "path": "tooling/repo/config-status-durability-warning.test.js",
       "owner": "tooling/repo",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "03b620261",
       "originalTimedOut": false,
       "originalFailure": "AggregateError: [atomic-write] Failed to write file atomically \"C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\config-status-durability-warning\\cache\\durability.txt\": cross-device link not permitted",
       "failureLocations": [
@@ -2728,7 +2728,7 @@
         "tests/tooling/repo/config-status-durability-warning.test.js:36:3",
         "src/shared/io/persistence-helpers.js:95:44"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: configuration preparation records only operation-created ancestors and revalidates sealed source/destination observations; external new ancestors remain negative. Pinned generations no longer consume unpinned watch budgets, and pointer authority is rechecked before deletion. Recovery plans canonicalize repository identity and retain exact core/direct comparisons. Promotion fixtures own valid format and real descriptor failures, reuse proves actual source hashes, zero-state uses checksum-backed proof plus corrupt negatives, and cancellation remains typed. Impact fixtures publish explicit mode authority; navigation closes exactly every acquired store; structural fixtures own trusted copied Windows commands and valid identities. See durable receipt; runtime acceptance pending.",
       "finalBatchStatus": "pending"
     },
     {
@@ -2958,8 +2958,8 @@
       "id": "tooling/structural/search",
       "path": "tooling/structural/search.test.js",
       "owner": "tooling/structural",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "03b620261",
       "originalTimedOut": false,
       "originalFailure": "Error: semgrep has no identified structural engine executable. Select it in tooling setup.",
       "failureLocations": [
@@ -2969,7 +2969,7 @@
         "src/experimental/structural/runner.js:90:27",
         "tools/analysis/structural-search.js:92:23"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: configuration preparation records only operation-created ancestors and revalidates sealed source/destination observations; external new ancestors remain negative. Pinned generations no longer consume unpinned watch budgets, and pointer authority is rechecked before deletion. Recovery plans canonicalize repository identity and retain exact core/direct comparisons. Promotion fixtures own valid format and real descriptor failures, reuse proves actual source hashes, zero-state uses checksum-backed proof plus corrupt negatives, and cancellation remains typed. Impact fixtures publish explicit mode authority; navigation closes exactly every acquired store; structural fixtures own trusted copied Windows commands and valid identities. See durable receipt; runtime acceptance pending.",
       "finalBatchStatus": "pending"
     },
     {
@@ -3396,22 +3396,22 @@
       "id": "indexing/build/immutable-graph-capability",
       "path": "indexing/build/immutable-graph-capability.test.js",
       "owner": "indexing/build",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "needs-further-implementation",
+      "sourceHead": "03b620261",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/indexing/build/immutable-graph-capability.test.js:35:10"
       ],
-      "notes": null,
+      "notes": "Initial attempt preserves the original failure and strengthens attribution: graph readiness now exposes the actual validation reason; delta inventory asserts that its initial canonical checkpoint owns a journal generation; the first C-like call assertion retains its actual receiver spelling. Graph closure, checkpoint-only-versus-delta behavior and the other language routes still require deferred batch evidence and further repair.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/build/promotion-cancellation",
       "path": "indexing/build/promotion-cancellation.test.js",
       "owner": "indexing/build",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "03b620261",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The validation function is expected to return \"true\". Received false",
       "failureLocations": [
@@ -3419,29 +3419,29 @@
         "src/contracts/index-format.js:24:17",
         "src/index/build/promotion.js:80:5"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: configuration preparation records only operation-created ancestors and revalidates sealed source/destination observations; external new ancestors remain negative. Pinned generations no longer consume unpinned watch budgets, and pointer authority is rechecked before deletion. Recovery plans canonicalize repository identity and retain exact core/direct comparisons. Promotion fixtures own valid format and real descriptor failures, reuse proves actual source hashes, zero-state uses checksum-backed proof plus corrupt negatives, and cancellation remains typed. Impact fixtures publish explicit mode authority; navigation closes exactly every acquired store; structural fixtures own trusted copied Windows commands and valid identities. See durable receipt; runtime acceptance pending.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/build/promotion-unreadable-pointer",
       "path": "indexing/build/promotion-unreadable-pointer.test.js",
       "owner": "indexing/build",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "03b620261",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Missing expected rejection.",
       "failureLocations": [
         "tests/indexing/build/promotion-unreadable-pointer.test.js:38:9"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: configuration preparation records only operation-created ancestors and revalidates sealed source/destination observations; external new ancestors remain negative. Pinned generations no longer consume unpinned watch budgets, and pointer authority is rechecked before deletion. Recovery plans canonicalize repository identity and retain exact core/direct comparisons. Promotion fixtures own valid format and real descriptor failures, reuse proves actual source hashes, zero-state uses checksum-backed proof plus corrupt negatives, and cancellation remains typed. Impact fixtures publish explicit mode authority; navigation closes exactly every acquired store; structural fixtures own trusted copied Windows commands and valid identities. See durable receipt; runtime acceptance pending.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/build/recovery-bounded-durable-result",
       "path": "indexing/build/recovery-bounded-durable-result.test.js",
       "owner": "indexing/build",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "03b620261",
       "originalTimedOut": false,
       "originalFailure": "Error: Recovery plan changed; inspect the exact generation again.",
       "failureLocations": [
@@ -3450,7 +3450,7 @@
         "src/integrations/core/build-index/recovery.js:174:11",
         "tests/indexing/build/recovery-bounded-durable-result.test.js:28:18"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: configuration preparation records only operation-created ancestors and revalidates sealed source/destination observations; external new ancestors remain negative. Pinned generations no longer consume unpinned watch budgets, and pointer authority is rechecked before deletion. Recovery plans canonicalize repository identity and retain exact core/direct comparisons. Promotion fixtures own valid format and real descriptor failures, reuse proves actual source hashes, zero-state uses checksum-backed proof plus corrupt negatives, and cancellation remains typed. Impact fixtures publish explicit mode authority; navigation closes exactly every acquired store; structural fixtures own trusted copied Windows commands and valid identities. See durable receipt; runtime acceptance pending.",
       "finalBatchStatus": "pending"
     },
     {
@@ -3531,14 +3531,14 @@
       "id": "indexing/discovery/max-files-continues-after-reject",
       "path": "indexing/discovery/max-files-continues-after-reject.test.js",
       "owner": "indexing/discovery",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "03b620261",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected first candidate to be rejected",
       "failureLocations": [
         "tests/indexing/discovery/max-files-continues-after-reject.test.js:47:8"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: configuration preparation records only operation-created ancestors and revalidates sealed source/destination observations; external new ancestors remain negative. Pinned generations no longer consume unpinned watch budgets, and pointer authority is rechecked before deletion. Recovery plans canonicalize repository identity and retain exact core/direct comparisons. Promotion fixtures own valid format and real descriptor failures, reuse proves actual source hashes, zero-state uses checksum-backed proof plus corrupt negatives, and cancellation remains typed. Impact fixtures publish explicit mode authority; navigation closes exactly every acquired store; structural fixtures own trusted copied Windows commands and valid identities. See durable receipt; runtime acceptance pending.",
       "finalBatchStatus": "pending"
     },
     {
@@ -3860,8 +3860,8 @@
       "id": "indexing/file-processor/scm-runproc-queue-timeout",
       "path": "indexing/file-processor/scm-runproc-queue-timeout.test.js",
       "owner": "indexing/file-processor",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "03b620261",
       "originalTimedOut": false,
       "originalFailure": "Error [AbortError]: Operation aborted",
       "failureLocations": [
@@ -3872,7 +3872,7 @@
         "src/index/build/file-processor/cpu.js:952:29",
         "tests/indexing/file-processor/scm-runproc-queue-timeout.test.js:160:1"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: configuration preparation records only operation-created ancestors and revalidates sealed source/destination observations; external new ancestors remain negative. Pinned generations no longer consume unpinned watch budgets, and pointer authority is rechecked before deletion. Recovery plans canonicalize repository identity and retain exact core/direct comparisons. Promotion fixtures own valid format and real descriptor failures, reuse proves actual source hashes, zero-state uses checksum-backed proof plus corrupt negatives, and cancellation remains typed. Impact fixtures publish explicit mode authority; navigation closes exactly every acquired store; structural fixtures own trusted copied Windows commands and valid identities. See durable receipt; runtime acceptance pending.",
       "finalBatchStatus": "pending"
     },
     {
@@ -3891,15 +3891,15 @@
       "id": "indexing/guardrails/stage1-timeout-ownership",
       "path": "indexing/guardrails/stage1-timeout-ownership.test.js",
       "owner": "indexing/guardrails",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "03b620261",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:",
       "failureLocations": [
         "tests/indexing/guardrails/stage1-timeout-ownership.test.js:35:12",
         "tests/indexing/guardrails/stage1-timeout-ownership.test.js:39:19"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: configuration preparation records only operation-created ancestors and revalidates sealed source/destination observations; external new ancestors remain negative. Pinned generations no longer consume unpinned watch budgets, and pointer authority is rechecked before deletion. Recovery plans canonicalize repository identity and retain exact core/direct comparisons. Promotion fixtures own valid format and real descriptor failures, reuse proves actual source hashes, zero-state uses checksum-backed proof plus corrupt negatives, and cancellation remains typed. Impact fixtures publish explicit mode authority; navigation closes exactly every acquired store; structural fixtures own trusted copied Windows commands and valid identities. See durable receipt; runtime acceptance pending.",
       "finalBatchStatus": "pending"
     },
     {
@@ -3977,28 +3977,28 @@
       "id": "indexing/incremental/piece-output-producer-identity",
       "path": "indexing/incremental/piece-output-producer-identity.test.js",
       "owner": "indexing/incremental",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "03b620261",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:",
       "failureLocations": [
         "tests/indexing/incremental/piece-output-producer-identity.test.js:43:10"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: configuration preparation records only operation-created ancestors and revalidates sealed source/destination observations; external new ancestors remain negative. Pinned generations no longer consume unpinned watch budgets, and pointer authority is rechecked before deletion. Recovery plans canonicalize repository identity and retain exact core/direct comparisons. Promotion fixtures own valid format and real descriptor failures, reuse proves actual source hashes, zero-state uses checksum-backed proof plus corrupt negatives, and cancellation remains typed. Impact fixtures publish explicit mode authority; navigation closes exactly every acquired store; structural fixtures own trusted copied Windows commands and valid identities. See durable receipt; runtime acceptance pending.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/policy/shared-module-boundary-guard",
       "path": "indexing/policy/shared-module-boundary-guard.test.js",
       "owner": "indexing/policy",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "11d9f2c64",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: unwaived src/** -> tools/shared/** imports found: tools/shared/operator-cli-options.js -> src/integrations/tooling/architecture-check.js, tools/shared/operator-cli-options.js -> src/integrations/tooling/suggest-tests.js",
       "failureLocations": [
         "tests/indexing/policy/shared-module-boundary-guard.test.js:97:8"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: configuration preparation records only operation-created ancestors and revalidates sealed source/destination observations; external new ancestors remain negative. Pinned generations no longer consume unpinned watch budgets, and pointer authority is rechecked before deletion. Recovery plans canonicalize repository identity and retain exact core/direct comparisons. Promotion fixtures own valid format and real descriptor failures, reuse proves actual source hashes, zero-state uses checksum-backed proof plus corrupt negatives, and cancellation remains typed. Impact fixtures publish explicit mode authority; navigation closes exactly every acquired store; structural fixtures own trusted copied Windows commands and valid identities. See durable receipt; runtime acceptance pending.",
       "finalBatchStatus": "pending"
     },
     {
@@ -4052,14 +4052,14 @@
       "id": "indexing/relations/keyword-skip-heuristics",
       "path": "indexing/relations/keyword-skip-heuristics.test.js",
       "owner": "indexing/relations",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "needs-further-implementation",
+      "sourceHead": "03b620261",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: clike: expected call bar",
       "failureLocations": [
         "tests/indexing/relations/keyword-skip-heuristics.test.js:163:12"
       ],
-      "notes": null,
+      "notes": "Initial attempt preserves the original failure and strengthens attribution: graph readiness now exposes the actual validation reason; delta inventory asserts that its initial canonical checkpoint owns a journal generation; the first C-like call assertion retains its actual receiver spelling. Graph closure, checkpoint-only-versus-delta behavior and the other language routes still require deferred batch evidence and further repair.",
       "finalBatchStatus": "pending"
     },
     {
@@ -4593,14 +4593,14 @@
       "id": "indexing/validate/index-sqlite-zero-state-db-required",
       "path": "indexing/validate/index-sqlite-zero-state-db-required.test.js",
       "owner": "indexing/validate",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "03b620261",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected zero-state prose sqlite validation to pass without db",
       "failureLocations": [
         "tests/indexing/validate/index-sqlite-zero-state-db-required.test.js:38:8"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: configuration preparation records only operation-created ancestors and revalidates sealed source/destination observations; external new ancestors remain negative. Pinned generations no longer consume unpinned watch budgets, and pointer authority is rechecked before deletion. Recovery plans canonicalize repository identity and retain exact core/direct comparisons. Promotion fixtures own valid format and real descriptor failures, reuse proves actual source hashes, zero-state uses checksum-backed proof plus corrupt negatives, and cancellation remains typed. Impact fixtures publish explicit mode authority; navigation closes exactly every acquired store; structural fixtures own trusted copied Windows commands and valid identities. See durable receipt; runtime acceptance pending.",
       "finalBatchStatus": "pending"
     },
     {
@@ -4654,14 +4654,14 @@
       "id": "indexing/watch/pinned-attempt-retention",
       "path": "indexing/watch/pinned-attempt-retention.test.js",
       "owner": "indexing/watch",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "03b620261",
       "originalTimedOut": false,
       "originalFailure": "Error: ENOENT: no such file or directory, stat 'C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\watch-pinned-attempt-retention-34100-1792816459315-j0a1ok\\cache\\repos\\repo-a2ea6c799354\\builds\\attempts\\mvlwmpfs-3be43eeb-004'",
       "failureLocations": [
         "tests/indexing/watch/pinned-attempt-retention.test.js:35:55"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: configuration preparation records only operation-created ancestors and revalidates sealed source/destination observations; external new ancestors remain negative. Pinned generations no longer consume unpinned watch budgets, and pointer authority is rechecked before deletion. Recovery plans canonicalize repository identity and retain exact core/direct comparisons. Promotion fixtures own valid format and real descriptor failures, reuse proves actual source hashes, zero-state uses checksum-backed proof plus corrupt negatives, and cancellation remains typed. Impact fixtures publish explicit mode authority; navigation closes exactly every acquired store; structural fixtures own trusted copied Windows commands and valid identities. See durable receipt; runtime acceptance pending.",
       "finalBatchStatus": "pending"
     },
     {
@@ -4774,14 +4774,14 @@
       "id": "indexer/incremental/contract-matrix",
       "path": "indexer/incremental/contract-matrix.test.js",
       "owner": "indexer/incremental",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "03b620261",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/indexer/incremental/contract-matrix.test.js:58:8"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: configuration preparation records only operation-created ancestors and revalidates sealed source/destination observations; external new ancestors remain negative. Pinned generations no longer consume unpinned watch budgets, and pointer authority is rechecked before deletion. Recovery plans canonicalize repository identity and retain exact core/direct comparisons. Promotion fixtures own valid format and real descriptor failures, reuse proves actual source hashes, zero-state uses checksum-backed proof plus corrupt negatives, and cancellation remains typed. Impact fixtures publish explicit mode authority; navigation closes exactly every acquired store; structural fixtures own trusted copied Windows commands and valid identities. See durable receipt; runtime acceptance pending.",
       "finalBatchStatus": "pending"
     },
     {
@@ -4816,8 +4816,8 @@
       "id": "integrations/triage/records-bundle-reuse-policy",
       "path": "integrations/triage/records-bundle-reuse-policy.test.js",
       "owner": "integrations/triage",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "03b620261",
       "originalTimedOut": false,
       "originalFailure": "Error: ERR_INDEX_FORMAT_UNSUPPORTED: Cannot read bundle payload at C:\\Users\\sneak\\AppData\\Local\\Temp\\poc-record-reuse-L3oTeE\\bundles\\snapshot-b577804ee181489f44c2199da647118b80d09395e8d480002e1e8aeae38bd17b.json.",
       "failureLocations": [
@@ -4828,7 +4828,7 @@
         "src/index/build/incremental/bundle-snapshot.js:55:22",
         "src/integrations/triage/records-reuse.js:34:18"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before validation: configuration preparation records only operation-created ancestors and revalidates sealed source/destination observations; external new ancestors remain negative. Pinned generations no longer consume unpinned watch budgets, and pointer authority is rechecked before deletion. Recovery plans canonicalize repository identity and retain exact core/direct comparisons. Promotion fixtures own valid format and real descriptor failures, reuse proves actual source hashes, zero-state uses checksum-backed proof plus corrupt negatives, and cancellation remains typed. Impact fixtures publish explicit mode authority; navigation closes exactly every acquired store; structural fixtures own trusted copied Windows commands and valid identities. See durable receipt; runtime acceptance pending.",
       "finalBatchStatus": "pending"
     },
     {
