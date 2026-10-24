@@ -5,23 +5,20 @@ import { pathToFileURL } from 'node:url';
 import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
+import { setupCommandHookSource } from '../../helpers/setup-command-hook.js';
 
 const { dir } = await prepareIsolatedTestCacheDir('setup-model-readiness');
 const shim = path.join(dir, 'controlled-model-download.mjs');
 const calls = path.join(dir, 'download.json');
 await fs.writeFile(shim, [
-  "import fs from 'node:fs'; import childProcess from 'node:child_process';",
-  "import { syncBuiltinESMExports } from 'node:module';",
+  "import fs from 'node:fs'; import { syncBuiltinESMExports } from 'node:module';",
   'const access = fs.accessSync;',
   'fs.accessSync = function(file, ...args) {',
   "  if (String(file) === process.env.POC_MODEL_READINESS_DENY) throw Object.assign(new Error('controlled selected asset denial'), { code: 'EACCES' });",
-  '  return access(file, ...args); };',
-  'const original = childProcess.spawnSync;',
-  'childProcess.spawnSync = function(command, args, options) {',
-  "  if (args.some(arg => String(arg).replaceAll('\\\\', '/').endsWith('/tools/download/models.js'))) {",
-  '    fs.writeFileSync(process.env.POC_MODEL_READINESS_CALLS, JSON.stringify(args));',
-  "    return { status: 1, signal: null, stdout: '', stderr: 'controlled unavailable download' };",
-  '  } return original(command, args, options); }; syncBuiltinESMExports();'
+  '  return access(file, ...args); }; syncBuiltinESMExports();',
+  setupCommandHookSource({ selectedSuffix: '/tools/download/models.js',
+    onSelected: 'fs.writeFileSync(process.env.POC_MODEL_READINESS_CALLS, JSON.stringify(args));',
+    result: { ok: false, status: 1, signal: null, stdout: '', stderr: 'controlled unavailable download' } })
 ].join('\n'));
 const writeAssets = async (root, files) => {
   for (const [file, bytes] of Object.entries(files)) {

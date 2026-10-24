@@ -11,7 +11,7 @@ try {
   await fs.writeFile(path.join(root, '.pairofcleats.json'), JSON.stringify({ tooling: { autoInstallOnDetect: true } }));
   await withTemporaryEnv({ PAIROFCLEATS_TESTING: '1', PAIROFCLEATS_CACHE_ROOT: path.join(root, 'cache'),
     PAIROFCLEATS_HOME: path.join(root, 'home'), PAIROFCLEATS_TEST_CONFIG: '', PAIROFCLEATS_TRUSTED_CONFIG: '',
-    PAIROFCLEATS_TRUSTED_REPOS: '' }, async () => {
+    PAIROFCLEATS_TRUSTED_REPOS: JSON.stringify([root]) }, async () => {
     const options = { repo: root, json: true, 'skip-dicts': true, 'skip-artifacts': true };
     const cancelled = new AbortController();
     cancelled.abort(new Error('inert pre-cancelled bootstrap'));

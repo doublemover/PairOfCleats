@@ -14,7 +14,7 @@ const result = runNode([
   '--tools', 'clangd',
   '--dry-run',
   '--json'
-], 'tooling install dry-run', root, env, { stdio: 'pipe' });
+], 'tooling install dry-run', root, env, { stdio: 'pipe', allowFailure: true });
 
 let payload;
 try {
@@ -26,6 +26,9 @@ try {
 
 const results = payload.results || [];
 const actions = payload.actions || [];
+assert.equal(result.status, payload.preview.state === 'blocked-or-unqualified' ? 1 : 0);
+assert.equal(payload.preview.execution, 'none');
+assert.equal(payload.preview.writes, 'none');
 
 const clangdResult = results.find((entry) => entry.id === 'clangd');
 const clangdAction = actions.find((entry) => entry.id === 'clangd');
@@ -34,12 +37,12 @@ if (clangdResult?.status === 'already-installed') {
   assert.equal(clangdAction, undefined);
 } else if (resolveClangdArchiveTarget()) {
   assert.ok(clangdAction, 'supported targets plan the managed standalone recipe');
-  assert.equal(clangdAction.cmd, process.execPath);
+  assert.equal(clangdAction.command, process.execPath);
   assert.ok(clangdAction.args[0].endsWith(path.join('tools', 'tooling', 'install-clangd.js')));
   const rootIndex = clangdAction.args.indexOf('--tooling-root');
   assert.ok(rootIndex >= 0 && path.isAbsolute(clangdAction.args[rootIndex + 1]));
 } else {
-  assert.equal(clangdResult?.status, 'manual');
+  assert.ok(payload.preview.entries[0].blockers.some(blocker => blocker.code === 'selected-recipe-unavailable'));
   assert.equal(clangdAction, undefined);
 }
 assert.equal(payload.readiness.state, 'planned');

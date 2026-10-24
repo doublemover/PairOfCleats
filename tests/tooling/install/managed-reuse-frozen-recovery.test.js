@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { errorGraphMatches } from '../../helpers/error-graph.js';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
@@ -35,13 +36,13 @@ try {
     assert.equal(unconfirmed.cacheOwnershipReleased(), false);
     const session = unconfirmed.managedInstallSession;
     assert.equal(await fixture.protected(), true);
-    assert.throws(() => session.releaseAfterSettlement({ ...exact(session), pending: undefined }), /remains pending/);
-    assert.throws(() => session.releaseAfterSettlement({ ...exact(session), resourceId: 'another-resource' }), /remains pending/);
-    assert.throws(() => session.releaseAfterSettlement({ ...exact(session), unknownOwner: true }), /remains pending/);
-    assert.equal(session.releaseAfterSettlement(exact(session)), true);
+    await assert.rejects(async () => session.releaseAfterSettlement({ ...exact(session), pending: undefined }), error => errorGraphMatches(error, /remains pending/));
+    await assert.rejects(async () => session.releaseAfterSettlement({ ...exact(session), resourceId: 'another-resource' }), error => errorGraphMatches(error, /remains pending/));
+    await assert.rejects(async () => session.releaseAfterSettlement({ ...exact(session), unknownOwner: true }), error => errorGraphMatches(error, /remains pending/));
+    assert.equal(await session.releaseAfterSettlement(exact(session)), true);
     assert.equal(unconfirmed.cacheOwnershipReleased(), true);
-    assert.equal(session.releaseAfterSettlement(exact(session)), true);
-    assert.throws(() => session.releaseAfterSettlement(), /remains pending/, 'each public reconciliation still requires the exact receipt');
+    assert.equal(await session.releaseAfterSettlement(exact(session)), true);
+    await assert.rejects(async () => session.releaseAfterSettlement(), error => errorGraphMatches(error, /remains pending/), 'each public reconciliation still requires the exact receipt');
     assert.equal(await fixture.protected(), false);
 
     const previousSession = Object.freeze({ resourceId: 'previous-inert-owner' });
@@ -54,7 +55,7 @@ try {
     assert.equal(nested.cause.managedInstallSession, previousSession, 'the earlier capability remains on the exact original cause chain');
     assert.equal(nested.cause.cause, nestedPrimary);
     assert.notEqual(nested.managedInstallSession, previousSession);
-    assert.equal(nested.managedInstallSession.releaseAfterSettlement(exact(nested.managedInstallSession)), true);
+    assert.equal(await nested.managedInstallSession.releaseAfterSettlement(exact(nested.managedInstallSession)), true);
     assert.equal(nested.cacheOwnershipReleased(), true);
     assert.equal(await fixture.protected(), false);
 
@@ -74,7 +75,7 @@ try {
       assert.equal(metadata.cacheOwnershipReleased(), false);
       assert.equal(await fixture.protected(), true);
       deny = false;
-      assert.equal(metadata.managedInstallSession.releaseAfterSettlement(exact(metadata.managedInstallSession)), true);
+      assert.equal(await metadata.managedInstallSession.releaseAfterSettlement(exact(metadata.managedInstallSession)), true);
       assert.equal(metadata.cacheOwnershipReleased(), true);
       assert.equal(await fixture.protected(), false);
 
@@ -90,7 +91,7 @@ try {
       assert.equal(isStorageSessionReleaseFailure(combined.managedCleanupError, combined.managedCleanupError.storageSession), true);
       assert.equal(combined.cacheOwnershipReleased(), false);
       deny = false;
-      assert.equal(combined.managedInstallSession.releaseAfterSettlement(exact(combined.managedInstallSession)), true);
+      assert.equal(await combined.managedInstallSession.releaseAfterSettlement(exact(combined.managedInstallSession)), true);
       assert.equal(combined.cacheOwnershipReleased(), true);
       assert.equal(await fixture.protected(), false);
     } finally { fsSync.rmSync = originalRemove; }
@@ -117,15 +118,15 @@ try {
       assert.equal(failure.cause, primary);
       const owned = failure.managedInstallSession;
       assert.equal(failure.cacheOwnershipReleased(), false);
-      assert.throws(() => owned.releaseAfterSettlement(exact(owned)), /remains pending/,
+      await assert.rejects(async () => owned.releaseAfterSettlement(exact(owned)), error => errorGraphMatches(error, /remains pending/),
         'a contradictory explicit receipt cannot override the original pending native observer');
       assert.equal(await fixture.protected(), true);
       confirmed = true;
       if (observation === 'known') {
-        assert.equal(owned.releaseAfterSettlement(exact(owned)), true);
+        assert.equal(await owned.releaseAfterSettlement(exact(owned)), true);
         assert.equal(failure.cacheOwnershipReleased(), true, 'the original observer retains its exact receiver');
       } else {
-        assert.throws(() => owned.releaseAfterSettlement(exact(owned)), /remains pending/);
+        await assert.rejects(async () => owned.releaseAfterSettlement(exact(owned)), error => errorGraphMatches(error, /remains pending/));
         // This verifier owns no native resources. Keep its exact pending
         // evidence until final disposable-fixture cleanup; no production
         // resource settlement is claimed by that fixture cleanup.

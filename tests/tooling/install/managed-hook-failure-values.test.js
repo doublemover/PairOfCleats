@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { errorGraphMatches } from '../../helpers/error-graph.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -105,7 +106,7 @@ try {
       assert.equal(contains(failure, original), true);
       assert.equal(contains(failure, pendingInspection), true);
       const held = failure.managedInstallSession;
-      await assert.rejects(held.releaseAfterSettlement(exact(held)), /observer remains pending/,
+      await assert.rejects(held.releaseAfterSettlement(exact(held)), error => errorGraphMatches(error, /observer remains pending/),
         'an explicit recipe receipt cannot settle the independent receipt-inspection owner');
       assert.equal(failure.cacheOwnershipReleased(), false);
       assert.equal((await inspectInspection()).protected, true);
@@ -147,7 +148,7 @@ try {
       extract: async () => { throw unreadable; } }); } catch (error) { unknown = error; }
     assert.equal(contains(unknown, unreadable), true);
     const held = unknown.managedInstallSession;
-    await assert.rejects(held.releaseAfterSettlement(exact(held)), /observer remains pending/);
+    await assert.rejects(held.releaseAfterSettlement(exact(held)), error => errorGraphMatches(error, /observer remains pending/));
     assert.equal(unknown.cacheOwnershipReleased(), false);
     assert.equal((await inspect()).protected, true);
     // The hook is inert; final disposable-fixture cleanup removes its unknown

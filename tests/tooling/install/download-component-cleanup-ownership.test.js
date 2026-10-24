@@ -22,16 +22,20 @@ export const env={version:'4.3.1'}; export class EmbeddingGemma2Model {}
 export const AutoConfig={from_pretrained:async()=>({model_type:'embedding_gemma2'})};
 export const AutoTokenizer={from_pretrained:async()=>({dispose:async()=>{calls.tokenizer++;save();if(mode!=='success')throw cleanup;}})};
 export const AutoModel={from_pretrained:async(model,options)=>{
-fs.mkdirSync(path.join(options.cache_dir,model,options.revision),{recursive:true});
+const root=path.join(options.cache_dir,model,options.revision);fs.mkdirSync(path.join(root,'onnx'),{recursive:true});
+for(const file of ['config.json','tokenizer.json','tokenizer_config.json'])fs.writeFileSync(path.join(root,file),'{}');
+// A tiny protobuf ModelProto with an empty graph is sufficient for the asset
+// closure parser. The inert adapter never opens an inference session.
+fs.writeFileSync(path.join(root,'onnx/model.onnx'),Buffer.from([8,8,58,0]));
 return {dispose:async()=>{calls.model++;save();if(mode!=='success')throw cleanup;}};}};
-export const ModelRegistry={get_model_files:async()=>{if(mode==='primary')throw primary;if(mode==='falsey')throw 0;return [];}};`;
+export const ModelRegistry={get_model_files:async()=>{if(mode==='primary')throw primary;if(mode==='falsey')throw 0;return ['config.json','tokenizer.json','tokenizer_config.json','onnx/model.onnx'];}};`;
 await fs.writeFile(shim, [
   "import { registerHooks } from 'node:module';",
   `const source=${JSON.stringify(source)};`,
   "registerHooks({resolve(specifier,context,next){if(specifier==='@huggingface/transformers')return {url:'data:text/javascript,'+encodeURIComponent(source),shortCircuit:true};return next(specifier,context);}});"
 ].join('\n'));
 try {
-  await fs.writeFile(path.join(dir, '.pairofcleats.json'), JSON.stringify({ indexing: { embeddings: { model: modelId, provider: 'xenova' } } }));
+  await fs.writeFile(path.join(dir, '.pairofcleats.json'), JSON.stringify({ models: { id: modelId }, indexing: { embeddings: { provider: 'xenova' } } }));
   for (const mode of ['success', 'primary', 'falsey']) {
     const env = applyTestEnv({ syncProcess: false, cacheRoot: path.join(dir, `cache-${mode}`),
       extraEnv: { POC_COMPONENT_MODE: mode, POC_COMPONENT_CALLS: calls,

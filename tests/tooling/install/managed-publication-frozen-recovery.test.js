@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { errorGraphMatches } from '../../helpers/error-graph.js';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
@@ -64,7 +65,7 @@ try {
       } }); } catch (error) { nativeFailure = error; }
     assert.equal(contains(nativeFailure, native), true);
     const nativeHeld = nativeFailure.managedInstallSession;
-    await assert.rejects(nativeHeld.releaseAfterSettlement(exact(nativeHeld)), /observer remains pending/);
+    await assert.rejects(nativeHeld.releaseAfterSettlement(exact(nativeHeld)), error => errorGraphMatches(error, /observer remains pending/));
     assert.equal((await inspect(toolingRoot)).protected, true);
     closed = true;
     assert.equal(await nativeHeld.releaseAfterSettlement(exact(nativeHeld)), true);
@@ -157,7 +158,7 @@ try {
         } }); } catch (error) { failure = error; }
       assert.equal(contains(failure, primary), true);
       const held = failure.managedInstallSession;
-      await assert.rejects(held.releaseAfterSettlement(exact(held)), /observer remains pending/);
+      await assert.rejects(held.releaseAfterSettlement(exact(held)), error => errorGraphMatches(error, /observer remains pending/));
       assert.equal(failure.cacheOwnershipReleased(), false);
       assert.equal((await inspect(unknownRoot)).protected, true);
       // All verifier resources here are inert. Preserve their unknown evidence

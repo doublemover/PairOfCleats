@@ -7,6 +7,7 @@ import { detectTool, getToolingRegistry } from '../../../tools/tooling/utils.js'
 import { runNode } from '../../helpers/run-node.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { withTemporaryEnv } from '../../helpers/test-env.js';
+import { writeRuntimeCommandFixture } from '../../helpers/runtime-command-fixture.js';
 
 const root = process.cwd();
 const fixtureRoot = path.join(root, 'tests', 'fixtures', 'languages');
@@ -14,9 +15,12 @@ const tempRoot = resolveTestCachePath(root, `tooling-install-detect-plan-matrix-
 
 const runCliJson = ({ scriptPath, args, env = process.env, cwd = root, label }) => {
   const result = runNode([scriptPath, ...args], label, cwd, env, { stdio: 'pipe', allowFailure: true });
-  assert.equal(result.status, 0, `${label} exited non-zero\n${result.stderr || result.stdout}`);
   try {
-    return JSON.parse(String(result.stdout || '{}'));
+    const payload = JSON.parse(String(result.stdout || '{}'));
+    assert.equal(result.status, payload.preview?.state === 'blocked-or-unqualified' ? 1 : 0,
+      `${label} exited unexpectedly\n${result.stderr || result.stdout}`);
+    if (payload.preview) assert.equal(payload.preview.execution, 'none');
+    return payload;
   } catch (error) {
     assert.fail(`${label} did not return valid JSON: ${error.message}`);
   }
@@ -49,8 +53,8 @@ const runDetectCases = () => {
     assert.ok(toolIds.has(toolId), `expected detected tool ${toolId}`);
   }
   for (const tool of payload.tools || []) {
-    assert.ok(tool?.probe && typeof tool.probe === 'object', `expected probe payload for ${tool?.id || 'unknown'}`);
-    assert.ok(String(tool.probe.outcome || ''), `expected probe outcome for ${tool?.id || 'unknown'}`);
+    if (tool.probe) assert.ok(String(tool.probe.outcome || ''), `expected probe outcome for ${tool.id}`);
+    else assert.equal(tool.executableFound, false, `a missing ${tool.id} has no executable probe to report`);
   }
 
   const genericPayload = runCliJson({
@@ -99,7 +103,16 @@ const runGlobalFallbackCase = async () => {
     await makeScript(path.join(gemGlobalBin, 'solargraph'), '#!/bin/sh\nif [ "$1" = "--version" ]; then exit 0; fi\nif [ "$1" = "--help" ]; then exit 0; fi\nexit 0\n');
   }
 
-  const baselinePath = path.dirname(process.execPath);
+  const runtimeBin = path.join(caseRoot, 'runtime-bin');
+  await writeRuntimeCommandFixture({ binDir: runtimeBin, name: 'dotnet',
+    stdout: `Microsoft.NETCore.App 10.0.1 [${path.join(caseRoot, 'dotnet', 'shared', 'Microsoft.NETCore.App')}]\n` });
+  for (const name of ['php', 'ruby']) {
+    const executable = path.join(runtimeBin, process.platform === 'win32' ? `${name}.cmd` : name);
+    await writeRuntimeCommandFixture({ binDir: runtimeBin, name, stdout: JSON.stringify({ family: name,
+      version: name === 'php' ? '8.4.0' : '3.4.0', executable,
+      ...(name === 'php' ? { extensions: ['json', 'mbstring', 'tokenizer', 'phar'] } : { components: ['bundler'] }) }) });
+  }
+  const baselinePath = [runtimeBin, path.dirname(process.execPath)].join(path.delimiter);
   const payload = runCliJson({
     scriptPath: path.join(root, 'tools', 'tooling', 'detect.js'),
     args: ['--root', fixtureRoot, '--languages', 'csharp,ruby,php', '--json'],
@@ -141,7 +154,8 @@ const runRequirementCases = async () => {
   const goplsAction = (goPayload.actions || []).find((entry) => entry?.id === 'gopls');
   assert.notEqual(goplsResult?.status, 'missing-requirement');
   assert.ok(goplsAction, 'expected gopls install action');
-  assert.ok(isAbsolute(String(goplsAction?.env?.GOBIN || '')), 'expected absolute GOBIN');
+  assert.equal(goPayload.preview.entries[0].provisioning.steps.find(step => step.id === 'go').minimumGoVersion, 'go1.27.0');
+  assert.equal(goPayload.readiness.verification, 'not-probed', 'preview cannot qualify the inert SDK command');
 
   const dotnetBinDir = path.join(tempRoot, 'dotnet-requirement', 'bin');
   await fs.rm(path.dirname(dotnetBinDir), { recursive: true, force: true });
@@ -178,7 +192,7 @@ const runPlanCase = () => {
   const yamlResult = results.find((entry) => entry?.id === 'yaml-language-server');
   assert.ok(yamlAction || yamlResult, 'expected yaml-language-server action or result');
   if (yamlAction) {
-    assert.equal(yamlAction.cmd, 'npm');
+    assert.equal(yamlAction.command, 'npm');
   }
   if (yamlResult) {
     assert.notEqual(yamlResult.status, 'manual');
@@ -188,7 +202,7 @@ const runPlanCase = () => {
   const luaResult = results.find((entry) => entry?.id === 'lua-language-server');
   assert.ok(luaAction || luaResult, 'expected lua-language-server action or result');
   if (luaAction) {
-    assert.equal(String(luaAction.cmd || ''), process.execPath);
+    assert.equal(String(luaAction.command || ''), process.execPath);
     assert.equal(
       Array.isArray(luaAction.args) && luaAction.args.some((entry) => String(entry).includes('install-lua-language-server.js')),
       true,
@@ -200,9 +214,9 @@ const runPlanCase = () => {
   }
 
   const zlsAction = actions.find((entry) => entry?.id === 'zls');
-  const zlsResult = results.find((entry) => entry?.id === 'zls');
+  const zlsEntry = payload.preview.entries.find((entry) => entry.id === 'zls');
   assert.equal(zlsAction, undefined, 'zls should not emit an auto-install action');
-  assert.ok(zlsResult && ['manual', 'already-installed'].includes(zlsResult.status), 'expected zls manual/already-installed result');
+  assert.ok(zlsEntry.blockers.some(blocker => blocker.code === 'selected-recipe-unavailable'), 'manual tools retain their recipe blocker in a preview');
 };
 
 const runRegistryContractCases = () => {
@@ -268,6 +282,11 @@ const runPhpactorPlanCase = () => {
   const phpactorResult = Array.isArray(payload?.results)
     ? payload.results.find((entry) => entry?.id === 'phpactor')
     : null;
+  if (process.platform === 'win32') {
+    assert.equal(payload.actions.length, 0);
+    assert.equal(payload.preview.entries[0].blockers.some(blocker => blocker.reason === 'unsupported_platform'), true);
+    return;
+  }
   if (['already-installed', 'missing-requirement', 'manual'].includes(String(phpactorResult?.status || ''))) {
     return;
   }
@@ -276,7 +295,7 @@ const runPhpactorPlanCase = () => {
     ? payload.actions.find((entry) => entry?.id === 'phpactor')
     : null;
   assert.ok(phpactorAction, 'expected phpactor install action');
-  assert.equal(phpactorAction.cmd, process.execPath, 'expected phpactor plan to execute via node');
+  assert.equal(phpactorAction.command, process.execPath, 'expected phpactor plan to execute via node');
   const args = Array.isArray(phpactorAction.args) ? phpactorAction.args.map((value) => String(value)) : [];
   assert.equal(
     args.some((value) => value.endsWith(path.join('tools', 'tooling', 'install-phpactor-phar.js'))),

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { errorGraphMatches } from '../../helpers/error-graph.js';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -172,7 +173,7 @@ try {
   assert.ok((await fs.readdir(path.join(pendingRoot, 'sdk/go'))).some(name => name.startsWith('.install-')),
     'unknown child closure preserves exact transaction bytes and storage owners');
   await assert.rejects(fs.stat(path.join(pendingRoot, 'sdk/go/current.json')), { code: 'ENOENT' });
-  await assert.rejects(pendingOwner.goSdkInstallSession.releaseAfterClosure(), /remains pending/);
+  await assert.rejects(pendingOwner.goSdkInstallSession.releaseAfterClosure(), error => errorGraphMatches(error, /remains pending/));
   actualProbeClosed = true;
   assert.equal(await pendingOwner.goSdkInstallSession.releaseAfterClosure(), true);
   assert.deepEqual(await fs.readdir(path.join(pendingRoot, 'sdk/go')), []);
@@ -189,7 +190,7 @@ try {
     } }) }), error => { incompleteOwner = error; return containsFailure(error, incompleteFailure) && error.cacheOwnershipPending === true; });
   assert.ok((await fs.readdir(path.join(incompleteRoot, 'sdk/go'))).some(name => name.startsWith('.install-')),
     'missing explicit pending:false cannot authorize transaction cleanup');
-  await assert.rejects(incompleteOwner.goSdkInstallSession.releaseAfterClosure(), /remains pending/);
+  await assert.rejects(incompleteOwner.goSdkInstallSession.releaseAfterClosure(), error => errorGraphMatches(error, /remains pending/));
   incompleteClosed = true;
   assert.equal(await incompleteOwner.goSdkInstallSession.releaseAfterClosure(), true);
   assert.deepEqual(await fs.readdir(path.join(incompleteRoot, 'sdk/go')), []);

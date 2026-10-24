@@ -33,30 +33,32 @@ const env = applyTestEnv({ syncProcess: false, cacheRoot: path.join(dir, 'cache'
 } });
 const plan = (overrides = {}, dryRun = true) => {
   const result = runNode([path.join(root, 'tools/tooling/install.js'), '--repo', repo, '--tools', 'gopls',
-    '--scope', 'cache', ...(dryRun ? ['--dry-run'] : []), '--json'], 'explicit gopls SDK fixture plan', root, { ...env, ...overrides },
+    '--scope', 'user', ...(dryRun ? ['--dry-run'] : []), '--json'], 'explicit gopls SDK fixture plan', root, { ...env, ...overrides },
   { stdio: 'pipe', allowFailure: true, timeoutMs: 10000 });
   return { status: result.status, payload: JSON.parse(result.stdout) };
 };
 await fs.writeFile(versionFile, 'go1.26.4');
 const unsupported = plan();
-assert.deepEqual(unsupported.payload.actions, [], 'do not plan a gopls build with an SDK below its declared module minimum');
-assert.equal(unsupported.status, 0, 'dry-run keeps its existing planned exit contract');
+assert.equal(unsupported.payload.preview.execution, 'none');
+assert.equal(unsupported.payload.actions.length, 1, 'read-only preview describes the recipe without executing the SDK to qualify it');
+assert.equal(unsupported.payload.preview.entries[0].provisioning.steps.find(step => step.id === 'go').minimumGoVersion, 'go1.27.0');
+assert.equal(unsupported.status, 0, 'declared prerequisites are present; their runtime verification remains deferred');
 assert.equal(unsupported.payload.readiness.state, 'planned');
 assert.equal(unsupported.payload.readiness.ready, false);
-assert.equal(unsupported.payload.results[0].status, 'missing-requirement');
-assert.ok(unsupported.payload.results[0].requirementChecks.some(check => check.reason === 'unsupported_go_sdk_version'));
-assert.equal(unsupported.payload.results[0].prerequisite, undefined, 'a recognized selected SDK is not silently replaced');
 await assert.rejects(fs.access(path.join(tooling, 'sdk/go/current.json')), { code: 'ENOENT' });
 const blocked = plan({}, false);
 assert.equal(blocked.status, 1, 'an actual incompatible requested installation must fail before executing an installer');
 assert.equal(blocked.payload.readiness.state, 'blocked');
 assert.deepEqual(blocked.payload.actions, []);
+assert.equal(blocked.payload.results[0].status, 'missing-requirement');
+assert.ok(blocked.payload.results[0].requirementChecks.some(check => check.reason === 'unsupported_go_sdk_version'));
+assert.equal(blocked.payload.results[0].prerequisite, undefined, 'a recognized selected SDK is not silently replaced');
 await fs.writeFile(versionFile, 'go1.27.3');
 const supported = plan();
 assert.equal(supported.status, 0);
 assert.equal(supported.payload.actions.length, 1);
 assert.deepEqual(supported.payload.actions[0].args, ['install', 'golang.org/x/tools/gopls@v0.24.0']);
-assert.equal(supported.payload.actions[0].minimumGoVersion, 'go1.27.0');
+assert.equal(supported.payload.preview.entries[0].provisioning.steps.find(step => step.id === 'go').minimumGoVersion, 'go1.27.0');
 const pinnedMissing = plan({ GOROOT: path.join(dir, 'explicit-sdk-not-installed') }, false);
 assert.equal(pinnedMissing.status, 1);
 assert.deepEqual(pinnedMissing.payload.actions, [], 'an unavailable explicit GOROOT cannot fall through to a different SDK');

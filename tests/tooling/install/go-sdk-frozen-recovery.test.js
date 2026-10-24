@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { errorGraphMatches } from '../../helpers/error-graph.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { EventEmitter } from 'node:events';
@@ -84,7 +85,7 @@ try {
     } } }); } catch (error) { failure = error; }
     assert.equal(contains(failure, primary), true);
     assert.equal(failure.code, 'EIO');
-    await assert.rejects(failure.goSdkInstallSession.releaseAfterClosure(), /remains pending/);
+    await assert.rejects(failure.goSdkInstallSession.releaseAfterClosure(), error => errorGraphMatches(error, /remains pending/));
     assert.equal((await inspect(pendingRoot)).protected, true);
     closed = true;
     assert.equal(await failure.goSdkInstallSession.releaseAfterClosure(), true);
@@ -157,7 +158,7 @@ try {
     try { await ensureManagedGoSdk({ ...input(unknownRoot), dependencies: { ...dependencies, probe: async () => { throw unknownPrimary; } } }); }
     catch (error) { unknown = error; }
     assert.equal(contains(unknown, unknownPrimary), true);
-    await assert.rejects(unknown.goSdkInstallSession.releaseAfterClosure(), /remains pending/);
+    await assert.rejects(unknown.goSdkInstallSession.releaseAfterClosure(), error => errorGraphMatches(error, /remains pending/));
     assert.equal(unknown.cacheOwnershipReleased(), false);
     assert.equal((await inspect(unknownRoot)).protected, true);
   });

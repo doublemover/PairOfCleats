@@ -8,6 +8,7 @@ import { runNode } from '../../helpers/run-node.js';
 import { runBootstrap } from '../../../tools/setup/bootstrap.js';
 import { runSetupCommand } from '../../../tools/setup/owned-command.js';
 import { createStdoutGuard } from '../../../src/shared/cli/stdout-guard.js';
+import { toRealPathSync } from '../../../src/workspace/identity.js';
 
 const scratch = await makeTempDir('bootstrap-json-target-');
 const target = path.join(scratch, 'nested project');
@@ -15,6 +16,7 @@ try {
   await fs.mkdir(path.join(target, 'ci-artifacts'), { recursive: true });
   await fs.writeFile(path.join(target, '.pairofcleats.json'), '{}');
   await fs.writeFile(path.join(target, 'ci-artifacts', 'manifest.json'), '{}');
+  const selectedRoot = toRealPathSync(target);
   await withTemporaryEnv({ PAIROFCLEATS_TESTING: '1', PAIROFCLEATS_CACHE_ROOT: path.join(scratch, 'cache'),
     PAIROFCLEATS_HOME: path.join(scratch, 'home'), PAIROFCLEATS_TEST_CONFIG: '', PAIROFCLEATS_TRUSTED_CONFIG: '',
     PAIROFCLEATS_TRUSTED_REPOS: '' }, async () => {
@@ -23,7 +25,7 @@ try {
       'with-sqlite': true, 'validate-config': true }, { log: text => logs.push(text), writeProgress: text => progress.push(text),
       command: async (_command, args, options) => {
         calls.push(args);
-        assert.equal(options.cwd, target);
+        assert.equal(options.cwd, selectedRoot);
         assert.equal(options.captureStdout, false);
         assert.equal(options.captureStderr, false);
         options.onStdout('fixture child progress');
@@ -31,20 +33,20 @@ try {
         // A normal restore failure permits the already-authorized fresh build.
         return { ok: !args[0].endsWith('restore-artifacts.js'), status: args[0].endsWith('restore-artifacts.js') ? 1 : 0 };
       } });
-    assert.equal(result.exitCode, 0);
+    assert.equal(result.exitCode, 0, JSON.stringify(result.summary.errors));
     assert.equal(result.summary.steps.install.installed, false);
     assert.equal(result.summary.steps.index.built, true);
     assert.equal(result.summary.steps.sqlite.built, true);
     assert.equal(calls.length, 4);
     for (const args of calls.filter(args => !args[0].endsWith('validate.js'))) {
-      assert.equal(args[args.indexOf('--repo') + 1], target, 'every target child keeps the explicit selected folder');
+      assert.equal(args[args.indexOf('--repo') + 1], selectedRoot, 'every target child keeps the explicit selected folder');
     }
     assert.equal(progress.length, 8);
     assert.ok(logs.some(text => text.includes('[bootstrap]')));
     const writes = [];
     createStdoutGuard({ enabled: true, stream: { write: text => writes.push(text) } }).writeJson(result.summary);
     assert.equal(writes.length, 1);
-    assert.equal(JSON.parse(writes[0]).root, target);
+    assert.equal(JSON.parse(writes[0]).root, selectedRoot);
     assert.ok(!writes[0].includes('fixture child progress'));
 
     // Retain the real CLI stdout/stderr smoke. Target package scripts are not
@@ -53,7 +55,7 @@ try {
       '--skip-dicts', '--skip-tooling', '--skip-index', '--skip-artifacts', '--json'],
     'bootstrap JSON CLI smoke', target, { ...process.env }, { stdio: 'pipe', spawnOptions: { maxBuffer: 256 * 1024 } });
     const cliSummary = JSON.parse(cli.stdout);
-    assert.equal(cliSummary.root, target);
+    assert.equal(cliSummary.root, selectedRoot);
     assert.equal(cliSummary.steps.install.installed, false);
     assert.ok(cli.stderr.includes('[bootstrap]'));
     assert.ok(!cli.stdout.includes('Bootstrap complete.'));

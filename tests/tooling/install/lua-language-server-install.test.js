@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { errorGraphSome } from '../../helpers/error-graph.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import AdmZip from 'adm-zip';
@@ -74,7 +75,8 @@ try {
   assert.deepEqual(await fs.readFile(pointer), unknownReceipt, 'a requested update cannot normalize away unknown retained metadata');
   await fs.writeFile(pointer, selectedReceipt);
   await assert.rejects(installLuaLanguageServer(installArgs, { beforeSelection: async () => { await fs.writeFile(pointer, unknownReceipt); } }),
-    error => error.reason === 'lua_selection_changed' && error.recovery?.priorGenerationRetained === true);
+    error => errorGraphSome(error, cause => cause?.reason === 'lua_selection_changed')
+      && error.recovery?.priorGenerationRetained === true);
   assert.deepEqual(await fs.readFile(pointer), unknownReceipt, 'publication rechecks current receipt bytes after replacement preparation');
   assert.equal(await fs.readFile(prior.mainLuaPath, 'utf8'), 'print("main")\n');
   await fs.writeFile(pointer, selectedReceipt);

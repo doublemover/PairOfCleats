@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Source regression authored for the development batch; UNVALIDATED.
 import assert from 'node:assert/strict';
+import { errorGraphMatches } from '../../helpers/error-graph.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -72,7 +73,7 @@ try {
     };
     try {
       await assert.rejects(inspectManagedInstallation({ toolingRoot, toolId: 'fixture-tool', signal: readCancellation.signal }),
-        error => error === readFailure);
+        error => error.code === 'ABORT_ERR' && readCancellation.signal.reason === readFailure);
       assert.equal(readClosed, true, 'cancellation returns only after the actual owned file handle closes');
     } finally { fs.open = originalOpen; }
     assert.equal(resolveManagedToolInstallation(toolingRoot, 'fixture-tool').command, first.command);
@@ -86,10 +87,10 @@ try {
     });
     assert.equal((await inspectManagedToolRemoval({ toolingRoot, toolId: 'fixture-tool' })).state, 'blocked', 'failed verifier without settlement retains consumer ownership');
     const pendingSession = pendingVerification.managedInstallSession;
-    assert.throws(() => pendingSession.releaseAfterSettlement({ resourceId: 'another-resource', settled: true }), /remains pending/);
-    assert.throws(() => pendingSession.releaseAfterSettlement({ resourceId: pendingSession.resourceId, settled: true }), /remains pending/,
+    await assert.rejects(async () => pendingSession.releaseAfterSettlement({ resourceId: 'another-resource', settled: true }), error => errorGraphMatches(error, /remains pending/));
+    await assert.rejects(async () => pendingSession.releaseAfterSettlement({ resourceId: pendingSession.resourceId, settled: true }), error => errorGraphMatches(error, /remains pending/),
       'omitted pending is not exact settlement evidence');
-    assert.equal(pendingSession.releaseAfterSettlement({ resourceId: pendingSession.resourceId, settled: true, pending: false }), true);
+    assert.equal(await pendingSession.releaseAfterSettlement({ resourceId: pendingSession.resourceId, settled: true, pending: false }), true);
     const held = await retainManagedToolInstallation({ toolingRoot, toolId: 'fixture-tool' });
     const blocked = await installPinnedManagedTool({ toolingRoot, descriptor: descriptor('2.0.0'), ...dependencies });
     assert.equal(blocked.state, 'verified-awaiting-owner-release');

@@ -1,6 +1,7 @@
 // Source regression authored for the development batch; UNVALIDATED.
 // Actual install storage owners, inert HTTP transport; no network or tool runs.
 import assert from 'node:assert/strict';
+import { errorGraphMatches } from '../../helpers/error-graph.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -51,7 +52,7 @@ try {
             settled: true, pending: false });
       active.push({ pending, release, close: () => { allowClose = true; } });
       assert.equal((await inspectStorageAccess(toolingRoot, { coordinationRoot })).protected, true);
-      await assert.rejects(release(), /teardown is blocked/);
+      await assert.rejects(release(), error => errorGraphMatches(error, /teardown is blocked/));
       assert.equal((await inspectStorageAccess(toolingRoot, { coordinationRoot })).protected, true,
         'failed actual response teardown cannot release the install category or allocation');
       if (stage === 'go-archive') assert.equal((await fs.stat(pending.goSdkInstallSession.transaction)).isDirectory(), true);
