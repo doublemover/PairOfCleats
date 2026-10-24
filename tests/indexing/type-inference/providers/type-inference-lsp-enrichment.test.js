@@ -58,18 +58,23 @@ const env = applyTestEnv({
   embeddings: 'stub',
   testConfig,
   extraEnv: {
+    // applyTestEnv clears inherited repository grants. This positive fixture
+    // explicitly launches only its own disposable project as trusted.
+    PAIROFCLEATS_TRUSTED_REPOS: process.env.PAIROFCLEATS_TRUSTED_REPOS,
     PATH: `${binRoot}${path.delimiter}${process.env.PATH || ''}`
   }
 });
 
-const buildResult = runNode(
-  [path.join(root, 'build_index.js'), '--repo', repoDir, '--stub-embeddings', '--stage', 'stage2'],
-  'LSP enrichment build index',
-  repoDir,
-  env,
-  { encoding: 'utf8', stdio: 'pipe', allowFailure: true }
-);
-restoreExecution();
+let buildResult;
+try {
+  buildResult = runNode(
+    [path.join(root, 'build_index.js'), '--repo', repoDir, '--stub-embeddings', '--stage', 'stage2'],
+    'LSP enrichment build index',
+    repoDir,
+    env,
+    { encoding: 'utf8', stdio: 'pipe', allowFailure: true }
+  );
+} finally { restoreExecution(); }
 
 if (buildResult.status !== 0) {
   console.error('LSP enrichment test failed: build_index error.');

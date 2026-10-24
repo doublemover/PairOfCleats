@@ -107,7 +107,7 @@ class NavigationBehaviorTests(unittest.TestCase):
         self._install_payload(payload)
         command = self.search.PairOfCleatsGotoDefinitionCommand(self.view)
         command.run(edit=None)
-        expected = '{0}:12'.format(os.path.join(self.repo, 'src/defs.js'))
+        expected = '{0}:12'.format(os.path.join(self.repo, 'src', 'defs.js'))
         self.assertEqual(self.window.opened_files[0]['path'], expected)
 
     def test_find_references_shows_picker(self):
@@ -123,7 +123,7 @@ class NavigationBehaviorTests(unittest.TestCase):
         command.run(edit=None)
         self.assertEqual(len(self.window.quick_panel_items), 2)
         self.window.quick_panel_callback(1)
-        expected = '{0}:9'.format(os.path.join(self.repo, 'src/b.js'))
+        expected = '{0}:9'.format(os.path.join(self.repo, 'src', 'b.js'))
         self.assertEqual(self.window.opened_files[-1]['path'], expected)
 
     def test_complete_symbol_applies_selected_completion(self):

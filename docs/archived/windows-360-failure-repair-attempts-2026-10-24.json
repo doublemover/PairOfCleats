@@ -46,9 +46,7 @@
       "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
       "originalFailuresMovedToPassing": 81,
       "originalFailuresWithoutPassingClosure": 19,
-      "additionalObservedFailuresOutsideOriginal100": [
-        "tooling/release/verify-surface-archive-install"
-      ]
+      "additionalObservedFailuresOutsideOriginal100": []
     }
   },
   "items": [
@@ -254,8 +252,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 944,
       "latestRecheckStatus": "passed",
-      "latestRecheckSourceHead": "bb44d9d04c1c832a258977cee1f23fc39e55e158",
-      "latestRecheckDurationMs": 910
+      "latestRecheckSourceHead": "5459d486ee55b6558af99e270396c2c67058cbbd",
+      "latestRecheckDurationMs": 922
     },
     {
       "id": "map/scene-shutdown-failure-ownership",
@@ -484,8 +482,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 682,
       "latestRecheckStatus": "passed",
-      "latestRecheckSourceHead": "bb44d9d04c1c832a258977cee1f23fc39e55e158",
-      "latestRecheckDurationMs": 806
+      "latestRecheckSourceHead": "5459d486ee55b6558af99e270396c2c67058cbbd",
+      "latestRecheckDurationMs": 640
     },
     {
       "id": "tooling/sublime/semantic-source-lifetime",
@@ -3382,8 +3380,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 1848,
       "latestRecheckStatus": "passed",
-      "latestRecheckSourceHead": "bb44d9d04c1c832a258977cee1f23fc39e55e158",
-      "latestRecheckDurationMs": 2512
+      "latestRecheckSourceHead": "5459d486ee55b6558af99e270396c2c67058cbbd",
+      "latestRecheckDurationMs": 2472
     },
     {
       "id": "tooling/repo/config-status-durability-warning",
@@ -3723,8 +3721,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 2189,
       "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "bb44d9d04c1c832a258977cee1f23fc39e55e158",
-      "latestRecheckDurationMs": 2126
+      "latestRecheckSourceHead": "5459d486ee55b6558af99e270396c2c67058cbbd",
+      "latestRecheckDurationMs": 1666
     },
     {
       "id": "tooling/sublime/extended-editor-workflows",

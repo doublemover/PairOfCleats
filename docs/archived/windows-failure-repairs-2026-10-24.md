@@ -1073,3 +1073,19 @@ archive fixture retained an uppercase regex after its ZIP path changed; that
 is corrected. Navigation helper checks now preserve actual line-only encoded
 opening and distinguish approximate completion's existing search command from
 source-qualified definition/reference navigation. Those refinements await checks.
+
+The five-case refinement at `5459d486ee55b6558af99e270396c2c67058cbbd`
+passed four and failed the navigation helper's two mixed-separator expected
+paths, without timeouts/skips/crashes. Both archive fixtures, existing navigation
+lifetime and C# scope passed. The adjacent archive regex regression is closed.
+Original closure remains 81/100. Navigation expectations now construct paths
+from separate native components while preserving exact line selection. The
+Sublime matrix retains every helper/assertion and aggregates failures only after
+executing all helpers, so an early failure cannot hide later repair work.
+
+Swift enrichment diagnostics proved its fixture launch had lost its explicit
+repository trust grant when applyTestEnv sanitized inherited test settings. The
+positive now explicitly forwards only the helper-granted disposable root and
+restores the parent grant in finally. No global trust preservation, security
+setting, arbitrary command authorization or untrusted-provider relaxation is
+introduced. The existing tooling-source assertions and trust negatives remain.
