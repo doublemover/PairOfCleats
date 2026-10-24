@@ -907,6 +907,17 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const planIndexSignature = planConfigSignature
       ? buildQueryPlanIndexSignature(planIndexSignaturePayload)
       : null;
+    // API/session callers carry an invocation generation context; a direct CLI
+    // need not. Enumeration binds the same selected bytes and canonical roots
+    // on both paths, without borrowing invocation-only metadata as identity.
+    const filterGeneration = filterOnly && planIndexSignaturePayload ? {
+      ...planIndexSignaturePayload,
+      generationByMode: Object.fromEntries(Object.entries(planIndexSignaturePayload.generationByMode)
+        .map(([mode, info]) => [mode, info ? {
+          buildId: info.buildId, artifactSurfaceVersion: info.artifactSurfaceVersion,
+          canonicalIndexDir: info.canonicalIndexDir
+        } : null]))
+    } : null;
     const planCacheKeyInfo = planConfigSignature
       ? buildQueryPlanCacheKey({
         query,
@@ -1096,7 +1107,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       filterOnly,
       filterCursor: argv.cursor || null,
       filterCacheFilters: queryPlan.cacheFilters,
-      filterGeneration: planIndexSignaturePayload,
+      filterGeneration,
       filterCacheDir: resolveRetrievalCacheDir({ queryCacheDir, metricsDir }),
       filterTopN: topN,
       signal,

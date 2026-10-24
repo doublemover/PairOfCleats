@@ -408,6 +408,7 @@ export async function getIndexSignature(options) {
         ? {
           buildId: info.buildId || null,
           artifactSurfaceVersion: info.artifactSurfaceVersion || null,
+          canonicalIndexDir: info.canonicalDir,
           generationKey: generationContext?.buildGenerationKey || null,
           activeBuildRoot: generationContext?.activeBuildRoot || null
         }
