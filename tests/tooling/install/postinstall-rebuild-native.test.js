@@ -140,8 +140,11 @@ exports.getPrebuildPath = () => fs.existsSync(${JSON.stringify(prebuildPath)}) ?
   assert.equal(await fs.readFile(prebuildPath, 'utf8'), 'healthy', 'async recovery retains the same real query/promotion owner');
   assert.deepEqual(builds[0], {
     args: ['run', 'build-release'],
-    buildOptions: { cwd: sqlitePackage, buildFromSource: true }
+    buildOptions: { cwd: sqlitePackage, buildFromSource: false }
   });
+  const installedSqlite = JSON.parse(await fs.readFile(path.join(process.cwd(), 'node_modules', 'better-sqlite3', 'package.json'), 'utf8'));
+  assert.match(installedSqlite.scripts['build-release'], /--force_build=1/u,
+    'the selected upstream build-release command owns source compilation without a legacy npm config flag');
 
   await fs.rm(prebuildPath);
   assert.equal(rebuildSqliteNativeFromSource(sqliteRoot, build).ok, true, 'platforms without bundled prebuilds use the compiled binding');

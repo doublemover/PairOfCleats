@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { applyTestEnv } from '../../helpers/test-env.js';
@@ -37,7 +38,8 @@ try {
   assert.equal(applyPatches(clean.cwd, { verifyOnly: true }), 1);
   const repeat = run(clean.cwd);
   assert.equal(repeat.status, 0);
-  assert.match(repeat.stdout, /already applied/);
+  assert.match(repeat.stdout, /0 applied files, 1 already-applied files, 1 hunks/);
+  assert.match(repeat.stdout, /0 files changed/);
   assert.equal(await fs.readFile(clean.target, 'utf8'), patchedText);
 
   const scoped = await make('scoped', { packageName: '@scope/sample' });
@@ -75,14 +77,31 @@ try {
   await fs.writeFile(windowsPath.patchFile, windowsPath.patch.replaceAll('source.txt', '..\\escape'));
   fails(run(windowsPath.cwd), /Unsafe patch path/);
 
-  const linked = await make('junction');
+  const linked = await make('linked-directory-observation');
   const outside = path.join(tempRoot, 'outside');
   await fs.mkdir(outside);
   await fs.writeFile(path.join(outside, 'package.json'), JSON.stringify({ name: 'sample', version: '1.0.0' }));
   await fs.writeFile(path.join(outside, 'source.txt'), originalText);
-  await fs.rm(path.dirname(linked.target), { recursive: true });
-  await fs.symlink(outside, path.dirname(linked.target), process.platform === 'win32' ? 'junction' : 'dir');
-  fails(run(linked.cwd), /regular unlinked directory/);
+  // Exercise the actual admission owner with a linked-directory observation;
+  // no privileged or incidental filesystem link is needed for this predicate.
+  const originalLstat = fsSync.lstatSync, originalOpen = fsSync.openSync;
+  let linkedObservations = 0, targetOpens = 0;
+  try {
+    fsSync.lstatSync = function (file, ...args) {
+      const stat = originalLstat.call(this, file, ...args);
+      if (file !== path.dirname(linked.target)) return stat;
+      linkedObservations++;
+      return Object.assign(Object.create(stat), { isSymbolicLink: () => true });
+    };
+    fsSync.openSync = function (file, ...args) {
+      if (file === linked.target) targetOpens++;
+      return originalOpen.call(this, file, ...args);
+    };
+    assert.throws(() => applyPatches(linked.cwd), /regular unlinked directory/);
+    assert.equal(linkedObservations, 1);
+    assert.equal(targetOpens, 0, 'linked parent admission rejects before opening its patch target');
+  } finally { fsSync.lstatSync = originalLstat; fsSync.openSync = originalOpen; }
+  assert.equal(await fs.readFile(linked.target, 'utf8'), originalText);
   assert.equal(await fs.readFile(path.join(outside, 'source.txt'), 'utf8'), originalText);
 
   const hardlinked = await make('hardlink');
@@ -93,8 +112,12 @@ try {
   const allOrNothing = await make('preflight-all', { packageName: 'aaa' });
   const bad = await createPatchFixture(allOrNothing.cwd, { packageName: 'zzz' });
   await fs.writeFile(bad.target, 'incompatible\n');
-  fails(run(allOrNothing.cwd), /not fully applied/);
+  const rejectedWave = run(allOrNothing.cwd, helper, { npm_config_jobs: '2' });
+  fails(rejectedWave, /zzz\+1\.0\.0\.patch cannot apply and is not fully applied/);
+  assert.doesNotMatch(rejectedWave.stderr, /Cannot run required Git patch tool: Operation aborted/,
+    'cancellation of an earlier input cannot mask the actual incompatible patch');
   assert.equal(await fs.readFile(allOrNothing.target, 'utf8'), originalText);
+  assert.equal(await fs.readFile(bad.target, 'utf8'), 'incompatible\n');
 
   const oversized = await make('oversized');
   await fs.writeFile(oversized.patchFile, Buffer.alloc(1024 * 1024 + 1, 32));

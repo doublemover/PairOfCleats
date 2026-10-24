@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { exitLikeChildResult } from './postinstall-exit.js';
 import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-invocation.js';
 import { resolveBootstrapBudget, runBootstrapTasks } from './bootstrap-tasks.js';
+import { isAbortError } from '../../src/shared/abort.js';
 
 const MAX_PATCH_BYTES = 1024 * 1024;
 const MAX_FILE_BYTES = 16 * 1024 * 1024;
@@ -151,6 +152,10 @@ const runGitAsync = async (stage, patch, args, signal) => {
     }
     return { ...result, status: result.exitCode };
   } catch (cause) {
+    // Preserve scheduler cancellation and any original subprocess ownership.
+    // Wrapping AbortError as a Git failure lets an earlier cancelled input
+    // mask the actual incompatible patch that stopped the preparation wave.
+    if (isAbortError(cause)) throw cause;
     const error = new Error('Cannot run required Git patch tool: ' + cause.message, { cause });
     const result = cause.result;
     if (result) error.childResult = { ...result, status: result.exitCode };
