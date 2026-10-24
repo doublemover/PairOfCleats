@@ -1,4 +1,4 @@
-import { ARCHITECTURE_CHECK_OPTIONS } from '../../../tools/shared/operator-cli-options.js';
+import { ARCHITECTURE_CHECK_OPTIONS } from './analysis-cli-options.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { parse as parseYaml } from 'yaml';

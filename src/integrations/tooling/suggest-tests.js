@@ -1,4 +1,4 @@
-import { SUGGEST_TESTS_OPTIONS } from '../../../tools/shared/operator-cli-options.js';
+import { SUGGEST_TESTS_OPTIONS } from './analysis-cli-options.js';
 import path from 'node:path';
 import { createCli } from '../../shared/cli.js';
 import { isDirectExecution } from '../../shared/direct-execution.js';
