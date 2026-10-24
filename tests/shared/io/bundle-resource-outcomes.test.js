@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import { constants } from 'node:fs';
 import path from 'node:path';
 import { readBundleFile, writeBundleFile, writeBundlePatch, resolveBundlePatchPath,
   resolveBundlePatchMetaPath, resolveBundlePatchLockPath } from '../../../src/shared/bundle-io.js';
@@ -11,7 +12,7 @@ import { getContainedFileSession } from '../../../src/shared/contained-file-reso
 import { isFileLockPublicationSession } from '../../../src/shared/locks/file-lock.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 
-// UNVALIDATED: actual bundle consumers and exact FileHandle/lock recovery.
+// Actual bundle consumers and exact FileHandle/lock recovery.
 const root = await makeTempDir('poc-bundle-resource-'), open = fs.open, remove = fs.rm, lstat = fs.lstat;
 const disposal = new Map(); let sequence = 0;
 const before = { file: 'a.js', hash: 'one', chunks: [{ text: 'one' }] };
@@ -47,7 +48,10 @@ const interceptClose = (target, mode = 'r') => {
   const primary = Object.freeze(new Error('actual bundle descriptor close failed'));
   const state = { closes: 0, writes: 0, opens: 0, allowClose: false };
   fs.open = async (file, ...args) => {
-    const handle = await open(file, ...args); if (file !== target || args[0] !== mode) return handle;
+    const handle = await open(file, ...args);
+    const matchesMode = args[0] === mode || mode === 'r' && typeof args[0] === 'number'
+      && (args[0] & (constants.O_WRONLY | constants.O_RDWR)) === constants.O_RDONLY;
+    if (file !== target || !matchesMode) return handle;
     const close = handle.close, write = handle.writeFile; disposal.set(handle, () => close.call(handle)); state.opens++;
     handle.writeFile = async function (...next) { state.writes++; return write.call(handle, ...next); };
     handle.close = async function () {

@@ -6,6 +6,7 @@ import { iterateDenseVectorBinaryRows, openDenseVectorBinarySourceSync } from '.
 import { loadDenseVectorBinaryFromMetaAsync, loadDenseVectorBinaryFromMetaSync, writeDenseVectorBinaryFile } from '../../src/shared/dense-vector-binary.js';
 import { getContainedFileSession } from '../../src/shared/contained-file-resource.js';
 import { prepareIsolatedTestCacheDir } from '../helpers/test-cache.js';
+import { writePiecesManifest } from '../helpers/artifact-io-fixture.js';
 
 const { dir: root } = await prepareIsolatedTestCacheDir('dense-binary-resource-lifetime');
 const filename = path.join(root, 'dense_vectors_uint8.bin'), bytes = Buffer.from([1, 2, 3, 4, 5, 6]);
@@ -57,9 +58,15 @@ try {
   source.close();
   assert.equal(closed, 1, 'early return confirms the captured synchronous closer once');
   fs.closeSync = originalClose;
+  await assert.rejects(loadDenseVectorBinaryFromMetaAsync({ dir: root, baseName: 'dense_vectors_uint8', meta, strict: true }),
+    { code: 'ERR_INDEX_FORMAT_UNSUPPORTED' });
+  await writePiecesManifest(root, [{ name: 'dense_vectors', path: path.basename(filename), format: 'bin' }]);
+  const valid = await loadDenseVectorBinaryFromMetaAsync({ dir: root, baseName: 'dense_vectors_uint8', meta, strict: true });
+  assert.deepEqual(Buffer.from(valid.buffer), bytes, 'strict reads reach the declared binary payload');
   for (const malformed of [{ ...meta, count: 0 }, { ...meta, count: null }, { ...meta, format: 'float32' }]) {
     assert.equal(loadDenseVectorBinaryFromMetaSync({ dir: root, baseName: 'dense_vectors_uint8', meta: malformed }), null);
     await assert.rejects(loadDenseVectorBinaryFromMetaAsync({ dir: root, baseName: 'dense_vectors_uint8', meta: malformed, strict: true }), { code: 'ERR_DENSE_VECTOR_INVALID' });
+    assert.throws(() => loadDenseVectorBinaryFromMetaSync({ dir: root, baseName: 'dense_vectors_uint8', meta: malformed, strict: true }), { code: 'ERR_DENSE_VECTOR_INVALID' });
   }
 } finally {
   fsPromises.open = originalOpen; fs.closeSync = originalClose;

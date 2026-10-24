@@ -5,7 +5,7 @@ import { writeBinaryRowFrames, encodeBinaryRowFrames } from '../../../src/shared
 import { getContainedFileSession, isContainedFileSession } from '../../../src/shared/contained-file-resource.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 
-// UNVALIDATED: actual public producer, native FileHandles and original iterators.
+// Actual public producer, native FileHandles and original iterators.
 const root = await makeTempDir('poc-binary-frame-resource-'), open = fs.open, remove = fs.rm;
 const disposal = new Map(); let sequence = 0;
 const restore = () => { fs.open = open; fs.rm = remove; };
@@ -129,7 +129,12 @@ try {
     const current = await fixture({ failOpen: 1, openFailure: primary });
     const failure = await rejected(() => writeBinaryRowFrames({ ...current.paths, rowBuffers: ['new'] }));
     assert.equal(current.states.length, 1); assert.equal(current.states[0].closes, 0); assert.equal(current.openings(), 2);
-    ready = true; await getContainedFileSession(failure).releaseAfterClose(); assert.equal(current.states[0].closes, 1);
+    const session = getContainedFileSession(failure);
+    ready = true;
+    await rejected(() => session.releaseAfterClose());
+    assert.equal(current.states[0].closes, 0, 'settling a failed open does not close the independent row source');
+    assert.equal((await failure.binaryColumnarSourceClose.close()).closed, true);
+    await session.releaseAfterClose(); assert.equal(current.states[0].closes, 1);
     assert.equal(current.openings(), 2); assert.equal(current.removals(), 0); await unchanged(current.paths);
   }
   {

@@ -139,7 +139,7 @@ assert.throws(
     preferBinaryColumnar: true,
     maxBytes: 1024
   }),
-  /maxBytes/i,
+  { code: 'ERR_FILE_TOO_LARGE' },
   'expected default binary token_postings load to respect maxBytes'
 );
 
@@ -154,6 +154,8 @@ assert.equal(
   'binary_tok',
   'expected disable-enforce flag to allow large binary token_postings to load'
 );
+assert.equal(postingsBudgetBypassed.postings[0].length, 2048);
+assert.deepEqual(postingsBudgetBypassed.postings[0].at(-1), [2048 * 2049 / 2, 1]);
 
 await fs.writeFile(
   path.join(testRoot, 'token_postings.binary-columnar.meta.json'),

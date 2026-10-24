@@ -22,15 +22,22 @@ await writePiecesManifest(dir, [
 ]);
 const originalRead = fs.readSync;
 const originalOpen = fs.openSync;
+const originalClose = fs.closeSync;
 const originalReadFile = fs.readFileSync;
 let packedFd = null;
 let reads = 0;
 let eof = false;
+let eofReads = 0;
 try {
   fs.openSync = (file, ...args) => {
     const fd = originalOpen(file, ...args);
     if (path.resolve(String(file)) === packedPath) packedFd = fd;
     return fd;
+  };
+  fs.closeSync = (fd) => {
+    const result = originalClose(fd);
+    if (fd === packedFd) packedFd = null;
+    return result;
   };
   fs.readFileSync = (file, ...args) => {
     if (typeof file !== 'number' && path.resolve(String(file)) === packedPath) {
@@ -42,16 +49,21 @@ try {
     if (fd !== packedFd) return originalRead(fd, buffer, offset, length, position);
     reads += 1;
     assert.ok(length <= 1024, 'every requested window remains bounded');
-    return eof ? 0 : originalRead(fd, buffer, offset, Math.min(length, 3), position);
+    if (eof) { eofReads += 1; return 0; }
+    return originalRead(fd, buffer, offset, Math.min(length, 3), position);
   };
   assert.deepEqual(loadTokenPostings(dir, { strict: false, packedWindowBytes: 1024,
     packedWindowTokens: 3 }).postings, postings);
   assert.ok(reads > 12, 'positive short reads are retried');
+  assert.equal(packedFd, null, 'successful reads release the exact packed descriptor');
   eof = true;
   assert.throws(() => loadTokenPostings(dir, { strict: false }), { code: 'ERR_ARTIFACT_CORRUPT' });
+  assert.equal(eofReads, 1, 'EOF is injected into the packed payload, never a reused metadata descriptor');
+  assert.equal(packedFd, null, 'corrupt reads also release the exact packed descriptor');
 } finally {
   fs.readSync = originalRead;
   fs.openSync = originalOpen;
+  fs.closeSync = originalClose;
   fs.readFileSync = originalReadFile;
   await fsPromises.rm(dir, { recursive: true, force: true });
 }
