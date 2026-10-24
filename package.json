@@ -91,7 +91,7 @@
     "lmdb": "^3.4.4",
     "lru-cache": "11.2.6",
     "mammoth": "1.13.0",
-    "micromark": "^4.0.2",
+    "micromark": "^4.0.3",
     "msgpackr": "^1.11.8",
     "mustache": "4.2.0",
     "node-sql-parser": "^5.3.13",
