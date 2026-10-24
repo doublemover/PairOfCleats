@@ -7,7 +7,7 @@ import { sha1 } from '../../../../src/shared/hash.js';
 import { parseJavaScriptAst, buildJsChunks, buildCodeRelations } from '../../../../src/lang/javascript.js';
 import { buildTypeScriptChunksFromBabel } from '../../../../src/lang/typescript/chunks-babel.js';
 import { buildTypeScriptRelations } from '../../../../src/lang/typescript/relations.js';
-import { createTypeScriptSyntaxContext } from '../../../../src/lang/typescript/syntax-context.js';
+import { createTypeScriptSyntaxContext, prepareTypeScriptBabelSyntax } from '../../../../src/lang/typescript/syntax-context.js';
 import { buildCallIndex, buildFileRelations } from '../../../../src/index/build/file-processor/relations.js';
 import { attachCallDetailsByChunkIndex } from '../../../../src/index/build/file-processor/process-chunks/dedupe.js';
 import { buildChunkRelations } from '../../../../src/index/language-registry.js';
@@ -64,8 +64,9 @@ const parse = (language, text, file) => {
   const ext = language === 'typescript' ? '.ts' : '.js';
   if (language === 'typescript') {
     const context = createTypeScriptSyntaxContext(), options = { ext, typeScriptSyntaxContext: context };
-    const raw = buildTypeScriptChunksFromBabel(text, options);
-    assert.ok(raw);
+    const raw = buildTypeScriptChunksFromBabel(text, options) || [];
+    const ast = prepareTypeScriptBabelSyntax(text, options);
+    assert.ok(ast && !ast.errors?.length, 'valid import-only syntax can have no declaration chunks');
     const relations = buildTypeScriptRelations(text, raw, options);
     assert.equal(context.babelParses, 1, 'static bindings borrow existing syntax, without another parse');
     return { raw, relations };
@@ -77,6 +78,7 @@ const makeInput = language => {
   const chunks = [], fileRelations = new Map();
   for (const [file, text] of Object.entries(sourcesFor(language))) {
     const { raw, relations } = parse(language, text, file);
+    assert.ok(raw.length, `${language} ${file} supplies its actual declarations`);
     const filtered = filterRawRelationsWithLexicon(relations, { languageId: language, relKey: file });
     const fileRelation = buildFileRelations(filtered, file);
     fileRelations.set(file, fileRelation);

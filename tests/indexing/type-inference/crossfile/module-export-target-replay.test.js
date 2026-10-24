@@ -98,7 +98,13 @@ const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-module-export-targets-
 const run = (language, input, suffix = 'cache') => applyCrossFileInference({ rootDir: path.join(root, language),
   buildRoot: path.join(root, language), cacheRoot: path.join(root, language, suffix), ...input,
   enabled: true, cacheEnabled: true, useTooling: false, enableTypeInference: true, enableRiskCorrelation: false, log: () => {} });
-const summaryOf = (input, name) => input.chunks.find(chunk => chunk.name === name).codeRelations.callSummaries[0];
+const summaryOf = (input, name) => {
+  const chunk = input.chunks.find(chunk => chunk.name === name);
+  assert.ok(chunk, `source parser supplies ${name}`);
+  assert.ok(chunk.codeRelations.callDetails?.length, `${chunk.lang} ${name} retains parser call details`);
+  assert.ok(chunk.codeRelations.callSummaries?.length, `${chunk.lang} ${name} produces cross-file summaries`);
+  return chunk.codeRelations.callSummaries[0];
+};
 const unresolved = (input, name) => {
   const chunk = input.chunks.find(entry => entry.name === name), summary = summaryOf(input, name);
   assert.equal(summary.calleeRef.status, 'unresolved', name); assert.deepEqual(summary.calleeRef.candidates, []);

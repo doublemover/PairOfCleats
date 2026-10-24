@@ -92,8 +92,10 @@ try {
   await rejected(digestObject); assert.equal(digestObject.runs, 0);
   const ownSource = make(); let descriptors = 0;
   ownSource.source = input => new Proxy({ key: input.key, generation: input.generation, complete: true,
-    offsetUnit: 'utf16-code-unit', start: 0, end: 2, text, contentDigest }, { get() { assert.fail('source value getter cannot substitute between hash and token formatting'); },
-    getOwnPropertyDescriptor(target, name) { descriptors++; return Reflect.getOwnPropertyDescriptor(target, name); } });
+    offsetUnit: 'utf16-code-unit', start: 0, end: 2, text, contentDigest }, { get(target, name) {
+    if (name === 'then') return undefined; // Promise resolution checks thenability before source admission.
+    assert.fail('source value getter cannot substitute between hash and token formatting'); },
+  getOwnPropertyDescriptor(target, name) { descriptors++; return Reflect.getOwnPropertyDescriptor(target, name); } });
   await scoreLocalCrossEncoderPairs(ownSource.options); assert.equal(descriptors, 16); assert.deepEqual(ownSource.pairs, [text, text]);
 
   let ready = false;

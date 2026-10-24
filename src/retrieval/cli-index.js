@@ -347,7 +347,7 @@ export function buildQueryCacheKey(payload) {
   const keyInfo = buildLocalCacheKey({
     namespace: 'query-cache',
     // v8 includes sign-safe ranking and reconciled final score explanations.
-    version: 8,
+    version: 9,
     payload
   });
   return { key: keyInfo.key, payload };

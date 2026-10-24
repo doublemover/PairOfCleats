@@ -5,6 +5,9 @@ import path from 'node:path';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 import { sha1 } from '../../../../src/shared/hash.js';
 import { applyCrossFileInference } from '../../../../src/index/type-inference-crossfile/pipeline.js';
+import { parseJavaScriptAst, buildJsChunks, buildCodeRelations } from '../../../../src/lang/javascript.js';
+import { buildCallIndex } from '../../../../src/index/build/file-processor/relations.js';
+import { buildChunkRelations } from '../../../../src/index/language-registry.js';
 
 applyTestEnv({ testing: '1' });
 const cases = [
@@ -18,14 +21,20 @@ const cases = [
 const calleeText = `export function sinkFn(${cases.map(([name]) => name).join(', ')}) { return wholeString; }`;
 const callerText = `export function caller(input) { sinkFn(${cases.map(([, value]) => value).join(', ')}); }`;
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-crossfile-literal-'));
-const makeChunks = () => [
-  { file: 'callee.js', fileHash: sha1(calleeText), fileHashAlgo: 'sha1', chunkUid: 'literal:callee',
-    name: 'sinkFn', kind: 'function', start: 0, end: calleeText.length,
-    docmeta: { paramNames: cases.map(([name]) => name) }, codeRelations: {} },
-  { file: 'caller.js', fileHash: sha1(callerText), fileHashAlgo: 'sha1', chunkUid: 'literal:caller',
-    name: 'caller', kind: 'function', start: 0, end: callerText.length, docmeta: {},
-    codeRelations: { calls: [['caller', 'sinkFn']], callDetails: [{ callee: 'sinkFn', args: cases.map(([, value]) => value) }] } }
-];
+const makeChunks = () => [['callee.js', calleeText], ['caller.js', callerText]].flatMap(([file, text]) => {
+  const ast = parseJavaScriptAst(text, { ext: '.js' });
+  assert.ok(ast && !ast.errors?.length);
+  const relations = buildCodeRelations(text, file, { ext: '.js', ast });
+  const callIndex = buildCallIndex(relations);
+  return buildJsChunks(text, { ext: '.js', ast }).map(entry => {
+    const chunkUid = `literal:${entry.name}`;
+    return { ...entry, file, fileHash: sha1(text), fileHashAlgo: 'sha1', chunkUid,
+      metaV2: { symbol: { scheme: 'poc', qualifiedName: entry.name,
+        symbolId: `symbol:${chunkUid}`, symbolKey: `key:${chunkUid}`, kindGroup: 'function' } },
+      docmeta: { ...relations.functionMeta[entry.name] },
+      codeRelations: buildChunkRelations({ chunk: entry, fileRelations: relations, callIndex }) };
+  });
+});
 const run = chunks => applyCrossFileInference({ rootDir: root, buildRoot: root,
   cacheRoot: path.join(root, 'cache'), chunks, enabled: true, cacheEnabled: true,
   useTooling: false, enableTypeInference: true, enableRiskCorrelation: false, log: () => {} });

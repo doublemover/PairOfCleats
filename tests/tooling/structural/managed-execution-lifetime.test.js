@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { errorGraphMatches } from '../../helpers/error-graph.js';
 // Source UNVALIDATED; fake resources exercise ownership, never installed tools.
 import assert from 'node:assert/strict';
 import path from 'node:path';
@@ -51,7 +52,7 @@ await assert.rejects(withStructuralBinary('ast-grep', { repoRoot: process.cwd() 
 }), error => error === primary);
 assert.equal(pinned, true, 'timeout response alone cannot release installation');
 assert.equal(releases, 1);
-assert.throws(() => primary.structuralInstallationSession.releaseAfterClosure(), /remains pending/);
+assert.throws(() => primary.structuralInstallationSession.releaseAfterClosure(), error => errorGraphMatches(error, /remains pending/));
 actualClosure = true;
 assert.equal(primary.structuralInstallationSession.releaseAfterClosure(), true);
 assert.equal(releases, 2);

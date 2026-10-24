@@ -10,7 +10,7 @@ export const maskMarkdownCode = text => {
   const lines = text.split(/(?<=\n)/);
   let fence = null;
   return lines.map(line => {
-    const marker = /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+    const marker = /^ {0,3}(`{3,}|~{3,})([^\r\n]*)(?:\r?\n)?$/.exec(line);
     if (fence) {
       if (marker && marker[1][0] === fence.character && marker[1].length >= fence.length && !marker[2].trim()) fence = null;
       return blank(line);

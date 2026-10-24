@@ -57,7 +57,8 @@ if (!checks.some((entry) => entry?.name === 'sourcekit_command_unavailable')) {
   process.exit(1);
 }
 
-if (!logs.some((entry) => entry.includes('sourcekit-lsp not detected'))) {
+if (!logs.some((entry) => entry.includes('sourcekit-lsp not detected')
+  || entry.includes('sourcekit skipped because package preflight did not complete safely'))) {
   console.error('sourcekit provider missing expected fallback log message.');
   process.exit(1);
 }

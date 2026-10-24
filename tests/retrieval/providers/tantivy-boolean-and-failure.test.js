@@ -79,6 +79,6 @@ try {
   await assert.rejects(pipeline('alpha')(index(), 'code', null), { name: 'AbortError' });
   state = 'healthy';
   const controller = new AbortController(); controller.abort();
-  await assert.rejects(pipeline('alpha', { overrides: { signal: controller.signal } })(index(), 'code', null), { name: 'AbortError' });
+  await assert.rejects(pipeline('alpha', { overrides: { signal: controller.signal } })(index(), 'code', null), { code: 'CANCELLED', cancelled: true });
 } finally { Module._load = originalLoad; }
 console.log('Tantivy Boolean completion and genuine native failures retain eligibility, cancellation and fallback authority.');

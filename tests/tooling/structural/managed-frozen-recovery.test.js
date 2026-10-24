@@ -1,3 +1,4 @@
+import { errorGraphMatches } from '../../helpers/error-graph.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
@@ -55,7 +56,7 @@ try {
     assert.equal(failure.code, primary.code);
     assert.equal(failure.cacheOwnershipReleased(), false);
     assert.equal((await inspect()).protected, true);
-    assert.throws(() => failure.structuralInstallationSession.releaseAfterClosure(), /remains pending/);
+    assert.throws(() => failure.structuralInstallationSession.releaseAfterClosure(), error => errorGraphMatches(error, /remains pending/));
     confirmed = true;
     if (observation === 'known') {
       assert.equal(failure.structuralInstallationSession.releaseAfterClosure(), true);
@@ -63,7 +64,7 @@ try {
       assert.equal((await inspect()).protected, false);
       assert.equal(failure.structuralInstallationSession.releaseAfterClosure(), true);
     } else {
-      assert.throws(() => failure.structuralInstallationSession.releaseAfterClosure(), /remains pending/);
+      assert.throws(() => failure.structuralInstallationSession.releaseAfterClosure(), error => errorGraphMatches(error, /remains pending/));
       // These injected children own no native resources. Fixture cleanup removes
       // exact metadata without claiming an unknown production resource closed.
       latestSession.releaseAfterSettlement({ resourceId: latestSession.resourceId, settled: true, pending: false });
@@ -115,7 +116,7 @@ try {
   } catch (error) { failure = error; }
   assert.equal(failure.code, 'ERR_STRUCTURAL_PENDING');
   assert.equal((await inspect()).protected, true, 'an invocation started by this exact scope still owns its generation');
-  assert.throws(() => failure.structuralInstallationSession.releaseAfterClosure(), /remains pending/);
+  assert.throws(() => failure.structuralInstallationSession.releaseAfterClosure(), error => errorGraphMatches(error, /remains pending/));
   permit(); await rulePromise;
   assert.equal(failure.structuralInstallationSession.releaseAfterClosure(), true);
   assert.equal(failure.cacheOwnershipReleased(), true);

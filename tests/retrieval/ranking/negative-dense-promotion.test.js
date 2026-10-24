@@ -50,7 +50,7 @@ assert.equal(applyRankFactor(-1, 0.5), -2);
 
 // Actual CLI option defaults enter the production dense fusion/rank path.
 const defaults = normalizeSearchOptions({ argv: { _: ['ordinary query'], mode: 'code' }, rawArgs: [],
-  rootDir: process.cwd(), userConfig: { indexing: { embeddings: { provider: 'stub' } } }, policy: {} });
+  rootDir: process.cwd(), userConfig: { indexing: { embeddings: { provider: 'onnx' } } }, policy: {} });
 const fixture = buildAnnPipelineFixture({ createAnnProviders: () => new Map([[ANN_PROVIDER_IDS.DENSE, {
   id: ANN_PROVIDER_IDS.DENSE, isAvailable: () => true,
   query: async () => [{ idx: 0, sim: -1 }, { idx: 1, sim: -1.1 }]

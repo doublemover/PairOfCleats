@@ -8,5 +8,5 @@ if (!['alpha', 'beta', 'gamma'].includes(query) || !['memory', 'sqlite'].include
 const ids = backend === 'memory' ? Array.from({ length: 10 }, (_, id) => id)
   : query === 'gamma' ? [...Array.from({ length: 9 }, (_, id) => id + 10), 0]
     : [...Array.from({ length: 8 }, (_, id) => id + 10), ...(query === 'alpha' ? [0, 1] : [1, 0])];
-console.log(JSON.stringify({ code: ids.map(id => ({ id, score: 1 })), prose: [], records: [], extractedProse: [],
+console.log(JSON.stringify({ code: ids.map(id => ({ id, chunkUid: `partial-rank:${id}`, score: 1 })), prose: [], records: [], extractedProse: [],
   stats: { elapsedMs: 1, memory: { rss: 1024 * 1024 } } }));

@@ -3,7 +3,8 @@ import fs from 'node:fs';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
 import { renderRiskExplanationSarif } from '../../../src/retrieval/output/risk-sarif.js';
-const ajv = new Ajv({ strict: false, allErrors: true });
+// SARIF's JSON Schema patterns use ECMA-262 regex syntax without a forced u flag.
+const ajv = new Ajv({ strict: false, allErrors: true, unicodeRegExp: false });
 addFormats(ajv);
 const schema = JSON.parse(fs.readFileSync(new URL('../../fixtures/contracts/sarif-2.1.0.schema.json', import.meta.url)));
 const validate = ajv.compile(schema);

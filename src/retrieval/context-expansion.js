@@ -522,8 +522,15 @@ export function expandContext({
         const ids = byName.get(name) || [];
         if (ids.length) {
           const reason = formatReason('call', name);
+          let seen = 0;
           for (const id of ids) {
             if (halted || perHitState.capped) break;
+            if (primaryIds.has(id) || (allowedIds && !allowedIds.has(id)) || !byDocId.has(id)) continue;
+            if (caps.maxNameCandidates != null && seen >= caps.maxNameCandidates) {
+              recordTruncation('maxNameCandidates', { limit: caps.maxNameCandidates, observed: seen + 1 });
+              break;
+            }
+            seen += 1;
             registerCandidate(id, 'call', reason, sourceId, perHitState);
           }
           continue;

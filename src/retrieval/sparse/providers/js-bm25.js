@@ -42,7 +42,9 @@ export function createJsBm25Provider({ rankBM25, rankBM25Fields }) {
           k1,
           b
         });
-      return { hits, type: fieldPolicyConfigured ? 'bm25-fielded' : 'bm25' };
+      const hasFieldPostings = idx?.fieldPostings?.fields
+        && Object.keys(idx.fieldPostings.fields).length > 0;
+      return { hits, type: fieldPolicyConfigured && hasFieldPostings ? 'bm25-fielded' : 'bm25' };
     }
   };
 }
