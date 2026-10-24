@@ -172,9 +172,10 @@ try {
   const startupFinalizer = registrations.get(startupAdapter); startupFinalizer.deliver();
   assert.equal(await rejection(startupFinalizer.value.releasing), startupError,
     'first finalizer retirement preserves the observed startup cleanup failure without retry');
-  assert.equal(startup.tokenizerCloses, 1);
-  await rejection(startupError.onnxCacheOwner.release()); assert.equal(startup.tokenizerCloses, 1);
+  assert.equal(startup.tokenizerCloses, 0, 'pending original startup work retains its tokenizer');
+  await rejection(startupError.onnxCacheOwner.release()); assert.equal(startup.tokenizerCloses, 0);
   await externalOwner.release(); await startupError.onnxResourceOwner.release();
+  assert.equal(startup.tokenizerCloses, 1, 'the original tokenizer closes once after startup work settles');
   assert.equal(startupError.cacheOwnershipReleased(), true);
   assert.equal(api.getRetiredOnnxSessionOwners().includes(startupError.onnxCacheOwner), false,
     'direct exact resource reconciliation retires the strong failed entry through its settlement observer');
@@ -258,11 +259,14 @@ try {
   await direct.runEntered.promise; api.__resetOnnxSessionCacheForTests();
   let directDisposed = false;
   const directDisposal = directAdapter.dispose().then(() => { directDisposed = true; });
-  await directLoaded.resourceOwner.release(); await turn();
+  const directReleaseFailure = await rejection(directLoaded.resourceOwner.release()); await turn();
+  assert.equal(direct.nativeCloses, 0, 'explicit native release cannot close a session while inference owns its tensors');
+  assert.equal(direct.tokenizerCloses, 0);
   const directCacheOwner = api.getRetiredOnnxSessionOwners().find(owner => owner.resourceOwner === directLoaded.resourceOwner);
   assert.equal(directCacheOwner.pending, true); assert.equal(directCacheOwner.references, 1);
   assert.equal(directDisposed, false, 'direct native-cap settlement cannot claim accepted adapter work drained');
   direct.runGate.resolve(); await directWork; await directDisposal;
+  assert.equal(directReleaseFailure.cacheOwnershipReleased(), true);
   assert.equal(directCacheOwner.pending, false); assert.equal(direct.nativeCloses, 1);
   assert.equal(api.getRetiredOnnxSessionOwners().length, 0);
 
