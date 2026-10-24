@@ -63,7 +63,7 @@ export const createYamlChunker = ({ parseStructure = parseYamlStructure, now = (
     const end=documents[documentIndex+1]?.start ?? source.length;
     const entries=headings.filter(heading=>heading.documentIndex === indexValue);
     if(!entries.length) {
-      chunks.push({start,end,name:`document ${indexValue}`,kind:'ConfigSection',meta:{...meta,documentIndex:indexValue,
+      chunks.push({start,end,name: documents.length === 1 && !workflow ? 'root' : `document ${indexValue}`,kind:'ConfigSection',meta:{...meta,documentIndex:indexValue,
         documentRange:{start:document.start,end:document.end},sectionRangeSource:'application-document-boundaries'}});
       continue;
     }

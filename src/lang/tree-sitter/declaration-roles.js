@@ -61,6 +61,8 @@ export const resolveCppName = (node, text) => {
 export const includeCTagDeclaration = node => {
   if (!['struct_specifier', 'enum_specifier', 'union_specifier'].includes(node.type)) return true;
   if (field(node, 'body')) return true;
+  if (['translation_unit', 'compound_statement', 'declaration_list', 'field_declaration_list'].includes(node.parent?.type)
+    && node.nextSibling?.type === ';') return true;
   // A standalone forward declaration has no object/function declarator.
   return node.parent?.type === 'declaration' && !field(node.parent, 'declarator')
     && named(node.parent).every(child => child.type === node.type && child.startIndex === node.startIndex && child.endIndex === node.endIndex

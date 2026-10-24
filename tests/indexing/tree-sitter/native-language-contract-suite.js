@@ -202,7 +202,7 @@ public:
     languageId: 'objc',
     file: 'sample.m',
     grammarKey: 'native:objc',
-    expectedNames: ['Widget', 'Widget.greet'],
+    expectedNames: ['Widget', 'Widget.-greet:'],
     content: `@interface Widget : NSObject
 - (void)greet:(NSString *)name;
 @end
