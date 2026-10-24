@@ -20,7 +20,10 @@
   "summary": {
     "selected": 360,
     "implemented": 7,
-    "notAttempted": 353,
+    "implemented-unvalidated": 37,
+    "attempted-existing-owner-repair": 14,
+    "needs-further-implementation": 5,
+    "not-attempted": 297,
     "finalBatchPassed": 0
   },
   "items": [
@@ -234,22 +237,22 @@
       "id": "tooling/install/archive-resource-lifetime",
       "path": "tooling/install/archive-resource-lifetime.test.js",
       "owner": "tooling/install",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "d7de58a7c",
       "originalTimedOut": false,
       "originalFailure": "Error: source failed during entry task",
       "failureLocations": [
         "tests/tooling/install/archive-resource-lifetime.test.js:227:36"
       ],
-      "notes": null,
+      "notes": "Implemented install owner/fixture repair; precise details and preserved negatives are in windows-failure-repairs-2026-10-24.md. No runtime re-test since implementation-first instruction.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/install/install-download-resource-lifetime",
       "path": "tooling/install/install-download-resource-lifetime.test.js",
       "owner": "tooling/install",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "0ddfed51e",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The input did not match the regular expression /teardown is blocked/. Input:",
       "failureLocations": [
@@ -260,29 +263,29 @@
         "tools/tooling/install-storage.js:70:14",
         "tools/tooling/install-storage.js:74:29"
       ],
-      "notes": null,
+      "notes": "Implemented install owner/fixture repair; precise details and preserved negatives are in windows-failure-repairs-2026-10-24.md. No runtime re-test since implementation-first instruction.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/install/managed-detect-diagnostic-lifetime",
       "path": "tooling/install/managed-detect-diagnostic-lifetime.test.js",
       "owner": "tooling/install",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "d7de58a7c",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/tooling/install/managed-detect-diagnostic-lifetime.test.js:95:60"
       ],
-      "notes": null,
+      "notes": "Implemented install owner/fixture repair; precise details and preserved negatives are in windows-failure-repairs-2026-10-24.md. No runtime re-test since implementation-first instruction.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/install/managed-install-publication-lifetime",
       "path": "tooling/install/managed-install-publication-lifetime.test.js",
       "owner": "tooling/install",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "0ddfed51e",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The validation function is expected to return \"true\". Received false",
       "failureLocations": [
@@ -293,14 +296,14 @@
         "src/shared/abort.js:41:9",
         "src/shared/storage/transfer.js:143:7"
       ],
-      "notes": null,
+      "notes": "Implemented install owner/fixture repair; precise details and preserved negatives are in windows-failure-repairs-2026-10-24.md. No runtime re-test since implementation-first instruction.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/lsp/shutdown-does-not-respawn-on-closed-transport",
       "path": "tooling/lsp/shutdown-does-not-respawn-on-closed-transport.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "not-attempted",
+      "implementationStatus": "needs-further-implementation",
       "sourceHead": null,
       "originalTimedOut": false,
       "originalFailure": "Error: LSP restart blocked until previous child resources settle.",
@@ -310,7 +313,7 @@
         "tests/tooling/lsp/shutdown-does-not-respawn-on-closed-transport.test.js:86:36",
         "tests/tooling/lsp/shutdown-does-not-respawn-on-closed-transport.test.js:151:1"
       ],
-      "notes": null,
+      "notes": "Restart fixtures omit actual simulated close/tree settlement; production restart barrier correctly rejects them. Real-child restart now awaits settlement, but fake race cases still need controlled settlement preserving stale continuations.",
       "finalBatchStatus": "pending"
     },
     {
@@ -1817,8 +1820,8 @@
       "id": "tooling/install/bootstrap-json-output",
       "path": "tooling/install/bootstrap-json-output.test.js",
       "owner": "tooling/install",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "0ddfed51e",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
@@ -1826,15 +1829,15 @@
         "tests/helpers/test-env.js:92:12",
         "tests/tooling/install/bootstrap-json-output.test.js:18:3"
       ],
-      "notes": null,
+      "notes": "Implemented install owner/fixture repair; precise details and preserved negatives are in windows-failure-repairs-2026-10-24.md. No runtime re-test since implementation-first instruction.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/install/bootstrap-json-signal-contract",
       "path": "tooling/install/bootstrap-json-signal-contract.test.js",
       "owner": "tooling/install",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "0ddfed51e",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
@@ -1842,44 +1845,44 @@
         "tests/helpers/test-env.js:92:12",
         "tests/tooling/install/bootstrap-json-signal-contract.test.js:12:3"
       ],
-      "notes": null,
+      "notes": "Implemented install owner/fixture repair; precise details and preserved negatives are in windows-failure-repairs-2026-10-24.md. No runtime re-test since implementation-first instruction.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/install/detect-and-plan-contract-matrix",
       "path": "tooling/install/detect-and-plan-contract-matrix.test.js",
       "owner": "tooling/install",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "0ddfed51e",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected probe payload for tsserver",
       "failureLocations": [
         "tests/tooling/install/detect-and-plan-contract-matrix.test.js:52:12",
         "tests/tooling/install/detect-and-plan-contract-matrix.test.js:362:3"
       ],
-      "notes": null,
+      "notes": "Implemented install owner/fixture repair; precise details and preserved negatives are in windows-failure-repairs-2026-10-24.md. No runtime re-test since implementation-first instruction.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/install/download-component-cleanup-ownership",
       "path": "tooling/install/download-component-cleanup-ownership.test.js",
       "owner": "tooling/install",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "0ddfed51e",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/tooling/install/download-component-cleanup-ownership.test.js:41:51"
       ],
-      "notes": null,
+      "notes": "Implemented install owner/fixture repair; precise details and preserved negatives are in windows-failure-repairs-2026-10-24.md. No runtime re-test since implementation-first instruction.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/install/go-sdk-cache-recipe",
       "path": "tooling/install/go-sdk-cache-recipe.test.js",
       "owner": "tooling/install",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "0ddfed51e",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The input did not match the regular expression /remains pending/. Input:",
       "failureLocations": [
@@ -1890,15 +1893,15 @@
         "tools/tooling/managed-verification.js:32:21",
         "tools/tooling/managed-verification.js:52:10"
       ],
-      "notes": null,
+      "notes": "Implemented install owner/fixture repair; precise details and preserved negatives are in windows-failure-repairs-2026-10-24.md. No runtime re-test since implementation-first instruction.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/install/go-sdk-frozen-recovery",
       "path": "tooling/install/go-sdk-frozen-recovery.test.js",
       "owner": "tooling/install",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "0ddfed51e",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The input did not match the regular expression /remains pending/. Input:",
       "failureLocations": [
@@ -1909,43 +1912,43 @@
         "tools/tooling/install-storage.js:70:14",
         "tools/tooling/install-storage.js:74:29"
       ],
-      "notes": null,
+      "notes": "Implemented install owner/fixture repair; precise details and preserved negatives are in windows-failure-repairs-2026-10-24.md. No runtime re-test since implementation-first instruction.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/install/go-sdk-requirement-identity",
       "path": "tooling/install/go-sdk-requirement-identity.test.js",
       "owner": "tooling/install",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "0ddfed51e",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: other prerequisite behavior is unchanged",
       "failureLocations": [
         "tests/tooling/install/go-sdk-requirement-identity.test.js:19:8"
       ],
-      "notes": null,
+      "notes": "Implemented install owner/fixture repair; precise details and preserved negatives are in windows-failure-repairs-2026-10-24.md. No runtime re-test since implementation-first instruction.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/install/gopls-sdk-version-contract",
       "path": "tooling/install/gopls-sdk-version-contract.test.js",
       "owner": "tooling/install",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "0ddfed51e",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: do not plan a gopls build with an SDK below its declared module minimum",
       "failureLocations": [
         "tests/tooling/install/gopls-sdk-version-contract.test.js:42:8"
       ],
-      "notes": null,
+      "notes": "Implemented install owner/fixture repair; precise details and preserved negatives are in windows-failure-repairs-2026-10-24.md. No runtime re-test since implementation-first instruction.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/install/lua-language-server-install",
       "path": "tooling/install/lua-language-server-install.test.js",
       "owner": "tooling/install",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "0ddfed51e",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The validation function is expected to return \"true\". Received false",
       "failureLocations": [
@@ -1956,15 +1959,15 @@
         "tools/tooling/install-lua-language-server.js:373:5",
         "src/shared/storage/operation-error.js:129:21"
       ],
-      "notes": null,
+      "notes": "Implemented install owner/fixture repair; precise details and preserved negatives are in windows-failure-repairs-2026-10-24.md. No runtime re-test since implementation-first instruction.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/install/managed-hook-failure-values",
       "path": "tooling/install/managed-hook-failure-values.test.js",
       "owner": "tooling/install",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "0ddfed51e",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: an explicit recipe receipt cannot settle the independent receipt-inspection owner",
       "failureLocations": [
@@ -1975,15 +1978,15 @@
         "tools/tooling/install-storage.js:70:14",
         "tools/tooling/install-storage.js:74:29"
       ],
-      "notes": null,
+      "notes": "Implemented install owner/fixture repair; precise details and preserved negatives are in windows-failure-repairs-2026-10-24.md. No runtime re-test since implementation-first instruction.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/install/managed-publication-frozen-recovery",
       "path": "tooling/install/managed-publication-frozen-recovery.test.js",
       "owner": "tooling/install",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "0ddfed51e",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The input did not match the regular expression /observer remains pending/. Input:",
       "failureLocations": [
@@ -1994,15 +1997,15 @@
         "tools/tooling/install-storage.js:70:14",
         "tools/tooling/install-storage.js:74:29"
       ],
-      "notes": null,
+      "notes": "Implemented install owner/fixture repair; precise details and preserved negatives are in windows-failure-repairs-2026-10-24.md. No runtime re-test since implementation-first instruction.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/install/managed-reuse-frozen-recovery",
       "path": "tooling/install/managed-reuse-frozen-recovery.test.js",
       "owner": "tooling/install",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "0ddfed51e",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The input did not match the regular expression /remains pending/. Input:",
       "failureLocations": [
@@ -2013,15 +2016,15 @@
         "tools/tooling/managed-verification.js:52:10",
         "tools/tooling/managed-verification.js:170:21"
       ],
-      "notes": null,
+      "notes": "Implemented install owner/fixture repair; precise details and preserved negatives are in windows-failure-repairs-2026-10-24.md. No runtime re-test since implementation-first instruction.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/install/operational-storage-selected-layout",
       "path": "tooling/install/operational-storage-selected-layout.test.js",
       "owner": "tooling/install",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "0ddfed51e",
       "originalTimedOut": false,
       "originalFailure": "Error: Configuration requires a category with adopted application callers.",
       "failureLocations": [
@@ -2029,15 +2032,15 @@
         "src/shared/storage/configuration.js:120:11",
         "tests/tooling/install/operational-storage-selected-layout.test.js:24:28"
       ],
-      "notes": null,
+      "notes": "Implemented install owner/fixture repair; precise details and preserved negatives are in windows-failure-repairs-2026-10-24.md. No runtime re-test since implementation-first instruction.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/install/parallel-patch-preparation",
       "path": "tooling/install/parallel-patch-preparation.test.js",
       "owner": "tooling/install",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "attempted-existing-owner-repair",
+      "sourceHead": "abf38e247",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The input did not match the regular expression /not fully applied/. Input:",
       "failureLocations": [
@@ -2048,231 +2051,231 @@
         "src/shared/concurrency/scheduler-core/dispatch.js:326:25",
         "src/shared/subprocess/runner-async.js:338:43"
       ],
-      "notes": null,
+      "notes": "Existing Git subprocess owner preserves original primary patch failure while siblings abort; original case awaits final batches.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/install/phpactor-platform-contract",
       "path": "tooling/install/phpactor-platform-contract.test.js",
       "owner": "tooling/install",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5c321e94f",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/tooling/install/phpactor-platform-contract.test.js:27:12"
       ],
-      "notes": null,
+      "notes": "Implemented install owner/fixture repair; precise details and preserved negatives are in windows-failure-repairs-2026-10-24.md. No runtime re-test since implementation-first instruction.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/install/setup-model-readiness",
       "path": "tooling/install/setup-model-readiness.test.js",
       "owner": "tooling/install",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "0ddfed51e",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: download boundary is exercised only for missing selected assets",
       "failureLocations": [
         "tests/tooling/install/setup-model-readiness.test.js:78:12"
       ],
-      "notes": null,
+      "notes": "Implemented install owner/fixture repair; precise details and preserved negatives are in windows-failure-repairs-2026-10-24.md. No runtime re-test since implementation-first instruction.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/install/setup-readiness-exit",
       "path": "tooling/install/setup-readiness-exit.test.js",
       "owner": "tooling/install",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "0ddfed51e",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/tooling/install/setup-readiness-exit.test.js:41:8"
       ],
-      "notes": null,
+      "notes": "Implemented install owner/fixture repair; precise details and preserved negatives are in windows-failure-repairs-2026-10-24.md. No runtime re-test since implementation-first instruction.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/install/tooling",
       "path": "tooling/install/tooling.test.js",
       "owner": "tooling/install",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "0ddfed51e",
       "originalTimedOut": false,
       "originalFailure": "... trimmed 37 lines",
       "failureLocations": [],
-      "notes": null,
+      "notes": "Implemented install owner/fixture repair; precise details and preserved negatives are in windows-failure-repairs-2026-10-24.md. No runtime re-test since implementation-first instruction.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/install/tooling-failure-exitcode",
       "path": "tooling/install/tooling-failure-exitcode.test.js",
       "owner": "tooling/install",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "0ddfed51e",
       "originalTimedOut": false,
       "originalFailure": "tooling-install failure exit code test failed: expected pyright result with status=failed",
       "failureLocations": [],
-      "notes": null,
+      "notes": "Implemented install owner/fixture repair; precise details and preserved negatives are in windows-failure-repairs-2026-10-24.md. No runtime re-test since implementation-first instruction.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/install/tooling-missing-requirement-exitcode",
       "path": "tooling/install/tooling-missing-requirement-exitcode.test.js",
       "owner": "tooling/install",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "0ddfed51e",
       "originalTimedOut": false,
       "originalFailure": "tooling-install missing requirement test failed: expected structured requirementChecks",
       "failureLocations": [],
-      "notes": null,
+      "notes": "Implemented install owner/fixture repair; precise details and preserved negatives are in windows-failure-repairs-2026-10-24.md. No runtime re-test since implementation-first instruction.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/install/tooling-post-install-verification",
       "path": "tooling/install/tooling-post-install-verification.test.js",
       "owner": "tooling/install",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "0ddfed51e",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/tooling/install/tooling-post-install-verification.test.js:31:8"
       ],
-      "notes": null,
+      "notes": "Implemented install owner/fixture repair; precise details and preserved negatives are in windows-failure-repairs-2026-10-24.md. No runtime re-test since implementation-first instruction.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/lsp/clangd-missing-command-blocks-runtime",
       "path": "tooling/lsp/clangd-missing-command-blocks-runtime.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "de386e305",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/tooling/lsp/clangd-missing-command-blocks-runtime.test.js:17:10"
       ],
-      "notes": null,
+      "notes": "Missing executable classification now remains unavailable rather than an execution denial; actual denied execution remains blocked.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/lsp/configured-provider-go-workspace-preflight-cache-hit",
       "path": "tooling/lsp/configured-provider-go-workspace-preflight-cache-hit.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "abe07dcd6",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected provider output cache hit to skip preflight entirely",
       "failureLocations": [
         "tests/tooling/lsp/configured-provider-go-workspace-preflight-cache-hit.test.js:124:8"
       ],
-      "notes": null,
+      "notes": "Provider output without a closed dependency context retains live admission; cached workspace probes and complete output parity remain asserted.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/lsp/configured-provider-rust-workspace-diagnostics",
       "path": "tooling/lsp/configured-provider-rust-workspace-diagnostics.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "attempted-existing-owner-repair",
+      "sourceHead": "0e1c3820b",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected rust-analyzer to block when Cargo workspace markers are absent near selected docs",
       "failureLocations": [
         "tests/tooling/lsp/configured-provider-rust-workspace-diagnostics.test.js:68:8"
       ],
-      "notes": null,
+      "notes": "Reviewed explicit Node/Cargo metadata fixture selection and trust. Original provider was stopped at missing Cargo/rustc preflight before workspace diagnostics; existing runtime-requirements owner repair permits known-missing degraded admission. Original workspace/content assertions remain unvalidated.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/lsp/configured-provider-rust-workspace-negative-cache-hit",
       "path": "tooling/lsp/configured-provider-rust-workspace-negative-cache-hit.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "attempted-existing-owner-repair",
+      "sourceHead": "0e1c3820b",
       "originalTimedOut": false,
       "originalFailure": "Node.js v26.12.1",
       "failureLocations": [],
-      "notes": null,
+      "notes": "Reviewed explicit Node/Cargo metadata fixture selection and trust. Original provider was stopped at missing Cargo/rustc preflight before workspace diagnostics; existing runtime-requirements owner repair permits known-missing degraded admission. Original workspace/content assertions remain unvalidated.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/lsp/configured-provider-rust-workspace-nested-preflight",
       "path": "tooling/lsp/configured-provider-rust-workspace-nested-preflight.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "attempted-existing-owner-repair",
+      "sourceHead": "0e1c3820b",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected rust-analyzer to run when a nested Cargo workspace matches the selected doc",
       "failureLocations": [
         "tests/tooling/lsp/configured-provider-rust-workspace-nested-preflight.test.js:55:8"
       ],
-      "notes": null,
+      "notes": "Reviewed explicit Node/Cargo metadata fixture selection and trust. Original provider was stopped at missing Cargo/rustc preflight before workspace diagnostics; existing runtime-requirements owner repair permits known-missing degraded admission. Original workspace/content assertions remain unvalidated.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/lsp/configured-provider-rust-workspace-partial-coverage",
       "path": "tooling/lsp/configured-provider-rust-workspace-partial-coverage.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "attempted-existing-owner-repair",
+      "sourceHead": "0e1c3820b",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected valid root partition to remain available",
       "failureLocations": [
         "tests/tooling/lsp/configured-provider-rust-workspace-partial-coverage.test.js:103:8"
       ],
-      "notes": null,
+      "notes": "Reviewed explicit Node/Cargo metadata fixture selection and trust. Original provider was stopped at missing Cargo/rustc preflight before workspace diagnostics; existing runtime-requirements owner repair permits known-missing degraded admission. Original workspace/content assertions remain unvalidated.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/lsp/configured-provider-rust-workspace-root-ambiguous-partition",
       "path": "tooling/lsp/configured-provider-rust-workspace-root-ambiguous-partition.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "attempted-existing-owner-repair",
+      "sourceHead": "0e1c3820b",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected rust-analyzer to route the first workspace root",
       "failureLocations": [
         "tests/tooling/lsp/configured-provider-rust-workspace-root-ambiguous-partition.test.js:87:8"
       ],
-      "notes": null,
+      "notes": "Reviewed explicit Node/Cargo metadata fixture selection and trust. Original provider was stopped at missing Cargo/rustc preflight before workspace diagnostics; existing runtime-requirements owner repair permits known-missing degraded admission. Original workspace/content assertions remain unvalidated.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/lsp/configured-provider-rust-workspace-stderr-suppression",
       "path": "tooling/lsp/configured-provider-rust-workspace-stderr-suppression.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "attempted-existing-owner-repair",
+      "sourceHead": "0e1c3820b",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected repo-invalidity stderr suppression check",
       "failureLocations": [
         "tests/tooling/lsp/configured-provider-rust-workspace-stderr-suppression.test.js:77:8"
       ],
-      "notes": null,
+      "notes": "Reviewed explicit Node/Cargo metadata fixture selection and trust. Original provider was stopped at missing Cargo/rustc preflight before workspace diagnostics; existing runtime-requirements owner repair permits known-missing degraded admission. Original workspace/content assertions remain unvalidated.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/lsp/configured-provider-rust-workspace-timeout-local-cache",
       "path": "tooling/lsp/configured-provider-rust-workspace-timeout-local-cache.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "attempted-existing-owner-repair",
+      "sourceHead": "0e1c3820b",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: blocked fidelity retains the excluded workspace",
       "failureLocations": [
         "tests/tooling/lsp/configured-provider-rust-workspace-timeout-local-cache.test.js:106:8"
       ],
-      "notes": null,
+      "notes": "Reviewed explicit Node/Cargo metadata fixture selection and trust. Original provider was stopped at missing Cargo/rustc preflight before workspace diagnostics; existing runtime-requirements owner repair permits known-missing degraded admission. Original workspace/content assertions remain unvalidated.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/lsp/csharp-project-trust-and-dotnet-host",
       "path": "tooling/lsp/csharp-project-trust-and-dotnet-host.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "de386e305",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
@@ -2280,29 +2283,29 @@
         "tests/helpers/test-env.js:92:12",
         "tests/tooling/lsp/csharp-project-trust-and-dotnet-host.test.js:35:3"
       ],
-      "notes": null,
+      "notes": "Fixture explicitly selects/trusts the simulated launch and enables the intended provider so the original positive and negative contracts reach their owner.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/lsp/dart-provider-package-config-admission",
       "path": "tooling/lsp/dart-provider-package-config-admission.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "attempted-existing-owner-repair",
+      "sourceHead": "0e1c3820b",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/tooling/lsp/dart-provider-package-config-admission.test.js:49:10"
       ],
-      "notes": null,
+      "notes": "Reviewed historical missing-runtime admission frontier. Current runtime-requirements-preflight already degrades proven missing commands while retaining denial/unknown-owner blocks; downstream original assertions await final batches.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/lsp/dedicated-provider-launch-guard-matrix",
       "path": "tooling/lsp/dedicated-provider-launch-guard-matrix.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "de386e305",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
@@ -2313,15 +2316,15 @@
         "tests/helpers/lsp-runtime.js:173:10",
         "tests/tooling/lsp/dedicated-provider-launch-guard-matrix.test.js:144:1"
       ],
-      "notes": null,
+      "notes": "Fixture explicitly selects/trusts the simulated launch and enables the intended provider so the original positive and negative contracts reach their owner.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/lsp/dedicated-providers-abrupt-elixir-ls",
       "path": "tooling/lsp/dedicated-providers-abrupt-elixir-ls.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "attempted-existing-owner-repair",
+      "sourceHead": "0e1c3820b",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected initialize/provider failure check for timeout scenario (elixir-ls)",
       "failureLocations": [
@@ -2329,15 +2332,15 @@
         "tests/tooling/lsp/dedicated-abrupt-case.js:184:3",
         "tests/tooling/lsp/dedicated-providers-abrupt-elixir-ls.test.js:4:1"
       ],
-      "notes": null,
+      "notes": "Reviewed historical missing-runtime admission frontier. Current runtime-requirements-preflight already degrades proven missing commands while retaining denial/unknown-owner blocks; downstream original assertions await final batches.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/lsp/dedicated-providers-abrupt-phpactor",
       "path": "tooling/lsp/dedicated-providers-abrupt-phpactor.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "attempted-existing-owner-repair",
+      "sourceHead": "0e1c3820b",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected initialize/provider failure check for timeout scenario (phpactor)",
       "failureLocations": [
@@ -2345,15 +2348,15 @@
         "tests/tooling/lsp/dedicated-abrupt-case.js:184:3",
         "tests/tooling/lsp/dedicated-providers-abrupt-phpactor.test.js:4:1"
       ],
-      "notes": null,
+      "notes": "Reviewed historical missing-runtime admission frontier. Current runtime-requirements-preflight already degrades proven missing commands while retaining denial/unknown-owner blocks; downstream original assertions await final batches.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/lsp/dedicated-providers-multifile-session-reuse-haskell-language-server",
       "path": "tooling/lsp/dedicated-providers-multifile-session-reuse-haskell-language-server.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "attempted-existing-owner-repair",
+      "sourceHead": "0e1c3820b",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected haskell-language-server hit for first file; {\"checks\":[{\"name\":\"haskell-language-server_runtime_ghc_blocked\",\"status\":\"warn\",\"message\":\"GHC compiler cannot be admitted for haskell-language-server (command-discovery-not-found); provider launch is blocked.\"}],\"",
       "failureLocations": [
@@ -2361,43 +2364,43 @@
         "tests/tooling/lsp/dedicated-providers-multifile-session-reuse-cases.js:197:5",
         "tests/tooling/lsp/dedicated-providers-multifile-session-reuse-haskell-language-server.test.js:4:1"
       ],
-      "notes": null,
+      "notes": "Reviewed historical missing-runtime admission frontier. Current runtime-requirements-preflight already degrades proven missing commands while retaining denial/unknown-owner blocks; downstream original assertions await final batches.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/lsp/diagnostic-range-memo",
       "path": "tooling/lsp/diagnostic-range-memo.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5f0fe5571",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/tooling/lsp/diagnostic-range-memo.test.js:61:10"
       ],
-      "notes": null,
+      "notes": "Fixtures encode valid positions separately for UTF-8/16/32, preserving range memoization, document isolation, parity and invalid-coordinate assertions.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/lsp/diagnostic-repeat-range-lookup",
       "path": "tooling/lsp/diagnostic-repeat-range-lookup.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5f0fe5571",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: the scalar lookup is scoped to one document",
       "failureLocations": [
         "tests/tooling/lsp/diagnostic-repeat-range-lookup.test.js:57:10"
       ],
-      "notes": null,
+      "notes": "Fixtures encode valid positions separately for UTF-8/16/32, preserving range memoization, document isolation, parity and invalid-coordinate assertions.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/lsp/disposal-confirmation",
       "path": "tooling/lsp/disposal-confirmation.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5f0fe5571",
       "originalTimedOut": false,
       "originalFailure": "TypeError: client.onResourcesSettled is not a function",
       "failureLocations": [
@@ -2408,86 +2411,86 @@
         "src/integrations/tooling/providers/lsp/session-pool.js:438:14",
         "src/integrations/tooling/providers/lsp/session-pool.js:851:10"
       ],
-      "notes": null,
+      "notes": "Updated simulated resource observation/dispatch and canonical parameter representation without weakening cancellation, ownership or quoted-literal content checks.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/lsp/elixir-provider-initialize-stall-fail-open",
       "path": "tooling/lsp/elixir-provider-initialize-stall-fail-open.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "attempted-existing-owner-repair",
+      "sourceHead": "0e1c3820b",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected initialize failure check in elixir provider diagnostics",
       "failureLocations": [
         "tests/tooling/lsp/elixir-provider-initialize-stall-fail-open.test.js:63:8"
       ],
-      "notes": null,
+      "notes": "Reviewed historical missing-runtime admission frontier. Current runtime-requirements-preflight already degrades proven missing commands while retaining denial/unknown-owner blocks; downstream original assertions await final batches.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/lsp/phpactor-provider-workspace-composer-invalid-preflight",
       "path": "tooling/lsp/phpactor-provider-workspace-composer-invalid-preflight.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "attempted-existing-owner-repair",
+      "sourceHead": "0e1c3820b",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/tooling/lsp/phpactor-provider-workspace-composer-invalid-preflight.test.js:36:8"
       ],
-      "notes": null,
+      "notes": "Reviewed historical missing-runtime admission frontier. Current runtime-requirements-preflight already degrades proven missing commands while retaining denial/unknown-owner blocks; downstream original assertions await final batches.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/lsp/preflight-contract-matrix",
       "path": "tooling/lsp/preflight-contract-matrix.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "de386e305",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/tooling/lsp/preflight-contract-matrix.test.js:145:10",
         "tests/tooling/lsp/preflight-contract-matrix.test.js:633:1"
       ],
-      "notes": null,
+      "notes": "Missing executable classification now remains unavailable rather than an execution denial; actual denied execution remains blocked.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/lsp/provider-runtime-contract-matrix",
       "path": "tooling/lsp/provider-runtime-contract-matrix.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "de386e305",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected payload output for sourcekit",
       "failureLocations": [
         "tests/tooling/lsp/provider-runtime-contract-matrix.test.js:144:10",
         "tests/tooling/lsp/provider-runtime-contract-matrix.test.js:225:1"
       ],
-      "notes": null,
+      "notes": "Fixture explicitly selects/trusts the simulated launch and enables the intended provider so the original positive and negative contracts reach their owner.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/lsp/pyright-health-source-context",
       "path": "tooling/lsp/pyright-health-source-context.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "not-attempted",
+      "implementationStatus": "needs-further-implementation",
       "sourceHead": null,
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/tooling/lsp/pyright-health-source-context.test.js:45:10"
       ],
-      "notes": null,
+      "notes": "Read original quarantine consumer and launch wrapper; initial stall health unexpectedly remains healthy. Need trace selected server request plan and source/config identity before repair.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/lsp/reader-closed-restart-reaps-stale-process",
       "path": "tooling/lsp/reader-closed-restart-reaps-stale-process.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "not-attempted",
+      "implementationStatus": "needs-further-implementation",
       "sourceHead": null,
       "originalTimedOut": false,
       "originalFailure": "Error: LSP restart blocked until previous child resources settle.",
@@ -2497,28 +2500,28 @@
         "tests/tooling/lsp/helpers/stale-process-restart-harness.js:19:16",
         "tests/tooling/lsp/reader-closed-restart-reaps-stale-process.test.js:19:9"
       ],
-      "notes": null,
+      "notes": "Restart fixtures omit actual simulated close/tree settlement; production restart barrier correctly rejects them. Real-child restart now awaits settlement, but fake race cases still need controlled settlement preserving stale continuations.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/lsp/request-local-write-settlement",
       "path": "tooling/lsp/request-local-write-settlement.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5f0fe5571",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:",
       "failureLocations": [
         "tests/tooling/lsp/request-local-write-settlement.test.js:78:12"
       ],
-      "notes": null,
+      "notes": "Updated simulated resource observation/dispatch and canonical parameter representation without weakening cancellation, ownership or quoted-literal content checks.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/lsp/restart-generation-safety",
       "path": "tooling/lsp/restart-generation-safety.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "not-attempted",
+      "implementationStatus": "needs-further-implementation",
       "sourceHead": null,
       "originalTimedOut": false,
       "originalFailure": "Error: LSP restart blocked until previous child resources settle.",
@@ -2527,56 +2530,56 @@
         "src/integrations/tooling/lsp/client.js:661:21",
         "tests/tooling/lsp/restart-generation-safety.test.js:49:10"
       ],
-      "notes": null,
+      "notes": "Restart fixtures omit actual simulated close/tree settlement; production restart barrier correctly rejects them. Real-child restart now awaits settlement, but fake race cases still need controlled settlement preserving stale continuations.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/lsp/rust-quoted-const-type-inputs",
       "path": "tooling/lsp/rust-quoted-const-type-inputs.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5f0fe5571",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/tooling/lsp/rust-quoted-const-type-inputs.test.js:36:8"
       ],
-      "notes": null,
+      "notes": "Updated simulated resource observation/dispatch and canonical parameter representation without weakening cancellation, ownership or quoted-literal content checks.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/lsp/semantic-location-evidence",
       "path": "tooling/lsp/semantic-location-evidence.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "e4a486fe6",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Missing expected rejection.",
       "failureLocations": [
         "tests/tooling/lsp/semantic-location-evidence.test.js:25:3"
       ],
-      "notes": null,
+      "notes": "Retained semantic source text mutation is rejected before source-index routing; lspBindings producer bumped to 48.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/lsp/session-queued-cancellation",
       "path": "tooling/lsp/session-queued-cancellation.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5f0fe5571",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/tooling/lsp/session-queued-cancellation.test.js:72:80"
       ],
-      "notes": null,
+      "notes": "Updated simulated resource observation/dispatch and canonical parameter representation without weakening cancellation, ownership or quoted-literal content checks.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/lsp/writer-closed-restart-reaps-stale-process",
       "path": "tooling/lsp/writer-closed-restart-reaps-stale-process.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "not-attempted",
+      "implementationStatus": "needs-further-implementation",
       "sourceHead": null,
       "originalTimedOut": false,
       "originalFailure": "Error: LSP restart blocked until previous child resources settle.",
@@ -2586,7 +2589,7 @@
         "tests/tooling/lsp/helpers/stale-process-restart-harness.js:19:16",
         "tests/tooling/lsp/writer-closed-restart-reaps-stale-process.test.js:19:9"
       ],
-      "notes": null,
+      "notes": "Restart fixtures omit actual simulated close/tree settlement; production restart barrier correctly rejects them. Real-child restart now awaits settlement, but fake race cases still need controlled settlement preserving stale continuations.",
       "finalBatchStatus": "pending"
     },
     {

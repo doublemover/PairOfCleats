@@ -315,3 +315,47 @@ The sharded disk-account fixture checks the canonical aggregate's quota cause
 and exact original cleanup error instead of an obsolete mutable `cleanupError`
 field. Its physical-byte accounting, input closure, zero residual quota, refusal
 of unreserved copies and unchanged destination controls remain intact.
+
+## Implementation-first queue, validation deferred
+
+The user froze the 360 failures outstanding at `a96699ab0` and requested
+implementation attempts for every item before further runtime validation. Seven
+of those repairs were already tested immediately before this instruction. The
+[per-case implementation queue](windows-360-failure-repair-attempts-2026-10-24.json)
+records remaining repairs, existing owner changes and unresolved implementation
+work separately. It never promotes an untested change into a passing observation.
+The 105/353/1 historical counts remain unchanged until the final batches.
+
+LSP changes through `abe07dcd6` distinguish unavailable commands from denied
+execution; reject mutated retained semantic text before routing (producer 48);
+retain valid encoded diagnostic positions and document-local memoization; and
+update exact fixture command/trust, disposal observation and owned callback
+contracts. An invocation without a closed dependency context still runs live
+admission, while the Go workspace probe itself retains its cache hit. Known
+missing runtime dependencies already have a degraded-admission repair; its
+downstream Rust, Elixir, Haskell, PHP and Dart exposing cases await re-test.
+The simulated restart races and Pyright health consumer still require work.
+
+The install batch addresses two production faults: tar entry errors can arrive
+while an admitted mkdir task waits, before the entry write pipeline subscribes;
+and the managed detector's default argument replaced an explicitly thrown
+undefined secondary failure with null. The tar parser now observes entry errors
+before admitting that task, retains the source failure, and still drains tasks
+before cleanup. The detector preserves the exact secondary value. Stock
+unsupported-platform installation is rejected before prerequisite provisioning;
+an already verified custom executable retains its separate runtime path.
+
+Install fixtures now inspect preserved cause/error graphs rather than expecting
+cleanup wording to replace the primary message. Asynchronous reconciliation is
+awaited, including exact-resource, missing/unknown-receipt and independent-owner
+negatives. Setup download controls intercept the actual async command adapter,
+while unrelated commands retain their real owner. The bootstrap target assertions
+use canonical repository identity on Windows; auto-install simulation explicitly
+trusts its disposable root. Dry-run assertions retain no execution, no writes and
+unqualified readiness. Actual incompatible SDK and deliberately failing manager
+checks retain their nonzero exit assertions. No install admission budget or
+production identity check is weakened to accommodate a fixture.
+
+Formatting is allowed during this phase. Feature tests, setup/runtime probes and
+the pre-push front gate are explicitly deferred until every item has had an
+implementation attempt; this batch is not acceptance evidence.
