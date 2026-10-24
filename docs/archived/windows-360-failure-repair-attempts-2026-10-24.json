@@ -32,6 +32,15 @@
       "timeouts": 7,
       "skipped": 0,
       "crashes": 0
+    },
+    "followUpRecheck": {
+      "selected": 43,
+      "passed": 34,
+      "failed": 9,
+      "timeouts": 0,
+      "skipped": 0,
+      "originalFailuresMovedToPassing": 22,
+      "originalFailuresWithoutPassingClosure": 78
     }
   },
   "items": [
@@ -501,7 +510,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 923
+      "recheckDurationMs": 923,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 1433
     },
     {
       "id": "shared/concurrency/scheduler-config-parse",
@@ -608,7 +620,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 1619
+      "recheckDurationMs": 1619,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 1394
     },
     {
       "id": "shared/storage/dictionary-category-migration",
@@ -735,7 +750,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "passed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 17239
+      "recheckDurationMs": 17239,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 17958
     },
     {
       "id": "storage/semantic/call-site-retained-source-handoff",
@@ -813,7 +831,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 1369
+      "recheckDurationMs": 1369,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 1219
     },
     {
       "id": "storage/semantic/runtime-cleanup-original-failures",
@@ -1174,7 +1195,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 11647
+      "recheckDurationMs": 11647,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 12092
     },
     {
       "id": "retrieval/ann/generation-publication",
@@ -1191,7 +1215,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 966
+      "recheckDurationMs": 966,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 1006
     },
     {
       "id": "retrieval/ann/generation-rebuild-failure",
@@ -1462,7 +1489,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 4843
+      "recheckDurationMs": 4843,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 5110
     },
     {
       "id": "retrieval/filters/filter-only-cold-cli",
@@ -1851,7 +1881,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 16559
+      "recheckDurationMs": 16559,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 14809
     },
     {
       "id": "tooling/config/runtime-diagnostics-readonly",
@@ -1868,7 +1901,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 9499
+      "recheckDurationMs": 9499,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 8995
     },
     {
       "id": "tooling/docs/markdown-local-navigation",
@@ -1902,7 +1938,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 752
+      "recheckDurationMs": 752,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 1321
     },
     {
       "id": "tooling/docs/usr-contract-checklists",
@@ -1940,7 +1979,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 5571
+      "recheckDurationMs": 5571,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 3721
     },
     {
       "id": "tooling/doctor/command-profile-probe-cache-matrix",
@@ -2150,7 +2192,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "passed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 3665
+      "recheckDurationMs": 3665,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 2761
     },
     {
       "id": "tooling/index/selected-mode-root-capture",
@@ -2167,7 +2212,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "passed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 814
+      "recheckDurationMs": 814,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 653
     },
     {
       "id": "tooling/install/bootstrap-json-output",
@@ -2425,7 +2473,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 291
+      "recheckDurationMs": 291,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 267
     },
     {
       "id": "tooling/install/parallel-patch-preparation",
@@ -3279,7 +3330,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 1394
+      "recheckDurationMs": 1394,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 1381
     },
     {
       "id": "tooling/reports/compare-models-partial-ranks/opposite-orders",
@@ -3348,7 +3402,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 1297
+      "recheckDurationMs": 1297,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 2303
     },
     {
       "id": "tooling/reports/parity-cold-build-cleanup",
@@ -3508,7 +3565,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 1011
+      "recheckDurationMs": 1011,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 824
     },
     {
       "id": "tooling/structural/managed-frozen-recovery",
@@ -3586,7 +3646,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 671
+      "recheckDurationMs": 671,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 598
     },
     {
       "id": "tooling/sublime/package-harness",
@@ -3769,7 +3832,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 155
+      "recheckDurationMs": 155,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 196
     },
     {
       "id": "tooling/vscode/operator-runtime",
@@ -3889,7 +3955,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 7232
+      "recheckDurationMs": 7232,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 8847
     },
     {
       "id": "indexing/artifacts/artifact-size-guardrails",
@@ -3966,7 +4035,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 1231
+      "recheckDurationMs": 1231,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 1022
     },
     {
       "id": "indexing/artifacts/publication-record-contract",
@@ -3986,7 +4058,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 216
+      "recheckDurationMs": 216,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 217
     },
     {
       "id": "indexing/artifacts/sharded-meta/schema",
@@ -4061,7 +4136,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 17678
+      "recheckDurationMs": 17678,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 18242
     },
     {
       "id": "indexing/build/immutable-graph-capability",
@@ -4078,7 +4156,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 11249
+      "recheckDurationMs": 11249,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 12765
     },
     {
       "id": "indexing/build/promotion-cancellation",
@@ -4223,7 +4304,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "timed-out",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 30889
+      "recheckDurationMs": 30889,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 19689
     },
     {
       "id": "indexing/discovery/max-files-continues-after-reject",
@@ -4618,7 +4702,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "timed-out",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 30544
+      "recheckDurationMs": 30544,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 14449
     },
     {
       "id": "indexing/file-processor/scm-runproc-queue-timeout",
@@ -4759,7 +4846,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 20849
+      "recheckDurationMs": 20849,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 19692
     },
     {
       "id": "indexing/incremental/piece-output-producer-identity",
@@ -4974,7 +5064,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 2229
+      "recheckDurationMs": 2229,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 1717
     },
     {
       "id": "indexing/risk/interprocedural/upstream-input-coverage",
@@ -5008,7 +5101,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 128
+      "recheckDurationMs": 128,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 118
     },
     {
       "id": "indexing/runtime/scheduler-nested-embedding-queue-no-deadlock",
@@ -5119,7 +5215,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "passed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 1369
+      "recheckDurationMs": 1369,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 1048
     },
     {
       "id": "indexing/semantic/compiler-accessor-reference-roles",
@@ -5571,7 +5670,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 4125
+      "recheckDurationMs": 4125,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 9328
     },
     {
       "id": "indexing/watch/pinned-attempt-retention",
@@ -5605,7 +5707,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 103
+      "recheckDurationMs": 103,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 114
     },
     {
       "id": "embeddings/pipeline/mapping-index-bounds",
@@ -5695,7 +5800,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 120
+      "recheckDurationMs": 120,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 115
     },
     {
       "id": "graph/upstream-coverage-absence",
@@ -6344,7 +6452,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 13304
+      "recheckDurationMs": 13304,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 15052
     },
     {
       "id": "map/workspace/reader-primary-cleanup-outcomes",
@@ -6411,7 +6522,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 666
+      "recheckDurationMs": 666,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+      "latestRecheckDurationMs": 3420
     },
     {
       "id": "tooling/api-contracts/export-identity-cli/js-fail",

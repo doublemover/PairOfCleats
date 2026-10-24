@@ -1,0 +1,1102 @@
+{
+  "schemaVersion": 1,
+  "sourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
+  "startedAt": "2026-10-24T12:11:52.534Z",
+  "finishedAt": "2026-10-24T12:15:34.721Z",
+  "scope": "Focused source-bound re-check of the first follow-up repair wave. Earlier observations are not acceptance of later trees.",
+  "policy": {
+    "timeoutMs": 30000,
+    "retries": 0,
+    "nativeStatusRedo": false,
+    "threads": 1,
+    "platform": "win32",
+    "node": "v26.12.1",
+    "removedLaunchSetting": "PAIROFCLEATS_TRUSTED_CONFIG: missing configured file; no replacement authority granted"
+  },
+  "summary": {
+    "selected": 43,
+    "passed": 34,
+    "failed": 9,
+    "timeouts": 0,
+    "skipped": 0,
+    "originalFailuresMovedToPassing": 22,
+    "originalFailuresWithoutPassingClosure": 78
+  },
+  "cohorts": [
+    {
+      "name": "focused-wave-01",
+      "startedAt": "2026-10-24T12:11:52.585Z",
+      "finishedAt": "2026-10-24T12:12:24.508Z",
+      "exitCode": 1,
+      "summary": {
+        "total": 10,
+        "passed": 7,
+        "failed": 3,
+        "skipped": 0,
+        "durationMs": 31026
+      },
+      "ids": [
+        "embeddings/pipeline/grouped-work-progress",
+        "shared/cache/gc",
+        "shared/cache/repo-access",
+        "shared/storage/configuration-cli-sealed-roundtrip",
+        "tooling/config/runtime-diagnostics-readonly",
+        "tooling/index/clean-artifacts-reader-exclusion",
+        "tooling/index/selected-mode-root-capture",
+        "tooling/install/operational-storage-selected-layout",
+        "tooling/workspace/onboarding-cli-fixtures",
+        "workspace/diagnostic-partial-members"
+      ]
+    },
+    {
+      "name": "focused-wave-02",
+      "startedAt": "2026-10-24T12:12:24.556Z",
+      "finishedAt": "2026-10-24T12:13:29.346Z",
+      "exitCode": 1,
+      "summary": {
+        "total": 10,
+        "passed": 7,
+        "failed": 3,
+        "skipped": 0,
+        "durationMs": 63822
+      },
+      "ids": [
+        "embeddings/pipeline/grouped-work-failure-ledger",
+        "indexing/artifacts/publication-record-contract",
+        "indexing/artifacts/symbol-smoke",
+        "indexing/build-state/produced-contract",
+        "indexing/build/immutable-graph-capability",
+        "indexing/contracts/dense-quantization-schema",
+        "indexing/embeddings/quantization-no-wrap",
+        "retrieval/ann/generation-lmdb",
+        "retrieval/ann/generation-publication",
+        "storage/lmdb/report-contract-matrix"
+      ]
+    },
+    {
+      "name": "focused-wave-03",
+      "startedAt": "2026-10-24T12:13:29.396Z",
+      "finishedAt": "2026-10-24T12:14:44.394Z",
+      "exitCode": 1,
+      "summary": {
+        "total": 10,
+        "passed": 9,
+        "failed": 1,
+        "skipped": 0,
+        "durationMs": 74029
+      },
+      "ids": [
+        "graph/suggest-tests-explicit-polyglot-pattern",
+        "indexing/artifacts/manifest/report-artifacts-driven",
+        "indexing/determinism/symbol-artifact",
+        "indexing/extracted-prose/document-chunk-id-no-collision",
+        "indexing/incremental/bundle-mapping-reasons",
+        "indexing/semantic/cache-reader-identity",
+        "indexing/watch/edit-to-search",
+        "indexing/watch/retry-on-failed-cycle",
+        "indexing/watch/shutdown",
+        "indexing/watch/structured-progress"
+      ]
+    },
+    {
+      "name": "focused-wave-04",
+      "startedAt": "2026-10-24T12:14:44.441Z",
+      "finishedAt": "2026-10-24T12:15:30.735Z",
+      "exitCode": 1,
+      "summary": {
+        "total": 10,
+        "passed": 8,
+        "failed": 2,
+        "skipped": 0,
+        "durationMs": 45333
+      },
+      "ids": [
+        "map/workspace/published-fixture",
+        "retrieval/filters/filter-only-cli",
+        "tooling/ci/run-suite-script-coverage-plan",
+        "tooling/docs/search-option-inventory",
+        "tooling/doctor/command-profile-contract-matrix",
+        "tooling/reports/bench-language-single-pass-streams",
+        "tooling/reports/map-operational-render",
+        "tooling/shared-adoption-contract",
+        "tooling/sublime/extended-editor-workflows",
+        "tooling/vscode/integration-harness"
+      ]
+    },
+    {
+      "name": "focused-wave-05",
+      "startedAt": "2026-10-24T12:15:30.786Z",
+      "finishedAt": "2026-10-24T12:15:34.720Z",
+      "exitCode": 0,
+      "summary": {
+        "total": 3,
+        "passed": 3,
+        "failed": 0,
+        "skipped": 0,
+        "durationMs": 3061
+      },
+      "ids": [
+        "indexing/risk/interprocedural/summary-only-status",
+        "indexing/risk/risk-contract-matrix",
+        "storage/semantic/request-capture"
+      ]
+    }
+  ],
+  "tests": [
+    {
+      "id": "embeddings/pipeline/grouped-work-progress",
+      "path": "embeddings/pipeline/grouped-work-progress.test.js",
+      "lane": "integration",
+      "tags": [
+        "embeddings",
+        "integration"
+      ],
+      "status": "passed",
+      "durationMs": 114,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-01-logs/run-1792843913466-ce57m3/embeddings_pipeline_grouped-work-progress.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "shared/cache/gc",
+      "path": "shared/cache/gc.test.js",
+      "lane": "unit",
+      "tags": [
+        "unit"
+      ],
+      "status": "passed",
+      "durationMs": 1433,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-01-logs/run-1792843913466-ce57m3/shared_cache_gc.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "shared/cache/repo-access",
+      "path": "shared/cache/repo-access.test.js",
+      "lane": "unit",
+      "tags": [
+        "unit"
+      ],
+      "status": "passed",
+      "durationMs": 3124,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-01-logs/run-1792843913466-ce57m3/shared_cache_repo-access.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "shared/storage/configuration-cli-sealed-roundtrip",
+      "path": "shared/storage/configuration-cli-sealed-roundtrip.test.js",
+      "lane": "unit",
+      "tags": [
+        "unit"
+      ],
+      "status": "failed",
+      "durationMs": 1394,
+      "attempts": 1,
+      "exitCode": 1,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-01-logs/run-1792843913466-ce57m3/shared_storage_configuration-cli-sealed-roundtrip.attempt-1.log",
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-01-logs/run-1792843913466-ce57m3/shared_storage_configuration-cli-sealed-roundtrip.attempt-1.failure.json"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "tooling/config/runtime-diagnostics-readonly",
+      "path": "tooling/config/runtime-diagnostics-readonly.test.js",
+      "lane": "unit",
+      "tags": [
+        "tooling",
+        "unit"
+      ],
+      "status": "passed",
+      "durationMs": 8995,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-01-logs/run-1792843913466-ce57m3/tooling_config_runtime-diagnostics-readonly.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "tooling/index/clean-artifacts-reader-exclusion",
+      "path": "tooling/index/clean-artifacts-reader-exclusion.test.js",
+      "lane": "unit",
+      "tags": [
+        "tooling",
+        "unit"
+      ],
+      "status": "passed",
+      "durationMs": 2761,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-01-logs/run-1792843913466-ce57m3/tooling_index_clean-artifacts-reader-exclusion.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "tooling/index/selected-mode-root-capture",
+      "path": "tooling/index/selected-mode-root-capture.test.js",
+      "lane": "unit",
+      "tags": [
+        "tooling",
+        "unit"
+      ],
+      "status": "passed",
+      "durationMs": 653,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-01-logs/run-1792843913466-ce57m3/tooling_index_selected-mode-root-capture.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "tooling/install/operational-storage-selected-layout",
+      "path": "tooling/install/operational-storage-selected-layout.test.js",
+      "lane": "unit",
+      "tags": [
+        "tooling",
+        "unit"
+      ],
+      "status": "failed",
+      "durationMs": 267,
+      "attempts": 1,
+      "exitCode": 1,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-01-logs/run-1792843913466-ce57m3/tooling_install_operational-storage-selected-layout.attempt-1.log",
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-01-logs/run-1792843913466-ce57m3/tooling_install_operational-storage-selected-layout.attempt-1.failure.json"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "tooling/workspace/onboarding-cli-fixtures",
+      "path": "tooling/workspace/onboarding-cli-fixtures.test.js",
+      "lane": "unit",
+      "tags": [
+        "tooling",
+        "unit"
+      ],
+      "status": "failed",
+      "durationMs": 8847,
+      "attempts": 1,
+      "exitCode": 1,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-01-logs/run-1792843913466-ce57m3/tooling_workspace_onboarding-cli-fixtures.attempt-1.log",
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-01-logs/run-1792843913466-ce57m3/tooling_workspace_onboarding-cli-fixtures.attempt-1.failure.json"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "workspace/diagnostic-partial-members",
+      "path": "workspace/diagnostic-partial-members.test.js",
+      "lane": "integration",
+      "tags": [
+        "integration"
+      ],
+      "status": "passed",
+      "durationMs": 3420,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-01-logs/run-1792843913466-ce57m3/workspace_diagnostic-partial-members.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "embeddings/pipeline/grouped-work-failure-ledger",
+      "path": "embeddings/pipeline/grouped-work-failure-ledger.test.js",
+      "lane": "integration",
+      "tags": [
+        "embeddings",
+        "integration"
+      ],
+      "status": "passed",
+      "durationMs": 850,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-02-logs/run-1792843945510-wv6zgg/embeddings_pipeline_grouped-work-failure-ledger.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "indexing/artifacts/publication-record-contract",
+      "path": "indexing/artifacts/publication-record-contract.test.js",
+      "lane": "integration",
+      "tags": [
+        "indexing",
+        "integration"
+      ],
+      "status": "passed",
+      "durationMs": 217,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-02-logs/run-1792843945510-wv6zgg/indexing_artifacts_publication-record-contract.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "indexing/artifacts/symbol-smoke",
+      "path": "indexing/artifacts/symbol-smoke.test.js",
+      "lane": "integration",
+      "tags": [
+        "indexing",
+        "integration"
+      ],
+      "status": "passed",
+      "durationMs": 295,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-02-logs/run-1792843945510-wv6zgg/indexing_artifacts_symbol-smoke.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "indexing/build-state/produced-contract",
+      "path": "indexing/build-state/produced-contract.test.js",
+      "lane": "integration",
+      "tags": [
+        "indexing",
+        "integration"
+      ],
+      "status": "failed",
+      "durationMs": 18242,
+      "attempts": 1,
+      "exitCode": 1,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-02-logs/run-1792843945510-wv6zgg/indexing_build-state_produced-contract.attempt-1.log",
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-02-logs/run-1792843945510-wv6zgg/indexing_build-state_produced-contract.attempt-1.failure.json"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "indexing/build/immutable-graph-capability",
+      "path": "indexing/build/immutable-graph-capability.test.js",
+      "lane": "integration",
+      "tags": [
+        "indexing",
+        "integration"
+      ],
+      "status": "passed",
+      "durationMs": 12765,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-02-logs/run-1792843945510-wv6zgg/indexing_build_immutable-graph-capability.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "indexing/contracts/dense-quantization-schema",
+      "path": "indexing/contracts/dense-quantization-schema.test.js",
+      "lane": "gate",
+      "tags": [
+        "gate",
+        "indexing"
+      ],
+      "status": "passed",
+      "durationMs": 302,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-02-logs/run-1792843945510-wv6zgg/indexing_contracts_dense-quantization-schema.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "indexing/embeddings/quantization-no-wrap",
+      "path": "indexing/embeddings/quantization-no-wrap.test.js",
+      "lane": "integration",
+      "tags": [
+        "embeddings",
+        "indexing",
+        "integration"
+      ],
+      "status": "passed",
+      "durationMs": 78,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-02-logs/run-1792843945510-wv6zgg/indexing_embeddings_quantization-no-wrap.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "retrieval/ann/generation-lmdb",
+      "path": "retrieval/ann/generation-lmdb.test.js",
+      "lane": "integration",
+      "tags": [
+        "integration",
+        "lmdb",
+        "retrieval"
+      ],
+      "status": "failed",
+      "durationMs": 12092,
+      "attempts": 1,
+      "exitCode": 1,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-02-logs/run-1792843945510-wv6zgg/retrieval_ann_generation-lmdb.attempt-1.log",
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-02-logs/run-1792843945510-wv6zgg/retrieval_ann_generation-lmdb.attempt-1.failure.json"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "retrieval/ann/generation-publication",
+      "path": "retrieval/ann/generation-publication.test.js",
+      "lane": "integration",
+      "tags": [
+        "integration",
+        "retrieval"
+      ],
+      "status": "failed",
+      "durationMs": 1006,
+      "attempts": 1,
+      "exitCode": 1,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-02-logs/run-1792843945510-wv6zgg/retrieval_ann_generation-publication.attempt-1.log",
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-02-logs/run-1792843945510-wv6zgg/retrieval_ann_generation-publication.attempt-1.failure.json"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "storage/lmdb/report-contract-matrix",
+      "path": "storage/lmdb/report-contract-matrix.test.js",
+      "lane": "storage",
+      "tags": [
+        "DelayedUntilPhase7_8",
+        "lmdb",
+        "storage"
+      ],
+      "status": "passed",
+      "durationMs": 17958,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-02-logs/run-1792843945510-wv6zgg/storage_lmdb_report-contract-matrix.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "graph/suggest-tests-explicit-polyglot-pattern",
+      "path": "graph/suggest-tests-explicit-polyglot-pattern.test.js",
+      "lane": "integration",
+      "tags": [
+        "integration"
+      ],
+      "status": "passed",
+      "durationMs": 115,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-03-logs/run-1792844010352-budt28/graph_suggest-tests-explicit-polyglot-pattern.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "indexing/artifacts/manifest/report-artifacts-driven",
+      "path": "indexing/artifacts/manifest/report-artifacts-driven.test.js",
+      "lane": "integration",
+      "tags": [
+        "indexing",
+        "integration"
+      ],
+      "status": "passed",
+      "durationMs": 1022,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-03-logs/run-1792844010352-budt28/indexing_artifacts_manifest_report-artifacts-driven.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "indexing/determinism/symbol-artifact",
+      "path": "indexing/determinism/symbol-artifact.test.js",
+      "lane": "integration",
+      "tags": [
+        "indexing",
+        "integration"
+      ],
+      "status": "passed",
+      "durationMs": 19689,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-03-logs/run-1792844010352-budt28/indexing_determinism_symbol-artifact.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "indexing/extracted-prose/document-chunk-id-no-collision",
+      "path": "indexing/extracted-prose/document-chunk-id-no-collision.test.js",
+      "lane": "integration",
+      "tags": [
+        "indexing",
+        "integration"
+      ],
+      "status": "passed",
+      "durationMs": 14449,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-03-logs/run-1792844010352-budt28/indexing_extracted-prose_document-chunk-id-no-collision.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "indexing/incremental/bundle-mapping-reasons",
+      "path": "indexing/incremental/bundle-mapping-reasons.test.js",
+      "lane": "integration",
+      "tags": [
+        "indexing",
+        "integration"
+      ],
+      "status": "failed",
+      "durationMs": 19692,
+      "attempts": 1,
+      "exitCode": 1,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-03-logs/run-1792844010352-budt28/indexing_incremental_bundle-mapping-reasons.attempt-1.log",
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-03-logs/run-1792844010352-budt28/indexing_incremental_bundle-mapping-reasons.attempt-1.failure.json"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "indexing/semantic/cache-reader-identity",
+      "path": "indexing/semantic/cache-reader-identity.test.js",
+      "lane": "integration",
+      "tags": [
+        "indexing",
+        "integration"
+      ],
+      "status": "passed",
+      "durationMs": 1048,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-03-logs/run-1792844010352-budt28/indexing_semantic_cache-reader-identity.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "indexing/watch/edit-to-search",
+      "path": "indexing/watch/edit-to-search.test.js",
+      "lane": "integration",
+      "tags": [
+        "indexing",
+        "integration",
+        "watch"
+      ],
+      "status": "passed",
+      "durationMs": 9328,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-03-logs/run-1792844010352-budt28/indexing_watch_edit-to-search.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "indexing/watch/retry-on-failed-cycle",
+      "path": "indexing/watch/retry-on-failed-cycle.test.js",
+      "lane": "integration",
+      "tags": [
+        "indexing",
+        "integration",
+        "watch"
+      ],
+      "status": "passed",
+      "durationMs": 2937,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-03-logs/run-1792844010352-budt28/indexing_watch_retry-on-failed-cycle.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "indexing/watch/shutdown",
+      "path": "indexing/watch/shutdown.test.js",
+      "lane": "integration",
+      "tags": [
+        "indexing",
+        "integration",
+        "watch"
+      ],
+      "status": "passed",
+      "durationMs": 2839,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-03-logs/run-1792844010352-budt28/indexing_watch_shutdown.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "indexing/watch/structured-progress",
+      "path": "indexing/watch/structured-progress.test.js",
+      "lane": "integration",
+      "tags": [
+        "indexing",
+        "integration",
+        "watch"
+      ],
+      "status": "passed",
+      "durationMs": 2896,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-03-logs/run-1792844010352-budt28/indexing_watch_structured-progress.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "map/workspace/published-fixture",
+      "path": "map/workspace/published-fixture.test.js",
+      "lane": "integration",
+      "tags": [
+        "integration"
+      ],
+      "status": "passed",
+      "durationMs": 15052,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-04-logs/run-1792844085385-2ib3xo/map_workspace_published-fixture.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "retrieval/filters/filter-only-cli",
+      "path": "retrieval/filters/filter-only-cli.test.js",
+      "lane": "integration",
+      "tags": [
+        "integration",
+        "retrieval"
+      ],
+      "status": "passed",
+      "durationMs": 5110,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-04-logs/run-1792844085385-2ib3xo/retrieval_filters_filter-only-cli.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "tooling/ci/run-suite-script-coverage-plan",
+      "path": "tooling/ci/run-suite-script-coverage-plan.test.js",
+      "lane": "unit",
+      "tags": [
+        "tooling",
+        "unit"
+      ],
+      "status": "failed",
+      "durationMs": 14809,
+      "attempts": 1,
+      "exitCode": 1,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-04-logs/run-1792844085385-2ib3xo/tooling_ci_run-suite-script-coverage-plan.attempt-1.log",
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-04-logs/run-1792844085385-2ib3xo/tooling_ci_run-suite-script-coverage-plan.attempt-1.failure.json"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "tooling/docs/search-option-inventory",
+      "path": "tooling/docs/search-option-inventory.test.js",
+      "lane": "unit",
+      "tags": [
+        "tooling",
+        "unit"
+      ],
+      "status": "passed",
+      "durationMs": 1321,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-04-logs/run-1792844085385-2ib3xo/tooling_docs_search-option-inventory.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "tooling/doctor/command-profile-contract-matrix",
+      "path": "tooling/doctor/command-profile-contract-matrix.test.js",
+      "lane": "unit",
+      "tags": [
+        "tooling",
+        "unit"
+      ],
+      "status": "failed",
+      "durationMs": 3721,
+      "attempts": 1,
+      "exitCode": 1,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-04-logs/run-1792844085385-2ib3xo/tooling_doctor_command-profile-contract-matrix.attempt-1.log",
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-04-logs/run-1792844085385-2ib3xo/tooling_doctor_command-profile-contract-matrix.attempt-1.failure.json"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "tooling/reports/bench-language-single-pass-streams",
+      "path": "tooling/reports/bench-language-single-pass-streams.test.js",
+      "lane": "unit",
+      "tags": [
+        "tooling",
+        "unit"
+      ],
+      "status": "passed",
+      "durationMs": 1381,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-04-logs/run-1792844085385-2ib3xo/tooling_reports_bench-language-single-pass-streams.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "tooling/reports/map-operational-render",
+      "path": "tooling/reports/map-operational-render.test.js",
+      "lane": "unit",
+      "tags": [
+        "tooling",
+        "unit"
+      ],
+      "status": "passed",
+      "durationMs": 2303,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-04-logs/run-1792844085385-2ib3xo/tooling_reports_map-operational-render.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "tooling/shared-adoption-contract",
+      "path": "tooling/shared-adoption-contract.test.js",
+      "lane": "unit",
+      "tags": [
+        "tooling",
+        "unit"
+      ],
+      "status": "passed",
+      "durationMs": 824,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-04-logs/run-1792844085385-2ib3xo/tooling_shared-adoption-contract.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "tooling/sublime/extended-editor-workflows",
+      "path": "tooling/sublime/extended-editor-workflows.test.js",
+      "lane": "unit",
+      "tags": [
+        "tooling",
+        "unit"
+      ],
+      "status": "passed",
+      "durationMs": 598,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-04-logs/run-1792844085385-2ib3xo/tooling_sublime_extended-editor-workflows.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "tooling/vscode/integration-harness",
+      "path": "tooling/vscode/integration-harness.test.js",
+      "lane": "unit",
+      "tags": [
+        "tooling",
+        "unit"
+      ],
+      "status": "passed",
+      "durationMs": 196,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-04-logs/run-1792844085385-2ib3xo/tooling_vscode_integration-harness.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "indexing/risk/interprocedural/summary-only-status",
+      "path": "indexing/risk/interprocedural/summary-only-status.test.js",
+      "lane": "integration",
+      "tags": [
+        "indexing",
+        "integration"
+      ],
+      "status": "passed",
+      "durationMs": 1717,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-05-logs/run-1792844131645-jw1z85/indexing_risk_interprocedural_summary-only-status.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "indexing/risk/risk-contract-matrix",
+      "path": "indexing/risk/risk-contract-matrix.test.js",
+      "lane": "integration",
+      "tags": [
+        "indexing",
+        "integration"
+      ],
+      "status": "passed",
+      "durationMs": 118,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-05-logs/run-1792844131645-jw1z85/indexing_risk_risk-contract-matrix.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    },
+    {
+      "id": "storage/semantic/request-capture",
+      "path": "storage/semantic/request-capture.test.js",
+      "lane": "storage",
+      "tags": [
+        "storage"
+      ],
+      "status": "passed",
+      "durationMs": 1219,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "timeoutClass": null,
+      "skipReason": null,
+      "termination": null,
+      "localLogs": [
+        ".tmp/tasks/windows-failure-repairs-20261024/candidate-60dbba13fc856253c69b560867c71184f907e65e/focused-wave-05-logs/run-1792844131645-jw1z85/storage_semantic_request-capture.attempt-1.log"
+      ],
+      "historicalAuthorWorkspaceEvidence": true
+    }
+  ]
+}

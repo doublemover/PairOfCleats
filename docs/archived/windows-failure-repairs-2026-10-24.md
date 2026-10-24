@@ -700,3 +700,31 @@ compiler replay case omitted its original 2 GiB admission allowance and does
 not establish a replay defect. A frozen Windows campaign at that commit covered
 most explicit cohorts but exposed many failures and stopped during repeatedly
 failing native TUI cases; it is historical evidence, not final-tree acceptance.
+
+### First focused follow-up and Windows path repair
+
+The source-bound [43-case follow-up](windows-targeted-rechecks-2026-10-24.json)
+at `60dbba13fc856253c69b560867c71184f907e65e` passed 34 and failed nine,
+with no timeouts, skips or native crashes. It moved 22 of the initial 100
+failures to passing; 78 original cases still lack passing closure. The complete
+front gate at that source passed, including all 40 gate fixtures. These earlier
+observations do not qualify later source changes.
+
+The next implementation wave corrects the earlier mkdir diagnosis: Node returns
+an extended `\\?\` path from recursive mkdir on this Windows installation.
+Comparisons now use the same namespace and Windows path semantics while file
+identity and containment checks retain their original owners. SQLite zero-state
+admission proves equivalent selected absolute paths, then hashes current source
+bytes with the producer's exact sealed spelling. Checksums, source generation,
+mode and different-directory rejection remain enforced. A Windows regression
+exercises namespace/case equivalence and re-signed wrong/relative paths.
+
+The physical dense binary writer retains null-row padding and validity masks,
+while validating every nonnull row. Parent-owned CLI framing receives complete
+child diagnostics. Fixture cache selection now reaches both in-process and CLI
+workspace authors; ANN doc coverage supplies documentation inside the indexed
+span, and provider overrides explicitly trust their actual disposable root.
+Nightly retirement coverage resolves every discovered canonical case, preserving
+the no-duplicate guard. LSP stale-child tests adopt the current structured spawn
+contract and retain actual child reaping and settlement assertions. These new
+repairs await the next focused batch.
