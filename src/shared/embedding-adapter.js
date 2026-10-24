@@ -357,6 +357,10 @@ export function getEmbeddingAdapter(options = {}) {
     rootDir: selected.rootDir, onnx: selected.onnxConfig, modelProfile, modelFileName, stub: selected.useStub === true };
   if (verification.stub) return getVerifiedEmbeddingAdapter({ ...selected, modelArtifact: resolveEmbeddingArtifactIdentity(verification) });
   return createDeferredEmbeddingAdapter({ provider, methods: [...LEASE_OPERATIONS],
+    requested: { requestedOnnxConfig: selected.onnxConfig, requestedSessionOptions: provider === 'onnx'
+      ? Object.fromEntries(['executionProviders', 'intraOpNumThreads', 'interOpNumThreads', 'graphOptimizationLevel']
+        .filter(key => selected.onnxConfig[key] != null).map(key => [key, selected.onnxConfig[key]])) : sessionOptions,
+    modelProfile, modelFileName },
     acquire: async () => {
       const lease = await acquireEmbeddingArtifactLease(verification);
       try {

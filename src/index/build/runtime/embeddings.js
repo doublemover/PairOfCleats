@@ -339,6 +339,7 @@ export const resolveEmbeddingRuntime = async ({
       resolvedModelPath: resolvedOnnxModelPath
     } : null
   });
+  if (!embeddingEnabled) embeddingIdentity.modelArtifact = null;
   embeddingIdentityKey = buildEmbeddingIdentityKey(embeddingIdentity);
 
   return {

@@ -5,7 +5,7 @@ const closed = () => Object.assign(new Error('Embedding adapter lease is dispose
 
 /** Preserve synchronous adapter construction while byte verification and native
  * acquisition remain awaited operations owned by the returned lease. */
-export const createDeferredEmbeddingAdapter = ({ acquire, provider, methods }) => {
+export const createDeferredEmbeddingAdapter = ({ acquire, provider, methods, requested = {} }) => {
   let pending = null, adapter = null, disposed = false, disposing = null;
   let acquisitionObserver = null;
   const ensure = () => {
@@ -18,7 +18,8 @@ export const createDeferredEmbeddingAdapter = ({ acquire, provider, methods }) =
   const target = {
     get provider() { return adapter?.provider || provider; },
     get supportsParallelDispatch() { return adapter?.supportsParallelDispatch === true; },
-    executionInfo: () => adapter?.executionInfo?.() || { provider, requestedProvider: provider, loaded: false, loading: pending !== null, modelArtifact: null },
+    executionInfo: () => adapter?.executionInfo?.() || { ...requested, provider, requestedProvider: provider,
+      loaded: false, loading: pending !== null, modelArtifact: null, sessions: [] },
     get embedderPromise() { return ensure().then(value => { if (disposed) throw closed(); return value.embedderPromise; }); },
     dispose: () => {
       if (!disposing) {

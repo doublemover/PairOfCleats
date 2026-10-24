@@ -13,7 +13,7 @@ const deferred = () => {
   const promise = new Promise((ok, fail) => { resolve = ok; reject = fail; });
   return { promise, resolve, reject };
 };
-const options = { modelId: 'mock-known-dimensions', provider: 'xenova', dims: 384 };
+const options = { modelId: 'mock-known-dimensions', provider: 'xenova', dims: 3 };
 let loads = 0;
 const load = deferred();
 const requested = deferred();
@@ -85,7 +85,8 @@ try {
 __setTransformersModuleLoaderForTests(async () => ({ env: {}, pipeline: async () => async () => [[]] }));
 try {
   const empty = createEmbedder(options);
-  assert.equal((await empty.getChunkEmbedding('alpha')).length, 0);
+  await assert.rejects(empty.getChunkEmbedding('alpha'), { code: 'ERR_EMBEDDING_OUTPUT' },
+    'an empty provider row is rejected without manufacturing vector evidence');
   assert.equal(empty.executionInfo().loaded, true, 'load acknowledgement is distinct from inference output');
   assert.equal(empty.executionInfo().inferenceSucceeded, false);
   assert.equal(empty.executionInfo().observedDims, null);
@@ -109,10 +110,11 @@ __setAdapterFactoryForTests(() => ({
 }));
 try {
   const unsupported = createEmbedder(options);
-  assert.equal(unsupported.executionInfo().loaded, null, 'an unsupported observation remains unknown');
+  assert.equal(unsupported.executionInfo().loaded, false, 'a deferred lease has not acquired its adapter');
   assert.equal(getterReads, 0, 'executionInfo never accesses the loading getter');
   assert.equal(await unsupported.embedderPromise, 'acknowledged', 'explicit preload remains supported');
   assert.equal(getterReads, 1);
+  assert.equal(unsupported.executionInfo().loaded, null, 'an acquired adapter without an observation remains unknown');
 } finally {
   __setAdapterFactoryForTests(null);
 }
