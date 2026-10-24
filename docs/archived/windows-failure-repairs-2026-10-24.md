@@ -386,3 +386,33 @@ before both original cold Stage3 content comparisons. The inferred-dimension
 case's cancellation frontier is repaired, but its later startup cleanup still
 needs work. All 22 embedding failures have now had source-level implementation
 attempts. Formatting passes; runtime tests and the front gate remain deferred.
+
+Semantic implementation through `9438271dc` restores heap-state source anchors
+and parameter-field summary inputs, bumping CFG producer 28 to 29. Deferred
+enrichment now verifies actual SHA-256 and byte length against the producer's
+sealed target piece and manifest; the previous consumer compared that SHA-256
+piece to a new xxHash value, rejecting correctly published tasks. Segment, warm
+cache and public detail fixtures now use actual canonical segment IDs, source
+hashes, repository paths and reference keys. Modeled boundary coverage is checked
+on actual output partitions without treating deferred syntax frontiers as
+completed work. Coincident Astro map anchors remain rejected and now report
+exact conflicting coordinates for the later batch; that repair remains open.
+
+Follow-up `a5ded2052` removes duplicate best-effort startup disposal in Stage3,
+uses the single existing cleanup owner and preserves independent cleanup errors
+through canonical error context instead of mutating the original provider error.
+`695616ebd` replaces fake termination assumptions in reader/writer transport
+restart cases with actual owned benign Node children. Replacement is rejected
+before closure and admitted only after real child/tree settlement. Cleanup
+requires confirmed final settlement; the reap assertion is mandatory and no
+startup retry or guessed delay substitutes for evidence.
+
+The queue now records 103/360 attempts: seven previously tested repairs, 75
+implemented but unvalidated cases, 14 reviewed existing owner repairs and seven
+cases still needing implementation. Remaining difficult cases include simulated
+stale-generation/shutdown races, Pyright health context, conflicting Astro map
+anchors, ordinary call-target producer integration, and both multi-generation
+SSR wrappers. The wrappers retain distinct forward-content and backend-parity
+assertions; no duplicate removal or extended deadline is claimed. There are 257
+items still unattempted. Formatting passes; no runtime re-test, front gate or
+final-tree qualification has occurred during implementation-first work.

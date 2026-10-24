@@ -20,10 +20,10 @@
   "summary": {
     "selected": 360,
     "implemented": 7,
-    "implemented-unvalidated": 58,
+    "implemented-unvalidated": 75,
     "attempted-existing-owner-repair": 14,
-    "needs-further-implementation": 6,
-    "not-attempted": 275,
+    "needs-further-implementation": 7,
+    "not-attempted": 257,
     "finalBatchPassed": 0
   },
   "items": [
@@ -2490,8 +2490,8 @@
       "id": "tooling/lsp/reader-closed-restart-reaps-stale-process",
       "path": "tooling/lsp/reader-closed-restart-reaps-stale-process.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "needs-further-implementation",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "695616ebd",
       "originalTimedOut": false,
       "originalFailure": "Error: LSP restart blocked until previous child resources settle.",
       "failureLocations": [
@@ -2500,7 +2500,7 @@
         "tests/tooling/lsp/helpers/stale-process-restart-harness.js:19:16",
         "tests/tooling/lsp/reader-closed-restart-reaps-stale-process.test.js:19:9"
       ],
-      "notes": "Restart fixtures omit actual simulated close/tree settlement; production restart barrier correctly rejects them. Real-child restart now awaits settlement, but fake race cases still need controlled settlement preserving stale continuations.",
+      "notes": "Transport-failure harness now owns actual benign Node children. Restart is rejected until actual child close and tree cleanup settle; no synthetic PID, startup retry, optional reap assertion or guessed delay stands in for termination.",
       "finalBatchStatus": "pending"
     },
     {
@@ -2579,8 +2579,8 @@
       "id": "tooling/lsp/writer-closed-restart-reaps-stale-process",
       "path": "tooling/lsp/writer-closed-restart-reaps-stale-process.test.js",
       "owner": "tooling/lsp",
-      "implementationStatus": "needs-further-implementation",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "695616ebd",
       "originalTimedOut": false,
       "originalFailure": "Error: LSP restart blocked until previous child resources settle.",
       "failureLocations": [
@@ -2589,7 +2589,7 @@
         "tests/tooling/lsp/helpers/stale-process-restart-harness.js:19:16",
         "tests/tooling/lsp/writer-closed-restart-reaps-stale-process.test.js:19:9"
       ],
-      "notes": "Restart fixtures omit actual simulated close/tree settlement; production restart barrier correctly rejects them. Real-child restart now awaits settlement, but fake race cases still need controlled settlement preserving stale continuations.",
+      "notes": "Transport-failure harness now owns actual benign Node children. Restart is rejected until actual child close and tree cleanup settle; no synthetic PID, startup retry, optional reap assertion or guessed delay stands in for termination.",
       "finalBatchStatus": "pending"
     },
     {
@@ -3573,8 +3573,8 @@
       "id": "indexing/embeddings/build/inferred-dimensions-identity",
       "path": "indexing/embeddings/build/inferred-dimensions-identity.test.js",
       "owner": "indexing/embeddings",
-      "implementationStatus": "needs-further-implementation",
-      "sourceHead": "d1803539a",
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "a5ded2052",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:",
       "failureLocations": [
@@ -3585,7 +3585,7 @@
         "src/shared/abort.js:2:17",
         "tests/indexing/embeddings/build/inferred-dimensions-identity.test.js:96:46"
       ],
-      "notes": "Cleanup aggregation now preserves original AbortError name/code and captured independent owners, so cancellation reaches the correct lifecycle. Later initial-probe cleanup still has a duplicate best-effort disposal/mutable diagnostic path requiring further implementation.",
+      "notes": "Cleanup aggregation now preserves original AbortError name/code and captured independent owners, so cancellation reaches the correct lifecycle. Later initial-probe cleanup still has a duplicate best-effort disposal/mutable diagnostic path requiring further implementation. Follow-up removes duplicate startup disposal, retains original cleanup context through canonical error ownership, and preserves provider error identity in the cause graph without mutating it.",
       "finalBatchStatus": "pending"
     },
     {
@@ -4230,23 +4230,23 @@
       "id": "indexing/semantic/astro-frontmatter-dialect",
       "path": "indexing/semantic/astro-frontmatter-dialect.test.js",
       "owner": "indexing/semantic",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "9438271dc",
       "originalTimedOut": false,
       "originalFailure": "TypeError: Cannot read properties of undefined (reading 'sourceFile')",
       "failureLocations": [
         "tests/indexing/semantic/astro-frontmatter-dialect.test.js:26",
         "tests/indexing/semantic/astro-frontmatter-dialect.test.js:26:25"
       ],
-      "notes": null,
+      "notes": "Embedded syntax fixture now obtains canonical segment UIDs before semantic collection. Original TypeScript parse, exact source-map, content and local span assertions remain.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/semantic/astro-generated-source-evidence",
       "path": "indexing/semantic/astro-generated-source-evidence.test.js",
       "owner": "indexing/semantic",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "needs-further-implementation",
+      "sourceHead": "9438271dc",
       "originalTimedOut": false,
       "originalFailure": "Error: Conflicting Astro map anchors at one generated coordinate.",
       "failureLocations": [
@@ -4256,29 +4256,29 @@
         "src/index/tooling/vfs/astro-generated-document.js:128:21",
         "tests/indexing/semantic/astro-generated-source-evidence.test.js:31:20"
       ],
-      "notes": null,
+      "notes": "Reviewed strict source-map qualifier and actual compiler transform route. Added exact conflicting generated/original coordinates to the error; conflicting anchors remain rejected. Need actual producer map evidence before resolving the coincident-boundary case without weakening authority.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/semantic/cache-reader-identity",
       "path": "indexing/semantic/cache-reader-identity.test.js",
       "owner": "indexing/semantic",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "9438271dc",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:",
       "failureLocations": [
         "tests/indexing/semantic/cache-reader-identity.test.js:22:10"
       ],
-      "notes": null,
+      "notes": "Shared semantic cache fixture now writes the actual source SHA1 instead of a display placeholder; fine-grained freshness verification remains mandatory. Source tamper, parser-policy and generation negatives remain.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/semantic/compiler-accessor-reference-roles",
       "path": "indexing/semantic/compiler-accessor-reference-roles.test.js",
       "owner": "indexing/semantic",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "2a962eec3",
       "originalTimedOut": false,
       "originalFailure": "Error: /kind must be equal to constant; /data must have required property 'scopeKind'; /data must have required property 'parent'; /data must have required property 'owner'; /data must NOT have additional properties; /data must NOT have additional properties; /data must NOT have additional propertie",
       "failureLocations": [
@@ -4289,115 +4289,115 @@
         "src/index/semantic/analysis-write.js:21:11",
         "src/index/semantic/compiler-flow.js:373:21"
       ],
-      "notes": null,
+      "notes": "Derived heap-state values fall back to their actual retained root anchor when no access site exists, satisfying required value.site without inventing a reference. CFG producer bumped to 29.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/semantic/compiler-callback-runtime-parameters",
       "path": "indexing/semantic/compiler-callback-runtime-parameters.test.js",
       "owner": "indexing/semantic",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "9438271dc",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:",
       "failureLocations": [
         "tests/indexing/semantic/compiler-callback-runtime-parameters.test.js:86:10"
       ],
-      "notes": null,
+      "notes": "Partial modeled-coverage assertion is scoped to actual boundary/worker producer partitions; unresolved syntax frontier rows retain their own state. All callback, erased-this, rest-array and no-type-only consumer assertions remain.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/semantic/compiler-finally-completion-destinations",
       "path": "indexing/semantic/compiler-finally-completion-destinations.test.js",
       "owner": "indexing/semantic",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "9438271dc",
       "originalTimedOut": false,
       "originalFailure": "TypeError: Cannot read properties of undefined (reading 'dependencies')",
       "failureLocations": [
         "tests/indexing/semantic/compiler-finally-completion-destinations.test.js:84",
         "tests/indexing/semantic/compiler-finally-completion-destinations.test.js:84:34"
       ],
-      "notes": null,
+      "notes": "Call-summary lookups use the canonical semantic reference key rather than a display partition:id key; all actual CFG return/fallthrough and dependency comparisons remain.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/semantic/compiler-flow",
       "path": "indexing/semantic/compiler-flow.test.js",
       "owner": "indexing/semantic",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "2a962eec3",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:",
       "failureLocations": [
         "tests/indexing/semantic/compiler-flow.test.js:99:10"
       ],
-      "notes": null,
+      "notes": "Previously empty parameterFields inventory now records source-rooted unknown initial fields for actual parameter/receiver locations. This restores input channels to downstream summaries; CFG producer 29 invalidates old meaning.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/semantic/compiler-reference-evaluation",
       "path": "indexing/semantic/compiler-reference-evaluation.test.js",
       "owner": "indexing/semantic",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "9438271dc",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:",
       "failureLocations": [
         "tests/indexing/semantic/compiler-reference-evaluation.test.js:107:10"
       ],
-      "notes": null,
+      "notes": "Heap write assertion follows the actual RHS through modeled flowsTo to may-location state, retaining lexical defines and all receiver/key/delete checks. It does not demand alias-safe heap definition semantics.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/semantic/compiler-transparent-alias-consumers",
       "path": "indexing/semantic/compiler-transparent-alias-consumers.test.js",
       "owner": "indexing/semantic",
-      "implementationStatus": "not-attempted",
+      "implementationStatus": "needs-further-implementation",
       "sourceHead": null,
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: mutable(1) retains each call-owned source target",
       "failureLocations": [
         "tests/indexing/semantic/compiler-transparent-alias-consumers.test.js:101:47"
       ],
-      "notes": null,
+      "notes": "Reviewed target resolution and cross-file writer. Manual fixture calls bypass the separate compiler binding producer but demand ordinary callTarget rows from cross-file flow, which currently projects implicit accessor targets only. Preserve existing positive assertions; integrate the real binding producer or prove a missing production projection.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/semantic/compiler-wasm-flow",
       "path": "indexing/semantic/compiler-wasm-flow.test.js",
       "owner": "indexing/semantic",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "9438271dc",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: derived replay identity includes the validating runtime",
       "failureLocations": [
         "tests/indexing/semantic/compiler-wasm-flow.test.js:36:10"
       ],
-      "notes": null,
+      "notes": "Expected analysis policy identity includes the canonical CFG construction-byte allowance as well as the validating runtime and every producer version. Full WASM content/authority checks remain.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/semantic/interrupted-multi-worker-recovery",
       "path": "indexing/semantic/interrupted-multi-worker-recovery.test.js",
       "owner": "indexing/semantic",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "9438271dc",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:",
       "failureLocations": [
         "tests/indexing/semantic/interrupted-multi-worker-recovery.test.js:70:12",
         "tests/indexing/semantic/interrupted-multi-worker-recovery.test.js:66:18"
       ],
-      "notes": null,
+      "notes": "Actual source SHA1 in the shared semantic fixture allows fine-grained replay verification instead of failing a placeholder hash. Worker replacement, sparse ordered append and interrupted cache ownership assertions remain.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/semantic/phase-drain-production",
       "path": "indexing/semantic/phase-drain-production.test.js",
       "owner": "indexing/semantic",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "54286c779",
       "originalTimedOut": false,
       "originalFailure": "Error: Task target inventory is not registered and verified.",
       "failureLocations": [
@@ -4408,15 +4408,15 @@
         "src/semantic/enrichment.js:62:29",
         "tests/indexing/semantic/phase-drain-production.test.js:27:16"
       ],
-      "notes": null,
+      "notes": "Deferred target admission compares actual SHA256/bytes with both manifest registration and the sealed sha256 piece, matching the producer instead of comparing it to unrelated xxHash. Generation, target/input inventory and source negatives remain.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/semantic/provider-alias-closure-memo",
       "path": "indexing/semantic/provider-alias-closure-memo.test.js",
       "owner": "indexing/semantic",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "9438271dc",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The input did not match the regular expression /cancel construction/. Input:",
       "failureLocations": [
@@ -4426,15 +4426,15 @@
         "src/index/semantic/provider-alias-closure.js:10:5",
         "tests/indexing/semantic/provider-alias-closure-memo.test.js:23:114"
       ],
-      "notes": null,
+      "notes": "Cancellation asserts canonical ABORT_ERR while separately retaining the original controller reason; all bounded closure, memo, cycle, depth and work comparisons remain.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/semantic/public-provider-evidence-detail",
       "path": "indexing/semantic/public-provider-evidence-detail.test.js",
       "owner": "indexing/semantic",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "9438271dc",
       "originalTimedOut": false,
       "originalFailure": "Error: Requested repository differs from the store scope.",
       "failureLocations": [
@@ -4445,53 +4445,53 @@
         "src/semantic/artifact-store.js:184:56",
         "src/semantic/reader-lifetime.js:21:22"
       ],
-      "notes": null,
+      "notes": "Recovery fixture establishes canonical physical repository identity before producing snapshots/store/request scope, matching the public runner on Windows. Response budgets, cursor authority, bad requests and corrupt/missing sidecar negatives remain.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/semantic/ssr-snapshot-witness-incremental",
       "path": "indexing/semantic/ssr-snapshot-witness-incremental.test.js",
       "owner": "indexing/semantic",
-      "implementationStatus": "not-attempted",
+      "implementationStatus": "needs-further-implementation",
       "sourceHead": null,
       "originalTimedOut": true,
       "originalFailure": "Artifacts 26/27 (96.3%)",
       "failureLocations": [],
-      "notes": null,
+      "notes": "Reviewed full cold/warm publication and forward witness comparison: the 30-second receipt stops during artifact publication, not at a failed content assertion. Both real generations and full content comparison must be preserved; needs further bounded publication/lifecycle investigation before partitioning.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/semantic/ssr-snapshot-witness-incremental-parity",
       "path": "indexing/semantic/ssr-snapshot-witness-incremental-parity.test.js",
       "owner": "indexing/semantic",
-      "implementationStatus": "not-attempted",
+      "implementationStatus": "needs-further-implementation",
       "sourceHead": null,
       "originalTimedOut": true,
       "originalFailure": "Cross-file inference updated 2 incremental bundle(s) in 96ms (workers=2).",
       "failureLocations": [],
-      "notes": null,
+      "notes": "Reviewed two real publication generations plus bidirectional artifact/SQLite parity. Historical 30-second receipt ends during closeout; first generation is required input, so it is not an equivalent duplicate wrapper. Needs bounded publication/lifecycle repair retaining all parity assertions.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/semantic/verified-replay-handoff",
       "path": "indexing/semantic/verified-replay-handoff.test.js",
       "owner": "indexing/semantic",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "9438271dc",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/indexing/semantic/verified-replay-handoff.test.js:118:10"
       ],
-      "notes": null,
+      "notes": "Shared cache fixture stores actual source SHA1, retaining current-byte reads, complete generation relocation, measured semantic-read reduction and tampered-source rejection.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "indexing/semantic/wasm-deferred-production",
       "path": "indexing/semantic/wasm-deferred-production.test.js",
       "owner": "indexing/semantic",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "54286c779",
       "originalTimedOut": false,
       "originalFailure": "Error: Task target inventory is not registered and verified.",
       "failureLocations": [
@@ -4502,7 +4502,7 @@
         "src/semantic/enrichment.js:62:29",
         "tests/indexing/semantic/wasm-deferred-production.test.js:22:14"
       ],
-      "notes": null,
+      "notes": "Same sealed SHA256 target-inventory consumer repair as phase drain; preserves binary source, current generation and exact registered piece authority.",
       "finalBatchStatus": "pending"
     },
     {
