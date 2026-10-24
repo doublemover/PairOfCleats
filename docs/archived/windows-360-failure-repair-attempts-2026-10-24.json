@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "recordedAt": "2026-10-24T10:32:00.524Z",
+  "recordedAt": "2026-10-24T10:44:15.558Z",
   "queueSourceHead": "a96699ab0e9e822320e008f5affc1d690f305cfe",
   "originalFailureSource": "893fe089458e7f7294b8d1f357f596fdecc7d5d4",
   "scope": "The 360 historical failures outstanding at the runtime-wave publication. Attempt every implementation before further batch tests. Seven repairs were completed and tested immediately before this instruction.",
@@ -19,11 +19,11 @@
   },
   "summary": {
     "selected": 360,
-    "implemented-unvalidated": 246,
-    "needs-further-implementation": 14,
+    "implemented-unvalidated": 272,
+    "needs-further-implementation": 17,
     "attempted-existing-owner-repair": 18,
     "implemented": 7,
-    "not-attempted": 75,
+    "not-attempted": 46,
     "finalBatchPassed": 0
   },
   "items": [
@@ -937,8 +937,8 @@
       "id": "services/snapshot-freeze-integrity",
       "path": "services/snapshot-freeze-integrity.test.js",
       "owner": "services/snapshot-freeze-integrity",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5082b2248",
       "originalTimedOut": false,
       "originalFailure": "Error: Snapshot code state does not match its selected artifacts.",
       "failureLocations": [
@@ -949,7 +949,7 @@
         "src/index/registry-support.js:146:12",
         "tests/services/snapshot-freeze-integrity.test.js:39:20"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: canonical cache namespaces/path identities; snapshot fixture manifests/index state declare their build ID; invalid explicit mode roots and mtime discovery cannot borrow another generation. Embedding fixtures compare real source-order costs, reject unrelated vector fallback, preserve exact selected chargrams including overlap and cover isolated/direct variants without failed-work retries. Real isolate protocol coverage remains indexing/embeddings/backend-isolate-job-ownership. Provider strongest-fact admission, discovery-before-probe and exact error graphs retain their contracts. Nine direct Node wrappers use the existing timeout/reaping owner. Evaluation fixtures declare judgment modes and original cleanup methods. Nightly discovery covers all non-delegated cases at 30 seconds, with separate serial/API/script/soak owners. Roadmap retains current Gate B controls without historical green claims. Remaining search-option drift, command-profile external/managed distinctions and source-cache inventory timing require deferred recheck/root-cause closure; see durable receipt.",
       "finalBatchStatus": "pending"
     },
     {
@@ -1541,14 +1541,14 @@
       "id": "tooling/ci/run-suite-script-coverage-plan",
       "path": "tooling/ci/run-suite-script-coverage-plan.test.js",
       "owner": "tooling/ci",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5082b2248",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: retirement cannot omit cli/search/contract-matrix",
       "failureLocations": [
         "tests/tooling/ci/run-suite-script-coverage-plan.test.js:62:10"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: canonical cache namespaces/path identities; snapshot fixture manifests/index state declare their build ID; invalid explicit mode roots and mtime discovery cannot borrow another generation. Embedding fixtures compare real source-order costs, reject unrelated vector fallback, preserve exact selected chargrams including overlap and cover isolated/direct variants without failed-work retries. Real isolate protocol coverage remains indexing/embeddings/backend-isolate-job-ownership. Provider strongest-fact admission, discovery-before-probe and exact error graphs retain their contracts. Nine direct Node wrappers use the existing timeout/reaping owner. Evaluation fixtures declare judgment modes and original cleanup methods. Nightly discovery covers all non-delegated cases at 30 seconds, with separate serial/API/script/soak owners. Roadmap retains current Gate B controls without historical green claims. Remaining search-option drift, command-profile external/managed distinctions and source-cache inventory timing require deferred recheck/root-cause closure; see durable receipt.",
       "finalBatchStatus": "pending"
     },
     {
@@ -1583,36 +1583,36 @@
       "id": "tooling/docs/search-option-inventory",
       "path": "tooling/docs/search-option-inventory.test.js",
       "owner": "tooling/docs",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "needs-further-implementation",
+      "sourceHead": "5082b2248",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/tooling/docs/search-option-inventory.test.js:47:10"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: canonical cache namespaces/path identities; snapshot fixture manifests/index state declare their build ID; invalid explicit mode roots and mtime discovery cannot borrow another generation. Embedding fixtures compare real source-order costs, reject unrelated vector fallback, preserve exact selected chargrams including overlap and cover isolated/direct variants without failed-work retries. Real isolate protocol coverage remains indexing/embeddings/backend-isolate-job-ownership. Provider strongest-fact admission, discovery-before-probe and exact error graphs retain their contracts. Nine direct Node wrappers use the existing timeout/reaping owner. Evaluation fixtures declare judgment modes and original cleanup methods. Nightly discovery covers all non-delegated cases at 30 seconds, with separate serial/API/script/soak owners. Roadmap retains current Gate B controls without historical green claims. Remaining search-option drift, command-profile external/managed distinctions and source-cache inventory timing require deferred recheck/root-cause closure; see durable receipt.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/docs/usr-contract-checklists",
       "path": "tooling/docs/usr-contract-checklists.test.js",
       "owner": "tooling/docs",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5082b2248",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: roadmap must anchor Gate B1-B7 status named by rollout migration policy",
       "failureLocations": [
         "tests/tooling/docs/usr-contract-checklists.test.js:156:8"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: canonical cache namespaces/path identities; snapshot fixture manifests/index state declare their build ID; invalid explicit mode roots and mtime discovery cannot borrow another generation. Embedding fixtures compare real source-order costs, reject unrelated vector fallback, preserve exact selected chargrams including overlap and cover isolated/direct variants without failed-work retries. Real isolate protocol coverage remains indexing/embeddings/backend-isolate-job-ownership. Provider strongest-fact admission, discovery-before-probe and exact error graphs retain their contracts. Nine direct Node wrappers use the existing timeout/reaping owner. Evaluation fixtures declare judgment modes and original cleanup methods. Nightly discovery covers all non-delegated cases at 30 seconds, with separate serial/API/script/soak owners. Roadmap retains current Gate B controls without historical green claims. Remaining search-option drift, command-profile external/managed distinctions and source-cache inventory timing require deferred recheck/root-cause closure; see durable receipt.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/doctor/command-profile-contract-matrix",
       "path": "tooling/doctor/command-profile-contract-matrix.test.js",
       "owner": "tooling/doctor",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "needs-further-implementation",
+      "sourceHead": "5082b2248",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
@@ -1622,43 +1622,43 @@
         "tests/tooling/doctor/command-profile-contract-matrix.test.js:617:7",
         "tests/tooling/doctor/command-profile-contract-matrix.test.js:611:3"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: canonical cache namespaces/path identities; snapshot fixture manifests/index state declare their build ID; invalid explicit mode roots and mtime discovery cannot borrow another generation. Embedding fixtures compare real source-order costs, reject unrelated vector fallback, preserve exact selected chargrams including overlap and cover isolated/direct variants without failed-work retries. Real isolate protocol coverage remains indexing/embeddings/backend-isolate-job-ownership. Provider strongest-fact admission, discovery-before-probe and exact error graphs retain their contracts. Nine direct Node wrappers use the existing timeout/reaping owner. Evaluation fixtures declare judgment modes and original cleanup methods. Nightly discovery covers all non-delegated cases at 30 seconds, with separate serial/API/script/soak owners. Roadmap retains current Gate B controls without historical green claims. Remaining search-option drift, command-profile external/managed distinctions and source-cache inventory timing require deferred recheck/root-cause closure; see durable receipt.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/doctor/command-profile-probe-cache-matrix",
       "path": "tooling/doctor/command-profile-probe-cache-matrix.test.js",
       "owner": "tooling/doctor",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5082b2248",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/tooling/doctor/command-profile-probe-cache-matrix.test.js:105:10"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: canonical cache namespaces/path identities; snapshot fixture manifests/index state declare their build ID; invalid explicit mode roots and mtime discovery cannot borrow another generation. Embedding fixtures compare real source-order costs, reject unrelated vector fallback, preserve exact selected chargrams including overlap and cover isolated/direct variants without failed-work retries. Real isolate protocol coverage remains indexing/embeddings/backend-isolate-job-ownership. Provider strongest-fact admission, discovery-before-probe and exact error graphs retain their contracts. Nine direct Node wrappers use the existing timeout/reaping owner. Evaluation fixtures declare judgment modes and original cleanup methods. Nightly discovery covers all non-delegated cases at 30 seconds, with separate serial/API/script/soak owners. Roadmap retains current Gate B controls without historical green claims. Remaining search-option drift, command-profile external/managed distinctions and source-cache inventory timing require deferred recheck/root-cause closure; see durable receipt.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/doctor/provider-requires-args",
       "path": "tooling/doctor/provider-requires-args.test.js",
       "owner": "tooling/doctor",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5082b2248",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected phpactor command probe",
       "failureLocations": [
         "tests/tooling/doctor/provider-requires-args.test.js:46:8"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: canonical cache namespaces/path identities; snapshot fixture manifests/index state declare their build ID; invalid explicit mode roots and mtime discovery cannot borrow another generation. Embedding fixtures compare real source-order costs, reject unrelated vector fallback, preserve exact selected chargrams including overlap and cover isolated/direct variants without failed-work retries. Real isolate protocol coverage remains indexing/embeddings/backend-isolate-job-ownership. Provider strongest-fact admission, discovery-before-probe and exact error graphs retain their contracts. Nine direct Node wrappers use the existing timeout/reaping owner. Evaluation fixtures declare judgment modes and original cleanup methods. Nightly discovery covers all non-delegated cases at 30 seconds, with separate serial/API/script/soak owners. Roadmap retains current Gate B controls without historical green claims. Remaining search-option drift, command-profile external/managed distinctions and source-cache inventory timing require deferred recheck/root-cause closure; see durable receipt.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/download/shared-fetch-contract",
       "path": "tooling/download/shared-fetch-contract.test.js",
       "owner": "tooling/download",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5082b2248",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The input did not match the regular expression /downgrade/. Input:",
       "failureLocations": [
@@ -1669,7 +1669,7 @@
         "tools/download/shared-fetch.js:31:110",
         "tools/download/shared-fetch.js:190:26"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: canonical cache namespaces/path identities; snapshot fixture manifests/index state declare their build ID; invalid explicit mode roots and mtime discovery cannot borrow another generation. Embedding fixtures compare real source-order costs, reject unrelated vector fallback, preserve exact selected chargrams including overlap and cover isolated/direct variants without failed-work retries. Real isolate protocol coverage remains indexing/embeddings/backend-isolate-job-ownership. Provider strongest-fact admission, discovery-before-probe and exact error graphs retain their contracts. Nine direct Node wrappers use the existing timeout/reaping owner. Evaluation fixtures declare judgment modes and original cleanup methods. Nightly discovery covers all non-delegated cases at 30 seconds, with separate serial/API/script/soak owners. Roadmap retains current Gate B controls without historical green claims. Remaining search-option drift, command-profile external/managed distinctions and source-cache inventory timing require deferred recheck/root-cause closure; see durable receipt.",
       "finalBatchStatus": "pending"
     },
     {
@@ -1690,8 +1690,8 @@
       "id": "tooling/eval/task-span-primary-report-parity",
       "path": "tooling/eval/task-span-primary-report-parity.test.js",
       "owner": "tooling/eval",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5082b2248",
       "originalTimedOut": false,
       "originalFailure": "TypeError: Evaluation requires original cache and display lifecycle owners.",
       "failureLocations": [
@@ -1700,15 +1700,15 @@
         "tests/tooling/eval/task-span-primary-report-parity.test.js:37:5",
         "tests/tooling/eval/task-span-primary-report-parity.test.js:42:20"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: canonical cache namespaces/path identities; snapshot fixture manifests/index state declare their build ID; invalid explicit mode roots and mtime discovery cannot borrow another generation. Embedding fixtures compare real source-order costs, reject unrelated vector fallback, preserve exact selected chargrams including overlap and cover isolated/direct variants without failed-work retries. Real isolate protocol coverage remains indexing/embeddings/backend-isolate-job-ownership. Provider strongest-fact admission, discovery-before-probe and exact error graphs retain their contracts. Nine direct Node wrappers use the existing timeout/reaping owner. Evaluation fixtures declare judgment modes and original cleanup methods. Nightly discovery covers all non-delegated cases at 30 seconds, with separate serial/API/script/soak owners. Roadmap retains current Gate B controls without historical green claims. Remaining search-option drift, command-profile external/managed distinctions and source-cache inventory timing require deferred recheck/root-cause closure; see durable receipt.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/fixtures/fixture-eval",
       "path": "tooling/fixtures/fixture-eval.test.js",
       "owner": "tooling/fixtures",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5082b2248",
       "originalTimedOut": false,
       "originalFailure": "Error: Combined-mode evaluation requires an explicit mode on every relevance judgment; use code, prose, extracted-prose or records.",
       "failureLocations": [
@@ -1719,15 +1719,15 @@
         "tools/eval/resource-scope.js:13:24",
         "tools/eval/run.js:86:22"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: canonical cache namespaces/path identities; snapshot fixture manifests/index state declare their build ID; invalid explicit mode roots and mtime discovery cannot borrow another generation. Embedding fixtures compare real source-order costs, reject unrelated vector fallback, preserve exact selected chargrams including overlap and cover isolated/direct variants without failed-work retries. Real isolate protocol coverage remains indexing/embeddings/backend-isolate-job-ownership. Provider strongest-fact admission, discovery-before-probe and exact error graphs retain their contracts. Nine direct Node wrappers use the existing timeout/reaping owner. Evaluation fixtures declare judgment modes and original cleanup methods. Nightly discovery covers all non-delegated cases at 30 seconds, with separate serial/API/script/soak owners. Roadmap retains current Gate B controls without historical green claims. Remaining search-option drift, command-profile external/managed distinctions and source-cache inventory timing require deferred recheck/root-cause closure; see durable receipt.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/fixtures/fixture-eval-mixed",
       "path": "tooling/fixtures/fixture-eval-mixed.test.js",
       "owner": "tooling/fixtures",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5082b2248",
       "originalTimedOut": false,
       "originalFailure": "Error: Combined-mode evaluation requires an explicit mode on every relevance judgment; use code, prose, extracted-prose or records.",
       "failureLocations": [
@@ -1738,15 +1738,15 @@
         "tools/eval/resource-scope.js:13:24",
         "tools/eval/run.js:86:22"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: canonical cache namespaces/path identities; snapshot fixture manifests/index state declare their build ID; invalid explicit mode roots and mtime discovery cannot borrow another generation. Embedding fixtures compare real source-order costs, reject unrelated vector fallback, preserve exact selected chargrams including overlap and cover isolated/direct variants without failed-work retries. Real isolate protocol coverage remains indexing/embeddings/backend-isolate-job-ownership. Provider strongest-fact admission, discovery-before-probe and exact error graphs retain their contracts. Nine direct Node wrappers use the existing timeout/reaping owner. Evaluation fixtures declare judgment modes and original cleanup methods. Nightly discovery covers all non-delegated cases at 30 seconds, with separate serial/API/script/soak owners. Roadmap retains current Gate B controls without historical green claims. Remaining search-option drift, command-profile external/managed distinctions and source-cache inventory timing require deferred recheck/root-cause closure; see durable receipt.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/fixtures/fixture-eval-showcase",
       "path": "tooling/fixtures/fixture-eval-showcase.test.js",
       "owner": "tooling/fixtures",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5082b2248",
       "originalTimedOut": false,
       "originalFailure": "Error: Combined-mode evaluation requires an explicit mode on every relevance judgment; use code, prose, extracted-prose or records.",
       "failureLocations": [
@@ -1757,7 +1757,7 @@
         "src/index/build/file-processor/cpu.js:952:23",
         "src/index/build/file-processor.js:745:23"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: canonical cache namespaces/path identities; snapshot fixture manifests/index state declare their build ID; invalid explicit mode roots and mtime discovery cannot borrow another generation. Embedding fixtures compare real source-order costs, reject unrelated vector fallback, preserve exact selected chargrams including overlap and cover isolated/direct variants without failed-work retries. Real isolate protocol coverage remains indexing/embeddings/backend-isolate-job-ownership. Provider strongest-fact admission, discovery-before-probe and exact error graphs retain their contracts. Nine direct Node wrappers use the existing timeout/reaping owner. Evaluation fixtures declare judgment modes and original cleanup methods. Nightly discovery covers all non-delegated cases at 30 seconds, with separate serial/API/script/soak owners. Roadmap retains current Gate B controls without historical green claims. Remaining search-option drift, command-profile external/managed distinctions and source-cache inventory timing require deferred recheck/root-cause closure; see durable receipt.",
       "finalBatchStatus": "pending"
     },
     {
@@ -1806,14 +1806,14 @@
       "id": "tooling/index/selected-mode-root-capture",
       "path": "tooling/index/selected-mode-root-capture.test.js",
       "owner": "tooling/index",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5082b2248",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/tooling/index/selected-mode-root-capture.test.js:20:10"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: canonical cache namespaces/path identities; snapshot fixture manifests/index state declare their build ID; invalid explicit mode roots and mtime discovery cannot borrow another generation. Embedding fixtures compare real source-order costs, reject unrelated vector fallback, preserve exact selected chargrams including overlap and cover isolated/direct variants without failed-work retries. Real isolate protocol coverage remains indexing/embeddings/backend-isolate-job-ownership. Provider strongest-fact admission, discovery-before-probe and exact error graphs retain their contracts. Nine direct Node wrappers use the existing timeout/reaping owner. Evaluation fixtures declare judgment modes and original cleanup methods. Nightly discovery covers all non-delegated cases at 30 seconds, with separate serial/API/script/soak owners. Roadmap retains current Gate B controls without historical green claims. Remaining search-option drift, command-profile external/managed distinctions and source-cache inventory timing require deferred recheck/root-cause closure; see durable receipt.",
       "finalBatchStatus": "pending"
     },
     {
@@ -2610,36 +2610,36 @@
       "id": "tooling/paths/current-build-fallback-artifacts",
       "path": "tooling/paths/current-build-fallback-artifacts.test.js",
       "owner": "tooling/paths",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5082b2248",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected current build info",
       "failureLocations": [
         "tests/tooling/paths/current-build-fallback-artifacts.test.js:48:8"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: canonical cache namespaces/path identities; snapshot fixture manifests/index state declare their build ID; invalid explicit mode roots and mtime discovery cannot borrow another generation. Embedding fixtures compare real source-order costs, reject unrelated vector fallback, preserve exact selected chargrams including overlap and cover isolated/direct variants without failed-work retries. Real isolate protocol coverage remains indexing/embeddings/backend-isolate-job-ownership. Provider strongest-fact admission, discovery-before-probe and exact error graphs retain their contracts. Nine direct Node wrappers use the existing timeout/reaping owner. Evaluation fixtures declare judgment modes and original cleanup methods. Nightly discovery covers all non-delegated cases at 30 seconds, with separate serial/API/script/soak owners. Roadmap retains current Gate B controls without historical green claims. Remaining search-option drift, command-profile external/managed distinctions and source-cache inventory timing require deferred recheck/root-cause closure; see durable receipt.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/paths/current-build-repo-root-pointer-prefers-active-root",
       "path": "tooling/paths/current-build-repo-root-pointer-prefers-active-root.test.js",
       "owner": "tooling/paths",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5082b2248",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected current build info to resolve",
       "failureLocations": [
         "tests/tooling/paths/current-build-repo-root-pointer-prefers-active-root.test.js:50:8"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: canonical cache namespaces/path identities; snapshot fixture manifests/index state declare their build ID; invalid explicit mode roots and mtime discovery cannot borrow another generation. Embedding fixtures compare real source-order costs, reject unrelated vector fallback, preserve exact selected chargrams including overlap and cover isolated/direct variants without failed-work retries. Real isolate protocol coverage remains indexing/embeddings/backend-isolate-job-ownership. Provider strongest-fact admission, discovery-before-probe and exact error graphs retain their contracts. Nine direct Node wrappers use the existing timeout/reaping owner. Evaluation fixtures declare judgment modes and original cleanup methods. Nightly discovery covers all non-delegated cases at 30 seconds, with separate serial/API/script/soak owners. Roadmap retains current Gate B controls without historical green claims. Remaining search-option drift, command-profile external/managed distinctions and source-cache inventory timing require deferred recheck/root-cause closure; see durable receipt.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/providers/managed-command-frozen-recovery",
       "path": "tooling/providers/managed-command-frozen-recovery.test.js",
       "owner": "tooling/providers",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5082b2248",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The input did not match the regular expression /pending|unconfirmed/. Input:",
       "failureLocations": [
@@ -2650,43 +2650,43 @@
         "src/index/tooling/managed-command-lifetime.js:204:29",
         "tests/tooling/providers/managed-command-frozen-recovery.test.js:107:59"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: canonical cache namespaces/path identities; snapshot fixture manifests/index state declare their build ID; invalid explicit mode roots and mtime discovery cannot borrow another generation. Embedding fixtures compare real source-order costs, reject unrelated vector fallback, preserve exact selected chargrams including overlap and cover isolated/direct variants without failed-work retries. Real isolate protocol coverage remains indexing/embeddings/backend-isolate-job-ownership. Provider strongest-fact admission, discovery-before-probe and exact error graphs retain their contracts. Nine direct Node wrappers use the existing timeout/reaping owner. Evaluation fixtures declare judgment modes and original cleanup methods. Nightly discovery covers all non-delegated cases at 30 seconds, with separate serial/API/script/soak owners. Roadmap retains current Gate B controls without historical green claims. Remaining search-option drift, command-profile external/managed distinctions and source-cache inventory timing require deferred recheck/root-cause closure; see durable receipt.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/providers/provider-cache-source-bytes",
       "path": "tooling/providers/provider-cache-source-bytes.test.js",
       "owner": "tooling/providers",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "needs-further-implementation",
+      "sourceHead": "5082b2248",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:",
       "failureLocations": [
         "tests/tooling/providers/provider-cache-source-bytes.test.js:45:10"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: canonical cache namespaces/path identities; snapshot fixture manifests/index state declare their build ID; invalid explicit mode roots and mtime discovery cannot borrow another generation. Embedding fixtures compare real source-order costs, reject unrelated vector fallback, preserve exact selected chargrams including overlap and cover isolated/direct variants without failed-work retries. Real isolate protocol coverage remains indexing/embeddings/backend-isolate-job-ownership. Provider strongest-fact admission, discovery-before-probe and exact error graphs retain their contracts. Nine direct Node wrappers use the existing timeout/reaping owner. Evaluation fixtures declare judgment modes and original cleanup methods. Nightly discovery covers all non-delegated cases at 30 seconds, with separate serial/API/script/soak owners. Roadmap retains current Gate B controls without historical green claims. Remaining search-option drift, command-profile external/managed distinctions and source-cache inventory timing require deferred recheck/root-cause closure; see durable receipt.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/providers/provider-output-contract-normalization",
       "path": "tooling/providers/provider-output-contract-normalization.test.js",
       "owner": "tooling/providers",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5082b2248",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected original type text preservation",
       "failureLocations": [
         "tests/tooling/providers/provider-output-contract-normalization.test.js:67:8"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: canonical cache namespaces/path identities; snapshot fixture manifests/index state declare their build ID; invalid explicit mode roots and mtime discovery cannot borrow another generation. Embedding fixtures compare real source-order costs, reject unrelated vector fallback, preserve exact selected chargrams including overlap and cover isolated/direct variants without failed-work retries. Real isolate protocol coverage remains indexing/embeddings/backend-isolate-job-ownership. Provider strongest-fact admission, discovery-before-probe and exact error graphs retain their contracts. Nine direct Node wrappers use the existing timeout/reaping owner. Evaluation fixtures declare judgment modes and original cleanup methods. Nightly discovery covers all non-delegated cases at 30 seconds, with separate serial/API/script/soak owners. Roadmap retains current Gate B controls without historical green claims. Remaining search-option drift, command-profile external/managed distinctions and source-cache inventory timing require deferred recheck/root-cause closure; see durable receipt.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/providers/provider-profile-source-identity",
       "path": "tooling/providers/provider-profile-source-identity.test.js",
       "owner": "tooling/providers",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5082b2248",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The input did not match the regular expression /hash|changed/iu. Input:",
       "failureLocations": [
@@ -2697,7 +2697,7 @@
         "src/shared/contained-file.js:226:18",
         "src/index/tooling/provider-profile.js:59:31"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: canonical cache namespaces/path identities; snapshot fixture manifests/index state declare their build ID; invalid explicit mode roots and mtime discovery cannot borrow another generation. Embedding fixtures compare real source-order costs, reject unrelated vector fallback, preserve exact selected chargrams including overlap and cover isolated/direct variants without failed-work retries. Real isolate protocol coverage remains indexing/embeddings/backend-isolate-job-ownership. Provider strongest-fact admission, discovery-before-probe and exact error graphs retain their contracts. Nine direct Node wrappers use the existing timeout/reaping owner. Evaluation fixtures declare judgment modes and original cleanup methods. Nightly discovery covers all non-delegated cases at 30 seconds, with separate serial/API/script/soak owners. Roadmap retains current Gate B controls without historical green claims. Remaining search-option drift, command-profile external/managed distinctions and source-cache inventory timing require deferred recheck/root-cause closure; see durable receipt.",
       "finalBatchStatus": "pending"
     },
     {
@@ -2880,14 +2880,14 @@
       "id": "tooling/run-node-residual-policy",
       "path": "tooling/run-node-residual-policy.test.js",
       "owner": "tooling/run-node-residual-policy",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5082b2248",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: unexpected direct Node spawn wrappers should use tests/helpers/run-node.js",
       "failureLocations": [
         "tests/tooling/run-node-residual-policy.test.js:59:8"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: canonical cache namespaces/path identities; snapshot fixture manifests/index state declare their build ID; invalid explicit mode roots and mtime discovery cannot borrow another generation. Embedding fixtures compare real source-order costs, reject unrelated vector fallback, preserve exact selected chargrams including overlap and cover isolated/direct variants without failed-work retries. Real isolate protocol coverage remains indexing/embeddings/backend-isolate-job-ownership. Provider strongest-fact admission, discovery-before-probe and exact error graphs retain their contracts. Nine direct Node wrappers use the existing timeout/reaping owner. Evaluation fixtures declare judgment modes and original cleanup methods. Nightly discovery covers all non-delegated cases at 30 seconds, with separate serial/API/script/soak owners. Roadmap retains current Gate B controls without historical green claims. Remaining search-option drift, command-profile external/managed distinctions and source-cache inventory timing require deferred recheck/root-cause closure; see durable receipt.",
       "finalBatchStatus": "pending"
     },
     {
@@ -2906,8 +2906,8 @@
       "id": "tooling/service/background-retry-policy",
       "path": "tooling/service/background-retry-policy.test.js",
       "owner": "tooling/service",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5082b2248",
       "originalTimedOut": false,
       "originalFailure": "Error: Index writer root differs from its canonical launch-selected repository namespace.",
       "failureLocations": [
@@ -2918,21 +2918,21 @@
         "src/integrations/core/build-index/stages.js:98:16",
         "src/integrations/core/build-index/stages.js:219:9"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: canonical cache namespaces/path identities; snapshot fixture manifests/index state declare their build ID; invalid explicit mode roots and mtime discovery cannot borrow another generation. Embedding fixtures compare real source-order costs, reject unrelated vector fallback, preserve exact selected chargrams including overlap and cover isolated/direct variants without failed-work retries. Real isolate protocol coverage remains indexing/embeddings/backend-isolate-job-ownership. Provider strongest-fact admission, discovery-before-probe and exact error graphs retain their contracts. Nine direct Node wrappers use the existing timeout/reaping owner. Evaluation fixtures declare judgment modes and original cleanup methods. Nightly discovery covers all non-delegated cases at 30 seconds, with separate serial/API/script/soak owners. Roadmap retains current Gate B controls without historical green claims. Remaining search-option drift, command-profile external/managed distinctions and source-cache inventory timing require deferred recheck/root-cause closure; see durable receipt.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "tooling/shared-adoption-contract",
       "path": "tooling/shared-adoption-contract.test.js",
       "owner": "tooling/shared-adoption-contract",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5082b2248",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: tools/analysis/map-iso-serve.js should use bootstrapRuntime for repo/runtime env shaping",
       "failureLocations": [
         "tests/tooling/shared-adoption-contract.test.js:79:10"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: canonical cache namespaces/path identities; snapshot fixture manifests/index state declare their build ID; invalid explicit mode roots and mtime discovery cannot borrow another generation. Embedding fixtures compare real source-order costs, reject unrelated vector fallback, preserve exact selected chargrams including overlap and cover isolated/direct variants without failed-work retries. Real isolate protocol coverage remains indexing/embeddings/backend-isolate-job-ownership. Provider strongest-fact admission, discovery-before-probe and exact error graphs retain their contracts. Nine direct Node wrappers use the existing timeout/reaping owner. Evaluation fixtures declare judgment modes and original cleanup methods. Nightly discovery covers all non-delegated cases at 30 seconds, with separate serial/API/script/soak owners. Roadmap retains current Gate B controls without historical green claims. Remaining search-option drift, command-profile external/managed distinctions and source-cache inventory timing require deferred recheck/root-cause closure; see durable receipt.",
       "finalBatchStatus": "pending"
     },
     {
@@ -3069,14 +3069,14 @@
       "id": "tooling/triage/ingest-generic-routing-identity",
       "path": "tooling/triage/ingest-generic-routing-identity.test.js",
       "owner": "tooling/triage",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5082b2248",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:",
       "failureLocations": [
         "tests/tooling/triage/ingest-generic-routing-identity.test.js:65:10"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: canonical cache namespaces/path identities; snapshot fixture manifests/index state declare their build ID; invalid explicit mode roots and mtime discovery cannot borrow another generation. Embedding fixtures compare real source-order costs, reject unrelated vector fallback, preserve exact selected chargrams including overlap and cover isolated/direct variants without failed-work retries. Real isolate protocol coverage remains indexing/embeddings/backend-isolate-job-ownership. Provider strongest-fact admission, discovery-before-probe and exact error graphs retain their contracts. Nine direct Node wrappers use the existing timeout/reaping owner. Evaluation fixtures declare judgment modes and original cleanup methods. Nightly discovery covers all non-delegated cases at 30 seconds, with separate serial/API/script/soak owners. Roadmap retains current Gate B controls without historical green claims. Remaining search-option drift, command-profile external/managed distinctions and source-cache inventory timing require deferred recheck/root-cause closure; see durable receipt.",
       "finalBatchStatus": "pending"
     },
     {
@@ -3457,8 +3457,8 @@
       "id": "indexing/build/stage3-service-queue-status",
       "path": "indexing/build/stage3-service-queue-status.test.js",
       "owner": "indexing/build",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5082b2248",
       "originalTimedOut": false,
       "originalFailure": "Error: Index writer root differs from its canonical launch-selected repository namespace.",
       "failureLocations": [
@@ -3469,7 +3469,7 @@
         "src/integrations/core/build-index/stages.js:98:16",
         "src/integrations/core/build-index/stages.js:219:9"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: canonical cache namespaces/path identities; snapshot fixture manifests/index state declare their build ID; invalid explicit mode roots and mtime discovery cannot borrow another generation. Embedding fixtures compare real source-order costs, reject unrelated vector fallback, preserve exact selected chargrams including overlap and cover isolated/direct variants without failed-work retries. Real isolate protocol coverage remains indexing/embeddings/backend-isolate-job-ownership. Provider strongest-fact admission, discovery-before-probe and exact error graphs retain their contracts. Nine direct Node wrappers use the existing timeout/reaping owner. Evaluation fixtures declare judgment modes and original cleanup methods. Nightly discovery covers all non-delegated cases at 30 seconds, with separate serial/API/script/soak owners. Roadmap retains current Gate B controls without historical green claims. Remaining search-option drift, command-profile external/managed distinctions and source-cache inventory timing require deferred recheck/root-cause closure; see durable receipt.",
       "finalBatchStatus": "pending"
     },
     {
@@ -3488,8 +3488,8 @@
       "id": "indexing/build/stage4-repo-root-pointer-prefers-active-root",
       "path": "indexing/build/stage4-repo-root-pointer-prefers-active-root.test.js",
       "owner": "indexing/build",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5082b2248",
       "originalTimedOut": false,
       "originalFailure": "Error: Missing current build for SQLite stage. Run stage2 first or pass --index-root.",
       "failureLocations": [
@@ -3500,7 +3500,7 @@
         "tests/indexing/build/stage4-repo-root-pointer-prefers-active-root.test.js:34:5",
         "tests/indexing/build/stage4-repo-root-pointer-prefers-active-root.test.js:58:1"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: canonical cache namespaces/path identities; snapshot fixture manifests/index state declare their build ID; invalid explicit mode roots and mtime discovery cannot borrow another generation. Embedding fixtures compare real source-order costs, reject unrelated vector fallback, preserve exact selected chargrams including overlap and cover isolated/direct variants without failed-work retries. Real isolate protocol coverage remains indexing/embeddings/backend-isolate-job-ownership. Provider strongest-fact admission, discovery-before-probe and exact error graphs retain their contracts. Nine direct Node wrappers use the existing timeout/reaping owner. Evaluation fixtures declare judgment modes and original cleanup methods. Nightly discovery covers all non-delegated cases at 30 seconds, with separate serial/API/script/soak owners. Roadmap retains current Gate B controls without historical green claims. Remaining search-option drift, command-profile external/managed distinctions and source-cache inventory timing require deferred recheck/root-cause closure; see durable receipt.",
       "finalBatchStatus": "pending"
     },
     {
@@ -4668,43 +4668,43 @@
       "id": "embeddings/pipeline/grouped-work-progress",
       "path": "embeddings/pipeline/grouped-work-progress.test.js",
       "owner": "embeddings/pipeline",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5082b2248",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:",
       "failureLocations": [
         "tests/embeddings/pipeline/grouped-work-progress.test.js:23:8"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: canonical cache namespaces/path identities; snapshot fixture manifests/index state declare their build ID; invalid explicit mode roots and mtime discovery cannot borrow another generation. Embedding fixtures compare real source-order costs, reject unrelated vector fallback, preserve exact selected chargrams including overlap and cover isolated/direct variants without failed-work retries. Real isolate protocol coverage remains indexing/embeddings/backend-isolate-job-ownership. Provider strongest-fact admission, discovery-before-probe and exact error graphs retain their contracts. Nine direct Node wrappers use the existing timeout/reaping owner. Evaluation fixtures declare judgment modes and original cleanup methods. Nightly discovery covers all non-delegated cases at 30 seconds, with separate serial/API/script/soak owners. Roadmap retains current Gate B controls without historical green claims. Remaining search-option drift, command-profile external/managed distinctions and source-cache inventory timing require deferred recheck/root-cause closure; see durable receipt.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "embeddings/pipeline/mapping-index-bounds",
       "path": "embeddings/pipeline/mapping-index-bounds.test.js",
       "owner": "embeddings/pipeline",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5082b2248",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: expected out-of-range stable-id match to fall through to next in-range fallback mapping",
       "failureLocations": [
         "tests/embeddings/pipeline/mapping-index-bounds.test.js:27:8"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: canonical cache namespaces/path identities; snapshot fixture manifests/index state declare their build ID; invalid explicit mode roots and mtime discovery cannot borrow another generation. Embedding fixtures compare real source-order costs, reject unrelated vector fallback, preserve exact selected chargrams including overlap and cover isolated/direct variants without failed-work retries. Real isolate protocol coverage remains indexing/embeddings/backend-isolate-job-ownership. Provider strongest-fact admission, discovery-before-probe and exact error graphs retain their contracts. Nine direct Node wrappers use the existing timeout/reaping owner. Evaluation fixtures declare judgment modes and original cleanup methods. Nightly discovery covers all non-delegated cases at 30 seconds, with separate serial/API/script/soak owners. Roadmap retains current Gate B controls without historical green claims. Remaining search-option drift, command-profile external/managed distinctions and source-cache inventory timing require deferred recheck/root-cause closure; see durable receipt.",
       "finalBatchStatus": "pending"
     },
     {
       "id": "embeddings/runner/backend-variant-failures",
       "path": "embeddings/runner/backend-variant-failures.test.js",
       "owner": "embeddings/runner",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5082b2248",
       "originalTimedOut": false,
       "originalFailure": "SyntaxError: The requested module './lancedb.js' does not provide an export named 'shouldIsolateLanceDb'",
       "failureLocations": [
         "tools/build/embeddings/backends.js:2",
         "tests/embeddings/runner/backend-variant-failures.test.js:13:36"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: canonical cache namespaces/path identities; snapshot fixture manifests/index state declare their build ID; invalid explicit mode roots and mtime discovery cannot borrow another generation. Embedding fixtures compare real source-order costs, reject unrelated vector fallback, preserve exact selected chargrams including overlap and cover isolated/direct variants without failed-work retries. Real isolate protocol coverage remains indexing/embeddings/backend-isolate-job-ownership. Provider strongest-fact admission, discovery-before-probe and exact error graphs retain their contracts. Nine direct Node wrappers use the existing timeout/reaping owner. Evaluation fixtures declare judgment modes and original cleanup methods. Nightly discovery covers all non-delegated cases at 30 seconds, with separate serial/API/script/soak owners. Roadmap retains current Gate B controls without historical green claims. Remaining search-option drift, command-profile external/managed distinctions and source-cache inventory timing require deferred recheck/root-cause closure; see durable receipt.",
       "finalBatchStatus": "pending"
     },
     {
@@ -5313,14 +5313,14 @@
       "id": "postings/chargram-fields",
       "path": "postings/chargram-fields.test.js",
       "owner": "postings/chargram-fields",
-      "implementationStatus": "not-attempted",
-      "sourceHead": null,
+      "implementationStatus": "implemented-unvalidated",
+      "sourceHead": "5082b2248",
       "originalTimedOut": false,
       "originalFailure": "AssertionError [ERR_ASSERTION]: unexpected chargram from non-selected field: h64:b044098c2f9e64bb",
       "failureLocations": [
         "tests/postings/chargram-fields.test.js:44:10"
       ],
-      "notes": null,
+      "notes": "Implementation authored/reviewed before runtime validation: canonical cache namespaces/path identities; snapshot fixture manifests/index state declare their build ID; invalid explicit mode roots and mtime discovery cannot borrow another generation. Embedding fixtures compare real source-order costs, reject unrelated vector fallback, preserve exact selected chargrams including overlap and cover isolated/direct variants without failed-work retries. Real isolate protocol coverage remains indexing/embeddings/backend-isolate-job-ownership. Provider strongest-fact admission, discovery-before-probe and exact error graphs retain their contracts. Nine direct Node wrappers use the existing timeout/reaping owner. Evaluation fixtures declare judgment modes and original cleanup methods. Nightly discovery covers all non-delegated cases at 30 seconds, with separate serial/API/script/soak owners. Roadmap retains current Gate B controls without historical green claims. Remaining search-option drift, command-profile external/managed distinctions and source-cache inventory timing require deferred recheck/root-cause closure; see durable receipt.",
       "finalBatchStatus": "pending"
     },
     {

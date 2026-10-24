@@ -571,3 +571,26 @@ terminators. Module-export replay still needs root-cause closure: new assertions
 identify the exact language/function and distinguish missing parsed calls from
 missing summaries while retaining all export/type-only barriers. Formatting and
 diff checks pass; runtime acceptance remains deferred.
+
+Fixture/qualification implementation `5082b2248` attempts 29 more cases
+(314/360; 46 unattempted). Embedding packing keeps the strict source-order
+improvement and same-call-count controls now that ungrouped inputs also use
+the optimizer. Mapping rejects unrelated vectors after invalid stable identity;
+chargram assertions compare the full selected set and independent negatives.
+Lance variant coverage follows current direct/isolated owners without retrying
+failed variants; real crash/protocol continuation remains covered by
+indexing/embeddings/backend-isolate-job-ownership. Provider fixtures cover
+strongest capped facts, pre-probe missing-command discovery, trusted fixture
+roots, explicit external C# selection and exact nested pending failures. Nine
+Node wrappers now use the existing timeout/reaping helper with unchanged spawn
+options. The download redirect mock owns actual response close events. Snapshot
+fixtures bind manifest/index-state/build-state IDs, and stage3 uses its selected
+repository namespace. Invalid pointer/mode roots stay negative; repair requires
+explicit valid mode authority, never directory-mtime fallback. Path/triage checks
+compare canonical Windows identities. Eval datasets qualify code/prose labels
+and report mocks retain their original cache/display cleanup methods. Nightly
+main discovery uses all discovered non-delegated cases with a 30-second bound;
+serial/API/script/soak cases keep separate owners. The roadmap preserves Gate B
+controls without reviving historical green claims. Search-option drift, command
+profile distinctions and provider-cache inventory timing remain unresolved
+after these initial repairs. Formatting/diff checks pass; runtime tests deferred.
