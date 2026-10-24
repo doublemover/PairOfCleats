@@ -7282,14 +7282,368 @@
           "historicalAuthorWorkspaceEvidence": true
         }
       ]
+    },
+    {
+      "sourceHead": "ab9050796191a5ef2f85bd9c2d41bf92552cbfff",
+      "startedAt": "2026-10-24T15:21:10.633Z",
+      "finishedAt": "2026-10-24T15:21:52.973Z",
+      "scope": "Compiler target projection and map diagnostic order, with legacy shadowing and stale-target controls",
+      "policy": {
+        "timeoutMs": 30000,
+        "retries": 0,
+        "nativeStatusRedo": false,
+        "threads": 1,
+        "platform": "win32",
+        "node": "v26.12.1",
+        "removedLaunchSetting": "PAIROFCLEATS_TRUSTED_CONFIG: missing configured file; no replacement authority granted"
+      },
+      "summary": {
+        "selected": 13,
+        "passed": 13,
+        "failed": 0,
+        "timeouts": 0,
+        "skipped": 0
+      },
+      "cohorts": [
+        {
+          "name": "compiler-map-wave-01",
+          "summary": {
+            "total": 5,
+            "passed": 5,
+            "failed": 0,
+            "skipped": 0,
+            "durationMs": 469
+          },
+          "ids": [
+            "map/remote-source-original-navigation",
+            "map/scene-failure-inspection",
+            "map/scene-retirement-falsey-and-observer-composition",
+            "map/scene-retirement-prerequisites",
+            "map/normal-map-original-work-prerequisites"
+          ]
+        },
+        {
+          "name": "compiler-map-wave-02",
+          "summary": {
+            "total": 5,
+            "passed": 5,
+            "failed": 0,
+            "skipped": 0,
+            "durationMs": 16329
+          },
+          "ids": [
+            "map/scene-retirement-failure-ownership",
+            "map/preview-session-inspection-isolation",
+            "map/remote-source-disclosure-authority",
+            "tooling/api-contracts/qualified-target-joins-cli/ts-violation",
+            "indexing/type-inference/crossfile/symbolref-resolution"
+          ]
+        },
+        {
+          "name": "compiler-map-wave-03",
+          "summary": {
+            "total": 3,
+            "passed": 3,
+            "failed": 0,
+            "skipped": 0,
+            "durationMs": 22806
+          },
+          "ids": [
+            "indexing/type-inference/crossfile/import-shadow-return-replay",
+            "indexing/type-inference/crossfile/stale-call-target-cleared",
+            "indexing/semantic/compiler-bindings"
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "id": "map/normal-map-original-work-prerequisites",
+          "path": "map/normal-map-original-work-prerequisites.test.js",
+          "lane": "integration",
+          "tags": [
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 99,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-ab9050796191a5ef2f85bd9c2d41bf92552cbfff/compiler-map-wave-01-logs/run-1792855271567-7pqvf8/map_normal-map-original-work-prerequisites.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "map/remote-source-original-navigation",
+          "path": "map/remote-source-original-navigation.test.js",
+          "lane": "integration",
+          "tags": [
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 101,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-ab9050796191a5ef2f85bd9c2d41bf92552cbfff/compiler-map-wave-01-logs/run-1792855271567-7pqvf8/map_remote-source-original-navigation.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "map/scene-failure-inspection",
+          "path": "map/scene-failure-inspection.test.js",
+          "lane": "integration",
+          "tags": [
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 94,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-ab9050796191a5ef2f85bd9c2d41bf92552cbfff/compiler-map-wave-01-logs/run-1792855271567-7pqvf8/map_scene-failure-inspection.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "map/scene-retirement-falsey-and-observer-composition",
+          "path": "map/scene-retirement-falsey-and-observer-composition.test.js",
+          "lane": "integration",
+          "tags": [
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 82,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-ab9050796191a5ef2f85bd9c2d41bf92552cbfff/compiler-map-wave-01-logs/run-1792855271567-7pqvf8/map_scene-retirement-falsey-and-observer-composition.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "map/scene-retirement-prerequisites",
+          "path": "map/scene-retirement-prerequisites.test.js",
+          "lane": "integration",
+          "tags": [
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 86,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-ab9050796191a5ef2f85bd9c2d41bf92552cbfff/compiler-map-wave-01-logs/run-1792855271567-7pqvf8/map_scene-retirement-prerequisites.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/type-inference/crossfile/symbolref-resolution",
+          "path": "indexing/type-inference/crossfile/symbolref-resolution.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration",
+            "tooling"
+          ],
+          "status": "passed",
+          "durationMs": 86,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-ab9050796191a5ef2f85bd9c2d41bf92552cbfff/compiler-map-wave-02-logs/run-1792855272956-6k96x0/indexing_type-inference_crossfile_symbolref-resolution.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "map/preview-session-inspection-isolation",
+          "path": "map/preview-session-inspection-isolation.test.js",
+          "lane": "integration",
+          "tags": [
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 77,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-ab9050796191a5ef2f85bd9c2d41bf92552cbfff/compiler-map-wave-02-logs/run-1792855272956-6k96x0/map_preview-session-inspection-isolation.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "map/remote-source-disclosure-authority",
+          "path": "map/remote-source-disclosure-authority.test.js",
+          "lane": "integration",
+          "tags": [
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 569,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-ab9050796191a5ef2f85bd9c2d41bf92552cbfff/compiler-map-wave-02-logs/run-1792855272956-6k96x0/map_remote-source-disclosure-authority.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "map/scene-retirement-failure-ownership",
+          "path": "map/scene-retirement-failure-ownership.test.js",
+          "lane": "integration",
+          "tags": [
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 102,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-ab9050796191a5ef2f85bd9c2d41bf92552cbfff/compiler-map-wave-02-logs/run-1792855272956-6k96x0/map_scene-retirement-failure-ownership.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/api-contracts/qualified-target-joins-cli/ts-violation",
+          "path": "tooling/api-contracts/qualified-target-joins-cli.test.js",
+          "lane": "gate",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "status": "passed",
+          "durationMs": 15486,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-ab9050796191a5ef2f85bd9c2d41bf92552cbfff/compiler-map-wave-02-logs/run-1792855272956-6k96x0/tooling_api-contracts_qualified-target-joins-cli_ts-violation.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/semantic/compiler-bindings",
+          "path": "indexing/semantic/compiler-bindings.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 21045,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-ab9050796191a5ef2f85bd9c2d41bf92552cbfff/compiler-map-wave-03-logs/run-1792855290151-oinqd1/indexing_semantic_compiler-bindings.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/type-inference/crossfile/import-shadow-return-replay",
+          "path": "indexing/type-inference/crossfile/import-shadow-return-replay.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration",
+            "tooling"
+          ],
+          "status": "passed",
+          "durationMs": 1081,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-ab9050796191a5ef2f85bd9c2d41bf92552cbfff/compiler-map-wave-03-logs/run-1792855290151-oinqd1/indexing_type-inference_crossfile_import-shadow-return-replay.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/type-inference/crossfile/stale-call-target-cleared",
+          "path": "indexing/type-inference/crossfile/stale-call-target-cleared.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration",
+            "tooling"
+          ],
+          "status": "passed",
+          "durationMs": 670,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-ab9050796191a5ef2f85bd9c2d41bf92552cbfff/compiler-map-wave-03-logs/run-1792855290151-oinqd1/indexing_type-inference_crossfile_stale-call-target-cleared.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        }
+      ]
     }
   ],
   "cumulativeClosure": {
     "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
-    "originalFailuresMovedToPassing": 84,
-    "originalFailuresWithoutPassingClosure": 16,
-    "additionalObservedFailuresOutsideOriginal100": [
-      "map/scene-failure-inspection"
-    ]
+    "originalFailuresMovedToPassing": 85,
+    "originalFailuresWithoutPassingClosure": 15,
+    "additionalObservedFailuresOutsideOriginal100": []
   }
 }

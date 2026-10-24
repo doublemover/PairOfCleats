@@ -1161,3 +1161,12 @@ Resolved, ambiguous and unresolved candidates keep the same projection rules;
 no heuristic target is invented. CompilerBindings 25 invalidates changed output
 meaning. Required API source queries and positive/negative joins remain strict.
 This producer repair and the diagnostic-order correction await focused checks.
+
+The 13-case compiler/map follow-up at
+`ab9050796191a5ef2f85bd9c2d41bf92552cbfff` passed every selected case,
+with zero retries, skips, timeouts or native crashes. The original TypeScript
+qualified-target violation fixture now observes the exact compiler target with
+legacy propagation disabled. Symbol-reference ambiguity, shadowed imports,
+stale-target clearing and full compiler-binding controls passed. All eight map
+controls passed, including passive upgrade and the adjacent ordering regression.
+Cumulative original failure closure is 85; 15 still lack passing closure.

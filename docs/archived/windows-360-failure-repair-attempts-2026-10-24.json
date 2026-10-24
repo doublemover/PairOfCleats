@@ -44,11 +44,9 @@
     },
     "followUpClosure": {
       "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
-      "originalFailuresMovedToPassing": 84,
-      "originalFailuresWithoutPassingClosure": 16,
-      "additionalObservedFailuresOutsideOriginal100": [
-        "map/scene-failure-inspection"
-      ]
+      "originalFailuresMovedToPassing": 85,
+      "originalFailuresWithoutPassingClosure": 15,
+      "additionalObservedFailuresOutsideOriginal100": []
     }
   },
   "items": [
@@ -6589,8 +6587,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 100,
       "latestRecheckStatus": "passed",
-      "latestRecheckSourceHead": "cd69811d0ba88b0fe1d3b11d061ba7630670a213",
-      "latestRecheckDurationMs": 88
+      "latestRecheckSourceHead": "ab9050796191a5ef2f85bd9c2d41bf92552cbfff",
+      "latestRecheckDurationMs": 101
     },
     {
       "id": "map/saved-artifact-admission",
@@ -6902,9 +6900,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 13455,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "cd69811d0ba88b0fe1d3b11d061ba7630670a213",
-      "latestRecheckDurationMs": 14474
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "ab9050796191a5ef2f85bd9c2d41bf92552cbfff",
+      "latestRecheckDurationMs": 15486
     }
   ]
 }
