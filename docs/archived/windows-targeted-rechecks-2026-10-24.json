@@ -8071,12 +8071,163 @@
           "historicalAuthorWorkspaceEvidence": true
         }
       ]
+    },
+    {
+      "sourceHead": "067fa088a68971388d4684959db80c161430098d",
+      "startedAt": "2026-10-24T15:33:05.472Z",
+      "finishedAt": "2026-10-24T15:33:43.613Z",
+      "scope": "History read snapshots, privacy/source-diversity controls and reconciled showcase/shared-module inventories",
+      "policy": {
+        "timeoutMs": 30000,
+        "retries": 0,
+        "nativeStatusRedo": false,
+        "threads": 1,
+        "platform": "win32",
+        "node": "v26.12.1",
+        "removedLaunchSetting": "PAIROFCLEATS_TRUSTED_CONFIG: missing configured file; no replacement authority granted"
+      },
+      "summary": {
+        "selected": 5,
+        "passed": 4,
+        "failed": 1,
+        "timeouts": 0,
+        "skipped": 0
+      },
+      "cohorts": [
+        {
+          "name": "history-review-wave-01",
+          "summary": {
+            "total": 5,
+            "passed": 4,
+            "failed": 1,
+            "skipped": 0,
+            "durationMs": 37245
+          },
+          "ids": [
+            "integrations/inference-history/hybrid-pagination-contract",
+            "integrations/inference-history/hybrid-source-diversity",
+            "integrations/inference-history/privacy-roundtrip",
+            "indexing/policy/shared-module-review-files",
+            "tooling/fixtures/fixture-eval-showcase"
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "id": "indexing/policy/shared-module-review-files",
+          "path": "indexing/policy/shared-module-review-files.test.js",
+          "lane": "gate",
+          "tags": [
+            "gate",
+            "indexing"
+          ],
+          "status": "passed",
+          "durationMs": 870,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-067fa088a68971388d4684959db80c161430098d/history-review-wave-01-logs/run-1792855986354-rabf20/indexing_policy_shared-module-review-files.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "integrations/inference-history/hybrid-pagination-contract",
+          "path": "integrations/inference-history/hybrid-pagination-contract.test.js",
+          "lane": "integration",
+          "tags": [
+            "integration"
+          ],
+          "status": "failed",
+          "durationMs": 16086,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-067fa088a68971388d4684959db80c161430098d/history-review-wave-01-logs/run-1792855986354-rabf20/integrations_inference-history_hybrid-pagination-contract.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-067fa088a68971388d4684959db80c161430098d/history-review-wave-01-logs/run-1792855986354-rabf20/integrations_inference-history_hybrid-pagination-contract.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "integrations/inference-history/hybrid-source-diversity",
+          "path": "integrations/inference-history/hybrid-source-diversity.test.js",
+          "lane": "integration",
+          "tags": [
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 832,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-067fa088a68971388d4684959db80c161430098d/history-review-wave-01-logs/run-1792855986354-rabf20/integrations_inference-history_hybrid-source-diversity.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "integrations/inference-history/privacy-roundtrip",
+          "path": "integrations/inference-history/privacy-roundtrip.test.js",
+          "lane": "integration",
+          "tags": [
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 1002,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-067fa088a68971388d4684959db80c161430098d/history-review-wave-01-logs/run-1792855986354-rabf20/integrations_inference-history_privacy-roundtrip.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/fixtures/fixture-eval-showcase",
+          "path": "tooling/fixtures/fixture-eval-showcase.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 18444,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-067fa088a68971388d4684959db80c161430098d/history-review-wave-01-logs/run-1792855986354-rabf20/tooling_fixtures_fixture-eval-showcase.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        }
+      ]
     }
   ],
   "cumulativeClosure": {
     "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
-    "originalFailuresMovedToPassing": 89,
-    "originalFailuresWithoutPassingClosure": 11,
+    "originalFailuresMovedToPassing": 91,
+    "originalFailuresWithoutPassingClosure": 9,
     "additionalObservedFailuresOutsideOriginal100": []
   }
 }

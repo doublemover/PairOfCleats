@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { semanticHash, canonicalSemanticJson } from './identity.js';
 import { SEMANTIC_MEMBER_NAMES } from '../../contracts/schemas/semantic-envelopes.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { runWithSettledConcurrency } from '../../shared/concurrency/run-with-queue.js';
 
 /** Read-only seed admission for the narrow summary-demand planner. The actual
  * store's closed generation/partition readers own source authority, not a span
@@ -37,8 +38,11 @@ export const reconcileCompilerSummaryDemandSeed = async ({ store, request, signa
 export const validateSemanticPartitions = async ({ store, partitions, referencePartitions = partitions, signal = null }) => {
   const sizes = new Map(referencePartitions.map((p) => [p.partitionId,
     p.members.semantic_records.reduce((sum, piece) => sum + piece.count, 0)]));
-  const verifiedSources = new Set();
-  for (const partition of partitions) {
+  // Partition hashes/references are independent once the closed inventory is
+  // captured. Bound outstanding readers and drain every admitted partition on
+  // failure; never return while another partition still owns original I/O.
+  const sourceChecks = new Map();
+  await runWithSettledConcurrency(partitions, 4, async partition => {
     const hashes = {};
     const checkRef = (ref) => {
       if (!ref || !Object.hasOwn(ref, 'partitionId')) return;
@@ -72,14 +76,15 @@ export const validateSemanticPartitions = async ({ store, partitions, referenceP
     }
     if (!source) throw new Error('Missing semantic source manifest.');
     const sourceKey = canonicalSemanticJson(source);
-    if (!verifiedSources.has(sourceKey)) {
-      await store.verifySource(source, { signal });
-      verifiedSources.add(sourceKey);
-    }
+    // Coalesce only this invocation's actual verification, including rejection.
+    // A second partition cannot treat an in-flight or failed read as success.
+    if (!sourceChecks.has(sourceKey)) sourceChecks.set(sourceKey,
+      Promise.resolve().then(() => store.verifySource(source, { signal })));
+    await sourceChecks.get(sourceKey);
     const actual = semanticHash('pairofcleats.semantic.partition-content.v1', {
       partitionId: partition.partitionId, sourceUnitId: partition.sourceUnitId, producerHash: partition.producerHash,
       contextHash: partition.contextHash, policyHash: partition.policyHash, memberHashes: hashes
     });
     if (actual !== partition.canonicalHash) throw new Error('Semantic canonical content hash mismatch.');
-  }
+  }, { signal });
 };

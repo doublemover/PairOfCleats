@@ -54,10 +54,12 @@ try {
     assert.equal(page.page.contract.furtherContinuation, 'unavailable', 'do not skip the unreturned lexical window');
   }
   const lexicalRequest = { query: 'cobalt', mode: 'lexical', top: 100 };
-  const bounded = await reader.execute('search', lexicalRequest);
+  // Full detail includes the retained result and provenance. The default
+  // summary projection intentionally fits more evidence into the same budget.
+  const bounded = await reader.execute('search', lexicalRequest, { detail: 'full' });
   assert.equal(bounded.ok, false);
   assert.equal(bounded.error.code, 'OUTPUT_BUDGET', '100 full evidence records cannot silently exceed the default transport budget');
-  const outputOptions = { maxOutputBytes: 2097152 };
+  const outputOptions = { detail: 'full', maxOutputBytes: 2097152 };
   const lexical = await reader.execute('search', lexicalRequest, outputOptions);
   assert.equal(lexical.ok, true); assert.ok(lexical.page.next);
   assert.equal(lexical.evidence.length, 100, 'the explicitly selected supported output budget retains the original page');

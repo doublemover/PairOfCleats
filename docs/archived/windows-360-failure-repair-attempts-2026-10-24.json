@@ -44,8 +44,8 @@
     },
     "followUpClosure": {
       "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
-      "originalFailuresMovedToPassing": 89,
-      "originalFailuresWithoutPassingClosure": 11,
+      "originalFailuresMovedToPassing": 91,
+      "originalFailuresWithoutPassingClosure": 9,
       "additionalObservedFailuresOutsideOriginal100": []
     }
   },
@@ -2214,9 +2214,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 27118,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "d9b285ae2fb858b95f5ff77c9d6a75ebcb666a17",
-      "latestRecheckDurationMs": 19144
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "067fa088a68971388d4684959db80c161430098d",
+      "latestRecheckDurationMs": 18444
     },
     {
       "id": "tooling/impact/seed-and-changed-behavior",
@@ -5042,9 +5042,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 1009,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "d9b285ae2fb858b95f5ff77c9d6a75ebcb666a17",
-      "latestRecheckDurationMs": 856
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "067fa088a68971388d4684959db80c161430098d",
+      "latestRecheckDurationMs": 870
     },
     {
       "id": "indexing/postings/phrase-hash-adaptive-spill",
@@ -6068,8 +6068,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 30600,
       "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "d9b285ae2fb858b95f5ff77c9d6a75ebcb666a17",
-      "latestRecheckDurationMs": 30448
+      "latestRecheckSourceHead": "067fa088a68971388d4684959db80c161430098d",
+      "latestRecheckDurationMs": 16086
     },
     {
       "id": "integrations/triage/records-bundle-reuse-policy",

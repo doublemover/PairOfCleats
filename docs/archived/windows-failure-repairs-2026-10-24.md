@@ -1199,3 +1199,27 @@ that snapshot; the original 1,001-record pagination, budgets and negatives remai
 The added exact read-snapshot assertion failed before the repair in 1.45 seconds
 (author-workspace history-read-transaction-before-direct receipt). Closure still
 requires the repaired-source run; no performance claim is made from instrumentation.
+
+At `067fa088a68971388d4684959db80c161430098d`, four of five focused
+checks passed with no timeouts/skips/native crashes: showcase, shared-module
+reviews, history privacy and source diversity. The history pagination case
+reached its budget assertion in 16.1 seconds. Its claimed full-detail budget
+negative accidentally selected the documented default summary projection, which
+now fits 100 compact records. Both the default-budget rejection and explicit
+2-MiB positive now request `detail: full`, retaining all 100 evidence records,
+continuation, generation and invalid cursor assertions. Nine originals remain.
+
+Two implementation follow-ups await validation. Semantic reconciliation now
+uses four bounded partition readers through the existing settled queue owner,
+retaining every row/hash/reference/count/source assertion. Source verification
+is coalesced only for the actual in-flight promise in that invocation; failure
+cannot become a successful cache entry. A new iterator lifetime regression
+requires all admitted reads to drain and later admission to stop after failure.
+
+The cold parity lifecycle fixture was selecting default stage2 enrichment,
+whereas its real owner `tests/retrieval/parity/equivalence.test.js` explicitly
+builds stage1 for lexical parity (then stage3 only when ANN is selected). It now
+selects that actual stage1 cold setup through the same public binary/supervisor.
+The original 15-second bound, code/prose inputs, traced descendant assertions
+and immediate removal remain. This fixture does not qualify stage2 semantics;
+the existing API and SSR stage2 cases retain their strict independent checks.

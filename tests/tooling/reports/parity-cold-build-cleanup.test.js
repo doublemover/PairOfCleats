@@ -33,7 +33,9 @@ let primary;
 const start = Date.now();
 try {
   const result = runNode([path.join(root, 'bin/pairofcleats.js'), 'index', 'build', '--repo', repo,
-    '--mode', 'both', '--threads', '1'], 'cold parity setup', repo, env,
+    // Match retrieval/parity/equivalence.test.js's actual lexical cold setup.
+    // Stage2 enrichment is separately qualified by the semantic fixtures.
+    '--stage', 'stage1', '--mode', 'both', '--threads', '1'], 'cold parity setup', repo, env,
   { stdio: 'pipe', allowFailure: true, timeoutMs: 15000 });
   assert.equal(result.status, 0, `cold build after ${Date.now() - start}ms: ${result.error?.code || result.signal || ''}\n${result.stdout}\n${result.stderr}`);
 } catch (error) { primary = error; }
@@ -45,4 +47,4 @@ if(pids.some(alive)) cleanupErrors.push(new Error(`Owned children survived: ${pi
 try { await fs.rm(temp, {recursive:true,force:true}); } catch(error) { cleanupErrors.push(error); }
 if(primary || cleanupErrors.length) throw new AggregateError([primary,...cleanupErrors].filter(Boolean),'Cold setup and cleanup results');
 assert.ok(pids.length>=2,'trace the wrapper and real indexing child');
-console.log(JSON.stringify({qualification:'cold two-file code/prose build; actual descendant exit and immediate directory removal',ownedProcesses:pids.length,elapsedMs:Date.now()-start}));
+console.log(JSON.stringify({qualification:'cold stage1 two-file code/prose parity setup; actual descendant exit and immediate directory removal',ownedProcesses:pids.length,elapsedMs:Date.now()-start}));
