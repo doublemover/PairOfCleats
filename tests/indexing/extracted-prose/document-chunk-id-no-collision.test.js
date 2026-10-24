@@ -8,6 +8,7 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { writeClosedJavaScriptProject } from '../../helpers/closed-javascript-project.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'phase17-document-chunk-id-no-collision');
@@ -30,11 +31,13 @@ await fs.writeFile(
   ].join('\n')
 );
 await fs.writeFile(path.join(repoRoot, 'docs', 'sample.pdf'), Buffer.from('phase17 no collision pdf', 'utf8'));
+await writeClosedJavaScriptProject(repoRoot, ['src/**/*.js']);
 
 const env = applyTestEnv({
   cacheRoot,
   embeddings: 'stub',
   testConfig: {
+    threads: 1,
     indexing: {
       scm: { provider: 'none' },
       treeSitter: { enabled: false },
@@ -48,7 +51,7 @@ const env = applyTestEnv({
 });
 
 const buildResult = runNode(
-  [path.join(root, 'build_index.js'), '--repo', repoRoot, '--mode', 'all', '--stub-embeddings'],
+  [path.join(root, 'build_index.js'), '--repo', repoRoot, '--mode', 'all', '--stage', 'stage2', '--stub-embeddings'],
   'document chunk id no collision build index',
   repoRoot,
   env,

@@ -85,10 +85,37 @@ const decodeJsonString = (raw) => {
 
 const extractStringField = (window, field) => {
   if (!window) return '';
-  const rx = new RegExp(`"${field}"\\s*:\\s*"((?:\\\\.|[^"\\\\])*)"`, 'i');
-  const match = window.match(rx);
-  if (!match) return '';
-  return decodeJsonString(match[1]);
+  let depth = 0, arrayDepth = 0;
+  const readString = start => {
+    let escaped = false;
+    for (let cursor = start + 1; cursor < window.length; cursor++) {
+      if (escaped) { escaped = false; continue; }
+      if (window[cursor] === '\\') { escaped = true; continue; }
+      if (window[cursor] === '"') return { value: decodeJsonString(window.slice(start + 1, cursor)), end: cursor };
+    }
+    return null;
+  };
+  for (let offset = 0; offset < window.length; offset++) {
+    const char = window[offset];
+    if (char === '"') {
+      const token = readString(offset);
+      if (!token) break;
+      if (depth === 1 && arrayDepth === 0 && token.value === field) {
+        let next = token.end + 1;
+        while (/\s/u.test(window[next] || '') && next < window.length) next++;
+        if (window[next] === ':') {
+          next++;
+          while (/\s/u.test(window[next] || '') && next < window.length) next++;
+          if (window[next] === '"') return readString(next)?.value || '';
+        }
+      }
+      offset = token.end;
+    } else if (char === '{') depth++;
+    else if (char === '}') { if (--depth === 0) break; }
+    else if (char === '[') arrayDepth++;
+    else if (char === ']') arrayDepth--;
+  }
+  return '';
 };
 
 const extractFastScanEntryFields = (window) => ({

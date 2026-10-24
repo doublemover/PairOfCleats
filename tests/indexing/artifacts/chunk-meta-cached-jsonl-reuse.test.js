@@ -129,13 +129,19 @@ try {
 
 assert.equal(
   counts.hotRows,
-  chunks.length,
-  'hot chunk_meta rows should be serialized exactly once before JSONL fanout reuse'
+  0,
+  'prepared hot rows avoid redundant whole-row JSON.stringify calls'
 );
 assert.equal(
   counts.coldRows,
-  chunks.length,
-  'cold chunk_meta rows should be serialized exactly once before JSONL fanout reuse'
+  0,
+  'prepared cold rows avoid redundant whole-row JSON.stringify calls'
 );
+
+const hotRows = (await fs.readFile(path.join(outDir, 'chunk_meta.jsonl'), 'utf8')).trim().split('\n').map(JSON.parse);
+const coldRows = (await fs.readFile(path.join(outDir, 'chunk_meta_cold.jsonl'), 'utf8')).trim().split('\n').map(JSON.parse);
+assert.deepEqual(hotRows.map(row => row.chunkId), chunks.map(row => row.chunkId));
+assert.deepEqual(coldRows.map(row => row.preContext), chunks.map(row => row.preContext));
+assert.equal(hotRows.some(row => Object.hasOwn(row, '__jsonl')), false);
 
 console.log('chunk_meta cached JSONL reuse test passed');

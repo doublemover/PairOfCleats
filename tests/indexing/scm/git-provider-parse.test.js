@@ -24,7 +24,8 @@ try {
         return { exitCode: 0, stdout: 'src\\a.js\0src/b.js\0', stderr: '' };
       }
       if (args.includes('diff')) {
-        return { exitCode: 0, stdout: 'src/c.js\nsrc/d.js\n', stderr: '' };
+        assert.ok(args.includes('-z'), 'changed-file output preserves exact Git NUL-delimited paths');
+        return { exitCode: 0, stdout: 'src/c.js\0src/d.js\0', stderr: '' };
       }
       return { exitCode: 1, stdout: '', stderr: '' };
     } finally {

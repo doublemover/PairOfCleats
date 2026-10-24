@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { distanceToSimilarity } from './ann-similarity.js';
+import { distanceToSimilarity, withAnnScoreSpace } from './ann-similarity.js';
 
 const require = createRequire(import.meta.url);
 
@@ -72,7 +72,13 @@ export function normalizeHnswConfig(raw = {}) {
   };
 }
 
-export function resolveHnswPaths(indexDir, target = 'merged') {
+export function resolveHnswPaths(indexDir, target = 'merged', backendGeneration = null) {
+  if (backendGeneration != null) {
+    if (!/^\.embeddings-backends\/[a-f0-9]{64}-[a-f0-9-]{36}$/.test(backendGeneration)) {
+      throw new Error('Invalid HNSW backend generation path.');
+    }
+    indexDir = path.join(indexDir, backendGeneration);
+  }
   const resolveTarget = (value) => {
     if (typeof value !== 'string') return 'merged';
     const trimmed = value.trim().toLowerCase();
@@ -147,9 +153,9 @@ export function loadHnswIndex({ indexPath, dims, config, meta, expectedModel = n
         throw new Error('readIndexSync unavailable');
       }
       if (read.length <= 1) {
-        read.call(index, candidate.path);
+        read.call(index, path.toNamespacedPath(candidate.path));
       } else {
-        read.call(index, candidate.path, normalized.allowReplaceDeleted);
+        read.call(index, path.toNamespacedPath(candidate.path), normalized.allowReplaceDeleted);
       }
     } catch (err) {
       lastErr = err;
@@ -197,7 +203,7 @@ export function rankHnswIndex({ index, space }, queryEmbedding, topN, candidateS
     const distance = distances[i];
     const sim = distanceToSimilarity(distance, space);
     if (!Number.isFinite(sim)) continue;
-    hits.push({ idx, sim });
+    hits.push(withAnnScoreSpace({ idx, sim }, { metric: space, kind: space === 'cosine' ? 'cosine' : 'negative-distance', backend: 'hnsw', distance }));
   }
   return hits.sort((a, b) => (b.sim - a.sim) || (a.idx - b.idx));
 }

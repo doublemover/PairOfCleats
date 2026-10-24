@@ -64,6 +64,9 @@ key = sha1(stableStringify(keyPayload))
   - merge strategy
 - runtime-effective choices:
   - rewritten per-repo args (after federated flag stripping/top rewriting)
+  - effective absolute modification cutoff, resolved once at request start when
+    `modifiedSince` / `--modified-since` is supplied; the same cutoff reaches
+    each repository, with a stricter explicit `modifiedAfter` retained
   - requested backend / ann knobs
   - `strict` mode flag
   - `debugIncludePaths`
@@ -72,7 +75,7 @@ key = sha1(stableStringify(keyPayload))
 
 Fields that must not influence key:
 
-- volatile timestamps
+- unrelated volatile timestamps (the effective relative-filter cutoff above is semantic input)
 - display-only labels
 - absolute paths
 
@@ -133,6 +136,21 @@ Fields that must not influence key:
 - cache schema version mismatch
 - explicit key payload mismatch
 - as-of identity mismatch
+- idle age beyond `maxAgeDays`, checked before returning or touching an entry
+
+Static requests retain cache hits while fresh. Relative-filter requests at a
+different effective cutoff cannot reuse the earlier result, even if the manifest
+is unchanged. Enumeration cursors retain their first-page time anchor instead
+of moving their cutoff between pages. Internal key payload version 7 retires
+results from before child-root pinning, signature and selected-scope completeness admission,
+in addition to earlier time binding and pre-limit FTS eligibility changes.
+
+Loaded cache snapshots share only frozen result payloads; entry metadata belongs
+to each request. Full publication merges explicitly changed payloads under the
+canonical cache lock. A recency-only update applies only to the exact payload id
+it observed, so a stale request cannot replace a newer result or resurrect an
+evicted entry. Edits made after a flush is submitted remain pending for the next
+deliberate flush. Touch publication remains awaited by one-shot callers.
 
 ### 6.3 Invalid build pointer handling
 

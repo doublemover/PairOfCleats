@@ -14,14 +14,16 @@ import {
   recordSqlitePlanTelemetry,
   recordSqliteWalSnapshot,
   removeSqliteSidecars,
+  replaceSqliteDatabase,
   resolveSqliteIngestPlan
 } from '../utils.js';
 import { applyBuildPragmas, optimizeBuildDatabase, optimizeFtsTable, restoreBuildPragmas } from './pragmas.js';
 import { validateSqliteDatabase } from './validate.js';
 import { createInsertStatements } from './statements.js';
 import { createMultiRowInserter } from './multi-row.js';
-import { createTempPath, replaceFile } from '../../../shared/json-stream/atomic.js';
+import { createTempPath } from '../../../shared/json-stream/atomic.js';
 import { getCacheTempRoot } from '../../../shared/cache-roots.js';
+import { throwIfAborted } from '../../../shared/abort.js';
 
 const normalizeStatementStrategy = (value) => {
   const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -117,7 +119,8 @@ const openDatabaseWithFallback = (Database, outPath) => {
  * @param {{batchSize?:number,inputBytes?:number,statementStrategy?:string,stats?:object}} input
  * @returns {{resolvedBatchSize:number,batchStats:object|null,resolvedStatementStrategy:string,recordBatch:function,recordTable:function}}
  */
-export const createBuildExecutionContext = ({ batchSize, inputBytes, statementStrategy, stats }) => {
+export const createBuildExecutionContext = ({ batchSize, inputBytes, statementStrategy, stats, signal = null }) => {
+  throwIfAborted(signal);
   const ingestPlan = resolveSqliteIngestPlan({ batchSize, inputBytes });
   const resolvedBatchSize = ingestPlan.batchSize;
   const batchStats = stats && typeof stats === 'object' ? stats : null;
@@ -135,8 +138,9 @@ export const createBuildExecutionContext = ({ batchSize, inputBytes, statementSt
     };
     recordSqlitePlanTelemetry(batchStats, ingestPlan);
   }
-  const recordBatch = (key) => bumpSqliteBatchStat(batchStats, key);
-  const recordTable = createSqliteTableStatRecorder(batchStats);
+  const recordBatch = (key) => { throwIfAborted(signal); bumpSqliteBatchStat(batchStats, key); };
+  const recordTableStat = createSqliteTableStatRecorder(batchStats);
+  const recordTable = (...args) => { throwIfAborted(signal); recordTableStat(...args); };
   return {
     resolvedBatchSize,
     ingestPlan,
@@ -161,7 +165,12 @@ export const openSqliteBuildDatabase = ({
   ftsVariants = []
 }) => {
   fsSync.mkdirSync(path.dirname(outPath), { recursive: true });
-  const { db, dbPath, promotePath } = openDatabaseWithFallback(Database, outPath);
+  // Exported artifact/bundle consumers may receive an existing authority too.
+  // Keep their schema/rows untouched until the complete replacement validates.
+  const existingOutput = fsSync.existsSync(outPath);
+  const opened = openDatabaseWithFallback(Database, existingOutput ? createTempPath(outPath) : outPath);
+  const { db, dbPath } = opened;
+  const promotePath = existingOutput ? path.resolve(outPath) : opened.promotePath;
   // Ownership transfers only after every initialization step succeeds.
   let pragmaState = null;
   try {
@@ -407,9 +416,9 @@ export const closeSqliteBuildDatabase = async ({
   dbPath = outPath,
   promotePath = null,
   batchStats = null,
+  signal = null,
   warn
 }) => {
-  const resolvedOutPath = toComparablePath(outPath);
   const resolvedDbPath = toComparablePath(dbPath);
   const resolvedPromotePath = promotePath ? toComparablePath(promotePath) : null;
   const needsPromote = Boolean(
@@ -447,29 +456,25 @@ export const closeSqliteBuildDatabase = async ({
   }
   if (needsPromote) {
     try {
-      await removeSqliteSidecars(outPath);
-      await replaceFile(dbPath, outPath);
+      if (!fsSync.existsSync(dbPath)) {
+        throw Object.assign(new Error(`Temp sqlite build database missing before promotion: ${dbPath}`), { code: 'ERR_TEMP_MISSING' });
+      }
+      // Short-path fallback publication has the same WAL/rollback contract as
+      // the ordinary runner. Generic replacement cannot preserve SQLite state.
+      await replaceSqliteDatabase(dbPath, outPath, { signal });
     } catch (err) {
       if (typeof warn === 'function') {
         try { warn(err); } catch {}
       }
+      // Retain the staged main/WAL together on a failed checkpoint or promotion;
+      // the caller still owns that recoverable database, never just its bytes.
       throw err;
-    } finally {
-      await removeSqliteSidecars(dbPath);
     }
   }
   if (!succeeded) {
-    try {
-      fsSync.rmSync(outPath, { force: true });
-    } catch {}
-    if (resolvedDbPath !== resolvedOutPath) {
-      try {
-        fsSync.rmSync(dbPath, { force: true });
-      } catch {}
-    }
-    await removeSqliteSidecars(outPath);
-    if (resolvedDbPath !== resolvedOutPath) {
-      await removeSqliteSidecars(dbPath);
-    }
+    // A different dbPath is private staging; outPath can still be the old
+    // published database, including WAL frames owned by other connections.
+    try { fsSync.rmSync(dbPath, { force: true }); } catch {}
+    await removeSqliteSidecars(dbPath);
   }
 };

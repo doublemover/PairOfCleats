@@ -8,7 +8,7 @@ import {
 } from '../../src/shared/managed-clangd.js';
 import { hashManagedToolFile } from '../../src/shared/managed-tool-file.js';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
-import { extractArchive } from '../shared/archive-extraction.js';
+import { extractArchive, runArchiveTransaction } from '../shared/archive-extraction.js';
 import { computeSha256, createInstallError } from './install-shared.js';
 import { downloadOfficialGitHubRelease } from './official-release-download.js';
 
@@ -73,9 +73,9 @@ export const ensureManagedClangd = async ({ toolingRoot, cwd,
     throw createInstallError('clangd_cache_conflict', 'clangd package cache slot already exists without a reusable receipt.');
   }
   const transaction = await fs.mkdtemp(path.join(cache, '.install-'));
-  const identity = await fs.lstat(transaction);
-  let pointerTemp = null;
-  try {
+  const identity = await fs.lstat(transaction, { bigint: true });
+  let pointerTemp = null, pointerTempIdentity = null;
+  return runArchiveTransaction(transaction, identity, async () => {
     const fetched = await download({ url: archive.sourceUrl, maxBytes: MAX_DOWNLOAD_BYTES, timeoutMs });
     if (fetched.sourceUrl !== archive.sourceUrl || fetched.body.length !== archive.size || computeSha256(fetched.body) !== archive.sha256) {
       throw createInstallError('clangd_checksum_mismatch', 'clangd archive bytes disagree with the official digest/size/source.');
@@ -110,6 +110,7 @@ export const ensureManagedClangd = async ({ toolingRoot, cwd,
     await fs.rename(extracted, destination);
     pointerTemp = path.join(cache, `.current-${randomUUID()}.json`);
     await fs.writeFile(pointerTemp, `${JSON.stringify(receipt, null, 2)}\n`, { flag: 'wx' });
+    pointerTempIdentity = await fs.lstat(pointerTemp, { bigint: true });
     // Link publishes only if no concurrent writer has already chosen a package.
     await fs.link(pointerTemp, pointer);
     await fs.rm(pointerTemp);
@@ -117,11 +118,17 @@ export const ensureManagedClangd = async ({ toolingRoot, cwd,
     const installed = resolveManagedClangd(toolingRoot, { platform, arch });
     if (!installed) throw createInstallError('clangd_cache_verification_failed', 'clangd installed receipt could not be verified.');
     return { ...installed, reused: false };
-  } finally {
-    if (pointerTemp) await fs.rm(pointerTemp, { force: true });
-    const current = await fs.lstat(transaction).catch(() => null);
-    if (current?.isDirectory() && current.dev === identity.dev && current.ino === identity.ino) await fs.rm(transaction, { recursive: true, force: true });
-  }
+  }, async () => {
+    if (!pointerTemp) return;
+    const current = await fs.lstat(pointerTemp, { bigint: true }).catch(value => { if (value?.code === 'ENOENT') return null; throw value; });
+    if (!current) return;
+    if (!pointerTempIdentity || !current.isFile() || current.isSymbolicLink()
+      || current.dev !== pointerTempIdentity.dev || current.ino !== pointerTempIdentity.ino) {
+      throw new Error('Clangd private pointer identity changed; unknown evidence is preserved.');
+    }
+    await fs.rm(pointerTemp, { force: false });
+    pointerTemp = null;
+  });
 };
 
 if (isDirectExecution(import.meta.url)) {

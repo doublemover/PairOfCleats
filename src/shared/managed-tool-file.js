@@ -1,42 +1,18 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
-import path from 'node:path';
 
-const verifiedHashes = new Map();
-const MAX_HASH_ENTRIES = 16;
-const MAX_HASH_PROXY_BYTES = 128 * 1024;
-let retainedHashProxyBytes = 0;
 const fileIdentity = (stat) => [stat.dev, stat.ino, stat.size, stat.mtimeNs, stat.ctimeNs].join(':');
 
-const rememberHash = (key, identity, digest) => {
-  // Conservative UTF-16 string storage plus a declared reference/object proxy.
-  // This bounds retained evidence; it is not an RSS or exact JS-heap measure.
-  const bytes = 2 * (key.length + identity.length + digest.length) + 256;
-  const old = verifiedHashes.get(key);
-  if (old) {
-    retainedHashProxyBytes -= old.bytes;
-    verifiedHashes.delete(key);
-  }
-  if (bytes > MAX_HASH_PROXY_BYTES) return;
-  while (verifiedHashes.size >= MAX_HASH_ENTRIES || retainedHashProxyBytes + bytes > MAX_HASH_PROXY_BYTES) {
-    const oldest = verifiedHashes.keys().next().value;
-    retainedHashProxyBytes -= verifiedHashes.get(oldest).bytes;
-    verifiedHashes.delete(oldest);
-  }
-  verifiedHashes.set(key, { identity, digest, bytes });
-  retainedHashProxyBytes += bytes;
-};
-
-/** Hash only regular stable files, with a bounded buffer and no executable launch. */
+/** Hash current bytes: filesystem timestamps can collide after a same-size edit.
+ * Keep the bounded buffer and opened-file identity checks; metadata cannot prove
+ * that a previously observed digest still describes this mutable file.
+ */
 export const hashManagedToolFile = (filePath, maxBytes = 64 * 1024 * 1024) => {
   if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) throw new Error('Invalid managed tool byte limit.');
   const before = fs.lstatSync(filePath, { bigint: true });
   const size = Number(before.size);
   if (!before.isFile() || size <= 0 || size > maxBytes) throw new Error('Invalid managed tool file.');
-  const key = path.resolve(filePath);
   const identity = fileIdentity(before);
-  const cached = verifiedHashes.get(key);
-  if (cached?.identity === identity) return cached.digest;
   const fd = fs.openSync(filePath, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0));
   try {
     const opened = fs.fstatSync(fd, { bigint: true });
@@ -55,7 +31,6 @@ export const hashManagedToolFile = (filePath, maxBytes = 64 * 1024 * 1024) => {
     const after = fs.fstatSync(fd, { bigint: true });
     if (fileIdentity(after) !== identity) throw new Error('Managed tool file changed while reading.');
     const digest = hash.digest('hex');
-    rememberHash(key, identity, digest);
     return digest;
   } finally {
     fs.closeSync(fd);

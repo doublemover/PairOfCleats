@@ -23,6 +23,7 @@ const { repoCacheRoot } = runtime;
 const buildsRoot = path.join(repoCacheRoot, 'builds');
 const currentPath = path.join(buildsRoot, 'current.json');
 const events = [];
+let watchState;
 
 const { deps, getOnEvent } = createWatchDeps({
   entries: [files.index],
@@ -52,7 +53,8 @@ const {
   watchPromise
 } = startCodeWatch({
   runtime,
-  deps
+  deps,
+  onStateChange: state => { watchState = structuredClone(state); }
 });
 
 await ready;
@@ -60,12 +62,13 @@ const onEventRef = getOnEvent();
 assert.ok(onEventRef, 'expected watcher to register event handler');
 await onEventRef({ type: 'change', absPath: filePath });
 
-await waitFor(() => events.includes('promote'));
+await waitFor(() => watchState?.lastConsistentGeneration?.status === 'ok');
 abortController.abort();
 await watchPromise;
 
 const currentRaw = await fs.readFile(currentPath, 'utf8');
 const current = JSON.parse(currentRaw);
+assert.equal(current.buildId, watchState.lastConsistentGeneration.buildId, 'the completed generation owns the committed pointer');
 const promotedRoot = current.buildRoot ? path.join(repoCacheRoot, current.buildRoot) : null;
 assert.ok(promotedRoot, 'expected current.json buildRoot');
 assert.ok(fsSync.existsSync(promotedRoot), 'expected promoted build root to exist');

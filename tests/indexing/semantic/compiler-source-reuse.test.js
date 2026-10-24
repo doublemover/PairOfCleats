@@ -6,6 +6,7 @@ import { loadTypeScriptModule } from '../../../src/index/tooling/typescript/load
 import { createVirtualCompilerHost } from '../../../src/index/tooling/typescript/host.js';
 import { createCompilerSourceReuse } from '../../../src/index/tooling/typescript/source-reuse.js';
 import { preflightTypeScriptSource } from '../../../src/index/tooling/typescript/resolution.js';
+import { normalizeIdentityPath } from '../../../src/workspace/identity.js';
 
 const ts = loadTypeScriptModule(), root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-compiler-source-reuse-'));
 assert.ok(ts, 'Installed TypeScript is required for retained-host qualification.');
@@ -23,7 +24,7 @@ try {
   assert.equal(program.getSourceFile(file), prepared, 'The one normal Program consumes the retained SourceFile.');
   program.getTypeChecker();
   assert.ok(prepared.locals, 'Binding happens only after the handoff.');
-  assert.deepEqual(cache.snapshot().parseReusedFiles, [file]);
+  assert.deepEqual(cache.snapshot().parseReusedFiles.map(normalizeIdentityPath), [normalizeIdentityPath(file)]);
   assert.equal(cache.snapshot().sourceBytesReused, Buffer.byteLength(text));
   assert.ok(cache.snapshot().peakRetainedBytes <= cache.snapshot().maxRetainedBytes);
   const later = preflightTypeScriptSource(ts, host('consume'), file, options).sourceFile;

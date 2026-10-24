@@ -16,6 +16,11 @@ export async function searchHybridHistory(db,request,semantic,reauthorize) {
     const result=searchHistory(db,request);
     result.query.retrievalMode='lexical';result.query.requestedMode=mode;return result;
   }
+  // A lexical cursor advances a different candidate stream and is bound to its
+  // search field. Hybrid exposes only offset pages within its bounded fused
+  // pool; it must never advertise or replay one channel's continuation.
+  if (request.continuation != null) throw historyError('ERR_INFERENCE_HISTORY_INPUT',
+    'Hybrid and semantic search support offsets within one bounded candidate pool, not lexical continuation tokens.');
   if (!semantic || semantic.kind!=='local') throw historyError('ERR_INFERENCE_HISTORY_UNAVAILABLE','Local semantic index not configured.');
   if (request.rerank===true && typeof semantic.rerank!=='function') throw historyError('ERR_INFERENCE_HISTORY_UNAVAILABLE','Local reranker not configured.');
   const state=historyIndexState(db);
@@ -63,10 +68,15 @@ export async function searchHybridHistory(db,request,semantic,reauthorize) {
     semantic:{modelId:semantic.modelId,modelVersion:semantic.modelVersion,dimensions:semantic.dimensions,
       coverage:semantic.coverage??null,indexGenerationRef:semantic.indexGenerationRef,contentManifestHash:semantic.contentManifestHash??null,candidateLimit,rerankerAvailable:typeof semantic.rerank==='function',reranked:request.rerank===true,fusion:fused.method},
     limits:{...lexical.limits,top,offset,candidateLimit,maxPerOriginal:fused.maxPerOriginal,maxPerConversation:fused.maxPerGroup},complete,totalMatches:complete?all.length:null,
-    observedGroups:all.length,totalMatchedUnits:null,candidateMatches:null,
+    observedGroups:all.length,totalMatchedUnits:null,candidateMatches:null,totalsAvailable:complete,
     channels:{lexical:{candidateMatches:lexical.candidateMatches,totalMatchedUnits:lexical.totalMatchedUnits,complete:lexical.complete},
       metadata:{candidateMatches:metadata.candidateMatches,authorizedGroups:metadataRows.hits.length,complete:metadata.complete},
       semantic:{suppliedCandidates:supplied.candidates.length,authorizedGroups:semanticRows.hits.length,complete:supplied.complete}},
+    continuation:null,candidateStart:0,candidateWindowComplete:complete,
+    pagination:{kind:'bounded-fused-pool',candidateLimit,availableGroups:all.length,
+      furtherContinuation:complete?'complete':'unavailable',
+      reason:complete?null:'Independent retrieval channels may contain additional evidence outside this bounded pool; refine the query or use lexical pagination.'},
+    previousOffset:offset>0?Math.max(0,offset-top):null,
     nextOffset:offset+top<all.length?offset+top:null};
   Object.defineProperty(result,READ_GUARDS,{value:[...(lexical[READ_GUARDS]??[]),...(semanticRows[READ_GUARDS]??[]),...(metadata[READ_GUARDS]??[]),...(metadataRows[READ_GUARDS]??[])]});
   return result;

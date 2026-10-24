@@ -43,13 +43,17 @@ Update SQLite indexes in-place by touching only the files that changed since the
 ## WAL Policy
 - Incremental updates run `wal_checkpoint(TRUNCATE)` after applying changes to avoid long-lived WAL growth.
 - Full rebuilds also run `wal_checkpoint(TRUNCATE)` after validation to keep the output DB self-contained.
-- The DB remains in WAL mode; conversion back to a single-file DB (`journal_mode=DELETE`) is deferred to a later maintenance/compaction phase.
+- In-place incremental updates leave WAL ownership to SQLite; cleanup never
+  manually removes sidecars after a failed or unchecked checkpoint. Publication
+  that replaces a database first completes a SQLite checkpoint and coordinates
+  `journal_mode=DELETE` so rollback and retained backups contain committed rows.
+  Busy readers/writers cause replacement to fail while preserving authority.
 - Full rebuilds (artifact/bundle builds) also run `wal_checkpoint(TRUNCATE)` before closing the DB to keep sidecars trimmed and consistent with incremental updates.
 
 ## Usage
 - Build incremental cache: `pairofcleats index build --incremental`.
-- Update SQLite in place: `pairofcleats sqlite build --incremental`.
-- Override target build root: `pairofcleats sqlite build --incremental --index-root <path>`.
+- Update SQLite in place: `pairofcleats index build --sqlite --incremental`.
+- Override target build root: `pairofcleats index build --sqlite --incremental --index-root <path>`.
 - `pairofcleats bootstrap --incremental --with-sqlite` runs both.
 - `--validate <off|smoke|full>` controls post-build SQLite validation (default: `smoke`).
 

@@ -4,6 +4,10 @@ import path from 'node:path';
 import { buildLocalCacheKey } from '../../../shared/cache-key.js';
 import { atomicWriteJsonSync } from '../../../shared/io/atomic-write.js';
 import { treeSitterState } from '../state.js';
+import { TREE_SITTER_CHUNK_VERSION } from '../config.js';
+import { createHash } from 'node:crypto';
+import { assertNoSymlinkPath } from '../../../shared/contained-file.js';
+import { SYNTAX_CALL_FACTS_VERSION } from '../call-facts.js';
 
 const DEFAULT_CHUNK_CACHE_MAX_ENTRIES = 64;
 const CHUNK_CACHE_PERSISTENT_SCHEMA = '1.0.0';
@@ -57,6 +61,7 @@ const buildChunkCacheSignature = (options, resolvedId) => {
       : null;
 
   return {
+    syntaxCallFactsVersion: SYNTAX_CALL_FACTS_VERSION,
     useQueries: config.useQueries ?? null,
     maxBytes: perLanguage.maxBytes ?? config.maxBytes ?? null,
     maxLines: perLanguage.maxLines ?? config.maxLines ?? null,
@@ -84,6 +89,7 @@ export const resolveChunkCacheKey = (options, resolvedId) => {
   return buildLocalCacheKey({
     namespace: 'tree-sitter-chunk',
     payload: {
+      producerVersion: TREE_SITTER_CHUNK_VERSION,
       languageId: resolvedId,
       key: base,
       signature: buildChunkCacheSignature(options, resolvedId)
@@ -156,11 +162,27 @@ export const resolvePersistentChunkCacheRoot = (options) => {
  * @param {string} key
  * @returns {string|null}
  */
-const resolvePersistentChunkCachePath = (cacheRoot, key) => {
+export const resolvePersistentChunkCachePaths = (cacheRoot, key) => {
   if (!cacheRoot || !key) return null;
   const safeKey = String(key).replace(/[^a-zA-Z0-9._-]/g, '_');
-  const shard = safeKey.slice(0, 2) || '00';
-  return path.join(cacheRoot, shard, `${safeKey}.json`);
+  const shard = createHash('sha256').update(String(key)).digest('hex').slice(0, 2);
+  return { canonical: path.join(cacheRoot, shard, `${safeKey}.json`),
+    legacy: path.join(cacheRoot, safeKey.slice(0, 2) || '00', `${safeKey}.json`) };
+};
+const resolvePersistentChunkCachePath = (cacheRoot, key) => resolvePersistentChunkCachePaths(cacheRoot, key)?.canonical || null;
+const readPersistentPayload = (cacheRoot, filePath, key) => {
+  assertNoSymlinkPath(cacheRoot, filePath);
+  if (!fs.lstatSync(filePath).isFile()) return null;
+  const payload = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  return payload?.schemaVersion === CHUNK_CACHE_PERSISTENT_SCHEMA && payload.cacheKey === key
+    && Array.isArray(payload.chunks) && payload.chunks.length ? payload : null;
+};
+const retireLegacyPayload = (cacheRoot, paths, key, chunks) => {
+  if (paths.canonical === paths.legacy || !fs.existsSync(paths.legacy)) return;
+  const old = readPersistentPayload(cacheRoot, paths.legacy, key);
+  if (!old || JSON.stringify(old.chunks) !== JSON.stringify(chunks)) return;
+  assertNoSymlinkPath(cacheRoot, paths.legacy);
+  fs.unlinkSync(paths.legacy);
 };
 
 /**
@@ -182,6 +204,7 @@ const cloneChunkList = (chunks) => chunks.map((chunk) => ({
  */
 const readPersistentCachedChunks = (cacheRoot, key, bumpMetric = null) => {
   if (!cacheRoot || !key) return null;
+  ensurePersistentChunkCacheRoot(cacheRoot);
   const memo = treeSitterState.persistentChunkCacheMemo;
   if (memo?.has(key)) {
     const chunks = memo.get(key);
@@ -195,25 +218,30 @@ const readPersistentCachedChunks = (cacheRoot, key, bumpMetric = null) => {
     if (typeof bumpMetric === 'function') bumpMetric('chunkCachePersistentMisses', 1);
     return null;
   }
-  const filePath = resolvePersistentChunkCachePath(cacheRoot, key);
-  if (!filePath || !fs.existsSync(filePath)) {
-    rememberPersistentMiss(key);
-    if (typeof bumpMetric === 'function') bumpMetric('chunkCachePersistentMisses', 1);
-    return null;
-  }
+  const paths = resolvePersistentChunkCachePaths(cacheRoot, key);
   try {
-    const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-    if (!raw || raw.schemaVersion !== CHUNK_CACHE_PERSISTENT_SCHEMA || raw.cacheKey !== key) {
+    let raw = null, legacy = false;
+    for (const filePath of [...new Set([paths.canonical, paths.legacy])]) {
+      try { raw = readPersistentPayload(cacheRoot, filePath, key); } catch (error) {
+        if (error.code !== 'ENOENT' && typeof bumpMetric === 'function') bumpMetric('chunkCachePersistentErrors', 1);
+      }
+      if (raw) { legacy = filePath === paths.legacy && paths.legacy !== paths.canonical; break; }
+    }
+    if (!raw) {
       rememberPersistentMiss(key);
       if (typeof bumpMetric === 'function') bumpMetric('chunkCachePersistentMisses', 1);
       return null;
     }
-    const chunks = Array.isArray(raw.chunks) ? raw.chunks : null;
-    if (!chunks || !chunks.length) {
-      rememberPersistentMiss(key);
-      if (typeof bumpMetric === 'function') bumpMetric('chunkCachePersistentMisses', 1);
-      return null;
-    }
+    const chunks = raw.chunks;
+    try {
+      if (legacy) {
+        assertNoSymlinkPath(cacheRoot, paths.canonical, { allowMissing: true });
+        fs.mkdirSync(path.dirname(paths.canonical), { recursive: true });
+        assertNoSymlinkPath(cacheRoot, paths.canonical, { allowMissing: true });
+        atomicWriteJsonSync(paths.canonical, withGeneratedCacheMetadata(raw, 'tree-sitter-chunks'), { spaces: 0, newline: false, durable: false });
+      }
+      retireLegacyPayload(cacheRoot, paths, key, chunks);
+    } catch { if (typeof bumpMetric === 'function') bumpMetric('chunkCachePersistentMigrationErrors', 1); }
     rememberPersistentChunks(key, chunks);
     misses?.delete?.(key);
     if (typeof bumpMetric === 'function') bumpMetric('chunkCachePersistentHits', 1);
@@ -235,9 +263,13 @@ const readPersistentCachedChunks = (cacheRoot, key, bumpMetric = null) => {
  */
 const writePersistentCachedChunks = (cacheRoot, key, chunks, bumpMetric = null) => {
   if (!cacheRoot || !key || !Array.isArray(chunks) || !chunks.length) return;
+  ensurePersistentChunkCacheRoot(cacheRoot);
   const filePath = resolvePersistentChunkCachePath(cacheRoot, key);
   if (!filePath) return;
   try {
+    assertNoSymlinkPath(path.parse(path.resolve(cacheRoot)).root, cacheRoot, { allowMissing: true });
+    fs.mkdirSync(cacheRoot, { recursive: true });
+    assertNoSymlinkPath(cacheRoot, filePath, { allowMissing: true });
     const payload = {
       schemaVersion: CHUNK_CACHE_PERSISTENT_SCHEMA,
       cacheKey: key,
@@ -250,6 +282,8 @@ const writePersistentCachedChunks = (cacheRoot, key, chunks, bumpMetric = null) 
     });
     rememberPersistentChunks(key, payload.chunks);
     treeSitterState.persistentChunkCacheMisses?.delete?.(key);
+    try { retireLegacyPayload(cacheRoot, resolvePersistentChunkCachePaths(cacheRoot, key), key, payload.chunks); }
+    catch { if (typeof bumpMetric === 'function') bumpMetric('chunkCachePersistentMigrationErrors', 1); }
     if (typeof bumpMetric === 'function') bumpMetric('chunkCachePersistentWrites', 1);
   } catch {
     if (typeof bumpMetric === 'function') bumpMetric('chunkCachePersistentErrors', 1);

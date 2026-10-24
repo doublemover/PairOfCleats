@@ -1,73 +1,14 @@
 import path from 'node:path';
-import * as linguistLanguages from 'linguist-languages';
+import { LINGUIST_LANGUAGES } from './linguist-data.js';
+import { buildLinguistRoutingMaps, normalizeLinguistName } from './linguist-routing.js';
 import { toArray } from '../../shared/iterables.js';
-import { normalizeImportSpecifiers } from '../shared/import-specifier.js';
+import { normalizeImportSpecifiers, sanitizeImportSpecifier } from '../shared/import-specifier.js';
 import { LANGUAGE_REGISTRY } from './registry-data.js';
 import { LANGUAGE_ROUTE_DESCRIPTORS } from './descriptors.js';
 import { normalizeCollectorHint } from './import-collectors/utils.js';
 const LANGUAGE_BY_ID = new Map(LANGUAGE_REGISTRY.map((lang) => [lang.id, lang]));
-const normalizeLinguistName = (value) => String(value || '').trim().toLowerCase();
-const LINGUIST_NAME_TO_ID = new Map([
-  ['c', 'clike'],
-  ['c++', 'clike'],
-  ['objective-c', 'clike'],
-  ['objective-c++', 'clike'],
-  ['c#', 'csharp'],
-  ['csharp', 'csharp'],
-  ['go', 'go'],
-  ['java', 'java'],
-  ['javascript', 'javascript'],
-  ['typescript', 'typescript'],
-  ['tsx', 'typescript'],
-  ['python', 'python'],
-  ['ruby', 'ruby'],
-  ['php', 'php'],
-  ['html', 'html'],
-  ['css', 'css'],
-  ['lua', 'lua'],
-  ['sql', 'sql'],
-  ['shell', 'shell'],
-  ['bash', 'shell'],
-  ['zsh', 'shell'],
-  ['makefile', 'makefile'],
-  ['dockerfile', 'dockerfile'],
-  ['cmake', 'cmake'],
-  ['starlark', 'starlark'],
-  ['bazel', 'starlark'],
-  ['nix', 'nix'],
-  ['dart', 'dart'],
-  ['scala', 'scala'],
-  ['groovy', 'groovy'],
-  ['r', 'r'],
-  ['julia', 'julia'],
-  ['handlebars', 'handlebars'],
-  ['mustache', 'mustache'],
-  ['jinja', 'jinja'],
-  ['jinja2', 'jinja'],
-  ['django', 'jinja'],
-  ['razor', 'razor'],
-  ['protobuf', 'proto'],
-  ['protocol buffer', 'proto'],
-  ['protocol buffers', 'proto'],
-  ['proto', 'proto'],
-  ['graphql', 'graphql'],
-  ['kotlin', 'kotlin'],
-  ['swift', 'swift'],
-  ['rust', 'rust'],
-  ['perl', 'perl']
-]);
-
-const resolveLinguistId = (name, entry) => {
-  const candidates = [name, ...toArray(entry?.aliases)];
-  for (const candidate of candidates) {
-    const normalized = normalizeLinguistName(candidate);
-    if (LINGUIST_NAME_TO_ID.has(normalized)) return LINGUIST_NAME_TO_ID.get(normalized);
-  }
-  return null;
-};
-
-const LINGUIST_EXTENSION_MAP = new Map();
-const LINGUIST_FILENAME_MAP = new Map();
+const { extensions: LINGUIST_EXTENSION_MAP, filenames: LINGUIST_FILENAME_MAP }
+  = buildLinguistRoutingMaps(LINGUIST_LANGUAGES, LANGUAGE_BY_ID);
 const DESCRIPTOR_EXTENSION_MAP = new Map();
 const DESCRIPTOR_FILENAME_MAP = new Map();
 const DESCRIPTOR_PREFIX_MAP = [];
@@ -91,23 +32,6 @@ for (const descriptor of LANGUAGE_ROUTE_DESCRIPTORS) {
     const key = String(prefix || '').toLowerCase();
     if (key) {
       DESCRIPTOR_PREFIX_MAP.push({ prefix: key, languageId });
-    }
-  }
-}
-
-for (const [name, entry] of Object.entries(linguistLanguages || {})) {
-  const languageId = resolveLinguistId(name, entry);
-  if (!languageId || !LANGUAGE_BY_ID.has(languageId)) continue;
-  for (const ext of toArray(entry?.extensions)) {
-    const key = String(ext || '').toLowerCase();
-    if (key && !LINGUIST_EXTENSION_MAP.has(key)) {
-      LINGUIST_EXTENSION_MAP.set(key, languageId);
-    }
-  }
-  for (const filename of toArray(entry?.filenames)) {
-    const key = String(filename || '').toLowerCase();
-    if (key && !LINGUIST_FILENAME_MAP.has(key)) {
-      LINGUIST_FILENAME_MAP.set(key, languageId);
     }
   }
 }
@@ -146,7 +70,7 @@ const coerceImportEntry = (value) => {
   if (typeof value === 'string') return { specifier: value.trim(), collectorHint: null };
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const specifier = typeof value.specifier === 'string'
-    ? value.specifier.trim()
+    ? value.provenance === 'parsed-literal' ? value.specifier : value.specifier.trim()
     : (
       typeof value.import === 'string'
         ? value.import.trim()
@@ -155,6 +79,7 @@ const coerceImportEntry = (value) => {
   if (!specifier) return null;
   return {
     specifier,
+    provenance:value.provenance === 'parsed-literal' ? 'parsed-literal' : null,
     collectorHint: normalizeCollectorHint(value.collectorHint)
   };
 };
@@ -164,7 +89,8 @@ const normalizeImportEntries = (entries) => {
   for (const rawEntry of Array.isArray(entries) ? entries : []) {
     const normalized = coerceImportEntry(rawEntry);
     if (!normalized) continue;
-    const normalizedSpecifierList = normalizeImportSpecifiers([normalized.specifier]);
+    const normalizedSpecifierList = normalized.provenance === 'parsed-literal'
+      ? [sanitizeImportSpecifier(normalized.specifier,{literal:true})] : normalizeImportSpecifiers([normalized.specifier]);
     const specifier = normalizedSpecifierList[0];
     if (!specifier) continue;
     const existing = deduped.get(specifier);
@@ -172,6 +98,7 @@ const normalizeImportEntries = (entries) => {
       deduped.set(specifier, {
         specifier,
         collectorHint: normalized.collectorHint
+        , ...(normalized.provenance ? {provenance:normalized.provenance} : {})
       });
       continue;
     }
@@ -189,8 +116,11 @@ const normalizeImportEntries = (entries) => {
     );
     if (shouldReplaceHint) existing.collectorHint = normalized.collectorHint;
   }
-  return Array.from(deduped.values())
+  const result = Array.from(deduped.values())
     .sort((a, b) => (a.specifier < b.specifier ? -1 : (a.specifier > b.specifier ? 1 : 0)));
+  if (entries?.coverage) Object.defineProperty(result, 'coverage', { value: entries.coverage });
+  if (entries?.occurrences) Object.defineProperty(result, 'occurrences', { value: entries.occurrences });
+  return result;
 };
 
 export function getLanguageForFile(ext, relPath) {
@@ -253,24 +183,84 @@ export async function buildLanguageContext({ ext, relPath, mode, text, options }
   return { lang, context };
 }
 
+const syntaxOccurrenceKey = detail => {
+  if (detail?.source !== 'tree-sitter' || detail.coordinateSystem !== 'utf16'
+    || !Number.isSafeInteger(detail.start) || !Number.isSafeInteger(detail.end)
+    || !Number.isSafeInteger(detail.callerStart) || !Number.isSafeInteger(detail.callerEnd)
+    || detail.end <= detail.start || detail.callerEnd <= detail.callerStart) return null;
+  return JSON.stringify([detail.start, detail.end, detail.callerStart, detail.callerEnd, detail.calleeRaw]);
+};
+
 export function buildChunkRelations({ lang, chunk, fileRelations, callIndex = null, chunkIndex = null }) {
   if (!fileRelations) return {};
   const output = {};
+  const coverage = chunk?.meta?.syntaxCallCoverage || fileRelations.callCoverage;
+  if (coverage) output.callCoverage = coverage;
+  if (chunk?.meta?.syntaxCallOmissions) output.callOmissions = { ...chunk.meta.syntaxCallOmissions };
+  else if (Array.isArray(fileRelations.callCoverageReasons)) output.callCoverageReasons = [...fileRelations.callCoverageReasons];
   if (chunk?.name) {
+    const pythonScopedCalls = lang?.id === 'python' && typeof chunk.meta?.pythonScopeId === 'string'
+      && fileRelations.callOwnership === 'python-lexical-scope-v1';
+    const nativeScopedCalls = Array.isArray(chunk.meta?.syntaxCalls)
+      && fileRelations.callOwnership === 'native-syntax-occurrences-v1';
     const callsForChunk = callIndex?.callsByCaller
       ? (callIndex.callsByCaller.get(chunk.name) || [])
       : (Array.isArray(fileRelations.calls)
         ? fileRelations.calls.filter(([caller]) => caller && caller === chunk.name)
         : []);
-    if (callsForChunk.length) output.calls = callsForChunk;
     let detailsForChunk = [];
-    if (callIndex?.callDetailsByChunkIndex && Number.isFinite(chunkIndex)) {
+    if (pythonScopedCalls || nativeScopedCalls) {
+      // Header calls can lie in a nested declaration's source range while
+      // belonging to its enclosing scope. A geometric index cannot override it.
+      detailsForChunk = callIndex?.callDetailsByCaller
+        ? callIndex.callDetailsByCaller.get(chunk.name) || []
+        : (fileRelations.callDetails || []).filter(detail => detail?.caller === chunk.name);
+    } else if (callIndex?.callDetailsByChunkIndex && Number.isFinite(chunkIndex)) {
       detailsForChunk = callIndex.callDetailsByChunkIndex.get(chunkIndex) || [];
     } else if (callIndex?.callDetailsByCaller) {
       detailsForChunk = callIndex.callDetailsByCaller.get(chunk.name) || [];
     } else if (Array.isArray(fileRelations.callDetails)) {
       detailsForChunk = fileRelations.callDetails.filter((detail) => detail?.caller === chunk.name);
     }
+    if (nativeScopedCalls) {
+      // Equal display names can denote separate overloads, prototypes or
+      // redefinitions. Join only the native owner's original occurrences;
+      // inference annotations belong to the already-budgeted mutable view.
+      const expected = new Set();
+      let crossing = false;
+      for (const fact of chunk.meta.syntaxCalls) {
+        const key = syntaxOccurrenceKey(fact);
+        if (!key) continue;
+        if (fact.start >= chunk.start && fact.end <= chunk.end) expected.add(key);
+        else if (fact.start < chunk.end && fact.end > chunk.start) crossing = true;
+      }
+      detailsForChunk = detailsForChunk.filter(detail => expected.has(syntaxOccurrenceKey(detail)));
+      const retained = new Set(detailsForChunk.map(syntaxOccurrenceKey));
+      const callees = new Set(detailsForChunk.map(detail => detail.callee).filter(Boolean));
+      const seen = new Set();
+      output.calls = callsForChunk.filter(([, callee]) => {
+        if (!callees.has(callee) || seen.has(callee)) return false;
+        seen.add(callee); return true;
+      });
+      const reasons = [
+        ...(crossing ? ['split-call-occurrence'] : []),
+        ...(retained.size < expected.size ? ['unavailable-call-occurrence-details'] : [])
+      ];
+      if (reasons.length) output.callCoverage = `partial-native-call-occurrences;${coverage || 'unspecified'};${reasons.join(';')}`;
+    } else if (pythonScopedCalls) {
+      // A display name can recur in separate lexical declarations. Preserve
+      // the collector's source-qualified owner through the public projection.
+      // Intersect both already-budgeted channels; never reconstruct discarded
+      // calls from an unbudgeted chunk metadata copy.
+      detailsForChunk = detailsForChunk.filter(detail => detail.callerScopeId === chunk.meta.pythonScopeId);
+      const callees = new Set(detailsForChunk.map(detail => detail.callee).filter(Boolean));
+      const seen = new Set();
+      output.calls = callsForChunk.filter(([, callee]) => {
+        if (!callees.has(callee) || seen.has(callee)) return false;
+        seen.add(callee); return true;
+      });
+      output.callCoverage = 'partial-python-syntax-lexical-ownership';
+    } else if (callsForChunk.length) output.calls = callsForChunk;
     if (detailsForChunk.length) output.callDetails = detailsForChunk;
   }
   if (lang?.attachName && chunk?.name) output.name = chunk.name;

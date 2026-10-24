@@ -52,16 +52,28 @@ try {
   const compiler = await createSemanticCompilerSession({ state, runtime: { root: fixture.root, buildRoot: fixture.root, semanticPolicy: policy } });
   const doc = { virtualPath: 'original.js.__segment.ts', containerPath: 'original.js', segmentUid: segment.segmentUid, segmentRange: { start: segment.start, end: segment.end }, text: local };
   const prepared = compiler.prepareDocuments([doc]); assert.equal(prepared.length, 1); assert.equal(prepared[0].semanticSourceUnitId, owned[0].factsRef.sourceUnitId);
+  const wrongPinnedSegment = { ...doc, semanticSourceUnitId: parentRef.sourceUnitId };
   const ts = context.tsSyntax.ts; const group = compiler.beginGroup({ ts, program: { getSourceFiles: () => [context.tsSyntax.sourceFile], isSourceFileDefaultLibrary: () => false }, options: {}, documents: prepared }); assert.equal(group.mappedFiles.size, 1);
   const invalid = compiler.beginGroup({ ts, program: { getSourceFiles: () => [] }, options: {}, documents: [{ ...doc, text: local + ' ' }] }); assert.equal(invalid.mappedFiles.size, 0);
+  const wrongPinned = compiler.beginGroup({ ts, program: { getSourceFiles: () => [] }, options: {}, documents: [wrongPinnedSegment] });
+  assert.equal(wrongPinned.mappedFiles.size, 0, 'compiler cannot replace a supplied source ID with a matching segment');
   const lsp = await createSemanticLspSession({ state, runtime: { root: fixture.root, buildRoot: fixture.root, semanticPolicy: policy } });
   const lspDoc = lsp.prepareDocuments([doc])[0]; const targets = await lsp.targetsForDocument(lspDoc); assert.ok(targets.length);
+  const filteredLsp = await createSemanticLspSession({ state, languages: ['typescript'],
+    runtime: { root: fixture.root, buildRoot: fixture.root, semanticPolicy: policy } });
+  const filteredDoc = filteredLsp.prepareDocuments([doc])[0];
+  assert.equal(filteredDoc.semanticSourceUnitId, owned[0].factsRef.sourceUnitId,
+    'a retained parent supplies mapping authority without enabling its container language provider');
+  assert.equal((await filteredLsp.targetsForDocument(filteredDoc)).length, targets.length);
   let requested = 0; await lsp.collectDocument({ doc: lspDoc, uri: 'file:///fixture/segment.ts', targets, requestDefinition: async () => { requested++; return { attempted: true, payload: { uri: 'file:///fixture/segment.ts', range: { start: { line: 0, character: 13 }, end: { line: 0, character: 21 } } } }; } });
   assert.equal(requested, targets.length); const output = lsp.output(); assert.equal(output.partitions.length, 1);
   const analysisStore = fixture.store([...owned[0].factsRef.partitions,...output.partitions]); const bindings = []; for await (const row of analysisStore.iterateRows(output.partitions[0].partitionId,'semantic_records')) if(row.kind === 'binding') bindings.push(row);
   assert.ok(bindings.every(row => row.data.status === 'resolved'));
   state.semanticFactsByFile.set('original.js#semantic-segment:' + owned[0].factsRef.sourceUnitId, createSemanticFactsRef({ source: embedded.sourceFacts[0].facts.source, partitions: [...owned[0].factsRef.partitions,...output.partitions], syntaxPartitionId: owned[0].factsRef.syntaxPartitionId, storage, coverage: [] }));
   assert.equal((await lsp.targetsForDocument(lspDoc)).length, 0, 'refresh compiler/provider binding inventory before requesting unresolved positions');
+  state.semanticFactsByFile.set('original.js#semantic-segment:' + owned[0].factsRef.sourceUnitId, owned[0].factsRef);
+  assert.equal((await lsp.targetsForDocument(lspDoc)).length, targets.length,
+    'removed analysis partitions must not leave stale resolved occurrences in the session inventory');
   const synthetic = await collectEmbeddedSemanticSources({ ...options, segments: [{ ...segment, segmentUid: 'synthetic-segment', text: 'const replacement = 1;' }] }); assert.equal(synthetic.sourceFacts[0].facts.source.mapping.quality, 'synthetic');
   const syntheticOwnership = await collectEmbeddedSemanticOwnership({ ...options, embedded: synthetic, chunks: [{ chunkUid: 'fixture-chunk',start: segment.start,end:segment.end, segment: { ...segment,segmentUid:'synthetic-segment' } }] });
   assert.equal(syntheticOwnership[0].factsRef.counts.semantic_ownership, 0);

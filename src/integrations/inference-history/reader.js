@@ -29,6 +29,21 @@ const textParts = content => {
     : ['text', 'input_text', 'output_text'].includes(part?.type) && typeof part.text === 'string' ? [part.text] : []).join('\n');
 };
 
+const visibleTaskNode = (turn, nodeId) => {
+  if (!turn || !safeChannel(turn) || (turn.recipient != null && turn.recipient !== 'all')
+    || (turn.metadata?.is_visually_hidden_from_conversation != null
+      && turn.metadata.is_visually_hidden_from_conversation !== false)) return null;
+  const items = [...(turn.input_items ?? []), ...(turn.output_items ?? [])].filter(item =>
+    item?.type === 'message' && visible({ ...item, role: item.role ?? turn.role }));
+  if (!items.length) return null;
+  const roles = [...new Set(items.map(item => item.role ?? turn.role))];
+  // A mixed-role turn cannot honestly be presented as one role-labelled message.
+  if (roles.length !== 1) return null;
+  return { nodeId, messageId: null, role: roles[0], channel: null,
+    text: items.map(item => textParts(item.content)).join('\n'),
+    createdAt: normalizeTimestamp(turn.create_time), payloadHash: hashCanonicalJson(items), attachments: [] };
+};
+
 /** Default derivatives admit explicit public text types and channels only. */
 export function visibleNode(raw, kind, nodeId) {
   if(kind==='recovered_artifact'){
@@ -44,19 +59,15 @@ export function visibleNode(raw, kind, nodeId) {
       createdAt: normalizeTimestamp(message.create_time), payloadHash: hashCanonicalJson(message),
       attachments: Array.isArray(message.metadata?.attachments) ? message.metadata.attachments : [] };
   }
-  const turn = raw.turns?.find(value => value.id === nodeId);
-  if (!turn || !safeChannel(turn) || (turn.recipient != null && turn.recipient !== 'all')
-    || (turn.metadata?.is_visually_hidden_from_conversation != null
-      && turn.metadata.is_visually_hidden_from_conversation !== false)) return null;
-  const items = [...(turn.input_items ?? []), ...(turn.output_items ?? [])].filter(item =>
-    item?.type === 'message' && visible({ ...item, role: item.role ?? turn.role }));
-  if (!items.length) return null;
-  const roles = [...new Set(items.map(item => item.role ?? turn.role))];
-  // A mixed-role turn cannot honestly be presented as one role-labelled message.
-  if (roles.length !== 1) return null;
-  return { nodeId, messageId: null, role: roles[0], channel: null,
-    text: items.map(item => textParts(item.content)).join('\n'),
-    createdAt: normalizeTimestamp(turn.create_time), payloadHash: hashCanonicalJson(items), attachments: [] };
+  return visibleTaskNode(raw.turns?.find(value => value.id === nodeId), nodeId);
+}
+
+/** One operation's retained source, with first-match semantics and no global cache. */
+export function createVisibleNodeReader(raw, kind) {
+  if (kind === 'exported_conversation' || kind === 'recovered_artifact') return nodeId => visibleNode(raw, kind, nodeId);
+  const turnsById = new Map();
+  for (const turn of raw.turns || []) if (!turnsById.has(turn.id)) turnsById.set(turn.id, turn);
+  return nodeId => visibleTaskNode(turnsById.get(nodeId), nodeId);
 }
 
 export function artifactReferences(node) {
@@ -340,7 +351,8 @@ export function readVisibleContext(db, request) {
     }
   } else if (snapshot.source_kind==='recovered_artifact') ids=[snapshot.raw.id];
   else ids = snapshot.raw.turns.map(turn => turn.id);
-  let timeline = ids.map((nodeId, ordinal) => ({ node: privacyNode(visibleNode(snapshot.raw, snapshot.source_kind, nodeId),snapshot.policy), ordinal }))
+  const readNode = createVisibleNodeReader(snapshot.raw, snapshot.source_kind);
+  let timeline = ids.map((nodeId, ordinal) => ({ node: privacyNode(readNode(nodeId),snapshot.policy), ordinal }))
     .filter(({ node }) => node !== null).sort((left, right) =>
       (left.node.createdAt.utc ?? '\uffff').localeCompare(right.node.createdAt.utc ?? '\uffff') || left.ordinal - right.ordinal);
   const originalAnchorOrdinal = timeline.find(({node})=>node.nodeId===anchor.nodeId)?.ordinal;

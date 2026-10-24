@@ -76,10 +76,12 @@ assert.equal(emfileAttempts, 2, 'expected EMFILE retry path to be exercised');
 const exdevPath = path.join(tempRoot, 'exdev.txt');
 const originalRename = fsPromises.rename;
 let exdevAttempts = 0;
+let exdevSource = null;
 resetAtomicWriteRuntimeMetricsForTests();
 fsPromises.rename = async (...args) => {
-  const [, targetPath] = args;
-  if (String(targetPath || '').includes('exdev.txt')) {
+  const [sourcePath, targetPath] = args;
+  if (String(targetPath || '').includes('exdev.txt') && (!exdevSource || sourcePath === exdevSource)) {
+    exdevSource = sourcePath;
     exdevAttempts += 1;
     const err = new Error('cross-device link not permitted');
     err.code = 'EXDEV';
@@ -178,9 +180,9 @@ assert.equal(
   'expected existing target content to be restored when replacement fails'
 );
 assert.equal(
-  path.dirname(String(preserveBackupPath || '')),
-  path.dirname(preservePath),
-  'expected backup swap path to remain in target directory'
+  preserveBackupPath,
+  null,
+  'failed publication must never rename the visible original away'
 );
 
 let mkdirError = null;

@@ -151,7 +151,15 @@ const runScenario = ({ semantics = [], frameworkId = 'express' } = {}) => {
 
 const noSemantics = runScenario();
 assert.equal(noSemantics.flowRows.length, 0, 'expected no interprocedural flow without framework semantics');
-assert.equal(noSemantics.partialFlowRows.length, 1, 'expected a retained partial flow without semantics');
+assert.deepEqual(noSemantics.partialFlowRows.map(row => ({
+  path: row.path.chunkUids,
+  frontier: row.frontier.chunkUid,
+  reason: row.frontier.terminalReason,
+  blocked: row.frontier.blockedExpansions.map(expansion => expansion.targetChunkUid)
+})), [
+  { path: ['uid-source'], frontier: 'uid-source', reason: 'incompleteArgumentEvidence', blocked: ['uid-wrapper'] },
+  { path: ['uid-source', 'uid-wrapper'], frontier: 'uid-wrapper', reason: 'incompleteArgumentEvidence', blocked: ['uid-sink'] }
+], 'without callback semantics, retain both missing-argument frontiers and their distinct paths');
 
 const semantics = [{
   id: 'sem.callback.register-handler-payload',
@@ -165,11 +173,13 @@ const semantics = [{
 }];
 const withSemantics = runScenario({ semantics });
 assert.equal(withSemantics.flowRows.length, 1, 'expected framework semantics to recover the interprocedural flow');
-assert.equal(
-  withSemantics.partialFlowRows.length,
-  1,
-  'expected the engine to retain the terminal no-callees frontier even when semantics recover a full flow'
-);
+assert.deepEqual(withSemantics.partialFlowRows.map(row => ({
+  path: row.path.chunkUids,
+  reason: row.frontier.terminalReason
+})), [
+  { path: ['uid-source', 'uid-wrapper', 'uid-sink'], reason: 'noCallees' },
+  ...noSemantics.partialFlowRows.map(row => ({ path: row.path.chunkUids, reason: row.frontier.terminalReason }))
+], 'modeled callback propagation retains the terminal frontier and both independent argument-evidence gaps');
 assert.deepEqual(
   withSemantics.flowRows[0]?.path?.watchByStep?.[0]?.semanticIds,
   ['sem.callback.register-handler-payload'],

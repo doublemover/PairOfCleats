@@ -99,6 +99,13 @@ Response:
 - Mode selection (precedence): `--mcp-mode` CLI → `MCP_MODE`/`PAIROFCLEATS_MCP_MODE` env (exception) → `mcp.mode` config.
 - `initialize` must return server info, capabilities, and tool schema versions.
 - `$/cancelRequest` aborts in-flight tool calls (including id `0`).
+- `build_index` and `build_sqlite_index` retain that request signal through core
+  work and SQLite ingestion. Cancellation is checked before restore/follow-on
+  stages and publication; restore subprocesses and parser workers settle before
+  execution capacity is released. SQLite cancellation is cooperative at phase
+  and batch boundaries; an individual synchronous SQL statement completes
+  before its next checkpoint. Aborted transactions roll back and prior output
+  remains authoritative. A completed atomic publication is not undone.
 - Tool errors return `isError: true` with a JSON payload in `content`.
 
 **Cutover policy:** legacy transport remains supported until SDK parity tests are green; there must be no silent fallback from `sdk` to `legacy` when SDK mode is explicitly requested.
@@ -107,6 +114,17 @@ Response:
 - `tools/list` includes `index_status`, `config_status`, `search`, and maintenance tools.
 
 ### Tool schema versioning
+
+The current source catalog is 1.10.1. `graph_evidence` explicitly declares an
+object root for MCP SDK interoperability, preserving its existing `oneOf`
+branches and strict request validators. Real SDK discovery, search/context and
+cancellation checks pass at the October 24 repair checkpoint. Its additive opt-in semantic
+`pathSemantics` request profile and `pathCapability` result distinguish bounded
+balanced-call value traces from relation neighborhoods. Existing requests keep
+their default behavior. These graph declarations do not prove executable-path
+feasibility. Generated schema/actual-server snapshots and transport acceptance
+must be refreshed against the frozen resulting candidate; this scoped repair
+does not qualify the complete MCP release.
 - MCP tool schemas are versioned via `schemaVersion` (SemVer) and `toolVersion` (package version).
 - Breaking changes to tool names or input schemas require a **major** schemaVersion bump.
 - Backwards-compatible additions require a **minor** bump; editorial clarifications are **patch** bumps.

@@ -31,5 +31,21 @@ cat dump.lsif | node tools/ingest/lsif.js --repo . --input -
 ## Notes
 
 - The ingest expects LSIF JSONL with `vertex` and `edge` records.
-- `item` edges linked to `definitionResult` or `referenceResult` vertices are mapped to `role=definition` or `role=reference`; other items become `role=other`.
-- Document URIs like `/repo/...` are normalized to repo-relative paths.
+- An `item` edge points from a result vertex (`outV`) to range vertices
+  (`inVs`). Definition results emit definitions. Reference-result properties
+  distinguish `definitions` and `references`; declarations retain `role=other`.
+- Document containment owns each range's path. Document-valued `shard` and
+  legacy `document` hints support older dumps and navigation `resultRange`
+  vertices; project shards require actual document containment. Conflicting
+  document witnesses and invalid positions are rejected and counted in `errors`.
+- Shared result sets and result-to-result/reference links add no synthetic
+  locations. Concrete occurrences are emitted once per location and role.
+  Moniker links to other dumps need a cross-dump database for resolution.
+- `tag.text` and `tag.kind` supply the name and symbol kind when present.
+  Real file URIs use native file-URL decoding (including drives, spaces, Unicode
+  and escaped percent signs); `/repo/...` remains the supported virtual root.
+  Non-file URIs, out-of-repository authorities and encoded-separator escapes cannot add
+  local occurrences.
+
+The [Microsoft LSIF specification](https://github.com/microsoft/language-server-protocol/blob/gh-pages/_specifications/lsif/0.6.0/specification.md)
+defines item direction, result properties, containment, sharding and range tags.

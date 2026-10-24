@@ -1,4 +1,11 @@
-# Test Runner Entrypoint -- Interface Sketch
+# Test Runner Entrypoint
+
+Test-report validators compile lazily on first use, retaining strict schema
+validation for actual report producers. Help and discovery commands do not
+compile unused report schemas. Stability history preserves the existing body
+timestamp ordering while retaining only the requested newest K full payloads
+plus the active candidate; archives remain intact. This working-set bound does
+not imply fewer files read or a measured startup speedup.
 
 ## Context / problem
 Historically the test surface was flat and dominated by many one-off scripts under `tests/*.js`. The suite now lives under subsystem folders with `*.test.js` files, but the same discovery and triage issues remain without a stable runner entrypoint. This causes:
@@ -39,6 +46,30 @@ Then remove `--list` to execute that selection, choosing explicit `--jobs` and
 selection behavior, so use the list metadata rather than assume every lane
 includes a new test.
 
+The [qualification matrix](qualification-matrix.md) distinguishes discovered
+coverage, ordered CI selections, native/platform acceptance and measured
+performance. `all` discovery includes helper regressions and tests assigned
+directly to aggregate lane labels; analyzed fixture inputs remain excluded.
+
+Script coverage retains `storage`, `fixtures` and `tools` groups for distinct
+command invocations. Argument-free wrappers and redundant tokenization selectors
+use their canonical discovered fixtures. The [retirement ledger](../archived/script-coverage-retirement-2026-10-20.json)
+records each replacement and input/assertion proof. Nightly validates disjoint
+selections and retains explicit owners outside its main lanes; platform, optional
+and destructive exclusions remain separate from successful execution. Nested
+coverage defaults to zero retries; group entry points also pass `--retries 0`
+explicitly. The tools/shell-scripts case qualifies POSIX shell merge wrappers
+separately from Windows. Windows returns its explicit platform exclusion before
+probing any Bash/WSL application alias; this is not passing shell execution.
+
+The internal `tools/ci/run-windows-authority.js` owner runs the explicit
+`tests/ci/windows-authority-fixtures.json` cohort on a capable Windows launch.
+Its regular-CI guard checks inventory freshness and rejects omissions, retries,
+skips and results beyond 30 seconds. The Windows workflow checks out the exact
+PR head and always retains `.diagnostics/windows-authority/` and
+`.testLogs/windows-authority/`, including actual file-symlink capability and
+native readiness. Ordinary-token EPERM is a failed qualification, never a skip.
+
 ## Command synopsis
 
 ```text
@@ -47,6 +78,18 @@ node tests/run.js [selectors...] [options] [-- <pass-through args>]
 
 - **selectors**: one or more match strings (same rules as `--match`) applied to test ids and paths. If omitted, the default lane is executed (`ci`).
 - `--` terminates runner flags; anything after is passed to selected tests.
+
+Fixtures with a `<filename>.cases.json` sidecar expose one discovered ID per
+case (`<physical-test-id>/<case-id>`). Each case gets its own process, timeout,
+retry count, cache suffix and failure receipt; the physical script selects its
+case from `PAIROFCLEATS_TEST_ID`. A group prefix selects all its cases.
+Inventories require schema version 1 and unique nonempty simple case IDs;
+invalid inventories fail discovery. Script coverage generates these sidecars
+from its action definitions and checks freshness in `harness-parity`. The 210
+original actions remain covered; the full sample build has four mode boundaries,
+tokenization has three comparisons, and exact lint/format and shell checks have
+their own boundaries (218 cases total). There is no aggregate
+30-second wrapper around their execution.
 
 ## Options
 
@@ -117,6 +160,10 @@ node tests/run.js [selectors...] [options] [-- <pass-through args>]
   - Inject `--max-old-space-size` into `NODE_OPTIONS`.
 - `--pairofcleats-threads <n>`
   - Overrides `PAIROFCLEATS_THREADS` for child processes.
+  - Configuration and auto-policy retain their documented higher precedence.
+    A fixture requiring an exact CPU concurrency uses the existing build CLI
+    `--threads` option and checks the effective limit; this environment hint
+    does not cap an independently configured native worker pool.
 
 - `--fail-fast`
   - Stop on first failure.
@@ -163,7 +210,7 @@ node tests/run.js [selectors...] [options] [-- <pass-through args>]
 The runner sets or normalizes these env vars for child tests:
 
 - `PAIROFCLEATS_TESTING=1`
-- `PAIROFCLEATS_CACHE_ROOT` defaults to `.testCache` if unset.
+- `PAIROFCLEATS_CACHE_ROOT` defaults to `.tmp/dev/tests/cache` if unset.
 - `PAIROFCLEATS_TEST_TIMEOUT_MS` is set to the resolved timeout unless already set and no CLI override is provided.
 - `PAIROFCLEATS_TEST_RETRIES` is set to the resolved retry count unless already set and no CLI override is provided.
 - `PAIROFCLEATS_TEST_LOG_DIR` is set to the run-specific log dir when `--log-dir` is provided or the env var was previously unset.
@@ -174,9 +221,9 @@ The runner injects `tests/helpers/test-env.js` via `NODE_OPTIONS` and merges in 
 
 ## Discovery model
 
-The runner needs a stable way to know "what tests exist." Two compatible approaches:
+The shipped runner uses convention-based discovery and the existing lane rules.
 
-### A) Convention-based discovery (recommended initially)
+### Convention-based discovery
 
 - Discover tests as executable Node scripts under `tests/`, e.g. `tests/**/*.test.js`, excluding dirs/files from `tests/run.rules.jsonc`:
   - `tests/fixtures/**`
@@ -186,22 +233,7 @@ The runner needs a stable way to know "what tests exist." Two compatible approac
 
 Test **id** is the relative path from `tests/` without `.test.js`, e.g. `storage/sqlite/incremental/file-manifest-updates`.
 
-### B) Manifest-based discovery (recommended long-term)
-
-Maintain `tests/manifest.json` (or `tests/manifest.js`) containing metadata per test:
-
-```json
-{
-  "tests": [
-    {"id": "storage/sqlite/incremental/file-manifest-updates.test", "path": "tests/storage/sqlite/incremental/file-manifest-updates.test.js", "tags": ["sqlite","integration"]}
-  ]
-}
-```
-
-Benefits:
-- Eliminates heuristics.
-- Supports stable ids even after refactors.
-- Allows lane membership to be defined explicitly.
+The former alternative `tests/manifest.json`/`tests/manifest.js` design was not implemented and is not a second active discovery owner. Follow the [bounded contributor workflow](../guides/contributing.md) and current runner/rules instead.
 
 ## Lanes
 

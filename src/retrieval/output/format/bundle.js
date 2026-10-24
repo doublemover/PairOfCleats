@@ -1,6 +1,6 @@
 import { compareText } from './display-meta.js';
 
-export const RESULT_BUNDLE_SCHEMA_VERSION = 2;
+export const RESULT_BUNDLE_SCHEMA_VERSION = 3;
 
 const BUNDLE_MODE_ORDER = Object.freeze(['code', 'extractedProse', 'prose', 'records']);
 const BUNDLE_MODE_RANK = new Map(BUNDLE_MODE_ORDER.map((mode, index) => [mode, index]));
@@ -28,7 +28,7 @@ export const buildResultBundles = ({
     for (let index = 0; index < hits.length; index += 1) {
       const hit = hits[index];
       const file = typeof hit?.file === 'string' && hit.file.trim() ? hit.file : null;
-      const key = file || `__no_file__:${mode}:${index}`;
+      const key = file ? JSON.stringify(['file', file]) : JSON.stringify(['missing-file', mode, index]);
       let bundle = bundles.get(key);
       if (!bundle) {
         bundle = {
@@ -79,7 +79,7 @@ export const buildResultBundles = ({
         || compareText(a.id, b.id)
       ));
       return {
-        bundleId: bundle.file || bundle.key,
+        bundleId: bundle.key,
         file: bundle.file,
         hitCount: bundle.hitCount,
         rankScore: bundle.rankScore,

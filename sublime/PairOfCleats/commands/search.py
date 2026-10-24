@@ -1,3 +1,6 @@
+import os
+import uuid
+import copy
 import sublime
 import sublime_plugin
 
@@ -9,9 +12,17 @@ from ..lib import results
 from ..lib import results_state
 from ..lib import runner
 from ..lib import search as search_lib
+from ..lib import service_repository
 from ..lib import tasks
+from ..lib import operations
 from ..lib import ui
 from ..lib import views
+from ..lib.prompts import NativePrompt
+from ..lib.saved_search import normalize_saved_options
+from ..lib.filter_pagination import (normalize_filter_pagination, admit_filter_page, merge_filter_page, continuation_endpoint_matches,
+                                   selected_index, capture_selection)
+from ..lib.navigation import qualified_navigation_evidence, execute_qualified_navigation as _execute_qualified_navigation
+from ..lib.completion_target import capture_target, target_is_current, apply_target
 
 LIMIT_CHOICES = [10, 25, 50, 100, 200]
 
@@ -21,7 +32,8 @@ def _resolve_repo_root(window):
 
 
 def _has_repo_root(window):
-    return paths.has_repo_root(window)
+    resolution = paths.describe_repo_root(window)
+    return bool(resolution.get('selected_root') or resolution.get('repo_roots'))
 
 
 def _has_selection(view):
@@ -50,35 +62,57 @@ def _has_last_query(window):
 
 def _resolve_defaults(settings, overrides=None):
     overrides = overrides or {}
-    mode = overrides.get('mode') or settings.get('index_mode_default') or 'both'
-    backend = overrides.get('backend') or settings.get('search_backend_default') or ''
-    limit = overrides.get('limit') or settings.get('search_limit') or 25
+    saved_scope = overrides.get('scopeComplete') is True
+    mode = overrides['mode'] if 'mode' in overrides else settings.get('index_mode_default') or 'both'
+    backend = overrides['backend'] if 'backend' in overrides else settings.get('search_backend_default') or ''
+    limit = overrides['limit'] if 'limit' in overrides else settings.get('search_limit') or 25
     ann = overrides['ann'] if 'ann' in overrides else settings.get('search_ann_default')
     allow_sparse_fallback = overrides.get('allow_sparse_fallback')
     if allow_sparse_fallback is None:
         allow_sparse_fallback = bool(settings.get('search_allow_sparse_fallback'))
     as_of = overrides.get('as_of')
     snapshot = overrides.get('snapshot')
-    if as_of is None and snapshot is None:
+    if not saved_scope and as_of is None and snapshot is None:
         as_of = settings.get('search_as_of_default') or ''
         snapshot = settings.get('search_snapshot_default') or ''
     filter_value = overrides.get('filter')
-    advanced = search_lib.normalize_advanced_search_defaults(settings.get('search_advanced_defaults'))
-    if filter_value is None:
+    advanced = {} if saved_scope else copy.deepcopy(settings.get('search_advanced_defaults') or {})
+    if filter_value is None and not saved_scope:
         filter_value = settings.get('search_filter_default') or ''
-    if filter_value:
-        advanced['filter'] = str(filter_value)
-    advanced.update(search_lib.normalize_advanced_search_defaults(overrides.get('advanced')))
-    return {
+    if 'advanced' in overrides:
+        if isinstance(advanced, dict) and isinstance(overrides['advanced'], dict):
+            advanced.update(copy.deepcopy(overrides['advanced']))
+        else:
+            advanced = copy.deepcopy(overrides['advanced'])
+    if filter_value and isinstance(advanced, dict):
+        advanced['filter'] = filter_value
+    resolved = {
         'mode': mode,
         'backend': backend,
         'limit': limit,
-        'ann': ann if isinstance(ann, bool) else None,
-        'allow_sparse_fallback': bool(allow_sparse_fallback),
-        'as_of': as_of or '',
-        'snapshot': snapshot or '',
+        'ann': ann,
+        'allow_sparse_fallback': allow_sparse_fallback,
+        'as_of': as_of if as_of is not None else '',
+        'snapshot': snapshot if snapshot is not None else '',
         'advanced': advanced,
     }
+    if saved_scope:
+        resolved.update({'repoRoot': overrides.get('repoRoot'), 'scopeComplete': True, 'schemaVersion': 1})
+    return resolved
+
+
+def _saved_scope_available(options):
+    if not isinstance(options, dict):
+        return True
+    if options.get('scopeComplete') is False:
+        ui.show_error('PairOfCleats: this legacy or invalid search has incomplete saved scope. Run a new search with explicit options.'
+            + ('\n' + '\n'.join(options.get('scopeErrors') or []) if options.get('scopeErrors') else ''))
+        return False
+    root = options.get('repoRoot')
+    if root and (not isinstance(root, str) or not os.path.isdir(root)):
+        ui.show_error('PairOfCleats: saved search repository is unavailable: {0}'.format(root))
+        return False
+    return True
 
 
 def _search_transport_kwargs(resolved):
@@ -90,6 +124,7 @@ def _search_transport_kwargs(resolved):
         'as_of': resolved.get('as_of') or None,
         'snapshot': resolved.get('snapshot') or None,
         'advanced': resolved.get('advanced'),
+        'cursor': resolved.get('cursor'),
     }
 
 
@@ -104,47 +139,46 @@ def _resolve_results_target(settings, hit_count):
     return 'quick_panel'
 
 
-def _prompt_query(window, initial, on_done):
-    window.show_input_panel(
-        'PairOfCleats search query',
-        initial or '',
-        lambda value: on_done(value.strip()),
-        None,
-        None
-    )
+def _prompt_query(window, initial, on_done, prompt=None):
+    prompt = prompt or NativePrompt(window, key='search-prompts')
+    prompt.input('PairOfCleats search query', initial or '', lambda value: on_done(value.strip()))
 
 
-def _prompt_options(window, settings, defaults, on_done, force_prompt=False):
+def _prompt_options(window, settings, defaults, on_done, force_prompt=False, prompt=None):
+    prompt = prompt or NativePrompt(window, key='search-prompts')
+    if not prompt.current():
+        return
     if not force_prompt and not settings.get('search_prompt_options'):
-        on_done(defaults)
+        on_done(copy.deepcopy(defaults))
         return
 
-    options = dict(defaults)
-    mode_choices = ['code', 'prose', 'both']
+    options = copy.deepcopy(defaults)
+    mode_choices = ['both'] + sorted(config.VALID_INDEX_MODES - {'both'})
     default_mode = options.get('mode')
     mode_index = mode_choices.index(default_mode) if default_mode in mode_choices else 2
 
     def on_mode_select(index):
         if index < 0:
-            on_done(options)
             return
         options['mode'] = mode_choices[index]
-        _prompt_backend(window, options, on_done)
+        _prompt_backend(window, options, on_done, prompt)
 
-    window.show_quick_panel(
+    prompt.choose(
         mode_choices,
         on_mode_select,
         selected_index=mode_index
     )
 
 
-def _prompt_backend(window, options, on_done):
+def _prompt_backend(window, options, on_done, prompt=None):
+    prompt = prompt or NativePrompt(window, key='search-prompts')
     backend_choices = [
         ('', 'auto'),
         ('memory', 'memory'),
         ('sqlite', 'sqlite'),
         ('sqlite-fts', 'sqlite-fts'),
-        ('lmdb', 'lmdb')
+        ('lmdb', 'lmdb'),
+        ('tantivy', 'tantivy')
     ]
     labels = ['backend: {0}'.format(label) for _, label in backend_choices]
     current = options.get('backend') or ''
@@ -156,15 +190,15 @@ def _prompt_backend(window, options, on_done):
 
     def on_backend_select(index):
         if index < 0:
-            on_done(options)
             return
         options['backend'] = backend_choices[index][0]
-        _prompt_ann(window, options, on_done)
+        _prompt_ann(window, options, on_done, prompt)
 
-    window.show_quick_panel(labels, on_backend_select, selected_index=current_index)
+    prompt.choose(labels, on_backend_select, selected_index=current_index)
 
 
-def _prompt_ann(window, options, on_done):
+def _prompt_ann(window, options, on_done, prompt=None):
+    prompt = prompt or NativePrompt(window, key='search-prompts')
     ann_choices = [
         (None, 'ann: default'),
         (True, 'ann: on'),
@@ -179,19 +213,19 @@ def _prompt_ann(window, options, on_done):
 
     def on_ann_select(index):
         if index < 0:
-            on_done(options)
             return
         options['ann'] = ann_choices[index][0]
-        _prompt_temporal(window, options, on_done)
+        _prompt_temporal(window, options, on_done, prompt)
 
-    window.show_quick_panel(
+    prompt.choose(
         [label for _, label in ann_choices],
         on_ann_select,
         selected_index=current_index,
     )
 
 
-def _prompt_temporal(window, options, on_done):
+def _prompt_temporal(window, options, on_done, prompt=None):
+    prompt = prompt or NativePrompt(window, key='search-prompts')
     current_as_of = options.get('as_of') or ''
     current_snapshot = options.get('snapshot') or ''
     items = []
@@ -201,64 +235,62 @@ def _prompt_temporal(window, options, on_done):
         items.append(label)
         actions.append(callback)
 
-    add_action('search current index', lambda: _set_temporal(options, '', '', on_done, window))
+    add_action('search current index', lambda: _set_temporal(options, '', '', on_done, window, prompt))
     if current_as_of:
-        add_action('as-of: {0}'.format(current_as_of), lambda: _set_temporal(options, current_as_of, '', on_done, window))
+        add_action('as-of: {0}'.format(current_as_of), lambda: _set_temporal(options, current_as_of, '', on_done, window, prompt))
     if current_snapshot:
-        add_action('snapshot: {0}'.format(current_snapshot), lambda: _set_temporal(options, '', current_snapshot, on_done, window))
-    add_action('as-of: custom', lambda: _prompt_as_of(window, options, on_done))
-    add_action('snapshot: custom', lambda: _prompt_snapshot(window, options, on_done))
+        add_action('snapshot: {0}'.format(current_snapshot), lambda: _set_temporal(options, '', current_snapshot, on_done, window, prompt))
+    add_action('as-of: custom', lambda: _prompt_as_of(window, options, on_done, prompt))
+    add_action('snapshot: custom', lambda: _prompt_snapshot(window, options, on_done, prompt))
 
     def on_temporal_select(index):
         if index < 0:
-            on_done(options)
             return
         actions[index]()
 
-    window.show_quick_panel(items, on_temporal_select, selected_index=0)
+    prompt.choose(items, on_temporal_select, selected_index=0)
 
 
-def _set_temporal(options, as_of_value, snapshot_value, on_done, window):
+def _set_temporal(options, as_of_value, snapshot_value, on_done, window, prompt=None):
     options['as_of'] = as_of_value
     options['snapshot'] = snapshot_value
-    _prompt_limit(window, options, on_done)
+    _prompt_limit(window, options, on_done, prompt)
 
 
-def _prompt_as_of(window, options, on_done):
+def _prompt_as_of(window, options, on_done, prompt=None):
+    prompt = prompt or NativePrompt(window, key='search-prompts')
     current = options.get('as_of') or ''
 
     def on_done_input(value):
         options['as_of'] = value.strip()
         options['snapshot'] = ''
-        _prompt_limit(window, options, on_done)
+        _prompt_limit(window, options, on_done, prompt)
 
-    window.show_input_panel(
+    prompt.input(
         'PairOfCleats as-of selector',
         current,
         on_done_input,
-        None,
-        None,
     )
 
 
-def _prompt_snapshot(window, options, on_done):
+def _prompt_snapshot(window, options, on_done, prompt=None):
+    prompt = prompt or NativePrompt(window, key='search-prompts')
     current = options.get('snapshot') or ''
 
     def on_done_input(value):
         options['snapshot'] = value.strip()
         options['as_of'] = ''
-        _prompt_limit(window, options, on_done)
+        _prompt_limit(window, options, on_done, prompt)
 
-    window.show_input_panel(
+    prompt.input(
         'PairOfCleats snapshot id',
         current,
         on_done_input,
-        None,
-        None,
     )
 
 
-def _prompt_limit(window, options, on_done):
+def _prompt_limit(window, options, on_done, prompt=None):
+    prompt = prompt or NativePrompt(window, key='search-prompts')
     limit_default = options.get('limit')
     limit_values = []
     if isinstance(limit_default, int) and limit_default > 0:
@@ -272,50 +304,56 @@ def _prompt_limit(window, options, on_done):
 
     def on_limit_select(index):
         if index < 0:
-            on_done(options)
             return
         if index < len(limit_values):
             options['limit'] = limit_values[index]
-            on_done(options)
+            on_done(copy.deepcopy(options))
             return
 
         def on_custom_done(value):
             value = value.strip()
             if not value:
-                on_done(options)
                 return
             try:
                 parsed = int(value)
             except Exception:
                 ui.show_error('Limit must be an integer.')
-                on_done(options)
                 return
             if parsed < 1:
                 ui.show_error('Limit must be at least 1.')
-                on_done(options)
                 return
             options['limit'] = parsed
-            on_done(options)
+            on_done(copy.deepcopy(options))
 
-        window.show_input_panel(
+        prompt.input(
             'PairOfCleats result limit',
             str(limit_default or ''),
             on_custom_done,
-            None,
-            None
         )
 
-    window.show_quick_panel(choices, on_limit_select, selected_index=0)
+    prompt.choose(choices, on_limit_select, selected_index=0)
 
 
-def _execute_search(window, query, overrides=None, explain=False):
-    if not query:
+def _execute_search(window, query, overrides=None, explain=False, enumeration=False, append_session=None, service_root=None,
+                    operation_scope=None, settings_snapshot=None):
+    overrides = copy.deepcopy(overrides)
+    append_session = copy.deepcopy(append_session)
+    if not _saved_scope_available(overrides):
+        return
+    if not query and not enumeration:
+        return
+    scope = operation_scope or operations.capture(window, key='foreground-search')
+    if not operations.is_current(scope):
         return
 
-    settings = config.get_settings(window)
-    repo_root, reason = _resolve_repo_root(window)
+    settings = copy.deepcopy(settings_snapshot) if settings_snapshot is not None else config.get_settings(window)
+    saved_root = overrides.get('repoRoot') if isinstance(overrides, dict) else None
+    repo_root, reason = (saved_root, None) if saved_root else _resolve_repo_root(window)
     if not repo_root:
-        ui.show_error('PairOfCleats: {0}'.format(reason))
+        paths.resolve_repo_root_interactive(window, lambda chosen, why: (
+            _execute_search(window, query, dict(overrides or {}, repoRoot=chosen), explain, enumeration, append_session,
+                            operation_scope=scope, settings_snapshot=settings)
+            if chosen else ui.show_status('PairOfCleats: {0}'.format(why))))
         return
     if reason:
         ui.show_status('PairOfCleats: {0}'.format(reason))
@@ -329,18 +367,55 @@ def _execute_search(window, query, overrides=None, explain=False):
         return
 
     resolved = _resolve_defaults(settings, overrides)
+    resolved = normalize_saved_options(resolved, repo_root)
+    if enumeration and not search_lib.has_effective_filter(resolved.get('advanced')):
+        ui.show_error('PairOfCleats: indexed browsing requires an effective filter.')
+        return
+    if isinstance(overrides, dict) and overrides.get('cursor'):
+        resolved['cursor'] = overrides['cursor']
+    option_errors = search_lib.validate_search_options(resolved)
+    if option_errors:
+        ui.show_error('PairOfCleats search options need attention:\n- ' + '\n- '.join(option_errors))
+        return
     execution = config.resolve_execution_mode(settings, 'search-explain' if explain else 'search')
     if execution.get('error'):
         ui.show_error(execution['error'])
         return
 
+    if append_session and not continuation_endpoint_matches(append_session, execution):
+        ui.show_error('PairOfCleats: transport or endpoint changed. Restart indexed browsing with the intended destination.')
+        return
+    if append_session and service_root and append_session.get('serviceRoot') != service_root:
+        ui.show_error('PairOfCleats: service repository mapping changed. Restart indexed browsing.')
+        return
+    if execution.get('mode') == 'api' and not service_root:
+        # Mapping may involve HTTP and native input. Resume the admitted request,
+        # never resolve a different repository or today's settings afterward.
+        service_repository.resolve(window, settings, repo_root, lambda selected: _dispatch_search(
+            window, query, repo_root, settings, resolved, execution, scope, explain, enumeration, append_session, selected),
+            operation_scope=scope)
+        return
+    _dispatch_search(window, query, repo_root, settings, resolved, execution, scope, explain, enumeration,
+                     append_session, service_root)
+
+
+def _dispatch_search(window, query, repo_root, settings, resolved, execution, scope, explain=False,
+                     enumeration=False, append_session=None, service_root=None):
+    if not operations.is_current(scope):
+        return
+    if append_session and service_root and append_session.get('serviceRoot') != service_root:
+        ui.show_error('PairOfCleats: service repository mapping changed. Restart indexed browsing.')
+        return
+
     def handle_payload(result):
-        if result.returncode != 0:
-            message = result.output.strip() or 'PairOfCleats search failed.'
-            ui.show_error(message)
+        if not operations.is_current(scope):
             return
         if result.error:
             ui.show_error(result.error)
+            return
+        if result.returncode != 0:
+            message = result.output.strip() or 'PairOfCleats search failed.'
+            ui.show_error(message)
             return
         payload = result.payload
         if not isinstance(payload, dict):
@@ -350,9 +425,43 @@ def _execute_search(window, query, overrides=None, explain=False):
             ui.show_error(payload.get('message') or 'PairOfCleats search failed.')
             return
 
+        actual_transport = 'api' if getattr(result, 'transport', None) == 'api' else 'cli'
+        if append_session and append_session.get('transport') != actual_transport:
+            ui.show_error('PairOfCleats: continuation transport changed. Restart indexed browsing.')
+            return
+        if service_root and actual_transport == 'api':
+            try:
+                payload = service_repository.map_payload(payload, service_root)
+            except ValueError as error:
+                ui.show_error(str(error))
+                return
         hits = results.collect_hits(payload)
+        pagination = normalize_filter_pagination(payload.get('pagination'))
+        if enumeration:
+            try:
+                pagination = admit_filter_page(payload.get('pagination'), hits, first_page=not append_session)
+            except ValueError as error:
+                ui.show_error('PairOfCleats: ' + str(error))
+                return
+        if append_session:
+            current = results_state.get_last_results(window)
+            if not current or current.get('sessionId') != append_session.get('sessionId'):
+                return
+            try:
+                hits = merge_filter_page(append_session, pagination, hits)
+                if pagination['total'] is None:
+                    pagination['total'] = hits.matching_total
+            except ValueError as error:
+                ui.show_error('PairOfCleats: ' + str(error))
+                return
         history_limit = settings.get('history_limit')
-        history.record_query(window, query, resolved, history_limit)
+        if query:
+            try:
+                history.record_query(window, query, resolved, history_limit)
+            except Exception as error:
+                ui.show_error('PairOfCleats: search completed, but history save failed: ' + str(error))
+        if not operations.is_current(scope):
+            return
 
         if explain:
             session = results.build_session(
@@ -372,12 +481,23 @@ def _execute_search(window, query, overrides=None, explain=False):
             )
             return
 
-        if not hits:
+        if not hits and not enumeration:
             ui.show_status('PairOfCleats: no results.')
             return
 
         target = _resolve_results_target(settings, len(hits))
         session = results.build_session(query, resolved, repo_root, hits, target)
+        session['pagination'] = pagination if isinstance(pagination, dict) else None
+        session['transport'] = actual_transport
+        session['endpoint'] = execution.get('base_url') if actual_transport == 'api' else None
+        session['serviceRoot'] = service_root if actual_transport == 'api' else None
+        session['sessionId'] = append_session.get('sessionId') if append_session else str(uuid.uuid4())
+        if append_session:
+            capture_selection(session, hits, selected_index(append_session, hits))
+        if isinstance(pagination, dict):
+            ui.show_status('PairOfCleats: {0} loaded / {1} indexed matches; more={2}.'.format(
+                len(hits), pagination['total'] if pagination.get('total') is not None else 'unknown',
+                pagination.get('hasMore', False)))
         results_state.record_last_results(window, session)
         if target == 'output_panel':
             results.open_output_panel(
@@ -397,11 +517,13 @@ def _execute_search(window, query, overrides=None, explain=False):
         items = [results.format_quick_panel_item(hit) for hit in hits]
 
         def on_select(index):
-            if index < 0:
+            if index < 0 or not operations.is_current(scope):
                 return
+            capture_selection(session, hits, index)
+            results_state.record_last_results(window, session)
             results.open_hit(window, hits[index], repo_root)
 
-        window.show_quick_panel(items, on_select)
+        window.show_quick_panel(items, on_select, selected_index=selected_index(session, hits))
 
     if execution.get('mode') == 'api':
         ui.show_status('PairOfCleats: searching via API...')
@@ -416,11 +538,13 @@ def _execute_search(window, query, overrides=None, explain=False):
         )
 
         def on_api_done(result):
+            if not operations.is_current(scope):
+                return
             if result.error:
                 tasks.complete_task(window, task, status='failed', details=result.error)
-                if execution.get('allow_fallback'):
+                if execution.get('allow_fallback') and not append_session:
                     ui.show_status('PairOfCleats: API search failed; falling back to CLI.')
-                    _execute_search_cli(window, query, repo_root, settings, resolved, explain, handle_payload)
+                    _execute_search_cli(window, query, repo_root, settings, resolved, explain, handle_payload, scope=scope)
                     return
                 ui.show_error(result.error)
                 return
@@ -430,7 +554,7 @@ def _execute_search(window, query, overrides=None, explain=False):
         api_client.run_async(
             lambda: api_client.search_json(
                 execution.get('base_url'),
-                repo_root,
+                service_root or repo_root,
                 settings,
                 query,
                 resolved.get('mode'),
@@ -438,11 +562,14 @@ def _execute_search(window, query, overrides=None, explain=False):
             ),
             on_api_done,
             on_progress=lambda message: tasks.note_progress(window, task, details=message),
+            window=window,
+            scope=scope,
+            task=task,
         )
         return
 
     ui.show_status('PairOfCleats: searching...')
-    _execute_search_cli(window, query, repo_root, settings, resolved, explain, handle_payload)
+    _execute_search_cli(window, query, repo_root, settings, resolved, explain, handle_payload, scope=scope)
 
 
 class _ApiProcessResult(object):
@@ -451,9 +578,10 @@ class _ApiProcessResult(object):
         self.output = ''
         self.error = None
         self.payload = payload
+        self.transport = 'api'
 
 
-def _execute_search_cli(window, query, repo_root, settings, resolved, explain, on_done):
+def _execute_search_cli(window, query, repo_root, settings, resolved, explain, on_done, scope=None):
     args = search_lib.build_search_args(
         query,
         repo_root=repo_root,
@@ -465,7 +593,7 @@ def _execute_search_cli(window, query, repo_root, settings, resolved, explain, o
     command = cli['command']
     full_args = list(cli.get('args_prefix') or []) + args
     env = config.build_env(settings)
-    runner.run_process(
+    return runner.run_process(
         command,
         full_args,
         cwd=repo_root,
@@ -474,14 +602,16 @@ def _execute_search_cli(window, query, repo_root, settings, resolved, explain, o
         title='PairOfCleats search',
         capture_json=True,
         on_done=on_done,
-        stream_output=False
+        stream_output=False,
+        operation_scope=scope,
     )
 
 
-def _execute_symbol_lookup(window, query, on_hits, limit=25, title='PairOfCleats symbol lookup'):
+def _execute_symbol_lookup(window, query, on_hits, limit=25, title='PairOfCleats symbol lookup', service_root=None):
     if not query:
         return
 
+    scope = operations.capture(window, key='symbol-lookup')
     settings = config.get_settings(window)
     repo_root, reason = _resolve_repo_root(window)
     if not repo_root:
@@ -509,13 +639,27 @@ def _execute_symbol_lookup(window, query, on_hits, limit=25, title='PairOfCleats
         ui.show_error(execution['error'])
         return
 
+    if execution.get('mode') == 'api' and not service_root:
+        service_repository.resolve(window, settings, repo_root, lambda selected: _dispatch_symbol_lookup(
+            window, query, on_hits, repo_root, settings, resolved, execution, scope, title, selected), operation_scope=scope)
+        return
+    _dispatch_symbol_lookup(window, query, on_hits, repo_root, settings, resolved, execution, scope, title, service_root)
+
+
+def _dispatch_symbol_lookup(window, query, on_hits, repo_root, settings, resolved, execution, scope,
+                            title, service_root=None):
+    if not operations.is_current(scope):
+        return
+
     def on_done(result):
-        if result.returncode != 0:
-            message = result.output.strip() or '{0} failed.'.format(title)
-            ui.show_error(message)
+        if not operations.is_current(scope):
             return
         if result.error:
             ui.show_error(result.error)
+            return
+        if result.returncode != 0:
+            message = result.output.strip() or '{0} failed.'.format(title)
+            ui.show_error(message)
             return
         payload = result.payload
         if not isinstance(payload, dict):
@@ -524,6 +668,12 @@ def _execute_symbol_lookup(window, query, on_hits, limit=25, title='PairOfCleats
         if payload.get('ok') is False:
             ui.show_error(payload.get('message') or '{0} failed.'.format(title))
             return
+        if service_root and getattr(result, 'transport', None) == 'api':
+            try:
+                payload = service_repository.map_payload(payload, service_root)
+            except ValueError as error:
+                ui.show_error(str(error))
+                return
         hits = [hit for hit in results.collect_hits(payload) if hit.get('section') == 'code']
         on_hits(hits, repo_root, resolved)
 
@@ -538,10 +688,12 @@ def _execute_symbol_lookup(window, query, on_hits, limit=25, title='PairOfCleats
             show_panel=bool(settings.get('progress_panel_on_start', True)),
         )
         def on_api_done(result):
+            if not operations.is_current(scope):
+                return
             if result.error:
                 tasks.complete_task(window, task, status='failed', details=result.error)
                 if execution.get('allow_fallback'):
-                    _execute_symbol_lookup_cli(window, query, repo_root, settings, resolved, title, on_done)
+                    _execute_symbol_lookup_cli(window, query, repo_root, settings, resolved, title, on_done, scope)
                     return
                 ui.show_error(result.error)
                 return
@@ -551,7 +703,7 @@ def _execute_symbol_lookup(window, query, on_hits, limit=25, title='PairOfCleats
         api_client.run_async(
             lambda: api_client.search_json(
                 execution.get('base_url'),
-                repo_root,
+                service_root or repo_root,
                 settings,
                 query,
                 'code',
@@ -559,13 +711,16 @@ def _execute_symbol_lookup(window, query, on_hits, limit=25, title='PairOfCleats
             ),
             on_api_done,
             on_progress=lambda message: tasks.note_progress(window, task, details=message),
+            window=window,
+            scope=scope,
+            task=task,
         )
         return
 
-    _execute_symbol_lookup_cli(window, query, repo_root, settings, resolved, title, on_done)
+    _execute_symbol_lookup_cli(window, query, repo_root, settings, resolved, title, on_done, scope)
 
 
-def _execute_symbol_lookup_cli(window, query, repo_root, settings, resolved, title, on_done):
+def _execute_symbol_lookup_cli(window, query, repo_root, settings, resolved, title, on_done, scope=None):
     args = search_lib.build_search_args(
         query,
         repo_root=repo_root,
@@ -586,17 +741,20 @@ def _execute_symbol_lookup_cli(window, query, repo_root, settings, resolved, tit
         title=title,
         capture_json=True,
         on_done=on_done,
-        stream_output=False
+        stream_output=False,
+        operation_scope=scope,
     )
 
 
-def _show_symbol_hit_picker(window, hits, repo_root):
+def _show_symbol_hit_picker(window, hits, repo_root, request_current=None, source_current=None):
     items = [results.format_quick_panel_item(hit) for hit in hits]
+    scope = operations.capture(window, key='navigation-picker')
 
     def on_select(index):
-        if index < 0:
+        if (index < 0 or index >= len(hits) or not operations.is_current(scope)
+                or callable(request_current) and request_current() is not True):
             return
-        results.open_hit(window, hits[index], repo_root)
+        results.open_hit(window, hits[index], repo_root, request_current=source_current)
 
     window.show_quick_panel(items, on_select)
 
@@ -628,13 +786,8 @@ class _FileSymbolLookupMixin(object):
         def on_hits(hits, repo_root, resolved):
             self.handle_symbol_hits(query, hits, repo_root, resolved)
 
-        _execute_symbol_lookup(
-            self.view.window(),
-            query,
-            on_hits,
-            limit=self.lookup_limit,
-            title=self.lookup_title,
-        )
+        _execute_qualified_navigation(self.view, query, self.lookup_kind, on_hits,
+                                      self.lookup_limit, self.lookup_title)
 
     def handle_symbol_hits(self, query, hits, repo_root, resolved):
         raise NotImplementedError()
@@ -661,33 +814,63 @@ def _resolve_completion_text(hit):
     return value.strip() if isinstance(value, str) else ''
 
 
-def _search_with_query(window, query, overrides=None, force_prompt=False):
+def _prepare_search_prompt(window, overrides, scope, on_ready):
+    retained = copy.deepcopy(overrides or {})
+    saved_root = retained.get('repoRoot')
+    repo_root, reason = (saved_root, None) if saved_root else _resolve_repo_root(window)
+    def resolved(root, why=None):
+        if not operations.is_current(scope):
+            return
+        if not root:
+            ui.show_status('PairOfCleats: ' + str(why or 'Repository selection cancelled.'))
+            return
+        if why:
+            ui.show_status('PairOfCleats: ' + why)
+        retained['repoRoot'] = root
+        # Target selection precedes the settings snapshot and every subsequent
+        # native input. Changing active files cannot substitute another root.
+        on_ready(config.get_settings(window), retained)
+    if repo_root:
+        resolved(repo_root, reason)
+    else:
+        paths.resolve_repo_root_interactive(window, resolved)
+
+
+def _search_with_query(window, query, overrides=None, force_prompt=False, operation_scope=None):
+    if not _saved_scope_available(overrides):
+        return
     if not query:
         ui.show_status('PairOfCleats: empty query.')
         return
-    settings = config.get_settings(window)
-    defaults = _resolve_defaults(settings, overrides)
-
-    def after_options(options):
-        _execute_search(window, query, options)
-
-    _prompt_options(window, settings, defaults, after_options, force_prompt=force_prompt)
+    scope = operation_scope or operations.capture(window, key='foreground-search')
+    def ready(settings, retained):
+        defaults = dict(_resolve_defaults(settings, retained), repoRoot=retained['repoRoot'])
+        def after_options(options):
+            if operations.is_current(scope):
+                _execute_search(window, query, options, operation_scope=scope, settings_snapshot=settings)
+        _prompt_options(window, settings, defaults, after_options, force_prompt=force_prompt,
+                        prompt=NativePrompt(window, scope))
+    _prepare_search_prompt(window, overrides, scope, ready)
 
 
 def _search_with_prompt(window, overrides=None, force_prompt=False):
-    settings = config.get_settings(window)
-    defaults = _resolve_defaults(settings, overrides)
-    last = history.get_last_query(window)
-    initial = last.get('query') if isinstance(last, dict) else ''
-
-    def on_query(value):
-        if not value:
-            return
-        def after_options(options):
-            _execute_search(window, value, options)
-        _prompt_options(window, settings, defaults, after_options, force_prompt=force_prompt)
-
-    _prompt_query(window, initial, on_query)
+    if not _saved_scope_available(overrides):
+        return
+    scope = operations.capture(window, key='foreground-search')
+    def ready(settings, retained):
+        defaults = dict(_resolve_defaults(settings, retained), repoRoot=retained['repoRoot'])
+        prompt = NativePrompt(window, scope)
+        last = history.get_last_query(window)
+        initial = last.get('query') if isinstance(last, dict) else ''
+        def on_query(value):
+            if not value or not operations.is_current(scope):
+                return
+            def after_options(options):
+                if operations.is_current(scope):
+                    _execute_search(window, value, options, operation_scope=scope, settings_snapshot=settings)
+            _prompt_options(window, settings, defaults, after_options, force_prompt=force_prompt, prompt=prompt)
+        _prompt_query(window, initial, on_query, prompt)
+    _prepare_search_prompt(window, overrides, scope, ready)
 
 
 class PairOfCleatsSearchCommand(sublime_plugin.WindowCommand):
@@ -749,21 +932,27 @@ class PairOfCleatsSearchSymbolUnderCursorCommand(sublime_plugin.TextCommand):
 
 
 class PairOfCleatsGotoDefinitionCommand(_FileSymbolLookupMixin, sublime_plugin.TextCommand):
+    lookup_kind = 'definitions'
     lookup_limit = 25
     lookup_title = 'PairOfCleats goto definition'
 
     def handle_symbol_hits(self, query, hits, repo_root, _resolved):
+        request_current = _resolved.get('navigation_current')
+        source_current = _resolved.get('navigation_source_current')
+        if callable(request_current) and request_current() is not True:
+            return
         if not hits:
             ui.show_status('PairOfCleats: no indexed definitions found.')
             return
-        ranked = _rank_definition_hits(hits, query)
+        ranked = hits
         if len(ranked) == 1:
-            results.open_hit(self.view.window(), ranked[0], repo_root)
+            results.open_hit(self.view.window(), ranked[0], repo_root, request_current=source_current)
             return
-        _show_symbol_hit_picker(self.view.window(), ranked, repo_root)
+        _show_symbol_hit_picker(self.view.window(), ranked, repo_root, request_current, source_current)
 
 
 class PairOfCleatsFindReferencesCommand(_FileSymbolLookupMixin, sublime_plugin.TextCommand):
+    lookup_kind = 'references'
     lookup_limit = 50
     lookup_title = 'PairOfCleats find references'
 
@@ -771,7 +960,8 @@ class PairOfCleatsFindReferencesCommand(_FileSymbolLookupMixin, sublime_plugin.T
         if not hits:
             ui.show_status('PairOfCleats: no indexed references found.')
             return
-        _show_symbol_hit_picker(self.view.window(), hits, repo_root)
+        _show_symbol_hit_picker(self.view.window(), hits, repo_root, _resolved.get('navigation_current'),
+                                _resolved.get('navigation_source_current'))
 
 
 class PairOfCleatsCompleteSymbolCommand(sublime_plugin.TextCommand):
@@ -786,8 +976,13 @@ class PairOfCleatsCompleteSymbolCommand(sublime_plugin.TextCommand):
         if not query:
             ui.show_status('PairOfCleats: no symbol prefix under cursor.')
             return
+        target = capture_target(self.view)
+        if target is None:
+            return
 
         def on_hits(hits, _repo_root, _resolved):
+            if not target_is_current(self.view, target) or not self.view.window():
+                return
             if not hits:
                 ui.show_status('PairOfCleats: no indexed completions found.')
                 return
@@ -805,11 +1000,11 @@ class PairOfCleatsCompleteSymbolCommand(sublime_plugin.TextCommand):
             items = [results.format_quick_panel_item(hit) for _, hit in candidates]
 
             def on_select(index):
-                if index < 0:
+                if index < 0 or index >= len(candidates) or not target_is_current(self.view, target):
                     return
                 self.view.run_command(
                     'pair_of_cleats_apply_completion',
-                    {'text': candidates[index][0]},
+                    {'text': candidates[index][0], 'target': target},
                 )
 
             self.view.window().show_quick_panel(items, on_select)
@@ -830,16 +1025,9 @@ class PairOfCleatsApplyCompletionCommand(sublime_plugin.TextCommand):
     def is_visible(self):
         return False
 
-    def run(self, edit, text=''):
-        if not text:
-            return
-        selection = self.view.sel()
-        if not selection:
-            return
-        region = selection[0]
-        word = self.view.word(region)
-        self.view.erase(edit, word)
-        self.view.insert(edit, word.a, text)
+    def run(self, edit, text='', target=None):
+        if not apply_target(self.view, edit, text, target):
+            ui.show_status('PairOfCleats: completion target changed; request a new completion.')
 
 
 class PairOfCleatsSearchHistoryCommand(sublime_plugin.WindowCommand):
@@ -854,6 +1042,7 @@ class PairOfCleatsSearchHistoryCommand(sublime_plugin.WindowCommand):
         if not entries:
             ui.show_status('PairOfCleats: no history yet.')
             return
+        scope = operations.capture(self.window, key='foreground-search')
 
         items = []
         for entry in entries:
@@ -865,10 +1054,10 @@ class PairOfCleatsSearchHistoryCommand(sublime_plugin.WindowCommand):
             items.append([query, detail])
 
         def on_select(index):
-            if index < 0:
+            if index < 0 or index >= len(entries) or not operations.is_current(scope):
                 return
             entry = entries[index]
-            _execute_search(self.window, entry.get('query'), entry)
+            _execute_search(self.window, entry.get('query'), entry, operation_scope=scope)
 
         self.window.show_quick_panel(items, on_select)
 
@@ -900,13 +1089,15 @@ class PairOfCleatsExplainSearchCommand(sublime_plugin.WindowCommand):
         if entry and entry.get('query'):
             _execute_search(self.window, entry.get('query'), entry, explain=True)
             return
-
-        def on_query(value):
-            if not value:
-                return
-            _execute_search(self.window, value, explain=True)
-
-        _prompt_query(self.window, '', on_query)
+        scope = operations.capture(self.window, key='foreground-search')
+        def ready(settings, retained):
+            def on_query(value):
+                if not value or not operations.is_current(scope):
+                    return
+                _execute_search(self.window, value, retained, explain=True,
+                                operation_scope=scope, settings_snapshot=settings)
+            _prompt_query(self.window, '', on_query, NativePrompt(self.window, scope))
+        _prepare_search_prompt(self.window, None, scope, ready)
 
 
 class PairOfCleatsReopenLastResultsCommand(sublime_plugin.WindowCommand):
@@ -947,7 +1138,7 @@ class PairOfCleatsResultActionsCommand(sublime_plugin.WindowCommand):
         return self.is_enabled()
 
     def run(self, source='results', hit_index=None, action=None):
-        session = _load_action_session(self.window, source)
+        session = copy.deepcopy(_load_action_session(self.window, source))
         if not session:
             ui.show_status('PairOfCleats: no stored results for actions.')
             return
@@ -955,17 +1146,18 @@ class PairOfCleatsResultActionsCommand(sublime_plugin.WindowCommand):
         if not hits:
             ui.show_status('PairOfCleats: stored results have no hits.')
             return
+        scope = operations.capture(self.window, key='foreground-search')
         if isinstance(hit_index, int) and 0 <= hit_index < len(hits):
-            _run_result_action(self.window, session, hits[hit_index], action)
+            _run_result_action(self.window, session, hits[hit_index], action, scope)
             return
 
         items = [results.format_quick_panel_item(hit) for hit in hits]
 
         def on_hit(index):
-            if index < 0:
+            if index < 0 or index >= len(hits) or not operations.is_current(scope):
                 return
             hit = hits[index]
-            _show_result_action_choices(self.window, session, hit)
+            _show_result_action_choices(self.window, session, hit, scope)
 
         self.window.show_quick_panel(items, on_hit)
 
@@ -976,24 +1168,27 @@ def _load_action_session(window, source):
     return results_state.get_last_results(window)
 
 
-def _show_result_action_choices(window, session, hit):
+def _show_result_action_choices(window, session, hit, scope=None):
+    scope = scope or operations.capture(window, key='foreground-search')
     items = results.format_hit_action_items(hit)
 
     def on_action(index):
-        if index < 0:
+        if index < 0 or index >= len(results.HIT_ACTIONS) or not operations.is_current(scope):
             return
         action = results.HIT_ACTIONS[index][0]
-        _run_result_action(window, session, hit, action)
+        _run_result_action(window, session, hit, action, scope)
 
     window.show_quick_panel(items, on_action)
 
 
-def _run_result_action(window, session, hit, action):
+def _run_result_action(window, session, hit, action, scope=None):
+    if scope is not None and not operations.is_current(scope):
+        return
     repo_root = session.get('repoRoot')
-    options = session.get('options')
+    options = normalize_saved_options(session.get('options'), repo_root)
 
     def rerun(query):
-        _search_with_query(window, query, overrides=options)
+        _search_with_query(window, query, overrides=options, operation_scope=scope)
 
     outcome = results.apply_hit_action(
         window,
@@ -1004,3 +1199,27 @@ def _run_result_action(window, session, hit, action):
     )
     if action == 'copy_path' and outcome:
         ui.show_status('PairOfCleats: copied path.')
+
+
+class PairOfCleatsBrowseIndexedMatchesCommand(sublime_plugin.WindowCommand):
+    def run(self):
+        scope = operations.capture(self.window, key='foreground-search')
+        def ready(settings, retained):
+            def execute(value):
+                if value.strip() and operations.is_current(scope):
+                    _execute_search(self.window, '', dict(retained, filter=value.strip()), enumeration=True,
+                                    operation_scope=scope, settings_snapshot=settings)
+            NativePrompt(self.window, scope).input('PairOfCleats indexed metadata filter', '', execute)
+        _prepare_search_prompt(self.window, None, scope, ready)
+
+
+class PairOfCleatsLoadMoreResultsCommand(sublime_plugin.WindowCommand):
+    def run(self):
+        session = results_state.get_last_results(self.window)
+        pagination = normalize_filter_pagination((session or {}).get('pagination')) or {}
+        if not pagination.get('hasMore') or not pagination.get('nextCursor'):
+            ui.show_status('PairOfCleats: no indexed continuation. Ranked text search is top-k.')
+            return
+        options = dict(session.get('options') or {})
+        options['cursor'] = pagination['nextCursor']
+        _execute_search(self.window, '', options, enumeration=True, append_session=session)

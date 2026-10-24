@@ -1,7 +1,7 @@
 # Release Matrix Guide
 
 Status: Active guide v1.1
-Last audited: 2026-10-05 (Node runtime pins)
+Last audited: 2026-10-18 (checked-in runtime and workflow contracts)
 
 ## Purpose
 
@@ -11,20 +11,26 @@ Define the authoritative release support matrix for workflow targets, Node runti
 
 | Target ID | Workflow target | Node | Required toolchains |
 | --- | --- | --- | --- |
-| `ubuntu-latest-node24` | `ubuntu-latest` | 24.21.0 | Node, npm, Git, optional LSP/tooling installs, editor packaging toolchain, release artifact tooling |
-| `windows-latest-node24` | `windows-latest` | 24.21.0 | Node, npm, Git, optional LSP/tooling installs, editor packaging toolchain, release artifact tooling |
-| `macos-latest-node24` | `macos-latest` | 24.21.0 | Node, npm, Git, optional LSP/tooling installs, editor packaging toolchain, release artifact tooling |
-| `tui-rust-1.88` | `ubuntu-latest`, `windows-latest`, `macos-latest` release matrix | 24.21.0 | Rust 1.88.0, Cargo, Node, npm, Git |
+| `ubuntu` | `ubuntu-latest` | 26.12.1 | Node, npm, Git, optional LSP/tooling installs, editor packaging toolchain, release artifact tooling |
+| `windows` | `windows-latest` | 26.12.1 | Node, npm, Git, optional LSP/tooling installs, editor packaging toolchain, release artifact tooling |
+| `macos` | `macos-latest` | 26.12.1 | Node, npm, Git, optional LSP/tooling installs, editor packaging toolchain, release artifact tooling |
+| `tui-rust-1.88` | `ubuntu-latest`, `windows-latest`, `macos-latest` release matrix | 26.12.1 | Rust 1.88.0, Cargo, Node, npm, Git |
 
 Notes:
 
 - New targets are unsupported until added to this table and validated by required jobs.
 - Required toolchains are hard requirements for release lanes. Missing toolchains fail fast.
-- `package.json` requires `node >=24.15.0`; CI and release workflows pin `actions/setup-node` to `24.21.0`.
-- [Node runtime policy](node-runtime.md) separates the compatibility floor,
-  pinned release runtime, action runtimes and the unvalidated Node 26 target.
+- `package.json` requires `node >=26.12.1 <27`; CI and release workflows pin `actions/setup-node` to `26.12.1`.
+- The platform IDs match the CI job names and release TUI `release_id` values;
+  `tui-rust-1.88` identifies the shared Rust toolchain rather than a workflow job.
+- [Node runtime policy](node-runtime.md) separates the application runtime,
+  pinned release runtime and action runtimes. This matrix defines required
+  qualification; it does not establish that every target has passed at this head.
 
 ## Required release jobs
+
+The [qualification matrix](../testing/qualification-matrix.md) describes the
+minimum useful platform/performance evidence and the limits of local fixtures.
 
 Each supported target must pass:
 
@@ -34,6 +40,18 @@ Each supported target must pass:
 4. TUI build and wrapper/install verification for the release matrix.
 5. Release bundle assembly and trust-material generation.
 6. Integrated readiness gate, including CI/CI Long status and USR technical contract evidence.
+
+CI Long is release evidence at the exact release SHA, dispatched manually or by
+release-tag automation. It is not required on ordinary PRs; the complete merge
+job inventory and repository-enforcement limits are in the
+[CI gate policy](ci-gate-policy.md).
+
+Promotion stages every file from downloads, bundle and trust under a stable
+unique asset basename before creating or updating a GitHub release. Each name
+contains the SHA-256 of its original relative path and a readable filename suffix.
+`release-asset-map.json` maps every original relative path to its promoted name,
+byte length and content SHA-256. Reruns use the same names and validate all names
+and staged bytes first; display labels do not provide filename uniqueness.
 
 ## Failure taxonomy
 

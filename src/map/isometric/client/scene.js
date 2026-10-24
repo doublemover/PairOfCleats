@@ -1,164 +1,250 @@
 import { state } from './state.js';
 import { numberValue } from './utils.js';
 import { toArray } from '../../../shared/iterables.js';
+import { createEnvironmentOwner } from './environment-owner.js';
+import { clearGroup } from './scene-utils.js';
+import { retirePicking } from './rendering/picking-owner.js';
+import { captureSceneResource, getPendingSceneResourceOwners, preserveSceneCleanupFailures } from './scene-retirement.js';
+import { createSceneConstructionOwner } from './rendering/scene-construction-owner.js';
+import { retireNormalMapState } from './normal-map-owner.js';
+import { createSceneDisposerGuard } from './rendering/scene-disposer-guard.js';
+import { createSceneContextCallbacks } from './rendering/scene-context-callbacks.js';
 
-export const initScene = async () => {
-  const { THREE, dom, RGBELoader, assets, visuals } = state;
-  const { app } = dom;
+export const initScene = async ({isCurrent=()=>true,onSceneOwner=null}={}) => {
+  if(!isCurrent())return null;
+  const previousDispose=state.disposeScene;
+  if(typeof previousDispose==='function')previousDispose.call(state);
+  if(!isCurrent())return null;
+  const construction=createSceneConstructionOwner();
+  try{
+    const { THREE, dom, RGBELoader, assets, visuals } = state;
+    const { app } = dom;
 
-  const getViewport = () => {
-    const rect = app.getBoundingClientRect();
-    const width = rect.width || window.innerWidth;
-    const height = rect.height || window.innerHeight;
-    return { width, height };
-  };
+    const getViewport = () => {
+      const rect = app.getBoundingClientRect();
+      const width = rect.width || window.innerWidth;
+      const height = rect.height || window.innerHeight;
+      return { width, height };
+    };
 
-  const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-  const pixelRatioCap = numberValue(visuals.pixelRatioCap, 2);
-  renderer.setPixelRatio(Math.min(pixelRatioCap, window.devicePixelRatio || 1));
-  const initialViewport = getViewport();
-  const lineResolution = { width: initialViewport.width, height: initialViewport.height };
-  renderer.setSize(initialViewport.width, initialViewport.height);
-  renderer.domElement.style.width = '100%';
-  renderer.domElement.style.height = '100%';
-  renderer.physicallyCorrectLights = true;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.9;
-  renderer.shadowMap.enabled = visuals.enableShadows === true;
-  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  if (renderer.outputColorSpace !== undefined) {
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-  }
-  app.appendChild(renderer.domElement);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    const rendererOwner = construction.capture(renderer, 'scene renderer');
+    const canvas=renderer.domElement;
+    const canvasOwner = construction.capture(canvas, 'scene renderer canvas', 'remove');
+    const pixelRatioCap = numberValue(visuals.pixelRatioCap, 2);
+    renderer.setPixelRatio(Math.min(pixelRatioCap, window.devicePixelRatio || 1));
+    const initialViewport = getViewport();
+    const lineResolution = { width: initialViewport.width, height: initialViewport.height };
+    renderer.setSize(initialViewport.width, initialViewport.height);
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    renderer.physicallyCorrectLights = true;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.9;
+    renderer.shadowMap.enabled = visuals.enableShadows === true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    if (renderer.outputColorSpace !== undefined) {
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+    }
+    app.appendChild(canvas);
 
-  const scene = new THREE.Scene();
-  scene.background = new THREE.Color('#0f1115');
+    const scene = construction.scene(new THREE.Scene());
+    scene.background = new THREE.Color('#0f1115');
 
-  const ambient = new THREE.AmbientLight(0xffffff, 0.9);
-  scene.add(ambient);
-  const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
-  dirLight.position.set(50, 80, 30);
-  dirLight.castShadow = visuals.enableShadows === true;
-  scene.add(dirLight);
-  const purpleSun = new THREE.DirectionalLight(0x8f6bff, 2.6);
-  purpleSun.position.set(220, 12, -190);
-  purpleSun.castShadow = visuals.enableShadows === true;
-  purpleSun.shadow.mapSize.set(2048, 2048);
-  purpleSun.shadow.bias = -0.00015;
-  purpleSun.shadow.normalBias = 0.02;
-  purpleSun.shadow.camera.near = 1;
-  purpleSun.shadow.camera.far = 600;
-  purpleSun.shadow.camera.left = -220;
-  purpleSun.shadow.camera.right = 220;
-  purpleSun.shadow.camera.top = 220;
-  purpleSun.shadow.camera.bottom = -220;
-  scene.add(purpleSun);
-  const hemiLight = new THREE.HemisphereLight(0x6fb1ff, 0x2b2f3a, 0.8);
-  scene.add(hemiLight);
-  const fillLight = new THREE.PointLight(0x9fd3ff, 1.0, 260);
-  fillLight.position.set(-40, 35, -20);
-  scene.add(fillLight);
-  const rimLight = new THREE.DirectionalLight(0x6fb1ff, 1.4);
-  rimLight.position.set(-80, 60, 80);
-  const accentLight = new THREE.PointLight(0xffe6b5, 1.2, 220);
-  accentLight.position.set(40, 50, -70);
-  const extraLights = [rimLight, accentLight];
-  extraLights.forEach((light) => scene.add(light));
+    const ambient = construction.light(new THREE.AmbientLight(0xffffff, 0.9));
+    scene.add(ambient);
+    const dirLight = construction.light(new THREE.DirectionalLight(0xffffff, 1.2));
+    dirLight.position.set(50, 80, 30);
+    dirLight.castShadow = visuals.enableShadows === true;
+    scene.add(dirLight);
+    const purpleSun = construction.light(new THREE.DirectionalLight(0x8f6bff, 2.6));
+    purpleSun.position.set(220, 12, -190);
+    purpleSun.castShadow = visuals.enableShadows === true;
+    purpleSun.shadow.mapSize.set(2048, 2048);
+    purpleSun.shadow.bias = -0.00015;
+    purpleSun.shadow.normalBias = 0.02;
+    purpleSun.shadow.camera.near = 1;
+    purpleSun.shadow.camera.far = 600;
+    purpleSun.shadow.camera.left = -220;
+    purpleSun.shadow.camera.right = 220;
+    purpleSun.shadow.camera.top = 220;
+    purpleSun.shadow.camera.bottom = -220;
+    scene.add(purpleSun);
+    const hemiLight = construction.light(new THREE.HemisphereLight(0x6fb1ff, 0x2b2f3a, 0.8));
+    scene.add(hemiLight);
+    const fillLight = construction.light(new THREE.PointLight(0x9fd3ff, 1.0, 260));
+    fillLight.position.set(-40, 35, -20);
+    scene.add(fillLight);
+    const rimLight = construction.light(new THREE.DirectionalLight(0x6fb1ff, 1.4));
+    rimLight.position.set(-80, 60, 80);
+    const accentLight = construction.light(new THREE.PointLight(0xffe6b5, 1.2, 220));
+    accentLight.position.set(40, 50, -70);
+    const extraLights = [rimLight, accentLight];
+    extraLights.forEach((light) => scene.add(light));
 
-  const fileGroup = new THREE.Group();
-  const memberGroup = new THREE.Group();
-  const labelGroup = new THREE.Group();
-  const wireGroup = new THREE.Group();
-  const edgeGroup = new THREE.Group();
-  scene.add(fileGroup);
-  scene.add(memberGroup);
-  scene.add(labelGroup);
-  scene.add(wireGroup);
-  scene.add(edgeGroup);
-  edgeGroup.renderOrder = 1;
-  fileGroup.renderOrder = 3;
-  memberGroup.renderOrder = 4;
-  wireGroup.renderOrder = 6;
-  labelGroup.renderOrder = 7;
-  labelGroup.visible = state.layout.style === 'stacks';
+    const fileGroup = new THREE.Group();
+    const memberGroup = new THREE.Group();
+    const labelGroup = new THREE.Group();
+    const wireGroup = new THREE.Group();
+    const edgeGroup = new THREE.Group();
+    scene.add(fileGroup);
+    scene.add(memberGroup);
+    scene.add(labelGroup);
+    scene.add(wireGroup);
+    scene.add(edgeGroup);
+    edgeGroup.renderOrder = 1;
+    fileGroup.renderOrder = 3;
+    memberGroup.renderOrder = 4;
+    wireGroup.renderOrder = 6;
+    labelGroup.renderOrder = 7;
+    labelGroup.visible = state.layout.style === 'stacks';
 
-  let cameraBase = 40;
-  let nearPlane = 0.1;
-  let farPlane = 2000;
-  const camera = new THREE.OrthographicCamera(-cameraBase, cameraBase, cameraBase, -cameraBase, nearPlane, farPlane);
-  camera.matrixAutoUpdate = true;
-  const isoYaw = Math.PI / 4;
-  const isoPitch = -Math.atan(1 / Math.sqrt(2));
-  const isoEuler = new THREE.Euler(isoPitch, isoYaw, 0, 'YXZ');
-  const isoQuaternion = new THREE.Quaternion().setFromEuler(isoEuler);
-  const isoUp = new THREE.Vector3(0, 1, 0);
-  camera.position.set(60, 54, 60);
-  camera.quaternion.copy(isoQuaternion);
-  camera.up.copy(isoUp);
-  const lockIsometric = () => {
-    camera.up.copy(isoUp);
+    let cameraBase = 40;
+    let nearPlane = 0.1;
+    let farPlane = 2000;
+    const camera = new THREE.OrthographicCamera(-cameraBase, cameraBase, cameraBase, -cameraBase, nearPlane, farPlane);
+    camera.matrixAutoUpdate = true;
+    const isoYaw = Math.PI / 4;
+    const isoPitch = -Math.atan(1 / Math.sqrt(2));
+    const isoEuler = new THREE.Euler(isoPitch, isoYaw, 0, 'YXZ');
+    const isoQuaternion = new THREE.Quaternion().setFromEuler(isoEuler);
+    const isoUp = new THREE.Vector3(0, 1, 0);
+    camera.position.set(60, 54, 60);
     camera.quaternion.copy(isoQuaternion);
-    camera.updateMatrixWorld();
-  };
+    camera.up.copy(isoUp);
+    const lockIsometric = () => {
+      camera.up.copy(isoUp);
+      camera.quaternion.copy(isoQuaternion);
+      camera.updateMatrixWorld();
+    };
 
-  const applyEnvironment = (texture) => {
-    if (!texture) return;
-    texture.mapping = THREE.EquirectangularReflectionMapping;
-    const pmrem = new THREE.PMREMGenerator(renderer);
-    scene.environment = pmrem.fromEquirectangular(texture).texture;
-    pmrem.dispose();
-  };
+    const environment = createEnvironmentOwner({ THREE, renderer, scene });
+    let disposed = false, disposeScene = null;
+    const current = () => !disposed && state.scene === scene && state.renderer === renderer && state.disposeScene === disposeScene;
+    const { lost, restored } = createSceneContextCallbacks({ state, isCurrent: current, retainFailure: construction.retainFailure, retirePicking });
+    const listenerOwners=[];
+    for(const [event,callback,label] of [['webglcontextlost',lost,'scene lost-context listener'],['webglcontextrestored',restored,'scene restored-context listener']]){
+      const owner=construction.capture(canvas,label,'removeEventListener',[event,callback]);
+      listenerOwners.push(owner);canvas.addEventListener(event,callback);
+    }
+    let disposalFailure = null;
+    disposeScene = createSceneDisposerGuard({receiver:state,
+      beforeDispose:()=>{if(!disposed)construction.assertReady();},retainFailure:construction.retainFailure,dispose:() => {
+        if (disposed) {
+          if (disposalFailure && !disposalFailure.sceneOwnershipReleased?.()) throw disposalFailure;
+          if (state.disposeScene === disposeScene) state.disposeScene = null;
+          return;
+        }
+        disposed = true;
+        const errors = [], belongs = state.scene === scene;
+        const pipeOwners = belongs ? [...(state.stackPipeOwners || [])] : [];
+        const packetOwner = belongs ? state.stackPacketOwner : null;
+        const shapeCache = belongs ? state.shapeGeometryCache : null;
+        const normalMap = belongs ? state.normalMapState : null;
+        const run = action => { try { action(); } catch (error) { errors.push(error); } };
+        for (const owner of listenerOwners) run(() => owner.retire());
+        if (belongs) {
+          for (const method of ['disposeControls', 'disposeResidency']) {
+            run(() => captureSceneResource(state, `scene ${method}`, method).retire());
+          }
+          if (state.rebuildTimer) clearTimeout(state.rebuildTimer);
+          state.rebuildTimer = null;
+        }
+        run(() => environment.dispose());
+        const shadowOwners=new Set(construction.shadowOwners);
+        run(() => scene.traverse(object => {const shadow=object.shadow;if(shadow)shadowOwners.add(construction.capture(shadow,'scene light shadow'));}));
+        for(const owner of shadowOwners)run(()=>owner.retire());
+        run(() => clearGroup(scene));
+        for (const owner of new Set([...pipeOwners, packetOwner].filter(Boolean))) run(() => captureSceneResource(owner, 'scene buffer owner').retire());
+        for (const geometry of new Set(shapeCache?.values?.() || [])) run(() => captureSceneResource(geometry, 'shared scene shape geometry').retire());
+        shapeCache?.clear?.();
+        run(() => retireNormalMapState(normalMap));
+        if (belongs) { state.stackPipeOwners=[];state.stackPipeLayers=[];state.pipeBufferMetrics=null;state.stackPacketOwner=null; }
+        run(() => rendererOwner.retire()); run(() => canvasOwner.retire());
+        disposalFailure = preserveSceneCleanupFailures(null, errors);
+        if (disposalFailure) {
+          if (belongs) { state.sceneRetirementError=disposalFailure.message;state.sceneRetirementFailure=disposalFailure;state.sceneRetirementOwners=getPendingSceneResourceOwners(); }
+          throw disposalFailure;
+        }
+        if (state.disposeScene === disposeScene) state.disposeScene = null;
+      }});
+    if(!isCurrent())throw Object.assign(new Error('Renderer enhancement superseded before scene publication'),{name:'AbortError',code:'ABORT_ERR'});
+    construction.install(disposeScene,state);
+    Object.assign(state,{scene,renderer,disposeScene,contextLost:false,rendererContextFailure:null,rendererContextError:null});
+    onSceneOwner?.({scene,renderer,disposeScene});
 
-  const envCanvas = document.createElement('canvas');
-  envCanvas.width = 32;
-  envCanvas.height = 16;
-  const envCtx = envCanvas.getContext('2d');
-  const gradient = envCtx.createLinearGradient(0, 0, envCanvas.width, envCanvas.height);
-  gradient.addColorStop(0, '#1b2230');
-  gradient.addColorStop(0.5, '#6fb1ff');
-  gradient.addColorStop(1, '#0f1115');
-  envCtx.fillStyle = gradient;
-  envCtx.fillRect(0, 0, envCanvas.width, envCanvas.height);
-  const fallbackEnv = new THREE.CanvasTexture(envCanvas);
-  applyEnvironment(fallbackEnv);
-  fallbackEnv.dispose();
+    const envCanvas = document.createElement('canvas');
+    envCanvas.width = 32;
+    envCanvas.height = 16;
+    const envCtx = envCanvas.getContext('2d');
+    const gradient = envCtx.createLinearGradient(0, 0, envCanvas.width, envCanvas.height);
+    gradient.addColorStop(0, '#1b2230');
+    gradient.addColorStop(0.5, '#6fb1ff');
+    gradient.addColorStop(1, '#0f1115');
+    envCtx.fillStyle = gradient;
+    envCtx.fillRect(0, 0, envCanvas.width, envCanvas.height);
+    const fallbackEnv = new THREE.CanvasTexture(envCanvas);
+    environment.replace(fallbackEnv);
 
-  if (RGBELoader && assets.hdrEnvUrl) {
-    const rgbe = new RGBELoader();
-    rgbe.load(assets.hdrEnvUrl, (hdrTexture) => {
-      applyEnvironment(hdrTexture);
-      hdrTexture.dispose();
+    const reportEnvironmentFailure = error => {
+      const failure = preserveSceneCleanupFailures(error, [], { hasPrimary: true, forceAggregate: true });
+      construction.retainFailure(failure);
+      if (current()) {
+        state.environmentError = failure.message; state.environmentFailure = failure;
+        state.sceneRetirementOwners = getPendingSceneResourceOwners();
+      }
+      return failure;
+    };
+    if (RGBELoader && assets.hdrEnvUrl) {
+      const rgbe = new RGBELoader();
+      rgbe.load(assets.hdrEnvUrl, (hdrTexture) => {
+        try {
+          if (!current()) return environment.discard(hdrTexture);
+          environment.replace(hdrTexture); if(current())state.invalidateRender?.();
+        }
+        catch (error) { return reportEnvironmentFailure(error); }
+      }, undefined, (error) => {
+        return reportEnvironmentFailure(error);
+      });
+    }
+
+    Object.assign(state, {
+      renderer,
+      disposeScene,
+      environmentOwner: environment,
+      scene,
+      camera,
+      lineResolution,
+      getViewport,
+      lockIsometric,
+      cameraBase,
+      nearPlane,
+      farPlane,
+      cameraInitialized: false,
+      extraLights,
+      ambientLight:ambient,
+      mainLight: dirLight,
+      sunLight: purpleSun,
+      fileGroup,
+      memberGroup,
+      labelGroup,
+      wireGroup,
+      edgeGroup,
+      grid: null,
+      gridLines: null,
+      groundPlane: new THREE.Plane(new THREE.Vector3(0, 1, 0), 0),
+      fogBounds: { maxSpan: 120 },
+      scaleFactor: 2
     });
-  }
 
-  Object.assign(state, {
-    renderer,
-    scene,
-    camera,
-    lineResolution,
-    getViewport,
-    lockIsometric,
-    cameraBase,
-    nearPlane,
-    farPlane,
-    cameraInitialized: false,
-    extraLights,
-    mainLight: dirLight,
-    sunLight: purpleSun,
-    fileGroup,
-    memberGroup,
-    labelGroup,
-    wireGroup,
-    edgeGroup,
-    grid: null,
-    gridLines: null,
-    groundPlane: new THREE.Plane(new THREE.Vector3(0, 1, 0), 0),
-    fogBounds: { maxSpan: 120 },
-    scaleFactor: 2
-  });
-
-  if (visuals?.enableExtraLights === false) {
-    extraLights.forEach((light) => { light.visible = false; });
+    if (visuals?.enableExtraLights === false) {
+      extraLights.forEach((light) => { light.visible = false; });
+    }
+    return {scene,renderer,disposeScene};
+  }catch(error){
+    construction.retainFailure(error);
+    const cleanupErrors=[];try{construction.retire();}catch(cleanup){cleanupErrors.push(cleanup);}
+    throw preserveSceneCleanupFailures(error,cleanupErrors,{hasPrimary:true,forceAggregate:true});
   }
 };
 

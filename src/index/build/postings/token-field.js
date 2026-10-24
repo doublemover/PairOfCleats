@@ -1,4 +1,5 @@
-import { maybeYield, sortStrings } from './constants.js';
+import { setOwn } from '../../../shared/object-record.js';
+import { requestCooperativeYield, sortStrings } from './constants.js';
 
 /**
  * Build token-level and field-level sparse posting artifacts.
@@ -48,7 +49,8 @@ export const buildTokenAndFieldPostings = async ({
       if (!mapped) includeTokenIds = false;
       const token = mapped ?? (typeof id === 'string' ? id : String(id));
       tokenEntries.push({ id, token, posting });
-      await maybeYield(requestYield);
+      const pendingYield1 = requestCooperativeYield(requestYield);
+      if (pendingYield1) await pendingYield1;
     }
     tokenEntries.sort((a, b) => sortStrings(a.token, b.token));
     tokenVocab = new Array(tokenEntries.length);
@@ -59,7 +61,8 @@ export const buildTokenAndFieldPostings = async ({
       tokenVocab[i] = entry.token;
       if (tokenVocabIds) tokenVocabIds[i] = entry.id;
       tokenPostingsList[i] = normalizeTfPostingList(entry.posting);
-      await maybeYield(requestYield);
+      const pendingYield2 = requestCooperativeYield(requestYield);
+      if (pendingYield2) await pendingYield2;
     }
   }
   if (typeof tokenPostings?.clear === 'function') tokenPostings.clear();
@@ -88,7 +91,8 @@ export const buildTokenAndFieldPostings = async ({
       const entries = [];
       for (const [token, posting] of postingsMap.entries()) {
         entries.push([token, posting]);
-        await maybeYield(requestYield);
+        const pendingYield3 = requestCooperativeYield(requestYield);
+        if (pendingYield3) await pendingYield3;
       }
       if (typeof postingsMap.clear === 'function') postingsMap.clear();
       entries.sort((a, b) => sortStrings(a[0], b[0]));
@@ -98,7 +102,8 @@ export const buildTokenAndFieldPostings = async ({
         const [token, posting] = entries[i];
         vocab[i] = token;
         postings[i] = normalizeTfPostingList(posting);
-        await maybeYield(requestYield);
+        const pendingYield4 = requestCooperativeYield(requestYield);
+        if (pendingYield4) await pendingYield4;
       }
       const lengthsRaw = fieldDocLengths[field] || [];
       const lengths = Array.isArray(lengthsRaw)
@@ -107,14 +112,15 @@ export const buildTokenAndFieldPostings = async ({
       const avgLen = lengths.length
         ? lengths.reduce((sum, len) => sum + len, 0) / lengths.length
         : 0;
-      fields[field] = {
+      setOwn(fields,field,{
         vocab,
         postings,
         docLengths: lengths,
         avgDocLen: avgLen,
         totalDocs: lengths.length
-      };
-      await maybeYield(requestYield);
+      });
+      const pendingYield5 = requestCooperativeYield(requestYield);
+      if (pendingYield5) await pendingYield5;
     }
     return Object.keys(fields).length ? { fields } : null;
   };

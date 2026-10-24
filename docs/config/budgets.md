@@ -6,21 +6,7 @@ inventory checks.
 
 ## Repo config keys
 
-Allowlist: align with `docs/config/schema.json` top-level namespaces:
-- `cache`
-- `quality`
-- `threads`
-- `runtime`
-- `tooling`
-- `mcp`
-- `indexing`
-- `retrieval`
-- `search`
-
-Subkeys must exist in the schema; unknown keys are rejected. Supported config
-names in the inventory derive from that schema, not a second manual allowlist.
-See [the edit workflow](inventory-notes.md#editing-supported-configuration) for
-adding a declaration and regenerating its reports.
+Accepted namespaces and keys come from `docs/config/schema.json` and runtime consumers, not a duplicated namespace list. Public-budget keys are a reviewed subset of that accepted surface. Permissive schema extension areas still need an actual consumer. See [the edit workflow](inventory-notes.md#editing-supported-configuration) for declarations and registered generation.
 
 ## Env vars (public)
 
@@ -39,7 +25,7 @@ runtime security boundary.
 
 ## Current reviewed limits
 
-- Public config keys: 3
+- Public config keys: 5
 - Public env vars: 1
 - Public entry-point CLI flags: 72
 
@@ -71,3 +57,13 @@ mode until a live complete compiler-context fingerprint is available. See
 - AutoPolicy provides safe defaults across machines and repo sizes.
 - Secrets remain in env vars to keep deployments secure.
 
+
+The 2026-10-22 reviewed surface includes `indexing.workerPool.processFallback`
+(default false, explicit bounded process transport) and `indexing.crossFileFidelity`
+(default `bounded`). The latter selects semantic candidate admission independent of
+RAM, CPU and automatic quality: `comprehensive` processes the collected supported
+candidate set through existing bounded propagation bundles and artifact spill owners.
+It does not certify extraction or program-analysis completeness. Policy/version
+identity invalidates incompatible replay; durable omission receipts accompany the
+generation, graph and risk output. The public-key budget advances from four to five
+for this single fidelity choice; no environment variable or CLI flag is added.

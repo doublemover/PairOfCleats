@@ -127,10 +127,16 @@ export const resolveRunnerSelectionPlan = async ({
   const {
     modeList,
     indexRoot,
-    modeIndexDirs
+    modeIndexDirs,
+    modeIndexRoots,
+    executionGroups
   } = modePlan;
-  const buildStatePath = resolveBuildStatePath(indexRoot);
-  const hasBuildState = buildStatePath && fsSync.existsSync(buildStatePath);
+  const buildStateRoots = [...new Set(executionGroups.map(entry => entry.indexRoot))]
+    .filter(buildRoot => {
+      const buildStatePath = resolveBuildStatePath(buildRoot);
+      return buildStatePath && fsSync.existsSync(buildStatePath);
+    });
+  const hasBuildState = buildStateRoots.length > 0;
   const envelope = options.envelope || runtime?.envelope || resolveCurrentProcessRuntimeEnvelope({
     argv,
     rawArgv: parsedRawArgs,
@@ -151,6 +157,12 @@ export const resolveRunnerSelectionPlan = async ({
     loadVectorExtension
   };
   const sqlitePaths = resolveSqlitePaths(root, userConfig, { indexRoot });
+  const outputKeys = { code: 'codePath', prose: 'prosePath',
+    'extracted-prose': 'extractedProsePath', records: 'recordsPath' };
+  for (const mode of modeList) {
+    const selectedPaths = resolveSqlitePaths(root, userConfig, { indexRoot: modeIndexRoots[mode] });
+    sqlitePaths[outputKeys[mode]] = selectedPaths[outputKeys[mode]];
+  }
   const sqliteSharedDb = Boolean(
     sqlitePaths?.codePath
     && sqlitePaths?.prosePath
@@ -180,6 +192,7 @@ export const resolveRunnerSelectionPlan = async ({
     'extracted-prose': extractedProseOutPath,
     records: recordsOutPath
   };
+  if (modeArg !== 'all' && outPath) modeOutputPaths[modeArg] = outPath;
   const {
     indexPieces,
     indexPieceErrors
@@ -195,9 +208,12 @@ export const resolveRunnerSelectionPlan = async ({
     modeList,
     indexRoot,
     modeIndexDirs,
+    modeIndexRoots,
+    executionGroups,
     outPath,
     modeOutputPaths,
     hasBuildState,
+    buildStateRoots,
     root,
     envConfig,
     userConfig,

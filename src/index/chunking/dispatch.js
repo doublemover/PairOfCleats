@@ -35,11 +35,11 @@ import { buildKotlinChunks } from '../../lang/kotlin.js';
 import { buildRubyChunks } from '../../lang/ruby.js';
 import { buildPhpChunks } from '../../lang/php.js';
 import { buildHtmlChunks } from '../../lang/html.js';
-import { buildCssChunks } from '../../lang/css.js';
+import { resolveCssPreparedChunks } from '../../lang/css.js';
 import { buildLuaChunks } from '../../lang/lua.js';
 import { buildSqlChunks } from '../../lang/sql.js';
 import { buildCLikeChunks } from '../../lang/clike.js';
-import { buildPythonChunksFromAst, buildPythonHeuristicChunks } from '../../lang/python.js';
+import { resolvePythonPreparedChunks } from '../../lang/python/prepared-chunks.js';
 import { buildRustChunks } from '../../lang/rust.js';
 import { buildSwiftChunks } from '../../lang/swift.js';
 import { buildGoChunks } from '../../lang/go.js';
@@ -129,19 +129,12 @@ const CODE_CHUNKERS = [
   {
     id: 'css',
     match: (ext) => isCss(ext),
-    chunk: ({ text, context }) => context?.cssChunks || buildCssChunks(text, getTreeSitterOptions(context))
+    chunk: ({ text, context }) => resolveCssPreparedChunks(text, context, getTreeSitterOptions(context))
   },
   {
     id: 'python',
     match: (ext) => ext === '.py',
-    chunk: ({ text, context }) => {
-      const astChunks = buildPythonChunksFromAst(text, context?.pythonAst || null);
-      if (astChunks && astChunks.length) return astChunks;
-      if (context?.pythonTreeChunks && context.pythonTreeChunks.length) {
-        return context.pythonTreeChunks;
-      }
-      return buildPythonHeuristicChunks(text);
-    }
+    chunk: ({ text, context }) => resolvePythonPreparedChunks(text, context)
   },
   {
     id: 'swift',
@@ -234,27 +227,27 @@ const CODE_CHUNKERS = [
   {
     id: 'dart',
     match: (ext) => DART_EXTS.has(ext),
-    chunk: ({ text, context }) => tryTreeSitterChunks(text, 'dart', context) || chunkDart(text, context)
+    chunk: ({ text, context }) => context?.dartChunks || tryTreeSitterChunks(text, 'dart', context) || chunkDart(text, context)
   },
   {
     id: 'scala',
     match: (ext) => SCALA_EXTS.has(ext),
-    chunk: ({ text, context }) => tryTreeSitterChunks(text, 'scala', context) || chunkScala(text, context)
+    chunk: ({ text, context }) => context?.scalaChunks || tryTreeSitterChunks(text, 'scala', context) || chunkScala(text, context)
   },
   {
     id: 'groovy',
     match: (ext) => GROOVY_EXTS.has(ext),
-    chunk: ({ text, context }) => tryTreeSitterChunks(text, 'groovy', context) || chunkGroovy(text, context)
+    chunk: ({ text, context }) => context?.groovyChunks || tryTreeSitterChunks(text, 'groovy', context) || chunkGroovy(text, context)
   },
   {
     id: 'r',
     match: (ext) => R_EXTS.has(ext),
-    chunk: ({ text, context }) => tryTreeSitterChunks(text, 'r', context) || chunkR(text, context)
+    chunk: ({ text, context }) => context?.rChunks || tryTreeSitterChunks(text, 'r', context) || chunkR(text, context)
   },
   {
     id: 'julia',
     match: (ext) => JULIA_EXTS.has(ext),
-    chunk: ({ text, context }) => tryTreeSitterChunks(text, 'julia', context) || chunkJulia(text, context)
+    chunk: ({ text, context }) => context?.juliaChunks || tryTreeSitterChunks(text, 'julia', context) || chunkJulia(text, context)
   },
   {
     id: 'handlebars',
@@ -321,7 +314,7 @@ const PROSE_CHUNKERS = [
   { id: 'docx', match: (ext) => ext === '.docx', chunk: ({ text, context }) => chunkDocxDocument(text, context) },
   {
     id: 'markdown',
-    match: (ext) => ext === '.md' || ext === '.mdx',
+    match: (ext) => ext === '.md' || ext === '.markdown' || ext === '.mdx',
     chunk: ({ text, ext, context }) => chunkMarkdown(text, ext, context)
   },
   { id: 'rst', match: (ext) => ext === '.rst', chunk: ({ text }) => chunkRst(text) },

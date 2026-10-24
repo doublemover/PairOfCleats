@@ -1,5 +1,6 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { readJsonFile } from '../../../src/shared/artifact-io/json.js';
 import {
   loadPiecesManifest,
@@ -8,6 +9,11 @@ import {
 import {
   loadJsonArrayArtifactRows
 } from '../../../src/shared/artifact-io/loaders.js';
+import { materializeDenseVectorRows } from '../../../src/shared/dense-vector-artifacts.js';
+import { decodeDenseVectorValidity, isDenseVectorRowPresent } from '../../../src/shared/dense-vector-validity.js';
+import { resolveBinaryVectorsSource } from './vector-source-binary.js';
+import { assertQuantizedEmbeddingRow, resolveDenseQuantizationSpec } from '../../../src/shared/embedding-quantization-spec.js';
+import { stableStringify } from '../../../src/shared/stable-json.js';
 
 export const toCanonicalArtifactBase = (base) => {
   if (!base || typeof base !== 'string') return '';
@@ -49,6 +55,7 @@ export const buildShardOnlyManifest = (artifactBase, meta) => {
     .filter(Boolean);
   if (!parts.length) return null;
   return {
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     pieces: parts.map((partPath) => ({
       name: artifactBase,
       path: partPath,
@@ -69,23 +76,45 @@ export const resolveShardCount = (meta) => {
   return 0;
 };
 
-const readVectorsPayload = (filePath) => {
+const invalid = message => Object.assign(new Error(message), { code: 'ERR_DENSE_VECTOR_SOURCE_IDENTITY' });
+const admitMeta = (raw, { expectedDims, expectedModelId, expectedEmbeddingIdentity, expectedEmbeddingGeneration, expectedQuantization }) => {
+  const meta = raw?.fields || raw || {};
+  if (typeof meta !== 'object' || Array.isArray(meta)) throw invalid('Dense textual metadata must be an object.');
+  resolveDenseQuantizationSpec(meta, expectedQuantization);
+  if ((expectedDims != null && meta.dims != null && expectedDims !== meta.dims)
+    || (expectedModelId != null && meta.model != null && meta.model !== expectedModelId)
+    || (expectedEmbeddingIdentity != null && stableStringify(meta.embeddingIdentity) !== stableStringify(expectedEmbeddingIdentity))
+    || (expectedEmbeddingGeneration != null && meta.embeddingGeneration !== expectedEmbeddingGeneration)) throw invalid('Dense textual metadata disagrees with the selected backend input.');
+  // Preserve an absent dimension field for legacy inline rows, whose geometry
+  // is inferred from their actual vectors. An own `dims: undefined` incorrectly
+  // claims explicit geometry and makes the canonical row validator reject them.
+  return meta.dims == null && expectedDims != null ? { ...meta, dims: expectedDims } : meta;
+};
+const readVectorsPayload = (filePath, selection) => {
   const data = readJsonFile(filePath, { maxBytes: Number.POSITIVE_INFINITY });
-  return Array.isArray(data?.arrays?.vectors)
+  const vectors = Array.isArray(data?.arrays?.vectors)
     ? data.arrays.vectors
     : (Array.isArray(data?.vectors) ? data.vectors : null);
+  return vectors ? materializeDenseVectorRows({ ...admitMeta(data, selection), vectors }) : null;
 };
 
-const loadOptionalPiecesManifest = (dir) => {
-  try {
-    return loadPiecesManifest(dir, {
-      maxBytes: Number.POSITIVE_INFINITY,
-      strict: false
-    });
-  } catch {
-    return null;
+const applyValidity = (rows, meta) => ({
+  async *[Symbol.asyncIterator]() {
+    decodeDenseVectorValidity(meta);
+    const spec = resolveDenseQuantizationSpec(meta);
+    let id = 0;
+    for await (const row of rows) {
+      if (id >= resolveShardCount(meta)) throw invalid('Dense textual payload contains extra rows.');
+      const vector = row && typeof row === 'object' && !Array.isArray(row) && !ArrayBuffer.isView(row)
+        ? row.vector ?? row.values : row;
+      if (isDenseVectorRowPresent(meta, id++)) {
+        assertQuantizedEmbeddingRow(vector, { spec, dims: meta.dims ?? null });
+        yield row;
+      } else yield { vector: [] };
+    }
+    if (id !== resolveShardCount(meta)) throw invalid('Dense textual payload row count disagrees with metadata.');
   }
-};
+});
 
 const collectManifestNames = (manifest) => new Set(
   Array.isArray(manifest?.pieces)
@@ -99,28 +128,43 @@ export const resolveVectorsSource = (vectorsPath, {
   includeCanonicalBase = false,
   requireManifestDeclaration = false,
   tryCandidateJson = false,
-  stopOnShardMetaWithoutManifest = false
+  stopOnShardMetaWithoutManifest = false,
+  preferBinary = true,
+  expectedDims = null,
+  expectedModelId = null,
+  expectedEmbeddingIdentity = null,
+  expectedEmbeddingGeneration = null,
+  expectedQuantization = null,
+  signal = null,
+  metrics = null
 } = {}) => {
   if (!vectorsPath) return null;
+  const selection = { expectedDims, expectedModelId, expectedEmbeddingIdentity, expectedEmbeddingGeneration, expectedQuantization };
   const dir = path.dirname(vectorsPath);
   const base = path.basename(vectorsPath, path.extname(vectorsPath));
   const ext = path.extname(vectorsPath) || '.json';
-  const baseCandidates = resolveArtifactBaseCandidates(base, { includeCanonical: includeCanonicalBase });
-  const manifestNames = requireManifestDeclaration
-    ? collectManifestNames(loadOptionalPiecesManifest(dir))
-    : new Set();
+  const manifest = requireManifestDeclaration || fsSync.existsSync(path.join(dir, 'pieces', 'manifest.json'))
+    || fsSync.existsSync(path.join(dir, 'pieces', 'manifest.json.bak')) ? loadPiecesManifest(dir, { strict: false }) : null;
+  const manifestNames = collectManifestNames(manifest);
+  const baseCandidates = resolveArtifactBaseCandidates(base, { includeCanonical: includeCanonicalBase })
+    .filter(candidate => !requireManifestDeclaration
+      || resolveManifestAliasNames(candidate).some(name => manifestNames.has(name)));
+  if (!baseCandidates.length) return null;
+
+  if (preferBinary) {
+    for (const artifactBase of baseCandidates) {
+      const binary = resolveBinaryVectorsSource({ dir, artifactBase, manifest, expectedDims, expectedModelId,
+        expectedEmbeddingIdentity, expectedEmbeddingGeneration, expectedQuantization, signal, metrics });
+      if (binary) return binary;
+    }
+  }
 
   for (const artifactBase of baseCandidates) {
-    if (manifestNames.size) {
-      const aliases = resolveManifestAliasNames(artifactBase);
-      const declared = aliases.some((name) => manifestNames.has(name));
-      if (!declared) continue;
-    }
     const metaPath = path.join(dir, `${artifactBase}.meta.json`);
     const hasShardedMeta = fsSync.existsSync(metaPath) || fsSync.existsSync(`${metaPath}.bak`);
     if (!hasShardedMeta) continue;
     try {
-      const meta = readJsonFile(metaPath, { maxBytes: Number.POSITIVE_INFINITY });
+      const meta = admitMeta(readJsonFile(metaPath, { maxBytes: Number.POSITIVE_INFINITY }), selection);
       const count = resolveShardCount(meta);
       const shardManifest = buildShardOnlyManifest(artifactBase, meta);
       if (!shardManifest) {
@@ -130,31 +174,31 @@ export const resolveVectorsSource = (vectorsPath, {
       return {
         count,
         vectors: null,
-        rows: loadJsonArrayArtifactRows(dir, artifactBase, {
+        rows: applyValidity(loadJsonArrayArtifactRows(dir, artifactBase, {
           maxBytes: Number.POSITIVE_INFINITY,
           manifest: shardManifest,
           strict: false,
           materialize: true
-        })
+        }), meta)
       };
-    } catch {}
+    } catch (error) { if (error.code === 'ERR_EMBEDDING_QUANTIZATION' || error.code === 'ERR_DENSE_VECTOR_SOURCE_IDENTITY') throw error; }
   }
 
   if (tryCandidateJson) {
     for (const artifactBase of baseCandidates) {
       const candidatePath = path.join(dir, `${artifactBase}${ext}`);
       try {
-        const vectors = readVectorsPayload(candidatePath);
+        const vectors = readVectorsPayload(candidatePath, selection);
         if (!Array.isArray(vectors) || !vectors.length) continue;
         return { count: vectors.length, vectors, rows: null };
-      } catch {}
+      } catch (error) { if (error.code === 'ERR_EMBEDDING_QUANTIZATION' || error.code === 'ERR_DENSE_VECTOR_SOURCE_IDENTITY') throw error; }
     }
   }
 
   try {
-    const vectors = readVectorsPayload(vectorsPath);
+    const vectors = readVectorsPayload(vectorsPath, selection);
     if (!Array.isArray(vectors) || !vectors.length) return null;
     return { count: vectors.length, vectors, rows: null };
-  } catch {}
+  } catch (error) { if (error.code === 'ERR_EMBEDDING_QUANTIZATION' || error.code === 'ERR_DENSE_VECTOR_SOURCE_IDENTITY') throw error; }
   return null;
 };

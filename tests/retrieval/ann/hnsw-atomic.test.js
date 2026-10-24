@@ -10,6 +10,7 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
 
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
+import { embeddingArtifactPath } from '../../helpers/embedding-artifacts.js';
 
 const root = process.cwd();
 const { dir: tempRoot } = await prepareIsolatedTestCacheDir('hnsw-atomic', { root });
@@ -90,10 +91,15 @@ runNode(
   { stdio: 'inherit' }
 );
 
-await fsPromises.copyFile(hnswIndexPath, `${hnswIndexPath}.bak`);
+const committedIndexPath = embeddingArtifactPath(codeIndexDir, 'dense_vectors_hnsw');
+const committedMetaPath = embeddingArtifactPath(codeIndexDir, 'dense_vectors_hnsw_meta');
+if (fs.readFileSync(hnswIndexPath, 'utf8') !== 'stub-index') {
+  throw new Error('Legacy native bytes must stay separate from the new committed generation.');
+}
+await fsPromises.copyFile(committedIndexPath, `${committedIndexPath}.bak`);
 
 const chunkMeta = await loadChunkMeta(codeIndexDir);
-const meta = readJsonFile(hnswMetaPath);
+const meta = readJsonFile(committedMetaPath);
 if (!Number.isFinite(meta?.count) || !Number.isFinite(meta?.expectedCount)) {
   console.error('hnsw atomic test failed: missing count fields in HNSW meta');
   process.exit(1);
@@ -108,9 +114,9 @@ if (meta.count !== chunkMeta.length) {
 }
 
 const hnswConfig = normalizeHnswConfig(userConfig.indexing?.embeddings?.hnsw || {});
-await fsPromises.writeFile(hnswIndexPath, 'corrupt');
+await fsPromises.writeFile(committedIndexPath, 'corrupt');
 const fallbackIndex = loadHnswIndex({
-  indexPath: hnswIndexPath,
+  indexPath: committedIndexPath,
   dims: meta.dims,
   config: hnswConfig,
   meta

@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { resolveRepoPath, resolveToolTimeoutMs } from '../../../tools/mcp/repo.js';
 import { resolveMcpRepoContext } from '../../../tools/mcp/tools/helpers.js';
 import { getRepoCacheRoot, loadUserConfig } from '../../../tools/shared/dict-utils.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -26,7 +27,7 @@ const ensureRepoArtifacts = async (repoPath, buildId = 'test-build') => {
   const currentPath = path.join(buildsRoot, 'current.json');
   await fsPromises.writeFile(
     currentPath,
-    JSON.stringify({ buildId, buildRoot: buildId }, null, 2),
+    JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, buildId, buildRoot: buildId }, null, 2),
     'utf8'
   );
   return repoCacheRoot;
@@ -46,7 +47,8 @@ if (gitInit.status !== 0) {
 
 const prevEnv = {
   PAIROFCLEATS_CACHE_ROOT: process.env.PAIROFCLEATS_CACHE_ROOT,
-  PAIROFCLEATS_TESTING: process.env.PAIROFCLEATS_TESTING
+  PAIROFCLEATS_TESTING: process.env.PAIROFCLEATS_TESTING,
+  PAIROFCLEATS_TRUSTED_REPOS: process.env.PAIROFCLEATS_TRUSTED_REPOS
 };
 applyTestEnv({ cacheRoot });
 
@@ -84,7 +86,15 @@ try {
   delete runtimeBaseEnv.PAIROFCLEATS_NODE_OPTIONS;
   delete runtimeBaseEnv.PAIROFCLEATS_MAX_OLD_SPACE_MB;
   delete runtimeBaseEnv.PAIROFCLEATS_UV_THREADPOOL_SIZE;
+  delete process.env.PAIROFCLEATS_TRUSTED_REPOS;
+  const untrustedContext = resolveMcpRepoContext(nested, { baseEnv: runtimeBaseEnv });
+  assert.doesNotMatch(String(untrustedContext.runtimeEnv.NODE_OPTIONS || ''), /--trace-warnings/,
+    'repository-selected Node options require launch-selected trust');
+  process.env.PAIROFCLEATS_TRUSTED_REPOS = JSON.stringify([repoRoot, nested]);
+  runtimeBaseEnv.PAIROFCLEATS_TRUSTED_REPOS = process.env.PAIROFCLEATS_TRUSTED_REPOS;
   const mcpContext = resolveMcpRepoContext(nested, { baseEnv: runtimeBaseEnv });
+  assert.equal(mcpContext.userConfig.runtime?.nodeOptions, '--trace-warnings',
+    'launch-selected repository trust must admit the runtime options');
   assert.equal(
     normPath(mcpContext.repoPath),
     normPath(repoRoot),

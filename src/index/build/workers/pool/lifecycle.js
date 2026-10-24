@@ -24,7 +24,8 @@ import { destroyPiscinaPool } from '../../../../shared/piscina-cleanup.js';
  * @param {number} [input.upscaleRssThreshold]
  * @param {number} [input.upscaleGcThreshold]
  * @param {(input:{rssPressure:number,gcPressure:number,rssThreshold:number,gcThreshold:number})=>boolean} [input.shouldDownscaleWorkersForPressure]
- * @param {()=>number} [input.getActiveTasks]
+ * @param {()=>number} [input.getActiveTasks] Dispatched backend operations through
+ * settled execution/recovery; excludes requests awaiting throttle or ensurePool.
  * @param {(input:{pool:string})=>void} [input.incWorkerRetries]
  * @param {number|null} [input.cleanupTimeoutMs]
  * @param {(maxWorkers:number)=>unknown} input.createPool
@@ -69,6 +70,7 @@ export const createWorkerPoolLifecycle = (input = {}) => {
   let forceDestroyPromise = null;
   let destroying = false;
   let pendingRestart = false;
+  let pressureReconfigurePending = false;
   let idleShutdownWaiters = [];
   let effectiveMaxWorkers = Math.max(1, Math.floor(Number(configuredMaxWorkers) || 1));
   let pressureDownscaleEvents = 0;
@@ -97,11 +99,10 @@ export const createWorkerPoolLifecycle = (input = {}) => {
     }
     if (!pool) return;
     const currentPool = pool;
-    pool = null;
     shutdownPromise = (async () => {
       let shutdownError = null;
       try {
-        await runBuildCleanupWithTimeout({
+        const cleanupResult = await runBuildCleanupWithTimeout({
           label: `worker-pool.${poolLabel}.destroy`,
           cleanup: () => destroyPiscinaPool(currentPool, {
             label: `worker-pool.${poolLabel}`,
@@ -112,6 +113,12 @@ export const createWorkerPoolLifecycle = (input = {}) => {
           log,
           swallowTimeout: false
         });
+        if (cleanupResult?.skipped || cleanupResult?.timedOut) {
+          throw Object.assign(new Error('Worker pool teardown was not confirmed.'), {
+            code: 'ERR_WORKER_POOL_CLEANUP_UNCONFIRMED'
+          });
+        }
+        if (pool === currentPool) pool = null;
       } catch (err) {
         const detail = summarizeError(err);
         log(`Worker pool shutdown failed: ${detail || 'unknown error'}`);
@@ -146,6 +153,7 @@ export const createWorkerPoolLifecycle = (input = {}) => {
     if (permanentlyDisabled) return;
     if (!pool && disabled && restartAttempts > maxRestartAttempts) return;
     disabled = true;
+    pressureReconfigurePending = false;
     restartAttempts += 1;
     incWorkerRetries({ pool: poolLabel });
     if (restartAttempts > maxRestartAttempts) {
@@ -170,6 +178,7 @@ export const createWorkerPoolLifecycle = (input = {}) => {
     if (permanentlyDisabled) return;
     disabled = true;
     pendingRestart = true;
+    pressureReconfigurePending = true;
     restartAtMs = Date.now() + 50;
     await shutdownNowOrWhenIdle();
     if (reason) log(`Worker pool reconfigure: ${reason}`);
@@ -317,6 +326,7 @@ export const createWorkerPoolLifecycle = (input = {}) => {
   };
 
   const initialize = () => {
+    if (pool || shutdownPromise || destroying) throw new Error('Worker pool ownership has not been relinquished.');
     pool = createPool(effectiveMaxWorkers);
     attachPoolListeners(pool);
     return pool;
@@ -348,7 +358,8 @@ export const createWorkerPoolLifecycle = (input = {}) => {
         }
       })();
     }
-    await destroyPromise;
+    try { await destroyPromise; }
+    catch (error) { destroyPromise = null; throw error; }
   };
 
   /**
@@ -375,10 +386,12 @@ export const createWorkerPoolLifecycle = (input = {}) => {
         } catch (error) {
           settleIdleShutdownWaiters(error);
           throw error;
+        } finally {
+          destroying = false;
         }
       })();
     }
-    return forceDestroyPromise;
+    return forceDestroyPromise.catch(error => { forceDestroyPromise = null; throw error; });
   };
 
   const pressureDownscaleStats = () => ({
@@ -411,6 +424,7 @@ export const createWorkerPoolLifecycle = (input = {}) => {
     isDisabled: () => disabled,
     isPermanentlyDisabled: () => permanentlyDisabled,
     isPendingRestart: () => pendingRestart,
+    isPressureReconfigurePending: () => pendingRestart && pressureReconfigurePending && !permanentlyDisabled,
     getRestartAttempts: () => restartAttempts,
     getEffectiveMaxWorkers: () => effectiveMaxWorkers,
     getConfiguredMaxWorkers: () => configuredMaxWorkers,

@@ -21,30 +21,38 @@ if (run.status !== 0) {
   process.exit(run.status ?? 1);
 }
 
-const manifestPath = path.join(outDir, 'pairofcleats.sublime-package.manifest.json');
+const manifestPath = path.join(outDir, 'PairOfCleats.sublime-package.manifest.json');
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 const shippedPaths = new Set(
   Array.isArray(manifest.entries) ? manifest.entries.map((entry) => entry.path) : []
 );
 
 const requiredShippedPaths = [
-  'PairOfCleats/plugin.py',
-  'PairOfCleats/README.md',
-  'PairOfCleats/Default.sublime-commands',
-  'PairOfCleats/Default (Windows).sublime-keymap',
-  'PairOfCleats/Default (Linux).sublime-keymap',
-  'PairOfCleats/Default (OSX).sublime-keymap',
-  'PairOfCleats/Context.sublime-menu',
-  'PairOfCleats/Main.sublime-menu',
-  'PairOfCleats/PairOfCleats.sublime-settings',
-  'PairOfCleats/commands/search.py',
-  'PairOfCleats/commands/index.py',
-  'PairOfCleats/commands/map.py',
-  'PairOfCleats/commands/operator.py',
-  'PairOfCleats/commands/runtime.py',
-  'PairOfCleats/commands/analysis.py',
-  'PairOfCleats/commands/settings.py',
-  'PairOfCleats/commands/validate.py',
+  '__init__.py',
+  'plugin.py',
+  'editor-config-contract.json',
+  'README.md',
+  'Default.sublime-commands',
+  'Default (Windows).sublime-keymap',
+  'Default (Linux).sublime-keymap',
+  'Default (OSX).sublime-keymap',
+  'Context.sublime-menu',
+  'Main.sublime-menu',
+  'PairOfCleats.sublime-settings',
+  'commands/search.py',
+  'commands/index.py',
+  'commands/map.py',
+  'commands/operator.py',
+  'commands/runtime.py',
+  'commands/analysis.py',
+  'commands/settings.py',
+  'commands/validate.py',
+  'commands/semantic.py',
+  'commands/evidence.py',
+  'lib/operations.py',
+  'lib/api_client.py',
+  'lib/publication.py',
+  'lib/prompts.py',
 ];
 for (const entry of requiredShippedPaths) {
   if (!shippedPaths.has(entry)) {

@@ -1,6 +1,7 @@
 export {
   resolveEmbeddingsCacheRoot,
   resolveEmbeddingsCacheBase,
+  resolveEmbeddingCacheProfile,
   resolveEmbeddingsCacheModeDir
 } from './layout.js';
 

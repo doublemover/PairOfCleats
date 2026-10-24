@@ -64,6 +64,27 @@ Any component change invalidates affected cache entries. Required invalidation t
 
 All layers must apply the same key schema components relevant to the cached artifact.
 
+### Source and derived metadata admission
+
+Equal size and mtime, including fine-grained mtime, do not establish unchanged
+source bytes. Whole-index and per-file incremental reuse compare the stored
+source hash before accepting stat-equal input. Reads remain bounded and honor
+cancellation. Unversioned string-only text cache rows lack freshness evidence
+and require a source re-read. Shared chunk line indexes bind to the exact text,
+rather than its line count.
+
+Cross-file output replay fingerprints every input relation field that it may
+replace. Tooling-enabled inference currently recomputes instead of replaying a
+cache without complete provider/compiler/config/ambient identity. File metadata
+reuse fingerprints the actual emitted rows, including non-source metadata;
+failed current-generation filter-index creation cannot republish an old filter.
+
+SCM file keys preserve filename whitespace and case under the repository's path
+contract. Churn requirements participate in Git metadata prefetch identity.
+Historical blame passes the requested commit to Git and caches only that pinned
+identity; unpinned working-tree blame recomputes so an in-process commit or edit
+does not reuse old authors.
+
 ### SQLite handle ownership
 
 SQLite cache entries are scoped to a physical path and its participating mode

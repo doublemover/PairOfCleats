@@ -1,4 +1,5 @@
 import { BUILD_RUNTIME_RECEIPT_SCHEMA } from './runtime-receipt.js';
+import { COMPLETED_STAGE_SCHEMA } from './completed-stage.js';
 export const BUILD_STATE_SCHEMA_VERSION = 1;
 
 const ISO_DATE_TIME = {
@@ -66,6 +67,12 @@ const SIGNATURE_ENTRY = {
   properties: {
     tokenizationKey: { type: 'string' },
     cacheSignature: { type: 'string' },
+    dependencySignatures: {
+      type: 'object', additionalProperties: false,
+      required: ['parse', 'lexical', 'enrichment', 'embeddings', 'artifacts'],
+      properties: Object.fromEntries(['parse', 'lexical', 'enrichment', 'embeddings', 'artifacts']
+        .map(key => [key, { type: 'string', pattern: '^[0-9a-f]{40}$' }]))
+    },
     signatureVersion: { type: 'number' }
   }
 };
@@ -339,6 +346,40 @@ const PROFILE_ENTRY = {
   }
 };
 
+// These projections are already emitted by the pipeline policy and artifact
+// writers. Keep their closed shapes aligned with those producers.
+const TINY_REPO_SHORTCUT = {
+  type: 'object', additionalProperties: false,
+  required: ['active', 'estimatedLines', 'totalBytes', 'fileCount', 'disableImportGraph', 'disableCrossFileInference', 'minimalArtifacts'],
+  properties: {
+    active: { const: true }, estimatedLines: { type: 'number', minimum: 0 },
+    totalBytes: { type: 'number', minimum: 0 }, fileCount: { type: 'number', minimum: 0 },
+    disableImportGraph: { type: 'boolean' }, disableCrossFileInference: { type: 'boolean' }, minimalArtifacts: { type: 'boolean' }
+  }
+};
+const ANALYSIS_SHORTCUT = {
+  type: 'object', additionalProperties: false,
+  required: ['profileId', 'disableImportGraph', 'disableCrossFileInference', 'tinyRepoFastPath'],
+  properties: {
+    profileId: PROFILE_ENTRY.properties.id, disableImportGraph: { type: 'boolean' },
+    disableCrossFileInference: { type: 'boolean' }, tinyRepoFastPath: { anyOf: [TINY_REPO_SHORTCUT, { type: 'null' }] }
+  }
+};
+const BYTE_BUDGET_POLICY = {
+  type: 'object', additionalProperties: false, required: ['artifact', 'maxBytes', 'overflow', 'strict'],
+  properties: {
+    artifact: { type: 'string', minLength: 1 }, maxBytes: { type: 'number', exclusiveMinimum: 0 },
+    overflow: { enum: ['fail', 'abort', 'warn', 'trim', 'shard', 'drop', 'skip'] }, strict: { type: 'boolean' }
+  }
+};
+const BYTE_BUDGET_SNAPSHOT = {
+  type: 'object', additionalProperties: false, required: ['generatedAt', 'maxJsonBytes', 'strict', 'policies'],
+  properties: {
+    generatedAt: ISO_DATE_TIME, maxJsonBytes: { type: 'number', exclusiveMinimum: 0 }, strict: { type: 'boolean' },
+    policies: { type: 'object', additionalProperties: BYTE_BUDGET_POLICY }
+  }
+};
+
 export const BUILD_STATE_SCHEMA = {
   $schema: 'https://json-schema.org/draft/2020-12/schema',
   title: 'build_state.json',
@@ -420,6 +461,12 @@ export const BUILD_STATE_SCHEMA = {
       additionalProperties: DOCUMENT_EXTRACTION_SUMMARY
     },
     orderingLedger: ORDERING_LEDGER,
+    analysisShortcuts: { type: 'object', additionalProperties: ANALYSIS_SHORTCUT },
+    byteBudgets: BYTE_BUDGET_SNAPSHOT,
+    completedStages: {
+      type: 'object', additionalProperties: false,
+      properties: Object.fromEntries(['code', 'prose', 'extracted-prose', 'records'].map(mode => [mode, COMPLETED_STAGE_SCHEMA]))
+    },
     runtime: BUILD_RUNTIME_RECEIPT_SCHEMA,
     ignore: {
       type: 'object',

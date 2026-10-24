@@ -12,6 +12,7 @@ import { buildIndex } from '../../../src/integrations/core/index.js';
 import { getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { createArtifactSemanticStore } from '../../../src/semantic/artifact-store.js';
+import { createSemanticTaskId, semanticHash } from '../../../src/index/semantic/identity.js';
 
 const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-semantic-production-'));
 const repoRoot = path.join(temp, 'repo');
@@ -30,14 +31,65 @@ try {
   await buildIndex(repoRoot, { mode: 'code', stage: 'stage2', incremental: true, 'stub-embeddings': true, 'scm-provider': 'none' });
   const outDir = getIndexDir(repoRoot, 'code', loadUserConfig(repoRoot));
   const manifest = JSON.parse(await fs.readFile(path.join(outDir, 'semantic_manifest.json'), 'utf8'));
-  assert.equal(manifest.partitions.length, 4);
-  assert.ok(manifest.partitions.every(partition => Object.values(partition.members).flat()
+  const syntaxPartitions = manifest.partitions.filter(partition => partition.partitionId.startsWith('sy1:'));
+  const ownershipPartitions = manifest.partitions.filter(partition => partition.members.semantic_ownership.some(piece => piece.count > 0));
+  const decisionPartitions = manifest.partitions.filter(partition => partition.partitionId.startsWith('sa1:')
+    && partition.members.semantic_coverage.some(piece => piece.count > 0));
+  assert.equal(syntaxPartitions.length, 2, 'one immutable syntax partition per input source');
+  assert.equal(ownershipPartitions.length, 2, 'one ownership partition per input source');
+  assert.equal(decisionPartitions.length, 4, 'local/cross-file dependency decisions remain explicit for both sources');
+  assert.equal(manifest.partitions.length, syntaxPartitions.length + ownershipPartitions.length + decisionPartitions.length,
+    'every production partition has a checked coverage owner');
+  assert.ok([...syntaxPartitions, ...ownershipPartitions].every(partition => Object.values(partition.members).flat()
     .every(piece => piece.path.startsWith('semantic-cache-'))), 'warm build must relocate durable cache parts rather than recollect syntax');
   assert.notEqual(manifest.generation.baseBuildId, coldManifest.generation.baseBuildId);
-  assert.deepEqual(manifest.partitions.map(row => row.canonicalHash).sort(), coldManifest.partitions.map(row => row.canonicalHash).sort(),
-    'warm cache relocation preserves canonical facts');
+  const cachedPartitions = [...syntaxPartitions, ...ownershipPartitions];
+  assert.deepEqual(cachedPartitions.map(row => row.canonicalHash).sort(),
+    coldManifest.partitions.filter(row => cachedPartitions.some(partition => partition.partitionId === row.partitionId))
+      .map(row => row.canonicalHash).sort(), 'warm cache relocation preserves exact syntax and ownership facts');
   const store = createArtifactSemanticStore({ root: path.join(outDir, 'semantic'), repoRoot,
     artifactSurfaceVersion: manifest.artifactSurfaceVersion, generation: manifest.generation, partitions: manifest.partitions });
+  const collectDecisions = async (indexDir, family) => {
+    const familyStore = createArtifactSemanticStore({ root: path.join(indexDir, 'semantic'), repoRoot,
+      artifactSurfaceVersion: family.artifactSurfaceVersion, generation: family.generation, partitions: family.partitions });
+    const tasks = new Map(), decisions = [];
+    for (const partition of family.partitions.filter(row => row.partitionId.startsWith('sa1:'))) {
+      for await (const task of familyStore.iterateRows(partition.partitionId, 'semantic_frontier')) {
+        assert.equal(task.baseBuildId, family.generation.baseBuildId);
+        const target = JSON.parse(await fs.readFile(path.join(indexDir, 'semantic', task.targetsRef), 'utf8'));
+        assert.deepEqual(target.generation, family.generation, 'frontier targets are pinned to their own build');
+        assert.equal(semanticHash('pairofcleats.semantic.binding-targets.v1', target), task.targetSetHash);
+        const { kind, inputHashes, policyHash, targetSetHash } = task;
+        assert.equal(createSemanticTaskId({ kind, inputHashes, policyHash, targetSetHash }), task.taskId,
+          'task identity includes the generation-pinned target hash');
+        tasks.set(task.taskId, { task, target });
+      }
+      for await (const row of familyStore.iterateRows(partition.partitionId, 'semantic_coverage')) decisions.push(row);
+    }
+    assert.ok(decisions.every(row => tasks.has(row.frontierRef)), 'every decision cites its durable task');
+    return { tasks, decisions };
+  };
+  const coldDecisions = await collectDecisions(coldDir, coldManifest);
+  const warmDecisions = await collectDecisions(outDir, manifest);
+  assert.equal(coldDecisions.tasks.size, 2);
+  assert.equal(warmDecisions.tasks.size, 2);
+  for (const [id, { task, target }] of warmDecisions.tasks) {
+    assert.ok(!coldDecisions.tasks.has(id), 'a fresh build must not reuse an executable task identity');
+    const prior = [...coldDecisions.tasks.values()].find(value => value.task.kind === task.kind);
+    assert.deepEqual({ ...target, generation: null }, { ...prior.target, generation: null },
+      'only the invocation generation changes in otherwise identical frontier targets');
+  }
+  const decisionContent = rows => rows.map(({ frontierRef, ...content }) => JSON.stringify(content)).sort();
+  assert.deepEqual(decisionContent(warmDecisions.decisions), decisionContent(coldDecisions.decisions),
+    'coverage content remains identical after separately verifying generation-dependent frontier identities');
+  for (const syntax of syntaxPartitions) {
+    const decisions = [];
+    for (const decision of decisionPartitions.filter(row => row.sourceUnitId === syntax.sourceUnitId)) {
+      for await (const coverage of store.iterateRows(decision.partitionId, 'semantic_coverage')) decisions.push(coverage);
+    }
+    assert.deepEqual(decisions.map(row => row.phase).sort(), ['crossFileFlow', 'localFlow']);
+    assert.ok(decisions.every(row => row.state === 'disabled' && row.reason === 'analysis_dependency_disabled'));
+  }
   let partition, tsPartition;
   for (const candidate of manifest.partitions.filter((entry) => entry.partitionId.startsWith('sy1:'))) {
     for await (const source of store.iterateRows(candidate.partitionId, 'semantic_sources')) {
@@ -67,7 +119,7 @@ try {
   const pieces = JSON.parse(await fs.readFile(path.join(outDir, 'pieces', 'manifest.json'), 'utf8'));
   assert.ok(pieces.pieces.some(piece => piece.name === 'semantic_manifest'));
   const opened = await openPublishedSemanticStore({ indexDir: outDir, repoRoot, generation: manifest.generation });
-  const ownership = manifest.partitions.find((entry) => entry.partitionId.startsWith('sa1:') && entry.sourceUnitId === partition.sourceUnitId);
+  const ownership = ownershipPartitions.find(entry => entry.sourceUnitId === partition.sourceUnitId);
   const joins = [];
   for await (const row of store.iterateRows(ownership.partitionId, 'semantic_ownership')) joins.push(row);
   assert.ok(joins.some((row) => row.recordRef.localId === call.id && row.role === 'primary'));

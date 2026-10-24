@@ -1,4 +1,5 @@
-import { buildGraphNodeIndex } from '../../graph/indexes.js';
+import { reconcileSelectedScore } from '../scoring/score-adjustment.js';
+import { resolveGraphNodeIndexes } from '../../graph/prepared-node-indexes.js';
 import { createWorkBudget } from '../../graph/work-budget.js';
 import { normalizeOptionalNumber } from '../../shared/limits.js';
 import { compareStrings } from '../../shared/sort.js';
@@ -203,8 +204,7 @@ export const applyGraphRanking = ({
   const maxWallClockMs = normalizeOptionalNumber(config?.maxWallClockMs);
   const expansionPolicy = normalizeExpansionPolicy(config?.expansion);
 
-  const callIndex = buildGraphNodeIndex(graphRelations?.callGraph);
-  const usageIndex = buildGraphNodeIndex(graphRelations?.usageGraph);
+  const { callGraph: callIndex, usageGraph: usageIndex } = resolveGraphNodeIndexes(graphRelations, ['callGraph', 'usageGraph']);
   const resolveMergedNeighbors = createNeighborResolver(callIndex, usageIndex);
 
   const seedList = resolveSeeds(entries, seedSelection, seedK);
@@ -253,6 +253,9 @@ export const applyGraphRanking = ({
         }
       };
     }
+    if (next.scoreBreakdown) next.scoreBreakdown = reconcileSelectedScore(next.scoreBreakdown, {
+      score: next.score, type: next.scoreType, stage: 'graph', sourceScore: entry.score, sourceType: entry.scoreType
+    });
     return next;
   });
 

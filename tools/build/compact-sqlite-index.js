@@ -1,14 +1,18 @@
 #!/usr/bin/env node
+import { runNativeDatabaseCommand } from '../shared/native-database-lifetime.js';
+import { rebuildSqliteFilterFacts } from '../../src/storage/sqlite/filter-facts.js';
+import { SQLITE_COMPACT_OPTIONS } from '../shared/operator-cli-options.js';
 import { assertSqliteIndexFormat } from '../../src/storage/sqlite/index-format.js';
 import { createOptionalFtsTables, listOptionalFtsTables, createFtsInserter } from '../../src/storage/sqlite/fts-variants.js';
 import fs from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { createToolDisplayLogger } from '../shared/cli-display.js';
 import { ensureDiskSpace } from '../../src/shared/disk-space.js';
-import { getIndexDir, resolveRepoConfig, resolveSqlitePaths } from '../shared/dict-utils.js';
+import { getIndexDir, resolveRepoCacheRootPath, resolveRepoConfig, resolveSqlitePaths } from '../shared/dict-utils.js';
 import { encodeVector, ensureVectorTable, getVectorExtensionConfig, hasVectorTable, loadVectorExtension } from '../sqlite/vector-extension.js';
 import { CREATE_SEMANTIC_TABLES_SQL } from '../../src/storage/sqlite/semantic/schema.js';
 import { CREATE_INDEX_FORMAT_META_SQL } from '../../src/storage/sqlite/index-format.js';
@@ -27,6 +31,7 @@ import {
 } from '../../src/storage/sqlite/build-helpers.js';
 import { collectManifestByNormalized } from '../../src/storage/sqlite/build/from-artifacts/sources.js';
 import { updateSqliteState } from '../../src/storage/sqlite/build/index-state.js';
+import { assertSqliteMinhashReceiver, writeSqliteMinhashHeader } from '../../src/storage/sqlite/minhash.js';
 
 
 /** Copy immutable facts and metadata in bounded batches, retaining source row order. */
@@ -111,7 +116,9 @@ function buildBackupPath(dbPath, keepBackup) {
  * @param {{dbPath:string,mode:'code'|'prose',vectorExtension:object,dryRun?:boolean,keepBackup?:boolean}} input
  * @returns {Promise<{skipped:boolean}>}
  */
-export async function compactDatabase(input) {
+export async function compactDatabase(input, resources = null) {
+  if (!resources) return runNativeDatabaseCommand({ commandIdentity: 'sqlite.compact' },
+    owned => compactDatabase(input, owned));
   const {
     dbPath,
     mode,
@@ -134,20 +141,16 @@ export async function compactDatabase(input) {
     label: `sqlite compact ${mode}`
   });
 
-  const sourceDb = new Database(dbPath, { readonly: true });
-  try { assertSqliteIndexFormat({ db: sourceDb, repoRoot: input.repoRoot || process.cwd(), indexPath: dbPath, operation: 'compact' }); }
-  catch (error) { sourceDb.close(); throw error; }
+  const sourceDb = resources.open(() => new Database(dbPath, { readonly: true }));
+  assertSqliteIndexFormat({ db: sourceDb, repoRoot: input.repoRoot || process.cwd(), indexPath: dbPath, operation: 'compact' });
   if (!hasRequiredTables(sourceDb, REQUIRED_TABLES)) {
-    sourceDb.close();
-    logger.error(`[compact] ${mode} db missing required tables. Rebuild first.`);
-    process.exit(1);
+    throw new Error(`[compact] ${mode} db missing required tables. Rebuild first.`);
   }
   const semanticGeneration = sourceDb.prepare("SELECT value FROM index_format_meta WHERE key='semanticGeneration'").get();
   const knownSemanticTables = new Set([...CREATE_SEMANTIC_TABLES_SQL.matchAll(/CREATE TABLE IF NOT EXISTS (semantic_[a-z_]+)/g)].map(match => match[1]));
   const unknownTables = sourceDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'semantic_%'").all().filter(row => !knownSemanticTables.has(row.name));
   const otherModes = semanticGeneration ? sourceDb.prepare('SELECT COUNT(*) AS total FROM chunks WHERE mode != ?').get(mode).total : 0;
   if (unknownTables.length || otherModes > 0) {
-    sourceDb.close();
     throw Object.assign(new Error('Semantic compaction is unsupported for unknown semantic tables or shared mode databases; use separate mode databases and rebuild from source with pairofcleats index build --repo "' + (input.repoRoot || process.cwd()) + '" --mode all.'), { code: 'ERR_SQLITE_COMPACTION_UNSUPPORTED' });
   }
   const modeColumnByTable = new Map();
@@ -195,10 +198,12 @@ export async function compactDatabase(input) {
     dense: countRows(sourceDb, 'dense_vectors')
   };
 
-  const tempPath = `${dbPath}.compact`;
-  if (fs.existsSync(tempPath)) await fsPromises.rm(tempPath, { force: true });
+  // Reserve a fresh sibling; an old crash artifact is never deletion authority.
+  const tempPath = `${dbPath}.compact-${randomUUID()}`;
+  const reservation = await fsPromises.open(tempPath, 'wx');
+  await reservation.close();
 
-  const outDb = new Database(tempPath);
+  const outDb = resources.open(() => new Database(tempPath));
   let pragmaState = null;
   let afterStats;
   try {
@@ -378,6 +383,8 @@ export async function compactDatabase(input) {
     insertDocLengthsTx();
 
     const insertMinhashTx = outDb.transaction(() => {
+      const header = assertSqliteMinhashReceiver(sourceDb, mode);
+      if (header) writeSqliteMinhashHeader(outDb, mode, header.sampling);
       const stmt = sourceDb.prepare('SELECT doc_id, sig FROM minhash_signatures WHERE mode = ?');
       for (const row of stmt.iterate(mode)) {
         const newId = docIdMap.get(Number(row.doc_id));
@@ -519,6 +526,7 @@ export async function compactDatabase(input) {
 
     copySemanticTables(sourceDb, outDb);
     assertSqliteIndexFormat({ db: outDb, repoRoot: input.repoRoot || process.cwd(), indexPath: tempPath, operation: 'compact-output' });
+    await rebuildSqliteFilterFacts(outDb, mode);
     outDb.exec('VACUUM');
     afterStats = {
       bytes: Number(fs.statSync(tempPath).size) || 0,
@@ -526,14 +534,20 @@ export async function compactDatabase(input) {
       dense: countRows(outDb, 'dense_vectors')
     };
   } catch (error) {
-    try { outDb.close(); } catch {}
-    await fsPromises.rm(tempPath, { force: true });
+    // Preserve the write failure while attempting every actual close. Unknown
+    // close keeps the staged database and delegated exclusion for diagnosis.
+    const cleanupErrors = [];
+    try { await resources.close(outDb); } catch (closeError) { cleanupErrors.push(closeError); }
+    try { await resources.close(sourceDb); } catch (closeError) { cleanupErrors.push(closeError); }
+    if (resources.isClosed(outDb)) {
+      try { await fsPromises.rm(tempPath, { force: true }); } catch (cleanupError) { cleanupErrors.push(cleanupError); }
+    }
+    if (cleanupErrors.length) error.nativeCleanupError = new AggregateError(cleanupErrors, 'SQLite compaction cleanup failed.');
     throw error;
-  } finally {
-    try { restoreBuildPragmas(outDb, pragmaState); } catch {}
-    try { outDb.close(); } catch {}
-    sourceDb.close();
   }
+  restoreBuildPragmas(outDb, pragmaState);
+  await resources.close(outDb);
+  await resources.close(sourceDb);
 
   if (dryRun) {
     await fsPromises.rm(tempPath, { force: true });
@@ -545,7 +559,7 @@ export async function compactDatabase(input) {
   if (!keepBackup && fs.existsSync(backupPath)) {
     await fsPromises.rm(backupPath, { force: true });
   }
-  await replaceSqliteDatabase(tempPath, dbPath, { keepBackup, backupPath, logger });
+  await replaceSqliteDatabase(tempPath, dbPath, { keepBackup, backupPath, logger, nativeResources: resources });
   if (indexDir) {
     await updateSqliteState(indexDir, {
       compaction: {
@@ -561,62 +575,58 @@ export async function compactDatabase(input) {
 
 const isDirectRun = isDirectExecution(import.meta.url);
 if (isDirectRun) {
-  const argv = createCli({
-    scriptName: 'pairofcleats sqlite compact',
-    options: {
-      mode: { type: 'string', default: 'all' },
-      repo: { type: 'string' },
-      'index-root': { type: 'string' },
-      'dry-run': { type: 'boolean', default: false },
-      'keep-backup': { type: 'boolean', default: false },
-      progress: { type: 'string', default: 'auto' },
-      verbose: { type: 'boolean', default: false },
-      quiet: { type: 'boolean', default: false }
-    }
-  }).strictOptions().parse();
+  await runNativeDatabaseCommand({ commandIdentity: 'sqlite.compact', delegated: true }, async resources => {
+    const argv = createCli({
+      scriptName: 'pairofcleats sqlite compact',
+      options: SQLITE_COMPACT_OPTIONS
+    }).strictOptions().parse();
 
-  const { display, logger } = createToolDisplayLogger({ argv, stream: process.stderr });
+    const { display, logger } = createToolDisplayLogger({ argv, stream: process.stderr });
+    try {
 
-  const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
-  const indexRoot = typeof argv['index-root'] === 'string' && argv['index-root']
-    ? path.resolve(argv['index-root'])
-    : null;
-  const vectorExtension = getVectorExtensionConfig(root, userConfig);
-  const sqlitePaths = resolveSqlitePaths(root, userConfig, { indexRoot });
+      const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
+      const indexRoot = typeof argv['index-root'] === 'string' && argv['index-root']
+        ? path.resolve(argv['index-root'])
+        : null;
+      const vectorExtension = getVectorExtensionConfig(root, userConfig);
+      const sqlitePaths = resolveSqlitePaths(root, userConfig, { indexRoot });
 
-  const modeArg = (argv.mode || 'all').toLowerCase();
-  if (!['all', 'code', 'prose'].includes(modeArg)) {
-    display.error('Invalid mode. Use --mode all|code|prose (sqlite compaction only supports code/prose).');
-    display.close();
-    process.exit(1);
-  }
+      const modeArg = (argv.mode || 'all').toLowerCase();
+      if (!['all', 'code', 'prose'].includes(modeArg)) {
+        display.close();
+        throw new Error('Invalid mode. Use --mode all|code|prose (sqlite compaction only supports code/prose).');
+      }
 
-  const targets = [];
-  if (modeArg === 'all' || modeArg === 'code') {
-    targets.push({ mode: 'code', path: sqlitePaths.codePath });
-  }
-  if (modeArg === 'all' || modeArg === 'prose') {
-    targets.push({ mode: 'prose', path: sqlitePaths.prosePath });
-  }
+      const targets = [];
+      if (modeArg === 'all' || modeArg === 'code') {
+        targets.push({ mode: 'code', path: sqlitePaths.codePath });
+      }
+      if (modeArg === 'all' || modeArg === 'prose') {
+        targets.push({ mode: 'prose', path: sqlitePaths.prosePath });
+      }
 
-  const modeTask = display.task('SQLite compact', { total: targets.length, stage: 'sqlite' });
-  let completed = 0;
-  for (const target of targets) {
-    modeTask.set(completed, targets.length, { message: `compacting ${target.mode}` });
-    await compactDatabase({
-      dbPath: target.path,
-      repoRoot: root,
-      mode: target.mode,
-      vectorExtension,
-      dryRun: argv['dry-run'],
-      keepBackup: argv['keep-backup'],
-      indexDir: getIndexDir(root, target.mode, userConfig, { indexRoot }),
-      logger
-    });
-    completed += 1;
-    modeTask.set(completed, targets.length, { message: `compacted ${target.mode}` });
-  }
+      resources.admitScope({ repoCacheRoot: resolveRepoCacheRootPath(root, userConfig), indexRoot,
+        userConfig, targets: targets.map(target => target.path) });
 
-  display.log('SQLite compaction complete.');
-  display.close();
+      const modeTask = display.task('SQLite compact', { total: targets.length, stage: 'sqlite' });
+      let completed = 0;
+      for (const target of targets) {
+        modeTask.set(completed, targets.length, { message: `compacting ${target.mode}` });
+        await compactDatabase({
+          dbPath: target.path,
+          repoRoot: root,
+          mode: target.mode,
+          vectorExtension,
+          dryRun: argv['dry-run'],
+          keepBackup: argv['keep-backup'],
+          indexDir: getIndexDir(root, target.mode, userConfig, { indexRoot }),
+          logger
+        }, resources);
+        completed += 1;
+        modeTask.set(completed, targets.length, { message: `compacted ${target.mode}` });
+      }
+
+      display.log('SQLite compaction complete.');
+    } finally { display.close(); }
+  });
 }

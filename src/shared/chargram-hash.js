@@ -16,6 +16,7 @@ const normalizeBigInt = (value, fallback) => {
 };
 
 export const CHARGRAM_HASH_META = {
+  version: 2,
   algorithm: 'rk64',
   base: `0x${DEFAULT_CHARGRAM_BASE.toString(16)}`,
   seed: `0x${DEFAULT_CHARGRAM_SEED.toString(16)}`,
@@ -23,6 +24,14 @@ export const CHARGRAM_HASH_META = {
   prefix: HASH_PREFIX,
   sentinelStart: SENTINEL_START,
   sentinelEnd: SENTINEL_END
+};
+
+export const assertChargramHashIdentity = (identity) => {
+  if (!identity || Object.keys(CHARGRAM_HASH_META).some(key => identity[key] !== CHARGRAM_HASH_META[key])) {
+    throw Object.assign(new Error('Hashed chargram analyzer identity is stale or missing; rebuild the index.'), {
+      code: 'ERR_CHARGRAM_ANALYZER_REBUILD'
+    });
+  }
 };
 
 export const formatChargramHash = (value) => `${HASH_PREFIX}${formatHash64(value)}`;
@@ -93,7 +102,7 @@ export const forEachRollingChargramHash = (
     for (let i = n; i < length; i += 1) {
       const outgoing = codes[i - n];
       const outgoingTerm = (outgoing * powTable[n - 1]) & MASK_64;
-      hash = (hash + MASK_64 - outgoingTerm) & MASK_64;
+      hash = (hash - outgoingTerm) & MASK_64;
       hash = (hash * baseValue + codes[i]) & MASK_64;
       emit(formatChargramHash(hash ^ seedValue));
       if (halted) return;

@@ -79,3 +79,94 @@ Tools that produce machine output or long-running work MUST support:
 - JSONL discipline (`--progress jsonl` emits only protocol lines)
 - Cancellation exit code is 130
 - Stdout guard triggers on non‑JSON bytes in `--json` mode
+
+## Internal settings requests
+
+See also the internal search operator below. Native workflow acceptance is
+tracked separately from a supervisor operation's contract checks.
+
+The local `poc.tui@1` supervisor advertises `supportsSettings` when it implements
+`settings:run`. A request contains only `proto`, `op`, a bounded `jobId`, `method`
+and `params`. Methods are `select`, `inspect`, `preview`, `commit` and `cancel`;
+their strict shapes are owned by `src/contracts/schemas/tui-settings.js` and its
+validator. Selection returns an opaque scope ID. Inspection returns verified file
+and schema revisions; previews bind those revisions to a bounded, expiring nonce.
+Commits require confirmation, with literal `RESET` additionally required for reset.
+
+These operations use the existing job registry, cancellation and shutdown owner,
+emit ordinary `job:start` / `job:end` progress events with `internal: true`, and
+return `{method,data}` with `resultState: complete` on completion. A completed
+validation request may return `data.ok: false`; it has not saved anything. Raw
+request parameters, configuration source and subprocess/parser error messages
+never enter operation events. Errors expose bounded codes. Results are limited
+to 1 MiB, operations have a 15-second lifetime, and canonical inspection children
+retain their 10-second limit. Existing progress chunking handles larger records.
+No retries are introduced. Cancellation cannot undo an atomic save or completed
+scope selection. The supervisor rejects new work once shutdown begins.
+
+The native view routes its own request IDs before foreground job selection and
+accepts settings only in a controllable supervised session. Configuration preview
+and observed runtime/provider qualification remain distinct.
+
+## Native job selection and input ownership
+
+Native job selection is separate from viewport scrolling and log follow. Manual
+selection stays pinned under concurrent job updates and filtering. Cancellation
+requires a visible running selection in a verified controllable supervised
+session; expired/reused identities must be reselected. Task identity is the exact
+job/task pair, including delimiter characters, and logs retain their job owner.
+Starting another instance of a completed job ID clears its prior task/log view
+and cannot rearm an old selection. Distinct key presses retain FIFO order;
+the 40 ms debounce applies only to hardware repeat. Enqueueing input cannot reset
+the separate dispatch clock. Release events and repeated global interrupts keep
+their existing suppression/shutdown semantics.
+
+## Internal search requests
+
+The local supervisor advertises `supportsSearch` for `search:run`. The strict
+envelope contains `proto: "poc.tui@1"`, `op`, a bounded `jobId`, `method` and
+`params`; its owner is `src/contracts/schemas/tui-search.js`. The methods are:
+
+- `describe`: `{}`. Returns a copy of the canonical search predicate schema,
+  result modes, defaults and operator limits. Operator-owned repository/output/
+  cursor fields are excluded; callers cannot mutate the shared validator.
+- `query`: `{ repoPath, search }`. The predicate object uses the canonical API
+  search validator and shared CLI argument builder. It retains all shared filters,
+  mode/backend/top selection and snapshot/as-of exclusivity. Repository identity,
+  output selection and continuation tokens belong to the operator; those fields
+  cannot be supplied inside `search`.
+- `continue`: `{ resultId }`. Only the current query's last canonical cursor can
+  advance. Ranked text searches retain the CLI's top-k behavior; filter-only
+  queries expose supported continuation. Repeated hit identities are rejected.
+- `source`: `{ resultId, hitId }`. Only a hit from the current query can select a
+  file. The existing contained-descriptor/excerpt owner enforces repository and
+  symlink authority, verifies current bytes, and labels indexed/current drift as
+  unchanged, changed or unknown. Missing and oversized files have explicit
+  unavailable results. Historical index selection does not reconstruct source
+  bytes; the preview identifies its working-tree policy.
+- `open`: `{ resultId, hitId, sourceHash, editor: "code", confirmed: true }`.
+  Requires the selected preview's current hash and explicit confirmation. The
+  operator rechecks contained source bytes and lexical/physical command trust
+  before launching `code --reuse-window --goto file:line:1`. Missing, stale,
+  symlinked or untrusted targets fail before execution. The tracked launcher has
+  a five-second deadline and bounded capture; disposal joins its cleanup.
+
+Responses bind an opaque result/scope identity and query generation to ordered
+  per-mode ranks, scores, paths, ranges, canonical freshness/pagination and output
+  budget evidence. Query replacement aborts prior work and rejects late results.
+  Source extraction is capped at 16 KiB/4096 tokens; the canonical source read remains
+  capped at 64 MiB. A query retains at most 500 hits/768 KiB. Incomplete JSON or
+  capture fails rather than becoming a successful partial result; canonical
+  output-budget omissions remain visible. These are internal resource bounds,
+  with no new repository configuration or CLI options.
+
+Operations use the existing job cancellation, output, timeout and shutdown
+  owners. `job:spawn` records an actual child PID; awaited cancellation/disposal
+  joins child cleanup. The strict shared JSON request boundary preserves the
+  existing settings limits. The native `[R]` composer, ranked results, cursor
+  continuation, source viewport and confirmed editor navigation use this same
+  owner. Query/source identity guards reject superseded replies; scope changes
+  invalidate the view. `/` remains panel text filtering. Native ConPTY cases
+  exercise real keys, supervisor/CLI children and terminal cleanup on Windows;
+  portable contract tests and Rust rendering tests do not replace native platform
+  execution or the separately privileged file-symlink authority cohort.

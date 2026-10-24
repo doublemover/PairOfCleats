@@ -7,6 +7,7 @@ import { executeSqliteModeBuilds } from './runner/execution-orchestration.js';
 import { createRunnerLogger } from './runner/logging.js';
 import { normalizeModeArg, normalizeValidateMode } from './runner/options.js';
 import { resolveRunnerSelectionPlan } from './runner/selection-planning.js';
+import { throwIfAborted } from '../../../shared/abort.js';
 
 export { normalizeValidateMode } from './runner/options.js';
 
@@ -34,9 +35,11 @@ export { normalizeValidateMode } from './runner/options.js';
  * @param {object|null} [options.logger]
  * @param {boolean} [options.emitOutput]
  * @param {boolean} [options.exitOnError]
+ * @param {AbortSignal} [options.abortSignal]
  * @returns {Promise<{ok:boolean,mode:string,outPath:string,outputPaths:object}>}
  */
 export async function buildSqliteIndex(options = {}) {
+  throwIfAborted(options.abortSignal);
   const modeArg = normalizeModeArg(options.mode);
   const validateMode = normalizeValidateMode(options.validateMode ?? options.validate);
   const root = options.root || options.runtime?.root || null;
@@ -70,6 +73,7 @@ export async function buildSqliteIndex(options = {}) {
     rawArgs: Array.isArray(options.rawArgs) ? options.rawArgs : []
   };
   return runBuildSqliteIndexWithConfig(parsed, {
+    abortSignal: options.abortSignal || null,
     logger: options.logger || null,
     root,
     runtime: options.runtime || null,
@@ -105,6 +109,8 @@ try {
  * @returns {Promise<{ok:boolean,mode:string,outPath:string,outputPaths:object}>}
  */
 export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
+  const signal = options.abortSignal || null;
+  throwIfAborted(signal);
   const {
     argv,
     emitOutput,
@@ -120,6 +126,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
   let stopHeartbeat = () => {};
   let finalized = false;
   const finalize = () => {
+    process.off('exit', finalize);
     if (finalized) return;
     finalized = true;
     stopHeartbeat();
@@ -157,6 +164,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
       parsedRawArgs,
       options
     });
+    throwIfAborted(signal);
     if (selection.errorMessage) {
       return bail(selection.errorMessage);
     }
@@ -165,11 +173,14 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
       outPath,
       modeOutputPaths,
       hasBuildState,
+      buildStateRoots,
       indexRoot,
       threadLimits,
       incrementalRequested
     } = selection;
-    stopHeartbeat = hasBuildState ? startBuildHeartbeat(indexRoot, 'stage4') : () => {};
+    const stateRoots = buildStateRoots || (hasBuildState ? [indexRoot] : []);
+    const heartbeats = stateRoots.map(buildRoot => startBuildHeartbeat(buildRoot, 'stage4'));
+    stopHeartbeat = () => Promise.all(heartbeats.map(stop => stop()));
 
     if (emitOutput && argv.verbose === true) {
       log(
@@ -183,11 +194,10 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
       return bail('Cannot use --compact and --no-compact together.');
     }
 
-    if (hasBuildState) {
-      await markBuildPhase(indexRoot, 'stage4', 'running');
-    }
+    for (const buildRoot of stateRoots) await markBuildPhase(buildRoot, 'stage4', 'running');
 
     await executeSqliteModeBuilds({
+      signal,
       Database,
       argv,
       validateMode,
@@ -201,9 +211,7 @@ export async function runBuildSqliteIndexWithConfig(parsed, options = {}) {
       ...selection
     });
 
-    if (hasBuildState) {
-      await markBuildPhase(indexRoot, 'stage4', 'done');
-    }
+    for (const buildRoot of stateRoots) await markBuildPhase(buildRoot, 'stage4', 'done');
 
     if (emitOutput && incrementalRequested) {
       const summary = modeList.length > 1 ? 'indexes updated' : 'index updated';

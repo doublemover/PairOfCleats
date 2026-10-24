@@ -17,9 +17,11 @@ fs.writeFileSync(path.join(repoRoot, 'tools', 'index', 'report-artifacts.js'), '
 
 const harness = createVsCodeRuntimeHarness({
   repoRoot,
+  globalConfigValues: {
+    cliPath: path.join(repoRoot, 'bin', 'pairofcleats.js'),
+    cliArgs: ['--trace']
+  },
   configValues: {
-    cliPath: './bin/pairofcleats.js',
-    cliArgs: ['--trace'],
     searchMode: 'code'
   }
 });
@@ -58,13 +60,16 @@ assert.equal(harness.infoMessages.pop(), 'PairOfCleats: Config Dump completed.')
 assert.deepEqual(
   harness.spawnCalls[0].args,
   [
-    path.join(repoRoot, 'tools', 'config', 'dump.js'),
+    path.join(repoRoot, 'bin', 'pairofcleats.js'),
+    '--trace',
+    'config',
+    'dump',
     '--json',
     '--repo',
     repoRoot
   ]
 );
-assert.equal(harness.spawnCalls[0].command, process.execPath);
+assert.equal(harness.spawnCalls[0].command, fs.realpathSync(process.execPath));
 assert.ok(harness.outputEvents.some((event) => event.kind === 'append' && /quality: max \(config\)/i.test(event.line)));
 
 const doctorSpec = harness.extension._test.OPERATOR_COMMAND_SPECS.find((spec) => spec.id === 'pairofcleats.doctor');

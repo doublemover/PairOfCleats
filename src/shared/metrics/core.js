@@ -159,14 +159,14 @@ const ensureMetrics = () => {
     }),
     workerTaskDuration: new Histogram({
       name: 'pairofcleats_worker_task_duration_seconds',
-      help: 'Worker task duration in seconds.',
+      help: 'Process-lifetime worker task duration in seconds, aggregated by pool/task/status; worker=all.',
       labelNames: ['pool', 'task', 'worker', 'status'],
       buckets: [0.001, 0.005, 0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5, 10],
       registers: [registry]
     }),
     workerGcPressure: new Gauge({
       name: 'pairofcleats_worker_gc_pressure_ratio',
-      help: 'Estimated GC pressure ratio by worker thread.',
+      help: 'Latest pool/stage pressure observation across workers; worker=all, not a thread-local heap measurement.',
       labelNames: ['pool', 'worker', 'stage'],
       registers: [registry]
     }),
@@ -346,28 +346,31 @@ export function setWorkerActiveTasks({ pool, value }) {
 }
 
 /**
- * Observe worker task duration metrics.
+ * Observe lifetime task totals. Raw identities belong to bounded active-worker
+ * diagnostics, not process-lifetime Prometheus labels. Keep the worker label
+ * with the explicit aggregate value for existing metric-name/label shape users.
  * @param {{ pool: string, task: string, worker: string|number, status: string, seconds: number }} input
  */
-export function observeWorkerTaskDuration({ pool, task, worker, status, seconds }) {
+export function observeWorkerTaskDuration({ pool, task, status, seconds }) {
   ensureMetrics();
   metrics.workerTaskDuration.observe({
     pool: normalizePool(pool),
     task: normalizeTask(task),
-    worker: worker ? String(worker) : 'unknown',
+    worker: 'all',
     status: normalizeStatus(status)
   }, normalizeSeconds(seconds));
 }
 
 /**
- * Set worker GC pressure ratio.
+ * Set the latest pool/stage pressure observation, independent of worker churn.
+ * Individual active identities remain in the coordinator's bounded snapshot.
  * @param {{ pool: string, worker: string|number, stage: string, value: number }} input
  */
-export function setWorkerGcPressure({ pool, worker, stage, value }) {
+export function setWorkerGcPressure({ pool, stage, value }) {
   ensureMetrics();
   metrics.workerGcPressure.set({
     pool: normalizePool(pool),
-    worker: worker ? String(worker) : 'unknown',
+    worker: 'all',
     stage: normalizeStage(stage)
   }, normalizeRatio(value));
 }

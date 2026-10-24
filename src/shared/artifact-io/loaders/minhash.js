@@ -1,8 +1,12 @@
+import { readExactAt } from '../../io/read-exact.js';
 import fs from 'node:fs';
+import { iterateContainedFile } from '../../contained-file.js';
+import { createContainedFileResource, iterateContainedFileResource } from '../../contained-file-resource.js';
+import { readBuffer } from '../compression.js';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { getHeapStatistics } from 'node:v8';
-import { normalizeMinhashSampling } from '../../../index/minhash.js';
+import { assertMinhashHashIdentity, normalizeMinhashSampling } from '../../../index/minhash.js';
 import { MAX_JSON_BYTES } from '../constants.js';
 import {
   INTEGER_COERCE_MODE_STRICT,
@@ -131,14 +135,16 @@ const resolvePackedMinhashArtifacts = ({
   }
   const resolvedPackedPath = packedState.path;
   const resolvedMetaPath = metaState.path;
-  const metaRaw = readJsonFileCached(resolvedMetaPath, { maxBytes });
+  const metaRaw = readJsonFileCached(resolvedMetaPath, { maxBytes, containedRoot: sources.containedRoot });
   const meta = metaRaw?.fields && typeof metaRaw.fields === 'object' ? metaRaw.fields : metaRaw;
+  const hashIdentity = assertMinhashHashIdentity(meta?.hashIdentity);
   const dims = toStrictPositiveSafeInt(meta?.dims, 'dims');
   const count = toStrictPositiveSafeInt(meta?.count, 'count');
   const shape = resolvePackedShapeAndByteLengths({ dims, count });
   const sampling = resolveSampling(meta?.sampling, dims);
   assertWithinMaxBytes(shape.totalBytes, maxBytes, 'Packed minhash signatures');
   return {
+    hashIdentity,
     dims,
     count,
     totalValues: shape.totalValues,
@@ -198,7 +204,7 @@ export const loadMinhashSignatures = async (
     if (packedSize !== packed.totalBytes) {
       throw createLoaderError('ERR_ARTIFACT_CORRUPT', 'Packed minhash signatures size mismatch');
     }
-    const buffer = fs.readFileSync(packed.resolvedPackedPath);
+    const buffer = readBuffer(packed.resolvedPackedPath, maxBytes, { containedRoot: sources.containedRoot });
     if (buffer.byteLength % BYTES_PER_U32 !== 0) {
       throw createLoaderError('ERR_ARTIFACT_CORRUPT', 'Packed minhash signatures invalid byte alignment');
     }
@@ -213,7 +219,7 @@ export const loadMinhashSignatures = async (
       const start = i * dims;
       signatures[i] = view.subarray(start, start + dims);
     }
-    return packed.sampling ? { signatures, sampling: packed.sampling } : { signatures };
+    return { hashIdentity: packed.hashIdentity, signatures, ...(packed.sampling ? { sampling: packed.sampling } : {}) };
   }
   if (sources.format !== 'json') {
     throw new Error(`Unsupported minhash_signatures format: ${sources.format}`);
@@ -224,6 +230,7 @@ export const loadMinhashSignatures = async (
       manifest: resolvedManifest,
       strict
     });
+    assertMinhashHashIdentity(payload?.hashIdentity);
     const sampling = resolveSampling(payload?.sampling);
     return sampling ? { ...payload, sampling } : payload;
   } catch (err) {
@@ -279,31 +286,32 @@ export const loadMinhashSignatureRows = async function* (
       bytesPerSig,
       maxBytes
     });
-    const stat = await fsPromises.stat(packed.resolvedPackedPath);
-    const packedSize = Number(stat?.size);
-    if (!Number.isSafeInteger(packedSize) || packedSize < 0) {
-      throw createLoaderError('ERR_ARTIFACT_INVALID', 'Packed minhash signatures invalid size');
-    }
-    assertWithinMaxBytes(packedSize, maxBytes, 'Packed minhash signatures');
-    if (packedSize % BYTES_PER_U32 !== 0) {
-      throw createLoaderError('ERR_ARTIFACT_CORRUPT', 'Packed minhash signatures invalid byte alignment');
-    }
-    if (packedSize !== totalBytes) {
-      throw createLoaderError('ERR_ARTIFACT_CORRUPT', 'Packed minhash signatures size mismatch');
-    }
-    const handle = await fsPromises.open(packed.resolvedPackedPath, 'r');
     const resolvedBatchSize = Math.max(1, Math.floor(Number(batchSize)) || 2048);
     const cappedBatchSize = Math.max(1, Math.floor(streamBudgetBytes / bytesPerSig));
     const safeBatchSize = Math.min(resolvedBatchSize, cappedBatchSize);
     const batchBufferBytes = multiplySafeInts(safeBatchSize, bytesPerSig, 'stream batch size');
-    const buffer = Buffer.allocUnsafe(batchBufferBytes);
-    try {
+    const readRows = async function* (descriptor) {
+      // Admission and final identity use the opened object, not a preceding
+      // pathname stat that could refer to a different generation.
+      const before = await descriptor.stat();
+      const packedSize = before.size;
+      if (!before.isFile() || !Number.isSafeInteger(packedSize) || packedSize < 0) {
+        throw createLoaderError('ERR_ARTIFACT_INVALID', 'Packed minhash signatures invalid size');
+      }
+      assertWithinMaxBytes(packedSize, maxBytes, 'Packed minhash signatures');
+      if (packedSize % BYTES_PER_U32 !== 0) {
+        throw createLoaderError('ERR_ARTIFACT_CORRUPT', 'Packed minhash signatures invalid byte alignment');
+      }
+      if (packedSize !== totalBytes) {
+        throw createLoaderError('ERR_ARTIFACT_CORRUPT', 'Packed minhash signatures size mismatch');
+      }
+      const buffer = Buffer.allocUnsafe(batchBufferBytes);
       let docId = 0;
       while (docId < count) {
         const remaining = count - docId;
         const batchCount = Math.min(safeBatchSize, remaining);
         const bytesToRead = batchCount * bytesPerSig;
-        const { bytesRead } = await handle.read(buffer, 0, bytesToRead, docId * bytesPerSig);
+        const { bytesRead } = await readExactAt(descriptor, buffer, 0, bytesToRead, docId * bytesPerSig);
         if (bytesRead < bytesToRead) {
           throw createLoaderError('ERR_ARTIFACT_CORRUPT', 'Packed minhash signatures truncated');
         }
@@ -316,14 +324,25 @@ export const loadMinhashSignatureRows = async function* (
           // cannot mutate previously yielded rows.
           const sig = Uint32Array.from(view.subarray(start, end));
           yield packed.sampling
-            ? { docId: docId + i, sig, sampling: packed.sampling }
-            : { docId: docId + i, sig };
+            ? { docId: docId + i, sig, hashIdentity: packed.hashIdentity, sampling: packed.sampling }
+            : { docId: docId + i, sig, hashIdentity: packed.hashIdentity };
         }
         docId += batchCount;
       }
       packed.checksumValidator?.verify();
-    } finally {
-      await handle.close();
+      const after = await descriptor.stat();
+      if (['dev', 'ino', 'size', 'mtimeMs', 'ctimeMs'].some(key => before[key] !== after[key])) {
+        throw Object.assign(new Error('Packed minhash signatures changed during streaming.'), { code: 'ERR_FILE_CHANGED' });
+      }
+      descriptor.verify?.();
+    };
+    if (sources.containedRoot) {
+      yield* iterateContainedFile(sources.containedRoot, packed.resolvedPackedPath, readRows);
+    } else {
+      yield* iterateContainedFileResource(async () => {
+        const handle = await fsPromises.open(packed.resolvedPackedPath, 'r');
+        return { owner: createContainedFileResource({ handle, sync: false }), action: readRows };
+      });
     }
     return;
   }
@@ -345,6 +364,7 @@ export const loadMinhashSignatureRows = async function* (
     throw err;
   }
   const signatures = Array.isArray(payload?.signatures) ? payload.signatures : null;
+  const hashIdentity = assertMinhashHashIdentity(payload?.hashIdentity);
   if (!signatures) return;
   const sampling = resolveSampling(payload?.sampling);
   if (!materialize) {
@@ -353,6 +373,6 @@ export const loadMinhashSignatureRows = async function* (
   for (let docId = 0; docId < signatures.length; docId += 1) {
     const sig = signatures[docId];
     if (!sig) continue;
-    yield sampling ? { docId, sig, sampling } : { docId, sig };
+    yield sampling ? { docId, sig, hashIdentity, sampling } : { docId, sig, hashIdentity };
   }
 };

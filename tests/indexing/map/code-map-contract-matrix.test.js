@@ -123,6 +123,8 @@ const cases = [
       const strip = (payload) => {
         const clone = JSON.parse(JSON.stringify(payload));
         clone.generatedAt = null;
+        assert.ok(Number.isFinite(Date.parse(clone.provenance.exportedAt)), 'the export owns an actual invocation timestamp');
+        clone.provenance.exportedAt = null;
         if (clone.summary) clone.summary.generatedAt = null;
         if (clone.buildMetrics) clone.buildMetrics = null;
         return clone;
@@ -159,10 +161,15 @@ const cases = [
         env: { ...env, PATH: '', Path: '' },
         args: ['--format', 'svg', '--out', outPath, '--json']
       });
-      assert.equal(mapResult.status, 0);
+      assert.equal(mapResult.status, 1, 'an unavailable requested renderer reports failure');
       const payload = JSON.parse(mapResult.stdout || '{}');
+      assert.equal(payload.ok, false);
+      assert.equal(payload.partial, true);
+      assert.equal(payload.requestedFormat, 'svg');
+      assert.equal(payload.error?.code, 'ERR_MAP_RENDER_FORMAT_UNAVAILABLE');
       assert.equal(payload.format, 'dot');
       assert.ok(String(payload.outPath || '').endsWith('.dot'));
+      assert.match(await fsPromises.readFile(payload.outPath, 'utf8'), /digraph/);
     }
   },
   {

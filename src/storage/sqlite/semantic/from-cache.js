@@ -6,7 +6,7 @@ import { assertSemanticEnvelope } from '../../../contracts/validators/semantic-e
 import { openSemanticCacheEntry } from '../../../index/build/incremental/semantic-cache.js';
 import { validateSemanticPartitions } from '../../../index/semantic/reconcile.js';
 import { canonicalSemanticJson } from '../../../index/semantic/identity.js';
-import { ingestSemanticPartition, removeSemanticSource } from './ingest.js';
+import { ingestSemanticPartition, removeSemanticSource, removeSemanticPartition } from './ingest.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 
 const fail = (message) => Object.assign(new Error(message), { code: 'ERR_SEMANTIC_CACHE_INTEGRITY' });
@@ -87,11 +87,10 @@ export const applyCachedSemanticPlan = async ({ db, plan, signal = null }) => {
   const stalePartitions = db.prepare('SELECT partition_id FROM semantic_analysis').all()
     .filter(row => !desiredPartitions.has(row.partition_id));
   for (const { partition_id: partitionId } of stalePartitions) {
-    for (const table of ['semantic_records', 'semantic_operands', 'semantic_edges', 'semantic_ownership',
-      'semantic_coverage', 'semantic_lookup', 'semantic_frontier', 'semantic_analysis']) {
-      db.prepare('DELETE FROM ' + table + ' WHERE partition_id = ?').run(partitionId);
-    }
+    removeSemanticPartition({ db, partitionId });
   }
+  // Repair derived rows left by older pruning code before publishing this update.
+  db.exec('DELETE FROM semantic_discovery WHERE NOT EXISTS (SELECT 1 FROM semantic_analysis a WHERE a.partition_id = semantic_discovery.partition_id)');
   let changedPartitions = 0;
   for (const descriptor of plan.partitions) {
     throwIfAborted(signal);

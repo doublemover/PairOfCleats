@@ -2,6 +2,7 @@ import {
   isProbeCommandDefinitelyMissing,
   resolveToolingCommandProfile
 } from '../command-resolver.js';
+import { composeAbortSignals, throwIfAborted } from '../../../shared/abort.js';
 
 const normalizeCheck = (value) => (
   value && typeof value === 'object'
@@ -84,11 +85,14 @@ export const resolveCommandProfilePreflightResult = ({
   providerId,
   requestedCommand,
   ctx = null,
+  signal = null,
   unavailableCheck = null,
   unavailableMessage = null,
   blockWhenDefinitelyMissing = false,
   blockFlag = 'blockProvider'
 } = {}) => {
+  signal = composeAbortSignals(signal, ctx?.signal, ctx?.abortSignal);
+  throwIfAborted(signal);
   const command = requestedCommand && typeof requestedCommand === 'object'
     ? requestedCommand
     : { cmd: '', args: [] };
@@ -101,7 +105,8 @@ export const resolveCommandProfilePreflightResult = ({
     cmd: normalizedRequested.cmd,
     args: normalizedRequested.args,
     repoRoot: ctx?.repoRoot || process.cwd(),
-    toolingConfig: ctx?.toolingConfig || {}
+    toolingConfig: ctx?.toolingConfig || {},
+    signal
   });
   if (commandProfile.probe.ok) {
     return {
@@ -115,6 +120,9 @@ export const resolveCommandProfilePreflightResult = ({
   const definitelyMissing = isProbeCommandDefinitelyMissing(commandProfile.probe);
   const validationReasonCode = String(commandProfile?.probe?.validationFailure?.reasonCode || '').trim();
   const invalidLayout = validationReasonCode === 'broken-layout';
+  const denied = commandProfile?.resolved?.mode === 'blocked' && !definitelyMissing;
+  const pendingSettlement = commandProfile?.probe?.cacheOwnershipPending === true
+    || validationReasonCode === 'tooling_managed_installation_settlement_pending';
   const rawCheck = typeof unavailableCheck === 'function'
     ? unavailableCheck({
       providerId: String(providerId || ''),
@@ -124,25 +132,30 @@ export const resolveCommandProfilePreflightResult = ({
     })
     : unavailableCheck;
   let check = normalizeCheck(rawCheck);
-  const message = resolveUnavailableMessage({
-    unavailableMessage,
-    check,
-    requestedCommand: normalizedRequested,
-    commandProfile,
-    definitelyMissing,
-    providerId: String(providerId || '')
-  });
-  if (invalidLayout && check) {
+  const message = denied
+    ? `Command execution for ${providerId} was denied (${validationReasonCode || commandProfile.resolved.reason || 'execution_denied'}); provider launch is blocked.`
+    : pendingSettlement
+      ? `The selected ${providerId} installation still owns unsettled command work; provider launch is blocked until settlement.`
+      : resolveUnavailableMessage({
+        unavailableMessage,
+        check,
+        requestedCommand: normalizedRequested,
+        commandProfile,
+        definitelyMissing,
+        providerId: String(providerId || '')
+      });
+  if ((invalidLayout || denied || pendingSettlement) && check) {
     check = {
       ...check,
       message
     };
   }
-  const blocked = validationReasonCode === 'untrusted-repository-command'
-    || invalidLayout || (blockWhenDefinitelyMissing === true && definitelyMissing);
+  const blocked = denied || pendingSettlement || invalidLayout || (blockWhenDefinitelyMissing === true && definitelyMissing);
   return {
     state: blocked ? 'blocked' : 'degraded',
-    reasonCode: invalidLayout ? 'preflight_command_invalid_layout' : 'preflight_command_unavailable',
+    reasonCode: denied ? 'preflight_command_denied'
+      : pendingSettlement ? 'preflight_command_settlement_pending'
+        : invalidLayout ? 'preflight_command_invalid_layout' : 'preflight_command_unavailable',
     message,
     requestedCommand: normalizedRequested,
     commandProfile,
@@ -179,8 +192,10 @@ export const resolveRuntimeCommandFromPreflight = ({
   missingProfileCheck = null,
   providerId = null,
   repoRoot = null,
-  toolingConfig = null
+  toolingConfig = null,
+  signal = null
 } = {}) => {
+  throwIfAborted(signal);
   const requestedCommand = preflight?.requestedCommand && typeof preflight.requestedCommand === 'object'
     ? {
       cmd: String(preflight.requestedCommand.cmd || '').trim(),
@@ -199,7 +214,8 @@ export const resolveRuntimeCommandFromPreflight = ({
       cmd: requestedCommand.cmd,
       args: requestedCommand.args,
       repoRoot: repoRoot || process.cwd(),
-      toolingConfig: toolingConfig || {}
+      toolingConfig: toolingConfig || {},
+      signal
     });
   }
   const cmd = commandProfile?.resolved?.mode === 'blocked' ? ''

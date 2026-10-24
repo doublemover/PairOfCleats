@@ -1,3 +1,4 @@
+import { isBazelSourceFile } from '../bazel-label.js';
 import path from 'node:path';
 import { listFilesInDir } from '../lookup.js';
 import { normalizeRelPath } from '../path-utils.js';
@@ -32,7 +33,8 @@ export const resolveLanguageNonRelativeImport = ({
   spec,
   lookup,
   goModulePath,
-  dartPackageName
+  dartPackageName,
+  bazelLabels = null
 }) => {
   if (importerInfo.isRuby) {
     const rubyResolved = resolveRubyLoadPathImport({ spec, lookup });
@@ -101,7 +103,7 @@ export const resolveLanguageNonRelativeImport = ({
   }
   if (importerInfo.isShell) {
     if (looksLikePathSpecifier(spec)) {
-      const resolved = resolvePathLikeImport({ spec, importerInfo, lookup });
+      const resolved = resolvePathLikeImport({ spec, importerInfo, lookup, bazelLabels });
       if (resolved) return { resolvedType: 'shell-path', resolvedPath: resolved };
     }
     return null;
@@ -282,8 +284,8 @@ export const resolveLanguageNonRelativeImport = ({
     if (resolved) return { resolvedType: 'rust-module', resolvedPath: resolved };
     return null;
   }
-  if (importerInfo.isPathLike && looksLikePathSpecifier(spec)) {
-    const resolved = resolvePathLikeImport({ spec, importerInfo, lookup });
+  if ((importerInfo.isPathLike || isBazelSourceFile(importerInfo.importerRel)) && looksLikePathSpecifier(spec)) {
+    const resolved = resolvePathLikeImport({ spec, importerInfo, lookup, bazelLabels });
     if (resolved) return { resolvedType: 'path-like', resolvedPath: resolved };
   }
   return null;

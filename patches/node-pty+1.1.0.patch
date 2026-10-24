@@ -1,0 +1,146 @@
+diff --git a/node_modules/node-pty/lib/windowsPtyAgent.js b/node_modules/node-pty/lib/windowsPtyAgent.js
+index a358ffb17..a0b0b2410 100644
+--- a/node_modules/node-pty/lib/windowsPtyAgent.js
++++ b/node_modules/node-pty/lib/windowsPtyAgent.js
+@@ -139,4 +139,9 @@ var WindowsPtyAgent = /** @class */ (function () {
+                 this._outSocket.readable = false;
+                 this._getConsoleProcessList().then(function (consoleProcessList) {
++                    // Capture the console while it still exists. Destroying it
++                    // before the helper attaches races AttachConsole and leaks
++                    // the fallback timer after an otherwise completed cancel.
++                    _this._ptyNative.kill(_this._pty, _this._useConptyDll);
++                    _this._conoutSocketWorker.dispose();
+                     consoleProcessList.forEach(function (pid) {
+                         try {
+@@ -148,6 +153,4 @@ var WindowsPtyAgent = /** @class */ (function () {
+                     });
+                 });
+-                this._ptyNative.kill(this._pty, this._useConptyDll);
+-                this._conoutSocketWorker.dispose();
+             }
+             else {
+@@ -244,4 +247,6 @@ var WindowsPtyAgent = /** @class */ (function () {
+         this._outSocket.readable = false;
+         this._outSocket.destroy();
++        this._inSocket.destroy();
++        this._conoutSocketWorker.dispose();
+     };
+     return WindowsPtyAgent;
+@@ -318,3 +323,3 @@ function xOr(arg1, arg2) {
+     return ((arg1 && !arg2) || (!arg1 && arg2));
+ }
+-//# sourceMappingURL=windowsPtyAgent.js.map
+\ No newline at end of file
++//# sourceMappingURL=windowsPtyAgent.js.map
+diff --git a/node_modules/node-pty/src/windowsPtyAgent.ts b/node_modules/node-pty/src/windowsPtyAgent.ts
+index d70544495..c40fc77d3 100644
+--- a/node_modules/node-pty/src/windowsPtyAgent.ts
++++ b/node_modules/node-pty/src/windowsPtyAgent.ts
+@@ -146,4 +146,9 @@ export class WindowsPtyAgent {
+         this._outSocket.readable = false;
+         this._getConsoleProcessList().then(consoleProcessList => {
++          // Capture the console while it still exists. Destroying it
++          // before the helper attaches races AttachConsole and leaks
++          // the fallback timer after an otherwise completed cancel.
++          (this._ptyNative as IConptyNative).kill(this._pty, this._useConptyDll);
++          this._conoutSocketWorker.dispose();
+           consoleProcessList.forEach((pid: number) => {
+             try {
+@@ -154,6 +159,4 @@ export class WindowsPtyAgent {
+           });
+         });
+-        (this._ptyNative as IConptyNative).kill(this._pty, this._useConptyDll);
+-        this._conoutSocketWorker.dispose();
+       } else {
+         // Close the input write handle to signal the end of session.
+@@ -247,4 +250,6 @@ export class WindowsPtyAgent {
+     this._outSocket.readable = false;
+     this._outSocket.destroy();
++    this._inSocket.destroy();
++    this._conoutSocketWorker.dispose();
+   }
+ }
+diff --git a/node_modules/node-pty/scripts/prebuild.js b/node_modules/node-pty/scripts/prebuild.js
+index 17f1d980e..6d96cb0d2 100644
+--- a/node_modules/node-pty/scripts/prebuild.js
++++ b/node_modules/node-pty/scripts/prebuild.js
+@@ -32,3 +32,13 @@
+ }
+-
+-process.exit(0);
++
++// The 1.1.0 tarball omits executable bits from its macOS spawn helpers.
++if (process.platform === 'darwin') {
++  const spawnHelper = path.join(PREBUILD_DIR, 'spawn-helper');
++  const helperStat = fs.lstatSync(spawnHelper);
++  if (!helperStat.isFile()) {
++    throw new Error('node-pty spawn-helper must be a regular file');
++  }
++  fs.chmodSync(spawnHelper, helperStat.mode | 0o111);
++}
++
++process.exit(0); // Prebuilt artifacts, including the helper, are ready.
+diff --git a/node_modules/node-pty/lib/worker/conoutSocketWorker.js b/node_modules/node-pty/lib/worker/conoutSocketWorker.js
+index 0451e2c6b..76fb8456d 100644
+--- a/node_modules/node-pty/lib/worker/conoutSocketWorker.js
++++ b/node_modules/node-pty/lib/worker/conoutSocketWorker.js
+@@ -12,4 +12,24 @@ conoutSocket.setEncoding('utf8');
+ conoutSocket.connect(conoutPipeName, function () {
+     var server = net_1.createServer(function (workerSocket) {
++        var detached = false;
++        var detachReader = function () {
++            if (detached) {
++                return;
++            }
++            detached = true;
++            conoutSocket.unpipe(workerSocket);
++            // ClosePseudoConsole may still be waiting for output to drain.
++            // Keep reading after the terminal has closed its output reader.
++            conoutSocket.resume();
++            server.close();
++        };
++        workerSocket.once('end', detachReader);
++        workerSocket.once('close', detachReader);
++        workerSocket.on('error', function (error) {
++            detachReader();
++            if (error.code !== 'EPIPE' && error.code !== 'ECONNRESET') {
++                throw error;
++            }
++        });
+         conoutSocket.pipe(workerSocket);
+     });
+@@ -20,3 +40,3 @@ conoutSocket.connect(conoutPipeName, function () {
+     worker_threads_1.parentPort.postMessage(1 /* READY */);
+ });
+-//# sourceMappingURL=conoutSocketWorker.js.map
+\ No newline at end of file
++//# sourceMappingURL=conoutSocketWorker.js.map
+diff --git a/node_modules/node-pty/src/worker/conoutSocketWorker.ts b/node_modules/node-pty/src/worker/conoutSocketWorker.ts
+index 79a4148dd..3ba96db96 100644
+--- a/node_modules/node-pty/src/worker/conoutSocketWorker.ts
++++ b/node_modules/node-pty/src/worker/conoutSocketWorker.ts
+@@ -13,4 +13,24 @@ conoutSocket.setEncoding('utf8');
+ conoutSocket.connect(conoutPipeName, () => {
+   const server = createServer(workerSocket => {
++    let detached = false;
++    const detachReader = () => {
++      if (detached) {
++        return;
++      }
++      detached = true;
++      conoutSocket.unpipe(workerSocket);
++      // ClosePseudoConsole may still be waiting for output to drain.
++      // Keep reading after the terminal has closed its output reader.
++      conoutSocket.resume();
++      server.close();
++    };
++    workerSocket.once('end', detachReader);
++    workerSocket.once('close', detachReader);
++    workerSocket.on('error', (error: NodeJS.ErrnoException) => {
++      detachReader();
++      if (error.code !== 'EPIPE' && error.code !== 'ECONNRESET') {
++        throw error;
++      }
++    });
+     conoutSocket.pipe(workerSocket);
+   });

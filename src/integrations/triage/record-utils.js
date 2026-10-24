@@ -10,6 +10,11 @@ const PROMOTED_FIELD_PATHS = {
   assetId: ['asset', 'assetId']
 };
 
+/** Canonical collection with legacy singleton compatibility. */
+export const getRecordPackages = record => Array.isArray(record?.packages)
+  ? record.packages.filter(pkg => pkg && typeof pkg === 'object')
+  : record?.package && typeof record.package === 'object' ? [record.package] : [];
+
 /**
  * Build a stable record id from a source and stable key.
  * @param {string} source
@@ -47,6 +52,11 @@ export function promoteRecordFields(record, promoteFields) {
  */
 function resolvePromotedValue(record, field) {
   if (!record || typeof record !== 'object') return undefined;
+  if (field === 'packageName' || field === 'packageEcosystem') {
+    const key = field === 'packageName' ? 'name' : 'ecosystem';
+    const values = [...new Set(getRecordPackages(record).map(pkg => pkg[key]).filter(isValuePresent))];
+    if (values.length) return values.length === 1 ? values[0] : values;
+  }
   const path = PROMOTED_FIELD_PATHS[field];
   if (path) {
     const nested = getNestedValue(record, path);

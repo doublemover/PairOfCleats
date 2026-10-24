@@ -6,7 +6,7 @@ import { createSemanticSourceSnapshot } from './source.js';
 import { createSyntaxPartitionId, semanticHash } from './identity.js';
 import { createSemanticCollector, JAVASCRIPT_ADAPTER_VERSION } from './javascript-collector.js';
 import { getJavaScriptSyntaxIdentity } from '../../lang/javascript/parse.js';
-import { createSemanticPartitionSink } from '../build/artifacts/writers/semantic/partition.js';
+import { createSemanticPartitionSink, abortSemanticPartitionOnFailure } from '../build/artifacts/writers/semantic/partition.js';
 import { NATIVE_SEMANTIC_LANGUAGES, NATIVE_SYNTAX_VERSION, semanticSourceLanguage,
   prepareNativeSemanticSyntax, createNativeSemanticCollector } from './native-syntax.js';
 import { collectNativeControlFlow } from './native-control-flow.js';
@@ -30,12 +30,12 @@ export const collectFileSemanticFacts = async ({ bytes, text, ast, ts, language,
     parser: parserIdentity, extractor: { schemaVersion: 1, version: native ? NATIVE_SYNTAX_VERSION : language === 'typescript' ? TYPESCRIPT_ADAPTER_VERSION : JAVASCRIPT_ADAPTER_VERSION }, structuralPolicy });
   const unavailable = !policy.languages.includes(language) ? { state: 'disabled', reason: 'language_policy_disabled' }
     : !native && !['javascript', 'typescript'].includes(language) ? { state: 'unsupported', reason: 'syntax_adapter_pending' } : null;
-  let sink;
+  let sink; let primaryFailure = null;
   try {
     const createCollector = native ? createNativeSemanticCollector : language === 'typescript' ? createTypeScriptSemanticCollector : createSemanticCollector;
     const collector = createCollector({ ts, syntax, ast: unavailable ? null : ast, unavailable, source: snapshot.manifest, partitionId, signal, analysisPolicy: policy.enrichment }, policy.storage);
     sink = await createSemanticPartitionSink({ stagingRoot, source: snapshot.manifest,
-      sourceBytes: bytes, partitionId,
+      sourceBytes: bytes, sourceCapability: snapshot.sourceCapability, partitionId,
       producerHash: semanticHash('semantic.syntax-producer.v1', parserIdentity),
       policyHash: semanticHash('semantic.structural-policy.v1', structuralPolicy),
       structuralSlots: collector.structuralSlots, diskAccount, signal, scheduleIo,
@@ -53,7 +53,12 @@ export const collectFileSemanticFacts = async ({ bytes, text, ast, ts, language,
       if (flow.partition) analysisPartitions.push(flow.partition);
       coverage.splice(0, coverage.length, ...coverage.filter(row => row.phase !== 'localFlow'), flow.coverage);
     }
-    return { source: snapshot.manifest, root: stagingRoot, partition, analysisPartitions, summary: collector.summary, coverage };
-  } catch (error) { await sink?.abort(); throw error; }
-  finally { syntax?.close?.(); }
+    return { source: snapshot.manifest, sourceCapability: snapshot.sourceCapability, root: stagingRoot, partition, analysisPartitions, summary: collector.summary, coverage };
+  } catch (error) { primaryFailure = error; await abortSemanticPartitionOnFailure(sink, error); }
+  finally {
+    try { await syntax?.close?.(); } catch (closeError) {
+      if (!primaryFailure) throw closeError;
+      try { if (typeof primaryFailure === 'object') primaryFailure.closeError = closeError; } catch {}
+    }
+  }
 };

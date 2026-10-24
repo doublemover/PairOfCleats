@@ -3,6 +3,8 @@ import {
   nullableString,
   semverString
 } from './primitives.js';
+import { CONTEXT_PACK_RISK_TRUNCATION_CAPS } from '../../context-pack-risk-contract.js';
+import { GRAPH_PATH_EDGE_KINDS, SEMANTIC_PATH_DECLARATION_SCHEMA } from '../semantic-path.js';
 
 export const nodeRefSchema = {
   anyOf: [
@@ -107,11 +109,7 @@ export const truncationRecordSchema = {
         'maxEdgesExamined',
         'maxSuggestions',
         'maxSeeds',
-        'maxFlows',
-        'maxStepsPerFlow',
-        'maxCallSitesPerStep',
-        'maxRiskBytes',
-        'maxRiskTokens'
+        ...CONTEXT_PACK_RISK_TRUNCATION_CAPS
       ]
     },
     limit: { anyOf: [{ type: 'number' }, { type: 'object' }] },
@@ -183,7 +181,7 @@ const graphNodeSchema = {
   additionalProperties: true
 };
 
-const graphEdgeSchema = {
+export const graphEdgeSchema = {
   type: 'object',
   required: ['edgeType', 'from', 'to'],
   properties: {
@@ -224,11 +222,40 @@ export const witnessPathSchema = {
   additionalProperties: true
 };
 
+const graphPathLimit = { type: ['integer', 'null'], minimum: 0 };
+export const GRAPH_PATH_CAPABILITY_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['declaration', 'scope', 'selection', 'limits', 'completeness', 'validation', 'execution'],
+  properties: {
+    declaration: { ...SEMANTIC_PATH_DECLARATION_SCHEMA, properties: {
+      ...SEMANTIC_PATH_DECLARATION_SCHEMA.properties, semantics: { const: 'graph-witness' },
+      operation: { enum: ['graph_context', 'graph_impact'] }
+    } },
+    scope: { type: 'object', additionalProperties: false, required: ['repo', 'indexSignature'], properties: {
+      repo: nullableString, indexSignature: { type: 'string', minLength: 1 }
+    } },
+    selection: { type: 'object', additionalProperties: false, required: ['direction', 'depth', 'graphs', 'edgeKinds', 'paths'], properties: {
+      direction: { enum: ['out', 'in', 'both'] }, depth: { type: 'integer', minimum: 0 },
+      graphs: { type: 'array', uniqueItems: true, items: { enum: ['callGraph', 'usageGraph', 'importGraph', 'symbolEdges'] } },
+      edgeKinds: { type: 'array', uniqueItems: true, items: { enum: GRAPH_PATH_EDGE_KINDS } }, paths: { type: 'boolean' }
+    } },
+    limits: { type: 'object', additionalProperties: false,
+      required: ['maxDepth', 'maxFanoutPerNode', 'maxNodes', 'maxEdges', 'maxPaths', 'maxCandidates', 'maxWorkUnits', 'maxWallClockMs'],
+      properties: Object.fromEntries(['maxDepth', 'maxFanoutPerNode', 'maxNodes', 'maxEdges', 'maxPaths', 'maxCandidates', 'maxWorkUnits', 'maxWallClockMs'].map(key => [key, graphPathLimit])) },
+    completeness: { type: 'object', additionalProperties: false, required: ['source', 'response', 'frontier'], properties: {
+      source: { const: 'unqualified' }, response: { enum: ['bounded-selection', 'partial'] },
+      frontier: { type: 'array', uniqueItems: true, items: { type: 'string', minLength: 1 } }
+    } },
+    validation: { const: 'returned-edge-domains-and-witness-chain' }, execution: { const: 'none' }
+  }
+};
+
 export const GRAPH_CONTEXT_PACK_SCHEMA = {
   type: 'object',
   required: ['version', 'seed', 'nodes', 'edges', 'provenance'],
   properties: {
     version: semverString,
+    pathCapability: GRAPH_PATH_CAPABILITY_SCHEMA,
     seed: seedRefSchema,
     provenance: provenanceSchema,
     nodes: { type: 'array', items: graphNodeSchema },
@@ -259,6 +286,7 @@ export const GRAPH_IMPACT_SCHEMA = {
   required: ['version', 'seed', 'direction', 'depth', 'impacted', 'provenance'],
   properties: {
     version: semverString,
+    pathCapability: GRAPH_PATH_CAPABILITY_SCHEMA,
     seed: seedRefSchema,
     direction: { enum: ['upstream', 'downstream', 'both'] },
     depth: { type: 'number' },

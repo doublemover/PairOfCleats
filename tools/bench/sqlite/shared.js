@@ -1,3 +1,4 @@
+import { resolveDevelopmentArtifactPath } from '../../shared/dev-artifacts.js';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
@@ -15,7 +16,7 @@ export const loadSqliteBenchDatabase = async () => {
 };
 
 export const createSqliteBenchWorkspace = async ({ name, sqliteMode = 'code' }) => {
-  const tempRoot = path.join(process.cwd(), '.benchCache', name);
+  const tempRoot = resolveDevelopmentArtifactPath(process.cwd(), 'bench-cache', name);
   const bundleDir = path.join(tempRoot, 'bundles');
   await fs.rm(tempRoot, { recursive: true, force: true });
   await fs.mkdir(bundleDir, { recursive: true });

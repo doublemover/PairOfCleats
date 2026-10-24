@@ -325,8 +325,8 @@ export const jjProvider = {
       : null;
     const template = [
       'json({',
-      '"commit_id": commit_id.short(12),',
-      '"change_id": change_id.short(12),',
+      '"commit_id": commit_id,',
+      '"change_id": change_id,',
       '"author": author.name(),',
       '"timestamp": author.timestamp().utc().format("%Y-%m-%dT%H:%M:%SZ")',
       '})'

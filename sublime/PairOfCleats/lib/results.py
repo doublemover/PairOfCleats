@@ -1,6 +1,14 @@
 import os
+import time
+import copy
 
 import sublime
+from .saved_search import normalize_saved_options
+from . import operations
+from . import results_state
+from .prompts import NativePrompt
+from .filter_pagination import selected_index, capture_selection, carry_filter_page_history
+from .source_authority import assert_source_filename, read_verified_source, source_buffer_form, source_range_in_buffer
 
 HIGHLIGHT_KEY = 'pairofcleats.search.highlight'
 HIGHLIGHT_SCOPE = 'region.yellowish'
@@ -12,6 +20,8 @@ HIT_ACTIONS = [
     ('open', 'Open Hit'),
     ('open_new_group', 'Open in New Group'),
     ('copy_path', 'Copy Path'),
+    ('create_context', 'Create Context from This Evidence'),
+    ('inspect_semantic', 'Inspect Semantic Evidence (Experimental)'),
     ('rerun_context', 'Rerun from Hit Context'),
 ]
 
@@ -27,7 +37,7 @@ def collect_hits(payload):
         for hit in items:
             if not isinstance(hit, dict):
                 continue
-            merged = dict(hit)
+            merged = copy.deepcopy(hit)
             merged['section'] = section
             hits.append(merged)
 
@@ -42,7 +52,7 @@ def collect_hits_from_session(session):
     hits = session.get('hits')
     if not isinstance(hits, list):
         return []
-    return [dict(hit) for hit in hits if isinstance(hit, dict)]
+    return [copy.deepcopy(hit) for hit in hits if isinstance(hit, dict)]
 
 
 def build_session(query, options, repo_root, hits, target, explain=False):
@@ -51,14 +61,10 @@ def build_session(query, options, repo_root, hits, target, explain=False):
         'repoRoot': repo_root,
         'target': target,
         'explain': bool(explain),
-        'hits': [normalize_hit(hit) for hit in hits],
+        'hits': carry_filter_page_history(hits, [normalize_hit(hit) for hit in hits]),
     }
     if isinstance(options, dict):
-        session['options'] = {
-            'mode': options.get('mode'),
-            'backend': options.get('backend'),
-            'limit': options.get('limit'),
-        }
+        session['options'] = normalize_saved_options(options, repo_root)
     if explain:
         session['text'] = format_explain_text(session['hits'])
     elif target in ('new_tab', 'output_panel'):
@@ -69,6 +75,7 @@ def build_session(query, options, repo_root, hits, target, explain=False):
 def reopen_session(window, session):
     if window is None or not isinstance(session, dict):
         return None
+    session = copy.deepcopy(session)
     hits = collect_hits_from_session(session)
     target = session.get('target') or 'quick_panel'
     repo_root = session.get('repoRoot')
@@ -85,13 +92,19 @@ def reopen_session(window, session):
         return {'target': target, 'view': view}
 
     items = [format_quick_panel_item(hit) for hit in hits]
+    scope = operations.capture(window, key='result-picker')
 
     def on_select(index):
-        if index < 0:
+        if index < 0 or not operations.is_current(scope):
             return
+        capture_selection(session, hits, index)
+        if explain:
+            results_state.record_last_explain(window, session)
+        else:
+            results_state.record_last_results(window, session)
         open_hit(window, hits[index], repo_root)
 
-    window.show_quick_panel(items, on_select)
+    NativePrompt(window, scope).choose(items, on_select, selected_index=selected_index(session, hits))
     return {'target': 'quick_panel', 'count': len(items)}
 
 
@@ -182,6 +195,12 @@ def apply_hit_action(window, hit, repo_root=None, action='open', rerun=None):
         if file_path:
             sublime.set_clipboard(file_path)
         return file_path
+    if action == 'inspect_semantic':
+        window.run_command('pair_of_cleats_semantic_evidence', {'hit': hit, 'repo_root': repo_root})
+        return hit
+    if action == 'create_context':
+        window.run_command('pair_of_cleats_copy_context', {'hits': [hit], 'repo_root': repo_root})
+        return hit
     if action == 'rerun_context':
         query = resolve_hit_context_query(hit)
         if query and callable(rerun):
@@ -190,18 +209,36 @@ def apply_hit_action(window, hit, repo_root=None, action='open', rerun=None):
     return None
 
 
-def open_hit(window, hit, repo_root=None):
+def open_hit(window, hit, repo_root=None, request_current=None):
+    if (not isinstance(hit, dict)
+            or request_current is not None and (not callable(request_current) or request_current() is not True)):
+        return None
+    hit = copy.deepcopy(hit)
     file_path = resolve_hit_path(hit, repo_root)
     if not file_path:
         return None
 
+    source_hash = hit.get('sourceHash')
+    scope = operations.capture(window, key='source-opening')
+    if source_hash:
+        opened = window.find_open_file(file_path) if hasattr(window, 'find_open_file') else None
+        if opened and opened.is_dirty():
+            sublime.status_message('PairOfCleats: dirty source; indexed range was not opened.')
+            return None
+        try:
+            read_verified_source(repo_root or os.path.dirname(file_path), file_path, source_hash)
+        except (ValueError, OSError, UnicodeError) as error:
+            sublime.status_message('PairOfCleats: indexed source was not opened: ' + str(error))
+            return None
     start_line = hit.get('startLine')
     encoded_path = file_path
     if isinstance(start_line, int) and start_line > 0:
         encoded_path = '{0}:{1}'.format(file_path, start_line)
 
+    if request_current is not None and request_current() is not True:
+        return None
     view = window.open_file(encoded_path, sublime.ENCODED_POSITION)
-    highlight_hit(view, hit)
+    highlight_hit(view, hit, scope=scope, repo_root=repo_root, source_file=file_path, request_current=request_current)
     return view
 
 
@@ -262,10 +299,18 @@ def resolve_hit_path(hit, repo_root):
     file_path = hit.get('file')
     if not file_path:
         return None
+    if repo_root:
+        root = os.path.realpath(repo_root)
+        resolved = os.path.realpath(file_path if os.path.isabs(file_path) else os.path.join(root, file_path))
+        try:
+            relative = os.path.relpath(resolved, root)
+            if relative == os.pardir or relative.startswith(os.pardir + os.sep) or os.path.isabs(relative):
+                return None
+        except ValueError:
+            return None
+        return resolved
     if os.path.isabs(file_path):
         return file_path
-    if repo_root:
-        return os.path.join(repo_root, file_path)
     return file_path
 
 
@@ -282,24 +327,111 @@ def resolve_hit_context_query(hit):
     return ''
 
 
-def highlight_hit(view, hit):
+def qualified_source_buffer(source_text, buffer_text):
+    """Only actually observed exact BOM/newline projections are admitted."""
+    form = source_buffer_form(source_text, buffer_text)
+    return {'removedBom': form['removedBom']} if form is not None else None
+
+
+def highlight_hit(view, hit, scope=None, repo_root=None, source_file=None, request_current=None):
     if view is None or not isinstance(hit, dict):
         return
+    hit = copy.deepcopy(hit)
     start_line = hit.get('startLine')
     end_line = hit.get('endLine') or start_line
     if not isinstance(start_line, int) or start_line <= 0:
         return
     if not isinstance(end_line, int) or end_line <= 0:
         end_line = start_line
+    if hit.get('sourceHash'):
+        if source_file is None:
+            source_file = resolve_hit_path(hit, repo_root) if hit.get('file') else view.file_name()
+        if not isinstance(source_file, str) or not os.path.isabs(source_file):
+            sublime.status_message('PairOfCleats: exact source file identity unavailable; indexed selection was not applied.')
+            return
+    source_root = repo_root or os.path.dirname(source_file or '')
 
+    if scope is None and hasattr(view, 'window') and view.window():
+        scope = operations.capture(view.window(), key='source-opening')
+    deadline = time.monotonic() + 5
     def apply():
+        if (scope is not None and not operations.is_current(scope)
+                or hasattr(view, 'is_valid') and not view.is_valid()):
+            return
+        source, buffer_text = None, None
         if view.is_loading():
+            if time.monotonic() >= deadline:
+                sublime.status_message('PairOfCleats: source loading did not settle within the selection deadline.')
+                return
             sublime.set_timeout(apply, 10)
             return
+        if request_current is not None and (not callable(request_current) or request_current() is not True):
+            return
+        if hit.get('sourceHash'):
+            try:
+                assert_source_filename({'file': os.path.realpath(source_file)}, view.file_name())
+            except (ValueError, OSError) as error:
+                sublime.status_message('PairOfCleats: indexed selection unavailable: ' + str(error))
+                return
         view.erase_regions(HIGHLIGHT_KEY)
-        start_pt = view.text_point(start_line - 1, 0)
-        end_pt = view.text_point(end_line - 1, 0)
-        region = view.full_line(sublime.Region(start_pt, end_pt))
+        if hit.get('sourceHash') and view.is_dirty():
+            sublime.status_message('PairOfCleats: dirty source; indexed selection was not applied.')
+            return
+        if hit.get('sourceHash'):
+            try:
+                source = read_verified_source(source_root, source_file, hit['sourceHash'])
+                assert_source_filename(source, view.file_name())
+                text = source['sourceText']
+                buffer_text = view.substr(sublime.Region(0, view.size()))
+                normalization = qualified_source_buffer(text, buffer_text)
+                if normalization is None:
+                    sublime.status_message('PairOfCleats: source changed; indexed selection was not applied.')
+                    return
+            except (ValueError, OSError, UnicodeError) as error:
+                sublime.status_message('PairOfCleats: indexed selection unavailable: ' + str(error))
+                return
+        start_col = hit.get('startCol')
+        end_col = hit.get('endCol')
+        if (source is not None and (start_col is not None or end_col is not None)
+                and (not isinstance(start_col, int) or isinstance(start_col, bool) or start_col < 1
+                     or not isinstance(end_col, int) or isinstance(end_col, bool) or end_col < 1)):
+            sublime.status_message('PairOfCleats: indexed source columns are invalid; selection unavailable.')
+            return
+        if isinstance(start_col, int) and start_col > 0 and isinstance(end_col, int) and end_col > 0:
+            try:
+                if source is not None:
+                    qualified = source_range_in_buffer(source, buffer_text, {'startLine': start_line, 'startCol': start_col,
+                        'endLine': end_line, 'endCol': end_col})
+                    start_pt, end_pt = qualified['start'], qualified['end']
+                else:
+                    start_pt = _utf16_point(view, start_line - 1, start_col - 1)
+                    end_pt = _utf16_point(view, end_line - 1, end_col - 1)
+                if end_pt < start_pt:
+                    raise ValueError('Source range ends before it begins.')
+            except (ValueError, UnicodeError) as error:
+                sublime.status_message('PairOfCleats: indexed selection unavailable: ' + str(error))
+                return
+            region = sublime.Region(start_pt, end_pt)
+            exact_range = True
+        else:
+            start_pt = view.text_point(start_line - 1, 0)
+            end_pt = view.text_point(end_line - 1, 0)
+            region = view.full_line(sublime.Region(start_pt, end_pt))
+            exact_range = False
+        if (scope is not None and not operations.is_current(scope)
+                or hasattr(view, 'is_valid') and not view.is_valid()
+                or request_current is not None and request_current() is not True):
+            return
+        if source is not None:
+            try:
+                assert_source_filename(source, view.file_name())
+            except (ValueError, OSError) as error:
+                sublime.status_message('PairOfCleats: indexed selection unavailable: ' + str(error))
+                return
+        if exact_range:
+            view.sel().clear()
+            view.sel().add(region)
+            view.show(region)
         view.add_regions(HIGHLIGHT_KEY, [region], HIGHLIGHT_SCOPE, flags=0)
 
     sublime.set_timeout(apply, 0)
@@ -335,9 +467,9 @@ def normalize_hit(hit):
         if isinstance(value, (str, int, float, bool)) or value is None:
             normalized[key] = value
         elif isinstance(value, dict):
-            normalized[key] = dict(value)
+            normalized[key] = copy.deepcopy(value)
         elif isinstance(value, list):
-            normalized[key] = list(value)
+            normalized[key] = copy.deepcopy(value)
     return normalized
 
 
@@ -346,7 +478,7 @@ def _attach_session(view, explain=False, session=None):
         return
     settings = view.settings()
     key = EXPLAIN_SESSION_KEY if explain else RESULTS_SESSION_KEY
-    settings.set(key, dict(session))
+    settings.set(key, copy.deepcopy(session))
 
 
 def _safe_num_groups(window):
@@ -361,3 +493,24 @@ def _safe_active_group(window):
         return max(int(window.active_group()), 0)
     except Exception:
         return 0
+
+
+def _utf16_point(view, row, units):
+    if (not isinstance(row, int) or isinstance(row, bool) or row < 0
+            or not isinstance(units, int) or isinstance(units, bool) or units < 0):
+        raise ValueError('Invalid UTF-16 source coordinate.')
+    start = view.text_point(row, 0)
+    if hasattr(view, 'rowcol') and view.rowcol(start)[0] != row:
+        raise ValueError('Source line is outside the loaded buffer.')
+    line = view.substr(view.line(start))
+    consumed = 0
+    column = 0
+    for character in line:
+        width = len(character.encode('utf-16-le')) // 2
+        if consumed + width > units:
+            break
+        consumed += width
+        column += 1
+    if consumed != units:
+        raise ValueError('Source column is outside its line or splits a UTF-16 surrogate pair.')
+    return view.text_point(row, column)

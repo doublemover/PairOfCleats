@@ -26,7 +26,7 @@ const EDGE_TYPE_ALIASES = new Map([
   ['symbol', 'symbol']
 ]);
 
-const KNOWN_EDGE_TYPES = new Set(['call', 'usage', 'import', 'export', 'dataflow', 'symbol']);
+const KNOWN_EDGE_TYPES = new Set(GRAPH_PATH_EDGE_KINDS);
 
 const normalizeFilterList = (value) => {
   if (!value) return [];
@@ -63,7 +63,7 @@ export const normalizeEdgeFilter = (edgeFilters) => {
   const minConfidenceRaw = Number(edgeFilters?.minConfidence);
   const minConfidence = Number.isFinite(minConfidenceRaw) ? minConfidenceRaw : null;
   return {
-    graphs: graphs.length ? new Set(graphs) : null,
+    graphs: edgeFilters?.graphs != null ? new Set(graphs) : null,
     edgeTypes: edgeTypes.length ? new Set(edgeTypes) : null,
     minConfidence,
     unknownGraphs,
@@ -80,3 +80,4 @@ export const createEdgeFilterPredicate = ({ graphFilter, edgeTypeFilter, minConf
     return true;
   }
 );
+import { GRAPH_PATH_EDGE_KINDS } from '../../contracts/schemas/semantic-path.js';

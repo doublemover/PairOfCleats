@@ -1,8 +1,28 @@
-import { encodeVarint64List } from '../../../../../shared/artifact-io/varint.js';
+import { encodeVarint64Into } from '../../../../../shared/artifact-io/varint.js';
 import { parseHash64 } from '../../../../../shared/token-id.js';
 import { stableOrderWithComparator } from '../../../../../shared/order.js';
-import { TRIM_POLICY_VERSION } from '../../trim-policy.js';
+import { TRIM_POLICY_VERSION, TRIM_REASONS } from '../../trim-policy.js';
+import { createPreparedJsonlRows, readPreparedJsonlRow } from '../../../../../shared/json-stream/prepared-row.js';
 import { compactChunkMetaEntry, compareChunkMetaChunks } from './shared.js';
+
+// The schema requires one final base64 string. Encode through one bounded byte
+// block rather than retaining a second BigInt array and a JS number per byte.
+// Intermediate base64 pieces end on whole three-byte groups, so only the final
+// piece carries padding and concatenation is byte-identical to one full buffer.
+const packChunkMetaTokenIds = values => {
+  const block = Buffer.allocUnsafe(Math.min(64 * 1024, Math.max(10, values.length * 10))), pieces = [];
+  let used = 0;
+  for (const value of values) {
+    if (block.length - used < 10) {
+      const complete = used - used % 3;
+      pieces.push(block.toString('base64', 0, complete));
+      block.copy(block, 0, complete, used); used -= complete;
+    }
+    used += encodeVarint64Into(parseHash64(value), block, used);
+  }
+  if (used) pieces.push(block.toString('base64', 0, used));
+  return pieces.join('');
+};
 
 /**
  * Return a stable permutation when chunk_meta rows are out of canonical order.
@@ -64,23 +84,37 @@ export const createChunkMetaIterator = ({
   resolvedTokenMode,
   tokenSampleSize,
   maxJsonBytes,
-  order = null
+  order = null,
+  preparedRowsOptions = undefined,
+  prepareRows = false
 }) => {
-  const stats = {
+  const createStats = () => ({
     trimPolicyVersion: TRIM_POLICY_VERSION,
     trimmedMetaV2: 0,
     trimmedEntries: 0,
     trimmedSamples: [],
     trimmedFields: {},
     trimReasonCounts: {}
-  };
+  });
+  const stats = createStats();
+  const preparedRows = createPreparedJsonlRows(preparedRowsOptions);
+  let preparationEnabled = prepareRows;
+  const preparedByIndex = new Map();
   const sampleLimit = 5;
-  const recordTrimSample = (entry) => {
-    if (stats.trimmedSamples.length >= sampleLimit) return;
-    stats.trimmedSamples.push({
+  const recordTrimSample = (target, entry) => {
+    if (target.trimmedSamples.length >= sampleLimit) return;
+    target.trimmedSamples.push({
       chunkId: entry.chunkId || entry.id || null,
       file: entry.file || null
     });
+  };
+  const mergeStats = rowStats => {
+    stats.trimmedEntries += rowStats.trimmedEntries;
+    stats.trimmedMetaV2 += rowStats.trimmedMetaV2;
+    for (const entry of rowStats.trimmedSamples) if (stats.trimmedSamples.length < sampleLimit) stats.trimmedSamples.push(entry);
+    for (const field of ['trimmedFields', 'trimReasonCounts']) {
+      for (const [key, count] of Object.entries(rowStats[field])) stats[field][key] = (stats[field][key] || 0) + count;
+    }
   };
   const scrubDocmetaTooling = (docmeta) => {
     if (!docmeta || typeof docmeta !== 'object') return docmeta;
@@ -102,6 +136,12 @@ export const createChunkMetaIterator = ({
     const resolvedEnd = Math.min(end, sourceLength);
     for (let i = start; i < resolvedEnd; i += 1) {
       const index = source ? source[i] : i;
+      const prepared = preparedByIndex.get(index);
+      if (prepared) {
+        if (trackStats) mergeStats(prepared.stats);
+        yield prepared.row;
+        continue;
+      }
       const c = chunks[index];
       const authors = Array.isArray(c.chunk_authors)
         ? c.chunk_authors
@@ -129,6 +169,7 @@ export const createChunkMetaIterator = ({
         weight: c.weight,
         headline: c.headline,
         phraseTokens: c.phraseTokens ?? null,
+        phraseTokensCasePreserved: c.phraseTokensCasePreserved === true,
         preContext: c.preContext,
         postContext: c.postContext,
         segment: c.segment || null,
@@ -142,8 +183,9 @@ export const createChunkMetaIterator = ({
         chunkAuthors: authors
       };
       if (resolvedTokenMode !== 'none') {
-        const tokens = Array.isArray(c.tokens) ? c.tokens : [];
-        const ngrams = Array.isArray(c.ngrams) ? c.ngrams : null;
+        const rawTokens = c.tokens, rawNgrams = c.ngrams;
+        const tokens = Array.isArray(rawTokens) ? rawTokens : [];
+        const ngrams = Array.isArray(rawNgrams) ? rawNgrams : null;
         const tokenOut = resolvedTokenMode === 'sample'
           ? tokens.slice(0, tokenSampleSize)
           : tokens;
@@ -152,13 +194,13 @@ export const createChunkMetaIterator = ({
           : ngrams;
         entry.tokens = tokenOut;
         entry.ngrams = ngramOut;
-        const tokenIds = Array.isArray(c.tokenIds) ? c.tokenIds : null;
+        const rawTokenIds = c.tokenIds;
+        const tokenIds = Array.isArray(rawTokenIds) ? rawTokenIds : null;
         if (tokenIds && tokenIds.length) {
           const packInput = resolvedTokenMode === 'sample'
             ? tokenIds.slice(0, tokenSampleSize)
             : tokenIds;
-          const packed = encodeVarint64List(packInput.map((value) => parseHash64(value)));
-          entry.token_ids_packed = packed.toString('base64');
+          entry.token_ids_packed = packChunkMetaTokenIds(packInput);
           entry.token_ids_count = packInput.length;
         } else if (typeof c.token_ids_packed === 'string' && Number.isFinite(Number(c.token_ids_count))) {
           const packedCount = Math.max(0, Math.floor(Number(c.token_ids_count)));
@@ -169,18 +211,27 @@ export const createChunkMetaIterator = ({
         }
       }
       const hadMetaV2 = !!entry.metaV2;
-      const compacted = compactChunkMetaEntry(entry, maxJsonBytes, trackStats ? stats : null);
-      if (trackStats && compacted !== entry) {
-        stats.trimmedEntries += 1;
+      const rowStats = createStats();
+      const compacted = compactChunkMetaEntry(entry, maxJsonBytes, rowStats, preparationEnabled ? preparedRows : null);
+      if (rowStats.trimReasonCounts[TRIM_REASONS.rowOversize]) {
+        rowStats.trimmedEntries += 1;
       }
-      if (trackStats && hadMetaV2 && !compacted.metaV2) {
-        stats.trimmedMetaV2 += 1;
-        recordTrimSample(entry);
+      if (hadMetaV2 && !compacted.metaV2) {
+        rowStats.trimmedMetaV2 += 1;
+        recordTrimSample(rowStats, entry);
       }
+      if (readPreparedJsonlRow(compacted)) preparedByIndex.set(index, { row: compacted, stats: rowStats });
+      if (trackStats) mergeStats(rowStats);
       yield compacted;
     }
   };
   chunkMetaIterator.stats = stats;
+  chunkMetaIterator.enablePreparedRows = () => { preparationEnabled = true; };
+  // This invocation snapshots only rows admitted by the bounded private owner.
+  // Exhaustion reprojects ordinary rows; it never drops input or grows a cache.
+  Object.defineProperty(chunkMetaIterator, 'preparedStats', { get: () => ({
+    retainedRows: preparedRows.retainedRows, retainedBytes: preparedRows.retainedBytes
+  }) });
   chunkMetaIterator.resetStats = () => {
     stats.trimmedMetaV2 = 0;
     stats.trimmedEntries = 0;

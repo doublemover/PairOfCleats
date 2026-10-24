@@ -210,7 +210,7 @@ export async function recordOrderingSeedInputs(buildRoot, inputs = {}, { stage =
     orderingLedger: {
       schemaVersion: ORDERING_LEDGER_SCHEMA_VERSION,
       seeds,
-      ...(stageKey ? { stages: { [stageKey]: { seeds } } } : {})
+      ...(stageKey ? { stages: { [stageKey]: { seeds, artifacts: {} } } } : {})
     }
   };
   return updateBuildState(buildRoot, patch);

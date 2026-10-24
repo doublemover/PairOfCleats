@@ -1,255 +1,52 @@
-# Benchmarks
+# Run a bounded benchmark
 
-This project has two layers of benchmarking:
-- Microbenchmarks for fast component-level timing.
-- Language benchmarks for full-size repo comparisons.
+Use the supported Node 26.12.1 checkout with verified bootstrap. Benchmarks are
+scoped experiments; ordinary implementation starts with affected regressions and
+the [contributor front gate](../guides/contributing.md).
 
-For the planned pinned Node 24/26 macOS experiment, use the
-[matched runtime comparison](node-runtime-comparison.md). It is a recipe,
-not a recorded performance result.
+## Select inputs, outputs and effects first
 
-For bounded CPU sampling, timeline traces and CPU/I/O diagnosis, see the
-[performance profiling guide](profiling.md).
+Read the chosen benchmark owner's help before running it. Select a tiny disposable
+fixture, exact mode/backend, jobs and timeout, an explicit output path and the
+owner's cache/input location. Language-repository campaigns can clone/download
+sources and build indexes; they need explicit task scope. Do not start a full
+index, native crash investigation or release campaign as a routine check.
 
-Language reports distinguish observed extraction quality from missing evidence.
-Stage 1's quality record is retained in `index_state.json` even when PDF/DOCX
-reporting is disabled or a tiny-repository profile omits auxiliary reports. Older
-stage timing records remain readable. Source-extraction admission and stage 3
-bundle synchronization are recorded separately; skipped synchronization is not
-counted as source-content recall loss.
+The current language CLI derives its root from the product cache owner under
+`bench-language`, with selected mode/suffix inputs; do not assume the old
+`benchmarks/cache/repos/<repo-id>` path. Developer fixture workspaces use
+`.tmp/dev/benchmarks`. Preserve result/evidence files separately, inspect active
+owners before cleanup and never remove user indexes/caches as generic preparation.
 
-The production-clean gate requires observed extraction-quality evidence for
-successful tasks. Unknown evidence fails its zero-default
-`maxUnobservedQualityRepos` threshold; it does not establish zero recall loss.
-Ordinary partial runs keep their existing exit policy. Reports retain actual
-skipped-file counts separately from estimated suppressed files and recall loss.
+## Choose the experiment
 
-SCM metadata recovery retains bounded failure codes and messages, batch counters,
-per-file attempted/completed/unavailable counts, and unresolved-file counts in
-stage timings under `scmMetadata`. This distinguishes a fully recovered provider
-that intentionally lacks batch support from a real batch failure, and keeps the
-failure evidence available after benchmark cache cleanup.
+- Component microbenchmarks: inspect `tools/bench/micro/` owners and their supported
+  selectors; keep input size and repetitions bounded.
+- Language repository runs: use `node tools/bench/language-repos.js --help`, then
+  explicitly select fixture/repos, mode, backends and outputs. Review any clone,
+  build, acquisition or cleanup effects before execution.
+- Embedding comparisons: follow [the bakeoff](embedding-model-bakeoff.md); direct
+  source invocations are not invented npm aliases. Model acquisition and real
+  inference require their own explicit scope and compatibility evidence.
+- Throughput reports: use the existing report owner with one selected baseline,
+  mode and output. Missing latency/memory/rate remains unknown, including JSON/CSV.
 
-An empty primary SQLite mode no longer removes a usable sibling mode from the
-query benchmark. A code-only SQLite index is queried with an explicit code
-selector; the reverse case selects prose. Reports name the selected primary
-modes per backend and count executed searches, so results with different scope
-can be compared deliberately. An entirely empty SQLite workload is recorded as
-unexercised. Empty-mode receipts must match their checksum, current ready state,
-generation and database target; an unknown or missing nonempty mode remains an
-error. Confirmed empty receipts also prevent unnecessary automatic rebuilds.
+## Interpret the evidence
 
-Incremental JSON bundles and their patches now use the same byte-vector and
-omitted-field representation as their checksums. Buffer vectors, typed-array
-patches and omitted optional fields round-trip without false corruption
-reports. Existing MessagePack checksum representations remain readable. This
-fix has a small deterministic write/read fixture; it does not establish the
-cause of checksum mismatches in earlier repository campaigns.
+Record exact head, Node/native/runtime identities, platform/architecture, selected
+repo revision, commands, outputs, failures and unrun prerequisites. Distinguish
+stub/real vectors, sparse/dense candidate stages, sampled/full runs and process
+warm/cold state from filesystem cache state. An unavailable backend or unexercised
+provider is not successful evidence. Keep input and work semantics compatible
+across comparisons; do not promote a microbenchmark into a workload recommendation.
 
-Cross-file inference also checks complete chunk coverage before reusing a
-whole-run cache result. Size-truncated or incomplete entries trigger fresh
-inference before any cached rows alter its inputs. Complete entries retain
-their existing reuse path, so warm results do not silently lose updates that
-were omitted from a bounded cache.
+Stop/report tests over 30 seconds; do not turn retries, skips or longer deadlines
+into acceptance. Broader benchmark runtime is permitted only when the experiment
+is explicitly scoped and its own deadlines/cleanup ownership are defined.
+The [qualification matrix](../testing/qualification-matrix.md) defines evidence
+classes and [profiling](profiling.md) covers bounded diagnosis.
 
-A configured path alone no longer counts as an installed SQLite ANN extension.
-Setup and benchmark preparation check the actual artifact before reporting it
-ready, including in check-only mode. This verifies installation data; native
-compatibility and actual ANN query coverage still need runtime checks.
-
-Query summaries retain per-mode ANN stage evidence separately from the requested
-ANN flag: vector-result sources, MinHash-result sources, sparse bypasses and
-stages without results. Cache hits and searches without stage evidence are
-counted separately. Aggregate reports explicitly identify older reports without
-this evidence. An enabled flag or a reported JavaScript backend alone does not
-prove vector retrieval; observed results also do not establish native
-compatibility or judged relevance. These observations do not change exit gates.
-
-Automatic query-worker sizing reads current manifest and SQLite file sizes when
-byte estimates are omitted. Unknown values no longer become zero through numeric
-coercion; an explicit zero retains its meaning. The existing memory estimates,
-worker caps and recycling policy remain unchanged. Manifest sizes are declared
-artifact metadata, not a measurement of live process memory.
-
-Dictionary preparation follows the selected configuration and shared directory.
-When English is not requested, valid non-English or custom wordlists do not
-trigger its download. The default English recipe can repair an empty file; unsupported
-missing resources remain visible. File readiness does not imply complete
-dictionary-language coverage or measured segmentation quality.
-
-Pyright preparation accepts the comments and trailing commas supported by its
-own configuration format. Valid project settings no longer produce a false
-invalid-config warning. Malformed, unavailable and oversized configuration
-files remain explicit, and ordinary JSON readers keep their strict policy.
-
-Tool preparation checks the Go SDK's version identity before using it to install
-Go-based servers. An unrelated exit-zero program is reported as an unmet
-prerequisite. Installation commands and prerequisite probes use the application
-directory, keeping their setup context separate from the repository being timed.
-
-Go-based server preparation can now provision an official portable Go SDK when
-one is missing, including when the server itself is already installed. `gopls`
-and `sqls` share the same SDK and module/build caches outside the per-run index
-cache. Installation records the version, platform, architecture, official
-archive SHA256 and executable-version check; cached bytes are verified before
-reuse. Dry-run plans the SDK without downloading it, and check-only benchmark
-preparation keeps its existing no-provision behavior.
-
-Managed Go is visible to command resolution and Go-server child environments,
-without modifying the system PATH. Preparation defaults to one Go worker and
-one compiler job, preserves explicit launch limits, and disables implicit
-toolchain downloads unless explicitly selected by the launch environment.
-Portable archive recipes cover Linux/macOS x64 and arm64 plus Windows x64,
-arm64 and x86; Linux x86 is also supported. Other targets and unverified existing
-cache slots remain explicit failures or manual work. Inert fixtures cover the
-recipe and cache protocol; native SDK/server installation and cross-platform
-acceptance remain unrun. SDK availability alone does not establish compatibility
-with every server release or repository workspace.
-
-Supported hosts can also prepare clangd from its official standalone release.
-The managed package retains the builtin C/C++ headers beside the executable;
-copying only the binary would lose those resources. Published archive digests,
-binary target headers and the reported version are checked before the cache is
-used. Linux/Windows x64 and universal macOS x64/arm64 routes are declared; other
-targets remain manual. Public release redirects stay within the vendor's
-approved origins, and existing system installations keep their normal detection
-path. Tiny inert fixtures verify the installer/cache protocol, not native host
-compatibility, compilation-database coverage or real repository enrichment.
-
-Managed binary verification uses a shared bounded record of previously verified
-hashes. File identity, size, nanosecond modification time and change time must
-all match before a hash can be reused. Changed or evicted records require a new
-streamed hash. The per-process cache retains at most 16 records and a 128 KiB
-conservative string/reference proxy; this is not a process-memory measurement.
-
-## Query generation
-
-Use `node tools/bench/query-generator.js` to generate a deterministic query suite from the
-current index metadata.
-
-Common flags:
-- `--repo <path>`: repo root (defaults to CWD).
-- `--mode <code|prose>`: which chunk metadata to sample (default `code`).
-- `--count <n>`: number of queries (clamped to 10–200).
-- `--seed <value>`: deterministic seed (defaults to a hash of index path + mode + chunk count).
-- `--index-root <path>`: override index root resolution.
-- `--json`: emit JSON output instead of a text list.
-- `--out <path>`: override output file path.
-
-Default outputs:
-- Text mode: `benchmarks/queries/generated-<mode>.txt`
-- JSON mode: `benchmarks/results/benchmarks-queries.json`
-
-## Microbench suite
-
-Run the microbench suite with:
-
-```
-node tools/bench/micro/run.js
-```
-
-By default it targets `tests/fixtures/sample` with stub embeddings and runs the
-index build plus three search modes. Use `--repo-current` to target the current
-repo without specifying a path.
-
-### Components
-- Index build uses core `buildIndex` logic (stub embeddings by default).
-- Search sparse-only: internal `scoreMode=sparse` (ANN disabled).
-- Search dense-only: internal `scoreMode=dense` (blend weights: sparse=0, ann=1).
-- Search hybrid: internal `scoreMode=hybrid` (blend weights: sparse=0.5, ann=0.5).
-
-Note: dense/hybrid still generate sparse candidates; the blend weights control scoring.
-
-### Warm vs cold
-- Cold run: first execution after clearing in-process caches.
-- Warm runs: repeated executions in the same process (index cache reused).
-
-The suite reports the cold time and warm p50/p95/p99 stats.
-Results include `cache.sqliteEntries` to indicate SQLite cache reuse.
-
-### Expected runtime
-With the default fixtures and stub embeddings, the microbench suite should finish
-well under 5 minutes on a typical dev machine.
-
-### Options
-- `--repo <path>`: benchmark a different repo.
-- `--repo-current`: use current working repo instead of the fixture default.
-- `--mode <code|prose>`: choose index/search mode.
-- `--query <text>`: query used for search benchmarks.
-- `--backend <memory|sqlite|sqlite-fts>`: search backend.
-- `--components <list>`: component list (`index-build,sparse,dense,hybrid,ann-backends`).
-- `--ann-backends <list>`: ann backend list for the ann-backends component.
-- `--runs <n>`: warm run count (default 5).
-- `--warmup <n>`: warmup runs excluded from stats (default 1).
-- `--build` / `--no-build`: build indexes before search benchmarks.
-- `--clean` / `--no-clean`: clean repo cache before the cold build run.
-- `--sqlite`: enable SQLite builds during index benchmark.
-- `--threads <n>`: index build worker threads (0 = default).
-- `--stub-embeddings`: use stub embeddings for index build.
-- `--json`: emit JSON output only.
-- `--out <file>`: write JSON results to a file.
-
-Thread defaults:
-- `--threads 0` (or omitted) lets `buildIndex` resolve concurrency from CPU count and config/env
-  (`src/shared/threads.js`), with CLI `--threads` taking priority when set.
-
-Bench harness note:
-- The bench harness used by `tests/perf/bench/run.test.js` also accepts `--query-concurrency`
-  to control parallel query evaluation for large query sets.
-
-### Tinybench harness
-For tighter microbench loops, use the Tinybench runner:
-
-```
-node tools/bench/micro/tinybench.js
-```
-
-The runner stores baselines at `benchmarks/baselines/microbench.json` (override
-with `--baseline`). Use `--write-baseline` to capture a new baseline, and `--compare`
-to print deltas against the stored file. It reports p50/p95/p99 latencies for
-each component.
-
-Tinybench flags:
-- `--iterations`, `--warmup-iterations`
-- `--time`, `--warmup-time`
-- `--components <list>` (search-sparse, search-ann, search-dense, search-hybrid)
-- Standard repo/query/backend flags: `--repo`, `--mode`, `--backend`, `--query`
-- Build toggles: `--build`, `--stub-embeddings`
-- Output: `--json`, `--out`, `--baseline`, `--write-baseline`, `--compare`
-
-Tinybench creates the baseline/output directory if it is missing.
-
-## Language benchmarks
-
-Language benchmarks focus on larger repos and end-to-end indexing + search runs.
-See `docs/language/benchmarks.md` for tiered repo lists and recommended commands.
-
-## Embedding model bakeoff
-
-Run embedding bakeoff with:
-
-```
-node tools/bench/embeddings/model-bakeoff.js
-```
-
-The default profile is fast-path (`sampled`, `resumable`, compare skipped). Use
-`--full-run` to opt into full-fidelity defaults (unsampled + compare enabled),
-and then override specific flags as needed.
-
-### Matrix runner
-To sweep multiple backend/ANN combinations across the repo matrix, use:
-
-```
-node tools/bench/language-matrix.js --tier typical --backends sqlite,sqlite-fts --ann-modes auto,on,off
-```
-
-Matrix runner flags:
-- `--backends <list>` / `--backend <single>` (supports `all`)
-- `--ann-modes <list>` (default `auto,on,off`)
-- `--out-dir <path>` / `--log-dir <path>` (override run/log roots)
-- `--fail-fast` (stop on the first failing bench run)
-
-### Cache policy
-Language benchmarks delete each repo's cache after it finishes (default) to keep disk usage bounded.
-Use `--keep-cache` when you need to inspect artifacts or debug a specific run. The cleanup only removes
-repo-specific caches under `benchmarks/cache/repos/<repo-id>` and does not touch shared downloads/models.
+The complete previous guide, including original usage tables and dated repair
+narratives, remains in [the historical snapshot](../archived/benchmarks-overview-2026-10-22.md).
+Its paths/counts/platform results retain their original provenance; they are not
+current-head measured performance. This editorial revision is **UNVALIDATED**.

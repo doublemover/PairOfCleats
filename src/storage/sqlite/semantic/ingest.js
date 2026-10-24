@@ -6,9 +6,15 @@ import { assertSemanticEnvelope } from '../../../contracts/validators/semantic-e
 import { assertSemanticTask } from '../../../contracts/validators/semantic-task.js';
 import { discoveryIndexEntry } from '../../../semantic/discovery-facts.js';
 
-const TABLES = ['semantic_records', 'semantic_discovery', 'semantic_operands', 'semantic_edges',
-  'semantic_ownership', 'semantic_coverage', 'semantic_lookup', 'semantic_frontier', 'semantic_analysis'];
+export const SEMANTIC_PARTITION_TABLES = Object.freeze(['semantic_records', 'semantic_discovery', 'semantic_operands', 'semantic_edges',
+  'semantic_ownership', 'semantic_coverage', 'semantic_lookup', 'semantic_frontier', 'semantic_analysis']);
 let savepointSequence = 0;
+
+/** All partition removal routes share this complete derived-table inventory. */
+export const removeSemanticPartition = ({ db, partitionId }) => {
+  if (!db.inTransaction) throw new Error('Semantic removal requires a caller-owned transaction.');
+  for (const table of SEMANTIC_PARTITION_TABLES) db.prepare('DELETE FROM ' + table + ' WHERE partition_id = ?').run(partitionId);
+};
 
 /**
  * One canonical ingestor for artifact/bundle/incremental callers. The caller owns
@@ -35,7 +41,7 @@ export const ingestSemanticPartition = async ({ db, store, descriptor, signal = 
   const savepoint = 'semantic_ingest_' + (++savepointSequence);
   db.exec('SAVEPOINT ' + savepoint);
   try {
-    for (const table of TABLES) db.prepare('DELETE FROM ' + table + ' WHERE partition_id = ?').run(partitionId);
+    removeSemanticPartition({ db, partitionId });
     const sourceInsert = db.prepare('INSERT INTO semantic_sources(source_id, byte_hash, payload) VALUES (?, ?, ?) ON CONFLICT(source_id) DO NOTHING');
     const sourceRead = db.prepare('SELECT payload FROM semantic_sources WHERE source_id = ?');
     let sources = 0;
@@ -112,7 +118,7 @@ export const removeSemanticSource = ({ db, sourceUnitId }) => {
   if (!db.inTransaction) throw new Error('Semantic removal requires a caller-owned transaction.');
   const partitions = db.prepare('SELECT partition_id FROM semantic_analysis WHERE source_id = ?').all(sourceUnitId);
   for (const { partition_id: partitionId } of partitions) {
-    for (const table of TABLES) db.prepare('DELETE FROM ' + table + ' WHERE partition_id = ?').run(partitionId);
+    removeSemanticPartition({ db, partitionId });
   }
   db.prepare('DELETE FROM semantic_sources WHERE source_id = ?').run(sourceUnitId);
 };

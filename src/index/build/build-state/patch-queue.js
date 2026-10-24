@@ -1,3 +1,4 @@
+import { runWithIndependentSchedulerOwner } from '../../../shared/concurrency/scheduler-task-scope.js';
 import path from 'node:path';
 import { estimateJsonBytes } from '../../../shared/cache/size.js';
 import { createLifecycleRegistry } from '../../../shared/lifecycle/registry.js';
@@ -166,7 +167,9 @@ export const createPatchQueue = ({
     if (!buildRoot) return Promise.resolve(null);
     const key = path.resolve(buildRoot);
     const prior = stateQueues.get(key) || Promise.resolve();
-    const next = prior.catch(() => {}).then(action);
+    // This queue retains pending batches and explicit flush/drain ownership.
+    // Its I/O cannot borrow the lifetime of whichever file posted the patch.
+    const next = runWithIndependentSchedulerOwner(() => prior.catch(() => {}).then(action));
     // This queue is driven by fire-and-forget flushes, so consume the raw
     // rejection immediately and let explicit awaiters observe it separately.
     next.catch(() => null);
@@ -231,6 +234,7 @@ export const createPatchQueue = ({
     if (!statePending.has(key)) {
       statePending.set(key, {
         patch: null,
+        failedBatch: null,
         events: [],
         timer: null,
         timerCancel: null,
@@ -255,7 +259,7 @@ export const createPatchQueue = ({
   const releaseIdlePendingEntry = (buildRoot, pending) => {
     const key = path.resolve(buildRoot);
     if (!pending || statePending.get(key) !== pending || pending.activeFlushes > 0
-      || pending.patch || pending.timer || pending.waiters.length > 0) return;
+      || pending.patch || pending.failedBatch || pending.timer || pending.waiters.length > 0) return;
     statePending.delete(key);
     releasePendingLifecycle(buildRoot, pending.lifecycle);
   };
@@ -284,15 +288,15 @@ export const createPatchQueue = ({
   const flushPendingState = async (buildRoot) => {
     const key = path.resolve(buildRoot);
     const pending = statePending.get(key);
-    if (!pending || !pending.patch) return null;
+    if (!pending || (!pending.patch && !pending.failedBatch)) return null;
     if (pending.timerCancel) {
       pending.timerCancel();
       pending.timerCancel = null;
       pending.timer = null;
     }
-    const patch = pending.patch;
-    const events = pending.events;
-    const durabilityClass = resolveBuildStateDurabilityClass(
+    let patch = pending.patch;
+    let events = pending.events;
+    let durabilityClass = resolveBuildStateDurabilityClass(
       pending.durabilityClass,
       BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT
     );
@@ -309,7 +313,27 @@ export const createPatchQueue = ({
     try {
       const result = await enqueueStateUpdate(
         buildRoot,
-        () => applyStatePatch(buildRoot, patch, events, { durabilityClass })
+        async () => {
+          // Recover inside the serialized owner, before any later detached batch
+          // can commit. Newer fields win and event chronology remains oldest first.
+          if (pending.failedBatch) {
+            const failed = pending.failedBatch;
+            patch = patch ? mergeState(failed.patch, patch) : failed.patch;
+            events = [...failed.events, ...events];
+            if (isRequiredBuildStateDurability(failed.durabilityClass)) {
+              durabilityClass = BUILD_STATE_DURABILITY_CLASS.REQUIRED;
+            }
+            pending.failedBatch = null;
+          }
+          try {
+            const value = await applyStatePatch(buildRoot, patch, events, { durabilityClass });
+            if (isLockUnavailable(value)) throw value;
+            return value;
+          } catch (error) {
+            pending.failedBatch = { patch, events, durabilityClass };
+            throw error;
+          }
+        }
       );
       pending.lastFlushCompletedAtMs = Date.now();
       pending.lastFlushDurationMs = Math.max(0, pending.lastFlushCompletedAtMs - pending.lastFlushStartedAtMs);
@@ -345,8 +369,6 @@ export const createPatchQueue = ({
        * Preserve pending patch/events on write failure so state updates are not
        * dropped when the next flush succeeds.
        */
-      pending.patch = pending.patch ? mergeState(patch, pending.patch) : patch;
-      pending.durabilityClass = durabilityClass;
       pending.pendingSinceMs = Number.isFinite(Number(pendingSinceMs)) ? pendingSinceMs : Date.now();
       pending.lastLogicalUpdateAtMs = Number.isFinite(Number(lastLogicalUpdateAtMs))
         ? lastLogicalUpdateAtMs
@@ -355,11 +377,8 @@ export const createPatchQueue = ({
         Math.floor(Number(pending.coalescedPatchCount) || 0),
         Math.floor(Number(coalescedPatchCount) || 0)
       );
-      if (events.length) {
-        pending.events = [...events, ...pending.events];
-      }
-      if (!pending.timer && pending.patch) {
-        const delay = resolveDebounceMs(pending.patch);
+      if (!pending.timer && (pending.patch || pending.failedBatch)) {
+        const delay = resolveDebounceMs(pending.patch || pending.failedBatch.patch);
         pending.timer = setTimeout(() => {
           pending.timer = null;
           pending.timerCancel = null;
@@ -472,9 +491,14 @@ export const createPatchQueue = ({
       clearTimeout(pending.timer);
       pending.timer = null;
     }
-    const result = await flushPendingState(buildRoot);
+    // Detachment is synchronous. Capture the serialized tail after admitting
+    // this flush, including already detached work but excluding later arrivals.
+    const flushing = flushPendingState(buildRoot);
+    const barrier = stateQueues.get(key);
+    if (barrier) await barrier;
+    const result = await flushing;
     const nextPending = statePending.get(key);
-    if (nextPending?.patch) {
+    if (nextPending?.patch || nextPending?.failedBatch) {
       return createTimedOutOutcome(key, Math.max(0, Date.now() - startedAtMs));
     }
     releaseIdlePendingEntry(buildRoot, pending);

@@ -10,6 +10,7 @@ const createSingleJobQueueWorker = ({
   queueDir: '/tmp/indexer-queue',
   resolvedQueueName: 'index',
   staleQueueMaxRetries: 2,
+  admissionPolicy: { maxRunning: 1 },
   monitorBuildProgress: false,
   startBuildProgressMonitor: () => async () => {},
   touchJobHeartbeat: async () => {},
@@ -17,7 +18,8 @@ const createSingleJobQueueWorker = ({
   ensureQueueDir: async () => {},
   claimNextJob: (() => {
     let claimed = false;
-    return async () => {
+    return async (dir, queueName, options) => {
+      assert.deepEqual(options.admissionPolicy, { maxRunning: 1 }, 'worker forwards its effective claim admission policy');
       if (claimed) return null;
       claimed = true;
       return { id: 'job-1', repo: '/tmp/repo', stage: 'stage1' };

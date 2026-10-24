@@ -101,14 +101,14 @@ const matchRuleOnLine = (rule, line, languageId, lineLowerRef) => {
   return matchRulePatterns(line, rule, { returnMatch: true, lineLowerRef });
 };
 
-const collectLineMatches = (rules, line, lineNo, languageId, lineLowerRef) => {
+const collectLineMatches = (rules, line, lineNo, languageId, lineLowerRef, columnOffset = 0) => {
   const matches = [];
   for (const rule of rules || []) {
     const hit = matchRuleOnLine(rule, line, languageId, lineLowerRef);
     if (!hit) continue;
     matches.push({
       rule,
-      evidence: buildEvidence(line, lineNo, hit.index + 1),
+      evidence: buildEvidence(line, lineNo, hit.index + columnOffset + 1),
       matchIndex: hit.index,
       matchLength: hit.match?.length || 0
     });
@@ -157,14 +157,12 @@ const isAssignment = (line) => {
   const trimmed = line.trim();
   if (!trimmed) return null;
   if (trimmed.startsWith('//') || trimmed.startsWith('#') || trimmed.startsWith('*')) return null;
-  if (trimmed.includes('==') || trimmed.includes('!=')) return null;
-  if (trimmed.includes('>=') || trimmed.includes('<=')) return null;
-  let match = trimmed.match(/^(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*(.+)$/);
+  let match = trimmed.match(/^(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=(?!=|>)\s*(.+)$/);
   if (!match) {
-    match = trimmed.match(/^([A-Za-z_$][\w$]*)\s*=\s*(.+)$/);
+    match = trimmed.match(/^([A-Za-z_$][\w$]*)\s*=(?!=|>)\s*(.+)$/);
   }
   if (match) return { name: match[1], rhs: match[2] };
-  const destructured = trimmed.match(/^(?:const|let|var)\s*[{[]\s*([A-Za-z_$][\w$]*)[\s\S]*=\s*(.+)$/);
+  const destructured = trimmed.match(/^(?:const|let|var)\s*[{[]\s*([A-Za-z_$][\w$]*)[\s\S]*=(?!=|>)\s*(.+)$/);
   if (destructured) return { name: destructured[1], rhs: destructured[2] };
   return null;
 };
@@ -185,6 +183,30 @@ const combineSourceEvidence = (sourceMatches, taintedSources) => {
     }
   }
   return { sources, ruleIds: Array.from(ruleIds) };
+};
+
+// Keep same-line statements in execution order without splitting literal or
+// nested-call semicolons. This remains bounded lexical evidence, not a CFG.
+const splitRiskStatements = line => {
+  const statements = [];
+  let start = 0, depth = 0, quote = null, escaped = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    if (quote) {
+      if (escaped) escaped = false;
+      else if (char === '\\') escaped = true;
+      else if (char === quote) quote = null;
+      continue;
+    }
+    if (char === '"' || char === "'" || char === '`') quote = char;
+    else if (char === '(' || char === '[') depth += 1;
+    else if (char === ')' || char === ']') depth = Math.max(0, depth - 1);
+    else if (char === ';' && depth === 0) {
+      statements.push({ text: line.slice(start,index + 1), start }); start = index + 1;
+    }
+  }
+  if (start < line.length) statements.push({ text: line.slice(start), start });
+  return statements;
 };
 
 /**
@@ -272,69 +294,80 @@ export function detectRiskSignals({ text, chunk, config, languageId } = {}) {
       analysisStatus.reason = 'maxMs';
       break;
     }
-    const line = lines[i];
-    const lineNo = i + 1;
-    const lineLowerRef = { value: null };
-    const sourceMatches = collectLineMatches(rules.sources, line, lineNo, languageId, lineLowerRef);
-    const sinkMatches = collectLineMatches(rules.sinks, line, lineNo, languageId, lineLowerRef);
-    const sanitizerMatches = collectLineMatches(rules.sanitizers, line, lineNo, languageId, lineLowerRef);
-    if (sourceMatches.length) sourcesRaw.push(...sourceMatches);
-    if (sinkMatches.length) sinksRaw.push(...sinkMatches);
-    if (sanitizerMatches.length) sanitizersRaw.push(...sanitizerMatches);
+    for (const statement of splitRiskStatements(lines[i])) {
+      const line = statement.text;
+      const columnOffset = statement.start;
+      const lineNo = i + 1;
+      const lineLowerRef = { value: null };
+      const sourceMatches = collectLineMatches(rules.sources, line, lineNo, languageId, lineLowerRef, columnOffset);
+      const sinkMatches = collectLineMatches(rules.sinks, line, lineNo, languageId, lineLowerRef, columnOffset);
+      const sanitizerMatches = collectLineMatches(rules.sanitizers, line, lineNo, languageId, lineLowerRef, columnOffset);
+      if (sourceMatches.length) sourcesRaw.push(...sourceMatches);
+      if (sinkMatches.length) sinksRaw.push(...sinkMatches);
+      if (sanitizerMatches.length) sanitizersRaw.push(...sanitizerMatches);
 
-    if (analysisStatus.status !== 'ok') continue;
+      if (analysisStatus.status !== 'ok') continue;
 
-    const sanitizedVars = [];
-    if (sanitizerMatches.length && taint.size) {
-      const ranges = sanitizerMatches
-        .map((match) => resolveSanitizerRange(line, match))
-        .filter(Boolean);
-      for (const name of taint.keys()) {
-        if (!lineContainsVar(line, name)) continue;
-        if (ranges.some((range) => lineContainsVarRange(line, name, range.start, range.end))) {
-          sanitizedVars.push(name);
+      const sanitizedVars = [];
+      if (sanitizerMatches.length && taint.size) {
+        const ranges = sanitizerMatches
+          .map((match) => resolveSanitizerRange(line, match))
+          .filter(Boolean);
+        for (const name of taint.keys()) {
+          if (!lineContainsVar(line, name)) continue;
+          if (ranges.some((range) => lineContainsVarRange(line, name, range.start, range.end))) {
+            sanitizedVars.push(name);
+          }
         }
       }
-      for (const name of sanitizedVars) taint.delete(name);
-    }
-    const assignment = isAssignment(line);
-    if (assignment) {
-      nodes += 1;
-      const rhsTainted = new Set();
-      for (const [name, info] of taint.entries()) {
-        if (lineContainsVar(assignment.rhs, name)) {
-          for (const source of toArray(info?.sources)) rhsTainted.add(source);
+      const assignment = isAssignment(line);
+      if (assignment) {
+        nodes += 1;
+        const rhsTainted = new Set();
+        for (const [name, info] of taint.entries()) {
+          if (sanitizedVars.includes(name)) continue;
+          if (lineContainsVar(assignment.rhs, name)) {
+            for (const source of toArray(info?.sources)) rhsTainted.add(source);
+          }
         }
+        const { sources: newSources, ruleIds } = combineSourceEvidence(sourceMatches, rhsTainted);
+        if (newSources.length) {
+          let confidence = 0;
+          for (const entry of newSources) {
+            confidence = Math.max(confidence,
+              Number.isFinite(entry?.confidence)
+                ? entry.confidence
+                : Number.isFinite(entry?.rule?.confidence)
+                  ? entry.rule.confidence
+                  : 0
+            );
+          }
+          taint.set(assignment.name, { sources: newSources, ruleIds, confidence });
+          edges += newSources.length;
+        } else taint.delete(assignment.name);
       }
-      const { sources: newSources, ruleIds } = combineSourceEvidence(sourceMatches, rhsTainted);
-      if (newSources.length) {
-        let confidence = 0;
-        for (const entry of newSources) {
-          confidence = Math.max(confidence,
-            Number.isFinite(entry?.confidence)
-              ? entry.confidence
-              : Number.isFinite(entry?.rule?.confidence)
-                ? entry.rule.confidence
-                : 0
-          );
-        }
-        taint.set(assignment.name, { sources: newSources, ruleIds, confidence });
-        edges += newSources.length;
-      }
-    }
 
-    if (sinkMatches.length) {
-      nodes += 1;
-      const taintedSources = new Set();
-      for (const [name, info] of taint.entries()) {
-        if (lineContainsVar(line, name)) {
-          for (const source of toArray(info?.sources)) taintedSources.add(source);
-        }
-      }
-      const { sources: lineSources } = combineSourceEvidence(sourceMatches, taintedSources);
-      if (lineSources.length) {
-        for (const source of lineSources) {
-          for (const sink of sinkMatches) {
+      if (sinkMatches.length) {
+        nodes += 1;
+        for (const sink of sinkMatches) {
+          const range = resolveSanitizerRange(line, sink);
+          if (!range) continue;
+          const argumentEnd = range.end ?? sink.matchIndex + sink.matchLength;
+          const priorSanitizerRanges = sanitizerMatches.filter(match => match.matchIndex < sink.matchIndex
+          || (match.matchIndex >= range.start && match.matchIndex < argumentEnd))
+            .map(match => resolveSanitizerRange(line, match)).filter(Boolean);
+          const taintedSources = new Set();
+          for (const [name, info] of taint.entries()) {
+            if (lineContainsVarRange(line, name, range.start, argumentEnd)
+            && !priorSanitizerRanges.some(sanitizer => lineContainsVarRange(line,name,sanitizer.start,sanitizer.end))) {
+              for (const source of toArray(info?.sources)) taintedSources.add(source);
+            }
+          }
+          const inlineSources = sourceMatches.filter(source => source.matchIndex >= range.start && source.matchIndex < argumentEnd
+          && !priorSanitizerRanges.some(sanitizer => source.matchIndex >= sanitizer.start
+            && (sanitizer.end == null || source.matchIndex < sanitizer.end)));
+          const { sources: lineSources } = combineSourceEvidence(inlineSources, taintedSources);
+          for (const source of lineSources) {
             addFlow({
               source: source.rule.name,
               sink: sink.rule.name,
@@ -343,27 +376,29 @@ export function detectRiskSignals({ text, chunk, config, languageId } = {}) {
               scope: 'local',
               confidence: Math.min(1, (source.rule.confidence ?? 0.5) * (sink.rule.confidence ?? 0.5) + 0.1),
               ruleIds: [source.rule.id, sink.rule.id],
-              evidence: buildEvidence(line, lineNo, 1)
+              evidence: buildEvidence(line, lineNo, columnOffset + 1)
             });
             if (analysisStatus.status !== 'ok') break;
           }
           if (analysisStatus.status !== 'ok') break;
         }
+        edges += sinkMatches.length;
       }
-      edges += sinkMatches.length;
-    }
+      for (const name of sanitizedVars) taint.delete(name);
 
+      if (analysisStatus.status !== 'ok') break;
+      if (caps.maxNodes && nodes > caps.maxNodes) {
+        analysisStatus.status = 'capped';
+        analysisStatus.reason = 'maxNodes';
+        break;
+      }
+      if (caps.maxEdges && edges > caps.maxEdges) {
+        analysisStatus.status = 'capped';
+        analysisStatus.reason = 'maxEdges';
+        break;
+      }
+    }
     if (analysisStatus.status !== 'ok') break;
-    if (caps.maxNodes && nodes > caps.maxNodes) {
-      analysisStatus.status = 'capped';
-      analysisStatus.reason = 'maxNodes';
-      break;
-    }
-    if (caps.maxEdges && edges > caps.maxEdges) {
-      analysisStatus.status = 'capped';
-      analysisStatus.reason = 'maxEdges';
-      break;
-    }
   }
 
   const sources = buildRiskEntries(dedupeMatches(sourcesRaw), 'source');
@@ -385,7 +420,8 @@ export function detectRiskSignals({ text, chunk, config, languageId } = {}) {
         ruleProvenance: rules.provenance || null
       };
     }
-    return null;
+    return { tags: [], categories: [], severity: null, confidence: null, sources, sinks, sanitizers, flows,
+      analysisStatus, ruleProvenance: rules.provenance || null };
   }
 
   const tags = new Set();

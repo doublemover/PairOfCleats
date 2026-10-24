@@ -112,6 +112,10 @@ export const REPORT_FORMAT_OPTIONS = {
 };
 
 export const CONTEXT_PACK_OPTIONS = {
+  task: { type: 'string', choices: ['edit-safe', 'exploration'] },
+  granularity: { type: 'string', choices: ['file', 'function', 'excerpt'] },
+  wholeFileFallback: { type: 'boolean' },
+  pathSemantics: { type: 'string', choices: ['graph-witness'] },
   repo: { type: 'string' },
   seed: { type: 'string' },
   hops: { type: 'number' },

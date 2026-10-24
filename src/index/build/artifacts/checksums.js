@@ -5,7 +5,7 @@ import { runWithConcurrency } from '../../../shared/concurrency/run-with-queue.j
 import { coerceAbortSignal, throwIfAborted } from '../../../shared/abort.js';
 import { checksumFile } from '../../../shared/hash.js';
 import { writeJsonObjectFile } from '../../../shared/json-stream/json-writers.js';
-import { fromPosix } from '../../../shared/file-paths.js';
+import { resolveArtifactPath } from '../../../shared/artifact-io/contained-path.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../contracts/versioning.js';
 import { withGeneratedArtifactMetadata } from '../../../shared/generated-artifact-core.js';
 
@@ -30,7 +30,7 @@ export const writePiecesManifest = async ({
     Math.min(4, sortedEntries.length),
     async (entry) => {
       throwIfAborted(effectiveAbortSignal);
-      const absPath = path.join(outDir, fromPosix(entry.path));
+      const absPath = resolveArtifactPath(outDir, entry.path);
       let bytes = Number.isFinite(Number(entry?.bytes))
         ? Math.max(0, Number(entry.bytes))
         : null;
@@ -46,6 +46,8 @@ export const writePiecesManifest = async ({
       }
       if (!Number.isFinite(bytes)) {
         bytes = stat.size;
+      } else if (bytes !== stat.size) {
+        throw new Error(`Pieces manifest sealed size mismatch for ${entry.path}`);
       }
       if (typeof entry?.checksum === 'string' && entry.checksum.includes(':')) {
         const [algo, value] = entry.checksum.split(':');

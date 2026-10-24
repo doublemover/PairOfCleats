@@ -66,6 +66,8 @@ const normalizeProfiles = (profiles, maxEntries = AUTO_PROFILE_MAX_TRACKED_PROFI
       confidence: toUnitInterval(entry.confidence, 0),
       reason: typeof entry.reason === 'string' ? entry.reason : 'unknown',
       features: isObject(entry.features) ? entry.features : null,
+      featurePolicy: typeof entry.featurePolicy === 'string' ? entry.featurePolicy : null,
+      featuresSampledAt: typeof entry.featuresSampledAt === 'string' ? entry.featuresSampledAt : null,
       rootMtimeMs: Number.isFinite(Number(entry.rootMtimeMs)) ? Math.floor(Number(entry.rootMtimeMs)) : null,
       featureSource: typeof entry.featureSource === 'string' ? entry.featureSource : null,
       updatedAt: typeof entry.updatedAt === 'string' ? entry.updatedAt : null,
@@ -275,6 +277,8 @@ const readRootMtimeMs = async (root) => {
 const resolveProfileFromFeatures = ({ features, priorProfileId = null }) => {
   const files = Number(features?.files) || 0;
   const bytes = Number(features?.bytes) || 0;
+  if (features?.scanTruncated === true) return { profileId: 'balanced', confidence: 0,
+    reason: 'incomplete-repository-sample', overrides: null };
   if (files <= 256 && bytes <= 24 * 1024 * 1024) {
     return {
       profileId: 'latency',
@@ -381,6 +385,8 @@ export const resolveLearnedAutoProfileSelection = async ({
   const priorConfidence = toUnitInterval(priorEntry?.confidence, 0);
   const priorFeatures = isObject(priorEntry?.features) ? priorEntry.features : null;
   const priorUpdatedAtMs = toTimestamp(priorEntry?.updatedAt);
+  const priorSampledAtMs = toTimestamp(priorEntry?.featuresSampledAt);
+  const featurePolicy = JSON.stringify({ maxScanEntries: config.maxScanEntries, includeDotDirs: config.includeDotDirs });
   const priorRootMtimeMs = Number.isFinite(Number(priorEntry?.rootMtimeMs))
     ? Math.floor(Number(priorEntry.rootMtimeMs))
     : null;
@@ -391,12 +397,14 @@ export const resolveLearnedAutoProfileSelection = async ({
   const canReusePriorFeatures = (
     priorFeatures
     && priorFeatures.scanTruncated !== true
+    && priorEntry?.featurePolicy === featurePolicy
+    && priorSampledAtMs > 0
+    && (Date.now() - priorSampledAtMs) < config.featureRescanIntervalMs
     && (
       (Number.isFinite(rootMtimeMs) && Number.isFinite(priorRootMtimeMs) && rootMtimeMs === priorRootMtimeMs)
       || (
         !Number.isFinite(rootMtimeMs)
         && priorUpdatedAtMs > 0
-        && (Date.now() - priorUpdatedAtMs) <= config.featureRescanIntervalMs
       )
     )
   );
@@ -425,6 +433,8 @@ export const resolveLearnedAutoProfileSelection = async ({
     confidence,
     reason: learned.reason,
     features,
+    featurePolicy,
+    featuresSampledAt: canReusePriorFeatures ? priorEntry.featuresSampledAt : new Date().toISOString(),
     rootMtimeMs,
     featureSource,
     updatedAt: new Date().toISOString(),

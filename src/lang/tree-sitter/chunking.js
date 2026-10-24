@@ -1,5 +1,6 @@
 import { buildLineIndex, countLines, createLineAccessor, offsetToLine } from '../../shared/lines.js';
 import { extractDocComment, sliceSignature } from '../shared.js';
+import { findDeclarationBoundary } from '../shared/declaration-boundary.js';
 import {
   COMMON_NAME_NODE_TYPES,
   findDescendantByType,
@@ -7,8 +8,13 @@ import {
   getNamedChildCount
 } from './ast.js';
 import { LANG_CONFIG, LANGUAGE_GRAMMAR_KEYS } from './config.js';
+import { resolveDeclarationPrefixRange } from './declaration-roles.js';
+import { callableGrammarMetadata } from './declaration-metadata.js';
+import { attachSyntaxCallFacts } from './call-facts.js';
 import { isTreeSitterEnabled } from './options.js';
-import { getNativeTreeSitterParser, loadNativeTreeSitterGrammar } from './native-runtime.js';
+import { getNativeTreeSitterParser, getNativeTreeSitterIdentity, loadNativeTreeSitterGrammar } from './native-runtime.js';
+import { attachNativeLeafProduct, NATIVE_LEAF_PRODUCT_LIMITS } from './leaf-product.js';
+import { getContainedFileSession } from '../../shared/contained-file-resource.js';
 import { resolveTreeSitterLanguageForExt } from './language-id.js';
 import { treeSitterState } from './state.js';
 import { getTreeSitterWorkerPool, sanitizeTreeSitterOptions } from './worker.js';
@@ -94,7 +100,7 @@ const buildChunkQueryPattern = (language, config) => {
   }
 
   if (!filtered.length) return null;
-  return filtered.map((type) => `(${type}) @${QUERY_CAPTURE_NAME}`).join('\n');
+  return filtered.map((type) => config.queryPatterns?.[type] || `(${type}) @${QUERY_CAPTURE_NAME}`).join('\n');
 };
 
 /**
@@ -197,7 +203,8 @@ function resolveParseTimeoutMs(options, resolvedId) {
 }
 
 /**
- * Guard known native parser crash paths by language/platform.
+ * Retain an explicit diagnostic guard; the required patched Perl scanner and
+ * Tree-sitter worker lifecycle now qualify the normal Windows parser route.
  * @param {string} resolvedId
  * @param {object} [options={}]
  * @returns {boolean}
@@ -207,7 +214,7 @@ const shouldGuardNativeParser = (resolvedId, options = {}) => {
   const configured = options?.treeSitter?.nativeParserGuards?.perl;
   if (configured === false) return false;
   if (configured === true) return true;
-  return process.platform === 'win32';
+  return false;
 };
 
 /**
@@ -217,17 +224,24 @@ const shouldGuardNativeParser = (resolvedId, options = {}) => {
  * @param {number} end
  * @returns {string}
  */
-function extractSignature(text, start, end) {
+export function extractSignature(text, start, end, node = null, { ecmaScriptLineTerminators = false } = {}) {
   const limit = Math.min(end, start + 2000);
-  const slice = text.slice(start, limit);
-  const newline = slice.indexOf('\n');
-  const brace = slice.indexOf('{');
-  const semi = slice.indexOf(';');
-  const arrow = slice.indexOf('=>');
-  const candidates = [newline, brace, semi].filter((idx) => idx >= 0);
-  if (arrow >= 0) candidates.push(arrow + 2);
-  const cutoff = candidates.length ? Math.min(...candidates) : slice.length;
-  const endIdx = start + cutoff;
+  let body = null;
+  try { body = node?.childForFieldName?.('body'); } catch {}
+  if (!body) {
+    for (let index = 0; index < getNamedChildCount(node); index += 1) {
+      const child = getNamedChild(node, index);
+      if (['statement_block', 'class_body', 'declaration_list', 'function_body', 'block'].includes(child?.type)) {
+        body = child; break;
+      }
+    }
+  }
+  const boundary = findDeclarationBoundary(text.slice(start, limit), 0, {
+    maxChars: 2000, rustLifetimes: /\bfn\b/.test(text.slice(start, start + 80)),
+    tripleDoubleStrings: true, ecmaScriptLineTerminators
+  });
+  const endIdx = Number.isInteger(body?.startIndex) && body.startIndex >= start && body.startIndex <= end
+    ? Math.min(limit, body.startIndex) : start + boundary.signatureEnd;
   return sliceSignature(text, start, endIdx).replace(/\s+/g, ' ').trim();
 }
 
@@ -348,13 +362,22 @@ function extractNodeName(node, text, config) {
  * @param {object} config
  * @returns {object|null}
  */
-function findNearestType(node, config) {
+function findLexicalScopes(node, text, config) {
+  const scopes = [];
   let current = node?.parent || null;
   while (current) {
-    if (config.typeNodes.has(current.type)) return current;
+    if ((config.typeNodes.has(current.type) || config.memberNodes.has(current.type))
+      && (!config.includeNode || config.includeNode(current))) {
+      const name = extractNodeName(current, text, config);
+      if (name) {
+        let kind = config.kindMap[current.type] || 'Declaration';
+        kind = config.resolveKind?.(current, kind, text) || kind;
+        scopes.push({ node: current, name, kind, member: config.memberNodes.has(current.type) });
+      }
+    }
     current = current.parent;
   }
-  return null;
+  return scopes;
 }
 
 /**
@@ -396,7 +419,8 @@ function gatherChunkNodes(root, text, config, budget) {
     }
     const missing = typeof node.isMissing === 'function' ? node.isMissing() : node.isMissing;
     if (missing) continue;
-    if (config.typeNodes.has(node.type) || config.memberNodes.has(node.type)) {
+    if ((config.typeNodes.has(node.type) || config.memberNodes.has(node.type))
+      && (!config.includeNode || config.includeNode(node))) {
       matched += 1;
       if (matched > maxChunkNodes) {
         return { chunks: null, reason: 'maxChunkNodes', visited, matched };
@@ -464,6 +488,7 @@ function gatherChunksWithQuery(root, text, config, budget, resolvedId, options) 
     if (!capture || capture.name !== QUERY_CAPTURE_NAME) continue;
     const node = capture.node;
     if (!node) continue;
+    if (config.includeNode && !config.includeNode(node)) continue;
     matched += 1;
     if (matched > maxChunkNodes) {
       return { chunks: null, reason: 'maxChunkNodes', visited: captures.length, matched, usedQuery: true, shouldFallback: true };
@@ -496,17 +521,21 @@ function toChunk(node, text, config, lineIndex, lineAccessor) {
   if (typeof config.resolveKind === 'function') {
     kind = config.resolveKind(node, kind, text) || kind;
   }
-  const start = node.startIndex;
-  const end = node.endIndex;
-  const parentType = findNearestType(node, config);
-  let fullName = name;
+  const range = config.resolveRange?.(node, text) || resolveDeclarationPrefixRange(node);
+  const start = range?.start ?? node.startIndex;
+  const end = range?.end ?? node.endIndex;
+  const scopes = findLexicalScopes(node, text, config);
+  const nearest = scopes[0];
+  let fullName = [...scopes].reverse().map(scope => scope.name).concat(name).join('.');
+  const lexicalPrefix = [...scopes].reverse().map(scope => scope.name).join('.');
+  if (lexicalPrefix && name.startsWith(`${lexicalPrefix}.`)) fullName = name;
+  fullName = config.resolveQualifiedName?.(node,name,scopes,text) || fullName;
   let finalKind = kind;
-  if (parentType && config.memberNodes.has(node.type)) {
-    const parentName = extractNodeName(parentType, text, config);
-    if (parentName) fullName = `${parentName}.${name}`;
-    if (kind === 'FunctionDeclaration') finalKind = 'MethodDeclaration';
+  if (nearest && config.memberNodes.has(node.type)) {
+    const isTypeMember = !nearest.member && !['ModuleDeclaration', 'NamespaceDeclaration'].includes(nearest.kind);
+    if (kind === 'FunctionDeclaration' && isTypeMember) finalKind = 'MethodDeclaration';
   }
-  if (!parentType && config.memberNodes.has(node.type)
+  if (!scopes.length && config.memberNodes.has(node.type)
     && typeof config.resolveMemberName === 'function') {
     const resolved = config.resolveMemberName(node, name, text);
     if (resolved?.name) fullName = resolved.name;
@@ -515,7 +544,7 @@ function toChunk(node, text, config, lineIndex, lineAccessor) {
   const startLine = offsetToLine(lineIndex, start);
   const endOffset = end > start ? end - 1 : start;
   const endLine = offsetToLine(lineIndex, endOffset);
-  const signature = extractSignature(text, start, end);
+  const signature = extractSignature(text, start, end, node, config.signatureBoundaryOptions);
   const docstring = extractDocComment(
     lineAccessor,
     startLine - 1,
@@ -529,6 +558,10 @@ function toChunk(node, text, config, lineIndex, lineAccessor) {
     meta: {
       startLine,
       endLine,
+      definitionStartLine: offsetToLine(lineIndex, node.startIndex),
+      ...callableGrammarMetadata(node,text),
+      ...(config.resolveMetadata?.(node,text) || {}),
+      ...(['function_declarator', 'operator_cast', 'function_signature_item'].includes(node.type) ? { bodyless: true } : {}),
       signature,
       docstring
     }
@@ -546,12 +579,26 @@ function toChunk(node, text, config, lineIndex, lineAccessor) {
  * @param {{text:string,languageId?:string|null,ext?:string|null,options?:object}} input
  * @returns {Array<object>|null}
  */
-export function buildTreeSitterChunks({ text, languageId, ext, options }) {
+export function buildTreeSitterChunks({ text, languageId, ext, options, captureNativeClassificationLeaves = true }) {
   const resolvedId = resolveTreeSitterLanguageForExt(languageId, ext);
   if (!resolvedId) return null;
   if (!isTreeSitterEnabled(options, resolvedId)) return null;
   const strict = options?.treeSitter?.strict === true;
-  let parserRecovered = null;
+  let parserRecovered = null, leafOwnerRoot = null, leafWorkLimit = 0;
+  const withLeafProduct = chunks => {
+    if (!captureNativeClassificationLeaves) return chunks;
+    try {
+      if (!leafOwnerRoot || leafOwnerRoot.hasError !== false || !Array.isArray(chunks)
+        || !chunks.some(chunk => chunk.start === 0 && chunk.end === text.length)
+        || text.length > NATIVE_LEAF_PRODUCT_LIMITS.inputBytes || Buffer.byteLength(text) > NATIVE_LEAF_PRODUCT_LIMITS.inputBytes) return chunks;
+      return attachNativeLeafProduct({ chunks, text, root: leafOwnerRoot,
+        languageId: resolvedId, parserIdentity: getNativeTreeSitterIdentity(resolvedId), maxWork: leafWorkLimit,
+        signal: options?.abortSignal });
+    } catch (error) {
+      if (getContainedFileSession(error) || error?.name === 'AbortError' || error?.code === 'ABORT_ERR') throw error;
+      return chunks;
+    }
+  };
   const failStrict = (reason, message, extra = {}) => {
     if (!strict) return null;
     const err = new Error(message);
@@ -561,13 +608,13 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
     Object.assign(err, extra);
     throw err;
   };
-  const buildWholeFileChunk = () => withParserCoverage([{
+  const buildWholeFileChunk = () => withLeafProduct(withParserCoverage([{
     start: 0,
     end: text.length,
     name: 'file',
     kind: 'File',
     meta: { treeSitter: true, wholeFile: true }
-  }], resolvedId, parserRecovered);
+  }], resolvedId, parserRecovered));
   if (shouldGuardNativeParser(resolvedId, options)) {
     bumpMetric('fallbacks', 1);
     const guardKey = `${resolvedId}:native-crash-guard`;
@@ -669,6 +716,7 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
     return null;
   }
   const traversalBudget = resolveTraversalBudget(options, resolvedId, { bumpMetric });
+  leafWorkLimit = traversalBudget.maxAstNodes;
   let tree = null;
   try {
     try {
@@ -726,6 +774,7 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
     let rootNode = null;
     try {
       rootNode = tree.rootNode;
+      leafOwnerRoot = rootNode;
       if (resolvedId === 'groovy') parserRecovered = rootNode.hasError === true;
     } catch {
       recordMetrics();
@@ -753,7 +802,8 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
 
     if (queryResult?.usedQuery) {
       if (Array.isArray(queryResult.chunks) && queryResult.chunks.length) {
-        queryResult.chunks = withParserCoverage(queryResult.chunks, resolvedId, parserRecovered);
+        attachSyntaxCallFacts(rootNode,text,queryResult.chunks,{maxNodes:traversalBudget.maxAstNodes,languageId:resolvedId});
+        queryResult.chunks = withLeafProduct(withParserCoverage(queryResult.chunks, resolvedId, parserRecovered));
         if (cacheKey && cacheRef) {
           storeCachedChunks({
             cache: cacheRef.cache,
@@ -844,7 +894,8 @@ export function buildTreeSitterChunks({ text, languageId, ext, options }) {
       return null;
     }
 
-    traversalResult.chunks = withParserCoverage(traversalResult.chunks, resolvedId, parserRecovered);
+    attachSyntaxCallFacts(rootNode,text,traversalResult.chunks,{maxNodes:traversalBudget.maxAstNodes,languageId:resolvedId});
+    traversalResult.chunks = withLeafProduct(withParserCoverage(traversalResult.chunks, resolvedId, parserRecovered));
 
     if (cacheKey && cacheRef) {
       storeCachedChunks({
@@ -968,6 +1019,7 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
     bumpMetric('workerFallbacks', 1);
     return buildTreeSitterChunks({ text, languageId, ext, options: fallbackOptions });
   } catch (err) {
+    if (getContainedFileSession(err)) throw err;
     if (options?.log && !treeSitterState.loggedWorkerFailures.has('run')) {
       options.log(`[tree-sitter] Worker parse failed; falling back to main thread (${err?.message || err}).`);
       treeSitterState.loggedWorkerFailures.add('run');

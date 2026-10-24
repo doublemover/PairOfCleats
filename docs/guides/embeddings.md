@@ -7,6 +7,20 @@ Status: Contract notes for implementation and validation. This document compleme
 
 ## 1) Identity and compatibility
 
+Model downloads publish a verified ONNX graph and its referenced external tensor
+files as one immutable installation. The logical target has a bounded selector
+file (`.pairofcleats-model.json`) admitting a complete generation under its
+`.assets` directory. Runtime selection verifies the receipt, relative paths and
+file identities. Interrupted copies cannot replace the active selection. Prior
+generations are retained so existing readers keep their complete closure; this
+does not establish a whole-cache quota or reader-aware garbage collection policy.
+
+Embedding subprocess progress uses independent bounded stdout/stderr decoders.
+Forwarded callbacks receive `(line, metadata)` with stream, truncation and retained
+byte information. Truncated lines are diagnostic text and cannot become parsed
+progress events. Terminal child evidence keeps both streams separate, and final
+partial-line callback failures remain secondary to a failed child outcome.
+
 The `xenova` provider uses `@huggingface/transformers` 4.x. Its public provider
 name and model IDs (including `Xenova/all-MiniLM-L12-v2`) remain unchanged.
 Existing generic model downloads and inference explicitly select `dtype: 'q8'`, preserving existing
@@ -38,6 +52,26 @@ These fields MUST be recorded in:
 - `index_state.json.embeddings`
 - service embedding queue payloads (when used)
 - optionally ANN meta files (HNSW, LanceDB, sqlite dense_meta) for redundancy
+
+Identity version 5 includes `vectorValidityVersion: 1`. Each dense channel carries
+a versioned validity bitset, independently of its fixed-width binary padding.
+Missing channels keep their document ordinals but never enter dense, HNSW,
+LanceDB or SQLite ANN scoring. Actual zero and small nonzero vectors remain
+valid; byte values alone do not establish absence. Backend counts describe
+inserted valid rows; `rowCount` describes the full ordinal space.
+
+Inline embedding runtimes verify reusable model provenance before selecting
+cache identities. An unavailable local artifact set fails with
+`ERR_EMBEDDING_ARTIFACT_UNVERIFIED` and must be acquired before retrying.
+Embedding-disabled and service-only stages do not initialize or validate inactive
+model execution requirements. An explicit ONNX path must select a readable,
+nonempty regular graph; a missing explicit path cannot fall back to another model.
+
+Prefetch and inference share the same revision, precision and text-only component
+plan. Qualified readiness verifies the acquisition receipt and its required local
+components without running inference. Shared text encoders serialize admitted
+queries and prepared batches; queued cancellation does not evict a healthy warm
+adapter. Runtime and daemon owners release their embedding leases during teardown.
 
 ### 1.2 Optional EmbeddingGemma 2 text/code embeddings
 
@@ -148,7 +182,11 @@ For uint8 embeddings:
 - `levels` MUST be clamped to `[2, 256]`
 - emitted vectors MUST only contain values in `[0, 255]` (no wrap)
 - dequantization MUST use the same `(minVal, maxVal, levels)` used for quantization
-- clamping indicates the embedding cache may be stale; clear the embeddings cache before rebuilding
+- present rows MUST have the declared width and integer values in `[0, levels - 1]`; incompatible cached or worker bytes are rejected before publication
+- inline and deferred producers use scalar codec version 2 with finite `minVal < maxVal`, a derived scale, and a codec-specific zero bin; level counts retain the historical floor/clamp to `[2, 256]`
+- missing channels retain empty rows plus validity metadata; fixed-width binary padding uses the codec's zero bin and does not make absent rows searchable
+- codec version 2 changes producer identity, so previous inline rows that advertised a custom codec without using it are rebuilt rather than reinterpreted
+- a settled invalid worker batch is recomputed entirely inline with the same effective codec; cancellation, resource admission and unresolved cleanup failures propagate
 
 ## 5) ANN backend behavior
 
@@ -265,3 +303,30 @@ leases through the same cleanup path. Cancellation stops waiting/admitted writer
 encoding before allocation; terminal Stage3 cleanup drains owned writers and
 records failure state with the current attempt even after ordinary admission
 has stopped.
+
+History archive refresh retains an interval index inside each bounded immutable
+source run. Fragment lookup visits intersecting spans, preserving original span
+order and duplicate-range policy. The index is discarded with the existing source
+plan. This changes span-selection work, without establishing model-throughput gains.
+
+Embedding preparation retains unpadded token rows only within adapter-local item, byte and lifetime bounds. Count estimation does not allocate longest-row padding; request completion or failure releases its preparation lease. Exact-length batch candidates must fit the same admitted window and cannot exceed the source plan in calls or estimated padded tokens. Source order wins equal-cost ties.
+
+The persistent text cache batches at most 256 pending vector keys or 4 MiB, flushing within 25 ms and at normal close. Access timestamps and hit counts coalesce separately for up to one second or 1,024 keys. These vectors and advisory statistics are disposable: interruption may lose pending cache updates and cannot invalidate an index artifact. Cache get sees pending rows; failed transactions discard pending updates and never mark their digests persisted. Joined inference requests promote memory without another blob upsert. Transaction, avoided-write, coalesced-touch and queue-latency counters describe this owner; they do not establish measured throughput.
+
+An aggregate file chunk fingerprint is a positive fast hint, never a reason to reject all older rows after one chunk changes. Bounded prior-cache reads still require exact embedding identity, channel availability, dimensions and per-chunk hash multiplicity before reuse. Reordering consumes prior hash occurrences with cursors and preserves missing-document markers.
+
+LanceDB vector columns use an explicit fixed-size Float32 Arrow schema regardless
+of the configured column name. IDs use signed Int64 and remain original document
+IDs across absent-channel holes. ID/vector name collisions, inconsistent dimensions
+and non-finite present vectors fail the staged build. Every batch uses the same
+schema; physical schema is checked before publication, and queries explicitly
+select the declared vector column. Typed batches obey both configured row limits
+and a 16 MiB payload limit; buffers remain leased until awaited ingestion settles.
+This removes boxed row expansion in this owner. Native conversion may still copy;
+source changes do not establish a measured latency or allocation improvement.
+
+Persistent profile isolation and shared quantized chunk payloads are specified in
+[embedding-cache-profiles](../contracts/embedding-cache-profiles.md). Legacy cache
+reads remain identity checked; new writes use profile layout 2. File-reference
+retention composes the existing shard locks and per-profile file indexes. Whole-app
+storage migration, inventory and quota policy remain separate integration owners.

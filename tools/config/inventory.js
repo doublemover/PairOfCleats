@@ -18,7 +18,7 @@ const defaultSchemaPath = path.join(defaultRoot, 'docs', 'config', 'schema.json'
 const defaultOutputJsonPath = path.join(defaultRoot, 'docs', 'config', 'inventory.json');
 const defaultOutputMdPath = path.join(defaultRoot, 'docs', 'config', 'inventory.md');
 
-const PUBLIC_CONFIG_KEYS = new Set(['cache.root', 'quality', 'tooling.typescript.typeRepresentation', 'indexing.workerPool.processFallback']);
+const PUBLIC_CONFIG_KEYS = new Set(['cache.root', 'quality', 'tooling.typescript.typeRepresentation', 'indexing.workerPool.processFallback', 'indexing.crossFileFidelity']);
 const PUBLIC_ENV_VARS = new Set(['PAIROFCLEATS_API_TOKEN']);
 const PUBLIC_CLI_FLAGS = new Set([
   'all',
@@ -39,6 +39,7 @@ const PUBLIC_CLI_FLAGS = new Set([
   'flow-id',
   'format',
   'hops',
+  'granularity',
   'host',
   'includeCallersCallees',
   'includeDisabled',
@@ -71,6 +72,7 @@ const PUBLIC_CLI_FLAGS = new Set([
   'mode',
   'no-fallback',
   'output',
+  'pathSemantics',
   'port',
   'quality',
   'queue',
@@ -93,16 +95,20 @@ const PUBLIC_CLI_FLAGS = new Set([
   'strictEvidence',
   'strictRisk',
   'tag',
+  'task',
   'timeout-ms',
   'tools',
   'top',
   'watch',
+  'wholeFileFallback',
   'workspace',
   'workspaceId'
 ]);
 const KNOWN_ENV_VARS = new Set([
   'PAIROFCLEATS_ARCHIVE_DISCOVERY_TEST_DIR',
   'PAIROFCLEATS_DEPENDENCY_TEST_DIR',
+  // Synthetic negative credential specimen; never a runtime/public setting.
+  'PAIROFCLEATS_FUTURE_SECRET',
   'PAIROFCLEATS_EMBEDDING_TEST_DIR',
   'PAIROFCLEATS_FTS_TEST_DIR',
   'PAIROFCLEATS_VECTOR_CACHE_TEST_DIR',
@@ -187,7 +193,6 @@ const KNOWN_ENV_VARS = new Set([
   'PAIROFCLEATS_SUPPRESS_LEGACY_ENTRYPOINT_WARNING',
   'PAIROFCLEATS_SKIP_BENCH',
   'PAIROFCLEATS_SKIP_SCRIPT_COVERAGE',
-  'PAIROFCLEATS_SKIP_SQLITE_INCREMENTAL',
   'PAIROFCLEATS_SCHEDULER',
   'PAIROFCLEATS_SCHEDULER_ADAPTIVE',
   'PAIROFCLEATS_SCHEDULER_ADAPTIVE_STEP',
@@ -271,6 +276,7 @@ const KNOWN_ENV_VARS = new Set([
   'PAIROFCLEATS_TUI_MOUSE',
   'PAIROFCLEATS_TUI_NODE',
   'PAIROFCLEATS_TUI_RUN_ID',
+  'PAIROFCLEATS_TUI_SNAPSHOT_PATH',
   'PAIROFCLEATS_TUI_SUPERVISOR',
   'PAIROFCLEATS_TUI_UNICODE',
   'PAIROFCLEATS_TUI_WORKSPACE_ROOT',
@@ -291,9 +297,9 @@ const KNOWN_ENV_VARS = new Set([
   'PAIROFCLEATS_XXHASH_BACKEND'
 ]);
 const BUDGETS = {
-  configKeys: 4,
+  configKeys: 5,
   envVars: 1,
-  cliFlags: 73
+  cliFlags: 77
 };
 const PUBLIC_FLAG_SOURCES = new Set([
   'bin/pairofcleats.js',

@@ -9,7 +9,7 @@ import { atomicWriteJson, atomicWriteText } from '../../../shared/io/atomic-writ
 import { sha1 } from '../../../shared/hash.js';
 import { logLine } from '../../../shared/progress-runtime.js';
 import { readJsonFileSafe } from '../../../shared/file-read.js';
-import { loadCheckpointSlices, mergeStageCheckpoints, resolveCheckpointIndexPath, writeCheckpointSlices } from './checkpoints.js';
+import { loadCheckpointSlices, mergeStageCheckpoints, resolveCheckpointIndexPath, resolveCheckpointModePaths, writeCheckpointSlices } from './checkpoints.js';
 import { buildStageCheckpointModeBasename } from '../stage-checkpoints/sidecar.js';
 import {
   BUILD_STATE_DURABILITY_CLASS,
@@ -206,8 +206,9 @@ const readFingerprint = async (filePath) => {
   try {
     const stat = await fs.stat(filePath);
     return { mtimeMs: stat.mtimeMs, size: stat.size };
-  } catch {
-    return null;
+  } catch (error) {
+    if (error?.code === 'ENOENT') return null;
+    throw error;
   }
 };
 
@@ -218,18 +219,22 @@ const readJsonFile = async (filePath, {
   buildRoot = null,
   target = 'state'
 } = {}) => {
+  const assertSize = (size) => {
+    if (!Number.isFinite(maxBytes) || maxBytes <= 0 || size <= maxBytes) return;
+    const error = new Error(`[build_state] oversized ${label} file (${size} bytes > ${maxBytes} bytes): ${filePath}`);
+    error.code = 'ERR_BUILD_STATE_TOO_LARGE';
+    error.target = target;
+    error.buildRoot = buildRoot ? path.resolve(buildRoot) : null;
+    throw error;
+  };
   try {
     if (Number.isFinite(maxBytes) && maxBytes > 0) {
       const stat = await fs.stat(filePath);
-      if (Number.isFinite(stat?.size) && stat.size > maxBytes) {
-        logLine(
-          `[build_state] Skipping oversized ${label} file (${stat.size} bytes > ${maxBytes} bytes): ${filePath}`,
-          { kind: 'warning' }
-        );
-        return null;
-      }
+      assertSize(stat.size);
     }
-    const parsed = JSON.parse(await fs.readFile(filePath, 'utf8'));
+    const bytes = await fs.readFile(filePath);
+    assertSize(bytes.length);
+    const parsed = JSON.parse(bytes.toString('utf8'));
     if (!isObjectLike(parsed)) {
       if (strict) {
         const err = new Error(`[build_state] invalid ${label} payload (expected object): ${filePath}`);
@@ -243,6 +248,7 @@ const readJsonFile = async (filePath, {
     return parsed;
   } catch (err) {
     if (err?.code === 'ENOENT') return null;
+    if (err?.code === 'ERR_BUILD_STATE_TOO_LARGE') throw err;
     if (strict) {
       const wrapped = new Error(
         `[build_state] failed to parse ${label} file: ${filePath}`,
@@ -258,7 +264,8 @@ const readJsonFile = async (filePath, {
 };
 
 const trimRecentPatchStageBuildRoots = () => {
-  while (recentPatchStagesByBuildRoot.size > PATCH_STAGE_TRACK_MAX_BUILD_ROOTS) {
+  let remaining = recentPatchStagesByBuildRoot.size;
+  while (recentPatchStagesByBuildRoot.size > PATCH_STAGE_TRACK_MAX_BUILD_ROOTS && remaining-- > 0) {
     const oldestKey = recentPatchStagesByBuildRoot.keys().next().value;
     if (oldestKey == null) break;
     if (isActiveStateKey(oldestKey)) {
@@ -275,8 +282,8 @@ const getRecentPatchStageMap = (buildRoot) => {
   const key = path.resolve(buildRoot);
   if (!recentPatchStagesByBuildRoot.has(key)) {
     recentPatchStagesByBuildRoot.set(key, new Map());
-    trimRecentPatchStageBuildRoots();
   }
+  trimRecentPatchStageBuildRoots();
   return recentPatchStagesByBuildRoot.get(key);
 };
 
@@ -425,6 +432,9 @@ export const hydrateStateDefaults = async (state, buildRoot) => {
  */
 export const mergeState = (base, patch) => {
   const merged = { ...base, ...patch };
+  if (patch.completedStages) merged.completedStages = { ...(base?.completedStages || {}), ...patch.completedStages };
+  if (patch.recoveryTransactions) merged.recoveryTransactions = Object.fromEntries(
+    Object.entries({ ...(base?.recoveryTransactions || {}), ...patch.recoveryTransactions }).slice(-16));
   if (patch.runtime) merged.runtime = mergeRuntimeAttempts(base?.runtime, patch.runtime);
   if (patch.phases) {
     merged.phases = { ...(base?.phases || {}), ...patch.phases };
@@ -440,6 +450,9 @@ export const mergeState = (base, patch) => {
   }
   if (patch.signatures) {
     merged.signatures = { ...(base?.signatures || {}), ...patch.signatures };
+  }
+  if (patch.analysisShortcuts) {
+    merged.analysisShortcuts = { ...(base?.analysisShortcuts || {}), ...patch.analysisShortcuts };
   }
   if (patch.stageCheckpoints) {
     const next = { ...(base?.stageCheckpoints || {}) };
@@ -848,7 +861,9 @@ const loadSidecar = async (buildRoot, type) => {
       return cache.progress;
     }
     const parsed = fingerprint
-      ? await readJsonFile(filePath, { maxBytes: PROGRESS_JSON_MAX_BYTES, label: 'progress' })
+      ? await readJsonFile(filePath, {
+        maxBytes: PROGRESS_JSON_MAX_BYTES, label: 'progress', strict: true, buildRoot, target: 'progress'
+      })
       : null;
     cache.progress = parsed;
     cache.progressFingerprint = fingerprint;
@@ -856,13 +871,14 @@ const loadSidecar = async (buildRoot, type) => {
     return parsed;
   }
   const checkpointsFingerprint = await readFingerprint(resolveCheckpointIndexPath(buildRoot));
+  const checkpointModePaths = await resolveCheckpointModePaths(buildRoot);
   if (fingerprintsMatch(checkpointsFingerprint, cache.checkpointsFingerprint) && cache.stageCheckpoints) {
     const cachedModeFingerprints = cache.modeFingerprints;
     const modeKeys = Object.keys(cache.stageCheckpoints || {});
     if (isObjectLike(cachedModeFingerprints) && modeKeys.length) {
       let allModeFingerprintsMatch = true;
       for (const mode of modeKeys) {
-        const currentFingerprint = await readFingerprint(path.join(buildRoot, buildStageCheckpointModeBasename(mode)));
+        const currentFingerprint = await readFingerprint(checkpointModePaths[mode] || path.join(buildRoot, buildStageCheckpointModeBasename(mode)));
         const priorFingerprint = isObjectLike(cachedModeFingerprints?.[mode])
           ? cachedModeFingerprints[mode]
           : null;
@@ -884,7 +900,7 @@ const loadSidecar = async (buildRoot, type) => {
     const modeFingerprints = {};
     for (const mode of Object.keys(parsed)) {
       modeFingerprints[mode] = await readFingerprint(
-        path.join(buildRoot, buildStageCheckpointModeBasename(mode))
+        checkpointModePaths[mode] || path.join(buildRoot, buildStageCheckpointModeBasename(mode))
       );
     }
     cache.modeFingerprints = modeFingerprints;

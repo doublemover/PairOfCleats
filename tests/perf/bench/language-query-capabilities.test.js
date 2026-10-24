@@ -28,6 +28,7 @@ const observeStage = async ({ enabled = true, vector = false, minhash = false, a
   const idx = { denseVec: { vectors: [[0.1, 0.2]], dims: 2 }, minhash: { signatures: [[]] } };
   await tracker.span('ann', metrics, () => runAnnStage({
     idx,
+    annDiscovery: adaptive ? 'lexical-rerank' : 'independent',
     mode: 'code',
     meta: [{ id: 0 }],
     queryEmbedding: vector ? [0.1, 0.2] : null,

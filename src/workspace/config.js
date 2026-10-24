@@ -7,6 +7,8 @@ import { createError, ERROR_CODES } from '../shared/error-codes.js';
 import { validateWorkspaceConfigResolved } from '../contracts/validators/workspace.js';
 import { getRepoId, resolveRepoRoot } from '../shared/repo-paths.js';
 import { normalizeIdentityPath, toRealPathSync } from './identity.js';
+import { describeStorageFailure, observeStorageResource } from '../shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../shared/storage/operation-error.js';
 
 export const WORKSPACE_CONFIG_DEFAULT_FILENAME = '.pairofcleats-workspace.jsonc';
 
@@ -18,6 +20,7 @@ export const WORKSPACE_ERROR_CODES = Object.freeze({
   REPOS_EMPTY: 'ERR_WORKSPACE_REPOS_EMPTY',
   REPO_ROOT_NOT_FOUND: 'ERR_WORKSPACE_REPO_ROOT_NOT_FOUND',
   REPO_ROOT_NOT_DIRECTORY: 'ERR_WORKSPACE_REPO_ROOT_NOT_DIRECTORY',
+  MEMBER_CHANGED: 'ERR_WORKSPACE_MEMBER_CHANGED',
   DUPLICATE_REPO_ROOT: 'ERR_WORKSPACE_DUPLICATE_REPO_ROOT',
   DUPLICATE_REPO_ID: 'ERR_WORKSPACE_DUPLICATE_REPO_ID',
   DUPLICATE_ALIAS: 'ERR_WORKSPACE_DUPLICATE_ALIAS',
@@ -29,6 +32,51 @@ const TOP_LEVEL_KEYS = new Set(['schemaVersion', 'name', 'cacheRoot', 'defaults'
 const DEFAULT_KEYS = new Set(['enabled', 'priority', 'tags']);
 const REPO_KEYS = new Set(['root', 'alias', 'enabled', 'priority', 'tags']);
 const SUPPORTED_SCHEMA_VERSION = 1;
+const memberObservations = new WeakMap();
+
+// These are in-process admission observations of the canonical workspace
+// members, never persisted identities, storage leases or cleanup authority.
+const observeMemberDirectory = (root, platform) => {
+  const canonical = normalizeIdentityPath(fs.realpathSync(root), { platform });
+  const stat = fs.statSync(canonical, { bigint: true });
+  if (!stat.isDirectory()) throw Object.assign(new Error('Workspace member directory changed into another file type; reload the workspace.'),
+    { code: WORKSPACE_ERROR_CODES.MEMBER_CHANGED });
+  return { canonical, device: String(stat.dev), inode: String(stat.ino), createdNs: String(stat.birthtimeNs) };
+};
+
+/** Copy an invocation target without detaching its original admission facts. */
+export const snapshotWorkspaceMember = repo => {
+  const copy = { ...repo, ...(Array.isArray(repo.tags) ? { tags: [...repo.tags] } : {}) };
+  const observation = memberObservations.get(repo);
+  if (observation) memberObservations.set(copy, observation);
+  return Object.freeze(copy);
+};
+
+/** Recheck a loaded member at actual work/publication boundaries. Ordinary
+ * programmatic descriptors without loader provenance retain their API behavior.
+ */
+export const assertWorkspaceMemberCurrent = repo => {
+  const expected = memberObservations.get(repo);
+  if (!expected) return;
+  const { platform } = expected;
+  let declared, repository;
+  try {
+    declared = observeMemberDirectory(expected.rootAbs, platform);
+    repository = expected.rootAbs === expected.repoRootCanonical ? declared : observeMemberDirectory(expected.repoRootCanonical, platform);
+  } catch (error) {
+    const failure = describeStorageFailure(error, { phase: 'workspace-member-revalidation' });
+    if (!['ENOENT', 'ENOTDIR'].includes(failure.code)) throw error;
+    throw addStorageFailureContext(new Error('Workspace member directory disappeared after loading; reload the workspace and review its targets.', { cause: error }),
+      { code: WORKSPACE_ERROR_CODES.MEMBER_CHANGED, repoId: expected.repoId }, error, { secondaryPresent: true });
+  }
+  if (repo.repoId !== expected.repoId || repo.repoRootCanonical !== expected.repoRootCanonical
+    || repo.rootAbs !== expected.rootAbs
+    || stableStringify(declared) !== stableStringify(expected.declared)
+    || stableStringify(repository) !== stableStringify(expected.repository)) {
+    throw Object.assign(new Error('Workspace member directory changed after loading; reload the workspace and review its targets.'),
+      { code: WORKSPACE_ERROR_CODES.MEMBER_CHANGED, repoId: expected.repoId });
+  }
+};
 
 const isPlainObject = (value) => (
   Boolean(value) && typeof value === 'object' && value.constructor === Object
@@ -48,7 +96,7 @@ const createWorkspaceIssue = (code, message, {
   hint
 });
 
-const throwWorkspaceIssues = (issues) => {
+const throwWorkspaceIssues = (issues, { cause, causePresent = false } = {}) => {
   const list = Array.isArray(issues) ? issues.filter(Boolean) : [];
   const first = list[0] || createWorkspaceIssue(
     WORKSPACE_ERROR_CODES.INVALID_SHAPE,
@@ -64,6 +112,7 @@ const throwWorkspaceIssues = (issues) => {
   });
   err.code = first.code;
   err.errorCode = ERROR_CODES.INVALID_REQUEST;
+  if (causePresent) Object.defineProperty(err, 'cause', { value: cause, configurable: true });
   throw err;
 };
 
@@ -299,7 +348,16 @@ export const resolveRepoEntry = (workspaceDir, repoEntry, index, {
   }
 
   const rootAbs = path.isAbsolute(rootInput) ? path.resolve(rootInput) : path.resolve(workspaceDir, rootInput);
-  if (!fs.existsSync(rootAbs)) {
+  let rootStat;
+  try { rootStat = fs.statSync(rootAbs); }
+  catch (error) {
+    const observation = observeStorageResource(error, { phase: 'workspace-member-stat' });
+    observation.requireSettled();
+    let code;
+    try { code = observation.primary.code; }
+    catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+    observation.requireSettled();
+    if (!['ENOENT', 'ENOTDIR'].includes(code)) throw error;
     issues.push(createWorkspaceIssue(
       WORKSPACE_ERROR_CODES.REPO_ROOT_NOT_FOUND,
       `Workspace repo root not found: ${rootAbs}`,
@@ -311,12 +369,6 @@ export const resolveRepoEntry = (workspaceDir, repoEntry, index, {
       }
     ));
     return null;
-  }
-  let rootStat = null;
-  try {
-    rootStat = fs.statSync(rootAbs);
-  } catch {
-    rootStat = null;
   }
   if (!rootStat?.isDirectory?.()) {
     issues.push(createWorkspaceIssue(
@@ -371,7 +423,7 @@ export const resolveRepoEntry = (workspaceDir, repoEntry, index, {
     'priority'
   );
 
-  return {
+  const resolved = {
     repoId,
     repoRootResolved: normalizeIdentityPath(repoRootResolved, { platform }),
     repoRootCanonical,
@@ -383,6 +435,12 @@ export const resolveRepoEntry = (workspaceDir, repoEntry, index, {
     rootAbs: normalizeIdentityPath(rootAbs, { platform }),
     index
   };
+  const declared = observeMemberDirectory(resolved.rootAbs, platform);
+  const repository = resolved.rootAbs === resolved.repoRootCanonical ? declared : observeMemberDirectory(resolved.repoRootCanonical, platform);
+  memberObservations.set(resolved, { platform, repoId, repoRootCanonical: resolved.repoRootCanonical,
+    rootAbs: resolved.rootAbs, declared, repository });
+  assertWorkspaceMemberCurrent(resolved);
+  return resolved;
 };
 
 const validateUniqueness = (repos, issues) => {
@@ -450,7 +508,21 @@ export const loadWorkspaceConfig = (workspacePath, {
   const targetPath = typeof workspacePath === 'string' && workspacePath.trim()
     ? path.resolve(workspacePath)
     : '';
-  if (!targetPath || !fs.existsSync(targetPath)) {
+  let missing = !targetPath;
+  if (targetPath) {
+    try { fs.statSync(targetPath); }
+    catch (error) {
+      const observation = observeStorageResource(error, { phase: 'workspace-config-stat' });
+      observation.requireSettled();
+      let code;
+      try { code = observation.primary.code; }
+      catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+      observation.requireSettled();
+      if (!['ENOENT', 'ENOTDIR'].includes(code)) throw error;
+      missing = true;
+    }
+  }
+  if (missing) {
     throwWorkspaceIssues([
       createWorkspaceIssue(
         WORKSPACE_ERROR_CODES.FILE_NOT_FOUND,
@@ -469,6 +541,12 @@ export const loadWorkspaceConfig = (workspacePath, {
   try {
     parsed = readJsoncFile(targetPath);
   } catch (err) {
+    const observation = observeStorageResource(err, { phase: 'workspace-config-read' });
+    observation.requireSettled();
+    let message;
+    try { message = observation.primary.message; }
+    catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+    observation.requireSettled();
     throwWorkspaceIssues([
       createWorkspaceIssue(
         WORKSPACE_ERROR_CODES.PARSE_FAILED,
@@ -476,13 +554,19 @@ export const loadWorkspaceConfig = (workspacePath, {
         {
           path: targetPath,
           field: 'workspaceFile',
-          reason: err?.message || 'parse-error',
+          reason: typeof message === 'string' && message ? message : 'parse-error',
           hint: 'Fix JSONC syntax errors and retry.'
         }
       )
-    ]);
+    ], { cause: err, causePresent: true });
   }
 
+  return resolveWorkspaceConfig(parsed, { workspacePath: targetPath, platform });
+};
+
+/** Resolve an in-memory authoring preview through the same canonical validation. */
+export const resolveWorkspaceConfig = (parsed, { workspacePath, platform = process.platform } = {}) => {
+  const targetPath = path.resolve(workspacePath);
   if (!isPlainObject(parsed)) {
     throwWorkspaceIssues([
       createWorkspaceIssue(

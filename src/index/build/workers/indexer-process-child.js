@@ -31,13 +31,15 @@ process.on('message', async message => {
   if (message?.type !== 'task' || message.generation !== generation || !tasks || busy) return;
   busy = true;
   try {
-    if (!['tokenizeChunk', 'quantizeVectors'].includes(message.name) || !Buffer.isBuffer(message.payload)
+    if (!['tokenizeChunk', 'tokenizeBatch', 'quantizeVectors', 'analyzeFile'].includes(message.name) || !Buffer.isBuffer(message.payload)
       || message.payload.length > maxMessageBytes) throw new Error('Invalid bounded process task.');
     const result = await tasks[message.name](deserialize(message.payload));
     const payload = serialize(result);
     if (payload.length > Math.min(message.outputLimit, maxMessageBytes)) throw Object.assign(new Error('Task result exceeds reserved output bytes.'), { code: 'ERR_PROCESS_TASK_BUDGET' });
     send({ type: 'result', taskId: message.taskId, payload, rssBytes: process.memoryUsage().rss });
   } catch (error) { send({ type: 'result', taskId: message.taskId,
-    error: { code: error.code || 'ERR_PROCESS_TASK', message: String(error.message).slice(0, 2048) }, rssBytes: process.memoryUsage().rss }); }
+    error: { code: typeof error?.code === 'string' ? error.code.slice(0, 128) : 'ERR_PROCESS_TASK',
+      name: typeof error?.name === 'string' ? error.name.slice(0, 128) : 'Error',
+      message: String(error?.message ?? error).slice(0, 2048) }, rssBytes: process.memoryUsage().rss }); }
   finally { busy = false; }
 });

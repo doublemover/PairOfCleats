@@ -1,13 +1,16 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { prepareTestCacheDir } from '../../helpers/test-cache.js';
+import { expectedReleaseChecks, RELEASE_REPORT_ROLES } from '../../../tools/release/report-contract.js';
+import { loadShippedSurfaces } from '../../../tools/release/surfaces.js';
+import { readPackageVersion } from '../../../tools/release/metadata-support.js';
 
 const writeJson = (targetPath, payload) => {
   fs.mkdirSync(path.dirname(targetPath), { recursive: true });
   fs.writeFileSync(targetPath, `${JSON.stringify(payload, null, 2)}\n`);
 };
 
-const createReleaseReport = (root, {
+const createSingleReleaseReport = (root, {
   id = 'fixture.check',
   phase = 'smoke',
   label = 'fixture release check',
@@ -26,7 +29,8 @@ const createReleaseReport = (root, {
   finishedAt,
   durationMs: 0,
   root: root.replace(/\\/g, '/'),
-  releaseVersion: '0.3.0',
+  releaseVersion: readPackageVersion(root).version,
+  executionMode: 'executed',
   scope: {
     surfaces: null,
     phases: null,
@@ -36,7 +40,8 @@ const createReleaseReport = (root, {
     skipModesDisabled: true,
     requiredChecks: [phase]
   },
-  shippedSurfaces: [],
+  shippedSurfaces: loadShippedSurfaces(root).surfaces.map(surface => ({ ...surface,
+    releaseCheckStepIds: surface.releaseCheck.steps.map(step => step.id) })),
   summary: {
     total: 1,
     passed: status === 'passed' ? 1 : 0,
@@ -64,6 +69,24 @@ const createReleaseReport = (root, {
   }],
   ok: status === 'passed'
 });
+
+const createReleaseReport = (root, overrides = {}) => {
+  const role = overrides.role || (overrides.runtimeTarget ? 'tuiVerify'
+    : overrides.phase === 'changelog' ? 'prepare' : overrides.phase === 'install' ? 'nodeVerify' : 'runtime');
+  const payload = createSingleReleaseReport(root, overrides);
+  const template = payload.checks[0];
+  payload.checks = expectedReleaseChecks(root, role).map(step => ({ ...template,
+    id: step.id, phase: step.phase, command: step.command || [`internal:${step.id}`], owner: step.owner || null }));
+  payload.scope = { ...payload.scope, surfaces: RELEASE_REPORT_ROLES[role].surfaceIds,
+    phases: RELEASE_REPORT_ROLES[role].phases };
+  payload.strict.requiredChecks = [...new Set(payload.checks.map(step => step.phase))];
+  payload.summary = { total: payload.checks.length,
+    passed: payload.checks.filter(step => step.status === 'passed').length,
+    failed: payload.checks.filter(step => step.status !== 'passed').length,
+    byPhase: overrides.summaryByPhase || Object.fromEntries(payload.strict.requiredChecks.map(phase =>
+      [phase, payload.checks.filter(step => step.phase === phase).length])) };
+  return payload;
+};
 
 const createTuiReleaseReport = (root, target, overrides = {}) => createReleaseReport(root, {
   id: `tui.${target}.verify`,
@@ -94,7 +117,7 @@ const createChecksumBundle = (sourceCommit = '0123456789abcdef0123456789abcdef01
   sourceCommit,
   artifacts: [
     { path: 'dist/vscode/pairofcleats.vsix', sizeBytes: 10, sha256: 'a'.repeat(64) },
-    { path: 'dist/sublime/pairofcleats.sublime-package', sizeBytes: 20, sha256: 'b'.repeat(64) }
+    { path: 'dist/sublime/PairOfCleats.sublime-package', sizeBytes: 20, sha256: 'b'.repeat(64) }
   ]
 });
 

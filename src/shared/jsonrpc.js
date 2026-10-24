@@ -1,6 +1,14 @@
 import { WriteableStreamMessageWriter } from 'vscode-jsonrpc/node';
 
 const writerCache = new WeakMap();
+const writeEvidence = new WeakMap();
+
+/** Original per-write observation only; it does not attest native disposal. */
+export const getJsonRpcWriteEvidence = promise => {
+  const record = writeEvidence.get(promise);
+  return record ? Object.freeze({ frameStarted: record.frameStarted, settled: record.settled,
+    streamRetired: record.state.closed }) : null;
+};
 const CLOSED_STREAM_WRITE_ERROR_CODES = new Set([
   'ERR_STREAM_DESTROYED',
   'EPIPE',
@@ -37,18 +45,22 @@ const getWriterState = (outputStream) => {
     onError: (listener) => subscribe('error', listener),
     onEnd: (listener) => subscribe('end', listener),
     write: (data, encoding) => new Promise((resolve, reject) => {
+      if (state?.activeWrite) state.activeWrite.frameStarted = true;
       const callback = (error) => error == null ? resolve() : reject(error);
       if (typeof data === 'string') outputStream.write(data, encoding, callback);
       else outputStream.write(data, callback);
     }),
     end: () => outputStream.end()
   });
-  state = { writer, closed: false, pending: 0, disposed: false, queue: Promise.resolve() };
+  state = { writer, closed: false, pending: 0, disposed: false, framingFailed: false, activeWrite: null, queue: Promise.resolve() };
   state.release = () => {
     if (!state.closed || state.pending || state.disposed) return;
     state.disposed = true;
     state.writer.dispose();
     for (const dispose of listeners) dispose();
+    // Retire one physical framing owner through its final actual write. A
+    // partial frame failure cannot authorize a successor on this same wire.
+    if (!state.framingFailed && writerCache.get(outputStream) === state) writerCache.delete(outputStream);
   };
   const markClosed = () => {
     state.closed = true;
@@ -76,27 +88,33 @@ export function getJsonRpcWriter(outputStream) {
   const write = (payload) => {
     if (state.closed) return Promise.reject(new Error('JSON-RPC stream closed.'));
     state.pending += 1;
+    const observation = { state, frameStarted: false, settled: false };
     const run = async () => {
       if (state.closed || outputStream.destroyed || outputStream.writableEnded) {
         throw new Error('JSON-RPC stream closed.');
       }
-      return state.writer.write(payload);
+      state.activeWrite = observation;
+      try { return await state.writer.write(payload); }
+      finally { if (state.activeWrite === observation) state.activeWrite = null; }
     };
     state.queue = state.queue.then(run, run);
-    return state.queue.catch((err) => {
-      if (isClosedStreamWriteError(err)) {
+    const result = state.queue.catch((err) => {
+      if (observation.frameStarted) state.framingFailed = true;
+      if (state.framingFailed || isClosedStreamWriteError(err)) {
         state.closed = true;
       }
       throw err;
     }).finally(() => {
+      observation.settled = true;
       state.pending -= 1;
       state.release();
     });
+    writeEvidence.set(result, observation);
+    return result;
   };
   const close = () => {
     state.closed = true;
     state.release();
-    if (writerCache.get(outputStream) === state) writerCache.delete(outputStream);
   };
   return { write, close };
 }
@@ -110,7 +128,6 @@ export function closeJsonRpcWriter(outputStream) {
   if (!state) return;
   state.closed = true;
   state.release();
-  writerCache.delete(outputStream);
 }
 
 /**

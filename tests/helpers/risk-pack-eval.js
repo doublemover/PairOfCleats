@@ -167,6 +167,8 @@ export const buildRiskStatsFields = ({
       order: 'deterministic'
     },
     capsHit: [],
+    inputCoverage: { status: 'complete' },
+    droppedRecords: [],
     timingMs: {
       summaries: 1,
       propagation: 1,
@@ -242,6 +244,7 @@ export const createRiskRepoIndexFixture = async ({
   const buildRoot = path.join(repoCacheRoot, 'builds', buildId);
   await fs.mkdir(path.join(repoCacheRoot, 'builds'), { recursive: true });
   await fs.writeFile(path.join(repoCacheRoot, 'builds', 'current.json'), `${JSON.stringify({
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     buildId,
     buildRoot,
     modes: ['code']

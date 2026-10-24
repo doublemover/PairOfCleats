@@ -1,23 +1,11 @@
 #!/usr/bin/env node
-import fs from 'node:fs';
-import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
-import { removePathWithRetry } from '../../src/shared/io/remove-path-with-retry.js';
 import { stableStringify } from '../../src/shared/stable-json.js';
 import { resolveToolRoot } from '../shared/dict-utils.js';
-import {
-  TUI_INSTALL_LAYOUT_VERSION,
-  ensureExecutableModeSync,
-  isExecutableForPlatform,
-  readTargetsManifest,
-  resolveHostTargetTriple,
-  resolveTargetForTriple,
-  resolveTuiInstallLayout,
-  sha256FileSync,
-  toPosixRelative,
-  writeStableJsonFile
-} from './targets.js';
+import { readTargetsManifest, resolveHostTargetTriple, resolveTargetForTriple,
+  resolveTuiInstallLayout, toPosixRelative } from './targets.js';
+import { installTuiGeneration } from './install-generation.js';
 import { ensureBuildArtifactAvailable } from './build-support.js';
 
 const argv = createCli({
@@ -40,19 +28,6 @@ const resolveEventLogDir = ({ layout }) => {
   return layout.logsDir;
 };
 
-const pruneInstallBin = async ({ binDir, keepFile }) => {
-  if (!fs.existsSync(binDir)) return;
-  const entries = await fsPromises.readdir(binDir, { withFileTypes: true });
-  for (const entry of entries) {
-    if (entry.name === keepFile) continue;
-    const targetPath = path.join(binDir, entry.name);
-    const removed = await removePathWithRetry(targetPath, { recursive: true, force: true });
-    if (!removed.ok) {
-      throw removed.error || new Error(`failed to remove stale install artifact: ${targetPath}`);
-    }
-  }
-};
-
 const main = async () => {
   const { targets } = await readTargetsManifest({ root });
   const triple = argv.target ? String(argv.target).trim() : resolveHostTargetTriple();
@@ -61,81 +36,28 @@ const main = async () => {
     throw new Error(`unsupported target triple: ${triple} (not present in tools/tui/targets.json)`);
   }
 
-  const resolvedBuild = await ensureBuildArtifactAvailable({
-    rootDir: root,
-    triple,
-    env: process.env,
-    autoBuild: argv.build !== false
-  });
-  const buildManifest = resolvedBuild.buildManifest;
-  const buildArtifact = resolvedBuild.buildArtifact;
-
   const layout = resolveTuiInstallLayout({
-    root,
-    triple,
-    artifactName: target.artifactName,
-    installRoot: argv['install-root']
+    root, triple, artifactName: target.artifactName, installRoot: argv['install-root']
   });
-  await fsPromises.mkdir(layout.tripleDir, { recursive: true });
-  await fsPromises.mkdir(layout.binDir, { recursive: true });
-  await fsPromises.mkdir(layout.logsDir, { recursive: true });
-
-  const tempBinaryPath = `${layout.binaryPath}.tmp-${process.pid}`;
-  await fsPromises.copyFile(buildArtifact.absoluteArtifactPath, tempBinaryPath);
-  ensureExecutableModeSync(tempBinaryPath);
-  await fsPromises.rename(tempBinaryPath, layout.binaryPath);
-  await pruneInstallBin({ binDir: layout.binDir, keepFile: target.artifactName });
-
-  const stat = await fsPromises.stat(layout.binaryPath);
-  const actualSha256 = sha256FileSync(layout.binaryPath);
-  if (actualSha256 !== buildArtifact.sha256) {
-    throw new Error(`installed artifact checksum mismatch for ${target.artifactName}`);
-  }
-  if (!isExecutableForPlatform(stat, process.platform)) {
-    throw new Error(`installed artifact is not executable for ${process.platform}: ${target.artifactName}`);
-  }
-
   const eventLogDir = resolveEventLogDir({ layout });
-  await fsPromises.mkdir(eventLogDir, { recursive: true });
-
-  const metadata = {
-    schemaVersion: 1,
-    layoutVersion: TUI_INSTALL_LAYOUT_VERSION,
-    triple,
-    platform: target.platform,
-    artifactName: target.artifactName,
-    supervisor: {
-      path: 'tools/tui/supervisor.js',
-      sha256: sha256FileSync(path.join(root, 'tools', 'tui', 'supervisor.js'))
-    },
-    binary: {
-      path: toPosixRelative(root, layout.binaryPath),
-      sha256: actualSha256,
-      sizeBytes: stat.size,
-      executable: true,
-      mode: process.platform === 'win32' ? null : (stat.mode & 0o777)
-    },
-    source: {
-      buildManifestPath: toPosixRelative(root, buildManifest.manifestPath),
-      buildManifestChecksum: buildManifest.manifestChecksum,
-      artifactPath: buildArtifact.artifactPath,
-      artifactSha256: buildArtifact.sha256
-    },
-    observability: {
-      eventLogDir: toPosixRelative(root, eventLogDir)
-    }
-  };
-  await writeStableJsonFile(layout.metadataPath, metadata);
+  const installed = await installTuiGeneration({ root, layout, target, eventLogDir,
+    resolveBuild: () => ensureBuildArtifactAvailable({ rootDir: root, triple,
+      env: process.env, autoBuild: argv.build !== false }),
+    onPhase: phase => { if (!argv.json) process.stderr.write(`[tui-install] ${phase} ${triple}\n`); }
+  });
+  const { resolvedBuild, checksum, binaryPath, transaction } = installed;
+  const { buildArtifact } = resolvedBuild;
 
   const result = {
     ok: true,
     triple,
     artifact: buildArtifact.artifactPath,
     built: resolvedBuild.built === true,
-    installedTo: toPosixRelative(root, layout.binaryPath),
+    installedTo: toPosixRelative(root, binaryPath),
     metadata: toPosixRelative(root, layout.metadataPath),
     eventLogDir: toPosixRelative(root, eventLogDir),
-    checksum: actualSha256
+    checksum,
+    transaction
   };
 
   if (argv.json) {
@@ -151,5 +73,10 @@ const main = async () => {
 
 main().catch((error) => {
   console.error(error?.message || error);
+  if (error?.tuiInstallPhase) {
+    console.error(`[tui-install] phase=${error.tuiInstallPhase} selection=${error.tuiInstallSelection}`);
+    if (error.tuiInstallStaging) console.error(`[tui-install] retained recovery generation: ${error.tuiInstallStaging}`);
+    console.error('[tui-install] The previous generation is retained. Close a process holding the install manifest and retry if Windows denied publication.');
+  }
   process.exit(1);
 });

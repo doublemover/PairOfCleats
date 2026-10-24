@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { crc32 } from 'node:zlib';
 import yauzl from 'yauzl';
 import { historyError, resolveLimits } from './common.js';
+import { readExactAt } from '../../shared/io/read-exact.js';
 
 const invalid = () => historyError('ERR_INFERENCE_HISTORY_INPUT', 'Invalid or unsupported conversation archive.');
 const limited = () => historyError('ERR_INFERENCE_HISTORY_LIMIT', 'Conversation archive exceeded a resource limit.');
@@ -155,8 +156,8 @@ export async function visitChatGptExport({ sourcePath, limits: inputLimits, sign
     const archiveSha256 = archiveHash.digest('hex');
     if (onArchive && await onArchive(archiveSha256) === false) return { archiveSha256, skipped: true };
     const header = Buffer.alloc(4);
-    await source.read(header, 0, 4, 0);
-    if (header[0] === 0x50 && header[1] === 0x4b) {
+    const { bytesRead } = await readExactAt(source, header, 0, 4, 0, { signal });
+    if (bytesRead >= 2 && header[0] === 0x50 && header[1] === 0x4b) {
       zip = await new Promise((resolve, reject) => {
         yauzl.fromFd(source.fd, { lazyEntries: true, autoClose: false, strictFileNames: true },
           (error, value) => error ? reject(error) : resolve(value));

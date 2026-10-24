@@ -16,8 +16,16 @@ Default mode is `legacy` unless `auto` is explicitly requested.
 - **Legacy mode**: compatibility Content-Length framed JSON-RPC over stdio (vscode-jsonrpc framing + parser).
 - Only stdio transport is supported; `mcp.transport` is currently ignored.
 - Buffer limit defaults to 8MB. Configure via `mcp.maxBufferBytes` or `PAIROFCLEATS_MCP_MAX_BUFFER_BYTES`.
+  Both transports enforce the configured input bound. Zero explicitly disables
+  the bound; an omitted or blank environment value leaves configured precedence
+  intact. Negative, fractional and non-finite limits are invalid.
 - Requests are queued (default 64). Configure via `mcp.queueMax` or `PAIROFCLEATS_MCP_QUEUE_MAX`.
-  Overload responses use JSON-RPC error `-32001` with `data.code=QUEUE_OVERLOADED`.
+  The legacy JSON-RPC transport reports overload as error `-32001` with
+  `data.code=QUEUE_OVERLOADED`. SDK tool transport reports `isError=true` and a
+  JSON text content item whose `code` is `QUEUE_OVERLOADED`. Check the envelope
+  before reading a successful tool result. `normalizeMcpToolResponse` from
+  `src/integrations/mcp/result-envelope.js` accepts both forms. Its `retryable`
+  field identifies queue rejection; it never retries or replays a request.
 
 ## Tools
 - `index_status`

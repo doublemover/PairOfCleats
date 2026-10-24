@@ -1,3 +1,4 @@
+import { BUNDLE_PARSE_CHECKPOINT_SUFFIX } from '../../../shared/bundle-io-constants.js';
 import { persistEmbeddedSemanticCacheEntries } from '../../semantic/embedded-cache.js';
 import { assertCurrentIndexFormat } from '../../../contracts/index-format.js';
 import path from 'node:path';
@@ -99,6 +100,7 @@ const buildBundleShards = ({ bundle }) => {
   const shardChunks = splitBundleChunksBySize(bundle);
   return { bundles: shardChunks.map((chunks, index) => ({ ...bundle,
     parseCheckpoint: index === 0 ? bundle.parseCheckpoint : null,
+    lexicalCheckpoint: index === 0 ? bundle.lexicalCheckpoint : null,
     chunks, bundleShardIndex: index, bundleShardCount: shardChunks.length })) };
 };
 
@@ -175,7 +177,7 @@ const drainManifestBundleGc = async ({ manifest, bundleDir, diskAccount = null }
     try {
       const filename = path.join(bundleDir, name);
       const physical = [];
-      for (const member of [filename, filename + '.checksum.json']) {
+      for (const member of [filename, filename + '.checksum.json', filename + BUNDLE_PARSE_CHECKPOINT_SUFFIX]) {
         try { physical.push({ filename: member, stat: await fs.lstat(member) }); }
         catch (error) { if (error.code !== 'ENOENT') throw error; }
       }
@@ -240,6 +242,7 @@ export async function writeIncrementalBundle({
   semanticEvidenceArtifacts = [],
   semanticContext = null,
   parseCheckpoint = null,
+  lexicalCheckpoint = null,
   dependencySignatures = null,
   fileRelations,
   lexiconFilterStats = null,
@@ -279,6 +282,7 @@ export async function writeIncrementalBundle({
     size: fileStat.size,
     chunks: fileChunks,
     parseCheckpoint,
+    lexicalCheckpoint,
     dependencySignatures,
     fileRelations,
     lexiconFilterStats,
@@ -574,6 +578,8 @@ export async function updateBundlesWithChunks({
         size: entry.size,
         chunks: fileChunks,
         parseCheckpoint: existingBundle?.parseCheckpoint || null,
+        lexicalCheckpoint: existingBundle?.lexicalCheckpoint || null,
+        ...(Object.hasOwn(existingBundle || {},'lexiconFilterStats') ? {lexiconFilterStats:existingBundle.lexiconFilterStats} : {}),
         dependencySignatures: entry.dependencySignatures || null,
         fileRelations: relations,
         vfsManifestRows,

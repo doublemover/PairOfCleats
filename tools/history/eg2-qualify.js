@@ -7,17 +7,11 @@ import Database from 'better-sqlite3';
 import { inspectOnnx, readBounded, hashFile, withinTrialRoot, writeNbitsDerivative } from './eg2-qualify-graph.js';
 import { qualifyRetrieval, summarizeOrtProfile } from './eg2-qualify-quality.js';
 
+import { validateTrialIdentity, validatePairedTrialOutputs } from './eg2-paired-contract.js';
+
 const SCHEMA='eg2.cpu-trial.v1';
-export function validateTrialIdentity(identity) {
-  if(identity?.provider!=='cpu')throw new Error('Qualification trial provider must be CPU.');
-  for(const key of ['modelRevision','modelSha256','tokenizerSha256','graphSha256','runtimeVersion','dtype','documentPrefix','queryPrefix','chunkerIdentity'])
-    if(typeof identity[key]!=='string'||!identity[key])throw new Error('Complete numerical/input identity required: '+key);
-  if(!/^[a-f0-9]{40}$/.test(identity.modelRevision))throw new Error('Pinned model revision required.');
-  for(const key of ['modelSha256','tokenizerSha256','graphSha256'])if(!/^[a-f0-9]{64}$/.test(identity[key]))throw new Error('Artifact SHA256 required: '+key);
-  if(!Number.isInteger(identity.dimensions)||identity.dimensions<1||identity.dimensions>8192)throw new Error('Dimensions required.');
-  if(!Number.isInteger(identity.maxLength)||identity.maxLength<1||identity.maxLength>8192)throw new Error('Explicit truncation ceiling required.');
-  return identity;
-}
+export { validateTrialIdentity } from './eg2-paired-contract.js';
+
 export async function appendTrialReceipt(root, receipt) {
   const marker=JSON.parse(await readBounded(path.join(root,'trial-manifest.json'),1024*1024));
   if(marker.schema!==SCHEMA)throw new Error('Dedicated CPU trial directory required.');
@@ -84,7 +78,7 @@ export async function main(args=process.argv.slice(2)) {
   }else if(command==='quality') {
     const file=await input('samples'),bytes=await readBounded(file);
     const sample=JSON.parse(bytes);
-    validateTrialIdentity(sample.reference?.identity);validateTrialIdentity(sample.candidate?.identity);
+    validatePairedTrialOutputs(sample);
     if(JSON.stringify(sample.candidate.identity)!==JSON.stringify(marker.identity))throw new Error('Candidate identity must match trial manifest exactly.');
     receipt={...qualifyRetrieval(sample),samplesSha256:await hashFile(file),referenceIdentity:sample.reference.identity,candidateIdentity:sample.candidate.identity};
   }else throw new Error('Unknown qualification command.');

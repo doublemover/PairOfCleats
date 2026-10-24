@@ -9,6 +9,7 @@ import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './
 import { getNamedChild, getNamedChildCount } from './tree-sitter/ast.js';
 import { getNativeTreeSitterParser } from './tree-sitter/native-runtime.js';
 import { isTreeSitterEnabled } from './tree-sitter/options.js';
+import { attachSyntaxCallFacts, syntaxRelationsForChunks } from './tree-sitter/call-facts.js';
 
 /**
  * Lua language chunking and relations.
@@ -56,7 +57,8 @@ const LUA_DOC_OPTIONS = {
 
 const LUA_TREE_SITTER_NODE_TYPES = new Set([
   'function_declaration',
-  'local_function'
+  'local_function',
+  'assignment_statement'
 ]);
 
 const LUA_TREE_SITTER_LOGGED = new Set();
@@ -122,6 +124,15 @@ const logLuaTreeSitterOnce = (options, key, message) => {
 
 const extractLuaTreeSitterName = (node, text) => {
   if (!node || typeof text !== 'string') return null;
+  if (node.type === 'assignment_statement') {
+    const children = Array.from({length:getNamedChildCount(node)},(_,i)=>getNamedChild(node,i));
+    const variables = children.find(child=>child.type === 'variable_list');
+    const values = children.find(child=>child.type === 'expression_list');
+    if (!variables || !values || getNamedChildCount(variables) !== 1 || getNamedChildCount(values) !== 1
+      || getNamedChild(values,0)?.type !== 'function_definition') return null;
+    const name = text.slice(variables.startIndex,variables.endIndex).trim();
+    return /^[A-Za-z_][A-Za-z0-9_.:]*$/.test(name) ? normalizeLuaName(name) : null;
+  }
   const nameNode = typeof node.childForFieldName === 'function'
     ? node.childForFieldName('name')
     : null;
@@ -201,6 +212,7 @@ const buildLuaTreeSitterChunks = (text, options = {}) => {
     const lineIndex = buildLineIndex(text);
     const lines = text.split('\n');
     const chunks = [];
+    const declarations = new Map();
     for (const node of nodes) {
       const start = Number(node?.startIndex);
       const end = Number(node?.endIndex);
@@ -211,7 +223,7 @@ const buildLuaTreeSitterChunks = (text, options = {}) => {
       const signature = (text.slice(start, Math.min(end, start + 240)).split('\n', 1)[0] || '').trim();
       const startLine = offsetToLine(lineIndex, start);
       const docstring = extractDocComment(lines, Math.max(0, startLine - 1), LUA_DOC_OPTIONS);
-      chunks.push({
+      const chunk = {
         start,
         end,
         name,
@@ -223,9 +235,17 @@ const buildLuaTreeSitterChunks = (text, options = {}) => {
           params: parseLuaParams(signature),
           docstring
         }
-      });
+      };
+      chunks.push(chunk);
+      let callable = node;
+      if (node.type === 'assignment_statement') {
+        const values = Array.from({length:getNamedChildCount(node)},(_,i)=>getNamedChild(node,i)).find(child=>child.type === 'expression_list');
+        callable = getNamedChild(values,0);
+      }
+      declarations.set(`${callable.startIndex}:${callable.endIndex}`,chunk);
     }
     if (!chunks.length) return null;
+    attachSyntaxCallFacts(rootNode,text,chunks,{maxNodes:200000,declarations});
     return normalizeDeclarationList(chunks);
   } finally {
     try {
@@ -360,11 +380,21 @@ export function buildLuaRelations(text, luaChunks) {
   const exports = new Set();
   const calls = [];
   const usages = new Set();
+  if (Array.isArray(luaChunks) && luaChunks.every(chunk=>Array.isArray(chunk.meta?.syntaxCalls))) {
+    return {imports,exports:[],...syntaxRelationsForChunks(luaChunks)};
+  }
   if (Array.isArray(luaChunks)) {
     for (const chunk of luaChunks) {
       if (!chunk || !chunk.name || chunk.start == null || chunk.end == null) continue;
       if (!['MethodDeclaration', 'FunctionDeclaration'].includes(chunk.kind)) continue;
-      const slice = text.slice(chunk.start, chunk.end);
+      const newline = text.indexOf('\n',chunk.start);
+      let slice = newline >= 0 && newline < chunk.end ? text.slice(newline+1,chunk.end) : '';
+      // Exclude nested declaration slices from their containing fallback owner.
+      const nested = luaChunks.filter(other=>other !== chunk && other.start > chunk.start && other.end <= chunk.end).sort((a,b)=>b.start-a.start);
+      for (const other of nested) {
+        const offset = other.start - (newline+1);
+        slice = slice.slice(0,offset) + ' '.repeat(Math.max(0,other.end-other.start)) + slice.slice(offset + other.end-other.start);
+      }
       const { calls: chunkCalls, usages: chunkUsages } = collectLuaCallsAndUsages(slice);
       for (const callee of chunkCalls) calls.push([chunk.name, callee]);
       for (const usage of chunkUsages) usages.add(usage);

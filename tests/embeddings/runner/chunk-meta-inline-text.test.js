@@ -44,10 +44,10 @@ const hashCrlf = buildNormalizedChunkPayloadHash({
   codeText: 'alpha\r\nbeta',
   docText: 'gamma\r\ndelta'
 });
-assert.equal(
+assert.notEqual(
   hashLf,
   hashCrlf,
-  'expected normalized chunk payload hash to ignore CRLF/LF line ending differences'
+  'exact provider inputs preserve CRLF/LF differences instead of normalizing only the cache key'
 );
 
 const hashDifferent = buildNormalizedChunkPayloadHash({

@@ -61,9 +61,9 @@ export const renderGraphContextPack = (pack) => {
     lines.push('## Witness Paths');
     for (const path of paths) {
       const nodesText = Array.isArray(path?.nodes)
-        ? path.nodes.map(formatRef).join(' -> ')
+        ? path.nodes.map(formatRiskNodeRef).join(' -> ')
         : '';
-      lines.push(`- ${formatRef(path?.to)} (${path?.distance ?? 0}): ${nodesText}`);
+      lines.push(`- ${formatRiskNodeRef(path?.to)} (${path?.distance ?? 0}): ${nodesText}`);
     }
   }
 

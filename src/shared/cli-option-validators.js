@@ -1,5 +1,6 @@
 import { validateConfig } from '../config/validate.js';
 import { BENCH_OPTIONS, INDEX_BUILD_OPTIONS } from './cli-option-sets.js';
+import { normalizeIndexBuildStage } from './indexing/stages.js';
 
 const CLI_META_KEYS = new Set(['_', '$0', 'help', 'h']);
 
@@ -77,6 +78,21 @@ export function validateBuildArgs(argv) {
   }
   const result = validateConfig(INDEX_BUILD_SCHEMA, extractKnownArgs(argv, keys));
   if (!result.ok) throwOnErrors('build-index args', result.errors, 'ERR_BUILD_ARG_VALIDATION');
+  validateBuildIntent(argv);
+}
+
+/** Admission shared by CLI parsing and direct core calls, before any build work. */
+export function validateBuildIntent(argv = {}) {
+  const errors = [];
+  if (Array.isArray(argv._) && argv._.length) errors.push(`unexpected positional arguments: ${argv._.join(', ')}`);
+  if (argv.stage !== undefined && (typeof argv.stage !== 'string' || !normalizeIndexBuildStage(argv.stage))) {
+    errors.push('stage must be 1|2|3|4, stage1|stage2|stage3|stage4, sparse|enrich|full|embeddings|embed|sqlite|ann');
+  }
+  const modes = ['code', 'prose', 'extracted-prose', 'records', 'all', 'both'];
+  if (argv.mode !== undefined && (typeof argv.mode !== 'string' || !modes.includes(argv.mode.trim().toLowerCase()))) errors.push('mode must be code|prose|extracted-prose|records|all|both');
+  if (Array.isArray(argv.modes) && argv.modes.some(mode => !['code', 'prose', 'extracted-prose', 'records'].includes(mode))) errors.push('modes contains an unsupported index mode');
+  if (argv.quality !== undefined && (typeof argv.quality !== 'string' || !['fast', 'balanced', 'max'].includes(argv.quality.trim().toLowerCase()))) errors.push('quality must be fast|balanced|max');
+  throwOnErrors('build-index intent', errors, 'ERR_BUILD_ARG_VALIDATION');
 }
 
 export function validateBenchArgs(argv, { allowedOptions } = {}) {

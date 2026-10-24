@@ -4,6 +4,7 @@ export {
   resolveRepoRoot,
   getRepoRoot,
   getRepoCacheRoot,
+  resolveRepoCacheRootPath,
   getBuildsRoot,
   getCurrentBuildInfo,
   resolveCurrentBuildModeRoot,

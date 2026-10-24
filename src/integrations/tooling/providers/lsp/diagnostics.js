@@ -1,5 +1,5 @@
 import { pathToFileUri } from '../../lsp/client.js';
-import { rangeToOffsets } from '../../lsp/positions.js';
+import { exactRangeToOffsets, buildLspLineIndex } from '../../lsp/positions.js';
 import { buildVfsUri } from '../../lsp/uris.js';
 import { resolveVfsDiskPath } from '../../../../index/tooling/vfs.js';
 import { throwIfAborted } from '../../../../shared/abort.js';
@@ -57,6 +57,7 @@ export const createDiagnosticsCollector = ({
   requireOwnedDocuments = false
 }) => {
   const diagnosticsByUri = new Map();
+  const diagnosticEvidenceByUri = new Map();
   const drainListeners = new Set();
   const documentVersions = new Map();
   const ownershipLimit = Math.min(DEFAULT_MAX_DIAGNOSTIC_URIS, Number(maxDiagnosticUris) || DEFAULT_MAX_DIAGNOSTIC_URIS) * 2;
@@ -64,13 +65,15 @@ export const createDiagnosticsCollector = ({
     if (!captureDiagnostics || !uri || (!documentVersions.has(uri) && documentVersions.size >= ownershipLimit)) return;
     documentVersions.set(uri, version);
     diagnosticsByUri.delete(uri);
+    diagnosticEvidenceByUri.delete(uri);
   };
   const unregisterDocument = (uri) => {
     documentVersions.delete(uri);
     diagnosticsByUri.delete(uri);
+    diagnosticEvidenceByUri.delete(uri);
   };
 
-  const setDiagnosticsForUri = (uri, diagnostics) => {
+  const setDiagnosticsForUri = (uri, diagnostics, version = null) => {
     const source = Array.isArray(diagnostics) ? diagnostics : [];
     if (!uri) return;
 
@@ -89,10 +92,15 @@ export const createDiagnosticsCollector = ({
 
     if (diagnosticsByUri.has(uri)) diagnosticsByUri.delete(uri);
     diagnosticsByUri.set(uri, limited);
+    diagnosticEvidenceByUri.set(uri, { uri, version,
+      ownedVersion: documentVersions.get(uri) ?? null,
+      versionState: version === null ? 'unknown' : documentVersions.has(uri) ? 'exact' : 'unowned',
+      truncated: source.length > limited.length, observed: true });
     while (diagnosticsByUri.size > maxDiagnosticUris) {
       const oldest = diagnosticsByUri.keys().next();
       if (oldest.done) break;
       diagnosticsByUri.delete(oldest.value);
+      diagnosticEvidenceByUri.delete(oldest.value);
       if (!checkFlags.diagnosticsUriBufferTrimmed) {
         checkFlags.diagnosticsUriBufferTrimmed = true;
         checks.push({
@@ -114,7 +122,7 @@ export const createDiagnosticsCollector = ({
     if (requireOwnedDocuments && !documentVersions.has(uri)) return;
     if (documentVersions.has(uri) && msg.params.version != null
       && msg.params.version !== documentVersions.get(uri)) return;
-    setDiagnosticsForUri(uri, diagnostics);
+    setDiagnosticsForUri(uri, diagnostics, msg.params.version ?? null);
   };
 
   /** Wait once for the first diagnostic result per document/optional URI alias. */
@@ -168,7 +176,12 @@ export const createDiagnosticsCollector = ({
     });
   };
 
-  return { diagnosticsByUri, onNotification, setDiagnosticsForUri, waitForDiagnostics, registerDocument, unregisterDocument };
+  const getEvidenceForUri = uri => diagnosticEvidenceByUri.has(uri)
+    ? { ...diagnosticEvidenceByUri.get(uri), diagnostics: structuredClone(diagnosticsByUri.get(uri)) }
+    : { uri, observed: false, version: null, ownedVersion: documentVersions.get(uri) ?? null,
+      versionState: 'unknown', truncated: false, diagnostics: null };
+  return { diagnosticsByUri, diagnosticEvidenceByUri, getEvidenceForUri, onNotification,
+    setDiagnosticsForUri, waitForDiagnostics, registerDocument, unregisterDocument };
 };
 
 /**
@@ -189,7 +202,7 @@ export const shapeDiagnosticsByChunkUid = ({
   diskPathMap,
   resolvedRoot,
   resolvedScheme,
-  lineIndexFactory,
+  lineIndexFactory = buildLspLineIndex,
   maxDiagnosticsPerChunk,
   checks,
   checkFlags,
@@ -234,7 +247,7 @@ export const shapeDiagnosticsByChunkUid = ({
       if (rangeKey !== null && rangeTargets.has(rangeKey)) {
         target = rangeTargets.get(rangeKey);
       } else {
-        const offsets = rangeToOffsets(lineIndex, diag.range, {
+        const offsets = exactRangeToOffsets(lineIndex, diag.range, {
           text: docText,
           positionEncoding
         });

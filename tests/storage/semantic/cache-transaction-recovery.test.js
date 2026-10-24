@@ -22,8 +22,7 @@ try {
   for (const file of ['input.js', 'stable-a.js', 'stable-b.js', 'stable-c.js']) await fixture.createFile({ file });
   await buildDatabaseFromBundles({ ...options, envConfig: { bundleThreads: 1 }, threadLimits: { fileConcurrency: 1 } });
   const before = snapshot();
-  const changed = await fixture.createFile({ text: 'g(2);', analysisReason: 'deferred_new_policy' });
-  changed.entry.hash = 'changed-ordinary-hash';
+  const changed = await fixture.createFile({ text: 'g(2);', analysisReason: 'deferred_new_policy', fileHash: 'changed-ordinary-hash' });
   fixture.manifest.semanticGeneration = { baseBuildId: 'failed-update', semanticRevision: 0 };
   for (const cancel of [false, true]) {
     const controller = new AbortController();
@@ -50,8 +49,10 @@ try {
       };
       return db;
     }
-    await assert.rejects(incrementalUpdateDatabase({ ...options, Database: FaultDatabase, signal: controller.signal }),
-      cancel ? error => error.name === 'AbortError' || error.code === 'ABORT_ERR' : /injected semantic projection failure/);
+    await assert.rejects(async () => {
+      const result = await incrementalUpdateDatabase({ ...options, Database: FaultDatabase, signal: controller.signal });
+      assert.equal(result.used, true, `transactional fixture was refused: ${JSON.stringify(result)}`);
+    }, cancel ? error => error.name === 'AbortError' || error.code === 'ABORT_ERR' : /injected semantic projection failure/);
     assert.equal(injected, 1, 'fault fires after canonical semantic rows and ordinary changes were written');
     assert.deepEqual(snapshot(), before, 'caller transaction rolls back ordinary rows, semantic projections and generation together');
   }

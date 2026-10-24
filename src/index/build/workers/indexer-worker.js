@@ -1,7 +1,9 @@
 import { parentPort as nativeParentPort, threadId as nativeThreadId, workerData as nativeWorkerData } from 'node:worker_threads';
+import { executeTokenizeBatch } from './tokenize-batch.js';
 import { observeWorkerHeap } from '../../../shared/workers/heap-contract.js';
 import util from 'node:util';
 import { quantizeVec } from '../../embedding.js';
+import { resolveEmbeddingQuantizationSpec } from '../../../shared/embedding-quantization-spec.js';
 import {
   createTokenizationBuffers,
   createTokenizationContext,
@@ -106,7 +108,10 @@ const formatWorkerError = (err, label) => {
     stack ? `Stack: ${stack}` : '',
     detail ? `Cause: ${detail}` : ''
   ].filter(Boolean);
-  return new Error(lines.join('\n'));
+  const wrapped = new Error(lines.join('\n'), { cause: err });
+  wrapped.name = name;
+  if (typeof err?.code === 'string') wrapped.code = err.code;
+  return wrapped;
 };
 
 const cloneScanDefaults = { maxDepth: 4, maxItems: 40, tailItems: 3 };
@@ -242,6 +247,7 @@ const sanitizeTokenizeResult = (result) => {
     ngrams: Array.isArray(result?.ngrams) ? normalizeStringArray(result.ngrams) : undefined,
     chargrams: Array.isArray(result?.chargrams) ? normalizeStringArray(result.chargrams) : undefined,
     minhashSig: normalizeNumberArray(result?.minhashSig),
+    minhashHashIdentity: result?.minhashHashIdentity ?? null,
     stats: {
       unique: Number(stats.unique) || 0,
       entropy: Number.isFinite(Number(stats.entropy)) ? Number(stats.entropy) : 0,
@@ -268,7 +274,7 @@ const reportTiming = (label, startedAt, status) => {
   const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
   parentPort.postMessage({
     type: 'worker-task',
-    task: label === 'tokenizeChunk' ? 'tokenize' : 'quantize',
+    task: label.startsWith('tokenize') ? 'tokenize' : label === 'quantizeVectors' ? 'quantize' : 'unknown',
     threadId,
     durationMs,
     status
@@ -342,6 +348,8 @@ let lastResult = null;
 
 const withWorkerError = (fn, label) => async (input) => {
   const startedAt = process.hrtime.bigint();
+  parentPort?.postMessage({ type: 'worker-task-start', threadId,
+    task: label.startsWith('tokenize') ? 'tokenize' : label === 'quantizeVectors' ? 'quantize' : 'unknown' });
   lastTask = label;
   lastStage = 'payload';
   lastPayload = input;
@@ -366,30 +374,33 @@ const withWorkerError = (fn, label) => async (input) => {
   }
 };
 
-export const tokenizeChunk = withWorkerError(
-  async (input) => {
-    const hasOverrides = input && (input.dictConfig || input.postingsConfig);
-    const context = hasOverrides
-      ? createTokenizationContext({
-        dictWords,
-        dictConfig: input.dictConfig || dictConfig,
-        postingsConfig: {
-          ...(input.postingsConfig || postingsConfig),
-          tokenClassification: { enabled: false }
-        },
-        codeDictWords,
-        codeDictWordsByLanguage,
-        codeDictLanguages,
-        treeSitter: null
-      })
-      : tokenContext;
-    const result = tokenizeChunkText({ ...input, context, buffers: tokenBuffers });
-    return sanitizeTokenizeResult(result);
-  },
-  'tokenizeChunk'
-);
+const resolveTaskTokenContext = input => input && (input.dictConfig || input.postingsConfig)
+  ? createTokenizationContext({ dictWords, dictConfig: input.dictConfig || dictConfig,
+    postingsConfig: { ...(input.postingsConfig || postingsConfig), tokenClassification: { enabled: false } },
+    codeDictWords, codeDictWordsByLanguage, codeDictLanguages, treeSitter: null })
+  : tokenContext;
+const tokenizeOne = (input, context = resolveTaskTokenContext(input)) =>
+  sanitizeTokenizeResult(tokenizeChunkText({ ...input, context, buffers: tokenBuffers }));
+export const tokenizeChunk = withWorkerError(tokenizeOne, 'tokenizeChunk');
+export const tokenizeBatch = withWorkerError(input => {
+  let context = null;
+  return executeTokenizeBatch(input, item => {
+    // Batch admission proves one policy; dictionary runtime is prepared only once.
+    context ||= resolveTaskTokenContext(item);
+    return tokenizeOne(item, context);
+  });
+}, 'tokenizeBatch');
+
+// Lazy loading avoids paying compiler/lint initialization or parser-cache
+// memory in token-only workers. The existing worker heap and lifecycle own it.
+export const analyzeFile = withWorkerError(async input => {
+  const { executeFileAnalysis } = await import('./file-analysis-task.js');
+  return executeFileAnalysis(input, { dictWords, codeDictWords, codeDictWordsByLanguage, codeDictLanguages,
+    backend: nativeParentPort ? 'worker' : 'process', tokenize: tokenizeOne });
+}, 'analyzeFile');
 
 export const quantizeVectors = withWorkerError((input) => {
-  const { vectors = [], minVal = -1, maxVal = 1, levels = 256 } = input || {};
-  return vectors.map((vec) => quantizeVec(vec, minVal, maxVal, levels));
+  const { vectors = [] } = input || {};
+  const spec = resolveEmbeddingQuantizationSpec(input?.quantization || input);
+  return vectors.map((vec) => quantizeVec(vec, spec.minVal, spec.maxVal, spec.levels));
 }, 'quantizeVectors');

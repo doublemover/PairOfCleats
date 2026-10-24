@@ -201,7 +201,7 @@ try {
     null,
     serverInfo
   );
-  assert.equal(responseA.status, 200);
+  assert.equal(responseA.status, 200, JSON.stringify(responseA.body));
   assert.equal(responseA.body?.ok, true);
   assert.equal(responseA.body?.result?.asOf?.ref, `snap:${snapshotA}`);
 

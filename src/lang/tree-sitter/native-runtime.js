@@ -3,11 +3,15 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { LANGUAGE_GRAMMAR_KEYS } from './config.js';
 import { toStringArray } from '../../shared/iterables.js';
+import { fingerprintLoadedNativeArtifact } from './native-artifact-identity.js';
 
 const require = createRequire(import.meta.url);
 
 const nativeTreeSitterState = {
   ParserCtor: null,
+  parserIdentity: null,
+  parserIdentityTried: false,
+  parserIdentityFailure: null,
   initError: null,
   initTried: false,
   grammarCache: new Map(), // languageId -> { language, error }
@@ -181,7 +185,7 @@ export function loadNativeTreeSitterGrammar(languageId, { log } = {}) {
     const resolved = resolveGrammarLanguageExport(grammarModule, grammarSpec);
     const language = normalizeLanguageBinding(resolved.language, grammarModule);
     if (!language) throw new Error(`Missing export "${resolved.source || 'module'}" in ${moduleName}`);
-    const entry = { language, error: null };
+    const entry = { language, error: null, identity: null, identityTried: false, identityFailure: null, exportSource: resolved.source };
     nativeTreeSitterState.grammarCache.set(languageId, entry);
     return entry;
   } catch (err) {
@@ -279,6 +283,34 @@ export function getNativeTreeSitterParser(languageId, options = {}) {
     return null;
   }
 }
+
+/** Portable data identity only; no parser, language, tree or node escapes. */
+export const getNativeTreeSitterIdentity = languageId => {
+  const grammar = nativeTreeSitterState.grammarCache.get(languageId);
+  if (!nativeTreeSitterState.ParserCtor || !grammar?.language) return null;
+  if (nativeTreeSitterState.parserIdentityFailure) throw nativeTreeSitterState.parserIdentityFailure;
+  if (grammar.identityFailure) throw grammar.identityFailure;
+  if (!nativeTreeSitterState.parserIdentityTried) {
+    nativeTreeSitterState.parserIdentityTried = true;
+    try {
+      nativeTreeSitterState.parserIdentity = fingerprintLoadedNativeArtifact({ require,
+        value: nativeTreeSitterState.ParserCtor, moduleName: 'tree-sitter', exportKey: 'Parser' });
+    } catch (error) { nativeTreeSitterState.parserIdentityFailure = error; throw error; }
+  }
+  if (!grammar.identityTried) {
+    grammar.identityTried = true;
+    try {
+      grammar.identity = fingerprintLoadedNativeArtifact({ require, value: grammar.language,
+        moduleName: resolveGrammarModule(languageId).moduleName, exportKey: grammar.exportSource });
+    } catch (error) { grammar.identityFailure = error; throw error; }
+  }
+  if (!nativeTreeSitterState.parserIdentity || !grammar?.identity || !grammar.language) return null;
+  return Object.freeze({ version: 1, runtimeKind: 'native-tree-sitter', languageId,
+    grammarKey: LANGUAGE_GRAMMAR_KEYS[languageId] || 'native:' + languageId,
+    parserArtifact: nativeTreeSitterState.parserIdentity, grammarArtifact: grammar.identity,
+    grammarExport: grammar.exportSource || 'module', node: process.versions.node,
+    abi: process.versions.modules, platform: process.platform, arch: process.arch });
+};
 
 export function warmupNativeTreeSitterParsers(languageIds = [], options = {}) {
   const unique = Array.from(new Set(toStringArray(languageIds)));

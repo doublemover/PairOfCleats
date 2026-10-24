@@ -429,35 +429,16 @@ export const runPipelineStageOrchestrator = async ({
   let crossFileEnabled = false;
   let graphRelations = null;
   if (crossFileInferenceEnabled || importGraphEnabled) {
-    const relationsResult = await (runtimeRef.scheduler?.schedule
-      ? runtimeRef.scheduler.schedule(
-        SCHEDULER_QUEUE_NAMES.stage2Relations,
-        {
-          cpu: 1,
-          mem: 1,
-          signal: effectiveAbortSignal
-        },
-        () => runCrossFileInference({
-          runtime: runtimeRef,
-          mode,
-          state,
-          crashLogger,
-          featureMetrics,
-          relationsEnabled: importGraphEnabled,
-          crossFileInferenceEnabled,
-          abortSignal: effectiveAbortSignal
-        })
-      )
-      : runCrossFileInference({
-        runtime: runtimeRef,
-        mode,
-        state,
-        crashLogger,
-        featureMetrics,
-        relationsEnabled: importGraphEnabled,
-        crossFileInferenceEnabled,
-        abortSignal: effectiveAbortSignal
-      }));
+    const relationsResult = await runCrossFileInference({
+      runtime: runtimeRef,
+      mode,
+      state,
+      crashLogger,
+      featureMetrics,
+      relationsEnabled: importGraphEnabled,
+      crossFileInferenceEnabled,
+      abortSignal: effectiveAbortSignal
+    });
     crossFileEnabled = relationsResult?.crossFileEnabled === true;
     graphRelations = relationsResult?.graphRelations || null;
   } else if (tinyRepoFastPathActive) {

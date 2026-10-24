@@ -1,3 +1,5 @@
+import { MINHASH_HASH_IDENTITY } from '../../../../src/index/minhash.js';
+import { quantizeEmbeddingVector } from '../../../../src/shared/embedding-quantization.js';
 import { SimpleMinHash } from '../../../../src/index/minhash.js';
 import { createRetrievalStageTracker } from '../../../../src/retrieval/pipeline/stage-checkpoints.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
@@ -32,9 +34,9 @@ export const createFilteredMinhashIndex = () => ({
       [0.2, 0.2],
       [0.3, 0.3],
       [0.4, 0.4]
-    ]
+    ].map(vector => quantizeEmbeddingVector(vector))
   },
-  minhash: {
+  minhash: { hashIdentity: MINHASH_HASH_IDENTITY,
     signatures: [
       signatureForTokens(['alpha', 'core']),
       signatureForTokens(['alpha', 'extra']),
@@ -59,7 +61,8 @@ export const createFilteredMinhashPipelineFixture = ({
     annCandidateCap: 100,
     annCandidateMinDocCount: 3,
     minhashMaxDocs: 2,
-    stageTracker
+    stageTracker,
+    overrides: { annDiscovery: 'lexical-rerank' }
   });
 
   return {

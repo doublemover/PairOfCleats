@@ -4,7 +4,8 @@ import { parseIndexRef, resolveIndexRef } from './index-ref.js';
 const invalidRequest = (message, details = null) => createError(ERROR_CODES.INVALID_REQUEST, message, details);
 
 const normalizeString = (value) => {
-  if (typeof value !== 'string') return null;
+  if (value == null) return null;
+  if (typeof value !== 'string' || !value.trim()) throw invalidRequest('Historical selector must be a nonblank string.');
   const trimmed = value.trim();
   return trimmed || null;
 };
@@ -98,6 +99,7 @@ export function resolveAsOfContext({
   repoRoot,
   userConfig = null,
   requestedModes = [],
+  optionalModes = [],
   asOf = null,
   snapshot = null,
   preferFrozen = true,
@@ -111,10 +113,15 @@ export function resolveAsOfContext({
       ref: normalized.inputRef,
       repoRoot,
       userConfig,
-      requestedModes,
+      requestedModes: [...new Set([...requestedModes, ...optionalModes])],
       preferFrozen,
-      allowMissingModes: strictInput ? false : allowMissingModesForLatest === true
+      allowMissingModes: optionalModes.length ? true : (strictInput ? false : allowMissingModesForLatest === true)
     });
+    if (strictInput) {
+      for (const mode of requestedModes) {
+        if (!resolved.indexDirByMode?.[mode]) throw invalidRequest(`Selected index reference has no ${mode} generation.`);
+      }
+    }
     const strictRef = normalized.provided && resolved.canonical !== 'latest';
     return {
       provided: normalized.provided,

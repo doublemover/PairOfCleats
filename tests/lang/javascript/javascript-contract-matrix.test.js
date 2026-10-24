@@ -46,6 +46,26 @@ const cases = [
     }
   },
   {
+    name: 'buildJsChunks retains exported values beside functions',
+    async run() {
+      const source = [
+        'export function greet(name) { return `hello ${name}`; }',
+        'export const answer = 42, label = "value";',
+        'export const {nested: renamed, ...rest} = options;',
+        'export let pending;',
+        'export const callback = () => answer;'
+      ].join('\n');
+      const chunks = buildJsChunks(source);
+      for (const name of ['greet', 'answer', 'label', 'renamed', 'rest', 'pending', 'callback']) {
+        const chunk = chunks.find(value => value.name === name);
+        assert.ok(chunk, `missing exported declaration ${name}`);
+        assert.ok(source.slice(chunk.start, chunk.end).includes(name));
+        assert.equal(chunks.filter(value => value.name === name).length, 1);
+      }
+      assert.equal(chunks.find(value => value.name === 'callback').kind, 'ExportedArrowFunction');
+    }
+  },
+  {
     name: 'buildCodeRelations preserves imports, calls, and exports',
     async run() {
       const source = [

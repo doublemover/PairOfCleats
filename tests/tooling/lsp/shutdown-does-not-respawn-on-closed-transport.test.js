@@ -83,10 +83,14 @@ const runRestartDuringShutdownCase = async ({ respondBeforeRestart }) => {
     }
     original.exitCode = 0;
     const killing = fakeClient.kill();
+    assert.throws(() => fakeClient.start(), { code: 'ERR_LSP_RESTART_STALE_PROCESS' });
+    original.emit('exit', 0, null);
+    original.emit('close', 0, null);
+    await killing;
+    assert.equal((await fakeClient.waitForResourceSettlement()).settled, true);
     const replacement = fakeClient.start();
     const response = fakeClient.request('test/replacement', null, { timeoutMs: 1000 })
       .then((value) => ({ value }), (error) => ({ error }));
-    await killing;
     const requestMessage = await waitForMessage(replacement, messagesByChild.get(replacement), 'test/replacement');
 
     assert.equal(shutdownSettled, true, 'expected old shutdown not to wait for the replacement process');

@@ -1,3 +1,5 @@
+import { returnTypeSupportKey } from './return-evidence.js';
+
 const ensureInferred = (docmeta) => {
   if (!docmeta.inferredTypes || typeof docmeta.inferredTypes !== 'object') {
     docmeta.inferredTypes = {};
@@ -15,16 +17,22 @@ const ensureParamMap = (value) => {
   return next;
 };
 
-export const addInferredReturn = (docmeta, type, source, confidence) => {
+export const addInferredReturn = (docmeta, type, source, confidence, evidence = null) => {
   if (!type) return false;
   const inferred = ensureInferred(docmeta);
   if (!Array.isArray(inferred.returns)) inferred.returns = [];
-  const existing = inferred.returns.find((entry) => entry.type === type && entry.source === source);
+  const support = returnTypeSupportKey(evidence);
+  const existing = inferred.returns.find((entry) => entry.type === type && entry.source === source
+    && returnTypeSupportKey(entry.evidence) === support);
   if (existing) {
-    existing.confidence = Math.max(existing.confidence || 0, confidence);
+    if (Number.isFinite(confidence) && (!Number.isFinite(existing.confidence) || confidence > existing.confidence)) {
+      existing.confidence = confidence;
+      if (evidence) existing.evidence = evidence;
+    }
     return true;
   }
-  inferred.returns.push({ type, source, confidence });
+  inferred.returns.push({ type, source, confidence: Number.isFinite(confidence) ? confidence : null,
+    ...(evidence ? { evidence } : {}) });
   return true;
 };
 

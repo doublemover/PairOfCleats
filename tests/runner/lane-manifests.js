@@ -38,8 +38,8 @@ const parseOrderFile = async (filePath) => {
     .filter((line) => line && !line.startsWith('#'));
 };
 
-const parseLogTimesArtifact = async (filePath) => {
-  const raw = await fsPromises.readFile(filePath, 'utf8');
+const parseLogTimesArtifact = async (filePath, readText = null) => {
+  const raw = await (readText ? readText(filePath) : fsPromises.readFile(filePath, 'utf8'));
   const map = new Map();
   for (const line of raw.split(/\r?\n/)) {
     const trimmed = line.trim();
@@ -51,8 +51,8 @@ const parseLogTimesArtifact = async (filePath) => {
   return map;
 };
 
-const parseTimingsArtifact = async (filePath) => {
-  const parsed = JSON.parse(await fsPromises.readFile(filePath, 'utf8'));
+const parseTimingsArtifact = async (filePath, readText = null) => {
+  const parsed = JSON.parse(await (readText ? readText(filePath) : fsPromises.readFile(filePath, 'utf8')));
   const tests = Array.isArray(parsed?.tests) ? parsed.tests : [];
   const map = new Map();
   for (const test of tests) {
@@ -64,7 +64,7 @@ const parseTimingsArtifact = async (filePath) => {
   return map;
 };
 
-const loadTimingMaps = async ({ root, timingArtifactPaths = [] }) => {
+const loadTimingMaps = async ({ root, timingArtifactPaths = [], readText = null }) => {
   const resolvedPaths = [];
   const maps = [];
   for (const rawPath of timingArtifactPaths) {
@@ -80,7 +80,7 @@ const loadTimingMaps = async ({ root, timingArtifactPaths = [] }) => {
       ? parseTimingsArtifact
       : parseLogTimesArtifact;
     try {
-      maps.push(await parser(absolutePath));
+      maps.push(await parser(absolutePath, readText));
       resolvedPaths.push(absolutePath);
     } catch {}
   }
@@ -144,11 +144,13 @@ export const loadLaneManifestConfig = async ({ root, configPath } = {}) => {
   });
 };
 
-export const buildOrderedLaneManifest = async ({ root, laneConfig }) => {
-  const orderIds = await parseOrderFile(laneConfig.orderFilePath);
+export const buildOrderedLaneManifest = async ({ root, laneConfig, snapshot = null }) => {
+  snapshot?.assertRoot(root);
+  const orderIds = await (snapshot ? snapshot.readOrderIds(laneConfig.orderFilePath) : parseOrderFile(laneConfig.orderFilePath));
   const { maps, resolvedPaths } = await loadTimingMaps({
     root,
-    timingArtifactPaths: laneConfig.timingArtifactPaths
+    timingArtifactPaths: laneConfig.timingArtifactPaths,
+    readText: snapshot?.readText || null
   });
   const mergedTimings = mergeTimingMaps(maps);
   const tests = orderIds.map((id, index) => {
@@ -182,14 +184,16 @@ export const writeOrderedLaneManifest = async ({ manifest, outputPath }) => {
   await fsPromises.writeFile(outputPath, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
 };
 
-export const generateLaneManifests = async ({ root, configPath } = {}) => {
+export const generateLaneManifests = async ({ root, configPath, snapshot = null } = {}) => {
   const resolvedRoot = root || process.cwd();
-  const config = await loadLaneManifestConfig({ root: resolvedRoot, configPath });
+  snapshot?.assertRoot(resolvedRoot);
+  if (snapshot && configPath && path.resolve(resolvedRoot, configPath) !== snapshot.laneConfig.configPath) throw new Error('Governance snapshot config mismatch.');
+  const config = snapshot?.laneConfig || await loadLaneManifestConfig({ root: resolvedRoot, configPath });
   const manifests = new Map();
   for (const laneConfig of config.orderedLanes.values()) {
     const manifest = await buildOrderedLaneManifest({
       root: resolvedRoot,
-      laneConfig
+      laneConfig, snapshot
     });
     await writeOrderedLaneManifest({
       manifest,
@@ -200,6 +204,7 @@ export const generateLaneManifests = async ({ root, configPath } = {}) => {
       manifestPath: laneConfig.manifestPath
     });
   }
+  snapshot?.acceptGeneratedManifests(manifests);
   return {
     config,
     manifests

@@ -214,6 +214,7 @@ export async function getGitLineAuthorsForFile(file, options = {}) {
   const timeoutLadderMs = resolveBlameTimeoutLadder(timeoutMs);
   const signal = options.signal || null;
   const commitId = normalizeCommitId(options.commitId);
+  if (options.commitId != null && !commitId) return null;
   const blameKey = buildLocalCacheKey({
     namespace: 'git-blame',
     payload: {
@@ -225,7 +226,9 @@ export async function getGitLineAuthorsForFile(file, options = {}) {
 
   if (isGitTemporarilyDisabled(baseDir, GIT_FAILURE_SCOPE.BLAME)) return null;
 
-  const cached = gitBlameCache.get(blameKey);
+  // Current-working-tree blame has no immutable revision identity, including
+  // dirty/untracked changes. Only explicitly pinned commits are cacheable.
+  const cached = commitId ? gitBlameCache.get(blameKey) : null;
   if (cached) return cached;
 
   try {
@@ -235,7 +238,7 @@ export async function getGitLineAuthorsForFile(file, options = {}) {
       try {
         let blame = null;
         if (attemptTimeoutMs || signal) {
-          const result = await runScmCommand('git', ['-C', baseDir, 'blame', '--line-porcelain', '--', fileArg], {
+          const result = await runScmCommand('git', ['-C', baseDir, 'blame', '--line-porcelain', ...(commitId ? [commitId] : []), '--', fileArg], {
             outputMode: 'string',
             captureStdout: true,
             captureStderr: true,
@@ -250,7 +253,7 @@ export async function getGitLineAuthorsForFile(file, options = {}) {
           blame = result.stdout;
         } else {
           const git = simpleGit({ baseDir });
-          blame = await git.raw(['blame', '--line-porcelain', '--', fileArg]);
+          blame = await git.raw(['blame', '--line-porcelain', ...(commitId ? [commitId] : []), '--', fileArg]);
         }
         lineAuthors = parseLineAuthors(blame);
         break;
@@ -263,7 +266,7 @@ export async function getGitLineAuthorsForFile(file, options = {}) {
         }
       }
     }
-    if (lineAuthors) gitBlameCache.set(blameKey, lineAuthors);
+    if (lineAuthors && commitId) gitBlameCache.set(blameKey, lineAuthors);
     clearGitFailureState(baseDir, GIT_FAILURE_SCOPE.BLAME);
     return lineAuthors || null;
   } catch (err) {

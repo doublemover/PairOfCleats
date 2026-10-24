@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { EMBEDDING_CHUNK_INPUT_VERSION } from '../../../src/shared/embedding-chunk-input.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -90,7 +91,7 @@ const payload = {
   key: globalKeyCode,
   hash: payloadHash,
   cacheMeta: {
-    identityKey
+    chunkInputVersion: EMBEDDING_CHUNK_INPUT_VERSION, identityKey
   },
   codeVectors: [new Uint8Array([1, 2, 3])],
   docVectors: [new Uint8Array([4, 5, 6])],

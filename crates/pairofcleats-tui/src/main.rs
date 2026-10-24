@@ -1,16 +1,41 @@
+mod review_presentation;
+mod log_layout;
+mod inspection;
+mod event_ingress;
+#[cfg(test)]
+mod input_ingress_tests;
+#[cfg(test)]
+mod recording_tests;
+mod recordings;
+mod search;
+mod settings;
 mod supervisor_lifetime;
+mod supervisor_transport;
+#[cfg(test)]
+mod viewport_tests;
+#[cfg(test)]
+mod activity_tests;
+#[cfg(test)]
+mod workflow_tests;
+mod workflows;
+mod text_editor;
+mod interaction;
+mod actions;
 use supervisor_lifetime::SupervisorLifetime;
 
 use std::collections::{BTreeMap, HashMap, VecDeque};
+mod task_state;
+mod overlay_viewport;
+use task_state::{Lifecycle, TaskState};
 use std::fs;
-use std::io::{BufRead, BufReader, Write};
+use std::io::{BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::mpsc::{self, Receiver};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use crossterm::event::{
-    self, DisableMouseCapture, EnableMouseCapture, Event as CEvent, KeyCode, KeyEventKind,
+    self, DisableMouseCapture, EnableMouseCapture, DisableBracketedPaste, EnableBracketedPaste, Event as CEvent, KeyCode, KeyEvent,
+    KeyEventKind, KeyModifiers,
 };
 use crossterm::execute;
 use crossterm::terminal::{
@@ -19,6 +44,7 @@ use crossterm::terminal::{
 use ratatui::backend::{CrosstermBackend, TestBackend};
 use ratatui::layout::{Constraint, Direction, Layout};
 use ratatui::style::{Color, Modifier, Style};
+use ratatui::text::Span;
 use ratatui::widgets::{Block, Borders, Clear, List, ListItem, Paragraph, Wrap};
 use ratatui::Terminal;
 use serde::{Deserialize, Serialize};
@@ -83,6 +109,7 @@ impl Drop for UiGuard {
     fn drop(&mut self) {
         let _ = disable_raw_mode();
         let mut stdout = std::io::stdout();
+        let _ = execute!(stdout, DisableBracketedPaste);
         if self.caps.mouse {
             let _ = execute!(stdout, DisableMouseCapture);
         }
@@ -94,7 +121,29 @@ impl Drop for UiGuard {
 
 #[derive(Default, Serialize, Deserialize)]
 struct SessionSnapshot {
+    #[serde(default)]
+    focus_panel: Option<FocusPanel>,
+    #[serde(default)]
+    job_filter: Option<JobFilter>,
+    #[serde(default)]
+    task_filter: Option<TaskFilter>,
+    #[serde(default)]
+    log_level_filter: Option<LogLevelFilter>,
+    #[serde(default)]
+    log_source_filter: Option<LogSourceFilter>,
+    #[serde(default)]
+    follow_updates: Option<bool>,
+    #[serde(default)]
+    search_jobs: String,
+    #[serde(default)]
+    search_tasks: String,
+    #[serde(default)]
+    search_logs: String,
     selected_job: Option<String>,
+    #[serde(default)]
+    selected_job_pinned: bool,
+    #[serde(default)]
+    selected_job_expired: bool,
     job_scroll: usize,
     task_scroll: usize,
     log_scroll: usize,
@@ -102,17 +151,23 @@ struct SessionSnapshot {
     final_job_statuses: BTreeMap<String, String>,
 }
 
-#[derive(Default)]
+#[derive(Clone, Default)]
 struct RuntimeTelemetry {
-    event_lag_ms_ewma: f64,
+    event_lag_ms_ewma: Option<f64>,
     render_ms_ewma: f64,
-    queue_depth_ewma: f64,
+    queue_depth_ewma: Option<f64>,
+    native_inbound_pending: Option<usize>,
     dropped_chunks: u64,
     chunk_reassembled: u64,
     processed_events: u64,
+    lifecycle_dropped: u64,
 }
 
 impl RuntimeTelemetry {
+    fn update_known_ewma(current: Option<f64>, next: f64) -> Option<f64> {
+        Some(current.map_or(next, |value| value * 0.85 + next * 0.15))
+    }
+
     fn update_ewma(current: f64, next: f64) -> f64 {
         if current <= 0.0 {
             return next;
@@ -121,13 +176,14 @@ impl RuntimeTelemetry {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default, Serialize)]
 struct SessionState {
     mode: String,
     source: String,
     scope: String,
     connection: String,
     note: String,
+    controllable: bool,
 }
 
 #[derive(Clone)]
@@ -138,12 +194,14 @@ struct AlertEntry {
 
 #[derive(Clone)]
 struct LogEntry {
+    id: u64,
     text: String,
     level: String,
     source: String,
+    job_id: Option<String>,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 enum FocusPanel {
     Jobs,
     Tasks,
@@ -168,7 +226,7 @@ impl FocusPanel {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 enum JobFilter {
     All,
     Active,
@@ -196,7 +254,7 @@ impl JobFilter {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 enum TaskFilter {
     All,
     Active,
@@ -224,7 +282,7 @@ impl TaskFilter {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 enum LogLevelFilter {
     All,
     WarnError,
@@ -249,7 +307,7 @@ impl LogLevelFilter {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 enum LogSourceFilter {
     All,
     Supervisor,
@@ -280,6 +338,11 @@ enum OverlayMode {
     Help,
     Palette,
     Search,
+    Settings,
+    RepositorySearch,
+    IndexWorkflows,
+    JobInspection,
+    Recordings,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -301,7 +364,7 @@ impl WorkloadKind {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Default, Serialize)]
 struct BenchSummary {
     lane: String,
     tier: String,
@@ -314,19 +377,20 @@ struct BenchSummary {
     timeout_state: String,
 }
 
-#[derive(Default)]
+#[derive(Clone, Default, Serialize)]
 struct IndexingSummary {
     repo: String,
     stage: String,
     mode: String,
     heartbeat_age_ms: Option<u64>,
+    heartbeat_observed_ms: Option<u64>,
     artifact_write_progress: String,
     sqlite_state: String,
     validation_state: String,
     promotion_state: String,
 }
 
-#[derive(Default)]
+#[derive(Clone, Default, Serialize)]
 struct ServiceSummary {
     service: String,
     active_workers: Option<u64>,
@@ -337,7 +401,7 @@ struct ServiceSummary {
     queue_depth: Option<u64>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum PaletteAction {
     ToggleFollow,
     FocusJobs,
@@ -346,28 +410,23 @@ enum PaletteAction {
     CycleFilter,
     ClearSearch,
     RunJob,
+    Settings,
+    RepositorySearch,
+    IndexWorkflows,
+    InspectJob,
     CancelSelected,
     ShowHelp,
+    Recordings,
     Quit,
 }
 
 impl PaletteAction {
     fn label(&self) -> &'static str {
-        match self {
-            Self::ToggleFollow => "Toggle follow / pause",
-            Self::FocusJobs => "Focus jobs panel",
-            Self::FocusTasks => "Focus tasks panel",
-            Self::FocusLogs => "Focus logs panel",
-            Self::CycleFilter => "Cycle active panel filter",
-            Self::ClearSearch => "Clear current panel search",
-            Self::RunJob => "Run sample job",
-            Self::CancelSelected => "Cancel selected job",
-            Self::ShowHelp => "Open help overlay",
-            Self::Quit => "Quit TUI",
-        }
+        actions::label(*self)
     }
 }
 
+#[derive(Clone)]
 struct ChunkAssembly {
     chunk_count: usize,
     parts: Vec<Option<String>>,
@@ -473,10 +532,23 @@ struct CaptureManifest {
 
 #[derive(Clone)]
 enum InputCommand {
+    TerminalKey(KeyEvent),
+    Paste(String),
+    Mouse(interaction::MouseInput),
+    ContextHelp,
     Quit,
     RunJob,
+    Settings,
+    RepositorySearch,
+    IndexWorkflows,
+    Recordings,
+    InspectJob,
     CancelSelected,
+    SelectPreviousJob,
+    SelectNextJob,
+    FollowLatestJob,
     FocusNext,
+    ToggleMaximized,
     FocusJobs,
     FocusTasks,
     FocusLogs,
@@ -502,16 +574,30 @@ enum InputCommand {
 }
 
 struct AppModel {
+    job_inspection: inspection::InspectionUi,
+    index_workflows: workflows::WorkflowUi,
+    settings: settings::SettingsUi,
+    repository_search: search::SearchUi,
     run_id: String,
     job_status: BTreeMap<String, String>,
     job_titles: BTreeMap<String, String>,
     job_order: VecDeque<String>,
-    task_status: BTreeMap<String, String>,
+    task_status: BTreeMap<String, TaskState>,
+    task_identity: BTreeMap<String, (String, String)>,
     task_order: VecDeque<String>,
     logs: VecDeque<LogEntry>,
+    next_log_id: u64,
+    log_layout_cache: std::cell::RefCell<log_layout::LogLayoutCache>,
     alerts: VecDeque<AlertEntry>,
     session: SessionState,
+    // Set only by the owner of the real local child transport, never by data.
+    owns_control_channel: bool,
+    recordings_requested: bool,
+    recording_overlay_text: String,
+    recording_revision: u64,
     selected_job: Option<String>,
+    selected_job_pinned: bool,
+    selected_job_expired: bool,
     focus_panel: FocusPanel,
     follow_updates: bool,
     job_filter: JobFilter,
@@ -525,6 +611,18 @@ struct AppModel {
     search_target: FocusPanel,
     search_draft: String,
     palette_index: usize,
+    palette_query: String,
+    help_viewport: overlay_viewport::ReviewViewport,
+    help_revision: u64,
+    help_query: String,
+    help_editing: bool,
+    help_origin: Option<OverlayMode>,
+    maximized: bool,
+    panel_cursor: text_editor::TextCursor,
+    hit_map: std::cell::RefCell<interaction::HitMap>,
+    activity_origin: Instant,
+    activity_second: u64,
+    recorded_ms: Option<u64>,
     workload_kind: WorkloadKind,
     bench_summary: BenchSummary,
     indexing_summary: IndexingSummary,
@@ -534,6 +632,7 @@ struct AppModel {
     log_scroll: usize,
     dirty: bool,
     last_render_signature: String,
+    content_revision: u64,
     chunk_assemblies: HashMap<String, ChunkAssembly>,
     chunk_assembly_bytes: usize,
     terminal_caps: TerminalCapabilities,
@@ -545,23 +644,36 @@ struct AppModel {
     input_queue: VecDeque<(u64, InputCommand)>,
     next_input_seq: u64,
     last_input_at: Instant,
+    last_key_at: Instant,
     last_input_token: String,
 }
 
 impl AppModel {
+    fn content_changed(&mut self) {
+        self.content_revision = self.content_revision.wrapping_add(1);
+        self.dirty = true;
+    }
+
     fn new(
         run_id: String,
         terminal_caps: TerminalCapabilities,
         telemetry_file: Option<fs::File>,
     ) -> Self {
         Self {
+            job_inspection: inspection::InspectionUi::default(),
+            index_workflows: workflows::WorkflowUi::default(),
+            settings: settings::SettingsUi::default(),
+            repository_search: search::SearchUi::default(),
             run_id,
             job_status: BTreeMap::new(),
             job_titles: BTreeMap::new(),
             job_order: VecDeque::new(),
             task_status: BTreeMap::new(),
+            task_identity: BTreeMap::new(),
             task_order: VecDeque::new(),
             logs: VecDeque::new(),
+            next_log_id: 1,
+            log_layout_cache: std::cell::RefCell::new(log_layout::LogLayoutCache::default()),
             alerts: VecDeque::new(),
             session: SessionState {
                 mode: "supervised".to_string(),
@@ -572,8 +684,15 @@ impl AppModel {
                     .unwrap_or_else(|| ".".to_string()),
                 connection: "starting".to_string(),
                 note: "awaiting supervisor handshake".to_string(),
+                controllable: false,
             },
+            owns_control_channel: false,
+            recordings_requested: false,
+            recording_overlay_text: String::new(),
+            recording_revision: 0,
             selected_job: None,
+            selected_job_pinned: false,
+            selected_job_expired: false,
             focus_panel: FocusPanel::Jobs,
             follow_updates: true,
             job_filter: JobFilter::All,
@@ -587,6 +706,18 @@ impl AppModel {
             search_target: FocusPanel::Jobs,
             search_draft: String::new(),
             palette_index: 0,
+            palette_query: String::new(),
+            help_viewport: overlay_viewport::ReviewViewport::default(),
+            help_revision: 0,
+            help_query: String::new(),
+            help_editing: false,
+            help_origin: None,
+            maximized: false,
+            panel_cursor: text_editor::TextCursor::default(),
+            hit_map: std::cell::RefCell::new(interaction::HitMap::default()),
+            activity_origin: Instant::now(),
+            activity_second: 0,
+            recorded_ms: None,
             workload_kind: WorkloadKind::Generic,
             bench_summary: BenchSummary::default(),
             indexing_summary: IndexingSummary::default(),
@@ -596,6 +727,7 @@ impl AppModel {
             log_scroll: 0,
             dirty: true,
             last_render_signature: String::new(),
+            content_revision: 0,
             chunk_assemblies: HashMap::new(),
             chunk_assembly_bytes: 0,
             terminal_caps,
@@ -607,23 +739,44 @@ impl AppModel {
             input_queue: VecDeque::new(),
             next_input_seq: 1,
             last_input_at: Instant::now() - Duration::from_millis(INPUT_DEBOUNCE_MS as u64),
+            last_key_at: Instant::now() - Duration::from_millis(INPUT_DEBOUNCE_MS as u64),
             last_input_token: String::new(),
         }
     }
 
     fn push_log_entry(&mut self, text: String, level: &str, source: &str) {
-        if !self.follow_updates && !self.logs.is_empty() {
-            self.log_scroll = self.log_scroll.saturating_add(1);
+        self.push_scoped_log_entry(text, level, source, None);
+    }
+
+    fn push_scoped_log_entry(
+        &mut self,
+        text: String,
+        level: &str,
+        source: &str,
+        job_id: Option<&str>,
+    ) {
+        if self.next_log_id == u64::MAX {
+            self.log_layout_cache.borrow_mut().clear();
+            for (index, retained) in self.logs.iter_mut().enumerate() { retained.id = index as u64 + 1; }
+            self.next_log_id = self.logs.len() as u64 + 1;
         }
-        if self.logs.len() >= LOG_RING_LIMIT {
-            self.logs.pop_front();
-        }
-        self.logs.push_back(LogEntry {
+        let id = self.next_log_id;
+        self.next_log_id += 1;
+        let entry = LogEntry {
+            id,
             text,
             level: level.to_string(),
             source: source.to_string(),
-        });
-        self.dirty = true;
+            job_id: job_id.map(str::to_owned),
+        };
+        if !self.follow_updates && !self.logs.is_empty() && matches_log_entry(self, &entry) {
+            self.log_scroll = self.log_scroll.saturating_add(1);
+        }
+        if self.logs.len() >= LOG_RING_LIMIT {
+            if let Some(old) = self.logs.pop_front() { self.log_layout_cache.borrow_mut().remove(old.id); }
+        }
+        self.logs.push_back(entry);
+        self.content_changed();
     }
 
     fn push_log(&mut self, message: String) {
@@ -642,7 +795,7 @@ impl AppModel {
             level: level.to_string(),
             message: message.to_string(),
         });
-        self.dirty = true;
+        self.content_changed();
     }
 
     fn update_session_state(
@@ -686,6 +839,11 @@ impl AppModel {
             self.job_order.push_back(job_id.to_string());
             while self.job_order.len() > JOB_RING_LIMIT {
                 if let Some(old) = self.job_order.pop_front() {
+                    if self.selected_job_pinned
+                        && self.selected_job.as_deref() == Some(old.as_str())
+                    {
+                        self.selected_job_expired = true;
+                    }
                     self.job_status.remove(&old);
                     self.job_titles.remove(&old);
                 }
@@ -699,10 +857,36 @@ impl AppModel {
                     .insert(job_id.to_string(), next_title.trim().to_string());
             }
         }
-        if self.follow_updates || self.selected_job.is_none() {
+        if !self.selected_job_pinned {
             self.selected_job = Some(job_id.to_string());
+            self.selected_job_expired = false;
         }
-        self.dirty = true;
+        self.content_changed();
+    }
+
+    fn begin_job_instance(&mut self, job_id: &str) {
+        if self.selected_job_pinned && self.selected_job.as_deref() == Some(job_id) {
+            self.selected_job_expired = true;
+        }
+        let old_tasks: Vec<_> = self
+            .task_identity
+            .iter()
+            .filter(|(_, (owner, _))| owner == job_id)
+            .map(|(key, _)| key.clone())
+            .collect();
+        for key in old_tasks {
+            self.task_status.remove(&key);
+            self.task_identity.remove(&key);
+        }
+        self.task_order
+            .retain(|key| self.task_status.contains_key(key));
+        self.logs
+            .retain(|entry| entry.job_id.as_deref() != Some(job_id));
+        if self.job_status.contains_key(job_id) {
+            self.job_order.retain(|id| id != job_id);
+            self.job_order.push_back(job_id.to_owned());
+        }
+        self.content_changed();
     }
 
     fn update_task_status(
@@ -712,23 +896,43 @@ impl AppModel {
         status: &str,
         message: Option<&str>,
     ) {
-        let key = format!("{job_id}:{task_id}");
+        if Lifecycle::from_status(status) == Lifecycle::Active
+            && self.job_status.get(job_id).is_some_and(|owner| Lifecycle::from_status(owner) != Lifecycle::Active) {
+            return;
+        }
+        let key = json!([job_id, task_id]).to_string();
         if !self.task_status.contains_key(&key) {
+            self.task_identity
+                .insert(key.clone(), (job_id.to_owned(), task_id.to_owned()));
             self.task_order.push_back(key.clone());
             while self.task_order.len() > TASK_RING_LIMIT {
                 if let Some(old) = self.task_order.pop_front() {
                     self.task_status.remove(&old);
+                    self.task_identity.remove(&old);
                 }
             }
         }
-        let mut text = status.to_string();
-        if let Some(msg) = message {
-            if !msg.trim().is_empty() {
-                text = format!("{status} {msg}");
+        if let Some(task) = self.task_status.get_mut(&key) {
+            task.status = status.into(); task.message = message.filter(|text| !text.trim().is_empty()).map(str::to_owned);
+        } else { self.task_status.insert(key, TaskState::new(status, message)); }
+        self.content_changed();
+    }
+
+    fn reconcile_terminal_tasks(&mut self, job_id: &str, owner_status: &str) {
+        for (key, task) in &mut self.task_status {
+            if self.task_identity.get(key).is_some_and(|(owner, _)| owner == job_id)
+                && task.lifecycle() == Lifecycle::Active {
+                let status = if Lifecycle::from_status(owner_status) == Lifecycle::Cancelled {
+                    "cancelled"
+                } else { "unfinished" };
+                task.status = status.into();
+                task.message = Some(format!("owner ended {owner_status} before task:end"));
+                if self.owns_control_channel && self.session.mode != "replay" {
+                    task.ended_ms = Some(self.activity_origin.elapsed().as_millis().min(u64::MAX as u128) as u64);
+                } else { task.ended_ms = self.recorded_ms; }
             }
         }
-        self.task_status.insert(key, text);
-        self.dirty = true;
+        self.content_changed();
     }
 
     fn promote_workload_kind(&mut self, next_kind: WorkloadKind) {
@@ -910,14 +1114,61 @@ fn load_snapshot(snapshot_path: &Path) -> Option<SessionSnapshot> {
     serde_json::from_str::<SessionSnapshot>(&body).ok()
 }
 
-fn save_snapshot(snapshot_path: &Path, model: &AppModel) {
-    let payload = SessionSnapshot {
+fn snapshot_from_model(model: &AppModel) -> SessionSnapshot {
+    SessionSnapshot {
         selected_job: model.selected_job.clone(),
+        selected_job_pinned: model.selected_job_pinned,
+        selected_job_expired: model.selected_job_expired,
         job_scroll: model.job_scroll,
         task_scroll: model.task_scroll,
         log_scroll: model.log_scroll,
         final_job_statuses: model.job_status.clone(),
-    };
+        focus_panel: Some(model.focus_panel),
+        job_filter: Some(model.job_filter),
+        task_filter: Some(model.task_filter),
+        log_level_filter: Some(model.log_level_filter),
+        log_source_filter: Some(model.log_source_filter),
+        follow_updates: Some(model.follow_updates),
+        search_jobs: model.search_jobs.clone(),
+        search_tasks: model.search_tasks.clone(),
+        search_logs: model.search_logs.clone(),
+    }
+}
+
+fn restore_snapshot(model: &mut AppModel, snapshot: SessionSnapshot) {
+    model.selected_job = snapshot
+        .selected_job
+        .filter(|id| model.job_status.contains_key(id));
+    model.selected_job_pinned = snapshot.selected_job_pinned && model.selected_job.is_some();
+    model.selected_job_expired = snapshot.selected_job_expired && model.selected_job.is_some();
+    model.job_scroll = snapshot.job_scroll;
+    model.task_scroll = snapshot.task_scroll;
+    model.log_scroll = snapshot.log_scroll;
+    model.search_jobs = snapshot.search_jobs;
+    model.search_tasks = snapshot.search_tasks;
+    model.search_logs = snapshot.search_logs;
+    if let Some(value) = snapshot.focus_panel {
+        model.focus_panel = value;
+    }
+    if let Some(value) = snapshot.job_filter {
+        model.job_filter = value;
+    }
+    if let Some(value) = snapshot.task_filter {
+        model.task_filter = value;
+    }
+    if let Some(value) = snapshot.log_level_filter {
+        model.log_level_filter = value;
+    }
+    if let Some(value) = snapshot.log_source_filter {
+        model.log_source_filter = value;
+    }
+    if let Some(value) = snapshot.follow_updates {
+        model.follow_updates = value;
+    }
+}
+
+fn save_snapshot(snapshot_path: &Path, model: &AppModel) {
+    let payload = snapshot_from_model(model);
     if let Some(parent) = snapshot_path.parent() {
         let _ = fs::create_dir_all(parent);
     }
@@ -929,7 +1180,7 @@ fn save_snapshot(snapshot_path: &Path, model: &AppModel) {
 fn spawn_supervisor(
     run_id: &str,
     event_log_dir: &Path,
-) -> anyhow::Result<(std::process::Child, Receiver<Value>)> {
+) -> anyhow::Result<(std::process::Child, event_ingress::Receiver)> {
     let node = std::env::var_os("PAIROFCLEATS_TUI_NODE")
         .map(std::path::PathBuf::from)
         .ok_or_else(|| anyhow::anyhow!("launch the TUI through its verified wrapper"))?;
@@ -959,16 +1210,11 @@ fn spawn_supervisor(
         .stdout
         .take()
         .ok_or_else(|| anyhow::anyhow!("missing supervisor stdout"))?;
-    let (tx, rx) = mpsc::channel();
+    let (tx, rx) = event_ingress::channel();
     std::thread::spawn(move || {
-        let reader = BufReader::new(stdout);
-        for line in reader.lines().map_while(Result::ok) {
-            if line.trim().is_empty() {
-                continue;
-            }
-            if let Ok(value) = serde_json::from_str::<Value>(&line) {
-                let _ = tx.send(value);
-            }
+        if let Err(error) = supervisor_transport::read_events(BufReader::new(stdout), &tx) {
+            let _ = tx.send(json!({"event":"log", "level":"error", "source":"tui-transport",
+                "message":format!("Supervisor output transport failed ({:?}); owned shutdown is required", error.kind())}));
         }
     });
 
@@ -986,6 +1232,7 @@ fn send_request(child: &mut std::process::Child, payload: Value) -> anyhow::Resu
     Ok(())
 }
 
+#[cfg(test)]
 fn tail_window_slice<T: Clone>(items: &[T], scroll: usize, height: usize) -> Vec<T> {
     if items.is_empty() {
         return Vec::new();
@@ -998,46 +1245,50 @@ fn tail_window_slice<T: Clone>(items: &[T], scroll: usize, height: usize) -> Vec
 }
 
 fn frame_signature(model: &AppModel) -> String {
-    // Describe rendering inputs explicitly. Runtime bookkeeping (input queues,
-    // credit counters, clocks and chunk assemblies) must not trigger idle draws.
-    let logs: Vec<_> = model
-        .logs
-        .iter()
-        .map(|entry| (&entry.text, &entry.level, &entry.source))
-        .collect();
-    let alerts: Vec<_> = model
-        .alerts
-        .iter()
-        .map(|entry| (&entry.level, &entry.message))
-        .collect();
+    // Collection owners advance one revision on replacement, append and eviction.
+    // View-only checks never traverse or serialize retained logs/jobs/tasks.
+    let workload = match model.workload_kind {
+        WorkloadKind::Generic => Value::Null,
+        WorkloadKind::Bench => json!(&model.bench_summary),
+        WorkloadKind::Indexing => json!(&model.indexing_summary),
+        WorkloadKind::Service => json!(&model.service_summary),
+    };
     json!({
-        "summaries": [session_summary_text(model, usize::MAX),
-            operator_summary_text(model, usize::MAX),
-            workload_summary_text(model, usize::MAX),
-            footer_hint_text(model, usize::MAX)],
-        // Render duration is measured by drawing this very frame. It updates
-        // when another visible change draws, but cannot cause its own redraw.
-        "runtime": [json!(job_status_counts(model)), json!(task_status_counts(model)),
-            json!(format!("{:.0}", model.telemetry.queue_depth_ewma)),
-            json!(format!("{:.0}", model.telemetry.event_lag_ms_ewma)),
-            json!(model.session.note)],
-        "workloadTitle": model.workload_kind.label(),
-        "jobOrder": model.job_order,
-        "jobStatus": model.job_status,
-        "jobTitles": model.job_titles,
-        "tasks": model.task_order,
-        "taskStatus": model.task_status,
-        "logs": logs,
-        "alerts": alerts,
+        "contentRevision": model.content_revision,
+        "runId": model.run_id,
+        "session": &model.session,
+        "workloadKind": model.workload_kind.label(),
+        "workload": workload,
+        // Transport clocks/credits/input queues stay excluded. The visible
+        // activity clock contributes only its bounded one-second revision below.
+        "runtime": [json!(metric_label(model.telemetry.queue_depth_ewma)),
+            json!(metric_label(model.telemetry.event_lag_ms_ewma)),
+            json!(model.telemetry.native_inbound_pending)],
         "selectedJob": model.selected_job,
+        "selectedJobPinned": model.selected_job_pinned,
+        "selectedJobExpired": model.selected_job_expired,
+        "ownsControl": model.owns_control_channel,
+        "focus": model.focus_panel.label(),
+        "follow": model.follow_updates,
+        "filters": [model.job_filter.label(), model.task_filter.label(),
+            model.log_level_filter.label(), model.log_source_filter.label()],
         "scroll": [model.job_scroll, model.task_scroll, model.log_scroll],
         "search": [&model.search_jobs, &model.search_tasks, &model.search_logs],
         "searchTarget": model.search_target.label(),
         "searchDraft": model.search_draft,
         "paletteIndex": model.palette_index,
+        "paletteQuery": model.palette_query,
+        "helpRevision": model.help_revision,
+        "activitySecond": model.activity_second,
+        "maximized": model.maximized,
+        "overlay": footer_hint_text(model, usize::MAX),
+        "indexWorkflowRevision": if model.overlay == OverlayMode::IndexWorkflows {model.index_workflows.revision} else {0},
+        "recordingRevision": if model.overlay == OverlayMode::Recordings {model.recording_revision} else {0},
+        "settingsRevision": if model.overlay == OverlayMode::Settings {model.settings.revision} else {0},
+        "repositorySearchRevision": if model.overlay == OverlayMode::RepositorySearch {model.repository_search.revision} else {0},
+        "jobInspectionRevision": if model.overlay == OverlayMode::JobInspection {model.job_inspection.revision} else {0},
         "terminal": [model.terminal_caps.color, model.terminal_caps.unicode]
-    })
-    .to_string()
+    }).to_string()
 }
 
 fn invalidate_frame(model: &mut AppModel) {
@@ -1077,18 +1328,18 @@ fn contains_query(text: &str, query: &str) -> bool {
 fn matches_job_filter(status: &str, filter: JobFilter) -> bool {
     match filter {
         JobFilter::All => true,
-        JobFilter::Active => !status.contains("failed") && !status.contains("done"),
-        JobFilter::Failed => status.contains("failed") || status.contains("cancelled"),
-        JobFilter::Done => status.contains("done"),
+        JobFilter::Active => Lifecycle::from_status(status) == Lifecycle::Active,
+        JobFilter::Failed => Lifecycle::from_status(status).is_problem(),
+        JobFilter::Done => Lifecycle::from_status(status) == Lifecycle::Done,
     }
 }
 
 fn matches_task_filter(status: &str, filter: TaskFilter) -> bool {
     match filter {
         TaskFilter::All => true,
-        TaskFilter::Active => !status.contains("failed") && !status.contains("done"),
-        TaskFilter::Failed => status.contains("failed"),
-        TaskFilter::Done => status.contains("done"),
+        TaskFilter::Active => Lifecycle::from_status(status) == Lifecycle::Active,
+        TaskFilter::Failed => Lifecycle::from_status(status).is_problem(),
+        TaskFilter::Done => Lifecycle::from_status(status) == Lifecycle::Done,
     }
 }
 
@@ -1114,13 +1365,13 @@ fn job_status_counts(model: &AppModel) -> (usize, usize, usize, usize) {
     let mut done = 0usize;
     let mut cancelled = 0usize;
     for status in model.job_status.values() {
-        if status.contains("failed") {
+        if Lifecycle::from_status(status) == Lifecycle::Failed {
             failed += 1;
-        } else if status.contains("done") {
+        } else if Lifecycle::from_status(status) == Lifecycle::Done {
             done += 1;
-        } else if status.contains("cancelled") {
+        } else if Lifecycle::from_status(status) == Lifecycle::Cancelled {
             cancelled += 1;
-        } else {
+        } else if Lifecycle::from_status(status) == Lifecycle::Active {
             running += 1;
         }
     }
@@ -1131,9 +1382,9 @@ fn task_status_counts(model: &AppModel) -> (usize, usize) {
     let mut active = 0usize;
     let mut failed = 0usize;
     for status in model.task_status.values() {
-        if status.contains("failed") {
+        if status.lifecycle().is_problem() {
             failed += 1;
-        } else if !status.contains("done") {
+        } else if status.lifecycle() == Lifecycle::Active {
             active += 1;
         }
     }
@@ -1188,17 +1439,20 @@ fn fit_text(text: &str, width: usize) -> String {
     if width == 0 {
         return String::new();
     }
-    let chars: Vec<char> = text.chars().collect();
-    if chars.len() <= width {
+    let span = Span::raw(text);
+    if span.width() <= width {
         return text.to_string();
     }
-    if width <= 1 {
-        return "…".to_string();
+    let mut output = String::new();
+    let mut columns = 0;
+    for grapheme in span.styled_graphemes(Style::default()) {
+        let next_width = Span::raw(grapheme.symbol).width();
+        if columns + next_width > width.saturating_sub(1) {
+            break;
+        }
+        output.push_str(grapheme.symbol);
+        columns += next_width;
     }
-    let mut output = chars
-        .into_iter()
-        .take(width.saturating_sub(1))
-        .collect::<String>();
     output.push('…');
     output
 }
@@ -1217,36 +1471,56 @@ fn block_title(base: &str, focused: bool, extra: &[String]) -> String {
     parts.join(" | ")
 }
 
+#[cfg(test)]
 fn wrap_text_lines(text: &str, width: usize, max_lines: usize) -> Vec<String> {
     if width == 0 || max_lines == 0 {
         return Vec::new();
     }
     let mut output = Vec::new();
     for raw_line in text.split('\n') {
-        let mut remaining = raw_line.trim();
-        if remaining.is_empty() {
+        let span = Span::raw(raw_line.trim());
+        let graphemes: Vec<_> = span
+            .styled_graphemes(Style::default())
+            .map(|g| g.symbol)
+            .collect();
+        if graphemes.is_empty() {
             output.push(String::new());
             if output.len() >= max_lines {
                 break;
             }
             continue;
         }
-        while !remaining.is_empty() && output.len() < max_lines {
-            let chars: Vec<char> = remaining.chars().collect();
-            if chars.len() <= width {
-                output.push(remaining.to_string());
-                break;
+        let mut start = 0;
+        while start < graphemes.len() && output.len() < max_lines {
+            let mut end = start;
+            let mut columns = 0;
+            while end < graphemes.len() {
+                let next_width = Span::raw(graphemes[end]).width();
+                if columns + next_width > width {
+                    break;
+                }
+                columns += next_width;
+                end += 1;
             }
-            let slice = chars.iter().take(width).collect::<String>();
-            let boundary = slice.rfind(' ').unwrap_or(width);
-            let next_line = slice[..boundary].trim_end().to_string();
-            output.push(if next_line.is_empty() {
-                slice
-            } else {
-                next_line
-            });
-            let consumed = boundary.min(remaining.len());
-            remaining = remaining[consumed..].trim_start();
+            if end == start {
+                // A single grapheme wider than the pane still makes progress.
+                output.push("…".into());
+                start += 1;
+                continue;
+            }
+            if end < graphemes.len() {
+                if let Some(boundary) = (start + 1..end)
+                    .rev()
+                    .find(|i| graphemes[*i].trim().is_empty())
+                {
+                    end = boundary;
+                }
+            }
+            output.push(graphemes[start..end].concat().trim_end().to_string());
+            start = end;
+            while start < graphemes.len() && graphemes[start].trim().is_empty() {
+                start += 1;
+            }
         }
         if output.len() >= max_lines {
             break;
@@ -1396,6 +1670,9 @@ fn apply_workload_descriptor(model: &mut AppModel, event: &Value) {
                 .and_then(|value| value.as_u64())
             {
                 model.indexing_summary.heartbeat_age_ms = Some(value);
+                model.indexing_summary.heartbeat_observed_ms = Some(if model.session.mode == "replay" {
+                    model.recorded_ms.unwrap_or(0)
+                } else { model.activity_origin.elapsed().as_millis().min(u64::MAX as u128) as u64 });
             }
             if let Some(value) = workload
                 .get("artifactWriteProgress")
@@ -1531,7 +1808,9 @@ fn workload_summary_text(model: &AppModel, width: usize) -> String {
                 ));
             }
             if let Some(value) = model.indexing_summary.heartbeat_age_ms {
-                parts.push(format!("heartbeat {value}ms"));
+                let now = if model.session.mode == "replay" { model.recorded_ms.unwrap_or(0) } else { model.activity_second * 1000 };
+                let age = value.saturating_add(now.saturating_sub(model.indexing_summary.heartbeat_observed_ms.unwrap_or(now)));
+                parts.push(format!("heartbeat {age}ms since observed{}", if model.session.mode == "replay" { " (recorded time)" } else { "" }));
             }
             if !model.indexing_summary.artifact_write_progress.is_empty() {
                 parts.push(format!(
@@ -1585,29 +1864,61 @@ fn operator_summary_text(model: &AppModel, width: usize) -> String {
                 "paused"
             }
         ),
-        format!("jobs {}", model.job_filter.label()),
-        format!("tasks {}", model.task_filter.label()),
         format!(
-            "logs {}/{}",
-            model.log_level_filter.label(),
-            model.log_source_filter.label()
+            "selected {} ({}){}",
+            model.selected_job.as_deref().unwrap_or("none"),
+            if model.selected_job_pinned {
+                "pinned"
+            } else {
+                "following"
+            },
+            if model.selected_job_expired
+                || model
+                    .selected_job
+                    .as_deref()
+                    .is_some_and(|id| !visible_job_ids(model).contains(&id))
+            {
+                " hidden/unavailable; cancel disabled"
+            } else {
+                ""
+            }
         ),
     ];
     let active_search = current_search(model, model.focus_panel);
     if !active_search.trim().is_empty() {
         parts.push(format!("search {}", active_search.trim()));
     }
+    // Each panel already displays its filters. Preserve selected identity and
+    // the active text predicate before repeating those controls in wider views.
+    if width >= 120 {
+        parts.extend([
+            format!("jobs {}", model.job_filter.label()),
+            format!("tasks {}", model.task_filter.label()),
+            format!(
+                "logs {}/{}",
+                model.log_level_filter.label(),
+                model.log_source_filter.label()
+            ),
+        ]);
+    }
     fit_text(&parts.join(" | "), width)
+}
+
+fn metric_label(value: Option<f64>) -> String {
+    value.map(|number| format!("{number:.0}")).unwrap_or_else(|| "?".to_string())
 }
 
 fn runtime_summary_text(model: &AppModel, width: usize) -> String {
     let (running_jobs, failed_jobs, done_jobs, cancelled_jobs) = job_status_counts(model);
+    let interrupted = model.job_status.values().filter(|status| Lifecycle::from_status(status) == Lifecycle::Interrupted).count();
     let (active_tasks, failed_tasks) = task_status_counts(model);
     let parts = [
-        format!("jobs {running_jobs}run/{failed_jobs}fail/{done_jobs}done/{cancelled_jobs}cancel"),
+        format!("jobs {running_jobs}run/{failed_jobs}fail/{done_jobs}done/{cancelled_jobs}cancel{}",
+            if interrupted > 0 { format!("/{interrupted}interrupted") } else { String::new() }),
         format!("tasks {active_tasks}a/{failed_tasks}f"),
-        format!("queue {:.0}", model.telemetry.queue_depth_ewma),
-        format!("lag {:.0}ms", model.telemetry.event_lag_ms_ewma),
+        format!("flow queue {}", metric_label(model.telemetry.queue_depth_ewma)),
+        format!("ingress lag {}ms", metric_label(model.telemetry.event_lag_ms_ewma)),
+        format!("native pending {}", model.telemetry.native_inbound_pending.map(|value| value.to_string()).unwrap_or_else(|| "?".to_string())),
         format!("render {:.0}ms", model.telemetry.render_ms_ewma),
         format!("note {}", model.session.note),
     ];
@@ -1615,98 +1926,250 @@ fn runtime_summary_text(model: &AppModel, width: usize) -> String {
 }
 
 fn footer_hint_text(model: &AppModel, width: usize) -> String {
+    if model.overlay == OverlayMode::None { return fit_text(&actions::footer(), width); }
     let text = match model.overlay {
-        OverlayMode::Help => "help overlay | Esc or ? close",
-        OverlayMode::Palette => "action palette | j/k move | Enter select | Esc close",
+        OverlayMode::Help => "help | arrows/Page/Home/End scroll | Esc or ? close",
+        OverlayMode::Palette => "action palette | type filter | arrows move | Enter select | Esc close",
         OverlayMode::Search => "search | type to filter current panel | Enter apply | Backspace delete | Esc cancel",
-        OverlayMode::None => "Tab focus | f cycle filter | / search | x clear search | p pause/follow | : actions | ? help | q quit",
+        OverlayMode::IndexWorkflows => "Command workflows | typed forms | preview then confirm | Esc back/cancel | Ctrl+C quit",
+        OverlayMode::Settings => "settings | Ctrl+U clears input | Esc cancels or closes | Ctrl+C quits",
+        OverlayMode::RepositorySearch => "Repository search | Tab field | Enter submit/source | Esc back/cancel | Ctrl+C quit",
+        OverlayMode::JobInspection => "Job inspection | 1 summary | 2 result | 3 artifacts | Tab page | Esc close | Ctrl+C quit",
+        OverlayMode::Recordings => "Saved sessions | Enter choose/load | Ctrl+U clears | Esc cancels/closes | Ctrl+C quits",
+        OverlayMode::None => "R search | b commands | O sessions | s settings | Tab pane | z maximize | / panel text | : actions | ? help | q quit",
     };
     fit_text(text, width)
 }
 
-fn build_job_rows(model: &AppModel, width: usize) -> Vec<ListItem<'static>> {
-    let mut rows = Vec::new();
-    if model.job_order.is_empty() {
-        rows.push(ListItem::new(fit_text(&jobs_empty_reason(model), width)));
-        return rows;
+#[cfg(test)]
+fn list_viewport<T>(rows: Vec<T>, scroll: usize, height: usize) -> Vec<T> {
+    let start = scroll.min(rows.len().saturating_sub(height));
+    rows.into_iter().skip(start).take(height).collect()
+}
+
+fn job_row_text(model: &AppModel, id: &str, status: &str) -> String {
+    let title = model.job_titles.get(id).map(String::as_str).unwrap_or("");
+    if title.is_empty() {
+        format!("{id} | {status}")
+    } else {
+        format!("{id} | {status} | {title}")
     }
-    for job_id in &model.job_order {
-        let Some(status) = model.job_status.get(job_id) else {
-            continue;
-        };
-        if !matches_job_filter(status, model.job_filter) {
-            continue;
-        }
-        let title = model.job_titles.get(job_id).cloned().unwrap_or_default();
-        let rendered = if title.is_empty() {
-            format!("{job_id} | {status}")
-        } else {
-            format!("{job_id} | {status} | {title}")
-        };
-        if !contains_query(&rendered, &model.search_jobs) {
-            continue;
-        }
+}
+
+fn visible_job_ids(model: &AppModel) -> Vec<&str> {
+    let query = model.search_jobs.trim().to_lowercase();
+    model
+        .job_order
+        .iter()
+        .filter_map(|id| {
+            let status = model.job_status.get(id)?;
+            (matches_job_filter(status, model.job_filter)
+                && (query.is_empty() || job_row_text(model, id, status).to_lowercase().contains(&query)))
+            .then_some(id.as_str())
+        })
+        .collect()
+}
+
+fn select_job(model: &mut AppModel, direction: isize) {
+    let rows = visible_job_ids(model);
+    if rows.is_empty() {
+        model.push_alert(
+            "info",
+            "No visible job to select; the current selection is unchanged",
+        );
+        return;
+    }
+    let current = rows
+        .iter()
+        .position(|id| Some(*id) == model.selected_job.as_deref());
+    let index = match current {
+        Some(index) if direction < 0 => index.saturating_sub(1),
+        Some(index) => (index + 1).min(rows.len() - 1),
+        None if direction < 0 => rows.len() - 1,
+        None => 0,
+    };
+    let selected = rows[index].to_owned();
+    pin_visible_job(model, &selected);
+    model.job_scroll = index;
+}
+
+fn pin_visible_job(model: &mut AppModel, id: &str) {
+    if !visible_job_ids(model).contains(&id) { return; }
+    model.selected_job = Some(id.into()); model.selected_job_pinned = true;
+    model.selected_job_expired = false; model.task_scroll = 0; model.log_scroll = 0;
+    model.dirty = true;
+}
+
+fn follow_latest_job(model: &mut AppModel) {
+    let rows = visible_job_ids(model);
+    let index = rows.len().saturating_sub(1);
+    let selected = rows.last().map(|id| (*id).to_owned());
+    model.selected_job = selected;
+    model.job_scroll = index;
+    model.selected_job_pinned = false;
+    model.selected_job_expired = false;
+    model.task_scroll = 0;
+    model.log_scroll = 0;
+    model.dirty = true;
+}
+
+fn selected_job_cancelable(model: &AppModel) -> bool {
+    !model.selected_job_expired && has_live_control(model) && model.selected_job.as_ref().is_some_and(|id| {
+        visible_job_ids(model).contains(&id.as_str()) && model.job_status.get(id)
+            .is_some_and(|status| matches!(status.as_str(), "accepted" | "running"))
+    })
+}
+
+fn selected_job_cancel_request(model: &mut AppModel) -> Option<Value> {
+    let id = model.selected_job.clone()?;
+    if !has_live_control(model) {
+        model.push_alert(
+            "info",
+            "Cancellation requires the session's verified supervisor control channel",
+        );
+        return None;
+    }
+    if model.selected_job_expired {
+        model.push_alert(
+            "info",
+            "The selected job instance expired; explicitly reselect before cancelling",
+        );
+        return None;
+    }
+    if !selected_job_cancelable(model) {
+        model.push_alert("info", "Select a visible running job before cancelling; hidden, expired and completed jobs are unchanged");
+        return None;
+    }
+    Some(json!({"proto":"poc.tui@1", "op":"job:cancel", "jobId":id, "reason":"user_cancel"}))
+}
+
+fn send_selected_job_cancel(model: &mut AppModel, supervisor: &mut std::process::Child) -> anyhow::Result<()> {
+    if let Some(request) = selected_job_cancel_request(model) {
+        let id = request["jobId"].as_str().unwrap().to_owned();
+        send_request(supervisor, request)?;
+        // This records the local request only. The producer's terminal event
+        // still decides the outcome after its owned execution actually settles.
+        model.update_job_status(&id, "cancelling", None);
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+thread_local! { static ROW_PRESENTATIONS: std::cell::Cell<(usize, usize)> = const { std::cell::Cell::new((0, 0)) }; }
+
+fn build_job_rows(model: &AppModel, width: usize, height: usize) -> (Vec<ListItem<'static>>, Option<usize>) {
+    if height == 0 { return (Vec::new(), None); }
+    let ids = visible_job_ids(model);
+    if ids.is_empty() {
+        return (vec![ListItem::new(fit_text(&jobs_empty_reason(model), width))], None);
+    }
+    let start = model.job_scroll.min(ids.len().saturating_sub(height));
+    let selected_row = if model.selected_job_expired { None } else {
+        ids.iter().position(|id| Some(*id) == model.selected_job.as_deref())
+            .filter(|index| *index >= start && *index < start + height).map(|index| index - start)
+    };
+    let mut rows = Vec::with_capacity(height.min(ids.len()));
+    for job_id in ids.into_iter().skip(start).take(height) {
+        let status = &model.job_status[job_id];
+        let rendered = job_row_text(model, job_id, status);
+        #[cfg(test)] ROW_PRESENTATIONS.with(|count| { let (jobs, tasks) = count.get(); count.set((jobs + 1, tasks)); });
         let style = if !model.terminal_caps.color {
             Style::default()
-        } else if model.selected_job.as_deref() == Some(job_id.as_str()) {
+        } else if !model.selected_job_expired
+            && model.selected_job.as_deref() == Some(job_id)
+        {
             Style::default()
                 .fg(Color::Cyan)
                 .add_modifier(Modifier::BOLD)
-        } else if status.contains("done") {
+        } else if Lifecycle::from_status(status) == Lifecycle::Done {
             Style::default().fg(Color::Green)
-        } else if status.contains("failed") {
+        } else if Lifecycle::from_status(status).is_problem() && Lifecycle::from_status(status) != Lifecycle::Cancelled {
             Style::default().fg(Color::Red)
-        } else if status.contains("cancelled") {
+        } else if Lifecycle::from_status(status) == Lifecycle::Cancelled {
             Style::default().fg(Color::Yellow)
-        } else if status.contains("running") {
+        } else if Lifecycle::from_status(status) == Lifecycle::Active {
             Style::default().fg(Color::Blue)
         } else {
             Style::default().fg(Color::Gray)
         };
         rows.push(ListItem::new(fit_text(&rendered, width)).style(style));
     }
-    if rows.is_empty() {
-        rows.push(ListItem::new(fit_text(&jobs_empty_reason(model), width)));
-    }
-    rows
+    (rows, selected_row)
 }
 
-fn build_task_rows(model: &AppModel, width: usize) -> Vec<ListItem<'static>> {
-    let selected_job = model.selected_job.clone().unwrap_or_default();
-    let mut rows = Vec::new();
-    for key in &model.task_order {
-        if !selected_job.is_empty() && !key.starts_with(&format!("{selected_job}:")) {
-            continue;
-        }
-        let Some(status) = model.task_status.get(key) else {
-            continue;
-        };
-        if !matches_task_filter(status, model.task_filter) {
-            continue;
-        }
-        let task_name = key.rsplit(':').next().unwrap_or(key);
-        let rendered = format!("{task_name} | {status}");
-        if !contains_query(&rendered, &model.search_tasks) {
-            continue;
-        }
-        let style = if !model.terminal_caps.color {
-            Style::default()
-        } else if status.contains("failed") {
-            Style::default().fg(Color::Red)
-        } else if status.contains("done") {
-            Style::default().fg(Color::Green)
-        } else {
-            Style::default().fg(Color::Yellow)
-        };
-        rows.push(ListItem::new(fit_text(&rendered, width)).style(style));
+fn render_job_panel(frame: &mut ratatui::Frame<'_>, model: &AppModel, area: ratatui::layout::Rect) {
+    interaction::record_jobs(model, area);
+    let height = area.height.saturating_sub(2) as usize;
+    let query = model.search_jobs.trim();
+    let (rows, selected_row) = build_job_rows(model, area.width.saturating_sub(2) as usize, height);
+    let list = List::new(rows)
+    .block(panel_block(
+        block_title(
+            "Jobs",
+            model.focus_panel == FocusPanel::Jobs,
+            &[
+                format!("filter {}", model.job_filter.label()),
+                if query.is_empty() {
+                    String::new()
+                } else {
+                    format!("search {query}")
+                },
+            ],
+        ),
+        model.focus_panel == FocusPanel::Jobs,
+        model.terminal_caps.color,
+    ));
+    frame.render_widget(list, area);
+    if model.selected_job_expired || area.width < 2 || height == 0 {
+        return;
     }
-    if rows.is_empty() {
-        rows.push(ListItem::new(fit_text(&tasks_empty_reason(model), width)));
+    if let Some(row) = selected_row {
+        // Marker and visible rows share the exact same filtered sequence.
+        frame.buffer_mut()[(area.x, area.y + 1 + row as u16)].set_symbol(">");
     }
-    rows
 }
+
+fn visible_task_keys(model: &AppModel) -> Vec<&String> {
+    let selected = model.selected_job.as_deref().unwrap_or("");
+    let query = model.search_tasks.trim().to_lowercase();
+    model.task_order.iter().filter(|key| {
+        let identity = model.task_identity.get(*key);
+        if !selected.is_empty() && identity.map(|(owner, _)| owner.as_str()) != Some(selected) { return false; }
+        let Some(task) = model.task_status.get(*key) else { return false; };
+        if !matches_task_filter(&task.status, model.task_filter) { return false; }
+        if query.is_empty() { return true; }
+        let name = identity.map(|(_, id)| id.as_str()).unwrap_or(key);
+        format!("{name} | {task}").to_lowercase().contains(&query)
+    }).collect()
+}
+
+fn build_task_rows(model: &AppModel, width: usize, height: usize) -> Vec<ListItem<'static>> {
+    if height == 0 { return Vec::new(); }
+    if model.selected_job_expired {
+        return vec![ListItem::new(fit_text(
+            "Selected job instance expired; reselect a visible job", width))];
+    }
+    let keys = visible_task_keys(model);
+    if keys.is_empty() { return vec![ListItem::new(fit_text(&tasks_empty_reason(model), width))]; }
+    let start = model.task_scroll.min(keys.len().saturating_sub(height));
+    keys.into_iter().skip(start).take(height).map(|key| {
+        let task = &model.task_status[key];
+        let name = model.task_identity.get(key).map(|(_, id)| id.as_str()).unwrap_or(key);
+        let rendered = format!("{name} | {task}");
+        #[cfg(test)] ROW_PRESENTATIONS.with(|count| { let (jobs, tasks) = count.get(); count.set((jobs, tasks + 1)); });
+        let style = if !model.terminal_caps.color { Style::default() }
+            else if task.lifecycle().is_problem() { Style::default().fg(Color::Red) }
+            else if task.lifecycle() == Lifecycle::Done { Style::default().fg(Color::Green) }
+            else { Style::default().fg(Color::Yellow) };
+        ListItem::new(fit_text(&rendered, width)).style(style)
+    }).collect()
+}
+
+#[cfg(test)]
+thread_local! { static LOG_FORMATS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) }; }
 
 fn render_log_entry(entry: &LogEntry) -> String {
+    #[cfg(test)] LOG_FORMATS.with(|count| count.set(count.get() + 1));
     let text = entry.text.trim();
     match entry.level.as_str() {
         "warn" | "error" => format!("{} | {} | {}", entry.level, entry.source, text),
@@ -1724,34 +2187,53 @@ fn logs_empty_reason(model: &AppModel) -> String {
     "(no logs yet)".to_string()
 }
 
+fn cached_log_tail(model: &AppModel, entry: &LogEntry, width: usize, height: usize) -> Vec<String> {
+    model.log_layout_cache.borrow_mut().tail(entry.id, width, height, || render_log_entry(entry))
+}
+
 fn build_log_lines(model: &AppModel, width: usize, height: usize) -> String {
-    let filtered: Vec<LogEntry> = model
-        .logs
-        .iter()
-        .filter(|entry| matches_log_level_filter(&entry.level, model.log_level_filter))
-        .filter(|entry| matches_log_source_filter(&entry.source, model.log_source_filter))
-        .filter(|entry| contains_query(&render_log_entry(entry), &model.search_logs))
-        .cloned()
-        .collect();
-    let visible_logs = tail_window_slice(&filtered, model.log_scroll, filtered.len().max(1));
+    if width == 0 || height == 0 { return String::new(); }
+    let query = model.search_logs.trim().to_lowercase();
+    let mut matched = 0usize;
+    let mut oldest_match = None;
     let mut lines = Vec::new();
-    for entry in visible_logs {
-        let wrapped = wrap_text_lines(&render_log_entry(&entry), width, 2);
-        for line in wrapped {
-            lines.push(line);
-            if lines.len() >= height {
-                break;
-            }
+    for entry in model.logs.iter().rev().filter(|entry| matches_log_entry_with_query(model, entry, &query)) {
+        oldest_match = Some(entry);
+        if matched >= model.log_scroll {
+            lines.extend(cached_log_tail(model, entry, width, height - lines.len()).into_iter().rev());
+            if lines.len() >= height { break; }
         }
-        if lines.len() >= height {
-            break;
-        }
+        matched += 1;
     }
+    // Retain the original entry-based clamp when scroll exceeds all matches.
     if lines.is_empty() {
-        lines.push(logs_empty_reason(model));
+        if let Some(entry) = oldest_match {
+            lines.extend(cached_log_tail(model, entry, width, height).into_iter().rev());
+        } else { lines.push(logs_empty_reason(model)); }
     }
-    let start = lines.len().saturating_sub(height.max(1));
-    lines[start..].join("\n")
+    lines.reverse();
+    lines.join("\n")
+}
+
+fn matches_log_entry_with_query(model: &AppModel, entry: &LogEntry, query: &str) -> bool {
+    (entry.job_id.is_none()
+        || (!model.selected_job_expired
+            && (model.selected_job.is_none() || entry.job_id == model.selected_job)))
+        && matches_log_level_filter(&entry.level, model.log_level_filter)
+        && matches_log_source_filter(&entry.source, model.log_source_filter)
+        && (query.is_empty() || render_log_entry(entry).to_lowercase().contains(query))
+}
+
+fn matches_log_entry(model: &AppModel, entry: &LogEntry) -> bool {
+    matches_log_entry_with_query(model, entry, &model.search_logs.trim().to_lowercase())
+}
+
+fn toggle_follow(model: &mut AppModel) {
+    model.follow_updates = !model.follow_updates;
+    if model.follow_updates {
+        model.log_scroll = 0;
+    }
+    model.dirty = true;
 }
 
 fn panel_block(title: String, focused: bool, color: bool) -> Block<'static> {
@@ -1767,64 +2249,54 @@ fn panel_block(title: String, focused: bool, color: bool) -> Block<'static> {
 }
 
 fn render_help_overlay(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
-    let area = centered_rect(76, 70, frame.area());
-    let text = [
-        "Operator Help",
-        "",
-        "Tab switch focus panels",
-        "f cycle filter for focused panel",
-        "/ search within focused panel",
-        "x clear search for focused panel",
-        "p toggle follow/pause",
-        ": open action palette",
-        "? close help",
-        "r run sample job",
-        "c cancel selected job",
-        "q quit",
-        "",
-        &format!(
-            "Current: focus {} | follow {}",
-            model.focus_panel.label(),
-            if model.follow_updates {
-                "live"
-            } else {
-                "paused"
-            }
-        ),
-    ]
-    .join("\n");
-    let overlay = Paragraph::new(text)
-        .wrap(Wrap { trim: true })
-        .block(panel_block(
-            "Help".to_string(),
-            true,
-            model.terminal_caps.color,
-        ));
+    let area = interaction::overlay_rect(OverlayMode::Help, frame.area());
+    if area.width < 24 || area.height < 5 {
+        frame.render_widget(Clear, frame.area());
+        frame.render_widget(Paragraph::new("Help: Esc/F1 back\nCtrl+C quit\nResize for reference"), frame.area());
+        return;
+    }
+    let rows = model.help_viewport.lines(vec![format!("Help | arrows/Page/Home/End | / filter: {}{} | Esc close",
+        model.help_query, if model.help_editing { " (typing; Enter ends)" } else { "" })],
+        &interaction::help_text(model), area.height.saturating_sub(2) as usize, area.width.saturating_sub(2) as usize);
     frame.render_widget(Clear, area);
-    frame.render_widget(overlay, area);
+    frame.render_widget(Paragraph::new(rows.join("\n")).block(panel_block(
+        format!("Help | Esc close | {}", model.help_viewport.range_label()), true, model.terminal_caps.color)), area);
 }
 
 fn palette_actions() -> Vec<PaletteAction> {
-    vec![
-        PaletteAction::ToggleFollow,
-        PaletteAction::FocusJobs,
-        PaletteAction::FocusTasks,
-        PaletteAction::FocusLogs,
-        PaletteAction::CycleFilter,
-        PaletteAction::ClearSearch,
-        PaletteAction::RunJob,
-        PaletteAction::CancelSelected,
-        PaletteAction::ShowHelp,
-        PaletteAction::Quit,
-    ]
+    actions::registered()
 }
 
 fn render_palette_overlay(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
-    let actions = palette_actions();
-    let area = centered_rect(68, 60, frame.area());
+    let actions = interaction::actions(model);
+    let area = interaction::overlay_rect(OverlayMode::Palette, frame.area());
+    if area.width < 24 || area.height < 6 {
+        frame.render_widget(Clear, frame.area());
+        frame.render_widget(Paragraph::new("Actions: Esc close\nCtrl+C quit\nResize for actions"), frame.area());
+        return;
+    }
+    let height = area.height.saturating_sub(5) as usize;
+    let start = (if model.palette_index < actions.len() { model.palette_index } else { 0 })
+        .saturating_sub(height.saturating_sub(1))
+        .min(actions.len().saturating_sub(height));
+    let inner = Rect::new(area.x + 1, area.y + 1, area.width.saturating_sub(2), area.height.saturating_sub(2));
+    let selected = actions.get(model.palette_index).copied();
+    let selection = selected.map(|action| interaction::disabled(model, action).map(|reason| format!("Disabled: {reason}"))
+        .unwrap_or_else(|| format!("Selected: {}", action.label()))).unwrap_or_else(|| "Arrows choose a visible action; Enter requires selection".into());
+    frame.render_widget(Clear, area);
+    frame.render_widget(panel_block("Actions | Esc close".into(), true, model.terminal_caps.color), area);
+    frame.render_widget(Paragraph::new(format!("{}\n{}", fit_text(&format!("{}-{} / {} | filter {}",
+        if actions.is_empty() { 0 } else { start + 1 }, (start + height).min(actions.len()), actions.len(),
+        model.panel_cursor.visible(&model.palette_query, inner.width.saturating_sub(20) as usize)), inner.width as usize),
+        selection)).wrap(Wrap { trim: false }), Rect::new(inner.x, inner.y, inner.width, 3));
+    let list_area = Rect::new(inner.x, inner.y + 3, inner.width, height as u16);
+    interaction::record_palette(model, actions.iter().copied().enumerate().skip(start).take(height)
+        .map(|(index, action)| (Rect::new(list_area.x, list_area.y + (index-start) as u16, list_area.width, 1), action)).collect());
     let rows: Vec<ListItem<'static>> = actions
         .iter()
         .enumerate()
+        .skip(start)
+        .take(height)
         .map(|(index, action)| {
             let prefix = if index == model.palette_index {
                 ">"
@@ -1838,33 +2310,32 @@ fn render_palette_overlay(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
             } else {
                 Style::default()
             };
-            ListItem::new(format!("{prefix} {}", action.label())).style(style)
+            ListItem::new(fit_text(
+                &format!("{prefix} [{}] {}{}", interaction::action_shortcut(*action), action.label(),
+                    interaction::disabled(model, *action).map(|reason| format!(" [disabled: {reason}]")).unwrap_or_default()),
+                area.width.saturating_sub(2) as usize,
+            ))
+            .style(style)
         })
         .collect();
-    let overlay = List::new(rows).block(panel_block(
-        "Actions".to_string(),
-        true,
-        model.terminal_caps.color,
-    ));
-    frame.render_widget(Clear, area);
-    frame.render_widget(overlay, area);
+    frame.render_widget(List::new(rows), list_area);
 }
 
 fn render_search_overlay(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
-    let area = centered_rect(64, 22, frame.area());
+    let area = interaction::overlay_rect(OverlayMode::Search, frame.area());
     let text = format!(
         "Search {}\n\n{}\n\nEnter apply | Esc cancel | Backspace delete",
         model.search_target.label(),
         if model.search_draft.is_empty() {
             "Type to filter".to_string()
         } else {
-            model.search_draft.clone()
+            model.panel_cursor.visible(&model.search_draft, area.width.saturating_sub(2) as usize)
         }
     );
     let overlay = Paragraph::new(text)
         .wrap(Wrap { trim: true })
         .block(panel_block(
-            "Search".to_string(),
+            "Panel text filter | Esc close".to_string(),
             true,
             model.terminal_caps.color,
         ));
@@ -1896,6 +2367,10 @@ fn centered_rect(
 }
 
 fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
+    interaction::record_geometry(model, frame.area());
+    if interaction::compact(model, frame.area()) {
+        interaction::render_compact(frame, model);
+    } else {
     let session_width = frame.area().width.saturating_sub(2) as usize;
     let rows = Layout::default()
         .direction(Direction::Vertical)
@@ -1905,6 +2380,7 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
             Constraint::Length(3),
             Constraint::Length(3),
             Constraint::Length(3),
+            Constraint::Length(1),
             Constraint::Min(1),
         ])
         .split(frame.area());
@@ -1937,8 +2413,9 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
         .wrap(Wrap { trim: true })
         .block(Block::default().borders(Borders::ALL).title("Hints"));
     frame.render_widget(footer_block, rows[4]);
+    frame.render_widget(Paragraph::new(interaction::activity_text(model)), rows[5]);
 
-    if rows[5].width < 100 {
+    if rows[6].width < 100 {
         let stacked = Layout::default()
             .direction(Direction::Vertical)
             .constraints([
@@ -1946,28 +2423,16 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
                 Constraint::Percentage(30),
                 Constraint::Percentage(40),
             ])
-            .split(rows[5]);
-        let jobs_width = stacked[0].width.saturating_sub(2) as usize;
+            .split(rows[6]);
         let tasks_width = stacked[1].width.saturating_sub(2) as usize;
         let logs_width = stacked[2].width.saturating_sub(2) as usize;
-        let jobs = List::new(build_job_rows(model, jobs_width)).block(panel_block(
-            block_title(
-                "Jobs",
-                model.focus_panel == FocusPanel::Jobs,
-                &[format!("filter {}", model.job_filter.label()), {
-                    let query = model.search_jobs.trim();
-                    if query.is_empty() {
-                        String::new()
-                    } else {
-                        format!("search {query}")
-                    }
-                }],
-            ),
-            model.focus_panel == FocusPanel::Jobs,
-            model.terminal_caps.color,
-        ));
-        frame.render_widget(jobs, stacked[0]);
-        let tasks = List::new(build_task_rows(model, tasks_width)).block(panel_block(
+        render_job_panel(frame, model, stacked[0]);
+        let tasks = List::new(build_task_rows(
+            model,
+            tasks_width,
+            stacked[1].height.saturating_sub(2) as usize,
+        ))
+        .block(panel_block(
             block_title(
                 "Tasks",
                 model.focus_panel == FocusPanel::Tasks,
@@ -2027,31 +2492,19 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
                 Constraint::Percentage(28),
                 Constraint::Percentage(44),
             ])
-            .split(rows[5]);
+            .split(rows[6]);
 
-        let jobs_width = cols[0].width.saturating_sub(2) as usize;
         let tasks_width = cols[1].width.saturating_sub(2) as usize;
         let logs_width = cols[2].width.saturating_sub(2) as usize;
 
-        let jobs = List::new(build_job_rows(model, jobs_width)).block(panel_block(
-            block_title(
-                "Jobs",
-                model.focus_panel == FocusPanel::Jobs,
-                &[format!("filter {}", model.job_filter.label()), {
-                    let query = model.search_jobs.trim();
-                    if query.is_empty() {
-                        String::new()
-                    } else {
-                        format!("search {query}")
-                    }
-                }],
-            ),
-            model.focus_panel == FocusPanel::Jobs,
-            model.terminal_caps.color,
-        ));
-        frame.render_widget(jobs, cols[0]);
+        render_job_panel(frame, model, cols[0]);
 
-        let tasks = List::new(build_task_rows(model, tasks_width)).block(panel_block(
+        let tasks = List::new(build_task_rows(
+            model,
+            tasks_width,
+            cols[1].height.saturating_sub(2) as usize,
+        ))
+        .block(panel_block(
             block_title(
                 "Tasks",
                 model.focus_panel == FocusPanel::Tasks,
@@ -2106,10 +2559,99 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
         frame.render_widget(logs, cols[2]);
     }
 
+    }
     match model.overlay {
+        OverlayMode::Recordings => {
+            let area = interaction::overlay_rect(OverlayMode::Recordings, frame.area());
+            frame.render_widget(Clear, area);
+            frame.render_widget(
+                Paragraph::new(model.recording_overlay_text.as_str())
+                    .wrap(Wrap { trim: true })
+                    .block(panel_block(
+                        "Saved sessions".into(),
+                        true,
+                        model.terminal_caps.color,
+                    )),
+                area,
+            );
+        }
         OverlayMode::Help => render_help_overlay(frame, model),
         OverlayMode::Palette => render_palette_overlay(frame, model),
         OverlayMode::Search => render_search_overlay(frame, model),
+        OverlayMode::IndexWorkflows => {
+            let area = interaction::overlay_rect(OverlayMode::IndexWorkflows, frame.area());
+            let text = model
+                .index_workflows
+                .lines(area.height.saturating_sub(2) as usize, area.width.saturating_sub(2) as usize)
+                .join("\n");
+            frame.render_widget(Clear, area);
+            frame.render_widget(
+                Paragraph::new(text)
+                    .block(panel_block(
+                        "Command workflows".into(),
+                        true,
+                        model.terminal_caps.color,
+                    )),
+                area,
+            );
+        }
+        OverlayMode::Settings => {
+            let area = interaction::overlay_rect(OverlayMode::Settings, frame.area());
+            let text = model
+                .settings
+                .lines(area.height.saturating_sub(2) as usize, area.width.saturating_sub(2) as usize)
+                .join("\n");
+            frame.render_widget(Clear, area);
+            frame.render_widget(
+                Paragraph::new(text)
+                    .block(panel_block(
+                        "Settings".into(),
+                        true,
+                        model.terminal_caps.color,
+                    )),
+                area,
+            );
+        }
+        OverlayMode::RepositorySearch => {
+            let area = interaction::overlay_rect(OverlayMode::RepositorySearch, frame.area());
+            let text = model
+                .repository_search
+                .lines(
+                    area.height.saturating_sub(2) as usize,
+                    area.width.saturating_sub(2) as usize,
+                )
+                .join("\n");
+            frame.render_widget(Clear, area);
+            frame.render_widget(
+                Paragraph::new(text)
+                    .wrap(Wrap { trim: false })
+                    .block(panel_block(
+                        "Repository search".into(),
+                        true,
+                        model.terminal_caps.color,
+                    )),
+                area,
+            );
+        }
+        OverlayMode::JobInspection => {
+            let area = interaction::overlay_rect(OverlayMode::JobInspection, frame.area());
+            let text = model
+                .job_inspection
+                .lines(
+                    area.width.saturating_sub(2) as usize,
+                    area.height.saturating_sub(2) as usize,
+                )
+                .join("\n");
+            frame.render_widget(Clear, area);
+            frame.render_widget(
+                Paragraph::new(text).block(panel_block(
+                    "Job inspection".into(),
+                    true,
+                    model.terminal_caps.color,
+                )),
+                area,
+            );
+        }
         OverlayMode::None => {}
     }
 }
@@ -2125,6 +2667,10 @@ fn draw_ui(
 
 fn apply_local_input(model: &mut AppModel, input: &str) {
     match input.trim() {
+        "inspect_job" => open_job_inspection(model),
+        "select_previous_job" => select_job(model, -1),
+        "select_next_job" => select_job(model, 1),
+        "follow_latest_job" => follow_latest_job(model),
         "focus_next" => {
             model.focus_panel = model.focus_panel.next();
             model.dirty = true;
@@ -2143,8 +2689,7 @@ fn apply_local_input(model: &mut AppModel, input: &str) {
         }
         "cycle_filter" => cycle_active_filter(model),
         "toggle_follow" => {
-            model.follow_updates = !model.follow_updates;
-            model.dirty = true;
+            toggle_follow(model);
         }
         "toggle_help" => {
             model.overlay = if model.overlay == OverlayMode::Help {
@@ -2163,34 +2708,41 @@ fn apply_local_input(model: &mut AppModel, input: &str) {
             model.dirty = true;
         }
         "palette_up" => {
-            let actions = palette_actions();
-            if model.palette_index == 0 {
-                model.palette_index = actions.len().saturating_sub(1);
-            } else {
-                model.palette_index = model.palette_index.saturating_sub(1);
-            }
-            model.dirty = true;
+            interaction::move_palette(model, -1);
         }
         "palette_down" => {
-            let actions = palette_actions();
-            model.palette_index = (model.palette_index + 1) % actions.len().max(1);
-            model.dirty = true;
+            interaction::move_palette(model, 1);
         }
         "palette_select" => {
-            if let Some(action) = palette_actions().get(model.palette_index).copied() {
+            if let Some(action) = interaction::actions(model).get(model.palette_index).copied() {
+                if let Some(reason) = interaction::disabled(model, action) { model.push_alert("info", reason); return; }
                 match action {
-                    PaletteAction::ToggleFollow => model.follow_updates = !model.follow_updates,
+                    PaletteAction::ToggleFollow => toggle_follow(model),
                     PaletteAction::FocusJobs => model.focus_panel = FocusPanel::Jobs,
                     PaletteAction::FocusTasks => model.focus_panel = FocusPanel::Tasks,
                     PaletteAction::FocusLogs => model.focus_panel = FocusPanel::Logs,
                     PaletteAction::CycleFilter => cycle_active_filter(model),
                     PaletteAction::ClearSearch => clear_search(model, model.focus_panel),
-                    PaletteAction::ShowHelp => model.overlay = OverlayMode::Help,
+                    PaletteAction::ShowHelp => interaction::context_help(model),
+                    PaletteAction::IndexWorkflows => {
+                        model.index_workflows.open(&model.session.scope);
+                        model.overlay = OverlayMode::IndexWorkflows;
+                    }
+                    PaletteAction::Settings => {
+                        model.settings.open(&model.session.scope);
+                        model.overlay = OverlayMode::Settings;
+                    }
+                    PaletteAction::RepositorySearch => {
+                        model.repository_search.open(&model.session.scope);
+                        model.overlay = OverlayMode::RepositorySearch;
+                    }
+                    PaletteAction::InspectJob => open_job_inspection(model),
+                    PaletteAction::Recordings => open_recordings(model),
                     PaletteAction::RunJob | PaletteAction::CancelSelected | PaletteAction::Quit => {
                     }
                 }
             }
-            if model.overlay == OverlayMode::Palette {
+            if model.overlay == OverlayMode::Palette && interaction::actions(model).get(model.palette_index).is_some() {
                 model.overlay = OverlayMode::None;
             }
             model.dirty = true;
@@ -2486,8 +3038,64 @@ fn cycle_active_filter(model: &mut AppModel) {
 fn open_search(model: &mut AppModel) {
     model.search_target = model.focus_panel;
     model.search_draft = current_search(model, model.focus_panel).to_string();
+    model.panel_cursor.reset();
     model.overlay = OverlayMode::Search;
     model.dirty = true;
+}
+
+fn open_job_inspection(model: &mut AppModel) {
+    let Some(id) = model
+        .selected_job
+        .clone()
+        .filter(|id| !model.selected_job_expired && visible_job_ids(model).contains(&id.as_str()))
+    else {
+        model.push_alert(
+            "info",
+            "Select a visible current job to inspect its retained result and artifacts",
+        );
+        return;
+    };
+    model.selected_job_pinned = true;
+    model.job_inspection.open(&id);
+    model.overlay = OverlayMode::JobInspection;
+    model.dirty = true;
+}
+
+fn sample_job_request(model: &AppModel, job_id: &str) -> Value {
+    let mut request = json!({"proto":"poc.tui@1", "op":"job:run", "jobId":job_id,
+        "title":"Search Help", "argv":["search", "--help"],
+        "resultPolicy":{"captureStdout":"text", "maxBytes":65536}});
+    if let Some(scope) = &model.settings.scope {
+        request["cwd"] = scope["configRoot"].clone();
+    }
+    request
+}
+
+fn open_recordings(model: &mut AppModel) {
+    model.recordings_requested = true;
+    model.overlay = OverlayMode::Recordings;
+    model.dirty = true;
+}
+
+fn has_live_control(model: &AppModel) -> bool {
+    model.owns_control_channel && model.session.controllable && model.session.mode == "supervised"
+}
+
+fn start_sample_job(
+    model: &mut AppModel,
+    supervisor: &mut std::process::Child,
+    next_job_idx: &mut u64,
+) -> anyhow::Result<()> {
+    if !has_live_control(model) {
+        model.push_alert(
+            "info",
+            "Launching work requires the owned live supervisor channel",
+        );
+        return Ok(());
+    }
+    let job_id = format!("job-{}", *next_job_idx);
+    *next_job_idx += 1;
+    send_request(supervisor, sample_job_request(model, &job_id))
 }
 
 fn apply_palette_action(
@@ -2496,10 +3104,12 @@ fn apply_palette_action(
     next_job_idx: &mut u64,
     action: PaletteAction,
 ) -> anyhow::Result<bool> {
+    if let Some(reason) = interaction::disabled(model, action) {
+        model.push_alert("info", format!("{}: {reason}", action.label())); return Ok(false);
+    }
     match action {
         PaletteAction::ToggleFollow => {
-            model.follow_updates = !model.follow_updates;
-            model.dirty = true;
+            toggle_follow(model);
         }
         PaletteAction::FocusJobs => {
             model.focus_panel = FocusPanel::Jobs;
@@ -2516,36 +3126,31 @@ fn apply_palette_action(
         PaletteAction::CycleFilter => cycle_active_filter(model),
         PaletteAction::ClearSearch => clear_search(model, model.focus_panel),
         PaletteAction::RunJob => {
-            let job_id = format!("job-{}", *next_job_idx);
-            *next_job_idx += 1;
-            let _ = send_request(
-                supervisor,
-                json!({
-                    "proto": "poc.tui@1",
-                    "op": "job:run",
-                    "jobId": job_id,
-                    "title": "Search Help",
-                    "argv": ["search", "--help"]
-                }),
-            );
+            start_sample_job(model, supervisor, next_job_idx)?;
         }
         PaletteAction::CancelSelected => {
-            if let Some(job_id) = model.selected_job.clone() {
-                let _ = send_request(
-                    supervisor,
-                    json!({
-                        "proto": "poc.tui@1",
-                        "op": "job:cancel",
-                        "jobId": job_id,
-                        "reason": "user_cancel"
-                    }),
-                );
-            }
+            send_selected_job_cancel(model, supervisor)?;
         }
         PaletteAction::ShowHelp => {
-            model.overlay = OverlayMode::Help;
+            interaction::context_help(model);
+        }
+        PaletteAction::IndexWorkflows => {
+            model.index_workflows.open(&model.session.scope);
+            model.overlay = OverlayMode::IndexWorkflows;
             model.dirty = true;
         }
+        PaletteAction::Settings => {
+            model.settings.open(&model.session.scope);
+            model.overlay = OverlayMode::Settings;
+            model.dirty = true;
+        }
+        PaletteAction::RepositorySearch => {
+            model.repository_search.open(&model.session.scope);
+            model.overlay = OverlayMode::RepositorySearch;
+            model.dirty = true;
+        }
+        PaletteAction::InspectJob => open_job_inspection(model),
+        PaletteAction::Recordings => open_recordings(model),
         PaletteAction::Quit => {
             return Ok(true);
         }
@@ -2553,40 +3158,33 @@ fn apply_palette_action(
     Ok(false)
 }
 
-fn enqueue_input(model: &mut AppModel, command: InputCommand, token: &str) {
-    let now = Instant::now();
-    if token == model.last_input_token
-        && now.duration_since(model.last_input_at).as_millis() < INPUT_DEBOUNCE_MS
-    {
-        return;
-    }
+fn enqueue_input(model: &mut AppModel, command: InputCommand, _token: &str) {
     let seq = model.next_input_seq;
     model.next_input_seq += 1;
-    model.last_input_at = now;
-    model.last_input_token = token.to_string();
     model.input_queue.push_back((seq, command));
 }
 
-fn flush_flow_credits(model: &mut AppModel, supervisor: &mut std::process::Child) {
+fn flush_flow_credits(model: &mut AppModel, supervisor: &mut std::process::Child) -> anyhow::Result<()> {
     if model.flow_credit_pending == 0 {
-        return;
+        return Ok(());
     }
     if model.flow_credit_pending < FLOW_CREDIT_BATCH
         && model.last_credit_flush.elapsed() < FLOW_CREDIT_FLUSH_INTERVAL
     {
-        return;
+        return Ok(());
     }
     let credits = model.flow_credit_pending;
-    let _ = send_request(
+    send_request(
         supervisor,
         json!({
             "proto": "poc.tui@1",
             "op": "flow:credit",
             "credits": credits
         }),
-    );
+    )?;
     model.flow_credit_pending = 0;
     model.last_credit_flush = Instant::now();
+    Ok(())
 }
 
 fn append_runtime_metrics(model: &mut AppModel) {
@@ -2605,6 +3203,8 @@ fn append_runtime_metrics(model: &mut AppModel) {
             "eventLagMsEwma": model.telemetry.event_lag_ms_ewma,
             "renderMsEwma": model.telemetry.render_ms_ewma,
             "queueDepthEwma": model.telemetry.queue_depth_ewma,
+            "nativeInboundPending": model.telemetry.native_inbound_pending,
+            "lifecycleDropped": model.telemetry.lifecycle_dropped,
             "processedEvents": model.telemetry.processed_events,
             "chunkReassembled": model.telemetry.chunk_reassembled,
             "droppedChunks": model.telemetry.dropped_chunks
@@ -2649,7 +3249,9 @@ fn handle_chunk_event(model: &mut AppModel, event: &Value) -> Option<Value> {
     }
 
     if count_mismatch {
-        model.chunk_assemblies.remove(&chunk_id);
+        if let Some(removed) = model.chunk_assemblies.remove(&chunk_id) {
+            model.chunk_assembly_bytes = model.chunk_assembly_bytes.saturating_sub(removed.bytes);
+        }
         model.telemetry.dropped_chunks += 1;
         return None;
     }
@@ -2681,6 +3283,9 @@ fn handle_chunk_event(model: &mut AppModel, event: &Value) -> Option<Value> {
         }
         Err(_) => {
             model.telemetry.dropped_chunks += 1;
+            if model.telemetry.dropped_chunks <= 8 {
+                model.push_alert("warn", "Reassembled supervisor event is invalid JSON; event was not applied");
+            }
             None
         }
     }
@@ -2702,6 +3307,9 @@ fn apply_session_descriptor(model: &mut AppModel, event: &Value) {
         .and_then(|value| value.as_str());
     let note = event.get("note").and_then(|value| value.as_str());
     model.update_session_state(mode, source, scope, connection, note);
+    model.session.controllable = model.owns_control_channel
+        && event["controllable"] == true
+        && model.session.mode == "supervised";
     update_workload_from_scope(model);
 }
 
@@ -2783,7 +3391,7 @@ fn apply_workload_fallbacks(
                 let active_jobs = model
                     .job_status
                     .values()
-                    .filter(|status| status.contains("running"))
+                    .filter(|status| Lifecycle::from_status(status) == Lifecycle::Active)
                     .count() as u64;
                 if model.service_summary.active_jobs.is_none() {
                     model.service_summary.active_jobs = Some(active_jobs);
@@ -2894,7 +3502,22 @@ fn summarize_protocol_event(event_name: &str, event: &Value) -> String {
     }
 }
 
-fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) {
+fn apply_ingress_event_at(model: &mut AppModel, received: event_ingress::InboundEvent, now: Instant) {
+    if let Some(age) = now.checked_duration_since(received.received_at) {
+        let milliseconds = age.as_secs_f64() * 1000.0;
+        model.telemetry.event_lag_ms_ewma = RuntimeTelemetry::update_known_ewma(
+            model.telemetry.event_lag_ms_ewma, milliseconds);
+    }
+    model.telemetry.native_inbound_pending = Some(received.pending_at_dispatch);
+    apply_protocol_event(model, received.value, 0);
+}
+
+fn apply_protocol_event(model: &mut AppModel, event: Value, _queue_depth: usize) {
+    if !model.owns_control_channel {
+        if let Some(timestamp) = event["ts"].as_str().and_then(task_state::recorded_timestamp) {
+            model.recorded_ms = Some(model.recorded_ms.unwrap_or(timestamp).max(timestamp));
+        }
+    }
     let event_name = event
         .get("event")
         .and_then(|value| value.as_str())
@@ -2903,24 +3526,35 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
 
     if event_name == "event:chunk" {
         if let Some(rebuilt) = handle_chunk_event(model, &event) {
-            apply_protocol_event(model, rebuilt, queue_depth);
+            apply_protocol_event(model, rebuilt, 0);
         }
         return;
     }
 
     model.telemetry.processed_events += 1;
-    model.telemetry.queue_depth_ewma =
-        RuntimeTelemetry::update_ewma(model.telemetry.queue_depth_ewma, queue_depth as f64);
-    model.telemetry.event_lag_ms_ewma = RuntimeTelemetry::update_ewma(
-        model.telemetry.event_lag_ms_ewma,
-        (queue_depth as f64) * INPUT_POLL_INTERVAL.as_millis() as f64,
-    );
 
     if let Some(run_id) = event.get("runId").and_then(|value| value.as_str()) {
         model.run_id = run_id.to_string();
     }
     apply_workload_descriptor(model, &event);
     if event_name == "hello" {
+        let search_was_available = model.repository_search.available;
+        model.job_inspection.available = model.owns_control_channel
+            && event["capabilities"]["supportsArtifactActions"] == true
+            && event["session"]["mode"] == "supervised"
+            && event["session"]["controllable"] == true;
+        model.repository_search.available = model.owns_control_channel
+            && event["capabilities"]["supportsSearch"] == true
+            && event["session"]["mode"] == "supervised"
+            && event["session"]["controllable"] == true;
+        model.index_workflows.available = model.owns_control_channel
+            && event["capabilities"]["supportsIndexWorkflows"] == true
+            && event["session"]["mode"] == "supervised"
+            && event["session"]["controllable"] == true;
+        model.settings.available = model.owns_control_channel
+            && event["capabilities"]["supportsSettings"] == true
+            && event["session"]["mode"] == "supervised"
+            && event["session"]["controllable"] == true;
         if let Some(session) = event.get("session") {
             apply_session_descriptor(model, session);
         } else {
@@ -2932,12 +3566,58 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
                 Some("supervisor handshake complete"),
             );
         }
+        if !search_was_available
+            && model.repository_search.available
+            && model.overlay == OverlayMode::RepositorySearch
+        {
+            model.repository_search.open(&model.session.scope);
+        }
     }
     if event_name == "session:attach" {
+        model.job_inspection.available = false;
+        model.repository_search.available = false;
+        model.settings.available = false;
+        model.index_workflows.available = false;
         apply_session_descriptor(model, &event);
     }
+    if model.job_inspection.event(&event) {
+        model.dirty = true;
+        return;
+    }
+    if model.repository_search.event(&event) {
+        model.dirty = true;
+        return;
+    }
+    if model.index_workflows.event(&event) {
+        if let Some(scope) = &model.index_workflows.scope {
+            if let Some(target) = scope["target"].as_str() {
+                if model.session.scope != target {
+                    model.repository_search.scope_changed(target);
+                }
+                model.session.scope = target.to_string();
+            }
+        }
+        model.dirty = true;
+        return;
+    }
+    if model.settings.event(&event) {
+        if let Some(scope) = &model.settings.scope {
+            if let Some(target) = scope["target"].as_str() {
+                if model.session.scope != target {
+                    model.repository_search.scope_changed(target);
+                }
+                model.session.scope = target.to_string();
+            }
+        }
+        model.dirty = true;
+        return;
+    }
     if let Some(job_id) = event.get("jobId").and_then(|value| value.as_str()) {
+        model.job_inspection.record(&event);
         if event_name == "job:start" || event_name == "job:spawn" {
+            if event_name == "job:start" {
+                model.begin_job_instance(job_id);
+            }
             let title = event.get("title").and_then(|value| value.as_str());
             model.update_job_status(job_id, "running", title);
         } else if event_name == "job:end" {
@@ -2946,6 +3626,7 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
                 .and_then(|value| value.as_str())
                 .unwrap_or("unknown");
             model.update_job_status(job_id, status, None);
+            model.reconcile_terminal_tasks(job_id, status);
             if let Some(result_state) = event.get("resultState").and_then(Value::as_str) {
                 if matches!(result_state, "truncated" | "invalid-json" | "incomplete") {
                     model.push_alert("warn", &format!("job {job_id} result {result_state}"));
@@ -2962,6 +3643,14 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
                 .get("taskId")
                 .and_then(|value| value.as_str())
                 .unwrap_or("task");
+            let task_key = json!([job_id, task_id]).to_string();
+            if event_name == "task:progress" && model.task_status.get(&task_key)
+                .is_some_and(|task| task.lifecycle() != Lifecycle::Active) {
+                return;
+            }
+            if event["ts"].as_str().and_then(task_state::recorded_timestamp)
+                .zip(model.task_status.get(&task_key).and_then(|task| task.producer_ms))
+                .is_some_and(|(incoming, retained)| incoming < retained) { return; }
             let status = event
                 .get("status")
                 .and_then(|value| value.as_str())
@@ -2970,21 +3659,43 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
                 } else {
                     "running"
                 });
+            // A delayed start must not reset the already reconciled task merely
+            // because update_task_status declined its terminal owner below.
+            if Lifecycle::from_status(status) == Lifecycle::Active
+                && model.job_status.get(job_id).is_some_and(|owner| Lifecycle::from_status(owner) != Lifecycle::Active) {
+                return;
+            }
             let msg = event.get("message").and_then(|value| value.as_str());
             model.update_task_status(job_id, task_id, status, msg);
+            let now = if model.owns_control_channel && model.session.mode != "replay" {
+                Some(model.activity_origin.elapsed().as_millis().min(u64::MAX as u128) as u64)
+            } else { model.recorded_ms };
+            if let Some(task) = model.task_status.get_mut(&task_key) {
+                if event_name == "task:start" { *task = TaskState::new(status, msg); }
+                task.observe(&event, now);
+            }
         }
     }
 
     if event_name == "runtime:metrics" {
         if let Some(flow) = event.get("flow").and_then(|value| value.as_object()) {
-            let queue_depth = flow
-                .get("queueDepth")
-                .and_then(|value| value.as_u64())
-                .unwrap_or(0) as f64;
-            model.telemetry.queue_depth_ewma =
-                RuntimeTelemetry::update_ewma(model.telemetry.queue_depth_ewma, queue_depth);
-            if model.workload_kind == WorkloadKind::Service {
-                model.service_summary.queue_depth = Some(queue_depth as u64);
+            if let Some(lost) = flow.get("lifecycleDropped").and_then(Value::as_u64) {
+                if lost > model.telemetry.lifecycle_dropped {
+                    for task in model.task_status.values_mut() {
+                        if task.lifecycle() == Lifecycle::Active {
+                            *task = TaskState::new("unknown", Some("task lifecycle transport incomplete"));
+                        }
+                    }
+                    model.push_alert("warn", "Task lifecycle transport incomplete; running states are unknown until a new lifecycle event.");
+                }
+                model.telemetry.lifecycle_dropped = lost;
+            }
+            if let Some(queue_depth) = flow.get("queueDepth").and_then(Value::as_u64) {
+                model.telemetry.queue_depth_ewma = RuntimeTelemetry::update_known_ewma(
+                    model.telemetry.queue_depth_ewma, queue_depth as f64);
+                if model.workload_kind == WorkloadKind::Service {
+                    model.service_summary.queue_depth = Some(queue_depth);
+                }
             }
         }
         model.update_session_state(
@@ -3024,23 +3735,220 @@ fn apply_protocol_event(model: &mut AppModel, event: Value, queue_depth: usize) 
         None
     };
     apply_workload_fallbacks(model, &event_name, &event, fallback_log_message);
-    model.push_log_entry(log_line, &log_level, &log_source);
+    model.push_scoped_log_entry(
+        log_line,
+        &log_level,
+        &log_source,
+        event.get("jobId").and_then(Value::as_str),
+    );
 }
 
+const INGRESS_EVENTS_PER_TURN: u64 = 128;
+const INGRESS_TURN_BUDGET: Duration = Duration::from_millis(4);
+
+fn drain_ingress_turn(
+    mut poll: impl FnMut() -> Option<event_ingress::InboundEvent>,
+    mut apply: impl FnMut(event_ingress::InboundEvent),
+    mut elapsed: impl FnMut() -> Duration,
+) -> u64 {
+    let mut consumed = 0;
+    while consumed < INGRESS_EVENTS_PER_TURN
+        && (consumed == 0 || elapsed() < INGRESS_TURN_BUDGET) {
+        let Some(event) = poll() else { break; };
+        apply(event);
+        consumed += 1;
+    }
+    consumed
+}
+
+fn input_poll_wait(inbound_pending: usize, replay_pending: bool) -> Duration {
+    if inbound_pending > 0 || replay_pending { Duration::ZERO } else { INPUT_POLL_INTERVAL }
+}
+
+fn enqueue_terminal_key(model: &mut AppModel, key: KeyEvent) {
+    if key.kind == KeyEventKind::Release {
+        return;
+    }
+    if key.code == KeyCode::F(1) {
+        enqueue_input(model, InputCommand::ContextHelp, "context-help");
+        return;
+    }
+    if key.modifiers.contains(KeyModifiers::CONTROL) && matches!(key.code, KeyCode::Char('c' | 'C'))
+    {
+        // Interrupt is global and must not start queued interactions before
+        // entering the existing supervisor shutdown-and-drain owner.
+        if matches!(model.input_queue.front(), Some((_, InputCommand::Quit))) {
+            return;
+        }
+        model.input_queue.clear();
+        enqueue_input(model, InputCommand::Quit, "ctrl-c");
+        return;
+    }
+    // Debounce hardware repeat only. Distinct Press events (including pasted
+    // repeated letters) retain FIFO order and cannot reset the dispatch clock.
+    let token = format!("{:?}:{:?}", key.code, key.modifiers);
+    let now = Instant::now();
+    if key.kind == KeyEventKind::Repeat
+        && token == model.last_input_token
+        && now.duration_since(model.last_key_at).as_millis() < INPUT_DEBOUNCE_MS
+    {
+        return;
+    }
+    model.last_key_at = now;
+    model.last_input_token = token;
+    enqueue_input(model, InputCommand::TerminalKey(key), "terminal-key");
+}
+
+fn interpret_terminal_key(model: &mut AppModel, key: KeyEvent) {
+    match model.overlay {
+        OverlayMode::Recordings => {} // Keys are consumed by the owned loader UI.
+        OverlayMode::JobInspection => {
+            if model.job_inspection.key(key) {
+                model.overlay = OverlayMode::None;
+            }
+            model.dirty = true;
+        }
+        OverlayMode::RepositorySearch => {
+            if model.repository_search.key(key) {
+                model.overlay = OverlayMode::None;
+            }
+            model.dirty = true;
+        }
+        OverlayMode::IndexWorkflows => {
+            if model.index_workflows.key(key) {
+                model.overlay = OverlayMode::None;
+            }
+            model.dirty = true;
+        }
+        OverlayMode::Settings => {
+            if model.settings.key(key) {
+                model.overlay = OverlayMode::None;
+            }
+            model.dirty = true;
+        }
+        OverlayMode::Help => interaction::help_key(model, key),
+        OverlayMode::Palette => match key.code {
+            KeyCode::Esc => {
+                enqueue_input(model, InputCommand::TogglePalette, "palette-close")
+            }
+            KeyCode::Down => {
+                enqueue_input(model, InputCommand::PaletteDown, "palette-down")
+            }
+            KeyCode::Up => {
+                enqueue_input(model, InputCommand::PaletteUp, "palette-up")
+            }
+            KeyCode::Enter => enqueue_input(model, InputCommand::PaletteSelect, "palette-select"),
+            _ => {
+                interaction::edit_palette(model, |cursor, query| cursor.key(query, key, 256));
+            }
+        },
+        OverlayMode::Search => match key.code {
+            KeyCode::Esc => enqueue_input(model, InputCommand::SearchCancel, "search-cancel"),
+            KeyCode::Enter => enqueue_input(model, InputCommand::SearchAccept, "search-accept"),
+            KeyCode::Backspace => enqueue_input(model, InputCommand::SearchBackspace, "search-backspace"),
+            KeyCode::Char(ch) if !ch.is_control() && !key.modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT) =>
+                enqueue_input(model, InputCommand::SearchChar(ch), "search-char"),
+            _ => { if model.panel_cursor.key(&mut model.search_draft, key, 4096) { model.dirty = true; } }
+        },
+        OverlayMode::None => {
+            if let Some(input) = interaction::bound_input(key) { enqueue_input(model, input, "bound-action"); return; }
+            match key.code {
+                KeyCode::Up if model.focus_panel == FocusPanel::Jobs => enqueue_input(model, InputCommand::SelectPreviousJob, "previous-job"),
+                KeyCode::Down if model.focus_panel == FocusPanel::Jobs => enqueue_input(model, InputCommand::SelectNextJob, "next-job"),
+                _ => {}
+            }
+        },
+    }
+}
+
+#[cfg(test)]
 fn dispatch_input(
     model: &mut AppModel,
     supervisor: &mut std::process::Child,
     next_job_idx: &mut u64,
 ) -> anyhow::Result<bool> {
+    dispatch_input_with_recordings_at(model, supervisor, next_job_idx, None, Instant::now())
+}
+
+fn dispatch_input_with_recordings_at(
+    model: &mut AppModel,
+    supervisor: &mut std::process::Child,
+    next_job_idx: &mut u64,
+    mut recordings: Option<&mut recordings::RecordingUi>,
+    now: Instant,
+) -> anyhow::Result<bool> {
     if model.input_queue.is_empty() {
         return Ok(false);
     }
-    if model.last_input_at.elapsed().as_millis() < INPUT_DISPATCH_INTERVAL_MS {
+    if !matches!(model.input_queue.front(), Some((_, InputCommand::Quit)))
+        && now.saturating_duration_since(model.last_input_at).as_millis() < INPUT_DISPATCH_INTERVAL_MS {
         return Ok(false);
     }
+    if matches!(model.input_queue.front(), Some((_, InputCommand::TerminalKey(_)))) {
+        let (_, InputCommand::TerminalKey(key)) = model.input_queue.pop_front().unwrap() else { unreachable!() };
+        let mut consumed = false;
+        if let Some(recordings) = recordings.as_mut() {
+            if model.overlay == OverlayMode::Recordings {
+                if recordings.key(key) { model.overlay = OverlayMode::None; }
+                model.dirty = true;
+                consumed = true;
+            } else if model.overlay == OverlayMode::None && recordings.playback_key(key) {
+                model.dirty = true;
+                consumed = true;
+            }
+        }
+        // Interpret only now, against the state produced by the preceding key.
+        // Commands produced by this key precede every later raw key.
+        let mut later_keys = std::mem::take(&mut model.input_queue);
+        if !consumed { interpret_terminal_key(model, key); }
+        let interpreted = !model.input_queue.is_empty();
+        model.input_queue.append(&mut later_keys);
+        if !interpreted { model.last_input_at = now; return Ok(false); }
+    }
     let (_, cmd) = model.input_queue.pop_front().unwrap();
-    model.last_input_at = Instant::now();
+    model.last_input_at = now;
+    if let Some(reason) = interaction::input_disabled(model, &cmd) {
+        model.push_alert("info", reason); return Ok(false);
+    }
     match cmd {
+        InputCommand::ContextHelp => interaction::context_help(model),
+        InputCommand::Paste(text) => {
+            if model.overlay == OverlayMode::Recordings {
+                if let Some(recordings) = recordings.as_mut() { recordings.paste(&text); model.dirty = true; }
+            } else { interaction::paste(model, &text); }
+        },
+        InputCommand::Mouse(input) => {
+            if let Some(input) = interaction::apply_mouse(model, input) {
+                if let Some(recordings) = recordings.as_mut() {
+                    if recordings.revision == model.recording_revision {
+                        match input { interaction::RecordingMouse::Key(key) => { recordings.key(key); },
+                            interaction::RecordingMouse::Row(row) => recordings.click(row) }
+                        model.dirty = true;
+                    }
+                }
+            }
+        }
+        InputCommand::TerminalKey(_) => unreachable!("raw key must be interpreted before command dispatch"),
+        InputCommand::InspectJob => open_job_inspection(model),
+        InputCommand::Recordings => open_recordings(model),
+        InputCommand::SelectPreviousJob => select_job(model, -1),
+        InputCommand::SelectNextJob => select_job(model, 1),
+        InputCommand::FollowLatestJob => follow_latest_job(model),
+        InputCommand::RepositorySearch => {
+            model.repository_search.open(&model.session.scope);
+            model.overlay = OverlayMode::RepositorySearch;
+            model.dirty = true;
+        }
+        InputCommand::IndexWorkflows => {
+            model.index_workflows.open(&model.session.scope);
+            model.overlay = OverlayMode::IndexWorkflows;
+            model.dirty = true;
+        }
+        InputCommand::Settings => {
+            model.settings.open(&model.session.scope);
+            model.overlay = OverlayMode::Settings;
+            model.dirty = true;
+        }
         InputCommand::Quit => {
             return Ok(true);
         }
@@ -3048,6 +3956,7 @@ fn dispatch_input(
             model.focus_panel = model.focus_panel.next();
             model.dirty = true;
         }
+        InputCommand::ToggleMaximized => { model.maximized = !model.maximized; model.dirty = true; }
         InputCommand::FocusJobs => {
             model.focus_panel = FocusPanel::Jobs;
             model.dirty = true;
@@ -3062,16 +3971,10 @@ fn dispatch_input(
         }
         InputCommand::CycleFilter => cycle_active_filter(model),
         InputCommand::ToggleFollow => {
-            model.follow_updates = !model.follow_updates;
-            model.dirty = true;
+            toggle_follow(model);
         }
         InputCommand::ToggleHelp => {
-            model.overlay = if model.overlay == OverlayMode::Help {
-                OverlayMode::None
-            } else {
-                OverlayMode::Help
-            };
-            model.dirty = true;
+            interaction::context_help(model);
         }
         InputCommand::TogglePalette => {
             model.overlay = if model.overlay == OverlayMode::Palette {
@@ -3082,27 +3985,22 @@ fn dispatch_input(
             model.dirty = true;
         }
         InputCommand::PaletteUp => {
-            let actions = palette_actions();
-            if model.palette_index == 0 {
-                model.palette_index = actions.len().saturating_sub(1);
-            } else {
-                model.palette_index = model.palette_index.saturating_sub(1);
-            }
-            model.dirty = true;
+            interaction::move_palette(model, -1);
         }
         InputCommand::PaletteDown => {
-            let actions = palette_actions();
-            model.palette_index = (model.palette_index + 1) % actions.len().max(1);
-            model.dirty = true;
+            interaction::move_palette(model, 1);
         }
         InputCommand::PaletteSelect => {
-            let actions = palette_actions();
+            let actions = interaction::actions(model);
             if let Some(action) = actions.get(model.palette_index).copied() {
+                if let Some(reason) = interaction::disabled(model, action) {
+                    model.push_alert("info", format!("{}: {reason}", action.label())); return Ok(false);
+                }
                 if apply_palette_action(model, supervisor, next_job_idx, action)? {
                     return Ok(true);
                 }
             }
-            if model.overlay == OverlayMode::Palette {
+            if model.overlay == OverlayMode::Palette && actions.get(model.palette_index).is_some() {
                 model.overlay = OverlayMode::None;
             }
             model.dirty = true;
@@ -3119,40 +4017,19 @@ fn dispatch_input(
             model.dirty = true;
         }
         InputCommand::SearchBackspace => {
-            model.search_draft.pop();
+            model.panel_cursor.key(&mut model.search_draft, KeyCode::Backspace.into(), 4096);
             model.dirty = true;
         }
         InputCommand::SearchChar(ch) => {
-            model.search_draft.push(ch);
+            model.panel_cursor.key(&mut model.search_draft, KeyCode::Char(ch).into(), 4096);
             model.dirty = true;
         }
         InputCommand::ClearSearch => clear_search(model, model.focus_panel),
         InputCommand::RunJob => {
-            let job_id = format!("job-{}", *next_job_idx);
-            *next_job_idx += 1;
-            let _ = send_request(
-                supervisor,
-                json!({
-                    "proto": "poc.tui@1",
-                    "op": "job:run",
-                    "jobId": job_id,
-                    "title": "Search Help",
-                    "argv": ["search", "--help"]
-                }),
-            );
+            start_sample_job(model, supervisor, next_job_idx)?;
         }
         InputCommand::CancelSelected => {
-            if let Some(job_id) = model.selected_job.clone() {
-                let _ = send_request(
-                    supervisor,
-                    json!({
-                        "proto": "poc.tui@1",
-                        "op": "job:cancel",
-                        "jobId": job_id,
-                        "reason": "user_cancel"
-                    }),
-                );
-            }
+            send_selected_job_cancel(model, supervisor)?;
         }
         InputCommand::LogsUp => {
             model.log_scroll = model.log_scroll.saturating_add(1);
@@ -3180,6 +4057,30 @@ fn dispatch_input(
         }
     }
     Ok(false)
+}
+
+fn flush_model_requests(
+    model: &mut AppModel,
+    supervisor: &mut std::process::Child,
+) -> anyhow::Result<()> {
+    if !has_live_control(model) {
+        model.index_workflows.outbox.clear();
+        model.settings.outbox.clear();
+        model.repository_search.outbox.clear();
+        model.job_inspection.outbox.clear();
+        return Ok(());
+    }
+    for outbox in [
+        &mut model.index_workflows.outbox,
+        &mut model.settings.outbox,
+        &mut model.repository_search.outbox,
+        &mut model.job_inspection.outbox,
+    ] {
+        while let Some(request) = outbox.pop_front() {
+            send_request(supervisor, request)?;
+        }
+    }
+    Ok(())
 }
 
 fn main() -> anyhow::Result<()> {
@@ -3212,6 +4113,7 @@ fn main() -> anyhow::Result<()> {
     if terminal_caps.mouse {
         execute!(stdout, EnableMouseCapture)?;
     }
+    execute!(stdout, EnableBracketedPaste)?;
 
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
@@ -3219,43 +4121,68 @@ fn main() -> anyhow::Result<()> {
 
     let mut model = AppModel::new(run_id.clone(), terminal_caps, telemetry_file);
     if let Some(snapshot) = load_snapshot(&snapshot_path) {
-        model.selected_job = snapshot.selected_job;
-        model.job_scroll = snapshot.job_scroll;
-        model.task_scroll = snapshot.task_scroll;
-        model.log_scroll = snapshot.log_scroll;
+        restore_snapshot(&mut model, snapshot);
     }
 
     let (supervisor, events_rx) = spawn_supervisor(&run_id, &observability_dir)?;
     let mut supervisor = SupervisorLifetime::new(supervisor, events_rx)?;
-
-    let _ = send_request(
-        &mut supervisor,
-        json!({
-            "proto": "poc.tui@1",
-            "op": "flow:credit",
-            "credits": FLOW_CREDIT_BATCH * 4
-        }),
-    );
+    model.owns_control_channel = true;
+    let mut recordings = recordings::RecordingUi::default();
 
     let mut next_job_idx: u64 = 1;
     let mut last_frame = Instant::now();
 
     let execution = (|| -> anyhow::Result<()> {
+        send_request(&mut supervisor, json!({"proto":"poc.tui@1", "op":"flow:credit",
+            "credits":FLOW_CREDIT_BATCH * 4}))?;
         loop {
-            let mut processed = 0u64;
-            while let Ok(event) = supervisor.poll() {
-                apply_protocol_event(&mut model, event, 0);
-                processed += 1;
-            }
+            let ingress_started = Instant::now();
+            let mut transport_closed = false;
+            let processed = drain_ingress_turn(|| match supervisor.poll() {
+                Ok(event) => Some(event),
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => { transport_closed = true; None },
+                Err(std::sync::mpsc::TryRecvError::Empty) => None,
+            }, |received| {
+                let owned_channel = recordings
+                    .live_model
+                    .as_ref()
+                    .map(|live| live.owns_control_channel)
+                    .unwrap_or(model.owns_control_channel);
+                recordings.supervisor_event(&received.value, owned_channel);
+                let live = recordings.live_model.as_deref_mut().unwrap_or(&mut model);
+                apply_ingress_event_at(live, received, Instant::now());
+            }, || ingress_started.elapsed());
             if processed > 0 {
-                model.flow_credit_pending = model.flow_credit_pending.saturating_add(processed);
-                flush_flow_credits(&mut model, &mut supervisor);
+                let live = recordings.live_model.as_deref_mut().unwrap_or(&mut model);
+                live.flow_credit_pending = live.flow_credit_pending.saturating_add(processed);
+                flush_flow_credits(live, &mut supervisor)?;
             }
 
-            append_runtime_metrics(&mut model);
-            if supervisor.try_wait()?.is_some() {
+            append_runtime_metrics(recordings.live_model.as_deref_mut().unwrap_or(&mut model));
+            if let Some(status) = supervisor.try_wait()? {
                 model.push_log("supervisor exited; draining owned process family".to_string());
-                break;
+                return Err(anyhow::anyhow!(
+                    "supervisor exited before TUI shutdown: {status}"
+                ));
+            }
+            if transport_closed {
+                return Err(anyhow::anyhow!("supervisor event transport closed while the owned child remained active"));
+            }
+
+            recordings.tick();
+            recordings.update_view(&mut model);
+            interaction::activity_tick(&mut model);
+            if model.recordings_requested {
+                model.recordings_requested = false;
+                recordings.open(&observability_dir);
+            }
+            if model.recording_revision != recordings.revision {
+                model.recording_revision = recordings.revision;
+                let size = terminal.size()?;
+                let area = interaction::overlay_rect(OverlayMode::Recordings, ratatui::layout::Rect::new(0, 0, size.width, size.height));
+                model.recording_overlay_text = recordings.lines(area.height.saturating_sub(2) as usize,
+                    area.width.saturating_sub(2) as usize).join("\n");
+                model.dirty = true;
             }
 
             if model.dirty && last_frame.elapsed() >= FRAME_INTERVAL {
@@ -3277,156 +4204,300 @@ fn main() -> anyhow::Result<()> {
                 last_frame = Instant::now();
             }
 
-            if event::poll(Duration::from_millis(20))? {
+            if event::poll(input_poll_wait(supervisor.pending_events(), recordings.reconstruction_pending()))? {
                 let terminal_event = event::read()?;
                 if matches!(terminal_event, CEvent::Resize(_, _)) {
                     // Terminal::draw performs autoresize through the normal backend.
                     // An unchanged model still needs a new layout after SIGWINCH.
                     invalidate_frame(&mut model);
+                    *model.hit_map.borrow_mut() = interaction::HitMap::default();
+                    recordings.revision += 1;
                 } else if let CEvent::Key(key) = terminal_event {
-                    if key.kind == KeyEventKind::Release {
-                        continue;
-                    }
-                    match model.overlay {
-                        OverlayMode::Help => match key.code {
-                            KeyCode::Esc | KeyCode::Char('?') => {
-                                enqueue_input(&mut model, InputCommand::ToggleHelp, "help-close")
-                            }
-                            _ => {}
-                        },
-                        OverlayMode::Palette => match key.code {
-                            KeyCode::Esc | KeyCode::Char(':') => enqueue_input(
-                                &mut model,
-                                InputCommand::TogglePalette,
-                                "palette-close",
-                            ),
-                            KeyCode::Char('j') | KeyCode::Down => {
-                                enqueue_input(&mut model, InputCommand::PaletteDown, "palette-down")
-                            }
-                            KeyCode::Char('k') | KeyCode::Up => {
-                                enqueue_input(&mut model, InputCommand::PaletteUp, "palette-up")
-                            }
-                            KeyCode::Enter => enqueue_input(
-                                &mut model,
-                                InputCommand::PaletteSelect,
-                                "palette-select",
-                            ),
-                            _ => {}
-                        },
-                        OverlayMode::Search => match key.code {
-                            KeyCode::Esc => enqueue_input(
-                                &mut model,
-                                InputCommand::SearchCancel,
-                                "search-cancel",
-                            ),
-                            KeyCode::Enter => enqueue_input(
-                                &mut model,
-                                InputCommand::SearchAccept,
-                                "search-accept",
-                            ),
-                            KeyCode::Backspace => enqueue_input(
-                                &mut model,
-                                InputCommand::SearchBackspace,
-                                "search-backspace",
-                            ),
-                            KeyCode::Char(ch) if !ch.is_control() => enqueue_input(
-                                &mut model,
-                                InputCommand::SearchChar(ch),
-                                &format!("search-char-{ch}"),
-                            ),
-                            _ => {}
-                        },
-                        OverlayMode::None => match key.code {
-                            KeyCode::Char('q') => {
-                                enqueue_input(&mut model, InputCommand::Quit, "q")
-                            }
-                            KeyCode::Char('r') => {
-                                enqueue_input(&mut model, InputCommand::RunJob, "r")
-                            }
-                            KeyCode::Char('c') => {
-                                enqueue_input(&mut model, InputCommand::CancelSelected, "c")
-                            }
-                            KeyCode::Char('j') => {
-                                enqueue_input(&mut model, InputCommand::LogsUp, "j")
-                            }
-                            KeyCode::Char('k') => {
-                                enqueue_input(&mut model, InputCommand::LogsDown, "k")
-                            }
-                            KeyCode::Char('n') => {
-                                enqueue_input(&mut model, InputCommand::JobsUp, "n")
-                            }
-                            KeyCode::Char('m') => {
-                                enqueue_input(&mut model, InputCommand::JobsDown, "m")
-                            }
-                            KeyCode::Char('u') => {
-                                enqueue_input(&mut model, InputCommand::TasksUp, "u")
-                            }
-                            KeyCode::Char('i') => {
-                                enqueue_input(&mut model, InputCommand::TasksDown, "i")
-                            }
-                            KeyCode::Tab => {
-                                enqueue_input(&mut model, InputCommand::FocusNext, "focus-next")
-                            }
-                            KeyCode::Char('1') => {
-                                enqueue_input(&mut model, InputCommand::FocusJobs, "focus-jobs")
-                            }
-                            KeyCode::Char('2') => {
-                                enqueue_input(&mut model, InputCommand::FocusTasks, "focus-tasks")
-                            }
-                            KeyCode::Char('3') => {
-                                enqueue_input(&mut model, InputCommand::FocusLogs, "focus-logs")
-                            }
-                            KeyCode::Char('f') => {
-                                enqueue_input(&mut model, InputCommand::CycleFilter, "cycle-filter")
-                            }
-                            KeyCode::Char('p') => enqueue_input(
-                                &mut model,
-                                InputCommand::ToggleFollow,
-                                "toggle-follow",
-                            ),
-                            KeyCode::Char('?') => {
-                                enqueue_input(&mut model, InputCommand::ToggleHelp, "toggle-help")
-                            }
-                            KeyCode::Char(':') | KeyCode::Char('a') => enqueue_input(
-                                &mut model,
-                                InputCommand::TogglePalette,
-                                "toggle-palette",
-                            ),
-                            KeyCode::Char('/') => {
-                                enqueue_input(&mut model, InputCommand::SearchOpen, "search-open")
-                            }
-                            KeyCode::Char('x') => {
-                                enqueue_input(&mut model, InputCommand::ClearSearch, "clear-search")
-                            }
-                            _ => {}
-                        },
-                    }
+                    enqueue_terminal_key(&mut model, key);
+                } else if let CEvent::Paste(text) = terminal_event {
+                    if text.len() <= 8192 { enqueue_input(&mut model, InputCommand::Paste(text), "paste-data"); }
+                } else if let CEvent::Mouse(mouse) = terminal_event {
+                    interaction::mouse(&mut model, mouse);
                 }
             }
 
-            if dispatch_input(&mut model, &mut supervisor, &mut next_job_idx)? {
+            if dispatch_input_with_recordings_at(&mut model, &mut supervisor, &mut next_job_idx, Some(&mut recordings), Instant::now())? {
                 break;
+            }
+            flush_model_requests(
+                recordings.live_model.as_deref_mut().unwrap_or(&mut model),
+                &mut supervisor,
+            )?;
+            // Only this loader's UI receives real transport responses. Saved
+            // events never enter this outbox or grant access to live commands.
+            while let Some(request) = recordings.outbox.pop_front() {
+                send_request(&mut supervisor, request)?;
             }
         }
         Ok(())
     })();
 
-    let shutdown = supervisor.shutdown(|event| apply_protocol_event(&mut model, event, 0));
-    for status in model.job_status.values_mut() {
-        if status.contains("running") || status == "queued" {
-            *status = "failed".to_string();
-        }
+    let live = recordings.live_model.as_deref_mut().unwrap_or(&mut model);
+    let shutdown = supervisor.shutdown(|event| apply_ingress_event_at(live, event, Instant::now()));
+    interrupt_unobserved_jobs(live);
+    save_snapshot(&snapshot_path, live);
+    supervisor_lifetime::combine_session_outcomes(execution, shutdown)
+}
+
+fn interrupt_unobserved_jobs(model: &mut AppModel) {
+    let unfinished: Vec<_> = model.job_status.iter()
+        .filter(|(_, status)| Lifecycle::from_status(status) == Lifecycle::Active)
+        .map(|(id, _)| id.clone()).collect();
+    for id in unfinished {
+        // Process-family containment does not supply the lost producer outcome.
+        model.update_job_status(&id, "interrupted", None);
+        model.reconcile_terminal_tasks(&id, "interrupted");
     }
-    save_snapshot(&snapshot_path, &model);
-    execution.and(shutdown)
 }
 
 #[cfg(test)]
 mod redraw_tests {
     use super::*;
 
+    #[test]
+    fn actual_javascript_unicode_frames_decode_and_settle_terminal_jobs() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+        let output = Command::new("node").arg("tests/helpers/tui/unicode-frames.js")
+            .current_dir(root).output().expect("launch bounded actual producer fixture");
+        assert!(output.status.success(), "{}", String::from_utf8_lossy(&output.stderr));
+        assert!(output.stdout.len() < 8 * 1024 * 1024);
+        let mut expected = BTreeMap::new();
+        let mut observed = BTreeMap::new();
+        let mut model = model();
+        for line in String::from_utf8(output.stdout).unwrap().lines() {
+            let frame: Value = serde_json::from_str(line).expect("each actual wire frame must decode with serde_json Value");
+            if frame["event"] == "fixture:expected" {
+                expected.insert(frame["jobId"].as_str().unwrap().to_owned(), frame["value"].as_str().unwrap().to_owned());
+                continue;
+            }
+            let rebuilt = handle_chunk_event(&mut model, &frame);
+            if let Some(event) = rebuilt {
+                observed.insert(event["jobId"].as_str().unwrap().to_owned(), event["result"]["value"].as_str().unwrap().to_owned());
+                apply_protocol_event(&mut model, event, 0);
+            }
+        }
+        assert_eq!(observed, expected);
+        assert_eq!(model.telemetry.dropped_chunks, 0);
+        assert_eq!(job_status_counts(&model).0, 0);
+        assert!(model.job_status.values().all(|status| status == "done"));
+    }
+
+    #[test]
+    fn structured_task_status_ignores_messages_and_terminal_owner_closes_only_its_tasks() {
+        for terminal in ["done", "failed", "cancelled"] {
+            let mut model = model();
+            for job in ["owner", "other"] {
+                apply_protocol_event(&mut model, json!({"event":"job:start","jobId":job}), 0);
+                apply_protocol_event(&mut model, json!({"event":"task:progress","jobId":job,"taskId":"live",
+                    "status":"running","message":"batch done failed cancelled.rs"}), 0);
+            }
+            model.update_task_status("owner", "complete", "done", Some("preserved"));
+            assert_eq!(task_status_counts(&model), (2, 0));
+            model.selected_job = Some("owner".into());
+            model.focus_panel = FocusPanel::Tasks;
+            model.task_filter = TaskFilter::Active;
+            assert!(screen(&model, 80, 24).contains("live"));
+            model.task_filter = TaskFilter::Done;
+            assert!(!screen(&model, 80, 24).contains("batch done failed"));
+            apply_protocol_event(&mut model, json!({"event":"job:end","jobId":"owner","status":terminal}), 0);
+            assert_eq!(task_status_counts(&model), (1, 1));
+            let key = json!(["owner","complete"]).to_string();
+            assert_eq!(model.task_status[&key].status, "done");
+            apply_protocol_event(&mut model, json!({"event":"task:progress","jobId":"owner","taskId":"live","status":"running"}), 0);
+            assert_eq!(task_status_counts(&model), (1, 1), "late progress cannot resurrect terminal ownership");
+            assert!(!matches_job_filter(terminal, JobFilter::Active));
+            apply_protocol_event(&mut model, json!({"event":"job:start","jobId":"owner"}), 0);
+            model.update_task_status("owner", "new", "running", None);
+            assert_eq!(task_status_counts(&model), (2, 0));
+        }
+    }
+
+    #[test]
+    fn runtime_metrics_update_telemetry_without_entering_user_logs() {
+        let mut model = model();
+        model.logs.clear();
+        apply_protocol_event(
+            &mut model,
+            json!({"event":"log","jobId":"selected",
+            "message":"retained user log","level":"info"}),
+            0,
+        );
+        let before = model.telemetry.processed_events;
+        for _ in 0..100 {
+            apply_protocol_event(
+                &mut model,
+                json!({"event":"runtime:metrics","flow":{"queueDepth":42}}),
+                0,
+            );
+        }
+        assert_eq!(model.telemetry.processed_events, before + 100);
+        assert!(model.telemetry.queue_depth_ewma.is_some_and(|value| value > 0.0));
+        assert_eq!(model.logs.len(), 1);
+        assert_eq!(model.logs[0].text, "retained user log");
+        assert_eq!(model.logs[0].job_id.as_deref(), Some("selected"));
+        apply_protocol_event(
+            &mut model,
+            json!({"event":"log","message":"session log","level":"info"}),
+            0,
+        );
+        assert_eq!(model.logs.len(), 2);
+        assert_eq!(model.logs[1].job_id, None);
+    }
+
+    #[test]
+    fn an_open_search_recovers_when_its_real_control_handshake_arrives() {
+        for (visible, controllable) in [(true, true), (false, true), (true, false)] {
+            let mut model = model();
+            if visible {
+                model.repository_search.open("selected-repository");
+                model.overlay = OverlayMode::RepositorySearch;
+            }
+            assert!(model.repository_search.outbox.is_empty());
+            let hello = json!({"event":"hello", "capabilities":{"supportsSearch":true},
+                "session":{"mode":"supervised","controllable":controllable,
+                    "scope":"selected-repository","connection":"connected"}});
+            apply_protocol_event(&mut model, hello.clone(), 0);
+            assert_eq!(
+                model.repository_search.outbox.len(),
+                usize::from(visible && controllable)
+            );
+            if visible && controllable {
+                assert_eq!(model.repository_search.outbox[0]["method"], "describe");
+            }
+            apply_protocol_event(&mut model, hello, 0);
+            assert_eq!(
+                model.repository_search.outbox.len(),
+                usize::from(visible && controllable)
+            );
+        }
+    }
+
+    #[test]
+    fn new_job_captures_selected_scope_without_retargeting_an_existing_request() {
+        let mut model = model();
+        model.settings.scope = Some(json!({"configRoot":"first-repository"}));
+        let first = sample_job_request(&model, "first");
+        model.settings.scope = Some(json!({"configRoot":"second-repository"}));
+        let second = sample_job_request(&model, "second");
+        assert_eq!(first["cwd"], "first-repository");
+        assert_eq!(second["cwd"], "second-repository");
+        let snapshot = serde_json::to_string(&snapshot_from_model(&model)).unwrap();
+        assert!(!snapshot.contains("first-repository"));
+        assert!(!snapshot.contains("second-repository"));
+    }
+
+    #[test]
+    fn control_c_is_global_shutdown_in_every_overlay_and_job_state() {
+        for overlay in [
+            OverlayMode::None,
+            OverlayMode::Help,
+            OverlayMode::Palette,
+            OverlayMode::Search,
+            OverlayMode::Settings,
+            OverlayMode::RepositorySearch,
+            OverlayMode::JobInspection,
+        ] {
+            for active in [false, true] {
+                for (code, modifiers) in [
+                    (KeyCode::Char('c'), KeyModifiers::CONTROL),
+                    (
+                        KeyCode::Char('C'),
+                        KeyModifiers::CONTROL | KeyModifiers::SHIFT,
+                    ),
+                ] {
+                    let mut model = model();
+                    model.overlay = overlay;
+                    model.search_draft = "preserve-search".into();
+                    if active {
+                        model.selected_job = Some("owned-active-job".into());
+                        model
+                            .job_status
+                            .insert("owned-active-job".into(), "running".into());
+                    }
+                    model.input_queue.push_back((0, InputCommand::RunJob));
+                    model
+                        .input_queue
+                        .push_back((1, InputCommand::SearchChar('x')));
+                    enqueue_terminal_key(&mut model, KeyEvent::new(code, modifiers));
+                    let queued_seq = model.next_input_seq;
+                    let mut repeated = KeyEvent::new(code, modifiers);
+                    repeated.kind = KeyEventKind::Repeat;
+                    enqueue_terminal_key(&mut model, repeated);
+                    assert_eq!(
+                        model.next_input_seq, queued_seq,
+                        "Repeated interrupt preserves the queued shutdown"
+                    );
+                    assert_eq!(model.input_queue.len(), 1);
+                    assert!(
+                        matches!(model.input_queue.front(), Some((_, InputCommand::Quit))),
+                        "Ctrl+C must request shutdown before overlay dispatch"
+                    );
+                    assert_eq!(model.search_draft, "preserve-search");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn plain_c_keeps_overlay_scope_and_release_never_submits_input() {
+        for overlay in [
+            OverlayMode::None,
+            OverlayMode::Help,
+            OverlayMode::Palette,
+            OverlayMode::Search,
+            OverlayMode::Settings,
+            OverlayMode::RepositorySearch,
+            OverlayMode::JobInspection,
+        ] {
+            for active in [false, true] {
+                let mut model = model();
+                model.overlay = overlay;
+                if active {
+                    model.selected_job = Some("owned-active-job".into());
+                    model
+                        .job_status
+                        .insert("owned-active-job".into(), "running".into());
+                }
+                let mut release = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
+                release.kind = KeyEventKind::Release;
+                enqueue_terminal_key(&mut model, release);
+                assert!(model.input_queue.is_empty());
+                enqueue_terminal_key(
+                    &mut model,
+                    KeyEvent::new(KeyCode::Char('c'), KeyModifiers::NONE),
+                );
+                let (_, InputCommand::TerminalKey(key)) = model.input_queue.pop_front().unwrap() else { panic!("plain key must retain raw FIFO identity") };
+                interpret_terminal_key(&mut model, key);
+                match overlay {
+                    OverlayMode::None => assert!(matches!(
+                        model.input_queue.front(),
+                        Some((_, InputCommand::CancelSelected))
+                    )),
+                    OverlayMode::Search => assert!(matches!(model.input_queue.front(), Some((_, InputCommand::SearchChar('c'))))),
+                    _ => assert!(model.input_queue.is_empty()),
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn tail_window_ranges_are_bounded_and_deterministic() {
+        let items: Vec<_> = (0..10).collect();
+        assert_eq!(tail_window_slice(&items, 0, 3), vec![7, 8, 9]);
+        assert_eq!(tail_window_slice(&items, 2, 3), vec![5, 6, 7]);
+        assert_eq!(tail_window_slice(&items, 0, 0), vec![9]);
+        assert_eq!(tail_window_slice(&items, 0, usize::MAX), items);
+        assert!(tail_window_slice(&items, usize::MAX, 3).is_empty());
+        assert!(tail_window_slice::<u8>(&[], 0, 3).is_empty());
+    }
+
     fn model() -> AppModel {
-        AppModel::new(
+        let mut model = AppModel::new(
             "redraw-test".into(),
             TerminalCapabilities {
                 color: true,
@@ -3435,7 +4506,9 @@ mod redraw_tests {
                 alt_screen: true,
             },
             None,
-        )
+        );
+        model.owns_control_channel = true;
+        model
     }
 
     fn screen(model: &AppModel, width: u16, height: u16) -> String {
@@ -3451,6 +4524,93 @@ mod redraw_tests {
     }
 
     #[test]
+    fn restored_paused_selection_reconciles_with_new_supervisor_jobs() {
+        let mut original = model();
+        original.selected_job = Some("job-2".into());
+        original.follow_updates = false;
+        let mut restored = model();
+        restore_snapshot(&mut restored, snapshot_from_model(&original));
+        apply_protocol_event(
+            &mut restored,
+            json!({"event":"hello", "session":{
+            "mode":"supervised", "source":"local-supervisor", "controllable":true,
+            "connection":"connected"}}),
+            0,
+        );
+        apply_protocol_event(
+            &mut restored,
+            json!({"event":"job:start", "jobId":"job-1", "title":"New session"}),
+            0,
+        );
+        restored.update_task_status("job-1", "visible-new-task", "running", None);
+        assert!(
+            !restored.follow_updates,
+            "restoration retains the pause preference"
+        );
+        assert_eq!(restored.selected_job.as_deref(), Some("job-1"));
+        assert!(screen(&restored, 120, 40).contains("visible-new-task"));
+        let node_name = if cfg!(windows) { "node.exe" } else { "node" };
+        let node = std::env::split_paths(&std::env::var_os("PATH").unwrap_or_default())
+            .map(|directory| directory.join(node_name))
+            .find(|candidate| candidate.is_absolute() && candidate.is_file())
+            .and_then(|candidate| candidate.canonicalize().ok())
+            .expect("protocol fixture requires the supported external Node runtime on PATH");
+        let mut supervisor = std::process::Command::new(node)
+            .args(["-e", "process.stdin.once('data', bytes => { process.stdout.write(bytes); process.exit(0); });"])
+            .stdin(Stdio::piped()).stdout(Stdio::piped()).spawn().unwrap();
+        restored.last_input_at =
+            Instant::now() - Duration::from_millis(INPUT_DISPATCH_INTERVAL_MS as u64 + 1);
+        restored
+            .input_queue
+            .push_back((1, InputCommand::CancelSelected));
+        dispatch_input(&mut restored, &mut supervisor, &mut 1).unwrap();
+        let output = supervisor.wait_with_output().unwrap();
+        assert!(output.status.success());
+        let request: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(request["op"], "job:cancel");
+        assert_eq!(request["jobId"], "job-1");
+    }
+
+    #[test]
+    fn session_snapshot_preserves_refinement_and_accepts_old_state() {
+        let mut original = model();
+        original.selected_job = Some("job-7".into());
+        original.search_logs = "parse failure".into();
+        original.search_jobs = "index".into();
+        original.search_tasks = "typescript".into();
+        original.focus_panel = FocusPanel::Logs;
+        original.log_level_filter = LogLevelFilter::Error;
+        original.follow_updates = false;
+        original.log_scroll = 12;
+        let encoded = serde_json::to_string(&snapshot_from_model(&original)).unwrap();
+        let mut restored = model();
+        restore_snapshot(&mut restored, serde_json::from_str(&encoded).unwrap());
+        assert_eq!(
+            restored.selected_job, None,
+            "a new supervisor has no persisted job inventory"
+        );
+        assert_eq!(restored.search_logs, original.search_logs);
+        assert_eq!(restored.search_jobs, original.search_jobs);
+        assert_eq!(restored.search_tasks, original.search_tasks);
+        assert!(restored.focus_panel == FocusPanel::Logs);
+        assert!(restored.log_level_filter == LogLevelFilter::Error);
+        assert!(!restored.follow_updates);
+        assert_eq!(restored.log_scroll, 12);
+        let mut known_jobs = model();
+        known_jobs.update_job_status("job-7", "running", None);
+        restore_snapshot(&mut known_jobs, snapshot_from_model(&original));
+        assert_eq!(
+            known_jobs.selected_job, original.selected_job,
+            "selection survives when its job is actually known"
+        );
+        let old = r#"{"selected_job":null,"job_scroll":0,"task_scroll":0,"log_scroll":0}"#;
+        let mut legacy = model();
+        restore_snapshot(&mut legacy, serde_json::from_str(old).unwrap());
+        assert!(legacy.follow_updates);
+        assert!(legacy.search_logs.is_empty());
+    }
+
+    #[test]
     fn overlays_and_search_change_rendered_frames_and_signature() {
         let mut model = model();
         let baseline = screen(&model, 120, 40);
@@ -3458,7 +4618,7 @@ mod redraw_tests {
         apply_local_input(&mut model, "toggle_help");
         let help = screen(&model, 120, 40);
         assert_ne!(help, baseline);
-        assert!(help.contains("help overlay"));
+        assert!(help.contains("Help | Esc close"));
         assert_ne!(frame_signature(&model), signature);
         apply_local_input(&mut model, "toggle_help");
         assert_eq!(screen(&model, 120, 40), baseline);
@@ -3535,10 +4695,9 @@ mod redraw_tests {
     #[test]
     fn same_count_job_updates_redraw_but_idle_bookkeeping_does_not() {
         let mut model = model();
-        model.job_order.push_back("job-1".into());
-        model.job_status.insert("job-1".into(), "running".into());
+        model.update_job_status("job-1", "running", None);
         let running = frame_signature(&model);
-        model.job_status.insert("job-1".into(), "cancelled".into());
+        model.update_job_status("job-1", "cancelled", None);
         assert_ne!(frame_signature(&model), running);
         assert!(screen(&model, 120, 40).contains("cancelled"));
         let idle = frame_signature(&model);

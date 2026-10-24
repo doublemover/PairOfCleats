@@ -1,10 +1,13 @@
 import { collectLspTypes } from '../../../integrations/tooling/providers/lsp.js';
-import { resolveWorkspaceExecutionAuthority } from '../../../shared/workspace-execution-authority.js';
+import { throwIfAborted } from '../../../shared/abort.js';
+import { resolveProviderWorkspaceExecutionAuthority, isSourcekitProvider } from '../workspace-execution.js';
+import { assertSourcekitWorkspaceLaunch } from '../preflight/sourcekit-package-resolution.js';
 import { invalidateProbeCacheOnInitializeFailure } from '../command-resolver.js';
 import { resolveLspRuntimeConfig } from '../lsp-runtime-config.js';
 import {
   appendDiagnosticChecks,
   buildProviderFidelityContract,
+  resolveRequestCacheGeneration,
   PROVIDER_FIDELITY_STATE,
   shouldCollectTypesForRequestedKinds,
   shouldCaptureDiagnosticsForRequestedKinds
@@ -12,12 +15,15 @@ import {
 import { mergeLspWorkspacePartitionResults } from '../lsp-workspace-routing.js';
 import { parseClikeSignature } from '../signature-parse/clike.js';
 import { parseJavaSignature } from '../signature-parse/java.js';
+import { parseKotlinSignature } from '../signature-parse/kotlin.js';
+import { parsePhpSignature } from '../signature-parse/php.js';
 import { parseElixirSignature } from '../signature-parse/elixir.js';
 import { parseGoSignature } from '../signature-parse/go.js';
 import { parseHaskellSignature } from '../signature-parse/haskell.js';
 import { parseLuaSignature } from '../signature-parse/lua.js';
 import { parsePythonSignature } from '../signature-parse/python.js';
 import { parseRubySignature } from '../signature-parse/ruby.js';
+import { parseRubyLspSignature } from '../signature-parse/ruby-lsp.js';
 import { parseRustSignature } from '../signature-parse/rust.js';
 import { parseSwiftSignature } from '../signature-parse/swift.js';
 import { parseZigSignature } from '../signature-parse/zig.js';
@@ -35,11 +41,12 @@ export const parseGenericSignature = (detail, languageId, symbolName) => {
   if (lang === 'ruby' || lang === 'rb') return parseRubySignature(detail);
   if (lang === 'zig') return parseZigSignature(detail);
   if (lang === 'java') return parseJavaSignature(detail, symbolName);
+  if (lang === 'kotlin') return parseKotlinSignature(detail);
+  if (lang === 'php') return parsePhpSignature(detail);
   if ([
     'c', 'cpp', 'objective-c', 'objective-cpp',
-    'kotlin', 'csharp',
-    'javascript', 'jsx', 'typescript', 'tsx',
-    'php'
+    'csharp',
+    'javascript', 'jsx', 'typescript', 'tsx'
   ].includes(lang)) {
     return parseClikeSignature(detail, symbolName);
   }
@@ -380,12 +387,14 @@ export const collectConfiguredOutput = async ({
   preChecks,
   commandProfile,
   requestedCommand,
+  abortSignal = ctx?.abortSignal || null,
   preflightState = 'ready',
   preflightReasonCode = null,
   blockedWorkspaceKeys = [],
   blockedWorkspaceRoots = []
 }) => {
-  const executionAuthority = resolveWorkspaceExecutionAuthority({ repoRoot: ctx?.repoRoot || process.cwd(), providerId, server });
+  throwIfAborted(abortSignal);
+  const executionAuthority = resolveProviderWorkspaceExecutionAuthority({ repoRoot: ctx?.repoRoot || process.cwd(), providerId, server });
   if (executionAuthority) {
     return { byChunkUid: {}, checks: [executionAuthority.check] };
   }
@@ -445,7 +454,8 @@ export const collectConfiguredOutput = async ({
       : (workspaceRouting.reasonCode || preflightReasonCode || null)
   );
   for (const partition of workspaceRouting.partitions) {
-    const currentAuthority = resolveWorkspaceExecutionAuthority({ repoRoot: ctx.repoRoot, workspaceRoot: partition.rootDir, providerId, server });
+    throwIfAborted(abortSignal);
+    const currentAuthority = resolveProviderWorkspaceExecutionAuthority({ repoRoot: ctx.repoRoot, workspaceRoot: partition.rootDir, providerId, server });
     if (currentAuthority) {
       skippedBlockedPartitions.push(partition);
       preChecks.push(currentAuthority.check);
@@ -460,7 +470,11 @@ export const collectConfiguredOutput = async ({
       : null;
     let partitionResult;
     try {
+      if (isSourcekitProvider({ providerId, server })) {
+        await assertSourcekitWorkspaceLaunch({ repoRoot: ctx.repoRoot, resolutionPlan: ctx?.sourcekitOperationPlan, signal: abortSignal });
+      }
       partitionResult = await collectLspTypes({
+        requestCacheGeneration: resolveRequestCacheGeneration(ctx),
         semanticSession: ctx.semanticLspSession || null,
         ...runtimeConfig,
         rootDir: ctx.repoRoot,
@@ -469,13 +483,13 @@ export const collectConfiguredOutput = async ({
         workspaceKey: partition.workspaceKey,
         documents: partition.documents,
         targets: partition.targets,
-        abortSignal: ctx?.abortSignal || null,
+        abortSignal,
         log,
         providerId,
         cmd: resolvedCmd,
         collectTypes: shouldCollectTypesForRequestedKinds(requestedKinds),
         args: resolvedArgs,
-        parseSignature: parseGenericSignature,
+        parseSignature: server.signatureProfile === 'ruby-lsp' ? parseRubyLspSignature : parseGenericSignature,
         strict: ctx?.strict !== false,
         vfsRoot: ctx?.buildRoot || ctx.repoRoot,
         uriScheme: server.uriScheme || 'file',
@@ -495,7 +509,8 @@ export const collectConfiguredOutput = async ({
           ? { hoverSymbolKinds: server.hoverSymbolKinds }
           : {}),
         ...(rustWorkspaceStderr ? { stderrFilter: rustWorkspaceStderr.filter } : {}),
-        initializationOptions: server.initializationOptions,
+        initializationOptions: isSourcekitProvider({ providerId, server })
+          ? { ...server.initializationOptions, backgroundIndexing: false } : server.initializationOptions,
         captureDiagnostics: shouldCaptureDiagnosticsForRequestedKinds(requestedKinds)
       });
     } finally {
@@ -506,6 +521,7 @@ export const collectConfiguredOutput = async ({
     }
     partitionResults.push(partitionResult);
   }
+  throwIfAborted(abortSignal);
   const result = mergeLspWorkspacePartitionResults(partitionResults, workspaceRouting.workspaceModel);
   let diagnosticsByChunkUid = result.diagnosticsByChunkUid;
   let diagnosticsCount = result.diagnosticsCount;

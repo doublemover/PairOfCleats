@@ -64,9 +64,22 @@ const summarizeArtifacts = async (indexDir) => {
     return { presentCount: 0, presentPaths: [], missingCount: EMBEDDING_ARTIFACT_PATHS.length };
   }
   const presentPaths = [];
+  const manifest = await readJson(path.join(indexDir, 'pieces', 'manifest.json'));
   for (const relPath of EMBEDDING_ARTIFACT_PATHS) {
-    if (await pathExists(path.join(indexDir, relPath))) {
-      presentPaths.push(relPath);
+    const nativeName = relPath.endsWith('_hnsw.meta.json')
+      ? relPath.replace('.meta.json', '_meta')
+      : relPath.endsWith('.lancedb.meta.json') ? relPath.replace('.lancedb.meta.json', '_lancedb_meta') : null;
+    let selectedPath = relPath;
+    if (nativeName && manifest) {
+      const entries = Array.isArray(manifest.pieces)
+        ? manifest.pieces.filter(piece => piece.name === nativeName) : [];
+      if (entries.length !== 1 || typeof entries[0].path !== 'string') continue;
+      selectedPath = entries[0].path;
+      const relative = path.relative(path.resolve(indexDir), path.resolve(indexDir, selectedPath));
+      if (path.isAbsolute(relative) || relative === '..' || relative.startsWith(`..${path.sep}`)) continue;
+    }
+    if (await pathExists(path.join(indexDir, selectedPath))) {
+      presentPaths.push(selectedPath);
     }
   }
   return {
@@ -105,6 +118,7 @@ export async function collectEmbeddingReplayState(job = {}) {
       lastError: embeddingsState.lastError || null,
       updatedAt: embeddingsState.updatedAt || null,
       embeddingIdentityKey: embeddingsState.embeddingIdentityKey || null,
+      embeddingGeneration: embeddingsState.embeddingGeneration || null,
       replay: embeddingsState.replay && typeof embeddingsState.replay === 'object'
         ? { ...embeddingsState.replay }
         : null

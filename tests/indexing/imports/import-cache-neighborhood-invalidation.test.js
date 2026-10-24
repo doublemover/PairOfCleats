@@ -200,8 +200,8 @@ const runResolution = ({
     (secondRelations.get('src/cap-one.js')?.importLinks?.length || 0)
     + (secondRelations.get('src/cap-two.js')?.importLinks?.length || 0)
   );
-  assert.ok(capResolvedLinks >= 1, 'expected at least one stale unresolved importer to refresh after target add');
-  assert.equal(second.cacheStats.staleEdgeInvalidated, 1, 'expected stale-edge cap to invalidate only one unresolved importer');
+  assert.equal(capResolvedLinks, 2, 'both unchecked and checked stale imports must resolve after target addition');
+  assert.equal(second.cacheStats.staleEdgeInvalidated, 2, 'check exhaustion conservatively invalidates unchecked unresolved importers');
   assert.equal(second.cacheStats.staleEdgeChecks, 1, 'expected stale-edge check counter to honor configured cap');
   assert.equal(second.cacheStats.staleEdgeBudgetExhausted, true, 'expected stale-edge cap exhaustion telemetry');
 }

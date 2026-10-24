@@ -54,7 +54,8 @@ const createIndexStatsRepoFixture = async (prefix, {
     path.join(repoCacheRoot, 'builds', 'current.json'),
     { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       buildId,
-      buildRoot
+      buildRoot,
+      buildRootsByMode: { code: buildRoot }
     }
   );
   return {
@@ -126,7 +127,8 @@ const createIndexStatsRepoFixture = async (prefix, {
   assert.equal(payload.totals.bytesByFamily.symbols, 222);
   assert.equal(payload.totals.bytesByFamily.relations, 208);
   assert.equal(payload.totals.bytesByFamily.embeddings, 402);
-  assert.equal(payload.totals.totalBytes, 960);
+  assert.equal(payload.totals.selectedFamilyBytes, 960);
+  assert.equal(payload.totals.totalBytes, 976, 'physical total includes file metadata');
 }
 
 {
@@ -240,7 +242,7 @@ const createIndexStatsRepoFixture = async (prefix, {
     buildId: 'build-verify',
     compatibilityKey: 'compat-verify',
     pieces: [
-      { name: 'chunk_meta', path: 'chunk_meta.json', bytes: 10, count: 1, checksum: 'xxh64:deadbeef' },
+      { name: 'chunk_meta', path: 'chunk_meta.json', bytes: 10, count: 1, checksum: 'xxh64:deadbeefdeadbeef' },
       { name: 'token_postings', path: 'token_postings.json', bytes: 24, count: 2 }
     ]
   });
@@ -254,7 +256,7 @@ const createIndexStatsRepoFixture = async (prefix, {
   const payload = JSON.parse(run.stdout);
   assert.equal(payload.verify?.ok, false);
   assert.ok(payload.verify.errors.some((entry) => entry.includes('missing artifact token_postings.json')));
-  assert.ok(payload.verify.warnings.some((entry) => entry.includes('checksum mismatch')));
+  assert.ok(payload.verify.errors.some((entry) => entry.includes('checksum mismatch')));
 }
 
 console.log('index stats contract matrix test passed');

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { createGovernanceSnapshot } from '../../tests/runner/governance-snapshot.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -21,23 +22,24 @@ const runNodeScript = (scriptPath) => {
 };
 
 const main = async () => {
-  const { manifests } = await generateLaneManifests({ root: ROOT });
+  const snapshot = await createGovernanceSnapshot({ root: ROOT });
+  const { manifests } = await generateLaneManifests({ root: ROOT, snapshot });
   for (const [lane, manifest] of manifests.entries()) {
     process.stdout.write(
       `manifest\t${lane}\t${manifest.tests.length}\t${path.relative(ROOT, manifest.manifestPath).replace(/\\/g, '/')}\n`
     );
   }
 
-  const laneEvidence = await generateLaneEvidence({ root: ROOT });
+  const laneEvidence = await generateLaneEvidence({ root: ROOT, snapshot });
   process.stdout.write(`lane-evidence\t${path.relative(ROOT, laneEvidence.outputMarkdownPath).replace(/\\/g, '/')}\n`);
 
-  const taxonomy = await generateSuiteTaxonomyReport({ root: ROOT });
+  const taxonomy = await generateSuiteTaxonomyReport({ root: ROOT, snapshot });
   process.stdout.write(`suite-taxonomy\t${path.relative(ROOT, taxonomy.outputMarkdownPath).replace(/\\/g, '/')}\n`);
 
   runNodeScript(path.join(ROOT, 'tools', 'config', 'inventory.js'));
   runNodeScript(path.join(ROOT, 'tools', 'docs', 'shared-module-ledger.js'));
 
-  const laneAudit = await buildLaneAuditReport({ root: ROOT });
+  const laneAudit = await buildLaneAuditReport({ root: ROOT, snapshot });
   process.stdout.write(formatLaneAuditReport(laneAudit));
   if (
     laneAudit.summary.missingIds

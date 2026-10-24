@@ -135,7 +135,7 @@ try {
       assert.deepEqual(Object.keys(options.headers), ['accept']);
       return redirects.length === 1
         ? { status: 302, headers: new Map([['location', 'https://release-assets.githubusercontent.com/inert']]) }
-        : { ok: true, status: 200, headers: new Map(), body: [Buffer.from('inert')] };
+        : { ok: true, status: 200, headers: new Map(), body: (async function* () { yield Buffer.from('inert'); })() };
     }
   });
   assert.equal(downloaded.body.toString(), 'inert');
@@ -146,7 +146,7 @@ try {
   (error) => error.reason === 'official_release_origin_rejected');
   assert.equal(badCalls, 1, 'a rejected redirect is never requested');
   await assert.rejects(downloadOfficialGitHubRelease({ url: 'https://github.com/inert', maxBytes: 3,
-    fetchImpl: async () => ({ ok: true, status: 200, headers: new Map(), body: [Buffer.from('inert')] }) }),
+    fetchImpl: async () => ({ ok: true, status: 200, headers: new Map(), body: (async function* () { yield Buffer.from('inert'); })() }) }),
   (error) => error.reason === 'official_release_too_large');
 } finally {
   await fs.rm(root, { recursive: true, force: true });

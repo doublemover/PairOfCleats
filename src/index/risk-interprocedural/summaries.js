@@ -1,6 +1,7 @@
 import { sha1 } from '../../shared/hash.js';
 import { toPosix } from '../../shared/file-paths.js';
 import { toArray } from '../../shared/iterables.js';
+import { riskSummaryCoverage } from './input-coverage.js';
 
 const ROW_SCHEMA_VERSION = 1;
 const MAX_ROW_BYTES = 32 * 1024;
@@ -376,18 +377,31 @@ export const buildRiskSummaries = ({ chunks, runtime = null, mode = null, log = 
   const stats = {
     candidates: 0,
     emitted: 0,
-    summariesDroppedBySize: 0
+    summariesDroppedBySize: 0,
+    missingLocalAnalysis: 0,
+    droppedChunks: []
   };
   const interprocedural = resolveInterproceduralSummaryState({ runtime, mode });
   for (const chunk of toArray(chunks)) {
     const built = buildRiskSummaryRow({ chunk, interprocedural });
-    if (!built) continue;
+    if (!built) { stats.missingLocalAnalysis++; continue; }
     stats.candidates += 1;
     const { row, risk } = built;
     const trimmed = enforceRowSize(row, row.truncated);
     if (!trimmed) {
       stats.summariesDroppedBySize += 1;
+      if (stats.droppedChunks.length < 128) stats.droppedChunks.push({ chunkUid: row.chunkUid, file: row.file, reason: 'rowTooLarge',
+        inputCoverage: riskSummaryCoverage(risk, row, { dropped: true }) });
       if (log) log(`[risk] summary dropped due to size: ${row.file}`);
+      continue;
+    }
+    trimmed.inputCoverage = riskSummaryCoverage(risk, trimmed);
+    trimmed.inputCoverage.summaryPolicy = { ...CAPS, maxRowBytes: MAX_ROW_BYTES };
+    // Coverage itself is admitted under the same row bound, never silently lost.
+    if (measureRowBytes(trimmed) > MAX_ROW_BYTES) {
+      stats.summariesDroppedBySize++;
+      if (stats.droppedChunks.length < 128) stats.droppedChunks.push({ chunkUid: row.chunkUid, file: row.file, reason: 'rowTooLargeWithCoverage',
+        inputCoverage: riskSummaryCoverage(risk, row, { dropped: true }) });
       continue;
     }
     rows.push(trimmed);

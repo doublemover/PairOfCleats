@@ -4,6 +4,7 @@ import { resolveRetrievalCacheDir } from './cache-paths.js';
 import { incCacheEvent } from '../../shared/metrics/core.js';
 import { ERROR_CODES } from '../../shared/error-codes.js';
 import { createSearchPipeline } from '../pipeline.js';
+import { createRetrievalExecutionOutcome } from '../pipeline/execution-outcome.js';
 import { runSearchByMode } from './search-runner.js';
 import { resolveSqliteFtsRoutingByMode } from '../routing-policy.js';
 import {
@@ -19,7 +20,8 @@ import {
 } from './run-search-session/persist.js';
 import {
   attachCommentExcerpts,
-  buildCommentLookup
+  buildCommentLookup,
+  needsCommentExcerpts
 } from './run-search-session/comment-excerpts.js';
 import { normalizeDenseVectorMode } from '../../shared/dense-vector-mode.js';
 import { isDenseVectorPayloadAvailable } from '../../shared/dense-vector-artifacts.js';
@@ -295,7 +297,9 @@ async function persistSessionQueryCache({
   query,
   backendLabel,
   hitsByMode,
-  queryCacheMaxEntries
+  executionOutcomes,
+  queryCacheMaxEntries,
+  signal = null
 }) {
   return persistSearchSession({
     queryCacheEnabled,
@@ -312,7 +316,9 @@ async function persistSessionQueryCache({
     extractedProseHits: hitsByMode['extracted-prose'],
     codeHits: hitsByMode.code,
     recordHits: hitsByMode.records,
-    queryCacheMaxEntries
+    executionOutcomes,
+    queryCacheMaxEntries,
+    signal
   });
 }
 
@@ -644,7 +650,8 @@ export async function runSearchSession({
       cacheFilters,
       graphRankingConfig,
       queryCacheTtlMs,
-      queryCacheMaxEntries
+      queryCacheMaxEntries,
+      signal
     }
   });
   if (queryCacheEnabled) {
@@ -712,20 +719,11 @@ export async function runSearchSession({
 
   const joinComments = commentsEnabled && runCode && extractedProseLoaded;
 
-  const commentLookup = buildCommentLookup({
-    joinComments,
-    extractedChunkMeta: idxExtractedProse?.chunkMeta || null
-  });
-
-  attachCommentExcerpts({
-    hits: codeHits,
-    commentLookup
-  });
-
   const {
     contextExpansionStats,
     expandModeHits
   } = createModeExpander({
+    contextCacheDir: resolveRetrievalCacheDir({ queryCacheDir, metricsDir }),
     contextExpansionEnabled,
     contextExpansionOptions,
     contextExpansionRespectFilters,
@@ -740,6 +738,9 @@ export async function runSearchSession({
     code: codeHits,
     records: recordHits
   };
+  const executionOutcomes = cacheHit ? cachedPayload.executionOutcomes
+    : Object.fromEntries(EMBEDDING_MODE_ORDER.filter(mode => modeState[mode].run).map(mode => [mode,
+      hitsByMode[mode].executionOutcome || createRetrievalExecutionOutcome({ mode, unrecorded: true })]));
   const expandedByMode = await expandSessionHitsByMode({
     expandModeHits,
     modeState,
@@ -750,6 +751,10 @@ export async function runSearchSession({
   const codeExpanded = expandedByMode.code;
   const recordExpanded = expandedByMode.records;
 
+  const commentLookup = buildCommentLookup({
+    joinComments: joinComments && needsCommentExcerpts(codeExpanded.hits),
+    extractedChunkMeta: idxExtractedProse?.chunkMeta || null
+  });
   attachCommentExcerpts({
     hits: codeExpanded.hits,
     commentLookup
@@ -774,7 +779,9 @@ export async function runSearchSession({
     query,
     backendLabel,
     hitsByMode,
-    queryCacheMaxEntries
+    executionOutcomes,
+    queryCacheMaxEntries,
+    signal
   }));
 
   return {
@@ -788,6 +795,7 @@ export async function runSearchSession({
     codeExpanded,
     recordExpanded,
     contextExpansionStats,
+    executionOutcomes,
     annBackend: annBackendUsed,
     profile: {
       byMode: profilePolicyByMode || null,

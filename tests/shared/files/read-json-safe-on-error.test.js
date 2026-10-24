@@ -1,20 +1,20 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
+import path from 'node:path';
 import { readJsonFileSafe, readJsonFileSyncSafe } from '../../../src/shared/file-read.js';
+import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 
-const originalStatSync = fs.statSync;
-const originalReadFileSync = fs.readFileSync;
-const originalStat = fsPromises.stat;
-const originalReadFile = fsPromises.readFile;
+// Actual files preserve the parse/report/fallback contract after descriptor
+// ownership replaces the obsolete readFile monkeypatch boundary. UNVALIDATED.
+const root = await makeTempDir('poc-json-safe-report-');
+const syncFile = path.join(root, 'sync.json'), asyncFile = path.join(root, 'async.json');
+await fsPromises.writeFile(syncFile, '{broken'); await fsPromises.writeFile(asyncFile, '{oops');
 
 try {
   const syncErrors = [];
-  fs.statSync = () => ({ size: 10 });
-  fs.readFileSync = () => '{broken';
   const syncFallback = { ok: false };
-  const syncOut = readJsonFileSyncSafe('sync.json', {
+  const syncOut = readJsonFileSyncSafe(syncFile, {
     fallback: syncFallback,
     maxBytes: 1024,
     onError: (info) => syncErrors.push(info)
@@ -23,13 +23,11 @@ try {
   assert.equal(syncErrors.length, 1, 'expected exactly one sync parse error');
   assert.equal(syncErrors[0]?.phase, 'parse');
   assert.equal(syncErrors[0]?.sync, true);
-  assert.equal(syncErrors[0]?.path, 'sync.json');
+  assert.equal(syncErrors[0]?.path, syncFile);
 
   const asyncErrors = [];
-  fsPromises.stat = async () => ({ size: 10 });
-  fsPromises.readFile = async () => '{oops';
   const asyncFallback = { ok: false };
-  const asyncOut = await readJsonFileSafe('async.json', {
+  const asyncOut = await readJsonFileSafe(asyncFile, {
     fallback: asyncFallback,
     maxBytes: 1024,
     onError: (info) => asyncErrors.push(info)
@@ -38,25 +36,22 @@ try {
   assert.equal(asyncErrors.length, 1, 'expected exactly one async parse error');
   assert.equal(asyncErrors[0]?.phase, 'parse');
   assert.equal(asyncErrors[0]?.sync, false);
-  assert.equal(asyncErrors[0]?.path, 'async.json');
+  assert.equal(asyncErrors[0]?.path, asyncFile);
 
   const sentinelFallback = Symbol('parse-failed');
-  const syncSentinelOut = readJsonFileSyncSafe('sync.json', sentinelFallback);
+  const syncSentinelOut = readJsonFileSyncSafe(syncFile, sentinelFallback);
   assert.equal(syncSentinelOut, sentinelFallback, 'expected legacy sync fallback arg to be preserved');
 
-  const asyncSentinelOut = await readJsonFileSafe('async.json', sentinelFallback);
+  const asyncSentinelOut = await readJsonFileSafe(asyncFile, sentinelFallback);
   assert.equal(asyncSentinelOut, sentinelFallback, 'expected legacy async fallback arg to be preserved');
 
-  const syncNullOut = readJsonFileSyncSafe('sync.json', null);
+  const syncNullOut = readJsonFileSyncSafe(syncFile, null);
   assert.equal(syncNullOut, null, 'expected explicit null fallback arg to remain valid');
 
-  const asyncNullOut = await readJsonFileSafe('async.json', null);
+  const asyncNullOut = await readJsonFileSafe(asyncFile, null);
   assert.equal(asyncNullOut, null, 'expected explicit null async fallback arg to remain valid');
 } finally {
-  fs.statSync = originalStatSync;
-  fs.readFileSync = originalReadFileSync;
-  fsPromises.stat = originalStat;
-  fsPromises.readFile = originalReadFile;
+  await rmDirRecursive(root);
 }
 
 console.log('read json safe on-error test passed');

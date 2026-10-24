@@ -1,3 +1,6 @@
+import { admitEmbeddingTensor, invalidEmbeddingOutput } from './embedding-output-admission.js';
+import { resolveEmbeddingDenseContract } from './embedding-dense-contract.js';
+
 const EMBEDDING_GEMMA2_PATTERN = /(^|\/)embeddinggemma-2(?:-onnx)?$/i;
 const DIMENSIONS = new Set([128, 256, 512, 768]);
 const DTYPES = new Set(['fp32', 'q8', 'q4']);
@@ -11,6 +14,7 @@ export const isEmbeddingGemma2 = (modelId) => (
 /** Resolve the opt-in text model contract, shared by inference and cache identity. */
 export const resolveEmbeddingModelProfile = (modelId, options = null) => {
   if (!isEmbeddingGemma2(modelId)) {
+    resolveEmbeddingDenseContract(modelId);
     if (options && Object.keys(options).length) {
       throw new Error('embeddinggemma2 options require an EmbeddingGemma 2 model.');
     }
@@ -54,19 +58,17 @@ export const validateEmbeddingModelProfile = (profile, { provider, normalize } =
 /** Consume projected sentence embeddings, never unprojected token hidden states. */
 export const normalizeEmbeddingGemma2Output = (output, count, dimensions) => {
   const tensor = output?.sentence_embedding;
-  const shape = tensor?.dims;
-  const data = tensor?.data;
-  if (!Array.isArray(shape) || shape.length !== 2 || shape[0] !== count
-    || shape[1] !== 768 || !data || data.length !== count * 768) {
-    throw new Error('EmbeddingGemma 2 returned an invalid sentence_embedding shape.');
-  }
+  if (!DIMENSIONS.has(dimensions)) throw invalidEmbeddingOutput('EmbeddingGemma 2 dimension truncation is invalid.');
+  const { data } = admitEmbeddingTensor(tensor, count, { provider: 'embeddinggemma2', ranks: [2], dimensions: 768 });
   const vectors = [];
   for (let row = 0; row < count; row += 1) {
     const vector = new Float32Array(dimensions);
     let norm = 0;
     for (let column = 0; column < 768; column += 1) {
       const value = data[row * 768 + column];
-      if (!Number.isFinite(value)) throw new Error('EmbeddingGemma 2 returned a nonfinite embedding.');
+      if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isFinite(Math.fround(value))) {
+        throw invalidEmbeddingOutput('EmbeddingGemma 2 returned a nonfinite or unrepresentable embedding.');
+      }
       if (column < dimensions) {
         vector[column] = value;
         norm += value * value;

@@ -252,7 +252,7 @@ export const resolveRuntimeDictionaries = async ({
   const dictSignatureParts = baseSignatures.concat(codeSignatures);
   dictSignatureParts.sort();
   const dictSignature = dictSignatureParts.length
-    ? sha1(dictSignatureParts.join('|'))
+    ? sha1(`scoring-dictionary-lowercase-nfkd.v2|${dictSignatureParts.join('|')}`)
     : null;
 
   const cachedDaemonDict = cloneDaemonDictionaryEntry(
@@ -268,7 +268,7 @@ export const resolveRuntimeDictionaries = async ({
 
   if (!daemonDictCacheHit) {
     const [, codeDictWordSets] = await Promise.all([
-      loadDictionaryWordSetFromFiles(dictionaryPaths, { target: dictWords }),
+      loadDictionaryWordSetFromFiles(dictionaryPaths, { target: dictWords, lowerCase: true }),
       codeDictEnabled
         ? loadCodeDictionaryWordSets({
           commonFiles: codeDictPaths.common,

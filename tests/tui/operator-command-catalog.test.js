@@ -1,0 +1,82 @@
+import assert from 'node:assert/strict';
+import { listCommandRegistry } from '../../src/shared/command-registry-query.js';
+import { validateConfig } from '../../src/config/validate.js';
+import { describeIndexWorkflows, describeWorkflowCoverage, buildIndexWorkflowArgv } from '../../tools/tui/operator/index-catalog.js';
+import { assertTuiWorkflowRequest } from '../../src/contracts/validators/tui-workflow.js';
+import { SETUP_OPTIONS, TOOLING_DOCTOR_OPTIONS, ARCHITECTURE_CHECK_OPTIONS } from '../../tools/shared/operator-cli-options.js';
+
+const catalog = describeIndexWorkflows();
+assert.equal(catalog.some(command => command.supportTier === 'experimental'), false);
+const complete = describeIndexWorkflows({ includeExperimental: true });
+const coverage = describeWorkflowCoverage();
+const registered = listCommandRegistry({ supportTiers: ['stable', 'operator', 'experimental'] });
+assert.equal(catalog.some(command => command.registryId === 'graph-evidence'), false);
+assert.match(complete.find(command => command.registryId === 'graph-evidence').unsupportedReason, /pinned-build\/family/,
+  'new experimental retained graph evidence has an explicit native limitation, never a generic fallback');
+assert.deepEqual(new Set(coverage.map(row => row.registryId)), new Set(registered.map(row => row.id)),
+  'every visible registry command has an explicit adapter or reviewed concrete reason');
+for (const row of coverage) {
+  assert.ok(['typed-adapter', 'unsupported'].includes(row.disposition));
+  if (row.disposition === 'unsupported') assert.ok(row.reason.length > 24);
+}
+for (const [id, options] of [['setup', SETUP_OPTIONS], ['tooling.doctor', TOOLING_DOCTOR_OPTIONS], ['architecture-check', ARCHITECTURE_CHECK_OPTIONS]]) {
+  const command = catalog.find(command => command.id === id);
+  for (const field of command.fields) assert.equal(field.schema.type, options[field.name].type);
+}
+const scope = { kind: 'repo', target: 'C:/selected repository', configRoot: 'C:/selected repository' };
+const api = catalog.find(command => command.id === 'service.api');
+for (const name of ['host', 'auth-token', 'allow-unauthenticated', 'allowed-repo-roots']) {
+  assert.equal(api.fields.some(field => field.name === name), false);
+  assert.equal(validateConfig(api.schema, { [name]: name === 'host' ? '0.0.0.0' : true }).ok, false);
+}
+assert.deepEqual(buildIndexWorkflowArgv(api, { port: '7347' }, scope),
+  ['service', 'api', '--port=7347', '--repo=C:/selected repository', '--host=127.0.0.1', '--json']);
+const setup = catalog.find(command => command.id === 'setup');
+const setupArgv = buildIndexWorkflowArgv(setup, { 'skip-index': true, 'skip-install': true }, scope);
+assert.ok(setupArgv.includes('--non-interactive=true'));
+assert.ok(setupArgv.includes('--skip-index=true'));
+assert.ok(setupArgv.includes('--json'));
+const semantic = complete.find(command => command.id === 'semantic.detail');
+assert.deepEqual(buildIndexWorkflowArgv(semantic, { request: 'requests/detail.json' }, scope),
+  ['semantic', 'detail', '--request=requests/detail.json']);
+assert.equal(semantic.fields.some(field => field.name === 'all'), false, 'native retains one bounded result page');
+const bench = complete.find(command => command.id === 'bench.micro');
+assert.equal(validateConfig(bench.schema, { components: 'index-build', runs: 999 }).ok, false);
+const benchArgv = buildIndexWorkflowArgv(bench, {}, scope);
+assert.ok(benchArgv.includes('--build=false'));
+assert.ok(benchArgv.includes('--clean=false'));
+assert.ok(benchArgv.includes('--components=sparse,dense,hybrid'));
+for (const id of ['sqlite.compact', 'lmdb.build', 'cache.clear']) {
+  assert.ok(complete.find(command => command.id === id).unsupportedReason, `${id}: no implicit unimplemented ownership handoff`);
+}
+for (const command of describeIndexWorkflows({ backendDelegationEnabled: true, includeExperimental: true })
+  .filter(command => ['sqlite.compact', 'lmdb.build'].includes(command.id))) {
+  assert.equal(command.unsupportedReason, undefined, 'only an explicitly integrated code owner admits delegated backend maintenance');
+  assert.equal(command.fields.some(field => field.name === 'index-root'), false, 'the reviewed current generation supplies the explicit root');
+  assert.equal(validateConfig(command.schema, { mode: 'records' }).ok, false);
+}
+for (const id of ['index.recover', 'tooling.prepare-sourcekit']) {
+  assert.ok(complete.find(command => command.id === id).unsupportedReason,
+    `${id}: exact selection and review remain owned by the canonical CLI`);
+}
+for (const id of ['storage.configure-plan', 'storage.configure-apply', 'storage.policy-plan', 'storage.policy-apply', 'storage.migration-plan',
+  'storage.migration-apply', 'storage.migration-rollback', 'storage.migration-status']) {
+  assert.ok(catalog.find(command => command.id === id).unsupportedReason,
+    `${id}: explicit native root/plan/lease integration remains required`);
+}
+for (const id of ['service.mcp', 'service.indexer', 'storage.list', 'storage.explain', 'storage.inspect',
+  'storage.doctor', 'storage.cleanup-plan', 'storage.cleanup-apply']) {
+  assert.equal(catalog.find(command => command.id === id).unsupportedReason, undefined, `${id}: explicit owned adapter`);
+}
+const indexer = catalog.find(command => command.id === 'service.indexer');
+assert.equal(indexer.scopeKind, 'workspace');
+assert.equal(validateConfig(indexer.schema, { config: 'service.json', command: 'shutdown' }).ok, false);
+assert.equal(validateConfig(indexer.schema, { config: 'service.json', concurrency: 20 }).ok, false);
+const storage = catalog.find(command => command.id === 'storage.cleanup-apply');
+assert.equal(validateConfig(storage.schema, { plan: 'untrusted.json', 'plan-id': 'force' }).ok, false);
+assert.equal(validateConfig(storage.schema, { 'max-entries': 10001 }).ok, false);
+assertTuiWorkflowRequest('next', { scopeId: 'a'.repeat(8) + '-aaaa-aaaa-aaaa-' + 'a'.repeat(12),
+  continuationId: 'b'.repeat(8) + '-bbbb-bbbb-bbbb-' + 'b'.repeat(12) });
+assertTuiWorkflowRequest('describe', { includeExperimental: true });
+assert.throws(() => assertTuiWorkflowRequest('describe', { includeInternal: true }), { code: 'ERR_TUI_WORKFLOW_REQUEST' });
+console.log('Native command coverage, canonical options, bounded argv and unsupported ownership dispositions');

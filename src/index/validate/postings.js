@@ -1,4 +1,5 @@
 import { loadJsonArrayArtifact } from '../../shared/artifact-io/loaders/core.js';
+import { loadMinhashSignatureRows } from '../../shared/artifact-io/loaders/minhash.js';
 import { loadTokenPostings } from '../../shared/artifact-io/loaders/token-postings.js';
 import { hashDeterministicValues } from '../../shared/invariants.js';
 import { addIssue } from './issues.js';
@@ -132,6 +133,20 @@ export const validateSupplementalPostingsArtifacts = async ({
       modeReport.ok = false;
       modeReport.missing.push(issue);
       report.issues.push(`[${mode}] ${issue}`);
+    }
+  }
+  if (shouldLoadOptional('minhash_signatures')) {
+    try {
+      let rows = 0;
+      for await (const entry of loadMinhashSignatureRows(dir, { manifest, strict, materialize: true })) {
+        if (entry) rows += 1;
+      }
+      if (rows && rows !== chunkMeta.length) {
+        throw new Error(`minhash mismatch (${rows} !== ${chunkMeta.length})`);
+      }
+    } catch (error) {
+      modeReport.ok = false;
+      addIssue(report, mode, `minhash_signatures load failed (${error?.message || error})`, 'Rebuild index artifacts for this mode.');
     }
   }
 

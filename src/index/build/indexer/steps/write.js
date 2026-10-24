@@ -1,3 +1,4 @@
+import { tokenPostingsDictionaryProof } from '../../artifacts/token-postings-reuse.js';
 import { writeIndexArtifacts } from '../../artifacts.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../../contracts/versioning.js';
 import { sha1 } from '../../../../shared/hash.js';
@@ -12,6 +13,9 @@ import { log } from '../../../../shared/progress-runtime.js';
 import { stableStringifyForSignature } from '../../../../shared/stable-json.js';
 import { computeInterproceduralRisk } from '../../../risk-interprocedural/engine.js';
 import { getTokenIdCollisionSummary } from '../../state.js';
+import { TEXT_ANALYZER_VERSION } from '../../../../shared/text-analyzer.js';
+import { SCORING_ANALYZER_VERSION } from '../../../../shared/tokenize-identifiers.js';
+import { CHARGRAM_HASH_META } from '../../../../shared/chargram-hash.js';
 
 /**
  * `artifacts.present.dense_vectors*` must describe emitted artifacts, not
@@ -121,7 +125,9 @@ export const writeIndexArtifactsForMode = async ({
         runtime,
         mode,
         log,
-        summaryTimingMs: state.riskSummaryTimingMs
+        summaryTimingMs: state.riskSummaryTimingMs,
+        summaryStats: state.riskSummaryStats,
+        crossFileCoverage: state.crossFileCoverage || null
       });
       state.riskFlows = result.flowRows || [];
       state.riskPartialFlows = result.partialFlowRows || [];
@@ -187,6 +193,7 @@ export const writeIndexArtifactsForMode = async ({
   }
   await writeIndexArtifacts({
     scheduler: runtime.scheduler,
+    codecCpuBudget: runtime.cpuConcurrency,
     abortSignal,
     telemetry: runtime.telemetry,
     buildRoot: runtime.buildRoot,
@@ -199,6 +206,8 @@ export const writeIndexArtifactsForMode = async ({
     modelId: runtime.modelId,
     useStubEmbeddings: runtime.useStubEmbeddings,
     dictSummary: runtime.dictSummary,
+    tokenPostingsReusePolicy: { dictionarySignature: tokenPostingsDictionaryProof(runtime), dictionary: runtime.dictConfig,
+      postings: runtime.postingsConfig, lexicalMode: mode, codeDictionaryLanguages: [...(runtime.codeDictLanguages || [])].sort() },
     timing,
     root: runtime.root,
     userConfig: runtime.userConfig,
@@ -230,6 +239,9 @@ export const writeIndexArtifactsForMode = async ({
         lastError: null
       },
       features: {
+        literalAnalyzer: TEXT_ANALYZER_VERSION,
+        scoringAnalyzer: SCORING_ANALYZER_VERSION,
+        chargramHash: { ...CHARGRAM_HASH_META },
         treeSitter: runtime.languageOptions?.treeSitter?.enabled !== false,
         lint: runtime.lintEnabled,
         complexity: runtime.complexityEnabled,

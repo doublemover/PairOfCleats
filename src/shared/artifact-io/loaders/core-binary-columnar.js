@@ -1,4 +1,5 @@
-import fs from 'node:fs';
+import { constants as bufferConstants } from 'node:buffer';
+import { readBuffer } from '../compression.js';
 import {
   iterateBinaryColumnarRowPayloads,
   loadBinaryColumnarRowPayloads
@@ -38,11 +39,12 @@ const loadBinaryColumnarJsonRows = ({
     manifest,
     maxBytes,
     strict,
-    enforceDataBudget
+    enforceDataBudget,
+    containedRoot: strict ? dir : null
   });
-  const dataBuffer = fs.readFileSync(resolvedDataPath);
-  const offsetsBuffer = fs.readFileSync(resolvedOffsetsPath);
-  const lengthsBuffer = fs.readFileSync(resolvedLengthsPath);
+  const dataBuffer = readBuffer(resolvedDataPath, enforceDataBudget ? maxBytes : bufferConstants.MAX_LENGTH, { containedRoot: strict ? dir : null });
+  const offsetsBuffer = readBuffer(resolvedOffsetsPath, maxBytes, { containedRoot: strict ? dir : null });
+  const lengthsBuffer = readBuffer(resolvedLengthsPath, maxBytes, { containedRoot: strict ? dir : null });
   verifyManifestChecksum({
     validator: dataValidator,
     buffer: dataBuffer,
@@ -70,7 +72,8 @@ const loadBinaryColumnarJsonRows = ({
     offsetsBuffer,
     lengthsBuffer,
     maxBytes,
-    enforceDataBudget
+    enforceDataBudget,
+    containedRoot: strict ? dir : null
   });
   if (!payloads) {
     throw createLoaderError(
@@ -114,10 +117,11 @@ const iterateBinaryColumnarJsonRows = function* ({
     manifest,
     maxBytes,
     strict,
-    enforceDataBudget
+    enforceDataBudget,
+    containedRoot: strict ? dir : null
   });
-  const offsetsBuffer = fs.readFileSync(resolvedOffsetsPath);
-  const lengthsBuffer = fs.readFileSync(resolvedLengthsPath);
+  const offsetsBuffer = readBuffer(resolvedOffsetsPath, maxBytes, { containedRoot: strict ? dir : null });
+  const lengthsBuffer = readBuffer(resolvedLengthsPath, maxBytes, { containedRoot: strict ? dir : null });
   verifyManifestChecksum({
     validator: offsetsValidator,
     buffer: offsetsBuffer,
@@ -133,6 +137,7 @@ const iterateBinaryColumnarJsonRows = function* ({
   verifyManifestChecksumFromFile({
     validator: dataValidator,
     artifactPath: resolvedDataPath,
+    containedRoot: strict ? dir : null,
     baseName
   });
   const payloads = iterateBinaryColumnarRowPayloads({
@@ -143,7 +148,8 @@ const iterateBinaryColumnarJsonRows = function* ({
     offsetsBuffer,
     lengthsBuffer,
     maxBytes,
-    enforceDataBudget
+    enforceDataBudget,
+    containedRoot: strict ? dir : null
   });
   if (!payloads) {
     throw createLoaderError(
@@ -152,10 +158,28 @@ const iterateBinaryColumnarJsonRows = function* ({
     );
   }
   let decodedCount = 0;
-  for (const payload of payloads) {
-    const parsed = parseBinaryColumnarJsonRow(payload, baseName);
-    decodedCount += 1;
-    yield parsed;
+  let payloadsFinished = false;
+  try {
+    // Explicit forwarding puts parse errors and throw() at a suspended yield
+    // into the descriptor owner before it decides whether native close is safe.
+    // for-of IteratorClose would call return() before the owner sees that error.
+    while (true) {
+      const step = payloads.next();
+      if (step.done) { payloadsFinished = true; break; }
+      const parsed = parseBinaryColumnarJsonRow(step.value, baseName);
+      decodedCount += 1;
+      yield parsed;
+    }
+  } catch (error) {
+    if (payloadsFinished) throw error;
+    payloadsFinished = true;
+    payloads.throw(error);
+    throw error;
+  } finally {
+    if (!payloadsFinished) {
+      payloadsFinished = true;
+      payloads.return();
+    }
   }
   assertBinaryColumnarJsonRowCount({
     actualCount: decodedCount,

@@ -7,6 +7,7 @@ export {
   loadDenseVectorBinaryFromMetaAsync,
   loadDenseVectorBinaryFromMetaSync,
   resolveDenseVectorBinaryArtifact,
+  resolveDenseVectorBinaryPayloadPath,
   writeDenseVectorBinaryFile
 } from './dense-vector-binary.js';
 export {
@@ -15,6 +16,8 @@ export {
   normalizeDenseVectorMeta
 } from './dense-vector-meta.js';
 import { writeDenseVectorBinaryFile } from './dense-vector-binary.js';
+import { buildDenseVectorValidity } from './dense-vector-validity.js';
+import { assertQuantizedEmbeddingRow, resolveDenseQuantizationSpec } from './embedding-quantization-spec.js';
 
 /**
  * Write dense-vector artifacts in JSONL-sharded and optional binary form.
@@ -40,6 +43,13 @@ export const writeDenseVectorArtifacts = async ({
   shardMaxBytes = 8 * 1024 * 1024,
   writeBinary = false
 }) => {
+  const spec = resolveDenseQuantizationSpec(vectorFields);
+  for (const row of vectors) {
+    if (row !== null) assertQuantizedEmbeddingRow(row, { spec, dims: vectorFields?.dims });
+  }
+  vectorFields = { ...vectorFields, scale: spec.scale, minVal: spec.minVal, maxVal: spec.maxVal,
+    levels: spec.levels, quantizationVersion: spec.version, zeroPoint: spec.zeroPoint,
+    absence: spec.absence, validity: buildDenseVectorValidity(vectors) };
   const rowIterable = {
     [Symbol.iterator]: function* iterateRows() {
       for (let i = 0; i < vectors.length; i += 1) {
@@ -87,7 +97,8 @@ export const writeDenseVectorArtifacts = async ({
     const binaryWrite = await writeDenseVectorBinaryFile({
       binPath,
       vectors,
-      dims: vectorFields?.dims
+      dims: vectorFields?.dims,
+      quantization: spec
     });
     binMetaPath = path.join(indexDir, `${baseName}.bin.meta.json`);
     await writeJsonObjectFile(binMetaPath, {

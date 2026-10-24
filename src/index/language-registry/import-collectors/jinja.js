@@ -29,7 +29,7 @@ export const createJinjaImportCollector = ({ parseStructure = parseJinjaTemplate
       if (budgetContext.budget.maxLines > 0 && entry.line >= budgetContext.budget.maxLines) continue;
       if (scanBudget.exhausted || !scanBudget.consumeMatch()) break;
       addBudgetedCollectorImport(imports, entry.value, scanBudget,
-        { stripSurroundingQuotes: false, stripTrailingPunctuation: false });
+        { literal:true });
     }
     return Array.from(imports);
   } finally {

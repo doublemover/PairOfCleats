@@ -88,7 +88,7 @@ const scenarios = [
   'test_package_harness_workspace_workflows'
 ];
 const results = await Promise.all(scenarios.map((scenario) => new Promise((resolve, reject) => {
-  const child = spawn(python, [script, 'PackageHarnessTests.' + scenario], {
+  const child = spawn(python, ['-W', 'error::DeprecationWarning', script, 'PackageHarnessTests.' + scenario], {
     env,
     stdio: 'inherit'
   });

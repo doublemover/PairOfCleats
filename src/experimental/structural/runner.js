@@ -1,4 +1,4 @@
-import { runBinary, resolveBinary } from './binaries.js';
+import { withStructuralBinary } from './execution.js';
 import { parseAstGrep, parseComby, parseSemgrep, readCombyRule } from './parsers.js';
 
 const buildMissingBinaryMessage = (engine, cmd) => {
@@ -9,7 +9,7 @@ const buildMissingBinaryMessage = (engine, cmd) => {
 
 const assertExitOk = (engine, result) => {
   const status = result?.status;
-  if (status === 0 || status === null || status === undefined) return;
+  if (status === 0) return;
   if (engine === 'semgrep' && status === 1 && result.stdout) return;
   const message = result.stderr || `${engine} failed (status ${status})`;
   const err = new Error(message);
@@ -18,12 +18,11 @@ const assertExitOk = (engine, result) => {
   throw err;
 };
 
-const runSemgrep = (repoRoot, pack, rules) => {
-  const cmd = resolveBinary('semgrep');
+const runSemgrep = async (repoRoot, pack, rules, cmd) => {
   const args = ['--json'];
   for (const rulePath of rules) args.push('--config', rulePath);
   args.push('--quiet');
-  const result = runBinary(cmd, args, { cwd: repoRoot, encoding: 'utf8' });
+  const result = await cmd.run(args);
   if (result.error) {
     if (result.error.code === 'ENOENT') {
       throw new Error(buildMissingBinaryMessage('semgrep', cmd));
@@ -34,12 +33,11 @@ const runSemgrep = (repoRoot, pack, rules) => {
   return parseSemgrep(result.stdout || '', pack);
 };
 
-const runAstGrep = (repoRoot, pack, rules) => {
-  const cmd = resolveBinary('ast-grep');
+const runAstGrep = async (repoRoot, pack, rules, cmd) => {
   const results = [];
   for (const rulePath of rules) {
     const args = ['scan', '--json', '--rule', rulePath];
-    const result = runBinary(cmd, args, { cwd: repoRoot, encoding: 'utf8' });
+    const result = await cmd.run(args);
     if (result.error) {
       if (result.error.code === 'ENOENT') {
         throw new Error(buildMissingBinaryMessage('ast-grep', cmd));
@@ -52,8 +50,7 @@ const runAstGrep = (repoRoot, pack, rules) => {
   return results;
 };
 
-const runComby = (repoRoot, pack, rules) => {
-  const cmd = resolveBinary('comby');
+const runComby = async (repoRoot, pack, rules, cmd) => {
   const results = [];
   for (const rulePath of rules) {
     const rule = readCombyRule(rulePath);
@@ -64,7 +61,7 @@ const runComby = (repoRoot, pack, rules) => {
       rule.rewrite || rule.pattern,
       repoRoot
     ];
-    const result = runBinary(cmd, args, { cwd: repoRoot, encoding: 'utf8' });
+    const result = await cmd.run(args);
     if (result.error) {
       if (result.error.code === 'ENOENT') {
         throw new Error(buildMissingBinaryMessage('comby', cmd));
@@ -77,7 +74,7 @@ const runComby = (repoRoot, pack, rules) => {
   return results;
 };
 
-export const runStructuralSearch = ({ repoRoot, packsToRun }) => {
+export const runStructuralSearch = async ({ repoRoot, packsToRun, signal = null }, runtime = withStructuralBinary) => {
   const results = [];
   for (const entry of packsToRun) {
     if (!entry.engine) continue;
@@ -85,15 +82,12 @@ export const runStructuralSearch = ({ repoRoot, packsToRun }) => {
     const packMeta = entry.pack
       ? { id: entry.pack.id, tags: entry.pack.tags, severity: entry.pack.severity }
       : null;
-    if (entry.engine === 'semgrep') {
-      results.push(...runSemgrep(repoRoot, packMeta, entry.rules));
-    } else if (entry.engine === 'ast-grep') {
-      results.push(...runAstGrep(repoRoot, packMeta, entry.rules));
-    } else if (entry.engine === 'comby') {
-      results.push(...runComby(repoRoot, packMeta, entry.rules));
-    } else {
+    const engine = { semgrep: runSemgrep, 'ast-grep': runAstGrep, comby: runComby }[entry.engine];
+    if (!engine) {
       throw new Error(`Unsupported engine: ${entry.engine}`);
     }
+    signal?.throwIfAborted();
+    results.push(...await runtime(entry.engine, { repoRoot, signal }, cmd => engine(repoRoot, packMeta, entry.rules, cmd)));
   }
   return results;
 };

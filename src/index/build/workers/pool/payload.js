@@ -105,10 +105,12 @@ const normalizeQuantizeVectors = (vectors) => {
   for (let i = 0; i < vectors.length; i += 1) {
     const vec = vectors[i];
     if (ArrayBuffer.isView(vec) && !(vec instanceof DataView)) {
-      normalizedVectors[i] = vec;
-      if (vec.byteOffset === 0 && vec.byteLength === vec.buffer.byteLength) {
-        transferList.push(vec.buffer);
-      }
+      // Transfer only worker-owned storage. Dense-vector fallback channels and
+      // inline recovery still read the caller's original embedding afterwards.
+      const typed = new vec.constructor(vec);
+      normalizedVectors[i] = typed;
+      transferList.push(typed.buffer);
+      typedTempCount += 1;
       continue;
     }
     if (Array.isArray(vec)) {

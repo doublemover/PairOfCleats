@@ -108,66 +108,58 @@ const runSingleLanguageCase = async ({
   let result = null;
   let hit = null;
   let hitDebug = '';
-  for (let attempt = 0; attempt < 3 && !hit; attempt += 1) {
-    result = await runToolingProviders({
-      strict: true,
-      repoRoot: caseRoot,
-      buildRoot: caseRoot,
-      toolingConfig: {
-        enabledTools: [configuredProviderId],
-        lsp: {
-          enabled: true,
-          servers: [serverConfig]
-        }
-      },
-      cache: {
-        enabled: false
+  // One fixture execution: a failed protocol/parser attempt must remain a failure.
+  result = await runToolingProviders({
+    strict: true,
+    repoRoot: caseRoot,
+    buildRoot: caseRoot,
+    toolingConfig: {
+      enabledTools: [configuredProviderId],
+      lsp: {
+        enabled: true,
+        servers: [serverConfig]
       }
-    }, {
-      documents: [{
-        virtualPath,
-        text: docText,
-        languageId,
-        effectiveExt: docConfig.ext,
-        docHash: `hash-${mode}`
-      }],
-      targets: [{
-        chunkRef: {
-          docId: 0,
-          chunkUid,
-          chunkId: `chunk_${mode}`,
-          file: `src/${fileName}`,
-          segmentUid: null,
-          segmentId: null,
-          range: { start: 0, end: docText.length }
-        },
-        virtualPath,
-        virtualRange: { start: 0, end: docText.length },
-        symbolHint: { name: symbolName, kind: 'function' },
-        languageId
-      }],
-      kinds: ['types']
+    },
+    cache: {
+      enabled: false
+    }
+  }, {
+    documents: [{
+      virtualPath,
+      text: docText,
+      languageId,
+      effectiveExt: docConfig.ext,
+      docHash: `hash-${mode}`
+    }],
+    targets: [{
+      chunkRef: {
+        docId: 0,
+        chunkUid,
+        chunkId: `chunk_${mode}`,
+        file: `src/${fileName}`,
+        segmentUid: null,
+        segmentId: null,
+        range: { start: 0, end: docText.length }
+      },
+      virtualPath,
+      virtualRange: { start: 0, end: docText.length },
+      symbolHint: { name: symbolName, kind: 'function' },
+      languageId
+    }],
+    kinds: ['types']
+  });
+  hit = result.byChunkUid.get(chunkUid);
+  if (!hit) {
+    const providerRuntime = result.metrics?.providerRuntime?.[configuredProviderId] || null;
+    const providerDiagnostics = result.diagnostics?.[configuredProviderId] || null;
+    hitDebug = JSON.stringify({
+      providerRuntime,
+      preflightState: providerDiagnostics?.preflight?.state || null,
+      fidelityState: providerDiagnostics?.fidelity?.state || null,
+      checkNames: Array.isArray(providerDiagnostics?.checks)
+        ? providerDiagnostics.checks.map((check) => check?.name).filter(Boolean)
+        : []
     });
-    hit = result.byChunkUid.get(chunkUid);
-    if (!hit) {
-      const providerRuntime = result.metrics?.providerRuntime?.[configuredProviderId] || null;
-      const providerDiagnostics = result.diagnostics?.[configuredProviderId] || null;
-      hitDebug = JSON.stringify({
-        providerRuntime,
-        preflightState: providerDiagnostics?.preflight?.state || null,
-        fidelityState: providerDiagnostics?.fidelity?.state || null,
-        checkNames: Array.isArray(providerDiagnostics?.checks)
-          ? providerDiagnostics.checks.map((check) => check?.name).filter(Boolean)
-          : []
-      });
-    }
-    if (!hit && attempt < 2) {
-      await cleanupLspTestRuntime({
-        reason: `configured_lsp_signature_case_${mode}_retry`,
-        strict: true
-      });
-      await new Promise((resolve) => setTimeout(resolve, 100 * (attempt + 1)));
-    }
   }
   assert.ok(hit, `expected LSP hit for ${languageId}${hitDebug ? `; diagnostics=${hitDebug}` : ''}`);
   assert.equal(hit.payload?.returnType, returnType, `unexpected returnType for ${languageId}`);

@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+// Linux ELF/clangd qualification only; native-toolchain-platform covers explicit
+// Windows rejection without claiming Windows executables satisfy this contract.
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';

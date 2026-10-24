@@ -1,6 +1,6 @@
 > DEPRECATED
 >
-> Canonical replacement docs: `docs/tooling/shared-module-reductions/432-prioritized-implementation-backlog.md`, `docs/tooling/shared-module-reviews/412-concurrency-subprocess-lifecycle.md`, and `docs/specs/node-supervisor-protocol.md`.
+> Canonical callable replacement: [Asynchronous subprocess contract](../contracts/subprocess.md) and [current JSDoc types](../../src/shared/subprocess/types.js). Module ownership and supervisor protocol remain in their respective tooling reviews and protocol specification.
 >
 > Reason: the Phase 4.9 subprocess helper draft was implemented and superseded by the split subprocess family under `src/shared/subprocess/**`; the root `src/shared/subprocess.js` facade has been removed.
 >

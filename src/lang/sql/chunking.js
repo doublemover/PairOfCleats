@@ -2,7 +2,7 @@ import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
 import { extractDocComment } from '../shared.js';
 import { buildTreeSitterChunks } from '../tree-sitter.js';
 import { SQL_DOC_OPTIONS } from './constants.js';
-import { splitSqlStatements } from './scanner.js';
+import { createSqlScannerState, splitSqlStatements } from './scanner.js';
 
 const CHAR_TAB = 9;
 const CHAR_LF = 10;
@@ -13,9 +13,6 @@ const CHAR_9 = 57;
 const CHAR_A = 65;
 const CHAR_Z = 90;
 const CHAR_UNDERSCORE = 95;
-const CHAR_BACKTICK = 96;
-const CHAR_DQUOTE = 34;
-const CHAR_DOT = 46;
 const CHAR_a = 97;
 const CHAR_z = 122;
 
@@ -61,15 +58,6 @@ function isSqlWordCode(code) {
     || (code >= CHAR_a && code <= CHAR_z)
     || (code >= CHAR_0 && code <= CHAR_9)
     || code === CHAR_UNDERSCORE;
-}
-
-/**
- * SQL identifier token check, including quoted identifiers and dotted paths.
- * @param {number} code
- * @returns {boolean}
- */
-function isSqlNameCode(code) {
-  return isSqlWordCode(code) || code === CHAR_DQUOTE || code === CHAR_BACKTICK || code === CHAR_DOT;
 }
 
 /**
@@ -119,7 +107,8 @@ function consumeKeyword(text, start, lowerKeyword) {
  * @param {number} start
  * @returns {number}
  */
-function skipLeadingComments(text, start) {
+function skipLeadingComments(text, start, options) {
+  const { nestedComments } = createSqlScannerState(options);
   let i = start;
   while (i < text.length) {
     i = skipWhitespace(text, i);
@@ -129,29 +118,18 @@ function skipLeadingComments(text, start) {
       continue;
     }
     if (text[i] === '/' && text[i + 1] === '*') {
-      const end = text.indexOf('*/', i + 2);
-      if (end === -1) return text.length;
-      i = end + 2;
+      let depth=1;i+=2;
+      while(i<text.length && depth) {
+        if(nestedComments && text.startsWith('/*',i)) {depth++;i+=2;}
+        else if(text.startsWith('*/',i)) {depth--;i+=2;}
+        else i++;
+      }
+      if(depth) return text.length;
       continue;
     }
     break;
   }
   return i;
-}
-
-/**
- * Remove identifier quotes used by SQL dialects.
- * @param {string} token
- * @returns {string}
- */
-function stripSqlNameQuotes(token) {
-  if (!token) return '';
-  let out = '';
-  for (let i = 0; i < token.length; i += 1) {
-    const ch = token[i];
-    if (ch !== '"' && ch !== '`') out += ch;
-  }
-  return out;
 }
 
 /**
@@ -161,10 +139,28 @@ function stripSqlNameQuotes(token) {
  * @returns {string}
  */
 function readSqlNameToken(text, start) {
-  let end = start;
-  while (end < text.length && isSqlNameCode(text.charCodeAt(end))) end += 1;
-  if (end <= start) return '';
-  return text.slice(start, end);
+  let cursor = start, name = '';
+  while(cursor < text.length) {
+    const quote = text[cursor], close = quote === '[' ? ']' : quote;
+    if(['"','`','['].includes(quote)) {
+      cursor++;let closed=false;
+      while(cursor < text.length) {
+        if(text[cursor] === close) {
+          if(text[cursor+1] === close) {name+=close;cursor+=2;continue;}
+          cursor++;closed=true;break;
+        }
+        name+=text[cursor++];
+      }
+      if(!closed) return '';
+    } else {
+      const match = text.slice(cursor).match(/^[\p{ID_Start}_][\p{ID_Continue}_$]*/u);
+      if(!match) return '';
+      name+=match[0];cursor+=match[0].length;
+    }
+    if(text[cursor] !== '.') break;
+    name+='.';cursor++;
+  }
+  return name;
 }
 
 /**
@@ -176,8 +172,8 @@ function readSqlNameToken(text, start) {
  * @param {string} statement
  * @returns {{kind:string,name:string}}
  */
-function classifySqlStatement(statement) {
-  let idx = skipLeadingComments(statement, 0);
+function classifySqlStatement(statement, options) {
+  let idx = skipLeadingComments(statement, 0, options);
   idx = skipWhitespace(statement, idx);
 
   idx = consumeKeyword(statement, idx, 'create');
@@ -203,6 +199,10 @@ function classifySqlStatement(statement) {
   }
 
   if (!kindKey) {
+    for(const modifier of ['temporary','temp','unlogged','unique']) {
+      const next=consumeKeyword(statement,idx,modifier);
+      if(next>=0) idx=skipWhitespace(statement,next);
+    }
     for (const keyword of SQL_CREATE_KINDS) {
       const next = consumeKeyword(statement, idx, keyword);
       if (next >= 0) {
@@ -215,12 +215,19 @@ function classifySqlStatement(statement) {
 
   if (!kindKey) return { kind: 'Statement', name: 'statement' };
   idx = skipWhitespace(statement, idx);
+  const afterIf = consumeKeyword(statement,idx,'if');
+  if(afterIf >= 0) {
+    const afterNot = consumeKeyword(statement,skipWhitespace(statement,afterIf),'not');
+    const afterExists = afterNot >= 0 ? consumeKeyword(statement,skipWhitespace(statement,afterNot),'exists') : -1;
+    if(afterExists < 0) return {kind:'Statement',name:'statement'};
+    idx=skipWhitespace(statement,afterExists);
+  }
   const nameToken = readSqlNameToken(statement, idx);
   if (!nameToken) return { kind: 'Statement', name: 'statement' };
 
   return {
     kind: SQL_KIND_MAP[kindKey] || 'Statement',
-    name: stripSqlNameQuotes(nameToken)
+    name: nameToken
   };
 }
 
@@ -286,7 +293,7 @@ function extractSqlLeadingDoc(statementText) {
     return { docstring: '', signature: firstNonEmptyLine(statementText) };
   }
 
-  const lines = statementText.split('\n');
+  const lines = statementText.split(/\r\n|[\r\n]/u);
   const docLines = [];
   let signature = '';
   let i = 0;
@@ -356,25 +363,13 @@ export function buildSqlChunks(text, options = {}) {
     }
     return 'generic';
   };
-  const statements = splitSqlStatements(text);
+  const dialect = resolveDialect();
+  const lexicalOptions = { ...options, dialect };
+  const statements = splitSqlStatements(text, lexicalOptions);
   const treeChunks = buildTreeSitterChunks({ text, languageId: 'sql', options });
-
-  if (treeChunks && treeChunks.length) {
-    if (!statements.length || treeChunks.length >= statements.length) {
-      const dialect = resolveDialect();
-      return treeChunks.map((chunk) => ({
-        ...chunk,
-        meta: {
-          ...(chunk.meta || {}),
-          dialect
-        }
-      }));
-    }
-  }
 
   if (!statements.length) return null;
 
-  const dialect = resolveDialect();
   const lineIndex = buildLineIndex(text);
   const lines = text.includes('--') || text.includes('/*')
     ? text.split('\n')
@@ -383,7 +378,7 @@ export function buildSqlChunks(text, options = {}) {
 
   for (const stmt of statements) {
     const stmtText = text.slice(stmt.start, stmt.end);
-    const { kind, name } = classifySqlStatement(stmtText);
+    const { kind, name } = classifySqlStatement(stmtText, lexicalOptions);
     const startLine = offsetToLine(lineIndex, stmt.start);
     const endLine = offsetToLine(lineIndex, stmt.end);
     const leading = extractSqlLeadingDoc(stmtText);
@@ -404,5 +399,31 @@ export function buildSqlChunks(text, options = {}) {
     });
   }
 
-  return decls;
+  if(!treeChunks?.length) return decls;
+  const out = treeChunks.map(chunk=>({...chunk,meta:{...chunk.meta,dialect}}));
+  // The declaration scanner consumes IF NOT EXISTS and quoted identifiers.
+  // Generic native name search can instead pick a keyword or an identifier
+  // inside the column list. Reconcile only an unambiguous matching declaration;
+  // preserve its native ranges and every unrelated/nested chunk.
+  for (const declaration of decls) {
+    if (declaration.kind === 'Statement') continue;
+    const owners = out.filter(chunk => chunk.kind === declaration.kind
+      && chunk.start >= declaration.start && chunk.end <= declaration.end);
+    if (owners.length === 1) owners[0].name = declaration.name;
+    else if (!owners.length) out.push(declaration);
+  }
+  // A count cannot prove source coverage. Keep authoritative native declarations
+  // and add each uncovered statement/gap without replacing good identities.
+  for(const declaration of decls) {
+    const covered = treeChunks.filter(chunk=>chunk.end > declaration.start && chunk.start < declaration.end)
+      .sort((a,b)=>a.start-b.start);
+    if(!covered.length) {out.push(declaration);continue;}
+    let cursor=declaration.start;
+    for(const chunk of covered) {
+      if(chunk.start > cursor && text.slice(cursor,chunk.start).trim()) out.push({...declaration,start:cursor,end:chunk.start,name:'statement',kind:'Statement'});
+      cursor=Math.max(cursor,chunk.end);
+    }
+    if(cursor < declaration.end && text.slice(cursor,declaration.end).replace(/;/g,'').trim()) out.push({...declaration,start:cursor,name:'statement',kind:'Statement'});
+  }
+  return out.sort((a,b)=>a.start-b.start || a.end-b.end);
 }

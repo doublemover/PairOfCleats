@@ -1,3 +1,5 @@
+import { CONTEXT_TASK_POLICY_SCHEMA } from '../../contracts/schemas/context-task.js';
+import { buildSearchRequestProperties } from '../../shared/search-request-schema.js';
 import { SEMANTIC_TRACE_REQUEST_SCHEMA } from '../../contracts/schemas/semantic-trace.js';
 import { SEMANTIC_FIND_REQUEST_SCHEMA } from '../../contracts/schemas/semantic-find.js';
 import { SEMANTIC_EXPLAIN_REQUEST_SCHEMA } from '../../contracts/schemas/semantic-explain.js';
@@ -5,10 +7,11 @@ import { SEMANTIC_ENRICHMENT_REQUEST_SCHEMA } from '../../contracts/schemas/sema
 import { RUNTIME_LOOKUP_SERVICE_REQUEST_SCHEMA, RUNTIME_DISCOVERY_SERVICE_REQUEST_SCHEMA } from '../../contracts/schemas/runtime-query.js';
 import { RUNTIME_COMPARE_SERVICE_SCHEMA, RUNTIME_CLAIMS_SERVICE_SCHEMA } from '../../contracts/schemas/runtime-claims.js';
 import { SEMANTIC_DETAIL_REQUEST_SCHEMA } from '../../contracts/schemas/semantic-query.js';
-import { getToolVersion } from '../../shared/dict-utils.js';
+import { GRAPH_EVIDENCE_REQUEST_SCHEMA } from '../../contracts/schemas/graph-evidence.js';
+import { getToolVersion } from '../../../tools/dict-utils/tool.js';
 import { SEARCH_REQUEST_REQUIREMENT } from '../../shared/search-request.js';
 
-export const MCP_SCHEMA_VERSION = '1.6.0';
+export const MCP_SCHEMA_VERSION = '1.10.1';
 
 const STRING_OR_STRING_ARRAY_SCHEMA = Object.freeze({
   anyOf: [
@@ -62,6 +65,7 @@ const buildWorkspaceToolProperties = ({
  */
 export function getToolDefs(defaultModelId) {
   return [
+    { name: 'graph_evidence', description: 'Experimental, qualification pending: page retained call occurrences or resolved adjacency in an explicit immutable build. Bounded retained-family coverage does not establish upstream semantic completeness.', inputSchema: { type: 'object', ...GRAPH_EVIDENCE_REQUEST_SCHEMA } },
     {name:'semantic_find',description:'Experimental, qualification pending: discover pinned structural/compiler-target candidates, exact type-expression facts by source and role, or parser-established scalar literal occurrences. Bounded indexed coverage; no assignability, alias expansion, behavioral equivalence or universal runtime-value claim.',inputSchema:SEMANTIC_FIND_REQUEST_SCHEMA},
     {name:'semantic_explain',description:'Experimental, qualification pending: explain a pinned static witness and suggest exact source/task plan or enqueue requests. Never executes suggested work automatically.',inputSchema:SEMANTIC_EXPLAIN_REQUEST_SCHEMA},
     {name:'semantic_enrichment',description:'Experimental, qualification pending: plan by default; explicit enqueue persists pending tasks, explicit drain requires verified dependency authority and whole-generation publication. No live retrieval overlays.',inputSchema:SEMANTIC_ENRICHMENT_REQUEST_SCHEMA},
@@ -117,70 +121,66 @@ export function getToolDefs(defaultModelId) {
       inputSchema: {
         type: 'object',
         additionalProperties: false,
-        properties: {
-          repoPath: { type: 'string', description: 'Repo path (defaults to server cwd).' },
-          query: { type: 'string' },
-          cursor: { type: 'string', minLength: 1, maxLength: 8192, description: 'Filter-only nextCursor; reuse identical filters, modes and generation.' },
-          asOf: { type: 'string', description: 'Pin the original indexed build or snapshot.' },
-          snapshot: { type: 'string', description: 'Compatibility snapshot reference; cannot combine with asOf.' },
-          snapshotId: { type: 'string', description: 'Alias for snapshot; conflicting references fail.' },
-          mode: { type: 'string', enum: ['both', 'code', 'prose', 'extracted-prose', 'records', 'all'] },
-          backend: { type: 'string', enum: ['memory', 'sqlite', 'sqlite-fts'] },
-          output: { type: 'string', enum: ['compact', 'full'], description: 'Return compact JSON (default) or full payload.' },
-          ann: { type: 'boolean', description: 'Enable ANN re-ranking (default uses config).' },
-          allowSparseFallback: { type: 'boolean', description: 'Allow ANN fallback when sparse-only is requested but sparse is unavailable.' },
-          allowUnsafeMix: { type: 'boolean', description: 'Allow compatibility/profile cohort mixing when keys do not match.' },
-          top: { type: 'number', description: 'Top N results.' },
-          context: { type: 'integer', const: 0, deprecated: true, description: 'Deprecated zero-only compatibility input. Use context_pack for source context.' },
-          type: { type: 'string', description: 'Filter by chunk kind/type.' },
-          author: { type: 'string', description: 'Filter by last author (git).' },
-          import: { type: 'string', description: 'Filter by imported module.' },
-          calls: { type: 'string', description: 'Filter by call relationships.' },
-          uses: { type: 'string', description: 'Filter by identifier usage.' },
-          signature: { type: 'string', description: 'Filter by signature text.' },
-          param: { type: 'string', description: 'Filter by parameter name.' },
-          decorator: { type: 'string', description: 'Filter by decorator/attribute.' },
-          inferredType: { type: 'string', description: 'Filter by inferred type.' },
-          returnType: { type: 'string', description: 'Filter by return type.' },
-          throws: { type: 'string', description: 'Filter by throws/raises.' },
-          reads: { type: 'string', description: 'Filter by read dataflow.' },
-          writes: { type: 'string', description: 'Filter by write dataflow.' },
-          mutates: { type: 'string', description: 'Filter by mutation dataflow.' },
-          alias: { type: 'string', description: 'Filter by alias dataflow.' },
-          awaits: { type: 'string', description: 'Filter by await targets.' },
-          risk: { type: 'string', description: 'Filter by risk tag.' },
-          riskTag: { type: 'string', description: 'Filter by risk tag.' },
-          riskSource: { type: 'string', description: 'Filter by risk source.' },
-          riskSink: { type: 'string', description: 'Filter by risk sink.' },
-          riskCategory: { type: 'string', description: 'Filter by risk category.' },
-          riskFlow: { type: 'string', description: 'Filter by risk flow.' },
-          branchesMin: { type: 'number', description: 'Min branch count.' },
-          loopsMin: { type: 'number', description: 'Min loop count.' },
-          breaksMin: { type: 'number', description: 'Min break count.' },
-          continuesMin: { type: 'number', description: 'Min continue count.' },
-          visibility: { type: 'string', description: 'Filter by visibility.' },
-          extends: { type: 'string', description: 'Filter by inheritance.' },
-          async: { type: 'boolean', description: 'Filter async constructs.' },
-          generator: { type: 'boolean', description: 'Filter generator constructs.' },
-          returns: { type: 'boolean', description: 'Filter chunks with returns.' },
-          churnMin: { type: 'number', description: 'Minimum git churn (added+deleted lines).' },
-          chunkAuthor: { type: 'string', description: 'Filter by chunk author (git blame).' },
-          modifiedAfter: { type: 'string', description: 'Filter by last modified date (parseable string).' },
-          modifiedSince: { type: 'number', description: 'Filter by last modified recency (days).' },
-          lint: { type: 'boolean', description: 'Filter chunks with lint results.' },
-          path: { type: 'string', description: 'Substring/regex match for file paths.' },
-          paths: STRING_OR_STRING_ARRAY_SCHEMA,
-          filter: { type: 'string', description: 'Canonical filter expression.' },
-          file: { type: 'string', description: 'Substring/regex match for file paths.' },
-          ext: { type: 'string', description: 'Extension filter (ex: .js).' },
-          lang: { type: 'string', description: 'Language filter (maps to extensions).' },
-          branch: { type: 'string', description: 'Git branch filter (current branch).' },
-          case: { type: 'boolean', description: 'Case-sensitive matching for file/path and tokens.' },
-          caseFile: { type: 'boolean', description: 'Case-sensitive file/path matching.' },
-          caseTokens: { type: 'boolean', description: 'Case-sensitive token matching.' },
-          meta: { type: 'object', description: 'Metadata filters for records (key/value).' },
-          metaJson: { type: 'string', description: 'JSON metadata filters for records.' }
-        },
+        properties: buildSearchRequestProperties({ outputs: ['compact', 'full'], descriptions: {
+          repoPath: 'Repo path (defaults to server cwd).',
+          cursor: 'Filter-only nextCursor; reuse identical filters, modes and generation.',
+          asOf: 'Pin the original indexed build or snapshot.',
+          snapshot: 'Compatibility snapshot reference; cannot combine with asOf.',
+          snapshotId: 'Alias for snapshot; conflicting references fail.',
+          output: 'Return compact JSON (default) or full payload.',
+          ann: 'Enable ANN re-ranking (default uses config).',
+          allowSparseFallback: 'Allow ANN fallback when sparse-only is requested but sparse is unavailable.',
+          allowUnsafeMix: 'Allow compatibility/profile cohort mixing when keys do not match.',
+          top: 'Top N results.',
+          context: 'Deprecated zero-only compatibility input. Use context_pack for source context.',
+          type: 'Filter by chunk kind/type.',
+          author: 'Filter by last author (git).',
+          import: 'Filter by imported module.',
+          calls: 'Filter by call relationships.',
+          uses: 'Filter by identifier usage.',
+          signature: 'Filter by signature text.',
+          param: 'Filter by parameter name.',
+          decorator: 'Filter by decorator/attribute.',
+          inferredType: 'Filter by inferred type.',
+          returnType: 'Filter by return type.',
+          throws: 'Filter by throws/raises.',
+          reads: 'Filter by read dataflow.',
+          writes: 'Filter by write dataflow.',
+          mutates: 'Filter by mutation dataflow.',
+          alias: 'Filter by alias dataflow.',
+          awaits: 'Filter by await targets.',
+          risk: 'Filter by risk tag.',
+          riskTag: 'Filter by risk tag.',
+          riskSource: 'Filter by risk source.',
+          riskSink: 'Filter by risk sink.',
+          riskCategory: 'Filter by risk category.',
+          riskFlow: 'Filter by risk flow.',
+          branchesMin: 'Min branch count.',
+          loopsMin: 'Min loop count.',
+          breaksMin: 'Min break count.',
+          continuesMin: 'Min continue count.',
+          visibility: 'Filter by visibility.',
+          extends: 'Filter by inheritance.',
+          async: 'Filter async constructs.',
+          generator: 'Filter generator constructs.',
+          returns: 'Filter chunks with returns.',
+          churnMin: 'Minimum git churn (added+deleted lines).',
+          chunkAuthor: 'Filter by chunk author (git blame).',
+          modifiedAfter: 'Filter by last modified date (parseable string).',
+          modifiedSince: 'Filter by last modified recency (days).',
+          lint: 'Filter chunks with lint results.',
+          path: 'Substring/regex match for file paths.',
+          filter: 'Canonical filter expression.',
+          file: 'Substring/regex match for file paths.',
+          ext: 'Extension filter (ex: .js).',
+          lang: 'Language filter (maps to extensions).',
+          branch: 'Git branch filter (current branch).',
+          case: 'Case-sensitive matching for file/path and tokens.',
+          caseFile: 'Case-sensitive file/path matching.',
+          caseTokens: 'Case-sensitive token matching.',
+          meta: 'Metadata filters for records (key/value).',
+          metaJson: 'JSON metadata filters for records.',
+        } }),
         ...SEARCH_REQUEST_REQUIREMENT
       }
     },
@@ -196,6 +196,8 @@ export function getToolDefs(defaultModelId) {
             includeDisabled: { type: 'boolean' },
             maxFederatedRepos: { type: 'number' },
             seed: { type: 'string', description: 'Chunk/file/symbol seed reference.' },
+            taskPolicy: CONTEXT_TASK_POLICY_SCHEMA,
+            pathSemantics: { enum: ['graph-witness'] },
             hops: { type: 'number', description: 'Neighborhood depth.' },
             includeGraph: { type: 'boolean' },
             includeSemantic: { type: 'boolean' },
@@ -311,7 +313,7 @@ export function getToolDefs(defaultModelId) {
             }
           }
         }),
-        required: ['workspacePath', 'query']
+        required: ['workspacePath']
       }
     },
     {
@@ -453,7 +455,7 @@ export function getToolDefs(defaultModelId) {
     },
     {
       name: 'cache_gc',
-      description: 'Garbage-collect repo caches.',
+      description: 'Preview cleanup of only the selected repository cache using quota or age limits. Explicit dryRun=false applies deletion; process-lifetime leases protect cooperating sessions. Shared CAS and other repositories require user-owned maintenance CLI scope.',
       inputSchema: {
         type: 'object',
         properties: {

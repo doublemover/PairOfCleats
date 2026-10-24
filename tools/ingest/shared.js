@@ -1,3 +1,4 @@
+import { getOwn, setOwn } from '../../src/shared/object-record.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import { once } from 'node:events';
@@ -32,7 +33,7 @@ export const normalizeRepoRelativePath = (repoRoot, value, { stripVirtualRepoRoo
 export const bumpStat = (bucket, key) => {
   if (!key) return;
   const normalized = String(key);
-  bucket[normalized] = (bucket[normalized] || 0) + 1;
+  setOwn(bucket,normalized,(Number(getOwn(bucket,normalized)) || 0) + 1);
 };
 
 export const ensureParentDir = async (filePath) => {

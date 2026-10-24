@@ -1,4 +1,7 @@
+import { crossFileCoverageSchema } from '../relation-coverage.js';
+import { API_CONTRACT_ENTRY_SCHEMA } from '../api-contracts.js';
 import { METADATA_V2_SCHEMA } from '../analysis.js';
+import { MINHASH_HASH_IDENTITY } from '../../../index/minhash.js';
 import {
   IMPORT_DISPOSITIONS,
   IMPORT_FAILURE_CAUSES,
@@ -469,6 +472,9 @@ export const CORE_POST_VFS_ARTIFACT_SCHEMA_DEFS = {
         name: { type: 'string' },
         kind: nullableString,
         signature: nullableString,
+        chunkUid: nullableString,
+        symbolId: nullableString,
+        virtualPath: nullableString,
         exported: { type: ['boolean', 'null'] }
       },
       additionalProperties: true
@@ -500,50 +506,7 @@ export const CORE_POST_SYMBOL_ARTIFACT_SCHEMA_DEFS = {
   },
   api_contracts: {
     type: 'array',
-    items: {
-      type: 'object',
-      required: ['symbol', 'signature', 'observedCalls'],
-      properties: {
-        symbol: {
-          type: 'object',
-          required: ['symbolId'],
-          properties: {
-            symbolId: { type: 'string' },
-            chunkUid: nullableString,
-            file: nullableString,
-            name: nullableString,
-            kind: nullableString
-          },
-          additionalProperties: true
-        },
-        signature: {
-          type: 'object',
-          properties: {
-            declared: nullableString,
-            tooling: nullableString
-          },
-          additionalProperties: true
-        },
-        observedCalls: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              arity: { type: ['number', 'null'] },
-              args: { type: ['array', 'null'], items: { type: 'string' } },
-              callSiteId: nullableString,
-              file: nullableString,
-              startLine: { type: ['number', 'null'] },
-              confidence: { type: ['number', 'null'] }
-            },
-            additionalProperties: true
-          }
-        },
-        warnings: { type: ['array', 'null'], items: { type: 'object' } },
-        truncation: { type: ['array', 'null'], items: { type: 'object' } }
-      },
-      additionalProperties: true
-    }
+    items: API_CONTRACT_ENTRY_SCHEMA
   }
 };
 
@@ -614,8 +577,9 @@ export const CORE_POST_RISK_ARTIFACT_SCHEMA_DEFS = {
   },
   minhash_signatures: {
     type: 'object',
-    required: ['signatures'],
+    required: ['signatures', 'hashIdentity'],
     properties: {
+      hashIdentity: { type: 'string', const: MINHASH_HASH_IDENTITY },
       signatures: {
         type: 'array',
         items: { type: 'array', items: intId }
@@ -670,6 +634,7 @@ export const CORE_POST_SNAPSHOT_ARTIFACT_SCHEMA_DEFS = {
     properties: {
       version: { type: 'integer', minimum: 1 },
       generatedAt: { type: 'string' },
+      upstreamCoverage: crossFileCoverageSchema,
       callGraph: graphPayload,
       usageGraph: graphPayload,
       importGraph: graphPayload

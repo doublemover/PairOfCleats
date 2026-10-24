@@ -1,3 +1,4 @@
+import { SUGGEST_TESTS_OPTIONS } from './analysis-cli-options.js';
 import path from 'node:path';
 import { createCli } from '../../shared/cli.js';
 import { isDirectExecution } from '../../shared/direct-execution.js';
@@ -31,22 +32,7 @@ export async function runSuggestTestsCli(rawArgs = process.argv.slice(2)) {
   const cli = createCli({
     scriptName: 'suggest-tests',
     argv: ['node', 'suggest-tests', ...rawArgs],
-    options: {
-      repo: { type: 'string' },
-      changed: { type: 'array' },
-      changedFile: { type: 'string' },
-      max: { type: 'number' },
-      format: { type: 'string' },
-      json: { type: 'boolean', default: false },
-      testPattern: { type: 'array' },
-      maxDepth: { type: 'number' },
-      maxNodes: { type: 'number' },
-      maxEdges: { type: 'number' },
-      maxPaths: { type: 'number' },
-      maxCandidates: { type: 'number' },
-      maxWorkUnits: { type: 'number' },
-      maxWallClockMs: { type: 'number' }
-    },
+    options: SUGGEST_TESTS_OPTIONS,
     aliases: {
       'test-pattern': 'testPattern',
       'changed-file': 'changedFile'

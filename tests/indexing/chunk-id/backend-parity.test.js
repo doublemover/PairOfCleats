@@ -10,6 +10,7 @@ import { runNode } from '../../helpers/run-node.js';
 import { fromPosix } from '../../../src/shared/file-paths.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { writeClosedJavaScriptProject } from '../../helpers/closed-javascript-project.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'chunk-id-backend-parity');
@@ -22,11 +23,13 @@ await fsPromises.mkdir(cacheRoot, { recursive: true });
 
 await fsPromises.writeFile(path.join(repoRoot, 'alpha.js'), 'export const alpha = 1;\n');
 await fsPromises.writeFile(path.join(repoRoot, 'beta.js'), 'export function beta() { return 2; }\n');
+await writeClosedJavaScriptProject(repoRoot, ['*.js']);
 
 const env = applyTestEnv({
   cacheRoot,
   embeddings: 'stub',
   testConfig: {
+    threads: 1,
     indexing: {
       scm: { provider: 'none' },
       typeInference: false,

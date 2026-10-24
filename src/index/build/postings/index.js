@@ -10,6 +10,7 @@ import {
   tuneBM25Params
 } from './constants.js';
 import { buildDenseVectors } from './dense-vectors.js';
+import { resolveEmbeddingQuantizationSpec } from '../../../shared/embedding-quantization-spec.js';
 import { resolveMinhashOutputs } from './minhash.js';
 import { normalizeTfPostingList } from './id-lists.js';
 import { buildPhraseAndChargramPostings } from './phrase-chargram.js';
@@ -51,6 +52,7 @@ import { buildTokenAndFieldPostings } from './token-field.js';
  * @property {object|null} fieldPostings
  * @property {string[]} phraseVocab
  * @property {number[][]} phrasePostings
+ * @property {object|null} phraseStats
  * @property {string[]} chargramVocab
  * @property {number[][]} chargramPostings
  * @property {object|null} chargramStats
@@ -100,10 +102,13 @@ export async function buildPostings(input) {
     log,
     workerPool,
     quantizePool,
+    quantization: configuredQuantization,
+    abortSignal = null,
     embeddingsEnabled = true,
     sparsePostingsEnabled = true,
     buildStage = null
   } = input;
+  const quantization = resolveEmbeddingQuantizationSpec(configuredQuantization);
   void df;
   const sparseEnabled = sparsePostingsEnabled !== false;
 
@@ -186,6 +191,7 @@ export async function buildPostings(input) {
       fieldPostings: buildEmptyFieldPostings(),
       phraseVocab: [],
       phrasePostings: [],
+      phraseStats: null,
       chargramVocab: [],
       chargramPostings: [],
       tokenVocab: [],
@@ -234,6 +240,8 @@ export async function buildPostings(input) {
     log,
     workerPool,
     quantizePool,
+    quantization,
+    abortSignal,
     requestYield,
     buildStage
   });
@@ -241,6 +249,7 @@ export async function buildPostings(input) {
   const {
     phraseVocab,
     phrasePostings,
+    phraseStats,
     chargramVocab,
     chargramPostings,
     chargramStats,
@@ -261,6 +270,7 @@ export async function buildPostings(input) {
     chargramMaxDf,
     postingsGuard,
     requestYield,
+    abortSignal,
     mergeSpillRuns,
     compareChargramRows
   });
@@ -285,6 +295,7 @@ export async function buildPostings(input) {
   const {
     allowMinhash,
     minhashSigs,
+    minhashHashIdentity,
     minhashGuard
   } = resolveMinhashOutputs({
     sparseEnabled,
@@ -302,6 +313,7 @@ export async function buildPostings(input) {
     fieldPostings: fieldPostingsResult,
     phraseVocab,
     phrasePostings,
+    phraseStats,
     chargramVocab,
     chargramPostings,
     chargramStats,
@@ -310,12 +322,14 @@ export async function buildPostings(input) {
     tokenPostingsList,
     avgDocLen,
     minhashSigs,
+    minhashHashIdentity,
     minhashStream: (allowMinhash || minhashGuard?.sampled === true) && minhashStream,
     minhashGuard,
     dims,
     quantizedVectors,
     quantizedDocVectors,
     quantizedCodeVectors,
-    postingsMergeStats
+    postingsMergeStats,
+    quantization
   };
 }

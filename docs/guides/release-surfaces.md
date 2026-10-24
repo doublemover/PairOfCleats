@@ -14,7 +14,7 @@ The release pipeline, artifact verification, and smoke contracts should consume 
 - packaging boundary: `node-bin`
 - publish boundary: `repo-package`
 - version source: `package.json#version`
-- runtime targets: `node>=26.0.0 <27`
+- runtime targets: `node>=26.12.1 <27`
 - platforms: `windows`, `linux`, `macos`
 
 Build contract: `source-entrypoint`
@@ -42,7 +42,7 @@ Smoke contract:
 - packaging boundary: `node-service`
 - publish boundary: `repo-package`
 - version source: `package.json#version`
-- runtime targets: `node>=26.0.0 <27`
+- runtime targets: `node>=26.12.1 <27`
 - platforms: `windows`, `linux`, `macos`
 
 Build contract: `source-service`
@@ -69,7 +69,7 @@ Smoke contract:
 - packaging boundary: `node-service`
 - publish boundary: `repo-package`
 - version source: `package.json#version`
-- runtime targets: `node>=26.0.0 <27`
+- runtime targets: `node>=26.12.1 <27`
 - platforms: `windows`, `linux`, `macos`
 
 Build contract: `source-service`
@@ -95,7 +95,7 @@ Smoke contract:
 - packaging boundary: `node-service`
 - publish boundary: `repo-package`
 - version source: `package.json#version`
-- runtime targets: `node>=26.0.0 <27`
+- runtime targets: `node>=26.12.1 <27`
 - platforms: `windows`, `linux`, `macos`
 
 Build contract: `source-service`
@@ -119,7 +119,7 @@ Smoke contract:
 - packaging boundary: `vsix`
 - publish boundary: `vsix-artifact`
 - version source: `extensions/vscode/package.json#version`
-- runtime targets: `node>=26.0.0 <27`, `vscode-extension-host`
+- runtime targets: `node>=26.12.1 <27`, `vscode-extension-host`
 - platforms: `windows`, `linux`, `macos`
 
 Build contract: `package-script`
@@ -139,7 +139,7 @@ Smoke contract:
   - build:
     - `smoke.editor-vscode` -- editor package smoke (vscode)
   - install:
-    - `vscode.install.unpack` -- editor archive unpack verification (vscode)
+    - `vscode.install.unpack` -- VSIX archive verification; official host qualification required
 
 ## Sublime package
 
@@ -156,9 +156,9 @@ Build contract: `package-script`
 
 - build source: `sublime/PairOfCleats`
 - build source: `tools/package-sublime.js`
-- build output: `dist/sublime/pairofcleats.sublime-package`
-- build output: `dist/sublime/pairofcleats.sublime-package.sha256`
-- build output: `dist/sublime/pairofcleats.sublime-package.manifest.json`
+- build output: `dist/sublime/PairOfCleats.sublime-package`
+- build output: `dist/sublime/PairOfCleats.sublime-package.sha256`
+- build output: `dist/sublime/PairOfCleats.sublime-package.manifest.json`
 
 Install contract: `sublime-package-install`
 - Install the generated `.sublime-package` into the target Sublime environment and validate package metadata.
@@ -169,7 +169,7 @@ Smoke contract:
   - build:
     - `smoke.editor-sublime` -- editor package smoke (sublime)
   - install:
-    - `sublime.install.unpack` -- editor archive unpack verification (sublime)
+    - `sublime.install.unpack` -- Sublime archive verification; supported host qualification required
 
 ## Rust TUI and wrapper
 
@@ -179,7 +179,7 @@ Smoke contract:
 - packaging boundary: `native-binary-plus-wrapper`
 - publish boundary: `platform-artifact`
 - version source: `package.json#version`
-- runtime targets: `rust-target-artifact`, `node>=26.0.0 <27`
+- runtime targets: `rust-target-artifact`, `node>=26.12.1 <27`
 - platforms: `windows`, `linux`, `macos`
 
 Build contract: `cargo-plus-staging`

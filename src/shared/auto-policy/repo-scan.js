@@ -74,7 +74,7 @@ const createAsyncLimiter = (maxConcurrency) => {
   };
 };
 
-const buildRepoStatsMemoKey = (repoRoot, limits, hasIgnoreMatcher) => {
+const buildRepoStatsMemoKey = (repoRoot, limits, ignoreFingerprint) => {
   const resolvedRoot = path.resolve(String(repoRoot || ''));
   const maxFiles = Number.isFinite(Number(limits?.maxFiles))
     ? Math.max(1, Math.floor(Number(limits.maxFiles)))
@@ -82,13 +82,14 @@ const buildRepoStatsMemoKey = (repoRoot, limits, hasIgnoreMatcher) => {
   const maxBytes = Number.isFinite(Number(limits?.maxBytes))
     ? Math.max(1, Math.floor(Number(limits.maxBytes)))
     : DEFAULT_SCAN_LIMITS.maxBytes;
-  return `${resolvedRoot}::${maxFiles}::${maxBytes}::ignore:${hasIgnoreMatcher ? '1' : '0'}`;
+  return `${resolvedRoot}::${maxFiles}::${maxBytes}::ignore:${ignoreFingerprint}`;
 };
 
 export const scanRepoStats = async (repoRoot, limits = {}, options = {}) => {
   pruneRepoStatsMemo();
-  const memoKey = buildRepoStatsMemoKey(repoRoot, limits, Boolean(options?.ignoreMatcher));
-  const cached = repoStatsMemo.get(memoKey);
+  const ignoreFingerprint = options?.ignoreMatcher ? options.ignoreMatcher.policyFingerprint : 'default-heavy-directory-policy-v1';
+  const memoKey = ignoreFingerprint ? buildRepoStatsMemoKey(repoRoot, limits, ignoreFingerprint) : null;
+  const cached = memoKey ? repoStatsMemo.get(memoKey) : null;
   const now = Date.now();
   if (cached && (now - Number(cached.at || 0)) <= REPO_STATS_MEMO_TTL_MS && cached.value) {
     return { ...cached.value };
@@ -146,54 +147,60 @@ export const scanRepoStats = async (repoRoot, limits = {}, options = {}) => {
     const lookup = isDir ? `${relPosix}/` : relPosix;
     return ignoreMatcher.ignores(lookup);
   };
-  const stack = [repoRoot];
-  const statLimiter = createAsyncLimiter(statConcurrency);
-  while (stack.length && !truncated) {
-    const batch = stack.splice(-Math.min(dirConcurrency, stack.length));
-    const discoveredDirs = [];
-    await Promise.all(batch.map(async (current) => {
-      if (truncated) return;
-      let entries;
+  // Internal incidental-scan budgets bound directories and queued work as well
+  // as successful file/byte observations. They are reported, not public knobs.
+  const maxScanEntries=Math.max(1024,Math.min(1000000,Math.ceil(maxFiles*4)));
+  const maxDirectories=50000;
+  const maxFrontier=4096;
+  const maxPendingStats=Math.max(1,statConcurrency*2);
+  const stack=[repoRoot];
+  const pendingStats=new Set();
+  const statLimiter=createAsyncLimiter(statConcurrency);
+  let entriesScanned=0,readErrors=0,peakPendingStats=0,peakFrontier=1;
+  let truncatedBy=null;
+  const stop=reason=>{truncated=true;truncatedBy ||= reason;};
+  const admitStat=async filePath=>{
+    while(pendingStats.size>=maxPendingStats)await Promise.race(pendingStats);
+    if(truncated)return;
+    if(fileCount>=maxFiles){stop('max-files');return;}
+    fileCount+=1;
+    let task;
+    task=statLimiter(async()=>{
+      if(truncated)return;
       try {
-        entries = await fs.readdir(current, { withFileTypes: true });
-      } catch {
-        return;
-      }
-      dirsScanned += 1;
-      const filesToStat = [];
-      for (const entry of entries) {
-        if (truncated) break;
-        const entryPath = path.join(current, entry.name);
-        if (entry.isDirectory()) {
-          if ((!ignoreMatcher && IGNORE_DIRS.has(entry.name)) || shouldIgnore(entryPath, true)) continue;
-          discoveredDirs.push(entryPath);
-          continue;
+        const stat=await fs.stat(filePath);
+        totalBytes+=stat.size||0;
+        if(totalBytes>=maxBytes)stop('max-bytes');
+      }catch{readErrors+=1;}
+    }).finally(()=>pendingStats.delete(task));
+    pendingStats.add(task);
+    peakPendingStats=Math.max(peakPendingStats,pendingStats.size);
+  };
+  while(stack.length&&!truncated){
+    const batch=stack.splice(-Math.min(dirConcurrency,stack.length));
+    await Promise.all(batch.map(async current=>{
+      if(truncated)return;
+      if(dirsScanned>=maxDirectories){stop('max-directories');return;}
+      dirsScanned+=1;
+      try {
+        const directory=await fs.opendir(current,{bufferSize:64});
+        for await(const entry of directory){
+          if(truncated)break;
+          if(entriesScanned>=maxScanEntries){stop('max-entries');break;}
+          entriesScanned+=1;
+          const entryPath=path.join(current,entry.name);
+          if(entry.isDirectory()){
+            if((!ignoreMatcher&&IGNORE_DIRS.has(entry.name))||shouldIgnore(entryPath,true))continue;
+            if(stack.length>=maxFrontier){stop('max-frontier');break;}
+            stack.push(entryPath);peakFrontier=Math.max(peakFrontier,stack.length);
+          }else if(entry.isFile()&&!shouldIgnore(entryPath,false))await admitStat(entryPath);
+          else if(entry.isSymbolicLink())readErrors+=1;
         }
-        if (!entry.isFile()) continue;
-        if (shouldIgnore(entryPath, false)) continue;
-        filesToStat.push(entryPath);
-      }
-      if (!filesToStat.length || truncated) return;
-      fileCount += filesToStat.length;
-      if (fileCount > maxFiles) {
-        truncated = true;
-        return;
-      }
-      const statTasks = filesToStat.map((filePath) => statLimiter(async () => {
-        if (truncated) return;
-        try {
-          const stats = await fs.stat(filePath);
-          totalBytes += stats.size || 0;
-          if (totalBytes > maxBytes) {
-            truncated = true;
-          }
-        } catch {}
-      }));
-      await Promise.all(statTasks);
+      }catch{readErrors+=1;}
     }));
-    if (discoveredDirs.length) stack.push(...discoveredDirs);
     logProgress();
   }
+  await Promise.all(pendingStats);
 
   const huge = fileCount >= 200000 || totalBytes >= 5 * 1024 * 1024 * 1024;
   logProgress(true);
@@ -202,8 +209,12 @@ export const scanRepoStats = async (repoRoot, limits = {}, options = {}) => {
     `(files=${fileCount.toLocaleString()}, bytes=${formatBytes(totalBytes)}, ` +
     `truncated=${truncated ? 'yes' : 'no'}, huge=${huge ? 'yes' : 'no'})`
   );
-  const summary = { fileCount, totalBytes, truncated, huge };
-  repoStatsMemo.set(memoKey, {
+  const complete=!truncated&&readErrors===0;
+  const summary={fileCount,totalBytes,truncated,huge,complete,unknownSize:!complete,
+    sizeClassification:complete?(huge?'huge':'observed'):'unknown',truncatedBy,readErrors,
+    entriesScanned,dirsScanned,peakPendingStats,peakFrontier,
+    scanBudgets:{maxScanEntries,maxDirectories,maxFrontier,maxPendingStats}};
+  if(memoKey && complete) repoStatsMemo.set(memoKey, {
     at: Date.now(),
     value: summary
   });

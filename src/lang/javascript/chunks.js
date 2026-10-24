@@ -1,5 +1,5 @@
 import { buildTreeSitterChunks } from '../tree-sitter.js';
-import { keyName, locMeta, nodeEnd, nodeStart } from './ast-utils.js';
+import { collectPatternNames, keyName, locMeta, nodeEnd, nodeStart } from './ast-utils.js';
 import { parseJavaScriptAst } from './parse.js';
 
 /**
@@ -96,11 +96,16 @@ export function buildJsChunks(text, options = {}) {
       if (node.declaration.type === 'VariableDeclaration') {
         for (const decl of node.declaration.declarations) {
           const init = decl.init;
-          if (!init) continue;
-          const exportKind = init.type === 'FunctionExpression'
-            ? 'ExportedFunctionExpression'
-            : 'ExportedArrowFunction';
-          addFunctionFromDeclarator(decl, exportKind);
+          if (init?.type === 'FunctionExpression' || init?.type === 'ArrowFunctionExpression') {
+            const exportKind = init.type === 'FunctionExpression'
+              ? 'ExportedFunctionExpression'
+              : 'ExportedArrowFunction';
+            addFunctionFromDeclarator(decl, exportKind);
+          } else {
+            const names = [];
+            collectPatternNames(decl.id, names);
+            for (const name of names) addChunk(decl, name, 'ExportedVariable');
+          }
         }
       }
       if (node.declaration.type === 'ClassDeclaration') {

@@ -1,6 +1,8 @@
+import { resolveCrossFileFidelity, buildCrossFileCoverage } from '../../../../cross-file-fidelity.js';
 import { createSemanticLspSession } from '../../../../semantic/lsp-session.js';
 import { runNativeSemanticProviders } from '../../../../semantic/native-provider-pass.js';
 import { mergeSemanticProviderOutput } from '../../../../semantic/merge-provider.js';
+import { combineSemanticProviderOutputs } from '../../../../tooling/result-dispatch.js';
 import { prepareSemanticBindingWork, persistSemanticAnalysisFrontiers } from '../../../../semantic/build-frontier.js';
 import { createSemanticCompilerSession } from '../../../../semantic/compiler-session.js';
 import { runToolingPass, prepareToolingPassDocuments } from '../../../../type-inference-crossfile/tooling.js';
@@ -11,12 +13,14 @@ import { throwIfAborted } from '../../../../../shared/abort.js';
 import { mergeReuseSummaries } from '../../../../../shared/reuse-diagnostics.js';
 import { applyCrossFileInference } from '../../../../type-inference-crossfile.js';
 import { mergeSymbolicTypeGraphs } from '../../../../../shared/symbolic-types.js';
+import { createCrossFileWorkReporter } from '../../../build-state/cross-file.js';
 import {
   applyCrossFileInferenceBudgetPlan,
   buildCrossFileInferenceBudgetPlan,
   buildCrossFileInferenceRoiMetrics
 } from './cross-file-budget.js';
 import { buildAndStoreRiskSummaries, shouldBuildRiskSummaries } from './risk-summary.js';
+import { scheduleRelationsPhysicalBaseline } from './physical-baseline.js';
 
 const safeDivide = (numerator, denominator) => {
   if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator <= 0) return 0;
@@ -44,6 +48,11 @@ export const runCrossFileInference = async ({
   abortSignal = null
 }) => {
   throwIfAborted(abortSignal);
+  // Semantic execution owns its own compiler/native reservation. Budget the
+  // surrounding preparation and legacy work separately so neither holds the
+  // sole CPU token while awaiting that independently admitted work.
+  const withRelationsBudget = (stage, run) => scheduleRelationsPhysicalBaseline({ runtime, mode, stage, run,
+    chunks: state.chunks?.length || 0, files: state.fileRelations?.size || 0, signal: abortSignal });
   const policy = runtime.analysisPolicy || {};
   const typeInferenceEnabled = typeof policy?.typeInference?.local?.enabled === 'boolean'
     ? policy.typeInference.local.enabled
@@ -74,7 +83,9 @@ export const runCrossFileInference = async ({
     && typeof runtime.indexingConfig.hugeRepoInferenceLite === 'object'
     ? runtime.indexingConfig.hugeRepoInferenceLite
     : {};
-  const inferenceLiteEnabled = mode === 'code' && (
+  const fidelity = policy.typeInference?.crossFile?.fidelity
+    || resolveCrossFileFidelity(runtime.indexingConfig?.crossFileFidelity);
+  const inferenceLiteEnabled = fidelity.mode !== 'comprehensive' && mode === 'code' && (
     hugeRepoInferenceLiteConfig.enabled === true
     || (
       runtime.hugeRepoProfileEnabled === true
@@ -94,208 +105,221 @@ export const runCrossFileInference = async ({
   // Bind immutable source occurrences before the legacy resolver builds target indexes.
   // Reuse this tooling pass for legacy types instead of constructing a second Program.
   if (mode === 'code' && runtime.semanticPolicy?.enabled) {
-    const semanticSession = await createSemanticCompilerSession({ state, runtime, signal: abortSignal });
-    const semanticLspSession = await createSemanticLspSession({ state, runtime, signal: abortSignal, languages: ['javascript', 'typescript'] });
-    const toolingConfig = getToolingConfig(runtime.root);
-    const toolingDocuments = await prepareToolingPassDocuments({ chunks: state.chunks.filter(chunk => semanticSession.fileTextByFile.has(chunk.file?.replace(/\\/g, '/'))), fileTextByFile: semanticSession.fileTextByFile,
-      toolingConfig, semanticSession, semanticLspSession, log });
-    const compilerDocuments = semanticSession.describeCompilerDocuments(toolingDocuments.documents);
-    const work = await prepareSemanticBindingWork({ state, runtime, signal: abortSignal, reuseReady: useTooling, compilerDocuments });
-    await work.run(async ({ signal }) => {
+    const { semanticSession, semanticLspSession, toolingConfig, toolingDocuments, work } = await withRelationsBudget('prepare', async () => {
+      const semanticSession = await createSemanticCompilerSession({ state, runtime, signal: abortSignal });
+      const semanticLspSession = await createSemanticLspSession({ state, runtime, signal: abortSignal, languages: ['javascript', 'typescript'] });
+      const toolingConfig = getToolingConfig(runtime.root);
+      const toolingDocuments = await prepareToolingPassDocuments({ chunks: state.chunks.filter(chunk => semanticSession.fileTextByFile.has(chunk.file?.replace(/\\/g, '/'))), fileTextByFile: semanticSession.fileTextByFile,
+        toolingConfig, semanticSession, semanticLspSession, log });
+      const compilerDocuments = semanticSession.describeCompilerDocuments(toolingDocuments.documents);
+      const work = await prepareSemanticBindingWork({ state, runtime, signal: abortSignal, reuseReady: useTooling, compilerDocuments });
+      return { semanticSession, semanticLspSession, toolingConfig, toolingDocuments, work };
+    });
+    const semanticExecution = await work.run(async ({ signal }) => {
       semanticSession.setSignal(signal); semanticLspSession.setSignal?.(signal);
+      let registeredProviderOutput = null;
       if (semanticSession.enabled || semanticLspSession.enabled) {
         const toolingResult = await runToolingPass({ rootDir: runtime.root, buildRoot: runtime.buildRoot,
           chunks: state.chunks, entryByUid: new Map(), log,
           toolingConfig, toolingDocuments, fileTextByFile: semanticSession.fileTextByFile,
           abortSignal: signal, semanticSession, semanticLspSession, applyTypes: useTooling });
         state.symbolicTypeGraphs = mergeSymbolicTypeGraphs(state.symbolicTypeGraphs || [], toolingResult.symbolicTypeGraphs || []);
+        registeredProviderOutput = toolingResult.semanticFacts;
         useTooling = false;
       }
-      const lspOutput = semanticLspSession.output();
+      const lspOutput = combineSemanticProviderOutputs([semanticLspSession.output(), ...(registeredProviderOutput ? [registeredProviderOutput] : [])]);
       await mergeSemanticProviderOutput({ output: lspOutput, state, runtime, signal });
       await semanticSession.joinProviderOutput(lspOutput);
       const compilerOutput = semanticSession.output();
-      return { ...compilerOutput, contexts: [...compilerOutput.contexts, ...lspOutput.contexts],
-        partitions: [...compilerOutput.partitions, ...lspOutput.partitions] };
+      return combineSemanticProviderOutputs([compilerOutput, lspOutput]);
     });
+    if (!semanticExecution?.ran && work.tasks.length) {
+      log(`[semantic] compiler work deferred: ${semanticExecution?.reason || 'unknown'}.`);
+    }
     await runNativeSemanticProviders({ state, runtime, toolingConfig, log, signal: abortSignal });
   }
 
-  if (mode === 'code' && runtime.semanticPolicy?.enabled) await persistSemanticAnalysisFrontiers({ state, runtime, signal: abortSignal });
+  return withRelationsBudget('propagate', async () => {
+    if (mode === 'code' && runtime.semanticPolicy?.enabled) await persistSemanticAnalysisFrontiers({ state, runtime, signal: abortSignal });
 
-  if (mode === 'code' && crossFileEnabled) {
-    crashLogger.updatePhase('cross-file');
-    const budgetPlan = buildCrossFileInferenceBudgetPlan({
-      chunks: state.chunks,
-      fileRelations: state.fileRelations,
-      inferenceLiteEnabled
-    });
-    const {
-      chunks: inferenceChunks,
-      fileRelations: inferenceFileRelations,
-      budgetStats
-    } = applyCrossFileInferenceBudgetPlan({
-      chunks: state.chunks,
-      fileRelations: state.fileRelations,
-      plan: budgetPlan
-    });
-    state.crossFileInferenceBudgetStats = budgetStats;
+    if (mode === 'code' && crossFileEnabled) {
+      crashLogger.updatePhase('cross-file');
+      const budgetPlan = buildCrossFileInferenceBudgetPlan({
+        chunks: state.chunks,
+        fileRelations: state.fileRelations,
+        inferenceLiteEnabled,
+        fidelity
+      });
+      const {
+        chunks: inferenceChunks,
+        fileRelations: inferenceFileRelations,
+        budgetStats
+      } = applyCrossFileInferenceBudgetPlan({
+        chunks: state.chunks,
+        fileRelations: state.fileRelations,
+        plan: budgetPlan
+      });
+      state.crossFileInferenceBudgetStats = budgetStats;
 
-    if (budgetStats) {
-      const earlyStopTriggered = budgetStats.earlyStop?.triggered === true;
-      const earlyStopGain = Number.isFinite(budgetStats.earlyStop?.windowGain)
-        ? budgetStats.earlyStop.windowGain
-        : null;
-      log(
-        `[perf] cross-file budget tune scale=${budgetStats.scaleProfile?.id || 'unknown'} ` +
-        `calls=${formatCount(budgetStats.retained.callSignals)}/${formatCount(budgetStats.input.callSignals)}, ` +
-        `usages=${formatCount(budgetStats.retained.chunkUsageSignals + budgetStats.retained.fileUsageSignals)}/` +
-        `${formatCount(budgetStats.input.chunkUsageSignals + budgetStats.input.fileUsageSignals)}, ` +
-        `earlyStop=${earlyStopTriggered ? 'triggered' : 'not-triggered'}` +
-        (earlyStopTriggered && earlyStopGain != null
-          ? ` (windowGain=${formatRatio(earlyStopGain)})`
-          : '')
-      );
-    }
-
-    log(
-      `[stage2:${mode}] cross-file start chunks=${formatCount(state.chunks?.length || 0)} `
-      + `fileRelations=${formatCount(state.fileRelations?.size || 0)} `
-      + `tooling=${useTooling ? 'enabled' : 'disabled'}.`
-    );
-    const crossFileStart = Date.now();
-    const crossFileStats = await applyCrossFileInference({
-      rootDir: runtime.root,
-      buildRoot: runtime.buildRoot,
-      cacheRoot: runtime.repoCacheRoot,
-      chunks: inferenceChunks,
-      enabled: true,
-      log,
-      useTooling,
-      enableTypeInference: enableCrossFileTypeInference,
-      enableRiskCorrelation: riskAnalysisEnabled && riskAnalysisCrossFileEnabled,
-      fileRelations: inferenceFileRelations,
-      inferenceLite: inferenceLiteEnabled,
-      inferenceLiteHighSignalOnly,
-      symbolicTypeGraphs: state.symbolicTypeGraphs || [],
-      abortSignal
-    });
-    mergeCrossFileInferenceView(state.chunks, inferenceChunks);
-    state.symbolicTypeGraphs = mergeSymbolicTypeGraphs(state.symbolicTypeGraphs || [], crossFileStats?.symbolicTypeGraphs || []);
-    const crossFileDurationMs = Date.now() - crossFileStart;
-    log(`[stage2:${mode}] cross-file done elapsedMs=${Math.max(0, crossFileDurationMs)}.`);
-    if (crossFileStats?.toolingReuse) {
-      state.reuse = mergeReuseSummaries(state.reuse, crossFileStats.toolingReuse);
-    }
-    const roiMetrics = buildCrossFileInferenceRoiMetrics({
-      crossFileStats,
-      budgetStats,
-      durationMs: crossFileDurationMs
-    });
-    state.crossFileInferenceRoi = roiMetrics;
-
-    if (featureMetrics?.recordSettingByLanguageShare) {
-      const crossFileTargets = [];
-      if (typeInferenceCrossFileEnabled) crossFileTargets.push('typeInferenceCrossFile');
-      if (riskAnalysisCrossFileEnabled) crossFileTargets.push('riskAnalysisCrossFile');
-      const shareMs = crossFileTargets.length ? crossFileDurationMs / crossFileTargets.length : 0;
-      for (const target of crossFileTargets) {
-        featureMetrics.recordSettingByLanguageShare({
-          mode,
-          setting: target,
-          enabled: true,
-          durationMs: shareMs
-        });
-      }
-    }
-
-    if (crossFileStats) {
-      const callLinks = Number.isFinite(crossFileStats.linkedCalls) ? crossFileStats.linkedCalls : 0;
-      const usageLinks = Number.isFinite(crossFileStats.linkedUsages) ? crossFileStats.linkedUsages : 0;
-      const returns = Number.isFinite(crossFileStats.inferredReturns) ? crossFileStats.inferredReturns : 0;
-      const riskFlows = Number.isFinite(crossFileStats.riskFlows) ? crossFileStats.riskFlows : 0;
-      const toolingDegradedProviders = Number.isFinite(crossFileStats.toolingDegradedProviders)
-        ? crossFileStats.toolingDegradedProviders
-        : 0;
-      const toolingDegradedWarnings = Number.isFinite(crossFileStats.toolingDegradedWarnings)
-        ? crossFileStats.toolingDegradedWarnings
-        : 0;
-      const toolingDegradedErrors = Number.isFinite(crossFileStats.toolingDegradedErrors)
-        ? crossFileStats.toolingDegradedErrors
-        : 0;
-      const toolingProvidersExecuted = Number.isFinite(crossFileStats.toolingProvidersExecuted)
-        ? crossFileStats.toolingProvidersExecuted
-        : 0;
-      const toolingProvidersContributed = Number.isFinite(crossFileStats.toolingProvidersContributed)
-        ? crossFileStats.toolingProvidersContributed
-        : 0;
-      const toolingRequests = Number.isFinite(crossFileStats.toolingRequests)
-        ? crossFileStats.toolingRequests
-        : 0;
-      const toolingRequestFailures = Number.isFinite(crossFileStats.toolingRequestFailures)
-        ? crossFileStats.toolingRequestFailures
-        : 0;
-      const toolingRequestTimeouts = Number.isFinite(crossFileStats.toolingRequestTimeouts)
-        ? crossFileStats.toolingRequestTimeouts
-        : 0;
-      log(
-        `Cross-File Inference: ${formatCount(callLinks)} Call Links, ` +
-        `${formatCount(usageLinks)} Usage Links, ${formatCount(returns)} Returns, ` +
-        `${formatCount(riskFlows)} Risk Flows`
-      );
-      if (toolingProvidersExecuted > 0 || toolingRequests > 0) {
+      if (budgetStats) {
+        const earlyStopTriggered = budgetStats.earlyStop?.triggered === true;
+        const earlyStopGain = Number.isFinite(budgetStats.earlyStop?.windowGain)
+          ? budgetStats.earlyStop.windowGain
+          : null;
         log(
-          `[tooling] cross-file runtime providers=${formatCount(toolingProvidersExecuted)} ` +
-          `(contributed=${formatCount(toolingProvidersContributed)}), ` +
-          `requests=${formatCount(toolingRequests)}, ` +
-          `failed=${formatCount(toolingRequestFailures)}, ` +
-          `timedOut=${formatCount(toolingRequestTimeouts)}.`
+          `[perf] cross-file budget tune scale=${budgetStats.scaleProfile?.id || 'unknown'} ` +
+          `calls=${formatCount(budgetStats.retained.callSignals)}/${formatCount(budgetStats.input.callSignals)}, ` +
+          `usages=${formatCount(budgetStats.retained.chunkUsageSignals + budgetStats.retained.fileUsageSignals)}/` +
+          `${formatCount(budgetStats.input.chunkUsageSignals + budgetStats.input.fileUsageSignals)}, ` +
+          `earlyStop=${earlyStopTriggered ? 'triggered' : 'not-triggered'}` +
+          (earlyStopTriggered && earlyStopGain != null
+            ? ` (windowGain=${formatRatio(earlyStopGain)})`
+            : '')
         );
       }
-      if (toolingDegradedProviders > 0) {
-        log(
-          `[tooling] cross-file degraded providers=${formatCount(toolingDegradedProviders)} ` +
-          `(warnings=${formatCount(toolingDegradedWarnings)}, errors=${formatCount(toolingDegradedErrors)}).`
-        );
-      }
-      if (crossFileStats.cacheHit) {
-        log('[perf] cross-file output cache reused.');
-      }
-      if (crossFileStats.inferenceLiteEnabled === true) {
-        log('[perf] cross-file inference lite profile active (high-signal links only).');
-      }
-    }
 
-    if (roiMetrics) {
       log(
-        `[perf] cross-file roi linkAdditions=${formatCount(roiMetrics.linkAdditions)}, ` +
-        `retainedAfterFiltering=${formatCount(roiMetrics.retainedLinksAfterFiltering)}, ` +
-        `contributionSignal=${formatCount(roiMetrics.contributionSignal)}, ` +
-        `retentionRate=${formatRatio(roiMetrics.linkRetentionRate)}, ` +
-        `contributionPerLink=${(roiMetrics.contributionPerAddedLink || 0).toFixed(4)}`
+        `[stage2:${mode}] cross-file start chunks=${formatCount(state.chunks?.length || 0)} `
+        + `fileRelations=${formatCount(state.fileRelations?.size || 0)} `
+        + `tooling=${useTooling ? 'enabled' : 'disabled'}.`
       );
-      const tooling = roiMetrics.tooling || null;
-      if (tooling && (
-        Number(tooling.providersExecuted) > 0
-        || Number(tooling.requests) > 0
-        || Number(tooling.degradedProviders) > 0
-      )) {
+      const crossFileStart = Date.now();
+      const crossFileStats = await applyCrossFileInference({
+        rootDir: runtime.root,
+        buildRoot: runtime.buildRoot,
+        cacheRoot: runtime.repoCacheRoot,
+        chunks: inferenceChunks,
+        enabled: true,
+        log,
+        useTooling,
+        enableTypeInference: enableCrossFileTypeInference,
+        enableRiskCorrelation: riskAnalysisEnabled && riskAnalysisCrossFileEnabled,
+        fileRelations: inferenceFileRelations,
+        fidelity,
+        inferenceLite: inferenceLiteEnabled,
+        inferenceLiteHighSignalOnly,
+        symbolicTypeGraphs: state.symbolicTypeGraphs || [],
+        onProgress: createCrossFileWorkReporter({ buildRoot: runtime.buildRoot, buildId: runtime.buildId, mode }),
+        abortSignal
+      });
+      state.crossFileCoverage = buildCrossFileCoverage({ fidelity, budgetStats, propagationStats: crossFileStats });
+      mergeCrossFileInferenceView(state.chunks, inferenceChunks);
+      state.symbolicTypeGraphs = mergeSymbolicTypeGraphs(state.symbolicTypeGraphs || [], crossFileStats?.symbolicTypeGraphs || []);
+      const crossFileDurationMs = Date.now() - crossFileStart;
+      log(`[stage2:${mode}] cross-file done elapsedMs=${Math.max(0, crossFileDurationMs)}.`);
+      if (crossFileStats?.toolingReuse) {
+        state.reuse = mergeReuseSummaries(state.reuse, crossFileStats.toolingReuse);
+      }
+      const roiMetrics = buildCrossFileInferenceRoiMetrics({
+        crossFileStats,
+        budgetStats,
+        durationMs: crossFileDurationMs
+      });
+      state.crossFileInferenceRoi = roiMetrics;
+
+      if (featureMetrics?.recordSettingByLanguageShare) {
+        const crossFileTargets = [];
+        if (typeInferenceCrossFileEnabled) crossFileTargets.push('typeInferenceCrossFile');
+        if (riskAnalysisCrossFileEnabled) crossFileTargets.push('riskAnalysisCrossFile');
+        const shareMs = crossFileTargets.length ? crossFileDurationMs / crossFileTargets.length : 0;
+        for (const target of crossFileTargets) {
+          featureMetrics.recordSettingByLanguageShare({
+            mode,
+            setting: target,
+            enabled: true,
+            durationMs: shareMs
+          });
+        }
+      }
+
+      if (crossFileStats) {
+        const callLinks = Number.isFinite(crossFileStats.linkedCalls) ? crossFileStats.linkedCalls : 0;
+        const usageLinks = Number.isFinite(crossFileStats.linkedUsages) ? crossFileStats.linkedUsages : 0;
+        const returns = Number.isFinite(crossFileStats.inferredReturns) ? crossFileStats.inferredReturns : 0;
+        const riskFlows = Number.isFinite(crossFileStats.riskFlows) ? crossFileStats.riskFlows : 0;
+        const toolingDegradedProviders = Number.isFinite(crossFileStats.toolingDegradedProviders)
+          ? crossFileStats.toolingDegradedProviders
+          : 0;
+        const toolingDegradedWarnings = Number.isFinite(crossFileStats.toolingDegradedWarnings)
+          ? crossFileStats.toolingDegradedWarnings
+          : 0;
+        const toolingDegradedErrors = Number.isFinite(crossFileStats.toolingDegradedErrors)
+          ? crossFileStats.toolingDegradedErrors
+          : 0;
+        const toolingProvidersExecuted = Number.isFinite(crossFileStats.toolingProvidersExecuted)
+          ? crossFileStats.toolingProvidersExecuted
+          : 0;
+        const toolingProvidersContributed = Number.isFinite(crossFileStats.toolingProvidersContributed)
+          ? crossFileStats.toolingProvidersContributed
+          : 0;
+        const toolingRequests = Number.isFinite(crossFileStats.toolingRequests)
+          ? crossFileStats.toolingRequests
+          : 0;
+        const toolingRequestFailures = Number.isFinite(crossFileStats.toolingRequestFailures)
+          ? crossFileStats.toolingRequestFailures
+          : 0;
+        const toolingRequestTimeouts = Number.isFinite(crossFileStats.toolingRequestTimeouts)
+          ? crossFileStats.toolingRequestTimeouts
+          : 0;
         log(
-          `[perf] cross-file roi tooling providers=${formatCount(tooling.providersExecuted)} ` +
-          `(contributed=${formatCount(tooling.providersContributed)}, degraded=${formatCount(tooling.degradedProviders)}), ` +
-          `requests=${formatCount(tooling.requests)}, ` +
-          `failureRate=${formatRatio(tooling.requestFailureRate)}, ` +
-          `timeoutRate=${formatRatio(tooling.requestTimeoutRate)}`
+          `Cross-File Inference: ${formatCount(callLinks)} Call Links, ` +
+          `${formatCount(usageLinks)} Usage Links, ${formatCount(returns)} Returns, ` +
+          `${formatCount(riskFlows)} Risk Flows`
         );
+        if (toolingProvidersExecuted > 0 || toolingRequests > 0) {
+          log(
+            `[tooling] cross-file runtime providers=${formatCount(toolingProvidersExecuted)} ` +
+            `(contributed=${formatCount(toolingProvidersContributed)}), ` +
+            `requests=${formatCount(toolingRequests)}, ` +
+            `failed=${formatCount(toolingRequestFailures)}, ` +
+            `timedOut=${formatCount(toolingRequestTimeouts)}.`
+          );
+        }
+        if (toolingDegradedProviders > 0) {
+          log(
+            `[tooling] cross-file degraded providers=${formatCount(toolingDegradedProviders)} ` +
+            `(warnings=${formatCount(toolingDegradedWarnings)}, errors=${formatCount(toolingDegradedErrors)}).`
+          );
+        }
+        if (crossFileStats.cacheHit) {
+          log('[perf] cross-file output cache reused.');
+        }
+        if (crossFileStats.inferenceLiteEnabled === true) {
+          log('[perf] cross-file inference lite profile active (high-signal links only).');
+        }
+      }
+
+      if (roiMetrics) {
+        log(
+          `[perf] cross-file roi linkAdditions=${formatCount(roiMetrics.linkAdditions)}, ` +
+          `retainedAfterFiltering=${formatCount(roiMetrics.retainedLinksAfterFiltering)}, ` +
+          `contributionSignal=${formatCount(roiMetrics.contributionSignal)}, ` +
+          `retentionRate=${formatRatio(roiMetrics.linkRetentionRate)}, ` +
+          `contributionPerLink=${(roiMetrics.contributionPerAddedLink || 0).toFixed(4)}`
+        );
+        const tooling = roiMetrics.tooling || null;
+        if (tooling && (
+          Number(tooling.providersExecuted) > 0
+          || Number(tooling.requests) > 0
+          || Number(tooling.degradedProviders) > 0
+        )) {
+          log(
+            `[perf] cross-file roi tooling providers=${formatCount(tooling.providersExecuted)} ` +
+            `(contributed=${formatCount(tooling.providersContributed)}, degraded=${formatCount(tooling.degradedProviders)}), ` +
+            `requests=${formatCount(tooling.requests)}, ` +
+            `failureRate=${formatRatio(tooling.requestFailureRate)}, ` +
+            `timeoutRate=${formatRatio(tooling.requestTimeoutRate)}`
+          );
+        }
       }
     }
-  }
 
-  if (summarizeRisk) {
-    buildAndStoreRiskSummaries({ runtime, mode, state, crashLogger });
-  }
+    if (summarizeRisk) {
+      buildAndStoreRiskSummaries({ runtime, mode, state, crashLogger });
+    }
 
-  // graph_relations is written during the artifact phase from streamed edges to avoid
-  // materializing Graphology graphs in memory.
-  return { crossFileEnabled, graphRelations: null };
+    // graph_relations is written during the artifact phase from streamed edges to avoid
+    // materializing Graphology graphs in memory.
+    return { crossFileEnabled, graphRelations: null };
+  });
 };

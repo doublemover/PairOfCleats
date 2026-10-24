@@ -14,6 +14,8 @@ import { runTypeScriptProviderSubprocess } from './typescript/runtime/index.js';
 import { buildScopedSymbolId, buildSignatureKey, buildSymbolId, buildSymbolKey } from '../../shared/identity.js';
 import { selectTypeScriptDocuments, createDefaultCompilerOptions, resolveTsconfigOverride, findNearestConfig, parseTsConfig } from './typescript/config.js';
 
+const TYPESCRIPT_PROVIDER_VERSION = '3.0.1';
+
 const normalizePathKey = (value, useCaseSensitive) => {
   const resolved = path.resolve(value);
   return useCaseSensitive ? resolved : resolved.toLowerCase();
@@ -153,7 +155,7 @@ const buildTypeScriptDiagnosticCheck = ({
 
 export const createTypeScriptProvider = ({ subprocessChild = false } = {}) => ({
   id: 'typescript',
-  version: '3.0.0',
+  version: TYPESCRIPT_PROVIDER_VERSION,
   label: 'TypeScript',
   priority: 10,
   languages: ['typescript', 'tsx', 'javascript', 'jsx'],
@@ -194,14 +196,14 @@ export const createTypeScriptProvider = ({ subprocessChild = false } = {}) => ({
       const baseDiagnostics = appendDiagnosticChecks(null, duplicateChecks);
       if (ctx?.toolingConfig?.typescript?.enabled === false) {
         log({ level: 'info', message: 'TypeScript tooling disabled.' });
-        return { provider: { id: 'typescript', version: '3.0.0', configHash: this.getConfigHash(ctx) }, byChunkUid: {}, diagnostics: baseDiagnostics };
+        return { provider: { id: 'typescript', version: TYPESCRIPT_PROVIDER_VERSION, configHash: this.getConfigHash(ctx) }, byChunkUid: {}, diagnostics: baseDiagnostics };
       }
       const ts = await loadTypeScript(ctx?.toolingConfig, ctx?.repoRoot);
       if (!ts) {
         if (symbolicMode) throw requiredSymbolicComputation('typescript_runtime_unavailable');
         log({ level: 'warn', message: 'TypeScript tooling not detected; skipping.' });
         return {
-          provider: { id: 'typescript', version: '3.0.0', configHash: this.getConfigHash(ctx) },
+          provider: { id: 'typescript', version: TYPESCRIPT_PROVIDER_VERSION, configHash: this.getConfigHash(ctx) },
           byChunkUid: {},
           diagnostics: appendDiagnosticChecks(baseDiagnostics, [
             buildTypeScriptDiagnosticCheck({
@@ -222,7 +224,7 @@ export const createTypeScriptProvider = ({ subprocessChild = false } = {}) => ({
       if (!rootDocs.length) {
         if (symbolicMode && targets.length) throw requiredSymbolicComputation('target_documents_unavailable');
         return {
-          provider: { id: 'typescript', version: '3.0.0', configHash: this.getConfigHash(ctx) },
+          provider: { id: 'typescript', version: TYPESCRIPT_PROVIDER_VERSION, configHash: this.getConfigHash(ctx) },
           byChunkUid: {},
           diagnostics: baseDiagnostics
         };
@@ -342,7 +344,10 @@ export const createTypeScriptProvider = ({ subprocessChild = false } = {}) => ({
           const absPath = path.resolve(ctx.repoRoot, doc.virtualPath);
           vfsMap.set(normalizePathKey(absPath, useCaseSensitive), doc.text);
           if (doc.containerPath) moduleOrigins.set(normalizePathKey(absPath, useCaseSensitive), path.resolve(ctx.repoRoot, doc.containerPath));
-          if (doc.containerPath && !doc.segmentUid) sourcePaths.set(normalizePathKey(absPath, useCaseSensitive), path.resolve(ctx.repoRoot, doc.containerPath));
+          // Preserve the virtual spelling returned to TypeScript for resolved imports.
+          // The host canonicalizes lookup keys separately; lowercasing this key on
+          // Windows produces a second casing for a root already in the Program.
+          if (doc.containerPath && !doc.segmentUid) sourcePaths.set(absPath, path.resolve(ctx.repoRoot, doc.containerPath));
           rootNames.push(absPath);
         }
         const finalRootNames = createTypeScriptRootNames({ configRootNames: parsedConfig?.fileNames || [],
@@ -504,7 +509,7 @@ export const createTypeScriptProvider = ({ subprocessChild = false } = {}) => ({
       }
 
       return {
-        provider: { id: 'typescript', version: '3.0.0', configHash: this.getConfigHash(ctx) },
+        provider: { id: 'typescript', version: TYPESCRIPT_PROVIDER_VERSION, configHash: this.getConfigHash(ctx) },
         byChunkUid,
         ...(symbolicMode ? { symbolicTypeGraphs, execution: { complete: true, representation: 'symbolic', coverage: symbolicCoverage } } : {}),
         ...(ctx.semanticSession ? { semanticFacts: ctx.semanticSession.output() } : {}),

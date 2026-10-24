@@ -4,8 +4,7 @@ import { normalizeHnswConfig } from '../../shared/hnsw.js';
 import { normalizeLanceDbConfig } from '../../shared/lancedb.js';
 import { normalizeEmbeddingProvider, resolveOnnxConfig } from '../../shared/onnx-embeddings.js';
 import { normalizePostingsConfig } from '../../shared/postings-config.js';
-import { resolveFtsWeights } from '../fts.js';
-import { parseJson } from '../query-cache.js';
+import { parseFtsWeightsOption, resolveFtsWeights } from '../fts.js';
 import { parseChurnArg, parseModifiedArgs } from '../query-parse.js';
 import { normalizeAnnBackend } from '../ann/normalize-backend.js';
 import {
@@ -18,77 +17,18 @@ import {
 } from '../filters.js';
 import { resolveSearchMode } from '../cli-args.js';
 import { getMissingFlagMessages, resolveBm25Defaults } from './options.js';
-import { normalizeOptionalNumber, normalizePositiveInt } from '../../shared/limits.js';
+import { assertBm25Parameters } from '../bm25-policy.js';
+import { normalizeNonNegativeNumber, normalizeOptionalNumber, normalizePositiveInt } from '../../shared/limits.js';
 import { normalizeOptionalBoolean } from '../../shared/env/core.js';
 import { getEnvConfig } from '../../shared/env/runtime.js';
 import { normalizeBooleanString } from '../../shared/boolean-normalization.js';
 import { normalizeDenseVectorMode } from '../../shared/dense-vector-mode.js';
 
-export const OP_CONFIG_GUARDRAIL_CODES = Object.freeze({
-  ANN_CANDIDATE_BOUNDS_INVALID: 'op_guardrail_ann_candidate_bounds_invalid',
-  ANN_CANDIDATE_CAP_OUT_OF_RANGE: 'op_guardrail_ann_candidate_cap_out_of_range',
-  RRF_K_INVALID: 'op_guardrail_rrf_k_invalid'
-});
-
-export const OP_RETRIEVAL_DEFAULTS = Object.freeze({
-  annCandidateCap: 20000,
-  annCandidateMinDocCount: 100,
-  annCandidateMaxDocCount: 20000,
-  queryCacheMaxEntries: 200,
-  queryCacheTtlMs: 0,
-  rrfK: 60,
-  storageTier: 'balanced',
-  queryCacheStrategy: 'disk-first',
-  queryCachePrewarmMaxEntries: 128,
-  queryCacheMemoryFreshMs: 1000,
-  sqliteFtsTailRowCap: 3000,
-  sqliteFtsTailTimeBudgetMs: 90,
-  sqliteFtsTailChunkSize: 256
-});
+import { OP_RETRIEVAL_DEFAULTS, resolveOperationalGuardrails } from '../operational-guardrails.js';
+export { OP_CONFIG_GUARDRAIL_CODES, OP_RETRIEVAL_DEFAULTS } from '../operational-guardrails.js';
 
 const STORAGE_TIERS = new Set(['balanced', 'fast']);
 const QUERY_CACHE_STRATEGIES = new Set(['disk-first', 'memory-first']);
-
-const buildGuardrailError = (code, message) => {
-  const error = new Error(`[${code}] ${message}`);
-  error.guardrailCode = code;
-  return error;
-};
-
-/**
- * Reject risky retrieval knob combinations early with stable guardrail codes.
- * @param {{
- *   annCandidateCap:number,
- *   annCandidateMinDocCount:number,
- *   annCandidateMaxDocCount:number,
- *   rrfK:number
- * }} input
- */
-const validateOperationalGuardrails = ({
-  annCandidateCap,
-  annCandidateMinDocCount,
-  annCandidateMaxDocCount,
-  rrfK
-}) => {
-  if (annCandidateMinDocCount > annCandidateMaxDocCount) {
-    throw buildGuardrailError(
-      OP_CONFIG_GUARDRAIL_CODES.ANN_CANDIDATE_BOUNDS_INVALID,
-      'retrieval.annCandidateMinDocCount cannot exceed retrieval.annCandidateMaxDocCount.'
-    );
-  }
-  if (annCandidateCap < annCandidateMinDocCount || annCandidateCap > annCandidateMaxDocCount) {
-    throw buildGuardrailError(
-      OP_CONFIG_GUARDRAIL_CODES.ANN_CANDIDATE_CAP_OUT_OF_RANGE,
-      'retrieval.annCandidateCap must stay within [annCandidateMinDocCount, annCandidateMaxDocCount].'
-    );
-  }
-  if (!Number.isFinite(rrfK) || rrfK <= 0) {
-    throw buildGuardrailError(
-      OP_CONFIG_GUARDRAIL_CODES.RRF_K_INVALID,
-      'search.rrf.k must be a positive number.'
-    );
-  }
-};
 
 const normalizeStorageTier = (value) => {
   if (typeof value !== 'string') return null;
@@ -127,7 +67,8 @@ export function normalizeSearchOptions({
   rootDir,
   userConfig,
   metricsDir,
-  policy
+  policy,
+  exactMode = null
 }) {
   const controls = resolveSearchControls(argv);
   const jsonOutput = argv.json === true;
@@ -169,6 +110,12 @@ export function normalizeSearchOptions({
   const chunkAuthorFilter = argv['chunk-author'] || null;
 
   const searchModeInfo = resolveSearchMode(argv.mode);
+  if (exactMode != null) {
+    if (!['code', 'prose', 'extracted-prose', 'records'].includes(exactMode) || searchModeInfo.searchMode !== exactMode) {
+      throw new Error('Invalid internal exact search mode.');
+    }
+    searchModeInfo.runExtractedProse = exactMode === 'extracted-prose';
+  }
   const {
     searchMode,
     runCode,
@@ -177,10 +124,13 @@ export function normalizeSearchOptions({
     runExtractedProse: runExtractedProseRaw
   } = searchModeInfo;
   const runExtractedProse = runExtractedProseRaw;
-  const commentsEnabled = argv.comments !== false;
+  const commentsEnabled = argv.comments !== false && (exactMode == null || exactMode === 'extracted-prose');
 
   const bm25K1Arg = normalizeOptionalNumber(argv['bm25-k1']);
   const bm25BArg = normalizeOptionalNumber(argv['bm25-b']);
+  if (argv['bm25-k1'] != null && bm25K1Arg == null || argv['bm25-b'] != null && bm25BArg == null) {
+    throw new Error('BM25 parameters must be finite numbers.');
+  }
   const bm25Defaults = resolveBm25Defaults(metricsDir, { runCode, runProse, runExtractedProse });
   const bm25K1 = bm25K1Arg
     ?? (bm25Defaults ? bm25Defaults.k1 : null)
@@ -188,6 +138,7 @@ export function normalizeSearchOptions({
   const bm25B = bm25BArg
     ?? (bm25Defaults ? bm25Defaults.b : null)
     ?? 0.75;
+  assertBm25Parameters(bm25K1, bm25B);
 
   const branchesMin = normalizeOptionalNumber(argv.branches);
   const loopsMin = normalizeOptionalNumber(argv.loops);
@@ -226,7 +177,7 @@ export function normalizeSearchOptions({
   const retrievalConfig = userConfig?.retrieval || {};
   const envConfig = getEnvConfig();
   const maxCandidates = controls.candidates ?? normalizeOptionalNumber(searchConfig.maxCandidates);
-  const annFlagPresent = rawArgs.includes('--ann') || rawArgs.includes('--no-ann');
+  const annFlagPresent = Object.prototype.hasOwnProperty.call(argv,'ann') && typeof argv.ann === 'boolean';
   const policyAnn = policy?.retrieval?.ann?.enabled;
   const annDefault = typeof searchConfig.annDefault === 'boolean'
     ? searchConfig.annDefault
@@ -259,35 +210,16 @@ export function normalizeSearchOptions({
   const symbolBoostExportWeight = 1.1;
   const relationBoostConfigRaw = retrievalConfig?.relationBoost || {};
   const relationBoostEnabled = relationBoostConfigRaw.enabled === true;
-  const relationBoostPerCall = Number.isFinite(Number(relationBoostConfigRaw.perCall))
-    && Number(relationBoostConfigRaw.perCall) > 0
-    ? Number(relationBoostConfigRaw.perCall)
-    : 0.25;
-  const relationBoostPerUse = Number.isFinite(Number(relationBoostConfigRaw.perUse))
-    && Number(relationBoostConfigRaw.perUse) > 0
-    ? Number(relationBoostConfigRaw.perUse)
-    : 0.1;
-  const relationBoostMaxBoost = Number.isFinite(Number(relationBoostConfigRaw.maxBoost))
-    && Number(relationBoostConfigRaw.maxBoost) > 0
-    ? Number(relationBoostConfigRaw.maxBoost)
-    : 1.5;
+  const relationBoostPerCall = normalizeNonNegativeNumber(relationBoostConfigRaw.perCall, 0.25);
+  const relationBoostPerUse = normalizeNonNegativeNumber(relationBoostConfigRaw.perUse, 0.1);
+  const relationBoostMaxBoost = normalizeNonNegativeNumber(relationBoostConfigRaw.maxBoost, 1.5);
   const storageTier = normalizeStorageTier(
     envConfig.storageTier
       || retrievalConfig.storageTier
       || searchConfig.storageTier
   ) || OP_RETRIEVAL_DEFAULTS.storageTier;
-  const annCandidateCap = normalizePositiveInt(
-    retrievalConfig.annCandidateCap,
-    OP_RETRIEVAL_DEFAULTS.annCandidateCap
-  );
-  const annCandidateMinDocCount = normalizePositiveInt(
-    retrievalConfig.annCandidateMinDocCount,
-    OP_RETRIEVAL_DEFAULTS.annCandidateMinDocCount
-  );
-  const annCandidateMaxDocCount = normalizePositiveInt(
-    retrievalConfig.annCandidateMaxDocCount,
-    OP_RETRIEVAL_DEFAULTS.annCandidateMaxDocCount
-  );
+  const { annCandidateCap, annCandidateMinDocCount, annCandidateMaxDocCount, rrfK }
+    = resolveOperationalGuardrails({ userConfig, policy });
 
   const minhashMaxDocs = 5000;
 
@@ -373,15 +305,6 @@ export function normalizeSearchOptions({
   const rrfEnabled = typeof rrfConfig.enabled === 'boolean'
     ? rrfConfig.enabled
     : (policyRrfEnabled ?? true);
-  const rrfK = normalizeOptionalNumber(rrfConfig.k)
-    ?? normalizeOptionalNumber(policy?.retrieval?.rrf?.k)
-    ?? OP_RETRIEVAL_DEFAULTS.rrfK;
-  validateOperationalGuardrails({
-    annCandidateCap,
-    annCandidateMinDocCount,
-    annCandidateMaxDocCount,
-    rrfK
-  });
 
   const graphRankingRaw = userConfig?.retrieval?.graphRanking || {};
   const graphRankingEnabled = graphRankingRaw.enabled === true;
@@ -439,19 +362,7 @@ export function normalizeSearchOptions({
       || (['fast', 'balanced', 'max'].includes(policyQuality) ? policyQuality : 'balanced')
   ).toLowerCase();
   let sqliteFtsWeightsConfig = searchConfig.sqliteFtsWeights ?? null;
-  if (argv['fts-weights']) {
-    const parsed = parseJson(argv['fts-weights'], null);
-    if (parsed) {
-      sqliteFtsWeightsConfig = parsed;
-    } else {
-      const values = String(argv['fts-weights'])
-        .split(/[,\s]+/)
-        .filter(Boolean)
-        .map((val) => Number(val))
-        .filter((val) => Number.isFinite(val));
-      sqliteFtsWeightsConfig = values.length ? values : sqliteFtsWeightsConfig;
-    }
-  }
+  if (argv['fts-weights'] != null) sqliteFtsWeightsConfig = parseFtsWeightsOption(argv['fts-weights']);
   const sqliteFtsWeights = resolveFtsWeights(sqliteFtsProfile, sqliteFtsWeightsConfig);
   const sqliteFtsTrigram = argv['fts-trigram'] === true;
   const sqliteFtsStemming = argv['fts-stemming'] === true

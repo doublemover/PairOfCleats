@@ -29,7 +29,8 @@ const validJob = {
   virtualPath: buildVfsVirtualPath({
     containerPath: 'src/example.js',
     segmentUid: 'seg:base',
-    effectiveExt: '.js'
+    effectiveExt: '.js',
+    segmentStart: 0, segmentEnd: 24
   }),
   fileVersionSignature: {
     hash: 'abc123',

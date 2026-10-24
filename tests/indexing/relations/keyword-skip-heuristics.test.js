@@ -37,7 +37,7 @@ const cases = [
     ].join('\n'),
     buildChunks: (text) => buildCLikeChunks(text, '.c'),
     buildRelations: (text, chunks) => buildCLikeRelations(text, chunks),
-    expectCalls: ['foo', 'bar', 'baz'],
+    expectCalls: ['foo', 'obj.bar', 'baz'],
     skipCalls: ['if', 'for', 'while', 'switch', 'return']
   },
   {

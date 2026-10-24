@@ -31,7 +31,7 @@ export function getHeadline(chunk, tokens, n = 7, tokenMaxLen = 30, headlineMaxL
     'input', 'output', 'temp', 'tmp', 'buffer'
   ]);
 
-  const freq = {};
+  const freq = Object.create(null);
   tokens.forEach((t) => {
     if (STOP.has(t)) return;
     if (codeStop.has(t)) return;

@@ -6,32 +6,35 @@ import path from 'node:path';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { runNode } from '../../helpers/run-node.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'structural-search');
 const repoRoot = path.join(tempRoot, 'repo');
 const srcDir = path.join(repoRoot, 'src');
 const docsDir = path.join(repoRoot, 'docs');
-const binRoot = path.join(root, 'tests', 'fixtures', 'structural', 'bin');
+const sourceBinRoot = path.join(root, 'tests', 'fixtures', 'structural', 'bin');
+const binRoot = path.join(repoRoot, 'fixture-bin');
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 await fsPromises.mkdir(srcDir, { recursive: true });
 await fsPromises.mkdir(docsDir, { recursive: true });
+await fsPromises.cp(sourceBinRoot, binRoot, { recursive: true });
 await fsPromises.writeFile(path.join(srcDir, 'example.js'), 'eval(\"x\");\n');
 await fsPromises.writeFile(path.join(srcDir, 'example.ts'), 'eval(x);\n');
 await fsPromises.writeFile(path.join(docsDir, 'notes.md'), 'TODO: update\n');
 
-for (const binName of ['semgrep', 'sg', 'comby']) {
+for (const binName of ['semgrep', 'sg', 'ast-grep', 'comby']) {
   try {
     await fsPromises.chmod(path.join(binRoot, binName), 0o755);
   } catch {}
 }
 
-const env = {
-  ...process.env,
-  PATH: `${binRoot}${path.delimiter}${process.env.PATH || ''}`,
-  PAIROFCLEATS_PROFILE: 'full'
-};
+const env = applyTestEnv({ cacheRoot: path.join(tempRoot, 'cache'), syncProcess: false,
+  testConfig: { tooling: { dir: path.join(tempRoot, 'tooling') } }, extraEnv: {
+    PATH: `${binRoot}${path.delimiter}${process.env.PATH || ''}`,
+    PAIROFCLEATS_PROFILE: 'full', PAIROFCLEATS_TRUSTED_REPOS: JSON.stringify([repoRoot])
+  } });
 
 const result = runNode(
   [

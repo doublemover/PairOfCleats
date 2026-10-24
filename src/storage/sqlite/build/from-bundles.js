@@ -1,4 +1,9 @@
+import { readEffectiveMemory } from '../../../shared/effective-memory.js';
 import { performance } from 'node:perf_hooks';
+import { assertMinhashHashIdentity } from '../../../index/minhash.js';
+import { writeSqliteMinhashHeader } from '../minhash.js';
+import { throwIfAborted, isAbortError } from '../../../shared/abort.js';
+import { rebuildSqliteFilterFacts } from '../filter-facts.js';
 import {
   buildChunkRow,
   buildFileManifestRows,
@@ -87,6 +92,7 @@ export async function buildDatabaseFromBundles({
   signal = null,
   repoRoot = process.cwd()
 }) {
+  throwIfAborted(signal);
   const log = (message, meta = null) => {
     if (!emitOutput || !message) return;
     if (logger?.log) {
@@ -117,7 +123,7 @@ export async function buildDatabaseFromBundles({
     resolvedStatementStrategy,
     recordBatch,
     recordTable
-  } = createBuildExecutionContext({ batchSize, inputBytes, statementStrategy, stats });
+  } = createBuildExecutionContext({ batchSize, inputBytes, statementStrategy, stats, signal });
   const maxVocabLookupEntries = Number.isFinite(Number(vocabLookupCacheMaxEntries))
     && Number(vocabLookupCacheMaxEntries) > 0
     ? Math.max(1, Math.floor(Number(vocabLookupCacheMaxEntries)))
@@ -324,11 +330,13 @@ export async function buildDatabaseFromBundles({
       if (!(map instanceof Map)) return warned;
       if (map.size < maxVocabLookupEntries) return warned;
       if (typeof flushPending === 'function') flushPending();
-      map.clear();
+      // Flush before eviction so a pending identity remains SQL-resolvable.
+      // Evict only enough oldest entries for one admission, retaining hot IDs.
+      while (map.size >= maxVocabLookupEntries) map.delete(map.keys().next().value);
       if (!warned) {
         warn(
           `[sqlite] ${label} lookup cache reached ${maxVocabLookupEntries} entries; ` +
-          'clearing cache to cap memory.'
+          'evicting least-recently-used identities to cap memory.'
         );
       }
       return true;
@@ -349,6 +357,11 @@ export async function buildDatabaseFromBundles({
       map.set(value, id);
       return nextWarned;
     };
+    const getCachedVocabId = (map, value) => {
+      const cached = map.get(value);
+      if (cached !== undefined) { map.delete(value); map.set(value, cached); }
+      return cached;
+    };
     const resolvePersistedVocabId = ({
       map,
       value,
@@ -357,7 +370,7 @@ export async function buildDatabaseFromBundles({
       warned,
       flushPending = null
     }) => {
-      const cached = map.get(value);
+      const cached = getCachedVocabId(map, value);
       if (cached !== undefined) {
         return { id: cached, warned };
       }
@@ -439,7 +452,7 @@ export async function buildDatabaseFromBundles({
         if (tokensArray.length) {
           const freq = buildTokenFrequency(tokensArray);
           for (const [token, tf] of freq.entries()) {
-            let tokenId = tokenIdMap.get(token);
+            let tokenId = getCachedVocabId(tokenIdMap, token);
             if (tokenId === undefined) {
               const persisted = resolvePersistedVocabId({
                 map: tokenIdMap,
@@ -488,7 +501,7 @@ export async function buildDatabaseFromBundles({
         if (Array.isArray(chunk.ngrams)) {
           const unique = new Set(chunk.ngrams);
           for (const ng of unique) {
-            let phraseId = phraseIdMap.get(ng);
+            let phraseId = getCachedVocabId(phraseIdMap, ng);
             if (phraseId === undefined) {
               const persisted = resolvePersistedVocabId({
                 map: phraseIdMap,
@@ -537,7 +550,7 @@ export async function buildDatabaseFromBundles({
         if (Array.isArray(chunk.chargrams)) {
           const unique = new Set(chunk.chargrams);
           for (const gram of unique) {
-            let gramId = chargramIdMap.get(gram);
+            let gramId = getCachedVocabId(chargramIdMap, gram);
             if (gramId === undefined) {
               const persisted = resolvePersistedVocabId({
                 map: chargramIdMap,
@@ -584,6 +597,7 @@ export async function buildDatabaseFromBundles({
         }
 
         if (Array.isArray(chunk.minhashSig) && chunk.minhashSig.length) {
+          assertMinhashHashIdentity(chunk.minhashHashIdentity);
           insertMinhash.run(mode, docId, packUint32(chunk.minhashSig));
           validationStats.minhash += 1;
           minhashRows += 1;
@@ -669,8 +683,8 @@ export async function buildDatabaseFromBundles({
     const insertBundle = (bundle, fileKey) => {
       const chunks = Array.isArray(bundle?.chunks) ? bundle.chunks : null;
       if (!chunks) {
-        warn(`[sqlite] Bundle missing chunks for ${fileKey}; skipping.`);
-        return;
+        throw Object.assign(new Error(`[sqlite] Bundle missing chunks for ${fileKey}.`),
+          { code: 'ERR_SQLITE_BUNDLE_INVALID' });
       }
       const normalizedFile = normalizeFilePath(fileKey);
       let chunkCount = 0;
@@ -688,67 +702,67 @@ export async function buildDatabaseFromBundles({
     let successfulFiles = 0;
     const bundleFailures = [];
     let fatalBundleFailure = null;
-    let bundleFailureAbort = false;
     // Delay worker allocation until the database and insert path are ready,
     // then own the loader immediately so every later failure closes it.
-    let bundleLoader = null;
+    let bundleLoader = null, loaderError = null;
     try {
-      bundleLoader = createBundleLoader({ bundleThreads, workerPath, repoRoot });
+      bundleLoader = createBundleLoader({ bundleThreads, workerPath, repoRoot, signal });
       const useBundleWorkers = bundleLoader.useWorkers;
       if (emitOutput && useBundleWorkers) {
-        log(`[sqlite] Bundle parser workers: ${bundleThreads}.`);
+        log(`[sqlite] Bundle parser workers: ${bundleLoader.maxThreads} (requested ${bundleThreads}).`);
       }
-      const maxInFlightBundles = useBundleWorkers
-        ? Math.max(1, Math.min(totalFiles, Math.max(1, bundleThreads), 32))
-        : 1;
-      const batchSize = maxInFlightBundles;
-      for (let i = 0; i < manifestEntries.length; i += batchSize) {
-        const batch = manifestEntries.slice(i, i + batchSize);
-        const tasks = batch.map((record) => bundleLoader.loadBundle({
-          bundleDir: incrementalData.bundleDir,
-          entry: record.entry,
-          file: record.file
-        }));
-        const results = await Promise.all(tasks);
-        for (const result of results) {
-          processedFiles += 1;
-          if (!result.ok) {
-            bundleFailures.push(`${result.reason} for ${result.file}`);
-            logBundleProgress(result.file, processedFiles === totalFiles);
-            bundleFailureAbort = true;
-            break;
+      if (emitOutput && bundleLoader.workerAdmissionReason) {
+        log(`[sqlite] Bundle decode admission: ${bundleLoader.workerAdmissionReason}; execution=${useBundleWorkers ? 'workers' : 'ordered-inline'}.`);
+      }
+      const memory = readEffectiveMemory({ configuredLimitBytes: threadLimits?.totalMemBytes });
+      const decodeWindowBytes = Math.max(16 * 1024 * 1024, Math.min(256 * 1024 * 1024,
+        Math.floor(memory.freeBytes / 8)));
+      const pipelineMetrics = { byteAllowance: decodeWindowBytes, decodedProjectionFactor: 64,
+        execution: useBundleWorkers ? 'workers' : 'ordered-inline', workerAdmissionReason: bundleLoader.workerAdmissionReason || null };
+      if (batchStats) batchStats.bundlePipeline = pipelineMetrics;
+      for await (const result of bundleLoader.iterateBundleShards(manifestEntries, {
+        bundleDir: incrementalData.bundleDir, maxBytes: decodeWindowBytes, metrics: pipelineMetrics
+      })) {
+        throwIfAborted(signal);
+        if (!result.ok) {
+          processedFiles++;
+          bundleFailures.push(`${result.reason} for ${result.file}`);
+          logBundleProgress(result.file, processedFiles === totalFiles);
+          break;
+        }
+        const shardBundles = Array.isArray(result.bundleShards) ? result.bundleShards : [];
+        if (!shardBundles.length) {
+          bundleFailures.push(`invalid bundle shards for ${result.file}`);
+          logBundleProgress(result.file, processedFiles === totalFiles);
+          break;
+        }
+        let chunkCount = 0;
+        try {
+          for (const shardBundle of shardBundles) {
+            insertBundle(shardBundle, result.file);
+            chunkCount += Array.isArray(shardBundle?.chunks) ? shardBundle.chunks.length : 0;
           }
-          const shardBundles = Array.isArray(result.bundleShards) ? result.bundleShards : [];
-          if (!shardBundles.length) {
-            bundleFailures.push(`invalid bundle shards for ${result.file}`);
-            logBundleProgress(result.file, processedFiles === totalFiles);
-            bundleFailureAbort = true;
-            break;
-          }
-          let chunkCount = 0;
-          try {
-            for (const shardBundle of shardBundles) {
-              insertBundle(shardBundle, result.file);
-              chunkCount += Array.isArray(shardBundle?.chunks) ? shardBundle.chunks.length : 0;
-            }
-          } catch (err) {
-            const reason = `${err?.message || 'bundle insert failed'} for ${result.file}`;
-            bundleFailures.push(reason);
-            if (/dense vector dims mismatch/i.test(String(err?.message || ''))) {
-              fatalBundleFailure = reason;
-            }
-            logBundleProgress(result.file, processedFiles === totalFiles);
-            bundleFailureAbort = true;
-            break;
-          }
-          count += chunkCount;
-          successfulFiles += 1;
+        } catch (err) {
+          if (isAbortError(err)) throw err;
+          const reason = `${err?.message || 'bundle insert failed'} for ${result.file}`;
+          bundleFailures.push(reason);
+          if (/dense vector dims mismatch/i.test(String(err?.message || ''))) fatalBundleFailure = reason;
+          logBundleProgress(result.file, processedFiles === totalFiles);
+          break;
+        }
+        count += chunkCount;
+        if (result.finalShard) {
+          processedFiles++; successfulFiles++;
           logBundleProgress(result.file, processedFiles === totalFiles);
         }
-        if (fatalBundleFailure || bundleFailureAbort) break;
       }
-    } finally {
-      await bundleLoader?.close();
+    } catch (error) { loaderError = error; throw error; }
+    finally {
+      try { await bundleLoader?.close(); }
+      catch (error) {
+        if (loaderError) { try { loaderError.bundleLoaderTeardownError = error; } catch {} }
+        else throw error;
+      }
     }
 
     validationStats.chunks = count;
@@ -876,11 +890,14 @@ export async function buildDatabaseFromBundles({
     recordTable('phrase_postings', phrasePostingRows, insertBatchMs);
     recordTable('chargram_vocab', chargramVocabRows, insertBatchMs);
     recordTable('chargram_postings', chargramPostingRows, insertBatchMs);
+    if (minhashRows) writeSqliteMinhashHeader(db, mode);
     recordTable('minhash_signatures', minhashRows, insertBatchMs);
     recordTable('dense_vectors', denseRows, insertBatchMs);
     recordTable('dense_meta', denseMetaRows, 0);
 
     db.exec(CREATE_INDEXES_SQL);
+    await rebuildSqliteFilterFacts(db, mode, { signal });
+    throwIfAborted(signal);
     commitSqliteBuildTransaction(db, batchStats, {
       dbPath,
       stage: 'bundle-build',
@@ -912,6 +929,7 @@ export async function buildDatabaseFromBundles({
       batchStats,
       dbPath,
       promotePath,
+      signal,
       outPath,
       warn: (err) => warn(`[sqlite] WAL checkpoint failed for ${mode}: ${err?.message || err}`)
     });

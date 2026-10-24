@@ -50,6 +50,114 @@ try {
   const index = await writeSemanticQueryIndex({ root: fixture.stagingRoot, generation: fixture.generation, partitions, store: base, diskAccount: fixture.account, batchRows: 17, batchBytes: 8192, maxOpenRuns: 2 });
   const operationIndex = await writeSemanticQueryIndex({ root: fixture.stagingRoot, generation: fixture.generation, partitions, store: base, diskAccount: fixture.account, entries: operationIndexEntries(base, partitions), compareRows: compareOperationIndexRows, keyForRow: row => row, validateIndex: assertSemanticOperationIndex, directoryPrefix: 'semantic-operation-index-', schemaVersion: 2, batchRows: 17, batchBytes: 8192, maxOpenRuns: 2 });
   const artifact = createArtifactSemanticStore({ root: fixture.stagingRoot, repoRoot: fixture.root, generation: fixture.generation, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, partitions, operationIndex, queryIndex: index });
+  const related = async (options = {}) => {
+    const originalOpen = fs.open, opened = [];
+    let peakHandles = 0;
+    fs.open = async (...args) => {
+      const handle = await originalOpen(...args);
+      opened.push(handle);
+      peakHandles = Math.max(peakHandles, opened.filter(value => value.fd !== -1).length);
+      return handle;
+    };
+    try { return await artifact.getRelatedPage(refs[0], 'semantic_edges', { limit: 1, ...options }); }
+    finally {
+      fs.open = originalOpen;
+      assert.ok(peakHandles <= 16, 'four reader pairs plus bounded concurrent validation/probes');
+      assert.ok(opened.every(handle => handle.fd === -1), 'related requests dispose every handle before settling');
+    }
+  };
+  assert.equal((await related()).rows.length, 1);
+  await assert.rejects(related({ offset: 10000 }), /cursor exceeds member rows/);
+  const cancelledRelated = new AbortController(); cancelledRelated.abort();
+  await assert.rejects(related({ signal: cancelledRelated.signal }), { name: 'AbortError' });
+  let ownerPiece = null;
+  for (const piece of index.pieces) {
+    const rows = (await fs.readFile(path.join(fixture.stagingRoot, piece.path), 'utf8')).trim().split('\n').map(row => JSON.parse(row));
+    if (rows.some(row => row.member === 'semantic_edges' && row.owner.partitionId === refs[0].partitionId
+      && row.owner.localId === refs[0].localId)) { ownerPiece = piece; break; }
+  }
+  assert.ok(ownerPiece, 'the queried owner has a physical index piece');
+  for (const relative of [ownerPiece.path, ownerPiece.offsetsPath]) {
+    const filename = path.join(fixture.stagingRoot, relative), original = await fs.readFile(filename);
+    const changed = Buffer.from(original); changed[0] ^= 1;
+    await fs.writeFile(filename, changed);
+    try {
+      await assert.rejects(related(), { code: 'ERR_SEMANTIC_INTEGRITY' },
+        'a subsequent related-page request revalidates same-size data and offset edits');
+    } finally { await fs.writeFile(filename, original); }
+    assert.equal((await related()).rows.length, 1, 'restored query parts are independently revalidated');
+  }
+  const traceReadScope = createSemanticTraceService();
+  const traceScopeRequest = { repoRoot: fixture.root, generation: fixture.generation, seed: refs[0],
+    direction: 'downstream', kinds: ['flowsTo', 'copies', 'packs', 'transfers'],
+    limits: { records: 16, edges: 16, depth: 8, bytes: 65536 } };
+  const middle = Math.floor(index.rowCount / 2);
+  const hotPiece = index.pieces.find(piece => middle >= piece.firstRow && middle < piece.firstRow + piece.count);
+  const hotFile = await fs.realpath(path.join(fixture.stagingRoot, hotPiece.path));
+  const traceWithOpenCounts = async ({ store = artifact, abortOnQueryOpen = false } = {}) => {
+    const open = fs.open, opened = [];
+    const controller = new AbortController();
+    let hotOpens = 0, peakHandles = 0;
+    fs.open = async (...args) => {
+      const handle = await open(...args);
+      opened.push(handle);
+      if (String(args[0]) === hotFile) {
+        hotOpens += 1;
+        if (abortOnQueryOpen) controller.abort();
+      }
+      peakHandles = Math.max(peakHandles, opened.filter(value => value.fd !== -1).length);
+      return handle;
+    };
+    try {
+      const page = await traceReadScope({ store, request: traceScopeRequest, signal: controller.signal });
+      assert.equal(hotOpens, 1, 'one trace page verifies its repeatedly probed index piece through one owned reader');
+      assert.ok(page.edges.length >= 2, 'the real trace crosses multiple owners within its original work budget');
+      return page;
+    } finally {
+      fs.open = open;
+      assert.ok(peakHandles <= 16, 'the existing four-pair reader budget and bounded probes remain');
+      assert.ok(opened.every(handle => handle.fd === -1), 'the logical trace page closes every owned reader before settling');
+    }
+  };
+  await traceWithOpenCounts();
+  await assert.rejects(traceWithOpenCounts({ abortOnQueryOpen: true }), { name: 'AbortError' },
+    'cancellation after the real index open drains and closes every owned handle');
+  const scopeFailure = new Error('controlled trace failure after index use');
+  const failingStore = { ...artifact, getNeighbors: async (...args) => {
+    await artifact.getNeighbors(...args);
+    throw scopeFailure;
+  } };
+  await assert.rejects(traceWithOpenCounts({ store: failingStore }), error => error === scopeFailure,
+    'a later query error preserves its cause and still disposes the verified owners');
+  const parallel = await Promise.all([0, 1].map(() => traceReadScope({ store: artifact, request: traceScopeRequest })));
+  assert.ok(parallel.every(page => page.edges.length >= 2), 'overlapping logical pages retain independent live reader scopes');
+  for (const relative of [hotPiece.path, hotPiece.offsetsPath]) {
+    const filename = path.join(fixture.stagingRoot, relative), original = await fs.readFile(filename);
+    const changed = Buffer.from(original); changed[0] ^= 1;
+    await fs.writeFile(filename, changed);
+    try {
+      await assert.rejects(traceWithOpenCounts(), { code: 'ERR_SEMANTIC_INTEGRITY' },
+        'the next logical trace page must freshly verify same-size data and offsets edits');
+    } finally { await fs.writeFile(filename, original); }
+    await traceWithOpenCounts();
+  }
+  const continuationService = createSemanticTraceService();
+  const continuationRequest = { ...traceScopeRequest,
+    limits: { ...traceScopeRequest.limits, records: 1, edges: 1 } };
+  const firstScopePage = await continuationService({ store: artifact, request: continuationRequest });
+  assert.ok(firstScopePage.cursor, 'exercise an actual bounded continuation');
+  const hotBytes = await fs.readFile(hotFile), changedHotBytes = Buffer.from(hotBytes);
+  changedHotBytes[0] ^= 1;
+  await fs.writeFile(hotFile, changedHotBytes);
+  try {
+    await assert.rejects(continuationService({ store: artifact,
+      request: { ...continuationRequest, cursor: firstScopePage.cursor } }), { code: 'ERR_SEMANTIC_INTEGRITY' },
+    'a cursor carries no live reader or hash admission into the next page');
+  } finally { await fs.writeFile(hotFile, hotBytes); }
+  const nextScopePage = await continuationService({ store: artifact,
+    request: { ...continuationRequest, cursor: firstScopePage.cursor } });
+  assert.ok(nextScopePage.records.length + nextScopePage.edges.length > 0,
+    'restored bytes resume the same valid continuation without accepting the intervening corruption');
   db = new Database(':memory:'); db.pragma('user_version = ' + SCHEMA_VERSION); db.exec(CREATE_SEMANTIC_TABLES_SQL); writeSqliteIndexFormat(db);
   db.exec('BEGIN'); for (const descriptor of partitions) await ingestSemanticPartition({ db, store: base, descriptor }); db.exec('COMMIT');
   db.prepare('INSERT INTO index_format_meta(key,value) VALUES (?,?)').run('semanticGeneration', JSON.stringify(fixture.generation));

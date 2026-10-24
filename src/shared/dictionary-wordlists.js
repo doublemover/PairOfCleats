@@ -1,8 +1,48 @@
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import readline from 'node:readline';
+import { acquireDictionaryStorageRead, isDictionaryStorageAccessError } from './storage/dictionary-access.js';
 
 const DEFAULT_DICTIONARY_READ_CONCURRENCY = 8;
+const asDictionaryError = error => error && typeof error === 'object' ? error : new Error(String(error), { cause: error });
+const captureDictionaryClosure = error => {
+  let observer;
+  try { observer = error.cacheOwnershipReleased; } catch { return { present: true, observe: () => false }; }
+  return { present: typeof observer === 'function',
+    observe: () => { try { return typeof observer === 'function' && observer.call(error) === true; } catch { return false; } } };
+};
+const retainDictionaryFailure = (primary, secondary, field) => {
+  const error = asDictionaryError(primary);
+  const additional = asDictionaryError(secondary);
+  if (error === additional) return error;
+  const failures = [...(Array.isArray(error[field]) ? error[field] : []), additional];
+  const pending = error.cacheOwnershipPending === true || additional.cacheOwnershipPending === true;
+  // Capture function identities before replacing the primary's observer; a
+  // dynamic lookup here would recurse into this newly composed predicate.
+  const closures = [];
+  const primaryClosure = captureDictionaryClosure(error);
+  if (error.cacheOwnershipPending === true || primaryClosure.present) closures.push(primaryClosure.observe);
+  if (additional.cacheOwnershipPending === true) closures.push(captureDictionaryClosure(additional).observe);
+  const allReleased = () => closures.length > 0 && closures.every(observe => observe());
+  try {
+    Object.defineProperty(error, field, { value: failures, configurable: true, writable: true });
+    if (pending && error.cacheOwnershipPending !== true) {
+      Object.defineProperty(error, 'cacheOwnershipPending', { value: true, configurable: true, writable: true });
+    }
+    if (pending) Object.defineProperty(error, 'cacheOwnershipReleased', { value: allReleased, configurable: true, writable: true });
+    return error;
+  } catch {
+    // Provider/native errors may be frozen or carry readonly diagnostics. Keep
+    // that exact primary as cause and first aggregate member instead of losing
+    // it (and its pending sibling) to a metadata-attachment TypeError.
+    const aggregate = new AggregateError([error, additional], error.message || 'Dictionary operation and cleanup failed.', { cause: error });
+    if (typeof error.code === 'string') aggregate.code = error.code;
+    aggregate[field] = failures;
+    if (pending) aggregate.cacheOwnershipPending = true;
+    if (pending) aggregate.cacheOwnershipReleased = allReleased;
+    return aggregate;
+  }
+};
 
 /**
  * Normalize file path inputs into a filtered string list.
@@ -51,7 +91,7 @@ export const addDictionaryWordsFromText = (
     if (line.endsWith('\r')) line = line.slice(0, -1);
     const trimmed = line.trim();
     if (trimmed) {
-      target.add(lowerCase ? trimmed.toLowerCase() : trimmed);
+      target.add(lowerCase ? trimmed.toLowerCase().normalize('NFKD') : trimmed);
     }
     lineStart = i + 1;
   }
@@ -69,7 +109,7 @@ export const addDictionaryWordsFromText = (
 const addDictionaryWordFromLine = (line, target, lowerCase) => {
   const trimmed = String(line || '').trim();
   if (!trimmed) return;
-  target.add(lowerCase ? trimmed.toLowerCase() : trimmed);
+  target.add(lowerCase ? trimmed.toLowerCase().normalize('NFKD') : trimmed);
 };
 
 /**
@@ -87,15 +127,24 @@ const runWithBoundedConcurrency = async (values, maxConcurrency, worker) => {
     ? Math.max(1, Math.floor(maxConcurrency))
     : DEFAULT_DICTIONARY_READ_CONCURRENCY;
   let cursor = 0;
+  let failed = false;
+  let firstError;
   const workers = Array.from({ length: Math.min(limit, values.length) }, async () => {
-    while (true) {
+    while (!failed) {
       const index = cursor;
       cursor += 1;
       if (index >= values.length) break;
-      await worker(values[index], index);
+      try { await worker(values[index], index); }
+      catch (error) {
+        if (!failed) { failed = true; firstError = asDictionaryError(error); }
+        else firstError = retainDictionaryFailure(firstError, error, 'dictionarySiblingFailures');
+      }
     }
   });
+  // The first failure stops admission, but already-open native reads must
+  // confirm closure before this owner reports terminal failure to its caller.
   await Promise.all(workers);
+  if (failed) throw firstError;
 };
 
 /**
@@ -111,17 +160,48 @@ const readDictionaryWordsFromFile = async (
   target,
   { lowerCase = false } = {}
 ) => {
-  const stream = fsSync.createReadStream(dictFile, { encoding: 'utf8' });
-  const lineReader = readline.createInterface({
-    input: stream,
-    crlfDelay: Infinity
-  });
+  const access = acquireDictionaryStorageRead(dictFile);
+  let stream = null;
+  let lineReader = null;
+  let closed = null;
+  let closeFailure = null;
+  let operationError = null;
   try {
+    stream = fsSync.createReadStream(dictFile, { encoding: 'utf8' });
+    stream.on('error', error => { if (error?.syscall === 'close') closeFailure = error; });
+    closed = new Promise(resolve => stream.once('close', resolve));
+    lineReader = readline.createInterface({ input: stream, crlfDelay: Infinity });
+    // Readline forwards input errors even after its async iterator has ended.
+    // Keep observing that exact interface through the native close barrier.
+    lineReader.on('error', error => { operationError ||= asDictionaryError(error); });
     for await (const line of lineReader) {
       addDictionaryWordFromLine(line, target, lowerCase);
     }
+  } catch (error) {
+    operationError = asDictionaryError(error);
+    throw operationError;
   } finally {
-    lineReader.close();
+    let cleanupError = null;
+    try { lineReader?.close(); } catch (error) { cleanupError = asDictionaryError(error); }
+    try { stream?.destroy(); } catch (error) {
+      const failure = asDictionaryError(error);
+      cleanupError = cleanupError ? retainDictionaryFailure(cleanupError, failure, 'dictionaryCleanupErrors') : failure;
+    }
+    // readline completion/destroy requests are not native handle closure.
+    // Keep the exact scoped lease until the ReadStream emits actual close.
+    if (closed) await closed;
+    if (closeFailure) {
+      const error = Object.assign(new Error('Dictionary file close is unconfirmed; its storage lease remains retained.', { cause: closeFailure }), {
+        code: 'ERR_DICTIONARY_STORAGE_CLOSE_PENDING', cacheOwnershipPending: true
+      });
+      Object.defineProperty(error, 'dictionaryStorageAccess', { value: access });
+      cleanupError = cleanupError ? retainDictionaryFailure(cleanupError, error, 'dictionaryCleanupErrors') : error;
+    } else {
+      try { access.releaseAfterClosure(); }
+      catch (error) { cleanupError = cleanupError ? retainDictionaryFailure(cleanupError, error, 'dictionaryCleanupErrors') : asDictionaryError(error); }
+    }
+    if (cleanupError) throw operationError ? retainDictionaryFailure(operationError, cleanupError, 'dictionaryCleanupErrors') : cleanupError;
+    if (operationError) throw operationError;
   }
 };
 
@@ -145,7 +225,7 @@ export const loadDictionaryWordSetFromFiles = async (
   await runWithBoundedConcurrency(files, DEFAULT_DICTIONARY_READ_CONCURRENCY, async (dictFile) => {
     try {
       await readDictionaryWordsFromFile(dictFile, words, { lowerCase });
-    } catch {}
+    } catch (error) { if (isDictionaryStorageAccessError(error)) throw error; }
   });
   return words;
 };
@@ -164,12 +244,13 @@ const buildDictionaryFileSignature = async (
   const signaturePath = typeof toSignaturePath === 'function'
     ? toSignaturePath(dictFile)
     : String(dictFile || '');
+  const access = acquireDictionaryStorageRead(dictFile, { scope: 'dictionary-signature-stat' });
   try {
     const stat = await fs.stat(dictFile);
     return `${prefix}${signaturePath}:${stat.size}:${stat.mtimeMs}`;
   } catch {
     return `${prefix}${signaturePath}:missing`;
-  }
+  } finally { access.releaseAfterClosure(); }
 };
 
 /**
@@ -195,21 +276,22 @@ export const loadCodeDictionaryWordSets = async (
   const commonWords = new Set();
   const wordsByLanguage = new Map();
   const allWords = new Set();
-  const [, languageResults] = await Promise.all([
-    loadDictionaryWordSetFromFiles(commonFiles, { target: commonWords, lowerCase }),
-    Promise.all(
-      entries.map(async ([lang, files]) => {
-        if (typeof lang !== 'string' || !lang) return null;
-        return [lang, await loadDictionaryWordSetFromFiles(files, { lowerCase })];
-      })
-    )
-  ]);
+  const jobs = toFileList(commonFiles).map(file => ({ file, words: commonWords }));
+  for (const [language, files] of entries) {
+    if (typeof language !== 'string' || !language) continue;
+    const words = new Set();
+    wordsByLanguage.set(language, words);
+    for (const file of toFileList(files)) jobs.push({ file, words });
+  }
+  // Common and all language scopes consume one file-reader budget. A separate
+  // pool per language multiplies open descriptors by configured language count.
+  await runWithBoundedConcurrency(jobs, DEFAULT_DICTIONARY_READ_CONCURRENCY, async ({ file, words }) => {
+    try { await readDictionaryWordsFromFile(file, words, { lowerCase }); }
+    catch (error) { if (isDictionaryStorageAccessError(error)) throw error; }
+  });
   for (const word of commonWords) allWords.add(word);
-  for (const entry of languageResults) {
-    if (!entry) continue;
-    const [lang, words] = entry;
-    if (!words.size) continue;
-    wordsByLanguage.set(lang, words);
+  for (const [language, words] of wordsByLanguage) {
+    if (!words.size) { wordsByLanguage.delete(language); continue; }
     for (const word of words) allWords.add(word);
   }
   return { commonWords, wordsByLanguage, allWords };
@@ -228,7 +310,9 @@ export const collectDictionaryFileSignatures = async (
 ) => {
   const files = toFileList(filePaths);
   if (!files.length) return [];
-  return Promise.all(
-    files.map((dictFile) => buildDictionaryFileSignature(dictFile, { toSignaturePath, prefix }))
-  );
+  const signatures = new Array(files.length);
+  await runWithBoundedConcurrency(files, DEFAULT_DICTIONARY_READ_CONCURRENCY, async (file, index) => {
+    signatures[index] = await buildDictionaryFileSignature(file, { toSignaturePath, prefix });
+  });
+  return signatures;
 };

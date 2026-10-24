@@ -3,7 +3,8 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import { MAX_JSON_BYTES } from '../../../src/shared/artifact-io/constants.js';
 import { readJsonFile } from '../../../src/shared/artifact-io/json.js';
-import { ARTIFACT_SCHEMA_DEFS, MANIFEST_ONLY_ARTIFACT_NAMES } from '../../../src/contracts/artifact-schemas.js';
+import { ARTIFACT_SCHEMA_DEFS, MANIFEST_ONLY_ARTIFACT_NAMES, validateArtifact } from '../../../src/contracts/artifact-schemas.js';
+import { readBuffer } from '../../../src/shared/artifact-io/compression.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
 import { checksumFile } from '../../../src/shared/hash.js';
@@ -19,7 +20,8 @@ import { withGeneratedArtifactMetadata } from '../../../src/shared/generated-art
  * @param {{ indexDir: string, mode: string, totalChunks: number, dims: number }} options
  * @returns {Promise<void>}
  */
-export const updatePieceManifest = async ({ indexDir, mode, totalChunks, dims }) => {
+export const updatePieceManifest = async ({ indexDir, mode, totalChunks, dims, backendPieces = null,
+  embeddingGeneration = null }) => {
   const piecesDir = path.join(indexDir, 'pieces');
   const manifestPath = path.join(piecesDir, 'manifest.json');
   const manifestBakPath = `${manifestPath}.bak`;
@@ -40,15 +42,26 @@ export const updatePieceManifest = async ({ indexDir, mode, totalChunks, dims })
   const hnswStats = loadMeta('dense_vectors_hnsw.meta.json', { count: totalChunks, dims });
   const hnswDocStats = loadMeta('dense_vectors_doc_hnsw.meta.json', { count: totalChunks, dims });
   const hnswCodeStats = loadMeta('dense_vectors_code_hnsw.meta.json', { count: totalChunks, dims });
-  const manifestExists = fsSync.existsSync(manifestPath) || fsSync.existsSync(`${manifestPath}.bak`);
   let existing = null;
-  if (manifestExists) {
-    try {
-      const sourcePath = fsSync.existsSync(manifestPath) ? manifestPath : manifestBakPath;
-      existing = readJsonFile(sourcePath, { maxBytes: MAX_JSON_BYTES }) || null;
-    } catch {
-      existing = null;
+  {
+    let loadError = null;
+    for (const sourcePath of [manifestPath, manifestBakPath]) {
+      try {
+        // Validate each candidate before trusting it or cleaning up recovery
+        // evidence; a syntactically valid but malformed primary is still corrupt.
+        const candidate = JSON.parse(readBuffer(sourcePath, MAX_JSON_BYTES).toString('utf8'));
+        if (!validateArtifact('pieces_manifest', candidate).ok
+          || candidate.artifactSurfaceVersion !== ARTIFACT_SURFACE_VERSION) {
+          throw new Error('Existing pieces manifest has an invalid shape or artifact surface version.');
+        }
+        existing = candidate;
+        break;
+      } catch (error) {
+        if (error.cacheOwnershipPending || error instanceof AggregateError) throw error;
+        if (error.code !== 'ENOENT') loadError ||= error;
+      }
     }
+    if (!existing && loadError) throw new Error(`Cannot refresh embedding pieces without a valid existing manifest: ${loadError.message}`, { cause: loadError });
   }
   if (!existing || typeof existing !== 'object') {
     existing = {
@@ -120,7 +133,34 @@ export const updatePieceManifest = async ({ indexDir, mode, totalChunks, dims })
   const schemaNames = new Set(Object.keys(ARTIFACT_SCHEMA_DEFS));
   const allowedNames = new Set([...schemaNames, ...MANIFEST_ONLY_ARTIFACT_NAMES]);
   const enriched = [];
-  for (const entry of embeddingPieces) {
+  let selectedPieces = backendPieces === null ? embeddingPieces : [
+    ...embeddingPieces.filter(entry => !/_hnsw(?:_meta)?$|_lancedb(?:_meta)?$/.test(entry.name)),
+    ...backendPieces
+  ];
+  for (const suffix of ['', '_doc', '_code']) {
+    const name = `dense_vectors${suffix}`;
+    const base = `${name}_uint8`;
+    let binaryCurrent = fsSync.existsSync(path.join(indexDir, `${base}.bin`));
+    if (binaryCurrent && embeddingGeneration) {
+      const binaryMetaPath = path.join(indexDir, `${base}.bin.meta.json`);
+      binaryCurrent = fsSync.existsSync(binaryMetaPath)
+        && readJsonFile(binaryMetaPath, { maxBytes: MAX_JSON_BYTES })?.embeddingGeneration === embeddingGeneration;
+    }
+    if (binaryCurrent) continue;
+    selectedPieces = selectedPieces.filter(piece => ![name, `${name}_binary_meta`].includes(piece.name));
+    const metaPath = path.join(indexDir, `${base}.meta.json`);
+    if (!fsSync.existsSync(metaPath)) continue;
+    const meta = readJsonFile(metaPath, { maxBytes: MAX_JSON_BYTES });
+    for (const part of meta.parts || []) {
+      if (typeof part.path !== 'string' || !part.path.startsWith(`${base}.parts/`)
+        || part.path.split('/').some(component => component === '..')) {
+        throw new Error(`Invalid dense vector shard path for ${name}`);
+      }
+      selectedPieces.push({ type: 'embeddings', name, format: 'jsonl', path: part.path,
+        count: part.records, dims });
+    }
+  }
+  for (const entry of selectedPieces) {
     if (!allowedNames.has(entry.name)) continue;
     const absPath = path.join(indexDir, entry.path);
     if (!fsSync.existsSync(absPath)) continue;

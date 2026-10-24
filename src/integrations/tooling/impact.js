@@ -41,6 +41,7 @@ export async function runImpactCli(rawArgs = process.argv.slice(2)) {
     scriptName: 'impact',
     argv: ['node', 'impact', ...rawArgs],
     options: buildGraphCliOptions({
+      pathSemantics: { type: 'string', choices: ['graph-witness'] },
       seed: { type: 'string' },
       changed: { type: 'array' },
       changedFile: { type: 'string' }
@@ -98,6 +99,7 @@ export async function runImpactCli(rawArgs = process.argv.slice(2)) {
       depth: Math.max(0, Math.floor(Number(argv.depth))),
       edgeFilters,
       caps,
+      pathSemantics: argv.pathSemantics,
       indexCompatKey: graphInputs.indexCompatKey || null,
       indexSignature: graphInputs.indexSignature || null,
       repo: toPosix(path.relative(process.cwd(), repoRoot) || '.'),

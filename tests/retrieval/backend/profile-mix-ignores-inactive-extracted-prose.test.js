@@ -4,18 +4,29 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
+import { getRepoCacheRoot } from '../../../src/shared/dict-utils.js';
 import { runSearchCli } from '../../../src/retrieval/cli.js';
 
 applyTestEnv();
 
 const rootDir = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-profile-mix-inactive-extracted-'));
 
+applyTestEnv({ cacheRoot: path.join(rootDir, 'cache') });
+const repoCacheRoot = getRepoCacheRoot(rootDir);
+const buildRoot = path.join(repoCacheRoot, 'builds', 'profile-cohort');
+await fs.mkdir(buildRoot, { recursive: true });
+await fs.writeFile(path.join(repoCacheRoot, 'builds', 'current.json'), JSON.stringify({
+  artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, buildId: 'profile-cohort', buildRoot,
+  modes: ['prose', 'extracted-prose']
+}));
 const writeIndexState = async (mode, profileId) => {
-  const indexDir = path.join(rootDir, `index-${mode}`);
+  const indexDir = path.join(buildRoot, `index-${mode}`);
   await fs.mkdir(indexDir, { recursive: true });
   await fs.writeFile(
     path.join(indexDir, 'index_state.json'),
     JSON.stringify({
+      artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       generatedAt: new Date().toISOString(),
       mode,
       profile: {

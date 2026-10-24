@@ -20,7 +20,7 @@ if (run.status !== 0) {
   process.exit(run.status ?? 1);
 }
 
-const manifestPath = path.join(outDir, 'pairofcleats.sublime-package.manifest.json');
+const manifestPath = path.join(outDir, 'PairOfCleats.sublime-package.manifest.json');
 const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
 
 if (manifest.fixedMtime !== '2000-01-01T00:00:00.000Z') {

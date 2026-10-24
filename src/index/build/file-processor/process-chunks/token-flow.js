@@ -1,6 +1,14 @@
+import { createOrderedTokenizeBatchWindow, TOKENIZE_BATCH_MAX_TEXT_BYTES, TOKENIZE_BATCH_MAX_OUTPUT_BYTES } from '../../workers/tokenize-batch.js';
+import { canUseLineTokenStreamSlice, createChunkTokenBatchInput } from './token-input.js';
+export { canUseLineTokenStreamSlice } from './token-input.js';
+import { createLexicalCheckpointSession } from '../../incremental/lexical-checkpoint.js';
 import { analyzeLiteralText } from '../../../../shared/text-analyzer.js';
+import { MINHASH_HASH_IDENTITY } from '../../../minhash.js';
 import util from 'node:util';
-import { analyzeComplexity, lintChunk } from '../../../analysis.js';
+import { isAbortError, throwIfAborted } from '../../../../shared/abort.js';
+import { isQueueRecoveryUnsafe } from '../../../../shared/concurrency/queue-recovery.js';
+import { recordTokenizationRoute } from '../tokenization-evidence.js';
+import { analyzeComplexity, COMPLEXITY_ANALYZER_VERSION, lintChunk } from '../../../analysis.js';
 import { getLanguageForFile } from '../../../language-registry.js';
 import { getChunkAuthorsFromLines } from '../../../scm/annotate.js';
 import { isJsLike } from '../../../constants.js';
@@ -36,42 +44,6 @@ import { prepareChunkIds } from './ids.js';
 import { collectChunkComments } from './limits.js';
 import { shouldSkipPhrasePostingsForChunk } from '../../state.js';
 import { createFileProcessorCrashStageUpdater } from '../crash-stage.js';
-
-/**
- * Verify chunk byte bounds align exactly to the requested line window so token
- * slicing can reuse prebuilt file line-token streams without re-tokenization.
- *
- * @param {{
- *   chunkStart:number,
- *   chunkEnd:number,
- *   startLine:number,
- *   endLine:number,
- *   lineIndex:number[],
- *   fileLength:number
- * }} input
- * @returns {boolean}
- */
-export const canUseLineTokenStreamSlice = ({
-  chunkStart,
-  chunkEnd,
-  startLine,
-  endLine,
-  lineIndex,
-  fileLength
-}) => {
-  if (!Array.isArray(lineIndex) || !lineIndex.length) return false;
-  if (!Number.isFinite(chunkStart) || !Number.isFinite(chunkEnd)) return false;
-  const startLineNumber = Math.max(1, Math.floor(Number(startLine) || 1));
-  const endLineNumber = Math.max(startLineNumber, Math.floor(Number(endLine) || startLineNumber));
-  const startLineOffset = lineIndex[startLineNumber - 1];
-  if (!Number.isFinite(startLineOffset)) return false;
-  const nextLineOffset = lineIndex[endLineNumber];
-  const endLineOffset = Number.isFinite(nextLineOffset)
-    ? nextLineOffset
-    : (Number.isFinite(fileLength) ? fileLength : null);
-  if (!Number.isFinite(endLineOffset)) return false;
-  return chunkStart === startLineOffset && chunkEnd === endLineOffset;
-};
 
 /**
  * Resolve deterministic parser fallback mode for one file.
@@ -196,6 +168,7 @@ export const processChunks = async (context) => {
     tokenMode,
     embeddingEnabled,
     embeddingNormalize,
+    embeddingQuantization,
     embeddingBatchSize,
     getChunkEmbedding,
     getChunkEmbeddings,
@@ -240,6 +213,7 @@ export const processChunks = async (context) => {
     buildStage,
     fileIndex = null
   } = context;
+  throwIfAborted(signal);
 
   const containerExt = ext;
   const containerLanguageId = fileLanguageId || lang?.id || null;
@@ -409,21 +383,26 @@ export const processChunks = async (context) => {
     ? workerPool.shouldUseForFile(fileBytes)
     : false;
   const runTokenize = useWorkerForTokens && typeof workerPool?.tokenizeChunk === 'function'
-    ? (payload) => (runProc ? runProc(() => workerPool.tokenizeChunk(payload)) : workerPool.tokenizeChunk(payload))
+    ? (payload) => (runProc ? runProc(() => workerPool.tokenizeChunk(payload, { signal }), { cpu: 1 }) : workerPool.tokenizeChunk(payload, { signal }))
     : null;
+  const workerBackend = workerPool?.getExecutionBackend?.() === 'process' ? 'process-pool' : 'worker-pool';
+  const initialInlineReason = workerState.tokenWorkerDisabled ? 'caller-error'
+    : tokenMode === 'prose' && !shouldUseProseWorker ? 'size'
+      : tokenMode !== 'code' && !shouldUseProseWorker ? 'mode'
+        : workerPool?.getRoutingReason?.(fileBytes) || tokenizationStats?.routeObservations?.defaultInlineReason || 'pool-unavailable';
   let fileComplexity = {};
   let fileLint = [];
   if (isJsLike(ext) && mode === 'code') {
     const effectiveComplexityEnabled = complexityEnabled && !heavyFileDownshift && parserIsAstFull;
     const effectiveLintEnabled = lintEnabled && !heavyFileDownshift && parserIsAstFull;
     if (effectiveComplexityEnabled) {
-      const cacheKey = fileHash ? `${rel}:${fileHash}` : rel;
-      let cachedComplexity = complexityCache.get(cacheKey);
+      const cacheKey = `complexity:${COMPLEXITY_ANALYZER_VERSION}:${rel}:${fileHash || 'unhashed'}`;
+      let cachedComplexity = complexityCache?.get(cacheKey);
       if (!cachedComplexity) {
         const enrichStart = Date.now();
         const fullCode = text;
         const compResult = await analyzeComplexity(fullCode, rel);
-        complexityCache.set(cacheKey, compResult);
+        complexityCache?.set(cacheKey, compResult);
         cachedComplexity = compResult;
         const enrichDurationMs = Date.now() - enrichStart;
         addComplexityDuration(enrichDurationMs);
@@ -432,12 +411,12 @@ export const processChunks = async (context) => {
     }
     if (effectiveLintEnabled) {
       const cacheKey = fileHash ? `${rel}:${fileHash}` : rel;
-      let cachedLint = lintCache.get(cacheKey);
+      let cachedLint = lintCache?.get(cacheKey);
       if (!cachedLint) {
         const enrichStart = Date.now();
         const fullCode = text;
         const lintResult = await lintChunk(fullCode, rel);
-        lintCache.set(cacheKey, lintResult);
+        lintCache?.set(cacheKey, lintResult);
         cachedLint = lintResult;
         const enrichDurationMs = Date.now() - enrichStart;
         addLintDuration(enrichDurationMs);
@@ -554,6 +533,29 @@ export const processChunks = async (context) => {
     ? await detectBoilerplateCommentBlocks({ text })
     : [];
   const hasFileBoilerplateBlocks = fileBoilerplateBlocks.length > 0;
+
+  const lexicalCheckpoint = createLexicalCheckpointSession({ cached: context.cachedLexicalCheckpoint,
+    dependencies: context.lexicalCheckpointDependencies, fileHash, fileHashAlgo,
+    policy: { dictConfig, classification: fileTokenContext.tokenClassification, treeSitter: fileTokenContext.treeSitter,
+      fileStream: tokenizationFileStreamEnabled, parserMode, effectiveTokenizeEnabled },
+    classificationEnabled: fileTokenContext.tokenClassification.enabled === true,
+    treeSitterEnabled: fileTokenContext.treeSitter?.enabled !== false && !!fileTokenContext.treeSitter,
+    metrics: tokenizationStats ? (tokenizationStats.lexicalCheckpoint ||= {}) : {} });
+  const workerBatchMetrics = tokenizationStats ? (tokenizationStats.workerBatch ||= {}) : {};
+  const prepareBatchInput = createChunkTokenBatchInput({ chunksForProcessing, text,
+    cachedLexicalBySpan: context.cachedLexicalBySpan, lexicalCheckpoint, tokenMode, containerExt, relKey,
+    containerLanguageId, commentRangeAssignments, normalizedCommentsConfig, chunkLineRanges, fileLineCount,
+    tokenizationFileStreamEnabled, lineIndex, fileStat, workerDictOverride });
+  const tokenBatchWindow = effectiveTokenizeEnabled && runTokenize && typeof workerPool?.tokenizeBatch === 'function'
+    ? createOrderedTokenizeBatchWindow({
+      runSingle: runTokenize,
+      runBatch: payload => runProc
+        ? runProc(() => workerPool.tokenizeBatch(payload, { signal }), { cpu: 1,
+          bytes: TOKENIZE_BATCH_MAX_TEXT_BYTES * 3 + TOKENIZE_BATCH_MAX_OUTPUT_BYTES * 2 })
+        : workerPool.tokenizeBatch(payload, { signal }),
+      getInput: prepareBatchInput, count: chunksForProcessing.length, signal,
+      canDispatch: () => !workerState.tokenWorkerDisabled, metrics: workerBatchMetrics
+    }) : null;
 
   for (let ci = 0; ci < chunksForProcessing.length; ++ci) {
     const c = chunksForProcessing[ci];
@@ -746,9 +748,14 @@ export const processChunks = async (context) => {
     // honor postingsConfig.chargramSource without duplicating tokenization work here.
     const fieldChargramTokens = null;
 
-    let tokenPayload = null;
+    const lexicalBefore = lexicalCheckpoint?.before(fileTokenContext.tokenClassificationRuntime) || null;
+    const lexicalKey = lexicalCheckpoint?.key({ index: ci, start: c.start, end: c.end, text: tokenText,
+      mode: chunkMode, ext: effectiveExt, languageId: chunkLanguageId, segmentUid: c.segment?.segmentUid || null });
+    const reusedLexical = effectiveTokenizeEnabled && lexicalCheckpoint
+      ? lexicalCheckpoint.resolve(ci, lexicalKey, lexicalBefore, fileTokenContext.tokenClassificationRuntime) : null;
+    let tokenPayload = reusedLexical?.payload || null;
     let pretokenized = context.cachedLexicalBySpan?.get(c.start+':'+c.end) || null;
-    const useLineTokenStream = !pretokenized && effectiveTokenizeEnabled
+    const useLineTokenStream = !pretokenized && !tokenPayload && effectiveTokenizeEnabled
       && tokenizationFileStreamEnabled
       && tokenText === ctext
       && canUseLineTokenStreamSlice({
@@ -778,7 +785,8 @@ export const processChunks = async (context) => {
       });
     }
     let usedWorkerTokenize = false;
-    if (effectiveTokenizeEnabled && runTokenize && !pretokenized) {
+    let inlineReason = initialInlineReason;
+    if (effectiveTokenizeEnabled && runTokenize && !pretokenized && !tokenPayload) {
       try {
         const tokenStart = Date.now();
         updateCrashStage('tokenize-worker', {
@@ -788,7 +796,7 @@ export const processChunks = async (context) => {
           parserMode,
           parserReasonCode: parserFallbackProfile.reasonCode
         });
-        tokenPayload = await runTokenize({
+        const workerInput = {
           text: tokenText,
           mode: chunkMode,
           ext: effectiveExt,
@@ -797,7 +805,8 @@ export const processChunks = async (context) => {
           size: fileStat.size,
           // chargramTokens is intentionally omitted (see note above).
           ...(workerDictOverride ? { dictConfig: workerDictOverride } : {})
-        });
+        };
+        tokenPayload = tokenBatchWindow ? await tokenBatchWindow.take(ci, workerInput) : await runTokenize(workerInput);
         updateCrashStage('tokenize-worker:done', {
           chunkIndex: ci,
           chunkMode,
@@ -814,6 +823,10 @@ export const processChunks = async (context) => {
           addSettingMetric('tokenize', chunkLanguageId, chunkLineCount, tokenDurationMs);
         }
       } catch (err) {
+        if (isQueueRecoveryUnsafe(err)) throw err;
+        throwIfAborted(signal);
+        if (isAbortError(err)) throw err;
+        inlineReason = 'caller-error';
         if (!workerState.workerTokenizeFailed) {
           const message = formatError(err);
           const detail = err?.stack || err?.cause || null;
@@ -847,6 +860,7 @@ export const processChunks = async (context) => {
       }
     }
     if (effectiveTokenizeEnabled && !tokenPayload) {
+      throwIfAborted(signal);
       const tokenStart = Date.now();
       updateCrashStage('tokenize', {
         chunkIndex: ci,
@@ -862,6 +876,7 @@ export const processChunks = async (context) => {
         context: fileTokenContext,
         languageId: chunkLanguageId,
         pretokenized,
+        nativeClassificationLeaves: c.nativeClassificationLeaves || null,
         // chargramTokens is intentionally omitted (see note above).
         buffers: tokenBuffers
       });
@@ -875,6 +890,7 @@ export const processChunks = async (context) => {
         tokenIds: [],
         seq: [],
         minhashSig: [],
+        minhashHashIdentity: MINHASH_HASH_IDENTITY,
         stats: {},
         identifierTokens: [],
         keywordTokens: [],
@@ -886,7 +902,7 @@ export const processChunks = async (context) => {
     const tokenClassificationEnabled = effectiveTokenizeEnabled
       && fileTokenContext?.tokenClassification?.enabled === true
       && chunkMode === 'code';
-    if (tokenClassificationEnabled && usedWorkerTokenize) {
+    if (tokenClassificationEnabled && (usedWorkerTokenize || reusedLexical) && !reusedLexical?.classificationReusable) {
       // Tokenization workers intentionally do not run tree-sitter classification to avoid
       // multiplying parser/grammar memory across --threads. Attach buckets here using the
       // main thread tree-sitter runtime (global caps).
@@ -915,7 +931,8 @@ export const processChunks = async (context) => {
           ext: effectiveExt,
           dictWords: dictWordsForChunk,
           dictConfig,
-          context: fileTokenContext
+          context: fileTokenContext,
+          nativeClassificationLeaves: c.nativeClassificationLeaves || null
         });
         updateCrashStage('token-classification:done', {
           chunkIndex: ci,
@@ -962,6 +979,7 @@ export const processChunks = async (context) => {
       tokenIds,
       seq,
       minhashSig,
+      minhashHashIdentity,
       stats,
       identifierTokens,
       keywordTokens,
@@ -969,6 +987,11 @@ export const processChunks = async (context) => {
       literalTokens
     } = tokenPayload;
 
+    recordTokenizationRoute(tokenizationStats?.routeObservations,
+      !effectiveTokenizeEnabled ? 'disabled' : usedWorkerTokenize ? workerBackend
+        : pretokenized || reusedLexical ? 'pretokenized' : 'inline',
+      !effectiveTokenizeEnabled ? 'disabled-config' : usedWorkerTokenize ? 'eligible'
+        : pretokenized || reusedLexical ? 'cached' : inlineReason);
     if (tokenizationStats && effectiveTokenizeEnabled) {
       tokenizationStats.chunks += 1;
       tokenizationStats.tokens += tokens.length;
@@ -1061,6 +1084,7 @@ export const processChunks = async (context) => {
       preContext,
       postContext,
       minhashSig,
+      minhashHashIdentity,
       commentFieldTokens,
       dictWords: dictWordsForChunk,
       dictConfig,
@@ -1074,7 +1098,10 @@ export const processChunks = async (context) => {
       analysisPolicy,
       weightMultiplier: boilerplateWeightMultiplier
     });
-    chunkPayload.phraseTokens = analyzeLiteralText(tokenText);
+    chunkPayload.phraseTokens = reusedLexical?.phraseTokens || analyzeLiteralText(tokenText, { caseSensitive: true });
+    chunkPayload.phraseTokensCasePreserved = true;
+    if (lexicalCheckpoint && effectiveTokenizeEnabled) lexicalCheckpoint.capture(ci, lexicalKey,
+      tokenPayload, chunkPayload.phraseTokens, lexicalBefore, fileTokenContext.tokenClassificationRuntime);
     chunkPayload.skipPhrasePostings = shouldSkipPhrasePostingsForChunk(
       chunkPayload,
       typeof relKey === 'string' ? relKey.toLowerCase() : null
@@ -1095,6 +1122,7 @@ export const processChunks = async (context) => {
     abortSignal: signal,
     embeddingEnabled,
     embeddingNormalize,
+    quantization: embeddingQuantization,
     getChunkEmbedding,
     getChunkEmbeddings,
     runEmbedding,
@@ -1165,5 +1193,6 @@ export const processChunks = async (context) => {
     });
   }
 
-  return { chunks, vfsManifestRows };
+  throwIfAborted(signal);
+  return { chunks, vfsManifestRows, lexicalCheckpoint: lexicalCheckpoint?.finish() || null };
 };

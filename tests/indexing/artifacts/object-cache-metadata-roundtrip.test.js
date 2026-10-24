@@ -4,10 +4,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
-import { ensureChunkCache, resolveChunkCacheKey, resolvePersistentChunkCacheRoot, storeCachedChunks, loadCachedChunks } from '../../../src/lang/tree-sitter/chunking/cache.js';
+import { ensureChunkCache, resolveChunkCacheKey, resolvePersistentChunkCacheRoot, resolvePersistentChunkCachePaths, storeCachedChunks, loadCachedChunks } from '../../../src/lang/tree-sitter/chunking/cache.js';
 import { treeSitterState } from '../../../src/lang/tree-sitter/state.js';
 import { loadImportResolutionCache, saveImportResolutionCache } from '../../../src/index/build/import-resolution-cache.js';
-import { loadLspRequestCache, persistLspRequestCache } from '../../../src/integrations/tooling/providers/lsp/hover-types/cache.js';
+import { buildLspRequestCacheKey, loadLspRequestCache, persistLspRequestCache } from '../../../src/integrations/tooling/providers/lsp/hover-types/cache.js';
 import { writePersistentCommandProbeCache, readPersistentCommandProbeCache } from '../../../src/index/tooling/command-probe-persistent-cache.js';
 import { writeWorkspaceCommandPreflightCacheMarker } from '../../../src/index/tooling/preflight/workspace-command-preflight-cache.js';
 import { classifyGeneratedArtifactCachePrefix, withoutGeneratedCacheMetadata } from '../../../src/shared/generated-artifact-cache.js';
@@ -32,8 +32,7 @@ try {
   const { cache, maxEntries } = ensureChunkCache(options);
   const chunks = [{ start: 0, end: 12, text: 'const x = 1;', meta: { signature: 'x' } }];
   storeCachedChunks({ cache, maxEntries, key, chunks, cacheRoot });
-  const safeKey = key.replace(/[^a-zA-Z0-9._-]/g, '_');
-  const chunkFile = path.join(cacheRoot, safeKey.slice(0, 2), `${safeKey}.json`);
+  const chunkFile = resolvePersistentChunkCachePaths(cacheRoot, key).canonical;
   const chunkPayload = await inspect(chunkFile, 'tree-sitter-chunks');
   for (const legacy of [false, true]) {
     if (legacy) await makeLegacy(chunkFile, chunkPayload);
@@ -54,13 +53,19 @@ try {
   assert.ok(!Object.hasOwn(markedImport.cache.files, '__poc_generated'));
 
   const lsp = await loadLspRequestCache(root);
-  lsp.entries.set('positive', { requestKind: 'hover', info: { signature: 'f()', returnType: 'number' }, at: Date.now() });
-  lsp.entries.set('negative', { requestKind: 'hover', negative: true, at: Date.now(), expiresAt: Date.now() + 60000 });
-  lsp.entries.set('expired', { requestKind: 'hover', negative: true, at: 1, expiresAt: 2 });
+  const requestKey = name => buildLspRequestCacheKey({ providerId: 'fixture', providerVersion: '1',
+    workspaceKey: root, generation: 'immutable-fixture-build', uri: `file:///${name}.ts`,
+    docHash: name, requestKind: 'hover', position: { line: 0, character: 0 } });
+  lsp.entries.set(requestKey('positive'), { requestKind: 'hover', info: { signature: 'f()', returnType: 'number' }, at: Date.now() });
+  lsp.entries.set(requestKey('negative'), { requestKind: 'hover', negative: true, at: Date.now(), expiresAt: Date.now() + 60000 });
+  lsp.entries.set(requestKey('expired'), { requestKind: 'hover', negative: true, at: 1, expiresAt: 2 });
+  lsp.entries.set('rq1|obsolete-authority', { requestKind: 'hover', info: { returnType: 'obsolete' }, at: Date.now() });
   await persistLspRequestCache({ cachePath: lsp.path, entries: lsp.entries, maxEntries: 1000 });
   const lspPayload = await inspect(lsp.path, 'lsp-requests');
   const markedLsp = await loadLspRequestCache(root);
-  assert.deepEqual([...markedLsp.entries.keys()].sort(), ['negative', 'positive']);
+  assert.deepEqual([...markedLsp.entries.keys()].sort(), [requestKey('negative'), requestKey('positive')].sort());
+  assert.equal(markedLsp.entries.get(requestKey('positive')).info.returnType, 'number');
+  assert.equal(markedLsp.entries.get(requestKey('negative')).negative, true);
   await makeLegacy(lsp.path, lspPayload);
   assert.deepEqual((await loadLspRequestCache(root)).entries, markedLsp.entries);
 

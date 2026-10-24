@@ -1,4 +1,9 @@
 import { createIndexCacheLease, assertIndexCacheLease } from '../../../index/build/cache-lease.js';
+import { sealCompletedStage } from '../../../index/build/completed-stage.js';
+import { observeStageProducer } from '../../../index/build/stage-provenance.js';
+import { prepareStageReuse, restoreReusableStage } from '../../../index/build/stage-reuse.js';
+import { stageIdentityHash } from '../../../index/build/stage-output.js';
+import { readBuildRecoveryGrant } from './recovery-context.js';
 import crypto from 'node:crypto';
 import { refreshRuntimeReceipt } from '../../../index/build/runtime/receipt.js';
 import { redactDiagnosticText } from '../../../shared/diagnostic-text.js';
@@ -8,7 +13,7 @@ import { attachSemanticEnrichmentRuntime } from '../../../index/semantic/enrichm
 import path from 'node:path';
 import { preprocessFiles, writePreprocessStats } from '../../../index/build/preprocess.js';
 import { buildIndexForMode } from '../../../index/build/indexer.js';
-import { SIGNATURE_VERSION } from '../../../index/build/indexer/signatures.js';
+import { SIGNATURE_VERSION, buildDependencySignatures } from '../../../index/build/indexer/signatures.js';
 import { createBuildRuntime } from '../../../index/build/runtime.js';
 import {
   flushBuildState,
@@ -41,13 +46,13 @@ import { buildSqliteIndex } from './sqlite.js';
 import { computeCompatibilityKey } from './compatibility.js';
 import { createOverallProgress } from './progress.js';
 import { teardownRuntime } from './runtime.js';
-import { combineCacheWriterErrors, releaseCacheWriterOwnership } from '../../../index/build/cache-writer-drain.js';
+import { combineCacheWriterErrors, releaseCacheWriterOwnership, drainCacheWriters } from '../../../index/build/cache-writer-drain.js';
 import { createCloseoutRegistry } from './closeout-registry.js';
 import { updateEnrichmentState } from '../enrichment-state.js';
 import { runEmbeddingsTool } from '../embeddings.js';
 import { PRIMARY_INDEX_MODES, areAllPrimaryModesRequested, filterPrimaryIndexModes } from './stages/modes.js';
 import { markFailedPhases, parseNonNegativeInt, toPhaseFailureDetail } from './stages/phase-failures.js';
-import { createSqliteDirResolver, resolveSqliteModeList } from './stages/sqlite-paths.js';
+import { createSqliteDirResolver, resolveSqliteModeList, resolveSqliteModePlan } from './stages/sqlite-paths.js';
 
 const DEFAULT_BUILD_INDEX_LOCK_WAIT_MS = 15000;
 const DEFAULT_BUILD_INDEX_LOCK_POLL_MS = 250;
@@ -80,11 +85,6 @@ const acquireIndexLock = async (options) => {
   return lockModule.acquireIndexLock(options);
 };
 
-const attachIndexLockSignalCleanup = (lock, options) => {
-  if (!buildLockModule) return () => {};
-  return buildLockModule.attachIndexLockSignalCleanup(lock, options);
-};
-
 /**
  * Acquire the build/index global lock using environment-configured wait/poll.
  *
@@ -94,10 +94,12 @@ const attachIndexLockSignalCleanup = (lock, options) => {
  * @param {{repoCacheRoot:string,log:(line:string)=>void,metadata?:object|null}} input
  * @returns {Promise<{release:()=>Promise<void>}>}
  */
-const acquireBuildIndexLock = async ({ repoCacheRoot, log, metadata = null, signal = null }) => {
+const acquireBuildIndexLock = async ({ repoCacheRoot, storageContext, log, metadata = null, signal = null, requireSettlement = false }) => {
   const lock = await acquireIndexLock({
     repoCacheRoot,
+    storageContext,
     signal,
+    requireSettlement,
     waitMs: BUILD_INDEX_LOCK_WAIT_MS,
     pollMs: BUILD_INDEX_LOCK_POLL_MS,
     metadata: {
@@ -122,6 +124,9 @@ const createBuildRootResolutionError = (message, failureClass, context = null) =
   }
   return error;
 };
+
+const postCommitFailure = (buildId, cause) => Object.assign(new Error('Generation published; build closeout failed.', { cause }),
+  { code: 'ERR_BUILD_POST_COMMIT', publication: { status: 'published', buildId } });
 
 /**
  * Execute embeddings stage (inline or queued service mode) for requested modes.
@@ -177,9 +182,10 @@ export const runEmbeddingsStage = async ({
   const effectiveAbortSignal = coerceAbortSignal(abortSignal);
   const started = process.hrtime.bigint();
   const fileProgressPattern = /^\[embeddings\]\s+([^:]+):\s+processed\s+(\d+)\/(\d+)\s+files\b/;
+  const modeGenerations = [];
   const recordOk = (result) => {
     recordIndexMetric('stage3', 'ok', started);
-    return result;
+    return { ...result, modeGenerations };
   };
   try {
     throwIfAborted(effectiveAbortSignal);
@@ -203,14 +209,18 @@ export const runEmbeddingsStage = async ({
         || buildInfo?.buildRoot
         || null;
       modeIndexRootCache.set(mode, resolved);
+      if (resolved) modeGenerations.push({ mode, buildRoot: resolved,
+        buildId: buildId || (buildInfo?.buildRoot === resolved ? buildInfo?.buildId : null) || null,
+        attemptId: null, receiptPath: path.join(resolved, 'build_state.json') });
       return resolved;
     };
     const borrowed = Boolean(cacheWriterLease);
     const lock = borrowed ? assertIndexCacheLease(cacheWriterLease, repoCacheRoot)
       : await acquireBuildIndexLock({ repoCacheRoot, log, signal: effectiveAbortSignal,
-        metadata: { operation: 'stage3-embeddings' } });
-    // Graceful abort drains the child before ownership ends; process-exit cleanup
-    // remains the lock owner's fallback, never an early signal unlink.
+        storageContext: { repoRoot: root, userConfig },
+        requireSettlement: true, metadata: { operation: 'stage3-embeddings' } });
+    // Graceful abort drains the child before ownership ends. An unknown resource
+    // survives parent exit; only the drained owner may explicitly release it.
     const detachSignalCleanup = () => {};
     let embeddingError = null;
     try {
@@ -237,6 +247,7 @@ export const runEmbeddingsStage = async ({
           : path.join(getCacheRoot(), 'service', 'queue');
         await ensureQueueDir(queueDir);
         const jobs = [];
+        const rejectedModes = [];
         for (const modeItem of embedModes) {
           throwIfAborted(effectiveAbortSignal);
           const modeIndexRoot = resolveModeIndexRoot(modeItem);
@@ -265,6 +276,7 @@ export const runEmbeddingsStage = async ({
             'embeddings'
           );
           if (!result.ok) {
+            rejectedModes.push({ mode: modeItem, reason: result.reason || result.code || 'queue-unavailable' });
             log(`[embeddings] Queue full or unavailable; skipped enqueue (${modeItem}).`);
             advanceEmbeddingsProgress(modeItem);
             continue;
@@ -280,6 +292,10 @@ export const runEmbeddingsStage = async ({
             queued: queuedAny,
             inline: false,
             skipped: !queuedAny,
+            notAdmitted: rejectedModes.length > 0,
+            requestedModeCount: embedModes.length,
+            admittedModeCount: jobs.length,
+            rejectedModes,
             jobs
           },
           repo: root,
@@ -293,11 +309,29 @@ export const runEmbeddingsStage = async ({
         if (indexRootArg) {
           args.push('--index-root', indexRootArg);
         }
-        args.push(...buildEmbeddingLaunchArgs(embeddingPlan.options), '--progress', 'off');
+        // The parent owns structured framing. Preserve the child's complete
+        // diagnostic text before that framing instead of borrowing human width.
+        args.push(...buildEmbeddingLaunchArgs(embeddingPlan.options), '--progress', 'jsonl');
         const embedResult = await runEmbeddingsTool(args, {
           baseEnv: attachEmbeddingExecutionPlan(runtimeEnv, embeddingPlan, launchObservability),
           signal: effectiveAbortSignal,
-          onLine: (line) => {
+          onLine: (line, metadata = {}) => {
+            const event = metadata.event;
+            if (event?.event === 'log') {
+              logLine(event.message, { ...event.meta, kind: 'diagnostic', ...metadata });
+              return;
+            }
+            if (event?.event?.startsWith('task:')) {
+              showProgress(event.name || 'Files', event.current, event.total, {
+                stage: 'embeddings', mode: event.mode, taskId: `embeddings:child:${event.taskId}`,
+                ephemeral: true, status: event.status, message: event.message
+              });
+              return;
+            }
+            if (metadata.truncated || metadata.stream === 'stderr') {
+              logLine(line, { kind: 'diagnostic', ...metadata });
+              return;
+            }
             if (line.includes('lance::dataset::write::insert')
               || line.includes('No existing dataset at')) {
               return;
@@ -347,7 +381,8 @@ export const runEmbeddingsStage = async ({
           inline: true,
           cancelled: true,
           code: embedResult.code ?? null,
-          signal: embedResult.signal ?? null
+          signal: embedResult.signal ?? null,
+          diagnosticEvidence: embedResult.diagnosticEvidence || null
         },
         repo: root,
         stage: 'stage3'
@@ -474,6 +509,9 @@ export const runSqliteStage = async ({
     return result;
   };
   let runtime = null;
+  let stage4Lock = null;
+  let stage4OperationError = null;
+  let stage4Committed = false;
   try {
     throwIfAborted(effectiveAbortSignal);
     if (!shouldBuildSqlite) {
@@ -520,18 +558,28 @@ export const runSqliteStage = async ({
       )
       : fn());
     const resolveSqliteDirs = createSqliteDirResolver({ root, userConfig, getIndexDir });
-    let lock = null;
-    let detachLockSignalCleanup = null;
     let stage4Running = false;
     let stage4Done = false;
+    let validationRunning = false;
+    let validationDone = false;
     let promoteRunning = false;
     let promoteDone = false;
     try {
+      // SQLite mutates retained generation bytes too. Own the writer lease for
+      // materialization, validation/publication and the entire runtime drain.
+      const recovery = readBuildRecoveryGrant(options?.buildRecoveryGrant, root);
+      if (recovery && stageIdentityHash(runtime.userConfig) !== recovery.plan.configIdentity) throw Object.assign(
+        new Error('Recovery configuration changed during Stage4 admission.'), { code: 'ERR_RECOVERY_PLAN_STALE' });
+      stage4Lock = recovery ? null : await acquireBuildIndexLock({ repoCacheRoot: runtime.repoCacheRoot, log,
+        storageContext: { repoRoot: runtime.root, userConfig: runtime.userConfig },
+        signal: effectiveAbortSignal, requireSettlement: true,
+        metadata: { operation: 'stage4-cache-writer' } });
+      runtime.cacheWriterLease = recovery?.lease || createIndexCacheLease(stage4Lock, runtime.repoCacheRoot);
+      runtime.effectiveSqliteEnabled = true;
       await markBuildPhase(runtime.buildRoot, 'stage4', 'running');
       stage4Running = true;
       let sqliteResult = null;
-      const sqliteModeList = resolveSqliteModeList(sqliteModes);
-      for (const mode of sqliteModeList) {
+      const modeRoots = sqliteModes.map(mode => {
         throwIfAborted(effectiveAbortSignal);
         const indexRootResolution = resolveCurrentBuildModeRoot(root, userConfig, {
           mode,
@@ -548,9 +596,13 @@ export const runSqliteStage = async ({
             indexRootResolution.context
           );
         }
-        const indexRoot = indexRootResolution.root;
+        return { mode, indexRoot: indexRootResolution.root };
+      });
+      for (const { mode, indexRoot } of resolveSqliteModePlan(modeRoots)) {
+        throwIfAborted(effectiveAbortSignal);
         const sqliteDirs = resolveSqliteDirs(indexRoot);
         sqliteResult = await scheduleSqlite(() => buildSqliteIndex(root, {
+          abortSignal: effectiveAbortSignal,
           mode,
           incremental: argv.incremental === true,
           batchSize: argv['sqlite-batch-size'],
@@ -569,16 +621,19 @@ export const runSqliteStage = async ({
       await markBuildPhase(runtime.buildRoot, 'stage4', 'done');
       stage4Done = true;
       await updateBuildState(runtime.buildRoot, { stage: 'stage4' });
-      const shouldPromote = !(explicitIndexRoot && argv.stage === 'stage4');
+      const shouldPromote = !recovery && !(explicitIndexRoot && argv.stage === 'stage4');
       if (shouldPromote) {
-        lock = await acquireBuildIndexLock({
-          repoCacheRoot: runtime.repoCacheRoot,
-          log,
-          metadata: {
-            operation: 'stage4-promote'
-          }
-        });
-        detachLockSignalCleanup = attachIndexLockSignalCleanup(lock);
+        assertIndexCacheLease(runtime.cacheWriterLease, runtime.repoCacheRoot);
+        await markBuildPhase(runtime.buildRoot, 'validation', 'running');
+        validationRunning = true;
+        for (const { mode, indexRoot } of modeRoots) {
+          const validation = await validateIndexArtifacts({ root, userConfig: runtime.userConfig,
+            indexRoot, modes: [mode], sqliteEnabled: true, abortSignal: effectiveAbortSignal });
+          if (!validation.ok) throw Object.assign(new Error('Stage4 validation failed; current pointer preserved.'),
+            { code: 'ERR_STAGE4_VALIDATION', validation });
+        }
+        await markBuildPhase(runtime.buildRoot, 'validation', 'done');
+        validationDone = true;
         await markBuildPhase(runtime.buildRoot, 'promote', 'running');
         promoteRunning = true;
         await refreshRuntimeReceipt(runtime);
@@ -589,20 +644,24 @@ export const runSqliteStage = async ({
           buildRoot: runtime.buildRoot,
           stage: 'stage4',
           modes: sqliteModes,
+          modeBuildRoots: Object.fromEntries(modeRoots.map(({ mode, indexRoot }) => [mode, indexRoot])),
           configHash: runtime.configHash,
           repoProvenance: runtime.repoProvenance,
-          compatibilityKey: runtime.compatibilityKey || null
+          compatibilityKey: runtime.compatibilityKey || null,
+          abortSignal: effectiveAbortSignal
         });
-        await markBuildPhase(runtime.buildRoot, 'promote', 'done');
         promoteDone = true;
+        stage4Committed = true;
+        await markBuildPhase(runtime.buildRoot, 'promote', 'done');
       } else {
         await markBuildPhase(
           runtime.buildRoot,
           'promote',
           'done',
-          'skipped promotion for explicit stage4 --index-root'
+          recovery ? 'publication deferred to reviewed recovery transaction' : 'skipped promotion for explicit stage4 --index-root'
         );
-        log('[build] stage4 ran against explicit --index-root; skipping current.json promotion.');
+        log(recovery ? '[build] stage4 publication deferred to reviewed recovery transaction.'
+          : '[build] stage4 ran against explicit --index-root; skipping current.json promotion.');
       }
       if (includeSqlite && overallProgressRef?.current?.advance) {
         for (const modeItem of sqliteModes) {
@@ -610,8 +669,13 @@ export const runSqliteStage = async ({
         }
       }
       await refreshRuntimeReceipt(runtime, { lifecycle: 'succeeded' });
-      return recordOk({ modes: sqliteModes, sqlite: sqliteResult, repo: root, stage: 'stage4', buildId: runtime.buildId, runtimeAttemptId: runtime.runtimeAttempt?.attemptId });
+      return recordOk({ modes: sqliteModes, sqlite: sqliteResult, repo: root, stage: 'stage4', buildId: runtime.buildId,
+        buildRoot: runtime.buildRoot, runtimeAttemptId: runtime.runtimeAttempt?.attemptId,
+        validation: { status: validationDone ? 'passed' : 'not-run' },
+        publication: { status: promoteDone ? 'published' : 'retained', modeBuildRoots: Object.fromEntries(modeRoots.map(({ mode, indexRoot }) => [mode, indexRoot])) } });
     } catch (err) {
+      if (promoteDone || err?.publication?.status === 'published') throw Object.assign(new Error('Generation published; Stage4 bookkeeping failed.', { cause: err }),
+        { code: 'ERR_BUILD_POST_COMMIT', publication: { status: 'published', buildId: runtime.buildId } });
       const phaseFailureDetail = toPhaseFailureDetail(err);
       await markFailedPhases({
         buildRoot: runtime?.buildRoot,
@@ -619,23 +683,22 @@ export const runSqliteStage = async ({
         phaseFailureDetail,
         phases: [
           { name: 'promote', running: promoteRunning, done: promoteDone },
+          { name: 'validation', running: validationRunning, done: validationDone },
           { name: 'stage4', running: stage4Running, done: stage4Done }
         ]
       });
       throw err;
-    } finally {
-      detachLockSignalCleanup?.();
-      if (lock?.release) {
-        await runBuildCleanupWithTimeout({
-          label: 'stage4.lock.release',
-          cleanup: () => lock.release(),
-          log,
-          swallowTimeout: false
-        });
-      }
     }
   } catch (err) {
-    await refreshRuntimeReceipt(runtime, { lifecycle: isAbortError(err) ? 'aborted' : 'failed', error: { code: String(err?.code || 'UNKNOWN'), message: redactDiagnosticText(err?.message || err) } });
+    stage4Committed ||= err?.publication?.status === 'published';
+    stage4OperationError = err;
+    try {
+      await refreshRuntimeReceipt(runtime, { lifecycle: isAbortError(err) ? 'aborted' : 'failed', error: { code: String(err?.code || 'UNKNOWN'), message: redactDiagnosticText(err?.message || err) } });
+    } catch (recordingError) {
+      stage4OperationError = combineCacheWriterErrors(err, recordingError);
+      if (err?.publication) stage4OperationError.publication = err.publication;
+      throw stage4OperationError;
+    }
     if (isAbortError(err)) {
       recordIndexMetric('stage4', 'aborted', started);
       throw err;
@@ -644,7 +707,25 @@ export const runSqliteStage = async ({
     throw err;
   } finally {
     if (runtime) {
-      await teardownRuntime(runtime);
+      try { await teardownRuntime(runtime); }
+      catch (cleanupError) {
+        const original = combineCacheWriterErrors(stage4OperationError, cleanupError);
+        const failure = stage4Committed ? combineCacheWriterErrors(postCommitFailure(runtime.buildId, original), original) : original;
+        if (stage4Committed) failure.publication = { status: 'published', buildId: runtime.buildId };
+        throw failure;
+      }
+    }
+    if (stage4Lock) {
+      try {
+        await releaseCacheWriterOwnership({ lease: runtime?.cacheWriterLease,
+          release: () => stage4Lock.release(), operationError: stage4OperationError });
+      } catch (releaseError) {
+        if (!stage4Committed) throw releaseError;
+        const original = combineCacheWriterErrors(stage4OperationError, releaseError);
+        const failure = combineCacheWriterErrors(postCommitFailure(runtime.buildId, original), original);
+        failure.publication = { status: 'published', buildId: runtime.buildId };
+        throw failure;
+      }
     }
   }
 };
@@ -678,7 +759,7 @@ export const runSqliteStage = async ({
 export const runStage = async (
   stage,
   context,
-  { allowSqlite = true, onStage2ModeCompleted = null } = {}
+  { allowSqlite = true, onStage2ModeCompleted = null, deferPublication = false } = {}
 ) => {
   const {
     root,
@@ -702,6 +783,8 @@ export const runStage = async (
   let phaseStage = stage || 'stage2';
   let runtime = null;
   let result = null;
+  const recovery = readBuildRecoveryGrant(options?.buildRecoveryGrant, root);
+  deferPublication ||= Boolean(recovery);
   try {
     throwIfAborted(effectiveAbortSignal);
     runtime = await createBuildRuntime({
@@ -709,370 +792,452 @@ export const runStage = async (
       argv: stageArgv,
       rawArgv,
       policy,
+      indexRoot: recovery?.buildRoot || null,
       observability: context?.observability || null
     });
-    await attachSemanticEnrichmentRuntime(runtime, options.semanticEnrichmentDrain);
-    phaseStage = runtime.stage || phaseStage;
-    runtime.featureMetrics = createFeatureMetrics({
-      buildId: runtime.buildId,
-      configHash: runtime.configHash,
-      stage: phaseStage,
-      repoRoot: runtime.root,
-      toolVersion: getToolVersion()
-    });
-    if (overallProgressOptions) {
-      if (!overallProgressRef.current) {
-        overallProgressRef.current = createOverallProgress({
-          modes,
-          buildId: runtime.buildId,
-          ...overallProgressOptions
-        });
-      }
-      runtime.overallProgress = overallProgressRef.current;
-    } else {
-      runtime.overallProgress = null;
-    }
-    let lock = null;
-    let writersDrained = false;
-    let operationError = null;
-    let detachLockSignalCleanup = null;
-    let sqliteResult = null;
-    let phaseRunning = false;
-    let phaseDone = false;
-    let phaseCancelled = false;
-    let phaseCancelledMode = null;
-    let validationRunning = false;
-    let validationDone = false;
-    let promoteRunning = false;
-    let promoteDone = false;
-    const stopHeartbeat = (phaseStage === 'stage2' || phaseStage === 'stage3')
-      ? startBuildHeartbeat(runtime.buildRoot, phaseStage)
-      : () => {};
-    try {
-      throwIfAborted(effectiveAbortSignal);
-      lock = await acquireBuildIndexLock({ repoCacheRoot: runtime.repoCacheRoot, log,
-        signal: effectiveAbortSignal, metadata: { operation: `${phaseStage}-cache-writer` } });
-      runtime.cacheWriterLease = createIndexCacheLease(lock, runtime.repoCacheRoot);
-
-      await updateBuildState(runtime.buildRoot, {
+    await runtime.loggerScope.run(async () => {
+      await attachSemanticEnrichmentRuntime(runtime, options.semanticEnrichmentDrain);
+      phaseStage = runtime.stage || phaseStage;
+      runtime.featureMetrics = createFeatureMetrics({
         buildId: runtime.buildId,
-        repoRoot: runtime.root,
-        modes,
-        stage: phaseStage,
         configHash: runtime.configHash,
-        tool: { version: getToolVersion(), node: process.version },
-        repo: runtime.repoProvenance,
-        signatureVersion: SIGNATURE_VERSION,
-        profile: runtime.profile || null
+        stage: phaseStage,
+        repoRoot: runtime.root,
+        toolVersion: getToolVersion()
       });
-      if (runtime?.ignoreFiles?.length || runtime?.ignoreWarnings?.length) {
+      if (overallProgressOptions) {
+        if (!overallProgressRef.current) {
+          overallProgressRef.current = createOverallProgress({
+            modes,
+            buildId: runtime.buildId,
+            ...overallProgressOptions
+          });
+        }
+        runtime.overallProgress = overallProgressRef.current;
+      } else {
+        runtime.overallProgress = null;
+      }
+      let lock = null;
+      let writersDrained = false;
+      let operationError = null;
+      let detachLockSignalCleanup = null;
+      let sqliteResult = null;
+      let phaseRunning = false;
+      let phaseDone = false;
+      let phaseCancelled = false;
+      let phaseCancelledMode = null;
+      let validationRunning = false;
+      let validationDone = false;
+      let promoteRunning = false;
+      let promoteDone = false;
+      const stopHeartbeat = (phaseStage === 'stage2' || phaseStage === 'stage3')
+        ? startBuildHeartbeat(runtime.buildRoot, phaseStage)
+        : () => {};
+      try {
+        throwIfAborted(effectiveAbortSignal);
+        lock = recovery ? null : await acquireBuildIndexLock({ repoCacheRoot: runtime.repoCacheRoot, log,
+          storageContext: { repoRoot: runtime.root, userConfig: runtime.userConfig },
+          signal: effectiveAbortSignal, requireSettlement: true, metadata: { operation: `${phaseStage}-cache-writer` } });
+        runtime.cacheWriterLease = recovery?.lease || createIndexCacheLease(lock, runtime.repoCacheRoot);
+        assertIndexCacheLease(runtime.cacheWriterLease, runtime.repoCacheRoot);
+        if (recovery && stageIdentityHash(runtime.userConfig) !== recovery.plan.configIdentity) throw Object.assign(
+          new Error('Recovery configuration changed during Stage2 admission.'), { code: 'ERR_RECOVERY_PLAN_STALE' });
+        runtime.stageProducer = await observeStageProducer(effectiveAbortSignal);
+        runtime.recoveryPlanId = recovery?.plan.planId || null;
+        runtime.reuseDecision = context.reuseDecision || null;
+        runtime.requestedStage = explicitStage || null;
+        runtime.requestedModes = [...modes];
+        if (recovery?.clean) runtime.incrementalEnabled = false;
+
         await updateBuildState(runtime.buildRoot, {
-          ignore: {
-            files: runtime.ignoreFiles || [],
-            warnings: runtime.ignoreWarnings?.length ? runtime.ignoreWarnings : null
-          }
+          buildId: runtime.buildId,
+          repoRoot: runtime.root,
+          modes,
+          stage: phaseStage,
+          configHash: runtime.configHash,
+          tool: { version: getToolVersion(), node: process.version },
+          repo: runtime.repoProvenance,
+          signatureVersion: SIGNATURE_VERSION,
+          profile: runtime.profile || null
         });
-      }
-      await markBuildPhase(runtime.buildRoot, 'discovery', 'running');
-      let sharedDiscovery = null;
-      const preprocessModes = filterPrimaryIndexModes(modes);
-      if (preprocessModes.length) {
-        await markBuildPhase(runtime.buildRoot, 'preprocessing', 'running');
-        throwIfAborted(effectiveAbortSignal);
-        const preprocess = await preprocessFiles({
-          root: runtime.root,
-          modes: preprocessModes,
-          documentExtractionConfig: runtime.indexingConfig?.documentExtraction || null,
-          semanticPolicy: runtime.semanticPolicy,
-          recordsDir: runtime.recordsDir,
-          recordsConfig: runtime.recordsConfig,
-          scmProvider: runtime.scmProvider,
-          scmProviderImpl: runtime.scmProviderImpl,
-          scmRepoRoot: runtime.scmRepoRoot,
-          ignoreMatcher: runtime.ignoreMatcher,
-          generatedPolicy: runtime.generatedPolicy,
-          maxFileBytes: runtime.maxFileBytes,
-          fileCaps: runtime.fileCaps,
-          maxDepth: runtime.guardrails?.maxDepth ?? null,
-          maxFiles: runtime.guardrails?.maxFiles ?? null,
-          fileScan: runtime.fileScan,
-          lineCounts: true,
-          concurrency: runtime.ioConcurrency,
-          log,
-          abortSignal: effectiveAbortSignal
-        });
-        throwIfAborted(effectiveAbortSignal);
-        await writePreprocessStats(runtime.repoCacheRoot, preprocess.stats);
-        await markBuildPhase(runtime.buildRoot, 'preprocessing', 'done');
-        sharedDiscovery = {};
-        for (const modeItem of preprocessModes) {
-          sharedDiscovery[modeItem] = {
-            entries: preprocess.entriesByMode[modeItem] || [],
-            skippedFiles: preprocess.skippedByMode[modeItem] || [],
-            lineCounts: preprocess.lineCountsByMode[modeItem] || new Map()
-          };
+        if (runtime?.ignoreFiles?.length || runtime?.ignoreWarnings?.length) {
+          await updateBuildState(runtime.buildRoot, {
+            ignore: {
+              files: runtime.ignoreFiles || [],
+              warnings: runtime.ignoreWarnings?.length ? runtime.ignoreWarnings : null
+            }
+          });
         }
-      }
-      computeCompatibilityKey({ runtime, modes, sharedDiscovery });
-      await markBuildPhase(runtime.buildRoot, 'discovery', 'done');
-      await markBuildPhase(runtime.buildRoot, phaseStage, 'running');
-      phaseRunning = true;
-      const executionPlan = phaseStage === 'stage2'
-        ? buildStage2ExecutionPlan(modes)
-        : modes.map((modeItem) => ({
-          id: modeItem,
-          modes: [modeItem],
-          fusedProsePair: false
-        }));
-      executionPlanLoop:
-      for (const group of executionPlan) {
-        runtime.activeModeGroup = group;
-        if (group.fusedProsePair) {
-          log('[stage2] fused prose/extracted-prose mode group active.');
-        }
-        for (const modeItem of group.modes) {
+        await markBuildPhase(runtime.buildRoot, 'discovery', 'running');
+        let sharedDiscovery = null;
+        const preprocessModes = filterPrimaryIndexModes(modes);
+        if (preprocessModes.length) {
+          await markBuildPhase(runtime.buildRoot, 'preprocessing', 'running');
           throwIfAborted(effectiveAbortSignal);
-          const discovery = sharedDiscovery ? sharedDiscovery[modeItem] : null;
-          await buildIndexForMode({
-            mode: modeItem,
-            runtime,
-            discovery,
+          const preprocess = await preprocessFiles({
+            root: runtime.root,
+            modes: preprocessModes,
+            documentExtractionConfig: runtime.indexingConfig?.documentExtraction || null,
+            semanticPolicy: runtime.semanticPolicy,
+            recordsDir: runtime.recordsDir,
+            recordsConfig: runtime.recordsConfig,
+            scmProvider: runtime.scmProvider,
+            scmProviderImpl: runtime.scmProviderImpl,
+            scmRepoRoot: runtime.scmRepoRoot,
+            ignoreMatcher: runtime.ignoreMatcher,
+            generatedPolicy: runtime.generatedPolicy,
+            maxFileBytes: runtime.maxFileBytes,
+            fileCaps: runtime.fileCaps,
+            maxDepth: runtime.guardrails?.maxDepth ?? null,
+            maxFiles: runtime.guardrails?.maxFiles ?? null,
+            fileScan: runtime.fileScan,
+            lineCounts: true,
+            snapshotCache: { repoCacheRoot: runtime.repoCacheRoot, lease: runtime.cacheWriterLease, buildId: runtime.buildId },
+            concurrency: runtime.ioConcurrency,
+            log,
             abortSignal: effectiveAbortSignal
           });
-          if (phaseStage === 'stage2' && typeof onStage2ModeCompleted === 'function') {
-            const callbackResult = await Promise.resolve(onStage2ModeCompleted({
+          throwIfAborted(effectiveAbortSignal);
+          await writePreprocessStats(runtime.repoCacheRoot, preprocess.stats);
+          runtime.buildSourceSnapshot = preprocess.stats?.retrySnapshot?.sourceSnapshot || null;
+          runtime.preprocessedSources = preprocess.sourceHashesByPath;
+          runtime.sourceSelection = { modes: {},
+            changedSourceFiles: preprocess.stats?.retrySnapshot?.contentChanges ?? null,
+            addedCandidates: preprocess.stats?.retrySnapshot?.membersAdded ?? null,
+            removedCandidates: preprocess.stats?.retrySnapshot?.membersRemoved ?? null,
+            discovery: Object.fromEntries(['source', 'candidateEnumerationComplete', 'coverageScope', 'candidates',
+              'directoryErrors', 'statFailures', 'maxFilesReached', 'maxDepthReached'].map(key => [key, preprocess.stats?.discovery?.[key] ?? null])) };
+          await markBuildPhase(runtime.buildRoot, 'preprocessing', 'done');
+          sharedDiscovery = {};
+          for (const modeItem of preprocessModes) {
+            const entries = preprocess.entriesByMode[modeItem] || [];
+            const extensions = new Map();
+            for (const entry of entries) extensions.set(entry.ext || 'unknown', (extensions.get(entry.ext || 'unknown') || 0) + 1);
+            runtime.sourceSelection.modes[modeItem] = { selectedFiles: entries.length,
+              selectedBytes: entries.every(entry => Number.isSafeInteger(entry.stat?.size))
+                ? entries.reduce((sum, entry) => sum + entry.stat.size, 0) : null,
+              extensionMix: Object.fromEntries([...extensions].sort(([left], [right]) => left.localeCompare(right)).slice(0, 16)),
+              extensionMixTruncated: extensions.size > 16, skipped: preprocess.stats.modes[modeItem]?.skipped || null,
+              languageMix: null, languageMixReason: 'adapter-selection-is-actual-processing-evidence' };
+            sharedDiscovery[modeItem] = {
+              entries: preprocess.entriesByMode[modeItem] || [],
+              skippedFiles: preprocess.skippedByMode[modeItem] || [],
+              lineCounts: preprocess.lineCountsByMode[modeItem] || new Map()
+            };
+          }
+        }
+        computeCompatibilityKey({ runtime, modes, sharedDiscovery });
+        const stageReuse = recovery && recovery.kind !== 'new-generation'
+          ? await prepareStageReuse({ runtime, modes, plan: recovery.plan, signal: effectiveAbortSignal }) : new Map();
+        await markBuildPhase(runtime.buildRoot, 'discovery', 'done');
+        await markBuildPhase(runtime.buildRoot, phaseStage, 'running');
+        phaseRunning = true;
+        const executionPlan = phaseStage === 'stage2'
+          ? buildStage2ExecutionPlan(modes)
+          : modes.map((modeItem) => ({
+            id: modeItem,
+            modes: [modeItem],
+            fusedProsePair: false
+          }));
+        executionPlanLoop:
+        for (const group of executionPlan) {
+          runtime.activeModeGroup = group;
+          if (group.fusedProsePair) {
+            log('[stage2] fused prose/extracted-prose mode group active.');
+          }
+          for (const modeItem of group.modes) {
+            throwIfAborted(effectiveAbortSignal);
+            const discovery = sharedDiscovery ? sharedDiscovery[modeItem] : null;
+            const reusable = stageReuse.get(modeItem);
+            if (reusable) {
+              runtime.completedStageWork ||= {};
+              runtime.completedStageWork[modeItem] = { ...await restoreReusableStage({ runtime, mode: modeItem,
+                reuse: reusable, signal: effectiveAbortSignal }), selectedFiles: discovery?.entries?.length ?? null };
+              await refreshRuntimeReceipt(runtime);
+            } else await buildIndexForMode({
               mode: modeItem,
               runtime,
-              discovery
-            }));
-            if (callbackResult?.cancelled === true) {
-              phaseCancelled = true;
-              phaseCancelledMode = modeItem;
-              break executionPlanLoop;
+              discovery,
+              abortSignal: effectiveAbortSignal
+            });
+            if (phaseStage === 'stage2' && !reusable) {
+              await drainCacheWriters(runtime, { log });
+              const completion = await sealCompletedStage({ runtime, mode: modeItem,
+                sourceSnapshot: runtime.buildSourceSnapshot || null,
+                dependencySignatures: buildDependencySignatures(runtime, modeItem, runtime.tokenizationKeys?.[modeItem]),
+                signal: effectiveAbortSignal });
+              runtime.completedStageWork ||= {};
+              runtime.completedStageWork[modeItem] = { status: 'sealed', selectedFiles: discovery?.entries?.length ?? null,
+                processedFiles: null,
+                artifactBytes: completion.output.bytes, artifactPieces: completion.output.pieces };
+              await refreshRuntimeReceipt(runtime);
+            }
+            if (phaseStage === 'stage2' && typeof onStage2ModeCompleted === 'function') {
+              const callbackResult = await Promise.resolve(onStage2ModeCompleted({
+                mode: modeItem,
+                runtime,
+                discovery
+              }));
+              if (callbackResult?.cancelled === true) {
+                phaseCancelled = true;
+                phaseCancelledMode = modeItem;
+                break executionPlanLoop;
+              }
             }
           }
         }
-      }
-      runtime.activeModeGroup = null;
-      if (runtime.featureMetrics) {
-        await writeFeatureMetrics({
-          metricsDir: getMetricsDir(runtime.root, runtime.userConfig),
-          featureMetrics: runtime.featureMetrics
-        });
-      }
-      if (phaseCancelled) {
+        runtime.activeModeGroup = null;
+        if (runtime.featureMetrics) {
+          await writeFeatureMetrics({
+            metricsDir: getMetricsDir(runtime.root, runtime.userConfig),
+            featureMetrics: runtime.featureMetrics
+          });
+        }
+        if (phaseCancelled) {
         /**
          * Stage2 cancellation is terminal for this run. We intentionally skip
          * validation/promote to avoid publishing a partial build root.
          */
-        await markBuildPhase(
-          runtime.buildRoot,
-          phaseStage,
-          'done',
-          `cancelled after mode ${phaseCancelledMode || 'unknown'}; validation/promote skipped`
-        );
+          await markBuildPhase(
+            runtime.buildRoot,
+            phaseStage,
+            'failed',
+            { cancelled: true, mode: phaseCancelledMode || null, reason: 'validation/promote skipped' }
+          );
+          phaseDone = true;
+          await refreshRuntimeReceipt(runtime, { lifecycle: 'aborted', error: { code: 'ERR_STAGE_CANCELLED', message: 'Stage cancelled before validation/publication.' } });
+          result = {
+            modes,
+            sqlite: null,
+            repo: runtime.root,
+            stage,
+            buildRoot: runtime.buildRoot,
+            buildId: runtime.buildId,
+            runtimeAttemptId: runtime.runtimeAttempt?.attemptId,
+            repoCacheRoot: runtime.repoCacheRoot,
+            profile: runtime.profile || null,
+            cancelled: true,
+            cancelledMode: phaseCancelledMode || null
+          };
+          return;
+        }
+        await markBuildPhase(runtime.buildRoot, phaseStage, 'done');
         phaseDone = true;
-        await refreshRuntimeReceipt(runtime, { lifecycle: 'aborted', error: { code: 'ERR_STAGE_CANCELLED', message: 'Stage cancelled before validation/publication.' } });
+        const sqliteConfigured = runtime.userConfig?.sqlite?.use !== false;
+        const sqliteModes = filterPrimaryIndexModes(modes);
+        const shouldBuildSqlite = allowSqlite
+        && (typeof stageArgv.sqlite === 'boolean' ? stageArgv.sqlite : sqliteConfigured);
+        const sqliteEnabledForValidation = shouldBuildSqlite && sqliteModes.length > 0;
+        runtime.effectiveSqliteEnabled = sqliteEnabledForValidation;
+        if (shouldBuildSqlite && sqliteModes.length) {
+          throwIfAborted(effectiveAbortSignal);
+          const scheduleSqlite = (fn) => (runtime?.scheduler?.schedule
+            ? runtime.scheduler.schedule(
+              SCHEDULER_QUEUE_NAMES.stage4Sqlite,
+              {
+                cpu: 1,
+                io: 1,
+                signal: effectiveAbortSignal
+              },
+              fn
+            )
+            : fn());
+          const resolveSqliteDirs = createSqliteDirResolver({
+            root,
+            userConfig: runtime.userConfig,
+            getIndexDir
+          });
+          const sqliteDirs = resolveSqliteDirs(runtime.buildRoot);
+          const sqliteModeList = resolveSqliteModeList(sqliteModes);
+          for (const mode of sqliteModeList) {
+            throwIfAborted(effectiveAbortSignal);
+            sqliteResult = await scheduleSqlite(() => buildSqliteIndex(root, {
+              abortSignal: effectiveAbortSignal,
+              mode,
+              incremental: stageArgv.incremental === true,
+              batchSize: stageArgv['sqlite-batch-size'],
+              out: sqliteDirs.sqliteOut,
+              indexRoot: runtime.buildRoot,
+              runtime,
+              codeDir: sqliteDirs.codeDir,
+              proseDir: sqliteDirs.proseDir,
+              extractedProseDir: sqliteDirs.extractedProseDir,
+              recordsDir: sqliteDirs.recordsDir,
+              emitOutput: options.emitOutput !== false,
+              exitOnError: false,
+              logger: sqliteLogger
+            }));
+          }
+        }
+        await markBuildPhase(runtime.buildRoot, 'validation', 'running');
+        validationRunning = true;
+        throwIfAborted(effectiveAbortSignal);
+        const validation = await validateIndexArtifacts({
+          root: runtime.root,
+          indexRoot: runtime.buildRoot,
+          modes,
+          userConfig: runtime.userConfig,
+          sqliteEnabled: sqliteEnabledForValidation,
+          validateOrdering: stageArgv['validate-ordering'] === true,
+          abortSignal: effectiveAbortSignal
+        });
+        const validationSummary = {
+          ok: validation.ok,
+          issueCount: validation.issues.length,
+          warningCount: validation.warnings.length,
+          issues: validation.ok ? null : validation.issues.slice(0, 10)
+        };
+        await updateBuildState(runtime.buildRoot, {
+          validation: validationSummary
+        });
+        if (!validation.ok) {
+          await markBuildPhase(runtime.buildRoot, 'validation', 'failed');
+          validationDone = true;
+          if (isTestingEnv()) {
+            if (validation.issues?.length) {
+              defaultLogError('Index validation issues (first 10):');
+              validation.issues.slice(0, 10).forEach((issue) => {
+                defaultLogError(`- ${issue}`);
+              });
+            }
+            if (validation.warnings?.length) {
+              logLine('Index validation warnings (first 10):', { kind: 'warning' });
+              validation.warnings.slice(0, 10).forEach((warning) => {
+                logLine(`- ${warning}`, { kind: 'warning' });
+              });
+            }
+          }
+          throw new Error('Index validation failed; see index-validate output for details.');
+        }
+        await markBuildPhase(runtime.buildRoot, 'validation', 'done');
+        validationDone = true;
+        throwIfAborted(effectiveAbortSignal);
+        assertIndexCacheLease(runtime.cacheWriterLease, runtime.repoCacheRoot);
+        if (!deferPublication) {
+          await markBuildPhase(runtime.buildRoot, 'promote', 'running');
+          promoteRunning = true;
+        }
+        throwIfAborted(effectiveAbortSignal);
+        await runtime.semanticEnrichmentDrain?.beforePublish();
+        await refreshRuntimeReceipt(runtime);
+        if (!deferPublication) await promoteBuild({
+          repoRoot: runtime.root,
+          userConfig: runtime.userConfig,
+          buildId: runtime.buildId,
+          buildRoot: runtime.buildRoot,
+          stage: phaseStage,
+          modes,
+          configHash: runtime.configHash,
+          repoProvenance: runtime.repoProvenance,
+          compatibilityKey: runtime.compatibilityKey || null,
+          abortSignal: effectiveAbortSignal
+        });
+        promoteDone = !deferPublication;
+        if (promoteDone) await markBuildPhase(runtime.buildRoot, 'promote', 'done');
+        await refreshRuntimeReceipt(runtime, { lifecycle: 'succeeded' });
         result = {
           modes,
-          sqlite: null,
+          sqlite: sqliteResult,
           repo: runtime.root,
           stage,
           buildRoot: runtime.buildRoot,
           buildId: runtime.buildId,
           runtimeAttemptId: runtime.runtimeAttempt?.attemptId,
+          configHash: runtime.configHash,
+          repoProvenance: runtime.repoProvenance,
+          validation: { status: validationSummary.ok ? 'passed' : 'failed', ...validationSummary },
+          publication: { status: promoteDone ? 'published' : 'retained', buildId: runtime.buildId, modes },
+          completedStageWork: runtime.completedStageWork || null,
           repoCacheRoot: runtime.repoCacheRoot,
-          profile: runtime.profile || null,
-          cancelled: true,
-          cancelledMode: phaseCancelledMode || null
+          profile: runtime.profile || null
         };
-        return;
-      }
-      await markBuildPhase(runtime.buildRoot, phaseStage, 'done');
-      phaseDone = true;
-      const sqliteConfigured = runtime.userConfig?.sqlite?.use !== false;
-      const sqliteModes = filterPrimaryIndexModes(modes);
-      const shouldBuildSqlite = allowSqlite
-        && (typeof stageArgv.sqlite === 'boolean' ? stageArgv.sqlite : sqliteConfigured);
-      const sqliteEnabledForValidation = shouldBuildSqlite && sqliteModes.length > 0;
-      if (shouldBuildSqlite && sqliteModes.length) {
-        throwIfAborted(effectiveAbortSignal);
-        const scheduleSqlite = (fn) => (runtime?.scheduler?.schedule
-          ? runtime.scheduler.schedule(
-            SCHEDULER_QUEUE_NAMES.stage4Sqlite,
-            {
-              cpu: 1,
-              io: 1,
-              signal: effectiveAbortSignal
-            },
-            fn
-          )
-          : fn());
-        const resolveSqliteDirs = createSqliteDirResolver({
-          root,
-          userConfig: runtime.userConfig,
-          getIndexDir
+      } catch (err) {
+        if (promoteDone || err?.publication?.status === 'published') {
+          operationError = Object.assign(new Error('Generation published; build bookkeeping failed.', { cause: err }),
+            { code: 'ERR_BUILD_POST_COMMIT', publication: { status: 'published', buildId: runtime.buildId } });
+          throw operationError;
+        }
+        const phaseFailureDetail = toPhaseFailureDetail(err);
+        operationError = err;
+        await markFailedPhases({
+          buildRoot: runtime?.buildRoot,
+          markPhase: markBuildPhase,
+          phaseFailureDetail,
+          phases: [
+            { name: 'promote', running: promoteRunning, done: promoteDone },
+            { name: 'validation', running: validationRunning, done: validationDone },
+            { name: phaseStage, running: phaseRunning, done: phaseDone }
+          ]
         });
-        const sqliteDirs = resolveSqliteDirs(runtime.buildRoot);
-        const sqliteModeList = resolveSqliteModeList(sqliteModes);
-        for (const mode of sqliteModeList) {
-          throwIfAborted(effectiveAbortSignal);
-          sqliteResult = await scheduleSqlite(() => buildSqliteIndex(root, {
-            mode,
-            incremental: stageArgv.incremental === true,
-            batchSize: stageArgv['sqlite-batch-size'],
-            out: sqliteDirs.sqliteOut,
-            indexRoot: runtime.buildRoot,
-            runtime,
-            codeDir: sqliteDirs.codeDir,
-            proseDir: sqliteDirs.proseDir,
-            extractedProseDir: sqliteDirs.extractedProseDir,
-            recordsDir: sqliteDirs.recordsDir,
-            emitOutput: options.emitOutput !== false,
-            exitOnError: false,
-            logger: sqliteLogger
-          }));
-        }
-      }
-      await markBuildPhase(runtime.buildRoot, 'validation', 'running');
-      validationRunning = true;
-      throwIfAborted(effectiveAbortSignal);
-      const validation = await validateIndexArtifacts({
-        root: runtime.root,
-        indexRoot: runtime.buildRoot,
-        modes,
-        userConfig: runtime.userConfig,
-        sqliteEnabled: sqliteEnabledForValidation,
-        validateOrdering: stageArgv['validate-ordering'] === true
-      });
-      const validationSummary = {
-        ok: validation.ok,
-        issueCount: validation.issues.length,
-        warningCount: validation.warnings.length,
-        issues: validation.ok ? null : validation.issues.slice(0, 10)
-      };
-      await updateBuildState(runtime.buildRoot, {
-        validation: validationSummary
-      });
-      if (!validation.ok) {
-        await markBuildPhase(runtime.buildRoot, 'validation', 'failed');
-        validationDone = true;
-        if (isTestingEnv()) {
-          if (validation.issues?.length) {
-            defaultLogError('Index validation issues (first 10):');
-            validation.issues.slice(0, 10).forEach((issue) => {
-              defaultLogError(`- ${issue}`);
-            });
-          }
-          if (validation.warnings?.length) {
-            logLine('Index validation warnings (first 10):', { kind: 'warning' });
-            validation.warnings.slice(0, 10).forEach((warning) => {
-              logLine(`- ${warning}`, { kind: 'warning' });
-            });
-          }
-        }
-        throw new Error('Index validation failed; see index-validate output for details.');
-      }
-      await markBuildPhase(runtime.buildRoot, 'validation', 'done');
-      validationDone = true;
-      throwIfAborted(effectiveAbortSignal);
-      assertIndexCacheLease(runtime.cacheWriterLease, runtime.repoCacheRoot);
-      await markBuildPhase(runtime.buildRoot, 'promote', 'running');
-      promoteRunning = true;
-      throwIfAborted(effectiveAbortSignal);
-      await runtime.semanticEnrichmentDrain?.beforePublish();
-      await refreshRuntimeReceipt(runtime);
-      await promoteBuild({
-        repoRoot: runtime.root,
-        userConfig: runtime.userConfig,
-        buildId: runtime.buildId,
-        buildRoot: runtime.buildRoot,
-        stage: phaseStage,
-        modes,
-        configHash: runtime.configHash,
-        repoProvenance: runtime.repoProvenance,
-        compatibilityKey: runtime.compatibilityKey || null
-      });
-      await markBuildPhase(runtime.buildRoot, 'promote', 'done');
-      promoteDone = true;
-      await refreshRuntimeReceipt(runtime, { lifecycle: 'succeeded' });
-      result = {
-        modes,
-        sqlite: sqliteResult,
-        repo: runtime.root,
-        stage,
-        buildRoot: runtime.buildRoot,
-        buildId: runtime.buildId,
-        runtimeAttemptId: runtime.runtimeAttempt?.attemptId,
-        repoCacheRoot: runtime.repoCacheRoot,
-        profile: runtime.profile || null
-      };
-    } catch (err) {
-      const phaseFailureDetail = toPhaseFailureDetail(err);
-      operationError = err;
-      await markFailedPhases({
-        buildRoot: runtime?.buildRoot,
-        markPhase: markBuildPhase,
-        phaseFailureDetail,
-        phases: [
-          { name: 'promote', running: promoteRunning, done: promoteDone },
-          { name: 'validation', running: validationRunning, done: validationDone },
-          { name: phaseStage, running: phaseRunning, done: phaseDone }
-        ]
-      });
-      throw err;
-    } finally {
-      detachLockSignalCleanup?.();
-      const closeout = createCloseoutRegistry({
-        stage: phaseStage,
-        log,
-        warn: (line) => logLine(line, { kind: 'warning' })
-      });
-      closeout.addStep({
-        label: 'heartbeat.stop',
-        run: () => runBuildCleanupWithTimeout({
-          label: `${phaseStage}.heartbeat.stop`,
-          cleanup: () => stopHeartbeat(),
+        throw err;
+      } finally {
+        detachLockSignalCleanup?.();
+        const closeout = createCloseoutRegistry({
+          stage: phaseStage,
           log,
-          swallowTimeout: false
-        })
-      });
-      closeout.addStep({
-        label: 'build-state.flush',
-        run: () => runBuildCleanupWithTimeout({
-          label: `${phaseStage}.build-state.flush`,
-          cleanup: () => flushBuildState(runtime?.buildRoot),
-          log,
-          swallowTimeout: false
-        })
-      });
-      closeout.addStep({
-        label: 'runtime.teardown',
-        run: async () => { await teardownRuntime(runtime); writersDrained = true; }
-      });
-      closeout.addStep({
-        label: 'lock.release',
-        run: async () => {
-          if (!lock?.release) return null;
-          const releaseResult = await runBuildCleanupWithTimeout({
-            label: `${phaseStage}.lock.release`,
-            cleanup: () => releaseCacheWriterOwnership({ lease: runtime.cacheWriterLease, release: () => lock.release(),
-              operationError, drained: writersDrained }),
+          warn: (line) => logLine(line, { kind: 'warning' })
+        });
+        closeout.addStep({
+          label: 'heartbeat.stop',
+          run: () => runBuildCleanupWithTimeout({
+            label: `${phaseStage}.heartbeat.stop`,
+            cleanup: () => stopHeartbeat(),
             log,
             swallowTimeout: false
-          });
-          if (releaseResult?.timedOut) {
-            throw releaseResult.error || new Error(`[cleanup] ${phaseStage} lock release timed out.`);
+          })
+        });
+        closeout.addStep({
+          label: 'build-state.flush',
+          run: () => runBuildCleanupWithTimeout({
+            label: `${phaseStage}.build-state.flush`,
+            cleanup: () => flushBuildState(runtime?.buildRoot),
+            log,
+            swallowTimeout: false
+          })
+        });
+        closeout.addStep({
+          label: 'runtime.teardown',
+          run: async () => { await teardownRuntime(runtime); writersDrained = true; }
+        });
+        closeout.addStep({
+          label: 'lock.release',
+          requiresPriorSuccess: true,
+          run: async () => {
+            if (!lock?.release) return null;
+            const releaseResult = await runBuildCleanupWithTimeout({
+              label: `${phaseStage}.lock.release`,
+              cleanup: () => releaseCacheWriterOwnership({ lease: runtime.cacheWriterLease, release: () => lock.release(),
+                operationError, drained: writersDrained }),
+              log,
+              swallowTimeout: false
+            });
+            if (releaseResult?.timedOut) {
+              throw releaseResult.error || new Error(`[cleanup] ${phaseStage} lock release timed out.`);
+            }
+            return releaseResult;
           }
-          return releaseResult;
-        }
-      });
+        });
 
-      const closeoutResult = await closeout.run();
-      if (closeoutResult.error) throw combineCacheWriterErrors(operationError, closeoutResult.error);
-    }
+        const closeoutResult = await closeout.run();
+        if (closeoutResult.error) {
+          const committed = promoteDone || operationError?.publication?.status === 'published';
+          const original = combineCacheWriterErrors(operationError, closeoutResult.error);
+          const failure = committed ? combineCacheWriterErrors(postCommitFailure(runtime.buildId, original), original) : original;
+          if (promoteDone || operationError?.publication?.status === 'published') {
+            failure.publication = { status: 'published', buildId: runtime.buildId };
+          }
+          throw failure;
+        }
+      }
+    });
   } catch (err) {
-    await refreshRuntimeReceipt(runtime, { lifecycle: isAbortError(err) ? 'aborted' : 'failed', error: { code: String(err?.code || 'UNKNOWN'), message: redactDiagnosticText(err?.message || err) } });
+    try {
+      await refreshRuntimeReceipt(runtime, { lifecycle: isAbortError(err) ? 'aborted' : 'failed', error: { code: String(err?.code || 'UNKNOWN'), message: redactDiagnosticText(err?.message || err) } });
+    } catch (recordingError) {
+      const failure = combineCacheWriterErrors(err, recordingError);
+      if (err?.publication) failure.publication = err.publication;
+      throw failure;
+    }
     if (isAbortError(err)) {
       recordIndexMetric(phaseStage, 'aborted', started);
       throw err;
@@ -1090,7 +1255,7 @@ export const runStage = async (
         queued: false
       });
     }
-    if (stage === 'stage2') {
+    if (stage === 'stage2' && !result?.cancelled) {
       await updateEnrichmentState(runtime.repoCacheRoot, {
         status: 'done',
         stage2At: now,

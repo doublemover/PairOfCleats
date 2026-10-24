@@ -6,8 +6,8 @@ import { __setTransformersModuleLoaderForTests, getEmbeddingAdapter } from '../.
 const options = normalizeEg2SessionOptions({
   intraOpNumThreads: 6, interOpNumThreads: 1, executionMode: 'sequential',
   extra: { 'session.intra_op.allow_spinning': '0' }, enableProfiling: true,
-  profileFilePrefix: process.cwd() + '/temp/tasks/eg2-runtime-tests/profile',
-  optimizedModelFilePath: process.cwd() + '/temp/tasks/eg2-runtime-tests/optimized.onnx'
+  profileFilePrefix: process.cwd() + '/.tmp/tasks/eg2-runtime-tests/profile',
+  optimizedModelFilePath: process.cwd() + '/.tmp/tasks/eg2-runtime-tests/optimized.onnx'
 });
 assert.ok(Object.isFrozen(options));
 assert.ok(Object.isFrozen(options.extra));
@@ -82,18 +82,18 @@ await assert.rejects(() => other.embedPrepared([prepared[0]]), /different encode
 let release;
 hold = new Promise((resolve) => { release = resolve; });
 const inFlight = encoder.embedPrepared([prepared[0]]);
-await assert.rejects(() => encoder.embedPrepared([prepared[0]]), /one inference/);
-await assert.rejects(() => encoder.dispose(), /inference is active/);
+const queuedInference = encoder.embedPrepared([prepared[0]]);
+await Promise.resolve();
 await assert.rejects(() => encoder.endProfiling(), /inference is active/);
 release();
-await inFlight;
+await Promise.all([inFlight, queuedInference]);
 hold = null;
 const info = encoder.executionInfo();
 assert.equal(info.effectiveNativeThreads, null);
 assert.equal(info.device, 'cpu');
 assert.deepEqual(info.sessions, ['model']);
 assert.equal(info.metrics.preparationCalls, 1);
-assert.equal(info.metrics.inferenceCalls, 3);
+assert.equal(info.metrics.inferenceCalls, 4);
 assert.equal(info.lastBatch.usefulTokens, 3);
 assert.equal(info.lastBatch.paddedTokens, 3);
 assert.equal(info.maxConcurrentInference, 1);
@@ -117,7 +117,7 @@ const broken = createPreparedTextEncoder({ tokenizer, model: brokenModel, Tensor
 await assert.rejects(() => broken.dispose(), /uncertain native disposal/);
 await assert.rejects(() => broken.dispose(), /uncertain native disposal/);
 await assert.rejects(() => broken.prepare(['x']), /disposed/);
-assert.equal(failedDisposals, 1, 'uncertain disposal must not be retried automatically');
+assert.equal(failedDisposals, 2, 'a later explicit disposal retries only the captured original model; no automatic acquisition retry');
 
 const loads = [];
 __setTransformersModuleLoaderForTests(async () => ({
@@ -159,6 +159,8 @@ try {
   assert.equal(loads.length, 4, 'different graph basename segregates loaded session cache');
   assert.equal(loads.at(-1).model_file_name, 'model_w8a8');
   assert.equal(customGraph.executionInfo().modelFileName, 'model_w8a8');
+  assert.equal(customGraph.executionInfo().modelArtifact.reuse, 'refuse');
+  assert.equal(customGraph.executionInfo().modelArtifact.method, 'custom-model-graph-needs-selected-closure', 'default profile revision cannot qualify a different graph stem');
   for (const modelFileName of ['../model', 'model.onnx', 'a/b', '', 1]) {
     assert.throws(() => getEmbeddingAdapter({ ...config, modelFileName }), /basename/);
   }

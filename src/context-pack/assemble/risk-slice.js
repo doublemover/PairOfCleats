@@ -325,6 +325,9 @@ export const buildRiskSlice = ({
     });
   }
 
+  if (statsMissing) warnings.push({ code: 'RISK_STATS_MISSING', message: 'Required risk stats artifact is missing.' });
+  if (summariesMissing) warnings.push({ code: 'RISK_SUMMARIES_MISSING', message: 'Required risk summaries artifact is missing.' });
+
   let stats = null;
   if (!statsMissing) {
     try {
@@ -418,7 +421,8 @@ export const buildRiskSlice = ({
     });
   }
 
-  let degraded = false;
+  const requiredArtifactStates = [baseArtifactStatus.stats, baseArtifactStatus.summaries];
+  let degraded = requiredArtifactStates.some(state => state !== 'present');
   let flows = [];
   let partialFlows = [];
   const riskCandidateChunkUids = new Set(riskSeedContext.candidates.map((entry) => entry.chunkUid).filter(Boolean));
@@ -694,7 +698,8 @@ export const buildRiskSlice = ({
   } else if (degradedReasons.some((entry) => entry.endsWith('_SCHEMA_INVALID'))) {
     statusCode = 'schema_invalid';
   } else if (
-    degradedReasons.includes('RISK_CALL_SITES_MISSING')
+    requiredArtifactStates.includes('missing')
+    || degradedReasons.includes('RISK_CALL_SITES_MISSING')
     || degradedReasons.includes('RISK_FLOWS_MISSING')
     || degradedReasons.includes('RISK_PARTIAL_FLOWS_MISSING')
   ) {
@@ -702,7 +707,9 @@ export const buildRiskSlice = ({
   } else if (degraded) {
     statusCode = 'degraded';
   }
-  if (!degraded && (riskCaps.hits.length || riskTruncation.length)) {
+  const upstreamIncomplete = stats?.inputCoverage?.status !== 'complete'
+    || (Array.isArray(stats?.droppedRecords) && stats.droppedRecords.some(row => Number(row?.count) > 0));
+  if (!degraded && (riskCaps.hits.length || riskTruncation.length || upstreamIncomplete)) {
     statusCode = 'capped';
   }
   const strictFailure = statusCode !== 'ok';

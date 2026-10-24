@@ -12,6 +12,7 @@ reserved.addSubnet('192.88.99.0', 24, 'ipv4');
 reserved.addAddress('168.63.129.16', 'ipv4');
 // Conservative IPv6: globally routed unicast only, excluding special ranges.
 const globalV6 = new BlockList();
+const authorityError = message => Object.assign(new Error(message), { code: 'ERR_DOWNLOAD_AUTHORITY' });
 globalV6.addSubnet('2000::', 3, 'ipv6');
 reserved.addSubnet('2001::', 23, 'ipv6');
 reserved.addSubnet('2001:db8::', 32, 'ipv6');
@@ -26,13 +27,13 @@ export const isPublicDownloadAddress = (raw) => {
 
 export const validateDownloadUrl = (value, { allowLocal = false } = {}) => {
   const url = new URL(value);
-  if (url.username || url.password) throw new Error('Download URL credentials are not allowed.');
+  if (url.username || url.password) throw authorityError('Download URL credentials are not allowed.');
   if (url.protocol !== 'https:' && !(allowLocal && url.protocol === 'http:')) {
-    throw new Error('Downloads require HTTPS.');
+    throw authorityError('Downloads require HTTPS.');
   }
   const host = url.hostname.replace(/^\[|\]$/g, '');
   if (!allowLocal && isIP(host) && !isPublicDownloadAddress(host)) {
-    throw new Error('Download destination is not a public address.');
+    throw authorityError('Download destination is not a public address.');
   }
   return url;
 };
@@ -42,7 +43,7 @@ export const createDownloadLookup = ({ allowLocal = false, lookup = dns.lookup }
   lookup(hostname, { all: true, verbatim: true }, (error, addresses) => {
     if (error) return callback(error);
     if (!addresses?.length || (!allowLocal && addresses.some((entry) => !isPublicDownloadAddress(entry.address)))) {
-      return callback(new Error('Download DNS answer contains a non-public address.'));
+      return callback(authorityError('Download DNS answer contains a non-public address.'));
     }
     if (options?.all) return callback(null, addresses);
     return callback(null, addresses[0].address, addresses[0].family);

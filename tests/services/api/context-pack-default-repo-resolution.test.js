@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -20,7 +21,7 @@ const {
 } = createContextPackRouteFixture();
 
 const handled = await handleContextPackRoute({
-  req: {},
+  req: new EventEmitter(),
   res: response,
   corsHeaders: {},
   observability: null,

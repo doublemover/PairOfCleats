@@ -120,10 +120,16 @@ const resolveChunkingLanguageKey = (context = {}) => {
 
 const normalizeRoleOverride = (value) => {
   if (!value || typeof value !== 'object') return null;
-  const maxBytes = normalizeChunkLimit(value.maxBytes);
-  const maxLines = normalizeChunkLimit(value.maxLines);
-  if (maxBytes == null && maxLines == null) return null;
-  return { maxBytes, maxLines };
+  const result = {};
+  for (const field of ['maxBytes', 'maxLines']) {
+    if (!Object.hasOwn(value, field) || value[field] === undefined) continue;
+    if (value[field] === null || value[field] === false || value[field] === 0) result[field] = null;
+    else {
+      const cap = normalizeChunkLimit(value[field]);
+      if (cap != null) result[field] = cap;
+    }
+  }
+  return Object.keys(result).length ? result : null;
 };
 
 const resolveOverrideFromLanguageRoleMap = ({
@@ -194,7 +200,7 @@ export const resolveChunkingLimits = (context) => {
     languageKey,
     role
   });
-  const effectiveOverride = configuredOverride || defaultsOverride;
+  const effectiveOverride = { ...defaultsOverride, ...configuredOverride };
   const rawMaxBytes = normalizeChunkLimit(raw.maxBytes);
   const rawMaxLines = normalizeChunkLimit(raw.maxLines);
   return {
@@ -317,6 +323,24 @@ const resolveByteBoundary = (text, start, end, maxBytes, byteMetrics = null) => 
   return best;
 };
 
+const scalarBoundary = (text, start, next, end) => {
+  let boundary = next;
+  if (boundary > start && boundary < end && isHighSurrogate(text.charCodeAt(boundary - 1))
+    && isLowSurrogate(text.charCodeAt(boundary))) boundary -= 1;
+  if (boundary <= start) {
+    boundary = start + (isHighSurrogate(text.charCodeAt(start)) && isLowSurrogate(text.charCodeAt(start + 1)) ? 2 : 1);
+  }
+  return Math.min(boundary, end);
+};
+
+const byteBoundedChunk = (chunk, text, start, end, lineIndex, maxBytes) => {
+  const result = buildChunkWithRange(chunk, start, end, lineIndex);
+  if (Buffer.byteLength(text.slice(start, end), 'utf8') > maxBytes) {
+    result.meta = { ...result.meta, byteLimitOversizeScalar: true };
+  }
+  return result;
+};
+
 /**
  * Split a chunk into byte-bounded windows while preserving line metadata.
  * @param {object} chunk
@@ -361,7 +385,8 @@ export const splitChunkByBytes = (chunk, text, resolveLineIndex, maxBytes, byteM
       if (safeNext <= cursor) {
         safeNext = Math.min(cursor + 1, end);
       }
-      output.push(buildChunkWithRange(chunk, cursor, safeNext, ensureLineIndex()));
+      safeNext = scalarBoundary(text, cursor, safeNext, end);
+      output.push(byteBoundedChunk(chunk, text, cursor, safeNext, ensureLineIndex(), maxBytes));
       if (safeNext <= cursor) break;
       cursor = safeNext;
     }
@@ -369,8 +394,8 @@ export const splitChunkByBytes = (chunk, text, resolveLineIndex, maxBytes, byteM
   }
   while (cursor < end) {
     const next = resolveByteBoundary(text, cursor, end, maxBytes, byteMetrics);
-    const safeNext = next > cursor ? next : Math.min(cursor + 1, end);
-    output.push(buildChunkWithRange(chunk, cursor, safeNext, ensureLineIndex()));
+    const safeNext = scalarBoundary(text, cursor, next, end);
+    output.push(byteBoundedChunk(chunk, text, cursor, safeNext, ensureLineIndex(), maxBytes));
     if (safeNext <= cursor) break;
     cursor = safeNext;
   }

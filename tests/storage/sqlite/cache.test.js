@@ -17,6 +17,7 @@ const makeCache = (options) => {
 };
 const makeDb = ({ fail = false } = {}) => ({
   closes: 0,
+  allowClose() { fail = false; },
   close() {
     this.closes += 1;
     if (fail) throw new Error('injected close failure');
@@ -131,14 +132,22 @@ try {
   assert.equal(failingDb.closes, 1);
   assert.equal(healthyDb.closes, 1, 'cleanup must continue after another close fails');
   assert.equal(failures.size(), 0);
-  failures.dispose();
+  assert.throws(() => failures.dispose(), AggregateError, 'repeated dispose must retain failed closure evidence');
   assert.equal(failingDb.closes, 1, 'failed closes must not be attempted twice');
+  failingDb.allowClose();
+  failures.pendingOwners()[0].release();
+  failures.dispose();
+  assert.equal(failingDb.closes, 2, 'only explicit original-owner reconciliation retries a failed close');
 
   const failedLeaseDb = makeDb({ fail: true });
   const failedLease = disabled.setAndAcquire(dbPath, failedLeaseDb);
   assert.throws(() => failedLease.release(), AggregateError);
-  failedLease.release();
+  assert.throws(() => failedLease.release(), AggregateError);
   assert.equal(failedLeaseDb.closes, 1);
+  failedLeaseDb.allowClose();
+  disabled.pendingOwners()[0].release();
+  failedLease.release();
+  assert.equal(failedLeaseDb.closes, 2);
 } finally {
   for (const cache of caches) cache.dispose();
   await fs.rm(tempRoot, { recursive: true, force: true });

@@ -59,7 +59,7 @@ assert.throws(() => projectArtifact({ text: 'safe', sourceSha256: 'b'.repeat(64)
 assert.throws(() => projectArtifact({ text: 'safe', sourceSha256: 'b'.repeat(64), sourceTransformed: 'yes' }));
 
 
-const fixtureBase = path.resolve('temp/tasks/archive-source-mapping');
+const fixtureBase = path.resolve('.tmp/tasks/archive-source-mapping');
 await fs.mkdir(fixtureBase, { recursive: true });
 const fixtureRoot = await fs.realpath(await fs.mkdtemp(path.join(fixtureBase, 'catalog-')));
 const catalog = path.join(fixtureRoot, 'file-evidence.sqlite');

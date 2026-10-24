@@ -11,7 +11,7 @@
   "suiteCategorySummary": {
     "hero": 35,
     "matrix": 2,
-    "meta": 2,
+    "meta": 3,
     "soak": 0,
     "heavy-runtime": 0
   },
@@ -249,6 +249,12 @@
       "order": 39,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "ci/windows-authority-cohort",
+      "order": 40,
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
     }
   ]
 }

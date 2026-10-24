@@ -10,7 +10,7 @@ import { mergeSemanticProviderOutput } from '../../../src/index/semantic/merge-p
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-provider-alias-'));
 try {
-  const text = 'export function implementation(value:number){return value;} declare const remote:(value:number)=>number; ' + Array.from({ length: 11 }, (_, index) => `remote(${index});`).join('');
+  const text = 'export function implementation(value:number){return value;} declare const remote:(value:number)=>number; ' + Array.from({ length: 18 }, (_, index) => `remote(${index});`).join('');
   const f = await createCompilerBoundaryFixture(root, { 'input.ts': text }, {}, { withFlow: true });
   const doc = f.documents[0], flow = f.group.flowDocuments[0], contextKey = 'b'.repeat(64);
   const implementation = flow.summaries.find(summary => summary.declaration).declaration;
@@ -22,16 +22,29 @@ try {
   const rows = [{ family: 'node', row: { id: 0, kind: 'evidence', span: null, scope: null,
     data: { method: 'explicit-provider-declaration-alias', producerId: 'fixture', producerVersion: '1', evidenceKind: 'static-analysis', sourceRef: doc.item.source.sourceUnitId, artifactRef: null } } }];
   let nodeId = 1, edgeId = 0;
-  const external = () => {
+  const external = (externalContext = contextKey) => {
     const value = ref(nodeId++);
     rows.push({ family: 'node', row: { id: value.localId, kind: 'externalDeclaration', span: null, scope: null,
-      data: { contextKey, uri: 'file:///unavailable/rpc.d.ts', packageName: null, packageVersion: null, nameId: 0, declarationKind: 'provider-location', sourceHash: null, sourceRange: null } } });
+      data: { contextKey: externalContext, uri: 'file:///unavailable/rpc.d.ts', packageName: null, packageVersion: null, nameId: 0, declarationKind: 'provider-location', sourceHash: null, sourceRange: null } } });
     return value;
   };
   const edge = (kind, from, to, extra = {}) => rows.push({ family: 'edge', row: { id: edgeId++, kind, from, to, callSite: null, operandOrdinal: null, contextKey, condition: null, evidence: ref(0), certainty: 'exact-static', ...extra } });
+  const invalidEvidence = ref(nodeId++);
+  rows.push({ family: 'node', row: { id: invalidEvidence.localId, kind: 'value', span: null, scope: null,
+    data: { origin: 'unknown', site: doc.expressionFor(calls[0]), storage: null } } });
+  const wrongSourceEvidence = ref(nodeId++);
+  rows.push({ family: 'node', row: { id: wrongSourceEvidence.localId, kind: 'evidence', span: null, scope: null,
+    data: { method: 'wrong-source-fixture', producerId: 'fixture', producerVersion: '1', evidenceKind: 'static-analysis',
+      sourceRef: 'su1:' + '0'.repeat(64), artifactRef: null } } });
   const targets = calls.map((call, index) => {
-    const target = external();
-    edge(index === 6 ? 'constructTarget' : 'callTarget', doc.expressionFor(call), target, { callSite: doc.expressionFor(call) });
+    const target = external(index === 17 ? 'c'.repeat(64) : contextKey);
+    edge(index === 6 ? 'constructTarget' : 'callTarget', doc.expressionFor(index === 13 ? calls[0] : call), target, {
+      callSite: doc.expressionFor(call),
+      ...(index === 11 ? { contextKey: 'c'.repeat(64) } : {}),
+      ...(index === 12 ? { evidence: null } : {}),
+      ...(index === 15 ? { evidence: invalidEvidence } : {}),
+      ...(index === 16 ? { evidence: wrongSourceEvidence } : {})
+    });
     return target;
   });
   const bridge = external();
@@ -51,6 +64,9 @@ try {
     for (let step = 1; step < depth; step += 1) { const next = external(); edge('aliases', previous, next); previous = next; }
     edge('aliases', previous, implementation);
   }
+  for (const index of [11, 12, 13, 15, 16, 17]) edge('aliases', targets[index], implementation);
+  const foreignContext = external('c'.repeat(64));
+  edge('aliases', targets[14], foreignContext); edge('aliases', foreignContext, implementation);
   rows.push({ family: 'lookup', row: { kind: 'name', id: 0, value: 'remote' } });
   const partition = await writeSemanticAnalysis({ rows, policy: f.policy, stagingRoot: f.stagingRoot, source: doc.item.source, sourceBytes: doc.bytes, partitionId,
     producerHash: 'd'.repeat(64), contextHash: contextKey, policyHash: 'a'.repeat(64), structuralSlots: [], diskAccount: f.state.semanticDiskAccount });
@@ -65,6 +81,8 @@ try {
   for (let index = 0; index < calls.length; index += 1) assert.equal(returns.some(row => row.callSite.localId === flow.calls[index].occurrence.localId), [0, 7, 9].includes(index), `source summary join for case ${index}`);
   assert.ok(coverage.some(row => row.reason.includes('unknown_call_return_remainder')), 'external candidates never erase unknown runtime effects');
   assert.ok(coverage.some(row => row.reason.includes('provider_call_join_budget')), 'depth truncation is visible');
+  assert.ok(coverage.some(row => row.reason.includes('provider_call_join_unqualified_evidence')),
+    'invalid origin/evidence/external-context claims remain separate from accepted provider targets');
   console.log('Bounded provider declaration-alias joins retain external, direction, evidence and invocation boundaries');
 } finally {
   await fs.rm(root, { recursive: true, force: true });

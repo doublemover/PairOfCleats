@@ -46,8 +46,10 @@ import {
   resolveRepoHistoryKey,
   resolveThroughputLedger,
   applyRunThroughputLedgerDiffs,
+  compareLedgerRegressions,
   collectRunLedgerRegressions
 } from './show-throughput/analysis.js';
+import { compareReportRunTime, matchesRepoFilter, selectThroughputRunInputs } from './show-throughput/selection.js';
 import {
   formatNumber,
   formatCount,
@@ -510,21 +512,6 @@ const createVariabilityEntry = (folder, label, summary) => ({
   p95: summary?.p95 ?? null
 });
 
-const normalizeTextKey = (value) => String(value || '').trim().toLowerCase();
-
-const matchesRepoFilter = (run, repoFilterValue) => {
-  const filter = normalizeTextKey(repoFilterValue);
-  if (!filter) return true;
-  const candidates = [
-    run?.repoIdentity,
-    run?.repoHistoryKey,
-    run?.file
-  ]
-    .map((value) => normalizeTextKey(value))
-    .filter(Boolean);
-  return candidates.some((candidate) => candidate.includes(filter));
-};
-
 const pickModeDistribution = (report, modeKey) => {
   const distributions = {
     code: report?.codeDistribution,
@@ -610,10 +597,14 @@ for (const dir of folders) {
   const outcomeRepoKeysFolder = new Set();
   const riskScanTotalsFolder = createRiskScanAggregate();
 
-  for (const file of files) {
+  const admitted = selectThroughputRunInputs(files.map(file => {
+    const payload = loadJson(path.join(folderPath, file));
+    return { file, payload, repoIdentity: resolveRepoIdentity({ payload, file }),
+      repoHistoryKey: resolveRepoHistoryKey({ payload, file }),
+      generatedAtMs: Date.parse(payload?.generatedAt || payload?.summary?.generatedAt || '') };
+  }), { repoFilter, latestCount });
+  for (const { file, payload } of admitted) {
     const resultPath = path.join(folderPath, file);
-    const payload = loadJson(resultPath);
-    if (!payload) continue;
     const summary = payload.summary || payload.runs?.[0] || null;
     const throughput = payload.artifacts?.throughput || {};
     const featureMetrics = loadFeatureMetricsForPayload(payload);
@@ -755,14 +746,7 @@ for (const dir of folders) {
     continue;
   }
 
-  runs.sort((left, right) => {
-    const leftTime = Number(left.generatedAtMs);
-    const rightTime = Number(right.generatedAtMs);
-    if (Number.isFinite(leftTime) && Number.isFinite(rightTime) && leftTime !== rightTime) {
-      return leftTime - rightTime;
-    }
-    return String(left.file).localeCompare(String(right.file));
-  });
+  runs.sort(compareReportRunTime);
   // Diffs are order-sensitive; always compute against chronological run order.
   applyRunThroughputLedgerDiffs(runs);
   const folderLedgerRegressions = collectRunLedgerRegressions(runs);
@@ -1291,12 +1275,8 @@ if (shouldRenderTextOverview) {
     { indent: '  ' }
   );
 }
+ledgerRegressionsGlobal.sort(compareLedgerRegressions);
 if (shouldRenderTextOverview && ledgerRegressionsGlobal.length) {
-  ledgerRegressionsGlobal.sort((left, right) => (
-    left.metricKind === 'duration'
-      ? (Number(right.deltaPct) - Number(left.deltaPct))
-      : (Number(left.deltaPct) - Number(right.deltaPct))
-  ) || String(left.repoIdentity || '').localeCompare(String(right.repoIdentity || '')));
   console.log(color.bold(
     `Top Throughput Regressions - Ledger Regression Summary `
     + `(schema v${THROUGHPUT_LEDGER_SCHEMA_VERSION}/diff v${THROUGHPUT_LEDGER_DIFF_SCHEMA_VERSION})`
@@ -1574,6 +1554,8 @@ const outputSummary = {
   folders: folderReports.map((report) => ({
     folder: report.folder,
     runCount: report.runCount,
+    selectedMode: modeFilter || 'code',
+    chunksMedian: pickModeDistribution(report, modeFilter || 'code')?.chunksPerSec?.median ?? null,
     codeChunksMedian: report.codeDistribution?.chunksPerSec?.median ?? null,
     codeChunksP95: report.codeDistribution?.chunksPerSec?.p95 ?? null,
     codeFilesMedian: report.codeDistribution?.filesPerSec?.median ?? null,
@@ -1595,9 +1577,9 @@ const buildFamilyRows = () => sortRows(folderReports.map((report) => ({
   folder: report.folder,
   label: report.folder,
   runs: report.runCount,
-  chunkMedian: report.codeDistribution?.chunksPerSec?.median ?? null,
-  chunkP95: report.codeDistribution?.chunksPerSec?.p95 ?? null,
-  filesMedian: report.codeDistribution?.filesPerSec?.median ?? null,
+  chunkMedian: pickModeDistribution(report, modeFilter || 'code')?.chunksPerSec?.median ?? null,
+  chunkP95: pickModeDistribution(report, modeFilter || 'code')?.chunksPerSec?.p95 ?? null,
+  filesMedian: pickModeDistribution(report, modeFilter || 'code')?.filesPerSec?.median ?? null,
   linesPerSec: report.aggregateLinesPerSec,
   buildIndexMedian: report.buildIndexMs?.median ?? null,
   searchMedian: report.wallPerSearch?.median ?? null,
@@ -1659,7 +1641,7 @@ const printRepoText = (rows) => {
   }
 };
 
-const printCompareText = () => {
+const buildComparison = () => {
   if (!compareRoot) {
     throw new Error('--compare is required when --profile compare is used');
   }
@@ -1694,10 +1676,10 @@ const printCompareText = () => {
     const prior = baselineFolders.get(folder) || {};
     rows.push({
       folder,
-      currentChunks: current.codeChunksMedian ?? null,
-      baselineChunks: prior.codeChunksMedian ?? null,
-      deltaChunksPct: Number.isFinite(current.codeChunksMedian) && Number.isFinite(prior.codeChunksMedian) && prior.codeChunksMedian > 0
-        ? ((current.codeChunksMedian - prior.codeChunksMedian) / prior.codeChunksMedian)
+      currentChunks: current.chunksMedian ?? null,
+      baselineChunks: prior.chunksMedian ?? null,
+      deltaChunksPct: Number.isFinite(current.chunksMedian) && Number.isFinite(prior.chunksMedian) && prior.chunksMedian > 0
+        ? ((current.chunksMedian - prior.chunksMedian) / prior.chunksMedian)
         : null,
       currentBuild: current.buildIndexMedian ?? null,
       baselineBuild: prior.buildIndexMedian ?? null,
@@ -1706,12 +1688,16 @@ const printCompareText = () => {
         : null
     });
   }
+  return { schemaVersion: 1, mode: modeFilter || 'code', currentRoot: resultsRoot, baselineRoot: compareRoot,
+    rows: sortRows(rows.map((entry) => ({
+      ...entry,
+      label: entry.folder,
+      regressionSeverity: Math.abs(Number(entry.deltaBuildPct) || 0) + Math.abs(Number(entry.deltaChunksPct) || 0)
+    })), sortMetric).slice(0, topN) };
+};
+const printCompareText = comparison => {
   console.log('Compare Overview');
-  for (const row of sortRows(rows.map((entry) => ({
-    ...entry,
-    label: entry.folder,
-    regressionSeverity: Math.abs(Number(entry.deltaBuildPct) || 0) + Math.abs(Number(entry.deltaChunksPct) || 0)
-  })), sortMetric).slice(0, topN)) {
+  for (const row of comparison.rows) {
     console.log(
       `${row.folder}: chunks ${formatNumber(row.currentChunks)} vs ${formatNumber(row.baselineChunks)} ` +
       `(${formatPct(row.deltaChunksPct)}) | build ${formatMs(row.currentBuild)} vs ${formatMs(row.baselineBuild)} ` +
@@ -1721,7 +1707,12 @@ const printCompareText = () => {
 };
 
 if (!shouldRenderTextOverview) {
-  if (jsonOutput || profile === 'raw') {
+  if (profile === 'compare') {
+    const comparison = buildComparison();
+    if (jsonOutput) emitJson({ ...outputSummary, comparison });
+    else if (csvOutput) printCsv(comparison.rows);
+    else printCompareText(comparison);
+  } else if (jsonOutput || profile === 'raw') {
     emitJson(outputSummary);
   } else if (csvOutput) {
     const rows = profile === 'repo' ? buildRepoRows() : buildFamilyRows();
@@ -1730,8 +1721,6 @@ if (!shouldRenderTextOverview) {
     printFamilyText(buildFamilyRows());
   } else if (profile === 'repo') {
     printRepoText(buildRepoRows());
-  } else if (profile === 'compare') {
-    printCompareText();
   } else {
     emitJson(outputSummary);
   }

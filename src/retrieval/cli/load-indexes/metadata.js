@@ -32,6 +32,7 @@ const ensureStrictManifest = (dir, repoRoot) => {
 const hasMixedCompatibilityKeys = (entries) => (new Set(entries.values())).size > 1;
 
 export async function resolveSearchIndexMetadata({
+  filterOnly = false,
   rootDir,
   userConfig,
   searchMode,
@@ -57,10 +58,10 @@ export async function resolveSearchIndexMetadata({
   };
   const proseIndexDir = runProse ? resolveIndexDir(rootDir, 'prose', userConfig, resolveOptions) : null;
   const codeIndexDir = runCode ? resolveIndexDir(rootDir, 'code', userConfig, resolveOptions) : null;
-  const proseDir = runProse && !useSqlite
+  const proseDir = runProse && (!useSqlite || filterOnly)
     ? requireIndexDir(rootDir, 'prose', userConfig, { emitOutput, exitOnError, resolveOptions })
     : proseIndexDir;
-  const codeDir = runCode && !useSqlite
+  const codeDir = runCode && (!useSqlite || filterOnly)
     ? requireIndexDir(rootDir, 'code', userConfig, { emitOutput, exitOnError, resolveOptions })
     : codeIndexDir;
   const recordsDir = runRecords
@@ -83,7 +84,7 @@ export async function resolveSearchIndexMetadata({
   };
 
   if (resolvedLoadExtractedProse) {
-    if (resolvedRunExtractedProse && (searchMode === 'extracted-prose' || searchMode === 'default')) {
+    if (resolvedRunExtractedProse && (filterOnly || searchMode === 'extracted-prose' || searchMode === 'default')) {
       extractedProseDir = requireIndexDir(rootDir, 'extracted-prose', userConfig, {
         emitOutput,
         exitOnError,

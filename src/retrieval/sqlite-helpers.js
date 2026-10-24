@@ -1,8 +1,9 @@
 import { compileFtsMatchFromAst } from './fts-query.js';
-import { createQueryAstHelpers } from './pipeline/query-ast.js';
+import { admitSortedPostings } from '../shared/posting-order.js';
+import { assertCasePreservedPhraseEvidence, createQueryAstHelpers, hasCaseSensitivePhrase, matchesLiteralPhraseTokens, requiresBooleanUniverse } from './pipeline/query-ast.js';
 import { FTS_VARIANT_TABLES } from '../storage/sqlite/fts-variants.js';
 import { extractNgrams, tri } from '../shared/tokenize.js';
-import { forEachRollingChargramHash } from '../shared/chargram-hash.js';
+import { assertChargramHashIdentity, forEachRollingChargramHash } from '../shared/chargram-hash.js';
 import { chunkArray } from '../storage/sqlite/utils.js';
 import { resolveDenseMetaRecord } from '../storage/sqlite/quantization.js';
 import { fetchVocabRows as fetchSqliteVocabRows } from '../storage/sqlite/vocab.js';
@@ -10,7 +11,9 @@ import { parseArrayField, parseJson } from './query-cache.js';
 import { buildFtsBm25Expr } from './fts.js';
 import { buildFilterIndex } from './filter-index.js';
 import { normalizeMetaV2ForRead } from '../index/metadata/meta-v2.js';
-import { normalizeMinhashSampling } from '../index/minhash.js';
+import { assertMinhashHashIdentity } from '../index/minhash.js';
+import { readSqliteMinhashHeader } from '../storage/sqlite/minhash.js';
+import { hydrateSelectiveSqliteBm25 } from './sqlite-bm25-source.js';
 
 const SQLITE_IN_LIMIT = 900;
 const FTS_TOKEN_SAFE = /^[\p{L}\p{N}_]+$/u;
@@ -18,6 +21,35 @@ const FTS_OVERFETCH_MIN_ROWS = 5000;
 const FTS_OVERFETCH_MULTIPLIER = 10;
 const FTS_OVERFETCH_TIME_BUDGET_MS = 150;
 export const RETRIEVAL_FTS_UNAVAILABLE_CODE = 'retrieval_fts_unavailable';
+const phraseFunctionDatabases = new WeakSet();
+const matchesFtsPhraseJson = (literal, phrase, caseSensitive) => Number(matchesLiteralPhraseTokens(parseArrayField(literal), parseArrayField(phrase), caseSensitive === 1));
+
+// Apply the same AST eligibility before ranking admission. SQL term membership
+// uses the actual selected tokenizer; the pure phrase callback shares the
+// memory matcher's exact token semantics, including legacy array decoding.
+const compileFtsEligibility = (queryAst, table) => {
+  const params = [];
+  let hasPhrase = false;
+  const visit = node => {
+    if (!node) return '1';
+    if (node.type === 'term') {
+      const match = compileFtsMatchFromAst(node);
+      if (!match) return '0';
+      params.push(match);
+      return `chunks.id IN (SELECT rowid FROM ${table} WHERE ${table} MATCH ?)`;
+    }
+    if (node.type === 'phrase') {
+      hasPhrase = true;
+      params.push(JSON.stringify(node.tokens ?? []), node.caseSensitive === true ? 1 : 0);
+      return 'poc_fts_phrase_match_v3(chunks.phrase_tokens, ?, ?)';
+    }
+    if (node.type === 'not') return `NOT (${visit(node.child)})`;
+    if (node.type === 'and' || node.type === 'or') return `(${visit(node.left)}) ${node.type.toUpperCase()} (${visit(node.right)})`;
+    return '1';
+  };
+  const predicate = visit(queryAst);
+  return { sql: hasPhrase ? `chunks.phrase_tokens IS NOT NULL AND (${predicate})` : predicate, params, hasPhrase };
+};
 
 /**
  * Decode a packed uint32 buffer into an array.
@@ -79,13 +111,18 @@ export function createSqliteHelpers(options) {
     : null;
 
   const sqliteCache = {
-    tokenStats: new Map(),
-    docLengths: new Map(),
-    chargramHashMode: new Map()
+    tokenStats: new WeakMap(),
+    docLengths: new WeakMap(),
+    chargramHashMode: new WeakMap()
   };
   const statementCache = new WeakMap();
   const ftsAvailability = new WeakMap();
   const tableAvailability = new WeakMap();
+  const cacheForDb = (owner, db) => {
+    let cache = owner.get(db);
+    if (!cache) { cache = new Map(); owner.set(db, cache); }
+    return cache;
+  };
 
   const hasFtsTable = (mode) => {
     const db = getDb(mode);
@@ -150,12 +187,12 @@ export function createSqliteHelpers(options) {
       dbCache = new Map();
       statementCache.set(db, dbCache);
     }
-    let stmt = dbCache.get(key);
-    if (!stmt) {
-      stmt = db.prepare(sql);
-      dbCache.set(key, stmt);
+    let cached = dbCache.get(key);
+    if (!cached || cached.sql !== sql) {
+      cached = { sql, stmt: db.prepare(sql) };
+      dbCache.set(key, cached);
     }
-    return stmt;
+    return cached.stmt;
   };
 
   const buildPlaceholders = (count) => Array.from({ length: count }, () => '?').join(',');
@@ -267,20 +304,16 @@ export function createSqliteHelpers(options) {
     let minhash = null;
     if (includeMinhash) {
       const signatures = Array.from({ length: chunkMeta.length });
+      let signatureRows = 0;
       const sigStmt = db.prepare('SELECT doc_id, sig FROM minhash_signatures WHERE mode = ? ORDER BY doc_id');
       for (const row of sigStmt.iterate(mode)) {
         signatures[row.doc_id] = unpackUint32(row.sig);
+        signatureRows += 1;
       }
-      minhash = signatures.length ? { signatures } : null;
-      if (minhash) {
-        try {
-          const row = getCachedStatement(db, 'minhash-sampling', 'SELECT sampling FROM minhash_meta WHERE mode = ?').get(mode);
-          const sampling = normalizeMinhashSampling(parseJson(row?.sampling, null));
-          if (sampling) minhash.sampling = sampling;
-        } catch (error) {
-          // Existing schema-12 stores may have no optional metadata table.
-          if (error?.code !== 'SQLITE_ERROR' || !/no such table: minhash_meta/i.test(error.message)) throw error;
-        }
+      if (signatureRows) {
+        const header = readSqliteMinhashHeader(db, mode);
+        assertMinhashHashIdentity(header?.hashIdentity);
+        minhash = { signatures, hashIdentity: header.hashIdentity, ...(header.sampling ? { sampling: header.sampling } : {}) };
       }
     }
 
@@ -316,7 +349,11 @@ export function createSqliteHelpers(options) {
       denseVec,
       minhash,
       filterIndex: includeFilterIndex ? buildFilterIndex(chunkMeta, { fileChargramN }) : null,
-      loadChunkMetaByIds
+      loadChunkMetaByIds,
+      loadFilterFactPage: async options => {
+        const { readSqliteFilterFactPage } = await import('./sqlite-filter-page.js');
+        return readSqliteFilterFactPage({ ...options, db, mode, rowCount: chunkMeta.length });
+      }
     };
   }
 
@@ -356,11 +393,10 @@ export function createSqliteHelpers(options) {
    * @param {boolean} [includeTf]
    * @returns {Array<{id:number,doc_id:number,tf?:number}>}
    */
-  function fetchPostingRows(mode, table, idColumn, ids, includeTf = false) {
+  function* fetchPostingRows(mode, table, idColumn, ids, includeTf = false) {
     const db = getDb(mode);
     if (!db || !ids.length) return [];
     const unique = Array.from(new Set(ids));
-    const rows = [];
     for (const chunk of chunkArray(unique)) {
       const placeholders = buildPlaceholders(chunk.length);
       const selectCols = includeTf
@@ -372,9 +408,8 @@ export function createSqliteHelpers(options) {
         `SELECT ${selectCols} FROM ${table} WHERE mode = ? AND ${idColumn} IN (${placeholders}) ` +
           `ORDER BY ${idColumn}, doc_id`
       );
-      rows.push(...stmt.all(mode, ...chunk));
+      yield* stmt.iterate(mode, ...chunk);
     }
-    return rows;
   }
 
   /**
@@ -386,12 +421,12 @@ export function createSqliteHelpers(options) {
   function loadDocLengths(mode, totalDocs) {
     const db = getDb(mode);
     if (!db) return [];
-    if (sqliteCache.docLengths.has(mode)) return sqliteCache.docLengths.get(mode);
+    const cache = cacheForDb(sqliteCache.docLengths, db);
+    if (cache.has(mode)) return cache.get(mode);
 
     const lengths = Array.from({ length: totalDocs || 0 }, () => 0);
     let maxDocId = -1;
-    const rows = db.prepare('SELECT doc_id, len FROM doc_lengths WHERE mode = ?').all(mode);
-    for (const row of rows) {
+    for (const row of db.prepare('SELECT doc_id, len FROM doc_lengths WHERE mode = ?').iterate(mode)) {
       if (row.doc_id >= lengths.length) {
         lengths.length = row.doc_id + 1;
       }
@@ -401,7 +436,7 @@ export function createSqliteHelpers(options) {
     if (!totalDocs) totalDocs = maxDocId + 1;
     if (lengths.length < totalDocs) lengths.length = totalDocs;
 
-    sqliteCache.docLengths.set(mode, lengths);
+    cache.set(mode, lengths);
     return lengths;
   }
 
@@ -413,21 +448,22 @@ export function createSqliteHelpers(options) {
   function loadTokenStats(mode) {
     const db = getDb(mode);
     if (!db) return { avgDocLen: 0, totalDocs: 0 };
-    if (sqliteCache.tokenStats.has(mode)) return sqliteCache.tokenStats.get(mode);
+    const cache = cacheForDb(sqliteCache.tokenStats, db);
+    if (cache.has(mode)) return cache.get(mode);
 
     const row = db.prepare('SELECT avg_doc_len, total_docs FROM token_stats WHERE mode = ?').get(mode) || {};
     let totalDocs = typeof row.total_docs === 'number' ? row.total_docs : 0;
     let avgDocLen = typeof row.avg_doc_len === 'number' ? row.avg_doc_len : null;
 
-    const lengths = loadDocLengths(mode, totalDocs);
-    if (!totalDocs) totalDocs = lengths.length;
-    if (avgDocLen === null) {
-      const total = lengths.reduce((sum, len) => sum + len, 0);
-      avgDocLen = lengths.length ? total / lengths.length : 0;
+    if (!totalDocs || avgDocLen === null) {
+      const aggregate = db.prepare('SELECT COALESCE(MAX(doc_id), -1) + 1 AS ordinal_count, COALESCE(SUM(len), 0) AS total_len FROM doc_lengths WHERE mode = ?').get(mode);
+      const lengthCount = Math.max(totalDocs || 0, aggregate.ordinal_count || 0);
+      if (!totalDocs) totalDocs = lengthCount;
+      if (avgDocLen === null) avgDocLen = lengthCount ? aggregate.total_len / lengthCount : 0;
     }
 
     const stats = { avgDocLen, totalDocs };
-    sqliteCache.tokenStats.set(mode, stats);
+    cache.set(mode, stats);
     return stats;
   }
 
@@ -437,7 +473,7 @@ export function createSqliteHelpers(options) {
    * @param {'code'|'prose'} mode
    * @returns {object|null}
    */
-  function getTokenIndexForQuery(tokens, mode) {
+  function getTokenIndexForQuery(tokens, mode, { allowedIds = null, metrics = {}, throwIfAborted = null } = {}) {
     const db = getDb(mode);
     if (!db) return null;
     const uniqueTokens = Array.from(new Set(tokens)).filter(Boolean);
@@ -459,25 +495,26 @@ export function createSqliteHelpers(options) {
       tokenIds.push(row.id);
     }
 
+    const stats = loadTokenStats(mode);
+    const selective = hydrateSelectiveSqliteBm25({ db, mode, tokenIds, tokenIdToIndex, vocab, vocabIndex, stats,
+      allowedIds, getCachedStatement, throwIfAborted, metrics });
+    if (selective) return admitSortedPostings(selective);
+    metrics.plan = 'broad-streamed-postings'; metrics.postingRowsReturned = 0;
+
     const postingRows = fetchPostingRows(mode, 'token_postings', 'token_id', tokenIds, true);
     const postings = Array.from({ length: vocab.length }, () => []);
     for (const row of postingRows) {
+      if (metrics.postingRowsReturned % 256 === 0) throwIfAborted?.();
       const idx = tokenIdToIndex.get(row.id);
       if (idx === undefined) continue;
       postings[idx].push([row.doc_id, row.tf]);
+      metrics.postingRowsReturned++;
     }
 
-    const stats = loadTokenStats(mode);
     const docLengths = loadDocLengths(mode, stats.totalDocs);
 
-    return {
-      vocab,
-      postings,
-      docLengths,
-      avgDocLen: stats.avgDocLen,
-      totalDocs: stats.totalDocs,
-      vocabIndex
-    };
+    return admitSortedPostings({ vocab, postings, docLengths,
+      avgDocLen: stats.avgDocLen, totalDocs: stats.totalDocs, vocabIndex });
   }
 
   /**
@@ -486,20 +523,23 @@ export function createSqliteHelpers(options) {
    * @param {string[]} tokens
    * @returns {Set<number>|null}
    */
-  function buildCandidateSetSqlite(mode, tokens) {
+  function buildCandidateSetSqlite(mode, tokens, idx = null) {
     const db = getDb(mode);
     if (!db) return null;
     const candidates = new Set();
     let matched = false;
     const hashedChargrams = (() => {
-      if (sqliteCache.chargramHashMode?.has(mode)) return sqliteCache.chargramHashMode.get(mode);
+      const cache = cacheForDb(sqliteCache.chargramHashMode, db);
+      if (cache.has(mode)) return cache.get(mode);
       const row = db.prepare('SELECT gram FROM chargram_vocab WHERE mode = ? LIMIT 1').get(mode);
       const value = row?.gram;
       const hashed = typeof value === 'string' && value.startsWith('h64:');
-      if (!sqliteCache.chargramHashMode) sqliteCache.chargramHashMode = new Map();
-      sqliteCache.chargramHashMode.set(mode, hashed);
+      cache.set(mode, hashed);
       return hashed;
     })();
+    if (hashedChargrams && postingsConfig.enableChargrams !== false) {
+      assertChargramHashIdentity(idx?.state?.features?.chargramHash);
+    }
     const addCandidate = (id) => {
       candidates.add(id);
       return candidateCap && candidates.size >= candidateCap;
@@ -635,22 +675,81 @@ export function createSqliteHelpers(options) {
     const explicitMatch = typeof options?.ftsMatch === 'string'
       ? options.ftsMatch.trim()
       : '';
-    if (!explicitMatch && !queryTokens.length) return [];
+    const needsUniverse = requiresBooleanUniverse(options.queryAst);
+    if (!explicitMatch && !queryTokens.length && !needsUniverse) return [];
     const ftsTokens = queryTokens.filter((token) => FTS_TOKEN_SAFE.test(token));
     const fallbackMatch = ftsTokens.length
       ? ftsTokens.map((token) => `"${token}"`).join(' AND ')
       : '';
     const ftsQuery = explicitMatch || fallbackMatch;
-    if (!ftsQuery) return [];
-    if (options.queryAst) {
+    if (!ftsQuery && !needsUniverse) return [];
+    const bm25Expr = buildFtsBm25Expr(sqliteFtsWeights, table);
+    const allowedList = allowedIds && allowedIds.size ? Array.from(allowedIds) : null;
+    const canPushdown = Boolean(allowedList);
+    const jsonPushdown = canPushdown && allowedList.length > SQLITE_IN_LIMIT;
+    // Constrain the ordinary table's key. The FTS rowid equality plan can
+    // misapply a bound singleton constraint when row zero is present.
+    const allowedClause = canPushdown
+      ? jsonPushdown ? ' AND chunks.id IN (SELECT value FROM json_each(?))'
+        : ` AND chunks.id IN (${allowedList.map(() => '?').join(',')})`
+      : '';
+    if (hasCaseSensitivePhrase(options.queryAst)) assertCasePreservedPhraseEvidence(idx);
+    const eligibility = options.queryAst ? compileFtsEligibility(options.queryAst, table) : null;
+    if (eligibility?.hasPhrase && !phraseFunctionDatabases.has(db)) {
+      db.function('poc_fts_phrase_match_v3', { deterministic: true }, matchesFtsPhraseJson);
+      phraseFunctionDatabases.add(db);
+    }
+    const fetchSql = () => needsUniverse
+      ? `WITH fts_scores AS MATERIALIZED (${ftsQuery
+        ? `SELECT rowid AS id, ${bm25Expr} AS score FROM ${table} WHERE ${table} MATCH ?`
+        : 'SELECT NULL AS id, 0.0 AS score WHERE 0'})
+       SELECT chunks.id AS id, COALESCE(fts_scores.score, 0.0) AS score, chunks.weight AS weight
+       FROM chunks LEFT JOIN fts_scores ON fts_scores.id = chunks.id
+       WHERE chunks.mode = ? AND (${eligibility.sql}) ${allowedClause}
+       ORDER BY score ASC, chunks.id ASC LIMIT ?`
+      : `SELECT ${table}.rowid AS id, ${bm25Expr} AS score, chunks.weight AS weight
+       FROM ${table}
+       JOIN chunks ON chunks.id = ${table}.rowid
+       WHERE ${table} MATCH ? AND chunks.mode = ?
+       ${eligibility ? `AND (${eligibility.sql})` : ''}
+       ${allowedClause}
+       ORDER BY score ASC, ${table}.rowid ASC LIMIT ?`;
+    let rows = [];
+    const startedAt = Date.now();
+    let rowsScanned = 0;
+    let truncated = false;
+    try {
+      const stmtKey = canPushdown
+        ? `rankSqliteFtsPushdown:${table}:${allowedList.length}`
+        : 'rankSqliteFts:'+table;
+      const stmt = getCachedStatement(db, stmtKey, fetchSql());
+      const queryLimit = canPushdown
+        ? Math.min(overfetchRowCap, Math.max(topLimit, allowedList.length))
+        : overfetchRowCap;
+      const params = [...(ftsQuery ? [ftsQuery] : []), mode, ...(eligibility?.params || []),
+        ...(canPushdown ? jsonPushdown ? [JSON.stringify(allowedList)] : allowedList : []), queryLimit];
+      rows = stmt.all(...params);
+      rowsScanned = rows.length;
+      truncated = rows.length >= overfetchRowCap;
+    } catch (error) {
+      emitDiagnostic('query_failed', error);
+      return [];
+    }
+    if (options.queryAst && rows.length) {
+      // Chunk metadata may be lazy. Apply literal/Boolean checks only after
+      // fetching bounded candidates; absent metadata is not a negative match.
+      const missing = rows.filter(row => !idx.chunkMeta[row.id]).map(row => row.id);
+      if (missing.length) loadChunkMetaByIds(mode, missing, idx.chunkMeta);
+      const candidateIds = JSON.stringify(rows.map(row => row.id));
       const termRows = new Map();
       const collect = node => {
         if (!node) return;
         if (node.type === 'term') {
           const match = compileFtsMatchFromAst(node);
           if (!termRows.has(match)) {
-            const rows = db.prepare(`SELECT rowid AS id FROM ${table} WHERE ${table} MATCH ?`).all(match);
-            termRows.set(match, new Set(rows.map(row => row.id)));
+            const matches = db.prepare(`SELECT rowid AS id FROM ${table}
+              WHERE ${table} MATCH ? AND rowid IN (SELECT value FROM json_each(?))`).all(match, candidateIds);
+            termRows.set(match, new Set(matches.map(row => row.id)));
           }
         }
         collect(node.left); collect(node.right); collect(node.child);
@@ -660,50 +759,11 @@ export function createSqliteHelpers(options) {
         queryAst: options.queryAst,
         termMatches: (node, id) => termRows.get(compileFtsMatchFromAst(node))?.has(id) === true
       }).matchesQueryAst;
-      const eligible = new Set();
-      for (let id = 0; id < idx.chunkMeta.length; id++) {
-        const chunk = idx.chunkMeta[id];
-        if (chunk && (!allowedIds || allowedIds.has(id)) && matcher(idx, id, chunk)) eligible.add(id);
-      }
-      allowedIds = eligible;
       options.onEligibility?.(matcher);
-      if (!eligible.size) return [];
-    }
-    const bm25Expr = buildFtsBm25Expr(sqliteFtsWeights, table);
-    const allowedList = allowedIds && allowedIds.size ? Array.from(allowedIds) : null;
-    const canPushdown = Boolean(allowedList);
-    const jsonPushdown = canPushdown && allowedList.length > SQLITE_IN_LIMIT;
-    const allowedClause = canPushdown
-      ? jsonPushdown ? ` AND ${table}.rowid IN (SELECT value FROM json_each(?))`
-        : ` AND ${table}.rowid IN (${allowedList.map(() => '?').join(',')})`
-      : '';
-    const fetchSql = (withOffset = false) => `SELECT ${table}.rowid AS id, ${bm25Expr} AS score, chunks.weight AS weight
-       FROM ${table}
-       JOIN chunks ON chunks.id = ${table}.rowid
-       WHERE ${table} MATCH ? AND chunks.mode = ?
-       ${allowedClause}
-       ORDER BY score ASC, ${table}.rowid ASC LIMIT ?${withOffset ? ' OFFSET ?' : ''}`;
-    let rows = [];
-    const startedAt = Date.now();
-    let rowsScanned = 0;
-    let truncated = false;
-    try {
-      const stmtKey = canPushdown
-        ? `rankSqliteFtsPushdown:${table}:${allowedList.length}`
-        : 'rankSqliteFts:'+table;
-      const stmt = getCachedStatement(db, stmtKey, fetchSql(false));
-      const queryLimit = canPushdown
-        ? Math.min(overfetchRowCap, Math.max(topLimit, allowedList.length))
-        : overfetchRowCap;
-      const params = canPushdown
-        ? [ftsQuery, mode, ...(jsonPushdown ? [JSON.stringify(allowedList)] : allowedList), queryLimit]
-        : [ftsQuery, mode, queryLimit];
-      rows = stmt.all(...params);
-      rowsScanned = rows.length;
-      truncated = rows.length >= overfetchRowCap;
-    } catch (error) {
-      emitDiagnostic('query_failed', error);
-      return [];
+      rows = rows.filter(row => {
+        const chunk = idx.chunkMeta[row.id];
+        return chunk && matcher(idx, row.id, chunk);
+      });
     }
     emitOverfetch({
       rowCap: overfetchRowCap,

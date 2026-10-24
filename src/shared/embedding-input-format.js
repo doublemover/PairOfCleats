@@ -1,4 +1,5 @@
 import { isEmbeddingGemma2 } from './embedding-model-profile.js';
+import { resolveEmbeddingDenseContract, denseContractFormatting, assertEmbeddingDenseFormatting } from './embedding-dense-contract.js';
 
 const E5_MODEL_PATTERN = /(^|\/)(?:multilingual-)?e5(?:-|_|$)/i;
 const BGE_MODEL_PATTERN = /(^|\/)bge-(?:small|base|large|m3|micro|mini|maxi|en|zh|multilingual)/i;
@@ -48,6 +49,8 @@ export const resolveEmbeddingInputFormatting = (modelId) => {
       passagePrefix: 'title: none | text: '
     };
   }
+  const denseContract = resolveEmbeddingDenseContract(normalized);
+  if (denseContract) return denseContractFormatting(denseContract);
   if (E5_MODEL_PATTERN.test(normalized)) {
     return {
       family: 'e5',
@@ -85,6 +88,15 @@ export const formatEmbeddingInput = (text, options = {}) => {
   const formatting = options.formatting && typeof options.formatting === 'object'
     ? options.formatting
     : resolveEmbeddingInputFormatting(options.modelId);
+  const contract = resolveEmbeddingDenseContract(options.modelId);
+  assertEmbeddingDenseFormatting(contract, formatting);
+  if (contract) {
+    const source = String(text ?? '');
+    const prefix = kind === 'query' ? formatting.queryPrefix : formatting.passagePrefix;
+    // Exact, case-sensitive prefix replay preserves task/whitespace identity.
+    // Empty input remains empty, matching existing input formatting policy.
+    return prefix && source.trim() && !source.startsWith(prefix) ? `${prefix}${source}` : source;
+  }
   if (kind === 'query') {
     return applyPrefix(text, formatting.queryPrefix || null);
   }

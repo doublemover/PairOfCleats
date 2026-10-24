@@ -2,9 +2,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { atomicWriteJson } from '../../../../shared/io/atomic-write.js';
-import { sha1 } from '../../../../shared/hash.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../../../contracts/versioning.js';
+import { SQLITE_ZERO_STATE_SCHEMA_VERSION, resolveSqliteZeroStateSourceProof,
+  sqliteZeroStateChecksum } from '../../zero-state.js';
 
-const SQLITE_ZERO_STATE_SCHEMA_VERSION = '1.0.0';
 const SQLITE_ZERO_STATE_MANIFEST_FILE = 'sqlite-zero-state.json';
 const SQLITE_BUNDLE_WORKER_PROFILE_SCHEMA_VERSION = '1.0.0';
 const SQLITE_BUNDLE_WORKER_PROFILE_FILE = 'bundle-worker-autotune.json';
@@ -68,15 +69,21 @@ export const writeSqliteZeroStateManifest = async ({
 }) => {
   const manifestPath = resolveSqliteZeroStateManifestPath(modeIndexDir);
   if (!manifestPath) return null;
+  if (chunkCount !== 0 || denseCount !== 0 || !outputPath) {
+    throw new Error('A SQLite zero-state manifest requires explicit zero counts and an output path.');
+  }
   const payload = {
     schemaVersion: SQLITE_ZERO_STATE_SCHEMA_VERSION,
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     generatedAt: new Date().toISOString(),
     mode,
-    outputPath: outputPath || null,
-    chunkCount: Number.isFinite(Number(chunkCount)) ? Number(chunkCount) : 0,
-    denseCount: Number.isFinite(Number(denseCount)) ? Number(denseCount) : 0
+    indexDir: path.resolve(modeIndexDir),
+    outputPath: path.resolve(outputPath),
+    chunkCount,
+    denseCount,
+    sourceProof: await resolveSqliteZeroStateSourceProof(modeIndexDir, mode)
   };
-  payload.checksum = sha1(JSON.stringify(payload));
+  payload.checksum = sqliteZeroStateChecksum(payload);
   await fs.mkdir(path.dirname(manifestPath), { recursive: true });
   await atomicWriteJson(manifestPath, payload, { spaces: 2 });
   return manifestPath;

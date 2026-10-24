@@ -1,0 +1,29 @@
+# Native declaration names, scopes and source coverage
+
+Declaration identities use authoritative grammar name fields and declarator roles. A return type, parameter, body identifier, enum entry or grouping wrapper cannot supply a declaration name. Special Swift and Kotlin members use their stable declaration role (`init`, `deinit`, `subscript`, `constructor`); overload signatures remain separate metadata. Objective-C selectors retain all keyword pieces and colons, with `+` or `-` distinguishing class and instance members. C++ explicit `::` qualification maps to the existing dotted owner convention without duplicating a lexical owner.
+
+Lexical qualification includes enclosing modules, namespaces, types and callables. Only a callable whose nearest admitted lexical owner is a semantic type becomes a method. A function inside a method remains a function with its full lexical path. Python call and flow accumulation uses a declaration occurrence identity as well as its qualified display name, so distinct declarations cannot merge facts through a shared short name.
+
+Each emitted callable includes its complete implementation or bodyless declaration. Dart signatures include their own following body; nested signature wrappers do not emit duplicate callables. Go type groups emit individual type specifications rather than a container impersonating the first child. C-family prototypes are admitted by callable declarator roles, preserving multiple declarations and excluding function-pointer variables. Tagged type uses do not create declarations; definitions and standalone forwards remain distinct supported forms.
+
+Attached Python decorators, Rust attributes and C++ template wrappers belong to the declaration's source range. `definitionStartLine` retains the semantic declaration coordinate when the covered source begins earlier. HTML embedded offsets and line metadata both refer to the host document; template fragments are traversed once for static metadata and embedded discovery.
+
+The tree-sitter chunk cache producer version changes with these semantics. Shared semantic source-chunking and call-flow versions must also invalidate derived replay. Newly authored regression sources describe required acceptance; development-only source checkpoints do not establish supported-runtime, parser-lifecycle, full-index or performance qualification.
+
+Native Ruby singleton methods retain a separate receiver/member role (`A.self.same` versus `A.same`). PHP enums, Scala package objects and givens are admitted containers. Scala extension groups use a synthetic receiver/type-parameter identity rather than a fabricated declared name; R bindings come from assignment fields, and unbound callbacks receive an explicit anonymous occurrence name.
+
+Parser-owned call facts are copied as ordinary immutable `callDetails` before native disposal. Supported call-expression roles are attributed to their nearest callable occurrence, with UTF-16 ranges and unresolved target provenance. A file-wide usage token is not evidence that every declaration calls it. Unsupported lexical routes expose partial call coverage. The broader exhaustive persisted occurrence, backpressure and resumable-interruption contract tracked by #1484 remains open until downstream integration; native adjacency correctness does not establish that acceptance.
+
+Decoded template dependency keys carry `parsed-literal` provenance through registry and import-pass admission. Syntax cleanup is reserved for raw scanner tokens; control/length checks still apply to literal keys. CMake/Make/Starlark/R import scanning remains passive and bounded, preserves logical argument boundaries, and leaves dynamic expressions unresolved. Shell source arguments preserve static quoting and internal spaces; no source fixture is executed.
+
+SQL segmentation uses effective dialect quote/comment rules and native declarations are retained while uncovered statement source is filled. Static client includes are admitted only outside SQL literals/comments. XML keeps root/preamble bytes; top-level YAML partitions documents before property chunks; Starlark headings require a real top-level lexical boundary outside strings. These source changes require later parser, consumer, cache and platform qualification before publishing acceptance.
+
+Native syntax call facts retain immutable parser-owner snapshots. Relation
+projections copy compact details so later resolution can annotate them without
+mutating those snapshots. Exact UTF-16 half-open offsets and one-based line/column
+coordinates cross the default lexicon filter, chunk occurrence index and canonical
+call-sites writer. Dynamic targets remain occurrences with explicit unresolved
+reason in the existing syntax extension; raw target previews are bounded to 512
+UTF-16 units while exact retained-source ranges remain addressable. Query/display
+limits do not justify dropping these syntax rows. Full durable spill/resume and
+comprehensive inference coverage remain open under #1484/#1348.

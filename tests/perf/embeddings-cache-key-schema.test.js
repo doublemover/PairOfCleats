@@ -21,8 +21,8 @@ const key = buildCacheKey(base);
 if (!key || typeof key !== 'string') {
   fail('expected cache key to be generated');
 }
-if (!key.startsWith('pairofcleats:ck1:')) {
-  fail(`expected cache key to include namespace+version prefix, got "${key}"`);
+if (!/^file-ck1-[a-f0-9]+$/.test(key)) {
+  fail(`expected a versioned filesystem-safe file cache key, got "${key}"`);
 }
 
 const keyMode = buildCacheKey({ ...base, mode: 'prose' });

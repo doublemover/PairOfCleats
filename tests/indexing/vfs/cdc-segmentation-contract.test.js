@@ -4,7 +4,7 @@ import * as mod from '../../../src/index/segments/cdc.js';
 const segmentWithCdc = mod.segmentWithCdc || mod.buildCdcSegments;
 assert.equal(typeof segmentWithCdc, 'function', 'Expected segmentWithCdc export.');
 
-assert.equal(mod.CDC_SEGMENTATION_VERSION, '1.0.0', 'Expected CDC segmentation version 1.0.0.');
+assert.equal(mod.CDC_SEGMENTATION_VERSION, '2.0.0', 'Expected the current byte-bounded, UTF-16-addressed CDC producer.');
 
 const text = 'alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron pi rho sigma tau upsilon phi chi psi omega';
 const segments = await segmentWithCdc({

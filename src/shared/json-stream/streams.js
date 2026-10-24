@@ -6,6 +6,9 @@ import { createByteCounter } from './byte-counter.js';
 import { createFflateGzipStream, createZstdStream, normalizeHighWaterMark } from './compress.js';
 import { createAbortError } from './runtime.js';
 import { getEnvConfig } from '../env.js';
+import { addStorageFailureContext } from '../storage/operation-error.js';
+import { createContainedFileResource } from '../contained-file-resource.js';
+import { observeStorageResource } from '../storage/failure-observation.js';
 
 const JSON_STREAM_WAIT_TIMEOUT_SYMBOL = Symbol.for('pairofcleats.json_stream_wait_timeout_ms');
 const DEFAULT_JSON_STREAM_WAIT_TIMEOUT_MS = 5 * 60 * 1000;
@@ -74,6 +77,12 @@ const waitForEventWithTimeout = async ({ stream, event, timeoutMs, label = null 
  * @returns {Promise<void>}
  */
 export const waitForStreamEvent = async (stream, event, options = {}) => {
+  if (event === 'close' && stream.closed) return;
+  if (event === 'finish' && stream.writableFinished) return;
+  if (event !== 'error' && stream.errored) throw stream.errored;
+  if (event === 'drain' && (stream.destroyed || stream.writableEnded)) {
+    throw Object.assign(new Error('JSON output closed before writable drain.'), { code: 'ERR_STREAM_DESTROYED' });
+  }
   const timeoutMs = resolveJsonStreamWaitTimeoutMs(
     options?.timeoutMs ?? stream?.[JSON_STREAM_WAIT_TIMEOUT_SYMBOL]
   );
@@ -94,10 +103,21 @@ export const waitForStreamEvent = async (stream, event, options = {}) => {
  * @param {string|Buffer|Uint8Array} chunk
  * @returns {Promise<void>}
  */
-export const writeChunk = async (stream, chunk) => {
-  if (!stream.write(chunk)) {
-    await waitForStreamEvent(stream, 'drain', { label: 'writeChunk.drain' });
+export const writeChunkIfNeeded = (stream, chunk) => {
+  if (stream.errored) throw stream.errored;
+  if (stream.destroyed || stream.writableEnded) {
+    throw Object.assign(new Error('JSON output is closed.'), { code: 'ERR_STREAM_DESTROYED' });
   }
+  if (!stream.write(chunk)) {
+    return waitForStreamEvent(stream, 'drain', { label: 'writeChunk.drain' });
+  }
+  return null;
+};
+
+/** Compatibility wrapper for callers requiring a Promise on accepted writes. */
+export const writeChunk = async (stream, chunk) => {
+  const pending = writeChunkIfNeeded(stream, chunk);
+  if (pending) await pending;
 };
 
 /**
@@ -151,12 +171,17 @@ const waitForFinish = async (stream, requireClose = false, timeoutMs = 0, label 
 const waitForClose = (stream, timeoutMs = 0) => {
   if (!stream) return Promise.resolve();
   if (stream.closed) return Promise.resolve();
-  return waitForEventWithTimeout({
-    stream,
-    event: 'close',
-    timeoutMs,
-    label: 'stream.close'
-  }).catch(() => {});
+  // An error is diagnostic data, not evidence that the descriptor closed.
+  // Pipeline owners keep observing errors while this waits for actual close.
+  return new Promise((resolve, reject) => {
+    let timer = null;
+    const close = () => { if (timer) clearTimeout(timer); resolve(); };
+    stream.once('close', close);
+    if (timeoutMs > 0) timer = setTimeout(() => {
+      stream.removeListener('close', close);
+      reject(createStreamWaitTimeoutError({ event: 'close', timeoutMs, label: 'stream.close' }));
+    }, timeoutMs);
+  });
 };
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -267,6 +292,33 @@ const cleanupPendingDeleteTombstones = async (targetPath) => {
  * @param {number} [preallocateBytes]
  * @returns {{tempPath:string,fileStream:import('node:fs').WriteStream}}
  */
+const createOpenedFileStream = (targetPath, flags, highWaterMark, preallocateBytes, removeOnFailure) => {
+  const methods = { receiver: fs, close: fs.closeSync, stat: fs.fstatSync, read: fs.readSync, truncate: fs.ftruncateSync };
+  const fd = fs.openSync(targetPath, flags);
+  const owner = createContainedFileResource({ fd, sync: true, methods, additionalMethods: ['truncate'] });
+  if (owner.hasFailure()) return owner.runSync(() => {});
+  try {
+    if (preallocateBytes > 0) owner.operations.truncate(preallocateBytes);
+    const fileStream = fs.createWriteStream(targetPath, {
+      fd, autoClose: true, ...(highWaterMark ? { highWaterMark } : {})
+    });
+    owner.detach();
+    return fileStream;
+  } catch (error) {
+    owner.remember(error);
+    let primary = error;
+    try { owner.runSync(() => {}); } catch (failure) { primary = failure; }
+    // An unconfirmed close retains the original descriptor and private file.
+    // Recovery through that owner never replays truncate, construction or data.
+    if (removeOnFailure && owner.isSettled()) {
+      try { fs.rmSync(targetPath, { force: true }); } catch (cleanupError) {
+        primary = addStorageFailureContext(primary, {}, cleanupError, { secondaryPresent: true });
+      }
+    }
+    throw primary;
+  }
+};
+
 const createExclusiveAtomicFileStream = (filePath, highWaterMark, preallocateBytes = 0) => {
   const preallocate = resolvePreallocateBytes(preallocateBytes);
   let lastErr = null;
@@ -275,22 +327,10 @@ const createExclusiveAtomicFileStream = (filePath, highWaterMark, preallocateByt
     const tempPath = createTempPath(filePath, { preferFallback });
     try {
       fs.mkdirSync(path.dirname(tempPath), { recursive: true });
-      const fd = fs.openSync(tempPath, 'wx');
-      if (preallocate > 0) {
-        try {
-          fs.ftruncateSync(fd, preallocate);
-        } catch (err) {
-          try { fs.closeSync(fd); } catch {}
-          throw err;
-        }
-      }
-      const fileStream = fs.createWriteStream(tempPath, {
-        fd,
-        autoClose: true,
-        ...(highWaterMark ? { highWaterMark } : {})
-      });
+      const fileStream = createOpenedFileStream(tempPath, 'wx', highWaterMark, preallocate, true);
       return { tempPath, fileStream };
     } catch (err) {
+      observeStorageResource(err, { phase: 'json-output-file-admission' }).requireSettled();
       if (err?.code === 'EEXIST') {
         lastErr = err;
         continue;
@@ -317,21 +357,8 @@ const createExclusiveAtomicFileStream = (filePath, highWaterMark, preallocateByt
  */
 const createPreallocatedFileStream = (targetPath, highWaterMark, preallocateBytes = 0) => {
   fs.mkdirSync(path.dirname(targetPath), { recursive: true });
-  const fd = fs.openSync(targetPath, 'w');
   const preallocate = resolvePreallocateBytes(preallocateBytes);
-  if (preallocate > 0) {
-    try {
-      fs.ftruncateSync(fd, preallocate);
-    } catch (err) {
-      try { fs.closeSync(fd); } catch {}
-      throw err;
-    }
-  }
-  return fs.createWriteStream(targetPath, {
-    fd,
-    autoClose: true,
-    ...(highWaterMark ? { highWaterMark } : {})
-  });
+  return createOpenedFileStream(targetPath, 'w', highWaterMark, preallocate, false);
 };
 
 /**
@@ -359,23 +386,35 @@ export const createJsonWriteStream = (filePath, options = {}) => {
   if (signal?.aborted) {
     throw createAbortError();
   }
-  const tempRef = atomic
-    ? createExclusiveAtomicFileStream(filePath, highWaterMark, resolvedPreallocateBytes)
-    : null;
+  if (compression && !['none', 'gzip', 'zstd'].includes(compression)) throw new TypeError('Unsupported JSON stream compression.');
+  // Construct/validate the codec and checksum before opening an output FD.
+  const codec = compression === 'gzip' ? createFflateGzipStream(options)
+    : compression === 'zstd' ? createZstdStream(options) : null;
+  let counting;
+  try { counting = createByteCounter(maxBytes, highWaterMark, checksumAlgo); }
+  catch (error) { codec?.destroy(); throw error; }
+  let tempRef, fileStream;
+  try {
+    tempRef = atomic ? createExclusiveAtomicFileStream(filePath, highWaterMark, resolvedPreallocateBytes) : null;
+    fileStream = atomic ? tempRef.fileStream : createPreallocatedFileStream(filePath, highWaterMark, resolvedPreallocateBytes);
+  } catch (error) {
+    codec?.destroy(); counting.counter.destroy(); throw error;
+  }
   const targetPath = atomic ? tempRef.tempPath : filePath;
-  const fileStream = atomic
-    ? tempRef.fileStream
-    : createPreallocatedFileStream(targetPath, highWaterMark, resolvedPreallocateBytes);
   const {
     counter,
     getBytes,
     isOverLimit,
     checksumAlgo: resolvedChecksumAlgo,
     getChecksum
-  } = createByteCounter(maxBytes, highWaterMark, checksumAlgo);
+  } = counting;
   let writer = null;
-  let committed = false;
   const streams = [];
+  const streamErrors = new Set();
+  for (const owned of [codec, counter, fileStream].filter(Boolean)) owned.on('error', error => {
+    streamErrors.add(error);
+    if (owned.errored) streamErrors.add(owned.errored);
+  });
   const attachAbortHandler = () => {
     if (!signal) return () => {};
     const handler = () => {
@@ -423,15 +462,14 @@ export const createJsonWriteStream = (filePath, options = {}) => {
     if (counter && counter !== writer) counter.on('error', forwardToFile);
     fileStream.on('error', forwardToWriter);
   };
-  const createWriteStreamResult = (stream) => ({
-    stream,
-    getBytesWritten: getBytes,
-    checksumAlgo: resolvedChecksumAlgo,
-    getChecksum,
-    done: Promise.all([...new Set(streams)].map((entry) => (
+  const createWriteStreamResult = (stream) => {
+    const ownedStreams = [...new Set(streams)];
+    const done = Promise.all(ownedStreams.map((entry) => (
       waitForFinish(entry, entry === fileStream, resolvedWaitTimeoutMs, `json-stream.${entry === fileStream ? 'close' : 'finish'}`)
     )))
       .then(async () => {
+        await Promise.all(ownedStreams.map(entry => waitForClose(entry, resolvedWaitTimeoutMs)));
+        if (streamErrors.size) throw streamErrors.values().next().value;
         if (isOverLimit()) {
           throw new Error('JSON stream exceeded maxBytes.');
         }
@@ -440,22 +478,32 @@ export const createJsonWriteStream = (filePath, options = {}) => {
         }
         if (atomic) {
           await replaceFile(targetPath, filePath);
-          committed = true;
         }
       })
       .catch(async (err) => {
-        await removeTempFile();
-        throw err;
-      })
-      .finally(async () => {
-        if (atomic && !committed) {
-          await removeTempFile();
+        let primary = err;
+        for (const owned of ownedStreams) {
+          try { if (!owned.destroyed) owned.destroy(err); }
+          catch (error) { streamErrors.add(error); }
         }
-        detachAbort();
+        const settled = await Promise.allSettled(ownedStreams.map(entry => waitForClose(entry, resolvedWaitTimeoutMs)));
+        for (const outcome of settled) if (outcome.status === 'rejected') streamErrors.add(outcome.reason);
+        for (const error of streamErrors) if (error !== err) {
+          primary = addStorageFailureContext(primary, {}, error, { secondaryPresent: true });
+        }
+        try { await removeTempFile(); } catch (error) {
+          primary = addStorageFailureContext(primary, {}, error, { secondaryPresent: true });
+        }
+        throw primary;
       })
-  });
+      .finally(() => { detachAbort(); });
+    // A producer can be awaiting its next row when the destination fails.
+    // Observe the finalizer immediately; callers still receive its exact error.
+    done.catch(() => {});
+    return { stream, getBytesWritten: getBytes, checksumAlgo: resolvedChecksumAlgo, getChecksum, done };
+  };
   if (compression === 'gzip') {
-    const gzip = createFflateGzipStream(options);
+    const gzip = codec;
     writer = gzip;
     writer[JSON_STREAM_WAIT_TIMEOUT_SYMBOL] = resolvedWaitTimeoutMs;
     gzip.pipe(counter).pipe(fileStream);
@@ -464,7 +512,7 @@ export const createJsonWriteStream = (filePath, options = {}) => {
     return createWriteStreamResult(gzip);
   }
   if (compression === 'zstd') {
-    const zstd = createZstdStream(options);
+    const zstd = codec;
     writer = zstd;
     writer[JSON_STREAM_WAIT_TIMEOUT_SYMBOL] = resolvedWaitTimeoutMs;
     zstd.pipe(counter).pipe(fileStream);

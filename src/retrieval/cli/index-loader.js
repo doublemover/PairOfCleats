@@ -12,6 +12,7 @@ export async function loadIndexCached({
   generationTag = null,
   modelIdDefault,
   fileChargramN,
+  strict = true,
   includeHnsw = true,
   includeDense = true,
   includeMinhash = true,
@@ -30,6 +31,7 @@ export async function loadIndexCached({
     {
       modelIdDefault,
       fileChargramN,
+      strict,
       includeHnsw,
       includeDense,
       includeMinhash,
@@ -81,26 +83,31 @@ export function resolveDenseVector(idx, mode, denseVectorMode) {
 
 export async function loadFileRelations(rootDir, userConfig, mode, options = {}) {
   try {
-    const dir = resolveIndexDir(rootDir, mode, userConfig, options.resolveOptions || {});
+    const dir = options.indexDir || resolveIndexDir(rootDir, mode, userConfig, options.resolveOptions || {});
     const raw = await loadJsonArrayArtifact(dir, 'file_relations', {
       maxBytes: MAX_JSON_BYTES,
-      strict: false
+      strict: options.required === true ? options.strict !== false : false
     });
-    if (!Array.isArray(raw)) return null;
+    if (!Array.isArray(raw)) {
+      if (options.required) throw Object.assign(new Error('Required file_relations artifact is not an array.'), { code: 'ERR_ARTIFACT_INVALID' });
+      return null;
+    }
     const map = new Map();
     for (const entry of raw) {
       if (!entry?.file) continue;
       map.set(entry.file, entry.relations || null);
     }
+    Object.defineProperty(map, 'readiness', { value: { state: 'complete', indexDir: dir, mode }, enumerable: false });
     return map;
-  } catch {
+  } catch (error) {
+    if (options.required) throw error;
     return null;
   }
 }
 
 export async function loadRepoMap(rootDir, userConfig, mode, options = {}) {
   try {
-    const dir = resolveIndexDir(rootDir, mode, userConfig, options.resolveOptions || {});
+    const dir = options.indexDir || resolveIndexDir(rootDir, mode, userConfig, options.resolveOptions || {});
     const raw = await loadJsonArrayArtifact(dir, 'repo_map', {
       maxBytes: MAX_JSON_BYTES,
       strict: false

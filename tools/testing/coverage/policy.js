@@ -6,7 +6,7 @@ import { toPosix } from '../../../src/shared/file-paths.js';
 import { writeJsonFileResolved } from '../../../src/shared/json-file.js';
 import { writeTextIfChanged } from '../../shared/generated-report.js';
 
-const POLICY_VERSION = '1.0.0';
+const POLICY_VERSION = '2.0.0';
 
 export const CRITICAL_TEST_COVERAGE_SURFACES = Object.freeze([
   {
@@ -81,12 +81,7 @@ const runGit = (root, args) => spawnSync('git', args, {
   stdio: ['ignore', 'pipe', 'pipe']
 });
 
-const parseGitPathList = (value) => new Set(
-  String(value || '')
-    .split(/\r?\n/)
-    .map((entry) => toPosix(entry.trim()))
-    .filter(Boolean)
-);
+export const parseGitPathList = value => new Set(String(value || '').split('\0').filter(Boolean));
 
 const toCoverageFraction = (coveredRanges, totalRanges) => {
   const total = Number(totalRanges);
@@ -116,7 +111,7 @@ const summarizeCoverageEntries = (entries) => {
 
 const normalizeCoverageEntries = (entries) => (Array.isArray(entries) ? entries : [])
   .map((entry) => ({
-    path: toPosix(String(entry?.path || '')),
+    path: process.platform === 'win32' ? toPosix(String(entry?.path || '')) : String(entry?.path || ''),
     coveredRanges: Number(entry?.coveredRanges || 0),
     totalRanges: Number(entry?.totalRanges || 0)
   }))
@@ -136,7 +131,7 @@ const resolveGitRangeFromEvent = (root, env = process.env) => {
     const baseSha = String(payload?.pull_request?.base?.sha || '').trim();
     const headSha = String(payload?.pull_request?.head?.sha || '').trim();
     if (!baseSha || !headSha) return null;
-    const probe = runGit(root, ['diff', '--name-only', `${baseSha}...${headSha}`]);
+    const probe = runGit(root, ['diff', '--name-only', '-z', `${baseSha}...${headSha}`]);
     if (probe.status !== 0) return null;
     return {
       strategy: 'github-pull-request-range',
@@ -155,7 +150,7 @@ const resolveChangedFilesFromGit = ({ root, baseRef = '', headRef = '', env = pr
   const explicitBase = String(baseRef || '').trim();
   const explicitHead = String(headRef || '').trim();
   if (explicitBase && explicitHead) {
-    const result = runGit(root, ['diff', '--name-only', `${explicitBase}...${explicitHead}`]);
+    const result = runGit(root, ['diff', '--name-only', '-z', `${explicitBase}...${explicitHead}`]);
     if (result.status === 0) {
       return {
         available: true,
@@ -179,10 +174,10 @@ const resolveChangedFilesFromGit = ({ root, baseRef = '', headRef = '', env = pr
 
   const parentRange = runGit(root, ['rev-parse', '--verify', 'HEAD^']);
   if (parentRange.status === 0) {
-    const result = runGit(root, ['diff', '--name-only', 'HEAD^...HEAD']);
+    const result = runGit(root, ['diff', '--name-only', '-z', 'HEAD^...HEAD']);
     if (result.status === 0) {
       const paths = Array.from(parseGitPathList(result.stdout)).sort();
-      const untracked = runGit(root, ['ls-files', '--others', '--exclude-standard']);
+      const untracked = runGit(root, ['ls-files', '--others', '--exclude-standard', '-z']);
       const merged = new Set(paths);
       if (untracked.status === 0) {
         for (const entry of parseGitPathList(untracked.stdout)) merged.add(entry);
@@ -198,8 +193,8 @@ const resolveChangedFilesFromGit = ({ root, baseRef = '', headRef = '', env = pr
     }
   }
 
-  const diff = runGit(root, ['diff', '--name-only', 'HEAD']);
-  const untracked = runGit(root, ['ls-files', '--others', '--exclude-standard']);
+  const diff = runGit(root, ['diff', '--name-only', '-z', 'HEAD']);
+  const untracked = runGit(root, ['ls-files', '--others', '--exclude-standard', '-z']);
   if (diff.status === 0 && untracked.status === 0) {
     const merged = new Set([
       ...parseGitPathList(diff.stdout),
@@ -225,12 +220,45 @@ const resolveChangedFilesFromGit = ({ root, baseRef = '', headRef = '', env = pr
   };
 };
 
-const filterEntriesToPaths = (entries, changedPaths) => {
-  const wanted = new Set((Array.isArray(changedPaths) ? changedPaths : []).map((entry) => toPosix(entry)));
-  return normalizeCoverageEntries(entries).filter((entry) => wanted.has(entry.path));
+const SOURCE_EXTENSIONS = new Set(['.js', '.mjs', '.cjs', '.ts', '.mts', '.cts']);
+const coveragePath = value => process.platform === 'win32' ? toPosix(value) : String(value);
+
+export const joinChangedCoverageInventory = ({ root, paths, entries, deletedPaths = [], exclusions = [] }) => {
+  const observed = new Map(normalizeCoverageEntries(entries).map(row => [row.path, row]));
+  const deleted = new Set(deletedPaths);
+  const excluded = new Map(exclusions.map(row => [row.path, row.reason]));
+  return [...new Set(paths)].sort().map(label => {
+    const row = { path: label, status: 'unobserved', reason: 'no-v8-observation',
+      coveredRanges: null, totalRanges: null, coverageFraction: null };
+    if (deleted.has(label)) return { ...row, status: 'deleted', reason: 'git-target-deletion' };
+    if (excluded.has(label)) return { ...row, status: 'excluded', reason: excluded.get(label) || 'declared-exclusion' };
+    const target = path.resolve(root, label);
+    const relative = path.relative(path.resolve(root), target);
+    if (relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative)) return { ...row, status: 'unsupported', reason: 'outside-source-root' };
+    let stat;
+    try { stat = fsSync.lstatSync(target); }
+    catch (error) { return { ...row, status: error.code === 'ENOENT' ? 'absent' : 'unavailable', reason: error.code || 'source-stat-failed' }; }
+    if (!stat.isFile() || stat.isSymbolicLink()) return { ...row, status: 'unsupported', reason: 'not-an-instrumentable-regular-file' };
+    const measurement = observed.get(coveragePath(label));
+    if (measurement && Number.isFinite(measurement.totalRanges) && measurement.totalRanges > 0
+      && Number.isFinite(measurement.coveredRanges) && measurement.coveredRanges >= 0) return { ...row, ...measurement, status: 'observed', reason: null,
+      coverageFraction: toCoverageFraction(measurement.coveredRanges, measurement.totalRanges) };
+    if (!SOURCE_EXTENSIONS.has(path.extname(label).toLowerCase())) return { ...row, status: 'unsupported', reason: 'no-supported-v8-source-instrumentation' };
+    return row;
+  });
 };
 
-const buildCriticalSurfaceSummary = (entries) => {
+const summarizeMeasurement = (inventory, available = true) => {
+  const counts = Object.fromEntries(['observed', 'unobserved', 'deleted', 'absent', 'unsupported', 'excluded', 'unavailable']
+    .map(status => [status, inventory.filter(row => row.status === status).length]));
+  const eligibleFiles = counts.observed + counts.unobserved + counts.unavailable + counts.absent;
+  return { changedFiles: inventory.length, eligibleFiles, measuredFiles: counts.observed, counts,
+    status: !available ? 'unavailable' : !eligibleFiles ? 'not-applicable'
+      : counts.unobserved + counts.unavailable + counts.absent > 0 ? 'partial' : 'complete',
+    denominator: 'observed-ranges-only' };
+};
+
+const buildCriticalSurfaceSummary = (entries, changedInventory, available) => {
   const normalizedEntries = normalizeCoverageEntries(entries);
   return CRITICAL_TEST_COVERAGE_SURFACES.map((surface) => {
     const isMatch = picomatch(surface.patterns, { dot: true });
@@ -240,6 +268,8 @@ const buildCriticalSurfaceSummary = (entries) => {
       label: surface.label,
       patterns: surface.patterns.slice(),
       summary: summarizeCoverageEntries(matchedEntries),
+      changedInventory: changedInventory.filter(row => isMatch(row.path)),
+      measurement: summarizeMeasurement(changedInventory.filter(row => isMatch(row.path)), available),
       topUncoveredFiles: buildEntryRows(matchedEntries)
         .filter((entry) => entry.coverageFraction !== null && entry.coverageFraction < 1)
         .sort((a, b) => {
@@ -263,7 +293,15 @@ export const buildCoveragePolicyReport = ({
 }) => {
   const entries = normalizeCoverageEntries(coverageArtifact?.entries);
   const changed = resolveChangedFilesFromGit({ root, baseRef, headRef, env });
-  const changedEntries = changed.available ? filterEntriesToPaths(entries, changed.paths) : [];
+  let deletedPaths = [];
+  if (changed.available) {
+    const range = changed.strategy === 'working-tree' ? ['HEAD'] : [`${changed.baseRef}...${changed.headRef}`];
+    const deleted = runGit(root, ['diff', '--diff-filter=D', '--name-only', '-z', ...range]);
+    if (deleted.status === 0) deletedPaths = [...parseGitPathList(deleted.stdout)];
+  }
+  const inventory = joinChangedCoverageInventory({ root, paths: changed.paths, entries, deletedPaths,
+    exclusions: coverageArtifact?.exclusions || [] });
+  const changedEntries = inventory.filter(row => row.status === 'observed');
   const changedRows = buildEntryRows(changedEntries)
     .sort((a, b) => {
       if ((a.coverageFraction ?? 1) !== (b.coverageFraction ?? 1)) {
@@ -273,7 +311,7 @@ export const buildCoveragePolicyReport = ({
     });
 
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: new Date().toISOString(),
     kind: 'test-coverage-policy-report',
     policyVersion: POLICY_VERSION,
@@ -288,9 +326,11 @@ export const buildCoveragePolicyReport = ({
       headRef: changed.headRef,
       reason: changed.reason,
       summary: summarizeCoverageEntries(changedEntries),
-      files: changedRows
+      files: changedRows,
+      inventory,
+      measurement: summarizeMeasurement(inventory, changed.available)
     },
-    criticalSurfaces: buildCriticalSurfaceSummary(entries),
+    criticalSurfaces: buildCriticalSurfaceSummary(entries, inventory, changed.available),
     policy: {
       phase: 'report-only',
       progression: [
@@ -322,6 +362,9 @@ export const renderCoveragePolicyMarkdown = (report) => {
   lines.push('');
   lines.push(`- available: ${report.changedFiles.available ? 'yes' : 'no'}`);
   lines.push(`- strategy: ${report.changedFiles.strategy}`);
+  const measurement = report.changedFiles.measurement;
+  lines.push(`- measurement: ${measurement.status}; ${measurement.measuredFiles}/${measurement.eligibleFiles} eligible changed files observed (${measurement.changedFiles} changed paths)`);
+  lines.push('- range percentages use observed ranges only; unknown denominators remain unknown.');
   if (report.changedFiles.baseRef || report.changedFiles.headRef) {
     lines.push(`- range: \`${report.changedFiles.baseRef || 'n/a'} -> ${report.changedFiles.headRef || 'n/a'}\``);
   }
@@ -339,6 +382,9 @@ export const renderCoveragePolicyMarkdown = (report) => {
       + `(${entry.coveredRanges}/${entry.totalRanges})`
     );
   }
+  for (const row of report.changedFiles.inventory.filter(row => row.status !== 'observed')) {
+    lines.push(`- ${JSON.stringify(row.path)}: ${row.status} (${row.reason || 'unknown'}; ranges unknown)`);
+  }
   if (!report.changedFiles.files.length) {
     lines.push('- (no changed-file coverage rows)');
   }
@@ -351,6 +397,8 @@ export const renderCoveragePolicyMarkdown = (report) => {
       `- ${surface.label}: ${formatPercent(surface.summary.coverageFraction)} `
       + `(${surface.summary.coveredRanges}/${surface.summary.totalRanges} ranges across ${surface.summary.files} files)`
     );
+    lines.push(`  - changed measurement: ${surface.measurement.status}; ${surface.measurement.measuredFiles}/${surface.measurement.eligibleFiles} eligible paths observed`);
+    for (const row of surface.changedInventory.filter(row => row.status !== 'observed')) lines.push(`  - ${JSON.stringify(row.path)}: ${row.status}; ranges unknown`);
     for (const entry of surface.topUncoveredFiles.slice(0, 3)) {
       lines.push(`  - \`${entry.path}\`: ${formatPercent(entry.coverageFraction)}`);
     }

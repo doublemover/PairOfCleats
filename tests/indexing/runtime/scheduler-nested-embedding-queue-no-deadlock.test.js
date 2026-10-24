@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 import { createBuildScheduler } from '../../../src/shared/concurrency/scheduler-core.js';
 import { createRuntimeQueues } from '../../../src/index/build/runtime/workers.js';
+import { withSchedulerCpuSuspended } from '../../../src/shared/concurrency/scheduler-task-scope.js';
 
 const scheduler = createBuildScheduler({
   enabled: true,
@@ -43,9 +44,9 @@ const withTimeout = (promise, timeoutMs, message) => {
 };
 
 try {
-  const nested = runtime.queues.cpu.add(async () => (
+  const nested = runtime.queues.cpu.add(async () => withSchedulerCpuSuspended(() => (
     runtime.queues.embedding.add(async () => 'embedded-ok')
-  ));
+  )));
 
   const result = await withTimeout(
     nested,

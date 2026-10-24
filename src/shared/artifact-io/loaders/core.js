@@ -29,7 +29,7 @@ export const loadJsonArrayArtifact = async (
   const validationMode = strict ? 'strict' : 'trusted';
   const resolvedManifest = manifest || loadPiecesManifest(
     dir,
-    { maxBytes: resolveManifestMaxBytes(maxBytes), strict }
+    { maxBytes: resolveManifestMaxBytes(maxBytes, { strict }), strict }
   );
   const sources = resolveRequiredSources({
     dir,
@@ -70,7 +70,7 @@ export const loadJsonArrayArtifactRows = async function* (
   const validationMode = strict ? 'strict' : 'trusted';
   const resolvedManifest = manifest || loadPiecesManifest(
     dir,
-    { maxBytes: resolveManifestMaxBytes(maxBytes), strict }
+    { maxBytes: resolveManifestMaxBytes(maxBytes, { strict }), strict }
   );
   const resolvedKeys = requiredKeys ?? resolveJsonlRequiredKeys(baseName);
   void materialize;
@@ -107,7 +107,7 @@ const loadJsonObjectArtifactFromManifest = ({
 }) => {
   const resolvedManifest = manifest || loadPiecesManifest(
     dir,
-    { maxBytes: resolveManifestMaxBytes(maxBytes), strict }
+    { maxBytes: resolveManifestMaxBytes(maxBytes, { strict }), strict }
   );
   const sources = resolveManifestArtifactSources({
     dir,
@@ -174,7 +174,7 @@ export const loadJsonArrayArtifactSync = (
   const validationMode = strict ? 'strict' : 'trusted';
   const resolvedManifest = manifest || loadPiecesManifest(
     dir,
-    { maxBytes: resolveManifestMaxBytes(maxBytes), strict }
+    { maxBytes: resolveManifestMaxBytes(maxBytes, { strict }), strict }
   );
   const sources = resolveRequiredSources({
     dir,

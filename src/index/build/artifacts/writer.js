@@ -70,6 +70,18 @@ export const createArtifactWriter = ({
       : compressionKeepRaw;
   };
 
+  const rawFanout = (base, keepRaw) => keepRaw ? [{
+    filePath: artifactPath(base, false), checksumAlgo: 'sha1', atomic: true
+  }] : [];
+  const publishRawFanout = (result, piece) => {
+    if (!piece) return;
+    for (const output of result.additionalResults || []) {
+      addPieceFile({ ...piece, format: 'json', bytes: output.bytes,
+        checksum: output.checksum && output.checksumAlgo
+          ? `${output.checksumAlgo}:${output.checksum}` : null }, output.filePath);
+    }
+  };
+
   const enqueueJsonObject = (
     base,
     payload,
@@ -93,13 +105,18 @@ export const createArtifactWriter = ({
       const gzPath = artifactPath(base, compression);
       enqueueWrite(
         formatArtifactLabel(gzPath),
-        () => writeJsonObjectFile(gzPath, {
-          ...payload,
-          compression,
-          gzipOptions: compressionGzipOptions,
-          checksumAlgo: 'sha1',
-          atomic: true
-        }),
+        async () => {
+          const result = await writeJsonObjectFile(gzPath, {
+            ...payload,
+            compression,
+            gzipOptions: compressionGzipOptions,
+            checksumAlgo: 'sha1',
+            atomic: true,
+            additionalOutputs: rawFanout(base, keepRaw)
+          });
+          publishRawFanout(result, piece);
+          return result;
+        },
         {
           priority,
           estimatedBytes,
@@ -113,25 +130,6 @@ export const createArtifactWriter = ({
           publishedPieces: piece ? [{ entry: { ...piece, format: 'json', compression }, filePath: gzPath }] : []
         }
       );
-      if (keepRaw) {
-        const rawPath = artifactPath(base, false);
-        enqueueWrite(
-          formatArtifactLabel(rawPath),
-          () => writeJsonObjectFile(rawPath, { ...payload, checksumAlgo: 'sha1', atomic: true }),
-          {
-            priority,
-            estimatedBytes,
-            family,
-            familyCapability,
-            laneHint,
-            phaseHint,
-            progressUnit,
-            estimatedItems,
-            exclusivePublisherFamily,
-            publishedPieces: piece ? [{ entry: { ...piece, format: 'json' }, filePath: rawPath }] : []
-          }
-        );
-      }
       return;
     }
     const rawPath = artifactPath(base, false);
@@ -179,12 +177,17 @@ export const createArtifactWriter = ({
       const gzPath = artifactPath(base, compression);
       enqueueWrite(
         formatArtifactLabel(gzPath),
-        () => writeJsonArrayFile(gzPath, items, {
-          compression,
-          gzipOptions: compressionGzipOptions,
-          checksumAlgo: 'sha1',
-          atomic: true
-        }),
+        async () => {
+          const result = await writeJsonArrayFile(gzPath, items, {
+            compression,
+            gzipOptions: compressionGzipOptions,
+            checksumAlgo: 'sha1',
+            atomic: true,
+            additionalOutputs: rawFanout(base, keepRaw)
+          });
+          publishRawFanout(result, piece);
+          return result;
+        },
         {
           priority,
           estimatedBytes,
@@ -198,25 +201,6 @@ export const createArtifactWriter = ({
           publishedPieces: piece ? [{ entry: { ...piece, format: 'json', compression }, filePath: gzPath }] : []
         }
       );
-      if (keepRaw) {
-        const rawPath = artifactPath(base, false);
-        enqueueWrite(
-          formatArtifactLabel(rawPath),
-          () => writeJsonArrayFile(rawPath, items, { checksumAlgo: 'sha1', atomic: true }),
-          {
-            priority,
-            estimatedBytes,
-            family,
-            familyCapability,
-            laneHint,
-            phaseHint,
-            progressUnit,
-            estimatedItems: resolvedEstimatedItems,
-            exclusivePublisherFamily,
-            publishedPieces: piece ? [{ entry: { ...piece, format: 'json' }, filePath: rawPath }] : []
-          }
-        );
-      }
       return;
     }
     const rawPath = artifactPath(base, false);

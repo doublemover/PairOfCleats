@@ -1,13 +1,15 @@
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { parseTree } from 'jsonc-parser';
-import { openContainedFile } from './contained-file.js';
+import { withContainedFile } from './contained-file.js';
+import { describeStorageFailure, observeStorageResource } from './storage/failure-observation.js';
 import { classifyGeneratedArtifactCorePrefix, isGeneratedArtifactCoreCandidatePath } from './generated-artifact-core.js';
 import { classifyGeneratedArtifactCachePrefix, isGeneratedArtifactCacheCandidatePath } from './generated-artifact-cache.js';
+import { MAP_MODEL_VERSION } from '../map/model-version.js';
 
 export const GENERATED_ARTIFACT_PREFIX_BYTES = 8192;
 // Bump when recognition changes so older bundles cannot bypass new classifications.
-export const GENERATED_ARTIFACT_POLICY_VERSION = 'poc.generated-discovery@4';
+export const GENERATED_ARTIFACT_POLICY_VERSION = 'poc.generated-discovery@6';
 export const GENERATED_ARTIFACT_FLAGS = Object.freeze({ OMIT: 1, WARN: 2 });
 const FORMAT = 'poc.generated@1';
 const MAP_KIND = 'code-map-cache';
@@ -72,7 +74,7 @@ const parseMapHeader = (text, key = null) => {
   } catch { return false; }
 };
 
-const hasMapModelHeader = (text, repoRoot = null) => {
+const hasMapModelHeader = (text, repoRoot = null, versions = ['1.0.0', MAP_MODEL_VERSION]) => {
   const nodes = /"nodes"\s*:\s*\[/.exec(text);
   if (!nodes) return false;
   try {
@@ -80,7 +82,7 @@ const hasMapModelHeader = (text, repoRoot = null) => {
     if (hasDuplicateKeys(headerText)) return false;
     const header = JSON.parse(headerText);
     if (Object.keys(header).sort().join(',') !== LEGACY_HEADER_KEYS.join(',')) return false;
-    return header.version === '1.0.0' && Number.isFinite(Date.parse(header.generatedAt))
+    return versions.includes(header.version) && Number.isFinite(Date.parse(header.generatedAt))
       && typeof header.root?.path === 'string'
       && (!repoRoot || path.resolve(header.root.path) === path.resolve(repoRoot))
       && typeof header.root?.id === 'string'
@@ -130,20 +132,29 @@ export const classifyGeneratedArtifactPrefix = ({ relativePath, prefix, repoRoot
   }
   // Historical caches have no reserved header. Require their exact old location,
   // canonical key filename and recognizable map header; authored siblings survive.
-  if (typeof repoRoot !== 'string' || !repoRoot || !hasMapModelHeader(text, repoRoot)) return null;
+  if (typeof repoRoot !== 'string' || !repoRoot || !hasMapModelHeader(text, repoRoot, ['1.0.0'])) return null;
   return { kind: MAP_KIND, format: 'legacy-code-map@1', flags: GENERATED_ARTIFACT_FLAGS.OMIT, action: 'omit' };
 };
 
-const readPrefix = async (repoRoot, filePath, maxBytes) => {
-  const handle = await openContainedFile(repoRoot, filePath);
-  try {
-    const buffer = Buffer.alloc(maxBytes);
-    const { bytesRead } = await handle.read(buffer, 0, maxBytes, 0);
-    return buffer.subarray(0, bytesRead);
-  } finally {
-    await handle.close();
+const changedPrefix = () => Object.assign(new Error('Generated-artifact prefix changed during its descriptor borrow.'), { code: 'ERR_FILE_CHANGED' });
+const readPrefix = (repoRoot, filePath, maxBytes) => withContainedFile(repoRoot, filePath, async descriptor => {
+  const before = await descriptor.stat({ bigint: true });
+  if (!before.isFile() || typeof before.size !== 'bigint' || before.size < 0n) throw changedPrefix();
+  const extent = Number(before.size < BigInt(maxBytes) ? before.size : BigInt(maxBytes));
+  const buffer = Buffer.alloc(extent);
+  let position = 0;
+  while (position < extent) {
+    const allowance = extent - position;
+    const { bytesRead } = await descriptor.read(buffer, position, allowance, position);
+    if (!Number.isSafeInteger(bytesRead) || bytesRead <= 0 || bytesRead > allowance) throw changedPrefix();
+    position += bytesRead;
   }
-};
+  const after = await descriptor.stat({ bigint: true });
+  if (!after.isFile() || ['dev', 'ino', 'size', 'mtimeNs', 'ctimeNs', 'mode', 'nlink']
+    .some(key => before[key] !== after[key])) throw changedPrefix();
+  descriptor.verify();
+  return buffer;
+});
 
 export const inspectGeneratedArtifact = async ({
   repoRoot, filePath, relativePath, readPrefix: reader = readPrefix
@@ -151,8 +162,15 @@ export const inspectGeneratedArtifact = async ({
   if (!isGeneratedArtifactCandidatePath(relativePath)) return null;
   try {
     const prefix = await reader(repoRoot, filePath, GENERATED_ARTIFACT_PREFIX_BYTES);
-    return classifyGeneratedArtifactPrefix({ repoRoot, relativePath, prefix });
-  } catch {
+    const observation = observeStorageResource(prefix, { phase: 'generated-artifact-prefix-result' });
+    observation.requireSettled();
+    let result;
+    try { result = classifyGeneratedArtifactPrefix({ repoRoot, relativePath, prefix }); }
+    catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+    observation.requireSettled();
+    return result;
+  } catch (error) {
+    describeStorageFailure(error, { phase: 'generated-artifact-prefix', defaultCode: 'ERR_GENERATED_ARTIFACT_PREFIX' });
     // Failed classification is not permission to discard an authored input.
     return null;
   }

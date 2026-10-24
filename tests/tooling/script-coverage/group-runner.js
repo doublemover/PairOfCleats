@@ -13,7 +13,10 @@ export const runScriptCoverageGroup = (group) => {
     throw new Error('script coverage group is required');
   }
 
-  const cacheRoot = resolveTestCachePath(root, 'script-coverage-groups', group);
+  const prefix = `tooling/script-coverage/${group}/`;
+  const testId = process.env.PAIROFCLEATS_TEST_ID || '';
+  const action = testId.startsWith(prefix) ? testId.slice(prefix.length) : '';
+  const cacheRoot = resolveTestCachePath(root, 'script-coverage-groups', group, action || 'aggregate');
   const env = applyTestEnv({
     testing: '1',
     embeddings: 'stub',
@@ -25,13 +28,15 @@ export const runScriptCoverageGroup = (group) => {
   });
 
   const result = runNode(
-    [scriptCoveragePath, '--groups', group, '--cache-root', cacheRoot],
+    [scriptCoveragePath, '--groups', group, '--cache-root', cacheRoot, '--retries', '0',
+      ...(action ? ['--action', action] : [])],
     `script coverage group ${group}`,
     root,
     env,
     { stdio: 'inherit', allowFailure: true }
   );
 
+  if (result.status === 77) process.exit(77);
   if (result.status !== 0) {
     throw new Error(`script coverage group "${group}" failed with exit ${result.status ?? 'unknown'}`);
   }

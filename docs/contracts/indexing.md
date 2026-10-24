@@ -1,6 +1,22 @@
 # Indexing contract
 
 ## Stages and modes
+
+Index command admission rejects unknown verbs and extra positional words. The
+legacy option-only `index` build alias remains supported; family help preserves
+an explicit help request. Stage, mode and quality values are validated before
+runtime/configuration work. Background Stage2 serializes parsed booleans,
+including embedding stubs and ordering validation, while consuming cache rebuild
+only in the parent.
+
+Core build results carry a versioned `outcome`: requested stages, per-stage and
+capability states, selected build/attempt/receipt identities, actual validation
+and publication facts, and explicit unknown values. Counts are omitted unless
+qualified to that invocation; mutable `preprocess.json` is not completion truth.
+Human and structured terminal messages distinguish publication, completed stage,
+queued/background work, configuration skips, rejected admission and cancellation.
+JSON and JSONL progress aliases receive exactly one framed terminal outcome before
+the display releases output admission and owned terminal cleanup.
 - Stage1 (sparse): discovery + chunking + token postings for each mode.
 - Stage2 (enrich): file metadata, repo maps, relations, and filter indexes.
 - Stage3 (embeddings): dense vectors + HNSW + LanceDB artifacts, index state updates, and an out-of-band embeddings cache (see `docs/specs/embeddings-cache.md`).
@@ -82,6 +98,14 @@ Key requirements:
 - With `provider=none`, file discovery falls back to filesystem crawl and SCM-based metadata (annotate/churn) is disabled with an explicit log reason.
 - Build ids use a deterministic `noscm` marker when no SCM head is available.
 
+Completed Stage2 modes appear in `completedStages`. Their closed receipt schema
+is `src/contracts/schemas/completed-stage.js`: it records source and producer
+evidence, dependency signatures, publication hashes, the exact output inventory
+identity, and the immutable snapshot locator. Unknown receipt fields, invalid
+versions or digests, and negative counts are rejected. Structural validation
+does not replace runtime verification of contained paths, sealed bytes or
+generation ownership.
+
 ## Invariants
 - Each mode writes to its own index directory under the cache root.
 - Artifact counts and dimensions must be internally consistent.
@@ -108,3 +132,10 @@ Key requirements:
 - `docs/specs/unified-syntax-representation.md`
 - `docs/specs/scm-provider-contract.md`
 - `docs/sqlite/index-schema.md`
+
+`index stats` reports `totalBytes` across every unique physical manifest path,
+including file metadata and families outside the category breakdown. It reports
+`null` when any manifested byte count is unknown or conflicting. The prior category
+sum remains available as `selectedFamilyBytes`; category totals can overlap and
+must not be interpreted as physical artifact size. Duplicate aliases do not add
+another copy to the physical total.

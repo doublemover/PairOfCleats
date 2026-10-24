@@ -23,7 +23,10 @@ const env = applyTestEnv({
 });
 
 const result = runNode(
-  [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', fixtureRoot],
+  // These assertions consume chunk/file metadata, which stage2 publishes.
+  // Embedding and SQLite builds have separate integration coverage.
+  [path.join(root, 'build_index.js'), '--stub-embeddings', '--repo', fixtureRoot,
+    '--threads', '1', '--stage', 'stage2', '--no-sqlite'],
   'format fidelity build index',
   fixtureRoot,
   env,

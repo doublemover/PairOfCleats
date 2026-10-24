@@ -23,7 +23,9 @@ const env = applyTestEnv({
   cacheRoot,
   embeddings: 'stub',
   testConfig: {
+    sqlite: { use: true },
     indexing: {
+      scm: { provider: 'none' },
       embeddings: { enabled: false }
     }
   }

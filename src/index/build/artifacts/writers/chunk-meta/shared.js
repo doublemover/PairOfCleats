@@ -1,6 +1,7 @@
 import { createRowSpillCollector, compareChunkMetaRows } from '../../helpers.js';
 import { symbolicTypeError } from '../../../../../shared/symbolic-types.js';
 import { addTrimReason, TRIM_REASONS } from '../../trim-policy.js';
+import { readPreparedJsonlRow } from '../../../../../shared/json-stream/prepared-row.js';
 import {
   ORDER_BUCKET_MIN,
   ORDER_BUCKET_TARGET,
@@ -16,19 +17,6 @@ import {
 export const resolveOrderBucketSize = (total) => {
   if (!Number.isFinite(total) || total <= 0) return 0;
   return Math.max(ORDER_BUCKET_MIN, Math.ceil(total / ORDER_BUCKET_TARGET));
-};
-
-/**
- * Memoize a pre-serialized JSONL line on the row object.
- * @param {object} row
- * @param {string} line
- * @returns {void}
- */
-export const attachCachedLine = (row, line) => {
-  if (!row || typeof row !== 'object') return;
-  try {
-    Object.defineProperty(row, '__jsonl', { value: line, enumerable: false });
-  } catch {}
 };
 
 /**
@@ -61,20 +49,16 @@ export const mapRows = (rows, mapper) => {
  * @returns {string}
  */
 export const serializeCachedRow = (row) => {
-  if (row && typeof row === 'object' && typeof row.__jsonl === 'string') {
-    return row.__jsonl;
-  }
-  return JSON.stringify(row);
+  return readPreparedJsonlRow(row)?.line ?? JSON.stringify(row);
 };
 
 /**
- * Serialize a row once and memoize its JSONL payload for downstream fanout.
+ * Read a prepared row's exact line, or encode an ordinary uncached fallback.
  * @param {object} row
  * @returns {{line:string,lineBytes:number}}
  */
 export const serializeAndCacheRow = (row) => {
   const line = serializeCachedRow(row);
-  attachCachedLine(row, line);
   return {
     line,
     lineBytes: Buffer.byteLength(line, 'utf8')
@@ -149,7 +133,6 @@ export const createChunkMetaBucketCollector = ({
   const append = async (row, { line, lineBytes } = {}) => {
     const id = Number.isFinite(row?.id) ? row.id : null;
     const key = resolveBucketKey(id);
-    if (line) attachCachedLine(row, line);
     await getCollector(key).append(row, { line, lineBytes });
   };
   const finalize = async () => {
@@ -236,11 +219,15 @@ const toFiniteOrNull = (value) => {
  * @param {object|null} [stats]
  * @returns {object}
  */
-export const compactChunkMetaEntry = (entry, maxBytes, stats = null) => {
+export const compactChunkMetaEntry = (entry, maxBytes, stats = null, preparedRows = null) => {
   const resolvedMax = Number.isFinite(Number(maxBytes)) ? Math.floor(Number(maxBytes)) : 0;
-  if (!resolvedMax) return entry;
-  const fits = (value) => Buffer.byteLength(JSON.stringify(value), 'utf8') + 1 <= resolvedMax;
-  if (fits(entry)) return entry;
+  if (!resolvedMax) return preparedRows ? preparedRows.prepare(entry).row : entry;
+  let preparedFit = null;
+  const fits = value => {
+    preparedFit = preparedRows?.prepare(value, { maxLineBytes: resolvedMax }) || null;
+    return (preparedFit?.lineBytes ?? Buffer.byteLength(JSON.stringify(value), 'utf8') + 1) <= resolvedMax;
+  };
+  if (fits(entry)) return preparedFit?.row || entry;
   addTrimReason(stats, TRIM_REASONS.rowOversize);
   const trimmed = { ...entry };
   const tokenFields = [];
@@ -261,7 +248,7 @@ export const compactChunkMetaEntry = (entry, maxBytes, stats = null) => {
     tokenFields.push('ngrams');
   }
   recordTrimmedFields(stats, tokenFields, TRIM_REASONS.chunkMetaDropTokenFields);
-  if (fits(trimmed)) return trimmed;
+  if (fits(trimmed)) return preparedFit?.row || trimmed;
   const contextFields = [];
   if ('preContext' in trimmed) {
     delete trimmed.preContext;
@@ -280,7 +267,7 @@ export const compactChunkMetaEntry = (entry, maxBytes, stats = null) => {
     contextFields.push('segment');
   }
   recordTrimmedFields(stats, contextFields, TRIM_REASONS.chunkMetaDropContextFields);
-  if (fits(trimmed)) return trimmed;
+  if (fits(trimmed)) return preparedFit?.row || trimmed;
   if (entry.docmeta?.typeExpressions || entry.metaV2?.types?.expressions) {
     throw symbolicTypeError('symbolic_type_limit', 'Chunk metadata cannot fit its exact symbolic type references within the row allowance.');
   }
@@ -303,7 +290,7 @@ export const compactChunkMetaEntry = (entry, maxBytes, stats = null) => {
     }
   }
   recordTrimmedFields(stats, droppedFields, TRIM_REASONS.chunkMetaDropOptionalFields);
-  if (fits(trimmed)) return trimmed;
+  if (fits(trimmed)) return preparedFit?.row || trimmed;
 
   addTrimReason(stats, TRIM_REASONS.chunkMetaFallbackMinimal);
   recordTrimmedField(stats, 'fallback');
@@ -324,7 +311,7 @@ export const compactChunkMetaEntry = (entry, maxBytes, stats = null) => {
     chunkId: trimmed.chunkId ?? null,
     virtualPath: trimmed.virtualPath ?? null
   };
-  if (fits(fallback)) return fallback;
+  if (fits(fallback)) return preparedFit?.row || fallback;
 
   const textKeys = ['file', 'virtualPath', 'name', 'kind', 'ext', 'lang', 'chunkUid', 'chunkId'];
   const perFieldBudget = Math.max(24, Math.floor((resolvedMax * 0.6) / textKeys.length));
@@ -341,7 +328,7 @@ export const compactChunkMetaEntry = (entry, maxBytes, stats = null) => {
   if (truncatedFallbackText) {
     addTrimReason(stats, TRIM_REASONS.chunkMetaTruncateFallbackText);
   }
-  if (fits(fallback)) return fallback;
+  if (fits(fallback)) return preparedFit?.row || fallback;
 
   const dropOrder = textKeys
     .map((key) => [key, Buffer.byteLength(String(fallback[key] || ''), 'utf8')])
@@ -352,7 +339,7 @@ export const compactChunkMetaEntry = (entry, maxBytes, stats = null) => {
     fallback[key] = null;
     recordTrimmedField(stats, key);
     addTrimReason(stats, TRIM_REASONS.chunkMetaClearFallbackText);
-    if (fits(fallback)) return fallback;
+    if (fits(fallback)) return preparedFit?.row || fallback;
   }
 
   return {

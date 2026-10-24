@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+// Linux ELF qualification only. Portable authority and Windows rejection live
+// in native-toolchain-platform; this fixture must remain excluded on Windows.
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { buildIndex } from '../../src/integrations/core/index.js';
@@ -102,13 +103,18 @@ const runSearch = async (query) => {
     console.error(`Search failed for query "${query}".`);
     process.exit(1);
   }
+  assert.ok(payload.code?.some(hit => hit.file === 'index.js'),
+    `latency sample for ${query} must retrieve the indexed source`);
   return Number(end - start) / 1e6;
 };
 
-for (const query of queries) {
-  await runSearch(query);
-  durations.push(await runSearch(query));
+for (const query of queries) await runSearch(query);
+for (let round = 0; round < 10; round += 1) {
+  for (const query of queries) durations.push(await runSearch(query));
 }
+
+console.log(JSON.stringify({ measurement: 'sqlite-warm-query-ms', queries, samples: durations,
+  platform: process.platform, arch: process.arch, node: process.version }));
 
 durations.sort((a, b) => a - b);
 const p95Index = Math.max(0, Math.ceil(durations.length * 0.95) - 1);
@@ -122,5 +128,5 @@ if (p95 > maxP95Ms) {
   process.exit(1);
 }
 
-console.log(`SQLite p95 latency ok (${p95.toFixed(1)}ms <= ${maxP95Ms}ms).`);
+console.log(`SQLite warm-query p95 latency ok (${p95.toFixed(1)}ms <= ${maxP95Ms}ms; n=${durations.length}).`);
 

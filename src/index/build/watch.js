@@ -24,7 +24,8 @@ import {
 } from '../../shared/metrics/core.js';
 import { fileExt, isRelativePathEscape, toPosix } from '../../shared/file-paths.js';
 import { runWithConcurrency, runWithQueue } from '../../shared/concurrency/run-with-queue.js';
-import { coerceAbortSignal } from '../../shared/abort.js';
+import { runWithIndependentSchedulerOwner } from '../../shared/concurrency/scheduler-task-scope.js';
+import { coerceAbortSignal, throwIfAborted, createAbortError, isAbortError } from '../../shared/abort.js';
 import { inspectGeneratedArtifact, isGeneratedArtifactCandidatePath } from '../../shared/generated-artifact.js';
 import { createDebouncedScheduler } from '../../shared/scheduler/debounce.js';
 import { getLanguageForFile } from '../language-registry.js';
@@ -41,6 +42,7 @@ import { startChokidarWatcher } from './watch/backends/chokidar.js';
 import { startParcelWatcher } from './watch/backends/parcel.js';
 import { createWatchAttemptManager } from './watch/attempts.js';
 import { normalizeRoot } from './watch/shared.js';
+import { createWatchProgress } from './watch/progress.js';
 import { isCodeEntryForPath, isProseEntryForPath } from './mode-routing.js';
 import { detectShebangLanguage } from './shebang.js';
 import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';
@@ -90,10 +92,13 @@ export async function watchIndex({
     buildIndexForMode,
     validateIndexArtifacts,
     promoteBuild,
+    markBuildPhase,
+    updateBuildState,
     createWatchAttemptManager,
     startChokidarWatcher,
     startParcelWatcher,
     resolveWatcherBackend,
+    createWatchProgress,
     ...(deps || {})
   };
   const runtimeRef = {
@@ -165,6 +170,11 @@ export async function watchIndex({
     lastEventAt: null,
     shutdownSignal: null
   };
+  const watchProgress = resolvedDeps.createWatchProgress({ runtime: runtimeRef });
+  const observeStartup = async work => {
+    try { return await work(); }
+    catch (error) { watchProgress.degraded('startup', error, watchState); throw error; }
+  };
   const watchStatePath = runtimeRef.repoCacheRoot
     ? path.join(runtimeRef.repoCacheRoot, 'watch-state.json')
     : null;
@@ -177,6 +187,7 @@ export async function watchIndex({
         buildId: value.buildId || null,
         buildRoot: value.buildRoot || null,
         status: value.status || null,
+        publicationCommitted: value.publicationCommitted === true,
         startedAt: value.startedAt || null,
         finishedAt: value.finishedAt || null
       }
@@ -208,6 +219,8 @@ export async function watchIndex({
       || stabilityRetryTimers.size > 0;
     const quiescent = !running && !pendingReplay && backlogDepth === 0;
     const snapshot = {
+      pid: process.pid,
+      recordedAt: new Date().toISOString(),
       consistency: quiescent ? 'consistent' : 'catching-up',
       quiescent,
       backlogDepth,
@@ -230,6 +243,7 @@ export async function watchIndex({
       onStateChange(snapshot);
     }
     persistWatchState(snapshot);
+    watchProgress.observe(snapshot);
     return snapshot;
   };
 
@@ -329,6 +343,7 @@ export async function watchIndex({
         requireSignal: true,
         signalLabel: 'build.watch.runWithQueue',
         onError: (err, ctx) => {
+          watchProgress.degraded('update', err, watchState);
           log(`[watch] Update failed for ${ctx?.item || 'file'}: ${err?.message || err}`);
         }
       }
@@ -360,7 +375,9 @@ export async function watchIndex({
           throw err;
         }
       }
+      watchProgress.recovered(watchState, ['update-queue']);
     } catch (err) {
+      if (!abortSignal?.aborted) watchProgress.degraded('update-queue', err, watchState);
       if (!abortSignal?.aborted) {
         log(`[watch] Update queue failed: ${err?.message || err}`);
       }
@@ -374,11 +391,12 @@ export async function watchIndex({
   };
 
   const scheduleUpdateFlush = () => {
-    if (updateScheduled) return;
+    if (shouldExit || updateScheduled) return;
     updateScheduled = true;
     emitWatchState();
     setImmediate(() => {
       updateScheduled = false;
+      if (shouldExit) return;
       emitWatchState();
       void flushPendingUpdates();
     });
@@ -652,14 +670,22 @@ export async function watchIndex({
     let validationDone = false;
     let promoteRunning = false;
     let promoteDone = false;
+    // Pointer commit owns retention even if subsequent diagnostics fail.
+    let publicationCommitted = false;
+    const assertBeforePublication = () => {
+      throwIfAborted(activeBuildAbort?.signal);
+      if (shouldExit) throw createAbortError('Watch shutdown requested before publication.');
+    };
     try {
       lock = await resolvedDeps.acquireIndexLockWithBackoff({
         repoCacheRoot: runtimeRef.repoCacheRoot,
+        storageContext: { repoRoot: runtimeRef.root, userConfig: runtimeRef.userConfig },
         shouldExit: () => shouldExit,
         log
       });
       if (!lock) {
         status = 'unknown';
+        watchProgress.degraded('lock-contention', { code: 'ERR_WATCH_LOCK_BUSY' }, watchState);
         pending = true;
         return;
       }
@@ -707,14 +733,14 @@ export async function watchIndex({
         profile: attemptRuntime.profile || null
       });
       if (attemptRuntime?.ignoreFiles?.length || attemptRuntime?.ignoreWarnings?.length) {
-        await updateBuildState(attemptRuntime.buildRoot, {
+        await resolvedDeps.updateBuildState(attemptRuntime.buildRoot, {
           ignore: {
             files: attemptRuntime.ignoreFiles || [],
             warnings: attemptRuntime.ignoreWarnings?.length ? attemptRuntime.ignoreWarnings : null
           }
         });
       }
-      await markBuildPhase(attemptRuntime.buildRoot, 'watch', 'running');
+      await resolvedDeps.markBuildPhase(attemptRuntime.buildRoot, 'watch', 'running');
       for (const mode of modes) {
         if (shouldExit) {
           status = 'aborted';
@@ -735,32 +761,39 @@ export async function watchIndex({
       if (status !== 'ok') {
         return;
       }
-      await markBuildPhase(attemptRuntime.buildRoot, 'validation', 'running');
       validationRunning = true;
+      await resolvedDeps.markBuildPhase(attemptRuntime.buildRoot, 'validation', 'running');
+      assertBeforePublication();
       const validation = await resolvedDeps.validateIndexArtifacts({
         root: attemptRuntime.root,
         indexRoot: attemptRuntime.buildRoot,
         modes,
         userConfig: attemptRuntime.userConfig,
-        sqliteEnabled: false
+        sqliteEnabled: false,
+        abortSignal: activeBuildAbort.signal
       });
+      assertBeforePublication();
       const validationSummary = {
         ok: validation.ok,
         issueCount: validation.issues.length,
         warningCount: validation.warnings.length,
         issues: validation.ok ? null : validation.issues.slice(0, 10)
       };
-      await updateBuildState(attemptRuntime.buildRoot, { validation: validationSummary });
+      await resolvedDeps.updateBuildState(attemptRuntime.buildRoot, { validation: validationSummary });
+      assertBeforePublication();
       if (!validation.ok) {
         status = 'error';
-        await markBuildPhase(attemptRuntime.buildRoot, 'validation', 'failed');
+        watchProgress.degraded('validation', { code: 'ERR_WATCH_VALIDATION' }, watchState);
+        await resolvedDeps.markBuildPhase(attemptRuntime.buildRoot, 'validation', 'failed');
         validationDone = true;
         log('[watch] Index update failed validation; skipping promotion.');
       } else {
-        await markBuildPhase(attemptRuntime.buildRoot, 'validation', 'done');
+        await resolvedDeps.markBuildPhase(attemptRuntime.buildRoot, 'validation', 'done');
         validationDone = true;
-        await markBuildPhase(attemptRuntime.buildRoot, 'promote', 'running');
+        assertBeforePublication();
+        await resolvedDeps.markBuildPhase(attemptRuntime.buildRoot, 'promote', 'running');
         promoteRunning = true;
+        assertBeforePublication();
         await resolvedDeps.promoteBuild({
           repoRoot: attemptRuntime.root,
           userConfig: attemptRuntime.userConfig,
@@ -770,32 +803,37 @@ export async function watchIndex({
           modes,
           configHash: attemptRuntime.configHash,
           repoProvenance: attemptRuntime.repoProvenance,
-          compatibilityKey: attemptRuntime.compatibilityKey || null
+          compatibilityKey: attemptRuntime.compatibilityKey || null,
+          abortSignal: activeBuildAbort.signal
         });
-        await markBuildPhase(attemptRuntime.buildRoot, 'promote', 'done');
+        publicationCommitted = true;
+        await resolvedDeps.markBuildPhase(attemptRuntime.buildRoot, 'promote', 'done');
         promoteDone = true;
         log('[watch] Index update complete.');
       }
     } catch (err) {
       operationError = err;
-      status = 'error';
-      log(`[watch] Index update failed: ${err?.message || err}`);
+      status = isAbortError(err) ? 'aborted' : 'error';
+      if (status === 'error') watchProgress.degraded('build', err, watchState);
+      log(status === 'aborted' ? (publicationCommitted ? '[watch] Index bookkeeping aborted after publication.' : '[watch] Index update aborted before publication.')
+        : `[watch] Index update failed: ${err?.message || err}`);
     } finally {
       if (attemptRuntime) {
-        if (promoteRunning && !promoteDone) {
-          try { await markBuildPhase(attemptRuntime.buildRoot, 'promote', 'failed'); } catch {}
+        if (promoteRunning && !promoteDone && !publicationCommitted) {
+          try { await resolvedDeps.markBuildPhase(attemptRuntime.buildRoot, 'promote', 'failed'); } catch {}
         }
         if (validationRunning && !validationDone) {
-          try { await markBuildPhase(attemptRuntime.buildRoot, 'validation', 'failed'); } catch {}
+          try { await resolvedDeps.markBuildPhase(attemptRuntime.buildRoot, 'validation', 'failed'); } catch {}
         }
         try {
-          await markBuildPhase(
+          await resolvedDeps.markBuildPhase(
             attemptRuntime.buildRoot,
             'watch',
             status === 'ok' ? 'done' : 'failed'
           );
         } catch (err) {
           status = 'error';
+          watchProgress.degraded('phase-state', err, watchState);
           log(`[watch] Failed to write build phase state: ${err?.message || err}`);
         }
       }
@@ -823,6 +861,7 @@ export async function watchIndex({
         } catch (err) {
           status = 'error';
           releaseError = err;
+          watchProgress.degraded('cache-drain', err, watchState);
           terminalError = combineCacheWriterErrors(operationError, err);
           requestShutdown('cache-writer-drain-incomplete');
           log(`[watch] Index lock release failed: ${err?.message || err}`);
@@ -832,10 +871,11 @@ export async function watchIndex({
       let outcomeError = null;
       if (attempt) {
         try {
-          await attemptManager.recordOutcome(attempt, status === 'ok');
+          await attemptManager.recordOutcome(attempt, status === 'ok', { committed: publicationCommitted });
         } catch (err) {
           status = 'error';
           outcomeError = err;
+          watchProgress.degraded('outcome', err, watchState);
           log(`[watch] Failed to record attempt outcome: ${err?.message || err}`);
         }
       }
@@ -844,14 +884,16 @@ export async function watchIndex({
         watchState.lastAttemptedGeneration = {
           ...watchState.lastAttemptedGeneration,
           status,
+          publicationCommitted,
           finishedAt: generationFinishedAt
         };
       }
-      if (status === 'ok' && attemptRuntime?.buildId) {
+      if (publicationCommitted && attemptRuntime?.buildId) {
         watchState.lastConsistentGeneration = {
           buildId: attemptRuntime.buildId,
           buildRoot: attemptRuntime.buildRoot,
           status: 'ok',
+          publicationCommitted: true,
           startedAt: watchState.lastAttemptedGeneration?.startedAt || generationFinishedAt,
           finishedAt: generationFinishedAt
         };
@@ -881,21 +923,28 @@ export async function watchIndex({
         pending = true;
       }
       emitWatchState();
-    }
-    if (pending) {
-      pending = false;
-      emitWatchState();
-      if (!shouldExit) scheduleBuild();
+      if (status === 'ok') watchProgress.recovered(watchState);
+      // Also runs for recoverable early returns such as lock contention.
+      if (pending && !shouldExit) {
+        pending = false;
+        emitWatchState();
+        scheduleBuild();
+      }
     }
   };
 
   scheduler = createDebouncedScheduler({
     debounceMs,
-    onRun: runBuild,
+    // Continuous saves must not indefinitely postpone a searchable generation.
+    maxWaitMs: Math.max(1000, debounceMs * 4),
+    onRun: () => runWithIndependentSchedulerOwner(runBuild),
     onSchedule: () => incWatchDebounce('scheduled'),
     onCancel: () => incWatchDebounce('canceled'),
     onFire: () => incWatchDebounce('fired'),
-    onError: (err) => log(`[watch] Debounced build failed: ${err?.message || err}`)
+    onError: (err) => {
+      watchProgress.degraded('scheduler', err, watchState);
+      log(`[watch] Debounced build failed: ${err?.message || err}`);
+    }
   });
 
   const clearStabilityRetry = (absPath) => {
@@ -935,9 +984,11 @@ export async function watchIndex({
   };
 
   const recordAddOrChange = async (absPath, { fromStabilityRetry = false } = {}) => {
+    if (shouldExit) return;
     watchState.lastEventAt = new Date().toISOString();
     if (stabilityGuard?.enabled) {
       const stable = await waitForStableFile(absPath, stabilityGuard);
+      if (shouldExit) return;
       if (!stable) {
         if (!fromStabilityRetry) {
           log(`[watch] Deferring unstable update: ${absPath}`);
@@ -975,7 +1026,7 @@ export async function watchIndex({
   };
 
   const skippedByMode = {};
-  const discoveredByMode = await resolvedDeps.discoverFilesForModes({
+  const discoveredByMode = await observeStartup(() => resolvedDeps.discoverFilesForModes({
     root,
     modes,
     recordsDir: runtimeRef.recordsDir,
@@ -990,7 +1041,7 @@ export async function watchIndex({
     fileCaps,
     maxDepth: maxDepthCap,
     maxFiles: maxFilesCap
-  });
+  }));
   for (const mode of modes) {
     const entries = Array.isArray(discoveredByMode[mode]) ? discoveredByMode[mode] : [];
     const modeMap = ensureModeMap(mode);
@@ -1035,6 +1086,7 @@ export async function watchIndex({
   };
 
   const handleEvent = (event) => {
+    if (shouldExit) return;
     incWatchEvent(event?.type || 'unknown');
     recordBurst();
     if (event?.type === 'unlink') {
@@ -1045,10 +1097,11 @@ export async function watchIndex({
   };
   const handleError = (err) => {
     incWatchEvent('error');
+    watchProgress.degraded('watcher', err, watchState);
     log(`[watch] Watcher error: ${err?.message || err}`);
   };
   const ignored = buildIgnoredMatcher({ root, ignoreMatcher });
-  const watcher = resolvedDeps.startWatcher
+  const watcher = await observeStartup(async () => resolvedDeps.startWatcher
     ? await resolvedDeps.startWatcher({
       root,
       ignored,
@@ -1067,15 +1120,17 @@ export async function watchIndex({
         onError: handleError,
         pollMs,
         awaitWriteFinishMs: debounceMs
-      }));
+      })));
 
   emitWatchState();
+  watchProgress.monitoring(watchState);
   if (typeof onReady === 'function') {
     onReady();
   }
 
   if (shouldExit) stop();
   await exitPromise;
+  let shutdownError = null;
   try {
     await runBuildCleanupWithTimeout({
       label: 'watch.watcher.close',
@@ -1084,12 +1139,12 @@ export async function watchIndex({
       swallowTimeout: false
     });
 
-    if (running) {
+    if (running || updateRunning || updateScheduled) {
       log('[watch] Waiting for active build to finish...');
       await runBuildCleanupWithTimeout({
         label: 'watch.active-build.wait',
         cleanup: async () => {
-          while (running) {
+          while (running || updateRunning || updateScheduled) {
             await sleep(200);
           }
         },
@@ -1097,7 +1152,8 @@ export async function watchIndex({
         swallowTimeout: false
       });
     }
-  } finally {
+  } catch (error) { shutdownError = error; throw error; }
+  finally {
     if (handleSignals) {
       process.off('SIGINT', handleSigint);
       process.off('SIGTERM', handleSigterm);
@@ -1106,6 +1162,7 @@ export async function watchIndex({
       abortSignal.removeEventListener('abort', abortHandler);
     }
     emitWatchState();
+    watchProgress.stopped(watchState, shutdownError || terminalError);
     await watchStatePersistChain.catch(() => {});
     log(`[watch] Shutdown complete${shutdownSignal ? ` (${shutdownSignal})` : ''}.`);
   }

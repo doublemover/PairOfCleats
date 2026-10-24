@@ -102,7 +102,8 @@ export const runTreeSitterScheduler = async ({
   try {
     prepared = prepareTreeSitterSchedulerTasks({
       planResult,
-      schedulerConfig
+      schedulerConfig,
+      runtime
     });
   } catch (err) {
     await writePlannerFailureSnapshot({
@@ -227,6 +228,9 @@ export const runTreeSitterScheduler = async ({
       successfulGrammarKeys: successfulGrammarKeys.length,
       failedGrammarKeys: crashSummary.failedGrammarKeys.length,
       jobs: planResult.plan.jobs || 0,
+      parserSubprocessFanout: { configured: schedulerConfig.execConcurrency ?? null,
+        effective: prepared.execConcurrency, observed: execution.peakActiveChildren,
+        budget: prepared.executionBudget },
       parserQueueIdleGaps: {
         samples: execution.idleGapStats.samples,
         totalMs: execution.idleGapStats.totalMs,

@@ -6,82 +6,96 @@ import os from 'node:os';
 import path from 'node:path';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
-import { resolveHostTargetTriple, readTargetsManifestSync, resolveTargetForTriple } from '../../../tools/tui/targets.js';
+import { resolveHostTargetTriple, readTargetsManifestSync, resolveTargetForTriple, resolveTuiInstallLayout } from '../../../tools/tui/targets.js';
+import { resolveSelectedTuiGeneration } from '../../../tools/tui/install-generation.js';
+import { createTuiArtifactBytes } from '../../helpers/tui/install-artifact.js';
+import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 
 const root = process.cwd();
 const binPath = path.join(root, 'bin', 'pairofcleats.js');
-const tempRoot = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'poc-cli-tui-build-'));
-const distDir = path.join(tempRoot, 'dist');
-const targetDir = path.join(tempRoot, 'cargo-target');
-const installRoot = path.join(tempRoot, 'install');
-const fakeCargoPath = path.join(tempRoot, 'fake-cargo.mjs');
-const launchDir = path.join(tempRoot, 'user-project');
-await fsPromises.mkdir(launchDir);
-await fsPromises.writeFile(path.join(launchDir, '.pairofcleats.json'), '{}');
-const triple = resolveHostTargetTriple({ platform: process.platform, arch: os.arch() });
-const { targets } = readTargetsManifestSync({ root });
-const target = resolveTargetForTriple(targets, triple);
-assert.ok(target, `expected TUI target for ${triple}`);
+const tempRoot = await makeTempDir('poc-cli-tui-build-');
+try {
+  const distDir = path.join(tempRoot, 'dist');
+  const targetDir = path.join(tempRoot, 'cargo-target');
+  const installRoot = path.join(tempRoot, 'install');
+  const fakeCargoPath = path.join(tempRoot, 'fake-cargo.mjs');
+  const launchDir = path.join(tempRoot, 'user-project');
+  await fsPromises.mkdir(launchDir);
+  await fsPromises.writeFile(path.join(launchDir, '.pairofcleats.json'), '{}');
+  const triple = resolveHostTargetTriple({ platform: process.platform, arch: os.arch() });
+  const { targets } = readTargetsManifestSync({ root });
+  const target = resolveTargetForTriple(targets, triple);
+  assert.ok(target, `expected TUI target for ${triple}`);
 
-await fsPromises.writeFile(
-  fakeCargoPath,
-  `import fs from 'node:fs/promises';
-import path from 'node:path';
-const args = process.argv.slice(2);
-const targetFlagIndex = args.indexOf('--target');
-if (targetFlagIndex === -1 || !args[targetFlagIndex + 1]) {
-  throw new Error('fake cargo expected --target');
-}
-const targetTriple = args[targetFlagIndex + 1];
-const targetDir = process.env.CARGO_TARGET_DIR;
-if (!targetDir) {
-  throw new Error('fake cargo expected CARGO_TARGET_DIR');
-}
-const suffix = targetTriple.includes('windows') ? '.exe' : '';
-const outputPath = path.join(targetDir, targetTriple, 'release', \`pairofcleats-tui\${suffix}\`);
-await fs.mkdir(path.dirname(outputPath), { recursive: true });
-await fs.writeFile(outputPath, suffix ? 'MZFAKE-TUI-BINARY' : '#!/usr/bin/env node\\nconsole.log("fake tui");\\n', 'utf8');
-if (!suffix) {
-  await fs.chmod(outputPath, 0o755);
-}
-`,
-  'utf8'
-);
-
-const env = applyTestEnv({
-  syncProcess: false,
-  extraEnv: {
-    PAIROFCLEATS_TUI_CARGO: fakeCargoPath,
-    PAIROFCLEATS_TUI_DIST_DIR: distDir,
-    CARGO_TARGET_DIR: targetDir
+  await fsPromises.writeFile(
+    fakeCargoPath,
+    `import fs from 'node:fs/promises';
+  import path from 'node:path';
+  const args = process.argv.slice(2);
+  const targetFlagIndex = args.indexOf('--target');
+  if (targetFlagIndex === -1 || !args[targetFlagIndex + 1]) {
+    throw new Error('fake cargo expected --target');
   }
-});
-
-const installResult = runNode(
-  [binPath, 'tui', 'install', '--target', triple, '--install-root', installRoot, '--json'],
-  'pairofcleats tui install',
-  launchDir,
-  env,
-  {
-    stdio: 'pipe'
+  const targetTriple = args[targetFlagIndex + 1];
+  const targetDir = process.env.CARGO_TARGET_DIR;
+  if (!targetDir) {
+    throw new Error('fake cargo expected CARGO_TARGET_DIR');
   }
-);
-assert.equal(installResult.status, 0, installResult.stderr || installResult.stdout || 'expected tui install to succeed');
-const installPayload = JSON.parse(installResult.stdout || '{}');
-assert.equal(installPayload.ok, true, 'expected tui install to report ok=true');
-assert.equal(installPayload.built, true, 'expected tui install to auto-build the host target when staging is missing');
-assert.equal(fs.existsSync(path.join(distDir, target.artifactName)), true, 'expected tui install to stage the target artifact');
-assert.equal(fs.existsSync(path.join(installRoot, triple, 'bin', target.artifactName)), true, 'expected tui install to place the built artifact');
-
-const explicitBuildResult = runNode(
-  [binPath, 'tui', 'build', '--target', triple, '--smoke'],
-  'pairofcleats tui build',
-  launchDir,
-  env,
-  {
-    stdio: 'pipe'
+  const suffix = targetTriple.includes('windows') ? '.exe' : '';
+  const outputPath = path.join(targetDir, targetTriple, 'release', \`pairofcleats-tui\${suffix}\`);
+  await fs.mkdir(path.dirname(outputPath), { recursive: true });
+  // Synthetic target headers qualify installer admission, never native launch.
+  await fs.writeFile(outputPath, Buffer.from(${JSON.stringify(createTuiArtifactBytes(target, 'cli-build-fixture').toString('base64'))}, 'base64'));
+  if (!suffix) {
+    await fs.chmod(outputPath, 0o755);
   }
-);
-assert.equal(explicitBuildResult.status, 0, explicitBuildResult.stderr || explicitBuildResult.stdout || 'expected explicit tui build to succeed');
+  `,
+    'utf8'
+  );
 
-console.log('tui build/install CLI test passed');
+  const env = applyTestEnv({
+    syncProcess: false,
+    extraEnv: {
+      PAIROFCLEATS_TUI_CARGO: fakeCargoPath,
+      PAIROFCLEATS_TUI_DIST_DIR: distDir,
+      CARGO_TARGET_DIR: targetDir
+    }
+  });
+
+  const installResult = runNode(
+    [binPath, 'tui', 'install', '--target', triple, '--install-root', installRoot, '--json'],
+    'pairofcleats tui install',
+    launchDir,
+    env,
+    {
+      stdio: 'pipe'
+    }
+  );
+  assert.equal(installResult.status, 0, installResult.stderr || installResult.stdout || 'expected tui install to succeed');
+  const installPayload = JSON.parse(installResult.stdout || '{}');
+  assert.equal(installPayload.ok, true, 'expected tui install to report ok=true');
+  assert.equal(installPayload.built, true, 'expected tui install to auto-build the host target when staging is missing');
+  assert.equal(fs.existsSync(path.join(distDir, target.artifactName)), true, 'expected tui install to stage the target artifact');
+  const layout = resolveTuiInstallLayout({ root, triple, artifactName: target.artifactName, installRoot });
+  const metadata = JSON.parse(await fsPromises.readFile(layout.metadataPath, 'utf8'));
+  const selected = resolveSelectedTuiGeneration({ root, layout, target, metadata });
+  assert.equal(selected.generation, true, 'the current installer selects an immutable generation');
+  assert.equal(path.resolve(root, installPayload.installedTo), selected.binaryPath);
+  assert.deepEqual(await fsPromises.readFile(selected.binaryPath), createTuiArtifactBytes(target, 'cli-build-fixture'),
+    'CLI output and the strict installed-generation owner identify the same staged bytes');
+
+  const explicitBuildResult = runNode(
+    [binPath, 'tui', 'build', '--target', triple, '--smoke'],
+    'pairofcleats tui build',
+    launchDir,
+    env,
+    {
+      stdio: 'pipe'
+    }
+  );
+  assert.equal(explicitBuildResult.status, 0, explicitBuildResult.stderr || explicitBuildResult.stdout || 'expected explicit tui build to succeed');
+
+  console.log('tui build/install CLI test passed');
+} finally {
+  await rmDirRecursive(tempRoot);
+}

@@ -8,11 +8,13 @@ import { normalizeRiskFilters, validateRiskFilters } from '../../shared/risk-fil
 import { createTruncationRecorder } from '../../shared/truncation.js';
 import { MAX_JSON_BYTES } from '../../shared/artifact-io/constants.js';
 import { loadPiecesManifest } from '../../shared/artifact-io/manifest.js';
+import { loadChunkMeta } from '../../shared/artifact-io/loaders/chunk-meta.js';
 import { buildGraphContextPack } from '../../graph/context-pack.js';
 import {
   buildChunkIndex,
   buildChunkUidMapSeedIndex,
   resolveChunkBySeed,
+  resolveChunkCandidatesBySeed,
   resolveChunkUidMapSeedCandidatesFromIndex,
   resolveChunkUidMapSeedRefs,
   resolvePrimaryRef,
@@ -24,13 +26,15 @@ import {
   normalizeTypeFacts
 } from '../excerpt-cache.js';
 import { buildRiskSlice } from './risk-slice.js';
+import { buildTaskPrimaryExcerpt, resolveContextTaskPolicy } from '../task-policy.js';
+import { throwIfAborted } from '../../shared/abort.js';
 
 const buildGraphFilters = ({ includeCallersCallees, includeUsages, includeImports }) => {
   const graphs = [];
   if (includeCallersCallees) graphs.push('callGraph');
   if (includeUsages) graphs.push('usageGraph');
   if (includeImports) graphs.push('importGraph');
-  return graphs.length ? { graphs } : null;
+  return { graphs };
 };
 
 export const assembleCompositeContextPack = ({
@@ -48,11 +52,14 @@ export const assembleCompositeContextPack = ({
   includeRiskPartialFlows = false,
   riskStrict = false,
   strictEvidence = false,
+  taskPolicy = undefined,
+  signal = null,
   riskFilters = null,
   includeImports = true,
   includeUsages = true,
   includeCallersCallees = true,
   includePaths = false,
+  pathSemantics = undefined,
   depth = 1,
   maxBytes = null,
   maxTokens = null,
@@ -65,7 +72,18 @@ export const assembleCompositeContextPack = ({
   indexDir = null,
   now = () => new Date().toISOString()
 } = {}) => {
+  throwIfAborted(signal);
+  taskPolicy = resolveContextTaskPolicy(taskPolicy);
   const timingStart = process.hrtime.bigint();
+  const checkDeadline = () => {
+    throwIfAborted(signal);
+    if (taskPolicy?.task === 'edit-safe' && caps.maxWallClockMs != null
+      && Number(process.hrtime.bigint() - timingStart) / 1000000 >= caps.maxWallClockMs) {
+      throw Object.assign(new Error('The mandatory complete edit unit exceeded the context work deadline.'),
+        { code: 'ERR_CONTEXT_PACK_UNIT_DEADLINE', status: 408 });
+    }
+  };
+  checkDeadline();
   const memoryStart = process.memoryUsage();
   const warnings = [];
   const truncationRecorder = createTruncationRecorder();
@@ -83,26 +101,29 @@ export const assembleCompositeContextPack = ({
   const primaryRef = resolvePrimaryRef(seedRef, primaryChunk);
 
   const primary = {
-    ref: primaryRef || { type: 'chunk', chunkUid: null },
+    ref: primaryRef,
     file: null,
     range: null,
     excerpt: '',
     excerptHash: null,
     provenance: null
   };
-  const excerptPayload = buildPrimaryExcerpt({
+  const excerptInput = {
     chunk: primaryChunk,
     repoRoot,
-    maxBytes: normalizeOptionalNumber(maxBytes),
-    maxTokens: normalizeOptionalNumber(maxTokens),
+    maxBytes: maxBytes == null ? null : normalizeOptionalNumber(maxBytes),
+    maxTokens: maxTokens == null ? null : normalizeOptionalNumber(maxTokens),
     indexSignature,
-    warnings
-  });
+    warnings, taskPolicy, seed: seedRef, signal
+  };
+  const excerptPayload = taskPolicy?.task === 'edit-safe' ? buildTaskPrimaryExcerpt(excerptInput) : buildPrimaryExcerpt(excerptInput);
+  checkDeadline();
   primary.file = excerptPayload.file;
   primary.range = excerptPayload.range;
   primary.excerpt = excerptPayload.excerpt;
   primary.excerptHash = excerptPayload.excerptHash;
   primary.evidence = excerptPayload.evidence || null;
+  if (excerptPayload.unit) primary.unit = excerptPayload.unit;
   const excerptBytes = primary.excerpt ? Buffer.byteLength(primary.excerpt, 'utf8') : 0;
 
   let graph = null;
@@ -118,6 +139,8 @@ export const assembleCompositeContextPack = ({
       edgeFilters: buildGraphFilters({ includeCallersCallees, includeUsages, includeImports }),
       caps,
       includePaths,
+      pathSemantics,
+      signal,
       indexSignature,
       indexCompatKey,
       repo,
@@ -193,7 +216,8 @@ export const assembleCompositeContextPack = ({
   const evidence = {
     schemaVersion: 2,
     policy: {
-      strictEvidence: strictEvidence === true
+      strictEvidence: strictEvidence === true,
+      ...(taskPolicy ? { taskPolicy } : {})
     },
     primary: excerptPayload.evidence || {
       state: 'missing',
@@ -223,6 +247,7 @@ export const assembleCompositeContextPack = ({
     throw err;
   }
 
+  checkDeadline();
   return {
     version: '1.0.0',
     seed: primaryRef || seedRef || { v: 1, status: 'unresolved', candidates: [], resolved: null },
@@ -256,6 +281,7 @@ export const assembleCompositeContextPackStreaming = async ({
   strict = true,
   ...rest
 } = {}) => {
+  rest = { ...rest, taskPolicy: resolveContextTaskPolicy(rest.taskPolicy) };
   if (chunkMeta || chunkIndex) {
     return assembleCompositeContextPack({ seed, chunkMeta, chunkIndex, repoRoot, indexDir, ...rest });
   }
@@ -263,6 +289,12 @@ export const assembleCompositeContextPackStreaming = async ({
     return assembleCompositeContextPack({ seed, chunkMeta: null, chunkIndex: null, repoRoot, indexDir, ...rest });
   }
   const resolvedManifest = manifest || loadPiecesManifest(indexDir, { maxBytes: MAX_JSON_BYTES, strict });
+  if (rest.taskPolicy?.task === 'edit-safe') {
+    throwIfAborted(rest.signal);
+    const full = await loadChunkMeta(indexDir, { manifest: resolvedManifest, strict, maxBytes: MAX_JSON_BYTES });
+    throwIfAborted(rest.signal);
+    return assembleCompositeContextPack({ seed, chunkMeta: full, repoRoot, indexDir, ...rest });
+  }
   const seedRef = resolveSeedRef(seed);
   const candidates = resolveChunkUidMapSeedRefs(seedRef);
   const seedIndex = candidates.length
@@ -275,6 +307,17 @@ export const assembleCompositeContextPackStreaming = async ({
     : null;
   const resolvedChunks = [];
   const seenChunkUids = new Set();
+  const hasSymbolSeed = candidates.some(candidate => candidate.type === 'symbol');
+  if (hasSymbolSeed) {
+    // Compact UID maps carry no symbol lookup. Hydrate selected-generation
+    // metadata explicitly rather than interpreting a symbol's path as a file seed.
+    const full = await loadChunkMeta(indexDir, { manifest: resolvedManifest, strict, maxBytes: MAX_JSON_BYTES });
+    for (const candidate of resolveChunkCandidatesBySeed(seedRef, buildChunkIndex(full, { repoRoot }))) {
+      if (!candidate.chunkUid || seenChunkUids.has(candidate.chunkUid)) continue;
+      seenChunkUids.add(candidate.chunkUid);
+      resolvedChunks.push(candidate.chunk);
+    }
+  }
   for (const candidate of candidates) {
     const chunks = resolveChunkUidMapSeedCandidatesFromIndex({
       seedIndex,
@@ -311,7 +354,7 @@ export const assembleCompositeContextPackStreaming = async ({
   }
   if (payload?.stats) {
     payload.stats.seedResolution = {
-      strategy: 'chunk_uid_map_index',
+      strategy: hasSymbolSeed ? 'symbol_metadata_fallback' : 'chunk_uid_map_index',
       candidates: candidates.length,
       rowsIndexed: seedIndex?.rowsIndexed || 0,
       hit: resolvedChunks.length > 0

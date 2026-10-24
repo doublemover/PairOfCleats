@@ -2,6 +2,13 @@
 import assert from 'node:assert/strict';
 import { createToolingLifecycleHealth } from '../../../src/integrations/tooling/providers/shared.js';
 
+const omitted = createToolingLifecycleHealth().getState();
+const unset = createToolingLifecycleHealth({ restartWindowMs: null, maxRestartsPerWindow: null,
+  fdPressureBackoffMs: null }).getState();
+for (const key of ['restartWindowMs', 'maxRestartsPerWindow', 'fdPressureBackoffMs']) {
+  assert.equal(unset[key], omitted[key], 'null lifecycle controls must preserve the documented defaults');
+}
+
 const health = createToolingLifecycleHealth({
   name: 'lsp-lifecycle-test',
   restartWindowMs: 2000,

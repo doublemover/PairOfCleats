@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { resolveArchiveEmbeddingOptions, createArchiveEmbeddingRuntime, __setArchiveWorkerFactoryForTests } from '../../../src/integrations/inference-history/embedding-runtime.js';
 
-const base = { modelsDir: path.resolve('temp/tasks/eg2-runtime-identity-tests/models') };
+const base = { modelsDir: path.resolve('.tmp/tasks/eg2-runtime-identity-tests/models') };
 const initial = resolveArchiveEmbeddingOptions(base);
 assert.equal(initial.documentIdentity.schema, 'history-eg2-document.v4');
 assert.equal(initial.documentIdentity.projectionVersion, ARTIFACT_PROJECTION_VERSION);

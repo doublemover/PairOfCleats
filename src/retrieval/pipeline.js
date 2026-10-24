@@ -1,3 +1,4 @@
+import { attachRetrievalExecution, createRetrievalExecutionOutcome } from './pipeline/execution-outcome.js';
 import { enumerateFilterMatches } from './pipeline/filter-enumeration.js';
 import { filterChunkIds } from './output.js';
 import { createChunkFilterPredicate } from './output/filters.js';
@@ -22,9 +23,13 @@ import { createScoreBufferPool } from './pipeline/score-buffer.js';
 import { compileFtsMatchQuery } from './fts-query.js';
 import { resolveSparseRequiredTables, RETRIEVAL_SPARSE_UNAVAILABLE_CODE } from './sparse/requirements.js';
 import { rerankEvidence } from './pipeline/evidence-reranker.js';
+import { capRerankCandidates, resolveRerankPoolPolicy } from './pipeline/rerank-policy.js';
+import { resolveCountAwareAnnPolicy } from './pipeline/count-aware-ann.js';
+import { shadowQueryRoute } from './evaluation/shadow-routing.js';
 import { getGenerationProviderRuntime } from './pipeline/provider-runtime.js';
 import { resolveFileRelations } from './pipeline/relations.js';
 import { runCandidateStage } from './pipeline/candidate-stage.js';
+import { createEligibilityPlan } from './pipeline/eligibility-plan.js';
 import { runAnnStage } from './pipeline/ann-stage.js';
 import { runRankStage } from './pipeline/rank-stage.js';
 import {
@@ -32,7 +37,7 @@ import {
   MAX_POOL_ENTRIES
 } from './pipeline/constants.js';
 import { INDEX_PROFILE_VECTOR_ONLY } from '../contracts/index-profile.js';
-import { normalizePositiveInt } from '../shared/limits.js';
+import { normalizeNonNegativeNumber, normalizePositiveInt } from '../shared/limits.js';
 
 /**
  * Normalize token-like input into trimmed string token list.
@@ -255,6 +260,10 @@ export function createSearchPipeline(context) {
     graphRankingConfig,
     stageTracker,
     reranker = null,
+    rerankPolicy = null,
+    rerankSourceContext = null,
+    countAwareAnnPolicy = null,
+    shadowRouting = false,
     candidatePool: candidatePoolInput,
     scoreBufferPool: scoreBufferPoolInput,
     createAnnProviders: createAnnProvidersInput
@@ -276,15 +285,9 @@ export function createSearchPipeline(context) {
     ? Number(symbolBoost.exportWeight)
     : 1.1;
   const relationBoostEnabled = relationBoost?.enabled === true;
-  const relationBoostPerCall = Number.isFinite(Number(relationBoost?.perCall))
-    ? Number(relationBoost.perCall)
-    : 0.25;
-  const relationBoostPerUse = Number.isFinite(Number(relationBoost?.perUse))
-    ? Number(relationBoost.perUse)
-    : 0.1;
-  const relationBoostMaxBoost = Number.isFinite(Number(relationBoost?.maxBoost))
-    ? Number(relationBoost.maxBoost)
-    : 1.5;
+  const relationBoostPerCall = normalizeNonNegativeNumber(relationBoost?.perCall, 0.25);
+  const relationBoostPerUse = normalizeNonNegativeNumber(relationBoost?.perUse, 0.1);
+  const relationBoostMaxBoost = normalizeNonNegativeNumber(relationBoost?.maxBoost, 1.5);
   const relationBoostConfig = {
     enabled: relationBoostEnabled,
     perCall: relationBoostPerCall,
@@ -317,7 +320,11 @@ export function createSearchPipeline(context) {
     ? null
     : Math.max(2, Math.floor(Number(postingsConfig.chargramMaxTokenLength)));
   const searchTopN = normalizePositiveInt(topN, 1) || 1;
-  const expandedTopN = searchTopN * 3;
+  const countAwarePolicy = resolveCountAwareAnnPolicy(countAwareAnnPolicy);
+  const modelRerankPolicy = resolveRerankPoolPolicy({ adapter: reranker, policy: rerankPolicy, finalOutputCap: searchTopN });
+  const rankOutputCap = modelRerankPolicy.poolCap;
+  const expandedTopN = modelRerankPolicy.enabled
+    ? Math.min(modelRerankPolicy.candidateCap, rankOutputCap * 3) : searchTopN * 3;
   const baseTopkSlack = Math.max(8, Math.min(100, Math.ceil(searchTopN * 0.5)));
   const maxCandidateCap = Number.isFinite(Number(maxCandidates)) && Number(maxCandidates) > 0
     ? Math.floor(Number(maxCandidates))
@@ -552,12 +559,14 @@ export function createSearchPipeline(context) {
       const allowedIdx = filterResult.allowed;
       const allowedCount = allowedIdx ? getAllowedSize(allowedIdx) : 0;
       if (filtersEnabled && allowedIdx && allowedCount === 0) {
-        return [];
+        return attachRetrievalExecution([], createRetrievalExecutionOutcome({ mode, eligibleEmpty: true,
+          requestedSparse: vectorOnlyProfile ? null : normalizedSparseBackend, annRequested: annEnabled }));
       }
       throwIfAborted();
 
       // Main search: BM25 token match (with optional SQLite FTS first pass)
       const candidateMetrics = {};
+      const eligibilityPlan = createEligibilityPlan({ idx, mode, queryAst, allowedIdx, matchesQueryAst, throwIfAborted: abortIfNeeded });
       const candidateResult = runStage('candidates', candidateMetrics, () => (
         runCandidateStage({
           idx,
@@ -592,6 +601,10 @@ export function createSearchPipeline(context) {
           bm25B,
           getTokenIndexForQuery,
           candidateMetrics,
+          eligibilityPlan,
+          throwIfAborted: abortIfNeeded,
+          needLexicalCandidates: annDiscovery === 'lexical-rerank'
+              && (annEnabled || modeProfilePolicy?.allowSparseFallback === true),
           queryAst,
           matchesQueryAst: queryAst ? matchesQueryAst : null
         })
@@ -613,10 +626,12 @@ export function createSearchPipeline(context) {
         throw createError(
           ERROR_CODES.CAPABILITY_MISSING,
           'Sparse retrieval backend is unavailable for this query. ' +
-            'Rebuild sparse artifacts or enable ANN search.',
+            `Provider: ${sparseUnavailable.provider || normalizedSparseBackend}. Rebuild sparse artifacts or enable ANN search.`,
           {
             reasonCode: RETRIEVAL_SPARSE_UNAVAILABLE_CODE,
             reason: sparseUnavailable.reason || 'sparse_unavailable',
+            provider: sparseUnavailable.provider || normalizedSparseBackend,
+            failureCode: sparseUnavailable.failureCode || null,
             mode,
             profileId,
             missingTables: sparseUnavailable.missingTables || null
@@ -625,6 +640,10 @@ export function createSearchPipeline(context) {
       }
 
       const annMetrics = {};
+      if (shadowRouting === true) {
+        try { annMetrics.shadowRouting = shadowQueryRoute({ query, queryAst, signal }); }
+        catch { annMetrics.shadowRouting = { authoritative: false, complete: false, reason: 'shadow-failed' }; }
+      }
       const annResult = await runStageAsync('ann', annMetrics, async () => (
         runAnnStage({
           idx,
@@ -632,7 +651,7 @@ export function createSearchPipeline(context) {
           meta,
           queryEmbedding,
           queryTokens,
-          searchTopN,
+          searchTopN: rankOutputCap,
           expandedTopN,
           annEnabledForMode,
           vectorOnlyProfile,
@@ -654,6 +673,8 @@ export function createSearchPipeline(context) {
           annDiscovery,
           matchesQueryAst,
           hasHardSemanticConstraints,
+          eligibilityPlan,
+          countAwarePolicy,
           minhashLimit,
           hasAllowedId,
           ensureAllowedSet,
@@ -668,7 +689,7 @@ export function createSearchPipeline(context) {
       candidates = annResult.candidates;
       let { annHits, annSource, annCandidatePolicy } = annResult;
       const rerankBudget = resolveAdaptiveRerankBudget({
-        searchTopN,
+        searchTopN: rankOutputCap,
         baseTopkSlack,
         queryTokens,
         sparseHits: bmHits,
@@ -707,21 +728,19 @@ export function createSearchPipeline(context) {
         })
       ));
       const { scored: fusedScores, useRrf } = fusionResult;
+      const admittedScores = capRerankCandidates(fusedScores, modelRerankPolicy);
 
       if (idx.loadChunkMetaByIds) {
         const seen = new Set();
         const missing = [];
-        for (const hit of bmHits) {
-          const id = hit?.idx;
-          if (!Number.isFinite(id) || seen.has(id)) continue;
-          seen.add(id);
-          if (!meta[id]) missing.push(id);
-        }
-        for (const hit of annHits) {
-          const id = hit?.idx;
-          if (!Number.isFinite(id) || seen.has(id)) continue;
-          seen.add(id);
-          if (!meta[id]) missing.push(id);
+        const metadataSources = modelRerankPolicy.enabled ? [admittedScores] : [bmHits, annHits];
+        for (const source of metadataSources) {
+          for (const hit of source) {
+            const id = hit?.idx;
+            if (!Number.isFinite(id) || seen.has(id)) continue;
+            seen.add(id);
+            if (!meta[id]) missing.push(id);
+          }
         }
         if (missing.length) idx.loadChunkMetaByIds(mode, missing, meta);
       }
@@ -733,16 +752,17 @@ export function createSearchPipeline(context) {
 
       const rankMetrics = {};
       rankMetrics.rerankBudget = rerankBudget;
+      rankMetrics.modelRerankPolicy = modelRerankPolicy;
       const ranked = runStage('rank', rankMetrics, () => (
         runRankStage({
           idx,
           meta,
-          fusedScores,
+          fusedScores: admittedScores,
           useRrf,
           allowedIdx,
           hasAllowedId,
           abortIfNeeded,
-          searchTopN,
+          searchTopN: rankOutputCap,
           topkSlack,
           poolSnapshotStart: poolStatsStart,
           poolSnapshot,
@@ -754,6 +774,7 @@ export function createSearchPipeline(context) {
           symbolBoostEnabled,
           symbolBoostDefinitionWeight,
           symbolBoostExportWeight,
+          query,
           isDefinitionKind,
           isExportedChunk,
           relationBoostEnabled,
@@ -778,7 +799,27 @@ export function createSearchPipeline(context) {
         })
       ));
 
-      return await rerankEvidence({adapter:reranker,query,hits:ranked,signal});
+      const reranked = await rerankEvidence({ adapter: reranker, query, hits: ranked, signal,
+        finalOutputCap: searchTopN, maxMs: modelRerankPolicy.maxMs,
+        fallback: modelRerankPolicy.enabled, policyKey: modelRerankPolicy.key, poolPolicy: modelRerankPolicy,
+        sourceContext: { mode, generation: rerankSourceContext?.generation || idx.generationTag?.buildGenerationKey
+          || idx.generationTag?.buildId || idx.state?.buildId || idx.state?.embeddings?.embeddingGeneration || null,
+        repoScope: rerankSourceContext?.repoScope || context.repoRoot || null,
+        selection: modelRerankPolicy.enabled ? { filters: filters || null, queryAst: queryAst || null,
+          scoreBlend: scoreBlend || null, symbolBoost: symbolBoost || null, relationBoost: relationBoost || null,
+          graphRankingConfig: graphRankingConfig || null } : null },
+        onDiagnostic: value => { rankMetrics.modelReranker = value; } });
+      const requestedSparse = vectorOnlyProfile ? null : normalizedSparseBackend === 'tantivy' ? tantivyProvider.id
+        : sqliteFtsDesiredForMode ? sqliteFtsProvider.id : bm25Provider.id;
+      const sparseFailed = !vectorOnlyProfile && Boolean(sqliteFtsDesiredForMode && sqliteFtsUnavailable
+        || sparseType === 'none' && sparseUnavailable || sqliteFtsDiagnostics.some(diagnostic => (
+        diagnostic.code === RETRIEVAL_SPARSE_UNAVAILABLE_CODE && diagnostic.provider === requestedSparse
+          && diagnostic.reason !== 'profile_vector_only')));
+      return attachRetrievalExecution(reranked, createRetrievalExecutionOutcome({ mode,
+        requestedSparse,
+        effectiveSparse: sparseType, sparseFailed, annRequested: Boolean(annEnabledForMode), annMetrics,
+        rerankerRequested: Boolean(reranker), rerankerDiagnostic: rankMetrics.modelReranker,
+        graphMetrics: rankMetrics.graph, eligibleEmpty: meta.length === 0 || annMetrics.countAware?.eligibleCount === 0 }));
     } finally {
       for (const set of releaseSets) {
         candidatePool.release(set);

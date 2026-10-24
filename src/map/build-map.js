@@ -13,26 +13,22 @@ import {
   MAP_MODEL_VERSION,
   VIEWER_DEFAULTS
 } from './constants.js';
-import { normalizePath, sortBy, unique } from './utils.js';
+import { sortBy, unique } from './utils.js';
 import {
   hydrateChunkMeta,
   readGraphRelationsOptional,
   readJsonArrayOptional,
-  readJsonOptional,
+  readMapFileMeta,
   createMapSectionGuards,
   createSpillSorter,
   resolveJsonBytes,
   writeMapJsonStream
 } from './build-map/io.js';
 import {
-  createStringInterner,
-  normalizeArray,
-  normalizeControlFlow,
-  normalizeDataflow,
-  normalizeModifiers
+  createStringInterner
 } from './build-map/normalize.js';
-import { buildSymbolId, buildMemberIndex, upsertMember } from './build-map/symbols.js';
-import { resolveChunkId } from '../index/chunk-id.js';
+import { buildMemberIndex } from './build-map/symbols.js';
+import { buildMapMembers } from './build-map/members.js';
 import { removePathWithRetry } from '../shared/io/remove-path-with-retry.js';
 import { getCacheTempRoot } from '../shared/cache-roots.js';
 import {
@@ -226,131 +222,42 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
 
   const timer = createBuildTimer();
   const intern = createStringInterner();
-  const internPath = (value) => intern(normalizePath(value));
 
   const {
     repoMap,
     fileRelations,
     graphRelations,
-    chunkMeta
+    chunkMeta,
+    fileMeta,
+    fileInventoryStatus
   } = await timer.track('load-artifacts', async () => {
     const repo = readJsonArrayOptional(indexDir, 'repo_map', warnings) || [];
     const relations = readJsonArrayOptional(indexDir, 'file_relations', warnings) || [];
     const graphs = readGraphRelationsOptional(indexDir, warnings, { strict }) || null;
-    const fileMetaRaw = readJsonOptional(path.join(indexDir, 'file_meta.json'), warnings) || null;
+    const inventory = await readMapFileMeta(indexDir, warnings, { strict });
     let meta = [];
     try {
       meta = await loadChunkMeta(indexDir, { strict });
     } catch (err) {
+      if (strict && err.code !== 'ERR_MANIFEST_ENTRY_MISSING') throw err;
       warnings.push(`chunk_meta missing: ${err?.message || err}`);
     }
     return {
       repoMap: repo,
       fileRelations: relations,
       graphRelations: graphs,
-      chunkMeta: hydrateChunkMeta(meta, fileMetaRaw)
+      chunkMeta: hydrateChunkMeta(meta, inventory.rows),
+      fileMeta: inventory.rows,
+      fileInventoryStatus: inventory.status
     };
   });
 
-  const membersByFile = new Map();
-  const memberById = new Map();
-  const aliasById = new Map();
-  const memberByChunkUid = new Map();
-  let hasDataflow = false;
-  let hasControlFlow = false;
-  const sourceRanks = {
-    repoMap: 1,
-    chunkMeta: 2
-  };
-
-  await timer.track('build-members', async () => {
-    for (const entry of repoMap) {
-      if (!entry?.file || !entry?.name) continue;
-      const file = internPath(entry.file);
-      const name = intern(entry.name);
-      const kind = intern(entry.kind || null);
-      const signature = intern(entry.signature || null);
-      const symbolId = buildSymbolId({
-        file,
-        name,
-        kind,
-        startLine: entry.startLine,
-        chunkId: null
-      });
-      upsertMember(membersByFile, memberById, file, symbolId, {
-        name,
-        kind,
-        signature,
-        exported: entry.exported === true,
-        range: {
-          startLine: Number.isFinite(entry.startLine) ? entry.startLine : null,
-          endLine: Number.isFinite(entry.endLine) ? entry.endLine : null
-        },
-        sourceRank: sourceRanks.repoMap
-      });
-    }
-
-    for (const chunk of chunkMeta) {
-      const meta = chunk?.metaV2 || null;
-      const file = internPath(meta?.file || chunk?.file || '');
-      const name = intern(meta?.name || chunk?.name || null);
-      if (!file || !name) continue;
-      const resolvedChunkId = resolveChunkId(chunk);
-      const chunkUid = meta?.chunkUid || chunk?.chunkUid || null;
-      if (!chunkUid) {
-        const message = `chunkUid missing for ${file}::${name}`;
-        if (strict) throw new Error(message);
-        warnings.push(message);
-        continue;
-      }
-      const symbolIdentity = meta?.symbol || null;
-      const kind = intern(meta?.kind || chunk?.kind || null);
-      const symbolId = buildSymbolId({
-        symbolId: symbolIdentity?.symbolId || null,
-        chunkUid,
-        file,
-        name,
-        kind,
-        startLine: meta?.range?.startLine || chunk?.startLine,
-        chunkId: resolvedChunkId || meta?.chunkId || null
-      });
-      if (chunkUid) {
-        memberByChunkUid.set(chunkUid, symbolId);
-        if (chunkUid !== symbolId) aliasById.set(chunkUid, symbolId);
-      }
-      if (resolvedChunkId && resolvedChunkId !== symbolId) {
-        aliasById.set(resolvedChunkId, symbolId);
-      }
-      const legacyKey = `${file}::${name}`;
-      if (legacyKey && legacyKey !== symbolId) aliasById.set(legacyKey, symbolId);
-      const dataflow = normalizeDataflow(meta?.dataflow || chunk?.docmeta?.dataflow, intern);
-      const controlFlow = normalizeControlFlow(meta?.controlFlow || chunk?.docmeta?.controlFlow);
-      if (dataflow) hasDataflow = true;
-      if (controlFlow) hasControlFlow = true;
-      const params = normalizeArray(meta?.params || chunk?.docmeta?.params, intern);
-      const modifiers = normalizeModifiers(meta?.modifiers || chunk?.docmeta?.modifiers);
-      const returns = meta?.returns || chunk?.docmeta?.returns || null;
-      upsertMember(membersByFile, memberById, file, symbolId, {
-        name,
-        kind,
-        signature: intern(meta?.signature || chunk?.docmeta?.signature || null),
-        params,
-        returns,
-        modifiers,
-        dataflow,
-        controlFlow,
-        range: {
-          startLine: Number.isFinite(meta?.range?.startLine)
-            ? meta.range.startLine
-            : (Number.isFinite(chunk?.startLine) ? chunk.startLine : null),
-          endLine: Number.isFinite(meta?.range?.endLine)
-            ? meta.range.endLine
-            : (Number.isFinite(chunk?.endLine) ? chunk.endLine : null)
-        },
-        sourceRank: sourceRanks.chunkMeta
-      });
-    }
-  });
+  const {
+    membersByFile, memberById, aliasById, memberByChunkUid,
+    hasDataflow, hasControlFlow, identitySummary
+  } = await timer.track('build-members', async () => buildMapMembers({
+    repoMap, chunkMeta, fileMeta, fileRelations, intern, strict, warnings
+  }));
 
   if (!hasDataflow) warnings.push('dataflow metadata missing; map is limited');
   if (!hasControlFlow) warnings.push('controlFlow metadata missing; map is limited');
@@ -373,6 +280,8 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
   let collapse = 'none';
   let topKByDegree = false;
   let dropped = { files: 0, members: 0, edges: 0 };
+  const omittedEndpoints = { unavailable: 0, displayFiltered: 0 };
+  const inventoryFiles = new Set(membersByFile.keys());
   let limitedNodes = [];
   let limitedEdges = [];
   const edgeAggregateMap = new Map();
@@ -505,7 +414,13 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
       for (const edge of edgeIteratorFactory()) {
         if (!edgeFilter(edge)) continue;
         const next = transformEdge(edge);
-        if (!edgeLimitFilter(next)) continue;
+        if (!edgeLimitFilter(next)) {
+          const unavailable = [next.from, next.to].some(endpoint =>
+            (endpoint?.file && !inventoryFiles.has(endpoint.file))
+            || (endpoint?.member != null && !memberById.has(String(endpoint.member))));
+          omittedEndpoints[unavailable ? 'unavailable' : 'displayFiltered'] += 1;
+          continue;
+        }
         if (keptEdges >= limits.maxEdges) {
           dropped.edges += 1;
           continue;
@@ -602,6 +517,9 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
       edges: sortedEdges.length
     },
     dropped,
+    inventory: { status: fileInventoryStatus, files: inventoryFiles.size },
+    identity: identitySummary,
+    omittedEndpoints,
     truncated: dropped.files > 0 || dropped.members > 0 || dropped.edges > 0,
     limits,
     include: includes,
@@ -703,8 +621,9 @@ export function buildNodeList(mapModel) {
   };
 }
 
-export function buildMapCacheKey({ buildId, options }) {
-  const payload = { buildId: buildId || null, options: options || null };
+export function buildMapCacheKey({ buildId, indexIdentity, options }) {
+  const payload = { producerVersion: 3, modelVersion: MAP_MODEL_VERSION,
+    buildId: buildId || null, indexIdentity: indexIdentity || null, options: options || null };
   return buildLocalCacheKey({
     namespace: 'code-map',
     payload

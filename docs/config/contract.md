@@ -52,6 +52,7 @@ indexing.artifacts.tokenPostingsShardSize (number)
 indexing.artifacts.tokenPostingsShardThreshold (number)
 indexing.artifacts.writeConcurrency (integer)
 indexing.concurrency (number)
+indexing.crossFileFidelity (string) enum=bounded|comprehensive
 indexing.diffs (object)
 indexing.diffs.compute (object)
 indexing.diffs.compute.detectRenames (boolean)
@@ -487,6 +488,7 @@ tooling.vfs.tokenMode (string)
 
 ## Defaults
 
+- indexing.crossFileFidelity = "bounded"
 - indexing.lexicon.enabled = true
 - indexing.postings.chargramFields = ["name","doc"]
 - indexing.postings.chargramStopwords = false

@@ -18,12 +18,13 @@ await fs.mkdir(path.join(tempRoot, 'src'), { recursive: true });
 await fs.writeFile(path.join(tempRoot, 'src', 'good.js'), 'export const good = true;\n', 'utf8');
 
 const { ignoreMatcher } = await buildIgnoreMatcher({ root: tempRoot, userConfig: {} });
+ignoreMatcher.add('src/ignored.js');
 const skipped = [];
 const scmProviderImpl = {
   async listTrackedFiles() {
     return {
       ok: true,
-      filesPosix: ['src/missing.js', 'src/good.js']
+      filesPosix: ['src/ignored.js', 'src/a-missing.js', 'src/good.js']
     };
   }
 };
@@ -37,7 +38,8 @@ const entries = await discoverFiles({
   ignoreMatcher,
   skippedFiles: skipped,
   maxFileBytes: null,
-  maxFiles: 1
+  maxFiles: 1,
+  abortSignal: AbortSignal.timeout(2000)
 });
 
 assert.equal(entries.length, 1, 'maxFiles should still accept one entry after rejected reservation');

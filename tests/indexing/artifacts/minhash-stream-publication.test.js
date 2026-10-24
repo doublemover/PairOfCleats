@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { MINHASH_HASH_IDENTITY } from '../../../src/index/minhash.js';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import fsSync from 'node:fs';
@@ -40,7 +41,7 @@ for (const [caseIndex, scenario] of [
       chunkUid: `ck64:v1:minhash-fixture:${id.toString(16).padStart(16, '0')}`,
       virtualPath: `file-${id}.js`,
       metaV2: { schemaVersion: 3, chunkUid: `ck64:v1:minhash-fixture:${id.toString(16).padStart(16, '0')}`, virtualPath: `file-${id}.js` },
-      minhashSig: Array.from({ length: 64 }, (_, col) => id * 1000 + col)
+      minhashHashIdentity: MINHASH_HASH_IDENTITY, minhashSig: Array.from({ length: 64 }, (_, col) => id * 1000 + col)
     }));
     const state = {
       chunks, scannedFilesTimes: [], scannedFiles: [], skippedFiles: [], totalTokens: 0,

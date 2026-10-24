@@ -1,3 +1,4 @@
+import { normalizeCrossFileCoverage, crossFileCoverageWarning } from '../index/cross-file-fidelity.js';
 import { compareStrings } from '../shared/sort.js';
 import { normalizeDepth } from '../shared/limits.js';
 import { resolveProvenance } from '../shared/provenance.js';
@@ -5,6 +6,8 @@ import { toArray } from '../shared/iterables.js';
 import { createTruncationRecorder } from '../shared/truncation.js';
 import { compareGraphNodes, compareWitnessPaths, nodeKey } from './ordering.js';
 import { buildGraphNeighborhood } from './neighborhood.js';
+import { attachGraphPathCapability } from './path-capability.js';
+import { throwIfAborted } from '../shared/abort.js';
 
 export const IMPACT_EMPTY_CHANGED_SET_CODE = 'ERR_EMPTY_CHANGED_SET';
 
@@ -129,6 +132,8 @@ export const buildImpactAnalysis = ({
   depth = 1,
   edgeFilters = null,
   caps = {},
+  pathSemantics = undefined,
+  signal = null,
   provenance = null,
   indexSignature = null,
   indexCompatKey = null,
@@ -136,8 +141,15 @@ export const buildImpactAnalysis = ({
   indexDir = null,
   now = () => new Date().toISOString()
 } = {}) => {
+  throwIfAborted(signal);
+  const declare = (payload, traversalDirection) => attachGraphPathCapability(payload, { pathSemantics,
+    operation: 'graph_impact', graphIndex, graphRelations, edgeFilters, caps, direction: traversalDirection,
+    depth: normalizeDepth(depth, 1), includePaths: true, signal });
   const truncation = createTruncationRecorder({ scope: 'impact' });
   const warnings = { list: [], seen: new Set() };
+  const upstreamCoverage = normalizeCrossFileCoverage((graphRelations || graphIndex?.graphRelations)?.upstreamCoverage);
+  const upstreamWarning = crossFileCoverageWarning(upstreamCoverage);
+  if (upstreamWarning) mergeWarnings(warnings, [upstreamWarning]);
   const recordTruncation = (cap, detail) => truncation.record(cap, detail);
 
   const resolvedSeeds = resolveSeeds({
@@ -147,8 +159,9 @@ export const buildImpactAnalysis = ({
     recordTruncation
   });
   if (!resolvedSeeds.seedRef) {
-    return {
+    return declare({
       version: '1.0.0',
+      upstreamCoverage,
       seed: seed && typeof seed === 'object' ? seed : { v: 1, status: 'unresolved', candidates: [], resolved: null },
       direction: normalizeDirection(direction),
       depth: normalizeDepth(depth, 1),
@@ -171,7 +184,7 @@ export const buildImpactAnalysis = ({
           workUnitsUsed: 0
         }
       }
-    };
+    }, direction === 'upstream' ? 'in' : direction === 'both' ? 'both' : 'out');
   }
 
   const seedRef = resolvedSeeds.seedRef;
@@ -241,9 +254,14 @@ export const buildImpactAnalysis = ({
   }
 
   const capsUsed = { graph: { ...caps } };
+  if (!impacted.length) mergeWarnings(warnings, [{
+    code: 'NO_RECORDED_IMPACT',
+    message: 'No dependent was found within the selected graph direction and depth. This does not prove the change has no impact; unresolved or unindexed dependencies are outside this result.'
+  }]);
 
-  return {
+  return declare({
     version: '1.0.0',
+    upstreamCoverage,
     seed: seedRef,
     direction: directionMode,
     depth: effectiveDepth,
@@ -276,5 +294,5 @@ export const buildImpactAnalysis = ({
       timing: neighborhood?.stats?.timing || null,
       memory: neighborhood?.stats?.memory || null
     }
-  };
+  }, traversalDirection);
 };

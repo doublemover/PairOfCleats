@@ -25,6 +25,7 @@ assert.strictEqual(parsed.schemaVersion, 1, 'schemaVersion should be 1');
 assert.ok(parsed.runtime, 'runtime should be present');
 assert.ok(parsed.concurrency, 'concurrency should be present');
 assert.ok(parsed.queues, 'queues should be present');
-assert.ok(parsed.envPatch, 'envPatch should be present');
+assert.equal(parsed.envPatch, undefined, 'diagnostic output cannot expose the launch environment patch');
+assert.equal(parsed.diagnostic.liveRunReceipt, false, 'config dump is a preview rather than a live receipt');
 
 console.log('index config dump test passed');

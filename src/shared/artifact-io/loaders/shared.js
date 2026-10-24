@@ -50,7 +50,7 @@ const warnMaterializeFallback = (dir, name, format) => {
 const readJsonFileCached = (filePath, options) => {
   const cachePolicy = { maxBytes: options?.maxBytes, view: 'json' };
   // Recovery may return a sibling/backup whose identity is not the primary path.
-  const useCache = options?.recoveryFallback !== true;
+  const useCache = options?.recoveryFallback !== true && !options?.containedRoot;
   const cached = useCache ? readCache(filePath, cachePolicy) : null;
   if (cached) return cached;
   const value = readJsonFile(filePath, options);
@@ -126,22 +126,16 @@ const assertNoShardIndexGaps = (paths, baseName) => {
   throw err;
 };
 
-const validatedOffsets = new Set();
-
 /**
- * Validate offsets file against its JSONL source exactly once per process.
+ * Validate the current contained pair for this read invocation. Pathnames and
+ * metadata equality cannot carry successful proof into another invocation.
  *
  * @param {string} jsonlPath
  * @param {string} offsetsPath
  * @returns {Promise<boolean>}
  */
-const ensureOffsetsValid = async (jsonlPath, offsetsPath) => {
-  const key = `${jsonlPath}::${offsetsPath}`;
-  if (validatedOffsets.has(key)) return true;
-  await validateOffsetsAgainstFile(jsonlPath, offsetsPath);
-  validatedOffsets.add(key);
-  return true;
-};
+const ensureOffsetsValid = (jsonlPath, offsetsPath, options = {}) =>
+  validateOffsetsAgainstFile(jsonlPath, offsetsPath, options);
 
 export {
   createLoaderError,

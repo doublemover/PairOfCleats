@@ -5,8 +5,10 @@ import crypto from 'node:crypto';
 import { buildAutoPolicy } from '../../src/shared/auto-policy/build.js';
 import { getEnvConfig } from '../../src/shared/env/runtime.js';
 import { getTestEnvConfig } from '../../src/shared/env/testing.js';
-import { getCacheRoot as getResolvedCacheRoot, getCacheRootBase } from '../../src/shared/cache-roots.js';
-import { readJsoncFile, parseJsoncText } from '../../src/shared/jsonc.js';
+import { getCacheRoot as getResolvedCacheRoot, getCacheRootBase, getStorageCategorySelection } from '../../src/shared/cache-roots.js';
+import { parseJsoncText } from '../../src/shared/jsonc.js';
+import { readJsonResourceTextSync } from '../../src/shared/file-read-resource.js';
+import { observeStorageResource } from '../../src/shared/storage/failure-observation.js';
 import { redactDiagnosticText } from '../../src/shared/diagnostic-text.js';
 import { isPlainObject, mergeConfig } from '../../src/shared/config.js';
 import { applyRepoConfigAuthority, resolveTrustedConfigPath, isRepoTrusted } from '../../src/shared/config-authority.js';
@@ -65,19 +67,57 @@ const discardedConfigPaths = (before, after, prefix = '') => {
   });
 };
 
+let shippedSchemaCache = null;
+const freezeShippedSchema = schema => {
+  if (!schema || typeof schema !== 'object' || Object.isFrozen(schema)) return schema;
+  for (const child of Object.values(schema)) freezeShippedSchema(child);
+  return Object.freeze(schema);
+};
+const schemaIdentity = stat => [stat.dev,stat.ino,stat.size,stat.mtimeNs,stat.ctimeNs].map(String).join(':');
+/** One shipped tool schema identity; repository and trusted values are never cached. */
+export const readShippedConfigSchema = schemaPath => {
+  const absolute = path.resolve(schemaPath);
+  const before = fs.statSync(absolute,{ bigint: true });
+  const identity = schemaIdentity(before);
+  if (shippedSchemaCache?.path === absolute && shippedSchemaCache.identity === identity) return shippedSchemaCache.schema;
+  const schema = freezeShippedSchema(JSON.parse(readJsonResourceTextSync(absolute)));
+  if (schemaIdentity(fs.statSync(absolute,{ bigint: true })) !== identity) throw new Error('Shipped config schema changed while being read.');
+  shippedSchemaCache = { path: absolute,identity,schema };
+  return schema;
+};
+
 /** Optional source callback reports loader facts without changing the config value contract. */
-export function loadUserConfig(repoRoot, { env = process.env, onSources = null } = {}) {
+export function loadUserConfig(repoRoot, { env = process.env, onSources = null, configPath: selectedConfigPath = null,
+  repositoryConfig = undefined } = {}) {
   const metadata = { version: 1, files: [], repoTrusted: isRepoTrusted(repoRoot, env),
     discardedAuthorityPaths: [], trustedMerge: false, testOverlay: { applied: false, source: 'test-environment' } };
+  const schemaErrors = messages => messages.map(message => ({ code: 'schema',
+    path: /^#([^ ]*)/.exec(message)?.[1] || '/', message }));
   const readSource = (filename, source, optional = false) => {
     let raw;
     const evidence = { path: filename, source, exists: false, contentHash: null };
     metadata.files.push(evidence);
-    try { raw = fs.readFileSync(filename, 'utf8'); }
+    try { raw = readJsonResourceTextSync(filename); }
     catch (error) {
-      evidence.errorCode = error.code || 'UNKNOWN';
-      if (optional && error.code === 'ENOENT') return {};
-      throw error;
+      const observation = observeStorageResource(error, { phase: 'configuration-source-read' });
+      const confirm = () => {
+        try { observation.requireSettled(); }
+        catch (pending) { evidence.readState = 'pending'; throw pending; }
+      };
+      confirm();
+      let code;
+      try { code = observation.primary.code; }
+      catch (inspection) {
+        const retained = observation.retain(inspection, { inspectionPresent: true });
+        try { observeStorageResource(retained, { phase: 'configuration-source-diagnostic' }).requireSettled(); }
+        catch (pending) { evidence.readState = 'pending'; throw pending; }
+        evidence.readState = 'failed'; throw retained;
+      }
+      confirm();
+      evidence.errorCode = typeof code === 'string' && code ? code : 'UNKNOWN';
+      evidence.readState = code === 'ENOENT' ? 'missing' : 'failed';
+      if (optional && code === 'ENOENT') return {};
+      throw observation.primary;
     }
     evidence.exists = true;
     const value = parseJsoncText(raw, filename);
@@ -85,31 +125,55 @@ export function loadUserConfig(repoRoot, { env = process.env, onSources = null }
     else evidence.contentHash = crypto.createHash('sha256').update(raw).digest('hex');
     return value;
   };
+  let loadedConfig, failed = false, primary, observation = null;
   try {
-    const configPath = path.join(repoRoot, '.pairofcleats.json');
-    const base = readSource(configPath, 'repository', true);
+    const configPath = selectedConfigPath ? path.resolve(selectedConfigPath) : path.join(repoRoot, '.pairofcleats.json');
+    // Setup previews use the same validation/authority/trusted merge without a
+    // temporary repository file or an alternate defaults/precedence engine.
+    const base = repositoryConfig === undefined ? readSource(configPath, 'repository', !selectedConfigPath) : structuredClone(repositoryConfig);
+    if (repositoryConfig !== undefined) metadata.files.push({ path: configPath, source: 'repository', exists: true,
+      preview: true, contentHash: null, contentHashOmitted: 'in-memory-preview' });
     if (!isPlainObject(base)) throw new Error('Config root must be a JSON object.');
     const schemaPath = path.join(resolveToolRoot(), 'docs', 'config', 'schema.json');
-    const schema = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
+    const schema = readShippedConfigSchema(schemaPath);
     const result = validateConfig(schema, base);
     if (!result.ok) {
       const details = result.errors.map((err) => `- ${err}`).join('\n');
-      throw new Error(`Config errors in ${configPath}:\n${details}`);
+      throw Object.assign(new Error(`Config errors in ${configPath}:\n${details}`), {
+        code: 'ERR_REPO_CONFIG_INVALID', configPath, errors: schemaErrors(result.errors)
+      });
     }
     const trustedPath = resolveTrustedConfigPath(repoRoot, env);
     const trusted = trustedPath ? readSource(trustedPath, 'trusted-external') : {};
     const trustedResult = validateConfig(schema, trusted);
-    if (!trustedResult.ok) throw new Error('Invalid user-owned trusted configuration.');
+    if (!trustedResult.ok) throw Object.assign(new Error('Invalid user-owned trusted configuration:\n'
+      + trustedResult.errors.map(error => `- ${error}`).join('\n')), {
+      code: 'ERR_TRUSTED_CONFIG_INVALID', configPath: trustedPath,
+      errors: schemaErrors(trustedResult.errors)
+    });
     const safe = applyRepoConfigAuthority(base, repoRoot, env);
     metadata.discardedAuthorityPaths = discardedConfigPaths(base, safe);
     metadata.trustedMerge = Boolean(trustedPath);
     const normalized = normalizeUserConfig(mergeConfig(safe, trusted), repoRoot);
     const testEnv = getTestEnvConfig(env);
     metadata.testOverlay.applied = Boolean(testEnv.testing && testEnv.config);
-    return metadata.testOverlay.applied ? mergeConfig(normalized, testEnv.config) : normalized;
-  } finally {
-    if (typeof onSources === 'function') onSources(metadata);
+    loadedConfig = metadata.testOverlay.applied ? mergeConfig(normalized, testEnv.config) : normalized;
+  } catch (error) {
+    failed = true; primary = error;
+    observation = observeStorageResource(error, { phase: 'configuration-load' });
   }
+  let reportFailed = false, reportError, reportObservation = null;
+  try { if (typeof onSources === 'function') onSources(metadata); }
+  catch (error) {
+    reportFailed = true; reportError = error;
+    reportObservation = observeStorageResource(error, { phase: 'configuration-source-report' });
+  }
+  if (failed) {
+    if (reportFailed) throw observation.retain(reportObservation.retain(), { inspectionPresent: true });
+    observation.requireSettled(); throw primary;
+  }
+  if (reportFailed) { reportObservation.requireSettled(); throw reportError; }
+  return loadedConfig;
 }
 
 /**
@@ -177,8 +241,8 @@ function normalizeUserConfig(baseConfig, repoRoot = null) {
  * Resolve the cache root directory.
  * @returns {string}
  */
-export function getCacheRoot() {
-  return getResolvedCacheRoot();
+export function getCacheRoot(options = {}) {
+  return getResolvedCacheRoot(options);
 }
 
 /**
@@ -197,7 +261,7 @@ export function getDictConfig(repoRoot, userConfig = null) {
   );
   return {
     // Dictionaries are shared and durable across cache-key versions; keep them outside repo cache data.
-    dir: envDictDir || dict.dir || path.join(getCacheRootBase(), 'dictionaries'),
+    dir: envDictDir || dict.dir || getStorageCategorySelection('dictionaries') || path.join(getCacheRootBase(), 'dictionaries'),
     languages: Array.isArray(dict.languages) ? dict.languages : ['en'],
     files: Array.isArray(dict.files) ? dict.files : [],
     includeSlang: dict.includeSlang !== false,

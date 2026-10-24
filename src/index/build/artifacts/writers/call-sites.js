@@ -1,13 +1,17 @@
+import { resolveCallArguments } from '../../../../contracts/call-arguments.js';
+import { createCallSiteSemanticRefResolver, unavailableCallSiteSemanticRef } from './call-site-semantic-refs.js';
+import { mergeRunsWithPlanner, readJsonlRows } from '../../../../shared/merge.js';
+import { throwIfAborted } from '../../../../shared/abort.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { writeJsonLinesFile } from '../../../../shared/json-stream/jsonl-write.js';
-import { writeJsonLinesSharded } from '../../../../shared/json-stream/jsonl-sharded.js';
-import { writeJsonObjectFile } from '../../../../shared/json-stream/json-writers.js';
+import { writeJsonLinesFileAsync } from '../../../../shared/json-stream/jsonl-write.js';
+import { writeJsonLinesShardedAsync } from '../../../../shared/json-stream/jsonl-sharded.js';
 import { sha1 } from '../../../../shared/hash.js';
 import { fromPosix } from '../../../../shared/file-paths.js';
 import { buildCallSiteId } from '../../../callsite-id.js';
 import {
   createOffsetsMeta,
+  createRowSpillCollector,
   createTrimStats,
   recordArtifactTelemetry,
   recordTrimStats
@@ -17,7 +21,6 @@ import { buildTrimMetadata, TRIM_REASONS } from '../trim-policy.js';
 import {
   buildJsonlVariantPaths,
   buildShardedPartEntries,
-  measureJsonlRows,
   removeArtifacts,
   resolveJsonlExtension,
   writeShardedJsonlMeta
@@ -31,6 +34,8 @@ const MAX_ROW_BYTES = 32768;
 const measureRowBytes = (row) => (
   Buffer.byteLength(JSON.stringify(row), 'utf8') + 1
 );
+
+const normalizePathIdentity = value => typeof value === 'string' && value.length ? value : null;
 
 const normalizeText = (value) => {
   if (value === null || value === undefined) return '';
@@ -113,24 +118,35 @@ const maybeTrimRow = (row) => {
   };
 };
 
-const buildCallSiteRow = ({ chunk, detail, stats }) => {
-  const calleeRaw = normalizeText(detail.calleeRaw || detail.callee);
+const buildCallSiteRow = ({ chunk, detail, stats, semanticRef = null }) => {
+  const calleeRaw = detail.source === 'tree-sitter' && typeof detail.calleeRaw === 'string'
+    ? detail.calleeRaw : normalizeText(detail.calleeRaw || detail.callee);
   const calleeNormalized = normalizeText(detail.calleeNormalized) || deriveCalleeNormalized(calleeRaw);
-  const file = normalizeText(chunk.file);
+  const file = normalizePathIdentity(chunk.file);
   const start = Number.isFinite(detail.start) ? detail.start : null;
   const end = Number.isFinite(detail.end) ? detail.end : null;
   const startLine = Number.isFinite(detail.startLine) ? detail.startLine : null;
   const startCol = Number.isFinite(detail.startCol) ? detail.startCol : null;
   const endLine = Number.isFinite(detail.endLine) ? detail.endLine : null;
   const endCol = Number.isFinite(detail.endCol) ? detail.endCol : null;
-  if (!file || !calleeRaw || !calleeNormalized || !Number.isFinite(start) || !Number.isFinite(end)) return null;
-  if (!Number.isFinite(startLine) || !Number.isFinite(startCol) || !Number.isFinite(endLine) || !Number.isFinite(endCol)) {
+  const invalid = () => {
+    if (detail.source === 'tree-sitter') {
+      throw Object.assign(new Error('Syntax call occurrence cannot satisfy canonical call-site identity.'),
+        { code: 'ERR_SYNTAX_CALL_SITE_INVALID', file, start, end });
+    }
+    recordTrimStats(stats, { dropped: true, trimReasons: [TRIM_REASONS.dropRequiredFields] });
     return null;
+  };
+  if (!file || !calleeRaw || !calleeNormalized || !Number.isSafeInteger(start) || !Number.isSafeInteger(end)
+    || start < 0 || end < start) return invalid();
+  if ([startLine, startCol, endLine, endCol].some(value => !Number.isSafeInteger(value) || value < 1)
+    || endLine < startLine || (endLine === startLine && endCol < startCol)) {
+    return invalid();
   }
   const args = normalizeArgs(detail.args);
   const evidence = normalizeEvidence(detail.evidence);
   const callSiteId = buildCallSiteId({ file, startLine, startCol, endLine, endCol, calleeRaw });
-  if (!callSiteId) return null;
+  if (!callSiteId) return invalid();
   const row = {
     callSiteId,
     callerChunkUid: normalizeText(chunk.chunkUid || chunk.metaV2?.chunkUid) || null,
@@ -156,8 +172,27 @@ const buildCallSiteRow = ({ chunk, detail, stats }) => {
     targetCandidates: Array.isArray(detail.targetCandidates) ? detail.targetCandidates.filter(Boolean) : [],
     snippetHash: detail.snippetHash || buildSnippetHash(calleeRaw, args)
   };
+  if (detail.source === 'tree-sitter' && detail.coordinateSystem === 'utf16') {
+    const status = detail.calleeRef?.status || (row.targetChunkUid ? 'resolved' : detail.resolution);
+    row.extensions = { syntax: {
+      producer: 'tree-sitter', coordinateSystem: 'utf16', role: detail.role || 'call',
+      resolution: ['resolved', 'ambiguous', 'unresolved'].includes(status) ? status : 'unresolved',
+      reason: status === 'resolved' ? 'source-qualified-target'
+        : status === 'ambiguous' ? 'ambiguous-target'
+          : detail.calleeRef?.reason || detail.reason || 'syntax-target-unresolved',
+      rawPreviewTruncated: detail.rawPreviewTruncated === true
+    } };
+  }
+  row.extensions ||= {};
+  row.extensions.semanticRef = semanticRef || unavailableCallSiteSemanticRef();
+  row.extensions.arguments = resolveCallArguments(detail);
+  if (Array.isArray(detail.argLiterals)) row.extensions.argLiterals = detail.argLiterals.slice(0, MAX_ARGS_PER_CALL);
   const trimmedResult = maybeTrimRow(row);
   if (!trimmedResult.row) {
+    if (detail.source === 'tree-sitter') {
+      throw Object.assign(new Error('Syntax call occurrence exceeds canonical row budget.'),
+        { code: 'ERR_SYNTAX_CALL_SITE_OVERSIZE', file, start, end });
+    }
     recordTrimStats(stats, { dropped: true, trimReasons: trimmedResult.trimReasons });
     return null;
   }
@@ -169,39 +204,75 @@ const buildCallSiteRow = ({ chunk, detail, stats }) => {
   return trimmedResult.row;
 };
 
-const sortCallSites = (rows) => {
-  rows.sort((a, b) => {
-    const fileCmp = String(a.file || '').localeCompare(String(b.file || ''));
-    if (fileCmp) return fileCmp;
-    const callerCmp = String(a.callerChunkUid || '').localeCompare(String(b.callerChunkUid || ''));
-    if (callerCmp) return callerCmp;
-    if (a.start !== b.start) return a.start - b.start;
-    if (a.end !== b.end) return a.end - b.end;
-    const calleeCmp = String(a.calleeNormalized || '').localeCompare(String(b.calleeNormalized || ''));
-    if (calleeCmp) return calleeCmp;
-    return String(a.calleeRaw || '').localeCompare(String(b.calleeRaw || ''));
-  });
-  return rows;
+export const compareCallSites = (a, b) => {
+  const fileCmp = String(a.file || '').localeCompare(String(b.file || ''));
+  if (fileCmp) return fileCmp;
+  const callerCmp = String(a.callerChunkUid || '').localeCompare(String(b.callerChunkUid || ''));
+  if (callerCmp) return callerCmp;
+  if (a.start !== b.start) return a.start - b.start;
+  if (a.end !== b.end) return a.end - b.end;
+  const calleeCmp = String(a.calleeNormalized || '').localeCompare(String(b.calleeNormalized || ''));
+  if (calleeCmp) return calleeCmp;
+  return String(a.calleeRaw || '').localeCompare(String(b.calleeRaw || ''));
 };
 
-export const createCallSites = ({ chunks, stats = null } = {}) => {
-  const rows = [];
+function* iterateCallSites(chunks, stats) {
   for (const chunk of chunks || []) {
-    const details = Array.isArray(chunk?.codeRelations?.callDetails)
-      ? chunk.codeRelations.callDetails
-      : [];
-    if (!details.length) continue;
-    for (const detail of details) {
+    for (const detail of chunk?.codeRelations?.callDetails || []) {
+      if (!detail || typeof detail !== 'object') {
+        recordTrimStats(stats, { dropped: true, trimReasons: [TRIM_REASONS.dropRequiredFields] });
+        continue;
+      }
       const row = buildCallSiteRow({ chunk, detail, stats });
-      if (row) rows.push(row);
+      if (row) yield row;
     }
   }
-  return sortCallSites(rows);
+}
+
+// Small in-memory callers retain the canonical comparator and row normalization.
+export const createCallSites = ({ chunks, stats = null } = {}) =>
+  [...iterateCallSites(chunks, stats)].sort(compareCallSites);
+
+const collectCallSites = async ({ state, chunks, outDir, buildRoot, buildId, maxJsonBytes, abortSignal, maxBufferBytes, maxBufferRows }) => {
+  const stats = createTrimStats();
+  const spillStats = createTrimStats();
+  const collector = createRowSpillCollector({ outDir, runPrefix: 'call_sites', compare: compareCallSites,
+    maxJsonBytes, maxBufferBytes, maxBufferRows, stats: spillStats });
+  const semanticRefs = createCallSiteSemanticRefResolver({ state, outDir, buildRoot, buildId, signal: abortSignal });
+  stats.semanticReferences = { available: 0, unavailable: 0 };
+  for (const chunk of chunks || []) {
+    if (!chunk?.codeRelations?.callDetails?.length) continue;
+    await semanticRefs.withChunk(chunk, async resolveRef => {
+      for (const detail of chunk.codeRelations.callDetails) {
+        throwIfAborted(abortSignal);
+        if (!detail || typeof detail !== 'object') {
+          recordTrimStats(stats, { dropped: true, trimReasons: [TRIM_REASONS.dropRequiredFields] });
+          continue;
+        }
+        const semanticRef = await resolveRef(detail);
+        const row = buildCallSiteRow({ chunk, detail, stats, semanticRef });
+        if (row) {
+          stats.semanticReferences[semanticRef.status] += 1;
+          // Await each spill before admitting another bounded row.
+          await collector.append(row);
+        }
+      }
+    });
+  }
+  throwIfAborted(abortSignal);
+  const collected = await collector.finalize();
+  Object.assign(stats, { runsSpilled: spillStats.runsSpilled, spillBytes: spillStats.spillBytes });
+  return { ...collected, stats };
 };
 
-export const enqueueCallSitesArtifacts = ({
+export const enqueueCallSitesArtifacts = async ({
   state,
   outDir,
+  buildRoot = null,
+  buildId = null,
+  abortSignal = null,
+  spillBufferBytes = 2 * 1024 * 1024,
+  spillBufferRows = 5000,
   maxJsonBytes = null,
   byteBudget = null,
   compression = null,
@@ -213,12 +284,49 @@ export const enqueueCallSitesArtifacts = ({
   log = null,
   stageCheckpoints
 }) => {
-  const stats = createTrimStats();
-  const rows = createCallSites({ chunks: state?.chunks || [], stats });
-  if (!rows.length && !forceEmpty) return null;
-
-  const resolvedMaxBytes = Number.isFinite(Number(maxJsonBytes)) ? Math.floor(Number(maxJsonBytes)) : 0;
-  const { totalBytes, maxLineBytes } = measureJsonlRows(rows);
+  throwIfAborted(abortSignal);
+  const resolvedMaxBytes = Number.isFinite(Number(maxJsonBytes)) ? Math.max(0, Math.floor(Number(maxJsonBytes))) : 0;
+  const collected = await collectCallSites({ state, chunks: state?.chunks || [], outDir, buildRoot, buildId,
+    maxJsonBytes: resolvedMaxBytes, abortSignal,
+    maxBufferBytes: Math.min(2 * 1024 * 1024, Math.max(1, spillBufferBytes)),
+    maxBufferRows: Math.min(5000, Math.max(1, spillBufferRows)) });
+  const { stats } = collected;
+  const totalRows = stats.totalRows;
+  if (state) state.callSitesCoverage = { schemaVersion: 1,
+    status: stats.droppedRows ? 'incomplete' : 'complete', emitted: totalRows,
+    dropped: stats.droppedRows, trimmed: stats.trimmedRows, semanticReferences: stats.semanticReferences };
+  if (!totalRows && !forceEmpty) { await collected.cleanup(); return null; }
+  const totalBytes = stats.totalBytes, maxLineBytes = stats.maxRowBytes;
+  const withRows = async write => {
+    let merged = null;
+    try {
+      throwIfAborted(abortSignal);
+      const readRun = async function* (file) {
+        for await (const row of readJsonlRows(file)) { throwIfAborted(abortSignal); yield row; }
+      };
+      if (collected.runs) {
+        merged = await mergeRunsWithPlanner({ runs: collected.runs,
+          outputPath: path.join(outDir, 'call_sites.runs', 'ordered.jsonl'),
+          tempDir: path.join(outDir, 'call_sites.runs'), runPrefix: 'call_sites-merge',
+          checkpointPath: path.join(outDir, 'call_sites.runs', 'merge-checkpoint.json'),
+          compare: compareCallSites, compareId: 'call-sites-canonical-v2',
+          plannerInputKey: 'call-sites-canonical-v2', readRun, maxOpenRuns: 32, validateComparator: true });
+      }
+      const rows = merged ? readRun(merged.outputPath) : (async function* () {
+        for (const row of collected.rows) { throwIfAborted(abortSignal); yield row; }
+      })();
+      const result = await write(rows);
+      await merged?.cleanup();
+      await collected.cleanup();
+      return result;
+    } catch (error) {
+      // Retain input-bound runs/checkpoints for the failed candidate. Publication
+      // cannot complete; the existing planner validates every input on replay.
+      if (state?.callSitesCoverage) Object.assign(state.callSitesCoverage, { status: 'incomplete',
+        reason: error?.code || 'call-site-write-failed' });
+      throw error;
+    }
+  };
   const trimMetadata = buildTrimMetadata(stats);
   const jsonlExtension = resolveJsonlExtension(compression);
   const callSitesPath = path.join(outDir, `call_sites.${jsonlExtension}`);
@@ -245,7 +353,7 @@ export const enqueueCallSitesArtifacts = ({
   recordArtifactTelemetry(stageCheckpoints, {
     stage: 'stage2',
     artifact: 'call_sites',
-    rows: stats.totalRows || rows.length,
+    rows: totalRows,
     bytes: totalBytes,
     maxRowBytes: Math.max(maxLineBytes, stats.maxRowBytes || 0),
     trimmedRows: stats.trimmedRows || 0,
@@ -263,20 +371,21 @@ export const enqueueCallSitesArtifacts = ({
         await removeJsonlVariants();
         await fs.rm(callSitesMetaPath, { force: true });
         await fs.rm(callSitesPartsDir, { recursive: true, force: true });
-        await writeJsonLinesFile(callSitesPath, rows, {
+        await withRows(rows => writeJsonLinesFileAsync(callSitesPath, rows, {
           atomic: true,
           compression,
           gzipOptions,
           offsets: offsetsPath ? { path: offsetsPath, atomic: true } : null,
-          maxBytes: resolvedMaxBytes
-        });
+          maxBytes: resolvedMaxBytes || null,
+          signal: abortSignal
+        }));
       }
     );
     addPieceFile({
       type: 'relations',
       name: 'call_sites',
       format: 'jsonl',
-      count: rows.length,
+      count: totalRows,
       compression: compression || null
     }, callSitesPath);
     if (offsetsPath) {
@@ -284,7 +393,7 @@ export const enqueueCallSitesArtifacts = ({
         type: 'relations',
         name: 'call_sites_offsets',
         format: 'bin',
-        count: rows.length
+        count: totalRows
       }, offsetsPath);
     }
     return {
@@ -292,7 +401,7 @@ export const enqueueCallSitesArtifacts = ({
       format: 'jsonl',
       sharded: false,
       entrypoint: formatArtifactLabel(callSitesPath),
-      totalEntries: rows.length
+      totalEntries: totalRows
     };
   }
 
@@ -304,16 +413,19 @@ export const enqueueCallSitesArtifacts = ({
     formatArtifactLabel(callSitesMetaPath),
     async () => {
       await removeJsonlVariants();
-      const result = await writeJsonLinesSharded({
-        dir: outDir,
-        partsDirName: 'call_sites.parts',
-        partPrefix: 'call_sites.part-',
-        items: rows,
-        maxBytes: resolvedMaxBytes,
-        atomic: true,
-        compression,
-        gzipOptions,
-        offsets: offsetsConfig
+      const result = await withRows(async rows => {
+        return writeJsonLinesShardedAsync({
+          dir: outDir,
+          partsDirName: 'call_sites.parts',
+          partPrefix: 'call_sites.part-',
+          items: rows,
+          maxBytes: resolvedMaxBytes,
+          atomic: true,
+          compression,
+          gzipOptions,
+          offsets: offsetsConfig,
+          signal: abortSignal
+        });
       });
       const parts = buildShardedPartEntries(result);
       const offsetsMeta = createOffsetsMeta({
@@ -364,6 +476,6 @@ export const enqueueCallSitesArtifacts = ({
     format: 'jsonl',
     sharded: true,
     entrypoint: formatArtifactLabel(callSitesMetaPath),
-    totalEntries: rows.length
+    totalEntries: totalRows
   };
 };

@@ -14,6 +14,24 @@ Phase 11 adds:
 - Dense ranking uses ANN when available (HNSW or sqlite extension).
 - When both sparse and ANN are active, results combine via RRF or blend.
 
+Explicit field-weight policies stay authoritative when selected vocabularies are
+empty: disabled body weights never enable unfielded fallback. ANN hits retain a
+score-space contract. Hybrid blending maps cosine to the unit interval, L2
+negative distances through reciprocal distance, and unbounded dot/IP similarities
+through a monotone atan calibration. Pure dense blending preserves the raw ANN
+ordering and excludes sparse-only rows. RRF remains rank-based.
+
+The programmatic [count-aware ANN experiment](count-aware-ann-planning.md) adds
+explicitly bounded eligible-count routing and stored-representation exhaustive
+scoring. It is opt-in, preserves independent discovery and hard eligibility, and
+keeps filled approximate output separate from recall/completion evidence. Its
+authored source/fixture work remains unvalidated.
+
+Context expansion treats absent or null optional caps as defaults; explicit zero
+admits no work under that cap. Cap truncation requires an actual eligible omission
+witness. Derived context indexes are stored in the retrieval cache, keyed by the
+selected directory and index signature, without writing into frozen generations.
+
 ## Explainability
 
 ### `scoreType`
@@ -147,6 +165,20 @@ When graph ranking is enabled:
 
 ---
 
+## Hit-list comparison metrics
+
+`rankCorr` compares relative order among distinct identities shared by the two
+top-N hit lists. Each shared subset is ranked from 1 through its own size before
+computing Spearman correlation. Moving the same shared ordering behind unrelated
+hits therefore leaves correlation at 1; reversing that ordering gives -1.
+Fewer than two distinct shared hits yields `null` and contributes no value to a
+report's correlation average.
+
+Membership loss remains visible through `overlap` and the missing-hit lists;
+absolute displacement is not an additional penalty inside `rankCorr`. Score
+deltas and top-one equality retain their separate meanings. Model-comparison
+reports and retrieval-parity thresholds use this same comparison owner.
+
 ## References
 - `docs/contracts/search-contract.md`
 - `docs/contracts/search-cli.md`
@@ -155,3 +187,28 @@ When graph ranking is enabled:
 
 
 Literal quotes preserve order, repeated words and stopwords independently of scoring expansions. Full phrase streams are retained in chunk metadata and SQLite. Sparse Boolean eligibility is applied before provider top-N selection; vector candidates retain implicit-term relaxation while quotes and exclusions stay hard. Truncated literal evidence fails quoted eligibility closed.
+
+BM25 parameters require finite `k1 >= 0` and `0 <= b <= 1`; zero is a valid
+explicit value. Invalid stored recommendations are ignored with a diagnostic.
+Selective scoring may seek only posting arrays whose strictly increasing numeric
+document order was validated at generation admission. Unrecognized or unsorted
+representations use linear scoring. Eligibility ordering is prepared once per
+ranking call; corpus document frequency and normalization are unchanged.
+
+Relation-boost preparation belongs to one ranking request. Query/lexicon facts
+are reused per effective language, and token sets are reused by the effective
+relation-array identities. Chunk overrides, file fallback, case policy and zero
+weights retain their ordinary scoring meaning. Graph node maps are weakly owned
+by immutable admitted `graphRelations`; new generations replace that identity.
+These changes reduce particular preparation/traversal operations. They do not
+establish measured Node26 latency, allocations or whole-query performance.
+
+Request eligibility first applies admitted filter IDs. Exact lexical posting domains
+require the current scoring-analyzer identity and validated posting rows; unknown
+vocabulary completeness, phrases and unsupported predicates retain conservative
+supersets. The existing exact metadata/literal predicate verifies every surviving
+candidate after bounded hydration. Sparse and semantic predicate identities remain
+separate when free-text terms are relaxed. Cancellation checkpoints and preparation
+counts include this work. Independent ANN and sparse-only routes omit unused lexical
+candidate unions; required gram unions visit each posting once in first-seen order.
+Computed Set intersections use known cardinality and canonical ascending document IDs.

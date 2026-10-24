@@ -58,6 +58,12 @@ export const createStage3RuntimeReceipts = async ({ config, roots, identity, ide
     }));
   };
   return {
+    diagnosticContext: (mode = null) => {
+      const entry = selected(mode)[0];
+      return entry ? { buildId: entry.attempt.buildId, attemptId: entry.attempt.attemptId,
+        parentAttemptId: entry.attempt.parentAttemptId || null, mode: entry.attempt.mode,
+        stage: 'stage3', runtimeReceiptPath: path.join(entry.buildRoot, 'build_state.json') } : null;
+    },
     reference: (mode) => entries.get(mode)?.attempt?.attemptId || null,
     observation: (mode) => entries.get(mode)?.attempt?.embeddings?.observation || null,
     async loading(mode) {

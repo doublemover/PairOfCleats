@@ -1,0 +1,49 @@
+param([string]$Binary, [string]$FixtureRoot, [string]$Mode)
+$ErrorActionPreference = 'Stop'
+Add-Type -TypeDefinition @'
+using System;
+using System.Runtime.InteropServices;
+public static class PocConsoleMode {
+  [DllImport("kernel32.dll", SetLastError=true)] public static extern IntPtr GetStdHandle(int which);
+  [DllImport("kernel32.dll", SetLastError=true)] public static extern bool GetConsoleMode(IntPtr handle, out uint mode);
+  public static uint Read(int which) {
+    uint mode;
+    if (!GetConsoleMode(GetStdHandle(which), out mode)) throw new System.ComponentModel.Win32Exception();
+    return mode;
+  }
+}
+'@
+$beforeInput = [PocConsoleMode]::Read(-10)
+$beforeOutput = [PocConsoleMode]::Read(-11)
+$native = [System.Diagnostics.Process]::new()
+$native.StartInfo.FileName = $Binary
+$native.StartInfo.UseShellExecute = $false
+$native.StartInfo.RedirectStandardOutput = $Mode -eq 'terminal-error'
+$native.StartInfo.RedirectStandardError = $true
+try {
+  if (!$native.Start()) { throw 'Native binary did not start' }
+  @{ native = $native.Id } | ConvertTo-Json -Compress | Add-Content -LiteralPath (Join-Path $FixtureRoot 'pids.jsonl')
+  $stderr = $native.StandardError.ReadToEndAsync()
+  if ($Mode -eq 'terminal-error') {
+    $stdout = $native.StandardOutput.ReadToEndAsync()
+    # Keep the real input console. Closing only the output pipe exercises the
+    # native draw error and orderly cleanup; it does not terminate the process.
+    $until = [DateTime]::UtcNow.AddSeconds(12)
+    while (!(Test-Path -LiteralPath (Join-Path $FixtureRoot 'break-output'))) {
+      if ($native.HasExited) { throw "Native process exited before transport failure: $($stderr.GetAwaiter().GetResult())" }
+      if ([DateTime]::UtcNow -gt $until) { throw 'Transport failure witness timed out' }
+      Start-Sleep -Milliseconds 20
+    }
+    $native.StandardOutput.Close()
+  }
+  if (!$native.WaitForExit(18000)) { throw 'Native process exceeded lifetime deadline' }
+  $afterInput = [PocConsoleMode]::Read(-10)
+  $afterOutput = [PocConsoleMode]::Read(-11)
+  @{ mode = $Mode; exitCode = $native.ExitCode; stderr = $stderr.GetAwaiter().GetResult();
+    beforeInput = $beforeInput; afterInput = $afterInput; beforeOutput = $beforeOutput; afterOutput = $afterOutput;
+    terminalRestored = ($beforeInput -eq $afterInput -and $beforeOutput -eq $afterOutput)
+  } | ConvertTo-Json -Compress | Set-Content -LiteralPath (Join-Path $FixtureRoot 'terminal-receipt.json')
+} finally {
+  if (!$native.HasExited) { $native.Kill($true); $native.WaitForExit() }
+  $native.Dispose()
+}

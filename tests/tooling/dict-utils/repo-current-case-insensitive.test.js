@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { getRepoCacheRoot, resolveIndexRoot } from '../../../tools/shared/dict-utils.js';
@@ -32,7 +33,7 @@ try {
   const upperBuildRoot = buildRoot.toUpperCase();
   await fs.writeFile(
     currentPath,
-    `${JSON.stringify({ buildId: 'build-001', buildRoot: upperBuildRoot }, null, 2)}\n`,
+    `${JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, buildId: 'build-001', buildRoot: upperBuildRoot }, null, 2)}\n`,
     'utf8'
   );
 

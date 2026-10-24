@@ -1,9 +1,12 @@
+import { createRetainedEdgePages } from './retained-edge-pages.js';
+import { createCallSitePages } from './call-site-pages.js';
 import { MAX_JSON_BYTES } from '../shared/artifact-io/constants.js';
 import { loadPiecesManifest, resolveArtifactPresence } from '../shared/artifact-io/manifest.js';
 import { loadJsonArrayArtifactRows } from '../shared/artifact-io/loaders/core.js';
 import { loadGraphRelations, loadGraphRelationsCsr } from '../shared/artifact-io/loaders/graph.js';
 import {
   buildCallSiteIndex,
+  appendCallSiteIndex,
   buildAdjacencyIndex,
   buildAdjacencyCsr,
   buildChunkInfo,
@@ -16,6 +19,8 @@ import {
 } from './indexes.js';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
 import { compareStrings } from '../shared/sort.js';
+import { admitCsrFamily } from './csr-order.js';
+import { addStorageFailureContext } from '../shared/storage/operation-error.js';
 
 const GRAPH_INDEX_CACHE_MAX = 3;
 const graphIndexCache = new Map();
@@ -155,7 +160,7 @@ export const buildGraphIndexCacheKey = ({
 } = {}) => {
   if (!indexSignature) return null;
   const graphList = normalizeGraphList(graphs);
-  const normalizedGraphs = graphList?.length
+  const normalizedGraphs = graphList != null
     ? graphList.map((entry) => String(entry)).sort()
     : null;
   return buildLocalCacheKey({
@@ -178,6 +183,7 @@ export const buildGraphIndex = ({
   graphRelationsCsr,
   symbolEdges,
   callSites,
+  callSiteIndex: inputCallSiteIndex = null,
   repoRoot = null,
   indexSignature = null,
   includeCsr = false
@@ -221,41 +227,52 @@ export const buildGraphIndex = ({
   const callGraphIndex = buildGraphNodeIndex(graphRelationsMeta?.callGraph);
   const usageGraphIndex = buildGraphNodeIndex(graphRelationsMeta?.usageGraph);
   const importGraphIndex = buildImportGraphIndex(graphRelationsMeta?.importGraph, repoRoot);
-  const callGraphAdjacency = buildAdjacencyIndex(graphRelations?.callGraph, { includeBoth: !includeCsr, includeIn: !includeCsr });
-  const usageGraphAdjacency = buildAdjacencyIndex(graphRelations?.usageGraph, { includeBoth: !includeCsr, includeIn: !includeCsr });
-  const importGraphAdjacency = buildAdjacencyIndex(graphRelations?.importGraph, {
-    normalizeNeighborId: normalizeImportPathCached,
-    normalizeNodeId: normalizeImportPathCached,
-    includeBoth: !includeCsr,
-    includeIn: !includeCsr
-  });
   const callGraphIds = buildIdTable(callGraphIndex);
   const usageGraphIds = buildIdTable(usageGraphIndex);
   const importGraphIds = buildIdTable(importGraphIndex);
   const importGraphPathTable = buildPrefixTable(importGraphIds.ids || []);
+  const prepareFamily = (family, ids, normalization = {}) => {
+    const supplied = graphRelationsCsr?.[family];
+    if (includeCsr && admitCsrFamily(supplied, ids)) return { csr: supplied, adjacency: null };
+    const adjacency = buildAdjacencyIndex(graphRelations?.[family], {
+      ...normalization, includeBoth: !includeCsr, includeIn: !includeCsr
+    });
+    // Derived outgoing rows are temporary. CSR handles all traversal directions.
+    if (!includeCsr) return { csr: null, adjacency };
+    const csr = buildAdjacencyCsr(adjacency, ids);
+    admitCsrFamily(csr, ids);
+    return { csr, adjacency: null };
+  };
+  const call = prepareFamily('callGraph', callGraphIds);
+  const usage = prepareFamily('usageGraph', usageGraphIds);
+  const imports = prepareFamily('importGraph', importGraphIds, {
+    normalizeNeighborId: normalizeImportPathCached, normalizeNodeId: normalizeImportPathCached
+  });
+  const callGraphAdjacency = call.adjacency;
+  const usageGraphAdjacency = usage.adjacency;
+  const importGraphAdjacency = imports.adjacency;
   const resolvedCsr = includeCsr
-    ? (graphRelationsCsr && typeof graphRelationsCsr === 'object'
-      ? graphRelationsCsr
-      : {
-        version: Number.isFinite(graphRelations?.version) ? graphRelations.version : 1,
-        generatedAt: typeof graphRelations?.generatedAt === 'string' ? graphRelations.generatedAt : null,
-        callGraph: buildAdjacencyCsr(callGraphAdjacency, callGraphIds),
-        usageGraph: buildAdjacencyCsr(usageGraphAdjacency, usageGraphIds),
-        importGraph: buildAdjacencyCsr(importGraphAdjacency, importGraphIds)
-      })
+    ? {
+      version: Number.isFinite(graphRelations?.version) ? graphRelations.version : 1,
+      generatedAt: typeof graphRelations?.generatedAt === 'string' ? graphRelations.generatedAt : null,
+      callGraph: call.csr,
+      usageGraph: usage.csr,
+      importGraph: imports.csr
+    }
     : null;
   if (!includeCsr) {
     importGraphIds.ids = null;
   }
   const chunkInfo = buildChunkInfo(callGraphIndex, usageGraphIndex);
   const symbolIndex = buildSymbolEdgesIndex(symbolEdges);
-  const callSiteIndex = buildCallSiteIndex(callSites);
+  const callSiteIndex = inputCallSiteIndex || buildCallSiteIndex(callSites);
   return {
     repoRoot,
     indexSignature: indexSignature || null,
     normalizeImportPath: normalizeImportPathCached,
     graphRelations: graphRelationsMeta,
     graphRelationsCsr: resolvedCsr,
+    adjacencyOrder: 'sorted-unique',
     callGraphIndex,
     usageGraphIndex,
     importGraphIndex,
@@ -288,7 +305,12 @@ export const createGraphStore = ({
   if (!indexDir) {
     throw new Error('GraphStore requires indexDir');
   }
-  const resolvedManifest = manifest || loadPiecesManifest(indexDir, { maxBytes, strict });
+  // Cache identity and every later artifact lookup share this owned inventory.
+  // A caller cannot redirect in-flight reads after admission has been hashed.
+  const resolvedManifest = structuredClone(manifest || loadPiecesManifest(indexDir, { maxBytes, strict }));
+  const admissionScope = buildLocalCacheKey({ namespace: 'graph-store-admission', payload: {
+    indexDir, strict, maxBytes, manifest: resolvedManifest
+  } }).key;
   const presenceCache = new Map();
   const artifactCache = new Map();
   const artifactsUsed = new Set();
@@ -402,17 +424,27 @@ export const createGraphStore = ({
    */
   const hasArtifact = (name) => {
     const presence = resolvePresence(name);
+    if (presence?.error) {
+      if (presence.error.code === 'ERR_MANIFEST_MISSING') return false;
+      throw presence.error;
+    }
+    if (presence?.missingMeta || presence?.missingPaths?.length) {
+      throw Object.assign(new Error(`Declared graph artifact ${name} is incomplete: ${presence.missingPaths.join(', ') || presence.metaPath}`), {
+        code: 'ERR_ARTIFACT_MISSING'
+      });
+    }
     return presence && presence.format !== 'missing' && !presence.error;
   };
 
   /**
-   * Memoize one async artifact loader by artifact name.
+   * Memoize a loader by representation while reporting its actual source artifact.
    *
    * @param {string} name
    * @param {() => Promise<unknown>} loader
+   * @param {string} artifactName
    * @returns {Promise<unknown>}
    */
-  const loadOnce = async (name, loader) => {
+  const loadOnce = async (name, loader, artifactName = name) => {
     if (artifactCache.has(name)) return artifactCache.get(name);
     const promise = Promise.resolve()
       .then(loader)
@@ -421,7 +453,7 @@ export const createGraphStore = ({
         throw err;
       });
     artifactCache.set(name, promise);
-    artifactsUsed.add(name);
+    artifactsUsed.add(artifactName);
     return promise;
   };
 
@@ -463,6 +495,29 @@ export const createGraphStore = ({
     return rows;
   });
 
+  // Full occurrence rows are an explicit compatibility loader. Normal graph
+  // indexing retains only its pair evidence, without a second corpus-sized row
+  // array. Complete/unresolved evidence is separately enumerable in pages.
+  const loadCallSiteIndex = () => loadOnce('call_sites_pair_index', async () => {
+    const index = new Map();
+    for await (const row of loadJsonArrayArtifactRows(indexDir, 'call_sites', {
+      manifest: resolvedManifest, maxBytes, strict
+    })) appendCallSiteIndex(index, row);
+    return index;
+  }, 'call_sites');
+  let callSitePages = null;
+  const getCallSitePages = () => callSitePages ||= createCallSitePages({
+    indexDir, manifest: resolvedManifest, maxBytes
+  });
+  const readCallSitesPage = options => getCallSitePages().readPage(options);
+  const iterateCallSites = options => getCallSitePages().iterateRows(options);
+  let retainedEdgePages = null;
+  const getRetainedEdgePages = () => retainedEdgePages ||= createRetainedEdgePages({
+    indexDir, manifest: resolvedManifest, maxBytes
+  });
+  const readGraphEdgesPage = options => getRetainedEdgePages().readPage(options);
+  const iterateGraphEdges = options => getRetainedEdgePages().iterateRows(options);
+
   /**
    * Load or build cached graph index for selected graph artifacts.
    *
@@ -482,10 +537,11 @@ export const createGraphStore = ({
     graphs = null,
     includeCsr = false
   } = {}) => {
+    cacheKey = cacheKey ? `${cacheKey}::${admissionScope}` : null;
     const cached = getCachedGraphIndex(cacheKey, telemetry);
     if (cached) return cached;
     const graphList = normalizeGraphList(graphs);
-    const graphSet = graphList?.length ? new Set(graphList) : null;
+    const graphSet = graphList != null ? new Set(graphList) : null;
     const wantsGraphRelations = !graphSet
       || graphSet.has('callGraph')
       || graphSet.has('usageGraph')
@@ -496,12 +552,24 @@ export const createGraphStore = ({
     let cachedArtifacts = getCachedGraphArtifacts(cacheKey, telemetry);
     if (!cachedArtifacts) {
       const loadStartedAt = Date.now();
-      const [graphRelations, csrPayload, symbolEdges, callSites] = await Promise.all([
-        wantsGraphRelations && hasArtifact('graph_relations') ? loadGraph() : null,
-        wantsGraphCsr ? loadGraphCsr().catch(() => null) : null,
-        wantsSymbolEdges && hasArtifact('symbol_edges') ? loadSymbolEdges() : null,
-        wantsCallSites && hasArtifact('call_sites') ? loadCallSites() : null
-      ]);
+      // Admission can fail synchronously or asynchronously after another read
+      // has started. Drain every started owner and retain the first observed
+      // classification together with all independent recovery prerequisites.
+      let firstFailure, failed = false;
+      const outcomes = await Promise.allSettled([
+        () => wantsGraphRelations && hasArtifact('graph_relations') ? loadGraph() : null,
+        () => wantsGraphCsr ? loadGraphCsr() : null,
+        () => wantsSymbolEdges && hasArtifact('symbol_edges') ? loadSymbolEdges() : null,
+        () => wantsCallSites && hasArtifact('call_sites') ? loadCallSiteIndex() : null
+      ].map(read => Promise.resolve().then(read).catch(error => {
+        if (!failed) { firstFailure = error; failed = true; }
+        throw error;
+      })));
+      if (failed) {
+        throw outcomes.filter(row => row.status === 'rejected' && row.reason !== firstFailure)
+          .reduce((primary, row) => addStorageFailureContext(primary, {}, row.reason, { secondaryPresent: true }), firstFailure);
+      }
+      const [graphRelations, csrPayload, symbolEdges, callSiteIndex] = outcomes.map(row => row.value);
       // Another compatible caller can finish its synchronous build while this
       // caller awaits artifact admission. Reuse it before building a second copy.
       const completed = getCachedGraphIndex(cacheKey);
@@ -512,6 +580,7 @@ export const createGraphStore = ({
       if (includeCsr && graphRelationsCsr) {
         const validation = validateCsrNodeOrdering(graphRelationsCsr, graphRelations);
         if (!validation.ok) {
+          if (strict) throw Object.assign(new Error(`Declared graph CSR is incompatible: ${validation.reason}`), { code: 'ERR_ARTIFACT_INVALID' });
           graphRelationsCsr = null;
           csrSource = null;
         }
@@ -546,7 +615,7 @@ export const createGraphStore = ({
         csrSource,
         artifactLoadMs: Math.max(0, Date.now() - loadStartedAt),
         symbolEdges,
-        callSites
+        callSiteIndex
       };
       setCachedGraphArtifacts(cacheKey, cachedArtifacts, telemetry);
     }
@@ -556,7 +625,7 @@ export const createGraphStore = ({
       graphRelations: cachedArtifacts.graphRelations,
       graphRelationsCsr: cachedArtifacts.graphRelationsCsr,
       symbolEdges: cachedArtifacts.symbolEdges,
-      callSites: cachedArtifacts.callSites,
+      callSiteIndex: cachedArtifacts.callSiteIndex,
       repoRoot,
       indexSignature,
       includeCsr
@@ -611,6 +680,10 @@ export const createGraphStore = ({
     loadGraph,
     loadSymbolEdges,
     loadCallSites,
+    readCallSitesPage,
+    iterateCallSites,
+    readGraphEdgesPage,
+    iterateGraphEdges,
     loadGraphIndex,
     getArtifactsUsed: () => Array.from(artifactsUsed),
     stats: () => ({

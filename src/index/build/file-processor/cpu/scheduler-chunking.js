@@ -212,7 +212,9 @@ export const chunkWithScheduler = async ({
     const virtualPath = buildVfsVirtualPath({
       containerPath: relKey,
       segmentUid,
-      effectiveExt: segmentExt
+      effectiveExt: segmentExt,
+      segmentStart: segment.start,
+      segmentEnd: segment.end
     });
     scheduled.push({
       virtualPath,

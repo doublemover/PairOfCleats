@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { composeAbortSignals } from '../../../shared/abort.js';
 import { normalizeProviderId } from '../provider-contract.js';
 import {
   TOOLING_PREFLIGHT_REASON_CODES,
@@ -203,9 +204,7 @@ const isAbortSignalLike = (signal) => (
 );
 
 export const resolveRequestedAbortSignal = (ctx, inputs) => {
-  if (isAbortSignalLike(inputs?.abortSignal)) return inputs.abortSignal;
-  if (isAbortSignalLike(ctx?.abortSignal)) return ctx.abortSignal;
-  return null;
+  return composeAbortSignals(ctx?.signal, ctx?.abortSignal, inputs?.signal, inputs?.abortSignal);
 };
 
 export const createManagedAbortBridge = (upstreamSignal) => {

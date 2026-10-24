@@ -1,0 +1,40 @@
+# Archive resource lifetime
+
+Status: **UNVALIDATED source implementation and authored regressions**. Tests, syntax checks, formatting, bootstrap, native execution and filesystem qualification remain deferred.
+
+The shared Zip/Tar/Tar.gz extractor owns its actual input and output FileHandles. At admission it captures each descriptor's original read, write, stat and close methods with their receiver. Reads use bounded 64 KiB buffers; writes handle partial progress through the original method. Admitted promises must drain and every original independent observer and genuine child owner must confirm settlement before the original descriptor close is invoked. A rejected I/O promise alone cannot establish native settlement. A descriptor is closed only after its captured close promise fulfills with the standard undefined result; false and every other nonvoid result remain unconfirmed. Known failed close operations receive no automatic retry during error propagation or outer cleanup. Only the exact privately branded outward failure from this same owner is excluded from recaptured prerequisite observations; a lookalike or error merely carrying its real session remains independent.
+
+Zip continues to use yauzl, with its existing random-access reader interface backed by those captured descriptor operations. The reader's close callback acknowledges its parser/range protocol only. It never closes or proves closure of the actual input descriptor. Parser handlers precede the first entry read. Tar retains tar-stream and Node's gzip pipeline. Both formats track admitted asynchronous entry work, drain it after parser failure, and then drain actual I/O before descriptor close. Output file pipelines use a protocol Writable around the owned descriptor, so a stream destroy/close acknowledgment is not mistaken for native output closure. File publication and final extraction success follow actual close. Both formats publish from exclusively created temporary files, permit the existing regular-file overwrite behavior within their owned destination, and reject nonregular/link-shaped overwrite targets.
+
+An extraction failure retains its exact primary cause, including frozen objects and falsey thrown values. Original independent pending observers are captured with their receiver, even when a separate marker is absent or false. Missing or unreadable observations remain unknown; a getter failure retains its own cause and observer. Diagnostic messages are captured once, and lazy stack/message descriptors are not reread while composing failures. Bounded diagnostic overflow remains pending rather than dropping resource authority.
+
+Original observation capture precedes primary message and descriptor inspection,
+so a diagnostic getter cannot replace the native prerequisite before capture.
+Primary projection descriptors are captured once while those prerequisites still
+gate close; a Proxy inspection failure cannot first appear after cleanup.
+Projected accessors retain the original receiver and readonly attributes. Errors
+thrown by an original observer are retained as independent errors and observers,
+including falsey failures. A subsequently confirmed primary cannot erase an
+earlier independently pending inspection. Recovery rechecks the full original
+observation even after the owned directory was already cleaned; confirmed native
+close and an absent directory alone cannot settle later recorded independent
+work. Diagnostic/history overflow remains unknown.
+
+The non-enumerable `archiveExtractionSession` belongs to the actual producer. `isArchiveExtractionSession` and `getArchiveExtractionSession` use private process-local identities, so copied fields or a lookalike callback cannot confer authority. Its coalesced `releaseAfterClose()` first reconciles genuine nested extraction owners, explicitly retries the captured original descriptor closes, checks all original independent observations, and removes only the exact originally admitted directory. It returns `{resourceId,settled:true,pending:false}` only after that work succeeds. Recovery never repeats extraction, a network request, a write, or a verifier. The original outward error's `cacheOwnershipReleased()` follows eventual exact cleanup.
+
+Exclusive destination creation remains mandatory. Cleanup checks the original directory's device/inode and regular directory shape; unsealed or replaced destinations are preserved. A directory that is already absent permits completion without deleting replacement evidence elsewhere. Recursive cleanup has no authority over renamed/discovered directories. Temporary Zip files stay inside that exclusive destination until the owner can clean them safely. Primary and cleanup failures remain reachable, including a falsey cleanup rejection, through `cause`, `errors`, `cleanupError`, and `recoveryPath`.
+
+Managed archive installation and portable Go SDK recovery reconcile the actual archive capability before original observer gates, staging cleanup and their existing durable storage/category release. Clangd and extension downloads retain their existing private transaction directory through nested extraction/independent pending failures, with an exact outer transaction recovery capability. Clangd's private pointer cleanup additionally requires its captured original file identity. Extension download processing stops when an actual retained archive transaction remains unsettled, preserving that failure and its recovery path before later downloads or manifest publication.
+
+This is descriptor and transaction ownership, not platform acceptance or a new persistent lease namespace. Existing category leases apply only where the caller already acquires them; this batch does not invent category authority for clangd or an arbitrary configured extension directory. Capabilities cannot be reconstructed after process exit, native descendant settlement is not inferred, and portable Node checks do not make pathname comparison and recursive removal atomic against concurrent external replacement. Gzip/parser protocol completion does not override an independent original native pending observer. Broader hostile concurrent filesystem mutation, compressed input mutation during extraction, and native/filesystem qualification remain separate scope.
+
+`archive-resource-lifetime.test.js` authors actual tiny Zip/Tar/Tar.gz descriptors with frozen close/removal failures, delayed successful close, falsey write/cleanup failures, original observer capture, Tar entry-task drain, exact retry and replacement preservation. `archive-consumer-resource-recovery.test.js` authors actual managed/Go/clangd parser and transaction recovery with inert network metadata/bytes and a verifier that must never be reached. Existing `archive-destination-ownership.test.js` keeps its valid/malformed/limit and existing/replaced destination assertions. No authored regression has been executed for this batch.
+
+`archive-original-inspection-lifetime.test.js` additionally authors actual tiny
+extractor controls for message-driven observer replacement, original observer
+failure with an independently pending secondary, and all nonvoid native close
+results. Its actual FileHandle owner controls cover falsey/frozen message
+inspection, one-time Proxy projection inspection before destruction, original
+readonly accessor receivers and late independent work after already confirmed
+cleanup. Explicit reconciliation performs no extraction, read or write replay.
+These controls also remain wholly UNVALIDATED.

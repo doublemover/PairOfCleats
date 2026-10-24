@@ -9,6 +9,11 @@ import {
   resolveAnnCandidateSet
 } from '../scoring/ann-candidate-policy.js';
 import { VECTOR_REQUIRED_CODE } from './constants.js';
+import { throwIfAborted } from '../../shared/abort.js';
+import { observeAnnAttemptFailure, observeRetrievalProviderFailure } from './provider-failure.js';
+import { createEligibilityPlan } from './eligibility-plan.js';
+import { rankDenseVectorsAsync } from '../rankers.js';
+import { createCountAwareAnnWork, planCountAwareAnn, snapshotCountAwareStoredDense } from './count-aware-ann.js';
 
 const normalizeAnnHits = (hits) => {
   if (!Array.isArray(hits)) return [];
@@ -50,6 +55,8 @@ export const runAnnStage = async ({
   annDiscovery = 'independent',
   matchesQueryAst,
   hasHardSemanticConstraints = false,
+  eligibilityPlan = null,
+  countAwarePolicy = null,
   minhashLimit,
   hasAllowedId,
   ensureAllowedSet,
@@ -60,6 +67,7 @@ export const runAnnStage = async ({
   lanceAnnState,
   annMetrics
 }) => {
+  throwIfAborted(signal);
   let annHits = [];
   let annSource = null;
   let warned = false;
@@ -103,13 +111,13 @@ export const runAnnStage = async ({
 
   if (!['independent', 'lexical-rerank'].includes(annDiscovery)) throw new TypeError('Invalid ANN discovery mode');
   const independentDiscovery = annDiscovery === 'independent';
+  if (countAwarePolicy && !independentDiscovery) throw new TypeError('Count-aware ANN planning requires independent discovery.');
   let eligibleIds = allowedIdx;
   if (hasHardSemanticConstraints) {
-    eligibleIds = new Set();
-    for (let id = 0; id < meta.length; id++) {
-      const chunk = meta[id];
-      if (chunk && (!allowedIdx || hasAllowedId(allowedIdx,id)) && matchesQueryAst(idx,id,chunk,true)) eligibleIds.add(id);
-    }
+    const eligibility = eligibilityPlan || createEligibilityPlan({ idx, meta, mode, queryAst: null,
+      allowedIdx, matchesQueryAst, throwIfAborted: () => throwIfAborted(signal) });
+    eligibleIds = eligibility.evaluate({ semantic: true });
+    annMetrics.eligibility = eligibility.statistics;
   }
   const eligibilityActive = filtersEnabled || hasHardSemanticConstraints;
   const annCandidateBase = independentDiscovery ? null : ensureCandidateBase();
@@ -123,6 +131,13 @@ export const runAnnStage = async ({
     toSet: ensureAllowedSet
   });
   const annCandidates = annCandidatePolicy.set;
+  const countPlan = countAwarePolicy ? planCountAwareAnn({ policy: countAwarePolicy,
+    eligibleIds: eligibilityActive ? eligibleIds : null,
+    documentCount: eligibilityActive && eligibleIds == null ? null : Number.isSafeInteger(meta?.length) ? meta.length : null,
+    dims: idx?.denseVec?.dims, storedDenseAvailable: isDenseVectorPayloadAvailable(idx?.denseVec), requestedTopN: expandedTopN }) : null;
+  const countWork = countPlan ? createCountAwareAnnWork({ policy: countAwarePolicy, plan: countPlan, signal }) : null;
+  let countHandled = countPlan?.route === 'empty', exactStored = false;
+  if (countWork) annCandidatePolicy.explain = { ...annCandidatePolicy.explain, countAwarePolicyKey: countAwarePolicy.key };
   if (independentDiscovery) {
     annCandidatePolicy.reason = 'independentDiscovery';
     annCandidatePolicy.explain = {...annCandidatePolicy.explain, reason:'independentDiscovery', discovery:annDiscovery};
@@ -165,7 +180,13 @@ export const runAnnStage = async ({
     return bitmapToSet(candidateSet);
   };
 
-  const runAnnQuery = async (provider, candidateSet) => {
+  /**
+   * @param {import('../ann/types.js').AnnProvider|null} provider
+   * @param {import('../ann/types.js').AnnCandidateSet|null} candidateSet
+   * @param {number|null} [requestedTopN]
+   */
+  const runAnnQuery = async (provider, candidateSet, requestedTopN = null) => {
+    throwIfAborted(signal);
     if (!provider || typeof provider.query !== 'function') {
       return { hits: [], succeeded: false };
     }
@@ -176,9 +197,11 @@ export const runAnnStage = async ({
     const adaptiveTopN = Number.isFinite(Number(annAdaptiveStrategy?.budget?.providerTopN?.[providerId]))
       ? Number(annAdaptiveStrategy.budget.providerTopN[providerId])
       : null;
-    const resolvedTopN = Number.isFinite(adaptiveTopN) && adaptiveTopN > 0
+    const resolvedTopN = requestedTopN ?? (Number.isFinite(adaptiveTopN) && adaptiveTopN > 0
       ? Math.max(1, Math.floor(adaptiveTopN))
-      : expandedTopN;
+      : expandedTopN);
+    const reservation = countWork?.reserve(provider.id, resolvedTopN);
+    if (countWork && !reservation) return { hits: [], succeeded: false, budgetEnded: true };
     const normalizedCandidateSet = normalizeAnnCandidateSet(provider, candidateSet);
     const startedAtNs = process.hrtime.bigint();
     try {
@@ -188,16 +211,45 @@ export const runAnnStage = async ({
         embedding: queryEmbedding,
         topN: resolvedTopN,
         candidateSet: normalizedCandidateSet,
-        signal,
-        budget: annAdaptiveStrategy?.budget || null,
+        signal: reservation?.signal || signal,
+        budget: requestedTopN == null ? annAdaptiveStrategy?.budget || null : {
+          ...annAdaptiveStrategy?.budget, providerTopN: { ...annAdaptiveStrategy?.budget?.providerTopN, [providerId]: resolvedTopN } },
         route: annAdaptiveStrategy?.route || null,
         features: annAdaptiveStrategy?.features || null
       });
+      throwIfAborted(signal);
+      if (reservation?.timeout.aborted) {
+        reservation.attempt.status = 'deadline'; countWork.receipt.reasonEnded = 'deadline';
+        return { hits: [], succeeded: false, budgetEnded: true };
+      }
+      if (reservation) { reservation.attempt.status = 'returned'; reservation.attempt.returned = hits?.length || 0; }
       const elapsedMs = Number(process.hrtime.bigint() - startedAtNs) / 1e6;
       providerRuntime.recordProviderSuccess(provider, mode, { latencyMs: elapsedMs });
-      return { hits: normalizeAnnHits(hits), succeeded: true };
+      const admitted = normalizeAnnHits(hits);
+      let accepted = admitted;
+      if (countWork) {
+        const distinct = new Map();
+        for (const hit of admitted) {
+          if (!Number.isSafeInteger(hit.idx) || hit.idx < 0 || hit.idx >= meta.length
+            || eligibilityActive && eligibleIds && !hasAllowedId(eligibleIds, hit.idx) || distinct.has(hit.idx)) continue;
+          distinct.set(hit.idx, hit);
+          if (distinct.size === resolvedTopN) break;
+        }
+        accepted = [...distinct.values()];
+      }
+      if (reservation) reservation.attempt.accepted = accepted.length;
+      return { hits: accepted, succeeded: true, topN: resolvedTopN };
     } catch (err) {
-      providerRuntime.recordProviderFailure(provider, mode, err?.message || 'query failed');
+      const failure = observeAnnAttemptFailure(err, { signal, timeout: reservation?.timeout });
+      if (failure.deadline) {
+        reservation.attempt.status = 'deadline'; countWork.receipt.reasonEnded = 'deadline';
+        return { hits: [], succeeded: false, budgetEnded: true };
+      }
+      annMetrics.failedAttempts = (annMetrics.failedAttempts || 0) + 1;
+      if (reservation) { reservation.attempt.status = 'failed'; reservation.attempt.reason = failure.code || failure.message || 'provider-error'; }
+      try { providerRuntime.recordProviderFailure(provider, mode, failure.message || 'query failed'); }
+      catch (inspection) { throw failure.retain(inspection, { inspectionPresent: true }); }
+      failure.requireSettled();
       return { hits: [], succeeded: false };
     }
   };
@@ -210,9 +262,9 @@ export const runAnnStage = async ({
     || lanceAnnState?.[mode]?.available
   );
   let vectorActive = annEnabledForMode && (typeof queryEmbedding === 'function' || isEmbeddingReady(queryEmbedding)) && hasVectorArtifacts;
-  let providerAvailable = false;
+  let providerAvailable = countHandled;
 
-  if (annEnabledForMode && vectorActive) {
+  if (annEnabledForMode && vectorActive && !countHandled) {
     const providers = getAnnProviders();
     const providerCount = providers instanceof Map ? providers.size : 0;
     annAdaptiveStrategy = resolveAnnAdaptiveStrategy({
@@ -249,14 +301,56 @@ export const runAnnStage = async ({
     if (!bypassToSparse) {
       if (typeof queryEmbedding === 'function') queryEmbedding = await queryEmbedding();
       vectorActive = isEmbeddingReady(queryEmbedding);
-      for (const backend of vectorActive ? orderedBackends : []) {
+      if (vectorActive && countPlan?.route === 'stored-exhaustive'
+        && queryEmbedding.length === idx.denseVec.dims && Array.from(queryEmbedding).every(Number.isFinite)) {
+        const snapshot = snapshotCountAwareStoredDense({ dense: idx.denseVec, eligibleIds: eligibilityActive ? annCandidates : null,
+          documentCount: meta.length, policy: countAwarePolicy, signal });
+        const reservation = snapshot ? countWork.reserve(ANN_PROVIDER_IDS.DENSE, countPlan.target, { exact: true }) : null;
+        if (!snapshot) { countWork.receipt.route = 'ann'; countWork.receipt.reason = 'stored-coverage-or-quantization-unqualified'; }
+        else if (!reservation) { countHandled = true; providerAvailable = true; }
+        else {
+          const metrics = {};
+          countWork.receipt.retainedVectorBytes = snapshot.retainedVectorBytes;
+          try {
+            // No full-corpus lazy load is authorized by a small eligible count.
+            const exactHits = await rankDenseVectorsAsync(snapshot.index, Array.from(queryEmbedding),
+              countPlan.target, null, { signal: reservation.signal, metrics });
+            annHits = exactHits.map(hit => { hit.idx = snapshot.sourceIds[hit.idx]; return hit; });
+            countWork.receipt.retainedVectorBytes = snapshot.retainedVectorBytes;
+            reservation.attempt.status = 'returned'; reservation.attempt.returned = annHits.length;
+            exactStored = true; countHandled = true; providerAvailable = true; annSource = ANN_PROVIDER_IDS.DENSE;
+            countWork.finish({ hits: annHits, exact: true, metrics });
+          } catch (error) {
+            const failure = observeAnnAttemptFailure(error, { signal, timeout: reservation.timeout });
+            if (failure.deadline) {
+              countWork.receipt.reasonEnded = 'deadline'; reservation.attempt.status = 'deadline'; countHandled = true; providerAvailable = true;
+              countWork.finish({ hits: [], metrics });
+            } else {
+              annMetrics.failedAttempts = (annMetrics.failedAttempts || 0) + 1;
+              reservation.attempt.status = 'failed'; reservation.attempt.reason = failure.code || failure.message || 'stored-scan-error';
+              countWork.receipt.route = 'ann'; countWork.receipt.reason = 'stored-scan-unavailable';
+            }
+          }
+        }
+      } else if (countPlan?.route === 'stored-exhaustive') {
+        countWork.receipt.route = 'ann'; countWork.receipt.reason = 'query-vector-not-qualified-for-stored-metric';
+      }
+      for (const backend of vectorActive && !countHandled ? orderedBackends : []) {
         const provider = providers.get(backend);
         if (!provider || typeof provider.query !== 'function') continue;
-        if (typeof provider.preflight !== 'function' && providerRuntime.isProviderCoolingDown(provider, mode)) continue;
+        if (typeof provider.preflight !== 'function' && providerRuntime.isProviderCoolingDown(provider, mode)) {
+          annMetrics.cooldownSkips = (annMetrics.cooldownSkips || 0) + 1;
+          continue;
+        }
         let providerInitiallyAvailable = false;
         try {
           providerInitiallyAvailable = provider.isAvailable({ idx, mode, embedding: queryEmbedding }) === true;
-        } catch {
+        } catch (error) {
+          const failure = observeRetrievalProviderFailure(error);
+          throwIfAborted(signal);
+          if (failure.abort) throw error;
+          failure.requireSettled();
+          annMetrics.failedAttempts = (annMetrics.failedAttempts || 0) + 1;
           providerInitiallyAvailable = false;
         }
         if (!providerInitiallyAvailable) continue;
@@ -266,19 +360,35 @@ export const runAnnStage = async ({
           embedding: queryEmbedding,
           signal
         });
-        if (!preflightOk) continue;
+        if (!preflightOk) { annMetrics.preflightFailures = (annMetrics.preflightFailures || 0) + 1; continue; }
         const resolveProviderAvailability = () => {
           try {
             return provider.isAvailable({ idx, mode, embedding: queryEmbedding }) === true;
-          } catch {
+          } catch (error) {
+            const failure = observeRetrievalProviderFailure(error);
+            throwIfAborted(signal);
+            if (failure.abort) throw error;
+            failure.requireSettled();
             return false;
           }
         };
         const primaryResult = await runAnnQuery(provider, annCandidates);
         annHits = primaryResult.hits;
-        if (primaryResult.succeeded && (annHits.length > 0 || resolveProviderAvailability())) {
+        if (countWork && provider.capabilities?.progressiveEffort === true && primaryResult.succeeded) {
+          let effort = primaryResult.topN || expandedTopN;
+          while (annHits.length < countPlan.target && effort < countAwarePolicy.maxTopN) {
+            const nextEffort = Math.min(countAwarePolicy.maxTopN, Math.max(effort + 1, effort * 2));
+            const retry = await runAnnQuery(provider, annCandidates, nextEffort);
+            if (retry.budgetEnded) break;
+            const merged = new Map(annHits.map(hit => [hit.idx, hit]));
+            for (const hit of retry.hits) if (!merged.has(hit.idx) || hit.sim > merged.get(hit.idx).sim) merged.set(hit.idx, hit);
+            annHits = normalizeAnnHits([...merged.values()]).slice(0, countPlan.target); effort = nextEffort;
+          }
+        }
+        if ((primaryResult.succeeded || primaryResult.budgetEnded) && (annHits.length > 0 || resolveProviderAvailability())) {
           providerAvailable = true;
         }
+        if (primaryResult.budgetEnded || countWork?.receipt.reasonEnded === 'deadline') break;
         if (!annHits.length && shouldTryAnnFallback) {
           const fallbackCandidates = resolveAnnFallback();
           if (fallbackCandidates) {
@@ -305,7 +415,8 @@ export const runAnnStage = async ({
 
   const bypassedToSparse = effectiveRoute === ANN_ADAPTIVE_ROUTE.SPARSE;
 
-  if (annEnabledForMode && !annHits.length && !bypassedToSparse) {
+  throwIfAborted(signal);
+  if (annEnabledForMode && !vectorOnlyProfile && !annHits.length && !bypassedToSparse && !countWork) {
     const adaptiveTopN = Number.isFinite(Number(annAdaptiveStrategy?.budget?.topN))
       ? Math.max(1, Math.floor(Number(annAdaptiveStrategy.budget.topN)))
       : expandedTopN;
@@ -372,10 +483,13 @@ export const runAnnStage = async ({
   annMetrics.budget = annAdaptiveStrategy?.budget || null;
   annMetrics.features = annAdaptiveStrategy?.features || null;
   annMetrics.bypassedToSparse = bypassedToSparse;
+  if (countWork) annMetrics.countAware = { ...countWork.finish({ hits: annHits, exact: exactStored, empty: countPlan.route === 'empty' }),
+    selectedGeneration: idx.generationTag?.buildGenerationKey || idx.generationTag?.buildId || idx.state?.buildId || null,
+    embeddingGeneration: idx.state?.embeddings?.embeddingGeneration || null };
 
-  const annCapabilityUnavailable = !vectorActive || !providerAvailable;
+  const annCapabilityUnavailable = countPlan?.route !== 'empty' && (!vectorActive || !providerAvailable);
   const emptyIndex = !Array.isArray(meta) || meta.length === 0;
-  if (vectorOnlyProfile && !emptyIndex && annCapabilityUnavailable && !annHits.length) {
+  if (vectorOnlyProfile && !emptyIndex && annCapabilityUnavailable) {
     const capabilityReason = !vectorActive ? 'ann_capability_unavailable' : 'ann_provider_unavailable';
     throw createError(
       ERROR_CODES.CAPABILITY_MISSING,

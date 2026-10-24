@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { resolveRepoConfig } from '../shared/dict-utils.js';
-import { assertTrustedExtension } from './extension-trust.js';
+import { verifyVectorExtensionArtifact } from './extension-trust.js';
 import {
   encodeVector,
   ensureVectorTable,
@@ -50,13 +50,15 @@ const overrides = {
 const config = getVectorExtensionConfig(root, userConfig, overrides);
 const resolvedPath = resolveVectorExtensionPath(config);
 const exists = resolvedPath ? fs.existsSync(resolvedPath) : false;
+const verification = verifyVectorExtensionArtifact(resolvedPath, {
+  ...config, trustedBinarySha256: argv.sha256 || config.trustedBinarySha256
+});
 
 const loadResult = { attempted: false, ok: false, reason: null };
 const smoke = { attempted: false, ok: false, reason: null };
-if (argv.load && exists) {
+if (argv.load && verification.ok) {
   loadResult.attempted = true;
   try {
-    assertTrustedExtension(resolvedPath, config, argv.sha256 || config.trustedBinarySha256);
     const { default: Database } = await import('better-sqlite3');
     const db = new Database(':memory:');
     try {
@@ -87,9 +89,9 @@ if (argv.load && exists) {
   } catch (err) {
     loadResult.reason = err?.message || String(err);
   }
-} else if (argv.load && !exists) {
+} else if (argv.load) {
   loadResult.attempted = true;
-  loadResult.reason = 'extension path missing';
+  loadResult.reason = verification.reason || 'extension integrity verification failed';
 }
 
 const payload = {
@@ -108,6 +110,7 @@ const payload = {
   },
   path: resolvedPath,
   exists,
+  verification,
   load: loadResult,
   smoke
 };
@@ -121,6 +124,7 @@ if (argv.json) {
   console.error(`- platform: ${config.platformKey}`);
   console.error(`- path: ${resolvedPath || 'unset'}`);
   console.error(`- exists: ${exists ? 'yes' : 'no'}`);
+  console.error(`- integrity: ${verification.ok ? 'verified' : `failed (${verification.reason})`}`);
   if (loadResult.attempted) {
     console.error(`- load: ${loadResult.ok ? 'ok' : `failed (${loadResult.reason})`}`);
   } else {
@@ -131,5 +135,5 @@ if (argv.json) {
   }
 }
 
-const ok = exists && (!argv.load || (loadResult.ok && (!smoke.attempted || smoke.ok)));
+const ok = verification.ok && (!argv.load || (loadResult.ok && (!smoke.attempted || smoke.ok)));
 process.exit(ok ? 0 : 1);

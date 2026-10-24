@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { resolveDevelopmentArtifactPath } from '../../../tools/shared/dev-artifacts.js';
 import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
@@ -9,7 +10,7 @@ import { ensureFixtureIndex } from '../../helpers/fixture-index.js';
 import { startMcpServer } from '../../helpers/mcp-client.js';
 
 const cacheName = 'mcp-search-build-identity';
-const cacheRoot = path.join(process.cwd(), 'tests', '.cache', cacheName);
+const cacheRoot = resolveDevelopmentArtifactPath(process.cwd(), 'test-cache', cacheName);
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 
 const { fixtureRoot, env, userConfig } = await ensureFixtureIndex({

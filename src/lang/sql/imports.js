@@ -1,3 +1,5 @@
+import { createSqlScannerState, advanceSqlScannerState } from './scanner.js';
+
 const CHAR_TAB = 9;
 const CHAR_LF = 10;
 const CHAR_VTAB = 11;
@@ -50,6 +52,17 @@ function skipSpaces(text, start) {
  * @returns {string}
  */
 function readPathToken(text, start) {
+  if(text[start] === "'" || text[start] === '"') {
+    const quote=text[start];let value='';
+    for(let cursor=start+1;cursor<text.length;cursor++) {
+      if(text[cursor] === quote) {
+        if(text[cursor+1] === quote) {value+=quote;cursor++;continue;}
+        return /[$`]/u.test(value) || value.startsWith(':') ? '' : value;
+      }
+      value+=text[cursor];
+    }
+    return '';
+  }
   let end = start;
   while (end < text.length) {
     const code = text.charCodeAt(end);
@@ -57,7 +70,8 @@ function readPathToken(text, start) {
     end += 1;
   }
   if (end <= start) return '';
-  return text.slice(start, end);
+  const value=text.slice(start,end);
+  return /[$`]/u.test(value) || value.startsWith(':') ? '' : value;
 }
 
 /**
@@ -120,52 +134,19 @@ function parseImportDirective(line) {
  * @param {string} [text='']
  * @returns {string[]}
  */
-export function collectSqlImports(text = '') {
+export function collectSqlImports(text = '',options = {}) {
   const source = String(text || '');
   const imports = new Set();
-  const line = [];
-  let inBlockComment = false;
-
-  const flushLine = () => {
-    if (!line.length) return;
-    const path = parseImportDirective(line.join(''));
-    if (path) imports.add(path);
-    line.length = 0;
-  };
-
-  for (let i = 0; i <= source.length; i += 1) {
-    const ch = source[i];
-    const next = source[i + 1];
-    const atEnd = i === source.length;
-    const lineBreak = ch === '\n' || ch === '\r';
-
-    if (atEnd || lineBreak) {
-      flushLine();
-      if (ch === '\r' && next === '\n') i += 1;
-      continue;
+  const state=createSqlScannerState(options);
+  for(let index=0;index<source.length;index++) {
+    const lineStart=index === 0 || /[\r\n]/u.test(source[index-1]);
+    if(lineStart && !state.inSingle && !state.inDouble && !state.inBacktick
+      && !state.inLineComment && !state.inBlockComment && !state.dollarTag) {
+      let end=index;while(end<source.length && !/[\r\n]/u.test(source[end])) end++;
+      const line=source.slice(index,end), path=parseImportDirective(line);
+      if(path) {imports.add(path);index=end-1;continue;}
     }
-
-    if (inBlockComment) {
-      if (ch === '*' && next === '/') {
-        inBlockComment = false;
-        i += 1;
-      }
-      continue;
-    }
-
-    if (ch === '/' && next === '*') {
-      inBlockComment = true;
-      i += 1;
-      continue;
-    }
-
-    if (ch === '-' && next === '-') {
-      while (i < source.length && source[i] !== '\n' && source[i] !== '\r') i += 1;
-      i -= 1;
-      continue;
-    }
-
-    line.push(ch);
+    index=advanceSqlScannerState(source,index,state);
   }
 
   return Array.from(imports);

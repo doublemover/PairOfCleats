@@ -1,5 +1,12 @@
 # Public Artifact Surface (0.1.0)
 
+Publication readiness binds the record's mode, build root, mode index directory,
+generation identity and artifact surface version to the requested authority.
+Its ordinary, contained manifest must carry the same mode/build identity. A
+record copied from another root cannot authorize promotion while the old root's
+manifest happens to exist. Mixed-mode pointers validate each selected published
+root independently; cleanup and reader retention continue to own old generations.
+
 This document is the **canonical** contract for PairOfCleats public artifacts. It supersedes `docs/contracts/artifact-contract.md` for all contract decisions.
 
 ## Contract version
@@ -12,6 +19,19 @@ This document is the **canonical** contract for PairOfCleats public artifacts. I
 - `pieces/manifest.json` is the **single source of truth** for artifact discovery.
 - Readers must resolve artifacts **only** via the manifest in strict mode (default).
 - Tools must not guess filenames or silently scan directories.
+
+Strict readers reject linked path components, including junctions, and verify
+that opened descriptors still identify the admitted contained ordinary files.
+This applies to payloads and sidecars. Declared SHA-1, SHA-256 and xxh64 checksums
+must have the exact supported encoding and match bytes; unsupported or malformed
+strict checksums cannot be ignored.
+
+Replacement sharded families use immutable generation paths and one enclosing
+manifest commit. Existing readers retain their selected generation until their
+normal lifetime ends. Writers and compaction do not delete old selected payloads
+as part of publication. Publication records require explicit successful
+validation evidence and matching mode/build-root authority, family membership
+and committed piece identity. Missing evidence and unknown statuses fail closed.
 
 ## Required public artifacts
 
@@ -121,4 +141,15 @@ Artifacts that truncate content must include:
 - enabled mode set
 
 Readers must hard-fail if compatibility keys differ.
+
+## Lexical producer evidence
+
+Phrase and chargram per-chunk limits are shared across configured fields.
+`indexing.postings.chargramMaxTokenLength` defaults to 48 when absent; explicit
+`null`, `0` or `false` disables that token-length limit. Repeated normalization
+retains the uncapped meaning. Independent per-chunk/unique-term guards still
+apply. Rebuild affected postings after producer meaning changes; existing
+artifacts cannot acquire previously omitted long-token evidence by relabelling.
+Synonym expansion accepts only own string-valued synonym entries, so reserved
+object-property names remain ordinary string tokens.
 

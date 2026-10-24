@@ -1,9 +1,14 @@
 import { state } from './state.js';
 import { clamp, numberValue } from './utils.js';
 import { toArray } from '../../../shared/iterables.js';
+import { injectWorldFogPosition } from './world-fog.js';
+import { createNormalMapOwner, retireNormalMapState } from './normal-map-owner.js';
+import { getPendingSceneResourceOwners } from './scene-retirement.js';
+const heightFogMaterials = new WeakSet();
 
 export const initMaterials = () => {
   const { THREE, assets, visuals } = state;
+  retireNormalMapState(state.normalMapState);
   state.glowMaterials = [];
   state.flowMaterials = [];
   state.glassMaterials = [];
@@ -11,48 +16,61 @@ export const initMaterials = () => {
   state.glassShells = [];
   state.wireMaterials = [];
   state.gridLineMaterials = [];
-  state.normalMapState = { texture: null };
-
-  if (assets.normalMapUrl) {
-    const loader = new THREE.TextureLoader();
-    loader.load(assets.normalMapUrl, (texture) => {
+  const scene = state.scene;
+  const current = () => state.scene === scene && state.normalMapState === normalMapState && typeof state.disposeScene === 'function';
+  const normalMapState = createNormalMapOwner({ isCurrent: current,
+    configure(texture) {
       texture.wrapS = THREE.RepeatWrapping;
       texture.wrapT = THREE.RepeatWrapping;
       texture.repeat.set(visuals.glass.normalRepeat, visuals.glass.normalRepeat);
       texture.userData = { ...(texture.userData || {}), shared: true };
-      state.normalMapState.texture = texture;
+    },
+    publish() {
+      if (!current()) return;
       applyGlassSettings();
-    });
+      if (current()) state.invalidateRender?.();
+    }
+  });
+  state.normalMapState = normalMapState;
+  state.normalMapFailure = null;
+  const report = failure => {
+    if (!current()) return;
+    state.normalMapFailure = failure;
+    state.sceneRetirementOwners = getPendingSceneResourceOwners();
+  };
+
+  if (assets.normalMapUrl) {
+    const loader = new THREE.TextureLoader();
+    try {
+      const returned = loader.load(assets.normalMapUrl, texture => {
+        try { normalMapState.accept(texture); } catch (failure) { report(failure); }
+      }, undefined, error => {
+        try { normalMapState.fail(error); } catch (failure) { report(failure); }
+      });
+      normalMapState.track(returned);
+    } catch (error) { normalMapState.fail(error); }
   }
 };
 
 export const applyHeightFog = (material) => {
   const { visuals } = state;
-  if (!material || material.userData?.heightFogApplied) return;
+  if (!material || heightFogMaterials.has(material)) return;
+  heightFogMaterials.add(material);
   material.userData.heightFogApplied = true;
   const fogVarying = 'vIsoWorldPosition';
   const previousCompile = material.onBeforeCompile;
-  material.onBeforeCompile = (shader) => {
+  const previousCacheKey = material.customProgramCacheKey.bind(material);
+  const wideLine = material.isLineMaterial === true;
+  material.customProgramCacheKey = () => `${previousCacheKey()}|poc-world-height-fog-v2:${wideLine}`;
+  material.onBeforeCompile = (shader, renderer) => {
     if (typeof previousCompile === 'function') {
-      previousCompile(shader);
+      previousCompile.call(material, shader, renderer);
     }
     shader.uniforms.fogHeight = { value: visuals.fogHeight };
     shader.uniforms.fogHeightRange = { value: visuals.fogHeightRange };
     shader.uniforms.fogHeightEnabled = { value: visuals.enableHeightFog ? 1 : 0 };
-    if (!shader.vertexShader.includes(`varying vec3 ${fogVarying}`)) {
-      if (shader.vertexShader.includes('#include <common>')) {
-        shader.vertexShader = shader.vertexShader.replace(
-          '#include <common>',
-          `#include <common>\n  varying vec3 ${fogVarying};`
-        );
-      }
-    }
-    if (shader.vertexShader.includes('#include <fog_vertex>')) {
-      shader.vertexShader = shader.vertexShader.replace(
-        '#include <fog_vertex>',
-        `#include <fog_vertex>\n  ${fogVarying} = (modelMatrix * vec4(position, 1.0)).xyz;`
-      );
-    }
+    shader.uniforms.fogDistanceEnabled = { value: visuals.enableFog ? 1 : 0 };
+    injectWorldFogPosition(shader, { wideLine });
     if (!shader.fragmentShader.includes(`varying vec3 ${fogVarying}`)) {
       if (shader.fragmentShader.includes('#include <common>')) {
         shader.fragmentShader = shader.fragmentShader.replace(
@@ -65,14 +83,14 @@ export const applyHeightFog = (material) => {
       if (shader.fragmentShader.includes('#include <fog_pars_fragment>')) {
         shader.fragmentShader = shader.fragmentShader.replace(
           '#include <fog_pars_fragment>',
-          '#include <fog_pars_fragment>\n  uniform float fogHeight;\n  uniform float fogHeightRange;\n  uniform float fogHeightEnabled;'
+          '#include <fog_pars_fragment>\n  uniform float fogHeight;\n  uniform float fogHeightRange;\n  uniform float fogHeightEnabled;\n  uniform float fogDistanceEnabled;'
         );
       }
     }
     if (shader.fragmentShader.includes('#include <fog_fragment>')) {
       shader.fragmentShader = shader.fragmentShader.replace(
         '#include <fog_fragment>',
-        `#ifdef USE_FOG\n  float fogFactor = smoothstep(fogNear, fogFar, vFogDepth);\n  float heightFactor = fogHeightEnabled * clamp((fogHeight - ${fogVarying}.y) / max(0.001, fogHeightRange), 0.0, 1.0);\n  float combinedFog = max(fogFactor, heightFactor);\n  gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, combinedFog);\n#endif`
+        `#ifdef USE_FOG\n  float fogFactor = fogDistanceEnabled * smoothstep(fogNear, fogFar, vFogDepth);\n  float heightFactor = fogHeightEnabled * clamp((fogHeight - ${fogVarying}.y) / max(0.001, fogHeightRange), 0.0, 1.0);\n  float combinedFog = max(fogFactor, heightFactor);\n  gl_FragColor.rgb = mix(gl_FragColor.rgb, fogColor, combinedFog);\n#endif`
       );
     }
     material.userData.fogUniforms = shader.uniforms;
@@ -97,11 +115,16 @@ const updateHeightFogUniforms = (material, visuals) => {
   if ('fogHeightEnabled' in material.userData.fogUniforms) {
     material.userData.fogUniforms.fogHeightEnabled.value = visuals.enableHeightFog ? 1 : 0;
   }
+  if(material.userData.fogUniforms.fogDistanceEnabled)material.userData.fogUniforms.fogDistanceEnabled.value=visuals.enableFog?1:0;
 };
 
 const setMaterialOpacity = (material, opacity, { ensureUserData = false } = {}) => {
   if (!material) return;
   material.opacity = opacity;
+  if(material.isMeshStandardMaterial&&!material.isMeshPhysicalMaterial){
+    if(material.transparent!==(opacity<1))material.needsUpdate=true;
+    material.transparent=opacity<1;
+  }
   if (ensureUserData) material.userData = material.userData || {};
   if (material.userData) material.userData.baseOpacity = opacity;
 };
@@ -224,7 +247,7 @@ export const createWireframe = (geometry, color, phase) => {
       linewidth: 1,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
-      depthTest: false
+      depthTest: true
     });
     wireMat.worldUnits = true;
     wireMat.resolution.set(lineResolution.width, lineResolution.height);
@@ -236,7 +259,7 @@ export const createWireframe = (geometry, color, phase) => {
       linewidth: 1,
       blending: THREE.AdditiveBlending,
       depthWrite: false,
-      depthTest: false
+      depthTest: true
     });
   }
   const emissiveColor = color.clone().lerp(new THREE.Color(0xffffff), 0.18);
@@ -330,8 +353,11 @@ export const applyGlassSettings = () => {
     material.envMapIntensity = glass.envMapIntensity * envScale;
     material.clearcoat = glass.clearcoat;
     material.clearcoatRoughness = glass.clearcoatRoughness;
-    if (normalMapState.texture) {
-      normalMapState.texture.repeat.set(glass.normalRepeat, glass.normalRepeat);
+    const normalMap = normalMapState.texture;
+    material.normalMap = normalMap || null;
+    material.clearcoatNormalMap = normalMap || null;
+    if (normalMap) {
+      normalMap.repeat.set(glass.normalRepeat, glass.normalRepeat);
       material.normalScale = new THREE.Vector2(glass.normalScale, glass.normalScale);
       material.clearcoatNormalScale = new THREE.Vector2(glass.clearcoatNormalScale, glass.clearcoatNormalScale);
     }
@@ -347,6 +373,7 @@ export const applyGlassSettings = () => {
 export const updateFileOpacity = () => {
   const { visuals, visualDefaults, fileMeshes, fileInstancedMeshes, fileInstancedInnerMeshes } = state;
   const opacity = clamp(numberValue(visuals.fileOpacity, visualDefaults.fileOpacity), 0.1, 1);
+  state.stackPacketOwner?.setSurfaceOpacity('file',opacity);
   for (const mesh of fileMeshes) {
     setMaterialOpacity(mesh.material, opacity);
     setShellInnerOpacity(mesh, opacity);
@@ -360,8 +387,9 @@ export const updateFileOpacity = () => {
 };
 
 export const updateMemberOpacity = () => {
-  const { visuals, visualDefaults, memberMeshes, chunkMeshes, instancedMemberMaterials, instancedChunkMaterial } = state;
+  const { visuals, visualDefaults, memberMeshes, chunkMeshes, memberInstancedMeshes, instancedMemberMaterials, instancedChunkMaterial } = state;
   const opacity = clamp(numberValue(visuals.memberOpacity, visualDefaults.memberOpacity), 0.1, 1);
+  state.stackPacketOwner?.setSurfaceOpacity('member',opacity);
 
   // Instanced members/chunks use shared materials (huge perf win). Update those directly.
   const instancedMemberMat = instancedMemberMaterials?.member || null;
@@ -379,6 +407,7 @@ export const updateMemberOpacity = () => {
     setMaterialOpacity(mesh.material, opacity);
     setShellInnerOpacity(mesh, opacity);
   }
+  for (const mesh of toArray(memberInstancedMeshes)) setMaterialOpacity(mesh?.material, opacity);
 };
 
 export const updateWireframes = () => {
@@ -439,7 +468,7 @@ export const updateFog = (maxSpanOverride) => {
     fogBounds.maxSpan = maxSpanOverride;
   }
   const maxSpan = fogBounds.maxSpan || 120;
-  if (!visuals.enableFog) {
+  if (!visuals.enableFog && !visuals.enableHeightFog) {
     scene.fog = null;
     return;
   }
@@ -449,7 +478,7 @@ export const updateFog = (maxSpanOverride) => {
   const fogNear = maxSpan * 0.9;
   const fogFar = maxSpan * Math.max(1.1, distance);
   scene.fog = new THREE.Fog(fogColor.getHex(), fogNear, fogFar);
-  [...glassMaterials, ...labelMaterials, ...flowMaterials, ...wireMaterials, ...gridLineMaterials]
+  [...glassMaterials, ...labelMaterials, ...flowMaterials, ...wireMaterials, ...gridLineMaterials, ...toArray(state.stackMaterials)]
     .forEach((material) => updateHeightFogUniforms(material, visuals));
   if (grid?.material) updateHeightFogUniforms(grid.material, visuals);
 };

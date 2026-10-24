@@ -3,6 +3,7 @@ import path from 'node:path';
 
 import { getEditorCommandSpecs } from '../../src/shared/runtime-capability-manifest.js';
 import { createArgReader, probeCommand } from '../shared/cli-utils.js';
+import { buildVsixContainer } from './vsix-container.js';
 import {
   assertPinnedPackagingToolchain,
   buildDeterministicZip,
@@ -109,8 +110,8 @@ const PACKAGE_DESCRIPTORS = {
     label: 'Sublime',
     sourceDir: (root) => path.join(root, 'sublime', 'PairOfCleats'),
     defaultOutDir: path.join('dist', 'sublime'),
-    archiveFileName: 'pairofcleats.sublime-package',
-    rootPrefix: 'PairOfCleats',
+    archiveFileName: 'PairOfCleats.sublime-package',
+    rootPrefix: '',
     toolchainRequirements: { requirePython: true },
     manifestToolchain: () => ({
       node: process.versions.node,
@@ -134,6 +135,7 @@ const PACKAGE_DESCRIPTORS = {
     manifestToolchain: () => ({
       node: process.versions.node,
       npmRequired: true,
+      packager: '@vscode/vsce@4.0.0',
       archive: 'vsix(zip)'
     }),
     validateSource: validateVsCodeSource
@@ -165,7 +167,8 @@ const runEditorPackageCli = async (descriptor, argv, options = {}) => {
     assertPinnedPackagingToolchain(descriptor.toolchainRequirements);
     checkRequiredCommands(descriptor.requiredCommands);
 
-    const built = await buildDeterministicZip({
+    const buildArchive = descriptor === PACKAGE_DESCRIPTORS.vscode ? buildVsixContainer : buildDeterministicZip;
+    const built = await buildArchive({
       sourceDir,
       archivePath,
       rootPrefix: descriptor.rootPrefix

@@ -1,4 +1,6 @@
 import { assertSqliteIndexFormat } from '../index-format.js';
+import { assertSqliteMinhashReceiver } from '../minhash.js';
+import { throwIfAborted } from '../../../shared/abort.js';
 import { listOptionalFtsTables, normalizeFtsVariants } from '../fts-variants.js';
 import fsSync from 'node:fs';
 import { REQUIRED_TABLES } from '../schema.js';
@@ -8,7 +10,6 @@ import {
   hasRequiredTables,
   recordSqlitePlanTelemetry,
   recordSqliteWalSnapshot,
-  removeSqliteSidecars,
   resolveExpectedDenseCount,
   resolveSqliteIngestPlan,
   bumpSqliteBatchStat
@@ -120,6 +121,7 @@ export async function incrementalUpdateDatabase({
   signal = null,
   repoRoot = process.cwd()
 }) {
+  throwIfAborted(signal);
   const warn = (message) => {
     if (!emitOutput || !message) return;
     if (logger?.warn) {
@@ -137,7 +139,7 @@ export async function incrementalUpdateDatabase({
   const denseClampStats = createUint8ClampStats();
   const recordDenseClamp = (clamped) => denseClampStats.record(clamped);
   const batchStats = stats && typeof stats === 'object' ? stats : null;
-  const recordBatch = (key) => bumpSqliteBatchStat(batchStats, key);
+  const recordBatch = (key) => { throwIfAborted(signal); bumpSqliteBatchStat(batchStats, key); };
   if (batchStats) {
     batchStats.batchSize = resolvedBatchSize;
     batchStats.ingestPlan = {
@@ -182,7 +184,7 @@ export async function incrementalUpdateDatabase({
   /**
    * Ensure sqlite resources are cleaned up for every exit path.
    * This includes WAL checkpoint best-effort, pragma restoration, close, and
-   * sidecar cleanup.
+   * SQLite-owned WAL lifecycle.
    *
    * @returns {Promise<void>}
    */
@@ -209,9 +211,6 @@ export async function incrementalUpdateDatabase({
     try {
       db.close();
     } catch {}
-    try {
-      await removeSqliteSidecars(outPath);
-    } catch {}
   };
   try {
     pragmaState = useBuildPragmas ? applyBuildPragmas(db, { inputBytes, stats: batchStats }) : null;
@@ -235,6 +234,7 @@ export async function incrementalUpdateDatabase({
     if (!hasRequiredTables(db, REQUIRED_TABLES)) {
       return { used: false, reason: 'schema missing' };
     }
+    assertSqliteMinhashReceiver(db, mode);
 
     const actualFtsVariants = listOptionalFtsTables(db).map(table => table.replace('chunks_fts_', '')).sort();
     if (JSON.stringify(actualFtsVariants) !== JSON.stringify(normalizeFtsVariants(ftsVariants))) {
@@ -312,7 +312,9 @@ export async function incrementalUpdateDatabase({
     );
     if (!changed.length && !deleted.length && !semanticPlan) {
       const updateTx = db.transaction(() => {
+        throwIfAborted(signal);
         for (const record of manifestUpdates) {
+          throwIfAborted(signal);
           const normalizedFile = record.normalized;
           const entry = record.entry || {};
           updateFileManifest.run(
@@ -323,6 +325,7 @@ export async function incrementalUpdateDatabase({
             normalizedFile
           );
         }
+        throwIfAborted(signal);
       });
       updateTx();
       try {
@@ -345,6 +348,8 @@ export async function incrementalUpdateDatabase({
     }
 
     const bundlePlan = await loadBundlesAndCollectState({
+      signal,
+      repoRoot,
       changed,
       bundleDir: incrementalData.bundleDir
     });

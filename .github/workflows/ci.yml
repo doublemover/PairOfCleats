@@ -33,7 +33,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version: '26.8.1'
+          node-version: '26.12.1'
           cache: npm
 
       - name: Restore node_modules cache
@@ -41,7 +41,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.8.1-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.12.1-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
 
       - name: Install deps
         shell: bash
@@ -104,6 +104,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
+      - name: Setup Node for protocol fixtures
+        uses: actions/setup-node@v7
+        with:
+          node-version: '26.12.1'
+
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
@@ -137,6 +142,55 @@ jobs:
         working-directory: crates/pairofcleats-tui
         run: cargo clippy --locked -- -D warnings
 
+  native-inspection:
+    name: native-inspection (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    needs: gate
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Record candidate
+        run: git rev-parse HEAD
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: 1.88.0
+      - name: Locked bootstrap
+        run: npm run bootstrap:ci
+      - name: Native and patch verification
+        run: node tools/setup/rebuild-native.js --verify
+      - name: Build actual native binary
+        run: cargo build --locked --manifest-path crates/pairofcleats-tui/Cargo.toml
+      - name: Serial real-terminal inspection, artifacts and index workflows
+        run: node tests/run.js --lane all --match '/^tui\/(native-job-inspection|native-artifact-actions|native-index-workflows)\//' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/native-inspection/report.json
+      - name: Serial PTY disposal and patch qualification
+        run: node tests/run.js --lane all --match '/^tooling\/install\/node-pty-(conout-disposal|patch-roundtrip|fresh-lifecycle)(\/|$)/' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/native-inspection/lifecycle.json
+      - name: Serial parser lifecycle and exact native patches
+        run: node tests/run.js --lane all --match '/^(lang\/perl\/|tooling\/install\/(native-parser-error-contract|perl-patch-roundtrip|tree-sitter-patch-roundtrip|native-grammar-activation)$)/' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/native-inspection/parser-lifecycle.json
+      - name: Typed index contracts and full producer qualification
+        run: node tests/run.js --lane all --match '/^(indexing\/build-state\/produced-contract|tui\/(operator-index-workflows|supervisor-index-workflows|supervisor-index-build))$/' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/native-inspection/index-contracts.json
+      - name: Upload native qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: native-inspection-${{ matrix.os }}
+          path: |
+            .diagnostics/native-inspection/**
+            .testLogs/**
+          include-hidden-files: true
+          if-no-files-found: warn
+
   ubuntu:
     name: ubuntu
     runs-on: ubuntu-latest
@@ -144,6 +198,10 @@ jobs:
     env:
       PAIROFCLEATS_EMBEDDINGS: stub
       PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
+      DOTNET_GENERATE_ASPNET_CERTIFICATE: 'false'
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_CLI_HOME: ${{ github.workspace }}/.tmp/ci/dotnet-cli-home
+      NUGET_PACKAGES: ${{ github.workspace }}/.tmp/ci/nuget-packages
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -151,7 +209,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version: '26.8.1'
+          node-version: '26.12.1'
           cache: npm
 
       - name: Restore PairOfCleats cache
@@ -170,7 +228,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.8.1-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.12.1-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
 
       - name: Install deps and report versions
         shell: bash
@@ -188,8 +246,104 @@ jobs:
           node -v
           npm -v
 
+      - name: Setup qualified PHP runtime
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.4.26'
+          extensions: posix, mbstring, openssl, tokenizer, phar, ctype, dom, fileinfo, iconv, xml, xmlreader, xmlwriter
+          coverage: none
+          tools: none
+
+      - name: Verify selected PHP runtime
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { createHash } from "node:crypto";
+          import { runCommand } from "./tools/shared/cli-utils.js";
+          const code = "echo json_encode([\"version\"=>PHP_VERSION,\"binary\"=>PHP_BINARY,\"extensions\"=>get_loaded_extensions()]);";
+          const result = runCommand("php", ["-r", code], { stdio: "pipe", timeoutMs: 4000, maxOutputBytes: 16384 });
+          assert.equal(result.status, 0, JSON.stringify(result));
+          assert.equal(result.stderr, "");
+          const sdk = JSON.parse(result.stdout);
+          assert.equal(sdk.version, "8.4.26");
+          assert.ok(path.isAbsolute(sdk.binary));
+          const extensions = sdk.extensions.map(name => name.toLowerCase());
+          for (const name of ["posix", "mbstring", "openssl", "tokenizer", "phar", "ctype", "dom", "fileinfo", "iconv", "xml", "xmlreader", "xmlwriter"]) assert.ok(extensions.includes(name), name);
+          const command = fs.realpathSync(sdk.binary);
+          const receipt = { ...sdk, command, source: process.env.GITHUB_SHA, node: process.version, platform: process.platform, arch: process.arch, binarySha256: createHash("sha256").update(fs.readFileSync(command)).digest("hex") };
+          fs.mkdirSync(".diagnostics", { recursive: true });
+          fs.writeFileSync(".diagnostics/php-sdk.json", JSON.stringify(receipt, null, 2) + "\n");
+          console.log(JSON.stringify(receipt));
+          '
+
+      - name: Setup qualified .NET SDK
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        env:
+          DOTNET_INSTALL_DIR: ${{ runner.temp }}/poc-dotnet-sdk
+        with:
+          dotnet-version: '10.0.113'
+
+      - name: Verify selected .NET SDK
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { createHash } from "node:crypto";
+          import { runCommand } from "./tools/shared/cli-utils.js";
+          const root = process.env.DOTNET_ROOT;
+          assert.ok(root && path.isAbsolute(root) && !/[\r\n]/u.test(root));
+          const command = path.join(root, process.platform === "win32" ? "dotnet.exe" : "dotnet");
+          const options = { stdio: "pipe", timeoutMs: 4000, maxOutputBytes: 16384 };
+          const version = runCommand(command, ["--version"], options);
+          const selected = runCommand("dotnet", ["--version"], options);
+          const runtimes = runCommand(command, ["--list-runtimes"], options);
+          for (const result of [version, selected, runtimes]) { assert.equal(result.status, 0, JSON.stringify(result)); assert.equal(result.stderr, ""); }
+          assert.equal(version.stdout.trim(), "10.0.113");
+          assert.equal(selected.stdout.trim(), "10.0.113");
+          assert.match(runtimes.stdout, /^Microsoft\.NETCore\.App 10\.0\.13 \[/m);
+          const archRoot = "DOTNET_ROOT_" + process.arch.toUpperCase();
+          fs.appendFileSync(process.env.GITHUB_ENV, archRoot + "=" + root + "\nDOTNET_HOST_PATH=" + command + "\n");
+          const receipt = { source: process.env.GITHUB_SHA, node: process.version, platform: process.platform, arch: process.arch, root, command, sdkVersion: version.stdout.trim(), runtimeOutput: runtimes.stdout, binarySha256: createHash("sha256").update(fs.readFileSync(command)).digest("hex") };
+          fs.mkdirSync(".diagnostics", { recursive: true });
+          fs.writeFileSync(".diagnostics/dotnet-sdk.json", JSON.stringify(receipt, null, 2) + "\n");
+          console.log(JSON.stringify(receipt));
+          '
+
+      - name: Setup qualified Go SDK
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: '1.27.3'
+          cache: false
+
+      - name: Verify selected Go SDK
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { runCommand } from "./tools/shared/cli-utils.js";
+          const env = { ...process.env, GOTOOLCHAIN: "local" };
+          delete env.GOROOT;
+          const result = runCommand("go", ["env", "-json", "GOVERSION", "GOROOT"], { env, stdio: "pipe", timeoutMs: 4000, maxOutputBytes: 16384 });
+          assert.equal(result.status, 0, JSON.stringify(result));
+          assert.equal(result.stderr, "");
+          const sdk = JSON.parse(result.stdout);
+          assert.equal(sdk.GOVERSION, "go1.27.3");
+          assert.ok(path.isAbsolute(sdk.GOROOT));
+          assert.ok(!/[\r\n]/u.test(sdk.GOROOT));
+          fs.appendFileSync(process.env.GITHUB_ENV, "GOROOT=" + sdk.GOROOT + "\nGOTOOLCHAIN=local\n");
+          fs.mkdirSync(".diagnostics", { recursive: true });
+          fs.writeFileSync(".diagnostics/go-sdk.json", JSON.stringify({ ...sdk, node: process.version, platform: process.platform, arch: process.arch, qualification: "selected-sdk-executable" }, null, 2) + "\n");
+          console.log(JSON.stringify(sdk));
+          '
+
       - name: Install optional LSP tools (best effort)
         shell: bash
+        env:
+          PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS: '["https://release-assets.githubusercontent.com"]'
         run: |
           set +e
           node tools/tooling/install.js --scope cache --tools pyright,yaml-language-server,gopls,csharp-ls,solargraph,phpactor --json
@@ -198,6 +352,61 @@ jobs:
             echo "optional tooling install had non-fatal failures (continuing)."
           fi
           exit 0
+
+      - name: Qualify real Go language server startup
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { getToolingConfig } from "./tools/shared/dict-utils.js";
+          import { qualifyInstalledLspRuntime } from "./tools/ci/qualify-lsp-runtime.js";
+          const result = await qualifyInstalledLspRuntime({ providerId: "gopls", repoRoot: process.cwd(), toolingConfig: getToolingConfig(process.cwd()), diagnosticsDir: path.resolve(".diagnostics") });
+          const receipt = { ...result.receipt, ok: result.ok, process: result.process, sdk: JSON.parse(fs.readFileSync(".diagnostics/go-sdk.json", "utf8")), qualification: "initialize-shutdown-clean-exit" };
+          fs.writeFileSync(".diagnostics/gopls-startup.json", JSON.stringify(receipt, null, 2) + "\n");
+          console.log(JSON.stringify({ ok: result.ok, result: result.receipt?.result, process: result.process }));
+          assert.equal(result.ok, true, JSON.stringify(receipt));
+          assert.equal(receipt.result.capabilities.documentSymbol, true);
+          assert.equal(receipt.result.capabilities.definition, true);
+          '
+
+      - name: Qualify real Csharp language server startup
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { getToolingConfig } from "./tools/shared/dict-utils.js";
+          import { qualifyInstalledLspRuntime } from "./tools/ci/qualify-lsp-runtime.js";
+          const result = await qualifyInstalledLspRuntime({ providerId: "csharp-ls", repoRoot: process.cwd(), toolingConfig: getToolingConfig(process.cwd()), diagnosticsDir: path.resolve(".diagnostics") });
+          const receipt = { ...result.receipt, ok: result.ok, process: result.process, sdk: JSON.parse(fs.readFileSync(".diagnostics/dotnet-sdk.json", "utf8")), qualification: "initialize-shutdown-clean-exit" };
+          fs.writeFileSync(".diagnostics/csharp-ls-startup.json", JSON.stringify(receipt, null, 2) + "\n");
+          console.log(JSON.stringify({ ok: result.ok, result: result.receipt?.result, process: result.process }));
+          assert.equal(result.ok, true, JSON.stringify(receipt));
+          assert.equal(receipt.result.capabilities.documentSymbol, true);
+          assert.equal(receipt.result.capabilities.definition, true);
+          '
+
+      - name: Qualify real PHPactor startup
+        env:
+          XDG_CACHE_HOME: ${{ runner.temp }}/poc-phpactor-cache
+          XDG_CONFIG_HOME: ${{ runner.temp }}/poc-phpactor-config
+          XDG_DATA_HOME: ${{ runner.temp }}/poc-phpactor-data
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { getToolingConfig } from "./tools/shared/dict-utils.js";
+          import { qualifyInstalledLspRuntime } from "./tools/ci/qualify-lsp-runtime.js";
+          const result = await qualifyInstalledLspRuntime({ providerId: "phpactor", repoRoot: process.cwd(), toolingConfig: getToolingConfig(process.cwd()), diagnosticsDir: path.resolve(".diagnostics") });
+          const receipt = { ...result.receipt, ok: result.ok, process: result.process, sdk: JSON.parse(fs.readFileSync(".diagnostics/php-sdk.json", "utf8")), qualification: "initialize-shutdown-clean-exit" };
+          fs.writeFileSync(".diagnostics/phpactor-startup.json", JSON.stringify(receipt, null, 2) + "\n");
+          console.log(JSON.stringify({ ok: result.ok, result: result.receipt?.result, process: result.process }));
+          assert.equal(result.ok, true, JSON.stringify(receipt));
+          assert.equal(receipt.result.capabilities.documentSymbol, true);
+          assert.equal(receipt.result.capabilities.definition, true);
+          '
 
       - name: CI Suite
         run: |
@@ -217,11 +426,22 @@ jobs:
         with:
           name: ci-quality-artifacts-ubuntu
           path: |
+            .diagnostics/dotnet-sdk.json
+            .diagnostics/csharp-ls-startup.json
+            .diagnostics/php-sdk.json
+            .diagnostics/phpactor-startup.json
+            .diagnostics/serial-native-lifecycle.json
+            .diagnostics/go-sdk.json
+            .diagnostics/gopls-startup.json
+            .diagnostics/serial-runtime-budgets.json
+            .diagnostics/api-contracts.json
             .diagnostics/test-summary.json
             .diagnostics/test-timings.json
             .diagnostics/test-profile.json
             .diagnostics/coverage/**
             .testLogs/junit.xml
+            .testLogs/**/*.log
+            .testLogs/**/*.failure.json
           if-no-files-found: ignore
           include-hidden-files: true
           compression-level: 0
@@ -245,6 +465,10 @@ jobs:
     env:
       PAIROFCLEATS_EMBEDDINGS: stub
       PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
+      DOTNET_GENERATE_ASPNET_CERTIFICATE: 'false'
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_CLI_HOME: ${{ github.workspace }}/.tmp/ci/dotnet-cli-home
+      NUGET_PACKAGES: ${{ github.workspace }}/.tmp/ci/nuget-packages
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -252,7 +476,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version: '26.8.1'
+          node-version: '26.12.1'
           cache: npm
 
       - name: Restore PairOfCleats cache
@@ -269,7 +493,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.8.1-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.12.1-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
 
       - name: Install deps and report versions
         shell: pwsh
@@ -290,14 +514,130 @@ jobs:
           node -v
           npm -v
 
+      - name: Setup qualified .NET SDK
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        env:
+          DOTNET_INSTALL_DIR: ${{ runner.temp }}/poc-dotnet-sdk
+        with:
+          dotnet-version: '10.0.113'
+
+      - name: Verify selected .NET SDK
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { createHash } from "node:crypto";
+          import { runCommand } from "./tools/shared/cli-utils.js";
+          const root = process.env.DOTNET_ROOT;
+          assert.ok(root && path.isAbsolute(root) && !/[\r\n]/u.test(root));
+          const command = path.join(root, process.platform === "win32" ? "dotnet.exe" : "dotnet");
+          const options = { stdio: "pipe", timeoutMs: 4000, maxOutputBytes: 16384 };
+          const version = runCommand(command, ["--version"], options);
+          const selected = runCommand("dotnet", ["--version"], options);
+          const runtimes = runCommand(command, ["--list-runtimes"], options);
+          for (const result of [version, selected, runtimes]) { assert.equal(result.status, 0, JSON.stringify(result)); assert.equal(result.stderr, ""); }
+          assert.equal(version.stdout.trim(), "10.0.113");
+          assert.equal(selected.stdout.trim(), "10.0.113");
+          assert.match(runtimes.stdout, /^Microsoft\.NETCore\.App 10\.0\.13 \[/m);
+          const archRoot = "DOTNET_ROOT_" + process.arch.toUpperCase();
+          fs.appendFileSync(process.env.GITHUB_ENV, archRoot + "=" + root + "\nDOTNET_HOST_PATH=" + command + "\n");
+          const receipt = { source: process.env.GITHUB_SHA, node: process.version, platform: process.platform, arch: process.arch, root, command, sdkVersion: version.stdout.trim(), runtimeOutput: runtimes.stdout, binarySha256: createHash("sha256").update(fs.readFileSync(command)).digest("hex") };
+          fs.mkdirSync(".diagnostics", { recursive: true });
+          fs.writeFileSync(".diagnostics/dotnet-sdk.json", JSON.stringify(receipt, null, 2) + "\n");
+          console.log(JSON.stringify(receipt));
+          '
+
+      - name: Setup qualified Go SDK
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: '1.27.3'
+          cache: false
+
+      - name: Verify selected Go SDK
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { runCommand } from "./tools/shared/cli-utils.js";
+          const env = { ...process.env, GOTOOLCHAIN: "local" };
+          delete env.GOROOT;
+          const result = runCommand("go", ["env", "-json", "GOVERSION", "GOROOT"], { env, stdio: "pipe", timeoutMs: 4000, maxOutputBytes: 16384 });
+          assert.equal(result.status, 0, JSON.stringify(result));
+          assert.equal(result.stderr, "");
+          const sdk = JSON.parse(result.stdout);
+          assert.equal(sdk.GOVERSION, "go1.27.3");
+          assert.ok(path.isAbsolute(sdk.GOROOT));
+          assert.ok(!/[\r\n]/u.test(sdk.GOROOT));
+          fs.appendFileSync(process.env.GITHUB_ENV, "GOROOT=" + sdk.GOROOT + "\nGOTOOLCHAIN=local\n");
+          fs.mkdirSync(".diagnostics", { recursive: true });
+          fs.writeFileSync(".diagnostics/go-sdk.json", JSON.stringify({ ...sdk, node: process.version, platform: process.platform, arch: process.arch, qualification: "selected-sdk-executable" }, null, 2) + "\n");
+          console.log(JSON.stringify(sdk));
+          '
+
       - name: Install optional LSP tools (best effort)
         shell: pwsh
         run: |
-          node tools/tooling/install.js --scope cache --tools pyright,yaml-language-server,gopls,csharp-ls,solargraph,phpactor --json
+          node tools/tooling/install.js --scope cache --tools pyright,yaml-language-server,gopls,csharp-ls,solargraph --json
           if ($LASTEXITCODE -ne 0) {
             Write-Host 'optional tooling install had non-fatal failures (continuing).'
           }
           exit 0
+
+      - name: Windows subprocess ownership
+        run: |
+          node tests/run.js --lane all --match '/^shared\/kill-tree\.windows$/' --match '/^shared\/kill-tree\.windows-orphan-descendant-fallback$/' --match '/^shared\/kill-tree-windows-snapshot$/' --match '/^shared\/subprocess\/sync-timeout-kills-child-tree$/' --match '/^shared\/locks\/windows-delete-pending$/' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/windows-subprocess-ownership.json
+
+      - name: Qualify real Go language server startup
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { getToolingConfig } from "./tools/shared/dict-utils.js";
+          import { qualifyInstalledLspRuntime } from "./tools/ci/qualify-lsp-runtime.js";
+          const result = await qualifyInstalledLspRuntime({ providerId: "gopls", repoRoot: process.cwd(), toolingConfig: getToolingConfig(process.cwd()), diagnosticsDir: path.resolve(".diagnostics") });
+          const receipt = { ...result.receipt, ok: result.ok, process: result.process, sdk: JSON.parse(fs.readFileSync(".diagnostics/go-sdk.json", "utf8")), qualification: "initialize-shutdown-clean-exit" };
+          fs.writeFileSync(".diagnostics/gopls-startup.json", JSON.stringify(receipt, null, 2) + "\n");
+          console.log(JSON.stringify({ ok: result.ok, result: result.receipt?.result, process: result.process }));
+          assert.equal(result.ok, true, JSON.stringify(receipt));
+          assert.equal(receipt.result.capabilities.documentSymbol, true);
+          assert.equal(receipt.result.capabilities.definition, true);
+          '
+
+      - name: Qualify real Csharp language server startup
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { getToolingConfig } from "./tools/shared/dict-utils.js";
+          import { qualifyInstalledLspRuntime } from "./tools/ci/qualify-lsp-runtime.js";
+          const result = await qualifyInstalledLspRuntime({ providerId: "csharp-ls", repoRoot: process.cwd(), toolingConfig: getToolingConfig(process.cwd()), diagnosticsDir: path.resolve(".diagnostics") });
+          const receipt = { ...result.receipt, ok: result.ok, process: result.process, sdk: JSON.parse(fs.readFileSync(".diagnostics/dotnet-sdk.json", "utf8")), qualification: "initialize-shutdown-clean-exit" };
+          fs.writeFileSync(".diagnostics/csharp-ls-startup.json", JSON.stringify(receipt, null, 2) + "\n");
+          console.log(JSON.stringify({ ok: result.ok, result: result.receipt?.result, process: result.process }));
+          assert.equal(result.ok, true, JSON.stringify(receipt));
+          assert.equal(receipt.result.capabilities.documentSymbol, true);
+          assert.equal(receipt.result.capabilities.definition, true);
+          '
+
+      - name: Record PHPactor native platform limitation
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import { getToolingConfig } from "./tools/shared/dict-utils.js";
+          import { getToolingRegistry } from "./tools/tooling/utils.js";
+          const root = process.cwd();
+          const support = getToolingRegistry(getToolingConfig(root).dir, root).find(tool => tool.id === "phpactor").install;
+          assert.equal(support.platforms.includes(process.platform), false);
+          const receipt = { source: process.env.GITHUB_SHA, platform: process.platform, status: "unsupported", reason: "unsupported_platform", requirement: support.platformRequirement, coverageOwner: "tooling/install/phpactor-platform-contract" };
+          fs.mkdirSync(".diagnostics", { recursive: true });
+          fs.writeFileSync(".diagnostics/phpactor-platform.json", JSON.stringify(receipt, null, 2) + "\n");
+          console.log(JSON.stringify(receipt));
+          '
 
       - name: CI Suite
         run: |
@@ -309,11 +649,22 @@ jobs:
         with:
           name: ci-quality-artifacts-windows
           path: |
+            .diagnostics/dotnet-sdk.json
+            .diagnostics/csharp-ls-startup.json
+            .diagnostics/phpactor-platform.json
+            .diagnostics/serial-native-lifecycle.json
+            .diagnostics/go-sdk.json
+            .diagnostics/gopls-startup.json
+            .diagnostics/windows-subprocess-ownership.json
+            .diagnostics/serial-runtime-budgets.json
+            .diagnostics/api-contracts.json
             .diagnostics/test-summary.json
             .diagnostics/test-timings.json
             .diagnostics/test-profile.json
             .diagnostics/coverage/**
             .testLogs/junit.xml
+            .testLogs/**/*.log
+            .testLogs/**/*.failure.json
           if-no-files-found: ignore
           include-hidden-files: true
           compression-level: 0
@@ -330,6 +681,70 @@ jobs:
           include-hidden-files: true
           compression-level: 0
 
+  windows-authority:
+    name: windows-authority
+    runs-on: windows-latest
+    needs: gate
+    timeout-minutes: 20
+    env:
+      PAIROFCLEATS_EMBEDDINGS: stub
+    steps:
+      - name: Checkout qualification commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '26.12.1'
+          cache: npm
+
+      - name: Verify qualification commit
+        shell: pwsh
+        run: |
+          $expected = '${{ github.event.pull_request.head.sha || github.sha }}'
+          $actual = git rev-parse HEAD
+          if ($LASTEXITCODE -ne 0 -or $actual.Trim() -ne $expected) {
+            throw "Expected checkout $expected; got $actual"
+          }
+
+      - name: Restore node_modules cache
+        id: node-modules-cache
+        uses: actions/cache@v6
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.12.1-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
+
+      - name: Prepare and verify required dependencies
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path .diagnostics/windows-authority -Force | Out-Null
+          if ('${{ steps.node-modules-cache.outputs.cache-hit }}' -ne 'true') {
+            npm run bootstrap:ci 2>&1 | Tee-Object -FilePath .diagnostics/windows-authority/bootstrap.log
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          node tools/setup/rebuild-native.js --verify 2>&1 | Tee-Object -FilePath .diagnostics/windows-authority/native-verify.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (Select-String -LiteralPath .diagnostics/windows-authority/native-verify.log -Pattern '(?i)warn|error') {
+            throw 'Native verification emitted unexpected diagnostics.'
+          }
+
+      - name: Strict Windows authority cohort
+        run: node tools/ci/run-windows-authority.js
+
+      - name: Upload authority qualification
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-authority-qualification
+          path: |
+            .diagnostics/windows-authority/**
+            .testLogs/windows-authority/**
+          if-no-files-found: error
+          include-hidden-files: true
+          compression-level: 0
+
   macos:
     name: macos
     runs-on: macos-latest
@@ -337,6 +752,10 @@ jobs:
     env:
       PAIROFCLEATS_EMBEDDINGS: stub
       PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
+      DOTNET_GENERATE_ASPNET_CERTIFICATE: 'false'
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_CLI_HOME: ${{ github.workspace }}/.tmp/ci/dotnet-cli-home
+      NUGET_PACKAGES: ${{ github.workspace }}/.tmp/ci/nuget-packages
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -344,7 +763,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version: '26.8.1'
+          node-version: '26.12.1'
           cache: npm
 
       - name: Restore PairOfCleats cache
@@ -361,7 +780,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.8.1-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.12.1-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
 
       - name: Install deps and report versions
         shell: bash
@@ -379,8 +798,104 @@ jobs:
           node -v
           npm -v
 
+      - name: Setup qualified PHP runtime
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
+        with:
+          php-version: '8.4.26'
+          extensions: posix, mbstring, openssl, tokenizer, phar, ctype, dom, fileinfo, iconv, xml, xmlreader, xmlwriter
+          coverage: none
+          tools: none
+
+      - name: Verify selected PHP runtime
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { createHash } from "node:crypto";
+          import { runCommand } from "./tools/shared/cli-utils.js";
+          const code = "echo json_encode([\"version\"=>PHP_VERSION,\"binary\"=>PHP_BINARY,\"extensions\"=>get_loaded_extensions()]);";
+          const result = runCommand("php", ["-r", code], { stdio: "pipe", timeoutMs: 4000, maxOutputBytes: 16384 });
+          assert.equal(result.status, 0, JSON.stringify(result));
+          assert.equal(result.stderr, "");
+          const sdk = JSON.parse(result.stdout);
+          assert.equal(sdk.version, "8.4.26");
+          assert.ok(path.isAbsolute(sdk.binary));
+          const extensions = sdk.extensions.map(name => name.toLowerCase());
+          for (const name of ["posix", "mbstring", "openssl", "tokenizer", "phar", "ctype", "dom", "fileinfo", "iconv", "xml", "xmlreader", "xmlwriter"]) assert.ok(extensions.includes(name), name);
+          const command = fs.realpathSync(sdk.binary);
+          const receipt = { ...sdk, command, source: process.env.GITHUB_SHA, node: process.version, platform: process.platform, arch: process.arch, binarySha256: createHash("sha256").update(fs.readFileSync(command)).digest("hex") };
+          fs.mkdirSync(".diagnostics", { recursive: true });
+          fs.writeFileSync(".diagnostics/php-sdk.json", JSON.stringify(receipt, null, 2) + "\n");
+          console.log(JSON.stringify(receipt));
+          '
+
+      - name: Setup qualified .NET SDK
+        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        env:
+          DOTNET_INSTALL_DIR: ${{ runner.temp }}/poc-dotnet-sdk
+        with:
+          dotnet-version: '10.0.113'
+
+      - name: Verify selected .NET SDK
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { createHash } from "node:crypto";
+          import { runCommand } from "./tools/shared/cli-utils.js";
+          const root = process.env.DOTNET_ROOT;
+          assert.ok(root && path.isAbsolute(root) && !/[\r\n]/u.test(root));
+          const command = path.join(root, process.platform === "win32" ? "dotnet.exe" : "dotnet");
+          const options = { stdio: "pipe", timeoutMs: 4000, maxOutputBytes: 16384 };
+          const version = runCommand(command, ["--version"], options);
+          const selected = runCommand("dotnet", ["--version"], options);
+          const runtimes = runCommand(command, ["--list-runtimes"], options);
+          for (const result of [version, selected, runtimes]) { assert.equal(result.status, 0, JSON.stringify(result)); assert.equal(result.stderr, ""); }
+          assert.equal(version.stdout.trim(), "10.0.113");
+          assert.equal(selected.stdout.trim(), "10.0.113");
+          assert.match(runtimes.stdout, /^Microsoft\.NETCore\.App 10\.0\.13 \[/m);
+          const archRoot = "DOTNET_ROOT_" + process.arch.toUpperCase();
+          fs.appendFileSync(process.env.GITHUB_ENV, archRoot + "=" + root + "\nDOTNET_HOST_PATH=" + command + "\n");
+          const receipt = { source: process.env.GITHUB_SHA, node: process.version, platform: process.platform, arch: process.arch, root, command, sdkVersion: version.stdout.trim(), runtimeOutput: runtimes.stdout, binarySha256: createHash("sha256").update(fs.readFileSync(command)).digest("hex") };
+          fs.mkdirSync(".diagnostics", { recursive: true });
+          fs.writeFileSync(".diagnostics/dotnet-sdk.json", JSON.stringify(receipt, null, 2) + "\n");
+          console.log(JSON.stringify(receipt));
+          '
+
+      - name: Setup qualified Go SDK
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version: '1.27.3'
+          cache: false
+
+      - name: Verify selected Go SDK
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { runCommand } from "./tools/shared/cli-utils.js";
+          const env = { ...process.env, GOTOOLCHAIN: "local" };
+          delete env.GOROOT;
+          const result = runCommand("go", ["env", "-json", "GOVERSION", "GOROOT"], { env, stdio: "pipe", timeoutMs: 4000, maxOutputBytes: 16384 });
+          assert.equal(result.status, 0, JSON.stringify(result));
+          assert.equal(result.stderr, "");
+          const sdk = JSON.parse(result.stdout);
+          assert.equal(sdk.GOVERSION, "go1.27.3");
+          assert.ok(path.isAbsolute(sdk.GOROOT));
+          assert.ok(!/[\r\n]/u.test(sdk.GOROOT));
+          fs.appendFileSync(process.env.GITHUB_ENV, "GOROOT=" + sdk.GOROOT + "\nGOTOOLCHAIN=local\n");
+          fs.mkdirSync(".diagnostics", { recursive: true });
+          fs.writeFileSync(".diagnostics/go-sdk.json", JSON.stringify({ ...sdk, node: process.version, platform: process.platform, arch: process.arch, qualification: "selected-sdk-executable" }, null, 2) + "\n");
+          console.log(JSON.stringify(sdk));
+          '
+
       - name: Install optional LSP tools (best effort)
         shell: bash
+        env:
+          PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS: '["https://release-assets.githubusercontent.com"]'
         run: |
           set +e
           node tools/tooling/install.js --scope cache --tools pyright,yaml-language-server,gopls,csharp-ls,solargraph,phpactor --json
@@ -389,6 +904,61 @@ jobs:
             echo "optional tooling install had non-fatal failures (continuing)."
           fi
           exit 0
+
+      - name: Qualify real Go language server startup
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { getToolingConfig } from "./tools/shared/dict-utils.js";
+          import { qualifyInstalledLspRuntime } from "./tools/ci/qualify-lsp-runtime.js";
+          const result = await qualifyInstalledLspRuntime({ providerId: "gopls", repoRoot: process.cwd(), toolingConfig: getToolingConfig(process.cwd()), diagnosticsDir: path.resolve(".diagnostics") });
+          const receipt = { ...result.receipt, ok: result.ok, process: result.process, sdk: JSON.parse(fs.readFileSync(".diagnostics/go-sdk.json", "utf8")), qualification: "initialize-shutdown-clean-exit" };
+          fs.writeFileSync(".diagnostics/gopls-startup.json", JSON.stringify(receipt, null, 2) + "\n");
+          console.log(JSON.stringify({ ok: result.ok, result: result.receipt?.result, process: result.process }));
+          assert.equal(result.ok, true, JSON.stringify(receipt));
+          assert.equal(receipt.result.capabilities.documentSymbol, true);
+          assert.equal(receipt.result.capabilities.definition, true);
+          '
+
+      - name: Qualify real Csharp language server startup
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { getToolingConfig } from "./tools/shared/dict-utils.js";
+          import { qualifyInstalledLspRuntime } from "./tools/ci/qualify-lsp-runtime.js";
+          const result = await qualifyInstalledLspRuntime({ providerId: "csharp-ls", repoRoot: process.cwd(), toolingConfig: getToolingConfig(process.cwd()), diagnosticsDir: path.resolve(".diagnostics") });
+          const receipt = { ...result.receipt, ok: result.ok, process: result.process, sdk: JSON.parse(fs.readFileSync(".diagnostics/dotnet-sdk.json", "utf8")), qualification: "initialize-shutdown-clean-exit" };
+          fs.writeFileSync(".diagnostics/csharp-ls-startup.json", JSON.stringify(receipt, null, 2) + "\n");
+          console.log(JSON.stringify({ ok: result.ok, result: result.receipt?.result, process: result.process }));
+          assert.equal(result.ok, true, JSON.stringify(receipt));
+          assert.equal(receipt.result.capabilities.documentSymbol, true);
+          assert.equal(receipt.result.capabilities.definition, true);
+          '
+
+      - name: Qualify real PHPactor startup
+        env:
+          XDG_CACHE_HOME: ${{ runner.temp }}/poc-phpactor-cache
+          XDG_CONFIG_HOME: ${{ runner.temp }}/poc-phpactor-config
+          XDG_DATA_HOME: ${{ runner.temp }}/poc-phpactor-data
+        run: |
+          node --input-type=module -e '
+          import assert from "node:assert/strict";
+          import fs from "node:fs";
+          import path from "node:path";
+          import { getToolingConfig } from "./tools/shared/dict-utils.js";
+          import { qualifyInstalledLspRuntime } from "./tools/ci/qualify-lsp-runtime.js";
+          const result = await qualifyInstalledLspRuntime({ providerId: "phpactor", repoRoot: process.cwd(), toolingConfig: getToolingConfig(process.cwd()), diagnosticsDir: path.resolve(".diagnostics") });
+          const receipt = { ...result.receipt, ok: result.ok, process: result.process, sdk: JSON.parse(fs.readFileSync(".diagnostics/php-sdk.json", "utf8")), qualification: "initialize-shutdown-clean-exit" };
+          fs.writeFileSync(".diagnostics/phpactor-startup.json", JSON.stringify(receipt, null, 2) + "\n");
+          console.log(JSON.stringify({ ok: result.ok, result: result.receipt?.result, process: result.process }));
+          assert.equal(result.ok, true, JSON.stringify(receipt));
+          assert.equal(receipt.result.capabilities.documentSymbol, true);
+          assert.equal(receipt.result.capabilities.definition, true);
+          '
 
       - name: CI Suite
         run: |
@@ -400,11 +970,22 @@ jobs:
         with:
           name: ci-quality-artifacts-macos
           path: |
+            .diagnostics/dotnet-sdk.json
+            .diagnostics/csharp-ls-startup.json
+            .diagnostics/php-sdk.json
+            .diagnostics/phpactor-startup.json
+            .diagnostics/serial-native-lifecycle.json
+            .diagnostics/go-sdk.json
+            .diagnostics/gopls-startup.json
+            .diagnostics/serial-runtime-budgets.json
+            .diagnostics/api-contracts.json
             .diagnostics/test-summary.json
             .diagnostics/test-timings.json
             .diagnostics/test-profile.json
             .diagnostics/coverage/**
             .testLogs/junit.xml
+            .testLogs/**/*.log
+            .testLogs/**/*.failure.json
           if-no-files-found: ignore
           include-hidden-files: true
           compression-level: 0

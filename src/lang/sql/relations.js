@@ -137,7 +137,7 @@ function collectSqlParserUsages(text, dialect, log) {
 export function buildSqlRelations(text, sqlChunks, options = {}) {
   const exports = new Set();
   const usages = new Set();
-  const imports = collectSqlImports(text);
+  const imports = collectSqlImports(text, options);
 
   if (Array.isArray(sqlChunks)) {
     for (const chunk of sqlChunks) {

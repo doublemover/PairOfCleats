@@ -1,5 +1,6 @@
 import { EMBEDDING_IDENTITY_VERSION } from '../../../shared/embedding-identity.js';
-import { assertEmbeddingArtifactCompatibility, resolveEmbeddingArtifactIdentity } from '../../../shared/embedding-artifact-identity.js';
+import { assertEmbeddingArtifactCompatibility } from '../../../shared/embedding-artifact-identity.js';
+import { resolveEmbeddingArtifactIdentityAsync } from '../../../shared/embedding-artifact-lease.js';
 import { getQueryEmbedding } from '../../embedding.js';
 import { incCacheEvent } from '../../../shared/metrics/core.js';
 import { resolveStubDims } from '../../../shared/embedding.js';
@@ -57,9 +58,9 @@ export function createEmbeddingResolver({
     const resolvedDims = useStubEmbeddings
       ? resolveStubDims(dims)
       : (Number.isFinite(parsedDims) && parsedDims > 0 ? Math.floor(parsedDims) : null);
-    const modelArtifact = expectedIdentity ? resolveEmbeddingArtifactIdentity({ provider: embeddingProvider,
+    const modelArtifact = await resolveEmbeddingArtifactIdentityAsync({ provider: embeddingProvider,
       modelId, modelsDir: modelConfig?.dir, rootDir, onnx: embeddingOnnx,
-      modelProfile, stub: useStubEmbeddings }) : null;
+      modelProfile, stub: useStubEmbeddings });
     if (expectedIdentity) {
       if (expectedIdentity.version !== EMBEDDING_IDENTITY_VERSION) {
         throw Object.assign(new Error('Unsupported embedding identity. Rebuild the dense index.'), { code: 'ERR_EMBEDDING_IDENTITY_UNSUPPORTED' });
@@ -107,10 +108,10 @@ export function createEmbeddingResolver({
       modelProfile,
       modelArtifact
     }).then(value => {
-      if (!value) embeddingCache.delete(cacheKeyLocal);
+      if (!value && embeddingCache.get(cacheKeyLocal) === pending) embeddingCache.delete(cacheKeyLocal);
       return value;
     }).catch((error) => {
-      embeddingCache.delete(cacheKeyLocal);
+      if (embeddingCache.get(cacheKeyLocal) === pending) embeddingCache.delete(cacheKeyLocal);
       throw error;
     });
     setCacheEntry(cacheKeyLocal, pending);

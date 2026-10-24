@@ -7,6 +7,7 @@ import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
 import { performance } from 'node:perf_hooks';
 import { readBounded, hashFile, withinTrialRoot, inspectOnnx } from './eg2-qualify-graph.js';
+import { validateTrialInputContract, validatePairedTrialOutputs } from './eg2-paired-contract.js';
 import { qualifyRetrieval } from './eg2-qualify-quality.js';
 import { appendTrialReceipt, validateTrialIdentity } from './eg2-qualify.js';
 import { createPreparedTextEncoder } from '../../src/shared/embedding-prepared.js';
@@ -31,10 +32,7 @@ export function validateTrialSamples(samples, identity) {
     }
     if(baseline.size!==items.length)throw new Error('Baseline coverage differs from selected trial.');
   }
-  if(reference.identity.dimensions!==768||reference.identity.maxLength!==identity.maxLength
-    ||reference.identity.modelRevision!==identity.modelRevision||reference.identity.tokenizerSha256!==identity.tokenizerSha256
-    ||reference.identity.documentPrefix!==identity.documentPrefix||reference.identity.queryPrefix!==identity.queryPrefix)
-    throw new Error('Reference and candidate text/tokenizer/prompt contracts differ.');
+  validateTrialInputContract(reference.identity, identity);
   return samples;
 }
 
@@ -139,6 +137,7 @@ export async function runCpuTrial({trialRoot,manifestFile,loadTransformers=()=>i
       }
     }
     const paired={reference:samples.reference,candidate,k:samples.k??10,judgments:samples.judgments??{}};
+    validatePairedTrialOutputs(paired);
     receipt.quality=qualifyRetrieval(paired);
     await fs.writeFile(output,JSON.stringify(paired,null,2)+'\n',{flag:'wx'});
     receipt.outputsSha256=await hashFile(output);

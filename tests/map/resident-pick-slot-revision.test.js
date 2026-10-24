@@ -1,0 +1,21 @@
+import assert from 'node:assert/strict';
+import * as THREE from 'three';
+import { state } from '../../src/map/isometric/client/state.js';
+import { pickResidentScene, retirePicking } from '../../src/map/isometric/client/rendering/picking-owner.js';
+
+globalThis.window={devicePixelRatio:1};
+const geometry=new THREE.BoxGeometry(1,1,1),material=new THREE.MeshBasicMaterial(),mesh=new THREE.InstancedMesh(geometry,material,2);
+mesh.setMatrixAt(0,new THREE.Matrix4().makeTranslation(0,0,0));mesh.setMatrixAt(1,new THREE.Matrix4().makeTranslation(10,0,0));
+mesh.userData.instanceInfo=[{id:'opaque:old',file:'a.ts'},{id:0,file:'b.ts'}];
+Object.assign(state,{THREE,sourceIndex:{snapshot:{}},geometryRevision:1,cameraRevision:1,getViewport:()=>({width:1000,height:800})});
+const raycaster=new THREE.Raycaster(new THREE.Vector3(10,0,10),new THREE.Vector3(0,0,-1)),pointer={x:.5,y:0};
+const hit=pickResidentScene(raycaster,pointer,()=>[mesh])[0];assert.equal(hit.instanceId,1);assert.equal(hit.object.userData.instanceInfo[hit.instanceId].id,0);
+const oldIndex=state.pickIndex,stamp=state.pickFence.capture(pointer);
+mesh.setMatrixAt(1,new THREE.Matrix4().makeTranslation(20,0,0));mesh.userData.instanceInfo[1]={id:'opaque:new',file:'c.ts'};state.geometryRevision++;
+assert.equal(state.pickFence.accept(stamp,hit),null,'old slot result cannot become the new semantic member');
+raycaster.ray.origin.x=20;const moved=pickResidentScene(raycaster,pointer,()=>[mesh])[0];
+assert.notStrictEqual(state.pickIndex,oldIndex);assert.throws(()=>oldIndex.query(raycaster.ray),/retired/);
+assert.equal(moved.instanceId,1);assert.equal(moved.object.userData.instanceInfo[moved.instanceId].id,'opaque:new');
+assert.equal(state.pickMetrics.backend,'exact-cpu-instance');assert.ok(state.pickMetrics.exactInstanceTests>0);
+retirePicking();assert.equal(state.pickIndex,null);mesh.dispose();geometry.dispose();material.dispose();
+console.log('Adopted exact instance picking retires old slot indexes and preserves raw canonical selection metadata; hosts unqualified.');

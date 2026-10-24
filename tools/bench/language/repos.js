@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { hasChunkMetaArtifactsSync } from '../../../src/shared/artifact-io/chunk-meta-presence.js';
 import { runCommand } from '../../shared/cli-utils.js';
-import { getIndexDir, getRepoCacheRoot, loadUserConfig, resolveSqlitePaths } from '../../shared/dict-utils.js';
+import { getIndexDir, loadUserConfig, resolveSqlitePaths } from '../../shared/dict-utils.js';
+import { resolveRepoCacheRootPath } from '../../../src/shared/repo-paths.js';
 import { emitBenchLog } from './logging.js';
 import { readRepoSubmoduleMetadata, recoverRepoSubmodules } from './submodule-recovery.js';
 import {
@@ -847,7 +848,7 @@ export const resolveRepoDir = ({ reposRoot, repo, language }) => {
 };
 
 export const resolveRepoCacheRoot = ({ repoPath, cacheRoot }) => {
-  return getRepoCacheRoot(repoPath, { cache: { root: cacheRoot } });
+  return resolveRepoCacheRootPath(repoPath, { cache: { root: cacheRoot } });
 };
 
 /**

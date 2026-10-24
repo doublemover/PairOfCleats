@@ -12,6 +12,9 @@ const formatNodeRef = (ref) => {
 export const renderArchitectureReport = (report) => {
   const lines = [];
   lines.push('Architecture Report');
+  if (report?.summary) lines.push(`Evaluation: ${report.summary.complete ? 'complete' : 'incomplete'}; `
+    + `${report.summary.detectedViolations} detected, ${report.summary.retainedViolations} retained, `
+    + `${report.summary.omittedViolations} omitted; ${report.summary.edgesExamined} edges examined.`);
   const rules = Array.isArray(report?.rules) ? report.rules.slice() : [];
   rules.sort((a, b) => compareStrings(a?.id, b?.id) || compareStrings(a?.type, b?.type));
   lines.push('Rules:');

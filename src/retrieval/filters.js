@@ -1,4 +1,3 @@
-import { parseJson } from './query-cache.js';
 import { mergeFilterLists } from '../shared/filter/merge.js';
 const LANG_ALIAS_MAP = new Map([
   ['javascript', 'javascript'],
@@ -241,18 +240,15 @@ export function parseMetaFilters(metaArg, metaJsonArg) {
   };
   const metaEntries = Array.isArray(metaArg) ? metaArg : (metaArg ? [metaArg] : []);
   for (const entry of metaEntries) handleEntry(entry);
-  const metaJsonEntries = Array.isArray(metaJsonArg) ? metaJsonArg : (metaJsonArg ? [metaJsonArg] : []);
+  const metaJsonEntries = Array.isArray(metaJsonArg) ? metaJsonArg : (metaJsonArg != null ? [metaJsonArg] : []);
   for (const entry of metaJsonEntries) {
-    const parsed = parseJson(entry, null);
-    if (!parsed) continue;
-    if (Array.isArray(parsed)) {
-      parsed.forEach((item) => {
-        if (!item || typeof item !== 'object') return;
-        Object.entries(item).forEach(([key, value]) => pushFilter(key, value));
-      });
-    } else if (typeof parsed === 'object') {
-      Object.entries(parsed).forEach(([key, value]) => pushFilter(key, value));
+    let parsed;
+    try { parsed = typeof entry === 'string' ? JSON.parse(entry) : entry; }
+    catch (cause) { throw Object.assign(new Error('Invalid --meta-json: expected a JSON object.'), { code: 'INVALID_REQUEST', cause }); }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw Object.assign(new Error('Invalid --meta-json: expected a JSON object.'), { code: 'INVALID_REQUEST' });
     }
+    Object.entries(parsed).forEach(([key, value]) => pushFilter(key, value));
   }
   return filters.length ? filters : null;
 }

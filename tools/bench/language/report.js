@@ -1,4 +1,5 @@
 import fsPromises from 'node:fs/promises';
+import { createReportStreamContext, discoverReportStreams } from './report-streams.js';
 import path from 'node:path';
 import { log } from '../../../src/shared/progress-runtime.js';
 import { mergeReuseSummaries, summarizeReuseObservations } from '../../../src/shared/reuse-diagnostics.js';
@@ -117,23 +118,6 @@ const loadJsonFile = async (filePath) => {
   }
 };
 
-const forEachNonEmptyLine = (raw, onLine) => {
-  if (typeof raw !== 'string' || !raw) return;
-  if (typeof onLine !== 'function') return;
-  let start = 0;
-  const length = raw.length;
-  while (start <= length) {
-    let end = raw.indexOf('\n', start);
-    if (end === -1) end = length;
-    let line = raw.slice(start, end);
-    if (line.endsWith('\r')) line = line.slice(0, -1);
-    const trimmed = line.trim();
-    if (trimmed) onLine(trimmed);
-    if (end >= length) break;
-    start = end + 1;
-  }
-};
-
 const pushTopNOrdered = (rows, entry, limit, compare) => {
   if (!Array.isArray(rows) || typeof compare !== 'function') return;
   const cap = Number.isFinite(Number(limit)) ? Math.max(1, Math.floor(Number(limit))) : 1;
@@ -176,55 +160,11 @@ const mapWithConcurrency = async (values, worker, { concurrency = 8 } = {}) => {
   return out;
 };
 
-const resolveRunLogPrefix = (runSuffix) => {
-  const normalized = String(runSuffix || '').trim();
-  if (!normalized) return null;
-  return normalized.startsWith('run-')
-    ? `${normalized}-`
-    : `run-${normalized}-`;
-};
-
 const isMasterBenchStreamFile = (filePath) => /^run-.*-all\.[^.]+(?:\..+)?$/i.test(path.basename(String(filePath || '')));
 
 const resolveBenchStreamScope = (filePath) => {
   const name = path.basename(String(filePath || ''));
   return name.replace(/^run-.*?-/, '').replace(/\.[^.]+(?:\..+)?$/i, '') || name;
-};
-
-const filterCanonicalBenchStreamFiles = (files) => {
-  const list = Array.isArray(files) ? files.slice() : [];
-  return list;
-};
-
-const listBenchStreamFiles = async (resultsRoot, suffix, { runSuffix = null } = {}) => {
-  if (!resultsRoot) return [];
-  const root = path.join(resultsRoot, 'logs', 'bench-language');
-  const files = [];
-  const queue = [root];
-  const normalizedSuffix = String(suffix || '');
-  const runPrefix = resolveRunLogPrefix(runSuffix);
-  while (queue.length) {
-    const current = queue.pop();
-    let entries = [];
-    try {
-      entries = await fsPromises.readdir(current, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    for (const entry of entries) {
-      const resolved = path.join(current, entry.name);
-      if (entry.isDirectory()) {
-        queue.push(resolved);
-        continue;
-      }
-      if (!entry.isFile()) continue;
-      if (normalizedSuffix && !entry.name.endsWith(normalizedSuffix)) continue;
-      if (runPrefix && !entry.name.startsWith(runPrefix)) continue;
-      files.push(resolved);
-    }
-  }
-  return filterCanonicalBenchStreamFiles(files)
-    .sort((left, right) => left.localeCompare(right));
 };
 
 const buildSyntheticEventKey = (parts) => JSON.stringify(Array.isArray(parts) ? parts : []);
@@ -239,13 +179,6 @@ const sortMapObject = (map) => Object.fromEntries(
     .sort(([left], [right]) => String(left).localeCompare(String(right)))
 );
 
-const sumMapObjectValues = (map) => (
-  Array.from((map instanceof Map ? map : new Map()).values())
-    .map((value) => Number(value))
-    .filter(Number.isFinite)
-    .reduce((sum, value) => sum + value, 0)
-);
-
 const formatCompactDuration = (value) => {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric <= 0) return '0ms';
@@ -255,10 +188,6 @@ const formatCompactDuration = (value) => {
   const seconds = ((numeric % 60_000) / 1000).toFixed(1);
   return `${minutes}m ${seconds}s`;
 };
-
-const listDiagnosticsStreamFiles = async (resultsRoot, options = {}) => (
-  listBenchStreamFiles(resultsRoot, DIAGNOSTIC_STREAM_FILE_SUFFIX, options)
-);
 
 const parseDiagnosticEventLine = (line) => {
   const trimmed = String(line || '').trim();
@@ -439,8 +368,8 @@ const buildProgressConfidenceEventKey = (scope, event) => {
   ]);
 };
 
-const buildDiagnosticsStreamSummary = async (resultsRoot, options = {}) => {
-  const files = await listDiagnosticsStreamFiles(resultsRoot, options);
+const buildDiagnosticsStreamSummary = async (context) => {
+  const files = context.files(DIAGNOSTIC_STREAM_FILE_SUFFIX);
   const orderedFiles = files
     .slice()
     .sort((left, right) => Number(isMasterBenchStreamFile(left)) - Number(isMasterBenchStreamFile(right))
@@ -465,16 +394,10 @@ const buildDiagnosticsStreamSummary = async (resultsRoot, options = {}) => {
   let totalChunkCount = 0;
 
   for (const filePath of orderedFiles) {
-    let raw = '';
-    try {
-      raw = await fsPromises.readFile(filePath, 'utf8');
-    } catch {
-      continue;
-    }
     const fileCounts = new Map();
     const fileSeverityCounts = new Map();
     let fileEventCount = 0;
-    forEachNonEmptyLine(raw, (line) => {
+    await context.consume(filePath, (line) => {
       const parsed = parseDiagnosticEventLine(line);
       if (!parsed) {
         malformedLines += 1;
@@ -579,12 +502,7 @@ const buildDiagnosticsStreamSummary = async (resultsRoot, options = {}) => {
   };
 };
 
-const buildDiagnosticsParitySummary = async (resultsRoot, diagnosticsStream, options = {}) => {
-  const files = await listBenchStreamFiles(resultsRoot, LOG_FILE_SUFFIX, options);
-  const orderedFiles = files
-    .slice()
-    .sort((left, right) => Number(isMasterBenchStreamFile(left)) - Number(isMasterBenchStreamFile(right))
-      || left.localeCompare(right));
+const createDiagnosticsParityReducer = (diagnosticsStream) => {
   const parityTypes = new Set(BENCH_DIAGNOSTIC_PARITY_EVENT_TYPES);
   const materialTypes = new Set(BENCH_DIAGNOSTIC_MATERIAL_PARITY_EVENT_TYPES);
   const fallbackNegativePattern = /\b(?:no|without)\s+fallback\b|\bfallback\s+(?:disabled|off)\b/i;
@@ -595,139 +513,137 @@ const buildDiagnosticsParitySummary = async (resultsRoot, diagnosticsStream, opt
   const repoTypePresence = new Set();
   let rawEventCount = 0;
 
-  for (const filePath of orderedFiles) {
-    let raw = '';
-    try {
-      raw = await fsPromises.readFile(filePath, 'utf8');
-    } catch {
-      continue;
-    }
-    const classifier = createBenchDiagnosticClassifier();
-    forEachNonEmptyLine(raw, (line) => {
-      const scope = resolveBenchStreamScope(filePath);
-      const masterFile = isMasterBenchStreamFile(filePath);
-      const signals = classifier.classify({ line, source: 'log' })
-        .filter((signal) => parityTypes.has(signal?.eventType));
-      if (
-        parityTypes.has('fallback_used')
-        && /\bfallback\b/i.test(line)
-        && !parseBenchReuseObservation(line)
-        && !fallbackNegativePattern.test(line)
-      ) {
-        signals.push({
-          eventType: 'fallback_used',
-          message: line,
-          source: 'log'
-        });
-      }
-      for (const signal of signals) {
-        rawEventCount += 1;
-        const signature = buildBenchDiagnosticSignature({
-          eventType: signal.eventType,
-          stage: signal.stage || '',
-          taskId: signal.taskId || '',
-          source: signal.source || 'log',
-          providerId: signal.providerId || '',
-          workspacePartition: signal.workspacePartition || '',
-          requestMethod: signal.requestMethod || '',
-          failureClass: signal.failureClass || '',
-          preflightId: signal.preflightId || '',
-          preflightClass: signal.preflightClass || '',
-          preflightState: signal.preflightState || '',
-          reuseSurface: signal.reuseSurface || '',
-          reuseSource: signal.reuseSource || '',
-          qualityImpact: signal.qualityImpact || '',
-          message: normalizeBenchDiagnosticText(signal.message || '', { maxLength: 220 })
-        });
-        const eventId = buildBenchDiagnosticEventId({
-          eventType: signal.eventType,
-          signature
-        });
-        const scopedKey = buildSyntheticEventKey([
-          masterFile ? 'master' : scope,
-          eventId
-        ]);
-        if (masterFile && repoEventKeys.has(eventId)) continue;
-        if (uniqueEventKeys.has(scopedKey)) continue;
-        uniqueEventKeys.add(scopedKey);
-        if (!masterFile) repoEventKeys.add(eventId);
-        countsFromLogs.set(signal.eventType, (countsFromLogs.get(signal.eventType) || 0) + 1);
-        repoTypePresence.add(buildSyntheticEventKey([scope, signal.eventType]));
-      }
-    });
-  }
-  for (const presenceKey of repoTypePresence) {
-    const parsed = JSON.parse(String(presenceKey || '[]'));
-    const eventType = String(parsed?.[1] || '').trim();
-    if (!eventType) continue;
-    repoCountsFromLogs.set(eventType, (repoCountsFromLogs.get(eventType) || 0) + 1);
-  }
-
-  const streamCounts = diagnosticsStream?.countsByType && typeof diagnosticsStream.countsByType === 'object'
-    ? diagnosticsStream.countsByType
-    : {};
-  const streamRepoCounts = diagnosticsStream?.repoCountsByType && typeof diagnosticsStream.repoCountsByType === 'object'
-    ? diagnosticsStream.repoCountsByType
-    : {};
-  const mismatches = BENCH_DIAGNOSTIC_PARITY_EVENT_TYPES.map((eventType) => {
-    const logCount = countsFromLogs.get(eventType) || 0;
-    const streamCount = Number(streamCounts[eventType]) || 0;
-    return {
-      eventType,
-      aggregateLogCount: logCount,
-      diagnosticsStreamCount: streamCount,
-      delta: streamCount - logCount,
-      material: materialTypes.has(eventType)
-    };
-  }).filter((entry) => entry.aggregateLogCount !== entry.diagnosticsStreamCount);
-  const repoMismatches = BENCH_DIAGNOSTIC_PARITY_EVENT_TYPES.map((eventType) => {
-    const logCount = repoCountsFromLogs.get(eventType) || 0;
-    const streamCount = Number(streamRepoCounts[eventType]) || 0;
-    return {
-      eventType,
-      aggregateLogRepoCount: logCount,
-      diagnosticsStreamRepoCount: streamCount,
-      delta: streamCount - logCount,
-      material: materialTypes.has(eventType)
-    };
-  }).filter((entry) => entry.aggregateLogRepoCount !== entry.diagnosticsStreamRepoCount);
-
-  const materialMismatchCount = mismatches.filter((entry) => entry.material).length;
-  const materialRepoMismatchCount = repoMismatches.filter((entry) => entry.material).length;
-  const totalMaterialMismatchCount = materialMismatchCount + materialRepoMismatchCount;
-  const totalMismatchCount = mismatches.length + repoMismatches.length;
-
   return {
-    schemaVersion: 1,
-    trackedTypes: BENCH_DIAGNOSTIC_PARITY_EVENT_TYPES.slice(),
-    materialTypes: BENCH_DIAGNOSTIC_MATERIAL_PARITY_EVENT_TYPES.slice(),
-    countScopes: {
-      countsFromLogs: 'event_presence',
-      countsFromDiagnosticsStream: 'event_presence',
-      repoCountsFromLogs: 'repo_presence',
-      repoCountsFromDiagnosticsStream: 'repo_presence'
+    forFile(filePath) {
+      const classifier = createBenchDiagnosticClassifier();
+      return (line) => {
+        const scope = resolveBenchStreamScope(filePath);
+        const masterFile = isMasterBenchStreamFile(filePath);
+        const signals = classifier.classify({ line, source: 'log' })
+          .filter((signal) => parityTypes.has(signal?.eventType));
+        if (
+          parityTypes.has('fallback_used')
+          && /\bfallback\b/i.test(line)
+          && !parseBenchReuseObservation(line)
+          && !fallbackNegativePattern.test(line)
+        ) {
+          signals.push({
+            eventType: 'fallback_used',
+            message: line,
+            source: 'log'
+          });
+        }
+        for (const signal of signals) {
+          rawEventCount += 1;
+          const signature = buildBenchDiagnosticSignature({
+            eventType: signal.eventType,
+            stage: signal.stage || '',
+            taskId: signal.taskId || '',
+            source: signal.source || 'log',
+            providerId: signal.providerId || '',
+            workspacePartition: signal.workspacePartition || '',
+            requestMethod: signal.requestMethod || '',
+            failureClass: signal.failureClass || '',
+            preflightId: signal.preflightId || '',
+            preflightClass: signal.preflightClass || '',
+            preflightState: signal.preflightState || '',
+            reuseSurface: signal.reuseSurface || '',
+            reuseSource: signal.reuseSource || '',
+            qualityImpact: signal.qualityImpact || '',
+            message: normalizeBenchDiagnosticText(signal.message || '', { maxLength: 220 })
+          });
+          const eventId = buildBenchDiagnosticEventId({
+            eventType: signal.eventType,
+            signature
+          });
+          const scopedKey = buildSyntheticEventKey([
+            masterFile ? 'master' : scope,
+            eventId
+          ]);
+          if (masterFile && repoEventKeys.has(eventId)) continue;
+          if (uniqueEventKeys.has(scopedKey)) continue;
+          uniqueEventKeys.add(scopedKey);
+          if (!masterFile) repoEventKeys.add(eventId);
+          countsFromLogs.set(signal.eventType, (countsFromLogs.get(signal.eventType) || 0) + 1);
+          repoTypePresence.add(buildSyntheticEventKey([scope, signal.eventType]));
+        }
+      };
     },
-    rawAggregateLogEventCount: rawEventCount,
-    aggregateLogEventCount: uniqueEventKeys.size,
-    countsFromLogs: Object.fromEntries(
-      BENCH_DIAGNOSTIC_PARITY_EVENT_TYPES.map((eventType) => [eventType, countsFromLogs.get(eventType) || 0])
-    ),
-    countsFromDiagnosticsStream: Object.fromEntries(
-      BENCH_DIAGNOSTIC_PARITY_EVENT_TYPES.map((eventType) => [eventType, Number(streamCounts[eventType]) || 0])
-    ),
-    repoCountsFromLogs: Object.fromEntries(
-      BENCH_DIAGNOSTIC_PARITY_EVENT_TYPES.map((eventType) => [eventType, repoCountsFromLogs.get(eventType) || 0])
-    ),
-    repoCountsFromDiagnosticsStream: Object.fromEntries(
-      BENCH_DIAGNOSTIC_PARITY_EVENT_TYPES.map((eventType) => [eventType, Number(streamRepoCounts[eventType]) || 0])
-    ),
-    mismatchCount: totalMismatchCount,
-    materialMismatchCount: totalMaterialMismatchCount,
-    eventMismatchCount: mismatches.length,
-    repoMismatchCount: repoMismatches.length,
-    status: totalMaterialMismatchCount > 0 ? 'error' : (totalMismatchCount > 0 ? 'warn' : 'ok'),
-    mismatches,
-    repoMismatches
+    finalize() {
+      for (const presenceKey of repoTypePresence) {
+        const parsed = JSON.parse(String(presenceKey || '[]'));
+        const eventType = String(parsed?.[1] || '').trim();
+        if (!eventType) continue;
+        repoCountsFromLogs.set(eventType, (repoCountsFromLogs.get(eventType) || 0) + 1);
+      }
+    
+      const streamCounts = diagnosticsStream?.countsByType && typeof diagnosticsStream.countsByType === 'object'
+        ? diagnosticsStream.countsByType
+        : {};
+      const streamRepoCounts = diagnosticsStream?.repoCountsByType && typeof diagnosticsStream.repoCountsByType === 'object'
+        ? diagnosticsStream.repoCountsByType
+        : {};
+      const mismatches = BENCH_DIAGNOSTIC_PARITY_EVENT_TYPES.map((eventType) => {
+        const logCount = countsFromLogs.get(eventType) || 0;
+        const streamCount = Number(streamCounts[eventType]) || 0;
+        return {
+          eventType,
+          aggregateLogCount: logCount,
+          diagnosticsStreamCount: streamCount,
+          delta: streamCount - logCount,
+          material: materialTypes.has(eventType)
+        };
+      }).filter((entry) => entry.aggregateLogCount !== entry.diagnosticsStreamCount);
+      const repoMismatches = BENCH_DIAGNOSTIC_PARITY_EVENT_TYPES.map((eventType) => {
+        const logCount = repoCountsFromLogs.get(eventType) || 0;
+        const streamCount = Number(streamRepoCounts[eventType]) || 0;
+        return {
+          eventType,
+          aggregateLogRepoCount: logCount,
+          diagnosticsStreamRepoCount: streamCount,
+          delta: streamCount - logCount,
+          material: materialTypes.has(eventType)
+        };
+      }).filter((entry) => entry.aggregateLogRepoCount !== entry.diagnosticsStreamRepoCount);
+    
+      const materialMismatchCount = mismatches.filter((entry) => entry.material).length;
+      const materialRepoMismatchCount = repoMismatches.filter((entry) => entry.material).length;
+      const totalMaterialMismatchCount = materialMismatchCount + materialRepoMismatchCount;
+      const totalMismatchCount = mismatches.length + repoMismatches.length;
+    
+      return {
+        schemaVersion: 1,
+        trackedTypes: BENCH_DIAGNOSTIC_PARITY_EVENT_TYPES.slice(),
+        materialTypes: BENCH_DIAGNOSTIC_MATERIAL_PARITY_EVENT_TYPES.slice(),
+        countScopes: {
+          countsFromLogs: 'event_presence',
+          countsFromDiagnosticsStream: 'event_presence',
+          repoCountsFromLogs: 'repo_presence',
+          repoCountsFromDiagnosticsStream: 'repo_presence'
+        },
+        rawAggregateLogEventCount: rawEventCount,
+        aggregateLogEventCount: uniqueEventKeys.size,
+        countsFromLogs: Object.fromEntries(
+          BENCH_DIAGNOSTIC_PARITY_EVENT_TYPES.map((eventType) => [eventType, countsFromLogs.get(eventType) || 0])
+        ),
+        countsFromDiagnosticsStream: Object.fromEntries(
+          BENCH_DIAGNOSTIC_PARITY_EVENT_TYPES.map((eventType) => [eventType, Number(streamCounts[eventType]) || 0])
+        ),
+        repoCountsFromLogs: Object.fromEntries(
+          BENCH_DIAGNOSTIC_PARITY_EVENT_TYPES.map((eventType) => [eventType, repoCountsFromLogs.get(eventType) || 0])
+        ),
+        repoCountsFromDiagnosticsStream: Object.fromEntries(
+          BENCH_DIAGNOSTIC_PARITY_EVENT_TYPES.map((eventType) => [eventType, Number(streamRepoCounts[eventType]) || 0])
+        ),
+        mismatchCount: totalMismatchCount,
+        materialMismatchCount: totalMaterialMismatchCount,
+        eventMismatchCount: mismatches.length,
+        repoMismatchCount: repoMismatches.length,
+        status: totalMaterialMismatchCount > 0 ? 'error' : (totalMismatchCount > 0 ? 'warn' : 'ok'),
+        mismatches,
+        repoMismatches
+      };
+    }
   };
 };
 
@@ -744,66 +660,52 @@ const resolveTaskReuseSummary = (payload) => {
   return null;
 };
 
-const buildBenchReuseDiagnosticsSummary = async (tasks, resultsRoot, options = {}) => {
-  let taskReuseSummary = null;
+const resolveTaskReuseDiagnosticsSummary = (tasks) => {
+  let summary = null;
   for (const task of Array.isArray(tasks) ? tasks : []) {
     const reuse = resolveTaskReuseSummary(task?.payload || null);
-    if (!reuse) continue;
-    taskReuseSummary = mergeReuseSummaries(taskReuseSummary, reuse);
+    if (reuse) summary = mergeReuseSummaries(summary, reuse);
   }
-  if (taskReuseSummary?.observationCount > 0) return taskReuseSummary;
-  const files = await listBenchStreamFiles(resultsRoot, LOG_FILE_SUFFIX, options);
-  const observations = [];
-  for (const filePath of files) {
-    let raw = '';
-    try {
-      raw = await fsPromises.readFile(filePath, 'utf8');
-    } catch {
-      continue;
-    }
-    forEachNonEmptyLine(raw, (line) => {
-      const parsed = parseBenchReuseObservation(line);
-      if (!parsed) return;
-      observations.push(parsed);
+  return summary?.observationCount > 0 ? summary : null;
+};
+
+const buildReportStreamSummaries = async (tasks, resultsRoot, options) => {
+  const inventory = await discoverReportStreams(resultsRoot, options);
+  const context = createReportStreamContext(inventory, options);
+  const diagnosticsStream = await buildDiagnosticsStreamSummary(context);
+  const progressConfidence = await buildProgressConfidenceSummary(context);
+  const files = context.files(LOG_FILE_SUFFIX);
+  const parity = createDiagnosticsParityReducer(diagnosticsStream);
+  const preflight = createPreflightLogReducer(files);
+  const taskReuse = resolveTaskReuseDiagnosticsSummary(tasks);
+  const observationsByFile = new Map();
+  const ordered = files.slice().sort((left, right) => Number(isMasterBenchStreamFile(left))
+    - Number(isMasterBenchStreamFile(right)) || left.localeCompare(right));
+  for (const filePath of ordered) {
+    const consumeParity = parity.forFile(filePath);
+    const consumePreflight = preflight.forFile(filePath);
+    const observations = [];
+    await context.consume(filePath, (line) => {
+      consumeParity(line);
+      consumePreflight(line);
+      if (!taskReuse) {
+        const observation = parseBenchReuseObservation(line);
+        if (observation) observations.push(observation);
+      }
     });
+    if (!taskReuse) observationsByFile.set(filePath, observations);
   }
-  const countsByCause = new Map();
-  const countsBySurface = new Map();
-  const countsBySurfaceAndSource = new Map();
-  const countsByQualityImpact = new Map();
-  const scmSnapshotSources = new Map();
-  const providerResultSources = new Map();
-  let timeCostMs = 0;
-  let requestedCount = 0;
-  let reusedCount = 0;
-  let fetchedCount = 0;
-  let chunkCount = 0;
-
-  for (const entry of observations) {
-    if (entry.causeClass) bumpMapCount(countsByCause, entry.causeClass);
-    if (entry.reuseSurface) bumpMapCount(countsBySurface, entry.reuseSurface);
-    if (entry.reuseSurface && entry.reuseSource) {
-      bumpMapCount(countsBySurfaceAndSource, `${entry.reuseSurface}:${entry.reuseSource}`);
-    }
-    if (entry.qualityImpact) bumpMapCount(countsByQualityImpact, entry.qualityImpact);
-    if (entry.kind === 'scm_snapshot' && entry.reuseSource) {
-      bumpMapCount(scmSnapshotSources, entry.reuseSource);
-    }
-    if (entry.kind === 'provider_result' && entry.reuseSource) {
-      bumpMapCount(providerResultSources, entry.reuseSource);
-    }
-    timeCostMs += Number(entry.timeCostMs) || 0;
-    requestedCount += Number(entry.requestedCount) || 0;
-    reusedCount += Number(entry.reusedCount) || 0;
-    fetchedCount += Number(entry.fetchedCount) || 0;
-    chunkCount += Number(entry.chunkCount) || 0;
+  // Preserve legacy lexical-file observation order even though parity needs repo-before-master transport.
+  const observations = taskReuse ? [] : files.flatMap(file => observationsByFile.get(file) || []);
+  const streamRead = context.summary();
+  const diagnosticsParity = parity.finalize();
+  if (streamRead.incomplete) {
+    diagnosticsParity.inputIncomplete = true;
+    diagnosticsParity.status = 'error';
   }
-
-  return {
-    ...summarizeReuseObservations(observations),
-    schemaVersion: 1,
-    observations
-  };
+  return { diagnosticsStream, diagnosticsParity, progressConfidence, preflight: preflight.finalize(),
+    reuseDiagnostics: taskReuse || { ...summarizeReuseObservations(observations), schemaVersion: 1, observations },
+    streamRead };
 };
 
 const parseProgressConfidenceLine = (line) => {
@@ -957,12 +859,7 @@ const pushTopSlowPreflights = (rows, entry) => {
   );
 };
 
-const buildPreflightLogSummary = async (resultsRoot, options = {}) => {
-  const files = await listBenchStreamFiles(resultsRoot, LOG_FILE_SUFFIX, options);
-  const orderedFiles = files
-    .slice()
-    .sort((left, right) => Number(isMasterBenchStreamFile(left)) - Number(isMasterBenchStreamFile(right))
-      || left.localeCompare(right));
+const createPreflightLogReducer = (files) => {
   const countsByEvent = new Map();
   const countsByState = new Map();
   const countsByClass = new Map();
@@ -983,131 +880,128 @@ const buildPreflightLogSummary = async (resultsRoot, options = {}) => {
   const repoSummarySlowKeys = new Set();
   const uniqueSummaryKeys = new Set();
   const uniqueSummarySlowKeys = new Set();
-  for (const filePath of orderedFiles) {
-    let raw = '';
-    try {
-      raw = await fsPromises.readFile(filePath, 'utf8');
-    } catch {
-      continue;
-    }
-    forEachNonEmptyLine(raw, (line) => {
-      const masterFile = isMasterBenchStreamFile(filePath);
-      const scope = resolveBenchStreamScope(filePath);
-      const summary = parsePreflightSummaryLine(line);
-      if (summary) {
-        const rawSummaryKey = buildPreflightSummaryKey(null, summary);
-        if (masterFile && rawSummaryKey && repoSummaryKeys.has(rawSummaryKey)) {
-          return;
-        }
-        const summaryKey = buildPreflightSummaryKey(scope, summary);
-        if (!summaryKey || !uniqueSummaryKeys.has(summaryKey)) {
-          if (summaryKey) uniqueSummaryKeys.add(summaryKey);
-          if (!masterFile && rawSummaryKey) repoSummaryKeys.add(rawSummaryKey);
-          summaryLineCount += 1;
-          if (Number.isFinite(summary.queuePeak)) {
-            summaryMaxQueuePeak = Math.max(summaryMaxQueuePeak, summary.queuePeak);
-          }
-          if (summary.teardownTimedOut === true) summaryTeardownTimedOutCount += 1;
-          for (const [name, count] of Object.entries(summary.countsByClass || {})) {
-            summaryCountsByClass.set(name, (summaryCountsByClass.get(name) || 0) + count);
-          }
-          for (const [name, count] of Object.entries(summary.countsByState || {})) {
-            summaryCountsByState.set(name, (summaryCountsByState.get(name) || 0) + count);
-          }
-          for (const [name, count] of Object.entries(summary.countsByPolicy || {})) {
-            summaryCountsByPolicy.set(name, (summaryCountsByPolicy.get(name) || 0) + count);
-          }
-        }
-      }
-      const summarySlowEntries = parsePreflightSlowestLine(line);
-      for (const entry of summarySlowEntries) {
-        const rawSummarySlowKey = buildPreflightSlowestKey(null, entry);
-        if (masterFile && rawSummarySlowKey && repoSummarySlowKeys.has(rawSummarySlowKey)) continue;
-        const summarySlowKey = buildPreflightSlowestKey(scope, entry);
-        if (summarySlowKey && uniqueSummarySlowKeys.has(summarySlowKey)) continue;
-        if (summarySlowKey) uniqueSummarySlowKeys.add(summarySlowKey);
-        if (!masterFile && rawSummarySlowKey) repoSummarySlowKeys.add(rawSummarySlowKey);
-        pushTopSlowPreflights(summaryTopSlow, entry);
-      }
-      const event = parsePreflightLogLine(line);
-      if (!event) return;
-      rawEventCount += 1;
-      const rawKey = buildPreflightEventKey(event);
-      const scopedKey = buildSyntheticEventKey([
-        masterFile ? 'master' : scope,
-        rawKey
-      ]);
-      if (masterFile && rawKey && repoEventKeys.has(rawKey)) return;
-      if (scopedKey && uniqueEventKeys.has(scopedKey)) return;
-      if (scopedKey) uniqueEventKeys.add(scopedKey);
-      if (!masterFile && rawKey) repoEventKeys.add(rawKey);
-      countsByEvent.set(event.event, (countsByEvent.get(event.event) || 0) + 1);
-      countsByClass.set(event.preflightClass, (countsByClass.get(event.preflightClass) || 0) + 1);
-      if (event.state) {
-        countsByState.set(event.state, (countsByState.get(event.state) || 0) + 1);
-      }
-      if (event.timedOut) timeoutEvents += 1;
-      if (event.providerId) {
-        countsByProvider.set(event.providerId, (countsByProvider.get(event.providerId) || 0) + 1);
-      }
-      if (Number.isFinite(event.durationMs)) {
-        pushTopSlowPreflights(topSlow, {
-          providerId: event.providerId,
-          preflightId: event.preflightId,
-          preflightClass: event.preflightClass,
-          state: event.state || null,
-          event: event.event,
-          durationMs: event.durationMs
-        });
-      }
-    });
-  }
-
-  const topProviders = Array.from(countsByProvider.entries())
-    .map(([providerId, count]) => ({ providerId, count }))
-    .sort((left, right) => (
-      Number(right.count) - Number(left.count)
-    ) || String(left.providerId).localeCompare(String(right.providerId)))
-    .slice(0, 20);
-
   return {
-    schemaVersion: PREFLIGHT_LOG_SCHEMA_VERSION,
-    fileCount: files.length,
-    eventCount: uniqueEventKeys.size,
-    rawEventCount,
-    duplicateEventCount: Math.max(0, rawEventCount - uniqueEventKeys.size),
-    timeoutEvents,
-    countsByEvent: Object.fromEntries(
-      Array.from(countsByEvent.entries()).sort(([left], [right]) => left.localeCompare(right))
-    ),
-    countsByState: Object.fromEntries(
-      Array.from(countsByState.entries()).sort(([left], [right]) => left.localeCompare(right))
-    ),
-    countsByClass: Object.fromEntries(
-      Array.from(countsByClass.entries()).sort(([left], [right]) => left.localeCompare(right))
-    ),
-    topProviders,
-    topSlow,
-    summary: {
-      lineCount: summaryLineCount,
-      maxQueuePeak: summaryMaxQueuePeak,
-      teardownTimedOutCount: summaryTeardownTimedOutCount,
-      countsByClass: Object.fromEntries(
-        Array.from(summaryCountsByClass.entries()).sort(([left], [right]) => left.localeCompare(right))
-      ),
-      countsByState: Object.fromEntries(
-        Array.from(summaryCountsByState.entries()).sort(([left], [right]) => left.localeCompare(right))
-      ),
-      countsByPolicy: Object.fromEntries(
-        Array.from(summaryCountsByPolicy.entries()).sort(([left], [right]) => left.localeCompare(right))
-      ),
-      topSlow: summaryTopSlow
+    forFile(filePath) {
+      return (line) => {
+        const masterFile = isMasterBenchStreamFile(filePath);
+        const scope = resolveBenchStreamScope(filePath);
+        const summary = parsePreflightSummaryLine(line);
+        if (summary) {
+          const rawSummaryKey = buildPreflightSummaryKey(null, summary);
+          if (masterFile && rawSummaryKey && repoSummaryKeys.has(rawSummaryKey)) {
+            return;
+          }
+          const summaryKey = buildPreflightSummaryKey(scope, summary);
+          if (!summaryKey || !uniqueSummaryKeys.has(summaryKey)) {
+            if (summaryKey) uniqueSummaryKeys.add(summaryKey);
+            if (!masterFile && rawSummaryKey) repoSummaryKeys.add(rawSummaryKey);
+            summaryLineCount += 1;
+            if (Number.isFinite(summary.queuePeak)) {
+              summaryMaxQueuePeak = Math.max(summaryMaxQueuePeak, summary.queuePeak);
+            }
+            if (summary.teardownTimedOut === true) summaryTeardownTimedOutCount += 1;
+            for (const [name, count] of Object.entries(summary.countsByClass || {})) {
+              summaryCountsByClass.set(name, (summaryCountsByClass.get(name) || 0) + count);
+            }
+            for (const [name, count] of Object.entries(summary.countsByState || {})) {
+              summaryCountsByState.set(name, (summaryCountsByState.get(name) || 0) + count);
+            }
+            for (const [name, count] of Object.entries(summary.countsByPolicy || {})) {
+              summaryCountsByPolicy.set(name, (summaryCountsByPolicy.get(name) || 0) + count);
+            }
+          }
+        }
+        const summarySlowEntries = parsePreflightSlowestLine(line);
+        for (const entry of summarySlowEntries) {
+          const rawSummarySlowKey = buildPreflightSlowestKey(null, entry);
+          if (masterFile && rawSummarySlowKey && repoSummarySlowKeys.has(rawSummarySlowKey)) continue;
+          const summarySlowKey = buildPreflightSlowestKey(scope, entry);
+          if (summarySlowKey && uniqueSummarySlowKeys.has(summarySlowKey)) continue;
+          if (summarySlowKey) uniqueSummarySlowKeys.add(summarySlowKey);
+          if (!masterFile && rawSummarySlowKey) repoSummarySlowKeys.add(rawSummarySlowKey);
+          pushTopSlowPreflights(summaryTopSlow, entry);
+        }
+        const event = parsePreflightLogLine(line);
+        if (!event) return;
+        rawEventCount += 1;
+        const rawKey = buildPreflightEventKey(event);
+        const scopedKey = buildSyntheticEventKey([
+          masterFile ? 'master' : scope,
+          rawKey
+        ]);
+        if (masterFile && rawKey && repoEventKeys.has(rawKey)) return;
+        if (scopedKey && uniqueEventKeys.has(scopedKey)) return;
+        if (scopedKey) uniqueEventKeys.add(scopedKey);
+        if (!masterFile && rawKey) repoEventKeys.add(rawKey);
+        countsByEvent.set(event.event, (countsByEvent.get(event.event) || 0) + 1);
+        countsByClass.set(event.preflightClass, (countsByClass.get(event.preflightClass) || 0) + 1);
+        if (event.state) {
+          countsByState.set(event.state, (countsByState.get(event.state) || 0) + 1);
+        }
+        if (event.timedOut) timeoutEvents += 1;
+        if (event.providerId) {
+          countsByProvider.set(event.providerId, (countsByProvider.get(event.providerId) || 0) + 1);
+        }
+        if (Number.isFinite(event.durationMs)) {
+          pushTopSlowPreflights(topSlow, {
+            providerId: event.providerId,
+            preflightId: event.preflightId,
+            preflightClass: event.preflightClass,
+            state: event.state || null,
+            event: event.event,
+            durationMs: event.durationMs
+          });
+        }
+      };
+    },
+    finalize() {
+      const topProviders = Array.from(countsByProvider.entries())
+        .map(([providerId, count]) => ({ providerId, count }))
+        .sort((left, right) => (
+          Number(right.count) - Number(left.count)
+        ) || String(left.providerId).localeCompare(String(right.providerId)))
+        .slice(0, 20);
+    
+      return {
+        schemaVersion: PREFLIGHT_LOG_SCHEMA_VERSION,
+        fileCount: files.length,
+        eventCount: uniqueEventKeys.size,
+        rawEventCount,
+        duplicateEventCount: Math.max(0, rawEventCount - uniqueEventKeys.size),
+        timeoutEvents,
+        countsByEvent: Object.fromEntries(
+          Array.from(countsByEvent.entries()).sort(([left], [right]) => left.localeCompare(right))
+        ),
+        countsByState: Object.fromEntries(
+          Array.from(countsByState.entries()).sort(([left], [right]) => left.localeCompare(right))
+        ),
+        countsByClass: Object.fromEntries(
+          Array.from(countsByClass.entries()).sort(([left], [right]) => left.localeCompare(right))
+        ),
+        topProviders,
+        topSlow,
+        summary: {
+          lineCount: summaryLineCount,
+          maxQueuePeak: summaryMaxQueuePeak,
+          teardownTimedOutCount: summaryTeardownTimedOutCount,
+          countsByClass: Object.fromEntries(
+            Array.from(summaryCountsByClass.entries()).sort(([left], [right]) => left.localeCompare(right))
+          ),
+          countsByState: Object.fromEntries(
+            Array.from(summaryCountsByState.entries()).sort(([left], [right]) => left.localeCompare(right))
+          ),
+          countsByPolicy: Object.fromEntries(
+            Array.from(summaryCountsByPolicy.entries()).sort(([left], [right]) => left.localeCompare(right))
+          ),
+          topSlow: summaryTopSlow
+        }
+      };
     }
   };
 };
 
-const buildProgressConfidenceSummary = async (resultsRoot, options = {}) => {
-  const files = await listBenchStreamFiles(resultsRoot, PROGRESS_CONFIDENCE_STREAM_FILE_SUFFIX, options);
+const buildProgressConfidenceSummary = async (context) => {
+  const files = context.files(PROGRESS_CONFIDENCE_STREAM_FILE_SUFFIX);
   const orderedFiles = files
     .slice()
     .sort((left, right) => Number(isMasterBenchStreamFile(left)) - Number(isMasterBenchStreamFile(right))
@@ -1125,18 +1019,12 @@ const buildProgressConfidenceSummary = async (resultsRoot, options = {}) => {
   const uniqueEventKeys = new Set();
 
   for (const filePath of orderedFiles) {
-    let raw = '';
-    try {
-      raw = await fsPromises.readFile(filePath, 'utf8');
-    } catch {
-      continue;
-    }
     const fileBucketCounts = new Map();
     let fileScoreSum = 0;
     let fileScoreCount = 0;
     let fileMinScore = Number.POSITIVE_INFINITY;
     let fileEventCount = 0;
-    forEachNonEmptyLine(raw, (line) => {
+    await context.consume(filePath, (line) => {
       const parsed = parseProgressConfidenceLine(line);
       if (!parsed) {
         malformedLines += 1;
@@ -1903,12 +1791,8 @@ export const buildReportOutput = async ({
   }
   const overallSummary = summarizeResults(tasks, { metricTags, methodology });
   const crashRetention = buildCrashRetentionSummary(tasks);
-  const streamOptions = { runSuffix };
-  const diagnosticsStream = await buildDiagnosticsStreamSummary(resultsRoot, streamOptions);
-  const diagnosticsParity = await buildDiagnosticsParitySummary(resultsRoot, diagnosticsStream, streamOptions);
-  const reuseDiagnostics = await buildBenchReuseDiagnosticsSummary(tasks, resultsRoot, streamOptions);
-  const progressConfidence = await buildProgressConfidenceSummary(resultsRoot, streamOptions);
-  const preflight = await buildPreflightLogSummary(resultsRoot, streamOptions);
+  const { diagnosticsStream, diagnosticsParity, reuseDiagnostics, progressConfidence, preflight, streamRead }
+    = await buildReportStreamSummaries(tasks, resultsRoot, { runSuffix });
   const throughputLedger = buildThroughputLedgerSummary(tasks);
   const stageTimingTasks = tasks
     .filter((entry) => entry?.stageTimingProfile)
@@ -1986,6 +1870,7 @@ export const buildReportOutput = async ({
     run: verdict.run,
     diagnostics: {
       crashRetention,
+      streamRead,
       stream: diagnosticsStream,
       parity: diagnosticsParity,
       reuse: reuseDiagnostics,

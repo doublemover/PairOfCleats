@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
 import path from 'node:path';
 import { writeJsonObjectFile } from '../../src/shared/json-stream/json-writers.js';
 import { assembleCompositeContextPack, classifyRiskLoadFailure } from '../../src/context-pack/assemble.js';
@@ -28,6 +30,7 @@ const baseStats = {
   mode: 'code',
   status: 'ok',
   reason: null,
+  inputCoverage: { status: 'complete' },
   effectiveConfig: { enabled: true, summaryOnly: false, emitArtifacts: 'jsonl' },
   counts: { flowsEmitted: 1, summariesEmitted: 1, uniqueCallSitesReferenced: 0 },
   callSiteSampling: { strategy: 'firstN', maxCallSitesPerEdge: 0, order: 'deterministic' },
@@ -206,4 +209,61 @@ assert.doesNotThrow(() => assembleCompositeContextPack({
   indexCompatKey: 'compat-strict'
 }));
 
+const assembleAt = (indexDir, riskStrict = false) => assembleCompositeContextPack({
+  seed: { type: 'chunk', chunkUid: 'chunk-primary' }, chunkMeta, repoRoot, indexDir,
+  includeGraph: false, includeTypes: false, includeRisk: true, riskStrict,
+  includeImports: false, includeUsages: false, includeCallersCallees: false,
+  now: fixedNow, indexCompatKey: 'compat-strict'
+});
+for (const [name, inputCoverage, droppedRecords] of [
+  ['unknown-input', undefined, []],
+  ['partial-input', { status: 'partial' }, []],
+  ['dropped-input', { status: 'complete' }, [{ artifact: 'risk_flows', count: 1 }]]
+]) {
+  const pack = await buildPack({ name, stats: { ...baseStats, inputCoverage, droppedRecords },
+    summaries: [summaryRow], flows: [normalFlow] });
+  assert.equal(pack.risk.analysisStatus.code, 'capped', name);
+  assertStrictFail(path.join(tempRoot, name, 'index-code'));
+}
+for (const missing of ['stats', 'summaries']) {
+  const name = `missing-${missing}`;
+  const pack = await buildPack({ name, stats: missing === 'stats' ? null : baseStats,
+    summaries: missing === 'summaries' ? null : [summaryRow], flows: [normalFlow] });
+  assert.equal(pack.risk.analysisStatus.artifactStatus[missing], 'missing');
+  assert.equal(pack.risk.analysisStatus.code, 'missing', `independently missing required ${missing}`);
+  assert.equal(pack.risk.analysisStatus.strictFailure, true);
+  assert.equal(pack.risk.degraded, true);
+  assertStrictFail(path.join(tempRoot, name, 'index-code'));
+}
+for (const family of ['stats', 'summaries']) {
+  for (const [code, expected] of [['EACCES', 'degraded'], ['EIO', 'degraded'], ['ETIMEDOUT', 'timed_out'], ['ERR_ARTIFACT_INVALID', 'schema_invalid']]) {
+    const name = `failed-${family}-${code}`;
+    await buildPack({ name, stats: baseStats, summaries: [summaryRow], flows: [normalFlow] });
+    const indexDir = path.join(tempRoot, name, 'index-code');
+    const target = path.resolve(indexDir, family === 'stats' ? 'risk_interprocedural_stats.json' : 'risk_summaries.jsonl');
+    const originals = new Map(['openSync', 'readFileSync'].map(method => [method, fsSync[method]]));
+    let failures = 0;
+    try {
+      for (const [method, original] of originals) fsSync[method] = function(file, ...args) {
+        if (typeof file === 'string' && path.resolve(file) === target) {
+          failures += 1;
+          throw Object.assign(new Error('controlled required artifact failure'), { code });
+        }
+        return original.call(this, file, ...args);
+      };
+      syncBuiltinESMExports();
+      const pack = assembleAt(indexDir);
+      assert.equal(pack.risk.analysisStatus.artifactStatus[family], 'load_failed');
+      assert.equal(pack.risk.analysisStatus.code, expected);
+      assert.equal(pack.risk.analysisStatus.strictFailure, true);
+      assert.equal(pack.risk.degraded, true);
+      assert.ok(pack.warnings.some(warning => warning.code.startsWith(`RISK_${family.toUpperCase()}_`)));
+      assertStrictFail(indexDir);
+      assert.ok(failures >= 2, 'both non-strict and strict requests reach the real artifact read boundary');
+    } finally {
+      for (const [method, original] of originals) fsSync[method] = original;
+      syncBuiltinESMExports();
+    }
+  }
+}
 console.log('context pack risk strict status test passed');

@@ -2,6 +2,7 @@ import { rankLanceDb } from '../../lancedb.js';
 import { ANN_PROVIDER_IDS } from '../types.js';
 import { canRunAnnQuery, isAnnProviderAvailable } from '../utils.js';
 
+/** @returns {import('../types.js').AnnProvider} */
 export function createLanceDbAnnProvider({
   lancedbConfig,
   lanceAnnState,
@@ -19,6 +20,8 @@ export function createLanceDbAnnProvider({
 
   return {
     id: ANN_PROVIDER_IDS.LANCEDB,
+    capabilities: Object.freeze({ predicate: 'partitioned-candidate-id-pushdown', exhaustiveStored: false,
+      progressiveEffort: true, cancellation: 'between-native-partitions-and-materialized-row-groups', scoreSpace: 'metadata-declared-distance' }),
     isAvailable: ({ idx, mode, embedding }) => isAnnProviderAvailable({
       embedding,
       enabled: isEnabled,
@@ -40,7 +43,8 @@ export function createLanceDbAnnProvider({
         queryEmbedding: embedding,
         topN: resolvedTopN,
         candidateSet,
-        config: lancedbConfig
+        config: lancedbConfig,
+        signal
       });
       if (signal?.aborted) return [];
       if (hits.length && lanceAnnUsed && mode in lanceAnnUsed) {

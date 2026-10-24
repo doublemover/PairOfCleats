@@ -26,6 +26,7 @@ const resolveLedgerStageKey = (ledger, stage, mode) => {
   const modeKey = stageKey && mode ? `${stageKey}:${mode}` : null;
   if (modeKey && ledger.stages[modeKey]) return modeKey;
   if (stageKey && ledger.stages[stageKey]) return stageKey;
+  if (stageKey) return null;
   if (mode) {
     const match = Object.keys(ledger.stages).find((key) => key.endsWith(`:${mode}`));
     if (match) return match;

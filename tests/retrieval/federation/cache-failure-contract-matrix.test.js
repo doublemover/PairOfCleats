@@ -310,7 +310,7 @@ const cases = [
           limits: { concurrency: 1 }
         }, { searchFn });
 
-        assert.equal(searchCalls, 4);
+        assert.equal(searchCalls, 3, 'aborted admission never starts repo-b; the next healthy request searches both');
         assert.equal(successful.code.length, 2);
       });
     }

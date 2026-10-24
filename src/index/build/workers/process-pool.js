@@ -6,18 +6,53 @@ import { fileURLToPath } from 'node:url';
 import { createAbortError } from '../../../shared/abort.js';
 import { killChildProcessTree } from '../../../shared/kill-tree.js';
 import { estimateRetainedBytes, readEffectiveMemory } from '../../../shared/effective-memory.js';
+import { FILE_ANALYSIS_MAX_OUTPUT_BYTES } from './file-analysis-contract.js';
+import { currentSchedulerTaskLease } from '../../../shared/concurrency/scheduler-task-scope.js';
 
 const MB = 1024 * 1024;
 const accounts = new WeakMap();
 const budgetError = message => Object.assign(new Error(message), { code: 'ERR_PROCESS_TASK_BUDGET' });
+const budgetBytes = (value, { positive = false, round = Math.ceil } = {}) => {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value < 0 || (positive && value <= 0)
+    || !Number.isSafeInteger(round(value))) throw budgetError('Process memory bytes must be finite safe nonnegative counts.');
+  return round(value);
+};
+const positiveOption = (value, name, minimum = 1) => {
+  if (!Number.isSafeInteger(value) || value < minimum) throw budgetError(`Process ${name} must be a safe integer >= ${minimum}.`);
+  return value;
+};
+const ownTerminatingTaskError = (task, original) => {
+  let error = original;
+  try {
+    if (!error || !Object.isExtensible(error) || ['workerOwnershipPending', 'workerOwnershipReleased', 'workerSettlement']
+      .some(key => key in error)) throw new Error('Requires original-owner wrapper.');
+    Object.defineProperties(error, {
+      workerOwnershipPending: { get: () => !task.released },
+      workerOwnershipReleased: { value: () => task.released === true },
+      workerSettlement: { value: task.ownershipSettlement }
+    });
+    return error;
+  } catch {
+    error = Object.assign(new AggregateError([original], 'Task process termination remains owned.', { cause: original }), {
+      code: 'ERR_WORKER_POOL_CLEANUP_UNCONFIRMED'
+    });
+    Object.defineProperties(error, {
+      workerOwnershipPending: { get: () => !task.released },
+      workerOwnershipReleased: { value: () => task.released === true },
+      workerSettlement: { value: task.ownershipSettlement }
+    });
+    return error;
+  }
+};
 
 export const createProcessMemoryAccount = (limitBytes) => {
   let reservedBytes = 0, peakReservedBytes = 0;
-  const limit = Math.max(1, Math.floor(limitBytes));
+  const limit = Math.max(1, budgetBytes(limitBytes, { positive: true, round: Math.floor }));
   return {
     reserve(bytes) {
-      const amount = Math.max(0, Math.ceil(bytes));
-      if (reservedBytes + amount + process.memoryUsage().rss > limit) throw budgetError('Aggregate process/IPC memory budget exceeded.');
+      const amount = budgetBytes(bytes);
+      const rss = budgetBytes(process.memoryUsage().rss);
+      if (!Number.isSafeInteger(reservedBytes + amount) || reservedBytes + amount + rss > limit) throw budgetError('Aggregate process/IPC memory budget exceeded.');
       reservedBytes += amount; peakReservedBytes = Math.max(peakReservedBytes, reservedBytes);
       let released = false;
       return () => { if (!released) { released = true; reservedBytes -= amount; } };
@@ -43,14 +78,14 @@ export class IndexerProcessPool extends EventEmitter {
     super();
     this.options = { maxThreads, backend: 'process', oldSpaceMb };
     this.backend = 'process';
-    this.maxThreads = Math.max(1, Math.floor(maxThreads));
-    this.oldSpaceMb = Math.max(1, Math.floor(oldSpaceMb));
+    this.maxThreads = positiveOption(maxThreads, 'maxThreads');
+    this.oldSpaceMb = positiveOption(oldSpaceMb, 'oldSpaceMb');
     this.generation = randomUUID();
     this.workerData = workerData;
     this.filename = filename;
-    this.timeoutMs = Math.max(1, Math.floor(taskTimeout));
-    this.maxMessageBytes = Math.max(4096, Math.floor(maxMessageBytes));
-    this.maxRestartAttempts = maxRestartAttempts;
+    this.timeoutMs = positiveOption(taskTimeout, 'taskTimeout');
+    this.maxMessageBytes = positiveOption(maxMessageBytes, 'maxMessageBytes', 4096);
+    this.maxRestartAttempts = positiveOption(maxRestartAttempts, 'maxRestartAttempts', 0);
     this.account = budgetAccount;
     this.pending = [];
     this.children = new Set();
@@ -87,10 +122,14 @@ export class IndexerProcessPool extends EventEmitter {
   run(payload, { name, signal = null } = {}) {
     if (this.closed) return Promise.reject(createAbortError('Process pool is closed.'));
     if (signal?.aborted) return Promise.reject(createAbortError());
+    const schedulerLease = currentSchedulerTaskLease();
+    if (schedulerLease && (!schedulerLease.active || !(schedulerLease.used.cpu > 0))) return Promise.reject(Object.assign(
+      new Error('Process worker dispatch requires an active scheduler CPU permit.'), { code: 'ERR_SCHEDULER_COMPUTE_NOT_ADMITTED' }));
     let release, buffer, outputLimit, reservationBytes;
     try {
       const retained = estimateRetainedBytes(payload);
-      outputLimit = Math.min(this.maxMessageBytes, Math.max(4096, retained * 16));
+      outputLimit = Math.min(this.maxMessageBytes, name === 'analyzeFile'
+        ? FILE_ANALYSIS_MAX_OUTPUT_BYTES + 4096 : Math.max(4096, retained * 16));
       reservationBytes = retained * 3 + outputLimit * 2;
       release = this.account.reserve(reservationBytes);
       buffer = serialize(payload);
@@ -101,6 +140,10 @@ export class IndexerProcessPool extends EventEmitter {
     return new Promise((resolve, reject) => {
       const task = { id: `${this.generation}:${++this.nextTask}`, name, buffer, outputLimit,
         reservationBytes, release, resolve, reject, signal, settled: false, slot: null, timer: null };
+      task.ownershipSettlement = new Promise(finish => { task.finishOwnership = finish; });
+      // A caller timeout/race does not retire actual child execution. Keep the
+      // original scheduler CPU/bytes until the result or child close settles it.
+      schedulerLease?.trackWait?.(() => task.ownershipSettlement, { retainCpu: true }).catch(() => {});
       task.abort = () => {
         const slot = task.slot;
         if (slot) { slot.stopping = true; slot.ready = false; }
@@ -110,11 +153,11 @@ export class IndexerProcessPool extends EventEmitter {
       signal?.addEventListener('abort', task.abort, { once: true });
       if (signal?.aborted) { task.abort(); return; }
       this.pending.push(task);
-      try { this.pump(); } catch (error) { this.settle(task, error); }
+      try { this.pump(); } catch (error) { this.settle(task, error, null, true); }
     });
   }
 
-  settle(task, error = null, value = null) {
+  settle(task, error, value = null, failed = error !== null) {
     if (task.settled) return;
     task.settled = true;
     clearTimeout(task.timer);
@@ -124,7 +167,8 @@ export class IndexerProcessPool extends EventEmitter {
     // Reject the caller promptly, but a terminating child still owns its input
     // and IPC allowance until close confirms that storage has been released.
     if (!task.slot?.stopping) this.releaseTask(task);
-    if (error) { this.metrics.failed++; task.reject(error); }
+    else if (failed) error = ownTerminatingTaskError(task, error);
+    if (failed) { this.metrics.failed++; task.reject(error); }
     else { this.metrics.completed++; task.resolve(value); }
   }
 
@@ -136,6 +180,7 @@ export class IndexerProcessPool extends EventEmitter {
     task.buffer = null;
     task.release();
     this.metrics.ipcReservedBytes -= task.reservationBytes;
+    task.finishOwnership();
   }
 
   reportError(error) { if (this.listenerCount('error')) this.emit('error', error); }
@@ -166,6 +211,7 @@ export class IndexerProcessPool extends EventEmitter {
     child.once('close', (code, signal) => {
       clearTimeout(slot.initializing);
       this.children.delete(slot);
+      this.metrics.sampledChildRssBytes = [...this.children].reduce((sum, entry) => sum + entry.rss, 0);
       if (slot.task) {
         const task = slot.task;
         this.settle(task, Object.assign(new Error(`Task process exited (${code ?? signal}).`), { code: 'ERR_PROCESS_TASK_EXIT' }));
@@ -206,7 +252,7 @@ export class IndexerProcessPool extends EventEmitter {
       this.emit('message', { type: 'worker-runtime', threadId: slot.child.pid, observation });
       this.pump(); return;
     }
-    if (message.type === 'worker-task' || message.type === 'worker-crash') {
+    if (message.type === 'worker-task' || message.type === 'worker-task-start' || message.type === 'worker-crash') {
       this.emit('message', { ...message, threadId: slot.child.pid }); return;
     }
     if (message.type !== 'result' || !slot.task || message.taskId !== slot.task.id) {
@@ -218,7 +264,15 @@ export class IndexerProcessPool extends EventEmitter {
     this.metrics.peakSampledChildRssBytes = Math.max(this.metrics.peakSampledChildRssBytes, this.metrics.sampledChildRssBytes);
     try {
       if (this.metrics.sampledChildRssBytes + process.memoryUsage().rss > this.account.stats().limitBytes) throw budgetError('Observed process-tree RSS exceeds the aggregate budget.');
-      if (message.error) throw Object.assign(new Error(message.error.message), { code: message.error.code });
+      if (Object.hasOwn(message, 'error')) {
+        const remote = message.error;
+        if (!remote || typeof remote.message !== 'string' || remote.message.length > 2048
+          || (remote.code != null && (typeof remote.code !== 'string' || remote.code.length > 128))
+          || (remote.name != null && (typeof remote.name !== 'string' || remote.name.length > 128))) {
+          throw Object.assign(new Error('Task process returned an invalid error envelope.'), { code: 'ERR_PROCESS_TASK_PROTOCOL' });
+        }
+        throw Object.assign(new Error(remote.message), { code: remote.code || 'ERR_PROCESS_TASK', name: remote.name || 'Error' });
+      }
       if (!Buffer.isBuffer(message.payload) || message.payload.length > task.outputLimit) throw budgetError('Task output exceeds its reserved IPC allowance.');
       this.settle(task, null, deserialize(message.payload));
     } catch (error) { this.settle(task, error); }
@@ -227,8 +281,13 @@ export class IndexerProcessPool extends EventEmitter {
 
   pump() {
     if (this.closed) return;
-    while (this.pending.length && this.children.size < this.maxThreads) this.start();
-    if (this.pending.length > 1 && [...this.children].some(slot => !slot.ready && !slot.stopping)) return;
+    // Initializing children already satisfy pending demand; busy/stopping
+    // children do not. Independently ready children remain eligible below.
+    let available = [...this.children].filter(slot => !slot.stopping && !slot.task).length;
+    while (available < this.pending.length && this.children.size < this.maxThreads) {
+      this.start();
+      available += 1;
+    }
     for (const slot of this.children) {
       if (!slot.ready || slot.stopping || slot.task || !this.pending.length) continue;
       const task = this.pending.shift();
@@ -258,7 +317,8 @@ export class IndexerProcessPool extends EventEmitter {
         })]);
       } finally { clearTimeout(timer); }
     })();
-    return slot.stoppingPromise;
+    try { return await slot.stoppingPromise; }
+    catch (error) { slot.stoppingPromise = null; throw error; }
   }
 
   destroy() {
@@ -269,10 +329,15 @@ export class IndexerProcessPool extends EventEmitter {
         slot.stopping = true; slot.ready = false;
         if (slot.task) this.settle(slot.task, createAbortError('Process pool destroyed.'));
       }
-      this.destroying = Promise.all([...this.children].map(slot => this.stop(slot))).then(() => {
+      this.destroying = Promise.allSettled([...this.children].map(slot => this.stop(slot))).then(results => {
+        const failures = results.filter(result => result.status === 'rejected').map(result => result.reason);
+        if (failures.length) throw new AggregateError(failures, 'Process pool termination remains unconfirmed; cleanup can be retried.');
         this.initialization = null; this.workerData = null;
         this.metrics.sampledChildRssBytes = 0;
-        this.releaseCapacity();
+        if (!this.capacityReleased) { this.capacityReleased = true; this.releaseCapacity(); }
+      }).catch(error => {
+        this.destroying = null;
+        throw error;
       });
     }
     return this.destroying;

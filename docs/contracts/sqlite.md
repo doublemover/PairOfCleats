@@ -5,6 +5,7 @@
 - Required tables include `chunks`, `chunks_fts`, `token_vocab`, `token_postings`, `doc_lengths`, `token_stats`, `phrase_vocab`, `phrase_postings`, `chargram_vocab`, `chargram_postings`, `minhash_signatures`, `dense_vectors`, `dense_meta`, and `file_manifest`.
 - Schema versioning uses `PRAGMA user_version` and must match `SCHEMA_VERSION`.
 - On schema mismatch, SQLite readers fail closed and prompt a rebuild.
+- Schema 16 requires `minhash_meta.hash_identity` for every mode with signatures; `sampling` is nullable for full-width rows. Readers and incremental updates reject unidentified or superseded hashes, including unchanged warm updates. A full rebuild recreates the signatures and identity together.
 - `chunks.metaV2_json` stores the canonical `metaV2` object for parity with JSONL. Retrieval must parse it and fail closed if missing/invalid.
 - Compatibility keys include the SQLite schema version; schema bumps are treated as hard breaks requiring rebuilds.
 
@@ -12,6 +13,31 @@
 - Incremental builds reuse manifests and remove deleted file rows.
 - Dense vectors and ANN rows must stay in sync with chunk counts.
 - If a schema bump occurs, rebuild SQLite indexes; incremental updates do not attempt migrations.
+
+## Selected roots and empty sources
+
+Default all-mode builds resolve each published mode independently. If code and
+prose point at different retained builds, each mode reads its own source root,
+writes its own SQLite target and records progress/checkpoints in that root. An
+explicit `--index-root` selects one root for every requested mode. A missing
+mode authority fails planning before any database is changed; a later mode may
+not replace an earlier mode's configured shared output database.
+
+An empty source can waive the database requirement only through a verified
+zero-state marker. The marker binds mode, output path, index directory, build
+identity, artifact surface version and checksums of the selected empty source
+artifacts. Mere marker existence, a malformed marker or stale source bytes never
+prove emptiness. Updating mutable index-state progress does not invalidate an
+otherwise unchanged source proof.
+
+## Replacement and recovery
+
+SQLite replacement preserves the committed database and committed WAL until the
+new database has been validated and promoted. Recovery settles retained backups
+before admitting a new replacement attempt. Failures reading a fingerprint other
+than genuine absence remain failures; permission/IO errors cannot establish that
+there is no prior authority. Incremental dense replacement stages its ANN table
+and validates/backfills it before replacing the prior table in the transaction.
 
 ## ANN extension
 - Vector extension usage is optional and configuration-driven.
@@ -25,4 +51,4 @@
 
 Schema 14 retains the complete ordered phrase token stream in chunks.phrase_tokens, independently of sampled/stemmed scoring tokens. Older schema stores require rebuilding. Missing literal evidence cannot satisfy quoted requirements or exclusions.
 
-Optional FTS variants are selected at build time through `buildSqliteIndex({ftsVariants: ['trigram', 'porter']})` (or the corresponding lower-level builders). They are absent by default. Existing `search.sqliteFtsStemming` configuration builds the Porter table for prose modes; code mode retains unstemmed identifier retrieval. Porter excludes file/name/signature/kind from its index. Changing the selected variants requires a full SQLite rebuild. Full builds, incremental insert/delete and compaction maintain the selected tables. Searches target the actual selected table and report missing optional tables rather than claiming that unicode61 is Porter/trigram. Native term eligibility precedes top-N; literal phrase evidence remains an exact postcondition. Allowlist sizes above the SQLite parameter threshold use a bound JSON array in `json_each`, preserving hard eligibility in SQL before ranking limits.
+Optional FTS variants are selected at build time through `buildSqliteIndex({ftsVariants: ['trigram', 'porter']})` (or the corresponding lower-level builders). They are absent by default. Existing `search.sqliteFtsStemming` configuration builds the Porter table for prose modes; code mode retains unstemmed identifier retrieval. Porter excludes file/name/signature/kind from its index. Changing the selected variants requires a full SQLite rebuild. Full builds, incremental insert/delete and compaction maintain the selected tables. Searches target the actual selected table and report missing optional tables rather than claiming that unicode61 is Porter/trigram. Native term and exact literal-phrase eligibility precede top-N; a bounded post-hydration eligibility check remains. Allowlist sizes above the SQLite parameter threshold use a bound JSON array in `json_each`, preserving hard eligibility in SQL before ranking limits.

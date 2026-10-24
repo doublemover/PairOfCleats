@@ -1,6 +1,7 @@
 import { assertCurrentIndexFormat } from '../../contracts/index-format.js';
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { retainCachePathAccess } from '../../shared/cache/repo-access.js';
 import { resolveIndexDir } from '../cli-index.js';
 import {
   INDEX_PROFILE_DEFAULT,
@@ -96,6 +97,8 @@ export const loadIndexState = (rootDir, userConfig, mode, options = {}) => {
   try {
     const dir = resolveIndexDir(rootDir, mode, userConfig, options.resolveOptions || {});
     const statePath = path.join(dir, 'index_state.json');
+    if (!fsSync.existsSync(dir)) return null;
+    retainCachePathAccess(dir);
     if (!fsSync.existsSync(statePath)) {
       assertCurrentIndexFormat({ operation: 'read', component: 'index state',
         foundVersion: null, repoRoot: rootDir, indexPath: statePath });
@@ -105,7 +108,7 @@ export const loadIndexState = (rootDir, userConfig, mode, options = {}) => {
       foundVersion: parsed?.artifactSurfaceVersion, repoRoot: rootDir, indexPath: statePath });
     return normalizeLoadedIndexState(parsed, options);
   } catch (error) {
-    if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error;
+    if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED' || error?.code === 'ERR_REPO_CACHE_CLEANUP_BUSY') throw error;
     return null;
   }
 };

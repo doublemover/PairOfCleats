@@ -1,7 +1,8 @@
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { resolveWorkspaceExecutionAuthority } from '../../shared/workspace-execution-authority.js';
-import semver from 'semver';
+import { composeAbortSignals, isAbortError, throwIfAborted } from '../../shared/abort.js';
+import { buildProviderRecovery } from './recovery.js';
+import { resolveProviderWorkspaceExecutionAuthority } from './workspace-execution.js';
 import { getXxhashBackend } from '../../shared/hash.js';
 import { listToolingProviders } from './provider-registry.js';
 import {
@@ -12,6 +13,7 @@ import {
 } from './provider-contract.js';
 import { resolveProviderCommandOverride } from './provider-command-override.js';
 import { loadTypeScript } from './typescript/load.js';
+import { assertTypeScriptCompatibility } from './typescript/compatibility.js';
 import { getScmProviderAndRoot, resolveScmConfig } from '../scm/registry.js';
 import { setScmRuntimeConfig } from '../scm/runtime.js';
 import { isAbsolutePathNative } from '../../shared/file-paths.js';
@@ -27,7 +29,6 @@ import {
   resolveToolingCommandProfile
 } from './command-resolver.js';
 
-const MIN_TYPESCRIPT_VERSION = '4.8.0';
 const TOOLING_DOCTOR_REPORT_SCHEMA_VERSION = 2;
 const TOOLING_DOCTOR_REPORT_FILENAME = 'tooling_doctor_report.json';
 
@@ -168,10 +169,11 @@ const resolveRuntimeRequirementsForCommand = (commandName) => {
   return [];
 };
 
-const writeReport = async (reportPath, report) => {
+const writeReport = async (reportPath, report, signal) => {
   await atomicWriteJson(reportPath, report, {
     spaces: 2,
-    newline: false
+    newline: false,
+    signal
   });
 };
 
@@ -187,14 +189,22 @@ const toStructuredFailureReasons = (checks) => (
 );
 
 export const runToolingDoctor = async (ctx, providerIds = null, options = {}) => {
+  const signal = composeAbortSignals(ctx?.signal, ctx?.abortSignal, options?.signal, options?.abortSignal);
+  throwIfAborted(signal);
   const repoRoot = ctx?.repoRoot || process.cwd();
   const buildRoot = ctx?.buildRoot || repoRoot;
   const toolingConfig = ctx?.toolingConfig || {};
   const strict = ctx?.strict !== false;
   const log = typeof options?.log === 'function' ? options.log : (() => {});
-  const resolveCommandProfile = typeof options?.resolveCommandProfile === 'function'
+  const resolveProfile = typeof options?.resolveCommandProfile === 'function'
     ? options.resolveCommandProfile
     : resolveToolingCommandProfile;
+  const resolveCommandProfile = input => {
+    throwIfAborted(signal);
+    const profile = resolveProfile({ ...input, signal });
+    throwIfAborted(signal);
+    return profile;
+  };
   const scmConfig = ctx?.scmConfig || resolveScmConfig({
     indexingConfig: ctx?.indexingConfig || {},
     analysisPolicy: ctx?.analysisPolicy || null,
@@ -244,6 +254,7 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
   };
 
   const backend = await getXxhashBackend();
+  throwIfAborted(signal);
   report.identity.chunkUid.available = Boolean(backend);
   report.identity.chunkUid.backend = backend || 'none';
   report.xxhash.backend = backend || 'none';
@@ -278,8 +289,10 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
       repoRoot: scmSelection.repoRoot
     });
   } catch (err) {
+    if (isAbortError(err) || err?.cacheOwnershipPending === true) throw err;
     scmError = err?.message || String(err);
   }
+  throwIfAborted(signal);
   if (!scmSelection) {
     scmSelection = { provider: 'none', repoRoot, detectedBy: 'none' };
   }
@@ -327,6 +340,7 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
   let providerOrdinal = 0;
 
   for (const provider of providers) {
+    throwIfAborted(signal);
     providerOrdinal += 1;
     const providerId = normalizeProviderId(provider?.id);
     if (!providerId) continue;
@@ -408,7 +422,9 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
       });
     }
 
-    const executionAuthority = resolveWorkspaceExecutionAuthority({ repoRoot, providerId, languages: provider.languages });
+    const executionAuthority = resolveProviderWorkspaceExecutionAuthority({ repoRoot, providerId,
+      languages: provider.languages, requiresWorkspaceExecution: provider.requiresWorkspaceExecution,
+      server: { id: providerId, cmd: resolveProviderCommandOverride({ providerId, toolingConfig }).cmd || provider.requires?.cmd } });
     if (!providerReport.enabled) {
       addCheck({
         name: 'enabled',
@@ -419,28 +435,21 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
       providerAvailable = false;
       addCheck(executionAuthority.check);
     } else if (providerId === 'typescript') {
-      const ts = await loadTypeScript(toolingConfig, repoRoot);
-      if (!ts) {
+      let ts = null, incompatible = null;
+      try { ts = await loadTypeScript(toolingConfig, repoRoot); } catch (error) {
+        if (error?.reason !== 'typescript_incompatible') throw error;
+        incompatible = error;
+        addCheck({ name: 'typescript-compatibility', status: 'error', message: error.message });
+      }
+      if (!ts && !incompatible) {
         addCheck({
           name: 'typescript',
           status: 'error',
           message: 'TypeScript module not found.'
         });
-      } else {
-        const version = ts.version || 'unknown';
-        if (semver.valid(version) && !semver.gte(version, MIN_TYPESCRIPT_VERSION)) {
-          addCheck({
-            name: 'typescript-version',
-            status: 'warn',
-            message: `TypeScript ${version} below minimum ${MIN_TYPESCRIPT_VERSION}.`
-          });
-        } else {
-          addCheck({
-            name: 'typescript-version',
-            status: 'ok',
-            message: `TypeScript ${version} detected.`
-          });
-        }
+      } else if (ts) {
+        const { version } = assertTypeScriptCompatibility(ts);
+        addCheck({ name: 'typescript-version', status: 'ok', message: `TypeScript ${version} detected; compiler host/preflight APIs verified.` });
       }
 
       if (toolingConfig.typescript?.useTsconfig !== false && toolingConfig.typescript?.tsconfigPath) {
@@ -528,7 +537,12 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
         const probeOk = commandProfile.probe?.ok === true;
         const commandDefinitelyMissing = !probeOk
           && isProbeCommandDefinitelyMissing(commandProfile.probe);
-        if (!probeOk && commandDefinitelyMissing) {
+        if (commandProfile.resolved?.mode === 'blocked' || commandProfile.probe?.validationFailure
+          || commandProfile.probe?.cacheOwnershipPending === true) {
+          providerAvailable = false;
+          addCheck({ name: `${providerId}-command-admission`, status: 'warn',
+            message: `${requestedCmd} launch blocked (${commandProfile.probe?.validationFailure?.reasonCode || commandProfile.resolved?.reason || 'resource settlement pending'}); no handshake attempted.` });
+        } else if (!probeOk && commandDefinitelyMissing) {
           providerAvailable = false;
           addCheck({
             name: `${providerId}-command`,
@@ -565,6 +579,8 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
               toolingConfig,
               args: commandProfile.resolved.args || [],
               cwd: handshakeCwd,
+              signal,
+              sourcekitOperationPlan: ctx?.sourcekitOperationPlan || null,
               timeoutMs: Number.isFinite(Number(options?.handshakeTimeoutMs))
                 ? Math.max(750, Math.floor(Number(options.handshakeTimeoutMs)))
                 : 4000
@@ -606,7 +622,12 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
               const requirementProbeOk = requirementProfile.probe?.ok === true;
               const requirementMissing = !requirementProbeOk
                 && isProbeCommandDefinitelyMissing(requirementProfile.probe);
-              if (!requirementProbeOk && requirementMissing) {
+              if (requirementProfile.resolved?.mode === 'blocked' || requirementProfile.probe?.validationFailure
+                || requirementProfile.probe?.cacheOwnershipPending === true) {
+                providerAvailable = false;
+                addCheck({ name: `${providerId}-runtime-${requirement.id}-admission`, status: 'warn',
+                  message: `${requirement.label} launch blocked (${requirementProfile.probe?.validationFailure?.reasonCode || requirementProfile.resolved?.reason || 'resource settlement pending'}).` });
+              } else if (!requirementProbeOk && requirementMissing) {
                 addCheck({
                   name: `${providerId}-runtime-${requirement.id}`,
                   status: missingBinaryStatus,
@@ -683,6 +704,7 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
     providerReport.status = summarizeStatus(providerErrors, providerWarnings);
     providerReport.available = providerAvailable;
     providerReport.failureReasons = toStructuredFailureReasons(providerReport.checks);
+    providerReport.recovery = buildProviderRecovery(providerReport, repoRoot);
     report.providers.push(providerReport);
     const providerElapsedMs = Math.max(0, Date.now() - providerStartMs);
     log(
@@ -698,7 +720,9 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
     .sort((a, b) => String(a).localeCompare(String(b)));
 
   const reportPath = path.join(buildRoot, TOOLING_DOCTOR_REPORT_FILENAME);
-  await writeReport(reportPath, report);
+  throwIfAborted(signal);
+  await writeReport(reportPath, report, signal);
+  throwIfAborted(signal);
   report.reportPath = reportPath;
   if (report.summary.status === 'error') {
     log(`[tooling] doctor: ${report.summary.errors} error(s), ${report.summary.warnings} warning(s).`);

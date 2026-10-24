@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { resolveAsOfContext, resolveSingleRootForModes } from '../../../../index/as-of.js';
+import { resolveSqliteModePlan } from '../../../../integrations/core/build-index/stages/sqlite-paths.js';
 import {
   getIndexDir,
   resolveCurrentBuildModeRoot,
@@ -19,7 +20,9 @@ const readModePlanCache = (cacheKey) => {
     ...cached,
     modeList: [...cached.modeList],
     explicitDirs: { ...cached.explicitDirs },
-    modeIndexDirs: { ...cached.modeIndexDirs }
+    modeIndexDirs: { ...cached.modeIndexDirs },
+    modeIndexRoots: { ...cached.modeIndexRoots },
+    executionGroups: cached.executionGroups.map(entry => ({ ...entry }))
   };
 };
 
@@ -32,7 +35,9 @@ const writeModePlanCache = (cacheKey, plan) => {
     ...plan,
     modeList: [...plan.modeList],
     explicitDirs: { ...plan.explicitDirs },
-    modeIndexDirs: { ...plan.modeIndexDirs }
+    modeIndexDirs: { ...plan.modeIndexDirs },
+    modeIndexRoots: { ...plan.modeIndexRoots },
+    executionGroups: plan.executionGroups.map(entry => ({ ...entry }))
   });
   while (modePlanCache.size > MODE_PLAN_CACHE_LIMIT) {
     const oldestKey = modePlanCache.keys().next().value;
@@ -46,7 +51,8 @@ const createModePlanCacheKey = ({
   argv,
   options,
   runtime,
-  defaultIndexRoot
+  defaultIndexRoot,
+  publishedModeRoots
 }) => [
   root || '',
   modeArg || 'all',
@@ -54,6 +60,7 @@ const createModePlanCacheKey = ({
   options?.indexRoot || '',
   runtime?.buildRoot || '',
   defaultIndexRoot || '',
+  JSON.stringify(publishedModeRoots),
   argv?.['code-dir'] || '',
   argv?.['prose-dir'] || '',
   argv?.['extracted-prose-dir'] || '',
@@ -83,10 +90,11 @@ export const resolveModeExecutionPlan = ({
 }) => {
   const modeList = resolveModeList(modeArg);
   const preferredMode = modeArg === 'all' ? modeList[0] || null : modeArg;
-  const activeGenerationResolution = runtime?.buildRoot
+  const selectedRoot = argv?.['index-root'] || options.indexRoot || runtime?.buildRoot;
+  const activeGenerationResolution = selectedRoot
     ? {
       ok: true,
-      root: path.resolve(runtime.buildRoot)
+      root: path.resolve(selectedRoot)
     }
     : resolveCurrentBuildModeRoot(root, userConfig, {
       mode: preferredMode,
@@ -101,6 +109,22 @@ export const resolveModeExecutionPlan = ({
     (typeof argv?.['as-of'] === 'string' && argv['as-of'].trim())
     || (typeof argv?.snapshot === 'string' && argv.snapshot.trim())
   );
+  const usePublishedModeRoots = !asOfRequested && !runtime?.buildRoot
+    && !argv?.['index-root'] && !options.indexRoot;
+  const publishedModeRoots = {};
+  if (usePublishedModeRoots) {
+    for (const mode of modeList) {
+      const resolution = mode === preferredMode ? activeGenerationResolution
+        : resolveCurrentBuildModeRoot(root, userConfig, {
+          mode, requireArtifacts: true, disallowRepoRootFallback: true,
+          allowLegacyRepoRootFallback: false
+        });
+      if (!resolution.ok || !resolution.root) {
+        return { errorMessage: `[sqlite] active build root for ${mode} is unavailable; run stage2 first or pass --index-root.` };
+      }
+      publishedModeRoots[mode] = path.resolve(resolution.root);
+    }
+  }
 
   if (!asOfRequested) {
     const cacheKey = createModePlanCacheKey({
@@ -109,7 +133,8 @@ export const resolveModeExecutionPlan = ({
       argv,
       options,
       runtime,
-      defaultIndexRoot
+      defaultIndexRoot,
+      publishedModeRoots
     });
     const cached = readModePlanCache(cacheKey);
     if (cached) return cached;
@@ -181,8 +206,12 @@ export const resolveModeExecutionPlan = ({
     }
   }
   const modeIndexDirs = {};
+  const modeIndexRoots = {};
   for (const mode of modeList) {
-    modeIndexDirs[mode] = explicitDirs[mode] || getIndexDir(root, mode, userConfig, { indexRoot });
+    modeIndexRoots[mode] = publishedModeRoots[mode] || indexRoot;
+    modeIndexDirs[mode] = explicitDirs[mode] || getIndexDir(root, mode, userConfig, {
+      indexRoot: modeIndexRoots[mode]
+    });
   }
   const plan = {
     modeList,
@@ -190,7 +219,11 @@ export const resolveModeExecutionPlan = ({
     indexRoot,
     explicitDirs,
     indexDir: modeArg === 'all' ? null : modeIndexDirs[modeArg],
-    modeIndexDirs
+    modeIndexDirs,
+    modeIndexRoots,
+    executionGroups: resolveSqliteModePlan(modeList.map(mode => ({
+      mode, indexRoot: modeIndexRoots[mode]
+    })))
   };
   if (!asOfRequested) {
     const cacheKey = createModePlanCacheKey({
@@ -199,7 +232,8 @@ export const resolveModeExecutionPlan = ({
       argv,
       options,
       runtime,
-      defaultIndexRoot
+      defaultIndexRoot,
+      publishedModeRoots
     });
     writeModePlanCache(cacheKey, {
       ...plan,

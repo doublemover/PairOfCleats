@@ -1,6 +1,6 @@
 # Index Artifact Pipeline Benchmarks
 
-This document covers the Phase 14 performance benchmarks for index artifact pipelines. All benchmarks write into `.benchCache/` under the repo root.
+This document covers the Phase 14 performance benchmarks for index artifact pipelines. Disposable benchmark workspaces live under `.tmp/dev/benchmarks/`, resolved by `tools/shared/dev-artifacts.js`.
 
 ## Running The Benchmarks
 

@@ -78,6 +78,42 @@
 - Packed binary artifacts may include checksums in sidecar metadata; when present, readers must verify checksum before accepting the payload.
 - All failures are logged with artifact name and shard path.
 
+### Contained reads and bounded binary windows
+
+Strict manifest paths are admitted under the selected index directory and reject
+linked path components, including Windows junction metadata. Opening a file must
+also bind the descriptor to that admitted ordinary file; a path check alone is
+insufficient when the path can change between admission and open. JSON, JSONL,
+binary-columnar sidecars and packed payloads retain this containment contract.
+
+Positioned reads fill their requested range by advancing both destination and
+file offsets after every positive short read. Zero progress before the complete
+range is an explicit truncation error. Packed token postings retain their token
+and byte window limits during retries; a short read never triggers an unbounded
+whole-file fallback. A single posting larger than the configured window fails
+with an explicit byte-budget error before allocation.
+
+Streaming JSONL owns both compressed input and decoder lifetimes. Completion,
+failure, cancellation and early iterator return destroy outstanding streams and
+wait for their actual close events. Source errors remain observable through the
+decoder. Materialized and streaming readers use the same admitted path authority.
+
+### Publication authority
+
+Replacing an existing sharded family writes an immutable generation beneath the
+selected index directory. The enclosing `pieces/manifest.json` replacement is the
+single authority change; token postings and chunk metadata compaction publish
+their complete replacement inventories together under the existing index lock.
+Old canonical files and selected generations remain readable for readers that
+already hold the previous manifest. Retention belongs to the existing build
+cleanup owner, rather than the writer deleting an old generation immediately.
+
+Publication records require explicit successful validation evidence. Unknown
+statuses, absent evidence, failed validation wrappers and manifest/committed
+piece identity mismatches fail admission. Name, relative path, format and any
+declared count, byte size or checksum must agree; repeated paths are errors.
+Cleanup removal failures are reported as failures and cannot establish success.
+
 ## Telemetry
 Required fields:
 - artifact.read.bytes

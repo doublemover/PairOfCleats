@@ -6,7 +6,8 @@ import { applyTestEnv } from '../../../helpers/test-env.js';
 
 const root = process.cwd();
 const scriptPath = path.join(root, 'tools', 'reports', 'combined-summary.js');
-const env = applyTestEnv({ syncProcess: false });
+const env = applyTestEnv({ syncProcess: false,
+  extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null } });
 
 const run = runNode(
   [scriptPath, '--json', '--models', 'model-a,model-b', '--baseline', 'missing-model'],

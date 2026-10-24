@@ -1,3 +1,4 @@
+import { resolveWarmLaneProfileIdentity } from './warm-lane-profile.js';
 import fs from 'node:fs/promises';
 import { coerceAbortSignal } from '../../../shared/abort.js';
 import { writeJsonLinesFile } from '../../../shared/json-stream/jsonl-write.js';
@@ -112,6 +113,9 @@ export const buildTreeSitterSchedulerPlan = async ({
     executionOrder,
     groupMeta,
     laneDiagnostics,
+    warmLaneProfileIdentity: await resolveWarmLaneProfileIdentity(treeSitterConfig),
+    warmLaneHistory: Object.fromEntries([...observedRowsPerSecByGrammar].filter(([, value]) => value?.warmLane)
+      .map(([key, value]) => [key, value.warmLane])),
     requiredNativeLanguages: requiredNative,
     treeSitterConfig
   };

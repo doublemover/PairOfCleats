@@ -1,3 +1,4 @@
+import { resolveDevelopmentArtifactPath } from '../../shared/dev-artifacts.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { performance } from 'node:perf_hooks';
@@ -29,7 +30,7 @@ const joinRel = (root, relPath) => path.join(root, ...String(relPath).split('/')
 
 const main = async () => {
   const { rows, shardBytes, concurrency } = parseArgs(process.argv.slice(2));
-  const benchRoot = path.join(process.cwd(), '.benchCache', 'artifact-io-throughput');
+  const benchRoot = resolveDevelopmentArtifactPath(process.cwd(), 'bench-cache', 'artifact-io-throughput');
   await fs.rm(benchRoot, { recursive: true, force: true });
   await fs.mkdir(benchRoot, { recursive: true });
 

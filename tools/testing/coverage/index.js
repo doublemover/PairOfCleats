@@ -181,11 +181,11 @@ export const loadCoverageArtifactsFromPath = async (inputPath) => {
  * @returns {Array<{path:string,coveredRanges:number,totalRanges:number}>}
  */
 export const filterCoverageEntriesToChanged = ({ entries, root }) => {
-  const diff = spawnSync('git', ['diff', '--name-only', 'HEAD'], {
+  const diff = spawnSync('git', ['diff', '--name-only', '-z', 'HEAD'], {
     cwd: root,
     encoding: 'utf8'
   });
-  const untracked = spawnSync('git', ['ls-files', '--others', '--exclude-standard'], {
+  const untracked = spawnSync('git', ['ls-files', '--others', '--exclude-standard', '-z'], {
     cwd: root,
     encoding: 'utf8'
   });
@@ -193,14 +193,13 @@ export const filterCoverageEntriesToChanged = ({ entries, root }) => {
     return Array.isArray(entries) ? entries : [];
   }
   const changed = new Set(
-    `${String(diff.stdout || '')}\n${String(untracked.stdout || '')}`
-      .split(/\r?\n/)
-      .map((line) => toPosix(line.trim()))
+    `${String(diff.stdout || '')}\0${String(untracked.stdout || '')}`
+      .split('\0')
       .filter(Boolean)
   );
   if (!changed.size) return [];
   return (Array.isArray(entries) ? entries : [])
-    .filter((entry) => changed.has(toPosix(entry.path)));
+    .filter((entry) => changed.has(process.platform === 'win32' ? toPosix(entry.path) : entry.path));
 };
 
 /**

@@ -113,7 +113,7 @@ try {
     );
     await fs.access(scheduler.crashForensicsBundlePath);
     await fs.access(scheduler.plannerFailureSnapshotPath);
-    await fs.access(path.join(repoCacheRoot, 'logs', 'index-crash-forensics-index.json'));
+    await fs.access(path.join(crashLogger.paths.directory, 'index-crash-forensics-index.json'));
     const plannerSnapshot = JSON.parse(await fs.readFile(scheduler.plannerFailureSnapshotPath, 'utf8'));
     assert.ok(
       Array.isArray(plannerSnapshot?.scheduledJobs) && plannerSnapshot.scheduledJobs.length > 0,

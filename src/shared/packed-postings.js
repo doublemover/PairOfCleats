@@ -1,58 +1,87 @@
 const MAX_VARINT_BYTES = 10;
 const DEFAULT_BLOCK_SIZE = 128;
-
-const encodeVarint = (value) => {
-  let num = Number(value);
-  if (!Number.isFinite(num) || num < 0) num = 0;
-  num = Math.floor(num);
-  const bytes = [];
-  while (num >= 0x80) {
-    bytes.push((num & 0x7f) | 0x80);
-    num = Math.floor(num / 128);
-  }
-  bytes.push(num);
-  return Buffer.from(bytes);
-};
+const MAX_SAFE_OFFSET = BigInt(Number.MAX_SAFE_INTEGER);
+const invalidPackedValue = message => Object.assign(new Error(message), { code: 'ERR_VARINT_DECODE' });
 
 const decodeVarint = (buffer, offset) => {
   let result = 0;
   let shift = 0;
   let index = offset;
-  while (index < buffer.length && shift <= 63) {
+  while (index < buffer.length && index - offset < MAX_VARINT_BYTES) {
     const byte = buffer[index];
-    result |= (byte & 0x7f) << shift;
+    // Bitwise shifts truncate to signed 32-bit values. Packed IDs/frequencies
+    // use the nonnegative safe-integer Number domain, including wider varints.
+    result += (byte & 0x7f) * (2 ** shift);
+    if (!Number.isSafeInteger(result)) throw invalidPackedValue('Packed varint exceeds Number.MAX_SAFE_INTEGER.');
     index += 1;
     if ((byte & 0x80) === 0) {
       return { value: result, offset: index };
     }
     shift += 7;
   }
-  const err = new Error('Invalid varint sequence');
-  err.code = 'ERR_VARINT_DECODE';
-  throw err;
+  throw invalidPackedValue('Invalid or truncated packed varint sequence.');
 };
 
-const encodeTfPostingList = (list, blockSize) => {
-  const parts = [];
-  parts.push(encodeVarint(list.length));
-  let prevDoc = 0;
-  for (let i = 0; i < list.length; i += 1) {
-    if (i % blockSize === 0) prevDoc = 0;
-    const entry = list[i] || [];
-    const docId = Number(entry[0]) || 0;
-    const tf = Number(entry[1]) || 0;
-    const delta = Math.max(0, Math.floor(docId - prevDoc));
-    parts.push(encodeVarint(delta));
-    parts.push(encodeVarint(tf));
-    prevDoc = docId;
+/**
+ * Encode directly into bounded slabs. Each yielded slab is exclusively owned
+ * and offsets are reported in wire order, including the terminal offset.
+ */
+export function* iteratePackedTfPostings(postingsList, {
+  blockSize = DEFAULT_BLOCK_SIZE,
+  onOffset = null
+} = {}) {
+  const lists = Array.isArray(postingsList) ? postingsList : [];
+  const slabBytes = 64 * 1024;
+  let slab = Buffer.allocUnsafe(slabBytes), used = 0, total = 0;
+  const append = (value) => {
+    let num = Number(value);
+    if (!Number.isFinite(num) || num < 0) num = 0;
+    num = Math.floor(num);
+    do {
+      const more = num >= 0x80;
+      slab[used++] = more ? (num & 0x7f) | 0x80 : num;
+      num = Math.floor(num / 128);
+    } while (num > 0);
+  };
+  const take = () => {
+    const result = slab.subarray(0, used);
+    total += used;
+    slab = Buffer.allocUnsafe(slabBytes);
+    used = 0;
+    return result;
+  };
+  for (let listIndex = 0; listIndex < lists.length; listIndex += 1) {
+    onOffset?.(listIndex, total + used);
+    const list = Array.isArray(lists[listIndex]) ? lists[listIndex] : [];
+    if (used > slabBytes - MAX_VARINT_BYTES) yield take();
+    append(list.length);
+    let previous = 0;
+    for (let index = 0; index < list.length; index += 1) {
+      if (index % blockSize === 0) previous = 0;
+      const entry = list[index] || [];
+      const docId = Number(entry[0]) || 0;
+      const tf = Number(entry[1]) || 0;
+      // Numbers can exceed 64-bit values in legacy callers; reserve enough for
+      // the complete finite Number varint rather than silently truncating it.
+      if (used > slabBytes - 320) yield take();
+      append(Math.max(0, Math.floor(docId - previous)));
+      append(tf);
+      previous = docId;
+    }
   }
-  return parts.length === 1 ? parts[0] : Buffer.concat(parts);
-};
+  onOffset?.(lists.length, total + used);
+  if (used) yield slab.subarray(0, used);
+}
 
 const decodeTfPostingList = (buffer, blockSize) => {
   let cursor = 0;
   const { value: count, offset } = decodeVarint(buffer, cursor);
   cursor = offset;
+  // Each admitted pair needs at least one delta byte and one frequency byte.
+  // Refuse impossible cardinality before allocating from an untrusted count.
+  if (count > Math.floor((buffer.length - cursor) / 2)) {
+    throw invalidPackedValue('Packed posting count exceeds the available pair bytes.');
+  }
   const list = new Array(count);
   let prevDoc = 0;
   for (let i = 0; i < count; i += 1) {
@@ -62,9 +91,11 @@ const decodeTfPostingList = (buffer, blockSize) => {
     const tfResult = decodeVarint(buffer, cursor);
     cursor = tfResult.offset;
     const docId = prevDoc + deltaResult.value;
+    if (!Number.isSafeInteger(docId)) throw invalidPackedValue('Packed posting document ID exceeds Number.MAX_SAFE_INTEGER.');
     prevDoc = docId;
     list[i] = [docId, tfResult.value];
   }
+  if (cursor !== buffer.length) throw invalidPackedValue('Packed posting row contains trailing bytes.');
   return list;
 };
 
@@ -106,10 +137,13 @@ export const encodePackedOffsets = (offsets) => {
  */
 export const decodePackedOffsets = (buffer) => {
   if (!buffer || buffer.length === 0) return [];
+  if (buffer.length % 8 !== 0) throw Object.assign(new Error('Packed offsets contain a partial uint64 value.'), { code: 'ERR_PACKED_OFFSETS' });
   const count = Math.floor(buffer.length / 8);
   const offsets = new Array(count);
   for (let i = 0; i < count; i += 1) {
-    offsets[i] = Number(buffer.readBigUInt64LE(i * 8));
+    const value = buffer.readBigUInt64LE(i * 8);
+    if (value > MAX_SAFE_OFFSET) throw Object.assign(new Error('Packed offset exceeds Number.MAX_SAFE_INTEGER.'), { code: 'ERR_PACKED_OFFSETS' });
+    offsets[i] = Number(value);
   }
   return offsets;
 };
@@ -125,19 +159,14 @@ export const packTfPostings = (postingsList, { blockSize = DEFAULT_BLOCK_SIZE } 
   const offsets = new Array(list.length + 1);
   const buffers = [];
   let totalBytes = 0;
-  for (let i = 0; i < list.length; i += 1) {
-    offsets[i] = totalBytes;
-    const posting = Array.isArray(list[i]) ? list[i] : [];
-    const encoded = encodeTfPostingList(posting, blockSize);
-    buffers.push(encoded);
-    totalBytes += encoded.length;
+  for (const block of iteratePackedTfPostings(list, {
+    blockSize,
+    onOffset: (index, offset) => { offsets[index] = offset; }
+  })) {
+    buffers.push(block);
+    totalBytes += block.length;
   }
-  offsets[list.length] = totalBytes;
-  return {
-    buffer: buffers.length ? Buffer.concat(buffers, totalBytes) : Buffer.alloc(0),
-    offsets,
-    blockSize
-  };
+  return { buffer: Buffer.concat(buffers, totalBytes), offsets, blockSize };
 };
 
 /**

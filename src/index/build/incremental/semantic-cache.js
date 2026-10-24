@@ -53,7 +53,11 @@ export const openSemanticCacheEntry = async ({ repoRoot = process.cwd(), bundleD
   const relative = 'semantic/' + locator.cacheKey;
   const descriptorPath = await resolveSemanticPartPath(bundleDir, relative + '/descriptor.json');
   let bytes;
-  try { ({ buffer: bytes } = await readVerifiedContainedFile(bundleDir, descriptorPath,
+  // The physical resolver expands ancestor aliases (including Windows DOS
+  // names). The strict reader needs root and target in the same lexical frame
+  // so its per-component link rejection and handle checks remain authoritative.
+  const lexicalDescriptorPath = path.join(bundleDir, relative, 'descriptor.json');
+  try { ({ buffer: bytes } = await readVerifiedContainedFile(bundleDir, lexicalDescriptorPath,
     { maxBytes: MAX_DESCRIPTOR_BYTES, expectedHash: locator.descriptorHash, signal })); }
   catch (error) {
     throwIfAborted(signal);

@@ -1,6 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { getToolingConfig } from '../../shared/dict-utils.js';
+import { detectTool, resolveToolsById } from '../../../tools/tooling/utils.js';
+import { identifyProvisioningExecutable } from '../../../tools/tooling/provisioning-plan.js';
 import { resolveWindowsCmdInvocation } from '../../shared/subprocess/windows-cmd.js';
 import {
   DEFAULT_SYNC_COMMAND_TIMEOUT_MS,
@@ -8,7 +11,6 @@ import {
 } from '../../shared/subprocess/sync-command.js';
 
 const isWindows = process.platform === 'win32';
-const binaryCache = new Map();
 
 const resolveWindowsStructuralInvocation = (command, args, options) => {
   const env = options.env || process.env;
@@ -109,13 +111,33 @@ const resolvePowerShell = () => {
   return 'powershell';
 };
 
-export const resolveBinary = (engine) => {
-  const pathEnv = process.env.PATH || '';
-  const cached = binaryCache.get(engine);
-  if (cached && cached.pathEnv === pathEnv) return cached.value;
+export const verifyStructuralBinaryIdentity = (engine, result) => {
+  if (result?.error || result?.status !== 0) return false;
+  const output = `${result.stdout || ''}\n${result.stderr || ''}`.trim();
+  if (engine === 'ast-grep') return /^ast-grep\s+\d+\.\d+\.\d+\b/m.test(output);
+  if (engine === 'semgrep') return /^(?:semgrep\s+)?\d+\.\d+\.\d+\b/i.test(output);
+  if (engine === 'comby') return /^(?:comby\s+)?\d+\.\d+\.\d+\b/i.test(output);
+  return false;
+};
+
+export const resolveBinary = (engine, { repoRoot = null } = {}) => {
+  if (repoRoot) {
+    const config = getToolingConfig(repoRoot);
+    const tool = resolveToolsById([engine], config.dir, repoRoot, config)[0];
+    if (tool?.managedInstallation) return { command: tool.managedInstallation.command,
+      argsPrefix: tool.managedInstallation.args || [], checkedPaths: [tool.managedInstallation.command],
+      requiresOwnedExecution: true, toolingRoot: config.dir, managedInstallation: tool.managedInstallation };
+    const status = tool ? detectTool(tool) : null;
+    if (!status?.found || !status.path) return { command: engine, argsPrefix: [], checkedPaths: [], unavailable: true };
+    const command = path.isAbsolute(status.path) ? status.path : findOnPath(status.path).path;
+    if (!command) return { command: engine, argsPrefix: [], checkedPaths: [], unavailable: true };
+    const output = { command, argsPrefix: tool.managedInstallation?.args || [], checkedPaths: [command] };
+    if (!verifyStructuralBinaryIdentity(engine, runCommand(output, [engine === 'comby' ? '-version' : '--version'], { timeoutMs: DEFAULT_SYNC_COMMAND_TIMEOUT_MS }))) return { ...output, unavailable: true };
+    return { ...output, executableIdentity: identifyProvisioningExecutable(command) };
+  }
   const candidates = {
     semgrep: ['semgrep'],
-    'ast-grep': ['sg', 'ast-grep'],
+    'ast-grep': ['ast-grep', 'sg'],
     comby: ['comby']
   }[engine] || [];
   if (isWindows) {
@@ -132,45 +154,45 @@ export const resolveBinary = (engine) => {
           argsPrefix: ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', resolved.path],
           checkedPaths
         };
-        binaryCache.set(engine, { pathEnv, value: output });
-        return output;
+        if (verifyStructuralBinaryIdentity(engine, runCommand(output, ['--version'], { timeoutMs: DEFAULT_SYNC_COMMAND_TIMEOUT_MS }))) return output;
+        continue;
       }
       if (!ext || ['.js', '.mjs', '.cjs'].includes(ext)) {
         const output = { command: process.execPath, argsPrefix: [resolved.path], checkedPaths };
-        binaryCache.set(engine, { pathEnv, value: output });
-        return output;
+        if (verifyStructuralBinaryIdentity(engine, runCommand(output, ['--version'], { timeoutMs: DEFAULT_SYNC_COMMAND_TIMEOUT_MS }))) return output;
+        continue;
       }
       const output = { command: resolved.path, argsPrefix: [], checkedPaths };
-      binaryCache.set(engine, { pathEnv, value: output });
-      return output;
+      if (verifyStructuralBinaryIdentity(engine, runCommand(output, [engine === 'comby' ? '-version' : '--version'], { timeoutMs: DEFAULT_SYNC_COMMAND_TIMEOUT_MS }))) return output;
     }
-    const output = { command: candidates[0] || engine, argsPrefix: [], checkedPaths };
-    binaryCache.set(engine, { pathEnv, value: output });
+    const output = { command: candidates[0] || engine, argsPrefix: [], checkedPaths, unavailable: true };
     return output;
   }
   for (const candidate of candidates) {
-    const result = runCommand(candidate, ['--version'], {
+    const result = runCommand(candidate, [engine === 'comby' ? '-version' : '--version'], {
       encoding: 'utf8',
       timeoutMs: DEFAULT_SYNC_COMMAND_TIMEOUT_MS
     });
-    if (!result.error && result.status === 0) {
+    if (verifyStructuralBinaryIdentity(engine, result)) {
       const output = { command: candidate, argsPrefix: [], checkedPaths: [] };
-      binaryCache.set(engine, { pathEnv, value: output });
       return output;
     }
     const help = runCommand(candidate, ['--help'], {
       encoding: 'utf8',
       timeoutMs: DEFAULT_SYNC_COMMAND_TIMEOUT_MS
     });
-    if (!help.error && help.status === 0) {
+    if (verifyStructuralBinaryIdentity(engine, help)) {
       const output = { command: candidate, argsPrefix: [], checkedPaths: [] };
-      binaryCache.set(engine, { pathEnv, value: output });
       return output;
     }
   }
-  const output = { command: candidates[0] || engine, argsPrefix: [], checkedPaths: [] };
-  binaryCache.set(engine, { pathEnv, value: output });
+  const output = { command: candidates[0] || engine, argsPrefix: [], checkedPaths: [], unavailable: true };
   return output;
 };
 
-export const runBinary = (resolved, args, options = {}) => runCommand(resolved, args, options);
+export const runBinary = (resolved, args, options = {}) => {
+  if (resolved?.requiresOwnedExecution) throw Object.assign(new Error('Managed structural execution requires its retained async runtime scope.'), { code: 'ERR_STRUCTURAL_OWNER_REQUIRED' });
+  if (resolved?.unavailable) return { status: null, signal: null, stdout: '', stderr: '', error: Object.assign(new Error('No identified structural engine executable is available.'), { code: 'ENOENT' }) };
+  if (resolved.executableIdentity && identifyProvisioningExecutable(resolved.command).sha256 !== resolved.executableIdentity.sha256) throw new Error('Structural engine bytes changed after selection; resolve again.');
+  return runCommand(resolved, args, options);
+};

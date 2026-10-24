@@ -1,3 +1,4 @@
+import { retainCachePathAccess } from '../shared/cache/repo-access.js';
 import { assertSqliteIndexFormat } from '../storage/sqlite/index-format.js';
 import fsSync from 'node:fs';
 import path from 'node:path';
@@ -151,9 +152,9 @@ export async function createSqliteBackend(options) {
   try {
     ({ default: Database } = await import('better-sqlite3'));
   } catch (err) {
-    const message = 'better-sqlite3 is required for the SQLite backend. Run npm install first.';
+    const message = 'better-sqlite3 is required for the SQLite backend. Run npm run bootstrap:ci first.';
     if (backendForcedSqlite) {
-      throw new Error(message);
+      throw Object.assign(new Error(message, { cause: err }), { code: err?.code || 'ERR_SQLITE_DEPENDENCY' });
     }
     console.warn(message);
     useSqlite = false;
@@ -241,6 +242,7 @@ export async function createSqliteBackend(options) {
   }
   const openSqlite = (mode) => {
     const dbPath = sqlitePathByMode[mode];
+    retainCachePathAccess(dbPath);
     const label = mode;
     if (openedByPath.has(dbPath)) {
       const record = openedByPath.get(dbPath);
@@ -277,11 +279,13 @@ export async function createSqliteBackend(options) {
         cleanup: () => db.close()
       });
     } catch (err) {
-      const message = 'better-sqlite3 is required for the SQLite backend. Run npm install first.';
+      const message = err?.code === 'ENOENT'
+        ? `SQLite ${label} database is missing (${dbPath}); the mode may be empty or not built. Build stage4 for this mode if SQLite is required.`
+        : `SQLite ${label} database could not be opened (${dbPath}): ${err?.code || err?.message || 'unknown error'}.`;
       if (backendForcedSqlite) {
-        throw new Error(message);
+        throw Object.assign(new Error(message, { cause: err }), { code: err?.code || 'ERR_SQLITE_OPEN' });
       }
-      console.warn(message);
+      console.warn(`${message} Falling back to file-backed indexes.`);
       return null;
     }
     assertSqliteIndexFormat({ db, operation: 'search',
@@ -423,6 +427,7 @@ export async function createSqliteBackend(options) {
  * @returns {Promise<number|null>}
  */
 export async function getSqliteChunkCount(dbPath, mode) {
+  retainCachePathAccess(dbPath);
   let Database;
   try {
     ({ default: Database } = await import('better-sqlite3'));

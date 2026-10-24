@@ -1,5 +1,5 @@
 export const PYTHON_AST_SCRIPT = `
-import ast, json, sys, warnings
+import ast, io, json, sys, tokenize, warnings
 
 dataflow_enabled = True
 control_flow_enabled = True
@@ -48,17 +48,21 @@ def format_arg(arg, default_map):
         value += ("=" + default) if default else "=..."
     return value
 
-def format_args(args):
+def build_default_map(args):
     defaults = list(args.defaults) if args.defaults else []
     default_map = {}
-    if defaults and args.args:
-        for arg, default in zip(args.args[-len(defaults):], defaults):
+    positional = list(getattr(args, "posonlyargs", [])) + list(args.args)
+    if defaults:
+        for arg, default in zip(positional[-len(defaults):], defaults):
             default_map[arg.arg] = default
     if getattr(args, "kw_defaults", None) and args.kwonlyargs:
         for arg, default in zip(args.kwonlyargs, args.kw_defaults):
             if default is not None:
                 default_map[arg.arg] = default
+    return default_map
 
+def format_args(args):
+    default_map = build_default_map(args)
     parts = []
     for arg in getattr(args, "posonlyargs", []):
         parts.append(format_arg(arg, default_map))
@@ -125,15 +129,7 @@ def visibility_for(name):
     return "public"
 
 def collect_param_info(args):
-    defaults = list(args.defaults) if args.defaults else []
-    default_map = {}
-    if defaults and args.args:
-        for arg, default in zip(args.args[-len(defaults):], defaults):
-            default_map[arg.arg] = default
-    if getattr(args, "kw_defaults", None) and args.kwonlyargs:
-        for arg, default in zip(args.kwonlyargs, args.kw_defaults):
-            if default is not None:
-                default_map[arg.arg] = default
+    default_map = build_default_map(args)
 
     params = []
     param_types = {}
@@ -217,8 +213,39 @@ def format_arg_value(node):
         return "[...]"
     return "..."
 
+def declaration_prefixes(source):
+    prefixes = {}
+    pending = None
+    logical_start = True
+    try:
+        for token in tokenize.generate_tokens(io.StringIO(source).readline):
+            if token.type in (tokenize.INDENT, tokenize.DEDENT, tokenize.NL, tokenize.COMMENT, tokenize.ENDMARKER):
+                continue
+            if token.type == tokenize.NEWLINE:
+                logical_start = True
+                continue
+            if not logical_start:
+                continue
+            logical_start = False
+            row, column = token.start
+            if token.type == tokenize.OP and token.string == "@":
+                byte_column = len(token.line[:column].encode("utf-8"))
+                if pending is None or pending[1] != byte_column:
+                    pending = (row, byte_column)
+            elif token.type == tokenize.NAME and token.string in ("def", "class", "async"):
+                byte_column = len(token.line[:column].encode("utf-8"))
+                if pending is not None and pending[1] == byte_column:
+                    prefixes[(row, byte_column)] = pending
+                pending = None
+            else:
+                pending = None
+    except (tokenize.TokenError, IndentationError):
+        # A tokenization mismatch cannot authorize a guessed prefix range.
+        return {}
+    return prefixes
+
 class Collector(ast.NodeVisitor):
-    def __init__(self):
+    def __init__(self, prefixes=None):
         self.defs = []
         self.imports = set()
         self.calls = []
@@ -230,8 +257,12 @@ class Collector(ast.NodeVisitor):
         self.call_map = {}
         self.flow = {}
         self.scope_stack = []
+        self.lexical_stack = []
+        self.call_omissions = {}
+        self.lambda_scopes = 0
+        self.declaration_prefixes = prefixes or {}
     def current_func(self):
-        return self.func_stack[-1] if self.func_stack else "(module)"
+        return self.lexical_stack[-1]["name"] if self.lexical_stack else "(module)"
     def current_scope(self):
         return self.scope_stack[-1] if self.scope_stack else None
     def ensure_flow(self, name):
@@ -355,6 +386,15 @@ class Collector(ast.NodeVisitor):
             "paramDefaults": param_defaults,
             "visibility": visibility
         }
+        entry["scopeId"] = name + "@" + str(node.lineno) + ":" + str(node.col_offset)
+        entry["definitionStartLine"] = entry["startLine"]
+        entry["definitionStartCol"] = entry["startCol"]
+        if getattr(node, "decorator_list", []):
+            prefix = self.declaration_prefixes.get((node.lineno, node.col_offset))
+            if prefix is not None:
+                entry["startLine"], entry["startCol"] = prefix
+            else:
+                entry["sourceCoverageReason"] = "python_decorator_prefix_unavailable"
         entry["modifiers"] = {
             "async": False,
             "generator": False,
@@ -372,33 +412,97 @@ class Collector(ast.NodeVisitor):
             if is_dataclass_decorator(decorators):
                 entry["fields"] = extract_fields(node)
         self.defs.append(entry)
+        return entry["scopeId"]
+    def visit_definition_header(self, node):
+        # Header observations belong to the surrounding lexical declaration,
+        # not to an uncalled function body or the class body being introduced.
+        # Calls remain syntactic evidence, including deferred annotations.
+        for decorator in getattr(node, "decorator_list", []):
+            self.visit(decorator)
+        if isinstance(node, ast.ClassDef):
+            for base in node.bases:
+                self.visit(base)
+            for keyword in node.keywords:
+                self.visit(keyword.value)
+        else:
+            args = node.args
+            for default in args.defaults:
+                self.visit(default)
+            for default in args.kw_defaults:
+                if default is not None:
+                    self.visit(default)
+            parameters = list(getattr(args, "posonlyargs", [])) + list(args.args) + list(args.kwonlyargs)
+            if args.vararg is not None:
+                parameters.append(args.vararg)
+            if args.kwarg is not None:
+                parameters.append(args.kwarg)
+            for parameter in parameters:
+                if parameter.annotation is not None:
+                    self.visit(parameter.annotation)
+            if node.returns is not None:
+                self.visit(node.returns)
+        for parameter in getattr(node, "type_params", []):
+            self.visit(parameter)
     def visit_ClassDef(self, node):
         name = node.name
-        qualified = ".".join(self.class_stack + [name]) if self.class_stack else name
+        base = self.lexical_stack[-1]["name"] if self.lexical_stack else ""
+        qualified = base + "." + name if base else name
         if not self.func_stack:
             self.exports.add(qualified)
-        self.record_def(node, "ClassDeclaration", qualified)
+        scope_id = self.record_def(node, "ClassDeclaration", qualified)
+        self.visit_definition_header(node)
         self.class_stack.append(name)
-        self.scope_stack.append(qualified)
-        self.generic_visit(node)
+        self.scope_stack.append(scope_id)
+        self.lexical_stack.append({"name": qualified, "kind": "class"})
+        for statement in node.body:
+            self.visit(statement)
         self.scope_stack.pop()
+        self.lexical_stack.pop()
         self.class_stack.pop()
     def visit_FunctionDef(self, node):
         name = node.name
-        base = self.func_stack[-1] if self.func_stack else (".".join(self.class_stack) if self.class_stack else "")
+        base = self.lexical_stack[-1]["name"] if self.lexical_stack else ""
         qualified = base + "." + name if base else name
-        is_method = bool(self.class_stack) and not self.func_stack
+        is_method = bool(self.lexical_stack) and self.lexical_stack[-1]["kind"] == "class"
         kind = "MethodDeclaration" if is_method else "FunctionDeclaration"
         if not self.func_stack:
             self.exports.add(qualified)
-        self.record_def(node, kind, qualified)
+        scope_id = self.record_def(node, kind, qualified)
+        self.visit_definition_header(node)
         self.func_stack.append(qualified)
-        self.scope_stack.append(qualified)
-        self.generic_visit(node)
+        self.scope_stack.append(scope_id)
+        self.lexical_stack.append({"name": qualified, "kind": "function"})
+        for statement in node.body:
+            self.visit(statement)
         self.scope_stack.pop()
+        self.lexical_stack.pop()
         self.func_stack.pop()
     def visit_AsyncFunctionDef(self, node):
         self.visit_FunctionDef(node)
+    def visit_Lambda(self, node):
+        # Default expressions run when the lambda is created. The body belongs
+        # to a later anonymous invocation, never to the surrounding declaration.
+        for default in node.args.defaults:
+            self.visit(default)
+        for default in node.args.kw_defaults:
+            if default is not None:
+                self.visit(default)
+        surrounding = self.current_scope() or "(module)"
+        name = self.current_func() + ".<lambda@" + str(node.lineno) + ":" + str(node.col_offset) + ">"
+        self.lambda_scopes += 1
+        before = len(self.calls)
+        self.func_stack.append(name)
+        self.scope_stack.append(name)
+        self.lexical_stack.append({"name": name, "kind": "lambda"})
+        try:
+            self.visit(node.body)
+        finally:
+            self.lexical_stack.pop()
+            self.scope_stack.pop()
+            self.func_stack.pop()
+        omitted = len(self.calls) - before
+        if omitted:
+            self.call_omissions[surrounding] = self.call_omissions.get(surrounding, 0) + omitted
     def visit_Import(self, node):
         for alias in node.names:
             self.imports.add(alias.name)
@@ -426,7 +530,7 @@ class Collector(ast.NodeVisitor):
         if callee:
             caller = self.current_func()
             self.calls.append([caller, callee])
-            self.call_map.setdefault(caller, set()).add(callee)
+            self.call_map.setdefault(self.current_scope() or "(module)", set()).add(callee)
             args = []
             for arg in node.args:
                 args.append(format_arg_value(arg))
@@ -435,7 +539,7 @@ class Collector(ast.NodeVisitor):
                     args.append(f"{kw.arg}=" + format_arg_value(kw.value))
                 else:
                     args.append("**...")
-            self.call_details.append({"caller": caller, "callee": callee, "args": args})
+            self.call_details.append({"caller": caller, "callerScopeId": self.current_scope() or "(module)", "callee": callee, "args": args})
         self.generic_visit(node)
     def visit_Assign(self, node):
         writes = set()
@@ -578,12 +682,15 @@ def parse_source(source, filename=None, dataflow_flag=True, control_flow_flag=Tr
             tree = ast.parse(source, filename=filename or "<unknown>")
     except Exception as e:
         return {"error": str(e)}
-    collector = Collector()
+    collector = Collector(declaration_prefixes(source))
     collector.visit(tree)
     for entry in collector.defs:
-        calls = collector.call_map.get(entry["name"])
+        calls = collector.call_map.get(entry["scopeId"])
         entry["calls"] = sorted(calls) if calls else []
-        flow = collector.flow.get(entry["name"])
+        omitted = collector.call_omissions.get(entry["scopeId"], 0)
+        if omitted:
+            entry["callOmissions"] = {"anonymousScopeCalls": omitted, "declarationHeaderCalls": 0}
+        flow = collector.flow.get(entry["scopeId"])
         if flow:
             if dataflow_enabled:
                 entry["dataflow"] = {
@@ -610,18 +717,21 @@ def parse_source(source, filename=None, dataflow_flag=True, control_flow_flag=Tr
         "imports": sorted(collector.imports),
         "calls": collector.calls,
         "callDetails": collector.call_details,
+        "callCoverageReasons": ["anonymous_python_lambda_execution_unmodeled"] if collector.lambda_scopes else [],
         "usages": sorted(collector.usages),
         "exports": sorted(collector.exports)
     }
     return result
 
 def main():
-    for line in sys.stdin:
+    # Requests are UTF-8 JSON bytes, independently of the host console locale.
+    # Responses use json.dumps' ASCII escaping, so that direction is invariant.
+    for line in sys.stdin.buffer:
         line = line.strip()
         if not line:
             continue
         try:
-            payload = json.loads(line)
+            payload = json.loads(line.decode("utf-8"))
         except Exception as e:
             sys.stdout.write(json.dumps({"id": None, "error": str(e)}) + "\\n")
             sys.stdout.flush()

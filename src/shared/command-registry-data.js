@@ -1,4 +1,10 @@
-import { SEARCH_DISPATCH_METADATA } from '../retrieval/cli-args.js';
+import { SEARCH_DISPATCH_METADATA } from '../retrieval/cli-options.js';
+
+// The command registry owns action identity; storage CLI option declarations
+// consume this same list without becoming a dependency of registry queries.
+export const STORAGE_ACTIONS = Object.freeze(['list', 'inspect', 'explain', 'doctor', 'configure-plan', 'configure-apply',
+  'cleanup-plan', 'cleanup-apply', 'migration-plan', 'migration-apply', 'migration-rollback', 'migration-status',
+  'policy-plan', 'policy-apply']);
 
 const entry = (id, commandPath, script, description, extras = {}) => Object.freeze({
   id,
@@ -33,6 +39,7 @@ export const COMMAND_HELP_GROUP_ORDER = Object.freeze([
   'Dispatch',
   'Tooling',
   'Cache',
+  'Storage',
   'LMDB',
   'Report',
   'Graph',
@@ -77,6 +84,10 @@ export const cloneCommandRegistryEntry = (entry) => ({
 });
 
 export const COMMAND_REGISTRY = Object.freeze([
+  entry('checkout.diagnose', ['checkout', 'diagnose'], 'tools/setup/checkout-diagnose.js', 'Inspect source-checkout readiness metadata without activating native dependencies.', {
+    helpGroup: 'Core', supportTier: 'operator', capability: false,
+    helpExamples: ['pairofcleats checkout diagnose --json']
+  }),
   entry('setup', ['setup'], 'tools/setup/setup.js', 'Guided setup flow.', {
     helpGroup: 'Core',
     expectedArtifacts: ['config:file', 'cache:dicts', 'cache:models']
@@ -122,6 +133,12 @@ export const COMMAND_REGISTRY = Object.freeze([
   }),
   entry('index.validate', ['index', 'validate'], 'tools/index/validate.js', 'Validate index artifacts.', {
     helpGroup: 'Index'
+  }),
+  entry('index.recover', ['index', 'recover'], 'tools/index/recover.js', 'Inspect retained recovery and execute an exact reviewed plan.', {
+    helpGroup: 'Index', supportTier: 'operator', capability: false,
+    helpExamples: ['pairofcleats index recover --repo . --action candidates --json',
+      'pairofcleats index recover --repo . --index-root /path/to/retained-build --operation graph --json',
+      'pairofcleats index recover --repo . --action execute --plan-file reviewed-plan.json --json']
   }),
   entry('index.report', ['index', 'report'], 'tools/index/report-artifacts.js', 'Inspect artifact health and persisted runtime attempts.', {
     helpGroup: 'Index', capability: false, supportTier: 'operator',
@@ -169,6 +186,13 @@ export const COMMAND_REGISTRY = Object.freeze([
   entry('workspace.manifest', ['workspace', 'manifest'], 'tools/workspace/manifest.js', 'Generate workspace manifest.', {
     helpGroup: 'Workspace'
   }),
+  ...['init', 'add', 'validate'].map(operation => entry(`workspace.${operation}`, ['workspace', operation],
+    'tools/workspace/author.js', operation === 'validate' ? 'Validate workspace configuration without probing indexes.'
+      : `${operation === 'init' ? 'Plan a new workspace' : 'Plan added workspace members'}; write only with --apply.`, {
+      helpGroup: 'Workspace', supportTier: 'operator', capability: false,
+      extraArgs: ['--operation', operation],
+      helpExamples: [`pairofcleats workspace ${operation} --workspace workspace.jsonc${operation === 'validate' ? '' : ' --repo .'} --json`]
+    })),
   entry('workspace.status', ['workspace', 'status'], 'tools/workspace/status.js', 'Show workspace status.', {
     helpGroup: 'Workspace'
   }),
@@ -264,6 +288,10 @@ export const COMMAND_REGISTRY = Object.freeze([
     capability: false,
     supportTier: 'operator'
   }),
+  entry('tooling.prepare-sourcekit', ['tooling', 'prepare-sourcekit'], 'tools/tooling/prepare-sourcekit.js', 'Preview or explicitly prepare a trusted SourceKit package workspace.', {
+    helpGroup: 'Tooling', supportTier: 'operator', capability: false,
+    helpExamples: ['pairofcleats tooling prepare-sourcekit --repo . --swift /absolute/path/to/swift --json']
+  }),
   entry('tooling.install', ['tooling', 'install'], 'tools/tooling/install.js', 'Install or plan external tooling dependencies.', {
     helpGroup: 'Tooling',
     capability: false,
@@ -274,11 +302,23 @@ export const COMMAND_REGISTRY = Object.freeze([
     capability: false,
     supportTier: 'operator'
   }),
+  entry('tooling.lifecycle', ['tooling', 'lifecycle'], 'tools/tooling/lifecycle.js', 'Inspect tool installation receipts and lifecycle plans; unsupported mutations report blockers.', {
+    helpGroup: 'Tooling', supportTier: 'operator', capability: false,
+    helpExamples: ['pairofcleats tooling lifecycle --repo . --tool typescript --operation verify --json']
+  }),
   entry('tooling.uninstall', ['tooling', 'uninstall'], 'tools/tooling/uninstall.js', 'Remove installed PairOfCleats caches and tooling payloads.', {
     helpGroup: 'Tooling',
     capability: false,
     supportTier: 'operator'
   }),
+  ...STORAGE_ACTIONS.map(action => entry(`storage.${action}`, ['storage', action], 'tools/storage/cli.js',
+    action === 'cleanup-apply' ? 'Apply an exact reviewed disposable-cache plan through the cleanup owner.'
+      : action === 'configure-apply' ? 'Select an exact reviewed storage destination through a retained configuration receipt.'
+        : `Inspect or plan storage ${action}; mutations require their explicit reviewed apply action.`, {
+      helpGroup: 'Storage', supportTier: 'operator', capability: false, extraArgs: [action],
+      helpExamples: ['list', 'inspect', 'explain', 'doctor'].includes(action)
+        ? [`pairofcleats storage ${action} --json`] : []
+    })),
   entry('cache.clear', ['cache', 'clear'], 'tools/cache/clear-cache.js', 'Clear shared caches.', {
     helpGroup: 'Cache',
     supportTier: 'operator'
@@ -333,6 +373,10 @@ export const COMMAND_REGISTRY = Object.freeze([
   entry('graph-context', ['graph-context'], 'tools/analysis/graph-context.js', 'Build a graph context pack for a seed.', {
     helpGroup: 'Graph',
     supportTier: 'operator'
+  }),
+  entry('graph-evidence', ['graph-evidence'], 'tools/analysis/graph-evidence.js', 'Page retained graph evidence in an explicitly pinned build; qualification pending.', {
+    helpGroup: 'Graph', supportTier: 'experimental', metadata: { qualification: 'pending' },
+    helpExamples: ['pairofcleats graph-evidence --request graph-request.json --all']
   }),
   entry('semantic.find',['semantic','find'],'tools/analysis/semantic-find.js','Discover pinned structural/target candidates; qualification pending.',{helpGroup:'Graph',supportTier:'experimental',metadata:{qualification:'pending'},helpExamples:['pairofcleats semantic find --request request.json --all']}),
   entry('semantic.explain',['semantic','explain'],'tools/analysis/semantic-explain.js','Explain pinned static witnesses and explicit task suggestions; qualification pending.',{helpGroup:'Graph',supportTier:'experimental',metadata:{qualification:'pending'},helpExamples:['pairofcleats semantic explain --request request.json --all']}),

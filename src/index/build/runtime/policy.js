@@ -1,5 +1,8 @@
+import { resolveCrossFileFidelity } from '../../cross-file-fidelity.js';
+
 export const buildAnalysisPolicy = ({
   toolingEnabled,
+  crossFileFidelity,
   typeInferenceEnabled,
   typeInferenceCrossFileEnabled,
   riskAnalysisEnabled,
@@ -22,7 +25,7 @@ export const buildAnalysisPolicy = ({
   },
   typeInference: {
     local: { enabled: typeInferenceEnabled },
-    crossFile: { enabled: typeInferenceCrossFileEnabled },
+    crossFile: { enabled: typeInferenceCrossFileEnabled, fidelity: resolveCrossFileFidelity(crossFileFidelity) },
     tooling: { enabled: typeInferenceCrossFileEnabled && toolingEnabled }
   }
 });

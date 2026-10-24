@@ -1,3 +1,5 @@
+import { readParseCheckpointDescriptor } from '../incremental/parse-checkpoint-descriptor.js';
+import { readVerifiedContainedFile } from '../../../shared/contained-file.js';
 import { resolveStageRefresh } from '../incremental/stage-reuse.js';
 import { readCachedBundle, writeIncrementalBundle } from '../incremental.js';
 import fs from 'node:fs/promises';
@@ -29,7 +31,7 @@ export async function loadCachedBundleForFile({
   }));
   let result = await read();
   if (!result.cachedBundle && semanticContext && incrementalState.enabled) {
-    const sourceBytes = result.buffer || await runIo(() => fs.readFile(absPath));
+    const sourceBytes = result.buffer || await runIo(() => fs.readFile(absPath), { waitOnly: true });
     const completed = await runIo(() => readFileCompletion({
       bundleDir: incrementalState.bundleDir, relKey, sourceBytes, semanticContext
     }));
@@ -40,6 +42,27 @@ export async function loadCachedBundleForFile({
         result = { cachedBundle: null, fileHash: result.fileHash, buffer: sourceBytes };
       } else if (result.cachedBundle) {
         result.cachedBundle.lexiconFilterStats = completed.lexiconFilterStats;
+      }
+    }
+  }
+  if (!result.cachedBundle && !semanticContext && incrementalState.enabled) {
+    const previous = incrementalState.manifest.files?.[relKey];
+    if (previous?.parseCheckpointDescriptor && !resolveStageRefresh(
+      incrementalState.manifest.dependencySignatures, previous.dependencySignatures).parse) {
+      const checkpoint = await runIo(() => readParseCheckpointDescriptor({
+        bundleDir: incrementalState.bundleDir, relKey, entry: previous }));
+      if (checkpoint) {
+        // The checkpoint is independent of missing/corrupt lexical shards, but
+        // source identity must be fresh even when a prior stat/hash observation
+        // exists in this attempt's ordinary bundle cache.
+        try {
+          const current = await runIo(() => readVerifiedContainedFile(repoRoot, absPath, {
+            expectedStat: fileStat, expectedBytes: previous.size, expectedHash: previous.hash, hashAlgorithm: 'sha1' }));
+          result = { ...result, fileHash: current.hash, buffer: current.buffer,
+            parseCheckpointFallback: { sourceHash: current.hash, checkpoint } };
+        } catch (error) {
+          if (!['ENOENT', 'ENOTDIR', 'ERR_FILE_CHANGED', 'ERR_FILE_INTEGRITY', 'ERR_UNSAFE_FILE_PATH'].includes(error.code)) throw error;
+        }
       }
     }
   }
@@ -59,6 +82,7 @@ export async function writeBundleForFile({
   fileHash,
   fileChunks,
   parseCheckpoint = null,
+  lexicalCheckpoint = null,
   semanticFactsRef = null,
   semanticSegmentFactsRefs = [],
   semanticEvidenceArtifacts = [],
@@ -81,6 +105,7 @@ export async function writeBundleForFile({
     fileHash,
     fileChunks,
     parseCheckpoint,
+    lexicalCheckpoint,
     semanticFactsRef, semanticSegmentFactsRefs, semanticEvidenceArtifacts,
     semanticContext,
     dependencySignatures: incrementalState.manifest.dependencySignatures,

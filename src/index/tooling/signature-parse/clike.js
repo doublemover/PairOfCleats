@@ -1,11 +1,11 @@
-import { splitTopLevel, stripTopLevelAssignment } from './shared.js';
+import { findMatchingParen, splitTopLevel, stripTopLevelAssignment } from './shared.js';
+import { setOwn } from '../../../shared/object-record.js';
+import { normalizeTypeWhitespace, transformTypeTextOutsideLiterals } from '../../../shared/type-normalization.js';
 
 const splitClikeParams = (value) => splitTopLevel(value, ',');
 
-const stripQualifiers = (value) => value
-  .replace(/\b(static|inline|constexpr|virtual|extern|friend|typename)\b/g, '')
-  .replace(/\s+/g, ' ')
-  .trim();
+const stripQualifiers = (value) => normalizeTypeWhitespace(transformTypeTextOutsideLiterals(value,
+  text => text.replace(/\b(static|inline|constexpr|virtual|extern|friend|typename)\b/g, '')));
 
 const inferReturnType = (before, symbolName) => {
   if (!before) return null;
@@ -49,7 +49,7 @@ const parseClikeParam = (value) => {
 export const parseClikeSignature = (detail, symbolName) => {
   if (!detail || typeof detail !== 'string') return null;
   const open = detail.indexOf('(');
-  const close = detail.lastIndexOf(')');
+  const close = findMatchingParen(detail,open);
   if (open === -1 || close === -1 || close < open) return null;
   const signature = detail.trim();
   const before = detail.slice(0, open).trim();
@@ -61,7 +61,7 @@ export const parseClikeSignature = (detail, symbolName) => {
     const parsed = parseClikeParam(part);
     if (!parsed) continue;
     paramNames.push(parsed.name);
-    paramTypes[parsed.name] = parsed.type;
+    setOwn(paramTypes,parsed.name,parsed.type);
   }
   if (!returnType && !paramNames.length) return null;
   return { signature, returnType, paramTypes, paramNames };

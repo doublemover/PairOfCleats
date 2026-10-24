@@ -131,7 +131,7 @@ const renderRiskFlowNarrativeMarkdown = (narrative) => {
   return lines.join('\n');
 };
 
-export const renderRiskExplanationJson = (
+const projectRiskExplanationNarrative = (
   model,
   {
     title = 'Risk Explain',
@@ -151,11 +151,15 @@ export const renderRiskExplanationJson = (
   caps: model?.caps || null,
   truncation: Array.isArray(model?.truncation) ? model.truncation.slice() : [],
   filters: model?.filters || null,
-  flowSelection: buildRiskFlowSelection(model?.flows, { maxFlows, maxEvidencePerFlow }),
-  partialFlowSelection: buildPartialRiskFlowSelection(model?.partialFlows, { maxPartialFlows, maxEvidencePerFlow }),
+  flowSelection: buildRiskFlowSelection(model?.flows, { maxFlows, maxEvidencePerFlow, totalFlows: model?.flowPopulation?.total }),
+  partialFlowSelection: buildPartialRiskFlowSelection(model?.partialFlows, { maxPartialFlows, maxEvidencePerFlow,
+    totalPartialFlows: model?.partialFlowPopulation?.total }),
   flows: buildRiskFlowNarrativeList(model?.flows || [], { maxFlows, maxEvidencePerFlow }).flows,
-  partialFlows: buildPartialRiskFlowNarrativeList(model?.partialFlows || [], { maxPartialFlows, maxEvidencePerFlow }).partialFlows,
-  sarif: renderRiskExplanationSarif(model, { maxFlows, maxPartialFlows, maxEvidencePerFlow })
+  partialFlows: buildPartialRiskFlowNarrativeList(model?.partialFlows || [], { maxPartialFlows, maxEvidencePerFlow }).partialFlows
+});
+
+export const renderRiskExplanationJson = (model, options = {}) => ({
+  ...projectRiskExplanationNarrative(model, options), sarif: renderRiskExplanationSarif(model, options)
 });
 
 const renderAnalysisStatus = (model, lines) => {
@@ -372,8 +376,8 @@ const renderPartialNarrativeMarkdown = (narrative) => {
   return lines.join('\n');
 };
 
-export const renderRiskExplanation = (
-  model,
+const renderRiskExplanationNarrative = (
+  model, narrative,
   {
     title = 'Risk Explain',
     includeSubject = true,
@@ -384,18 +388,9 @@ export const renderRiskExplanation = (
     includeAnchor = true,
     includeCaps = true,
     includeTruncation = true,
-    includeFilters = true,
-    maxFlows = 3,
-    maxEvidencePerFlow = 3,
-    maxPartialFlows = 3
+    includeFilters = true
   } = {}
 ) => {
-  const narrative = renderRiskExplanationJson(model, {
-    title,
-    maxFlows,
-    maxEvidencePerFlow,
-    maxPartialFlows
-  });
   const lines = [];
   if (title) {
     lines.push(title);
@@ -434,19 +429,27 @@ export const renderRiskExplanation = (
   return lines.join('\n');
 };
 
+export const renderRiskExplanation = (model, options = {}) => renderRiskExplanationNarrative(
+  model, projectRiskExplanationNarrative(model, options), options
+);
+
 export const buildRiskExplanationPresentation = (
   model,
   {
     surface = 'standalone',
+    format = 'both',
     ...overrides
   } = {}
 ) => {
   const options = getRiskExplanationSurfaceOptions(surface, overrides);
+  const narrative = projectRiskExplanationNarrative(model, options);
   return {
     model,
     options,
-    markdown: renderRiskExplanation(model, options),
-    json: renderRiskExplanationJson(model, options)
+    markdown: format === 'json' ? null : renderRiskExplanationNarrative(model, narrative, options),
+    json: format === 'md' || format === 'markdown' ? null : {
+      ...narrative, sarif: renderRiskExplanationSarif(model, options)
+    }
   };
 };
 

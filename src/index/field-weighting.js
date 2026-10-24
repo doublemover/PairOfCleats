@@ -8,7 +8,10 @@ import { fileExt } from '../shared/file-paths.js';
  * @returns {number}
  */
 export function getFieldWeight(meta, file) {
-  if (/test/i.test(file)) return 0.5;
+  const segments = String(file || '').replaceAll('\\','/').split('/');
+  const base = segments.at(-1) || '';
+  if (segments.some(segment => /^(?:tests?|__tests__|specs?)$/i.test(segment))
+    || /(?:[._-](?:test|spec))\.[^.]+$/i.test(base) || /^test[_-]/i.test(base)) return 0.5;
   if (meta.kind === 'FunctionDeclaration') return 2.0;
   if (meta.kind === 'ClassDeclaration') return 1.5;
   const ext = fileExt(file);

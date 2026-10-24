@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+import { guardBootstrapEntry } from '../../src/shared/bootstrap-readiness.js';
+await guardBootstrapEntry(import.meta.url);
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
 
 if (isDirectExecution(import.meta.url)) {

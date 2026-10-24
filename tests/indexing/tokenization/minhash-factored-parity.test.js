@@ -1,13 +1,7 @@
 import assert from 'node:assert/strict';
 import { SimpleMinHash } from '../../../src/index/minhash.js';
+import { referenceMinhash as referenceHash } from '../../helpers/minhash-reference.js';
 
-const referenceHash = (text, seed) => {
-  let value = seed;
-  for (let index = 0; index < text.length; index += 1) {
-    value = (value * 31 + text.charCodeAt(index)) >>> 0;
-  }
-  return value;
-};
 const tokens = ['', 'a', '\0', '\r\n', '😀', '\ud800', 'é', 'a'.repeat(257)];
 let random = 12345;
 for (let row = 0; row < 300; row += 1) {

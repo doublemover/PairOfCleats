@@ -1,6 +1,42 @@
 import path from 'node:path';
+import fs from 'node:fs';
 
 const METRICS = new Set(['cosine', 'l2', 'dot']);
+
+/** Bounded, non-loading admission for the table files emitted by this backend.
+ * This proves declared payload presence/type, not native decoding of its bytes.
+ */
+export const assertLanceDbPayload = (dir, { table = 'vectors', count = 0 } = {}) => {
+  if (typeof table !== 'string' || !/^[A-Za-z0-9_.-]+$/.test(table) || ['.', '..'].includes(table)) {
+    throw new Error('LanceDB table name is not a safe local dataset name.');
+  }
+  const assertDirectory = target => {
+    const stat = fs.lstatSync(target);
+    if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error(`LanceDB payload is not a regular directory: ${target}`);
+  };
+  const hasNonemptyFile = (target, suffix) => {
+    assertDirectory(target);
+    const handle = fs.opendirSync(target);
+    try {
+      for (;;) {
+        const entry = handle.readSync();
+        if (!entry) return false;
+        if (!entry.isFile() || !entry.name.endsWith(suffix)) continue;
+        const stat = fs.lstatSync(path.join(target, entry.name));
+        if (stat.isFile() && !stat.isSymbolicLink() && stat.size > 0) return true;
+      }
+    } finally { handle.closeSync(); }
+  };
+  assertDirectory(dir);
+  const dataset = path.join(dir, `${table}.lance`);
+  assertDirectory(dataset);
+  if (!hasNonemptyFile(path.join(dataset, '_versions'), '.manifest')) {
+    throw new Error('LanceDB table has no nonempty version manifest.');
+  }
+  if (count > 0 && !hasNonemptyFile(path.join(dataset, 'data'), '.lance')) {
+    throw new Error('LanceDB table has no nonempty data fragments.');
+  }
+};
 
 const normalizeText = (value, fallback) => {
   if (typeof value !== 'string') return fallback;
@@ -29,7 +65,7 @@ const normalizeOptionalBoolean = (value) => {
 export function normalizeLanceDbConfig(raw = {}) {
   if (raw === false) return { enabled: false };
   const config = raw && typeof raw === 'object' ? raw : {};
-  return {
+  const result = {
     enabled: config.enabled !== false,
     isolate: normalizeOptionalBoolean(config.isolate),
     table: normalizeText(config.table, 'vectors'),
@@ -38,6 +74,10 @@ export function normalizeLanceDbConfig(raw = {}) {
     metric: normalizeMetric(config.metric),
     batchSize: normalizeInt(config.batchSize, 1024)
   };
+  if (result.enabled && result.idColumn === result.embeddingColumn) {
+    throw new Error('LanceDB ID and embedding columns must have distinct names.');
+  }
+  return result;
 }
 
 export function resolveLanceDbPaths(indexDir) {

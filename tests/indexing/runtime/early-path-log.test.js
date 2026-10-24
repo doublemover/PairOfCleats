@@ -1,9 +1,10 @@
 #!/usr/bin/env node
+import { runNode as runNodeFixture } from '../../helpers/run-node.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-early-log-'));
@@ -24,10 +25,10 @@ try {
       argv: { stage: 'stage1', threads: 1, 'log-file': ${JSON.stringify(logFile)} }, rawArgv: [] });
     await teardownRuntime(runtime);
   `;
-  const result = spawnSync(process.execPath, ['--input-type=module', '-e', source], {
+  const result = runNodeFixture(['--input-type=module', '-e', source], 'Node process fixture', process.cwd(), process.env, { stdio: 'pipe', encoding: 'buffer', allowFailure: true, spawnOptions: {
     cwd: process.cwd(), encoding: 'utf8', timeout: 20000,
     env: applyTestEnv({ syncProcess: false, cacheRoot: path.join(temp, 'cache'), embeddings: 'off' })
-  });
+  } });
   assert.equal(result.status, 0, result.stderr);
   const rows = (await fs.readFile(logFile, 'utf8')).trim().split('\n').map(line => JSON.parse(line));
   for (const prefix of ['[init] cache root (', '[init] repo cache root:', '[init] build root:']) {

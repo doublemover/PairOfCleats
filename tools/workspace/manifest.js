@@ -3,22 +3,26 @@ import { createCli } from '../../src/shared/cli.js';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { loadWorkspaceConfig } from '../../src/workspace/config.js';
 import { generateWorkspaceManifest } from '../../src/workspace/manifest.js';
+import { runWorkspaceCliLifecycle } from './cli-lifecycle.js';
 
-export async function runWorkspaceManifestCli() {
+export async function runWorkspaceManifestCli(rawArgs = process.argv.slice(2), { signal = null } = {}) {
   const argv = createCli({
+    argv: ['node', 'workspace-manifest', ...rawArgs],
     scriptName: 'workspace-manifest',
     options: {
       workspace: { type: 'string' },
       json: { type: 'boolean', default: false }
     }
-  }).parse();
+  }).strictOptions().exitProcess(false).fail(message => { throw new Error(message); }).parse();
+  if (argv.help || argv.version) return null;
+  signal?.throwIfAborted();
 
   if (!argv.workspace) {
     throw new Error('workspace manifest requires --workspace <path>.');
   }
 
   const workspaceConfig = loadWorkspaceConfig(argv.workspace);
-  const { manifest, manifestPath } = await generateWorkspaceManifest(workspaceConfig, { write: true });
+  const { manifest, manifestPath } = await generateWorkspaceManifest(workspaceConfig, { write: true, signal });
   const payload = {
     ok: true,
     workspacePath: workspaceConfig.workspacePath,
@@ -34,7 +38,7 @@ export async function runWorkspaceManifestCli() {
 
   if (argv.json) {
     console.log(JSON.stringify(payload, null, 2));
-    return;
+    return payload;
   }
 
   console.error('Workspace manifest refreshed');
@@ -44,11 +48,9 @@ export async function runWorkspaceManifestCli() {
   console.error(`- repoSetId: ${payload.repoSetId}`);
   console.error(`- manifestHash: ${payload.manifestHash}`);
   console.error(`- diagnostics: warnings=${payload.diagnostics.warnings}, errors=${payload.diagnostics.errors}`);
+  return payload;
 }
 
 if (isDirectExecution(import.meta.url)) {
-  runWorkspaceManifestCli().catch((error) => {
-    console.error(error?.message || error);
-    process.exit(1);
-  });
+  await runWorkspaceCliLifecycle(runWorkspaceManifestCli, { action: 'manifest' });
 }

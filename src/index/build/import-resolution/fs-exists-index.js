@@ -2,6 +2,7 @@ import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { normalizeRelPath, resolveWithinRoot } from './path-utils.js';
+import { createDiscoveryDirectoryInventoryReader } from '../discovery/directory-inventory.js';
 
 const DEFAULT_MAX_SCAN_FILES = 200000;
 const DEFAULT_SCAN_DIR_CONCURRENCY = 8;
@@ -239,8 +240,12 @@ export const createFsExistsIndex = async ({
   const dirConcurrency = normalizedConfig.dirConcurrency;
   const ignoreDirs = normalizedConfig.ignoreDirs;
 
+  const directoryInventory = await createDiscoveryDirectoryInventoryReader(entries, rootAbs);
   const relPaths = new Set();
-  for (const entry of Array.isArray(entries) ? entries : []) {
+  // Private discovery arrays carry raw directory facts, not everlasting file
+  // authority. Rebuild positives from admitted rows or the normal delta scan so
+  // a removed selected file cannot survive an invalidated directory receipt.
+  for (const entry of !directoryInventory && Array.isArray(entries) ? entries : []) {
     const rel = normalizeEntryRelPath(entry, rootAbs);
     if (!rel) continue;
     relPaths.add(rel);
@@ -250,6 +255,9 @@ export const createFsExistsIndex = async ({
   let scannedFiles = 0;
   let truncated = false;
   let hadReadErrors = false;
+  const unknownPrefixes = new Set();
+  let rootUncertain = false;
+  const reusedDirectories = new Map();
   let activeWorkers = 0;
 
   const workers = Array.from(
@@ -268,7 +276,13 @@ export const createFsExistsIndex = async ({
         let entriesInDir;
         try {
           throwIfAborted(abortSignal);
-          entriesInDir = await fsPromises.readdir(current, { withFileTypes: true });
+          const snapshot = await directoryInventory?.read(current);
+          if (snapshot) {
+            entriesInDir = snapshot.rows;
+            reusedDirectories.set(current, snapshot);
+          } else {
+            entriesInDir = await fsPromises.readdir(current, { withFileTypes: true });
+          }
         } catch {
           throwIfAborted(abortSignal);
           hadReadErrors = true;
@@ -279,12 +293,17 @@ export const createFsExistsIndex = async ({
             throwIfAborted(abortSignal);
             if (truncated) break;
             const fullPath = path.join(current, entry.name);
-            if (entry.isDirectory()) {
+            const kind = entry.kind || (entry.isSymbolicLink() ? 'link' : entry.isDirectory() ? 'directory' : entry.isFile() ? 'file' : 'other');
+            if (kind === 'link') {
+              unknownPrefixes.add(normalizeRelPath(path.relative(rootAbs, fullPath)));
+              continue;
+            }
+            if (kind === 'directory') {
               if (shouldIgnoreDirectory(entry.name, fullPath, rootAbs, ignoreDirs)) continue;
               pendingDirs.push(fullPath);
               continue;
             }
-            if (!entry.isFile()) continue;
+            if (kind !== 'file') continue;
             const rel = normalizeRelPath(path.relative(rootAbs, fullPath));
             if (!rel) continue;
             relPaths.add(rel);
@@ -301,6 +320,15 @@ export const createFsExistsIndex = async ({
     }
   );
   await Promise.all(workers);
+  for (const snapshot of reusedDirectories.values()) {
+    throwIfAborted(abortSignal);
+    if (await directoryInventory.current(snapshot)) continue;
+    // Reused facts whose original directory changes during construction cannot
+    // provide either positive or negative authority for that subtree.
+    hadReadErrors = true;
+    const relative = normalizeRelPath(path.relative(rootAbs, snapshot.directory));
+    if (relative) unknownPrefixes.add(relative); else rootUncertain = true;
+  }
 
   const bloom = createBloom(relPaths.size);
   const exactByHash = new Map();
@@ -317,9 +345,13 @@ export const createFsExistsIndex = async ({
     indexedCount: relPaths.size,
     truncated,
     bloomBits: bloom.sizeBits,
+    reusedDirectoryCount: reusedDirectories.size,
     lookup: (relPath) => {
       const normalized = normalizeRelPath(relPath);
-      if (!normalized) return 'unknown';
+      if (!normalized || rootUncertain) return 'unknown';
+      for (let candidate = normalized; candidate && candidate !== '.'; candidate = path.posix.dirname(candidate)) {
+        if (unknownPrefixes.has(candidate)) return 'unknown';
+      }
       if (isRelPathInIgnoredDirectory(normalized, ignoreDirs)) return 'unknown';
       if (!bloom.mightContain(normalized)) return complete ? 'absent' : 'unknown';
       if (hasExactEntry(exactByHash, normalized)) return 'present';

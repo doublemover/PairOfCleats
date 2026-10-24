@@ -1,5 +1,5 @@
+import { resolveDevelopmentArtifactPath } from '../../tools/shared/dev-artifacts.js';
 import fsPromises from 'node:fs/promises';
-import path from 'node:path';
 
 const VALID_TEST_CACHE_SCOPES = new Set(['isolated', 'shared']);
 
@@ -29,12 +29,12 @@ export const resolveTestCacheDir = (name, { root = process.cwd() } = {}) => {
   const label = typeof name === 'string' && name.trim() ? name.trim() : 'default';
   return {
     root,
-    dir: path.join(root, '.testCache', label)
+    dir: resolveDevelopmentArtifactPath(root, 'test-cache', label)
   };
 };
 
 export const resolveTestCachePath = (root = process.cwd(), ...segments) => (
-  path.join(root, '.testCache', ...segments)
+  resolveDevelopmentArtifactPath(root, 'test-cache', ...segments)
 );
 
 export const normalizeTestCacheScope = (cacheScope, {
@@ -57,7 +57,7 @@ export const prepareTestCacheDir = async (name, { clean = true, root = process.c
 };
 
 /**
- * Prepare a uniquely-named isolated test cache directory under `.testCache`.
+ * Prepare a uniquely-named isolated directory under `.tmp/dev/tests/cache`.
  *
  * @param {string} baseName
  * @param {{root?:string,clean?:boolean}} [options]

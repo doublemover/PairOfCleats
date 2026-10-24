@@ -1,5 +1,6 @@
 import fs from 'node:fs/promises';
 import zlib from 'node:zlib';
+import sax from 'sax';
 import { tryImport } from '../../shared/optional-deps.js';
 import { getDocumentExtractorTestConfig } from '../../shared/env/testing.js';
 import {
@@ -23,41 +24,16 @@ const LOCAL_SIGNATURE = 0x04034b50;
 
 let cachedRuntime = null;
 
-const decodeXmlEntities = (value) => (
-  String(value || '').replace(
-    /&(#x[0-9a-fA-F]+|#[0-9]+|lt|gt|amp|quot|#39);/g,
-    (_, token) => {
-      switch (token) {
-        case 'lt':
-          return '<';
-        case 'gt':
-          return '>';
-        case 'amp':
-          return '&';
-        case 'quot':
-          return '"';
-        case '#39':
-          return '\'';
-        default:
-          break;
-      }
-      if (token.startsWith('#x')) {
-        const code = Number.parseInt(token.slice(2), 16);
-        return Number.isFinite(code) ? String.fromCodePoint(code) : '';
-      }
-      if (token.startsWith('#')) {
-        const code = Number.parseInt(token.slice(1), 10);
-        return Number.isFinite(code) ? String.fromCodePoint(code) : '';
-      }
-      return '';
-    }
-  )
-);
+const WORD_NS = new Set([
+  'http://schemas.openxmlformats.org/wordprocessingml/2006/main',
+  'http://purl.oclc.org/ooxml/wordprocessingml/main'
+]);
 
 const resolveDocxFailureReason = (err) => {
   const code = String(err?.code || '');
   const message = String(err?.message || '').toLowerCase();
   if (code === 'EXTRACT_TIMEOUT') return 'extract_timeout';
+  if (code === 'ERR_BUFFER_TOO_LARGE' || code === 'ERR_DOCX_EXPANDED_LIMIT') return 'oversize';
   if (message.includes('encrypted')) return 'unsupported_encrypted';
   return 'extract_failed';
 };
@@ -96,6 +72,7 @@ const parseCentralDirectory = (buffer) => {
     if (buffer.readUInt32LE(cursor) !== CENTRAL_SIGNATURE) break;
     const compressionMethod = buffer.readUInt16LE(cursor + 10);
     const compressedSize = buffer.readUInt32LE(cursor + 20);
+    const uncompressedSize = buffer.readUInt32LE(cursor + 24);
     const fileNameLength = buffer.readUInt16LE(cursor + 28);
     const extraLength = buffer.readUInt16LE(cursor + 30);
     const commentLength = buffer.readUInt16LE(cursor + 32);
@@ -107,6 +84,7 @@ const parseCentralDirectory = (buffer) => {
       name,
       compressionMethod,
       compressedSize,
+      uncompressedSize,
       localHeaderOffset
     });
     cursor = nameEnd + extraLength + commentLength;
@@ -114,7 +92,10 @@ const parseCentralDirectory = (buffer) => {
   return entries;
 };
 
-const extractZipEntry = (buffer, entry) => {
+export const extractZipEntry = (buffer, entry, maxOutputBytes) => {
+  if (!Number.isSafeInteger(maxOutputBytes) || maxOutputBytes <= 0) throw new TypeError('DOCX expanded XML requires a positive byte bound.');
+  const oversize = () => Object.assign(new Error('DOCX expanded XML exceeds the extraction byte policy.'), { code: 'ERR_DOCX_EXPANDED_LIMIT' });
+  if (entry.uncompressedSize > maxOutputBytes) throw oversize();
   const localOffset = entry.localHeaderOffset;
   if (localOffset + 30 > buffer.length) return null;
   if (buffer.readUInt32LE(localOffset) !== LOCAL_SIGNATURE) return null;
@@ -124,36 +105,67 @@ const extractZipEntry = (buffer, entry) => {
   const dataEnd = dataStart + entry.compressedSize;
   if (dataStart < 0 || dataEnd > buffer.length || dataEnd <= dataStart) return null;
   const payload = buffer.slice(dataStart, dataEnd);
-  if (entry.compressionMethod === 0) return payload;
-  if (entry.compressionMethod === 8) return zlib.inflateRawSync(payload);
+  if (entry.compressionMethod === 0) {
+    if (payload.length > maxOutputBytes) throw oversize();
+    return payload;
+  }
+  if (entry.compressionMethod === 8) return zlib.inflateRawSync(payload, { maxOutputLength: maxOutputBytes });
   return null;
 };
 
-const parseDocxParagraphsFromXml = (xml) => {
+export const parseDocxParagraphsFromXml = (xml) => {
   const paragraphs = [];
-  const paragraphMatches = xml.matchAll(/<w:p\b[\s\S]*?<\/w:p>/g);
+  const parser = sax.parser(true, { xmlns: true });
+  const stack = [];
+  const excludedRanges = new Set();
+  let paragraph = null;
   let index = 0;
-  for (const match of paragraphMatches) {
-    const paragraphXml = match[0] || '';
-    const styleMatch = paragraphXml.match(/<w:pStyle\b[^>]*w:val=(?:"([^"]+)"|'([^']+)')/i);
-    const style = styleMatch ? (styleMatch[1] || styleMatch[2] || null) : null;
-    const normalized = paragraphXml
-      .replace(/<w:tab\s*\/>/gi, '\t')
-      .replace(/<w:br\s*\/>/gi, '\n')
-      .replace(/<w:cr\s*\/>/gi, '\n');
-    const textRuns = [];
-    for (const textMatch of normalized.matchAll(/<w:t\b[^>]*>([\s\S]*?)<\/w:t>/gi)) {
-      textRuns.push(decodeXmlEntities(textMatch[1]));
+  const isWord = (node, local) => WORD_NS.has(node?.uri) && node.local === local;
+  const wordAttribute = (node, local) => Object.values(node.attributes).find(
+    (attribute) => WORD_NS.has(attribute.uri) && attribute.local === local
+  )?.value;
+  const canRead = () => paragraph && !stack.at(-1)?.excluded && excludedRanges.size === 0;
+  parser.ondoctype = () => { throw new Error('DOCX document XML must not contain a DTD.'); };
+  parser.onopentag = (node) => {
+    const excluded = Boolean(stack.at(-1)?.excluded)
+      || isWord(node, 'del') || isWord(node, 'moveFrom');
+    stack.push({ node, excluded });
+    if (isWord(node, 'moveFromRangeStart')) {
+      const id = wordAttribute(node, 'id');
+      if (!id || excludedRanges.has(id)) throw new Error('Invalid DOCX moved-from range start.');
+      excludedRanges.add(id);
+    } else if (isWord(node, 'moveFromRangeEnd')) {
+      const id = wordAttribute(node, 'id');
+      if (!id || !excludedRanges.delete(id)) throw new Error('Invalid DOCX moved-from range end.');
     }
-    const text = normalizeExtractedText(textRuns.join(''));
-    index += 1;
-    if (!text) continue;
-    paragraphs.push({
-      index,
-      text,
-      ...(style ? { style } : {})
-    });
-  }
+    if (excluded) return;
+    if (isWord(node, 'p') && excludedRanges.size === 0) {
+      if (paragraph) throw new Error('Nested DOCX paragraphs cannot be ordered.');
+      paragraph = { index: ++index, runs: [], style: null };
+    } else if (isWord(node, 'pStyle') && paragraph) {
+      paragraph.style = wordAttribute(node, 'val') || null;
+    } else if (canRead() && (isWord(node, 'tab') || isWord(node, 'br') || isWord(node, 'cr'))) {
+      paragraph.runs.push(isWord(node, 'tab') ? '\t' : '\n');
+    }
+  };
+  parser.ontext = (value) => {
+    if (canRead() && isWord(stack.at(-1)?.node, 't')) paragraph.runs.push(value);
+  };
+  parser.oncdata = parser.ontext;
+  parser.onclosetag = () => {
+    const { node, excluded } = stack.pop();
+    if (isWord(node, 'p') && !excluded && paragraph) {
+      const text = normalizeExtractedText(paragraph.runs.join(''));
+      if (text) paragraphs.push({
+        index: paragraph.index,
+        text,
+        ...(paragraph.style ? { style: paragraph.style } : {})
+      });
+      paragraph = null;
+    }
+  };
+  parser.write(xml).close();
+  if (excludedRanges.size) throw new Error('Unclosed DOCX moved-from range.');
   return paragraphs;
 };
 
@@ -166,7 +178,7 @@ const parseDocxParagraphsFromBuffer = (buffer, policy = null) => {
   if (!documentEntry) {
     return buildFailedResult('extract_failed', ['word/document.xml missing'], { sourceType: 'docx', policy });
   }
-  const xmlBuffer = extractZipEntry(buffer, documentEntry);
+  const xmlBuffer = extractZipEntry(buffer, documentEntry, normalizeDocumentExtractionPolicy(policy).maxBytesPerFile);
   if (!xmlBuffer) {
     return buildFailedResult('extract_failed', ['word/document.xml unreadable'], { sourceType: 'docx', policy });
   }
@@ -219,22 +231,14 @@ export async function loadDocxExtractorRuntime({ refresh = false } = {}) {
   return cachedRuntime;
 }
 
-const extractWithMammoth = async (runtime, source, policy = null) => {
-  const result = await runtime.mod.extractRawText({ buffer: source });
-  const warnings = normalizeWarnings(result?.messages);
-  const lines = String(result?.value || '')
-    .replace(/\r\n?/g, '\n')
-    .split('\n');
-  const paragraphs = [];
-  for (const rawLine of lines) {
-    const text = normalizeExtractedText(rawLine);
-    if (!text) continue;
-    paragraphs.push({ index: paragraphs.length + 1, text });
-  }
-  if (!paragraphs.length) {
-    return buildFailedResult('unsupported_scanned', warnings, { sourceType: 'docx', policy });
-  }
-  return { ok: true, paragraphs, warnings };
+const extractWithMammoth = async (runtime, source, policy) => {
+  const extracted = await runtime.mod.extractRawText({ buffer: source });
+  const warnings = normalizeWarnings(extracted?.messages);
+  // Raw Mammoth lines are display output, not Word paragraph identities. The
+  // bounded structural owner supplies physical ordinals and paragraph styles
+  // for both backends, including omitted empty paragraphs and table paragraphs.
+  const structural = parseDocxParagraphsFromBuffer(source, policy);
+  return { ...structural, warnings: normalizeWarnings([...(structural.warnings || []), ...warnings]) };
 };
 
 export async function extractDocx({

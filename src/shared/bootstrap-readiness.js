@@ -9,13 +9,19 @@ export const BOOTSTRAP_RECEIPT = 'node_modules/.pairofcleats-bootstrap.json';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const MAX_RECEIPT_BYTES = 8 * 1024 * 1024;
 const INPUTS = ['package.json', 'package-lock.json', '.nvmrc',
-  'tools/setup/apply-patches.js', 'tools/setup/rebuild-native.js',
+  'tools/setup/preflight.js', 'src/shared/direct-execution.js', 'tools/setup/apply-patches.js', 'tools/setup/rebuild-native.js',
   'tools/setup/rebuild-native-sqlite.js', 'tools/setup/readiness.js', 'src/shared/native-package-probe.js',
+  'tools/setup/bootstrap-tasks.js', 'tools/setup/native-build-plan.js',
+  'tools/setup/windows-capability.js',
   'src/shared/bootstrap-readiness.js', 'src/lang/tree-sitter/native-runtime.js',
   'src/lang/tree-sitter/native-grammar-binding.js'];
 const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const runtime = () => ({ node: process.version, abi: process.versions.modules,
   platform: process.platform, arch: process.arch });
+const supportedNodeRuntime = () => {
+  const [major, minor, patch] = process.versions.node.split('.').map(Number);
+  return major === 26 && (minor > 12 || (minor === 12 && patch >= 1));
+};
 const readiness = (ready, reason = null) => ({
   ...buildReadinessReceipt({ items: [{ id: 'bootstrap', required: true,
     state: ready ? 'available-and-verified' : 'unverified', reason,
@@ -53,12 +59,13 @@ const safeFile = (root, relative) => {
  * succeed. A receipt records evidence, not a substitute for current readiness.
  */
 export const recordBootstrapReadiness = (root, verifiedPackages, { nativeCapabilities = [] } = {}) => {
+  if (!supportedNodeRuntime()) throw new Error('This checkout requires Node.js >=26.12.1 <27.');
   root = fs.realpathSync(root);
   const pkg = JSON.parse(readBounded(path.join(root, 'package.json')));
   const declared = Object.keys({ ...pkg.dependencies, ...pkg.devDependencies }).sort();
   for (const name of declared) {
     if (!fs.existsSync(path.join(root, 'node_modules', name, 'package.json'))) {
-      throw new Error(`Required checkout dependency is missing: ${name}. Run npm run bootstrap.`);
+      throw new Error(`Required checkout dependency is missing: ${name}. Run npm run bootstrap:ci.`);
     }
   }
   const artifacts = [], pending = ['node_modules'];
@@ -98,41 +105,72 @@ export const recordBootstrapReadiness = (root, verifiedPackages, { nativeCapabil
   return receipt;
 };
 
-export const inspectBootstrapReadiness = async ({ root = ROOT } = {}) => {
+/** Report identity differences independently; executable location is context, not receipt identity. */
+export const compareBootstrapIdentity = (receipt, { root, runtime: actual = runtime() }) => {
+  const mismatches = [];
+  const check = (field, expected, observed) => {
+    if (expected !== observed) mismatches.push({ field, expected, observed: observed ?? null });
+  };
+  check('schemaVersion', 1, receipt?.schemaVersion);
+  check('root', root, receipt?.root);
+  for (const field of ['node', 'abi', 'platform', 'arch']) check(`runtime.${field}`, actual[field], receipt?.runtime?.[field]);
+  return mismatches;
+};
+
+export const inspectBootstrapReadiness = async ({ root = ROOT, probeNatives = true } = {}) => {
+  let code = 'ERR_BOOTSTRAP_INSPECTION';
+  let mismatches = [];
   try {
     root = fs.realpathSync(root);
-    if (Number(process.versions.node.split('.')[0]) !== 26) throw new Error('This checkout requires Node.js 26.x.');
+    code = 'ERR_BOOTSTRAP_RUNTIME_UNSUPPORTED';
+    if (!supportedNodeRuntime()) throw new Error('This checkout requires Node.js >=26.12.1 <27.');
     const file = path.join(root, BOOTSTRAP_RECEIPT);
+    code = 'ERR_BOOTSTRAP_RECEIPT_MISSING';
     if (!fs.existsSync(file)) throw new Error('Verified bootstrap receipt is missing; installation is incomplete or has not been verified.');
+    code = 'ERR_BOOTSTRAP_RECEIPT_INVALID';
+    const receiptSignature = JSON.stringify(signature(file));
     const receipt = JSON.parse(readBounded(file));
-    if (receipt.schemaVersion !== 1 || receipt.root !== root
-      || JSON.stringify(receipt.runtime) !== JSON.stringify(runtime())) throw new Error('Bootstrap belongs to a different checkout, Node runtime or native ABI.');
+    mismatches = compareBootstrapIdentity(receipt, { root });
+    code = 'ERR_BOOTSTRAP_IDENTITY_MISMATCH';
+    if (mismatches.length) throw new Error('Bootstrap identity differs: ' + mismatches.map(item => item.field).join(', ') + '.');
+    code = 'ERR_BOOTSTRAP_INPUT_DRIFT';
     if (JSON.stringify(receipt.inputs) !== JSON.stringify(inputHashes(root))) throw new Error('Bootstrap setup inputs, package lock or required patches have changed.');
+    code = 'ERR_BOOTSTRAP_EVIDENCE_INCOMPLETE';
     if (!Array.isArray(receipt.artifacts) || !receipt.artifacts.length || receipt.artifacts.length > 10000
       || !Array.isArray(receipt.verifiedPackages) || !receipt.verifiedPackages.includes('tree-sitter')
       || !receipt.verifiedPackages.includes('better-sqlite3')) throw new Error('Bootstrap verification evidence is incomplete.');
     for (const [relative, expected] of receipt.artifacts) {
+      code = 'ERR_BOOTSTRAP_ARTIFACT_DRIFT';
       if (JSON.stringify(signature(safeFile(root, relative))) !== JSON.stringify(expected)) {
         throw new Error(`Verified dependency artifact changed: ${relative}`);
       }
     }
     // Load success alone does not detect lazy SQLite binding failures or an
     // unusable tree-sitter grammar. Reuse the actual native activation probes.
-    for (const name of ['better-sqlite3', 'tree-sitter']) {
+    for (const name of probeNatives ? ['better-sqlite3', 'tree-sitter'] : []) {
+      code = 'ERR_BOOTSTRAP_NATIVE_UNUSABLE';
       const result = await probeNativePackage(root, name);
       if (!result.ok) throw new Error(`${name} is not usable: ${result.message}`);
     }
-    return readiness(true);
-  } catch (error) { return readiness(false, error?.message || String(error)); }
+    code = 'ERR_BOOTSTRAP_RECEIPT_REPLACED';
+    if (JSON.stringify(signature(file)) !== receiptSignature) throw new Error('Bootstrap receipt changed during inspection; retry after the active verifier finishes.');
+    return { ...readiness(true), code: null, mismatches: [], nativeProbes: probeNatives ? 'passed' : 'not-run' };
+  } catch (error) {
+    return { ...readiness(false, error?.message || String(error)), code, mismatches,
+      nativeProbes: probeNatives ? 'incomplete' : 'not-run',
+      nextAction: code === 'ERR_BOOTSTRAP_RECEIPT_REPLACED' ? 'retry-after-verifier'
+        : code === 'ERR_BOOTSTRAP_IDENTITY_MISMATCH' && mismatches.every(item => item.field.startsWith('runtime.'))
+          ? 'verify-natives-and-patches-under-selected-runtime' : 'locked-bootstrap' };
+  }
 };
 
 export const formatBootstrapRequired = (reason, root = ROOT) => [
   '', '======================================================================',
   'PAIR OF CLEATS CANNOT START: BOOTSTRAP REQUIRED',
   '======================================================================', reason,
-  `In the PairOfCleats checkout (${root}), run:`, '', '  npm run bootstrap', '',
-  'For a clean, lockfile-pinned CI install: npm run bootstrap:ci',
-  'Use Node.js 26.x. Bootstrap installs dependencies, applies required patches',
+  `In the PairOfCleats checkout (${root}), run:`, '', '  npm run bootstrap:ci', '',
+  'For intentional dependency-resolution changes only: npm run bootstrap',
+  'Use Node.js >=26.12.1 <27. Bootstrap installs dependencies, applies required patches',
   'and rebuilds/verifies native modules. Nothing was installed automatically.',
   '======================================================================', ''
 ].join('\n');

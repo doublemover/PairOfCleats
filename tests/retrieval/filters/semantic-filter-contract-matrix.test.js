@@ -23,8 +23,8 @@ const typeFixture = await ensureFixtureIndex({
   requiredModes: ['code']
 });
 const riskFixture = await ensureFixtureIndex({
-  fixtureName: 'languages',
-  cacheName: 'language-fixture',
+  fixtureName: 'semantic-filter-risk',
+  cacheName: 'semantic-filter-risk',
   requireRiskTags: true,
   cacheScope: 'isolated',
   requiredModes: ['code']
@@ -54,10 +54,6 @@ const cases = [
         args: ['--backend', 'memory', '--return-type', 'Widget']
       });
 
-      if (!(inferred.code || []).length || !(returns.code || []).length) {
-        return;
-      }
-
       assert.ok((inferred.code || []).length > 0);
       assert.ok((returns.code || []).length > 0);
     }
@@ -75,10 +71,6 @@ const cases = [
         mode: 'code',
         args: ['--risk-flow', 'req.body->exec']
       });
-
-      if (!(riskTag.code || []).length || !(riskFlow.code || []).length) {
-        return;
-      }
 
       assert.ok((riskTag.code || []).length > 0);
       assert.ok((riskFlow.code || []).length > 0);

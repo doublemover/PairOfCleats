@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { getCacheRoot, resolveVersionedCacheRoot } from '../cache-roots.js';
+import { buildEmbeddingIdentityKey } from '../embedding-identity.js';
 
 const sanitizeSegment = (value, fallback) => {
   const raw = typeof value === 'string' && value.trim() ? value.trim() : fallback;
@@ -31,12 +32,30 @@ export const resolveEmbeddingsCacheBase = ({
   cacheRoot,
   provider,
   modelId,
-  dims
+  dims,
+  identity = null
 } = {}) => {
   const providerKey = sanitizeSegment(provider, 'provider');
   const modelKey = sanitizeSegment(modelId, 'model');
   const dimsKey = Number.isFinite(Number(dims)) ? `${Math.floor(Number(dims))}d` : 'dims-unknown';
-  return path.join(cacheRoot || '', providerKey, modelKey, dimsKey);
+  const labels = path.join(cacheRoot || '', providerKey, modelKey, dimsKey);
+  return identity && typeof identity === 'object'
+    ? path.join(labels, 'profiles-v3', buildEmbeddingIdentityKey(identity)) : labels;
+};
+
+/** Adoption descriptor for shared storage inventory/migration/lifecycle owners.
+ * Legacy bytes are a read-only compatibility tier, never a write destination.
+ */
+export const resolveEmbeddingCacheProfile = ({ cacheRoot, identity }) => {
+  const labels = { cacheRoot, provider: identity?.provider, modelId: identity?.modelId, dims: identity?.dims };
+  const legacy = resolveEmbeddingsCacheBase(labels);
+  return Object.freeze({ category: 'derived-embedding-cache', layoutVersion: 3,
+    identityKey: buildEmbeddingIdentityKey(identity), rebuildable: true,
+    canonical: resolveEmbeddingsCacheBase({ ...labels, identity }),
+    prior: path.join(legacy, 'profiles-v2', buildEmbeddingIdentityKey(identity)),
+    legacy,
+    migration: 'identity-validated-read-only-fallback',
+    lifecycleOwner: 'existing-embedding-shard-index-and-shared-storage-policy' });
 };
 
 /**

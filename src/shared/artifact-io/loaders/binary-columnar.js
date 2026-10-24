@@ -1,4 +1,8 @@
+import { beginVerifiedArtifactRead } from '../verified-read-scope.js';
 import fs from 'node:fs';
+import { constants as bufferConstants } from 'node:buffer';
+import { readVerifiedContainedFileSync, iterateContainedFileSync, assertNoSymlinkPath } from '../../contained-file.js';
+import { createContainedFileResource, iterateContainedFileResourceSync } from '../../contained-file-resource.js';
 import { existsOrBak, resolvePathOrBak } from '../fs.js';
 import { decodeBinaryRowFrameLengths, decodeU64Offsets } from '../binary-columnar.js';
 import { joinPathSafe } from '../../path-normalize.js';
@@ -7,6 +11,11 @@ import {
   coerceNonNegativeInt
 } from '../../number-coerce.js';
 import { resolveArtifactMetaEnvelope } from './shared.js';
+
+const readPart = (target, maxBytes, containedRoot) => containedRoot
+  ? readVerifiedContainedFileSync(containedRoot, target, {
+    maxBytes: Number.isSafeInteger(maxBytes) && maxBytes > 0 ? maxBytes : bufferConstants.MAX_LENGTH
+  }).buffer : fs.readFileSync(target);
 
 const SUPPORTED_BINARY_COLUMNAR_FORMAT = 'binary-columnar-v1';
 const SUPPORTED_BINARY_BYTE_ORDER = new Set(['le', 'little', 'little-endian']);
@@ -68,6 +77,7 @@ const resolveBinaryColumnarFrameMetadata = ({
   count,
   offsetsBuffer = null,
   lengthsBuffer = null,
+  containedRoot = null,
   maxBytes = null
 }) => {
   const hasOffsetsBuffer = Buffer.isBuffer(offsetsBuffer) || offsetsBuffer instanceof Uint8Array;
@@ -82,10 +92,10 @@ const resolveBinaryColumnarFrameMetadata = ({
   const resolvedLengthsPath = hasLengthsBuffer ? null : resolvePathOrBak(lengthsPath);
   const resolvedOffsetsBuffer = hasOffsetsBuffer
     ? (Buffer.isBuffer(offsetsBuffer) ? offsetsBuffer : Buffer.from(offsetsBuffer))
-    : fs.readFileSync(resolvedOffsetsPath);
+    : readPart(resolvedOffsetsPath, maxBytes, containedRoot);
   const resolvedLengthsBuffer = hasLengthsBuffer
     ? (Buffer.isBuffer(lengthsBuffer) ? lengthsBuffer : Buffer.from(lengthsBuffer))
-    : fs.readFileSync(resolvedLengthsPath);
+    : readPart(resolvedLengthsPath, maxBytes, containedRoot);
   assertWithinMaxBytes(resolvedOffsetsBuffer.length, maxBytes, 'Binary-columnar offsets');
   assertWithinMaxBytes(resolvedLengthsBuffer.length, maxBytes, 'Binary-columnar lengths');
   const offsets = decodeU64Offsets(resolvedOffsetsBuffer);
@@ -109,6 +119,7 @@ const resolveSafeLayoutPath = (dir, candidate, fallback, label) => {
   if (!resolved) {
     throw new Error(`Invalid ${label} path: ${String(relPath)}`);
   }
+  assertNoSymlinkPath(dir, resolved, { allowMissing: true });
   return resolved;
 };
 
@@ -132,7 +143,8 @@ const loadBinaryColumnarRowPayloads = ({
   offsetsBuffer = null,
   lengthsBuffer = null,
   maxBytes = null,
-  enforceDataBudget = true
+  enforceDataBudget = true,
+  containedRoot = null
 }) => {
   const resolvedCount = resolveStrictNonNegativeSafeInt(count, 'binary-columnar row count');
   const hasDataBuffer = Buffer.isBuffer(dataBuffer) || dataBuffer instanceof Uint8Array;
@@ -142,13 +154,14 @@ const loadBinaryColumnarRowPayloads = ({
   const resolvedDataPath = hasDataBuffer ? null : resolvePathOrBak(dataPath);
   const resolvedDataBuffer = hasDataBuffer
     ? (Buffer.isBuffer(dataBuffer) ? dataBuffer : Buffer.from(dataBuffer))
-    : fs.readFileSync(resolvedDataPath);
+    : readPart(resolvedDataPath, enforceDataBudget ? maxBytes : null, containedRoot);
   const metadata = resolveBinaryColumnarFrameMetadata({
     offsetsPath,
     lengthsPath,
     count: resolvedCount,
     offsetsBuffer,
     lengthsBuffer,
+    containedRoot,
     maxBytes
   });
   if (!metadata) return null;
@@ -215,7 +228,8 @@ const iterateBinaryColumnarRowPayloads = ({
   offsetsBuffer = null,
   lengthsBuffer = null,
   maxBytes = null,
-  enforceDataBudget = false
+  enforceDataBudget = false,
+  containedRoot = null
 }) => {
   const resolvedCount = resolveStrictNonNegativeSafeInt(count, 'binary-columnar row count');
   if (!existsOrBak(dataPath)) return null;
@@ -225,44 +239,81 @@ const iterateBinaryColumnarRowPayloads = ({
     count: resolvedCount,
     offsetsBuffer,
     lengthsBuffer,
+    containedRoot,
     maxBytes
   });
   if (!metadata) return null;
   const { offsets, lengths, count: metadataCount } = metadata;
   const resolvedDataPath = resolvePathOrBak(dataPath);
   const max = toPositiveFinite(maxBytes);
-  return (function* () {
-    const dataHandle = fs.openSync(resolvedDataPath, 'r');
-    try {
-      const dataSize = Number(fs.fstatSync(dataHandle)?.size || 0);
-      if (enforceDataBudget) {
-        assertWithinMaxBytes(dataSize, maxBytes, 'Binary-columnar data');
+  let publishWitness = null;
+  const onComplete = () => publishWitness?.();
+  const readRows = function* (descriptor) {
+    const witness = beginVerifiedArtifactRead(containedRoot, resolvedDataPath, descriptor.fd,
+      { stat: descriptor.stat });
+    let witnessedPosition = 0;
+    // Framed producers normally cover contiguous bytes. Hash gaps on this same opened descriptor,
+    // so padding/trailing bytes remain authority too; backwards frames decline the shared witness.
+    const witnessUntil = end => {
+      if (!witness || end <= witnessedPosition) return;
+      const buffer = Buffer.alloc(Math.min(65536, end - witnessedPosition));
+      while (witnessedPosition < end) {
+        const length = Math.min(buffer.length, end - witnessedPosition);
+        const bytesRead = descriptor.read(buffer, 0, length, witnessedPosition);
+        if (!Number.isSafeInteger(bytesRead) || bytesRead <= 0 || bytesRead > length) throw new Error('Binary-columnar data truncated');
+        witness.update(buffer.subarray(0, bytesRead), witnessedPosition);
+        witnessedPosition += bytesRead;
       }
-      for (let i = 0; i < metadataCount; i += 1) {
-        const { start, end } = resolveBinaryColumnarRowSlice({
-          start: offsets[i],
-          length: lengths[i],
-          dataSize,
-          max,
-          enforceRowBudget: enforceDataBudget,
-          requireSafeEnd: true
-        });
-        const length = end - start;
-        const row = Buffer.allocUnsafe(length);
-        let readOffset = 0;
-        while (readOffset < length) {
-          const bytesRead = fs.readSync(dataHandle, row, readOffset, length - readOffset, start + readOffset);
-          if (!Number.isFinite(bytesRead) || bytesRead <= 0) {
-            throw new Error('Binary-columnar data truncated');
-          }
-          readOffset += bytesRead;
-        }
-        yield row;
-      }
-    } finally {
-      fs.closeSync(dataHandle);
+    };
+    const before = descriptor.stat();
+    const dataSize = before.size;
+    if (!before.isFile() || !Number.isSafeInteger(dataSize) || dataSize < 0) {
+      throw new Error('Invalid binary-columnar data extent');
     }
-  })();
+    if (enforceDataBudget) {
+      assertWithinMaxBytes(dataSize, maxBytes, 'Binary-columnar data');
+    }
+    for (let i = 0; i < metadataCount; i += 1) {
+      const { start, end } = resolveBinaryColumnarRowSlice({
+        start: offsets[i],
+        length: lengths[i],
+        dataSize,
+        max,
+        enforceRowBudget: enforceDataBudget,
+        requireSafeEnd: true
+      });
+      const length = end - start;
+      witnessUntil(start);
+      const row = Buffer.allocUnsafe(length);
+      let readOffset = 0;
+      while (readOffset < length) {
+        const requested = length - readOffset;
+        const bytesRead = descriptor.read(row, readOffset, requested, start + readOffset);
+        if (!Number.isSafeInteger(bytesRead) || bytesRead <= 0 || bytesRead > requested) {
+          throw new Error('Binary-columnar data truncated');
+        }
+        readOffset += bytesRead;
+      }
+      witness?.update(row, start);
+      witnessedPosition = Math.max(witnessedPosition, end);
+      yield row;
+    }
+    witnessUntil(dataSize);
+    const after = descriptor.stat();
+    if (['dev', 'ino', 'size', 'mtimeMs', 'ctimeMs'].some(key => before[key] !== after[key])) {
+      throw Object.assign(new Error('Binary-columnar data changed during its streamed read.'), { code: 'ERR_FILE_CHANGED' });
+    }
+    if (witness) publishWitness = witness.prepare(() => descriptor.verify());
+    else descriptor.verify?.();
+  };
+  if (containedRoot) return iterateContainedFileSync(containedRoot, resolvedDataPath, readRows, { onComplete });
+  return iterateContainedFileResourceSync(() => {
+    // Capture before the actual lazy open, and keep these methods across yields.
+    const methods = { receiver: fs, close: fs.closeSync, stat: fs.fstatSync, read: fs.readSync };
+    const fd = fs.openSync(resolvedDataPath, 'r');
+    const owner = createContainedFileResource({ fd, sync: true, methods });
+    return { owner, action: readRows, onComplete };
+  });
 };
 
 export {

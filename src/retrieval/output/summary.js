@@ -1,4 +1,5 @@
 import path from 'node:path';
+import fs from 'node:fs';
 import { readTextFileSync } from '../../shared/encoding.js';
 import { isAbsolutePathNative, isRelativePathEscape } from '../../shared/file-paths.js';
 import { getFileTextCache, getSummaryCache } from './cache.js';
@@ -18,10 +19,18 @@ export function getBodySummary(rootDir, chunk, maxWords = 80) {
     if (!isWithinRoot(canonicalAbsPath, canonicalRoot)) {
       return '(Could not load summary)';
     }
+    const generation = () => {
+      const stat = fs.statSync(canonicalAbsPath, { bigint: true });
+      if (!stat.isFile()) throw new Error('Summary source is not a regular file.');
+      return [stat.dev, stat.ino, stat.size, stat.mtimeNs, stat.ctimeNs].map(String).join(':');
+    };
+    const fileGeneration = generation();
+    const fileKey = buildLocalCacheKey({ namespace: 'summary-source', payload: { path: canonicalAbsPath, fileGeneration } }).key;
     const cacheKey = buildLocalCacheKey({
       namespace: 'summary',
       payload: {
         absPath: canonicalAbsPath,
+        fileGeneration,
         start: chunk.start,
         end: chunk.end,
         maxWords
@@ -31,10 +40,11 @@ export function getBodySummary(rootDir, chunk, maxWords = 80) {
     const fileTextCache = getFileTextCache();
     const cached = summaryCache.get(cacheKey);
     if (cached !== null) return cached;
-    let text = fileTextCache.get(canonicalAbsPath);
+    let text = fileTextCache.get(fileKey);
     if (text == null) {
       ({ text } = readTextFileSync(canonicalAbsPath));
-      fileTextCache.set(canonicalAbsPath, text);
+      if (generation() !== fileGeneration) throw new Error('Summary source changed while reading.');
+      fileTextCache.set(fileKey, text);
     }
     const rawChunkText = text.slice(chunk.start, chunk.end);
     const cleanedLines = rawChunkText

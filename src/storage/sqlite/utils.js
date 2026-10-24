@@ -23,6 +23,9 @@ import {
   normalizeDenseVectorMeta
 } from '../../shared/dense-vector-artifacts.js';
 import { getEnvConfig } from '../../shared/env/runtime.js';
+import { throwIfAborted, isAbortError } from '../../shared/abort.js';
+import { iterateDenseVectorBinaryRows, normalizeDenseVectorStreamMeta } from '../../shared/dense-vector-stream.js';
+import { observeStorageResource } from '../../shared/storage/failure-observation.js';
 
 /**
  * Split an array into fixed-size chunks.
@@ -94,42 +97,10 @@ const resolveDenseBinaryMaxInlineBytes = () => {
   return DEFAULT_DENSE_BINARY_MAX_INLINE_MB * BYTES_PER_MB;
 };
 
-const createDenseBinaryRowIterator = (binPath, dims, count) => (
-  async function* iterateRows() {
-    let handle = null;
-    const rowsPerRead = Math.max(
-      1,
-      Math.floor(DENSE_BINARY_STREAM_READ_TARGET_BYTES / Math.max(1, dims))
-    );
-    const readBytes = Math.max(dims, rowsPerRead * dims);
-    const readBuffer = Buffer.allocUnsafe(readBytes);
-    try {
-      handle = await fsPromises.open(binPath, 'r');
-      for (let docId = 0; docId < count;) {
-        const remaining = count - docId;
-        const rowsThisRead = Math.min(rowsPerRead, remaining);
-        const bytesThisRead = rowsThisRead * dims;
-        const offset = docId * dims;
-        const { bytesRead } = await handle.read(readBuffer, 0, bytesThisRead, offset);
-        const rowsRead = Math.floor(bytesRead / dims);
-        if (rowsRead <= 0) break;
-        for (let rowIndex = 0; rowIndex < rowsRead; rowIndex += 1) {
-          const start = rowIndex * dims;
-          yield {
-            docId: docId + rowIndex,
-            vector: Uint8Array.from(readBuffer.subarray(start, start + dims))
-          };
-        }
-        docId += rowsRead;
-        if (rowsRead < rowsThisRead) break;
-      }
-    } finally {
-      if (handle) {
-        await handle.close().catch(() => {});
-      }
-    }
-  }
-)();
+const createDenseBinaryRowIterator = (binPath, dims, count, meta = {}) => iterateDenseVectorBinaryRows({
+  root: path.dirname(binPath), filename: binPath, meta: { ...meta, dims, count },
+  maxBytes: DENSE_BINARY_STREAM_READ_TARGET_BYTES
+});
 
 const toPositiveFinite = (value) => {
   const numeric = Number(value);
@@ -567,6 +538,13 @@ export function checkpointSqliteWithTelemetry(
   const start = performance.now();
   const before = dbPath ? readSqliteFileSizes(dbPath) : { dbBytes: 0, walBytes: 0, shmBytes: 0 };
   const result = db.pragma(`wal_checkpoint(${mode})`);
+  const checkpoint = Array.isArray(result) ? result[0] : result;
+  if (Number(checkpoint?.busy) !== 0) {
+    const error = new Error(`[sqlite] ${mode} checkpoint did not complete${dbPath ? `: ${dbPath}` : ''}.`);
+    error.code = 'ERR_SQLITE_CHECKPOINT_BUSY';
+    error.checkpoint = result;
+    throw error;
+  }
   const durationMs = performance.now() - start;
   const after = dbPath ? readSqliteFileSizes(dbPath) : { dbBytes: 0, walBytes: 0, shmBytes: 0 };
   const telemetry = getOrCreateSqliteRuntimeTelemetry(stats);
@@ -766,7 +744,9 @@ const loadOptionalDenseBinary = (dir, baseName, modelId) => {
   let metaRaw = null;
   try {
     metaRaw = readJson(metaPath);
-  } catch {
+  } catch (error) {
+    observeStorageResource(error, { phase: 'sqlite-dense-binary-metadata' }).requireSettled();
+    if (isAbortError(error)) throw error;
     return null;
   }
   const meta = normalizeDenseVectorMeta(metaRaw);
@@ -781,24 +761,26 @@ const loadOptionalDenseBinary = (dir, baseName, modelId) => {
     error.code = 'ERR_SQLITE_DENSE_BINARY_META_INVALID';
     throw error;
   };
-  const dims = Number.isFinite(Number(meta.dims)) ? Math.max(0, Math.floor(Number(meta.dims))) : 0;
+  const dims = Number.isSafeInteger(meta.dims) && meta.dims > 0 ? meta.dims : 0;
   if (!dims) {
     failDenseBinaryMeta('missing required positive dims in .bin.meta.json');
   }
-  const rawCount = Number(meta.count);
-  if (!Number.isFinite(rawCount) || rawCount < 0) {
+  const rawCount = meta.count;
+  if (!Number.isSafeInteger(rawCount) || rawCount < 0) {
     failDenseBinaryMeta('missing required non-negative count in .bin.meta.json');
   }
-  const count = Math.floor(rawCount);
+  const count = rawCount;
   const expectedBytes = dims * count;
+  if (!Number.isSafeInteger(expectedBytes)) failDenseBinaryMeta('dimensions/count exceed exact byte accounting');
+  normalizeDenseVectorStreamMeta(meta);
   let fileBytes = 0;
   try {
     fileBytes = Number(fs.statSync(binPath).size) || 0;
   } catch {
     return null;
   }
-  if (fileBytes < expectedBytes) {
-    failDenseBinaryMeta(`binary payload too small (expected >= ${expectedBytes} bytes, found ${fileBytes})`);
+  if (fileBytes !== expectedBytes) {
+    failDenseBinaryMeta(`binary payload size mismatch (expected ${expectedBytes} bytes, found ${fileBytes})`);
   }
   if (count === 0) {
     const rows = (async function* iterateRows() {})();
@@ -822,7 +804,7 @@ const loadOptionalDenseBinary = (dir, baseName, modelId) => {
       count,
       path: relPath,
       buffer: null,
-      rows: createDenseBinaryRowIterator(binPath, dims, count),
+      rows: createDenseBinaryRowIterator(binPath, dims, count, meta),
       streamed: true
     };
   }
@@ -947,6 +929,37 @@ export async function loadIndex(dir, modelId) {
 
 const SQLITE_SIDECARS = ['-wal', '-shm'];
 
+// A committed WAL belongs to its main database. Fold it through SQLite before
+// any rename so rollback and retained backups are independently queryable.
+const settleSqliteForPublication = async (dbPath, nativeResources = null) => {
+  if (!SQLITE_SIDECARS.some(suffix => fs.existsSync(`${dbPath}${suffix}`))) return;
+  if (!fs.existsSync(dbPath)) {
+    throw Object.assign(new Error(`[sqlite] Orphaned WAL recovery requires its original database: ${dbPath}`),
+      { code: 'ERR_SQLITE_RECOVERY_REQUIRED' });
+  }
+  const { default: Database } = await import('better-sqlite3');
+  const open = () => new Database(dbPath, { fileMustExist: true, timeout: 0 });
+  const db = nativeResources ? nativeResources.open(open) : open();
+  let primary = null;
+  try {
+    checkpointSqliteWithTelemetry(db, { dbPath, mode: 'TRUNCATE' });
+    const mode = db.pragma('journal_mode = DELETE', { simple: true });
+    if (String(mode).toLowerCase() !== 'delete') {
+      throw Object.assign(new Error(`[sqlite] Could not coordinate WAL publication: ${dbPath}`),
+        { code: 'ERR_SQLITE_PUBLICATION_BUSY' });
+    }
+  } catch (error) { primary = error; throw error; }
+  finally {
+    try {
+      if (nativeResources) await nativeResources.close(db);
+      else db.close();
+    } catch (error) {
+      if (primary) { primary.nativeCleanupError = error; throw primary; }
+      throw error;
+    }
+  }
+};
+
 /**
  * Remove SQLite WAL/SHM sidecar files for a database path.
  * @param {string} basePath
@@ -979,6 +992,7 @@ export async function removeSqliteSidecars(basePath, { swallowNonBenign = false,
  * @param {{keepBackup?:boolean,backupPath?:string}} [options]
  */
 export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {}) {
+  throwIfAborted(options.signal);
   const keepBackup = options.keepBackup === true;
   const backupPath = options.backupPath || `${finalDbPath}.bak`;
   const finalExists = fs.existsSync(finalDbPath);
@@ -1042,12 +1056,14 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
     }
   };
 
-  await removeSqliteSidecars(tempDbPath, { logger: options.logger || null });
-  await removeSqliteSidecars(finalDbPath, { logger: options.logger || null });
+  await settleSqliteForPublication(tempDbPath, options.nativeResources);
+  await settleSqliteForPublication(finalDbPath, options.nativeResources);
+  throwIfAborted(options.signal);
 
   let backupAvailable = fs.existsSync(backupPath);
   let backupFromCurrentFinal = false;
   if (finalExists) {
+    await settleSqliteForPublication(backupPath, options.nativeResources);
     if (backupAvailable) {
       await removeFileWithDiagnostics(backupPath, {
         context: 'existing backup',
@@ -1057,12 +1073,14 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
     }
     if (!backupAvailable) {
       try {
+        throwIfAborted(options.signal);
         await moveFileOrFailCrossDevice(finalDbPath, backupPath, {
           operation: 'move-final-to-backup'
         });
         backupAvailable = true;
         backupFromCurrentFinal = true;
       } catch (err) {
+        if (isAbortError(err)) throw err;
         if (err?.code === 'ERR_SQLITE_REPLACE_CROSS_DEVICE') {
           throw err;
         }
@@ -1095,6 +1113,7 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
 
   try {
     try {
+      throwIfAborted(options.signal);
       await moveFileOrFailCrossDevice(tempDbPath, finalDbPath, {
         operation: 'promote-temp-to-final'
       });
@@ -1105,6 +1124,7 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
       if (!backupFromCurrentFinal) {
         throw err;
       }
+      throwIfAborted(options.signal);
       emit('[sqlite] Falling back to removing existing db before replace.');
       await removeFileWithDiagnostics(finalDbPath, {
         context: 'existing final db',
@@ -1130,12 +1150,4 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
       swallow: true
     });
   }
-  await removeSqliteSidecars(finalDbPath, {
-    logger: options.logger || null,
-    swallowNonBenign: true
-  });
-  await removeSqliteSidecars(backupPath, {
-    logger: options.logger || null,
-    swallowNonBenign: true
-  });
 }

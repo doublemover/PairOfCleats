@@ -1,29 +1,128 @@
 diff --git a/node_modules/tree-sitter/binding.gyp b/node_modules/tree-sitter/binding.gyp
-index bb40aa7..1e1641b 100644
+index bb40aa7e8..fe414afd1 100644
 --- a/node_modules/tree-sitter/binding.gyp
 +++ b/node_modules/tree-sitter/binding.gyp
-@@ -25,13 +25,13 @@
+@@ -25,5 +25,7 @@
          "NAPI_VERSION=<(napi_build_version)",
++        # Worker termination cannot deliver a JS exception to its closing environment.
++        "NODE_API_SWALLOW_UNTHROWABLE_EXCEPTIONS",
        ],
        "cflags_cc": [
 -        "-std=c++17"
 +        "-std=c++20"
        ],
-       "conditions": [
-         ["OS=='mac'", {
-           "xcode_settings": {
+@@ -33,3 +35,3 @@
              "GCC_SYMBOLS_PRIVATE_EXTERN": "YES", # -fvisibility=hidden
 -            "CLANG_CXX_LANGUAGE_STANDARD": "c++17",
 +            "CLANG_CXX_LANGUAGE_STANDARD": "c++20",
              "MACOSX_DEPLOYMENT_TARGET": "10.9",
-           },
-         }],
-@@ -39,7 +39,7 @@
-           "msvs_settings": {
-             "VCCLCompilerTool": {
+@@ -41,3 +43,3 @@
                "AdditionalOptions": [
 -                "/std:c++17",
 +                "/std:c++20",
                ],
-               "RuntimeLibrary": 0,
-             },
+diff --git a/node_modules/tree-sitter/src/tree.cc b/node_modules/tree-sitter/src/tree.cc
+index 32241baff..391edb9b6 100644
+--- a/node_modules/tree-sitter/src/tree.cc
++++ b/node_modules/tree-sitter/src/tree.cc
+@@ -6,3 +6,5 @@
+ #include <napi.h>
++#include <cassert>
++#include <memory>
+-
++
+ using namespace Napi;
+@@ -57,4 +59,6 @@
+   if (tree != nullptr) {
++    // Keep native ownership until the JS wrapper actually exists.
++    std::unique_ptr<TSTree, decltype(&ts_tree_delete)> owned(tree, ts_tree_delete);
+     Object self = data->tree_constructor.New({});
+-    Tree::Unwrap(self)->tree_ = tree;
++    Tree::Unwrap(self)->tree_ = owned.release();
+     return self;
+diff --git a/node_modules/tree-sitter/src/language.h b/node_modules/tree-sitter/src/language.h
+index 9aacb8138..bd0766e0f 100644
+--- a/node_modules/tree-sitter/src/language.h
++++ b/node_modules/tree-sitter/src/language.h
+@@ -6,4 +6,3 @@
+ #include <napi.h>
+-#include <node_object_wrap.h>
+-
++
+ namespace node_tree_sitter::language_methods {
+diff --git a/node_modules/tree-sitter/src/parser.h b/node_modules/tree-sitter/src/parser.h
+index 4b480ba18..703b369cc 100644
+--- a/node_modules/tree-sitter/src/parser.h
++++ b/node_modules/tree-sitter/src/parser.h
+@@ -6,4 +6,3 @@
+ #include <napi.h>
+-#include <node_object_wrap.h>
+-
++
+ namespace node_tree_sitter {
+diff --git a/node_modules/tree-sitter/src/query.h b/node_modules/tree-sitter/src/query.h
+index a5d0431b2..5f5d39fbf 100644
+--- a/node_modules/tree-sitter/src/query.h
++++ b/node_modules/tree-sitter/src/query.h
+@@ -7,4 +7,3 @@
+ #include <napi.h>
+-#include <node_object_wrap.h>
+-
++
+ namespace node_tree_sitter {
+diff --git a/node_modules/tree-sitter/src/tree.h b/node_modules/tree-sitter/src/tree.h
+index e086de77d..371a81d6c 100644
+--- a/node_modules/tree-sitter/src/tree.h
++++ b/node_modules/tree-sitter/src/tree.h
+@@ -7,3 +7,2 @@
+ #include <napi.h>
+-#include <node_object_wrap.h>
+ #include <unordered_map>
+diff --git a/node_modules/tree-sitter/src/tree_cursor.h b/node_modules/tree-sitter/src/tree_cursor.h
+index 8c6d63427..5a5fad4e2 100644
+--- a/node_modules/tree-sitter/src/tree_cursor.h
++++ b/node_modules/tree-sitter/src/tree_cursor.h
+@@ -7,4 +7,3 @@
+ #include <napi.h>
+-#include <node_object_wrap.h>
+-
++
+ namespace node_tree_sitter {
+diff --git a/node_modules/tree-sitter/vendor/tree-sitter/lib/src/query.c b/node_modules/tree-sitter/vendor/tree-sitter/lib/src/query.c
+index 61991c2da..f894a6483 100644
+--- a/node_modules/tree-sitter/vendor/tree-sitter/lib/src/query.c
++++ b/node_modules/tree-sitter/vendor/tree-sitter/lib/src/query.c
+@@ -3559,3 +3559,3 @@
+       next_step->depth != PATTERN_DONE_MARKER &&
+-      state->start_depth + next_step->depth > self->depth
++      (uint32_t)state->start_depth + next_step->depth > self->depth
+     ) {
+diff --git a/node_modules/tree-sitter/src/binding.cc b/node_modules/tree-sitter/src/binding.cc
+index 0ccee9b8c..70c3ecb63 100644
+--- a/node_modules/tree-sitter/src/binding.cc
++++ b/node_modules/tree-sitter/src/binding.cc
+@@ -14,9 +14,21 @@
+-
++
+ namespace node_tree_sitter {
+-
++
++// Hold the Node-API environment through the queued finalizer drain. Node 26.12.1
++// releases its scheduled-finalizer reference before reading the queue again;
++// an async cleanup handle releases its environment reference in a later native
++// immediate, after callbacks admitted before cleanup have finished.
++static void FinishEnvironmentCleanup(napi_async_cleanup_hook_handle handle, void*) {
++  napi_status status = napi_remove_async_cleanup_hook(handle);
++  if (status != napi_ok) napi_fatal_error("tree-sitter", NAPI_AUTO_LENGTH,
++      "Failed to release parser environment cleanup", NAPI_AUTO_LENGTH);
++}
++
+ Napi::Object InitAll(Napi::Env env, Napi::Object exports) {
+   auto* data = new AddonData(env);
+   env.SetInstanceData(data);
++  napi_status status = napi_add_async_cleanup_hook(env, FinishEnvironmentCleanup, nullptr, nullptr);
++  if (status != napi_ok) throw Napi::Error::New(env, "Failed to own parser environment cleanup");
+-
++
+   InitConversions(env, exports);
+   node_methods::Init(env, exports);

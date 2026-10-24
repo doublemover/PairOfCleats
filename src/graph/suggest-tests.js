@@ -9,6 +9,7 @@ import { toPosix } from '../shared/file-paths.js';
 import { compareStrings } from '../shared/sort.js';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
 import { sha1 } from '../shared/hash.js';
+import { createGraphNeighborResolver } from './neighborhood/walker.js';
 
 const DEFAULT_EXCLUDED_DIRS = new Set([
   'node_modules',
@@ -137,7 +138,7 @@ const discoverCandidateTests = ({ repoRoot, testMatchers, maxCandidates }) => {
         }
         continue;
       }
-      if (!dirent.isFile() || !TEST_EXTENSIONS.has(path.extname(relPath).toLowerCase())) continue;
+      if (!dirent.isFile()) continue;
       const normalized = toPosix(relPath);
       if (testMatchers?.length ? !matchesTestPatterns(normalized, testMatchers) : !isTestFileName(normalized)) continue;
       observed += 1;
@@ -231,7 +232,10 @@ const buildFallbackSuggestions = (changed, tests) => {
   for (const testPath of tests) {
     let best = null;
     for (const change of changedMeta) {
-      if (change.base && testPath.includes(change.base)) {
+      if (change.base && testPath.split('/').some((segment) => (
+        segment === change.base || ['.', '-', '_'].some((separator) => segment.startsWith(`${change.base}${separator}`))
+        || segment === `test_${change.base}` || segment.startsWith(`test_${change.base}.`)
+      ))) {
         best = { score: 0.5, reason: `name match: ${change.base}` };
         break;
       }
@@ -318,6 +322,7 @@ const buildSuggestTestsFidelity = ({
 export const buildSuggestTestsReport = ({
   changed = [],
   graphRelations = null,
+  graphIndex = null,
   tests = null,
   repoRoot = null,
   testPatterns = null,
@@ -368,6 +373,14 @@ export const buildSuggestTestsReport = ({
     });
     seeds = seeds.slice(0, capsNormalized.maxSeeds);
   }
+  if (capsNormalized.maxNodes != null && seeds.length > capsNormalized.maxNodes) {
+    recordTruncation('maxNodes', {
+      limit: capsNormalized.maxNodes,
+      observed: seeds.length,
+      omitted: seeds.length - capsNormalized.maxNodes
+    });
+    seeds = seeds.slice(0, capsNormalized.maxNodes);
+  }
 
   const { matchers: testMatchers, key: testMatcherKey } = compileTestMatchers(testPatterns);
   if (!Array.isArray(tests) && !repoRoot) {
@@ -394,21 +407,29 @@ export const buildSuggestTestsReport = ({
   }
 
   let suggestions = [];
-  const graphAvailable = Boolean(graphRelations && graphRelations.importGraph);
+  const indexedImports = graphIndex && (graphIndex.importGraphIndex instanceof Map || graphIndex.graphRelationsCsr?.importGraph);
+  const effectiveGraphRelations = graphIndex?.graphRelations || graphRelations;
+  const graphAvailable = indexedImports
+    ? Boolean(graphIndex.graphRelations?.importGraph || graphIndex.graphRelationsCsr?.importGraph || graphIndex.importGraphIndex?.size)
+    : Boolean(effectiveGraphRelations?.importGraph);
   let graphUsed = false;
   let edgesVisited = 0;
   let workUnits = 0;
   let visitedNodeCount = 0;
+  let predecessors = null;
 
   if (graphAvailable && seeds.length && testList.length) {
     graphUsed = true;
-    const { incoming } = buildImportGraphIndex(graphRelations, repoRoot);
+    const incoming = indexedImports ? null : buildImportGraphIndex(effectiveGraphRelations, repoRoot).incoming;
+    const resolveNeighbors = indexedImports ? createGraphNeighborResolver({ graphIndex, iterableCsr: true }) : null;
+    const normalizeNeighbor = graphIndex?.normalizeImportPath || (value => normalizePathForRepo(value, repoRoot));
+    const indexedNodes = graphIndex?.importGraphIndex || new Map();
     const queue = [];
     const visited = new Map();
+    predecessors = visited;
     for (const seed of seeds) {
-      const trail = [seed];
-      visited.set(seed, { distance: 0, trail });
-      queue.push({ path: seed, distance: 0, trail });
+      visited.set(seed, { distance: 0, parent: null });
+      queue.push({ path: seed, distance: 0 });
     }
     let queueIndex = 0;
     let stopTraversal = false;
@@ -417,7 +438,9 @@ export const buildSuggestTestsReport = ({
       queueIndex += 1;
       const distance = current.distance;
       if (capsNormalized.maxDepth != null && distance >= capsNormalized.maxDepth) continue;
-      const neighbors = incoming.get(current.path) || [];
+      const neighbors = indexedImports
+        ? resolveNeighbors(indexedNodes, current.path, 'in', normalizeNeighbor, graphIndex.importGraphAdjacency, 'importGraph')
+        : incoming.get(current.path) || [];
       for (const neighbor of neighbors) {
         if (capsNormalized.maxEdges != null && edgesVisited >= capsNormalized.maxEdges) {
           recordTruncation('maxEdges', {
@@ -440,19 +463,18 @@ export const buildSuggestTestsReport = ({
         edgesVisited += 1;
         workUnits += 1;
         if (visited.has(neighbor)) continue;
-        const trail = current.trail.concat([neighbor]);
-        const nextDistance = distance + 1;
-        visited.set(neighbor, { distance: nextDistance, trail });
-        queue.push({ path: neighbor, distance: nextDistance, trail });
         if (capsNormalized.maxNodes != null && visited.size >= capsNormalized.maxNodes) {
           recordTruncation('maxNodes', {
             limit: capsNormalized.maxNodes,
-            observed: visited.size,
+            observed: visited.size + 1,
             omitted: null
           });
           stopTraversal = true;
           break;
         }
+        const nextDistance = distance + 1;
+        visited.set(neighbor, { distance: nextDistance, parent: current.path });
+        queue.push({ path: neighbor, distance: nextDistance });
       }
     }
 
@@ -464,7 +486,7 @@ export const buildSuggestTestsReport = ({
         testPath,
         score,
         reason: `graph distance ${entry.distance}`,
-        witnessPath: buildWitnessPath(entry.trail),
+        witnessPath: null,
         fidelity: {
           source: 'graph',
           state: 'complete',
@@ -558,6 +580,18 @@ export const buildSuggestTestsReport = ({
       omitted: suggestions.length - capsNormalized.maxSuggestions
     });
     suggestions = suggestions.slice(0, capsNormalized.maxSuggestions);
+  }
+
+  for (const suggestion of suggestions) {
+    if (suggestion.fidelity?.source !== 'graph') continue;
+    const trail = [];
+    let current = suggestion.testPath;
+    while (current != null) {
+      trail.push(current);
+      current = predecessors.get(current)?.parent ?? null;
+    }
+    trail.reverse();
+    suggestion.witnessPath = buildWitnessPath(trail);
   }
 
   const resolvedProvenance = resolveProvenance({

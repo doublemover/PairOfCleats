@@ -7,27 +7,28 @@ import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js'
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { prependLspTestPath } from '../../helpers/lsp-runtime.js';
+import { applyTestEnv, withTemporaryEnv } from '../../helpers/test-env.js';
+
+applyTestEnv({ extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null } });
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'configured-lsp-gopls-profile');
 await fs.rm(tempRoot, { recursive: true, force: true });
-await fs.mkdir(tempRoot, { recursive: true });
+await fs.mkdir(path.join(tempRoot, 'src'), { recursive: true });
+await fs.writeFile(path.join(tempRoot, 'go.mod'), 'module example.com/poc-gopls-profile\n\ngo 1.22\n');
+const goProbe = path.join(tempRoot, 'go-probe.js');
+await fs.writeFile(goProbe, "process.stdout.write('example.com/poc-gopls-profile\\n');\n");
 
 const restorePath = prependLspTestPath({ repoRoot: root });
 
 try {
-  const virtualPath = '.poc-vfs/src/sample.cpp#seg:stub.cpp';
-  const docText = 'int add(int a, int b) { return a + b; }\n';
+  const virtualPath = '.poc-vfs/src/sample.go#seg:stub.go';
+  const docText = 'package sample\nfunc Add(a int, b int) int { return a + b }\n';
+  await fs.writeFile(path.join(tempRoot, 'src', 'sample.go'), docText);
   const chunkUid = 'ck64:v1:test:src/sample.cpp:gopls-profile';
-  const fixtureGoplsCmd = path.join(
-    root,
-    'tests',
-    'fixtures',
-    'lsp',
-    'bin',
-    process.platform === 'win32' ? 'gopls.cmd' : 'gopls'
-  );
-  const result = await runToolingProviders({
+  const fixtureServer = path.join(root, 'tests', 'fixtures', 'lsp', 'stub-lsp-server.js');
+  const result = await withTemporaryEnv({ PAIROFCLEATS_TRUSTED_REPOS: JSON.stringify([tempRoot]),
+    PAIROFCLEATS_TRUSTED_CONFIG: null }, () => runToolingProviders({
     strict: true,
     repoRoot: tempRoot,
     buildRoot: tempRoot,
@@ -46,9 +47,12 @@ try {
         },
         servers: [{
           id: 'gopls',
-          cmd: fixtureGoplsCmd,
-          args: [],
-          languages: ['cpp'],
+          cmd: process.execPath,
+          args: [fixtureServer, '--mode', 'go'],
+          languages: ['go'],
+          goWorkspaceWarmup: false,
+          goWorkspaceModuleCmd: process.execPath,
+          goWorkspaceModuleArgs: [goProbe],
           uriScheme: 'poc-vfs'
         }]
       }
@@ -60,8 +64,8 @@ try {
     documents: [{
       virtualPath,
       text: docText,
-      languageId: 'cpp',
-      effectiveExt: '.cpp',
+      languageId: 'go',
+      effectiveExt: '.go',
       docHash: 'hash-stub'
     }],
     targets: [{
@@ -69,18 +73,18 @@ try {
         docId: 0,
         chunkUid,
         chunkId: 'chunk_gopls_profile',
-        file: 'src/sample.cpp',
+        file: 'src/sample.go',
         segmentUid: null,
         segmentId: null,
         range: { start: 0, end: docText.length }
       },
       virtualPath,
       virtualRange: { start: 0, end: docText.length },
-      symbolHint: { name: 'add', kind: 'function' },
-      languageId: 'cpp'
+      symbolHint: { name: 'Add', kind: 'function' },
+      languageId: 'go'
     }],
     kinds: ['types']
-  });
+  }));
 
   assert.ok(result.byChunkUid instanceof Map, 'expected tooling map output');
   assert.equal(result.byChunkUid.has(chunkUid), true, 'expected configured gopls provider to enrich target');

@@ -294,6 +294,7 @@ export const normalizeTfPostingRows = (
     }
     const docId = coerceValue(entry[0]);
     if (docId == null) {
+      alreadySortedUnique = false;
       if (rejectInvalid) {
         const error = new Error(
           `[sqlite] ${contextLabel} cardinality invariant failed: ` +
@@ -310,7 +311,7 @@ export const normalizeTfPostingRows = (
     }
     previousDocId = docId;
   }
-  if (alreadySortedUnique && mode === INTEGER_COERCE_MODE_STRICT) {
+  if (alreadySortedUnique) {
     for (const entry of posting) {
       if (!Array.isArray(entry) || entry.length < 2) continue;
       const tf = coerceValue(entry[1]);
@@ -323,6 +324,10 @@ export const normalizeTfPostingRows = (
           error.code = SQLITE_TOKEN_CARDINALITY_ERROR_CODE;
           throw error;
         }
+        alreadySortedUnique = false;
+        break;
+      }
+      if (tf === 0 || entry[0] !== coerceValue(entry[0]) || entry[1] !== tf) {
         alreadySortedUnique = false;
         break;
       }
@@ -369,18 +374,9 @@ export const readJsonLinesFile = async (
 ) => {
   const stat = fsSync.statSync(filePath);
   if (stat.size <= JSONL_SYNC_CALLBACK_MAX_BYTES) {
-    const pending = [];
-    readJsonLinesEachSync(filePath, (row) => {
-      const result = onEntry(row);
-      if (result && typeof result.then === 'function') {
-        pending.push(result);
-      }
-    }, {
-      maxBytes,
-      requiredKeys,
-      validationMode
-    });
-    for (const result of pending) await result;
+    const rows = [];
+    readJsonLinesEachSync(filePath,row => { rows.push(row); }, { maxBytes, requiredKeys, validationMode });
+    for (const row of rows) await onEntry(row);
     return;
   }
   await readJsonLinesEachAwait(filePath, onEntry, { maxBytes, requiredKeys, validationMode });
@@ -476,18 +472,13 @@ export const iterateChunkMetaSources = async (
       return stat.size <= JSONL_SYNC_CALLBACK_MAX_BYTES;
     });
     if (allSmall) {
-      const pending = [];
       for (const sourcePath of paths) {
         if (!sourcePath) continue;
         await emitSourceFile(sourcePath);
-        const result = readDeclaredJsonlShardSync(
-          sourcePath,
-          (entry) => emitEntry(entry),
-          { requiredKeys }
-        );
-        if (result?.pending?.length) pending.push(...result.pending);
+        const rows = [];
+        readDeclaredJsonlShardSync(sourcePath,row => { rows.push(row); },{ requiredKeys });
+        for (const row of rows) await emitEntry(row);
       }
-      for (const result of pending) await result;
       return { sourceKind, sourceFiles, count };
     }
   }

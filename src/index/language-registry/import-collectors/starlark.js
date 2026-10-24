@@ -7,6 +7,7 @@ import {
   lineHasAny
 } from './utils.js';
 import { readBalancedDelimitedBody } from './balanced.js';
+import { tokenizeStaticArguments, splitStaticArguments, staticKeywordArgument } from './static-arguments.js';
 
 const STARLARK_SOURCE_BUDGET = Object.freeze({
   maxChars: 524288
@@ -38,34 +39,8 @@ const skipWhitespace = (source, start) => {
 };
 
 const readFirstQuotedArgument = (args) => {
-  const source = String(args || '');
-  let index = skipWhitespace(source, 0);
-  if (index >= source.length) return '';
-  const quote = source[index];
-  if (quote !== '"' && quote !== "'") return '';
-  index += 1;
-  let value = '';
-  let escaped = false;
-  while (index < source.length) {
-    const char = source[index];
-    if (escaped) {
-      value += char;
-      escaped = false;
-      index += 1;
-      continue;
-    }
-    if (char === '\\') {
-      escaped = true;
-      index += 1;
-      continue;
-    }
-    if (char === quote) {
-      return value;
-    }
-    value += char;
-    index += 1;
-  }
-  return '';
+  const first = splitStaticArguments(tokenizeStaticArguments(String(args || '')))[0];
+  return first?.length === 1 && first[0].kind === 'string' ? first[0].value : '';
 };
 
 const createStarlarkScanState = () => ({
@@ -233,9 +208,9 @@ export const collectStarlarkImportEntries = (text, options = {}) => {
         continue;
       }
       if (call.callee === 'bazel_dep') {
-        const moduleDep = String(call.args || '').match(/\bname\s*=\s*['"]([^'"]+)['"]/);
-        if (!moduleDep?.[1]) continue;
-        const specifier = `@${moduleDep[1]}`;
+        const moduleDep = staticKeywordArgument(tokenizeStaticArguments(call.args),'name');
+        if (!moduleDep) continue;
+        const specifier = `@${moduleDep}`;
         addCollectorImportEntry(imports, specifier, {
           collectorHint: resolveStarlarkCollectorHint(specifier)
         });
@@ -250,8 +225,8 @@ export const collectStarlarkImportEntries = (text, options = {}) => {
         continue;
       }
       if (call.callee === 'local_path_override') {
-        const pathOverride = String(call.args || '').match(/\bpath\s*=\s*['"]([^'"]+)['"]/);
-        if (pathOverride?.[1]) addCollectorImportEntry(imports, pathOverride[1]);
+        const pathOverride = staticKeywordArgument(tokenizeStaticArguments(call.args),'path');
+        if (pathOverride) addCollectorImportEntry(imports,pathOverride);
       }
       if (scanBudget.exhausted) break;
     }

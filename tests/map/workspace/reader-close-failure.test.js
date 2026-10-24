@@ -7,6 +7,7 @@ import { getIndexDir } from '../../../src/shared/repo-paths.js';
 import { loadUserConfig } from '../../../src/shared/dict-utils.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { writePiecesManifest } from '../../helpers/artifact-io-fixture.js';
+import { getMapReadFailure } from '../../../src/map/shared/read-outcome.js';
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-reader-close-error-'));
 applyTestEnv({ cacheRoot: path.join(root, 'cache') });
 let browser;
@@ -37,7 +38,12 @@ try {
       return { done: true };
     }, async return() { returned += 1; throw failure; } }) });
   const active = browser.read(root, { name: 'chunk_meta', generation: catalog.generation });
-  const rejected = assert.rejects(active, error => error === failure);
+  const rejected = assert.rejects(active, error => {
+    const outcome = getMapReadFailure(error);
+    assert.equal(outcome.primary.name, 'AbortError');
+    assert.equal(outcome.cleanupErrors[0], failure);
+    assert.equal(outcome.terminal, true); return true;
+  });
   await started;
   await assert.rejects(browser.close(), error => error === failure);
   await rejected;

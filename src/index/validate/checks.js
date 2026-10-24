@@ -14,7 +14,7 @@ export const validatePostingsDocIds = (report, mode, label, postings, chunkCount
     if (!Array.isArray(posting)) continue;
     for (const entry of posting) {
       const docId = Array.isArray(entry) ? entry[0] : null;
-      if (!Number.isFinite(docId) || docId < 0 || docId >= chunkCount) {
+      if (!Number.isSafeInteger(docId) || docId < 0 || docId >= chunkCount) {
         if (errors < maxErrors) {
           addIssue(report, mode, `${label} docId out of range (${docId})`, 'Rebuild index artifacts for this mode.');
         }
@@ -31,7 +31,7 @@ export const validateIdPostings = (report, mode, label, postings, chunkCount) =>
   for (const posting of postings || []) {
     if (!Array.isArray(posting)) continue;
     for (const docId of posting) {
-      if (!Number.isFinite(docId) || docId < 0 || docId >= chunkCount) {
+      if (!Number.isSafeInteger(docId) || docId < 0 || docId >= chunkCount) {
         if (errors < maxErrors) {
           addIssue(report, mode, `${label} docId out of range (${docId})`, 'Rebuild index artifacts for this mode.');
         }
@@ -93,7 +93,7 @@ export const validateChunkIdentity = (report, mode, chunkMeta) => {
 };
 
 export const validateFileNameCollisions = (report, mode, repoMap) => {
-  const seen = new Set();
+  const seen = new Map();
   for (const entry of Array.isArray(repoMap) ? repoMap : []) {
     const file = entry?.file;
     const name = entry?.name;
@@ -103,8 +103,13 @@ export const validateFileNameCollisions = (report, mode, repoMap) => {
     const lineMarker = Number.isFinite(entry?.startLine)
       ? entry.startLine
       : (Number.isFinite(entry?.start) ? entry.start : '');
-    const key = `${file}::${name}::${kind}::${signature}::${lineMarker}`;
-    if (seen.has(key)) {
+    const key = JSON.stringify([file, name, kind, signature, lineMarker]);
+    const chunkUid = typeof entry?.chunkUid === 'string' && entry.chunkUid ? entry.chunkUid : null;
+    const prior = seen.get(key);
+    // Multiple source-owned chunks can share a display name and line. The
+    // published chunk identity distinguishes them; legacy rows without one
+    // still require the original collision check.
+    if (prior && (!chunkUid || prior.missingUid || prior.uids.has(chunkUid))) {
       addIssue(
         report,
         mode,
@@ -113,7 +118,8 @@ export const validateFileNameCollisions = (report, mode, repoMap) => {
       );
       return;
     }
-    seen.add(key);
+    if (prior) prior.uids.add(chunkUid);
+    else seen.set(key, { missingUid: !chunkUid, uids: new Set(chunkUid ? [chunkUid] : []) });
   }
 };
 
@@ -242,7 +248,7 @@ export const validateSqliteMetaV2Parity = (report, mode, chunkMeta, sqliteRows, 
     }
     const expected = pickMeta(jsonEntry.metaV2);
     const actual = pickMeta(sqliteMeta);
-    if (JSON.stringify(expected) !== JSON.stringify(actual)) {
+    if (stableStringify(expected) !== stableStringify(actual)) {
       addIssue(report, mode, `sqlite metaV2 mismatch for chunk ${id}`, 'Rebuild index artifacts for this mode.');
       errors += 1;
     }

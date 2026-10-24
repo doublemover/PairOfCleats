@@ -1,6 +1,8 @@
+import { createInteractiveRequestAdmission, REQUEST_NOT_ADMITTED } from './request-admission.js';
 import { throwIfAborted } from '../../../../../shared/abort.js';
 import { openOwnedLspDocument, closeOwnedLspDocument } from '../document-lifecycle.js';
-import { rangeToOffsets } from '../../../lsp/positions.js';
+import { exactRangeToOffsets, offsetToLspPosition, buildLspLineIndex } from '../../../lsp/positions.js';
+import { lspRangeContains } from '../../../../../index/semantic/lsp-locations.js';
 import { flattenSymbols } from '../../../lsp/symbols.js';
 import { findTargetForOffsets } from '../target-index.js';
 import {
@@ -46,7 +48,6 @@ import {
 } from './concurrency.js';
 import { createHoverFileStats, summarizeHoverMetrics } from './metrics.js';
 import {
-  buildLineSignatureCandidate,
   buildSourceSignatureCandidate,
   defaultParamConfidenceForTier,
   resolveEvidenceConfidenceTier,
@@ -60,6 +61,7 @@ import {
   extractDefinitionLocations,
   extractSignatureHelpText,
   handleStageRequestError,
+  isTimeoutError,
   normalizeHoverContents,
   recordCircuitOpenCheck,
   recordCrashLoopCheck,
@@ -166,7 +168,7 @@ export const processDocumentTypes = async ({
   log,
   strict,
   parseSignature,
-  lineIndexFactory,
+  lineIndexFactory = buildLspLineIndex,
   uri,
   legacyUri,
   languageId,
@@ -237,6 +239,11 @@ export const processDocumentTypes = async ({
   const parseCache = signatureParseCache instanceof Map ? signatureParseCache : null;
   const signatureParserKey = String(parseSignature?.cacheKey || parseSignature?.name || 'default').trim() || 'default';
   const signatureParserSymbolSensitive = parseSignature?.isSymbolSensitive !== false;
+  const requestCacheProviderId = requestCacheContext?.providerId || cmd;
+  const requestCacheProviderVersion = requestCacheContext?.providerVersion || '1';
+  const requestCacheWorkspaceKey = requestCacheContext?.workspaceKey || null;
+  const structuredCollector = semanticSession?.createObservationCollector?.({ doc, uri, positionEncoding,
+    providerId: requestCacheProviderId, providerVersion: requestCacheProviderVersion, workspaceKey: requestCacheWorkspaceKey }) || null;
 
   const parseSignatureCached = (detailText, symbolName) => {
     if (typeof parseSignature !== 'function') return null;
@@ -308,8 +315,11 @@ export const processDocumentTypes = async ({
       if (!semanticTargets.length) return { enrichedDelta: 0 };
     }
 
+    if (collectSymbols && symbols !== null) structuredCollector?.record({ requestClass: 'documentSymbol',
+      params: { textDocument: { uri } }, response: { attempted: true, payload: symbols }, positionEncoding });
     const flattened = flattenSymbols(symbols || []);
     if (!flattened.length && !semanticTargets.length) {
+      await structuredCollector?.flush();
       return { enrichedDelta: 0 };
     }
 
@@ -336,9 +346,6 @@ export const processDocumentTypes = async ({
     const semanticDefinitionBudget = budgetControllers.semanticDefinition || definitionBudget;
     const typeDefinitionBudget = budgetControllers.typeDefinition || createRequestBudgetController(null);
     const referencesBudget = budgetControllers.references || createRequestBudgetController(null);
-    const requestCacheProviderId = requestCacheContext?.providerId || cmd;
-    const requestCacheProviderVersion = requestCacheContext?.providerVersion || null;
-    const requestCacheWorkspaceKey = requestCacheContext?.workspaceKey || null;
     const isSoftDeadlineExpired = () => (
       softDeadlineAt != null
       && Number.isFinite(Number(softDeadlineAt))
@@ -363,10 +370,23 @@ export const processDocumentTypes = async ({
       hoverMetrics.skippedByBudget += 1;
       return false;
     };
+    const admitRequest = createInteractiveRequestAdmission({ signal: abortSignal, fileStats: fileHoverStats,
+      metrics: hoverMetrics, isDeadlineExpired: isSoftDeadlineExpired, markDeadlineReached: markSoftDeadlineReached,
+      recordDeadlineSkip: recordSoftDeadlineSkip, reserveBudget: reserveRequestBudget });
     const buildRequestCacheKeyForStage = (requestKind, position) => buildLspRequestCacheKey({
       providerId: requestCacheProviderId,
       providerVersion: requestCacheProviderVersion,
       workspaceKey: requestCacheWorkspaceKey,
+      generation: requestCacheContext?.generation,
+      virtualPath: doc.virtualPath,
+      uri,
+      containerPath: doc.containerPath ?? null,
+      segmentUid: doc.segmentUid ?? null,
+      segmentId: doc.segmentId ?? null,
+      segmentStart: doc.segmentStart ?? null,
+      segmentEnd: doc.segmentEnd ?? null,
+      languageId,
+      positionEncoding,
       docHash: doc.docHash || null,
       requestKind,
       position
@@ -400,12 +420,7 @@ export const processDocumentTypes = async ({
       });
     };
     const resolveDocumentEndPosition = () => {
-      const lines = String(openEntry?.text || doc.text || '').split(/\r?\n/u);
-      const lastLineIndex = Math.max(0, lines.length - 1);
-      return {
-        line: lastLineIndex,
-        character: String(lines[lastLineIndex] || '').length
-      };
+      return offsetToLspPosition(lineIndex,docText,docText.length,positionEncoding);
     };
 
     const requestHover = (symbol, position) => {
@@ -420,7 +435,6 @@ export const processDocumentTypes = async ({
         recordSoftDeadlineSkip();
         return Promise.resolve({ attempted: false, info: null });
       }
-      if (!reserveRequestBudget(hoverBudget)) return Promise.resolve({ attempted: false, info: null });
       const cachedHoverInfo = tryReadRequestCache('hover', position);
       const promise = (async () => {
         if (cachedHoverInfo?.negative === true) {
@@ -433,19 +447,19 @@ export const processDocumentTypes = async ({
         const hoverTimeoutOverride = Number.isFinite(resolvedHoverTimeout)
           ? resolvedHoverTimeout
           : null;
-        fileHoverStats.requested += 1;
-        hoverMetrics.requested += 1;
         const hoverStartMs = Date.now();
 
         try {
           throwIfAborted(abortSignal);
-          const hover = await hoverLimiter(() => runGuarded(
-            ({ timeoutMs: guardTimeout }) => client.request('textDocument/hover', {
-              textDocument: { uri },
-              position
-            }, { timeoutMs: guardTimeout }),
-            { label: 'hover', ...(hoverTimeoutOverride ? { timeoutOverride: hoverTimeoutOverride } : {}) }
-          ));
+          const hover = await admitRequest({ limiter: hoverLimiter, budget: hoverBudget, requestedMetric: 'requested',
+            run: () => runGuarded(
+              ({ timeoutMs: guardTimeout }) => client.request('textDocument/hover', {
+                textDocument: { uri },
+                position
+              }, { timeoutMs: guardTimeout }),
+              { label: 'hover', ...(hoverTimeoutOverride ? { timeoutOverride: hoverTimeoutOverride } : {}) }
+            ) });
+          if (hover === REQUEST_NOT_ADMITTED) return { attempted: false, info: null };
           const hoverDurationMs = Date.now() - hoverStartMs;
           hoverLatencyMs.push(hoverDurationMs);
           fileHoverStats.latencyMs.push(hoverDurationMs);
@@ -488,22 +502,24 @@ export const processDocumentTypes = async ({
         recordSoftDeadlineSkip();
         return Promise.resolve(null);
       }
-      if (!reserveRequestBudget(semanticTokensBudget)) return Promise.resolve(null);
-      fileHoverStats.semanticTokensRequested += 1;
-      hoverMetrics.semanticTokensRequested += 1;
       semanticTokensRequest = (async () => {
         try {
           throwIfAborted(abortSignal);
-          const payload = await hoverLimiter(() => runGuarded(
-            ({ timeoutMs: guardTimeout }) => client.request('textDocument/semanticTokens/full', {
-              textDocument: { uri }
-            }, { timeoutMs: guardTimeout }),
-            { label: 'semanticTokens', ...(resolvedHoverTimeout ? { timeoutOverride: resolvedHoverTimeout } : {}) }
-          ));
-          const decoded = decodeSemanticTokens({
+          const payload = await admitRequest({ limiter: hoverLimiter, budget: semanticTokensBudget, requestedMetric: 'semanticTokensRequested',
+            run: () => runGuarded(
+              ({ timeoutMs: guardTimeout }) => client.request('textDocument/semanticTokens/full', {
+                textDocument: { uri }
+              }, { timeoutMs: guardTimeout }),
+              { label: 'semanticTokens', ...(resolvedHoverTimeout ? { timeoutOverride: resolvedHoverTimeout } : {}) }
+            ) });
+          if (payload === REQUEST_NOT_ADMITTED) return null;
+          const decoded = payload === null ? [] : decodeSemanticTokens({
             data: payload?.data,
             legend: semanticTokensLegend,
-            providerId: requestCacheProviderId
+            providerId: requestCacheProviderId,
+            lineIndex,
+            text: docText,
+            positionEncoding
           });
           fileHoverStats.semanticTokensSucceeded += 1;
           hoverMetrics.semanticTokensSucceeded += 1;
@@ -542,7 +558,6 @@ export const processDocumentTypes = async ({
         recordSoftDeadlineSkip();
         return Promise.resolve({ attempted: false, info: null });
       }
-      if (!reserveRequestBudget(signatureHelpBudget)) return Promise.resolve({ attempted: false, info: null });
       const cachedSignatureHelpInfo = tryReadRequestCache('signature_help', position);
       const runSignatureHelp = typeof signatureHelpLimiter === 'function'
         ? signatureHelpLimiter
@@ -557,22 +572,22 @@ export const processDocumentTypes = async ({
         const timeoutOverride = Number.isFinite(resolvedSignatureHelpTimeout)
           ? resolvedSignatureHelpTimeout
           : null;
-        fileHoverStats.signatureHelpRequested += 1;
-        hoverMetrics.signatureHelpRequested += 1;
         try {
           throwIfAborted(abortSignal);
-          const signatureHelp = await runSignatureHelp(() => runGuarded(
-            ({ timeoutMs: guardTimeout }) => client.request('textDocument/signatureHelp', {
-              textDocument: { uri },
-              position,
-              context: {
-                triggerKind: 1,
-                isRetrigger: false,
-                activeSignatureHelp: null
-              }
-            }, { timeoutMs: guardTimeout }),
-            { label: 'signatureHelp', ...(timeoutOverride ? { timeoutOverride } : {}) }
-          ));
+          const signatureHelp = await admitRequest({ limiter: runSignatureHelp, budget: signatureHelpBudget, requestedMetric: 'signatureHelpRequested',
+            run: () => runGuarded(
+              ({ timeoutMs: guardTimeout }) => client.request('textDocument/signatureHelp', {
+                textDocument: { uri },
+                position,
+                context: {
+                  triggerKind: 1,
+                  isRetrigger: false,
+                  activeSignatureHelp: null
+                }
+              }, { timeoutMs: guardTimeout }),
+              { label: 'signatureHelp', ...(timeoutOverride ? { timeoutOverride } : {}) }
+            ) });
+          if (signatureHelp === REQUEST_NOT_ADMITTED) return { attempted: false, info: null };
           fileHoverStats.signatureHelpSucceeded += 1;
           hoverMetrics.signatureHelpSucceeded += 1;
           const signatureText = extractSignatureHelpText(signatureHelp);
@@ -612,22 +627,21 @@ export const processDocumentTypes = async ({
         recordSoftDeadlineSkip();
         return Promise.resolve(null);
       }
-      if (!reserveRequestBudget(inlayHintsBudget)) return Promise.resolve(null);
-      fileHoverStats.inlayHintsRequested += 1;
-      hoverMetrics.inlayHintsRequested += 1;
       inlayHintsRequest = (async () => {
         try {
           throwIfAborted(abortSignal);
-          const payload = await hoverLimiter(() => runGuarded(
-            ({ timeoutMs: guardTimeout }) => client.request('textDocument/inlayHint', {
-              textDocument: { uri },
-              range: {
-                start: { line: 0, character: 0 },
-                end: resolveDocumentEndPosition()
-              }
-            }, { timeoutMs: guardTimeout }),
-            { label: 'inlayHints', ...(resolvedHoverTimeout ? { timeoutOverride: resolvedHoverTimeout } : {}) }
-          ));
+          const payload = await admitRequest({ limiter: hoverLimiter, budget: inlayHintsBudget, requestedMetric: 'inlayHintsRequested',
+            run: () => runGuarded(
+              ({ timeoutMs: guardTimeout }) => client.request('textDocument/inlayHint', {
+                textDocument: { uri },
+                range: {
+                  start: { line: 0, character: 0 },
+                  end: resolveDocumentEndPosition()
+                }
+              }, { timeoutMs: guardTimeout }),
+              { label: 'inlayHints', ...(resolvedHoverTimeout ? { timeoutOverride: resolvedHoverTimeout } : {}) }
+            ) });
+          if (payload === REQUEST_NOT_ADMITTED) return null;
           const hints = Array.isArray(payload) ? payload : [];
           fileHoverStats.inlayHintsSucceeded += 1;
           hoverMetrics.inlayHintsSucceeded += 1;
@@ -658,15 +672,15 @@ export const processDocumentTypes = async ({
       const sourceText = openEntry?.text || doc.text || '';
       for (const location of locations) {
         if (!allowedUris.has(String(location?.uri || ''))) continue;
-        const locationOffsets = rangeToOffsets(lineIndex, location?.range || null, {
+        const locationOffsets = exactRangeToOffsets(lineIndex, location.range, {
           text: docText,
           positionEncoding
         });
-        let candidate = buildSourceSignatureCandidate(sourceText, locationOffsets);
-        if (!candidate) {
-          const fallbackLine = Number(location?.range?.start?.line);
-          candidate = buildLineSignatureCandidate(sourceText, fallbackLine);
-        }
+        const containerOffsets = exactRangeToOffsets(lineIndex, location.targetRange, { text: docText, positionEncoding });
+        if (!locationOffsets || !containerOffsets || locationOffsets.start < containerOffsets.start
+          || locationOffsets.end > containerOffsets.end) continue;
+        const candidate = buildSourceSignatureCandidate(sourceText, containerOffsets);
+        if (!candidate) continue;
         const info = parseSignatureCached(candidate, symbol?.name);
         if (info) return info;
       }
@@ -697,7 +711,6 @@ export const processDocumentTypes = async ({
         recordSoftDeadlineSkip();
         return Promise.resolve({ attempted: false, info: null });
       }
-      if (!reserveRequestBudget(requestBudget)) return Promise.resolve({ attempted: false, info: null });
       const cachedInfo = semanticSession ? null : tryReadRequestCache(cacheKey, position);
       const runRequest = typeof limiter === 'function'
         ? limiter
@@ -712,16 +725,18 @@ export const processDocumentTypes = async ({
         const timeoutOverride = Number.isFinite(timeoutMs)
           ? timeoutMs
           : null;
-        fileHoverStats[requestedMetric] += 1;
-        hoverMetrics[requestedMetric] += 1;
         try {
           throwIfAborted(abortSignal);
-          const payload = await runRequest(() => runGuarded(
-            ({ timeoutMs: guardTimeout }) => client.request(method, buildParams({ position }), {
-              timeoutMs: guardTimeout
-            }),
-            { label, ...(timeoutOverride ? { timeoutOverride } : {}) }
-          ));
+          const payload = await admitRequest({ limiter: runRequest, budget: requestBudget, requestedMetric: requestedMetric,
+            run: () => runGuarded(
+              ({ timeoutMs: guardTimeout }) => client.request(method, buildParams({ position }), {
+                timeoutMs: guardTimeout
+              }),
+              { label, ...(timeoutOverride ? { timeoutOverride } : {}) }
+            ) });
+          if (payload === REQUEST_NOT_ADMITTED) return { attempted: false, info: null };
+          structuredCollector?.record({ requestClass: label, params: buildParams({ position }),
+            response: { attempted: true, payload }, positionEncoding });
           const locations = extractDefinitionLocations(payload);
           if (!locations.length) return { attempted: true, info: null, payload };
           const allowedUris = new Set([String(uri || '')]);
@@ -813,10 +828,15 @@ export const processDocumentTypes = async ({
 
     for (const symbol of flattened) {
       throwIfAborted(abortSignal);
-      const offsets = rangeToOffsets(lineIndex, symbol.selectionRange || symbol.range, {
+      if (symbol.protocolShape === 'SymbolInformation' && (typeof symbol.uri !== 'string' || !symbol.uri
+        || symbol.uri !== uri && (!legacyUri || symbol.uri !== legacyUri))) continue;
+      if (!lspRangeContains(symbol.range, symbol.selectionRange)) continue;
+      const offsets = exactRangeToOffsets(lineIndex, symbol.selectionRange, {
         text: docText,
         positionEncoding
       });
+      const containerOffsets = exactRangeToOffsets(lineIndex, symbol.range, { text: docText, positionEncoding });
+      if (!offsets || !containerOffsets) continue;
       const target = findTargetForOffsets(docTargetIndex, offsets, symbol.name);
       if (!target) continue;
 
@@ -1064,9 +1084,11 @@ export const processDocumentTypes = async ({
               targetRange: record?.target?.virtualRange || record?.target?.chunkRef?.range || null,
               positionEncoding,
               paramNames: normalizeParamNames(record?.info?.paramNames),
-              languageId
+              languageId,
+              declarationNameRange:record?.symbol?.selectionRange ? exactRangeToOffsets(lineIndex,record.symbol.selectionRange,{text:docText,positionEncoding}) : null
             });
             if (!hintInfo) continue;
+            record.inlayHintObservations=hintInfo.observations || [];
             record.inlayHintsSucceeded = hintInfo.hintCount > 0;
             if (record.inlayHintsSucceeded) {
               record.info = mergeSignatureInfo(record.info, hintInfo, { symbolKind: record?.symbol?.kind });
@@ -1103,6 +1125,7 @@ export const processDocumentTypes = async ({
       requestedFlag: 'referencesRequested',
       succeededFlag: 'referencesSucceeded'
     });
+    await structuredCollector?.flush();
 
     const candidateRows = [];
     const unresolvedRate = symbolRecords.length > 0

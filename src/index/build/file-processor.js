@@ -1,3 +1,4 @@
+import { withSchedulerCpuSuspended } from '../../shared/concurrency/scheduler-task-scope.js';
 import { createSemanticCacheDependencySignatures } from './incremental/semantic-cache-dependencies.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -14,7 +15,9 @@ import { buildPostingsPayloadMetadata } from './postings-payload.js';
 import { createFileScanner } from './file-scan.js';
 import { createTokenizationContext } from './tokenization.js';
 import { reuseCachedBundle } from './file-processor/cached-bundle.js';
-import { processFileCpu } from './file-processor/cpu.js';
+import { processFileCpuWithWorker } from './file-processor/coarse-worker.js';
+import { fileAnalysisAdmissionBytes, isFileAnalysisCandidate } from './workers/file-analysis-contract.js';
+import { createFileSerialCompute } from './file-processor/serial-compute.js';
 import { loadCachedBundleForFile, writeBundleForFile } from './file-processor/incremental.js';
 import { resolvePreReadSkip } from './file-processor/skip.js';
 import { createCrashStageUpdater } from './file-processor/crash-stage.js';
@@ -30,6 +33,7 @@ import { resolvePreCpuFileContent } from './file-processor/pre-cpu-content.js';
 import { getLanguageForFile } from '../language-registry.js';
 import {
   EXTRACTION_NORMALIZATION_POLICY,
+  DOCX_STRUCTURAL_EXTRACTION_VERSION,
   buildDocumentExtractionFidelity,
   buildDocumentExtractionPolicySummary,
   sha256Hex,
@@ -100,6 +104,7 @@ export function createFileProcessor(options) {
     skippedFiles = null,
     embeddingEnabled = true,
     embeddingNormalize = true,
+    embeddingQuantization,
     toolInfo = null,
     tokenizationStats = null,
     tokenizeEnabled = true,
@@ -223,7 +228,7 @@ export function createFileProcessor(options) {
       target: runtimeInfo?.target || null
     };
   };
-  const buildDocumentExtractionCacheKey = ({ sourceBytesHash, extractor }) => {
+  const buildDocumentExtractionCacheKey = ({ sourceBytesHash, extractor, sourceType }) => {
     const bytesHash = typeof sourceBytesHash === 'string' ? sourceBytesHash.trim() : '';
     if (!bytesHash) return null;
     return sha256Hex([
@@ -231,6 +236,7 @@ export function createFileProcessor(options) {
       extractor?.name || 'unknown',
       extractor?.version || 'unknown',
       extractor?.target || '',
+      sourceType === 'docx' ? DOCX_STRUCTURAL_EXTRACTION_VERSION : '',
       documentExtractionPolicyCacheKey
     ].join('|'));
   };
@@ -368,7 +374,6 @@ export function createFileProcessor(options) {
     reporter: cacheReporter
   });
 
-  let treeSitterSerial = Promise.resolve();
   /**
    * Serialize Tree-sitter executions to avoid parser/runtime contention.
    *
@@ -378,11 +383,7 @@ export function createFileProcessor(options) {
    * @param {Function} fn
    * @returns {Promise<any>}
    */
-  const runTreeSitterSerial = async (fn) => {
-    const run = treeSitterSerial.then(fn, fn);
-    treeSitterSerial = run.catch(() => {});
-    return run;
-  };
+  const runTreeSitterSerial = createFileSerialCompute();
   /**
    * Process a file: read, chunk, analyze, and produce chunk payloads.
    * @param {string} abs
@@ -409,15 +410,21 @@ export function createFileProcessor(options) {
       err.code = 'FILE_PROCESS_ABORTED';
       throw err;
     };
-    const runIo = ioQueue ? (fn) => ioQueue.add(fn, { signal }) : (fn) => fn();
-    const runCpu = cpuQueue && useCpuQueue ? (fn) => cpuQueue.add(fn, { signal }) : (fn) => fn();
-    // Keep embedding queue backpressure/concurrency controls active even when
-    // called from CPU work. Deadlock prevention is handled at scheduler-token
-    // configuration (embeddings queue avoids consuming CPU tokens).
-    const runEmbedding = embeddingQueue
-      ? (fn) => embeddingQueue.add(fn, { signal })
-      : (fn) => fn();
-    const runProc = procQueue ? (fn) => procQueue.add(fn, { signal }) : (fn) => fn();
+    // Only explicitly I/O-only callbacks may run without compute admission.
+    // Bundle/provider callbacks can parse, normalize or serialize after waiting.
+    const runIo = (fn, { waitOnly = false } = {}) => ioQueue
+      ? withSchedulerCpuSuspended(() => ioQueue.add(fn, { signal, cpu: waitOnly ? 0 : 1 }))
+      : waitOnly ? withSchedulerCpuSuspended(fn) : fn();
+    const runCpu = cpuQueue && useCpuQueue ? (fn) => cpuQueue.add(fn, { signal,
+      bytes: isFileAnalysisCandidate({ mode, ext, workerPool })
+        ? fileAnalysisAdmissionBytes(fileStat?.size || 0)
+        : Math.max(64 * 1024, Number(fileStat?.size || 0) * 4) }) : (fn) => fn();
+    // Known waits release only parent compute. Child compute obtains its own
+    // permit; source/AST/window and all retained-byte ownership stay admitted.
+    const runEmbedding = (fn, { signal: operationSignal = signal } = {}) => embeddingQueue
+      ? withSchedulerCpuSuspended(() => embeddingQueue.add(fn, { signal: operationSignal })) : fn();
+    const runProc = (fn, { cpu = 1, bytes = 0 } = {}) => procQueue
+      ? withSchedulerCpuSuspended(() => procQueue.add(fn, { signal, cpu, bytes })) : fn();
     throwIfAborted();
     const abs = typeof fileEntry === 'string' ? fileEntry : fileEntry.abs;      
     const fileStart = Date.now();
@@ -474,7 +481,7 @@ export function createFileProcessor(options) {
     try {
       fileStat = typeof fileEntry === 'object' && fileEntry.stat
         ? fileEntry.stat
-        : await runIo(() => fs.lstat(abs));
+        : await runIo(() => fs.lstat(abs), { waitOnly: true });
       updateCrashStage('pre-cpu:lstat:done', {
         size: Number.isFinite(Number(fileStat?.size)) ? Number(fileStat.size) : null
       });
@@ -594,7 +601,7 @@ export function createFileProcessor(options) {
         });
       }
       if (artifacts.cachedBundle?.stageRefresh?.embeddings) {
-        cachedOutcome.result.manifestEntry = await writeBundleForFile({semanticContext,semanticSegmentFactsRefs:cachedResult.semanticSegmentFactsRefs || [],semanticEvidenceArtifacts:cachedResult.semanticEvidenceArtifacts || [],semanticFactsRef:cachedResult.semanticFactsRef,runIo,incrementalState,relKey,fileStat,fileHash:cachedOutcome.result.fileInfo.hash,fileChunks:cachedOutcome.result.chunks,parseCheckpoint:artifacts.cachedBundle.parseCheckpoint,fileRelations:cachedOutcome.result.fileRelations,vfsManifestRows:cachedOutcome.result.vfsManifestRows,fileEncoding:cachedOutcome.result.fileInfo.encoding,fileEncodingFallback:cachedOutcome.result.fileInfo.encodingFallback,fileEncodingFallbackClass:cachedOutcome.result.fileInfo.encodingFallbackClass,fileEncodingFallbackRisk:cachedOutcome.result.fileInfo.encodingFallbackRisk,fileEncodingConfidence:cachedOutcome.result.fileInfo.encodingConfidence});
+        cachedOutcome.result.manifestEntry = await writeBundleForFile({semanticContext,semanticSegmentFactsRefs:cachedResult.semanticSegmentFactsRefs || [],semanticEvidenceArtifacts:cachedResult.semanticEvidenceArtifacts || [],semanticFactsRef:cachedResult.semanticFactsRef,runIo,incrementalState,relKey,fileStat,fileHash:cachedOutcome.result.fileInfo.hash,fileChunks:cachedOutcome.result.chunks,parseCheckpoint:artifacts.cachedBundle.parseCheckpoint,lexicalCheckpoint:artifacts.cachedBundle.lexicalCheckpoint || null,fileRelations:cachedOutcome.result.fileRelations,vfsManifestRows:cachedOutcome.result.vfsManifestRows,fileEncoding:cachedOutcome.result.fileInfo.encoding,fileEncodingFallback:cachedOutcome.result.fileInfo.encodingFallback,fileEncodingFallbackClass:cachedOutcome.result.fileInfo.encodingFallbackClass,fileEncodingFallbackRisk:cachedOutcome.result.fileInfo.encodingFallbackRisk,fileEncodingConfidence:cachedOutcome.result.fileInfo.encodingConfidence});
       }
       warnEncodingFallback(relKey, cachedOutcome.result.fileInfo);
       return cachedOutcome.result;
@@ -622,7 +629,8 @@ export function createFileProcessor(options) {
         documentExtractionIdentity = await resolveDocumentExtractorIdentity(documentSourceType);
         documentExtractionCacheKey = buildDocumentExtractionCacheKey({
           sourceBytesHash,
-          extractor: documentExtractionIdentity
+          extractor: documentExtractionIdentity,
+          sourceType: documentSourceType
         });
         const cachedExtraction = loadCachedDocumentExtraction(documentExtractionCacheKey);
         if (cachedExtraction?.text) {
@@ -734,7 +742,7 @@ export function createFileProcessor(options) {
 
     updateCrashStage('pre-cpu:handoff-to-cpu:start');
     if (semantic && !artifacts.fileBuffer) artifacts.fileBuffer = await runIo(() => readContainedFile(root, abs, { expectedStat: fileStat }));
-    const cpuResult = await runCpu(() => processFileCpu({
+    const cpuResult = await runCpu(() => processFileCpuWithWorker({
       semantic,
       sourceBytes: artifacts.fileBuffer,
       abs,
@@ -746,7 +754,12 @@ export function createFileProcessor(options) {
       rel,
       relKey,
       text: artifacts.text,
-      cachedStageBundle: semantic ? null : artifacts.cachedBundle,
+      cachedStageBundle: semantic ? null : artifacts.cachedBundle || (
+        cachedResult.parseCheckpointFallback?.sourceHash === artifacts.fileHash
+          ? { parseCheckpoint: cachedResult.parseCheckpointFallback.checkpoint,
+            stageRefresh: { parse: false, lexical: true } } : null),
+      cachedLexicalCheckpoint: artifacts.cachedBundle?.stageRefresh?.lexical === false ? artifacts.cachedBundle.lexicalCheckpoint : null,
+      lexicalCheckpointDependencies: incrementalState.enabled ? incrementalState.manifest.dependencySignatures : null,
       documentExtraction: artifacts.documentExtraction,
       fileStat,
       fileHash: artifacts.fileHash,
@@ -784,6 +797,7 @@ export function createFileProcessor(options) {
       tokenizeEnabled,
       embeddingEnabled,
       embeddingNormalize,
+      embeddingQuantization,
       embeddingBatchSize,
       getChunkEmbedding,
       getChunkEmbeddings,
@@ -860,6 +874,7 @@ export function createFileProcessor(options) {
       fileHash: artifacts.fileHash,
       fileChunks,
       parseCheckpoint: cpuResult?.parseCheckpoint || null,
+      lexicalCheckpoint: cpuResult?.lexicalCheckpoint || null,
       fileRelations,
       lexiconFilterStats,
       vfsManifestRows,

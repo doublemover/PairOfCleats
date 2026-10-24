@@ -1,4 +1,5 @@
 import { toPosix } from '../../../shared/file-paths.js';
+import { createHash } from 'node:crypto';
 import { LANGUAGE_ID_EXT } from '../../segments/config.js';
 import { VFS_HASH_PREFIX, VFS_PREFIX } from './constants.js';
 
@@ -31,37 +32,46 @@ export const resolveEffectiveExt = ({ languageId, containerExt }) => {
  * @param {{containerPath:string,segmentUid?:string|null,effectiveExt?:string|null}} input
  * @returns {string}
  */
-export const buildVfsVirtualPath = ({ containerPath, segmentUid, effectiveExt }) => {
+export const buildVfsVirtualPath = ({ containerPath, segmentUid, effectiveExt, segmentStart = null, segmentEnd = null }) => {
   const encoded = encodeContainerPath(containerPath);
   if (!segmentUid) return `${VFS_PREFIX}${encoded}`;
-  return `${VFS_PREFIX}${encoded}#seg:${segmentUid}${effectiveExt || ''}`;
+  const occurrence = Number.isFinite(segmentStart) && Number.isFinite(segmentEnd) ? `#at:${segmentStart}-${segmentEnd}` : '';
+  return `${VFS_PREFIX}${encoded}#seg:${segmentUid}${occurrence}${effectiveExt || ''}`;
 };
 
 /**
- * Build a content-addressed VFS virtual path.
- * @param {{docHash:string,effectiveExt?:string|null}} input
+ * Build a content-addressed path scoped to one semantic source origin.
+ * @param {{docHash:string,containerPath:string,segmentUid?:string|null,languageId?:string|null,effectiveExt?:string|null}} input
  * @returns {string|null}
  */
-export const buildVfsHashVirtualPath = ({ docHash, effectiveExt }) => {
-  if (!docHash) return null;
-  return `${VFS_HASH_PREFIX}${docHash}${effectiveExt || ''}`;
+export const buildVfsHashVirtualPath = ({ docHash, containerPath, segmentUid, languageId, effectiveExt, segmentStart = null, segmentEnd = null }) => {
+  if (!docHash || typeof containerPath !== 'string' || !containerPath) return null;
+  const origin = JSON.stringify([toPosix(containerPath), segmentUid || null,
+    normalizeLanguageId(languageId), effectiveExt || '',
+    segmentUid && Number.isFinite(segmentStart) ? segmentStart : null,
+    segmentUid && Number.isFinite(segmentEnd) ? segmentEnd : null]);
+  const originHash = createHash('sha256').update(origin).digest('hex');
+  return `${VFS_HASH_PREFIX}${docHash}/${originHash}${effectiveExt || ''}`;
 };
 
 /**
  * Resolve the VFS virtual path based on routing settings.
- * @param {{containerPath:string,segmentUid?:string|null,effectiveExt?:string|null,docHash?:string|null,hashRouting?:boolean}} input
+ * @param {{containerPath:string,segmentUid?:string|null,languageId?:string|null,effectiveExt?:string|null,docHash?:string|null,hashRouting?:boolean}} input
  * @returns {string}
  */
 export const resolveVfsVirtualPath = ({
   containerPath,
   segmentUid,
+  languageId = null,
   effectiveExt,
   docHash = null,
-  hashRouting = false
+  hashRouting = false,
+  segmentStart = null,
+  segmentEnd = null
 }) => {
   if (hashRouting) {
-    const hashPath = buildVfsHashVirtualPath({ docHash, effectiveExt });
+    const hashPath = buildVfsHashVirtualPath({ docHash, containerPath, segmentUid, languageId, effectiveExt, segmentStart, segmentEnd });
     if (hashPath) return hashPath;
   }
-  return buildVfsVirtualPath({ containerPath, segmentUid, effectiveExt });
+  return buildVfsVirtualPath({ containerPath, segmentUid, effectiveExt, segmentStart, segmentEnd });
 };

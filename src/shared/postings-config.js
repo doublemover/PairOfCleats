@@ -86,7 +86,7 @@ export function normalizePostingsConfig(input = {}) {
   if (chargramRange.max > MAX_CHARGRAM_N) chargramRange.max = MAX_CHARGRAM_N;
   if (chargramRange.max < chargramRange.min) chargramRange.max = chargramRange.min;
   let chargramMaxTokenLength = 48;
-  if (cfg.chargramMaxTokenLength === 0 || cfg.chargramMaxTokenLength === false) {
+  if (cfg.chargramMaxTokenLength === null || cfg.chargramMaxTokenLength === 0 || cfg.chargramMaxTokenLength === false) {
     chargramMaxTokenLength = null;
   } else {
     const maxTokenRaw = Number(cfg.chargramMaxTokenLength);

@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
 
-const SCHEDULER_AUTOTUNE_PROFILE_VERSION = 1;
+const SCHEDULER_AUTOTUNE_PROFILE_VERSION = 2;
 const PROFILE_FILE_NAME = 'scheduler-autotune.json';
 
 /**
@@ -65,6 +65,7 @@ const normalizeProfile = (value) => {
     version: SCHEDULER_AUTOTUNE_PROFILE_VERSION,
     generatedAt: typeof value.generatedAt === 'string' ? value.generatedAt : null,
     sourceBuildId: typeof value.sourceBuildId === 'string' ? value.sourceBuildId : null,
+    resourceIdentity: typeof value.resourceIdentity === 'string' ? value.resourceIdentity : null,
     recommended: {
       ...(maxCpuTokens != null ? { maxCpuTokens } : {}),
       ...(maxIoTokens != null ? { maxIoTokens } : {}),
@@ -154,6 +155,7 @@ export const deriveSchedulerAutoTuneRecommendation = ({
     version: SCHEDULER_AUTOTUNE_PROFILE_VERSION,
     generatedAt: new Date().toISOString(),
     sourceBuildId: typeof buildId === 'string' ? buildId : null,
+    resourceIdentity: typeof schedulerConfig?.resourceIdentity === 'string' ? schedulerConfig.resourceIdentity : null,
     recommended: {
       maxCpuTokens: Math.max(1, nextCpu),
       maxIoTokens: Math.max(1, nextIo),

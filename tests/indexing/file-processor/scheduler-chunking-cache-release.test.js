@@ -7,6 +7,7 @@ applyTestEnv();
 
 const text = 'export const value = 1;\n';
 const segment = {
+  segmentUid: 'seg-cache-release',
   start: 0,
   end: text.length,
   languageId: 'javascript'

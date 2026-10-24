@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import { createDockerfileStructureParser, parseDockerfileStructure } from '../../../src/shared/dockerfile-ast.js';
-import { createDockerfileChunker, chunkDockerfile } from '../../../src/index/chunking/dispatch/heuristic-chunkers.js';
+import { createDockerfileChunker, chunkDockerfile as chunkDockerfileSource } from '../../../src/index/chunking/dispatch/heuristic-chunkers.js';
+import { sourceSections } from '../helpers/source-sections.js';
 import { createDockerfileImportCollector, collectDockerfileImports } from '../../../src/index/language-registry/import-collectors/dockerfile.js';
 import { createDockerfileManagedAdapter } from '../../../src/index/language-registry/adapters/heuristic.js';
 
+const chunkDockerfile = (text, ...args) => sourceSections(text, chunkDockerfileSource(text, ...args));
 const text = [
   '# syntax=docker/dockerfile:1.7',
   'FROM --platform=$BUILDPLATFORM \\',

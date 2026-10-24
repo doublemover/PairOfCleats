@@ -13,6 +13,7 @@ import { stableStringify } from '../../src/shared/stable-json.js';
 import { registerChildProcessForCleanup, terminateTrackedSubprocesses } from '../../src/shared/subprocess/tracking.js';
 import { resolveToolRoot } from '../shared/dict-utils.js';
 import { resolveRepoContainedOutputPath } from './file-walk.js';
+import { validateVsixContainer } from '../tooling/vsix-container.js';
 
 const root = resolveToolRoot();
 const cli = createCli({
@@ -556,7 +557,7 @@ const startMcpServer = async ({ repoRoot, env }) => {
   };
 };
 
-const verifyArchiveInstall = async ({
+const verifyArchiveContents = async ({
   archivePath,
   expectedEntries,
   unpackRoot
@@ -742,41 +743,57 @@ const verifyMcp = async () => {
 const verifyVsCode = async () => {
   const archivePath = path.join(root, 'dist', 'vscode', 'pairofcleats.vsix');
   const unpackRoot = path.join(outDir, 'unpacked');
-  const payload = await verifyArchiveInstall({
+  const payload = await verifyArchiveContents({
     archivePath,
     unpackRoot,
     expectedEntries: [
+      'extension.vsixmanifest',
+      '[Content_Types].xml',
       'extension/package.json',
       'extension/extension.js',
       'extension/README.md'
     ]
   });
+  const container = await validateVsixContainer(archivePath);
   await writeResult({
-    ok: true,
+    ok: false,
+    status: 'blocked',
+    error: 'Archive verified; official VS Code installer, activation, fixture search and uninstall evidence is required.',
+    checks: { archive: true, container: true, hostInstall: false },
+    container,
     surface: surfaceId,
     stage,
     ...payload
   });
+  process.exitCode = 1;
 };
 
 const verifySublime = async () => {
-  const archivePath = path.join(root, 'dist', 'sublime', 'pairofcleats.sublime-package');
+  const archivePath = path.join(root, 'dist', 'sublime', 'PairOfCleats.sublime-package');
   const unpackRoot = path.join(outDir, 'unpacked');
-  const payload = await verifyArchiveInstall({
+  const payload = await verifyArchiveContents({
     archivePath,
     unpackRoot,
     expectedEntries: [
-      'PairOfCleats/plugin.py',
-      'PairOfCleats/README.md',
-      'PairOfCleats/PairOfCleats.sublime-settings'
+      'plugin.py',
+      '__init__.py',
+      'editor-config-contract.json',
+      'lib/config.py',
+      'commands/search.py',
+      'README.md',
+      'PairOfCleats.sublime-settings'
     ]
   });
   await writeResult({
-    ok: true,
+    ok: false,
+    status: 'blocked',
+    error: 'Archive verified; supported Sublime host activation, fixture search, update and uninstall evidence is required.',
+    checks: { archive: true, hostInstall: false },
     surface: surfaceId,
     stage,
     ...payload
   });
+  process.exitCode = 1;
 };
 
 const verifyTui = async () => {

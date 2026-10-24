@@ -8,8 +8,10 @@ import {
   PREFLIGHT_POLICY
 } from '../provider-contract.js';
 import { listLspServerPresets, resolveLspServerPreset } from '../lsp-presets.js';
+import { SCRIPT_LSP_PRESET_DEFINITIONS } from '../script-lsp-profiles.js';
+import { isRetiredKotlinLspSelection } from '../kotlin-lsp-profile.js';
 import { isRepoTrusted } from '../../../shared/config-authority.js';
-import { isWorkspaceBuildExecution } from '../../../shared/workspace-execution-authority.js';
+import { isProviderWorkspaceExecution, isSourcekitProvider } from '../workspace-execution.js';
 import {
   deepCloneValue,
   deepMergeObjects,
@@ -95,10 +97,12 @@ export const normalizeServerConfig = (server, index) => {
   const providerId = merged.providerId
     ? normalizeServerId(merged.providerId, id)
     : null;
-  const cmd = String(merged.cmd || '').trim();
+  const retiredKotlinProfile = isRetiredKotlinLspSelection(server);
+  const cmd = String(merged.cmd || (retiredKotlinProfile ? 'kotlin-language-server' : '')).trim();
   if (!cmd) return null;
   const args = normalizeArgs(merged.args);
   const languages = normalizeLanguageList(merged.languages);
+  if (retiredKotlinProfile && !languages.length) languages.push('kotlin');
   const kinds = normalizeKindList(merged.kinds);
   const uriScheme = merged.uriScheme === 'poc-vfs' ? 'poc-vfs' : 'file';
   const timeoutMs = Number(merged.timeoutMs);
@@ -232,6 +236,14 @@ export const normalizeServerConfig = (server, index) => {
   );
   return {
     id,
+    ...(preset && Object.hasOwn(SCRIPT_LSP_PRESET_DEFINITIONS, preset.id) ? { scriptProfileId: preset.id } : {}),
+    profileContractVersion: preset?.profileContractVersion || null,
+    exclusiveLanguageGroup: preset?.exclusiveLanguageGroup || null,
+    replacesProviderIds: Array.isArray(preset?.replacesProviderIds) ? [...preset.replacesProviderIds] : [],
+    requiresWorkspaceExecution: preset?.requiresWorkspaceExecution === true,
+    workspaceExecutionProfile: preset?.requiresWorkspaceExecution === true ? preset.id : null,
+    retiredKotlinProfile,
+    signatureProfile: preset?.signatureProfile || null,
     providerId,
     cmd,
     args,
@@ -361,6 +373,7 @@ export const collectAutoPresetServers = (toolingConfig, configuredServerIds) => 
   const enabledSet = hasEnabledAllowlist ? new Set(enabledTools) : null;
   const autoServers = [];
   for (const preset of listLspServerPresets()) {
+    if (preset.explicitOnly === true) continue;
     const serverId = normalizeServerId(preset.id, preset.id);
     if (!serverId) continue;
     if (configuredServerIds.has(serverId)) continue;
@@ -377,6 +390,7 @@ export const collectAutoPresetServers = (toolingConfig, configuredServerIds) => 
 
 export const buildConfiguredProviderConfigHash = ({ server, ctx }) => (
   hashProviderConfig({ server, lsp: ctx?.toolingConfig?.lsp || {},
-    ...(isWorkspaceBuildExecution({ server })
+    ...(isSourcekitProvider({ server }) ? { operationPlanIdentity: ctx?.sourcekitOperationPlan?.identity || null } : {}),
+    ...(isProviderWorkspaceExecution({ server })
       ? { workspaceExecutionTrusted: isRepoTrusted(ctx?.repoRoot || process.cwd()) } : {}) })
 );

@@ -1,8 +1,8 @@
 import { SCORING_ANALYZER_VERSION } from '../shared/tokenize-identifiers.js';
 /** Schema version for serialized query plans. */
-export const QUERY_PLAN_SCHEMA_VERSION = 1;
+export const QUERY_PLAN_SCHEMA_VERSION = 3;
 /** Query parser version that influences cache signatures. */
-export const QUERY_PARSER_VERSION = 2;
+export const QUERY_PARSER_VERSION = 4;
 /** Query tokenizer version that influences cache signatures. */
 export const QUERY_TOKENIZER_VERSION = SCORING_ANALYZER_VERSION;
 

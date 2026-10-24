@@ -1,3 +1,4 @@
+import { getOwn, setOwn } from '../../shared/object-record.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { writeJsonObjectFile } from '../../shared/json-stream/json-writers.js';
@@ -37,33 +38,33 @@ const finalizeBucket = (bucket) => {
 
 const ensureMode = (state, mode) => {
   const key = mode || 'unknown';
-  if (!state.modes[key]) {
-    state.modes[key] = {
+  if (!Object.hasOwn(state.modes,key)) {
+    setOwn(state.modes,key,{
       totals: initBucket(),
       languages: {},
       languageSets: {},
       settings: {}
-    };
+    });
   }
   return state.modes[key];
 };
 
 const ensureNamedBucket = (collection, key) => {
   const name = key || 'unknown';
-  if (!collection[name]) collection[name] = initBucket();
+  if (!getOwn(collection,name)) setOwn(collection,name,initBucket());
   return collection[name];
 };
 
 const ensureSetting = (modeEntry, setting, enabled = null) => {
   const key = setting || 'unknown';
-  if (!modeEntry.settings[key]) {
-    modeEntry.settings[key] = {
+  if (!Object.hasOwn(modeEntry.settings,key)) {
+    setOwn(modeEntry.settings,key,{
       enabled: enabled === null ? null : Boolean(enabled),
       enabledRuns: 0,
       totals: initBucket(),
       languages: {},
       languageSets: {}
-    };
+    });
   } else if (enabled !== null && typeof enabled === 'boolean') {
     modeEntry.settings[key].enabled = enabled;
   }
@@ -115,7 +116,7 @@ export function createFeatureMetrics({
       : Object.entries(languageLines || {});
     if (!entries.length) return;
     const fallbackTotal = entries.reduce((sum, [, value]) => sum + (Number(value) || 0), 0);
-    const lineTotal = totalLines > 0 ? totalLines : fallbackTotal;
+    const lineTotal = Math.max(totalLines, fallbackTotal);
     for (const [languageId, languageLineCount] of entries) {
       const langLines = Number(languageLineCount) || 0;
       if (!langLines) continue;

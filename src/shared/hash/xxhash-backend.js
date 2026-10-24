@@ -6,6 +6,11 @@ const XXHASH_HEX_WIDTH = 16;
 let wasmStatePromise = null;
 let wasmBackendPromise = null;
 
+const incrementalHasher = create64 => {
+  const hasher = create64(), update = hasher.update, digest = hasher.digest;
+  return { update: bytes => update.call(hasher, bytes), digest: () => formatXxhashHex(digest.call(hasher)) };
+};
+
 const loadWasmState = async () => {
   if (!wasmStatePromise) {
     wasmStatePromise = xxhashWasm();
@@ -27,12 +32,24 @@ export const formatXxhashHex = (value) => {
   return '';
 };
 
+/** Incremental owner for bounded readers that already control their byte
+ * windows. Uses the same xxh64 algorithm and formatting as hash64Stream. */
+export const createXxhash64HasherFactory = async () => {
+  const { create64 } = await loadWasmState();
+  return () => {
+    const hasher = create64();
+    return { update: bytes => hasher.update(bytes), digest: () => formatXxhashHex(hasher.digest()) };
+  };
+};
+export const createXxhash64Hasher = async () => (await createXxhash64HasherFactory())();
+
 const createWasmBackend = async () => {
   if (wasmBackendPromise) return wasmBackendPromise;
   wasmBackendPromise = (async () => {
     const { h64ToString, create64 } = await loadWasmState();
     return {
       name: 'wasm',
+      createHasher: () => incrementalHasher(create64),
       hash64: async (input) => formatXxhashHex(h64ToString(input)),
       hash64Stream: async (stream) => new Promise((resolve, reject) => {
         const hasher = create64();
@@ -63,6 +80,7 @@ const createNativeBackend = async (options = {}) => {
   if (typeof create64 === 'function') {
     return {
       ...base,
+      createHasher: () => incrementalHasher(create64),
       hash64Stream: async (stream) => new Promise((resolve, reject) => {
         const hasher = create64();
         stream.on('error', reject);
@@ -74,6 +92,7 @@ const createNativeBackend = async (options = {}) => {
   const wasmBackend = await createWasmBackend();
   return {
     ...base,
+    createHasher: wasmBackend.createHasher,
     hash64Stream: wasmBackend.hash64Stream
   };
 };

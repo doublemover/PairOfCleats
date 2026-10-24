@@ -119,3 +119,41 @@ export const sanitizeChunkBounds = (chunks, textLength) => {
     if (clampedEnd !== end) chunk.end = clampedEnd;
   }
 };
+
+
+/** Retain JS/TS module invocations outside declaration chunks. Source gaps own
+ * these calls; a neighboring function must never acquire them by display name.
+ * The sorted union keeps the join bounded by source occurrences and chunks.
+ */
+export const retainModuleCallChunks = ({ chunks, callIndex, languageId, textLength }) => {
+  if (!['javascript', 'typescript'].includes(languageId) || !callIndex?.callDetailsWithRange?.length) return chunks;
+  const ranges = chunks.filter(chunk => Number.isSafeInteger(chunk.start) && Number.isSafeInteger(chunk.end)
+    && chunk.start >= 0 && chunk.end > chunk.start && chunk.end <= textLength)
+    .map(chunk => [chunk.start, chunk.end]).sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const covered = [];
+  for (const range of ranges) {
+    const prior = covered.at(-1);
+    if (prior && range[0] <= prior[1]) prior[1] = Math.max(prior[1], range[1]);
+    else covered.push([...range]);
+  }
+  const gaps = new Map();
+  for (const detail of callIndex.callDetailsWithRange) {
+    if (detail?.caller !== '(module)' || !Number.isSafeInteger(detail.start) || !Number.isSafeInteger(detail.end)
+      || detail.start < 0 || detail.end <= detail.start || detail.end > textLength) continue;
+    let low = 0, high = covered.length;
+    while (low < high) {
+      const mid = (low + high) >>> 1;
+      if (covered[mid][0] <= detail.start) low = mid + 1;
+      else high = mid;
+    }
+    // Reject overlap with any existing owner, including a call crossing a
+    // declaration boundary. Its geometric scope cannot be certified here.
+    if (low && detail.start < covered[low - 1][1]) continue;
+    if (low < covered.length && detail.end > covered[low][0]) continue;
+    const gap = gaps.get(low);
+    if (gap) { gap.start = Math.min(gap.start, detail.start); gap.end = Math.max(gap.end, detail.end); }
+    else gaps.set(low, { start: detail.start, end: detail.end, name: '(module)', kind: 'Module', meta: {} });
+  }
+  if (!gaps.size) return chunks;
+  return [...chunks, ...gaps.values()].sort((a, b) => a.start - b.start || a.end - b.end);
+};

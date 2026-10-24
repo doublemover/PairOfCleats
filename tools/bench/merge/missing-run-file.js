@@ -1,3 +1,4 @@
+import { resolveDevelopmentArtifactPath } from '../../shared/dev-artifacts.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { mergeSortedRunsToFile, writeJsonlRunFile } from '../../../src/shared/merge.js';
@@ -11,7 +12,7 @@ const compareRows = (a, b) => {
 };
 
 const main = async () => {
-  const benchRoot = path.join(process.cwd(), '.benchCache', 'missing-run-file');
+  const benchRoot = resolveDevelopmentArtifactPath(process.cwd(), 'bench-cache', 'missing-run-file');
   await fs.rm(benchRoot, { recursive: true, force: true });
   await fs.mkdir(benchRoot, { recursive: true });
   const runA = path.join(benchRoot, 'run-a.jsonl');

@@ -26,6 +26,18 @@ const fragmentSize = fragmentSizeIdx !== -1 && Number.isFinite(Number(args[fragm
   : 8;
 
 const symbolsByMode = {
+  'kotlin-function': {
+    name: 'greet', detail: 'suspend fun greet(name: String, transform: (String) -> String?): Map<String, String?>', kind: 12
+  },
+  'python-comparison-default': {
+    name: 'greet', detail: 'def greet(ok: bool = 1 < 2, mask: int = 1 << 2) -> bool', kind: 12
+  },
+  'go-grouped-channel': {
+    name: 'Read', detail: 'func Read(first, second <-chan string, timeout int) error', kind: 12
+  },
+  'rust-lifetime-tuple': {
+    name: 'borrow', detail: "fn borrow<'a>(text: &'a str, count: u32) -> (usize, usize)", kind: 12
+  },
   clangd: {
     name: 'add',
     detail: 'int add(int a, int b)',
@@ -40,6 +52,9 @@ const symbolsByMode = {
     name: 'greet',
     detail: 'func greet(name: String, count: Int) -> String',
     kind: 12
+  },
+  'sourcekit-passive': {
+    name: 'greet', detail: 'func greet(name: String, count: Int) -> String', kind: 12
   },
   pyright: {
     name: 'greet',
@@ -90,8 +105,11 @@ const symbolsByMode = {
   },
   php: {
     name: 'greet',
-    detail: 'string greet(string name)',
+    detail: 'function greet(string $name): string',
     kind: 12
+  },
+  'php-generics': {
+    name: 'greet', detail: 'function greet(list<\\Domain\\User> $users, ?callable $format = null): array<string, \\Domain\\User|null>', kind: 12
   },
   haskell: {
     name: 'greet',
@@ -252,6 +270,8 @@ const documents = new Map();
 let initializeCount = 0;
 
 const resolveInitializeCapabilities = (initializeParams = null) => {
+  if (mode === 'sourcekit-passive') return initializeParams?.initializationOptions?.backgroundIndexing === false
+    ? { documentSymbolProvider: true } : {};
   if (mode === 'yaml-requires-schemastore-off') {
     const schemaStoreEnabled = initializeParams?.initializationOptions?.settings?.yaml?.schemaStore?.enable;
     if (schemaStoreEnabled !== false) {
@@ -593,6 +613,7 @@ const handleRequest = (message) => {
     return;
   }
   if (method === 'shutdown') {
+    if (mode === 'stall-shutdown') return;
     respond(id, null);
     if (exitOnShutdown) {
       setTimeout(() => process.exit(0), 0);
@@ -605,6 +626,10 @@ const handleRequest = (message) => {
       return;
     }
     if (mode === 'stall-document-symbol') {
+      return;
+    }
+    if (mode === 'invalid-envelope-document-symbol') {
+      send({ jsonrpc: '2.0', id });
       return;
     }
     if (mode === 'malformed-document-symbol') {

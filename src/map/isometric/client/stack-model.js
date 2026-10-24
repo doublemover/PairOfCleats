@@ -1,3 +1,4 @@
+import { createMemberAliasIndex } from './data/member-identity.js';
 /** Pure multiscale model. Every segment is a source member; every pipe aggregates actual admitted edges. */
 export const STACK_KINDS = Object.freeze({
   callable: { color: '#5dd9ca', shape: 'circle', label: 'Function / method' },
@@ -11,12 +12,13 @@ export const segmentKind = member => {
 };
 const compare = (a,b) => String(a).localeCompare(String(b),'en');
 const id = value => value == null ? null : String(value);
-export function buildStackModel(files, edges, {scale=1,groupDepth=1,maxFiles=500,maxMembers=12000,maxEdges=16000}={}) {
+export function buildStackModel(files, edges, {scale=1,groupDepth=1,maxFiles=500,maxMembers=12000,maxEdges=16000,fileByMember=null}={}) {
   maxFiles=Math.min(500,Math.max(0,Number.isFinite(maxFiles)?Math.floor(maxFiles):500));
   maxMembers=Math.min(12000,Math.max(0,Number.isFinite(maxMembers)?Math.floor(maxMembers):12000));
   maxEdges=Math.min(16000,Math.max(0,Number.isFinite(maxEdges)?Math.floor(maxEdges):16000));
   scale=Number.isFinite(scale)&&scale>0?Math.min(10,scale):1;
   const groups=new Map(), fileByPath=new Map(), memberById=new Map();
+  const aliases=createMemberAliasIndex();
   let remaining=maxMembers, omittedMembers=files.slice(maxFiles).reduce((sum,file)=>sum+(file.members?.length||0),0);
   for(const node of files.slice(0,maxFiles).sort((a,b)=>compare(a.path||a.name,b.path||b.name))) {
     const key=node.path || node.name; if(!key)continue;
@@ -30,7 +32,7 @@ export function buildStackModel(files, edges, {scale=1,groupDepth=1,maxFiles=500
       const column=Math.floor(index/20), ordinal=index%20, kind=segmentKind(member), memberId=id(member.id);
       const segment={member,id:memberId,kind,shape:STACK_KINDS[kind].shape,color:STACK_KINDS[kind].color,
         x:(column-(columns-1)/2)*3*scale,y:(0.8+ordinal*0.8)*scale,z:0,width:2.5*scale,height:0.6*scale,depth:2.5*scale,ordinal:index};
-      file.members.push(segment);if(memberId!==null)memberById.set(memberId,{file,segment});
+      file.members.push(segment);if(memberId!==null){const value={file,segment};memberById.set(member.id,value);aliases.set(member.id,value);}
     });
     file.stackHeight=Math.max(file.height,...file.members.map(row=>row.y+row.height/2));
     fileByPath.set(key,file);const bucket=groups.get(group)||{key:group,files:[],x:0,z:0};bucket.files.push(file);groups.set(group,bucket);
@@ -46,19 +48,25 @@ export function buildStackModel(files, edges, {scale=1,groupDepth=1,maxFiles=500
     for(const file of group.files){file.x+=group.x;file.z+=group.z;}
   });
   const endpoint=ref=>{
-    if(ref?.member!=null){const found=memberById.get(id(ref.member));if(!found)return null;
-      // A supplied file and member must agree; never silently connect a mismatched endpoint.
-      if(ref.file && ref.file!==found.file.key)return null;
-      return {file:found.file,member:found.segment,anchor:{x:found.file.x+found.segment.x,y:found.segment.y,z:found.file.z+found.segment.z}};
+    if(ref?.member!=null){const found=aliases.get(ref.member);if(!found){
+      const owner=fileByMember?.get(id(ref.member)),file=fileByPath.get(owner);
+      if(!file||(ref.file&&ref.file!==owner))return null;
+      return {file,member:null,nonresidentMember:ref.member,anchor:{x:file.x,y:file.topY,z:file.z}};
+    }
+    // A supplied file and member must agree; never silently connect a mismatched endpoint.
+    if(ref.file && ref.file!==found.file.key)return null;
+    return {file:found.file,member:found.segment,anchor:{x:found.file.x+found.segment.x,y:found.segment.y,z:found.file.z+found.segment.z}};
     }
     const file=fileByPath.get(ref?.file);return file?{file,member:null,anchor:{x:file.x,y:file.topY,z:file.z}}:null;
   };
-  const segments=[],filePipes=new Map(),groupPipes=new Map();let unresolved=0;
+  const segments=[],filePipes=new Map(),groupPipes=new Map();let unresolved=0,nonresidentMemberEdges=0;
   const aggregate=(map,key,row)=>{const current=map.get(key);if(current){current.count++;current.evidence.push(row.evidence);}else map.set(key,{...row,count:1,evidence:[row.evidence]});};
   for(const evidence of edges.slice(0,maxEdges)){
     const from=endpoint(evidence.from),to=endpoint(evidence.to);if(!from||!to){unresolved++;continue;}
     const type=evidence.type || 'unknown';
-    const row={from:from.anchor,to:to.anchor,type,fromFile:from.file.key,toFile:to.file.key,fromMember:from.member?.id??null,toMember:to.member?.id??null,evidence};segments.push({...row,count:1});
+    const row={from:from.anchor,to:to.anchor,type,fromFile:from.file.key,toFile:to.file.key,fromMember:from.member?.member.id??from.nonresidentMember??null,toMember:to.member?.member.id??to.nonresidentMember??null,evidence};
+    if(from.nonresidentMember!=null||to.nonresidentMember!=null)nonresidentMemberEdges++;
+    else segments.push({...row,count:1});
     const a={x:from.file.x,y:from.file.stackHeight+0.8*scale,z:from.file.z},b={x:to.file.x,y:to.file.stackHeight+0.8*scale,z:to.file.z};
     aggregate(filePipes,JSON.stringify([type,from.file.key,to.file.key]),{...row,from:a,to:b});
     if(from.file.group!==to.file.group){const ga=groups.get(from.file.group),gb=groups.get(to.file.group);
@@ -67,8 +75,18 @@ export function buildStackModel(files, edges, {scale=1,groupDepth=1,maxFiles=500
   const allFiles=[...fileByPath.values()];const minX=Math.min(0,...ordered.map(row=>row.x-row.width/2)),maxX=Math.max(0,...ordered.map(row=>row.x+row.width/2));
   const minZ=Math.min(0,...ordered.map(row=>row.z-row.depth/2)),maxZ=Math.max(0,...ordered.map(row=>row.z+row.depth/2));
   const maxHeight=Math.max(0,...allFiles.map(file=>file.stackHeight));
-  return {groups:ordered,files:allFiles,fileByPath,memberById,levels:{segments,stacks:[...filePipes.values()],pipeline:[...groupPipes.values()]},
-    coverage:{inputFiles:files.length,inputEdges:edges.length,unresolvedEdges:unresolved,omittedFiles:Math.max(0,files.length-allFiles.length),omittedMembers,omittedEdges:Math.max(0,edges.length-maxEdges),scope:'admitted display only'},
+  const levels={segments,stacks:[...filePipes.values()],pipeline:[...groupPipes.values()]};
+  const adjacency=Object.fromEntries(Object.entries(levels).map(([level,rows])=>{
+    const index=new Map();
+    for(const row of rows){
+      const keys=new Set([JSON.stringify(['file',row.fromFile]),JSON.stringify(['file',row.toFile])]);
+      for(const member of [row.fromMember,row.toMember])if(member!=null)keys.add(JSON.stringify(['member',member]));
+      for(const key of keys){if(!index.has(key))index.set(key,[]);index.get(key).push(row);}
+    }
+    return [level,index];
+  }));
+  return {groups:ordered,files:allFiles,fileByPath,memberById,levels,adjacency,
+    coverage:{inputFiles:files.length,inputEdges:edges.length,unresolvedEdges:unresolved,nonresidentMemberEdges,omittedFiles:Math.max(0,files.length-allFiles.length),omittedMembers,omittedEdges:Math.max(0,edges.length-maxEdges),scope:'admitted display only'},
     bounds:{minX,maxX,minZ,maxZ,spanX:Math.max(40,maxX-minX),spanZ:Math.max(40,maxZ-minZ),maxSpan:Math.max(40,maxX-minX,maxZ-minZ,maxHeight*2),maxHeight}};
 }
 /** Screen-space size, not a magic raw zoom level. Manual tiers are stable under transient frame spikes. */

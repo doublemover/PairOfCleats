@@ -1,5 +1,7 @@
 import { parseJsonlLine } from '../jsonl.js';
 import { toJsonTooLargeError } from '../limits.js';
+import { StringDecoder } from 'node:string_decoder';
+import { throwIfAborted } from '../../abort.js';
 
 /**
  * Normalize line terminators so CRLF sources are parsed like LF-only sources.
@@ -103,9 +105,11 @@ export const scanJsonlBuffer = (
     requiredKeys = null,
     validationMode = 'strict',
     onEntry = null,
-    collect = null
+    collect = null,
+    signal = null
   } = {}
 ) => {
+  throwIfAborted(signal);
   if (buffer.length > maxBytes) {
     throw toJsonTooLargeError(sourcePath, buffer.length);
   }
@@ -115,6 +119,7 @@ export const scanJsonlBuffer = (
   let rows = 0;
   let lineNumber = 0;
   const onLine = (line, currentLineNumber) => {
+    throwIfAborted(signal);
     const entry = parseJsonlLine(
       line,
       sourcePath,
@@ -162,15 +167,18 @@ export const scanJsonlStream = async (
     requiredKeys = null,
     validationMode = 'strict',
     onEntry = null,
-    collect = null
+    collect = null,
+    signal = null
   } = {}
 ) => {
   let buffer = '';
+  const decoder = new StringDecoder('utf8');
   let lineNumber = 0;
   let rows = 0;
   let bytes = 0;
 
   const onLine = (line, currentLineNumber) => {
+    throwIfAborted(signal);
     const entry = parseJsonlLine(
       line,
       targetPath,
@@ -186,13 +194,14 @@ export const scanJsonlStream = async (
   };
 
   for await (const chunk of stream) {
-    const text = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
-    bytes += typeof chunk === 'string' ? Buffer.byteLength(text, 'utf8') : chunk.length;
+    throwIfAborted(signal);
+    const raw = typeof chunk === 'string' ? Buffer.from(chunk, 'utf8') : chunk;
+    bytes += raw.length;
     if (bytes > maxBytes) {
       throw toJsonTooLargeError(targetPath, bytes);
     }
 
-    buffer += text;
+    buffer += decoder.write(raw);
     const state = forEachCompleteLine(buffer, lineNumber, onLine);
     buffer = state.remaining;
     lineNumber = state.lineNumber;
@@ -202,6 +211,8 @@ export const scanJsonlStream = async (
     }
   }
 
+  throwIfAborted(signal);
+  buffer += decoder.end();
   if (buffer.length) {
     emitFinalLine(buffer, lineNumber, onLine);
   }
@@ -252,15 +263,18 @@ export const parseJsonlStreamEntries = async (
     maxBytes,
     requiredKeys,
     validationMode,
-    onEntry
+    onEntry,
+    signal = null
   } = {}
 ) => {
   let buffer = '';
+  const decoder = new StringDecoder('utf8');
   let lineNumber = 0;
   let rows = 0;
   let bytes = 0;
 
   const onLine = async (line, currentLineNumber) => {
+    throwIfAborted(signal);
     const entry = parseJsonlLine(
       line,
       targetPath,
@@ -272,16 +286,18 @@ export const parseJsonlStreamEntries = async (
     if (entry === null) return;
     rows += 1;
     await onEntry(entry);
+    throwIfAborted(signal);
   };
 
   for await (const chunk of stream) {
-    const text = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
-    bytes += typeof chunk === 'string' ? Buffer.byteLength(text, 'utf8') : chunk.length;
+    throwIfAborted(signal);
+    const raw = typeof chunk === 'string' ? Buffer.from(chunk, 'utf8') : chunk;
+    bytes += raw.length;
     if (bytes > maxBytes) {
       throw toJsonTooLargeError(targetPath, bytes);
     }
 
-    buffer += text;
+    buffer += decoder.write(raw);
     const state = await forEachCompleteLineAsync(buffer, lineNumber, onLine);
     buffer = state.remaining;
     lineNumber = state.lineNumber;
@@ -291,6 +307,8 @@ export const parseJsonlStreamEntries = async (
     }
   }
 
+  throwIfAborted(signal);
+  buffer += decoder.end();
   if (buffer.length) {
     await emitFinalLineAsync(buffer, lineNumber, onLine);
   }

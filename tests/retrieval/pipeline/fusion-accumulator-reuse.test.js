@@ -6,6 +6,18 @@ import { createScoreBufferPool } from '../../../src/retrieval/pipeline/score-buf
 
 const { cases } = JSON.parse(await fs.readFile(
   new URL('../../fixtures/retrieval/fusion-accumulator.json', import.meta.url), 'utf8'));
+// These baseline numbers used cosine calibration. Keep every historical score
+// and ranking assertion, while making the input score space explicit and
+// checking the current explanation fields. Unknown/distance calibration has
+// its own contract cases; no production result generates these expected scores.
+for (const { input, expected } of cases) {
+  for (const hit of input.annHits) hit.scoreSpace = { kind: 'cosine', metric: 'cosine', backend: input.annSource };
+  for (const row of expected.scored) if (input.blendEnabled && row.blendInfo) {
+    const hit = input.annHits.findLast(hit => hit.idx === row.idx);
+    Object.assign(row.blendInfo, { annScoreSpace: hit?.scoreSpace, annRawDistance: hit ? null : undefined,
+      calibration: hit ? 'cosine-unit-interval' : 'atan-similarity', pureDense: false });
+  }
+}
 const fields = ['idx', 'score', 'scoreType', 'sparseScore', 'annScore', 'annSource', 'sparseType', 'blendInfo'];
 const pool = createScoreBufferPool({ maxBuffers: 1, maxEntries: 128 });
 for (const { name, input, expected } of cases) {

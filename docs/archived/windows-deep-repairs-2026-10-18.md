@@ -1,0 +1,2441 @@
+# Windows deep-suite repairs, October 18
+
+Status: Windows required deep acceptance complete on October 19 at candidate 22.
+Full Linux/macOS deep execution and external qualifications remain separate.
+
+## Candidate 22: complete Windows acceptance
+
+All **2982 required cases pass first attempt** across 48 explicit cohorts. There
+are **zero failures, timeouts, native crashes, retries, unexpected skips or
+unexplained warning/error lines**. All 2999 discovered cases have a disposition:
+2982 required and the same 17 explicit exclusions documented in the
+[qualification matrix](../testing/qualification-matrix.md). The 2938 ordinary-token
+passes and 44 exact-head hosted file-symlink passes are combined only after source,
+dependency, complete selection and raw-log verification. Three excluded script
+wrappers return declared status 77; the other 14 exclusions are not scheduled
+directly. Every platform/portable replacement owner passes; optional positives
+remain unqualified. All 16 planned serial supplementary cases also pass in
+16.8 seconds, with no retry. No main-campaign result was inherited from an earlier
+candidate. Source and documentation hashes remain unchanged between every cohort
+and before/after the serial supplement. The slowest required case is
+`tooling/script-coverage/embeddings/embeddings-cache-identity-test`, 24.094 seconds.
+
+| Frozen identity | Value |
+| --- | --- |
+| Branch | `codex/pr557-audit-repairs-20261012` |
+| Exact committed/pushed head | `ffde426be54d76b2c8d9f04af999cc9cf8da5d06` |
+| Git tree | `174aefd182d492bb6a92b6575d7d90d422b7c71f` |
+| Non-documentation physical source SHA-256 (5813 paths) | `e79eb028bd4f1ed26ae2b9584e552d808df7aea04f237b0acd8eed133aeefe1c` |
+| Documentation SHA-256 at freeze | `5fda48389a6718fe930c59da0547cea0b335c440745412049fb93102aa2e0e7e` |
+| Runtime | Official Node 26.10.0, Windows x64, ABI 147, libuv 1.52.1 |
+| Node executable SHA-256 | `cea6ac365f9bb9586dafd2084d996e092e7d3e7d07ab52d1f76bf53d1fca9bc4` |
+| Local bootstrap receipt SHA-256 | `b7b0a009b09504e1cbd76035d3d7f772bcc96d96973a32acd1d4e741d8ed99d5` |
+| Hosted authority bootstrap receipt SHA-256 | `85b3451e4f1e80161a8179f692de7c96c99979eb9107061e8d32ba9d862fd6fd` |
+
+Locked dependencies, required patches and fresh native verification are valid:
+37 required packages and 33 language routes, exit zero without warning/error
+lines. Task-owned PATH selects the official pinned runtime; the machine-wide
+Node installation is unchanged. Activation is separate from the full lifecycle
+evidence below. No backend switch, crash-status redo, deadline increase or public
+contract relaxation supplies acceptance. Cohorts use one or two correctness jobs,
+one indexing-thread hint, 30-second deadlines and zero retries. Native/performance
+cohorts and the supplement run serially. Fixtures intentionally testing concurrency
+may explicitly override the thread hint; it is not a claim of one worker everywhere.
+
+### Native crash, terminal lifetime and useful performance
+
+The original 0xC0000005 is a freed-Realm CppGC write during Node 26.8.1 worker
+teardown, established by the preserved access-violation dump, matching PDB,
+exception context/all-thread stack and upstream Node fix/ASAN regression. The
+crashing installation's versions, 241 native hashes, patches, commands, environment,
+fixtures and cleanup traces were preserved before rebuilding. The upstream
+`CppgcTest.VmScriptCollectedBeforeFreeEnvironmentSweptAfter` regression fails before
+the fix; the local reduced pure-VM control did not crash the old executable and
+is not claimed as a deterministic local fail-before. Node 26.10.0 contains the
+demonstrated repair; pin, engine floor, lockfile, CI, bootstrap and bounded real VM
+worker/disposal probe agree. Ten explicitly recorded fresh-process compiler and
+embedded-source cases pass after repair. Every original crashing route passes
+again with normal production settings in this complete campaign, including stub
+embedding cache (17.2 seconds), compiler bindings, embedded source, reporting,
+observability and code-map routes. Detailed hashes, upstream attribution and
+controls remain in the chronological sections below.
+
+All 51 native/TUI cases pass. Real ConPTY quit, supervisor error and terminal
+transport error take 4.230/3.764/4.302 seconds and assert exit status, descendant
+reaping, terminal restoration and final job states. The hosted exact-head strict
+authority job proves real Windows file-symlink capability and passes all 44 cases
+without skips. All three separate strict Windows subprocess owners pass. Linux
+ELF positive assertions are retained separately; Windows unsupported-platform
+and portable authority assertions pass. The uninstall fixture passes only against
+verified, marked disposable roots.
+
+All 101 serial performance fixtures pass. Both original SQLite queries,
+`greet` and `answer`, retrieve the expected indexed `index.js` before 20
+chronological warm samples. p95 is **170.7213 ms**, below the unchanged **7500 ms**
+Windows threshold. Raw samples are retained. The additional 16 serial cases
+separate measured replay latency from cleanup/scheduler/resource bounds; two
+10000-item guard timings are informational. The original import/coupling budgets
+pass unchanged. These small workload results do not establish production capacity,
+real-model quality or retained-heap/release performance.
+
+### Hosted evidence and diagnostics
+
+All seven PR checks pass: six jobs in CI run `39326401484` plus adaptive policy.
+Raw checkout logs and fetched objects prove the ordinary gate/Rust/Windows/Ubuntu/
+macOS synthetic merge `7e54aed8b572a39f2f1481a80085451f682b438a` has the identical
+entire tree `174aefd182d492bb6a92b6575d7d90d422b7c71f`. Authority job
+`118313964257` separately checks out the exact PR head. Remote physical checkout
+bytes are not inferred from the local physical-source digest. Every quality ID
+and raw log is verified: Windows 972 passes/three declared exclusions, Ubuntu and
+macOS 974/one optional exclusion each, all first attempts with no timeout, retry
+or crash. The descriptor-zero regression passes on all three OS targets.
+
+Windows map-cache isolation takes 39.669 seconds under CI's existing 600-second
+deadline; its fresh local strict pass takes 17.171 seconds. The broad timing is
+not a 30-second pass. Earlier unexplained intermittent hosted timings/orphan
+observations remain historical limitations; a green run does not attribute them.
+
+All 15 main-campaign diagnostic lines have frozen-source asserted owners:
+promotion-state corruption (one), lock-hook failures (two), corrupt-query-cache
+quarantine (two), missing SQLite artifacts/failure recovery (one), unsafe archive
+rejections (four), and fresh optional-provider/trust diagnostics (four). The
+fifteenth line is the static deprecated-option help label, not a runtime
+deprecation warning. The supplement emits only
+its two asserted lock-hook warnings. The three hosted quality artifacts contain
+15 exact asserted negative-case warning/error lines in total. Fresh provider
+diagnostics require a current report, healthy required Pyright, actual requests,
+and zero crashes/timeouts/protocol errors. Unknown warnings are not filtered away.
+
+Original failure receipts, failed candidates and inconclusive controls remain
+unchanged below. Author-workspace raw evidence is historical and ignored, under
+`temp/tasks/windows-deep-repairs-20261018/` and `.testLogs/`; clean checkouts
+are not expected to contain it. Principal local receipts are
+`final-acceptance-proof-22.json`, `acceptance-cohort-results-22.jsonl`,
+`complete-warning-ownership-22.json`, `native-qualification-receipt-22.json`,
+`sqlite-latency-receipt-candidate-22.json`,
+`supplementary-serial-qualification-report-22.json`,
+`hosted-ffde426be-checkout-provenance.json` and the per-cohort reports/logs.
+The durable identity, scope and complete original-failure mapping are retained
+here. The closeout's documentation/status-guard edits are qualified separately;
+they do not relabel this frozen execution as a whole-suite run at a later head.
+The former documentation assertion required the literal current status "not
+green". Against the truthful completed Windows receipt it fails in 295 ms at
+that exact assertion. Its replacement checks the immutable Windows head against
+this receipt, full required-case acceptance, preserved candidate-21 failure and
+the remaining cross-platform/optional/release boundary. Original audit/failure
+history guards remain. All four documentation/link/history checks then pass
+first attempt in 980 ms. No product source changes in the closeout batch.
+
+### All 65 original failure entries and current coverage
+
+There are 27 original timeouts. A required replacement must pass first attempt;
+an explicit platform/optional exclusion is reported with its coverage owner,
+not relabeled as a positive pass. Split replacements retain the original inputs,
+assertions, script claims and ordered-lane membership documented below.
+
+| Original fixture | Original outcome | Candidate 22 replacement observations |
+| --- | --- | --- |
+| `indexing/embeddings/stub-fastpath-cache-contract-matrix` | failed | `indexing/embeddings/stub-fastpath-cache-contract-matrix`: passed (17178 ms, attempt 1) |
+| `indexing/extracted-prose/document-extraction-cache-policy-key` | timeout | `indexing/extracted-prose/document-extraction-cache-policy-key`: passed (18449 ms, attempt 1) |
+| `indexing/map/code-map-contract-matrix` | failed | `indexing/map/code-map-contract-matrix`: passed (10145 ms, attempt 1) |
+| `indexing/ordering/ordered-completion-tracker` | timeout | `indexing/ordering/ordered-completion-tracker`: passed (2383 ms, attempt 1) |
+| `indexing/semantic/compiler-bindings` | failed | `indexing/semantic/compiler-bindings`: passed (21512 ms, attempt 1) |
+| `indexing/semantic/embedded-cache` | failed | `indexing/semantic/embedded-cache`: passed (1838 ms, attempt 1) |
+| `indexing/semantic/embedded-source` | failed | `indexing/semantic/embedded-source`: passed (14026 ms, attempt 1) |
+| `indexing/semantic/native-deferred-production` | failed | `indexing/semantic/native-deferred-production`: explicit platform/optional exclusion; owner `indexing/semantic/native-toolchain-platform` passed |
+| `indexing/semantic/native-task-authority` | failed | `indexing/semantic/native-task-authority`: explicit platform/optional exclusion; owner `indexing/semantic/native-toolchain-platform` passed |
+| `indexing/semantic/ordered-aggregate-flow` | failed | `indexing/semantic/ordered-aggregate-flow`: passed (6127 ms, attempt 1) |
+| `indexing/semantic/ordered-snapshot-flow` | timeout | `indexing/semantic/ordered-snapshot-flow`: passed (7059 ms, attempt 1) |
+| `indexing/semantic/production-slice` | failed | `indexing/semantic/production-slice`: passed (13896 ms, attempt 1) |
+| `indexing/semantic/rest-call-context` | failed | `indexing/semantic/rest-call-context`: passed (3102 ms, attempt 1) |
+| `indexing/semantic/ssr-snapshot-witness` | timeout | `indexing/semantic/ssr-snapshot-witness`: passed (13408 ms, attempt 1) |
+| `indexing/shards/shard-merge` | failed | `indexing/shards/shard-merge`: passed (16057 ms, attempt 1) |
+| `lang/contracts/managed-heuristic-adapters` | failed | `lang/contracts/managed-heuristic-adapters`: passed (539 ms, attempt 1) |
+| `perf/sqlite-p95-latency` | failed | `perf/sqlite-p95-latency`: passed (9952 ms, attempt 1) |
+| `retrieval/output/explain-includes-routing-and-fts-match` | failed | `retrieval/output/explain-includes-routing-and-fts-match`: passed (2188 ms, attempt 1) |
+| `security/editor-tui-authority` | failed | `security/editor-tui-authority`: passed (355 ms, attempt 1) |
+| `security/repository-authority` | failed | `security/repository-authority`: passed (581 ms, attempt 1) |
+| `services/advanced-surface-goldens` | timeout | `services/advanced-surface-goldens`: passed (15836 ms, attempt 1) |
+| `services/api-search-asof` | failed | `services/api-search-asof`: passed (6838 ms, attempt 1) |
+| `services/api/risk-pack-metrics` | failed | `services/api/risk-pack-metrics`: passed (1450 ms, attempt 1) |
+| `services/api/runtime-claims` | failed | `services/api/runtime-claims`: passed (18660 ms, attempt 1) |
+| `services/api/semantic-detail` | timeout | `services/api/semantic-detail`: passed (19571 ms, attempt 1) |
+| `services/api/semantic-trace` | timeout | `services/api/semantic-trace`: passed (21655 ms, attempt 1) |
+| `services/api/trust-boundary-matrix` | timeout | `services/api/trust-boundary-matrix`: passed (5504 ms, attempt 1) |
+| `services/core-observability` | failed | `services/core-observability`: passed (13854 ms, attempt 1) |
+| `services/indexer/quarantine-cli` | timeout | `services/indexer/quarantine-cli`: passed (17251 ms, attempt 1) |
+| `services/mcp/robustness` | timeout | `services/mcp/robustness`: passed (6096 ms, attempt 1) |
+| `services/mcp/tool-search-defaults-and-filters` | timeout | `services/mcp/tool-search-defaults-and-filters`: passed (16954 ms, attempt 1) |
+| `shared/subprocess/quoting` | failed | `shared/subprocess/quoting`: passed (17222 ms, attempt 1) |
+| `storage/semantic/runtime-opened-byte-integrity` | failed | `storage/semantic/runtime-opened-byte-integrity`: passed (2287 ms, attempt 1) |
+| `storage/semantic/runtime-source-reference-authority` | timeout | `storage/semantic/runtime-source-reference-authority`: passed (20064 ms, attempt 1) |
+| `storage/sqlite/incremental/bundle-partial-chunk-fallback` | timeout | `storage/sqlite/incremental/bundle-partial-chunk-fallback`: passed (19565 ms, attempt 1) |
+| `storage/sqlite/index-state-fail-closed` | timeout | `storage/sqlite/index-state-fail-closed`: passed (15090 ms, attempt 1) |
+| `tooling/doctor/generic-preset-matrix` | failed | `tooling/doctor/generic-preset-matrix`: passed (7339 ms, attempt 1) |
+| `tooling/doctor/zls-zig-compatibility` | failed | `tooling/doctor/zls-zig-compatibility`: passed (2680 ms, attempt 1) |
+| `tooling/eval/risk-pack-quality` | failed | `tooling/eval/risk-pack-quality`: passed (3326 ms, attempt 1) |
+| `tooling/fixtures/fixture-eval` | timeout | `tooling/fixtures/fixture-eval`: passed (18570 ms, attempt 1) |
+| `tooling/fixtures/fixture-parity` | timeout | `tooling/fixtures/fixture-parity`: passed (18675 ms, attempt 1) |
+| `tooling/install/tooling-missing-requirement-exitcode` | timeout | `tooling/install/tooling-missing-requirement-exitcode`: passed (794 ms, attempt 1) |
+| `tooling/lsp/configured-provider-gopls-preset-profile` | failed | `tooling/lsp/configured-provider-gopls-preset-profile`: passed (3267 ms, attempt 1) |
+| `tooling/lsp/configured-provider-gopls-profile` | failed | `tooling/lsp/configured-provider-gopls-profile`: passed (2555 ms, attempt 1) |
+| `tooling/lsp/configured-provider-lua-broken-layout-preflight` | failed | `tooling/lsp/configured-provider-lua-broken-layout-preflight`: passed (2488 ms, attempt 1) |
+| `tooling/lsp/dedicated-providers-abrupt-failure-cleanup` | failed | `tooling/lsp/dedicated-providers-abrupt-failure-cleanup`: passed (11191 ms, attempt 1) |
+| `tooling/lsp/dedicated-providers-multifile-session-reuse` | timeout | `tooling/lsp/dedicated-providers-multifile-session-reuse`: passed (10805 ms, attempt 1) |
+| `tooling/lsp/go-workspace-managed-go-resolution` | failed | `tooling/lsp/go-workspace-managed-go-resolution`: passed (4696 ms, attempt 1) |
+| `tooling/lsp/provider-quarantine-recovery` | failed | `tooling/lsp/provider-quarantine-recovery`: passed (10394 ms, attempt 1) |
+| `tooling/release/verify-surface-mcp-smoke-runtime` | failed | `tooling/release/verify-surface-mcp-smoke-runtime`: passed (15848 ms, attempt 1) |
+| `tooling/reports/summary/report` | failed | `tooling/reports/summary/report`: passed (8966 ms, attempt 1) |
+| `tooling/script-coverage/core` | failed | `tooling/script-coverage/core/capabilities-report-test`: passed (972 ms, attempt 1)<br>`tooling/script-coverage/core/clean-artifacts-test`: passed (1731 ms, attempt 1)<br>`tooling/script-coverage/core/detect-and-plan-contract-matrix-test`: passed (9676 ms, attempt 1)<br>`tooling/script-coverage/core/download-dicts-test`: passed (903 ms, attempt 1)<br>`tooling/script-coverage/core/download-extensions-test`: passed (4095 ms, attempt 1)<br>`tooling/script-coverage/core/safe-regex-contract-matrix-test`: passed (392 ms, attempt 1)<br>`tooling/script-coverage/core/tooling-install-test`: passed (920 ms, attempt 1)<br>`tooling/script-coverage/core/uninstall-test`: passed (1283 ms, attempt 1)<br>`tooling/script-coverage/core/vector-extension-contract-matrix-test`: passed (880 ms, attempt 1)<br>`tooling/script-coverage/core/xxhash-backends-test`: passed (989 ms, attempt 1) |
+| `tooling/script-coverage/embeddings` | timeout | `tooling/script-coverage/embeddings/build-embeddings-cache-test`: passed (7447 ms, attempt 1)<br>`tooling/script-coverage/embeddings/embedding-autotune-profile-test`: passed (380 ms, attempt 1)<br>`tooling/script-coverage/embeddings/embedding-batch-policy-matrix-test`: passed (3813 ms, attempt 1)<br>`tooling/script-coverage/embeddings/embeddings-cache-identity-test`: passed (24094 ms, attempt 1)<br>`tooling/script-coverage/embeddings/embeddings-cache-index-contract-matrix-test`: passed (723 ms, attempt 1)<br>`tooling/script-coverage/embeddings/embeddings-dims-validation-test`: passed (502 ms, attempt 1)<br>`tooling/script-coverage/embeddings/embeddings-identity-test`: passed (427 ms, attempt 1)<br>`tooling/script-coverage/embeddings/embeddings-sqlite-dense-test`: passed (807 ms, attempt 1)<br>`tooling/script-coverage/embeddings/embeddings-stub-fastpath-cache-contract-matrix-test`: passed (19092 ms, attempt 1)<br>`tooling/script-coverage/embeddings/embeddings-validate-test`: passed (11470 ms, attempt 1) |
+| `tooling/script-coverage/fixtures` | failed | `tooling/script-coverage/fixtures/eval-quality-test`: passed (11154 ms, attempt 1)<br>`tooling/script-coverage/fixtures/fixture-empty`: passed (22648 ms, attempt 1)<br>`tooling/script-coverage/fixtures/fixture-eval`: passed (19978 ms, attempt 1)<br>`tooling/script-coverage/fixtures/fixture-parity`: passed (19482 ms, attempt 1)<br>`tooling/script-coverage/fixtures/fixture-smoke`: passed (1713 ms, attempt 1)<br>`tooling/script-coverage/fixtures/verify`: passed (6756 ms, attempt 1) |
+| `tooling/script-coverage/indexing` | timeout | `tooling/script-coverage/indexing/artifact-bak-recovery-test`: passed (542 ms, attempt 1)<br>`tooling/script-coverage/indexing/artifact-formats-test`: passed (689 ms, attempt 1)<br>`tooling/script-coverage/indexing/artifact-size-guardrails-test`: passed (14274 ms, attempt 1)<br>`tooling/script-coverage/indexing/artifacts-file-meta-test`: passed (396 ms, attempt 1)<br>`tooling/script-coverage/indexing/artifacts-token-mode-test`: passed (414 ms, attempt 1)<br>`tooling/script-coverage/indexing/call-graph-contract-matrix-test`: passed (1574 ms, attempt 1)<br>`tooling/script-coverage/indexing/chunk-meta-jsonl-cleanup-test`: passed (847 ms, attempt 1)<br>`tooling/script-coverage/indexing/chunking-guardrails-test`: passed (375 ms, attempt 1)<br>`tooling/script-coverage/indexing/chunking-json-unit-test`: passed (823 ms, attempt 1)<br>`tooling/script-coverage/indexing/chunking-limits-test`: passed (377 ms, attempt 1)<br>`tooling/script-coverage/indexing/chunking-limits-unit-test`: passed (375 ms, attempt 1)<br>`tooling/script-coverage/indexing/chunking-yaml-unit-test`: passed (784 ms, attempt 1)<br>`tooling/script-coverage/indexing/code-map-contract-matrix-test`: passed (10529 ms, attempt 1)<br>`tooling/script-coverage/indexing/e2e-smoke-test`: passed (10795 ms, attempt 1)<br>`tooling/script-coverage/indexing/encoding-contract-matrix-test`: passed (598 ms, attempt 1)<br>`tooling/script-coverage/indexing/encoding-fallback-test`: passed (8516 ms, attempt 1)<br>`tooling/script-coverage/indexing/external-docs-test`: passed (7739 ms, attempt 1)<br>`tooling/script-coverage/indexing/extracted-prose-test`: passed (9144 ms, attempt 1)<br>`tooling/script-coverage/indexing/file-caps-contract-matrix-test`: passed (13812 ms, attempt 1)<br>`tooling/script-coverage/indexing/file-processor-cached-bundle-test`: passed (1887 ms, attempt 1)<br>`tooling/script-coverage/indexing/file-processor-skip-test`: passed (1862 ms, attempt 1)<br>`tooling/script-coverage/indexing/git-blame-range-test`: passed (8036 ms, attempt 1)<br>`tooling/script-coverage/indexing/git-meta-test`: passed (959 ms, attempt 1)<br>`tooling/script-coverage/indexing/import-links-test`: passed (13363 ms, attempt 1)<br>`tooling/script-coverage/indexing/incremental-cache-signature-test`: passed (20521 ms, attempt 1)<br>`tooling/script-coverage/indexing/incremental-manifest-test`: passed (13247 ms, attempt 1)<br>`tooling/script-coverage/indexing/incremental-reuse-test`: passed (1019 ms, attempt 1)<br>`tooling/script-coverage/indexing/incremental-tokenization-cache-dictionary-config`: passed (13263 ms, attempt 1)<br>`tooling/script-coverage/indexing/incremental-tokenization-cache-identical-config`: passed (14304 ms, attempt 1)<br>`tooling/script-coverage/indexing/incremental-tokenization-cache-tokenization-config`: passed (14603 ms, attempt 1)<br>`tooling/script-coverage/indexing/index-lock-test`: passed (595 ms, attempt 1)<br>`tooling/script-coverage/indexing/indexer-incremental-contract-matrix-test`: passed (1016 ms, attempt 1)<br>`tooling/script-coverage/indexing/indexer-signatures-contract-matrix-test`: passed (621 ms, attempt 1)<br>`tooling/script-coverage/indexing/indexer-sort-determinism-test`: passed (349 ms, attempt 1)<br>`tooling/script-coverage/indexing/json-stream-test`: passed (575 ms, attempt 1)<br>`tooling/script-coverage/indexing/jsonl-utf8-test`: passed (523 ms, attempt 1)<br>`tooling/script-coverage/indexing/jsonl-validation-test`: passed (517 ms, attempt 1)<br>`tooling/script-coverage/indexing/metadata-v2-test`: passed (719 ms, attempt 1)<br>`tooling/script-coverage/indexing/minhash-parity-test`: passed (376 ms, attempt 1)<br>`tooling/script-coverage/indexing/piece-assembly-test`: passed (10692 ms, attempt 1)<br>`tooling/script-coverage/indexing/postings-quantize-test`: passed (510 ms, attempt 1)<br>`tooling/script-coverage/indexing/preprocess-files-test`: passed (1077 ms, attempt 1)<br>`tooling/script-coverage/indexing/prose-skip-imports-test`: passed (9969 ms, attempt 1)<br>`tooling/script-coverage/indexing/read-failure-skip-test`: passed (2434 ms, attempt 1)<br>`tooling/script-coverage/indexing/runtime-contract-matrix-test`: passed (14142 ms, attempt 1)<br>`tooling/script-coverage/indexing/segment-pipeline-test`: passed (1511 ms, attempt 1)<br>`tooling/script-coverage/indexing/shard-merge-test`: passed (16429 ms, attempt 1)<br>`tooling/script-coverage/indexing/shard-plan-test`: passed (936 ms, attempt 1)<br>`tooling/script-coverage/indexing/skip-minified-binary-test`: passed (6924 ms, attempt 1)<br>`tooling/script-coverage/indexing/tokenization-buffering-test`: passed (806 ms, attempt 1)<br>`tooling/script-coverage/indexing/tokenize-dictionary-test`: passed (389 ms, attempt 1)<br>`tooling/script-coverage/indexing/unicode-offset-test`: passed (7180 ms, attempt 1) |
+| `tooling/script-coverage/language` | timeout | `tooling/script-coverage/language/chunking-sql-lua-test`: passed (494 ms, attempt 1)<br>`tooling/script-coverage/language/chunking-yaml-test`: passed (819 ms, attempt 1)<br>`tooling/script-coverage/language/clike-doc-comments-test`: passed (481 ms, attempt 1)<br>`tooling/script-coverage/language/format-fidelity-test`: passed (15872 ms, attempt 1)<br>`tooling/script-coverage/language/ignore-contract-matrix-test`: passed (982 ms, attempt 1)<br>`tooling/script-coverage/language/import-resolution-policy-contract-matrix-test`: passed (1515 ms, attempt 1)<br>`tooling/script-coverage/language/javascript-contract-matrix-test`: passed (1220 ms, attempt 1)<br>`tooling/script-coverage/language/js-tree-sitter-maxbytes-test`: passed (6007 ms, attempt 1)<br>`tooling/script-coverage/language/kotlin-perf-guard-test`: passed (502 ms, attempt 1)<br>`tooling/script-coverage/language/language-fixture-contracts-test`: passed (1528 ms, attempt 1)<br>`tooling/script-coverage/language/language-registry-contract-matrix-test`: passed (951 ms, attempt 1)<br>`tooling/script-coverage/language/lsp-shutdown-test`: passed (1515 ms, attempt 1)<br>`tooling/script-coverage/language/php-methods-unique-test`: passed (475 ms, attempt 1)<br>`tooling/script-coverage/language/python-ast-worker-test`: passed (882 ms, attempt 1)<br>`tooling/script-coverage/language/python-contract-matrix-test`: passed (466 ms, attempt 1)<br>`tooling/script-coverage/language/ruby-end-comment-test`: passed (448 ms, attempt 1)<br>`tooling/script-coverage/language/tooling-lsp-test`: passed (399 ms, attempt 1)<br>`tooling/script-coverage/language/tree-sitter-chunks-test`: passed (438 ms, attempt 1)<br>`tooling/script-coverage/language/type-inference-clangd-provider-no-clangd`: passed (718 ms, attempt 1)<br>`tooling/script-coverage/language/type-inference-crossfile-go`: passed (7512 ms, attempt 1)<br>`tooling/script-coverage/language/type-inference-crossfile-test`: passed (8162 ms, attempt 1)<br>`tooling/script-coverage/language/type-inference-lsp-enrichment-test`: passed (14026 ms, attempt 1)<br>`tooling/script-coverage/language/type-inference-sourcekit-provider-no-sourcekit`: passed (791 ms, attempt 1)<br>`tooling/script-coverage/language/type-inference-typescript-provider-no-ts`: passed (547 ms, attempt 1)<br>`tooling/script-coverage/language/typescript-contract-matrix-test`: passed (1411 ms, attempt 1) |
+| `tooling/script-coverage/search` | timeout | `tooling/script-coverage/search/backend-contract-matrix-test`: passed (14414 ms, attempt 1)<br>`tooling/script-coverage/search/cli-search-contract-matrix-test`: passed (21000 ms, attempt 1)<br>`tooling/script-coverage/search/context-expansion-contract-matrix-test`: passed (361 ms, attempt 1)<br>`tooling/script-coverage/search/fielded-bm25-test`: passed (8678 ms, attempt 1)<br>`tooling/script-coverage/search/filter-index-artifact-test`: passed (21724 ms, attempt 1)<br>`tooling/script-coverage/search/query-cache-contract-matrix-test`: passed (11036 ms, attempt 1)<br>`tooling/script-coverage/search/query-contract-matrix-test`: passed (409 ms, attempt 1)<br>`tooling/script-coverage/search/search-filter-contract-matrix-test`: passed (3938 ms, attempt 1)<br>`tooling/script-coverage/search/search-symbol-boost-test`: passed (748 ms, attempt 1)<br>`tooling/script-coverage/search/structural-filters-test`: passed (6977 ms, attempt 1)<br>`tooling/script-coverage/search/structural-search-test`: passed (1111 ms, attempt 1) |
+| `tooling/script-coverage/services` | timeout | `tooling/script-coverage/services/api-server-stream-test`: passed (13313 ms, attempt 1)<br>`tooling/script-coverage/services/api-server-test`: passed (1926 ms, attempt 1)<br>`tooling/script-coverage/services/indexer-service-test`: passed (9437 ms, attempt 1)<br>`tooling/script-coverage/services/mcp-robustness-test`: passed (6083 ms, attempt 1)<br>`tooling/script-coverage/services/mcp-schema-test`: passed (6540 ms, attempt 1)<br>`tooling/script-coverage/services/mcp-server-test`: passed (5566 ms, attempt 1)<br>`tooling/script-coverage/services/service-queue-test`: passed (511 ms, attempt 1) |
+| `tooling/script-coverage/storage` | timeout | `tooling/script-coverage/storage/ann-backend-contract-matrix-test`: passed (440 ms, attempt 1)<br>`tooling/script-coverage/storage/compact-sqlite-index-help`: passed (891 ms, attempt 1)<br>`tooling/script-coverage/storage/hnsw-ann-test`: passed (17111 ms, attempt 1)<br>`tooling/script-coverage/storage/hnsw-atomic-test`: passed (9200 ms, attempt 1)<br>`tooling/script-coverage/storage/lancedb-ann-test`: passed (18828 ms, attempt 1)<br>`tooling/script-coverage/storage/lmdb-contract-matrix-test`: passed (11575 ms, attempt 1)<br>`tooling/script-coverage/storage/runtime-contract-matrix-test`: passed (695 ms, attempt 1)<br>`tooling/script-coverage/storage/sqlite-ann-extension-test`: skipped (1594 ms, attempt 1)<br>`tooling/script-coverage/storage/sqlite-build-delete-test`: passed (513 ms, attempt 1)<br>`tooling/script-coverage/storage/sqlite-build-indexes-test`: passed (10385 ms, attempt 1)<br>`tooling/script-coverage/storage/sqlite-build-manifest-test`: passed (540 ms, attempt 1)<br>`tooling/script-coverage/storage/sqlite-build-vocab-test`: passed (524 ms, attempt 1)<br>`tooling/script-coverage/storage/sqlite-bundle-missing-test`: passed (15114 ms, attempt 1)<br>`tooling/script-coverage/storage/sqlite-cache-test`: passed (487 ms, attempt 1)<br>`tooling/script-coverage/storage/sqlite-chunk-id-test`: passed (533 ms, attempt 1)<br>`tooling/script-coverage/storage/sqlite-chunk-meta-streaming-test`: passed (1589 ms, attempt 1)<br>`tooling/script-coverage/storage/sqlite-incremental-no-change-test`: passed (16166 ms, attempt 1)<br>`tooling/script-coverage/storage/sqlite-incremental-test`: passed (14630 ms, attempt 1)<br>`tooling/script-coverage/storage/sqlite-maintenance-contract-matrix-test`: passed (15735 ms, attempt 1)<br>`tooling/script-coverage/storage/sqlite-search-backend-contract-matrix-test`: passed (16101 ms, attempt 1)<br>`tooling/script-coverage/storage/sqlite-vec-candidate-set-test`: passed (567 ms, attempt 1)<br>`tooling/script-coverage/storage/tantivy-smoke-test`: skipped (371 ms, attempt 1); owner `smoke/tantivy` separately scoped |
+| `tooling/script-coverage/tools` | timeout | `tooling/script-coverage/tools/backend-policy-test`: passed (353 ms, attempt 1)<br>`tooling/script-coverage/tools/bench-micro-tiny-help`: passed (3206 ms, attempt 1)<br>`tooling/script-coverage/tools/bench-queries-help`: passed (948 ms, attempt 1)<br>`tooling/script-coverage/tools/bootstrap`: passed (791 ms, attempt 1)<br>`tooling/script-coverage/tools/build-index-all-test`: passed (18724 ms, attempt 1)<br>`tooling/script-coverage/tools/build-tantivy-index-help`: passed (767 ms, attempt 1)<br>`tooling/script-coverage/tools/cache-contract-matrix-test`: passed (736 ms, attempt 1)<br>`tooling/script-coverage/tools/cache-gc-test`: passed (1720 ms, attempt 1)<br>`tooling/script-coverage/tools/chargram-guardrails-test`: passed (812 ms, attempt 1)<br>`tooling/script-coverage/tools/ci-build`: passed (19221 ms, attempt 1)<br>`tooling/script-coverage/tools/ci-restore`: passed (20002 ms, attempt 1)<br>`tooling/script-coverage/tools/cli-test`: passed (16039 ms, attempt 1)<br>`tooling/script-coverage/tools/config-budget-check`: passed (4631 ms, attempt 1)<br>`tooling/script-coverage/tools/config-budget-help`: passed (3207 ms, attempt 1)<br>`tooling/script-coverage/tools/config-contract-matrix-dump-test`: passed (3565 ms, attempt 1)<br>`tooling/script-coverage/tools/config-dump-help`: passed (622 ms, attempt 1)<br>`tooling/script-coverage/tools/config-reset-help`: passed (591 ms, attempt 1)<br>`tooling/script-coverage/tools/config-validate-test`: passed (3507 ms, attempt 1)<br>`tooling/script-coverage/tools/core-api-test`: passed (13922 ms, attempt 1)<br>`tooling/script-coverage/tools/ctags-ingest-help`: passed (619 ms, attempt 1)<br>`tooling/script-coverage/tools/ctags-ingest-test`: passed (2727 ms, attempt 1)<br>`tooling/script-coverage/tools/dict-adaptive-test`: passed (477 ms, attempt 1)<br>`tooling/script-coverage/tools/discovery-contract-matrix-test`: passed (1501 ms, attempt 1)<br>`tooling/script-coverage/tools/env-check`: passed (1242 ms, attempt 1)<br>`tooling/script-coverage/tools/env-check-help`: passed (1193 ms, attempt 1)<br>`tooling/script-coverage/tools/eval-run-help`: passed (3046 ms, attempt 1)<br>`tooling/script-coverage/tools/generate-repo-dict`: passed (826 ms, attempt 1)<br>`tooling/script-coverage/tools/get-last-failure-help`: passed (408 ms, attempt 1)<br>`tooling/script-coverage/tools/gtags-ingest-help`: passed (589 ms, attempt 1)<br>`tooling/script-coverage/tools/gtags-ingest-test`: passed (3912 ms, attempt 1)<br>`tooling/script-coverage/tools/import-resolution-slo-gate-help`: passed (1524 ms, attempt 1)<br>`tooling/script-coverage/tools/index-cache-contract-matrix-test`: passed (1145 ms, attempt 1)<br>`tooling/script-coverage/tools/index-validate-test`: passed (15192 ms, attempt 1)<br>`tooling/script-coverage/tools/io-concurrency-cap-test`: passed (393 ms, attempt 1)<br>`tooling/script-coverage/tools/jsonrpc-parser-test`: passed (397 ms, attempt 1)<br>`tooling/script-coverage/tools/lsif-ingest-help`: passed (616 ms, attempt 1)<br>`tooling/script-coverage/tools/lsif-ingest-test`: passed (4044 ms, attempt 1)<br>`tooling/script-coverage/tools/map-iso-help`: passed (787 ms, attempt 1)<br>`tooling/script-coverage/tools/metrics-dashboard-test`: passed (1114 ms, attempt 1)<br>`tooling/script-coverage/tools/parity`: passed (17467 ms, attempt 1)<br>`tooling/script-coverage/tools/parity-matrix-help`: passed (620 ms, attempt 1)<br>`tooling/script-coverage/tools/release-check-breaking-help`: passed (498 ms, attempt 1)<br>`tooling/script-coverage/tools/release-check-help`: passed (482 ms, attempt 1)<br>`tooling/script-coverage/tools/repo-build-index-code`: passed (18535 ms, attempt 1)<br>`tooling/script-coverage/tools/repo-build-index-extracted-prose`: passed (10916 ms, attempt 1)<br>`tooling/script-coverage/tools/repo-build-index-prose`: passed (16711 ms, attempt 1)<br>`tooling/script-coverage/tools/repo-build-index-records`: passed (8334 ms, attempt 1)<br>`tooling/script-coverage/tools/repo-root-test`: passed (10954 ms, attempt 1)<br>`tooling/script-coverage/tools/repo-search`: passed (14866 ms, attempt 1)<br>`tooling/script-coverage/tools/report-artifacts`: passed (14689 ms, attempt 1)<br>`tooling/script-coverage/tools/scip-ingest-help`: passed (583 ms, attempt 1)<br>`tooling/script-coverage/tools/scip-ingest-test`: passed (4979 ms, attempt 1)<br>`tooling/script-coverage/tools/script-coverage-harness-test`: passed (512 ms, attempt 1)<br>`tooling/script-coverage/tools/setup-index-detection-test`: passed (4329 ms, attempt 1)<br>`tooling/script-coverage/tools/setup-test`: passed (1578 ms, attempt 1)<br>`tooling/script-coverage/tools/shard-census-help`: passed (1032 ms, attempt 1)<br>`tooling/script-coverage/tools/shared-runtime-contract-matrix-test`: passed (13105 ms, attempt 1)<br>`tooling/script-coverage/tools/shell-scripts`: skipped (2132 ms, attempt 1)<br>`tooling/script-coverage/tools/show-throughput-help`: passed (1591 ms, attempt 1)<br>`tooling/script-coverage/tools/structural-search-help`: passed (643 ms, attempt 1)<br>`tooling/script-coverage/tools/summary-report-test`: passed (9345 ms, attempt 1)<br>`tooling/script-coverage/tools/tool-root-test`: passed (8642 ms, attempt 1)<br>`tooling/script-coverage/tools/triage-test`: passed (14599 ms, attempt 1)<br>`tooling/script-coverage/tools/vscode-package-contract-matrix-test`: passed (842 ms, attempt 1)<br>`tooling/script-coverage/tools/watch-backend-selection-test`: passed (3073 ms, attempt 1)<br>`tooling/script-coverage/tools/watch-debounce-test`: passed (3244 ms, attempt 1)<br>`tooling/script-coverage/tools/watch-filter-test`: passed (2804 ms, attempt 1)<br>`tooling/script-coverage/tools/watch-stability-guard-test`: passed (3635 ms, attempt 1)<br>`tooling/script-coverage/tools/worker-pool-test`: passed (1453 ms, attempt 1)<br>`tooling/script-coverage/tools/worker-pool-windows-test`: passed (3219 ms, attempt 1) |
+| `tooling/shared-module-performance` | failed | `tooling/shared-module-performance`: passed (2839 ms, attempt 1) |
+| `tooling/testing/search-debug-capture` | timeout | `tooling/testing/search-debug-capture`: passed (5558 ms, attempt 1) |
+| `tooling/triage/context-pack` | failed | `tooling/triage/context-pack`: passed (12591 ms, attempt 1) |
+| `tooling/type-inference/tooling-diagnostic-retention` | failed | `tooling/type-inference/tooling-diagnostic-retention`: passed (796 ms, attempt 1) |
+| `tooling/typescript-root-aliases` | timeout | `tooling/typescript-root-aliases`: passed (602 ms, attempt 1) |
+
+### Remaining external qualifications
+
+Linux/macOS full deep execution, Linux ELF positive lifetimes, other native release
+targets, optional sqlite-vec/Tantivy, Bash/jq helpers, installed-provider/model
+precision, representative repository workloads, edit-to-search latency, retained
+heap and release/security qualification remain separate. Required Windows
+acceptance has no remaining blocker. Dependency PRs #573–#583 remain separate
+reviews. No merge, release, debugger registration or security-setting change is
+part of this acceptance.
+
+## Post-acceptance managed-Go SDK launch-path repair, October 19
+
+The cache-default repair at `632dd7f40f10e93dcd6e46c6e997e022259ffaa1`
+removes the immediate relative-GOPATH error, but actual macOS setup still reports
+gopls failed. The verified cached Go 1.27.1 SDK returns a relative `GOROOT` and
+compiler path. After Go changes into package directories, its assembler path
+`.ci-cache/pairofcleats/tooling/sdk/go/go1.27.1-darwin-arm64/go/pkg/tool/darwin_arm64/asm`
+is no longer found. Raw setup logs show six same-build assembler errors; the
+installer result remains failed, despite the best-effort job continuing. The
+976-case macOS quality artifact separately has 975 first-attempt passes and one
+declared optional exclusion, all below 30 seconds. A green quality job is not
+evidence of successful real-tool installation.
+
+SDK discovery now joins paths from an absolute tooling root, retaining every
+physical containment, receipt identity, version, checksum and layout check.
+Launch preparation also resolves `GOROOT` and the SDK executable directory
+absolutely, including explicitly supplied internal SDK objects. The earlier
+absolute default-cache fix remains. Explicit user caches and resource limits
+remain active; no producer/schema meaning or public knob changes.
+
+Four new assertions cover relative SDK launch roots, descendant PATH ownership
+and absolute verified SDK/executable reuse. All 59 preceding assertions remain
+in order: 54 original plus five cache-default witnesses, now 63 total. The new
+GOROOT assertion fails before repair in 141 ms. An initial applied-fixture run
+then incorrectly assumes uppercase `PATH` on Windows; the environment owner
+correctly returns canonical `Path`. The new witness now reads the established
+`resolveEnvPath` API with the identical expected SDK directory. That prototype's
+138 ms failure remains preserved; it is not attributed to the product. The
+corrected fixture passes in 190 ms. All 22 affected installer/provider cases
+pass first attempts in 71.5 seconds, slowest 8.66 seconds. CI-lite stays at 976;
+no previous ordered entry or assertion is removed.
+
+A second real-Go control uses the identical Go 1.26.4 executable and assembler,
+the same relative SDK input and the same changed compiler working directory.
+The old environment returns a relative `GOTOOLDIR`; the actual assembler launch
+fails `ENOENT`. The repaired environment returns the absolute tool directory;
+the same assembler's `-V` operation exits zero and prints its expected version,
+without stderr. No package is compiled or downloaded. Go executable SHA-256
+remains `9b3239fee08fa24ec8280180789cd3fdcfc24f33dc19b3a1230fa6b0ae3c5aad`;
+assembler SHA-256 is
+`916baf770d693e62d58da84bbcc0f915b23e3ba641cb0e646681cb9c84302f2b`.
+Historical local receipts are `go-relative-sdk-before-25.json`,
+`go-relative-sdk-after-25.json`, `go-relative-sdk-after-corrected-25.json`,
+`go-relative-sdk-focused-25.json` and `real-go-relative-sdk-proof-25.json` under
+the task receipt root. The complete Windows deep execution remains candidate 22;
+this source-owner follow-up has separate affected checks and publication CI.
+
+The same macOS installer report truthfully rejects missing PHP and successful
+Pyright/C#/Ruby installer exits whose probes or layouts fail verification. Its
+readiness is blocked, not clean or complete. Those real installed-tool
+qualifications remain separate from the required Windows deep target. The
+existing npm `fsevents` script-policy warning also remains unqualified; no
+automatic lifecycle approval, blanket warning filter or readiness relaxation
+is used to turn this report into a pass.
+
+## Post-acceptance managed-Go preparation repair, October 19
+
+Closeout head `25ef23f21bf2ea4275b14b9bf2520d936c94cb38` passes all seven
+PR checks (six jobs in CI run `39341409144` and adaptive policy). All downloaded
+975-case quality artifacts and raw logs are verified: Windows 972 passes/three
+declared exclusions, Ubuntu/macOS 974/one each, all first attempts and every
+case below 30 seconds. The five ordinary jobs' synthetic merge
+`258c9cd4ba814bdcab245b10ad2fb1d4c68c19d3` has the exact closeout Git tree
+`63a9dfbc416b03a2ee0237f46f4927e85f0f0ec1`. Strict authority separately verifies
+that head/tree and all 44 real file-symlink cases, without retries or skips;
+bootstrap receipt SHA-256 is
+`31ce5f17d759d8dd72a366829df7620f07fa1e6194523cf85583a089d355ca63`.
+All three separate strict Windows subprocess cases pass. All 15 hosted fixture
+warning/error lines retain exact asserted negative owners. This closeout changes
+three documentation files and the proved-stale documentation guard only; all
+5812 other non-documentation files match the full candidate-22 qualification.
+It passes format, governance refresh, native verification, config/environment,
+generated freshness, command/workflow contracts, all 39 front-gate cases
+(21.7 seconds), four final documentation/link/history cases and whitespace checks.
+
+The complete job-log audit nevertheless finds a genuine optional-tool preparation
+error on macOS: Go rejects `.ci-cache/pairofcleats/tooling/go-cache/modules` as
+a relative `GOPATH`. This is outside the fixture-warning inventory and must not
+be called a clean setup result. `applyManagedGoEnvironment` joins a relative
+tooling root for both default caches, although its SDK paths are already absolute.
+The repair uses absolute resolution for default `GOPATH` and `GOCACHE`. Existing
+explicit user values, serial toolchain policy, SDK provenance, authority and
+installation failure contracts remain unchanged. No semantic producer/format
+meaning changes; this is preparation of environment paths.
+
+The existing portable SDK fixture adds relative-root witnesses for both defaults,
+explicit cache preservation and caller-environment immutability. Its original
+provenance, reuse, checksum/layout rejection and cleanup assertions remain. The
+added regression fails before repair in 140 ms and passes afterward in 185 ms.
+All 22 selected installer/provider checks pass first attempts in 70.4 seconds,
+slowest 8.52 seconds. The existing regression joins CI-lite, growing its ordered
+inventory from 975 to 976; discovery remains 2999 with the same 17 exclusions.
+
+A separate same-input real-Go control proves the actual consumer contract:
+`go version go1.26.4 windows/amd64`, executable SHA-256
+`9b3239fee08fa24ec8280180789cd3fdcfc24f33dc19b3a1230fa6b0ae3c5aad`.
+With the old source's environment, `go env GOPATH GOCACHE` exits 2 and reports
+the relative-path error. The repaired source produces absolute task-owned paths;
+the identical executable/SDK/arguments/environment baseline exits 0, prints both
+expected paths and emits no stderr. It downloads no modules, builds no package
+and changes no global configuration. Historical local receipts are
+`go-relative-cache-before-24.json`, `go-relative-cache-after-24.json`,
+`go-relative-cache-focused-24.json` and `real-go-relative-cache-proof-24.json`
+under the task receipt root above.
+
+The macOS optional Pyright installer also emits npm's existing
+`fsevents@2.3.3` lifecycle-policy warning, present in both candidate-22 and
+closeout logs. This is not one of the asserted negative fixture warnings.
+Its installed-tool/script-policy qualification remains separate; no script
+approval or security-setting change is made to turn it into a quiet result.
+The complete deep-suite observation remains at candidate 22; this subsequent
+owner repair requires its own affected checks and publication CI, without
+inheriting a later-head whole-suite claim.
+
+## Candidate 21: complete diagnostics and descriptor-zero fixture fidelity
+
+Candidate 21 has a complete first-pass diagnostic view: **2981 required passes
+and one failure**, no timeout or native crash. Exact pushed head is
+`393b4d45786e3614ade975ef18dd0c8ff29b9699`, source SHA-256
+`93f32679893aacc6554ce9ee6fd13cc00c31fdb7aa710c37157ae31bf5c18e6a`,
+documentation SHA-256
+`beccd5191a52785f2e18c9483492659f04e5790b50f103228623133a48671414`.
+The main campaign stops after 1827 required passes and a 274 ms assertion failure
+in `context-pack/fd-zero-close`, leaving 36 fail-fast omissions and 1118
+unobserved required cases. Those 1154 receive their first execution in a separate
+frozen-source diagnostic tail: every case passes. The known failure is not rerun
+as acceptance. Source and documentation hashes remain unchanged throughout both
+runs. This is a failed candidate, not a final-tree pass.
+
+The descriptor-fixture repair batch passes format, governance regeneration,
+config/environment checks, generated freshness, command/workflow contracts,
+all 39 front-gate cases (20.6 seconds), and whitespace checks. Native/patch
+verification exits zero without warning/error lines: 37 packages and 33 routes.
+The descriptor-zero and contained-read contracts pass again after formatting
+in 379 ms. These focused checks precede the next complete candidate campaign.
+
+The descriptor-zero fixture's `fstatSync` adapter accepts options but discards
+them when substituting `statSync`. The hardened reader requests exact BigInt
+device/inode identities; the adapter returns Numbers. The path-side stat returns
+BigInts, so the strict authority check correctly rejects inconsistent metadata
+and the excerpt is empty. A direct stat-contract control proves both types and
+their strict mismatch. The repair forwards arguments unchanged, retaining the
+original ten-byte excerpt and descriptor-zero close assertions. Two additional
+witnesses cover requested BigInt identities and ordinary numeric byte/stat
+reads. The fixture also removes its owned temporary directory in `finally`.
+Production authority, byte bounds, schemas and stat representations are unchanged.
+All five focused context/contained-read checks pass first attempts in 1.96 seconds;
+the repaired descriptor-zero case takes 277 ms. Its existing test joins regular
+CI-lite, growing the ordered inventory from 974 to 975. Physical discovery stays
+2999, with 2982 required cases and the same 17 declared exclusions.
+
+An independent child inherits a real file behind descriptor zero. On unchanged
+production source it passes real identity checks, reads the expected bytes and
+calls through the actual close API; only the open seam hands over that already
+owned descriptor. No metadata or read operation is faked. This supports the
+fixture diagnosis, but does not prove Windows stdin invalidation: `fstat(0)`
+remains usable after close in that control. An earlier expectation of EBADF is
+retained as an inconclusive assertion. A separate attempt to obtain descriptor
+zero by closing stdin and opening a file receives descriptor three on Windows;
+it does not prove descriptor-zero coverage obsolete. The portable regression
+remains. Its two original assertions retain their exact content and order.
+An initial prototype's CRLF replacement did not alter the shim and still failed;
+the corrected prototype and actual applied fixture both pass. None of these
+diagnostic attempts changes the original candidate's failed outcome.
+
+All seven PR checks pass: six jobs in CI run `39309189662` and the separate
+adaptive-policy check. Raw checkout logs for gate, Rust, Windows, Ubuntu and macOS
+identify synthetic merge `71161d28d767ade1e1824f5a1436a75d8ac80e92`. Fetched Git
+objects prove its entire tree `61dbb26653ebeb0d30240bcdcc034c3436bec5d9` is identical
+to the frozen PR head. The strict authority job independently checks out the
+exact head/tree. Remote physical checkout bytes are not inferred from the local
+source hash. Downloaded quality artifacts verify every selected ID and raw log:
+Windows has 971 first-attempt passes/three declared exclusions, Ubuntu/macOS have
+973/one each. There are no retries, timeouts or native crashes. Windows summary
+passes first attempt in 11.734 seconds. Object-cache isolation takes 31.482 seconds
+under the existing broad CI deadline, then passes its first local strict case in
+13.4 seconds. The broader timing remains diagnostic, not a 30-second pass.
+
+Strict hosted Windows authority passes all 44 cases with real file symlinks,
+37 verified packages/33 routes and bootstrap receipt SHA-256
+`f295bfe2666a669a5cdb1ccfd26a1f6ae13c6086ee0854a6e738ed893760ea7d`.
+All three separate strict Windows subprocess cases pass, including orphan
+fallback and synchronous timeout tree cleanup. All 51 serial native/TUI cases
+pass; real ConPTY quit, supervisor error and terminal error take
+4.315/3.824/4.149 seconds. All 101 serial performance fixtures pass. Both original
+SQLite queries retrieve their indexed source before 20 warm samples, with p95
+210.5798 ms below the unchanged 7500 ms Windows threshold. All original native
+crash routes pass in the complete diagnostic view. These are qualification
+receipts from a failed source, not inherited evidence for the next candidate.
+
+All 15 warning/error lines in the three hosted quality artifacts are exact
+asserted negative cases: malformed promotion state, two failing lock hooks and
+two unsafe archive rejections per OS. Local diagnostics additionally retain
+asserted corrupt-cache eviction, missing-artifact failure/recovery and fresh
+default-tooling degraded-state warnings. Their owners check codes, causes and
+state; raw logs are retained. Complete final-candidate warning ownership still
+requires its own inventory.
+
+Author-workspace receipts include `complete-first-observation-summary-21.json`,
+the two candidate-21 ledgers, `fd-zero-fixture-contract-proof-22.json`,
+`fd-zero-assertion-retention-proof-22.json`,
+`real-inherited-fd-zero-close-observation-22.log`,
+`fd-zero-focused-applied-22.json`, and
+`hosted-393b4d457-checkout-provenance.json`, under
+`temp/tasks/windows-deep-repairs-20261018`. Original failure logs remain in
+`.testLogs`. Clean checkouts do not promise these files. The next candidate
+requires every required case fresh, new hosted artifacts and the separate
+16-case serial supplement before complete Windows acceptance.
+
+## Candidate 20: incomplete campaign and append-writer repair
+
+Candidate 20 is closed at a completed cohort boundary: **940 required passes,
+2042 pending**, no local failure, timeout, unexpected skip or native crash.
+Exact pushed head is `a4c92cbedbd09e4d17c3465abe9b093572f4804d`, source SHA-256
+`2124ef0597e1c207d61c33f7cad86d022c4144eed656986a8ac71903e2583723`,
+documentation SHA-256
+`32bf157c237974f22d1a834cb4dfe5a44118030cedb87d17634e08bc0aa916c1`.
+Both identities were verified before the next repair. No running fixture was
+interrupted. Its 2999 discovered entries comprise 2982 required cases and the
+same 17 documented platform/helper/optional exclusions.
+
+All six hosted jobs succeed in run `39301958318`, but the Windows quality
+artifact exposes **two attempts** for `tooling/reports/summary/report`. The first
+fails its existing internal 20-second index deadline, after writing the 26 code
+and three prose SQLite rows; the outer runner does not time out and there is no
+native crash. The second passes. The original failure, cleanup trace and both
+attempts remain preserved. This green job is not first-attempt qualification.
+Ubuntu/macOS have 972 passes and one declared exclusion each, all first attempts.
+Windows has 970 final passes and three declared exclusions, with that retry.
+
+The independent exact-head/tree Windows authority job passes all 44 strict cases
+with actual file symlinks and first attempts under 30 seconds. Its tree is
+`ddc0f78c08713a874a645d3bc76721ce7dcdb708`, and bootstrap receipt SHA-256 is
+`50e9947dec5007606ef604534821e7d3f04f72ec31488471606f840eee212ede`.
+Official Node 26.10.0, 37 native/patch packages and 33 language routes are verified.
+All 51 serial native/TUI and 101 performance cases pass locally; real ConPTY quit,
+supervisor failure and transport failure take 4.239/3.799/4.275 seconds. SQLite
+retains both original positive queries and all 20 warm samples: p95 231.2628 ms
+under the unchanged 7500 ms Windows bound. These remain partial candidate-20
+receipts, not acceptance for the following repair.
+
+A separate minimized lifecycle demonstrates a real append-writer defect:
+enqueue eight records and immediately close. All 296 accepted bytes disappear
+because close marks its promise before queued jobs reach the descriptor owner;
+those jobs then refuse to run. The same actual-source case writes all 296 bytes
+after repair. New enqueues remain rejected once close starts, while already
+accepted work drains before synchronization and the single descriptor close.
+
+The owner also batches queued records up to 64 KiB, keeping an oversized record
+whole. Each string is encoded before batching so adjacent unpaired UTF-16
+surrogates retain their original per-call UTF-8 bytes. Complete-buffer writes
+preserve byte order and avoid a separate I/O operation for each record. No timer,
+dependency, public knob, backend switch or deadline change is introduced. The
+existing regression retains its original assertions and adds immediate and
+concurrent close, late-write rejection, durable-close order, descriptor disposal,
+5003 exact-byte chunks including an 80 KB record and split surrogates, and a
+bound of at most 16 aggregate writes. The operation bound
+is new coverage, not an increase to an existing latency threshold. This existing
+fixture joins regular CI: CI-lite grows from 973 to 974 entries, while physical
+discovery stays at 2999.
+
+Task-local profiling preserves all 13 original summary input files byte for byte
+and all 532 trace events, fields and occurrence counts. Only the crash owner's
+wall-clock timestamp and `file-processor.js`'s measured per-file duration are
+invocation-dependent; full measured values remain in the receipts. Concurrent
+file interleaving is compared as a complete multiset, while queue byte ordering
+has a separate exact-byte assertion. Trace writes fall from 532 individual writes
+to 21 normal-run aggregate writes. Ordinary local profiles are about 10 seconds
+and do not establish an elapsed-time improvement.
+
+A controlled 45 ms delay per real trace write reproduces the deadline failure
+with the old owner (25.239 seconds including cleanup, internal `ETIMEDOUT`, no
+outer timeout or crash). The actual repaired owner passes in 10.1 seconds with
+the same delay, workload and 20/30-second deadlines, retaining all 532 events and
+all input bytes. This identifies an excessive-I/O failure class; original hosted
+per-operation latency was not measured, so it does not prove the exact cause of
+that hosted timing. Fresh Windows CI must pass its first attempt before closure.
+
+The broad CI and nightly test commands now explicitly pass zero retries and
+disable native-status redo. Their existing 600-second runner deadline stays
+unchanged; this audit still requires 30 seconds. The existing smoke fixture
+asserts those flags on each actual emitted lane command. The contract fails
+before repair and passes afterward. All 13 affected logging, ledger, summary
+lifecycle and command-contract checks pass first attempts in 9.50 seconds.
+An earlier launch with an inherited missing trusted-config path and a rejected
+overlong selector are preserved as launch errors, not product failures or passing
+observations. Corrected launches clear only the task shell's invalid variable
+and use bounded selectors.
+
+The repair batch passes format, governance regeneration, config budget,
+environment usage, generated freshness, command surface, workflow contract,
+all 39 front-gate cases (21.0 seconds), and whitespace checks. Fresh native/patch
+verification exits zero without warnings or errors: 37 packages and 33 routes.
+Both changed fixture contracts pass again after formatting (1.79 seconds).
+
+These proof receipts are author-workspace history under
+`temp/tasks/windows-deep-repairs-20261018`, including
+`append-close-drain-before-21.json`, `append-close-drain-applied-after-21.log`,
+`summary-slow-trace-original-21.json`,
+`summary-slow-trace-applied-buffer-21.json`,
+`summary-trace-retention-applied-buffer-proof-21.json`, and
+`append-consumers-focused-corrected-selection-21.json`. Prototype-only receipts
+remain diagnostic; actual-source controls use the applied suffix. All original
+failure logs remain under `.testLogs`. Clean checkouts do not promise these files.
+Every required case, strict hosted authority and the 16-case serial supplement
+still requires a fresh frozen-source campaign after this repair.
+
+## Candidate 19: exact NTFS identities
+
+October 19 candidate 19 has a complete first-pass diagnostic view: **2980 required
+passes and one failure**, with no timeout or native crash. Exact pushed head is
+`1de1e25a82e130d7aefa3c26662377f6ca5480ed`, source SHA-256
+`11eb2f84051209143d2311f288583c31f298a535b976f0f0485619b425e7f2d0`,
+documentation SHA-256
+`19cba6e1fe2b299cd3961cf5273e3332081744b6ea2b10fc38deda677d999bde`.
+The acceptance controller stops after 1981 passes when runtime import reingestion
+charges 53 extra bytes despite preserving the generation identity. Its 60
+fail-fast omissions and 939 unobserved cases then receive their first execution
+in a separate frozen-source diagnostic tail: all 999 pass. The failed case is
+not rerun as acceptance. All original failure receipts remain. This complete
+diagnostic view is a failed candidate, never a final-tree pass.
+
+The cause is a genuine physical-file accounting defect: Number-valued NTFS file
+IDs lose integer precision. A bounded real-file reuse probe produces distinct IDs
+`9007199261073524` and `9007199261073525`, both represented by the same Number.
+The old inventory counts two physical objects and three real hard links as one
+object: 53 bytes instead of 70. A second minimal lifecycle reproduces the exact
+53-byte discrepancy: the unchanged budget receipt collides with the removed
+writer lease, so its first retained charge is zero and the next charge is 53.
+Ten separately recorded instrumented reingestions happen to pass without a
+collision; those inconclusive controls do not erase or repair the failure.
+
+The same real pair exposes a descriptor-authority bug: a handle for one physical
+file is accepted as the other path because the rounded IDs compare equal.
+Both owners now compare exact integer identities. Disk sizes still pass through
+the existing safe-number accounting checks, and verified reads retain their
+public numeric stat representation. No byte cap, authority rule, public schema,
+producer meaning or version pin changes. Matching objects and real hard links
+remain valid; distinct objects with identical bytes must be rejected.
+
+All three minimized probes fail before repair and pass afterward on the same
+preserved physical files, using actual source without hooks. Retained inventory
+is now 70 bytes/two objects, a 69-byte cap rejects it, and the same receipt charges
+53 then 53. Portable regressions also fail on the old owners and pass after
+repair, covering wide device/inode IDs, hard links, overlapping roots, missing
+paths, zero-inode fallback, cancellation, exact caps, and matching/mismatched
+descriptor authority. All eight focused storage/read checks pass first attempts
+in 9.56 s. Both regressions join regular CI through the existing ordered lane.
+Their deterministic metadata controls supplement the real NTFS proofs; they do
+not require a symlink privilege or relax the existing symlink checks.
+
+Candidate 19's partial qualification is retained separately: all six hosted jobs
+pass in run `39283621630`. Windows/Ubuntu/macOS quality reports have 968/970/970
+first-attempt passes plus only three/one/one declared exclusions; every observed
+duration is below 30 seconds. Exact-head/tree Windows authority passes all 44
+strict cases with actual file symlinks, verified raw logs, official Node and
+37-package/33-route bootstrap hash
+`73f44205ab7b6394852ce3d2850db72700b4c77b423b4604203664bc8330b7bc`.
+All 51 serial native/TUI cases pass, including real ConPTY quit, supervisor-error
+and terminal-error lifetimes at 4.27/3.75/4.03 s. All 101 performance cases pass;
+the 20 raw SQLite warm samples have p95 189.1042 ms under the unchanged Windows
+7500 ms bound, after both original queries retrieve the expected source. These
+results remain tied to the failed candidate. The repaired source requires its
+own complete acceptance. Stopwatch assertions outside `perf/` also have an
+explicit 16-case serial supplement; parallel correctness observations alone do
+not qualify those measurements. Resource/ordering bounds remain distinct from
+actual latency benchmarks.
+
+All `.testLogs` and task proof receipts above belong to the author workspace.
+Their names and provenance are retained; clean checkouts do not contain them.
+The exact same-object proofs are `reused-ntfs-file-id-proof-before-20.json`,
+`runtime-receipt-recharge-before-20.json`, and
+`contained-wide-file-id-before-20.log`; actual-source after-repair receipts use
+the `applied-after-20` suffix. Child-only prototype receipts remain diagnostic.
+
+October 19 candidate 18 at `26f2b959e790e3657c9375dcf30b37996c6e447a`
+stops after one pass, one failure and 19 fail-fast omissions; 2960 required cases
+remain unobserved. Frozen source SHA-256 is
+`6bdd3120c5a6c30aa51ed93f38ca5792ba049b3b5659d5f21bd8e91fc20cb6a3`,
+documentation SHA-256
+`c709c2566b87308a59bb76408122daea7b83f791d9360b37414a9a191c06949c`.
+The initialization-failure invalidation fixture resets process memory but uses
+the shared persistent author cache. Its original cold-probe assertion fails
+because an earlier process has already written the exact command identity.
+The failure is preserved in `serial-repair-regressions-1-candidate-18.json`.
+
+The fixture now owns a unique cache for its lifetime and restores the environment
+afterward. All original assertions remain. New witnesses prove a real persistent
+write, a disk hit after clearing process memory, and a miss after initialization
+failure followed by another memory reset. Persistence is neither disabled nor
+flushed outside the owned fixture root. All six cache-family cases pass first
+attempts in 13.5 s; the separately focused map-cache isolation case passes in
+18.3 s with its unchanged 30-second runner bound. These repair observations do
+not complete acceptance or attribute the earlier hosted map-cache timing.
+
+October 19 candidate 17 is closed after 212 required passes, one failure, 62
+fail-fast omissions and 2706 unobserved cases. Exact head is
+`feddbe691291473b53bf422b3a1b5b4992fc2ebf`, source SHA-256
+`0d53daddef00c99e68190d7411e7b8ded873fceeb3df1e173467c573b3347e31`,
+documentation SHA-256
+`1684f3d3c7d964d4b179867f490dd0bd0a65ea746941aad2a06224f0d11f7ee1`.
+The 17 repair regressions and three fast tooling cohorts pass. Prioritizing
+unexecuted work exposes the next failure before repeating the longer known
+cohorts. No earlier candidate's pass is inherited. Superseded queued CI requests
+are cancelled; they provide no new-head qualification.
+
+The dedicated-provider handshake fixture implicitly selects a machine Solargraph
+command through WindowsApps while Java/C# use repository fixtures. Its assertion
+that every unsuccessful version probe prevents initialization contradicts the
+existing Doctor owner: definitely missing commands are blocked, while inconclusive
+probes still attempt a real handshake. Explicit fixture commands now require all
+three healthy handshakes, preserving boolean-status and failure-code checks.
+Controlled missing, inconclusive, RPC-error and abrupt-exit cases replace the
+optional real-toolchain skip paths; no required positive can pass through a skip.
+
+Those controls expose a real result-producer bug: `probeLspInitializeHandshake`
+returns numeric error codes despite its documented nullable-string contract.
+The old producer returns numeric -32098 and loses numeric zero as null; both
+controls fail the retained nonempty-string assertion. The repaired owner preserves
+numeric codes as strings, including `"0"`, retaining existing string/null behavior.
+Eight provider outcomes across six scenarios pass, together with initialization
+failure/cache invalidation and report-emission checks: three cases pass first
+attempts in 24.3 s, slowest 12.2 s, under unchanged 750 ms handshake and 30-second
+runner bounds. Probe/handshake policy, authority and public schemas are unchanged;
+the diagnostic type repair does not change semantic producer meaning. The new
+candidate must still run every Windows-applicable required fixture fresh.
+
+October 19 candidate 16 is closed after 1250 required passes and one failure.
+Exact published head is `a2a3c3fd2909988ea6efa36a62c5ae6331e97193`, source SHA-256
+`1746119b48ec6dd41f2e051d9c8556eec0f3964f2f63ddfa9a67bfc95fc8dc73`,
+documentation SHA-256
+`4c99135476cf49cb463cd3f84c04b077878be6dd1f65eda05616a01bbe95c528`.
+SourceKit preflight abort exceeds its unchanged two-second assertion at 2003 ms.
+The controller preserves that failure, 60 fail-fast omissions and 1670 unobserved
+cases. None of the omissions count as passes. The completed native, performance,
+storage, semantic, retrieval, shared and service cohorts remain partial receipts.
+All six hosted jobs pass; all three quality reports have first attempts only.
+Windows map-cache isolation takes 30.558 s under CI's broader timeout, so that
+observation is not strict 30-second acceptance. Exact-head authority passes all
+44 first attempts with real file symlinks, verified raw logs, official Node and
+37-package/33-route bootstrap hash
+`e4c26b734694f120d4e6427db3d853355ebbf71504cb767b054b0c404b2ec067`.
+Twenty serial SQLite warm samples have p95 232.442 ms under the unchanged 7500 ms
+bound; every query first retrieves its expected indexed source.
+
+The SourceKit fixture previously selected commands implicitly and used the shared
+author command-probe cache. A CPU profile attributes 1929 ms to persistent-cache
+maintenance, chiefly contained-path realpath/lstat checks. The 75 ms cancellation
+timer cannot run while that synchronous work blocks the event loop. No Swift
+package-resolution child starts, even in a diagnostic run that passes at 1990 ms.
+Adding a real-operation witness fails before repair because the start marker is
+absent. This exposes false coverage rather than a native crash. The failed
+campaign and all diagnostic controls remain; no cache was flushed to obtain a pass.
+
+Shared SourceKit fixtures now own cache selection for their entire lifetime,
+including lock setup, and explicitly select fixture commands and fixture-root
+trust. Cleanup restores the prior environment. The abort case retains the same
+package and Swift-source bytes, original abort/error assertions, five-second
+resolver workload and total two-second bound. It waits for an actual child-start
+witness before scheduling the same 75 ms cancellation, then requires descendant
+reaping, one resolve attempt and no completion. Fresh and stale prior markers
+pass in 782/705 ms. Fifteen SourceKit checks pass in 36.5 s total; command-profile,
+persistent-cache and strengthened cancellation checks pass in 24.9 s total.
+The retention proof is `sourcekit-fixture-retention-proof-17.json`. Product runtime,
+cache authority checks, formats, producer meaning and deadlines are unchanged.
+These `.testLogs`/task receipts belong to the author workspace; the next complete
+candidate must execute every required case again.
+
+The command-profile contract matrix has the same unnecessary shared-cache
+dependency: an owned-cache control passes every original case in 2.80 s versus
+22.0 s with the author cache. It now owns its probe cache and asserts that actual
+persistent probe files are produced. AST comparison preserves every original
+assertion in order, adding only that ownership witness
+(`doctor-cache-retention-proof-17.json`). Probe arguments, timeout bounds,
+persistent-cache behavior and all negative contracts remain unchanged.
+
+October 19 candidate 15 is closed with a recorded failure. Exact published head
+`02ad003c8384cbe10e1c0980da78263cde426881` freezes source SHA-256
+`8864e8957011870b0e9ddfabec7d05112525181721a91ae214b57792123bba66`
+and documentation SHA-256
+`6456a935ccff4e242ee5432a8bdc2f072f25eb699538065d0958f959107f9393`.
+Its first cohort passes two cases, then SSR incremental times out at 30.355 s;
+four fail-fast omissions are recorded and count as unexecuted. Independently
+downloaded exact-head Windows authority evidence adds 44 first-attempt passes
+with real file symlinks, the official Node executable, actual bootstrap hash
+`0cbbf4a23aedb611247daaebb60e09d61cebaa594390a3f9de7bd54c46f5add6`,
+37 packages/33 routes and all 44 raw logs verified. Its only warning is the
+asserted promotion-recovery warning. Candidate 15 therefore has 46 required
+passes, one timeout, four fail-fast omissions and 2930 remaining unpassed cases;
+it is not whole-suite acceptance. Its source, ledger, logs and failure remain.
+
+A bounded task-only CPU profile attributes 8.864 seconds of the first 27 seconds
+to compiler dependency discovery, including repeated synchronous filesystem
+probes. TypeScript occurrence modes previously reread package authority for each
+import. The regression fails before repair with four reads instead of one.
+TypeScript's own package/module/type-resolution caches now belong to one compiler
+host. Import/require modes, conditions, project redirects and embedded origins
+remain compiler-owned. A new host sees changed package mode; sealed verification
+still rejects changed package bytes and unknown filesystem probes. Fault controls
+that remove only the module or type cache fail for repeated filesystem probes
+(43 versus 11 and 93 versus 25). No cache survives into a later compiler host.
+
+Preflight also avoids repeating ancestor package walks and library requests
+within one compiler context. Observation sorting reuses its already canonical
+keys. Current-byte verification, all source/configuration inputs and admission
+limits remain. Four focused checks pass first attempts in 55.3 seconds total;
+the full two-build SSR cases take 27.392/26.820 seconds, still subject to final
+acceptance under the unchanged 30-second bound. The same physical root and all
+four input files compare exactly to the earlier full witness: every field in
+115 records/136 edges, one compiler context and three completed tasks is equal.
+The graph digest remains
+`6e0d88f7e7ff6608652054df6dfc4e0f7f56f24f21709815afbaf6fdb5b11e8c`.
+No field is normalized or omitted (`compiler-cache-full-graph-equivalence-16.json`).
+These changes affect execution cost rather than semantic producer meaning.
+
+October 19 common-probe/read-owner repair: the complete SSR fixtures retain both
+real compiler builds, full Node declarations, original traces and all positive
+and negative assertions. The 30.4-second failures remain preserved. Profiling
+shows about 1500 opens per drained trace. A broad four-piece cache was rejected
+after it increased opens and still timed out. The narrowed owner instead shares
+only the first midpoint piece that every query-index binary search probes on one
+logical trace page. Each related-page request retains three additional local
+readers, preserving the existing four-pair bound. Node/member reads remain fresh.
+The shared owner closes before the page returns or throws; cursors retain refs
+and offsets, with no open file or hash admission carried into the next request.
+The async context is module-owned and isolates each store with its own identity.
+
+The real trace regression fails before repair in 2.17 seconds because the same
+index piece opens four times instead of once. Afterward it checks one open,
+the unchanged 16-handle probe bound and complete closure. Cancellation after
+the real query open, a later query error, overlapping logical pages, same-size
+data/offset corruption on the next query, and corruption between actual cursor
+pages are covered. Restoring the bytes resumes the original valid continuation.
+Existing related-page, resource, cursor, SQLite parity, small-snapshot and large
+streaming mutation/disposal assertions remain. Six affected checks pass in 36.3
+seconds total, slowest API semantic trace 24.8 seconds, with no warning/error
+lines (`trace-root-scope-contracts-15.json`). The full SSR cases pass first attempts
+in 26.9/26.2 seconds (`ssr-root-probe-scope-normal-15.json`).
+
+Complete graph equivalence uses the same physical root
+`poc-ssr-tooling-scope-8a2ac5e5`: all four input files and every field in all
+115 records/136 edges compare equal, with one compiler context and three
+completed tasks. No field is normalized or omitted. Both graphs have SHA-256
+`6e0d88f7e7ff6608652054df6dfc4e0f7f56f24f21709815afbaf6fdb5b11e8c`.
+`ssr-root-probe-full-graph-equivalence-15.json` retains the before/after mapping.
+These are read-lifetime changes; no semantic producer meaning, wire format,
+configuration surface, query limit or deadline changes.
+
+At published `2dfab0536`, all hosted jobs are green. The CPU regression passes
+first attempt on Windows/macOS in 14.873/11.855 seconds; macOS's selected suite
+has no retries. Windows still records a first-attempt parity-matrix setup timeout
+inside the original 20-second child deadline, then a passing retry. Its raw log
+shows code SQLite completion and prose SQLite startup before timeout. This is
+not accepted through the retry. The shared SQLite test helper unnecessarily
+imports the entire core API facade to reach a builder already exported by a
+narrow owner. Actual strict function equality proves the exports are identical.
+Changing that single import reduces loaded files from 2293 to 753 (1540 fewer);
+sampled cold import time falls from 2623 to 934 ms. No bootstrap guard is removed.
+
+All three actual SQLite fixture modes, default report arguments, queries,
+memory/SQLite hits, exact overlap and existing 20/26/30-second bounds remain.
+The original report fixture passes first attempt in 8.15 seconds after the import
+repair. A new setup boundary rejects loading the source-indexing pipeline for
+already seeded SQLite artifacts. Injecting the old facade route fails for that
+specific guard in 802 ms; the normal guarded case passes in 8.01 seconds. Six
+affected report/SQLite/retrieval checks pass in 47.2 seconds total, including
+cold descendant cleanup and specific failed-state recovery. The earlier hosted
+failure and both fault-control receipts remain. Final current-source hosted and
+whole-suite acceptance are still required; no candidate 15 is frozen.
+
+October 19 follow-up to `d481d8980`: all hosted jobs are green, but raw attempts
+show one Windows compiler cancellation and one macOS YAML fallback before their
+retries pass. The Windows compiler's first attempt reaches the fixture's unchanged
+20-second cancellation guard; it is an AbortError, not a native crash. Broad CI
+runs two jobs. The strict Windows ownership step passes all three first attempts;
+orphan discovery exits zero, finds/kills its one child and takes 485 ms there and
+816 ms in the broad lane. The previous two orphan failures remain unattributed.
+All 44 exact-head authority cases also pass, with verified raw logs and readiness.
+
+Actual retained macOS compiler telemetry closes the memory-owner hypothesis:
+`availableBytes=3331997696`, `hostFreeBytes=847560704`, scheduler byte capacity
+`849747968`, and the unchanged `536870912` reservation is admitted with CPU/memory
+totals one. Its full compiler case passes first attempt in 15.836 seconds and
+the memory regression in 1.243 seconds. This is ordinary PR-merge CI context;
+the independent authority job verifies the exact PR head/tree. Raw logs and
+`hosted-d481-memory-verification.json` preserve that distinction.
+
+The CPU ownership fixture now uses two real TypeScript modules and ES5 ambient
+declarations, retaining the canonical 512 MiB policy, actual token/maxima one,
+adaptive admission, 20-second cancellation and 30-second runner limits. A task
+control passes every original assertion in 9.995 seconds with measured peak RSS
+415436800 bytes. The exact original scheduler owners, Git blobs
+`44810ee1d61c77493aa8a460ef68d70ae95222ff` and
+`ab4ba791b718f0640fd56a71b139d434bab041ab`, still fail under the same smaller
+project at 22.8 seconds. The normal fixture then passes in 10.2 seconds. AST
+comparison proves all 17 original assertions remain structurally identical and
+in order; five new assertions require a completed, matching measured execution
+receipt and a real imported call target in the other source. The earlier 256 MiB
+prototype remains rejected; this repair does not understate that measurement.
+
+The helper's default source/configuration is unchanged: actual writes of all
+four default files at one physical root have identical bytes before/after. Only
+the CPU caller selects smaller inputs. Full SSR/compiler-binding coverage remains
+and records two passes (29.4 seconds each) and an SSR incremental timeout at 30.4
+seconds in `cpu-retained-full-compiler-coverage-15.json`. That failure is open.
+An isolated diagnostic profile takes 29.5 seconds: import 2.75, cold/warm builds
+12.71/10.38, forward traces 1.60/1.55, cleanup 0.07 seconds. Each trace opens about
+1500 files and resolves over 2000 paths; no active handles remain besides pipes.
+Disabling the TypeScript provider removes required compiler contexts and fails
+the positive control, so that diagnostic is rejected without a source change.
+Further repair must retain the complete 115-record/136-edge witness and authority.
+
+Unfrozen service diagnostics pass all 120 service cases plus two parser cases,
+with first attempts and unchanged bounds. The first 80 take 637.1 seconds total
+(slowest 25.8); the remaining 40 plus parsers take 232.0 seconds (slowest 21.6).
+The only two warning lines belong to the existing fresh default-provider
+diagnostic assertions; the remaining run has none. Parser assertion messages now
+retain fallback reasons and metrics without relaxing expected results. No new
+whole-suite candidate has been frozen; none of these observations is borrowed.
+
+October 19 hosted follow-up at `f6b9f0a49`: the memory-owner repair passes
+the full-corpus single-token compiler case on macOS on its first attempt
+(16.862 seconds), and the effective-memory regression passes in 712 ms.
+The macOS selected suite reports 970 passes and one optional Tantivy exclusion.
+Two other language cases, TOML lexical boundaries and YAML syntax boundaries,
+pass only on retry; that green job is not zero-retry acceptance. The successful
+quality artifact retained summaries but discarded raw attempt logs, preventing
+inspection of those first failures and the compiler memory telemetry. All three
+OS quality uploads now retain raw logs and failure JSON on success as well as
+failure, with a workflow contract that fails against the previous upload policy.
+
+The same head's strict hosted Windows authority job passes all 44 first attempts,
+with a real file symlink, zero skips/timeouts/crashes and independently verified
+head/tree, executable, readiness hash and raw logs. Gate, Rust, Ubuntu and policy
+jobs pass. Ordinary Windows CI reports 967 passes, three declared exclusions and
+one failure: both attempts of `shared/subprocess/sync-timeout-kills-child-tree`
+leave the detached descendant alive after the direct parent exits. Original raw
+logs remain in `hosted-f6b9-windows-failure/`. The same source passes locally in
+8.63 seconds; this does not dismiss the hosted failure. The existing orphan
+discovery owner now retains its exit code, error code, elapsed time, bounded
+stderr and descendant count, and the fixture includes that internal evidence in
+its failure. Its deadlines, commands, positive reaping assertions and cleanup
+behavior remain unchanged while the hosted cause is unresolved. Three affected
+local lifecycle cases pass in 11.4 seconds after adding these diagnostics.
+Those same three real fixtures now run before broad Windows CI with one job,
+one thread, 30-second limits and zero retries/native redo. Their separate result
+and every raw attempt survive even if that early step blocks the broad suite.
+This makes the Windows ownership prerequisite bounded and exposes failures
+before the larger lane; it adds no new fixture or relaxed assertion.
+
+Additional unfrozen retrieval diagnostics pass 26 serial cases in 271.3 seconds
+(slowest 24.314 seconds, no warning/error lines) and 80 fast cases in 22.7 seconds.
+They retain one attempt, 30-second bounds and no native-status redo; they are not
+borrowed into a future frozen campaign. No candidate 15 has been frozen, and
+candidate 14 remains the previously recorded partial receipt below. Task-owned
+receipts named here are historical author-workspace evidence, not files promised
+in a clean checkout.
+
+Branch: `codex/pr557-audit-repairs-20261012`, base HEAD
+`ab00d918d77fd45c086831e9759d7596ac18a16d`, with the preceding uncommitted audit
+repairs preserved. The [original audit](deep-test-audit-2026-10-18.md) retains
+its 65-failure catalog and original logs. These new focused runs do not replace
+those receipts or constitute an immutable whole-suite pass.
+
+## Preserved installation and crash investigation
+
+Historical author-workspace receipts are under
+`temp/tasks/windows-deep-repairs-20261018/`; clean checkouts do not contain them.
+`native-baseline.json` records the starting dependency versions, required patch
+hashes, readiness receipt hash, 241 native binary/DLL hashes, Node executable
+hash and runtime. `starting-worktree.patch` and `starting-untracked/` preserve
+the initial repairs. The original native installation was preserved through dump
+capture and attribution; the later locked bootstrap rebuilt the updated candidate.
+
+The preserved crashing installation used Node 26.8.1, Windows x64, ABI 147. Its executable SHA-256
+`5cba0ea928508c65ddadefc0681d2fb6d95f1f3beea4428f04397631140ee8e5`
+matches the official Node 26.8.1 checksums. Matching `node_pdb.7z` symbols were
+verified against SHA-256
+`3629c52a09a189ed159f270addd068ee8dafebbcd1a1cca7fd053a114ea80504`.
+Both the checksum list and symbols remain task-owned diagnostic inputs.
+
+An isolated main-thread-only dump hook captured an unhandled access violation
+from the original `indexing/semantic/compiler-bindings` fixture without changing
+its exit status: `0xC0000005` after 17.3 seconds. The original
+`indexing/semantic/embedded-source` fixture crashed in the same serial cohort.
+The compiler dump SHA-256 is
+`38f90d3463378ab0e1fe4093d6ebd20f6b50b26651a9a44f25e5840b8540a955`.
+Matching private Node symbols locate the fault at
+`node::Realm::set_should_purge_empty_cppgc_wrappers`, inlined through
+`node::CppgcMixin::~CppgcMixin` and
+`node::contextify::ContextifyScript::~ContextifyScript`. A cppgc sweep writes
+through a freed Realm while a worker isolate tears down. The full exception
+stack, context, modules and all-thread stacks are preserved in
+`original-crash-cohort-analysis.log` beside the task-owned dump. The hook was
+validated with a separate deliberate-crash self-test and never installed
+machine-wide.
+
+This stack is the exact failure described in upstream
+[Node PR #65778](https://github.com/nodejs/node/pull/65778). Its
+`CppgcTest.VmScriptCollectedBeforeFreeEnvironmentSweptAfter` fails under ASAN
+before the fix, and the fix was released in
+[Node 26.10.0](https://nodejs.org/en/blog/release/v26.10.0). The official
+Windows x64 executable used for candidate diagnosis has SHA-256
+`cea6ac365f9bb9586dafd2084d996e092e7d3e7d07ab52d1f76bf53d1fca9bc4`,
+verified against the release checksums; ABI remains 147. The reduced pure
+`vm.Script` child and one-build compiler route did not crash in ten and seven
+pre-fix launches, respectively. They are useful controls, not a claimed local
+fail-before reproduction. The two original raw fixture crashes and upstream
+ASAN regression are the causal pre-fix evidence.
+
+The candidate pin is Node 26.10.0. A final `npm run bootstrap:ci` exited zero
+without warning or error lines, verified 37 required packages and activated 33
+language routes. The Perl scanner patch now checks its allocation before use;
+the patched native source compiles without the earlier MSVC C6011 warning. The
+first migration bootstrap exposed an unsupported npm configuration warning and
+the next detected a patch-input change during execution; both were corrected
+before the clean final run. The candidate's task-local runtime must be selected
+explicitly in this workspace because a fresh shell still resolves Node 26.8.1.
+
+Ten separately recorded fresh normal runner processes alternated the original
+compiler-binding and embedded-source routes, five each. All ten passed at one
+job, one indexing thread, a 30-second fixture deadline, zero retries and native
+status redo disabled. The original stub-embedding cache, code-map, observability
+and context-pack crash routes also pass with those settings. The original summary
+report route passed in 18.1 seconds after its slow aggregate fixture was split
+into eight exact-sample mode/cache cases and a bounded all-mode integration case.
+Those nine cases pass individually and retain positive SQLite row and publication
+assertions. The old summary setup helper had no remaining caller; its lock helper
+still serves stale-lock recovery. No crash-status retry or backend disablement was
+used for these acceptance observations. The fresh-process receipts and original
+report logs are task-local historical evidence, not clean-checkout artifacts.
+
+Recorded controls include serial fresh worker termination, pool shutdown during
+startup at several delays and heap limits, full-core imports in concurrent
+workers, the original stub cache fixture, and late-attached real compiler/stub
+builds. Passing controls do not attribute or close the original crash. Four
+concurrent compiler fixtures exhausted their individual 30-second bounds; that
+load experiment is failed diagnostic evidence, not acceptance. No backend
+switch, crash-status redo or retry is accepted as closure.
+
+## Repairs with focused evidence
+
+- JavaScript AST chunking now retains exported values beside functions, including
+  destructured and uninitialized declarations. The original `answer` query stays
+  unchanged. A new contract case failed before repair. Incremental signature v7
+  prevents reuse of bundles missing those declarations; chunk ID format is unchanged.
+- All FTS variants defer query eligibility until bounded SQL candidates have
+  metadata. Native term matching and exact literal phrase checks remain separate.
+  Sparse fallback hydrates matching posting rows before applying exclusions.
+  New cold/warm, Boolean, phrase, allowed-ID and fallback regressions failed
+  before their respective repairs. Existing overfetch/pushdown budgets pass.
+- A singleton FTS-rowid pushdown with row zero present returned row zero when
+  restricted to row two in the installed SQLite 3.53.4. The joined ordinary
+  `chunks.id` predicate preserves the restriction. The row-zero regression is
+  retained; thresholds and result assertions are unchanged.
+- The original prose explain-output fixture passes. SQLite latency passes with
+  both original queries retrieving `index.js` before warm samples; the raw
+  samples remain in the runner log. This focused observation precedes final
+  candidate freezing and must not be reported as final-tree acceptance.
+- Existing import budgets pass without increasing thresholds. Search-filter
+  admission lives in its shared request owner; command metadata is independent
+  of CLI parsing. MCP version lookup uses its narrow owner. Reader leases are
+  separate from cleanup dependencies, while cleanup still uses the established
+  lock implementation. Asynchronous writer/hash backends load when used.
+  Reader exclusion, stale-owner recovery, hash and binary-writer checks pass.
+- API risk metrics and as-of fixtures use canonical artifact identities. Runtime
+  claims positives use a real published semantic source rather than an unverified
+  target reference. Invalid-request, destination authority, missing generation
+  and foreign-cursor negatives remain. All three focused API fixtures pass.
+- Nested script-coverage groups explicitly pass zero retries to their child runner.
+- LSP inventory refresh recognizes both occurrence and compiler invocation
+  bindings and clears removed analysis observations. The existing embedded-cache
+  failure passes with an added stale-resolution regression. LSP producer version
+  advances from 8 to 9 so derived replay cannot reuse the old selection behavior.
+
+## Windows terminal lifetime
+
+The real native TUI and real supervisor run through the existing `node-pty`
+capture owner. A PowerShell fixture observes actual console input/output modes
+before and after the native child. Terminal failure closes its real output pipe
+while retaining console input. Receipts require the native/proxy/supervisor/job/
+detached-descendant family to be gone and final jobs to be terminal.
+
+The first quit case completed its assertions but timed out because node-pty 1.1.0
+left its ConPTY output connection worker and input socket alive on natural exit.
+A bounded operation probe independently reproduced the leak before patching.
+`patches/node-pty+1.1.0.patch` disposes those owners after output flush. Bootstrap
+now verifies the PTY create/output/exit/dispose operation with natural process
+exit, alongside parser activation. Locked bootstrap already includes the required
+development dependency. Fresh native/patch verification exits zero without
+warnings or errors and records 37 required packages and 33 language routes.
+
+Unexpected supervisor exit also returned native status zero. The strengthened
+test failed before repair; the Rust owner now propagates that failure after
+shutdown and snapshot persistence. Windows quit, supervisor-error and terminal-
+error fixtures pass at about four seconds each. They verify exit status, exact
+console-mode restoration, descendant reaping and final job states. Expected
+negative-case error diagnostics are asserted. The formerly timed-out terminal
+capture fixture also passes. Linux execution remains separately unqualified.
+
+The two actual C/clangd ELF-positive fixtures remain Linux-owned and unchanged
+in their assertions. Windows acceptance must explicitly exclude them and retain
+their Linux qualification gap. `native-toolchain-platform` proves Windows
+unsupported-platform rejection plus portable structural authority; the existing
+portable include-closure negative cases also pass. Windows executables do not
+substitute for sealed Linux ELF evidence.
+
+## Further focused repairs and Windows authority
+
+An elevated task-local PowerShell launch created a real file symlink without
+changing Windows security settings. Under that same token,
+`security/editor-tui-authority` and `security/repository-authority` pass with
+zero skips. `storage/semantic/runtime-opened-byte-integrity` also passes under
+the capable token. Windows sharing rules prohibit replacing an open pathname;
+that fixture now checks live fixed-length byte mutation plus real pre-open file
+symlinks, while retaining the Unix live-symlink swap. It exposed a production
+error-contract defect: an unsafe path rejected during `openContainedFile` escaped
+before runtime-import error mapping. The open is now inside the owned cleanup
+scope; the original fixture passes. Task-local elevated logs preserve raw results.
+
+The safe uninstall fixture now resolves every dry-run deletion target, proves it
+lies inside marked disposable roots, then executes the real uninstall. It passes
+with the destructive tag explicitly selected; no user cache was deleted.
+Tooling diagnostic retention now logs the first bounded, redacted live warning
+cause even when its artifact path fails. The original diagnostic fixture and
+runtime contract matrix pass. Gopls, doctor, managed-provider, quarantine and
+five independently bounded abrupt-cleanup cases pass after explicit fixture
+command/trust setup and abort-contract repair. Their negative trust assertions
+remain. The install missing-requirement fixture no longer enters the real Go
+SDK download fallback: it uses a disposable invalid SDK pointer and invalid
+local command, retaining structured failure assertions. Both install exit-code
+fixtures pass.
+
+The ordered-completion tracker no longer retains its process keepalive after a
+timed-out or aborted wait. Its original pending-work, child-lifetime and timeout
+fixture passes in 3.7 seconds instead of timing out after its assertions. The
+three-build document extraction cache wrapper is split into two 21-second
+cases, preserving cache-key invalidation and stable-hit assertions. API trust
+boundary startup rejections and positive local/non-local views run without an
+unneeded full index and pass as two eight-to-nine-second fixtures; the remote
+client uses loopback to address the wildcard listener while the listener scope
+remains non-local.
+
+Semantic trace now batches bounded incident rows while retaining exact cursor
+offsets across filtered edges. Existing continuation/evidence and artifact/
+SQLite parity fixtures pass. The SSR witness is split into cold parity,
+incremental exact forward-content comparison, and incremental backend parity.
+All three pass after the shared witness helper avoids duplicate source-manifest
+reads: 18.3, 29.0 and 26.5 seconds, respectively. The 29-second case has little
+timing margin and remains a performance concern for final acceptance. The
+separate shard fixture validates each generation against its own pieces
+manifest before comparing semantic content; it passes without suppressing
+format identity. The earlier aggregate/rest parity mismatches were duplicate
+evidence refs across continuation pages, now deduplicated by canonical ref
+across the complete drained trace; strict record/edge comparisons remain.
+
+The original `tooling/typescript-root-aliases` watchdog was an assertion
+rendering a large compiler diagnostic, not a slow compiler run. A compact
+diagnostic showed that Windows virtual imports could acquire a lowercased path
+while the Program retained the root's original spelling. The provider and
+compiler-dependency collector now preserve the VFS path returned to TypeScript;
+the host canonicalizes origin lookups separately. The fixture checks exact
+virtual-root identity, cross-document inference, triple-slash references and
+cyclic/module-augmentation behavior. Its original timeout now passes in 0.6
+seconds, alongside root preflight, virtual imports, resolution modes, source
+reuse and a 24.3-second full compiler-bindings route. The compiler-bindings
+semantic producer advances to version 9 and the TypeScript provider to 3.0.1
+so old derived meaning is not replayed.
+
+The original MCP robustness wrapper ran five complete server lifecycles in one
+30-second boundary. It now has five individually discovered MCP cases with
+separate disposable caches; all existing queue, cancellation, duplicate-ID,
+progress and tool-timeout assertions pass in 6.6-7.5 seconds each. The MCP
+search wrapper paired a runner-suffixed server cache with an unsuffixed shared
+index cache; an explicit memory-backend query correctly returned `NO_INDEX`.
+The sample/default/type case now builds and serves from the same isolated
+cache and passes in 23.3 seconds. Its risk-tag filter case copies the two
+original `runUnsafe` source files into a disposable repo, retains the original
+query and positive/subset assertions, and passes in 16.9 seconds. This bounds
+the real risk-bearing source pair without rebuilding every unrelated language
+fixture. The original API semantic-detail and semantic-trace fixtures also
+pass, at 26.4 and 29.3 seconds; the latter has little timing margin.
+
+The seven-provider multifile LSP wrapper also exceeded one 30-second
+boundary. It is now seven discovered cases with one provider/session each.
+Each simulated positive selects the repository stub server through the Node
+command and trusts its disposable workspace. PHP, Ruby and Dart cases include
+their providers' required subcommand tokens after the script path so they
+exercise the real provider argument handling without mislaunching Node.
+All seven preserve the two-file hit and one-process reuse assertions; the
+previously unverified PHP/Ruby cases now pass instead of silently skipping.
+
+The SQLite partial-chunk fallback still checks that the bundle contains more
+than one chunk after reducing its synthetic source from 256 to 64 functions;
+it passes in 25.3 seconds. SQLite index-state fail-closed now uses preparatory
+stage-2 builds without an unneeded automatic SQLite build, retaining its
+explicit failure and recovery checks; it passes in 23.5 seconds. Runtime
+source-reference authority has separate ordinary and foreign-generation
+published-witness cases, passing in 25.1 and 29.1 seconds. API and federated
+golden surfaces are separate discovered cases against the same golden values,
+passing in 19.4 and 5.4 seconds.
+
+The original fixture-parity wrapper built `sample` but omitted `--repo` when
+calling equivalence, which created a second unrelated repo and exhausted the
+watchdog. Passing the same fixture to equivalence and using stage-1 artifacts
+for its `--no-ann` comparison preserves the original query and backend
+assertions; a first pass took 25.5 seconds. After Markdown host prose added
+work to this fixture, it was scoped to exclude unrelated SCM/type/risk/LSP
+enrichment and passes on the resulting source in 24.6 seconds. Fixture
+evaluation has three
+independent corpus cases and uses the existing batch eval runner, avoiding one
+search process per query. The old wrapper only printed missed expectations:
+the repo-self showcase catalog had no source files and silently scored 0/10.
+The test now copies the seven named production files into a disposable repo,
+explicitly includes the named tool file (excluded by default), and fails on any missed
+query. This exposed a production Markdown segmentation bug: any fenced code
+block suppressed surrounding host prose. Host prose and embedded code are now
+both segmented, with per-file signature version 8 invalidating old bundles.
+The batch eval runner also now reads `extractedProse` for that explicit mode.
+The final-tree focused eval cohort passes all original expectations: sample
+11/11 in 25.0 seconds, mixed 7/7 in 22.5 seconds, and showcase 10/10 in 27.2
+seconds. All eight segment fixtures pass on the same source, with no skips.
+
+## Intermediate acceptance observations
+
+An explicit follow-up selection of 83 discovered fixtures from the original
+failure catalog ran at two jobs, one indexing thread, 30-second deadlines,
+zero retries and native-status redo disabled. The historical runner receipt is
+`.testLogs/run-1792349605692-303wwh`: 73 passed, six failed and four timed
+out. Two failures were Linux-only ELF/clangd positive fixtures inadvertently
+included in the Windows selection; their Windows unsupported-platform and
+portable authority owners passed separately. Four report failures traced to a
+task-created `.testCache/retrieval-parity/repo` nested under the `sample`
+fixture by the earlier parity wrapper. Default indexing now excludes
+`.testCache` and `.testLogs` trees; report fixture copies filter them as well,
+and the ignore contract checks source-only discovery. The four original report
+cases then passed individually in 16.9-17.6 seconds. This is a real cache
+admission fix, not an expected-count update. The nested historical scratch
+directory remained on disk at that intermediate observation; automatic approval
+review rejected a bounded recursive cleanup command. A later inspection during
+the workspace-layout continuation found the nested path absent.
+
+Serial follow-up cleared the compiler-binding and API semantic-detail
+timeouts. The incremental SSR forward-witness case still exceeds 30 seconds;
+one serial run of its companion parity case finished in 29.9 seconds, while two
+later repeats also timed out. Timing markers on a diagnostic artifact-only run
+showed a cold published build at 15.1 seconds and cold forward-trace inspection
+at 20.3 seconds, before the incremental build. Reduced ambient TypeScript
+declarations lost the actual modeled MessageChannel/interpolation evidence;
+skipping identical fixture writes and disabling SQLite did not close the time
+budget. Those experiments were reverted. The exact witness assertions and real
+Node declarations remain. The nine aggregate script-coverage wrappers also
+need bounded action ownership; the nested runner already receives zero retries.
+No 30-second timeout is counted as passing evidence.
+
+On the cache-exclusion tree, a serial five-case cohort passed the original
+sample, mixed and showcase eval corpora, fixture parity, and the report
+all-mode integration in 16.6-25.2 seconds with no failures, timeouts or skips
+(`.testLogs/run-1792350822624-r5v120`). A direct four-way script-coverage
+embeddings shard still exceeded 30 seconds after completing two actions; it
+was stopped, so finer action boundaries are required before that wrapper can
+count as acceptance. No group coverage claim was inferred from that partial
+diagnostic.
+
+The preceding source passed `npm run format`, `config:budget`, `env:check`,
+generated-surface freshness, command-surface audit, workflow contract and all
+39 gate fixtures with zero skips (`.testLogs/run-1792351007477-r0zn4h`), plus
+`git diff --check`. The first command-surface attempt failed because an
+inherited `PAIROFCLEATS_TRUSTED_CONFIG` named a nonexistent external file;
+clearing that unrelated shell variable made the identical audit pass. Fresh
+`node tools/setup/rebuild-native.js --verify` also exited zero with all
+required natives and patches loadable and no warning/error lines. These gates
+do not erase the incremental SSR timeout or replace the unrun complete Windows
+cohort.
+
+## Workspace layout and remaining timeout repairs
+
+The workspace inspection found `.testCache`, `.testLogs`, `.benchCache`, `.c8`,
+`tests/.cache` and `temp` correctly ignored, with no tracked files in those
+generated roots. An empty `.tmp` lacked an ignore rule. A single lightweight
+development-path owner now places test caches at `temp/dev/tests/cache`, V8
+coverage at `temp/dev/tests/coverage`, and disposable benchmark workspaces at
+`temp/dev/benchmarks`. The remaining `tests/.cache` producers use that owner.
+Product OS caches and `.testLogs` receipt paths are unchanged. Legacy cache
+directories were moved into the ignored author-workspace archive
+`temp/legacy-dev-artifacts-20261018`, whose `relocations.json` preserves the
+original paths. The combined archive/delete command was rejected by automatic
+approval review; narrower reversible literal-path moves and an exact
+nonrecursive empty-directory removal succeeded. Legacy ignore rules remain.
+Seven initial path/authority checks pass; a further 28 layout checks pass,
+with uninstall separately selected rather than counted through a destructive
+tag exclusion.
+
+SSR trace profiling isolated repeated query-index file validation and row reads
+in the lower/upper range searches. Related-page requests now share bounded
+validation promises and row reads within that request only. The next request
+revalidates both data and offsets. On the same preserved published witness,
+forward traversal fell from 4240 to 1556 ms, retaining all 115 records, 136
+edges and SHA-256 `16ef1f09092ea72667e677489ce3ed9b78c3f130f4923406cfb0095fe5b1036b`.
+The six-case serial cohort passes: cold SSR 16.9s, exact incremental witness
+25.3s, incremental artifact/SQLite parity 28.2s, runtime query integrity,
+tamper recovery and trace parity (`.testLogs/run-1792366347083-jx8z8u`). The
+trace-parity regression edits same-size query-index data and offsets between
+warmed related-page calls and requires rejection, then verifies recovery.
+No producer meaning changed; no semantic version bump is required.
+
+The action inventory contains 210 original script-coverage actions: 181 invoke
+direct fixture scripts, and only four actions retain claims against the current
+21 package scripts. No assertion was removed. Generated sidecars expose each
+action as its own discovered process case. The full sample build is partitioned
+into four concrete modes while `cli/build-index/all` retains one-call all-mode
+dispatch; the original shell checks have a separate boundary: 214 cases total.
+Group prefixes select every case, each has a fresh
+cache and a 30-second bound, nested retries are explicitly zero, and nested
+optional skips now propagate rather than being reported as passing coverage.
+CLI actions with a preceding-index dependency prepare a fresh stage-1 sample;
+the parity action now explicitly targets that same sample. Sidecar freshness
+and invalid/duplicate case rejection have coverage. No affected aggregate ID
+was present in the checked-in ordered-lane files. The first 15-case cohort,
+including all ten embeddings actions, passes without skips
+(`.testLogs/run-1792366598677-l4n28s`).
+
+The independent workflow cohort exposed a production stage-4 defect: batching
+four modes into `all` occurred before authority resolution, which then looked
+for a nonexistent `index-all` root. A new all-mode CLI regression failed before
+repair with that exact error (`.testLogs/run-1792366937788-sp8us7`). Stage 4
+now resolves every concrete mode first and batches only modes with the same
+authoritative root; mixed-generation roots remain separate. CI export and
+restore pass after the fix, as do both existing stage-4 publication-authority
+fixtures. The CLI regression also checks positive code/prose/record SQLite rows
+and the authoritative zero-state marker for an empty extracted-prose mode.
+The script runner now streams output through the tracked subprocess owner so
+watchdogs retain the last child phase instead of losing a spawnSync buffer.
+
+## Complete script cohort and second repair batch
+
+Source candidate 01 was frozen at base HEAD
+`ab00d918d77fd45c086831e9759d7596ac18a16d`, with all 5789 non-document
+tracked/nonignored source paths (including deletion markers) hashed to
+`23c1f1e1036f6f3c7b4be45b4d0f83917663e166e66d067371aa7f3b395dab11`.
+The manifest and raw reports live in the ignored author-workspace task directory;
+they are historical evidence, not clean-checkout inputs. The source digest was
+verified again after the complete 214-case script cohort. That run passed 211,
+timed out once, and reported two expected exclusions in 1326.6 seconds, with
+zero assertion failures or native crashes (`.testLogs/run-1792367465141-c0aide`).
+Optional sqlite-vec was unavailable, and Bash could not execute the shell helper.
+The only timeout was the four-build tokenization-cache wrapper.
+
+Three independent two-build comparisons now retain stable-config cache reuse,
+phrase-ngram invalidation and dictionary invalidation, including fresh child
+processes and the ordered ci-long membership. The unbounded direct aggregate
+remains a diagnostic entrypoint; discovered acceptance uses the three cases.
+No assertion or cache transition was dropped. Script actions select each same
+comparison explicitly. Two additional actions execute the exact config-budget
+and environment-check npm commands. The old help, partial bootstrap and baseline
+smoke controls remain executable but no longer claim a different package command.
+Locked bootstrap readiness and the suite orchestrator have separate evidence
+owners. Sidecar freshness and actual command/claim equality are asserted.
+
+Four new regressions failed before this batch (`.testLogs/run-1792369222544-8bpnmz`):
+mixed-mode stage-4 publication, nightly dispatch, nested skip reasons, and partial
+npm coverage claims. Nightly had ten references to removed aggregate filenames;
+it now selects each actual discovered group through the runner with one job,
+one indexing thread, 30-second bounds, zero retries and native-status redo off.
+Nested skips retain an explicit child reason rather than a wrapper label.
+
+The mixed-mode fixture first published all modes, then a newer code-only
+generation, then requested all-mode SQLite completion. Promotion incorrectly
+validated prose at the new code root. The existing promotion owner now validates
+every concrete root before one atomic publication and preserves every mode pin.
+Only modes in the primary root receive that root's semantic acknowledgement.
+The positive query then exposed a second defect: latest SQLite lookup used the
+global root for prose. SQLite and LMDB paths now follow the requested mode's
+published root; explicit as-of mixed-root rejection remains unchanged. Cold and
+warm SQLite queries retain positive source assertions. Outside-cache, incomplete,
+invalid, extra-mode and unanchored mode maps must reject without altering the
+current pointer. The mixed-mode fixture passes in 21.5 seconds. No public knob,
+artifact schema or semantic producer meaning changed.
+
+CI-suite cache/home defaults also use `temp/dev/ci/`; explicit hosted cache roots
+and `.diagnostics`/`.testLogs` receipt interfaces remain supported. Their legacy
+roots remain ignored. This second batch supersedes candidate 01 for acceptance;
+its earlier greens cannot qualify the newer source by themselves.
+
+Candidate 02 passed the complete front gate (39 gate fixtures,
+`.testLogs/run-1792369680279-p71el9`) and fresh native/patch verification with
+no warning/error lines. Its source hash was
+`245f5868ff24bc6887d2e76e6649ca40efd5c0bf8a111fa90682a6d8c8453e86`;
+discovery accounted for 2982 cases, 2971 required and 11 explicit exclusions.
+The task-local capable launch proved actual file-symlink creation, then passed
+44 of 45 selected cases without skips or timeouts
+(`.testLogs/run-1792369743002-9b80l6`). Windows UAC applied to that RunAs launch;
+Codex filesystem access does not grant the Windows file-symlink privilege.
+No machine policy changed.
+
+The one failure was bootstrap admission, not a symlink failure: the workspace
+path migration added a statically linked repository helper before the readiness
+guard. The incomplete-checkout regression correctly rejected the resulting
+`ERR_MODULE_NOT_FOUND`. The runner, CI suite and affected benchmark entrypoints
+now dynamically load that helper after readiness succeeds. The regression
+executes every guarded index/SQLite benchmark entry plus the existing CLI/test/
+microbench and CI-suite entries, requiring both absent-setup rejection and
+prepared-workload admission. It passes in 11.3 seconds; all four affected checks
+pass (`.testLogs/run-1792369912602-17lurr`). Its executable-link check is POSIX-only,
+so Windows admission coverage now runs in the ordinary-token cohort. The 44
+actual Windows file-link cases retain their capable-token owner. Candidate 02
+remains a failed historical observation; the admission repair requires a newer
+source identity and affected acceptance checks.
+
+Candidate 03 (`190d357915cfc8e52836033b9eaa465bb432e4fc9abbc51e1f89b04bffb6e48c`)
+passed its refreshed front gate (`.testLogs/run-1792369988241-dgq8ru`). Four
+ordinary cohorts passed 306 cases; the next serial cohort passed eight and
+timed out at context-pack risk-filter parity. Its 42 remaining cases were
+unexecuted through fail-fast, not legitimate platform exclusions. The test
+finished index teardown but combined several CLI/API/MCP scenarios inside one
+deadline. A following diagnostic exposed a second defect: forced timeout during
+the degraded-artifact scenario left a mutated manifest, and the fixture helper
+admitted it using an old compatibility-only health stamp.
+
+The cold/warm/tamper regression failed before repair
+(`.testLogs/run-1792370445894-41lbyk`). Fixture health version 6 binds its claims
+to the current mode root, pieces manifest and the contents of the health-input
+artifacts, with bounded reads and path containment. Positive risk/watch claims
+cannot merge across changed authority. Manifest removal and same-size flow-data
+tampering each cause a real rebuild and restore positive risk-flow evidence;
+an unchanged warm cache preserves its published generation. Both independently
+bounded cases pass in 19.3-19.6 seconds. The focused regression uses the existing
+fast indexing fixture configuration because it qualifies cache admission; native
+parser qualification stays with the native fixtures.
+
+Risk-filter parity is four explicit cases retaining all original assertions,
+ordered CI membership, positive filtered results and CLI/API/MCP comparisons.
+The degraded and invalid cases first execute the positive request, preserving
+the warmed-cache boundary. Every case closes its real HTTP harness. Phase traces
+show teardown completing, with fixture setup and repeated CLI startup accounting
+for the aggregate cost. The four cases pass in 21.4-23.6 seconds
+(`.testLogs/run-1792370708843-q7rfez`). Missing risk flows now fail rather than
+being converted by catch-all handlers into a successful “skip”; the same
+repair applies to risk-explain parity and its adapter matrix. Those related
+checks, both health cases and complete/ordered discovery pass
+(`.testLogs/run-1792370856253-jakptq`). No retry, larger deadline or production
+backend switch was used to qualify the original parity scenarios.
+
+Candidate 04 (`cc79c71b92e1dfb710f12075d33beb26d2b9959a7bf6d794864a4a960d874aa4`)
+passed its front gate (`.testLogs/run-1792371018870-fmyqot`) and six explicit
+ordinary cohorts: 389 passes, zero failures, timeouts or skips. The campaign
+stopped intentionally between cohorts after a path audit found a remaining
+reader migration defect. Replay report discovery still scanned only the old
+cache roots, so it missed both current development roots. The expanded existing
+replay regression failed before repair (`.testLogs/run-1792371931149-vwqbcn`).
+Default discovery now visits current test and benchmark roots before legacy
+roots. Basename filtering, the existing report-count bound, malformed-payload
+coverage and streamed/loaded aggregation comparisons remain. No source changed
+while the completed candidate-04 cohorts were running; their receipts remain
+historical qualification rather than a pass for the newer reader source.
+The repaired replay test, unchanged replay budget, SLO gate smoke check,
+development-path contract and shared-module budget pass
+(`.testLogs/run-1792371956348-v7ehh7`). Candidate 05 passed formatting, config
+and environment budgets, generated freshness, command/workflow contracts,
+all 39 gate fixtures (`.testLogs/run-1792372090547-stbh8b`) and diff whitespace.
+It is frozen at `523b6b2805c50ea736b3838453a6ce9d137ce34aa84fa441c3a245f4363c93a5`
+across 5796 non-document source paths, on the same base HEAD and Node 26.10.0.
+All 2987 discovered cases are accounted for: 2976 Windows-required and 11
+explicit exclusions. The ordinary-token campaign stopped deliberately between
+cohorts for the subsequently authorized publication batch. Ten cohorts completed:
+723 passes, two assertion failures, zero timeouts, native crashes or skips.
+The failures are the shared-module review inventory and watch consistency state
+(`.testLogs/run-1792372447957-m8aybe`). The curated review inventory now includes
+the reader-admission leaf and development-artifact path owner; its focused check
+passes (`.testLogs/run-1792372669269-bwf6yu`). The watch case observes an in-memory
+consistent snapshot before its queued persistence completes; its original
+persisted-state assertions remain pending investigation. The 44 actual file-link
+cases still have their separate capable-token final-candidate owner. Unexecuted
+cases remain pending; no whole-suite pass is claimed.
+
+## Publication batch
+
+The user subsequently authorized incremental commits and pushes on the existing
+branch and updates to PR #572; its verified integration base remains `main` at
+`a8c19738eb236032a56f2ac6d583b799508d5d67`. Commits `6b67c4495`, `f8212363e`
+and `5b34271c4` separate native/runtime repairs, development paths and bounded
+discovery, and correctness/authority repairs. Documentation is a separate
+commit. Original failure receipts and task-local caches remain ignored.
+
+Publication whitespace checks caught an unused final context line in the new
+node-pty patch and trailing blank/space-only lines in three new source fixtures.
+Those formatting repairs preserve behavior. Fresh native/patch verification
+exited zero with no warning or error lines after trimming the patch context
+(`temp/tasks/windows-deep-repairs-20261018/publication-native-verification.log`).
+These edits and the changed Git identity require a new qualification candidate;
+candidate-05 observations remain historical, including its two failures.
+
+The publication front gate passes on the committed repair source plus this
+documentation batch: formatting, configuration budget, environment usage,
+generated freshness, command surface, workflow contract, all 39 gate cases
+(`.testLogs/run-1792372909769-mwpmzl`) and whitespace checks. This front gate
+does not imply that the unfinished deep or platform cohorts passed.
+
+## Remaining acceptance work
+
+### Watch persistence follow-up
+
+The watch consistency failure is a stale fixture synchronization assumption.
+`emitWatchState` publishes memory and callbacks before adding the disk write to
+its persistence chain; shutdown already joins that chain. The fixture read the
+file immediately after observing memory, so a valid queued write could still
+leave `catching-up` on disk. A task-local hook delaying consistent-generation
+writes by 250 ms reproduces the original assertion before repair
+(`watch-consistency-fail-before.log`). The fixture now observes live disk
+convergence within the existing five-second condition bound, retaining all
+memory, backlog, generation and persisted-state assertions. The watch remains
+running during the disk check. The shared condition helper awaits asynchronous
+predicates instead of treating any returned Promise as true.
+
+The same delayed-write control passes afterward
+(`watch-consistency-delayed-pass-after.log`). A second control suppressing all
+consistent-generation writes still fails at the five-second bound
+(`watch-consistency-stale-negative.log`), proving that permanently stale
+persistence is rejected. Those diagnostic logs are task-local historical
+evidence, not discovered suite cases. All 25 watch fixtures pass normally with
+zero retries, skips or timeouts (`.testLogs/run-1792373022960-e5ev5p`). No
+production behavior, state schema, condition deadline or public option changed.
+The complete front gate also passes for this follow-up, including all 39 cases
+(`.testLogs/run-1792373141842-gcoagt`) and every preceding required check.
+
+### False-green and macOS setup follow-up
+
+Watch repair `7ca0759f8ffc935501d4ceabced799153c88a560` was pushed and PR #572
+read back at that exact head. Candidate 06 froze 5794 non-document paths at
+`32d60c36174c332fa9b7d9d910bda2c1aadd55653c2b535f91dc4aa44c37ee01`, with
+documentation digest `f4a668a1e2ae1f17a11a64c50db42b83156a863bcc593e32dff470d64a72ee41`.
+Twelve cohorts reported 810 passes and no failures, timeouts or native crashes.
+The source audit found that one was a POSIX-only opt-out exiting zero; it is
+not Windows passing evidence. The campaign stopped deliberately between
+cohorts after `.testLogs/run-1792373592390-22g2nv`; no active fixture was killed.
+
+The AST audit records 54 actual zero-exit calls, excluding embedded child source
+strings, in task-local `zero-exit-source-audit.json`. Most are dependency guards,
+non-Windows guards or successful parent/child roles. Two branches could hide
+failures: the postings benchmark returned zero on `ETIMEDOUT`, and the advanced
+API golden fixture returned zero when its baseline was missing. The original
+real fixtures both return zero under bounded controlled fault injection
+(`postings-timeout-false-pass-before.log` and
+`advanced-golden-missing-false-pass-before.log`). The golden file was preserved.
+Postings now delegates timeout/nonzero handling to the existing `runNode` owner,
+which makes its old duplicate failure branch unnecessary. Its real baseline
+assertion and deadline remain. Golden admission fails before expensive setup;
+its content comparisons and nonzero missing-file diagnostic remain. New
+timeout/nonzero/success and missing-baseline controls pass
+(`.testLogs/run-1792374763468-68zsww`) and have explicit ordered CI membership.
+The first control attempt exposed Windows absolute `--import` URL handling;
+the controls now use file URLs. That failed attempt is retained separately.
+
+Five whole-case opt-outs now use canonical skip status 77 instead of success:
+three POSIX signal/leak cases, the opt-in repository benchmark scenario wrapper,
+and optional Tantivy smoke. Their code/assertions remain intact. The explicit
+Windows exclusion inventory grows from 11 to 16, with coverage owners and
+qualification limits in the matrix. A disabled opt-in wrapper is not measured
+performance evidence, and Windows shutdown coverage does not prove POSIX grace
+or signal-injection behavior.
+
+At the pushed candidate, hosted gate, Rust TUI, Ubuntu and Windows jobs pass. The macOS
+bootstrap job fails its real PTY probe with `posix_spawnp failed`
+([job receipt](https://github.com/doublemover/PairOfCleats/actions/runs/39185353401/job/117847983726)).
+The node-pty 1.1.0 archive exactly matches locked SHA-512 integrity and packages
+both Darwin spawn helpers at 0644 (`node-pty-darwin-helper-mode-proof.txt`).
+The production loader selects those prebuilds; its rebuild script previously
+checked only directory existence. This matches
+[upstream issue #850](https://github.com/microsoft/node-pty/issues/850).
+The dependency patch restores execute bits on the regular helper during rebuild,
+leaving verify-only probes read-only. Actual macOS spawn/disposal acceptance
+must pass in the next hosted run; no macOS closure is claimed from Windows.
+The first local migration bootstrap rejected the newly added patch section's
+missing index header. The second rebuilt and probed native packages, then
+correctly refused readiness because the append hunk could match again after
+application. The corrected hunk has explicit original context and an unambiguous
+final-line annotation. Applying, verifying and reapplying the exact locked input
+preserves identical bytes (`pty-helper-patch-idempotence-02.log`); the patched
+script Git blob is `6d96cb0d2c5d04407a7665a0161c22a91f20018a`.
+Both failed bootstrap attempts and the original archive remain preserved.
+
+The third `npm run bootstrap:ci` exits zero with no warning/error lines
+(`bootstrap-ci-helper-repair-03.log`). Fresh verify-only setup also exits zero
+without warnings/errors (`reporting-helper-native-verify.log`), verifying 37
+required packages and activating 33 language routes on Node 26.10.0, ABI 147,
+Windows x64. The refreshed readiness receipt SHA-256 is
+`06ad4ad4d0b499f02784d3a53caed4e0c847c803adaf34eb67f82c3be550b39a`.
+Thirteen focused cases pass, including the real benchmark/API positives, new
+guards, VM lifecycle, all three ConPTY lifetimes, discovery and coverage contracts
+(`.testLogs/run-1792376043964-fwwg5m`). Five separate declared-exclusion controls
+return exactly 77; they are not counted as required-case passes. The two cheap
+guard regressions belong to regular cross-platform `ci-lite` (959 cases), with
+the real benchmark retaining its medium-lane ownership. Generated inventories
+are refreshed. The final front gate passes every required command and all 39
+cases (`.testLogs/run-1792376369863-vwc3jc`). No host security policy,
+dependency version or public configuration surface changed. The resulting
+committed source still needs its complete Windows cohorts and hosted macOS probe.
+
+### Candidate 07 and the following repair batch
+
+Candidate 07 froze commit `6ccc3034fc264c891ee14b1df61d43b18a523234`,
+5796 non-document paths at SHA-256
+`d05f02285257f98016fe59b7864aa078b0a813fc066b491cc751c88ec077ecb9`.
+Its 44 ordinary-token cohorts completed: 2920 required passes, eight failure
+receipts, three skips, no native crashes, and 44 capable-token cases pending.
+One skip was unexpected: the optional Tantivy script-coverage wrapper was
+missing from the 16-case exclusion inventory. Its exact smoke action is now
+mapped alongside the direct fixture, increasing the next inventory to 17.
+The original inventory and failure receipts remain unchanged. All 101
+ordinary-token performance fixtures passed serially; three file-link-dependent
+performance fixtures remain in the capable-token cohort.
+
+Three TUI failures were missing Cargo from the task's inherited PATH. Cargo and
+rustc 1.93.1 were installed; selecting their existing directory made the exact
+build, frame-capture and headless fixtures pass at their original deadlines
+(`tui-cargo-corrected-07.json`). The task PATH now also selects installed Graphviz
+for its real SVG checks. This changes no machine configuration. The completed
+script-coverage cohort passed 215 cases and reported its three explicit optional
+or helper skips. All six hosted jobs pass at `6ccc3034f`, including macOS.
+
+The next source batch repairs three demonstrated correctness defects:
+
+- Managed-tool digests could reuse stale bytes after same-size timestamp
+  collisions. Of 64 real Windows controls, 51 collided and returned the stale
+  digest. Hashing now always reads current bytes with the existing bounded
+  buffer, file-size and opened-file identity checks. A deterministic regression
+  fixes metadata while changing the actual file contents.
+- Generic offset validation also admitted timestamp-only cache hits. It now
+  checks current boundaries with the original fixed 64 KiB scratch and sparse
+  reads. Its old zero-read warm-cache assertion is retired because it required
+  unsafe admission; the existing bounded-read assertions remain. Semantic
+  readers freshly hash data and offsets before reusing bounded boundary-check
+  metadata. Same-size, fixed-stat tampering and forged offset checksums fail.
+- Either JSONL peer open could fail while leaking the other successful handle.
+  Rejection now awaits both opens and closes every successful peer; four actual
+  file-handle controls cover both APIs and both failing paths.
+
+The API allowlist fixture now derives the real consolidated implicit-cache root,
+tests a positive inside it, and chooses its rejected path outside every admitted
+root. Production admission and its invalid-ID/cache/workspace negatives remain.
+Six shipped runtime targets and the current changelog now match the existing
+Node 26.10 floor. LSP initialization negotiates standard position encodings by
+default and sends the deprecated extension only for an explicit caller; wire
+tests retain both routes. Sublime uses timezone-aware UTC and its Python
+scenarios reject deprecation warnings. Cache-corruption and lock-hook warnings
+are asserted; the lock's missing-parent race is injected deterministically and
+must increment recovery counters. Suppressing that injection fails the control.
+
+The language registry now loads the 38 vendor entries used by its routing policy
+instead of all 801. Every ordered extension route (195) and filename route (106)
+matches the original catalog, and the regular CI fixture compares against that
+complete catalog. Vue, Svelte and Astro parsers load on actual use; four original
+fixture outputs match exactly and load failures still propagate. A diagnostic
+fresh import fell from 3658 modules / 3861 ms to 2308 / 2692 ms; these are local
+observations, not a new latency threshold. No vendor entries or language routes
+were removed, and semantic output meaning did not change.
+
+Ten actual-source correctness fixtures pass in
+`.testLogs/run-1792385339043-1rvqdh`; tamper recovery and trace parity also pass
+after content-keyed boundary reuse in `.testLogs/run-1792386814861-cgr614`.
+The retained SSR graph still exactly matches 115 records / 136 edges and digest
+`f58f587a9ad0d9b0c24e64062b540f396b70629ceab805f68d0b6c83da96fb31`.
+Both full SSR witnesses still exceed 30 seconds. Isolated phase diagnostics
+show repeated build and graph-reader I/O, with immediate exit after cleanup;
+they do not attribute these timeouts to leaked teardown. Their original inputs,
+two builds, content comparisons and deadlines remain. No final-tree suite pass
+is claimed from the exploratory or focused observations.
+
+Remaining warning owners include docx's bundled browser deprecation helper
+touching Node's experimental localStorage getter, expected unavailable/untrusted
+provider diagnostics, and actual Graphviz execution after correcting PATH. Both
+official docx Node entry formats reproduce the warning; changing import syntax
+does not fix it. Those qualifications and the full final-candidate campaign
+remain open.
+
+The actual Sublime harness and three language-routing/segmentation fixtures
+pass (`.testLogs/run-1792387088894-n9iv7k`); Python scenarios emit no deprecated
+UTC warnings. Five cheap regression owners now have explicit regular CI
+membership, bringing `ci-lite` to 964. Generated lane evidence and the release
+guide are refreshed through their owners. The checkpoint front gate passes
+formatting, config budget, environment usage, generated freshness, command and
+workflow contracts, all 39 gate cases, and whitespace checks
+(`.testLogs/run-1792387219213-ur264f`). This is checkpoint validation; both SSR
+timeouts remain open.
+
+### Scoped reads, DOCX compatibility and default provider controls
+
+The checkpoint was committed as `b5f674fad`, `6a96beb19` and `3469c6228`,
+pushed through `3469c6228cdd5583251e99e7da1758d4dba46380`, and PR #572 read
+back at that head with updated scope and remaining failures. All six hosted
+jobs subsequently passed at that exact head.
+
+Graph queries now share at most four JSONL handle pairs within one related-page
+request. Overflow pieces use the existing bounded reader. Both concurrent bound
+searches settle before cleanup, including on rejection; no handle or row cache
+survives the request. Content hashes and physical path authority are checked
+again for the next request. Concurrent positioned reads retain byte limits,
+ordering and duplicate ordinals. The strengthened fixtures assert disposal on
+success, invalid cursors, cancellation, tampering, failed reads and either peer
+open failure; related-page peak handles remain bounded. Parallel semantic hashes
+also settle both owned operations before propagating a failure.
+
+On the retained published fixture, the complete forward/reverse artifact/SQLite
+graph remains exactly equal at the preceding 115-record / 136-edge digest.
+Serial diagnostic time changed from 2888 ms to 2549 ms
+(`retained-ssr-before-scoped-readers-02.json`,
+`retained-ssr-after-scoped-readers-01.json`). The unchanged original SSR cases
+then pass in 29.9 and 29.1 seconds, zero retries, no native redo
+(`.testLogs/run-1792387517463-khf74c`). This small margin is recorded explicitly;
+it is a focused observation, not whole-suite or representative-load acceptance.
+
+The actual warning stack in docx 9.5.3 reaches bundled browser `util-deprecate`
+through Node's unconfigured experimental localStorage getter. ESM and CommonJS
+both reproduce it. Original bundles and SHA-256/Git-blob identities are retained
+in `docx-patch-source-proof-01.json`; the reviewed 1482-byte patch changes only
+their Node flag lookup. Browser distributions remain intact. Disposable locked
+copies pass apply, verify-only and repeat application
+(`docx-patch-idempotence-01.log`). Both strict regressions fail before the repair
+in `.testLogs/run-1792387671259-f7rlua`. Afterward, fresh processes using both
+official exports generate real DOCX files with no warnings or browser-storage
+access. The existing real Mammoth extraction/conversion/image/argument suite
+passes with parent warnings asserted, retaining all original comparisons.
+
+The new locked bootstrap completes (`bootstrap-ci-docx-compat-01.log`). Its
+launch used obsolete `npm_config_devdir`, producing npm configuration warnings;
+that attempt is preserved and is not a warning-free setup receipt. Subsequent
+verification uses the supported `npm_package_config_node_gyp_devdir`, exits zero
+and contains no warning/error lines (`native-verify-docx-compat-01.log`). It
+verifies 37 required packages and activates 33 language routes on Node 26.10.0,
+Windows x64, ABI 147. The readiness receipt SHA-256 is
+`b7b0a009b09504e1cbd76035d3d7f772bcc96d96973a32acd1d4e741d8ed99d5`.
+This is activation and bounded-operation evidence, separate from full lifecycle
+and platform qualification. No dependency version or lock resolution changed.
+
+Fresh API/provider diagnostics now reject unrecognized warnings, missing routes,
+old snapshots, crashes, protocol failures and request timeouts. Six task-local
+fault controls reject their initiating defects. The real API, observability and
+build-script routes retain default worker/provider selection and expect only
+the documented optional-command or Rust trust diagnostics. Pyright must report
+healthy real requests, with zero failed or timed-out methods; unavailable
+providers cannot claim live execution. Installed Graphviz executes the actual
+SVG assertions in both direct and script-coverage smoke fixtures.
+
+These assertions expose a previously tolerated fresh Pyright documentSymbol
+timeout (`.testLogs/run-1792388257993-hie47v`: 12 passes, one failure). The
+cross-file pipeline coerced its config owner's internal null sentinels to zero,
+then clamped them to a 1000 ms deadline, zero retries and a one-failure breaker.
+The declared omitted defaults are 60000 ms, two retries and a three-failure
+breaker. Two regressions fail before repair
+(`.testLogs/run-1792388514831-ysglbt`). Null lifecycle options also incorrectly
+selected minimum values instead of 60000 ms / six restarts / 1500 ms backoff.
+Both owners now preserve their existing defaults; explicit controls remain
+exact and invalid public null configuration remains rejected. No fixture
+deadline was increased. LSP producer version 10 and its cross-file fingerprint
+invalidate derived results from the old behavior while preserving syntax reuse.
+The fresh real API and observability cases then pass without request failures.
+The initial added propagation case used a flat provider result; it now uses the
+authoritative payload envelope and retains its positive contribution assertion.
+Its invalid-public-null control remains part of the regression.
+All five final focused provider/default cases pass in
+`.testLogs/run-1792388743260-8g8rx0`, including both real API wrappers and the
+build-code script action. The separate producer/cache/lifecycle/metrics checks
+pass in `.testLogs/run-1792388648420-pr82hd`; that run's initially invalid public
+null fixture remains a recorded failure, corrected to an asserted rejection.
+After formatting and the producer update, both original SSR cases pass in
+26.1 seconds in fresh processes, with unchanged inputs and zero retries
+(`.testLogs/run-1792388974518-vn4m30`). The latest ordered `ci-lite` inventory
+contains 966 cases, adding the DOCX compatibility and null-lifecycle guards.
+The complete batch front gate passes formatting, config budget, environment
+usage, generated freshness, command/workflow contracts, all 39 gate fixtures
+and whitespace checks (`.testLogs/run-1792389070227-cakuue`). Full frozen-source
+Windows cohorts and capable-token authority qualification remain outstanding.
+
+### Candidate 08 and bounded semantic format coverage
+
+Frozen head `354c58e8eb1cfa6f2576661f7071e7d8a44a63c9` has source SHA-256
+`9084276241edfdab74f1e9505a606aa433649442012491dc86fa07e3224adfbb` across
+5802 non-document paths; documentation was separately frozen at
+`36b8effb6d537114dac0c17337dc58d8f5b33eeeee67f9caee6d7fd8fb994d72`.
+All six hosted jobs passed at this exact head. The explicit discovery maps
+2991 cases: 2974 required and 17 declared exclusions, across 47 cohorts.
+The campaign stopped after the services cohort: 539 required passes, one
+30-second semantic-detail timeout, 2434 unexecuted required cases, zero native
+crashes and zero unexpected skips. Source identity was verified unchanged after
+the stop. These partial results do not qualify a later repair tree.
+
+All 44 real file-symlink fixtures pass on candidate 08 under the task-local
+administrator launch, including all three link-dependent resource fixtures.
+The launch first creates and reads an actual file symlink; it does not substitute
+a junction or change security settings. All 101 ordinary-token performance cases
+also pass serially, and the full original SSR witnesses pass in 26.0 / 25.5
+seconds. For SQLite search, both `greet` and `answer` retrieve `index.js` before
+and during every warm sample. Its 20 raw warm search-path times in milliseconds
+are:
+
+```json
+[234.3272,225.4949,234.9633,243.065,226.1739,235.1671,225.9879,247.6965,232.519,226.5571,222.712,236.1106,226.6837,213.6665,216.5498,225.9823,236.3114,235.5209,216.6796,222.0153]
+```
+
+The observed p95 is 243.065 ms against the unchanged 7500 ms Windows threshold.
+This measures a tiny-fixture warm search path using SQLite, not an isolated SQL
+statement or representative repository load. The raw owner log is historical
+`.testLogs/run-1792390183352-phzhva/perf_sqlite-p95-latency.attempt-1.log`.
+
+The original semantic-detail aggregate completed at 31.1 seconds with exit zero;
+it remains a timeout (`.testLogs/run-1792390620153-mi6k9y`). A bounded diagnostic
+reproduces the deadline while doing work: imports complete at 6.30 s, builds
+take 8.05 / 5.85 s, the first three CLI calls take 2.37 / 2.07 / 1.93 s, and the
+fourth starts at 29.21 s (`.testLogs/run-1792391442078-az4vgn`). Build teardown
+has completed; this does not attribute the failure to a leaked shutdown handle.
+
+The positive test retains its original ID, HTTP/MCP pagination and invalid
+generation/include/cursor checks, real CLI all-pages comparison and retained
+generation after a second real build. Three independently discovered
+`services/api/semantic-detail-format-compatibility/{missing,legacy,future}`
+cases retain the original version inputs and every HTTP/MCP/CLI diagnostic
+field comparison, plus semantic-manifest rejection. Every case still performs
+two real builds and corrupts the retained requested generation after the
+current pointer has moved. Shared fixture setup asserts that retained generation
+is readable before corruption and closes the real server/router and scratch
+root. Each process keeps the original 30-second limit and zero retries. The
+original fixture had no ordered-lane or script action membership; its ID and
+both API/services rule memberships remain, and the new cases inherit both.
+No production contract or format admission changes.
+
+Two warning-owner controls also expose false positive tests. The old download
+fixture passes when valid ZIP/TAR downloads succeed but both malicious archive
+requests return unrelated HTTP 404 errors (two verified injections,
+`.testLogs/run-1792391494681-6syl33`). The old SQLite fixture passes after its
+real missing-pieces rejection is replaced by an unrelated error while preserving
+the failed state (one verified injection,
+`.testLogs/run-1792391611424-8ppo78`). An earlier SQLite injection targeted an
+unused error route and recorded zero substitutions; it is retained as an
+ineffective control, not proof. The repaired fixtures reject these same faults
+in `.testLogs/run-1792391661478-22imzt` and
+`.testLogs/run-1792391667119-q46nnm`. Download rejection now requires status 1,
+no signal and the specific unsafe-entry/missing-binary cause through the existing
+bounded subprocess owner. SQLite requires its authoritative
+`ERR_SQLITE_INPUT_PIECES_LOAD_FAILED` classification and missing-chunk message.
+Binary bytes, archive hashes, manifests, outside-root absence, failed-state
+recording, real rebuild and ready-state assertions remain intact.
+
+All seven affected normal cases pass in
+`.testLogs/run-1792391700099-qw8cou`: original semantic-detail 23.5 s, format
+future / legacy / missing 22.1 / 22.8 / 23.0 s, SQLite recovery 17.9 s, direct
+download 4.49 s and its exact script action 4.61 s. There are zero failures,
+timeouts or skips. These are focused results; the next complete candidate must
+repeat them. The generated governance audit reports zero missing IDs,
+duplicates, manifest mismatches or timing overruns; ordered `ci-lite` remains
+966 cases.
+
+The repair batch's full front gate passes formatting, configuration budget,
+environment usage, generated freshness, command/workflow contracts, all 39 gate
+cases and whitespace checks (`.testLogs/run-1792391918975-dn2yfy`). This gate
+does not stand in for the complete Windows campaign.
+
+### Candidate 09 and format-fidelity build scope
+
+Two granular commits, `94b6c578c` and `cb1ecbc0c`, were pushed and the remote
+head verified as `cb1ecbc0ced2091c24d48a26501bd43b03d8efe9`. PR #572 was updated
+and read back at that head; all six hosted jobs passed. Candidate 09 freezes
+5805 non-document paths at source SHA-256
+`fdad840e66e2bd99c66c980a612e26695fdef0941bdb18e8b646776129b2e410`, and verifies
+documentation SHA-256
+`1240b67462fb614b1f0baa1df63d50cea054e56845e3bac0f069f44aa0159ca1` too, including
+runtime schemas. Discovery maps 2994 cases: 2977 required, 17 exclusions and 47
+cohorts. Both service cohorts pass all 120 cases. The original semantic-detail
+case passes in 23.1 s, its future / legacy / missing versions in 21.6 / 21.8 /
+22.1 s, and semantic trace in 27.2 s. These are candidate observations, not
+earlier focused results combined into a whole-tree pass.
+
+After two script cohorts the campaign stops with 277 required passes, one
+format-fidelity timeout, two declared optional skips, zero unexpected skips or
+native crashes, and 2699 unexecuted required cases. Both frozen hashes were
+verified unchanged after stopping. The original receipt is
+`.testLogs/run-1792393567952-fla3m8/tooling_script-coverage_language_format-fidelity-test.attempt-1.failure.json`.
+The exact wrapper reproduces the 30.4 s timeout in a bounded phase diagnostic
+(`.testLogs/run-1792394158675-s6b74s`); it is still doing downstream build work.
+The first failure's 303 cache files (10.6 MB) and their SHA-256 inventory are
+preserved before its fixture clears that cache.
+
+The fixture's 16 positive content assertions read only code/prose `chunk_meta`
+and `file_meta` artifacts. A task-only control stops the same real CLI build at
+stage2, keeping every assertion and fixture input. It passes in 16.1 s. Every
+decoded field and row order exactly matches the original completed build: 56
+code rows, nine prose rows and both complete file maps. Nothing is suppressed
+as provenance. Stable-object-key hashes of the complete row arrays are
+`c46df4a906a1c3c10cbbb8e4f490b8577fe74257a33ba7e60295ee2a9a953fab` (code) and
+`eda2c14bdc7e598226dde4efec1f8d566c52193028cac414866c8a9d4e8fd88e` (prose).
+The control reports metadata loaded at 15.700 s, assertions done at 15.702 s and
+natural process exit immediately afterward, with only output pipes remaining.
+This demonstrates an oversized build scope rather than a shutdown deadlock.
+
+The actual fixture now requests stage2 with no SQLite build and retains its
+original ID, ordered CI assignment, exact package-script coverage action and
+all 16 assertions. Full embedding/SQLite behavior retains its original owners;
+candidate 09's real full-build wrapper passes in 22.4 s, with SQLite build,
+incremental, maintenance and search contract cases also passing. No production
+backend, public contract or timeout threshold changes.
+
+Thread tracing also confirms the existing documented precedence: configuration
+and auto-policy outrank `PAIROFCLEATS_THREADS`. The runner's `--pairofcleats-threads
+1` sets that environment hint; it does not prove that every nested runtime uses
+one CPU slot. The focused format fixture therefore uses the existing build CLI
+`--threads 1`, observes `cpu=1` and retains the normal auto native pool capacity
+of 16. Both final direct and exact script fixtures pass in 18.3 / 19.5 s
+(`.testLogs/run-1792394362653-xtlgzq`). The complete 65-row/file-map comparison
+still matches exactly after that explicit cap. The earlier 14.6 / 15.3 s
+metadata-only runs without the CLI cap remain separate diagnostic history.
+
+Formatting and the generated governance audit pass with unchanged lane counts
+and no missing IDs, duplicates, manifest mismatches or timing overruns. The full
+repair-batch front gate passes configuration/environment checks, generated
+freshness, command/workflow contracts, all 39 gate cases and whitespace checks
+(`.testLogs/run-1792394584520-e89o4b`). Fresh native/patch verification also exits
+zero without warning/error lines (`format-fidelity-native-verify-01.log`).
+
+The current ordinary token again fails an actual file-symlink probe with EPERM
+and lacks `SeCreateSymbolicLinkPrivilege`. Candidate 09's task-local elevated
+launch remains pending; it has produced no child PID, token receipt or test
+result. Candidate 08's 44 capable-token passes remain valid historical evidence,
+not candidate 09 acceptance. No policy or security-setting change is attempted.
+
+### Candidate 10, hosted authority and summary ownership
+
+The format repair was committed and pushed as
+`cad3825c4865104a2a8754d8def18dfd50ee1562`; the remote SHA and PR #572 description
+were read back. Candidate 10 freezes source SHA-256
+`53ce6ba8354479078c48b21614d99cf4929aaa14a45a5e09189fe6d0d835306a` across 5805
+non-document paths and documentation SHA-256
+`da73aeaba0e729d82cab1eaed4d8e6e3061ef416b1c7b25218076bf8abb7f4b9`. Discovery
+remains 2994 cases / 2977 required / 17 exclusions / 47 cohorts. The campaign
+stops between completed cohorts to close the hosted authority gap, with 236
+required passes, zero failures/timeouts/crashes, one declared Bash/jq helper
+skip, zero unexpected skips and 2741 unexecuted required cases. Both frozen
+hashes remain unchanged after the stop. All 51 serial native/TUI cases pass,
+including real quit, supervisor-error and terminal-error lifetimes at
+4.43 / 4.13 / 4.39 s. Both serial tooling cohorts pass all 128 cases, including
+all seven preserved provider/session routes, normal coupling thresholds,
+Sublime behavior/package checks and report partitions.
+
+The delayed candidate-09 local elevated launch eventually returns PID 25540.
+Its source guard rejects the changed Git head before any fixture executes
+(`windows-file-links-candidate-09.log`, exit 1). This is a stale launch, not a
+native crash or current-candidate test observation. No additional local
+elevation request or security-setting change is needed for the hosted route.
+
+Hosted Windows already provides the required capability: run
+`39211200961` at `cb1ecbc0c` has 22 of the 44 link-dependent cases passing, zero
+skips, including the strict file-symlink security fixtures. The downloaded raw
+quality artifact is preserved; its slowest linked case is 11.239 s. Those
+ordinary CI observations use the existing 600-second lane and are capability
+evidence, not strict audit acceptance. The complete cohort now has a dedicated
+`windows-authority` job. It checks out and verifies the exact PR head, uses the
+exact Node pin and canonical bootstrap/native verification, proves an actual
+file symlink, and invokes the canonical runner for 44 explicit IDs at one job,
+30-second deadlines, zero retries and native-status redo disabled. It rejects
+incomplete/duplicate/mismatched results, skips, late success, nonzero exits,
+signals and extra attempts. Source head/cleanliness and dependency receipt
+identity are checked after execution. Source/tree, OS, Node/ABI/executable hash,
+native readiness, capability, full results and logs are always uploaded.
+
+`tests/ci/windows-authority-fixtures.json` owns the cohort. The new regular-CI
+guard checks it against direct link-fixture discovery, preserves the declared
+POSIX/helper/Linux-ELF boundaries, and tests fail-closed result/capability
+handling. Its focused fixture passes in 1.32 s. Adding this real bootstrap job
+correctly breaks the old ONNX job-count assertion, 17 versus 16
+(`.testLogs/run-1792396687892-gn72zr`). The updated exact count retains every
+per-job CPU/no-GPU assertion, the network-forbidden real vendor installer and
+real native CPU inference/release checks; it passes in 369 ms
+(`.testLogs/run-1792396736739-3x6bov`). No product CLI/configuration surface or
+backend contract changes. The actual new hosted cohort remains unexecuted at
+this checkpoint; the guard test does not claim a Windows authority pass.
+
+Separately, hosted Windows fails at `cad3825c4` in
+[run 39215761784](https://github.com/doublemover/PairOfCleats/actions/runs/39215761784),
+while the other five jobs pass. Both `summary/report` attempts hit the existing
+20-second child deadline; the CI lane itself runs two jobs with coverage.
+The scan completes in 13 ms, and later indexing work is interrupted. Raw
+failure and quality artifacts are preserved under the historical task root.
+The local covered original fixture passes in 16.5 s, so that serial run is
+explicitly not a local reproduction of the hosted timeout. No retry is closure.
+
+A real negative control also proves a cleanup defect: forcing the original
+CLI child to fail once bypasses the helper's `finally` through `process.exit`,
+leaving its scratch root present (`summary-cleanup-control-before.json`,
+`.testLogs/run-1792397578194-fj3ef5`). CLI failures now return to the caller and
+throw with the full bounded child output; the same single injected failure
+reaches cleanup and removes the root (`summary-cleanup-control-after.json`).
+No failure is converted to success. An added lifecycle regression checks
+rejection, cancellation settlement before disposal, environment restoration
+and scratch cleanup. Private diagnostic budgets can only tighten the original
+20-second limit, never raise it.
+
+The one regular-CI repo/code summary fixture now reuses the existing core
+index owner for its asserted code/prose inputs, under an explicit CPU limit and
+the same 20-second abort budget. It avoids a duplicate CLI startup and two
+unconsumed mode builds. All original artifact-presence and SQLite-count
+assertions remain. Seven other sample/model CLI boundaries and the dedicated
+all-mode CLI integration remain unchanged. A covered cold-cache comparison
+uses the same physical input files and timestamps and clears the cache between
+drivers: every input, all 26 code rows, three prose rows, complete file metadata
+and all 26 SQLite rows/columns match exactly, with no provenance suppression.
+The complete-code/prose/SQLite SHA-256 values are respectively
+`45f1d6ffecc70bac66abf7bc9ffbf16b8eb87b32e6a8e58307656ccf8d95a546`,
+`28275bd34849c13cd2c9aa22ba5b3392b361f3f2a8231a3238aeb8688229ba55` and
+`b6ecf799580a332202250516c9b94ce31eefbd9fcd21bf05878cdee5f89e8119`.
+The diagnostic index operation falls from 14.545 to 6.819 s; whole fixture
+observations including proof capture are 19.4 / 10.9 s. These small local
+observations establish equivalent consumer content and removed fixture work,
+not representative production throughput or a precise hosted scheduling cause.
+
+All 18 normal summary/report and exact script cases pass in
+`.testLogs/run-1792398241020-oxga0g`, zero failures/timeouts/skips. The main case
+is 9.04 s, its wrapper 9.62 s, seven original CLI cases 14.4–17.3 s, and the
+new lifecycle guard 2.63 s. Hosted Windows must validate the repair on the next
+published source. These focused results do not close the full deep campaign.
+
+The complete publication front gate passes for this repair batch: formatting,
+configuration budget, environment usage, generated freshness, command and
+workflow contracts, all 39 gate cases and whitespace checks. The post-format
+authority, ONNX policy and summary lifecycle cases pass in
+`.testLogs/run-1792399240529-q0dp0v`. Fresh native/patch verification exits zero
+with no warning/error lines and retains 37 required packages / 33 language
+routes. Generated CI-lite membership is 968; the two new fixtures increase
+physical discovery to an expected 2996 before the next candidate freeze.
+
+### Hosted canonical-path fixture repair
+
+The summary/authority batch is committed and pushed as
+`f07fae95f6e723667bc72948fd4def6b4f07ea89`; PR #572's description and remote
+head are read back. Candidate 11 freezes source SHA-256
+`1badcfddfce57a58cbad91d6c27a4538afad4114742ba57968921c4a1745d55c`
+over 5809 non-document paths and documentation SHA-256
+`e18ac847df8df0f14f6f32103fffed2813359aca85d1a6e1a4196d5df46dc65e`.
+Discovery maps 2996 fixtures / 2979 required / 17 exclusions / 47 cohorts.
+The first 80 storage cases pass in 231.2 s, including the fresh-byte and native
+storage checks. The campaign stops cleanly between cohorts, with both frozen
+identities verified and 2899 required fixtures still pending.
+
+Hosted strict authority run `39224703113`, job `117968572369`, proves real file
+symlink creation on Windows Server 2025 / x64 / Node 26.10.0 / ABI 147. Exact
+head/tree identity and official Node executable hash match; fresh verification
+records 37 required packages and 33 parser routes without warning/error lines.
+Two fixtures pass, then `indexing/build-state/runtime-receipt` fails in 525 ms.
+Fail-fast leaves 41 cases unexecuted; those skips are not accepted coverage.
+The raw job log and complete `windows-authority-qualification` artifact remain
+in the historical author task receipts.
+
+The filesystem observation correctly expands the existing ancestor from
+`C:\Users\RUNNER~1\...` to `C:\Users\runneradmin\...`; the fixture incorrectly
+expects its lexical temp root to be canonical. The owner explicitly preserves
+selected/absolute paths separately from realpath observations. The fixture now
+derives the expected canonical ancestor with real `fs.realpath`, and additionally
+asserts selected spelling, absolute spelling, missing state and the
+`existing-ancestor` observation method. No producer or authority contract changes.
+
+A task-owned real directory-link alias reproduces the same assertion mismatch
+before the repair (`.testLogs/run-1792399720595-wguvdg`, 488 ms), then passes
+afterward (`run-1792399760028-lrhm83`, 590 ms), with normal execution also passing
+(`run-1792399762812-eehou5`, 486 ms). Both controls confirm the actual alias and
+empty fixture root after cleanup. This directory-alias control tests canonical
+observation; it is not substituted for any file-symlink authority qualification.
+An initial malformed preload URL fails before executing the fixture and is
+retained separately as an ineffective control, not before-fix evidence.
+The real disk-full publication negative now counts injected rename attempts
+and asserts its one exact warning through the existing progress logger;
+missing or additional diagnostics fail. Degraded persistence, running lifecycle,
+durability, redaction, bounded history and legacy/corrupt receipt assertions remain.
+The repair's complete front gate passes, including formatting, all preceding
+governance checks and 39 gate cases (`receipt-alias-*-01` historical receipts).
+The 80 completed candidate 11 storage logs contain zero warning/error matches;
+they remain earlier-candidate evidence and must be rerun after this change.
+
+### Semantic cache admission through an aliased ancestor
+
+The canonical receipt expectation repair is pushed as
+`46aab0dc8c816f6434c653e944f4c7ac47928ed1`, with remote and PR description
+readback. Candidate 12 freezes source SHA-256
+`b626060df31ef78ffd3f6a82d928a7db1aab4e53677084748413447676123f3e`
+over 5809 non-document paths and documentation SHA-256
+`6a6bf9504fd4fca9b075fc1efc5035ff58b5f6f791f0549059557af17bf4bb72`.
+Its 51-case second storage cohort passes in 330.7 s, slowest 20.3 s, zero
+failures/timeouts/skips. The campaign stops between cohorts and verifies both
+frozen identities before edits; 2928 required cases remain unexecuted locally.
+
+Strict hosted run `39225817534`, job `117972458709`, passes 34 authority cases,
+including the repaired receipt case, then fails
+`storage/semantic/retained-cache-cleanup` in 1.690 s. Its nine fail-fast omissions
+are unqualified. Capability, exact head/tree, official runtime and 37-package /
+33-route native verification receipts remain in the complete downloaded artifact
+and raw job log. No native crash, retry or raised fixture deadline is involved.
+
+This time the producer-side cache opener is responsible. The semantic resolver
+returns a physical descriptor path with Windows short-name ancestors expanded,
+but `openSemanticCacheEntry` supplies that target to the strict verified reader
+with its original lexical bundle root. The reader correctly rejects inconsistent
+lexical containment, and completion admission becomes a cache miss. Cleanup did
+not prove the retained data obsolete. The repair passes a target constructed
+within the original root's lexical frame to the existing reader. Its physical
+resolution, per-component no-link checks, opened-handle identity, bounded byte
+read and expected checksum remain unchanged. The strict shared containment owner
+is not relaxed. This changes path admission, not semantic facts or identities;
+no semantic producer version changes.
+
+The retained-cache fixture now creates a real ancestor alias. Before the owner
+repair its new positive assertion fails in 1.30 s
+(`.testLogs/run-1792400404459-gg2sn3`). Afterward the entire completion result
+deep-equals the original, and an additional negative rejects a bundle root that
+is itself a link. Normal first-stage completion and the strengthened retained
+case pass in `run-1792400430465-y8uxrq` (1.91 / 1.31 s). Existing Stage1/Stage2
+pins, exact descriptor bytes, deferred garbage collection, linked-garbage
+rejection, reclaimed disk credits and repeat-sweep zero-work checks remain.
+The directory alias models canonical ancestor expansion; actual file-symlink
+authority stays with the strict hosted cohort.
+
+All 29 locally applicable semantic-cache regressions pass in
+`.testLogs/run-1792400541803-qfswz7`, zero failures/timeouts/skips; the slowest
+retained-generation reference check is 26.0 s. The real-file-link runtime-byte
+integrity case remains required in the capable hosted cohort. An intermediate
+30-case local launch incorrectly retains a stale trusted-config override:
+four cases correctly reject it, and that file-link case reports EPERM. Its
+25 passes / five failures are preserved separately; no product or test contracts
+are changed to accept that bad environment. The corrected launch removes only
+the inherited override, as the documented campaign already does.
+An additional actual-reader probe records `ERR_UNSAFE_FILE_PATH` for the original
+mixed-frame arguments, then verifies all 3244 pinned descriptor bytes with the
+consistent lexical pair (`semantic-cache-path-frame-proof.json`). Their SHA-256
+is `2bd52b607376dc0a115239d7eed76d6f4869aba88c9d3e8dc7a74244673c02e2`.
+The preserved original owner file hashes to Git blob
+`a1bfc06ff1c2d48da70dcb213e75ab04847e0dd6`.
+The complete front gate passes after this owner repair: formatting, configuration
+budget, environment usage, generated freshness, command/workflow contracts,
+39 gate cases and whitespace checks (`semantic-cache-alias-*-01` receipts).
+All 29 corrected-launch semantic logs contain zero warning/error matches.
+
+### Candidate 13, real integrity hooks and single-CPU admission
+
+The cache admission repair is committed and pushed as
+`5c9b1fddcefa4621beade2b86f7f18009cfcbf57`, with PR/remote readback.
+Candidate 13 freezes source SHA-256
+`165634f93d467c1ca9ed56fe003e2220d81ab4e78040ff3f8f727f67ed983375`
+over 5809 non-document paths and documentation SHA-256
+`200f6dedcb846cc7baa8dcf8da3498f66845ee5fa886b76476e56979eff9ad74`.
+The 69-case semantic cohort stops with 67 passes and two 30.4-second watchdog
+timeouts, zero native crashes/skips. Compiler bindings (27.1 s), embedded cache
+(2.19 s), embedded source (19.9 s), ordered aggregate/snapshot flow, production
+slice and the cold SSR witness pass. Both incremental SSR cases time out;
+their original logs remain in `.testLogs/run-1792400917882-6mgfu7`. Frozen
+source/document identities are verified before edits. These 67 passes do not
+qualify the next source.
+
+Strict hosted run `39227678499`, job `117978349898`, passes 35 cases, including
+retained-cache cleanup. Runtime opened-byte integrity fails in 1.999 s; eight
+fail-fast omissions remain unqualified. Its fault hook compares a lexical DOS
+temp path with the canonical path used by query-family admission, so the expected
+mutation never happens. The fixture now derives its target from realpath and
+asserts injection for replacement/growth/cancellation and Unix live-link swaps;
+the Windows pre-open file-link negative must reject before its read. All actual
+file-link, paging, checksum, native-close-failure and FD-cleanup assertions stay.
+An independent actual-query alias probe records zero injections and an unchanged
+healthy result with the original spelling, then one injection and the expected
+integrity/abort error for all three canonical-target controls. All opened handles
+close. The full fixture still requires capable hosted execution.
+
+SSR profiling under the unchanged 30-second bound shows active work: startup
+2.730 s, cold build 12.285 s, incremental build 8.972 s, forward traces
+1.424 / 1.371 s, cleanup 68 ms, and only two standard pipe resources at exit.
+There are 12,394 opens, 7,970 realpath and 8,671 stat calls. The instrumented run
+passes at 27.1 s; this variable diagnostic pass does not close the original two
+timeouts. Their fixture scope/performance remains under repair.
+
+An explicit one-thread diagnostic reveals a separate real ownership bug:
+the orchestrator reserves one CPU for the whole relations step while that step
+awaits a compiler task requiring its own CPU reservation. At capacity one the
+parent waits for its blocked child. Node exits 13 with unsettled top-level await
+in 8.43 s (`run-1792401570566-81ya4r`); this is not an access violation.
+The durable regression uses a fresh real TypeScript publication, one CPU and a
+20-second cancellation guard within the runner deadline. It fails before the
+repair in 22.6 s including imports (`run-1792401936393-ir3rvy`).
+
+The relations step now budgets preparation and legacy work separately through
+the existing scheduler queue, releasing those reservations before the compiler
+or native task acquires its own existing admission. Legacy work, queue byte
+caps, cancellation and compiler authority remain enforced. No token increase,
+backend switch, public knob or semantic producer meaning changes. The corrected
+regression passes in 14.2 s, requiring real contexts, durable task receipts,
+binding records and completed binding work for both TypeScript sources under
+their authoritative complete/partial coverage contract. The package JSON source
+is not falsely required to have compiler bindings. Scheduler-cap negatives,
+legacy symbolic types and real stage-queue wiring also pass in
+`run-1792402123872-1h0s4s`. The first after-fix attempt reaches publication but
+exposes an overly strict new-test postcondition; that receipt is retained too.
+The new case joins regular CI-lite; original assertions are retained.
+
+An additional same-physical-input proof runs the original Git owner at 16 CPU
+tokens and the repaired owner at one, each through the existing bounded subprocess
+owner with a 30-second limit. Every source/config byte and every full record
+field and edge match: 115 records / 136 edges, SHA-256
+`1211c0438c4f53911fdde04e63834c2c020fdc5b1a91c0ebc3266fc8d742b6bc`.
+No fields or provenance are suppressed. The two proof processes take 16.55 /
+16.79 s; these are equivalence observations, not production performance claims.
+The fresh dedicated root and both raw graph snapshots remain in historical task
+receipts (`relations-owner-full-graph-comparison.json`); the earlier retained
+witness is preserved. The complete front gate passes after this repair,
+including formatting, generated refresh/freshness, every preceding governance
+check, two CI policy guards and all 39 gate cases. Generated CI-lite membership
+is 969. The two SSR deadline failures still require repair and final-candidate
+qualification; this batch does not declare the deep suite green.
+
+### Verified piece ownership and hosted qualification follow-up
+
+At `8c069726c319d17d32fcc0a1ff6b623469988205`, the strict hosted Windows
+job passes all 44 fixtures on their first attempts within 30 seconds, with zero
+skips, timeouts or native crashes. Run `39231450262`, job `117990659609`, checks
+tree `6b0ab846e5b094ce25452938aa6f3814ea1fe66a`, a real file-symlink probe,
+the official Node 26.10.0 executable, ABI 147, 37 required packages and 33 routes.
+Native verification exits zero without warning/error lines. The downloaded
+readiness receipt matches its recorded hash
+`fff07802ac1d2cd7d2c318642abcdb39146f374a9171dccdba7d022d45ae92ea`.
+The raw artifact and `hosted-8c069726c-authority-verified-summary.json` remain
+historical task receipts. Subsequent repairs still need their own strict run.
+
+The only authority-run warning is intentional malformed-pointer recovery in
+`indexing/watch/promotion/safety`. That fixture now asserts the exact warning
+and metadata, requires its existing directory-link branch and cleans its fresh
+root in `finally`. A child-scoped, one-shot EACCES injection proves the former
+catch-and-continue fixture falsely passed and leaked its root
+(`run-1792403083591-4li19d`). The same injection now fails and leaves no root;
+normal execution passes at 1.61 s (`run-1792403123584-kmhfp2`). This fixture's
+directory-link assertion is separate from the strict job's actual file probe.
+
+Heavy I/O profiling identifies separate hash handles followed by decoder
+reopens. A valid, same-length semantic-row mutation exactly after the data hash
+handle closes makes the original reader return unverified data. The new
+`storage/semantic/verified-piece-snapshot` regression fails before the repair
+(`run-1792404678212-3qk1kp`). Verification, offset-boundary checks and decoding
+now share one owner. If both files are at most 64 KiB, it retains only the exact
+hashed buffers within that reader and closes the pair early. Larger files keep
+the same opened pair through decoding and check descriptor identity around
+reads. No rows or hash decisions survive a request. Every new request still
+hashes both files; the existing four-reader request bound and bounded scratch
+space remain. Operation-index hydration uses this same owner, replacing its
+separate validate/reopen sequence. The retired private hash helper has no
+remaining consumers; its sole owner and the operation-reader callback's sole
+production caller were checked before replacement. No entrypoint or assertion
+is removed and semantic meaning does not change.
+
+The mutation regression covers small snapshots, large streaming, an in-place
+write to a future row, fresh-request rejection, cancellation and complete
+disposal. Another regression gates actual outstanding positioned I/O: the old
+reader closes both files too soon and fails (`run-1792405888677-3bzzh4`);
+the repaired reader drains it before closing. Both regressions and windowed
+offset validation pass (`run-1792405891251-9r01wu`). The same physical witness
+retains every source/config byte and all 115 full records / 136 edges, matching
+the baseline SHA-256 `1211c0438c4f53911fdde04e63834c2c020fdc5b1a91c0ebc3266fc8d742b6bc`;
+no field or provenance is suppressed (`relations-reader-proof.json`).
+
+The SSR fixture also explicitly uses one indexing thread and excludes only
+`tsconfig.json` from indexing. The real compiler still reads that unchanged
+file and the actual Node declarations; a separate same-root comparison proves
+the identical full graph (`relations-index-scope-proof.json`). All original
+cold/warm, backend-parity and witness assertions remain. With the reader repair,
+both original incremental cases pass normally at 28.5 / 27.6 s, zero retries,
+under the unchanged 30-second limit (`run-1792405610835-bjjlqo`). These focused
+passes do not establish full frozen-candidate acceptance.
+
+The subsequent 35-case affected cohort records 34 passes and one timeout, zero
+skips or native crashes (`run-1792405958600-od6mkb`). The separate
+`storage/semantic/runtime-source-reference-foreign-generation` case completes
+its assertions after two real builds but closes at 31.2 s and remains failed
+under the unchanged 30-second bound. Its raw receipt retains
+`timed_out_after_pass`; this is not acceptance or a reason to raise the deadline.
+The other authority case passes at 27.6 s. Both retain their original queries,
+positive references and generation/coordinate negatives.
+
+The complete publication front gate passes for this batch: formatting,
+configuration budget, environment usage, refreshed generated inventories and
+freshness, command/workflow contracts, all 39 gate fixtures (21.8 s) and whitespace
+checks. CI-lite now contains 970 fixtures. Fresh native/patch verification exits
+zero without warning/error lines, verifying 37 required packages and 33 routes
+on Node 26.10.0 / Windows x64 / ABI 147. These activation and focused receipts
+remain separate from the uncompleted deep-suite campaign.
+
+The same hosted run passes ordinary Windows, Ubuntu, gate, policy and Rust TUI
+jobs. macOS fails the new single-CPU fixture's real compiler-context assertion
+at 7.53 s, not its deadline. Both original CI-attempt logs are retained in
+`hosted-8c069726c-macos-failure/`. The next fixture revision reads the actual
+durable compiler-admission decision into that assertion's diagnostic, retaining
+all positive binding/completion checks. Resource refusal is a hypothesis until
+that evidence identifies the reason; no scheduler bypass or lowered positive
+assertion is an accepted repair.
+
+### Foreign-generation fixture input ownership
+
+The two-build authority fixture now explicitly selects one thread, excludes
+only indexed `tsconfig.json` metadata and hydrates its consumed syntax facts.
+Both original compiler executions and real whole-generation publications stay
+enabled. Four independently bounded before/after build processes, each within
+30 seconds, use the same physical paths for revisions zero and one. They retain
+identical source/config bytes, both complete typed-source manifests, all 334
+typed syntax rows with every field and the exact originally selected function
+reference per revision. Each build still has one compiler context and three
+completed tasks. Comparison sorts whole canonical rows to account for parallel
+cross-file completion order; no fields or provenance are removed. The original
+order-sensitive comparison failure remains with the raw packets; the successful
+content comparison is `foreign-reference-scope-content-comparison.json`.
+
+The removed hydration covered unused compiler rows and unrelated JSON syntax;
+the selected real function and all typed syntax remain byte-for-byte equivalent.
+Compiler facts remain covered by the single-CPU publication, compiler-binding,
+SSR witness and production-slice fixtures. The generation-authority fixture
+additionally proves its original function is authorized by its own pinned
+generation, then retains the original rejection against the other real
+generation. Normal execution passes at 28.4 s with zero retries under the
+unchanged deadline (`run-1792406651088-mpg7yi`). The original 31.2 s timeout and
+the separately instrumented 30.4 s timeout are preserved as failed observations.
+
+The root-directory recheck also finds a missing compatibility ignore for
+repository-local `.cache/`: the current root does not exist, while `tests/.cache/`
+and the other old cache roots are already ignored. The existing development-path
+contract, extended to that exact root, fails before the ignore repair and passes
+afterward (`root-cache-ignore-before.json` / `root-cache-ignore-after.json`).
+The new root-anchored ignore preserves nested source fixtures; all current
+development owners still use `temp/dev/`. The old promotion false-pass root is
+moved reversibly into the ignored task proof archive only after checking its
+exact marker, resolved source, non-link identity and destination containment;
+`promotion-old-false-pass-archive.json` preserves its original path/provenance.
+No user/product cache or unrelated temporary root is removed.
+
+The October 19 live GitHub recheck still has zero open issues, but now has
+11 Dependabot PRs in addition to repair PR #572: #573 LMDB, #574 tinybench,
+#575 acorn, #576 file-type, #577 ripgrep, #578 Linguist, #579 lru-cache,
+#580 LanceDB, #581 Babel parser, #582 micromark and #583 serde_json. Their
+titles, source branches and `main` bases remain in the historical task inventory
+`open-prs-reader-batch.json`. They are separate dependency-update reviews,
+including Babel's major-version jump and the LanceDB version jump; the approved crash repair preserves
+the qualified lockfile except for demonstrated defects. No bot PR is merged or
+folded into this runtime acceptance candidate.
+
+### macOS admission attribution and actual single-token proof
+
+At `b44b5761eaa65cafd9c2195fab16fde623ac0e3a`, strict hosted Windows again
+passes all 44 cases on the first attempt within 30 seconds. Run `39238867044`,
+job `118016916246`, preserves tree `9a04e0a979e274b05082a477421283c04c1dc700`,
+the actual file-symlink probe, all 44 raw logs, the official Node executable and
+37-package / 33-route verification. The downloaded readiness hash is
+`610f1a6127092f12524f78fb0924804a55a8a7a26a9d46523f83bbd4cf5e5f9f`;
+native verification has no warning/error lines. The only warning is the promotion
+case's exactly asserted malformed-pointer recovery. The verified summary and
+transparent remote-to-downloaded log mappings remain in
+`hosted-b44b5761e-authority-verified-summary.json`. This is still historical
+evidence for that head, not a future-candidate pass.
+
+The macOS job `118016916380` now explains its compiler-context failure through
+the actual durable decision: `scheduler_memory_capacity_exceeded`. The helper
+requests 1 GiB, or two 768 MiB memory tokens; the scheduler correctly refuses it.
+The real closure has 194 files / 4,897,162 bytes / one project. Both original CI
+attempts and the job log are retained in `hosted-b44b5761e-macos-failure/` and
+`hosted-b44b5761e-macos-job.log`; neither retry counts as acceptance.
+
+Only the CPU-ownership fixture now selects the canonical product-default
+512 MiB compiler policy. The shared helper's other callers keep their original
+1 GiB ceiling. This makes the test's memory budget stricter; no production budget,
+admission rule, compiler backend or positive assertion is weakened. A diagnostic
+control restricts the actual scheduler to one memory token while keeping adaptive
+admission enabled: the old request fails at 11.4 s with the same refusal, and the
+default-sized request passes at 16.8 s. Normal execution also passes at 16.9 s.
+
+That control additionally reveals why an indexing-thread count is insufficient
+proof of scheduler CPU capacity: a one-thread launch initially allocates two
+CPU tokens through existing scheduler defaults. The strengthened fixture uses
+existing environment controls to cap both CPU and memory totals and maxima at
+one. It reads the persisted successful runtime receipt and asserts all four
+limits plus adaptive admission remaining enabled. Every original compiler
+context, task, binding and two-source coverage assertion stays. Normal execution
+passes at 17.0 s (`run-1792407980524-55s5cx`). Loading the original two Git
+relations owners against those same strict limits reproduces the nested
+reservation deadlock: its unchanged 20-second cancellation guard fails at
+22.8 s (`run-1792408064956-ju0ewz`), below the runner deadline. This is stronger
+ownership evidence than the earlier thread-count hint. Hosted validation of the
+new fixture remains required.
+
+### Baseline prerequisites and corrupt-required-SQLite false pass
+
+The four exploratory portable cohorts pass 306 cases, and the serial portable
+cohort passes another 54 (`run-1792406906609-ansief`, 396.8 s; slowest 24.6 s).
+They are explicitly selected, unfrozen observations, not future acceptance.
+Their warning audit discovers that `smoke/baseline` merely inspects an author's
+optional dictionaries/indexes and prints six unasserted warnings. A real corrupt
+code/prose database pair then proves a correctness defect: the original
+`--require-sqlite` command warns that table inspection was skipped but exits zero
+and prints success. The preserved command reproduces that false pass at 520 ms
+(`baseline-corruption-before.json`), and the repair exits one at 508 ms on the
+same files (`baseline-corruption-after.json`).
+
+The default discovered smoke case now owns a fresh disposable prerequisite
+fixture. It copies the actual checkout entry files, uses the production SQLite
+schema and asserts healthy output without warnings. Explicit `--require-index`,
+`--require-sqlite` and `--require-dicts` retain standalone diagnostic behavior.
+Required SQLite inspection failures now fail; each opened database closes in
+`finally`. The duplicated table-name array is replaced by its authoritative
+`REQUIRED_TABLES`; the retained parity proof shows identical 14 names and order.
+Dictionary inspection disables the existing test-only shared-cache fallback so
+an author's unrelated cache cannot authorize missing fixture prerequisites.
+
+Actual child commands cover fresh optional and required absence, restored
+health, corrupt databases, a missing required table, legacy database rejection
+and final restored health. Every optional warning is asserted exactly; stderr
+must be empty for success or contain only the required failure count. Child
+operations have at most five seconds inside one 20-second aggregate budget.
+An isolated old-catch control makes the new regression fail at 2.83 s
+(`run-1792407652277-kj071v`); normal repaired runs pass at 5.75 / 5.82 s.
+Every mutation/deletion stays inside the canonical disposable root, which is
+cleaned on both success and failure. No new public option, test entrypoint
+removal or actual-index/query coverage reduction is involved.
+
+The complete publication front gate passes again after this batch: formatting,
+generated refresh/freshness, configuration budget, environment usage, command and
+workflow contracts, all 39 gate fixtures (20.7 s) and whitespace checks.
+`qualification-publication-*-14` retains these task-local receipts. Fresh native
+verification again exits zero without warning/error lines (37 packages / 33
+routes, Node 26.10.0 / Windows x64 / ABI 147). Generated config inventory changes
+only the existing environment controls' consumer lists; no public knob or budget
+is added or relaxed. Final source acceptance still requires the next campaign.
+All four changed fixtures pass after formatting, in 44.6 s total with one job,
+zero retries, skips or timeouts (`run-1792408355616-i8jomz`): actual single-token
+publication 13.7 s, baseline prerequisites 5.52 s, both real foreign-generation
+builds 25.2 s and development-path/ignore authority 126 ms.
+
+### Candidate 14 and process-available memory authority
+
+Candidate `39703b3a34f275e784022a7dba4b2561999fd777` freezes source SHA-256
+`d0f4ab25e635639fd29c5d65258e60120d56ed88cfd9955500112b74fef73113`,
+documentation `338edd5998c86e462726575f8316068614de1b0b3ddc328f217ab44003da8bda`,
+5812 source paths, 2998 discovered fixtures, 2981 required and 17 explicit
+exclusions in 48 cohorts. Six critical regressions, all 51 native/TUI cases,
+101 serial performance/harness checks and 130 storage cases pass locally:
+288 required passes, zero failures, timeouts, retries, skips or native crashes.
+Both original incremental SSR cases pass at 26.0 / 26.3 s, foreign-generation
+authority at 26.6 s and actual single-token publication at 14.2 s. This is the
+first candidate in this follow-up to finish those six critical cases together.
+
+Strict hosted Windows adds 44 independently verified passes on the exact head
+and tree `27a884d1bba5eef649c98165e87558085dfcde66`, run `39243286754`, job
+`118029512658`. The actual file-symlink probe, 37-package / 33-route readiness,
+official Node executable, ABI 147 and all 44 original logs are verified. The
+downloaded bootstrap receipt matches
+`115bd6de265238a6e65fa2f14fd7a4a7f8d636c0117e91ea69efe363671c66bf`;
+native verification has no warning/error lines. The sole promotion warning is
+exactly asserted. The mapped local report preserves original host paths and
+explicit external provenance; it does not fabricate a remote physical-byte
+source hash. In total 332 required cases pass and 2649 remain unexecuted.
+
+All 20 raw SQLite samples are retained in `sqlite-latency-candidate-14.json`:
+warm p95 226.124 ms against the unchanged Windows 7500 ms limit. Both `greet`
+and `answer` must retrieve the expected indexed `index.js` before and during
+measurement. Only one measured operation runs at a time. The 101-case performance
+cohorts include resource/correctness bounds and harness contracts; they are not
+101 representative latency benchmarks.
+
+Hosted macOS job `118029512761` still rejects the 512 MiB request, now with
+`scheduler_global_bytes_exceeded`, against the original full 194-file / 4.9 MB
+compiler closure. Both attempt logs remain in
+`hosted-39703b3a3-macos-failure/`, with the raw job log separately retained.
+The local controller stops after the active storage cohort, interrupting no
+fixture. Source and documentation identities are verified unchanged before
+editing. All candidate 14 receipts remain failed/incomplete campaign history;
+their green observations cannot qualify a later tree.
+
+A task-only smaller-program diagnostic runs six compiler inputs / 233,346 bytes
+in 9.62 s, but its actual completed production measurement records 403,841,024
+bytes peak process RSS against a proposed 268,435,456-byte reservation. That
+proposal is rejected: no smaller corpus or arbitrary 256 MiB workaround is
+adopted. The original compiler corpus, canonical 512 MiB policy and every
+positive assertion remain intact.
+
+Inspection finds a genuine shared memory-accounting defect. In
+[Node 26.10's bundled Darwin libuv implementation](https://github.com/nodejs/node/blob/v26.10.0/deps/uv/src/unix/darwin.c#L92),
+raw free memory counts free pages, while process availability also includes
+inactive and purgeable pages. The runtime is verified as libuv 1.52.1.
+`readEffectiveMemory` takes the minimum of both readings, discarding the more
+complete process allowance before applying scheduler byte limits. The repair
+uses reported process availability, with raw host free memory as fallback,
+then applies the same effective host/container/configured budget minus RSS.
+Reported zero remains actual pressure; unknown telemetry still falls back
+conservatively. The scheduler's 25% fraction and every configured threshold
+remain unchanged. No semantic fact producer or public format/option changes.
+
+The existing memory regression models 3 GiB process availability with 256 MiB
+raw free pages. It fails before at 863 ms (`run-1792410152552-b787zn`) and passes
+after at 859 ms (`run-1792410213671-oz3c53`). Added checks retain zero availability,
+unknown availability, lower process allowance and container/configured headroom
+bounds, alongside every previous retained-byte, worker-budget and cancellation
+assertion. All 16 focused memory/resource/scheduler/compiler cases pass at one
+job in 28.3 s (`run-1792410336893-ckae1z`), including full compiler publication
+at 15.4 s. The memory regression joins regular CI-lite. The compiler fixture now
+reports the actual pre-build memory readings, persisted scheduler capacity and
+durable admission decisions on success and failure, so hosted macOS closure can
+be verified from evidence. The next candidate will not be frozen before that
+hosted validation is read back.
+
+The memory-owner publication batch passes the complete front gate: formatting,
+generated refresh/freshness, configuration/environment guards, command/workflow
+contracts, all 39 gate cases (21.3 s) and whitespace checks. Native/patch
+verification exits zero with no warning/error lines, again verifying 37 packages
+and 33 routes on Node 26.10.0 / Windows x64 / ABI 147. CI-lite membership is 971.
+After formatting, the memory regression and unchanged full compiler fixture
+both pass (`run-1792411196824-tsal8f`): 912 ms and 13.2 s, one attempt each.
+Actual macOS capacity telemetry and the full next-source campaign remain open.
+
+### Final campaign
+
+The access violation is attributed to Node's freed-Realm cleanup and the focused
+post-fix closure above is complete. Historical capable Windows file-symlink and
+safe uninstall prerequisites pass. Full Windows-suite acceptance is still open:
+candidate 14 closes with 332 required passes and 2649 unexecuted cases after
+hosted macOS exposes the memory-owner defect above. Its source/documentation
+identities and all earlier failed receipts remain preserved. The memory repair
+requires the complete front gate, actual hosted telemetry and every required
+cohort on a new frozen candidate, including a fresh strict 44-case Windows
+authority run. No partial campaign is promoted to final acceptance.
+The two C/clangd ELF-positive fixtures are Linux-owned; Windows
+unsupported-platform and portable authority coverage pass separately. Optional
+sqlite-vec, real-model evaluation, Linux/macOS and release qualification remain
+outside this Windows target. No security settings, debugger registration or
+merge have been changed. Publication verification and hosted final-head CI
+are reported separately from Windows deep-suite acceptance.

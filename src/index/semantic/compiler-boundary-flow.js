@@ -1,3 +1,5 @@
+import { projectArgumentPositions } from '../../shared/argument-positions.js';
+import { resolveSourceFileUrl } from './source-file-url.js';
 import { createCompilerWasmFlow } from './compiler-wasm-flow.js';
 import { SEMANTIC_ANALYSIS_VERSIONS, WASM_VALIDATOR_RUNTIME } from './analysis-versions.js';
 import path from 'node:path';
@@ -8,6 +10,8 @@ import { writeSemanticAnalysis } from './analysis-write.js';
 import { persistSemanticEvidence } from './lsp-evidence.js';
 import { createCompilerBoundaryAuthority } from './compiler-boundary-authority.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { compilerRuntimeParameters } from './compiler-invocation.js';
+import { createCompilerRuntimeContext } from './compiler-runtime-context.js';
 const keyPath = file => process.platform === 'win32' ? path.resolve(file).toLowerCase() : path.resolve(file);
 const order = (a, b) => a < b ? -1 : a > b ? 1 : 0;
 const digest = text => createHash('sha256').update(text, 'utf8').digest('hex');
@@ -42,7 +46,7 @@ export const collectCompilerBoundaryFlow = async ({ group, state, policy, signal
   const crossEnabled = doc => !['off', 'deferred'].includes(ledgers.get(doc).policy.enrichment.crossFileFlow);
   const invocationAuthority = async (doc, node) => authority.declaration(doc.checker.getResolvedSignature(node)?.declaration);
   const functionRef = (doc, node) => doc.expressionFor(node) || (node.name ? doc.item.declarations.get(node.name.getStart(doc.sourceFile) + ':' + node.name.end) : null);
-  const ownerCache = new WeakMap();
+  const ownerCache = new WeakMap(), runtimeContexts = new WeakMap();
   const owner = (doc, node) => {
     const pending = []; let current = node.parent;
     while (current && !doc.ts.isFunctionLike(current) && !ownerCache.has(current)) { pending.push(current); current = current.parent; }
@@ -53,10 +57,12 @@ export const collectCompilerBoundaryFlow = async ({ group, state, policy, signal
   // Reuse the provider's existing indexed nodes/observations; do not traverse AST children again.
   for (const doc of documents) {
     const ledger = ledgers.get(doc);
+    const runtime = createCompilerRuntimeContext(doc.ts);
+    runtimeContexts.set(doc,runtime);
     for (const observation of doc.observations) {
       throwIfAborted(signal);
       const node = observation.node;
-      if (!node || !doc.ts.isIdentifier(node) || observation.invocation) continue;
+      if (!node || !doc.ts.isIdentifier(node) || !runtime.isRuntimeNode(node) || observation.invocation) continue;
       const ref = doc.expressionFor(node), symbol = doc.checker.getSymbolAtLocation(node);
       if (!ref || !symbol || doc.ts.isParameter(node.parent) && node.parent.name === node) continue;
       if (!ledger.uses.has(symbol)) ledger.uses.set(symbol, []);
@@ -120,12 +126,17 @@ export const collectCompilerBoundaryFlow = async ({ group, state, policy, signal
     const candidate = boundary(doc, node, kind + '-source-callback-candidate', invocation, 'source:' + handler.doc.item.source.sourceUnitId);
     edge(doc, evidence, 'dispatches', request, candidate, invocation, ordinal);
     edge(doc, evidence, 'dispatches', candidate, handler.ref, invocation, ordinal);
+    const parameters = compilerRuntimeParameters(handler.doc.ts, handler.node);
     for (let index = 0; index < payloads.length; index += 1) {
-      const parameter = handler.node.parameters[index], payload = payloads[index];
+      const item = payloads[index];
+      const runtimeOrdinal = item && Object.hasOwn(item, 'runtimeOrdinal') ? item.runtimeOrdinal : index;
+      const payload = item && Object.hasOwn(item, 'runtimeOrdinal') ? item.ref : item;
+      const parameter = runtimeOrdinal === null ? null : parameters[runtimeOrdinal];
       if (!parameter || !handler.doc.ts.isIdentifier(parameter.name) || parameter.dotDotDotToken || !payload) { ledger.reasons.add('callback_payload_parameter_mapping_unresolved'); continue; }
       const symbol = handler.doc.checker.getSymbolAtLocation(parameter.name);
       const inputs = ledgers.get(handler.doc).uses.get(symbol) || [];
-      for (const use of inputs) if (use.node.pos >= handler.node.pos && use.node.end <= handler.node.end) { edge(doc, evidence, 'consumes', payload, candidate, invocation, index); edge(doc, evidence, 'consumes', candidate, use.ref, invocation, index); }
+      for (const use of inputs) if (runtimeContexts.get(handler.doc).isLexicalValueRead(use.node)
+        && use.node.pos >= handler.node.pos && use.node.end <= handler.node.end) { edge(doc, evidence, 'consumes', payload, candidate, invocation, runtimeOrdinal); edge(doc, evidence, 'consumes', candidate, use.ref, invocation, runtimeOrdinal); }
     }
     ledger.completedSites.add(node); ledger.reasons.add('callback_activation_order_multiplicity_and_effects_unobserved');
     return handler;
@@ -136,9 +147,11 @@ export const collectCompilerBoundaryFlow = async ({ group, state, policy, signal
     const verified = await invocationAuthority(doc, argument);
     if (!(defaultLibrary(verified) && has(verified, 'URL') || sameModule(verified, 'url') && has(verified, 'URL'))) return null;
     const [name, base] = argument.arguments || [], value = literal(doc.ts, name);
-    if (!value || !value.startsWith('.') || /[?#\\]/.test(value) || !base || !doc.ts.isPropertyAccessExpression(base) || base.name.text !== 'url' || !doc.ts.isMetaProperty(base.expression) || base.expression.keywordToken !== doc.ts.SyntaxKind.ImportKeyword) return null;
+    if (!value || !value.startsWith('.') || /[?#\\]/.test(value) || !base || !doc.ts.isPropertyAccessExpression(base) || base.name.text !== 'url' || !doc.ts.isMetaProperty(base.expression) || base.expression.keywordToken !== doc.ts.SyntaxKind.ImportKeyword || base.expression.name.text !== 'meta') return null;
     const container = doc.containerPath || (!doc.item.source.mapping ? doc.item.source.path : null);
-    const found = container && entries.get(keyPath(path.resolve(group.repoRoot, path.dirname(container), value)));
+    const resolved = resolveSourceFileUrl({ repoRoot: group.repoRoot, containerPath: container, literal: value });
+    if (resolved.state !== 'resolved') { ledgers.get(doc).reasons.add('process_entry_url_' + resolved.reason); return null; }
+    const found = entries.get(keyPath(resolved.path));
     return found?.length === 1 ? found[0] : null;
   };
   const launches = new WeakMap(), settlements = new WeakMap(), consumers = new Map();
@@ -224,7 +237,15 @@ export const collectCompilerBoundaryFlow = async ({ group, state, policy, signal
           callback(doc, node, request, args[0], 0, evidence, 'promise-executor');
           ledger.reasons.add('promise_resolver_rejector_capabilities_and_settlement_unresolved');
         } else if (timer) {
-          const payloads = timer === 'queueMicrotask' ? [] : args.slice(2).map(value => ts.isSpreadElement(value) ? null : doc.expressionFor(value));
+          const positions = projectArgumentPositions(timer === 'queueMicrotask' ? [] : args.slice(2), {
+            isSpread: value => ts.isSpreadElement(value),
+            spreadElements: value => ts.isArrayLiteralExpression(value.expression) && value.expression.elements.length <= 256
+              && !value.expression.elements.some(element => ts.isSpreadElement(element)) ? [...value.expression.elements] : null
+          });
+          if (positions.max === null || positions.omittedSlots) ledger.reasons.add('callback_payload_argument_frontier_incomplete');
+          const payloads = positions.entries.map(value => ({ runtimeOrdinal: value.runtimeOrdinal,
+            ref: value.runtimeOrdinal !== null && value.kind === 'ordinary' && !ts.isOmittedExpression(value.node)
+              ? doc.expressionFor(value.node) : null }));
           callback(doc, node, request, args[0], 0, evidence, timer, payloads);
         } else {
           edge(doc, evidence, 'consumes', doc.expressionFor(args[0]), request, invocation, 0);

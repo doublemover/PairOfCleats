@@ -1,73 +1,94 @@
 # Node runtime policy
 
-Reviewed against official sources on 2026-10-05. This policy records selected
-versions, not a claim that every platform has passed validation.
+Reconciled with the checked-in package, bootstrap guard and workflows on
+2026-10-21. Selected versions do not imply every platform has passed validation.
 
 ## Application runtime
 
-- The compatibility floor remains `node >=24.15.0` in `package.json` and the
-  lockfile. The patched native dependency graph requires that floor.
-- `.nvmrc`, CI, nightly, CI Long and release jobs pin **24.21.0**. Keep native
-  `node_modules` cache keys aligned with that exact version, OS, architecture,
-  lockfile and patch set. The workflow contract reads `.nvmrc` and checks every
-  Node pin and native-cache version.
-- **26.10.0** is a separate evaluation target. It is not the release baseline
-  and has no claimed macOS compatibility or performance result yet. See the
-  [matched macOS comparison](../benchmarks/node-runtime-comparison.md).
+For an existing indexed checkout, follow [source upgrades](upgrades.md) before
+changing runtime/dependencies or rebuilding derived artifacts.
 
-The official [release schedule](https://github.com/nodejs/Release#release-schedule)
-lists Node 24 as Active LTS, entering maintenance on 2026-10-20 and reaching
-end of life on 2028-04-30. Node 26 is Current, with LTS scheduled for 2026-10-28
-and end of life on 2029-04-30. These future dates remain subject to change.
-The [official release index](https://nodejs.org/dist/index.json) supplies the
-exact versions above. Node 24.21.0 includes intervening security updates after
-24.15.0; the package compatibility floor is not a recommendation to stay on an
-older patch/minor release.
+- `package.json` and the lockfile require **Node >=26.12.1 <27**. The bootstrap
+  readiness guard enforces that minimum; older Node releases cannot run this
+  checkout normally.
+- `.nvmrc`, CI, nightly, CI Long, maintenance and release jobs pin **26.12.1**.
+  Keep native `node_modules` cache keys aligned with that version, OS,
+  architecture, lockfile and patch set. The workflow contract reads `.nvmrc`
+  and checks every Node pin and native-cache version.
+- Node 26.8.1 has a confirmed worker teardown use-after-free in the cppgc
+  `ContextifyScript`/`Realm` lifecycle. A CDB dump from the original Windows
+  compiler fixture matched [Node's fix](https://github.com/nodejs/node/pull/65778),
+  released in [26.10.0](https://nodejs.org/en/blog/release/v26.10.0). The
+  [Windows repair receipt](../archived/windows-deep-repairs-2026-10-18.md)
+  separates that crash attribution from final suite acceptance.
+- The patched Tree-sitter 0.25.0 binding also handles exceptions during owned
+  worker termination. This fixes a separately captured `0xC0000409` fatal exit
+  on Node 26.10.0; the Node pin alone does not supply that repair. Ordinary
+  callback, language and range errors remain strict. The
+  [parser repair receipt](../archived/github-issue-repairs-2026-10-20.md#batch-64-real-parser-state-and-interrupted-native-worker-lifetime)
+  records the exception, original installation and fresh-process controls.
+- Run `npm run bootstrap:ci` after checkout setup or dependency/runtime changes.
+  It installs the lockfile graph including development dependencies, applies
+  required patches, rebuilds/verifies native modules and records readiness.
+  Reserve `npm run bootstrap` for intentional dependency-resolution changes.
+- Prepared dependencies may use `node tools/setup/rebuild-native.js --verify`
+  to refresh readiness after successful native and patch verification. This
+  verification cannot repair missing patches. Do not share native modules
+  across Node versions or bypass a missing/stale readiness receipt.
+
+Windows local native builds use the prepared node-gyp installed-header cache
+(`--devdir`), whose import library is `<version>/<arch>/node.lib`. Passing that
+cache as `--nodedir` incorrectly selects the Node source-tree layout
+`Release/node.lib`. The locked node-gyp Python discovery patch invokes selected
+absolute `.exe` paths directly, preserving argument boundaries without a shell;
+relative commands and CMD launchers retain their existing discovery behavior.
+Child options use npm 11's supported `npm_package_config_node_gyp_*` keys.
+SQLite's `build-release` already selects `--force_build=1` and needs no legacy
+npm build-from-source environment option. The explicit VSCE signing installer
+policy covers its locked package; package/release signing remains separately
+qualified.
+
+The Swift0.7.1 scanner patch uses 64-bit suppressor constants and bit tests for
+its token32 force-try marker. The original code shifts beyond Windows' 32-bit
+unsigned long (and a 32-bit signed literal). The native C regression checks the
+actual scanner's mask, suppressed try! context and ordinary bang control. The
+shared sourceChunking12 identity retires old derived meaning. Activation also
+parses and resets a real Swift force-try/bang sample; full runtime qualification
+remains separate.
+
+The [October 5 policy](../archived/node-runtime-policy-2026-10-05.md) records
+the superseded Node 24 baseline and earlier action migration. The
+[macOS comparison proposal](../benchmarks/node-runtime-comparison.md) remains
+historical and unexecuted; its Node 24 arm cannot run unchanged against the
+current Node 26 bootstrap guard. A future comparison needs its own compatible
+source revision, task scope and matched measurements.
 
 ## GitHub Actions runtime
 
-The Node interpreter used by an action is separate from the application runtime
-installed by `setup-node`. Setting `node-version` alone does not migrate other
-actions away from Node 20.
+An action's own interpreter is separate from the application runtime installed
+by `setup-node`. The checked-in workflows currently select:
 
-This bounded migration selects the first Node 24 action major for each existing
-action, retaining the existing inputs, archive format, release flow and token
-permissions:
+| Action | Selected major |
+| --- | --- |
+| checkout | v7 |
+| setup-node | v7 |
+| cache | v6 |
+| upload-artifact | v7 |
+| download-artifact | v8 |
+| github-script | v9 |
+| attest-build-provenance | v4 |
+| github/codeql-action | v4 |
 
-| Action | Selected major | Official runtime definition |
-| --- | --- | --- |
-| checkout | v5 | [action.yml](https://github.com/actions/checkout/blob/v5/action.yml) |
-| setup-node | v5 | [action.yml](https://github.com/actions/setup-node/blob/v5/action.yml) |
-| cache | v5 | [action.yml](https://github.com/actions/cache/blob/v5/action.yml) |
-| upload-artifact | v6 | [action.yml](https://github.com/actions/upload-artifact/blob/v6/action.yml) |
-| download-artifact | v7 | [action.yml](https://github.com/actions/download-artifact/blob/v7/action.yml) |
-| github-script | v8 | [action.yml](https://github.com/actions/github-script/blob/v8/action.yml) |
-| attest-build-provenance | v3 | [composite action and pinned dependencies](https://github.com/actions/attest-build-provenance/blob/v3/action.yml) |
+Adaptive-policy workflows pin reviewed checkout and github-script commits;
+the workflow contract checks those exact refs separately. Rust remains pinned
+to 1.88.0. The github-script contract compiles scripts against the injected
+v9 parameters and rejects the removed CommonJS import of `@actions/github`.
 
-`github/codeql-action@v4` is already on the Node 24 generation. Rust toolchain
-selection remains unchanged. Hosted runners must supply a compatible runner;
-Node 24 actions require Actions Runner **2.327.1 or later**, as documented by
-[checkout v5](https://github.com/actions/checkout/releases/tag/v5.0.0).
+Review action upgrades against their own manifests, API changes and runner
+requirements. Changing the application's Node pin does not by itself establish
+action-runtime compatibility. The workflow, dependency-security, install-policy
+and native activation checks remain separate acceptance surfaces.
 
-Migration review:
-
-- setup-node v5 adds automatic npm cache detection. These workflows already
-  explicitly request `cache: npm`; their intended cache behavior is retained.
-- Artifact paths, names, `include-hidden-files`, compression and download
-  destinations are retained. Upload v5 and download v6 still declare Node 20;
-  their next majors are the required runtime change.
-- The current newest actions are not all the smallest compatible runtime
-  migration: [github-script v9](https://github.com/actions/github-script/releases/tag/v9.0.0)
-  changes ESM/Octokit imports; [download v8](https://github.com/actions/download-artifact/releases/tag/v8.0.0)
-  changes hash-mismatch failure behavior; and attestation v4 wraps a newer
-  generic attestation implementation. This patch does not mix those behavior
-  changes into the runtime/security repair. Review future action upgrades
-  independently; this selection does not imply every old major is supported
-  indefinitely.
-- Workflow contract checks must continue recognizing artifact and checkout
-  steps after action-major changes, rather than silently bypassing checks that
-  used to match only `@v4`.
-
-Application dependency audits and action-runtime upgrades address different
-dependency graphs. Keep `npm audit --audit-level=low` unchanged; passing a
-runtime contract is not evidence of a clean live security audit or hosted CI.
+CI runs `npm audit --audit-level=low` against current advisories. A runtime or
+offline dependency contract pass does not establish a clean live audit or
+hosted CI acceptance. Record the tested revision and environment for each.

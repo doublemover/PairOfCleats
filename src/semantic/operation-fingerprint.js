@@ -1,5 +1,6 @@
 import { semanticHash, canonicalSemanticJson } from '../index/semantic/identity.js';
 import { throwIfAborted } from '../shared/abort.js';
+import { observeStorageResource } from '../shared/storage/failure-observation.js';
 /** Bounded ordered syntax fingerprint, for candidates only; never a behavioral proof. */
 export const fingerprintSemanticOperation = async ({ store, ref, signal, maxNodes = 256, maxDepth = 32, deadline = Infinity }) => {
   if (!Number.isSafeInteger(maxNodes) || maxNodes < 1 || maxNodes > 256 || !Number.isSafeInteger(maxDepth) || maxDepth < 1 || maxDepth > 32) throw new TypeError('Invalid operation fingerprint bounds.');
@@ -39,8 +40,14 @@ export const fingerprintSemanticOperation = async ({ store, ref, signal, maxNode
             signature.literalTextHash = semanticHash('semantic.literal-source-text.v1', excerpt.text);
           } else reasons.add('literal_source_projection_unavailable');
         } catch (error) {
-          if (error.code === 'ERR_SEMANTIC_OUTPUT_LIMIT') reasons.add('literal_source_projection_budget');
-          else if (error.code === 'ENOENT') reasons.add('literal_source_projection_unavailable');
+          const observation = observeStorageResource(error, { phase: 'semantic-literal-fingerprint' });
+          observation.requireSettled();
+          let code;
+          try { code = error?.code; }
+          catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+          observation.requireSettled();
+          if (code === 'ERR_SEMANTIC_OUTPUT_LIMIT') reasons.add('literal_source_projection_budget');
+          else if (code === 'ENOENT') reasons.add('literal_source_projection_unavailable');
           else throw error;
         }
       }

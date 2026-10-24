@@ -10,6 +10,7 @@ import { requireOrSkip } from '../../helpers/require-or-skip.js';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { writeSqliteArtifactManifest } from '../../helpers/artifact-io-fixture.js';
 
 ensureTestingEnv(process.env);
 requireOrSkip({ capability: 'sqlite', reason: 'sqlite chunk_meta gzip fallback test requires better-sqlite3' });
@@ -58,6 +59,10 @@ await writeJsonObjectFile(path.join(indexDir, 'token_postings.json'), {
   atomic: true
 });
 
+await writeSqliteArtifactManifest(indexDir, [
+  { name: 'chunk_meta', path: 'chunk_meta.json.gz', format: 'json' },
+  { name: 'token_postings', path: 'token_postings.json', format: 'json' }
+]);
 const indexPieces = await loadIndexPieces(indexDir, null);
 assert.ok(indexPieces, 'expected loadIndexPieces to detect chunk_meta.json.gz');
 const count = await buildDatabaseFromArtifacts({

@@ -1,3 +1,4 @@
+import { prepareStructuralMatches } from './chunk.js';
 import { collectStandaloneWasm } from '../../semantic/wasm/standalone.js';
 import { collectEmbeddedSemanticSources, collectEmbeddedSemanticOwnership } from '../../semantic/embedded-source.js';
 import { collectSemanticOwnership } from '../../semantic/ownership.js';
@@ -13,6 +14,7 @@ import {
 } from './lexicon-relations-filter.js';
 import {
   sanitizeChunkBounds,
+  retainModuleCallChunks,
   validateChunkBounds
 } from './cpu/chunking.js';
 import { buildLanguageAnalysisContext } from './cpu/analyze.js';
@@ -157,6 +159,7 @@ export const processFileCpu = async (context) => {
     tokenizeEnabled,
     embeddingEnabled,
     embeddingNormalize,
+    embeddingQuantization,
     embeddingBatchSize,
     getChunkEmbedding,
     getChunkEmbeddings,
@@ -911,6 +914,7 @@ export const processFileCpu = async (context) => {
     }
     throw err;
   }
+  sc = retainModuleCallChunks({ chunks: sc, callIndex, languageId: fileLanguageId || lang?.id, textLength: text.length });
   sanitizeChunkBounds(sc, text.length);
   const chunkIssue = validateChunkBounds(sc, text.length);
   if (chunkIssue) {
@@ -943,11 +947,12 @@ export const processFileCpu = async (context) => {
   });
 
   const parseCheckpoint = captureChunkingCheckpoint(sc, chunkingDiagnostics, text.length);
-  const cachedLexicalBySpan = cachedStageBundle?.stageRefresh?.lexical === false ? new Map(cachedStageBundle.chunks.map(chunk=>[chunk.start+':'+chunk.end,{tokens:chunk.tokens,seq:chunk.seq}])) : null;
+
   updateCrashStage('process-chunks');
   const chunkResult = await processChunks({
     sc,
-    cachedLexicalBySpan,
+    cachedLexicalCheckpoint: context.cachedLexicalCheckpoint || (cachedStageBundle?.stageRefresh?.lexical === false ? cachedStageBundle.lexicalCheckpoint : null),
+    lexicalCheckpointDependencies: context.lexicalCheckpointDependencies,
     text,
     ext,
     rel,
@@ -964,7 +969,7 @@ export const processFileCpu = async (context) => {
     relationsEnabled: effectiveRelationsEnabled,
     fileRelations,
     callIndex,
-    fileStructural,
+    fileStructural: prepareStructuralMatches(fileStructural, totalLines),
     commentEntries,
     commentRanges,
     normalizedCommentsConfig,
@@ -976,6 +981,7 @@ export const processFileCpu = async (context) => {
     tokenMode,
     embeddingEnabled,
     embeddingNormalize,
+    embeddingQuantization,
     embeddingBatchSize,
     getChunkEmbedding,
     getChunkEmbeddings,
@@ -1038,6 +1044,7 @@ export const processFileCpu = async (context) => {
     semanticEvidenceArtifacts: embeddedSemantic?.evidenceArtifacts || [],
     chunks: chunkResult.chunks,
     parseCheckpoint,
+    lexicalCheckpoint: chunkResult.lexicalCheckpoint || null,
     fileRelations,
     lexiconFilterStats,
     vfsManifestRows: chunkResult.vfsManifestRows || null,

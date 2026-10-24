@@ -15,6 +15,7 @@ This document defines the CLI interface and output contract for **search**.
   - `search.js --mode code --return-type boolean --top 20 --json`
 
 ### Common flags
+- `--help` (alias: `-h`): display search command help
 - `--repo <path>`: repo root (defaults to current directory)
 - `--mode code|prose|extracted-prose|records|both|all`: search mode
 - `--top <n>` (alias: `-n`, `--n`): results per mode; page size for filter-only enumeration
@@ -88,6 +89,29 @@ Tokens without a key are treated as file/path filters. Unknown keys are rejected
 
 ### Text mode
 Human readable results (ranked list, or indexed-order filter enumeration). Code entries include bounded, line-numbered working-tree excerpts when the source is available within the repo. Excerpts use lightweight lexical highlighting in a TTY. Non-TTY output, `NO_COLOR` (including an empty value), `TERM=dumb`, and `--plain` disable styles and hyperlinks. Repository-controlled escape sequences and bidi controls are sanitized before terminal display. Exact formatting may evolve.
+
+Every displayed code hit is eligible for a source preview: up to eight lines for
+the leading hit and three for later hits. A literal query-token occurrence selects
+the preview window when found; otherwise the excerpt starts at the indexed chunk
+offset. `>` marks visible, case-insensitive query text only. It does not assert why
+the retrieval engine selected or ranked the hit, and semantic matches need not
+contain query text. Use `--explain` for recorded score evidence and `--why` for
+deeper analysis details.
+
+These excerpts are current working-tree text at indexed offsets, not an indexed
+snapshot or a freshness guarantee. Their line numbers are derived from the text
+read, while the result's location remains its indexed source range. Edits can make
+those differ. The preview reader examines at most 32 distinct file paths and 2 MiB per render,
+with a 512 KiB per-file limit, and reuses a read only within that render. Preview
+selection scans at most 64 Ki characters of a chunk. Missing, outside-root,
+oversized or over-budget sources do not hide a result; only the preview is absent.
+
+The summary counts displayed hits, not the total number of possible ranked
+matches. Filter enumeration separately reports its exact indexed total and
+continuation cursor. Narrow TTY output wraps long lines without splitting
+graphemes; overflowing lines use plain text to avoid broken ANSI/link sequences.
+Opaque cursor lines remain intact for copying. Pipes remain unstyled and omit
+interactive next-step hints. JSON payloads are unaffected by these display choices.
 
 ### JSON mode
 For a successful single-repository search, the CLI emits:
@@ -175,7 +199,7 @@ Context expansion is config-driven (no CLI flags). When enabled via `retrieval.c
 
 Omit positional query text and provide filters to enumerate all matching indexed chunks. No ANN, embeddings, sparse relevance cutoff, graph reranking, or context expansion participates. Results have `scoreType: "filter"`, `score: 0`, and `rankMethod: "indexed-order"`. `--top` bounds each mode's page; it does not truncate the matching set.
 
-Repeat the same command with `--cursor <pagination.nextCursor>` until `hasMore` is false. One cursor carries independent offsets for every selected mode, including already exhausted modes. It binds the normalized filters, modes, backend/index signature, and indexed generation; changed filters or generation are errors. Relative modification dates retain the first page's cutoff. Output-budget truncation advances only over emitted hits; a budget that cannot fit any result fails explicitly. Query text with `--cursor` is rejected. Workspace/federated enumeration is not supported; use `--repo`.
+Repeat the same command with `--cursor <pagination.nextCursor>` until `hasMore` is false. One cursor carries independent offsets for every selected mode, including already exhausted modes. It binds the normalized filters, modes, backend/index signature, and indexed generation; changed filters or generation are errors. Relative modification dates retain the first page's cutoff. Output-budget truncation advances only over emitted hits; a budget that cannot fit any result fails explicitly. Query text with `--cursor` is rejected. Workspace enumeration is supported with `--workspace`: each page visits one eligible repository/mode in stable repository-ID/mode order. Its cursor binds workspace membership, filter arguments, relative-date anchor, and the workspace generation manifest. A page can be empty while `hasMore` is true. Continue until exhaustion. Unavailable modes are listed in `meta.completeness.unavailable`; `status: partial` never claims workspace-wide completeness. Strict requests reject unavailable modes. Publication during a page invalidates the request.
 
 Coverage is explicitly `indexed-metadata`: all matches in the loaded index are reachable, but missing facts do not become matches. This does not assert whole-program compiler completeness. `--return-type` uses exact case-sensitive type-expression tokens (ignoring inter-token whitespace). It excludes containing types such as `Promise<boolean>`, `boolean[]`, `boolean | string`, and nominal lookalikes from a `boolean` query. Recorded tooling facts take precedence over declaration fallbacks; heuristic inferred returns and symbolic display labels are not promoted to compiler facts. `filterEvidence.returnType` preserves the matching fact source. Alias expansion, assignability, union reordering, and structural type equivalence are not performed.
 

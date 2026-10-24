@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["text", "json", "disabled", "invalid-json", "truncated", "incomplete", "oversized"]
+}

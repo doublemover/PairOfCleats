@@ -6,7 +6,10 @@ import { OFFLINE_RUNTIME_ADAPTERS } from './inventory.js';
 
 const supported = new Set(OFFLINE_RUNTIME_ADAPTERS.find(row => row.adapter === 'code-log').evidenceKinds);
 
-/** Explicit saved interchange, not a guessed parser for unversioned engine diagnostics. */
+/** Explicit saved interchange, not a guessed parser for unversioned engine diagnostics.
+ * @yields {object} Saved observations or settled malformed/unsupported coverage.
+ * @throws Original fatal read/integrity/cancellation/unsettled resource failures.
+ */
 export async function* adaptCodeLog({ filename, artifact, capture, sourceCandidates, coverage, signal }) {
   const maxLineBytes = Math.max(1, Math.min(1024 * 1024, Math.floor(capture.limits.processTreeMemoryBytes / 16)));
   let header = false, ordinal = 0;

@@ -1,10 +1,12 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { INDEX_VALIDATE_OPTIONS, assertIndexValidationFlags } from '../../src/shared/index-tool-options.js';
 import { createCli } from '../../src/shared/cli.js';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { hasChunkMetaArtifactsSync } from '../../src/shared/artifact-io/chunk-meta-presence.js';
 import { getIndexDir, resolveRepoConfig } from '../shared/dict-utils.js';
+import { captureSelectedModeRoots } from '../../src/shared/indexing/selected-mode-roots.js';
 import { validateIndexArtifacts } from '../../src/index/validate.js';
 
 /**
@@ -27,9 +29,11 @@ const hasIndexMeta = (dir) => {
  * @param {object} userConfig
  * @returns {string[]}
  */
-const resolveAvailableModes = (root, userConfig) => {
+const resolveAvailableModes = (root, userConfig, indexRoot = null) => {
+  const selection = captureSelectedModeRoots({ root, userConfig, indexRoot });
+  if (selection.modes.length) return selection.modes;
   const modes = ['code', 'prose', 'extracted-prose', 'records'];
-  return modes.filter((mode) => hasIndexMeta(getIndexDir(root, mode, userConfig)));
+  return modes.filter((mode) => hasIndexMeta(getIndexDir(root, mode, userConfig, indexRoot ? { indexRoot } : {})));
 };
 
 /**
@@ -40,13 +44,13 @@ const resolveAvailableModes = (root, userConfig) => {
  * @param {object} userConfig
  * @returns {string[]}
  */
-const parseModes = (raw, root, userConfig) => {
+export const parseModes = (raw, root, userConfig, indexRoot = null) => {
   const tokens = String(raw || '')
     .split(/[,\s]+/)
     .map((token) => token.trim())
     .filter(Boolean);
   if (!tokens.length) {
-    const available = resolveAvailableModes(root, userConfig);
+    const available = resolveAvailableModes(root, userConfig, indexRoot);
     return available.length ? available : ['code', 'prose', 'extracted-prose', 'records'];
   }
   const allowed = new Set(['code', 'prose', 'extracted-prose', 'records', 'all']);
@@ -63,25 +67,17 @@ const parseModes = (raw, root, userConfig) => {
 async function runCli() {
   const argv = createCli({
     scriptName: 'index-validate',
-    options: {
-      json: { type: 'boolean', default: false },
-      repo: { type: 'string' },
-      mode: { type: 'string' },
-      'index-root': { type: 'string' },
-      strict: { type: 'boolean', describe: 'Validate strict contracts (default unless --non-strict).' },
-      'non-strict': { type: 'boolean', default: false }
-    }
+    options: INDEX_VALIDATE_OPTIONS
   }).strictOptions().parse();
 
   const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
   const indexRoot = argv['index-root'] ? path.resolve(argv['index-root']) : null;
-  const modes = parseModes(argv.mode, root, userConfig);
-  if (argv.strict && argv['non-strict']) {
-    throw new Error('Choose either --strict or --non-strict, not both.');
-  }
+  const modes = parseModes(argv.mode, root, userConfig, indexRoot);
+  assertIndexValidationFlags(argv);
   const strict = argv['non-strict'] ? false : argv.strict !== false;
-  const report = await validateIndexArtifacts({ root, indexRoot, modes, strict });
+  const report = await validateIndexArtifacts({ root, userConfig, indexRoot, modes, strict });
 
+  report.selection = { source: indexRoot ? 'explicit-index-root' : 'published-mode-roots', indexRoot, modes };
   if (argv.json) {
     console.log(JSON.stringify(report, null, 2));
     process.exit(report.ok ? 0 : 1);

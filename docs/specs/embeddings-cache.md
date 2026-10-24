@@ -11,8 +11,8 @@ Cache root resolution:
 - dir override: indexing.embeddings.cache.dir (absolute path)
 
 Default OS cache roots:
-- Windows: %LOCALAPPDATA%/PairOfCleats
-- Linux: $XDG_CACHE_HOME/pairofcleats (falls back to ~/.cache/pairofcleats)
+- Windows: %LOCALAPPDATA%/PairOfCleats/cache
+- Linux: $XDG_CACHE_HOME/pairofcleats/cache (falls back to ~/.cache/pairofcleats/cache)
 
 Directory layout (segments are sanitized by replacing non [a-zA-Z0-9._-] with "_"):
 

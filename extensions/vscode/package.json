@@ -20,6 +20,13 @@
     "developer-tools"
   ],
   "markdown": "github",
+  "files": [
+    "*.js",
+    "*.cjs",
+    "*.json",
+    "README.md",
+    "walkthroughs/**"
+  ],
   "engines": {
     "vscode": "^1.86.0"
   },
@@ -76,11 +83,26 @@
     "onCommand:pairofcleats.openResultHit",
     "onCommand:pairofcleats.revealResultHit",
     "onCommand:pairofcleats.copyResultPath",
-    "onCommand:pairofcleats.rerunResultSet"
+    "onCommand:pairofcleats.rerunResultSet",
+    "onCommand:pairofcleats.showEffectiveSettings",
+    "onCommand:pairofcleats.browseIndexedMatches",
+    "onCommand:pairofcleats.loadMoreResults",
+    "onCommand:pairofcleats.semanticEvidence",
+    "onCommand:pairofcleats.copyContext",
+    "onCommand:pairofcleats.inspectTasks",
+    "onCommand:pairofcleats.selectServiceRepository",
+    "onCommand:pairofcleats.navigateDefinitions",
+    "onCommand:pairofcleats.navigateReferences",
+    "onCommand:pairofcleats.openEvidence",
+    "onCommand:pairofcleats.inspectDocumentSymbols"
   ],
   "main": "./extension.js",
   "contributes": {
     "commands": [
+      {
+        "command": "pairofcleats.inspectDocumentSymbols",
+        "title": "PairOfCleats: Inspect Indexed Document Symbols"
+      },
       {
         "command": "pairofcleats.search",
         "title": "PairOfCleats: Search"
@@ -252,6 +274,46 @@
       {
         "command": "pairofcleats.rerunResultSet",
         "title": "PairOfCleats: Rerun Result Set"
+      },
+      {
+        "command": "pairofcleats.showEffectiveSettings",
+        "title": "PairOfCleats: Show Effective Settings"
+      },
+      {
+        "command": "pairofcleats.browseIndexedMatches",
+        "title": "PairOfCleats: Browse Indexed Matches"
+      },
+      {
+        "command": "pairofcleats.loadMoreResults",
+        "title": "PairOfCleats: Load More Indexed Matches"
+      },
+      {
+        "command": "pairofcleats.semanticEvidence",
+        "title": "PairOfCleats: Semantic Evidence (Experimental)"
+      },
+      {
+        "command": "pairofcleats.copyContext",
+        "title": "PairOfCleats: Copy / Export Selected Context"
+      },
+      {
+        "command": "pairofcleats.inspectTasks",
+        "title": "PairOfCleats: Inspect Tasks"
+      },
+      {
+        "command": "pairofcleats.selectServiceRepository",
+        "title": "PairOfCleats: Select Service Repository"
+      },
+      {
+        "command": "pairofcleats.navigateDefinitions",
+        "title": "PairOfCleats: Inspect Indexed Definitions"
+      },
+      {
+        "command": "pairofcleats.navigateReferences",
+        "title": "PairOfCleats: Inspect Indexed References"
+      },
+      {
+        "command": "pairofcleats.openEvidence",
+        "title": "PairOfCleats: Open Captured Evidence"
       }
     ],
     "views": {
@@ -440,16 +502,33 @@
           "command": "pairofcleats.rerunResultSet",
           "when": "view == pairofcleats.resultsExplorer && viewItem == pairofcleats.resultSet",
           "group": "inline@1"
+        },
+        {
+          "command": "pairofcleats.copyContext",
+          "when": "view == pairofcleats.resultsExplorer && viewItem == pairofcleats.resultHit",
+          "group": "pairofcleats@5"
+        },
+        {
+          "command": "pairofcleats.semanticEvidence",
+          "when": "view == pairofcleats.resultsExplorer && viewItem == pairofcleats.resultHit",
+          "group": "pairofcleats@6"
         }
       ]
     },
     "configuration": {
       "title": "PairOfCleats",
       "properties": {
+        "pairofcleats.nodePath": {
+          "type": "string",
+          "default": "",
+          "scope": "machine",
+          "description": "External Node.js >=26.12.1 <27 executable for checkout JS commands. User Settings only; empty resolves node from the editor process PATH. The embedded VS Code runtime is never used."
+        },
         "pairofcleats.cliPath": {
           "type": "string",
           "default": "",
-          "description": "CLI command or JS entrypoint path. Leave empty to auto-detect the repo CLI or use 'pairofcleats' from PATH."
+          "description": "CLI command or JS entrypoint path. Leave empty to auto-detect the repo CLI or use 'pairofcleats' from PATH.",
+          "scope": "machine"
         },
         "pairofcleats.cliArgs": {
           "type": "array",
@@ -457,18 +536,21 @@
           "description": "Extra arguments inserted before the search command (e.g., [\"/path/to/bin/pairofcleats.js\"] when using node).",
           "items": {
             "type": "string"
-          }
+          },
+          "scope": "machine"
         },
         "pairofcleats.apiServerUrl": {
           "type": "string",
           "default": "",
-          "description": "Optional PairOfCleats API base URL for API-backed workflows."
+          "description": "Optional PairOfCleats API base URL for API-backed workflows.",
+          "scope": "machine"
         },
         "pairofcleats.apiTimeoutMs": {
           "type": "number",
           "default": 5000,
           "minimum": 1,
-          "description": "Timeout for PairOfCleats API requests in milliseconds."
+          "description": "Timeout for PairOfCleats API requests in milliseconds.",
+          "scope": "resource"
         },
         "pairofcleats.apiExecutionMode": {
           "type": "string",
@@ -478,7 +560,8 @@
             "prefer",
             "require"
           ],
-          "description": "Execution mode for workflows that support the PairOfCleats API."
+          "description": "Workflow transport: cli uses the configured local CLI, prefer uses supported API routes with CLI fallback, and require rejects every CLI-only workflow before execution.",
+          "scope": "machine"
         },
         "pairofcleats.searchMode": {
           "type": "string",
@@ -491,7 +574,8 @@
             "records",
             "all"
           ],
-          "description": "Default search mode."
+          "description": "Default search mode.",
+          "scope": "resource"
         },
         "pairofcleats.searchBackend": {
           "type": "string",
@@ -505,83 +589,99 @@
             "lmdb",
             "tantivy"
           ],
-          "description": "Optional backend override. Leave empty for default backend selection."
+          "description": "Optional backend override. Leave empty for default backend selection.",
+          "scope": "resource"
         },
         "pairofcleats.searchAnn": {
           "type": "boolean",
           "default": true,
-          "description": "Enable ANN if available."
+          "description": "Enable ANN if available.",
+          "scope": "resource"
         },
         "pairofcleats.maxResults": {
           "type": "number",
           "default": 25,
           "minimum": 1,
-          "description": "Maximum results to fetch."
+          "description": "Maximum results to fetch.",
+          "scope": "resource"
         },
         "pairofcleats.searchFile": {
           "type": "string",
           "default": "",
-          "description": "Optional exact or partial file filter (`--file`)."
+          "description": "Optional exact or partial file filter (`--file`).",
+          "scope": "resource"
         },
         "pairofcleats.searchPath": {
           "type": "string",
           "default": "",
-          "description": "Optional path prefix filter (`--path`)."
+          "description": "Optional path prefix filter (`--path`).",
+          "scope": "resource"
         },
         "pairofcleats.searchLang": {
           "type": "string",
           "default": "",
-          "description": "Optional language filter (`--lang`)."
+          "description": "Optional language filter (`--lang`).",
+          "scope": "resource"
         },
         "pairofcleats.searchExt": {
           "type": "string",
           "default": "",
-          "description": "Optional extension filter (`--ext`)."
+          "description": "Optional extension filter (`--ext`).",
+          "scope": "resource"
         },
         "pairofcleats.searchType": {
           "type": "string",
           "default": "",
-          "description": "Optional symbol/type filter (`--type`)."
+          "description": "Optional symbol/type filter (`--type`).",
+          "scope": "resource"
         },
         "pairofcleats.searchAsOf": {
           "type": "string",
           "default": "",
-          "description": "Optional as-of index reference (`--as-of`). Mutually exclusive with searchSnapshot."
+          "description": "Optional as-of index reference (`--as-of`). Mutually exclusive with searchSnapshot.",
+          "scope": "resource"
         },
         "pairofcleats.searchSnapshot": {
           "type": "string",
           "default": "",
-          "description": "Optional snapshot ID compatibility alias (`--snapshot`). Mutually exclusive with searchAsOf."
+          "description": "Optional snapshot ID compatibility alias (`--snapshot`). Mutually exclusive with searchAsOf.",
+          "scope": "resource"
         },
         "pairofcleats.searchFilter": {
           "type": "string",
           "default": "",
-          "description": "Optional structured filter expression (`--filter`)."
+          "description": "Optional structured filter expression (`--filter`).",
+          "scope": "resource"
         },
         "pairofcleats.searchAuthor": {
           "type": "string",
           "default": "",
-          "description": "Optional git author filter (`--author`)."
+          "description": "Optional git author filter (`--author`).",
+          "scope": "resource"
         },
         "pairofcleats.searchModifiedAfter": {
           "type": "string",
           "default": "",
-          "description": "Optional modified-after filter (`--modified-after`)."
+          "description": "Optional modified-after filter (`--modified-after`).",
+          "scope": "resource"
         },
         "pairofcleats.searchModifiedSince": {
           "type": "string",
           "default": "",
-          "description": "Optional modified-since filter (`--modified-since`)."
+          "description": "Optional modified-since filter (`--modified-since`).",
+          "scope": "resource"
         },
         "pairofcleats.searchChurn": {
           "type": "string",
           "default": "",
-          "description": "Optional churn threshold filter (`--churn`)."
+          "description": "Optional churn threshold filter (`--churn`).",
+          "scope": "resource"
         },
         "pairofcleats.searchCaseSensitive": {
           "type": "boolean",
           "default": false,
-          "description": "Enable case-sensitive matching (`--case`)."
+          "description": "Enable case-sensitive matching (`--case`).",
+          "scope": "resource"
         },
         "pairofcleats.env": {
           "type": "object",
@@ -593,7 +693,8 @@
               "number",
               "boolean"
             ]
-          }
+          },
+          "scope": "machine"
         },
         "pairofcleats.extraSearchArgs": {
           "type": "array",
@@ -601,28 +702,33 @@
           "description": "Extra CLI args appended to search (advanced usage).",
           "items": {
             "type": "string"
-          }
+          },
+          "scope": "machine"
         },
         "pairofcleats.inlineHoverEnabled": {
           "type": "boolean",
           "default": true,
-          "description": "Enable bounded PairOfCleats hover content for inline risk and context signals."
+          "description": "Enable bounded PairOfCleats hover content for inline risk and context signals.",
+          "scope": "resource"
         },
         "pairofcleats.inlineDiagnosticsEnabled": {
           "type": "boolean",
           "default": true,
-          "description": "Enable lightweight PairOfCleats diagnostics for the active file when inline risk signals are available."
+          "description": "Enable lightweight PairOfCleats diagnostics for the active file when inline risk signals are available.",
+          "scope": "resource"
         },
         "pairofcleats.inlineDecorationsEnabled": {
           "type": "boolean",
           "default": true,
-          "description": "Enable lightweight PairOfCleats inline decorations for the active file when inline risk signals are available."
+          "description": "Enable lightweight PairOfCleats inline decorations for the active file when inline risk signals are available.",
+          "scope": "resource"
         },
         "pairofcleats.inlineMaxItems": {
           "type": "number",
           "default": 3,
           "minimum": 1,
-          "description": "Maximum number of risk, type, warning, or truncation items shown in inline PairOfCleats signals."
+          "description": "Maximum number of risk, type, warning, or truncation items shown in inline PairOfCleats signals.",
+          "scope": "resource"
         }
       }
     },
@@ -671,5 +777,8 @@
         ]
       }
     ]
-  }
+  },
+  "extensionKind": [
+    "workspace"
+  ]
 }

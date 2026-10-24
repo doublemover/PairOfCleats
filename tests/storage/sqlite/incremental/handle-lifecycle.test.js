@@ -13,7 +13,8 @@ const { dir: tempRoot } = await prepareIsolatedTestCacheDir('sqlite-incremental-
 const manifestEntry = { bundles: ['unused.json'], hash: 'current', mtimeMs: 123, size: 10 };
 
 const runCase = async ({ name, failureAt = null, baselineHash = null, schemaVersion = SCHEMA_VERSION,
-  missingTable = false, closeFailure = false, checkpointFailure = false, buildPragmas = false }) => {
+  missingTable = false, closeFailure = false, checkpointFailure = false, buildPragmas = false, cancelAfterManifest = false }) => {
+  const controller = new AbortController();
   const outPath = path.join(tempRoot, `${name}.db`);
   const writer = new Database(outPath);
   try {
@@ -66,6 +67,7 @@ const runCase = async ({ name, failureAt = null, baselineHash = null, schemaVers
         statement.run = (...values) => {
           manifestWrites += 1;
           const result = run(...values);
+          if (cancelAfterManifest) controller.abort();
           // Fail after a real write inside the existing transaction to prove
           // that lifecycle cleanup does not change rollback semantics.
           inject('manifest-only');
@@ -105,11 +107,16 @@ const runCase = async ({ name, failureAt = null, baselineHash = null, schemaVers
       emitOutput: false,
       validateMode: 'off',
       expectedDense: null,
-      buildPragmas
+      buildPragmas,
+      signal: cancelAfterManifest ? controller.signal : null
     });
     if (failureAt) {
       await assert.rejects(update, (error) => error === failure, `${name}: preserve the original failure`);
       assert.equal(failureInjected, true, `${name}: failure injection must be reached`);
+    } else if (cancelAfterManifest) {
+      await assert.rejects(update, { code: 'ABORT_ERR' });
+      assert.equal(manifestWrites, 1);
+      assert.equal(rollbackObserved, true, 'cancellation after a real manifest write must roll back before close');
     } else if (schemaVersion !== SCHEMA_VERSION) {
       await assert.rejects(update, { code: 'ERR_INDEX_FORMAT_UNSUPPORTED' });
     } else {
@@ -152,6 +159,7 @@ try {
   }
   await runCase({ name: 'cleanup-errors', failureAt: 'planner', checkpointFailure: true, closeFailure: true });
   await runCase({ name: 'restore-after-failure', failureAt: 'planner', buildPragmas: true });
+  await runCase({ name: 'cancel-manifest', cancelAfterManifest: true });
   const manifestOnly = await runCase({ name: 'manifest-success' });
   assert.equal(manifestOnly.used, true);
   assert.equal(manifestOnly.manifestUpdates, 1);

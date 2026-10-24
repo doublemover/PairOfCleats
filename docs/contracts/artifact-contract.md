@@ -83,6 +83,18 @@ Each `index-<mode>/` directory contains:
   - Per-file relation metadata (imports/exports/relations).
 - `symbols.jsonl` (optional; JSONL or sharded JSONL)
   - Symbol rows (`symbolId`, `symbolKey`, `qualifiedName`, `kindGroup`, etc.).
+  - Additive `exported` (boolean or null) and `exportNames` (distinct strings)
+    carry module export identity independently of declaration kind. JS/TS module
+    AST evidence follows local bindings through inline/default/list/alias exports;
+    source re-exports do not export a same-named local declaration. Null/missing
+    identity is unknown, so export-only API validation reports an explicit warning
+    and failOnWarn fails even with zero retained details. Older rows remain readable.
+  - Module-export producer version 2, incremental signature 11 and native chunk
+    producer version 2 retire cached metadata without this meaning. Native JS/TS
+    named module-level function/arrow bindings retain VariableDeclaration kind;
+    scalar variables and anonymous/nested callbacks are not promoted to declarations.
+    Anonymous default functions, arrows and classes retain a `default` symbol;
+    public class membership alone does not make a method a module export.
 - `symbol_occurrences.jsonl` (optional; JSONL or sharded JSONL) or `symbol_occurrences.columnar.json`
   - `symbol_occurrences.columnar.json` stores a `{ format: "columnar", columns, arrays, length, tables? }` payload that inflates to the JSONL row schema.
 - `symbol_edges.jsonl` (optional; JSONL or sharded JSONL) or `symbol_edges.columnar.json`
@@ -108,13 +120,28 @@ Each `index-<mode>/` directory contains:
 - `phrase_ngrams.json` and `chargram_postings.json` (optional, per config)
   - Phrase/chargram vocab + postings arrays.
 - `minhash_signatures.json` (optional)
-  - Per-chunk MinHash signatures.
+  - Per-chunk MinHash signatures and required `hashIdentity` (`fnv1a32-utf16le-xor-fmix32-v2`).
+  - Packed metadata carries the same identity. Sampled signatures additionally retain their explicit coordinate plan; width alone never determines sampled indices.
+  - The family hashes explicit UTF-16LE bytes with FNV-1a32, then applies `fmix32(tokenHash XOR fmix32(seed))` for seeds 1–128. The [FNV reference](https://www.isthe.com/chongo/tech/comp/fnv/) and [MurmurHash3 source](https://github.com/aappleby/smhasher/blob/master/src/MurmurHash3.cpp) describe the component operations. Calibration bounds are empirical, not a proof of independent minwise hashes.
+  - Missing or incompatible identities require rebuilding. Incremental signature version 12 and tokenization dependency keys retire old polynomial signatures; old rows must never be relabelled as the current family.
 - `dense_vectors_uint8.json` + `dense_vectors_doc_uint8.json` + `dense_vectors_code_uint8.json` (optional)
   - Quantized embeddings with `model`, `dims`, and `scale`.
 - `dense_vectors.lancedb/` + `dense_vectors.lancedb.meta.json` (optional)
 - `dense_vectors_doc.lancedb/` + `dense_vectors_doc.lancedb.meta.json` (optional)
 - `dense_vectors_code.lancedb/` + `dense_vectors_code.lancedb.meta.json` (optional)
   - LanceDB vector indexes with `dims`, `count`, `metric`, and table/column metadata.
+  - Native HNSW/Lance files are committed beneath
+    `.embeddings-backends/<vector-generation-sha256>-<attempt-uuid>/`.
+    These filenames describe basenames; readers resolve logical artifacts through
+    `pieces/manifest.json`, rather than assuming root-level native files.
+  - Native metadata carries the complete `embeddingIdentity`, `embeddingGeneration`,
+    `backendGeneration` directory and `variant`. The vector-generation digest binds
+    the identity, ordered chunk/source mapping, null gaps and all three quantized
+    vector channels. Dense metadata and ready index state carry the same binding.
+  - A failed, skipped, disabled, empty or incomplete replacement is unavailable in
+    the new state and absent from the new manifest. Retained immutable generations
+    keep their original identity. Pending state blocks native/dense admission;
+    compatibility is checked before HNSW opens a file or LanceDB serves a query.
 - Embeddings cache entries are stored out-of-band under the OS cache root and are not part of the build artifact surface. They are safe to delete and are rebuilt on demand.
 - `index_state.json`
   - Build feature flags + stage metadata for the mode.
@@ -254,10 +281,16 @@ Artifact keys:
 - `artifact:dense_vectors_doc_uint8`
 - `artifact:dense_vectors_code_uint8`
 - `artifact:dense_vectors_hnsw_meta`
+- `artifact:dense_vectors_doc_hnsw_meta` (optional)
+- `artifact:dense_vectors_code_hnsw_meta` (optional)
 - `artifact:index_state`
 
-HNSW binary indexes remain in the file-backed index directory (`index-<mode>/dense_vectors_hnsw.bin`).
-LanceDB indexes and metadata remain in the file-backed index directory (`index-<mode>/dense_vectors*.lancedb`).
+HNSW binary indexes and LanceDB datasets remain file-backed in the committed native
+generation beneath `index-<mode>/.embeddings-backends/`. LMDB retains metadata for
+each variant and its original generation; it never pairs merged metadata with a
+different variant's binary. A stale store must be rebuilt when its binding differs
+from the selected current generation. The optional metadata keys extend the existing
+LMDB schema without changing its required keys.
 
 LMDB stores are rebuilt from file-backed artifacts via `pairofcleats lmdb build`.
 `pairofcleats index validate` performs a lightweight LMDB check (schema version, mode, and required artifact keys).
@@ -281,7 +314,10 @@ These invariants are validated by `pairofcleats index validate`:
 - Posting lists only reference valid chunk IDs.
 - `minhash_signatures.signatures.length == chunk_meta.length`.
 - `dense_vectors*.vectors.length == chunk_meta.length`.
-- `dense_vectors*.lancedb.meta.json.count == chunk_meta.length` (when present).
+- Native `count` is the number of successfully inserted nonempty vectors and cannot
+  exceed `chunk_meta.length`. HNSW/Lance `expectedCount` records expected nonempty
+  inserts; `count` must match it. Lance verifies the actual table count before writing
+  metadata. Legacy Lance metadata without `expectedCount` retains the full-row check.
 - Vector dimensionality matches `dims`.
 - `filter_index.fileChunksById` references valid chunk IDs.
 - `pieces/manifest.json` paths exist and `xxh64` checksums match (legacy `sha1` accepted).
@@ -298,4 +334,47 @@ Failures are categorized as:
 - **Cross-reference errors**: artifacts are inconsistent; rebuild the index.    
 - **SQLite table issues**: rebuild SQLite indexes.
 
-Use `pairofcleats index build` for file-backed artifacts and `pairofcleats sqlite build` for SQLite indexes.
+Use `pairofcleats index build` for file-backed artifacts and the SQLite stage of `pairofcleats index build --sqlite` for SQLite indexes.
+
+## Bounded producer writes
+
+Binary row-frame writers consume synchronous and asynchronous iterables lazily. They
+copy ordinary rows into at most a 1 MiB data block and 256-row sidecar blocks; a
+single larger row is consumed directly before advancing its producer. Positive
+short writes are completed, invalid progress fails, and cancellation or close
+failure cannot publish a completed descriptor. The three files retain their
+existing staging, fsync and publication boundaries.
+
+Packed token postings retain their delta-varint wire format and block resets. The
+production writer encodes into 64 KiB slabs, writes bounded uint64 offset blocks,
+and records SHA-256/byte receipts while consuming those same bytes. Data and
+offsets use the shared durable atomic-write primitive; metadata follows their
+completion. Manifest/generation publication remains the set-visibility authority.
+The small-input in-memory codec remains available to callers requiring a Buffer.
+
+Generic JSON output accumulates bounded chunks and awaits actual writable
+backpressure or a cooperative event-loop yield. Chunk boundaries preserve UTF-16
+surrogate pairs before UTF-8 encoding. Normalization, omitted object properties,
+array null substitution, typed arrays, circular rejection and BigInt errors retain
+the existing encoding contract. Compression workers start on admitted demand;
+gzip sharded output does not construct an unused zstd-worker pool.
+
+These implementation bounds have authored regressions. Throughput, allocation,
+platform and cancellation qualification remain separate measurement obligations;
+no performance improvement is asserted by this contract.
+
+Reconciliation uses an identity-only chunk reader. JSONL cold rows pass through
+the ordinary manifest-selected decoder and validation, then only identity and
+provenance fields enter the cold-ID map; complete context/relation rows are not
+retained. JSON/columnar formats retain their existing bounded decode limits. Full
+search/display readers continue to hydrate the complete cold surface.
+
+### JSONL offsets validation lifetime
+
+Offsets validation belongs to the current contained read invocation. A pathname,
+size or timestamp is not reusable integrity proof for a later call. Streaming
+loaders validate each declared pair before yielding rows; cancellation reaches
+both validation and decoding. The bounded 64-KiB validation scratch algorithm
+remains unchanged. Zero offsets is valid only for a zero-byte JSONL payload.
+Boundary validation does not itself prove manifest row-count completeness; that
+remains the declaring artifact owner's responsibility.

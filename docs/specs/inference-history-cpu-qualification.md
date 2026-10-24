@@ -164,3 +164,7 @@ model-ID cache resolution failed. That failure receipt was retained. Loading the
 verified absolute local model directory then completed the reference query phase;
 no native candidate retry occurred. Original source DBs and pinned cache were
 unchanged; trial outputs and ledger reside in the separate named task directory.
+
+## Shared paired-output admission
+
+Standalone quality receipts and the CPU pilot share exact paired-input admission. Stable coverage, effective input text, tokenizer, prompts, model revision, truncation ceiling, chunker identity and declared/actual vector dimensions must agree before report or ledger publication. Numerical graph/weight/dtype differences remain permitted. Missing provenance is a refusal. Judgment IDs are opaque own keys; inherited JavaScript names are never relevance grades. The authored contract controls are unexecuted development changes.

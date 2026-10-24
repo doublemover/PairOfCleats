@@ -26,6 +26,7 @@ export const runDedicatedProviderDegradedPreflightCase = async ({
   expectedEnrichment,
   expectedReasonCode,
   expectedCheckName,
+  authorizeFixtureExecution = false,
   diagnosticsKey = providerId,
   messages
 }) => {
@@ -33,6 +34,7 @@ export const runDedicatedProviderDegradedPreflightCase = async ({
   await withLspTestPath({ repoRoot: root }, async () => {
     const result = await runDedicatedProviderFixture({
       tempRoot: repo,
+      authorizeFixtureExecution,
       providerId,
       providerConfigKey,
       providerConfig: {
@@ -78,6 +80,7 @@ export const runSingleSymbolDegradedPreflightCase = async ({
   expectedReasonCode,
   expectedCheckName,
   expectedEnrichment = true,
+  authorizeFixtureExecution = false,
   diagnosticsKey = providerId,
   messages
 }) => {
@@ -92,6 +95,7 @@ export const runSingleSymbolDegradedPreflightCase = async ({
   await withLspTestPath({ repoRoot: root }, async () => {
     const result = await runDedicatedProviderFixture({
       tempRoot,
+      authorizeFixtureExecution,
       providerId,
       providerConfigKey,
       providerConfig: {

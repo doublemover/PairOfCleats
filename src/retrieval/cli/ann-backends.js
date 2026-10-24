@@ -1,4 +1,6 @@
 import path from 'node:path';
+import { stableStringify } from '../../shared/stable-json.js';
+import { embeddingBindingMismatches } from '../../shared/embedding-generation.js';
 import { pathExists } from '../../shared/file-read.js';
 import { runWithConcurrency } from '../../shared/concurrency/run-with-queue.js';
 import { MAX_JSON_BYTES } from '../../shared/artifact-io/constants.js';
@@ -77,7 +79,14 @@ export const attachDenseVectorLoader = ({
   if (!idx || !dir || !needsAnnArtifacts || !lazyDenseVectorsEnabled) return;
   const artifactCandidates = resolveDenseArtifactCandidates(mode, resolvedDenseVectorMode);
   let pendingLoad = null;
+  const admitDense = payload => {
+    const mismatch = embeddingBindingMismatches(payload, idx.state?.embeddings);
+    if (!mismatch.length) return payload;
+    if (strict) throw new Error(`Embedding identity mismatch detected while loading dense vectors: ${mismatch.join(', ')}`);
+    return null;
+  };
   idx.loadDenseVectors = async () => {
+    if (idx.state?.embeddings?.ready === false || idx.state?.embeddings?.pending === true) return null;
     if (isDenseVectorPayloadAvailable(idx?.denseVec)) {
       return idx.denseVec;
     }
@@ -87,13 +96,24 @@ export const attachDenseVectorLoader = ({
       try {
         manifest = loadPiecesManifest(dir, { maxBytes: MAX_JSON_BYTES, strict });
       } catch (err) {
+        if (strict) throw err;
         if (err?.code !== 'ERR_MANIFEST_MISSING' && err?.code !== 'ERR_MANIFEST_INVALID') {
           throw err;
         }
       }
+      const candidatePresent = name => {
+        if (!strict) return true;
+        const presence = resolveArtifactPresence(dir, name, { manifest, strict: true });
+        if (presence.error) {
+          if (presence.error.code === 'ERR_MANIFEST_MISSING') return false;
+          throw presence.error;
+        }
+        return presence.format !== 'missing';
+      };
       for (const artifactName of artifactCandidates) {
         const descriptor = resolveDenseVectorBinaryArtifact(artifactName);
         if (!descriptor) continue;
+        if (!candidatePresent(descriptor.metaName)) continue;
         let meta = null;
         try {
           meta = await loadJsonObjectArtifact(dir, descriptor.metaName, {
@@ -101,34 +121,44 @@ export const attachDenseVectorLoader = ({
             manifest,
             strict
           });
-        } catch {
-          if (strict) continue;
+        } catch (error) {
+          if (strict) throw error;
         }
         const loaded = await loadDenseVectorBinaryFromMetaAsync({
           dir,
           baseName: descriptor.baseName,
           meta,
-          modelId: modelIdDefault || null
+          modelId: modelIdDefault || null,
+          manifest,
+          strict
         });
         if (!loaded) continue;
         if (!loaded.model && modelIdDefault) loaded.model = modelIdDefault;
-        idx.denseVec = loaded;
-        return loaded;
+        const admitted = admitDense(loaded);
+        if (!admitted) continue;
+        idx.denseVec = admitted;
+        return admitted;
       }
       for (const artifactName of artifactCandidates) {
+        if (!candidatePresent(artifactName)) continue;
         const descriptor = resolveDenseVectorBinaryArtifact(artifactName);
+        let legacy = null;
         try {
-          const legacy = await loadJsonObjectArtifact(dir, artifactName, {
+          legacy = await loadJsonObjectArtifact(dir, artifactName, {
             maxBytes: MAX_JSON_BYTES,
             manifest,
             strict
           });
-          const payload = materializeLegacyDenseVectorPayload(legacy, modelIdDefault);
-          if (!payload) continue;
+        } catch (error) {
+          if (strict) throw error;
+          if (!descriptor) continue;
+        }
+        // Optional source lookup may fall through; a strict identity rejection
+        // after a successful read must reach the caller.
+        const payload = admitDense(materializeLegacyDenseVectorPayload(legacy, modelIdDefault));
+        if (payload) {
           idx.denseVec = payload;
           return payload;
-        } catch {
-          if (strict || !descriptor) continue;
         }
         if (!strict && descriptor) {
           const fallbackPaths = [
@@ -138,7 +168,7 @@ export const attachDenseVectorLoader = ({
           for (const fallbackPath of fallbackPaths) {
             try {
               const legacy = readJsonFile(fallbackPath, { maxBytes: MAX_JSON_BYTES });
-              const payload = materializeLegacyDenseVectorPayload(legacy, modelIdDefault);
+              const payload = admitDense(materializeLegacyDenseVectorPayload(legacy, modelIdDefault));
               if (!payload) continue;
               idx.denseVec = payload;
               return payload;
@@ -184,6 +214,10 @@ export const attachLanceDb = async ({
   if (!idx || !dir || lancedbConfig?.enabled === false) return null;
   const paths = resolveLanceDbPaths(dir);
   const target = resolveLanceDbTarget(mode, resolvedDenseVectorMode);
+  if (idx.state?.embeddings?.ready === false || idx.state?.embeddings?.pending === true) {
+    idx.lancedb = { target, available: false, dir: null, meta: null };
+    return idx.lancedb;
+  }
   const targetPaths = paths?.[target] || {};
   const metaName = target === 'doc'
     ? 'dense_vectors_doc_lancedb_meta'
@@ -269,7 +303,14 @@ export const attachLanceDb = async ({
   if (!lanceDir && !strict && targetPaths.dir && await pathExists(targetPaths.dir)) {
     lanceDir = targetPaths.dir;
   }
-  const available = Boolean(meta && lanceDir && await pathExists(lanceDir));
+  let available = Boolean(meta && lanceDir && await pathExists(lanceDir));
+  if (available && embeddingBindingMismatches(meta, idx.state?.embeddings).length) available = false;
+  if (available && meta.backendGeneration) {
+    const suffix = path.join(meta.backendGeneration, path.basename(targetPaths.dir));
+    if (!path.resolve(lanceDir).endsWith(`${path.sep}${suffix}`) || meta.variant !== target) available = false;
+  } else if (idx.state?.embeddings?.embeddingGeneration) {
+    available = false;
+  }
   idx.lancedb = {
     target,
     dir: lanceDir || null,
@@ -277,6 +318,12 @@ export const attachLanceDb = async ({
     meta,
     available
   };
+  const state = idx.state?.embeddings;
+  if (state?.backends?.lancedb?.enabled === false
+    || (state?.backends?.lancedb?.available === false && state.backends.lancedb.target === target)
+    || (state?.embeddingGeneration && meta?.embeddingGeneration !== state.embeddingGeneration)) {
+    idx.lancedb.available = false;
+  }
   return idx.lancedb;
 };
 
@@ -404,15 +451,17 @@ export const validateEmbeddingIdentityForMode = (mode, idx, strict) => {
   if (stateIdentity) {
     sources.push({ name: 'index_state', identity: stateIdentity, disable: null });
   }
-  const denseIdentity = extractEmbeddingIdentity(idx.denseVec);
-  if (denseIdentity) {
-    sources.push({ name: 'dense_vectors', identity: denseIdentity, disable: null });
+  for (const [key, name] of [['denseVec', 'dense_vectors'], ['denseVecDoc', 'dense_vectors_doc'],
+    ['denseVecCode', 'dense_vectors_code']]) {
+    const identity = extractEmbeddingIdentity(idx[key]);
+    if (identity) sources.push({ name, identity, meta: idx[key], disable: () => { idx[key] = null; } });
   }
   const hnswIdentity = extractEmbeddingIdentity(idx.hnsw?.meta);
   if (hnswIdentity) {
     sources.push({
       name: 'hnsw',
       identity: hnswIdentity,
+      meta: idx.hnsw.meta,
       disable: () => {
         if (!idx.hnsw || typeof idx.hnsw !== 'object') return;
         idx.hnsw.available = false;
@@ -425,6 +474,7 @@ export const validateEmbeddingIdentityForMode = (mode, idx, strict) => {
     sources.push({
       name: 'lancedb',
       identity: lanceIdentity,
+      meta: idx.lancedb.meta,
       disable: () => {
         if (!idx.lancedb || typeof idx.lancedb !== 'object') return;
         idx.lancedb.available = false;
@@ -433,12 +483,28 @@ export const validateEmbeddingIdentityForMode = (mode, idx, strict) => {
   }
   const sqliteVecIdentity = extractEmbeddingIdentity(idx.sqliteVecMeta);
   if (sqliteVecIdentity) {
-    sources.push({ name: 'sqlite-vec-meta', identity: sqliteVecIdentity, disable: null });
+    sources.push({ name: 'sqlite-vec-meta', identity: sqliteVecIdentity, meta: idx.sqliteVecMeta, disable: null });
   }
   if (sources.length <= 1) return [];
 
   const reference = sources[0];
   const mismatches = [];
+  const generation = idx?.state?.embeddings?.embeddingGeneration;
+  if (generation) {
+    for (const [name, meta, disable] of [
+      ['dense_vectors', idx.denseVec, () => { idx.denseVec = null; }],
+      ['dense_vectors_doc', idx.denseVecDoc, () => { idx.denseVecDoc = null; }],
+      ['dense_vectors_code', idx.denseVecCode, () => { idx.denseVecCode = null; }],
+      ['hnsw', idx.hnsw?.meta, () => { idx.hnsw.available = false; idx.hnsw.index = null; }],
+      ['lancedb', idx.lancedb?.meta, () => { idx.lancedb.available = false; }]
+    ]) {
+      if (meta && meta.embeddingGeneration !== generation) {
+        mismatches.push({ mode, source: name, field: 'embeddingGeneration', expected: generation,
+          actual: meta.embeddingGeneration ?? null });
+        if (!strict) disable();
+      }
+    }
+  }
   const quantFields = ['scale', 'minVal', 'maxVal', 'levels'];
   for (const source of sources.slice(1)) {
     const beforeCount = mismatches.length;
@@ -499,6 +565,22 @@ export const validateEmbeddingIdentityForMode = (mode, idx, strict) => {
           actual: rightValue
         });
       }
+    }
+    for (const field of ['provider', 'mode', 'pooling', 'truncation', 'fingerprint', 'normalize', 'stub',
+      'maxLength', 'modelArtifact', 'modelProfile', 'onnx']) {
+      if (!hasOwn(reference.identity, field)) continue;
+      if (stableStringify(reference.identity[field]) !== stableStringify(source.identity[field])) {
+        mismatches.push({ mode, source: source.name, field,
+          expected: reference.identity[field], actual: source.identity[field] ?? null });
+      }
+    }
+    for (const field of embeddingBindingMismatches(source.meta, idx.state?.embeddings)) {
+      if (mismatches.some(entry => entry.source === source.name && entry.field === field)) continue;
+      mismatches.push({ mode, source: source.name, field,
+        expected: field === 'embeddingGeneration' ? idx.state?.embeddings?.embeddingGeneration
+          : idx.state?.embeddings?.embeddingIdentity?.[field],
+        actual: field === 'embeddingGeneration' ? source.meta?.embeddingGeneration ?? null
+          : (source.meta?.embeddingIdentity || source.meta)?.[field] ?? null });
     }
     if (mismatches.length > beforeCount && !strict && typeof source.disable === 'function') {
       source.disable();

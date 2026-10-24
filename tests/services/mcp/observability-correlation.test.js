@@ -1,12 +1,12 @@
 #!/usr/bin/env node
+import { resolveDevelopmentArtifactPath } from '../../../tools/shared/dev-artifacts.js';
 import assert from 'node:assert/strict';
 import fsPromises from 'node:fs/promises';
-import path from 'node:path';
 
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { startMcpServer } from '../../helpers/mcp-client.js';
 
-const cacheRoot = path.join(process.cwd(), 'tests', '.cache', 'mcp-observability-correlation');
+const cacheRoot = resolveDevelopmentArtifactPath(process.cwd(), 'test-cache', 'mcp-observability-correlation');
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 
 const env = applyTestEnv({

@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { runSearchCli } from '../../retrieval/cli.js';
+import { runSearchCli, INTERNAL_EXACT_SEARCH_MODE } from '../../retrieval/cli.js';
 import { buildSearchArgs } from './args.js';
 import { attachObservability, normalizeObservability } from '../../shared/observability.js';
 
@@ -22,7 +22,10 @@ export async function search(repoRoot, params = {}) {
       output: params.output || null
     }
   });
-  const rawArgs = Array.isArray(params.args) ? params.args.slice() : buildSearchArgs(params);
+  if (params.argsMode != null && !['additional', 'complete'].includes(params.argsMode)) throw new TypeError('argsMode must be additional or complete.');
+  if (params.args != null && !Array.isArray(params.args)) throw new TypeError('Search args must be an array.');
+  const namedArgs = buildSearchArgs({ ...params, args: [] });
+  const rawArgs = params.argsMode === 'complete' ? (params.args || []).slice() : [...namedArgs, ...(params.args || [])];
   const query = typeof params.query === 'string' ? params.query : '';
   if (query) rawArgs.push('--', query);
   const result = await runSearchCli(rawArgs, {
@@ -33,7 +36,8 @@ export async function search(repoRoot, params = {}) {
     sqliteCache: params.sqliteCache,
     signal: params.signal || null,
     scoreMode: params.scoreMode ?? null,
-    generationContext: params.generationContext || null
+    generationContext: params.generationContext || null,
+    [INTERNAL_EXACT_SEARCH_MODE]: params[INTERNAL_EXACT_SEARCH_MODE]
   });
   return attachObservability(result, observability);
 }

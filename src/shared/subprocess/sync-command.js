@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { killWindowsTreeSync } from '../kill-tree/windows.js';
 
 export const DEFAULT_SYNC_COMMAND_TIMEOUT_MS = 5_000;
 
@@ -57,11 +58,10 @@ export const killTimedOutSyncProcessTree = (
   };
   try {
     if (process.platform === 'win32') {
-      const taskkillResult = spawnSync('taskkill', ['/PID', String(numericPid), '/T', '/F'], {
-        stdio: 'ignore',
-        timeout: boundedTimeoutMs
-      });
-      return taskkillResult?.status === 0;
+      // spawnSync already reaped the root. Reuse the orphan-aware native
+      // lineage owner; taskkill /T alone cannot find this surviving tree.
+      if (killTree) return killWindowsTreeSync(numericPid).terminated;
+      return terminatePosixPid(numericPid, 'SIGKILL');
     }
     const descendants = killTree ? discoverPosixDescendantsSync(numericPid) : [];
     const fallbackTargets = descendants.slice().reverse();

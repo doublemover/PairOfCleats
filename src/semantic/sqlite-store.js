@@ -1,5 +1,7 @@
-import { validateOperationSelector } from './operation-reader.js';
+import { captureOperationSelector } from './operation-reader.js';
+import { createSourceReferenceReader } from './source-references.js';
 import { createNeighborReader } from './neighbors.js';
+import { captureSemanticDetailFields, captureSemanticRecordRef, captureSemanticRecordRefs } from './reader-input.js';
 import { canonicalSemanticJson, semanticHash } from '../index/semantic/identity.js';
 import { assertCurrentIndexFormat } from '../contracts/index-format.js';
 import { assertSemanticEnvelope } from '../contracts/validators/semantic-envelopes.js';
@@ -8,6 +10,7 @@ import { assertSqliteIndexFormat } from '../storage/sqlite/index-format.js';
 import { throwIfAborted } from '../shared/abort.js';
 import { assertSemanticTask } from '../contracts/validators/semantic-task.js';
 import { resolvePublishedSemanticCoverage } from './coverage-resolution.js';
+const requestError = message => new Error(message);
 
 /** The database handle belongs to a pinned immutable generation. */
 export const createSqliteSemanticStore = ({
@@ -19,6 +22,8 @@ export const createSqliteSemanticStore = ({
     foundVersion: artifactSurfaceVersion, repoRoot, indexPath
   });
   assertSemanticEnvelope('generation', generation);
+  generation = Object.freeze({ ...generation });
+  manifest = manifest ? structuredClone(manifest) : null;
   const storedGeneration = db.prepare("SELECT value FROM index_format_meta WHERE key='semanticGeneration'").get();
   if (!storedGeneration || canonicalSemanticJson(JSON.parse(storedGeneration.value)) !== canonicalSemanticJson(generation)) {
     throw Object.assign(new Error('SQLite semantic generation mismatch.'), { code: 'ERR_SEMANTIC_GENERATION_MISMATCH' });
@@ -27,14 +32,11 @@ export const createSqliteSemanticStore = ({
   const statement = db.prepare('SELECT CASE WHEN length(CAST(payload AS BLOB))<=? THEN payload ELSE NULL END AS payload FROM semantic_records WHERE partition_id = ? AND local_id = ?');
   const partition = db.prepare('SELECT descriptor FROM semantic_analysis WHERE partition_id = ?');
   const getRecords = async (refs, fields = ['span', 'scope', 'data'], { signal = null } = {}) => {
-    if (!Array.isArray(refs) || refs.length > maxRecords) throw new Error('Semantic record request exceeds its limit.');
-    if (!Array.isArray(fields) || fields.some((field) => !['span', 'scope', 'data'].includes(field))) {
-      throw new Error('Unknown semantic detail field group.');
-    }
+    refs = captureSemanticRecordRefs(refs, maxRecords, requestError);
+    fields = captureSemanticDetailFields(fields, requestError);
     const result = [];
     for (const ref of refs) {
       throwIfAborted(signal);
-      if (!validateSemanticRecord('recordRef', ref).ok) throw new Error('Invalid semantic RecordRef.');
       if (!partition.get(ref.partitionId)) throw new Error('Record partition is not in the pinned generation.');
       const stored = statement.get(maxRowBytes,ref.partitionId, ref.localId);
       if (!stored) { result.push(null); continue; }
@@ -76,6 +78,7 @@ export const createSqliteSemanticStore = ({
   if (!Number.isSafeInteger(maxRowBytes) || maxRowBytes < 1 || maxRowBytes > 16 * 1024 * 1024) throw new TypeError('Invalid semantic SQLite row allowance.');
   const inventoryHashes = rows => [...rows].sort((a,b)=>a.partitionId.localeCompare(b.partitionId));
   const descriptors = physicalPartitions.map(entry=>JSON.parse(entry.descriptor));
+  const sourceUnitsByPartition = new Map(descriptors.map(descriptor => [descriptor.partitionId, descriptor.sourceUnitId]));
   if (manifest && (canonicalSemanticJson(manifest.generation)!==canonicalSemanticJson(generation)
     || canonicalSemanticJson(inventoryHashes(manifest.partitions))!==canonicalSemanticJson(inventoryHashes(descriptors)))) {
     throw Object.assign(new Error('SQLite semantic inventory differs from the published family.'),{code:'ERR_SEMANTIC_GENERATION_MISMATCH'});
@@ -104,6 +107,12 @@ export const createSqliteSemanticStore = ({
       }
     }
   };
+  const getSourceReference = createSourceReferenceReader({
+    sourceUnitForPartition: id => {
+      const stored = partition.get(id);
+      return stored ? JSON.parse(stored.descriptor).sourceUnitId : null;
+    }, iterateRows
+  });
   const getExplainInventory=()=>manifest||{generation,partitions:descriptors,completedTasks:null};
   const incident = 'SELECT rowid, payload FROM semantic_edges INDEXED BY semantic_edges_forward WHERE partition_id = ? AND from_partition = ? AND from_id = ? UNION SELECT rowid, payload FROM semantic_edges INDEXED BY semantic_edges_reverse WHERE partition_id = ? AND to_partition = ? AND to_id = ?';
   const relatedQueries = {
@@ -121,7 +130,8 @@ export const createSqliteSemanticStore = ({
     semantic_lookup: db.prepare('SELECT COUNT(*) AS n FROM semantic_lookup WHERE partition_id = ? AND partition_id = ? AND local_id = ?')
   };
   const getRelatedPage = async (ref, member, { offset = 0, limit = 128, signal = null } = {}) => {
-    if (!validateSemanticRecord('recordRef', ref).ok || !partition.get(ref.partitionId)
+    ref = captureSemanticRecordRef(ref, requestError);
+    if (!partition.get(ref.partitionId)
       || !Object.hasOwn(relatedQueries, member) || !Number.isSafeInteger(offset) || offset < 0
       || !Number.isSafeInteger(limit) || limit < 1 || limit > 512) throw new Error('Invalid related semantic request.');
     const rows = [];
@@ -151,7 +161,7 @@ export const createSqliteSemanticStore = ({
     return { rows, offset: offset + rows.length, done: offset + rows.length === total };
   };
   const findOperations = async (selector, { offset = 0, limit = 128, signal = null } = {}) => {
-    validateOperationSelector(selector,offset,limit); throwIfAborted(signal);
+    selector = captureOperationSelector(selector,offset,limit); throwIfAborted(signal);
     if (['typeExpression', 'literalValue'].includes(selector.field)) {
       if (!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='semantic_discovery'").get()) {
         throw Object.assign(new Error('Typed/value discovery index unavailable; rebuild the pinned generation.'), { code: 'ERR_SEMANTIC_UNAVAILABLE' });
@@ -172,5 +182,6 @@ export const createSqliteSemanticStore = ({
     const rows = db.prepare(sql).all(selector.value,limit+1,offset);
     return { refs: rows.slice(0,limit).map(row => ({partitionId:row.partition_id,localId:row.local_id})),offset:offset+Math.min(limit,rows.length),done:rows.length<=limit };
   };
-  return { findOperations, iterateRows, getExplainInventory, backend: 'sqlite', storeId: indexPath, cursorScope: semanticHash('semantic.store-inventory.v1', physicalPartitions.map(entry => { const descriptor = JSON.parse(entry.descriptor); return { partitionId: descriptor.partitionId, canonicalHash: descriptor.canonicalHash }; })), repoRoot, generation: { ...generation }, getRecords, getCoverage, getRelatedPage, getNeighbors: createNeighborReader(getRelatedPage) };
+  return { findOperations, iterateRows, getExplainInventory, getPartitionSourceUnitId: id => sourceUnitsByPartition.get(id) || null,
+    backend: 'sqlite', storeId: indexPath, cursorScope: semanticHash('semantic.store-inventory.v1', physicalPartitions.map(entry => { const descriptor = JSON.parse(entry.descriptor); return { partitionId: descriptor.partitionId, canonicalHash: descriptor.canonicalHash }; })), repoRoot, generation: { ...generation }, getRecords, getSourceReference, getCoverage, getRelatedPage, getNeighbors: createNeighborReader(getRelatedPage) };
 };

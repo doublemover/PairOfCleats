@@ -29,6 +29,7 @@ export const attachSegmentMeta = ({
   adjusted.start = chunk.start + segmentStart;
   adjusted.end = chunk.end + segmentStart;
   if (adjusted.meta && typeof adjusted.meta === 'object') {
+    adjusted.meta = { ...adjusted.meta };
     if (Number.isFinite(adjusted.meta.startLine)) {
       adjusted.meta.startLine = segmentStartLine + adjusted.meta.startLine - 1;
     }

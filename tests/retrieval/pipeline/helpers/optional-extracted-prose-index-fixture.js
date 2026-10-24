@@ -67,6 +67,7 @@ export const writeOptionalExtractedProseIndexPair = async (
 
 export const loadOptionalExtractedProseIndexes = (rootDir, overrides = {}) => loadSearchIndexes({
   rootDir,
+  indexDirByMode: Object.fromEntries(['code', 'extracted-prose'].map(mode => [mode, path.join(rootDir, `index-${mode}`)])),
   userConfig: {},
   searchMode: 'code',
   runProse: false,

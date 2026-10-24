@@ -236,6 +236,15 @@ const normalizeSymbolRef = (ref) => {
   if (resolved && !hasResolved) {
     candidates = [resolved, ...candidates];
   }
+  const seen = new Set();
+  candidates = candidates.filter(candidate => candidate && typeof candidate === 'object')
+    .sort(compareCandidates).filter(candidate => {
+      const key = candidate.symbolId ? `symbol:${candidate.symbolId}`
+        : candidate.chunkUid ? `chunk:${candidate.chunkUid}` : `file:${candidate.path ?? ''}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
   return {
     v: Number.isFinite(ref.v) ? ref.v : 1,
     status: ref.status || 'unresolved',
@@ -249,15 +258,17 @@ const normalizeSymbolRef = (ref) => {
   };
 };
 
-const resolveSymbolId = (ref) => {
-  if (!ref || typeof ref !== 'object') return null;
-  if (ref.resolved && ref.resolved.symbolId) return ref.resolved.symbolId;
+export const projectSymbolRefTargets = (ref) => {
+  if (!ref || typeof ref !== 'object') return [];
+  if (ref.resolved && ref.resolved.symbolId) return [{symbolId:ref.resolved.symbolId,resolution:'resolved'}];
   const candidates = Array.isArray(ref.candidates) ? ref.candidates : [];
   const symbolCandidates = candidates.filter((candidate) => candidate?.symbolId);
-  if (!symbolCandidates.length) return null;
+  if (!symbolCandidates.length) return [];
   const ordered = symbolCandidates.slice();
   ordered.sort(compareCandidates);
-  return ordered[0].symbolId;
+  const seen=new Set();
+  return ordered.filter(candidate=>!seen.has(candidate.symbolId) && seen.add(candidate.symbolId))
+    .map(candidate=>({symbolId:candidate.symbolId,resolution:'candidate'}));
 };
 
 export const buildSymbolEdgesIndex = (symbolEdges) => {
@@ -268,16 +279,17 @@ export const buildSymbolEdgesIndex = (symbolEdges) => {
     if (!edge?.from?.chunkUid || !edge?.to) continue;
     const normalized = normalizeSymbolRef(edge.to);
     if (!normalized) continue;
-    const symbolId = resolveSymbolId(normalized);
+    const targets = projectSymbolRefTargets(normalized);
     const entry = {
       edge,
       toRef: normalized,
-      symbolId
+      symbolId:targets.find(target=>target.resolution === 'resolved')?.symbolId || null,
+      targets
     };
     const list = byChunk.get(edge.from.chunkUid) || [];
     list.push(entry);
     byChunk.set(edge.from.chunkUid, list);
-    if (symbolId) {
+    for(const {symbolId} of targets) {
       const symList = bySymbol.get(symbolId) || [];
       symList.push(entry);
       bySymbol.set(symbolId, symList);
@@ -293,15 +305,18 @@ export const buildSymbolEdgesIndex = (symbolEdges) => {
   return { byChunk, bySymbol };
 };
 
+/** Append one occurrence to the existing pair-evidence projection. Unresolved
+ * occurrences remain in canonical call_sites and its independent page route. */
+export const appendCallSiteIndex = (map, site) => {
+  if (!site?.callerChunkUid || !site?.targetChunkUid || !site?.callSiteId) return;
+  const key = `${site.callerChunkUid}|${site.targetChunkUid}`;
+  const list = map.get(key) || [];
+  list.push(site.callSiteId);
+  map.set(key, list);
+};
+
 export const buildCallSiteIndex = (callSites) => {
   const map = new Map();
-  const entries = Array.isArray(callSites) ? callSites : [];
-  for (const site of entries) {
-    if (!site?.callerChunkUid || !site?.targetChunkUid || !site?.callSiteId) continue;
-    const key = `${site.callerChunkUid}|${site.targetChunkUid}`;
-    const list = map.get(key) || [];
-    list.push(site.callSiteId);
-    map.set(key, list);
-  }
+  for (const site of Array.isArray(callSites) ? callSites : []) appendCallSiteIndex(map, site);
   return map;
 };

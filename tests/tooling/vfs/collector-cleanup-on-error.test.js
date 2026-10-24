@@ -56,13 +56,7 @@ try {
   assert.ok(threw, 'expected enqueueVfsManifestArtifacts to throw for oversize row');
 
   const runsDir = path.join(tempRoot, 'vfs_manifest.runs');
-  let exists = true;
-  try {
-    await fs.stat(runsDir);
-  } catch {
-    exists = false;
-  }
-  assert.equal(exists, false, 'expected runs directory to be cleaned up');
+  assert.deepEqual(await fs.readdir(runsDir), [], 'expected only this collector\'s owned child directory to be cleaned up');
 
   console.log('VFS collector cleanup test passed');
 } finally {

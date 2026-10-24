@@ -51,7 +51,8 @@ const JSONL_REQUIRED_KEYS = Object.freeze({
   risk_summaries: ['schemaVersion', 'chunkUid', 'file', 'signals'],
   risk_flows: ['schemaVersion', 'flowId', 'source', 'sink', 'path', 'confidence', 'notes'],
   risk_partial_flows: ['schemaVersion', 'partialFlowId', 'source', 'frontier', 'path', 'confidence', 'notes'],
-  graph_relations: ['graph', 'node']
+  graph_relations: ['graph', 'node'],
+  graph_relation_edges: ['schemaVersion', 'graph', 'from', 'to']
 });
 
 export const resolveJsonlRequiredKeys = (baseName) => {

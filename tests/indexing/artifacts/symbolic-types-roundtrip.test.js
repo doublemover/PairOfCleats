@@ -18,7 +18,7 @@ import { openPublishedSymbolicTypeStore } from '../../../src/semantic/symbolic-t
 import { measureSymbolicResponseBytes } from '../../../src/semantic/symbolic-type-response.js';
 import { readCrossFileInferenceCache, writeCrossFileInferenceCache } from '../../../src/index/type-inference-crossfile/cache.js';
 import { getBuildsRoot } from '../../../src/shared/repo-paths.js';
-import { runSemanticDetail } from '../../../src/integrations/tooling/semantic-detail.js';
+import { createSemanticDetailRunner, runSemanticDetail } from '../../../src/integrations/tooling/semantic-detail.js';
 import { runSemanticDetailCli } from '../../../tools/analysis/semantic-detail.js';
 import { handleToolCall } from '../../../tools/mcp/tools.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
@@ -71,7 +71,7 @@ try {
   validateMetaV2Types(metadataReport, 'code', [{ metaV2: { types: { expressions: { ...typeExpressions, interpretation: 'invalid' } } } }]);
   assert.equal(metadataReport.issues.length, 1, 'invalid symbolic envelopes are still rejected');
   const inferenceState = { chunks, symbolicTypeGraphs: [graph], fileRelations: new Map() };
-  await runCrossFileInference({ runtime: { root: repoRoot, buildRoot: outDir, repoCacheRoot: path.join(fixture, 'runner-cache'),
+  await runCrossFileInference({ runtime: { root: repoRoot, buildRoot: outDir, buildId: generation.baseBuildId, repoCacheRoot: path.join(fixture, 'runner-cache'),
     typeInferenceEnabled: true, typeInferenceCrossFileEnabled: true, toolingEnabled: false,
     riskAnalysisEnabled: false, riskAnalysisCrossFileEnabled: false, riskInterproceduralEnabled: false },
   mode: 'code', state: inferenceState, crashLogger: { updatePhase() {} } });
@@ -110,6 +110,14 @@ try {
   await assert.rejects(store.query({ ref: { ...ref, nodeId: 'tir1:' + '0'.repeat(64) }, operation: 'classify' }), requiredFailure('symbolic_type_missing'));
   await assert.rejects(store.query({ ref, operation: 'equivalence' }), requiredFailure('symbolic_type_unsupported'));
   await assert.rejects(store.query({ ref, operation: 'classify' }, { maxWitnessBytes: 3 }), requiredFailure('maxWitnessBytes_exceeded'));
+  const localAbort = new AbortController(); localAbort.abort();
+  await assert.rejects(store.query({ ref, operation: 'classify' }, { signal: localAbort.signal }), { name: 'AbortError' },
+    'a query-local cancellation cannot be ignored by an already hydrated store');
+  const buildAbort = new AbortController();
+  const boundStore = await openPublishedSymbolicTypeStore({ indexDir: outDir, repoRoot, generation, signal: buildAbort.signal });
+  buildAbort.abort();
+  await assert.rejects(boundStore.query({ ref, operation: 'classify' }, { signal: new AbortController().signal }), { name: 'AbortError' },
+    'a live query signal cannot replace the store owner cancellation');
 
   // Public existing detail runner and CLI both work without any semantic-family file.
   const request = { repoRoot, generation, refs: [], typeQueries: [{ ref, operation: 'membership', value: 'prefix:b' }] };
@@ -117,6 +125,14 @@ try {
   assert.equal(response.status, 'complete');
   assert.equal(response.typeResults[0].contains, true);
   assert.deepEqual(await handleToolCall('semantic_detail', request), response);
+  const returnedAbort = new AbortController();
+  const canceledRunner = createSemanticDetailRunner({ openTypeStore: async () => ({ async query(typeQuery, options) {
+    assert.equal(options.signal, returnedAbort.signal);
+    returnedAbort.abort();
+    return { ref: typeQuery.ref, operation: 'membership', contains: true, complete: true };
+  } }) });
+  await assert.rejects(canceledRunner(request, { signal: returnedAbort.signal }), { name: 'AbortError' },
+    'a type operation that settles after caller cancellation cannot return a completed public response');
   const requestFile = path.join(fixture, 'request.json');
   await fs.writeFile(requestFile, JSON.stringify(request));
   let output = '';

@@ -1,6 +1,37 @@
 import { createHash } from 'node:crypto';
 import { semanticHash, canonicalSemanticJson } from './identity.js';
 import { SEMANTIC_MEMBER_NAMES } from '../../contracts/schemas/semantic-envelopes.js';
+import { throwIfAborted } from '../../shared/abort.js';
+
+/** Read-only seed admission for the narrow summary-demand planner. The actual
+ * store's closed generation/partition readers own source authority, not a span
+ * or current worktree path supplied by the request.
+ */
+export const reconcileCompilerSummaryDemandSeed = async ({ store, request, signal = null }) => {
+  throwIfAborted(signal);
+  request = JSON.parse(canonicalSemanticJson(request, { maxBytes: 16384, check: () => throwIfAborted(signal) }));
+  if (store?.backend !== 'artifact' || typeof store.cursorScope !== 'string'
+    || typeof store.getRecords !== 'function' || typeof store.getSourceReference !== 'function') {
+    return { compatible: false, reason: 'artifact_summary_demand_store_required' };
+  }
+  const generation = canonicalSemanticJson(store.generation), inventoryHash = store.cursorScope;
+  const getRecords = store.getRecords.bind(store), getSourceReference = store.getSourceReference.bind(store);
+  if (generation !== canonicalSemanticJson(request.generation) || inventoryHash !== request.inventoryHash) {
+    return { compatible: false, reason: 'summary_demand_generation_or_inventory_changed' };
+  }
+  const [record] = await getRecords([request.seed], ['span'], { signal });
+  throwIfAborted(signal);
+  if (!record || !['declaration', 'expression'].includes(record.kind) || !record.span) {
+    return { compatible: false, reason: 'summary_demand_seed_kind_unsupported' };
+  }
+  const source = await getSourceReference(record, { signal });
+  throwIfAborted(signal);
+  if (!source || source.sourceUnitId !== request.sourceUnitId || source.sourceHash !== request.sourceHash) {
+    return { compatible: false, reason: 'summary_demand_source_changed_or_mapped' };
+  }
+  return { compatible: true, recordKind: record.kind, source: { sourceUnitId: source.sourceUnitId,
+    sourceHash: source.sourceHash, path: source.path } };
+};
 
 /** Streaming reconciliation: counts/ranges and every qualified endpoint before publication. */
 export const validateSemanticPartitions = async ({ store, partitions, referencePartitions = partitions, signal = null }) => {

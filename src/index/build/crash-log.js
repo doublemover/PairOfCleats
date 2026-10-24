@@ -1,15 +1,19 @@
+import { runWithIndependentSchedulerOwner } from '../../shared/concurrency/scheduler-task-scope.js';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import crypto from 'node:crypto';
 import path from 'node:path';
 import readline from 'node:readline';
 import { pipeline } from 'node:stream/promises';
+import { Transform } from 'node:stream';
 import { getRecentLogEvents } from '../../shared/progress-runtime.js';
 import { createTempPath } from '../../shared/json-stream/atomic.js';
 import { createQueuedAppendWriter } from '../../shared/io/append-writer.js';
-import { atomicWriteJson, atomicWriteJsonSync, atomicWriteTextSync } from '../../shared/io/atomic-write.js';
+import { atomicWriteJson, atomicWriteJsonSync } from '../../shared/io/atomic-write.js';
 import { sha1 } from '../../shared/hash.js';
 import { normalizeFailureEvent, validateFailureEvent } from './failure-taxonomy.js';
+import { createCrashEvidenceOwner, boundedCrashEvent } from './crash-evidence.js';
+export { createCrashEvidenceOwner, readCrashEvidenceState } from './crash-evidence.js';
 
 /**
  * Produce ISO-8601 timestamp for crash log entries.
@@ -36,6 +40,7 @@ const CRASH_RETENTION_TRACE_TOP_LIMIT = 10;
 const RETAINED_CRASH_LOG_BASENAMES = new Set([
   'index-crash.log',
   'index-crash-state.json',
+  'index-crash-terminal.json',
   'index-crash-events.json',
   'index-crash-file-trace.ndjson',
   'index-crash-forensics-index.json'
@@ -254,7 +259,12 @@ const renameWithFallback = async (tempPath, targetPath) => {
  * @param {string} targetPath
  * @returns {Promise<{bytes:number,sha1:string}>}
  */
-const copyFileAtomic = async (sourcePath, targetPath) => {
+const retentionBudgetExceeded = () => Object.assign(
+  new Error('Crash artifact exceeds the remaining bundle byte allowance.'),
+  { code: 'ERR_CRASH_RETENTION_BUDGET' }
+);
+
+const copyFileAtomic = async (sourcePath, targetPath, { maxBytes = Number.POSITIVE_INFINITY } = {}) => {
   const tempPath = createTempPath(targetPath);
   const digest = crypto.createHash('sha1');
   let bytes = 0;
@@ -263,17 +273,16 @@ const copyFileAtomic = async (sourcePath, targetPath) => {
     await ensureParentDir(tempPath);
     await pipeline(
       fsSync.createReadStream(sourcePath),
+      new Transform({
+        transform(chunk, _encoding, callback) {
+          if (bytes + chunk.length > maxBytes) return callback(retentionBudgetExceeded());
+          bytes += chunk.length;
+          digest.update(chunk);
+          callback(null, chunk);
+        }
+      }),
       fsSync.createWriteStream(tempPath)
     );
-    const stream = fsSync.createReadStream(tempPath);
-    await new Promise((resolve, reject) => {
-      stream.on('data', (chunk) => {
-        bytes += chunk.length;
-        digest.update(chunk);
-      });
-      stream.once('error', reject);
-      stream.once('end', resolve);
-    });
     let handle = null;
     try {
       handle = await fs.open(tempPath, 'r+');
@@ -379,7 +388,8 @@ const summarizeCrashTrace = async ({
   sourcePath,
   summaryPath,
   sourceBytes,
-  policy
+  policy,
+  maxBytes = Number.POSITIVE_INFINITY
 }) => {
   const phaseCounts = new Map();
   const stageCounts = new Map();
@@ -447,6 +457,9 @@ const summarizeCrashTrace = async ({
     head,
     tail
   };
+  if (Buffer.byteLength(JSON.stringify(payload, null, 2), 'utf8') + 1 > maxBytes) {
+    throw retentionBudgetExceeded();
+  }
   await atomicWriteJson(summaryPath, payload, { spaces: 2 });
   const summaryStats = await fs.stat(summaryPath);
   return {
@@ -515,6 +528,14 @@ const selectCrashArtifacts = async ({ repoCacheRoot }) => {
       });
     }
   }
+  const attemptsDir = path.join(logsDir, 'attempts');
+  if (await pathExists(attemptsDir)) {
+    const attempts = await listFilesRecursive(attemptsDir, {
+      maxFiles: CRASH_RETENTION_FORENSIC_SCAN_MAX_FILES,
+      includeFile: file => /\.(?:json|log|ndjson)$/.test(file)
+    });
+    for (const sourcePath of attempts) selected.push({ sourcePath, relativePath: path.relative(resolvedRepoCacheRoot, sourcePath) });
+  }
   return selected;
 };
 
@@ -553,6 +574,15 @@ export async function retainCrashArtifacts({
   const resolvedDiagnosticsRoot = path.resolve(diagnosticsRoot);
   const retentionPolicy = resolveCrashRetentionPolicy();
   const artifactCandidates = await selectCrashArtifacts({ repoCacheRoot: resolvedRepoCacheRoot });
+  const priorityNames = ['index-crash-terminal.json', 'index-crash-state.json', 'index-crash.log',
+    'index-crash-events.json', 'index-crash-forensics-index.json'];
+  const priority = artifact => {
+    if (artifact.sourcePath.endsWith('.terminal.json')) return -1;
+    const index = priorityNames.indexOf(path.basename(artifact.sourcePath));
+    return index < 0 ? priorityNames.length : index;
+  };
+  artifactCandidates.sort((a, b) => priority(a) - priority(b)
+    || (a.relativePath < b.relativePath ? -1 : a.relativePath > b.relativePath ? 1 : 0));
   const repoToken = sanitizePathToken(repoSlug || repoLabel || path.basename(resolvedRepoCacheRoot), 'repo');
   const targetDir = path.join(resolvedDiagnosticsRoot, repoToken);
   const copiedArtifacts = [];
@@ -563,6 +593,8 @@ export async function retainCrashArtifacts({
   let crashState = null;
   let crashLogTail = [];
   let retainedBytesTotal = 0;
+  // Keep room for the receipt; exact metadata size is reconciled before publish.
+  const artifactByteAllowance = Math.max(0, retentionPolicy.bundleBudgetBytes - 1024 * 1024);
 
   for (const artifact of artifactCandidates) {
     const sourcePath = artifact?.sourcePath;
@@ -588,7 +620,8 @@ export async function retainCrashArtifacts({
           sourcePath,
           summaryPath,
           sourceBytes,
-          policy: retentionPolicy
+          policy: retentionPolicy,
+          maxBytes: Math.max(0, artifactByteAllowance - retainedBytesTotal)
         });
         retainedBytesTotal += summary.bytes;
         retainedArtifacts.push({
@@ -620,7 +653,9 @@ export async function retainCrashArtifacts({
         });
         continue;
       }
-      const copied = await copyFileAtomic(sourcePath, targetPath);
+      const remainingBytes = Math.max(0, artifactByteAllowance - retainedBytesTotal);
+      if (Number.isFinite(sourceBytes) && sourceBytes > remainingBytes) throw retentionBudgetExceeded();
+      const copied = await copyFileAtomic(sourcePath, targetPath, { maxBytes: remainingBytes });
       retainedBytesTotal += copied.bytes;
       copiedArtifacts.push({
         sourcePath,
@@ -667,13 +702,22 @@ export async function retainCrashArtifacts({
       if (sourcePath.endsWith('.json')) {
         try {
           const payload = JSON.parse(await fs.readFile(targetPath, 'utf8'));
-          if (path.basename(sourcePath) === 'index-crash-state.json') {
+          if (path.basename(sourcePath) === 'index-crash-terminal.json' || sourcePath.endsWith('.terminal.json')) {
+            if (crashState?.phase !== 'error' || String(payload.ts) > String(crashState.ts)) crashState = payload;
+          } else if (path.basename(sourcePath) === 'index-crash-state.json' && crashState?.phase !== 'error') {
             crashState = payload;
           }
           parserMetadata = mergeParserMetadata({ parserMetadata, payload });
         } catch {}
       }
     } catch (err) {
+      if (err?.code === 'ERR_CRASH_RETENTION_BUDGET') {
+        retentionDecisions.push({ sourcePath, relativePath, sourceBytes,
+          retentionKind: 'omitted', reason: 'bundle_byte_allowance_exhausted',
+          retainedArtifacts: [], policy: { profile: retentionPolicy.profile,
+            bundleBudgetBytes: retentionPolicy.bundleBudgetBytes } });
+        continue;
+      }
       copyErrors.push({
         sourcePath,
         relativePath,
@@ -708,7 +752,7 @@ export async function retainCrashArtifacts({
       .filter(Boolean)
       .slice(-CRASH_RETENTION_LOG_TAIL_LIMIT)
     : [];
-  if (!retainedArtifacts.length && !copyErrors.length && !resolvedSchedulerEvents.length) {
+  if (!retainedArtifacts.length && !copyErrors.length && !resolvedSchedulerEvents.length && !retentionDecisions.length) {
     return null;
   }
   const retainedAt = formatTimestamp();
@@ -751,6 +795,27 @@ export async function retainCrashArtifacts({
     retentionDecisions,
     copyErrors
   };
+  const metadataBytes = () => Buffer.byteLength(JSON.stringify({
+    ...bundleWithoutChecksum,
+    consistency: { marker: 'complete', checksum: `sha1:${'0'.repeat(40)}` }
+  }, null, 2), 'utf8') + 1;
+  // A large receipt must spend the same allowance as the retained files.
+  while (retainedBytesTotal + metadataBytes() + 1024 > retentionPolicy.bundleBudgetBytes) {
+    const omitted = retainedArtifacts.pop();
+    if (!omitted) throw retentionBudgetExceeded();
+    await fs.rm(omitted.path, { force: true });
+    retainedBytesTotal -= omitted.bytes;
+    const decision = retentionDecisions.find(entry => entry.retainedArtifacts?.some(file => file.path === omitted.path));
+    if (decision) {
+      decision.retentionKind = 'omitted';
+      decision.reason = 'bundle_receipt_byte_allowance';
+      decision.retainedArtifacts = [];
+    }
+    bundleWithoutChecksum.retentionPolicy.retainedBytesTotal = retainedBytesTotal;
+    bundleWithoutChecksum.copiedArtifacts = retainedArtifacts.map(entry => ({
+      path: entry.path, relativePath: entry.relativePath, bytes: entry.bytes, checksum: `sha1:${entry.sha1}`
+    }));
+  }
   const checksum = sha1(JSON.stringify(bundleWithoutChecksum));
   const bundle = {
     ...bundleWithoutChecksum,
@@ -792,7 +857,7 @@ export async function retainCrashArtifacts({
  * @param {{repoCacheRoot:string,enabled:boolean}} input
  * @returns {Promise<object>}
  */
-export async function createCrashLogger({ repoCacheRoot, enabled }) {
+export async function createCrashLogger({ repoCacheRoot, enabled, buildId = null, attemptId = null, parentAttemptId = null, mode = null, stage = null, runtimeReceiptPath = null }) {
   if (!enabled || !repoCacheRoot) {
     return {
       enabled: false,
@@ -805,13 +870,14 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
       close: async () => {}
     };
   }
+  const evidenceOwner = createCrashEvidenceOwner({ repoCacheRoot, buildId, attemptId, parentAttemptId, mode, stage, runtimeReceiptPath });
   const logsDir = path.join(repoCacheRoot, 'logs');
   const statePath = path.join(logsDir, 'index-crash-state.json');
   const logPath = path.join(logsDir, 'index-crash.log');
   const eventsPath = path.join(logsDir, 'index-crash-events.json');
   const tracePath = path.join(logsDir, 'index-crash-file-trace.ndjson');
-  const forensicsDir = path.join(logsDir, 'forensics');
-  const forensicsIndexPath = path.join(logsDir, 'index-crash-forensics-index.json');
+  const forensicsDir = path.join(evidenceOwner.paths.directory, 'forensics');
+  const forensicsIndexPath = path.join(evidenceOwner.paths.directory, 'index-crash-forensics-index.json');
   const forensicSignatures = new Set();
   const forensicBundleIndex = new Map();
   const ioWarnings = new Set();
@@ -819,6 +885,9 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
   let stateWriteInFlight = null;
   let currentPhase = null;
   let currentFile = null;
+  let terminalState = null;
+  let recordSequence = 0;
+  let closePromise = null;
   /**
    * Emit one crash-log IO warning per unique failure signature.
    *
@@ -837,10 +906,11 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
     const key = `${action}:${code}:${causeCode}:${targetPath}`;
     if (ioWarnings.has(key)) return;
     ioWarnings.add(key);
-    console.warn(`[crash-log] ${action} failed (${code}): ${message}`);
+    try { console.warn(`[crash-log] ${action} failed (${code}): ${message}`); } catch {}
   };
   try {
     await fs.mkdir(logsDir, { recursive: true });
+    await fs.mkdir(evidenceOwner.paths.directory, { recursive: true });
   } catch (err) {
     warnIo('initialize crash log directories', err);
   }
@@ -856,21 +926,25 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
   });
   const logWriter = createCrashAppendWriter(logPath, 'append crash log');
   const traceWriter = createCrashAppendWriter(tracePath, 'append crash trace');
+  const attemptLogWriter = createCrashAppendWriter(evidenceOwner.paths.logPath, 'append attempt crash log');
+  const attemptTraceWriter = createCrashAppendWriter(evidenceOwner.paths.tracePath, 'append attempt crash trace');
 
   const flushStateWrites = async () => {
     if (stateWriteInFlight) return stateWriteInFlight;
-    stateWriteInFlight = (async () => {
+    stateWriteInFlight = runWithIndependentSchedulerOwner(async () => {
       while (queuedState) {
         const nextState = queuedState;
         queuedState = null;
         const payload = { ts: formatTimestamp(), ...nextState };
-        try {
-          await atomicWriteJson(statePath, payload, { spaces: 2 });
-        } catch (err) {
-          warnIo('write crash state', err);
+        // The fixed latest path is a convenience. Its failure cannot suppress
+        // the independently owned attempt record (or the reverse).
+        for (const [target, action] of [[statePath, 'write crash state'],
+          [evidenceOwner.paths.statePath, 'write attempt crash state']]) {
+          try { await atomicWriteJson(target, payload, { spaces: 2 }); }
+          catch (err) { warnIo(action, err); }
         }
       }
-    })();
+    });
     try {
       await stateWriteInFlight;
     } finally {
@@ -881,14 +955,15 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
   };
 
   const writeState = (state) => {
-    queuedState = state && typeof state === 'object' ? { ...state } : {};
+    if (terminalState || closePromise) return;
+    queuedState = { ...evidenceOwner.identity, sequence: ++recordSequence, ...boundedCrashEvent(state || {}) };
     void flushStateWrites();
   };
 
   const appendLine = async (message, extra) => {
-    const suffix = extra ? ` ${safeStringify(extra)}` : '';
+    const suffix = ` ${safeStringify({ ...evidenceOwner.identity, sequence: ++recordSequence, ...boundedCrashEvent(extra || {}) })}`;
     const line = `[${formatTimestamp()}] ${message}${suffix}\n`;
-    await logWriter.enqueue(line);
+    await Promise.all([logWriter.enqueue(line), attemptLogWriter.enqueue(line)]);
   };
   const appendTrace = async (event) => {
     if (!event || typeof event !== 'object') return;
@@ -897,7 +972,8 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
       phase: event.phase || currentPhase || null,
       ...event
     };
-    await traceWriter.enqueue(`${safeStringify(payload)}\n`);
+    const line = `${safeStringify({ ...evidenceOwner.identity, sequence: ++recordSequence, ...boundedCrashEvent(payload) })}\n`;
+    await Promise.all([traceWriter.enqueue(line), attemptTraceWriter.enqueue(line)]);
   };
   const writeStateSync = (state) => {
     const payload = { ts: formatTimestamp(), ...state };
@@ -907,16 +983,7 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
       warnIo('write crash state sync', err);
     }
   };
-  const appendLineSync = (message, extra) => {
-    const suffix = extra ? ` ${safeStringify(extra)}` : '';
-    const line = `[${formatTimestamp()}] ${message}${suffix}\n`;
-    try {
-      const existing = fsSync.existsSync(logPath) ? fsSync.readFileSync(logPath, 'utf8') : '';
-      atomicWriteTextSync(logPath, `${existing}${line}`, { newline: false });
-    } catch (err) {
-      warnIo('append crash log sync', err);
-    }
-  };
+
 
   /**
    * Persist one forensic bundle to disk with signature-level dedupe.
@@ -987,22 +1054,27 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
     await flushStateWrites();
     await Promise.all([
       logWriter.flush(),
-      traceWriter.flush()
+      traceWriter.flush(),
+      attemptLogWriter.flush(),
+      attemptTraceWriter.flush()
     ]);
   };
 
-  const close = async () => {
-    await flush();
-    await Promise.all([
-      logWriter.close(),
-      traceWriter.close()
-    ]);
+  const close = () => {
+    if (closePromise) return closePromise;
+    closePromise = (async () => {
+      await flush();
+      await Promise.all([logWriter.close(), traceWriter.close(), attemptLogWriter.close(), attemptTraceWriter.close()]);
+    })();
+    return closePromise;
   };
 
   void appendLine('crash-logger initialized', { path: logPath });
 
   return {
     enabled: true,
+    identity: evidenceOwner.identity,
+    paths: evidenceOwner.paths,
     updatePhase(phase) {
       currentPhase = phase || null;
       void writeState({ phase });
@@ -1020,22 +1092,31 @@ export async function createCrashLogger({ repoCacheRoot, enabled }) {
         phase: error?.phase || currentPhase,
         file: error?.file || currentFile?.file || null,
         stage: error?.stage || null,
-        ...error
+        ...boundedCrashEvent(error instanceof Error ? { message: error.message, stack: error.stack, code: error.code } : error)
       });
       const validation = validateFailureEvent(baseEvent);
       const event = validation.ok
         ? baseEvent
         : { ...baseEvent, validationErrors: validation.errors };
       const recentEvents = getRecentLogEvents();
-      appendLineSync('error', event || {});
-      writeStateSync({ phase: 'error', error: event || null });
+      const evidence = evidenceOwner.writeTerminal(event || {}, { lastCompletedPhase: currentPhase });
+      terminalState ||= { ...evidenceOwner.identity, phase: 'error', sequence: ++recordSequence,
+        error: event || null, diagnosticEvidence: evidence, lastCompletedPhase: currentPhase };
+      // Terminal authority is a separate immutable record. The serialized mutable
+      // snapshots converge after any phase replacement already in flight.
+      writeStateSync(terminalState);
+      queuedState = terminalState;
+      void flushStateWrites();
+      void appendLine('error', { event, diagnosticEvidence: evidence });
       if (recentEvents.length) {
-        try {
-          atomicWriteJsonSync(eventsPath, { ts: formatTimestamp(), events: recentEvents }, { spaces: 2, newline: false });
-        } catch (err) {
-          warnIo('write crash events snapshot', err);
+        const snapshot = { ts: formatTimestamp(), ...boundedCrashEvent({ events: recentEvents }) };
+        for (const [target, action] of [[eventsPath, 'write crash events snapshot'],
+          [evidenceOwner.paths.eventsPath, 'write attempt crash events snapshot']]) {
+          try { atomicWriteJsonSync(target, snapshot, { spaces: 2, newline: false }); }
+          catch (err) { warnIo(action, err); }
         }
       }
+      return evidence;
     },
     persistForensicBundle,
     flush,

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 
 import { handleContextPackRoute } from '../../../tools/api/router/analysis.js';
 import {
@@ -21,7 +22,7 @@ const {
 } = createContextPackRouteFixture(payload);
 
 const handled = await handleContextPackRoute({
-  req: {},
+  req: new EventEmitter(),
   res: response,
   corsHeaders: {},
   observability: null,

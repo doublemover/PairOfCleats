@@ -12,7 +12,7 @@ export const normalizeAbsPath = (value) => path.resolve(String(value || '')).rep
 export const waitFor = async (predicate, timeoutMs = 5000) => {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
-    if (predicate()) return;
+    if (await predicate()) return;
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
   throw new Error('Timed out waiting for condition.');

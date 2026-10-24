@@ -46,6 +46,6 @@ await fs.access(finalizedB.runs[0]);
 
 await finalizedB.cleanup();
 const runsParent = path.join(tempRoot, 'vfs_manifest.runs');
-await assert.rejects(fs.access(runsParent), 'expected shared runs parent to be removed when empty');
+assert.deepEqual(await fs.readdir(runsParent), [], 'collectors leave shared parent removal to its build owner');
 
 console.log('vfs manifest collector isolation test passed');

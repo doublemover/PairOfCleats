@@ -1,4 +1,7 @@
 import { VIEW_LIMITS } from './projection.js';
+import { captureSceneResource, preserveSceneCleanupFailures } from '../isometric/client/scene-retirement.js';
+import { createSceneWorkPrerequisites } from '../isometric/client/scene-work-prerequisites.js';
+import { captureSceneFailure } from '../isometric/client/scene-failure-inspection.js';
 export const RELADRAW_VERSION = '0.16.0';
 /** Labels are data, never Reladraw statements, markup or line-break syntax. */
 export const quoteLabel = text => '"' + String(text).slice(0, 240).replace(/\\/g, '\\\\').replace(/"/g, '\\"')
@@ -40,33 +43,105 @@ export function authorProjection(projection) {
   return { source: source.join('\n'), bindings, version: RELADRAW_VERSION, projectionVersion: projection.version, generation: projection.generation };
 }
 
-/** One worker and one deadline; cancellation always terminates synchronous compilation. */
+/** One original worker and deadline. An unconfirmed termination permanently
+ * retires this controller; explicit owner reconciliation never admits new work. */
 export function createCompileController({ WorkerClass = globalThis.Worker, timeoutMs = 1000 } = {}) {
-  let active = null, serial = 0;
+  let active = null, retiring = null, serial = 0, retiredFailure = null;
+  const owners = new Set();
+  const settle = record => {
+    if (!record.outcome || record.work || record.settled) return;
+    record.settled = true; retiring = record;
+    if (active === record) active = null;
+    clearTimeout(record.timer);
+    const errors = [...record.workErrors], { hasPrimary, primary, value } = record.outcome;
+    try {
+      if (hasPrimary) record.prerequisites.retain(primary);
+      for (const error of record.workErrors) record.prerequisites.retain(error);
+      if (record.owner) record.owner.retire();
+    } catch (error) { errors.push(error); }
+    const failure = preserveSceneCleanupFailures(primary, errors, { hasPrimary });
+    if (record.owner?.pending || (!record.owner && hasPrimary && !captureSceneFailure(primary).released())) {
+      retiredFailure = preserveSceneCleanupFailures(new Error('Reladraw controller retired after unconfirmed original worker cleanup.'),
+        [failure], { hasPrimary: true, forceAggregate: true });
+    }
+    if (record.owner && !record.owner.pending) owners.delete(record.owner);
+    retiring = null;
+    // A failed native close cannot prevent settlement of the original request.
+    if (hasPrimary || errors.length) record.reject(failure);
+    else record.resolve(value);
+  };
+  const finish = (record, hasPrimary, primary, value) => {
+    if (record.settled) return;
+    if (record.outcome) { if (hasPrimary && record.work) record.workErrors.push(primary); return; }
+    record.outcome = { hasPrimary, primary, value }; settle(record);
+  };
   const cancel = () => {
-    if (!active) return;
-    const old = active; active = null; clearTimeout(old.timer); old.worker.terminate();
-    old.reject(Object.assign(new Error('Compilation replaced.'), { name: 'AbortError' }));
+    const record = active;
+    if (record) finish(record, true, Object.assign(new Error('Compilation replaced.'), { name: 'AbortError' }));
+    return Object.freeze({ retired: retiredFailure !== null, pendingOwners: Object.freeze([...owners].filter(owner => owner.pending)) });
   };
   return {
     cancel,
+    get retired() { return retiredFailure !== null; },
+    get pendingOwners() { return Object.freeze([...owners].filter(owner => owner.pending)); },
     compile(source) {
       cancel();
+      if (retiredFailure !== null) return Promise.reject(retiredFailure);
+      // Reentrant construction/termination cannot allocate a sibling worker.
+      if (active || retiring) return Promise.reject(new Error('Original Reladraw worker acquisition or retirement has not returned.'));
+      if (typeof source !== 'string') return Promise.reject(new TypeError('Reladraw source must be a string.'));
       if (new TextEncoder().encode(source).length > VIEW_LIMITS.sourceBytes) return Promise.reject(new RangeError('Reladraw source exceeds 256 KiB.'));
-      const id = ++serial;
-      return new Promise((resolve, reject) => {
+      const record = { id: ++serial, work: 1, workErrors: [], settled: false, outcome: null, owner: null, timer: null,
+        prerequisites: createSceneWorkPrerequisites('Original Reladraw worker work remains pending.') };
+      const result = new Promise((resolve, reject) => { record.resolve = resolve; record.reject = reject; });
+      active = record;
+      const work = Object.freeze(Object.defineProperty(new Error('Original Reladraw worker acquisition has not returned.'),
+        'sceneOwnershipReleased', { value: () => record.work === 0 }));
+      record.prerequisites.retain(work);
+      const current = () => active === record && !record.outcome && !record.settled;
+      try {
         const worker = new WorkerClass(new URL('./reladraw-worker.js', import.meta.url), { type: 'module' });
-        const finish = (error, value) => {
-          if (active?.id !== id) return;
-          clearTimeout(active.timer); worker.terminate(); active = null;
-          if (error) reject(error); else resolve(value);
+        const resource = { worker, get dispose() {
+          const terminate = worker.terminate;
+          if (typeof terminate !== 'function') throw new TypeError('Reladraw worker has no original terminate method.');
+          return () => {
+            record.work++;
+            try { return Reflect.apply(terminate, worker, []); }
+            finally { record.work--; }
+          };
+        } };
+        record.owner = record.prerequisites.attach(captureSceneResource(resource, 'original Reladraw worker', 'dispose', [], { required: true }));
+        owners.add(record.owner); record.owner.assertCaptured();
+        const invoke = callback => {
+          if (!current()) return;
+          record.work++;
+          try { callback(); }
+          catch (primary) { finish(record, true, primary); }
+          finally { record.work--; settle(record); }
         };
-        const timer = setTimeout(() => finish(new Error('Reladraw exceeded its 1-second deadline; last valid view retained.')), timeoutMs);
-        active = { id, worker, timer, reject };
-        worker.onmessage = ({ data }) => data.error ? finish(new Error(data.error)) : finish(null, data);
-        worker.onerror = event => finish(new Error(event.message || 'Reladraw worker failed.'));
-        worker.postMessage({ source, id });
-      });
+        if (current()) worker.onmessage = event => invoke(() => {
+          const data = event.data;
+          if (Object.hasOwn(data, 'error')) {
+            const original = data.error;
+            finish(record, true, typeof original === 'string' ? new Error(original) : original);
+          } else finish(record, false, undefined, data);
+        });
+        if (current()) worker.onerror = event => invoke(() => {
+          const message = event.message;
+          finish(record, true, new Error(typeof message === 'string' ? message : 'Reladraw worker failed.'));
+        });
+        if (current()) {
+          const post = worker.postMessage;
+          if (current()) {
+            if (typeof post !== 'function') throw new TypeError('Reladraw worker has no original postMessage method.');
+            record.timer = setTimeout(() => finish(record, true,
+              new Error('Reladraw exceeded its 1-second deadline; last valid view retained.')), timeoutMs);
+            Reflect.apply(post, worker, [{ source, id: record.id }]);
+          }
+        }
+      } catch (primary) { finish(record, true, primary); }
+      finally { record.work--; settle(record); }
+      return result;
     }
   };
 }

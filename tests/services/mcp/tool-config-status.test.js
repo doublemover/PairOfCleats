@@ -1,9 +1,10 @@
 #!/usr/bin/env node
+import { resolveDevelopmentArtifactPath } from '../../../tools/shared/dev-artifacts.js';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { startMcpServer } from '../../helpers/mcp-client.js';
 
-const cacheRoot = path.join(process.cwd(), 'tests', '.cache', 'mcp-config-status');
+const cacheRoot = resolveDevelopmentArtifactPath(process.cwd(), 'test-cache', 'mcp-config-status');
 const emptyRepo = path.join(cacheRoot, 'empty');
 await fsPromises.rm(cacheRoot, { recursive: true, force: true });
 await fsPromises.mkdir(emptyRepo, { recursive: true });

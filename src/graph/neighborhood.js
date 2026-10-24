@@ -5,7 +5,8 @@ import {
   buildImportGraphIndex,
   buildSymbolEdgesIndex,
   normalizeFileRef,
-  normalizeImportPath
+  normalizeImportPath,
+  projectSymbolRefTargets
 } from './indexes.js';
 import { normalizeDepth } from '../shared/limits.js';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
@@ -14,6 +15,8 @@ import {
   snapshotProcessMemory
 } from '../shared/ops/resource-visibility.js';
 import { compareStrings } from '../shared/sort.js';
+import { MinHeap } from '../shared/min-heap.js';
+import { hasAdmittedCsrOrder } from './csr-order.js';
 import { createTruncationRecorder } from '../shared/truncation.js';
 import {
   compareGraphEdges,
@@ -34,7 +37,7 @@ import {
 import { dedupeSortedEdges, edgeKeyFromIndex, isEdgeBetter } from './neighborhood/edge-policy.js';
 import { formatEvidence, resolveNodeMeta, resolveSeedNodeRef } from './neighborhood/seed-meta.js';
 import { validateGraphCounts } from './neighborhood/validation.js';
-import { createGraphNeighborResolver, resolveSymbolNeighbors } from './neighborhood/walker.js';
+import { createDirectedGraphNeighborResolver, resolveSymbolNeighbors } from './neighborhood/walker.js';
 
 const TRAVERSAL_CACHE_MAX = 32;
 
@@ -279,8 +282,8 @@ export const buildGraphNeighborhood = ({
   const queue = [];
   const edgeCandidates = [];
   let observedCandidateCount = 0;
-  const admitCandidate = () => {
-    observedCandidateCount += 1;
+  const admitCandidate = (count = true) => {
+    if (count) observedCandidateCount += 1;
     return normalizedCaps.maxFanoutPerNode == null
       || edgeCandidates.length < normalizedCaps.maxFanoutPerNode;
   };
@@ -344,14 +347,22 @@ export const buildGraphNeighborhood = ({
     const nodes = [];
     const edgesOut = [];
     let cursor = key;
-    let safety = 0;
-    while (cursor && safety < 5000) {
+    const seen = new Set();
+    while (cursor) {
+      if (seen.has(cursor) || !nodeMap.has(cursor)) {
+        warnings.push({ code: 'GRAPH_PATH_INCOMPLETE', message: 'Graph parent evidence is cyclic or missing.' });
+        return null;
+      }
+      seen.add(cursor);
       const node = nodeMap.get(cursor);
       if (node?.ref) nodes.push(node.ref);
       const parent = parentMap.get(cursor);
+      if (!parent && Number(node?.distance || 0) > 0) {
+        warnings.push({ code: 'GRAPH_PATH_INCOMPLETE', message: 'Graph parent evidence does not reach an admitted seed.' });
+        return null;
+      }
       if (parent?.edge) edgesOut.push(parent.edge);
       cursor = parent?.parentKey;
-      safety += 1;
     }
     nodes.reverse();
     edgesOut.reverse();
@@ -372,13 +383,18 @@ export const buildGraphNeighborhood = ({
     return true;
   };
   const enabledGraphs = Array.from(GRAPH_NAMES).filter((entry) => includeGraph(entry));
-  if (graphFilter && enabledGraphs.length === 0) {
+  if (graphFilter?.size && enabledGraphs.length === 0) {
     warnings.push({
       code: 'GRAPH_EXCLUDED_BY_FILTERS',
       message: 'Requested graphs were excluded by filters.'
     });
   }
-  const resolveGraphNeighbors = createGraphNeighborResolver({ graphIndex: graphIndexEffective, iterableCsr: true });
+  const resolveGraphNeighbors = createDirectedGraphNeighborResolver({ graphIndex: graphIndexEffective, iterableCsr: true });
+  const candidateControls = () => ({
+    limit: normalizedCaps.maxFanoutPerNode == null ? Infinity
+      : Math.max(0, normalizedCaps.maxFanoutPerNode - edgeCandidates.length),
+    onCount: count => { observedCandidateCount += count; }
+  });
 
   const missingImportFiles = new Set();
   const resolveImportSourceId = (ref) => {
@@ -410,21 +426,21 @@ export const buildGraphNeighborhood = ({
     edgeCandidates.length = 0;
     observedCandidateCount = 0;
 
-    if (includeGraph('callGraph') && currentRef.type === GRAPH_NODE_TYPES.callGraph && callGraphIndex.size) {
+    if (includeGraph('callGraph') && currentRef.type === GRAPH_NODE_TYPES.callGraph && callGraphIndex.size
+      && allowEdge({ graph: 'callGraph', edgeType: GRAPH_EDGE_TYPES.callGraph, confidence: null })) {
       const neighbors = resolveGraphNeighbors(
         callGraphIndex,
         currentRef.chunkUid,
         normalizedDirection,
         null,
         callGraphAdjacency,
-        'callGraph'
+        'callGraph', candidateControls()
       );
-      for (const neighborId of neighbors) {
+      for (const { neighborId, fromId, toId } of neighbors) {
         const edgeType = GRAPH_EDGE_TYPES.callGraph;
-        if (!allowEdge({ graph: 'callGraph', edgeType, confidence: null })) continue;
-        if (!admitCandidate()) continue;
-        const toRef = { type: 'chunk', chunkUid: neighborId };
-        const fromRef = { type: 'chunk', chunkUid: currentRef.chunkUid };
+        if (!admitCandidate(false)) continue;
+        const toRef = { type: 'chunk', chunkUid: toId };
+        const fromRef = { type: 'chunk', chunkUid: fromId };
         const evidence = formatEvidence(edgeType, fromRef, toRef, callSiteIndex);
         edgeCandidates.push({
           edge: {
@@ -435,40 +451,41 @@ export const buildGraphNeighborhood = ({
             confidence: null,
             evidence
           },
-          nextRef: toRef
+          nextRef: { type: 'chunk', chunkUid: neighborId }
         });
       }
     }
 
-    if (includeGraph('usageGraph') && currentRef.type === GRAPH_NODE_TYPES.usageGraph && usageGraphIndex.size) {
+    if (includeGraph('usageGraph') && currentRef.type === GRAPH_NODE_TYPES.usageGraph && usageGraphIndex.size
+      && allowEdge({ graph: 'usageGraph', edgeType: GRAPH_EDGE_TYPES.usageGraph, confidence: null })) {
       const neighbors = resolveGraphNeighbors(
         usageGraphIndex,
         currentRef.chunkUid,
         normalizedDirection,
         null,
         usageGraphAdjacency,
-        'usageGraph'
+        'usageGraph', candidateControls()
       );
-      for (const neighborId of neighbors) {
+      for (const { neighborId, fromId, toId } of neighbors) {
         const edgeType = GRAPH_EDGE_TYPES.usageGraph;
-        if (!allowEdge({ graph: 'usageGraph', edgeType, confidence: null })) continue;
-        if (!admitCandidate()) continue;
-        const toRef = { type: 'chunk', chunkUid: neighborId };
+        if (!admitCandidate(false)) continue;
+        const toRef = { type: 'chunk', chunkUid: toId };
         edgeCandidates.push({
           edge: {
             edgeType,
             graph: 'usageGraph',
-            from: { type: 'chunk', chunkUid: currentRef.chunkUid },
+            from: { type: 'chunk', chunkUid: fromId },
             to: toRef,
             confidence: null,
             evidence: null
           },
-          nextRef: toRef
+          nextRef: { type: 'chunk', chunkUid: neighborId }
         });
       }
     }
 
-    if (includeGraph('importGraph') && importGraphIndex.size) {
+    if (includeGraph('importGraph') && importGraphIndex.size
+      && allowEdge({ graph: 'importGraph', edgeType: GRAPH_EDGE_TYPES.importGraph, confidence: null })) {
       const sourceId = resolveImportSourceId(currentRef);
       if (sourceId) {
         if (!importGraphIndex.has(sourceId)) {
@@ -478,27 +495,26 @@ export const buildGraphNeighborhood = ({
           importGraphIndex,
           sourceId,
           normalizedDirection,
-          normalizeImportId,
+          hasAdmittedCsrOrder(graphIndexEffective?.graphRelationsCsr?.importGraph) ? null : normalizeImportId,
           importGraphAdjacency,
-          'importGraph'
+          'importGraph', candidateControls()
         );
-        for (const neighborId of neighbors) {
+        for (const { neighborId, fromId, toId } of neighbors) {
           const edgeType = GRAPH_EDGE_TYPES.importGraph;
-          if (!allowEdge({ graph: 'importGraph', edgeType, confidence: null })) continue;
-          if (!admitCandidate()) continue;
-          const toRef = { type: 'file', path: neighborId };
+          if (!admitCandidate(false)) continue;
+          const endpoint = id => id === sourceId && currentRef.type === 'chunk'
+            ? currentRef : { type: 'file', path: id };
+          const toRef = endpoint(toId);
           edgeCandidates.push({
             edge: {
               edgeType,
               graph: 'importGraph',
-              from: currentRef.type === 'file'
-                ? { type: 'file', path: sourceId }
-                : { type: 'chunk', chunkUid: currentRef.chunkUid },
+              from: endpoint(fromId),
               to: toRef,
               confidence: null,
               evidence: null
             },
-            nextRef: toRef
+            nextRef: { type: 'file', path: neighborId }
           });
         }
       }
@@ -523,26 +539,35 @@ export const buildGraphNeighborhood = ({
           normalizedCaps.maxCandidates,
           recordTruncation
         );
-        // Candidate-cap notices also describe discarded symbol candidates.
-        if (!admitCandidate()) continue;
         const fromRef = { type: 'chunk', chunkUid: entry.edge.from.chunkUid };
-        const symbolId = entry.symbolId;
-        const symbolRef = symbolId ? { type: 'symbol', symbolId } : null;
-        // The edge retains its source orientation even when walking incoming
-        // references. The traversal target is the opposite endpoint.
-        const nextRef = currentRef.type === 'symbol' ? fromRef : symbolRef;
-        edgeCandidates.push({
-          edge: {
-            edgeType,
-            graph: 'symbolEdges',
-            from: fromRef,
-            to: cappedToRef,
-            confidence,
-            evidence: entry.edge.reason ? { note: entry.edge.reason } : null
-          },
-          nextRef,
-          witnessEdge: symbolRef ? { from: fromRef, to: symbolRef, edgeType } : null
-        });
+        const targets = projectSymbolRefTargets(cappedToRef).filter(target =>
+          currentRef.type !== 'symbol' || target.symbolId === currentRef.symbolId);
+        const edge = {
+          edgeType,
+          graph: 'symbolEdges',
+          from: fromRef,
+          to: cappedToRef,
+          confidence,
+          evidence: entry.edge.reason ? { note: entry.edge.reason } : null
+        };
+        // Keep source evidence when the candidate budget admits no traversal.
+        // An explicit null prevents the generic resolved-endpoint fallback.
+        if (!targets.length) {
+          if (admitCandidate()) edgeCandidates.push({ edge, nextRef: null });
+          continue;
+        }
+        for (const target of targets) {
+          if (!admitCandidate()) continue;
+          const symbolRef = { type: 'symbol', symbolId: target.symbolId };
+          const witnessEdge = { from: fromRef, to: symbolRef, edgeType };
+          if (target.resolution === 'candidate') {
+            witnessEdge.evidence = { resolution: 'candidate', uncertain: true,
+              status: cappedToRef.status, source: 'symbol-reference-candidates' };
+          }
+          edgeCandidates.push({ edge,
+            nextRef: currentRef.type === 'symbol' ? fromRef : symbolRef,
+            witnessEdge });
+        }
       }
     }
     if (normalizedCaps.maxFanoutPerNode != null && observedCandidateCount > normalizedCaps.maxFanoutPerNode) {
@@ -573,9 +598,8 @@ export const buildGraphNeighborhood = ({
         queue.length = queueIndex;
         break;
       }
-      const nextRef = candidate.nextRef
-        ? candidate.nextRef
-        : (edge.to?.type ? edge.to : edge.to?.resolved || null);
+      const nextRef = Object.hasOwn(candidate, 'nextRef')
+        ? candidate.nextRef : (edge.to?.type ? edge.to : edge.to?.resolved || null);
       if (!nextRef || typeof nextRef !== 'object' || !nextRef.type) continue;
       const nextKey = nodeKey(nextRef);
       if (!nextKey) continue;
@@ -607,24 +631,18 @@ export const buildGraphNeighborhood = ({
   if (edgeWindows.length) {
     edges.sort(compareGraphEdges);
     edgeWindows.push(edges.slice());
-    const indices = new Array(edgeWindows.length).fill(0);
+    const heap = new MinHeap((left, right) => compareGraphEdges(left.edge, right.edge) || left.window - right.window);
+    for (let window = 0; window < edgeWindows.length; window += 1) {
+      if (edgeWindows[window].length) heap.push({ edge: edgeWindows[window][0], window, offset: 0 });
+    }
     const merged = [];
-    while (true) {
-      let bestEdge = null;
-      let bestIndex = -1;
-      for (let i = 0; i < edgeWindows.length; i += 1) {
-        const idx = indices[i];
-        const window = edgeWindows[i];
-        if (!window || idx >= window.length) continue;
-        const candidate = window[idx];
-        if (!bestEdge || compareGraphEdges(candidate, bestEdge) < 0) {
-          bestEdge = candidate;
-          bestIndex = i;
-        }
-      }
-      if (bestIndex === -1) break;
-      merged.push(bestEdge);
-      indices[bestIndex] += 1;
+    while (heap.size) {
+      const next = heap.pop();
+      merged.push(next.edge);
+      const offset = next.offset + 1;
+      if (offset < edgeWindows[next.window].length) heap.push({
+        edge: edgeWindows[next.window][offset], window: next.window, offset
+      });
     }
     mergedEdges = merged;
   } else {

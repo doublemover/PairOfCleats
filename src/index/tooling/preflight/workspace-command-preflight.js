@@ -1,4 +1,12 @@
 import { spawnResolvedSubprocess } from '../../../shared/subprocess/command-invocation.js';
+import { isAbortError, throwIfAborted } from '../../../shared/abort.js';
+import { resolveToolingCommandProfile } from '../command-resolver.js';
+import { runWithManagedCommandInstallation } from '../managed-command-lifetime.js';
+import { isResolvedCommandTrusted } from '../../../shared/config-authority.js';
+import { resolveToolRoot } from '../../../shared/dict-utils.js';
+import { findBinaryOnPath } from '../binary-utils.js';
+import { resolveProviderWorkspaceExecutionAuthority } from '../workspace-execution.js';
+import { resolveNoProvisionToolingEnvironment } from '../../../shared/toolchain-env.js';
 import { TOOLING_PREFLIGHT_REASON_CODES } from './contract.js';
 import {
   buildWorkspaceCommandPreflightFingerprint,
@@ -14,8 +22,9 @@ const summarize = (value, maxChars = 220) => {
 };
 
 /**
- * Run a fail-open workspace probe command and normalize timeout/error/exit failures
- * to a shared degraded preflight classification shape.
+ * Run an admitted workspace probe command. Operational failures can degrade;
+ * command denial, pending ownership and cancellation cannot become cache hits or
+ * raw-command fallbacks.
  *
  * @param {{
  *   ctx?: { repoRoot?: string }|null,
@@ -25,6 +34,7 @@ const summarize = (value, maxChars = 220) => {
  *   timeoutMs: number,
  *   abortSignal?: AbortSignal|null,
  *   reasonPrefix: string,
+ *   providerId?: string,
  *   label: string,
  *   log?:(line:string)=>void,
  *   successCache?:{
@@ -37,7 +47,7 @@ const summarize = (value, maxChars = 220) => {
  *   cacheMaxAgeMsByState?:Record<string, number>|null
  * }} input
  * @returns {{
- *   state: 'ready'|'degraded',
+ *   state: 'ready'|'degraded'|'blocked',
  *   reasonCode: string|null,
  *   message: string,
  *   check: {name:string,status:'warn',message:string}|null,
@@ -52,18 +62,50 @@ export const runWorkspaceCommandPreflight = async ({
   timeoutMs,
   abortSignal = null,
   reasonPrefix,
+  providerId = null,
   label,
   log = () => {},
   successCache = null,
   cacheMaxAgeMsByState = null
 }) => {
-  const command = String(cmd || '').trim();
-  const commandArgs = Array.isArray(args) ? args.map((entry) => String(entry)) : [];
+  throwIfAborted(abortSignal);
+  const requestedCommand = String(cmd || '').trim();
+  const requestedArgs = Array.isArray(args) ? args.map((entry) => String(entry)) : [];
   const timeout = Number.isFinite(Number(timeoutMs))
     ? Math.max(500, Math.floor(Number(timeoutMs)))
     : 5000;
   const prefix = String(reasonPrefix || '').trim().toLowerCase();
   const descriptor = String(label || 'workspace probe').trim() || 'workspace probe';
+  if (!requestedCommand || !prefix) {
+    return { state: 'ready', reasonCode: null, message: '', check: null, checks: [] };
+  }
+  const ownerId = providerId || prefix;
+  const workingDir = String(cwd || ctx?.repoRoot || process.cwd());
+  const profile = resolveToolingCommandProfile({ providerId: ownerId, cmd: requestedCommand, args: requestedArgs,
+    repoRoot: ctx?.repoRoot || cwd || process.cwd(), toolingConfig: ctx?.toolingConfig || {} });
+  throwIfAborted(abortSignal);
+  if (profile.resolved?.mode === 'blocked' || profile.probe?.validationFailure || profile.probe?.cacheOwnershipPending === true) {
+    const pending = profile.probe?.cacheOwnershipPending === true;
+    const reasonCode = `${prefix}_${pending ? 'settlement_pending' : 'command_denied'}`;
+    const message = `${descriptor} cannot be admitted (${profile.probe?.validationFailure?.reasonCode || profile.resolved?.reason || reasonCode}).`;
+    return { state: 'blocked', blockProvider: true, reasonCode, message,
+      check: { name: reasonCode, status: 'warn', message }, checks: [] };
+  }
+  const command = profile.resolved.cmd;
+  const commandArgs = profile.resolved.args;
+  const environment = resolveNoProvisionToolingEnvironment(process.env, { command, providerId: ownerId,
+    cwd: workingDir, toolingRoot: ctx?.toolingConfig?.dir || null });
+  const currentAuthority = () => {
+    const workspace = resolveProviderWorkspaceExecutionAuthority({ repoRoot: ctx?.repoRoot || workingDir,
+      workspaceRoot: workingDir, providerId: ownerId, server: { cmd: command } });
+    if (workspace) return workspace;
+    const commandPath = findBinaryOnPath(command) || command;
+    if (isResolvedCommandTrusted({ commandPath, repoRoot: ctx?.repoRoot || workingDir, toolRoot: resolveToolRoot() })) return null;
+    const reasonCode = `${prefix}_command_denied`;
+    const message = `${descriptor} command authority was revoked before result admission or launch.`;
+    return { state: 'blocked', blockProvider: true, reasonCode, message,
+      check: { name: reasonCode, status: 'warn', message }, checks: [] };
+  };
   const buildCachedResult = (marker) => {
     const state = String(marker?.state || 'ready').trim() || 'ready';
     const check = marker?.check && typeof marker.check === 'object'
@@ -92,6 +134,7 @@ export const runWorkspaceCommandPreflight = async ({
     };
   };
   const writeCacheMarker = async (payload = {}) => {
+    throwIfAborted(abortSignal);
     if (!cacheEnabled || !successFingerprint) return;
     try {
       await writeWorkspaceCommandPreflightCacheMarker({
@@ -106,13 +149,12 @@ export const runWorkspaceCommandPreflight = async ({
         reasonCode: payload.reasonCode,
         message: payload.message,
         check: payload.check,
-        checks: payload.checks
+        checks: payload.checks,
+        signal: abortSignal
       });
-    } catch {}
+      throwIfAborted(abortSignal);
+    } catch (error) { if (isAbortError(error) || error?.cacheOwnershipPending === true) throw error; }
   };
-  if (!command || !prefix) {
-    return { state: 'ready', reasonCode: null, message: '', check: null, checks: [] };
-  }
   const cacheEnabled = successCache
     && typeof successCache === 'object'
     && typeof successCache.namespace === 'string'
@@ -125,8 +167,11 @@ export const runWorkspaceCommandPreflight = async ({
         command,
         args: commandArgs,
         watchedFiles: successCache.watchedFiles || [],
-        extra: successCache.extra || null
+        extra: successCache.extra || null,
+        environment,
+        signal: abortSignal
       });
+      throwIfAborted(abortSignal);
       const cached = await readWorkspaceCommandPreflightCacheHit({
         repoRoot: successCache.repoRoot || ctx?.repoRoot || process.cwd(),
         cacheRoot: successCache.cacheRoot || null,
@@ -134,7 +179,10 @@ export const runWorkspaceCommandPreflight = async ({
         fingerprint: successFingerprint,
         cacheMaxAgeMsByState
       });
+      throwIfAborted(abortSignal);
       if (cached.hit) {
+        const denied = currentAuthority();
+        if (denied) return denied;
         if (typeof log === 'function') {
           log(`[tooling] ${descriptor} preflight cache hit.`);
         }
@@ -142,24 +190,37 @@ export const runWorkspaceCommandPreflight = async ({
         if (cachedResult.state === 'ready') {
           cachedResult.reasonCode = TOOLING_PREFLIGHT_REASON_CODES.CACHE_HIT;
         }
+        throwIfAborted(abortSignal);
         return cachedResult;
       }
-    } catch {}
+    } catch (error) { if (isAbortError(error)) throw error; }
   }
   try {
-    const workingDir = String(cwd || ctx?.repoRoot || process.cwd());
-    const result = await spawnResolvedSubprocess(command, commandArgs, {
-      cwd: workingDir,
-      stdio: ['ignore', 'pipe', 'pipe'],
-      rejectOnNonZeroExit: false,
-      captureStdout: true,
-      captureStderr: true,
-      outputMode: 'string',
-      outputEncoding: 'utf8',
-      timeoutMs: timeout,
-      killTree: true,
-      ...(abortSignal ? { signal: abortSignal } : {})
+    throwIfAborted(abortSignal);
+    const denied = currentAuthority();
+    if (denied) return denied;
+    const result = await runWithManagedCommandInstallation({ command, signal: abortSignal, beforeSpawn: () => {
+      const revoked = currentAuthority();
+      if (revoked) throw Object.assign(new Error(revoked.message), { code: 'ERR_WORKSPACE_COMMAND_DENIED', admission: revoked });
+    } }, ({ onSpawn }) => {
+      return spawnResolvedSubprocess(command, commandArgs, {
+        cwd: workingDir,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        rejectOnNonZeroExit: false,
+        captureStdout: true,
+        captureStderr: true,
+        outputMode: 'string',
+        outputEncoding: 'utf8',
+        timeoutMs: timeout,
+        env: environment,
+        killTree: true,
+        ...(onSpawn ? { onSpawn } : {}),
+        ...(abortSignal ? { signal: abortSignal } : {})
+      });
     });
+    throwIfAborted(abortSignal);
+    const revoked = currentAuthority();
+    if (revoked) return revoked;
     const exitCode = Number(result?.exitCode);
     if (Number.isFinite(exitCode) && exitCode === 0) {
       await writeCacheMarker({
@@ -193,9 +254,11 @@ export const runWorkspaceCommandPreflight = async ({
     });
     return failureResult;
   } catch (error) {
-    if (error?.code === 'ABORT_ERR') {
+    if (error?.code === 'ERR_WORKSPACE_COMMAND_DENIED') return error.admission;
+    if (isAbortError(error) || error?.cacheOwnershipPending === true) {
       throw error;
     }
+    throwIfAborted(abortSignal);
     if (error?.code === 'SUBPROCESS_TIMEOUT') {
       const message = `${descriptor} probe timed out after ${timeout}ms.`;
       const timeoutResult = {

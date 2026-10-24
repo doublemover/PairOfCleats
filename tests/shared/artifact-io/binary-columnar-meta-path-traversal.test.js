@@ -69,7 +69,7 @@ await assert.rejects(
   (err) => {
     const message = String(err?.message || '');
     if (/checksum mismatch/i.test(message)) return false;
-    return err?.code === 'ERR_ARTIFACT_READ' || /truncated/i.test(message);
+    return err?.code === 'ERR_ARTIFACT_READ' || err?.code === 'EISDIR' || /truncated/i.test(message);
   },
   'expected unreadable binary-columnar payload paths to fail without being misclassified as checksum mismatch'
 );

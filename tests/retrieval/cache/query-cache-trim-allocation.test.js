@@ -40,7 +40,7 @@ try {
 const ownerCopies = copies - 5;
 const ownerReferences = copiedReferences - 20;
 console.log(`query hot-cache trim copies${ownerCopies}, references${ownerReferences}`);
-assert.equal(ownerCopies, 5, 'one independent sorted snapshot per overflow, no second capped prefix copy');
-assert.equal(ownerReferences, 25);
+assert.equal(ownerCopies, 0, 'timestamp retention does not copy the complete resident cache on overflow');
+assert.equal(ownerReferences, 0);
 assert.equal(findQueryCacheEntry({ entries: [] }, 'trim-fixture-2', 'wrong', { cachePath, strategy: 'memory-first' }), null);
 console.log('query cache trim allocation passed: stable timestamp ties, older late entries, upsert references and signature isolation preserved');

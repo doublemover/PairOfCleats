@@ -1,8 +1,10 @@
 import crypto from 'node:crypto';
 import fsSync from 'node:fs';
 import path from 'node:path';
+import { throwIfAborted } from '../../shared/abort.js';
+import { resolveRequestedAbortSignal } from './preflight/manager-state.js';
 import { collectLspTypes } from '../../integrations/tooling/providers/lsp.js';
-import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig } from './provider-contract.js';
+import { appendDiagnosticChecks, buildDuplicateChunkUidChecks, hashProviderConfig, resolveRequestCacheGeneration } from './provider-contract.js';
 import { toPosix } from '../../shared/file-paths.js';
 import { writeToolingCacheJsonSync } from './cache-storage.js';
 import { runSyncCommandWithTimeout, toSyncCommandExitCode } from '../../shared/subprocess/sync-command.js';
@@ -432,10 +434,11 @@ const buildClangdRequestedCommand = ({ ctx, clangdConfig, compileCommandsDir }) 
   });
 };
 
-const buildClangdCommandUnavailableCheck = () => ({
+const buildClangdCommandUnavailableCheck = ({ definitelyMissing = false } = {}) => ({
   name: 'clangd_command_unavailable',
   status: 'warn',
-  message: 'clangd command probe failed; attempting stdio initialization anyway.'
+  message: definitelyMissing ? 'clangd command is unavailable; skipping tooling-based types.'
+    : 'clangd command probe failed; attempting stdio initialization anyway.'
 });
 
 const resolveConfiguredFallbackFlags = (clangdConfig) => (
@@ -483,6 +486,7 @@ export const createClangdProvider = () => ({
   preflightId: 'clangd.workspace-model',
   preflightClass: 'workspace',
   version: '2.0.0',
+  profileContractVersion: 1,
   label: 'clangd',
   priority: 20,
   languages: ['clike', 'c', 'cpp', 'objective-c', 'objective-cpp'],
@@ -501,6 +505,8 @@ export const createClangdProvider = () => ({
     return hashProviderConfig({ clangd: ctx?.toolingConfig?.clangd || {} });
   },
   async preflight(ctx, inputs = {}) {
+    const abortSignal = resolveRequestedAbortSignal(ctx, inputs);
+    throwIfAborted(abortSignal);
     const log = typeof inputs?.log === 'function'
       ? inputs.log
       : (typeof ctx?.logger === 'function' ? ctx.logger : (() => {}));
@@ -535,13 +541,16 @@ export const createClangdProvider = () => ({
       compileCommandsDir
     });
     const commandPreflight = resolveCommandProfilePreflightResult({
+      signal: abortSignal,
       providerId: 'clangd',
       requestedCommand,
       ctx,
-      unavailableCheck: buildClangdCommandUnavailableCheck()
+      unavailableCheck: buildClangdCommandUnavailableCheck,
+      blockWhenDefinitelyMissing: true
     });
     if (commandPreflight.state !== 'ready') {
-      log('[index] clangd command probe failed; attempting stdio initialization.');
+      log(commandPreflight.blockProvider ? '[index] clangd command unavailable or invalid; skipping.'
+        : '[index] clangd command probe failed; attempting stdio initialization.');
       return {
         state: commandPreflight.state,
         reasonCode: commandPreflight.reasonCode,
@@ -589,6 +598,8 @@ export const createClangdProvider = () => ({
     };
   },
   async run(ctx, inputs) {
+    const abortSignal = resolveRequestedAbortSignal(ctx, inputs);
+    throwIfAborted(abortSignal);
     const log = typeof ctx?.logger === 'function' ? ctx.logger : (() => {});
     const { docs, targets: resolvedTargets } = resolveClangdDocumentsAndTargets(inputs);
     let targets = resolvedTargets;
@@ -671,6 +682,7 @@ export const createClangdProvider = () => ({
         compileCommandsDir
       });
     const runtimeCommand = resolveRuntimeCommandFromPreflight({
+      signal: abortSignal,
       preflight,
       fallbackRequestedCommand: requestedCommand,
       providerId: 'clangd',
@@ -772,12 +784,13 @@ export const createClangdProvider = () => ({
     let result;
     try {
       result = await collectLspTypes({
+        requestCacheGeneration: resolveRequestCacheGeneration(ctx),
         semanticSession: ctx.semanticLspSession || null,
         ...runtimeConfig,
         rootDir: ctx.repoRoot,
         documents: selectedDocs,
         targets,
-        abortSignal: ctx?.abortSignal || null,
+        abortSignal,
         log,
         providerId: 'clangd',
         adaptiveDegradedHint: preflight?.state === 'degraded',
@@ -805,6 +818,7 @@ export const createClangdProvider = () => ({
     } finally {
       clangdStderr.flush(log);
     }
+    throwIfAborted(abortSignal);
     const diagnostics = appendDiagnosticChecks(
       result.diagnosticsCount ? { diagnosticsCount: result.diagnosticsCount } : null,
       [...checks, ...(Array.isArray(result.checks) ? result.checks : [])]

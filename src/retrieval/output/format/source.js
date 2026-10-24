@@ -30,17 +30,69 @@ export function sanitizeTerminalMetadata(value, seen = new WeakMap(), depth = 0)
   return result;
 }
 
-/** Bounded, root-confined working-tree preview; does not resolve external source references. */
-export function readSourcePreview(rootDir, chunk, { maxLines = 8, maxChars = 1600 } = {}) {
-  if (!rootDir || !chunk?.file || !Number.isSafeInteger(chunk.start) || !Number.isSafeInteger(chunk.end)
-    || chunk.start < 0 || chunk.end <= chunk.start) return null;
+const MAX_SOURCE_BYTES = 512 * 1024;
+const MAX_SCAN_CHARS = 64 * 1024;
+
+const normalizePreviewTokens = (tokens) => Array.isArray(tokens)
+  ? [...new Set(tokens.slice(0, 64).filter((token) => typeof token === 'string' && token.trim())
+    .map((token) => sanitizeTerminalText(token, { multiline: false }).slice(0, 128).toLowerCase())
+    .filter(Boolean))]
+  : [];
+
+const containsQueryText = (line, tokens) => {
+  const lower = line.toLowerCase();
+  return tokens.some((token) => lower.includes(token));
+};
+
+const sourceSegments = new Intl.Segmenter('en', { granularity: 'grapheme' });
+const clipSourceLine = (text, limit, tokens) => {
+  if (text.length <= limit) return text;
+  if (limit <= 1) return '…';
+  const lower = text.toLowerCase();
+  const matches = tokens.map((token) => ({ index: lower.indexOf(token), length: token.length }))
+    .filter((match) => match.index >= 0).sort((a, b) => a.index - b.index);
+  const match = matches[0];
+  // Lowercasing can expand a character (for example İ). Translate the matched
+  // lowercased span back to original UTF-16 offsets before clipping source text.
+  let matchStart = 0;
+  let matchEnd = 0;
+  if (match) {
+    let originalOffset = 0;
+    let lowerOffset = 0;
+    for (const char of text) {
+      const lowerEnd = lowerOffset + char.toLowerCase().length;
+      if (lowerOffset <= match.index && match.index < lowerEnd) matchStart = originalOffset;
+      if (lowerEnd >= match.index + match.length) { matchEnd = originalOffset + char.length; break; }
+      originalOffset += char.length;
+      lowerOffset = lowerEnd;
+    }
+  }
+  const from = match && matchEnd > limit - 1
+    ? Math.max(0, matchStart - Math.floor(limit / 3)) : 0;
+  const prefix = from ? '…' : '';
+  const parts = [];
+  let length = prefix.length;
+  let truncated = false;
+  for (const { segment, index } of sourceSegments.segment(text)) {
+    if (index + segment.length <= from) continue;
+    if (length + segment.length > limit) { truncated = true; break; }
+    parts.push(segment);
+    length += segment.length;
+  }
+  if (truncated && length >= limit) parts.pop();
+  return `${prefix}${parts.join('')}${truncated ? '…' : ''}`;
+};
+
+/** Read one confined file; charge bytes before I/O, including failed/racing reads. */
+const readPreviewSource = (rootDir, filePath, budget) => {
   let fd = null;
   try {
     const root = toRealPathSync(path.resolve(rootDir));
-    const file = path.resolve(root, chunk.file);
+    const file = path.resolve(root, filePath);
     fd = openContainedFileSync(root, file);
     const stat = fs.fstatSync(fd);
-    if (!stat.isFile() || stat.size > 512 * 1024) return null;
+    if (!stat.isFile() || stat.size > MAX_SOURCE_BYTES || stat.size > budget.bytes) return null;
+    budget.bytes -= stat.size;
     const buffer = Buffer.alloc(stat.size);
     let offset = 0;
     while (offset < buffer.length) {
@@ -49,21 +101,70 @@ export function readSourcePreview(rootDir, chunk, { maxLines = 8, maxChars = 160
       offset += count;
     }
     const after = fs.fstatSync(fd);
-    if (after.size !== stat.size || after.mtimeMs !== stat.mtimeMs) return null;
+    if (offset !== stat.size || after.size !== stat.size || after.mtimeMs !== stat.mtimeMs) return null;
     const { text } = decodeTextBuffer(buffer.subarray(0, offset), { filePath: file });
-    const raw = text.slice(chunk.start, Math.min(chunk.end, chunk.start + maxChars));
-    if (!raw.trim()) return null;
-    const rawLines = raw.replace(/\r\n?/g, '\n').split('\n');
-    const lines = rawLines.slice(0, maxLines).map((line) => sanitizeTerminalText(line));
-    const startLine = Number.isSafeInteger(chunk.startLine) && chunk.startLine > 0
-      ? chunk.startLine : text.slice(0, chunk.start).split(/\r\n|\r|\n/).length;
-    return { lines, startLine,
-      truncated: rawLines.length > maxLines || chunk.end - chunk.start > maxChars };
+    return text;
   } catch {
     return null;
   } finally {
     if (fd != null) fs.closeSync(fd);
   }
+};
+
+const selectSourcePreview = (text, chunk, { maxLines = 8, maxChars = 1600, queryTokens = [] } = {}) => {
+  const lineLimit = Number.isSafeInteger(maxLines) ? Math.max(1, Math.min(8, maxLines)) : 8;
+  const charLimit = Number.isSafeInteger(maxChars) ? Math.max(1, Math.min(1600, maxChars)) : 1600;
+  const scanEnd = Math.min(text.length, chunk.end, chunk.start + MAX_SCAN_CHARS);
+  const raw = text.slice(chunk.start, scanEnd);
+  if (!raw.trim()) return null;
+  const rawLines = raw.replace(/\r\n?/g, '\n').split('\n');
+  if (rawLines.at(-1) === '') rawLines.pop();
+  const tokens = normalizePreviewTokens(queryTokens);
+  const firstMatch = tokens.length ? rawLines.findIndex((line) => containsQueryText(line, tokens)) : -1;
+  const first = Math.max(0, Math.min(firstMatch - (lineLimit > 1 ? 1 : 0), rawLines.length - lineLimit));
+  const selected = rawLines.slice(first, first + lineLimit);
+  let remaining = charLimit;
+  const lines = [];
+  const matchLines = [];
+  for (const line of selected) {
+    if (remaining <= 0) break;
+    const safe = sanitizeTerminalText(line);
+    // Divide the display budget so a long context line cannot hide the matching line.
+    const limit = Math.max(1, Math.floor(remaining / (selected.length - lines.length)));
+    const displayed = clipSourceLine(safe, limit, tokens);
+    if (tokens.length && containsQueryText(displayed, tokens)) matchLines.push(lines.length);
+    lines.push(displayed);
+    remaining -= displayed.length;
+  }
+  // The offsets are indexed, but the line numbers must describe the bytes just read.
+  const startLine = text.slice(0, chunk.start).split(/\r\n|\r|\n/).length + first;
+  const truncatedBefore = first > 0;
+  const truncatedAfter = first + lines.length < rawLines.length || scanEnd < Math.min(text.length, chunk.end);
+  return { lines, startLine, matchLines, queryTokens: tokens, truncatedBefore, truncatedAfter,
+    truncated: truncatedBefore || truncatedAfter };
+};
+
+/** One render owns this bounded cache; edits are read afresh on the next render. */
+export function createSourcePreviewReader(rootDir, { maxFiles = 32, maxBytes = 2 * 1024 * 1024 } = {}) {
+  const sources = new Map();
+  const budget = { bytes: Math.max(0, Math.floor(Math.min(2 * 1024 * 1024, Number(maxBytes) || 0))) };
+  const fileLimit = Math.max(0, Math.floor(Math.min(32, Number(maxFiles) || 0)));
+  return (chunk, options = {}) => {
+    if (!rootDir || typeof chunk?.file !== 'string' || !chunk.file
+      || !Number.isSafeInteger(chunk.start) || !Number.isSafeInteger(chunk.end)
+      || chunk.start < 0 || chunk.end <= chunk.start) return null;
+    if (!sources.has(chunk.file)) {
+      if (sources.size >= fileLimit || budget.bytes <= 0) return null;
+      sources.set(chunk.file, readPreviewSource(rootDir, chunk.file, budget));
+    }
+    const text = sources.get(chunk.file);
+    return typeof text === 'string' ? selectSourcePreview(text, chunk, options) : null;
+  };
+}
+
+/** Bounded, root-confined working-tree preview; no external source references. */
+export function readSourcePreview(rootDir, chunk, options = {}) {
+  return createSourcePreviewReader(rootDir)(chunk, options);
 }
 
 const KEYWORDS = new Set(('async await break case catch class const continue default def do else enum export extends false finally fn for from function if implements import in interface let match new null private protected public raise return static struct super switch this throw true try type typeof undefined var void while yield').split(' '));
@@ -85,14 +186,18 @@ export function highlightSourceLine(text, { styled = true } = {}) {
 export function formatSourcePreview(preview, { styled = true, columns = 108 } = {}) {
   if (!preview) return '';
   const digits = String(preview.startLine + preview.lines.length - 1).length;
-  const width = Math.max(20, columns - digits - 7);
+  const marked = preview.matchLines?.length > 0;
+  const width = Math.max(1, columns - digits - (marked ? 9 : 7));
   const lines = preview.lines.map((line, index) => {
     const expanded = line.replace(/\t/g, '  ');
-    const units = Array.from(expanded);
-    const clipped = units.length > width ? `${units.slice(0, width - 1).join('')}…` : expanded;
+    const clipped = clipSourceLine(expanded, width, preview.queryTokens || []);
     const number = String(preview.startLine + index).padStart(digits);
     const gutter = styled ? `${ANSI.fgDarkGray}${number} │${ANSI.reset}` : `${number} |`;
-    return `  ${gutter} ${highlightSourceLine(clipped, { styled })}`;
+    const marker = marked ? (preview.matchLines.includes(index)
+      && containsQueryText(clipped, preview.queryTokens || []) ? '> ' : '  ') : '';
+    return `  ${marker}${gutter} ${highlightSourceLine(clipped, { styled })}`;
   });
-  return `  working-tree excerpt\n${lines.join('\n')}\n${preview.truncated ? '  …\n' : ''}`;
+  const before = preview.truncatedBefore ? '  …\n' : '';
+  const after = preview.truncatedAfter ?? preview.truncated;
+  return `  working-tree excerpt${marked ? ' (> query text)' : ''}\n${before}${lines.join('\n')}\n${after ? '  …\n' : ''}`;
 }

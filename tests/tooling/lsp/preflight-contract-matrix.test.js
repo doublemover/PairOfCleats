@@ -374,6 +374,7 @@ const runSingleFlightCase = async () => {
 
 const runEnforcedTimeoutCase = async () => {
   let attempts = 0;
+  let releaseFirst;
   const ctx = buildCtx();
   const provider = {
     id: 'enforced-timeout-fixture',
@@ -384,7 +385,8 @@ const runEnforcedTimeoutCase = async () => {
     },
     async preflight() {
       attempts += 1;
-      return await new Promise(() => {});
+      if (attempts === 1) await new Promise(resolve => { releaseFirst = resolve; });
+      return { state: 'ready' };
     }
   };
   const inputs = buildInputs('enforced-timeout');
@@ -396,7 +398,11 @@ const runEnforcedTimeoutCase = async () => {
     () => awaitToolingProviderPreflight(ctx, { provider, inputs }),
     (error) => error?.code === 'TOOLING_PREFLIGHT_TIMEOUT'
   );
-  assert.equal(attempts, 2);
+  assert.equal(attempts, 1, 'a deadline cannot detach unresolved single-flight ownership');
+  releaseFirst();
+  await wait(0);
+  assert.equal((await awaitToolingProviderPreflight(ctx, { provider, inputs })).state, 'ready');
+  assert.equal(attempts, 2, 'a new execution can start after the previous operation drains');
 };
 
 const runTimeoutTieringCase = async () => {

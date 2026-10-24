@@ -74,7 +74,7 @@ const astroSegments = assertStableSegments({
   relPath: 'src/pages/index.astro',
   mode: 'code'
 }, 'astro');
-assert.equal(astroSegments.some((segment) => segment.meta?.block === 'frontmatter' && segment.languageId === 'javascript'), true);
+assert.equal(astroSegments.some((segment) => segment.meta?.block === 'frontmatter' && segment.languageId === 'typescript'), true);
 assert.equal(astroSegments.some((segment) => segment.meta?.block === 'script' && segment.languageId === 'typescript'), true);
 assert.equal(astroSegments.some((segment) => segment.meta?.block === 'style' && segment.languageId === 'scss'), true);
 assert.equal(astroSegments.some((segment) => segment.meta?.block === 'template' && segment.languageId === 'html'), true);

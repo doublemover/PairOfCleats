@@ -9,7 +9,7 @@ const REQUIRED_METHODS = [
   'getFileMeta'
 ];
 
-const OPTIONAL_METHODS = ['annotate', 'getFileMetaBatch'];
+const OPTIONAL_METHODS = ['annotate', 'getFileMetaBatch', 'getHistoryAffectedFiles'];
 const ADAPTER_MODES = Object.freeze(['parity', 'experimental', 'disabled']);
 const DEFAULT_ADAPTER_MODE_BY_PROVIDER = Object.freeze({
   git: 'parity',
@@ -100,7 +100,7 @@ export const assertScmProvider = (provider) => {
     if (result && Array.isArray(result.filesPosix)) {
       const filesPosix = Array.from(new Set(
         result.filesPosix
-          .map((entry) => String(entry || '').replace(/\\/g, '/'))
+          .map((entry) => process.platform === 'win32' ? String(entry || '').replace(/\\/g, '/') : String(entry || ''))
           .filter(Boolean)
       )).sort((a, b) => a.localeCompare(b));
       return { filesPosix };
@@ -251,6 +251,16 @@ export const assertScmProvider = (provider) => {
       }
     }
   };
+  if (typeof provider.getHistoryAffectedFiles === 'function') {
+    wrapped.getHistoryAffectedFiles = async input => {
+      try {
+        const result = await provider.getHistoryAffectedFiles(input);
+        if (result?.complete !== true) return { ok: false, reason: 'unavailable' };
+        const normalized = normalizeFileList(result, CHANGED_FILES_UNAVAILABLE_REASONS);
+        return normalized.ok === false ? normalized : { ...normalized, complete: true };
+      } catch { return { ok: false, reason: 'unavailable' }; }
+    };
+  }
   if (typeof provider.annotate === 'function') {
     wrapped.annotate = async (input) => {
       try {

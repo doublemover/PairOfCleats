@@ -58,16 +58,15 @@ const resolveDropConfig = ({ languageId, config }) => {
 };
 
 const buildDropSet = (lexicon, dropConfig) => {
-  const set = new Set();
-  const maybeAdd = (enabled, values) => {
-    if (!enabled || !(values instanceof Set)) return;
-    for (const value of values) set.add(value);
+  // A constant-size membership view avoids copying all immutable lexicon tokens
+  // per file, and observes injected mutable lexicons for this synchronous call.
+  const categories = ['keywords', 'literals', 'builtins', 'types']
+    .filter(category => dropConfig[category] && lexicon[category] instanceof Set)
+    .map(category => lexicon[category]);
+  return {
+    size: categories.reduce((sum, values) => sum + values.size, 0),
+    has: value => categories.some(values => values.has(value))
   };
-  maybeAdd(dropConfig.keywords, lexicon.keywords);
-  maybeAdd(dropConfig.literals, lexicon.literals);
-  maybeAdd(dropConfig.builtins, lexicon.builtins);
-  maybeAdd(dropConfig.types, lexicon.types);
-  return set;
 };
 
 const classifyToken = (token, lexicon) => {
@@ -78,6 +77,10 @@ const classifyToken = (token, lexicon) => {
   if (lexicon.types instanceof Set && lexicon.types.has(token)) return 'types';
   return null;
 };
+
+const preserveQualifiedKeywordMember = (callee, base, lexicon) => (
+  classifyToken(base, lexicon) === 'keywords' && /\.|::|->|#|\//.test(String(callee ?? ''))
+);
 
 const createStats = () => ({
   droppedCalls: 0,
@@ -224,19 +227,12 @@ export const filterRawRelationsWithLexicon = (rawRelations, {
       if (!Array.isArray(entry) || entry.length < 2) continue;
       const caller = entry[0];
       const callee = entry[1];
-      const normalizedCallee = normalizeToken(String(callee ?? ''));
       const base = normalizeToken(extractSymbolBaseName(callee));
       if (!base) continue;
       const tokenCategory = classifyToken(base, resolvedLexicon);
       // Preserve qualified member lookups (for example `obj.default`) so
       // keyword-like member names do not get dropped as bare-language tokens.
-      const qualifiedMemberCall = normalizedCallee.includes('.')
-        || normalizedCallee.includes('::')
-        || normalizedCallee.includes('->')
-        || normalizedCallee.includes('#')
-        || normalizedCallee.includes('/');
-      const preserveQualifiedKeywordMember = qualifiedMemberCall && tokenCategory === 'keywords';
-      if (dropSet.has(base) && !preserveQualifiedKeywordMember) {
+      if (dropSet.has(base) && !preserveQualifiedKeywordMember(callee, base, resolvedLexicon)) {
         stats.droppedCalls += 1;
         bumpCategory(stats.droppedCallsByCategory, tokenCategory);
         continue;
@@ -255,9 +251,12 @@ export const filterRawRelationsWithLexicon = (rawRelations, {
     const callDetails = [];
     const seen = new Set();
     for (const detail of rawRelations.callDetails) {
+      const syntaxOccurrence = detail?.source === 'tree-sitter' && detail.coordinateSystem === 'utf16'
+        && Number.isSafeInteger(detail.start) && Number.isSafeInteger(detail.end) && detail.end > detail.start
+        && typeof detail.calleeRaw === 'string' && detail.calleeRaw.length > 0;
       const base = normalizeToken(extractSymbolBaseName(detail?.callee));
-      if (!base) continue;
-      if (dropSet.has(base)) {
+      if (!base && !syntaxOccurrence) continue;
+      if (!syntaxOccurrence && dropSet.has(base) && !preserveQualifiedKeywordMember(detail?.callee, base, resolvedLexicon)) {
         stats.droppedCallDetails += 1;
         continue;
       }
@@ -280,7 +279,7 @@ export const filterRawRelationsWithLexicon = (rawRelations, {
     for (const detail of rawRelations.callDetailsWithRange) {
       const base = normalizeToken(extractSymbolBaseName(detail?.callee));
       if (!base) continue;
-      if (dropSet.has(base)) {
+      if (dropSet.has(base) && !preserveQualifiedKeywordMember(detail?.callee, base, resolvedLexicon)) {
         stats.droppedCallDetailsWithRange += 1;
         continue;
       }

@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { readJsonFileSafe } from '../../shared/file-read.js';
 import { writeToolingCacheJson } from './cache-storage.js';
+import { throwIfAborted } from '../../shared/abort.js';
 import { classifyLspDocumentPathPolicy } from '../../integrations/tooling/providers/lsp/path-policy.js';
 import {
   findWorkspaceMarkersNearPaths,
@@ -43,13 +44,15 @@ const resolvePlannerHealthPath = ({ repoRoot, cacheRoot = null, workspaceRootRel
   );
 };
 
-const readPlannerHealth = async ({ repoRoot, cacheRoot = null, workspaceRootRel }) => {
+const readPlannerHealth = async ({ repoRoot, cacheRoot = null, workspaceRootRel, requestIdentity = null, signal = null }) => {
+  throwIfAborted(signal);
   const healthPath = resolvePlannerHealthPath({ repoRoot, cacheRoot, workspaceRootRel });
   const payload = await readJsonFileSafe(healthPath, {
     fallback: null,
     maxBytes: 32 * 1024
   });
-  if (!payload || typeof payload !== 'object') {
+  throwIfAborted(signal);
+  if (!requestIdentity || !payload || typeof payload !== 'object' || payload.schemaVersion !== 2 || payload.requestIdentity !== requestIdentity) {
     return { healthPath, state: null };
   }
   return {
@@ -71,12 +74,16 @@ export const persistPyrightPlannerHealth = async ({
   repoRoot,
   cacheRoot = null,
   workspaceRootRel,
-  runtime = null
+  runtime = null,
+  requestIdentity = null,
+  signal = null
 } = {}) => {
+  throwIfAborted(signal);
   const method = runtime?.requests?.byMethod?.['textDocument/documentSymbol'] || {};
   const hoverMethod = runtime?.requests?.byMethod?.['textDocument/hover'] || {};
   const payload = {
-    schemaVersion: 1,
+    schemaVersion: 2,
+    requestIdentity,
     updatedAt: new Date().toISOString(),
     workspaceRootRel: normalizeWorkspaceRootRel(workspaceRootRel),
     documentSymbolTimeouts: Number(method?.timedOut || 0),
@@ -89,8 +96,10 @@ export const persistPyrightPlannerHealth = async ({
   const healthPath = resolvePlannerHealthPath({ repoRoot, cacheRoot, workspaceRootRel });
   await writeToolingCacheJson(healthPath, withGeneratedCacheMetadata(payload, 'pyright-planner-health'), {
     spaces: 0,
-    newline: false
+    newline: false,
+    signal
   });
+  throwIfAborted(signal);
   return healthPath;
 };
 
@@ -401,7 +410,8 @@ export const __resolvePyrightRequestPlanForTests = ({
     bucket: entry.bucket,
     targetCount: entry.targetCount,
     symbolSeedCount: entry.symbolSeedCount,
-    byteLength: entry.byteLength
+    byteLength: entry.byteLength,
+    sourceHash: crypto.createHash('sha256').update(String(entry.doc?.text || '')).digest('hex')
   }));
 
   const checks = [];
@@ -478,8 +488,11 @@ export const resolvePyrightRequestPlan = async ({
   cacheRoot = null,
   documents,
   targets,
-  allDocuments = null
+  allDocuments = null,
+  requestIdentity = null,
+  signal = null
 } = {}) => {
+  throwIfAborted(signal);
   const initialPlan = __resolvePyrightRequestPlanForTests({
     repoRoot,
     documents,
@@ -490,8 +503,11 @@ export const resolvePyrightRequestPlan = async ({
   const health = await readPlannerHealth({
     repoRoot,
     cacheRoot,
-    workspaceRootRel: initialPlan.workspaceRootRel
+    workspaceRootRel: initialPlan.workspaceRootRel,
+    requestIdentity,
+    signal
   });
+  throwIfAborted(signal);
   const nextPlan = __resolvePyrightRequestPlanForTests({
     repoRoot,
     documents,

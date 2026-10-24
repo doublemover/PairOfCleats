@@ -18,7 +18,7 @@ export const createTomlImportCollector = ({ parseStructure = parseTomlStructure 
       // an invented vendor string node. Do not admit half a multiline value.
       if (context.budget.maxLines > 0 && entry.endLine >= context.budget.maxLines) continue;
       if (context.scanBudget.exhausted || !context.scanBudget.consumeMatch()) break;
-      addBudgetedCollectorImport(imports, entry.value, context.scanBudget);
+      addBudgetedCollectorImport(imports, entry.value, context.scanBudget, { literal: true });
     }
     return [...imports];
   } finally {

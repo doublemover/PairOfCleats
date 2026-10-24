@@ -1,5 +1,8 @@
 import { TS_MODIFIERS } from './constants.js';
-export { readSignatureLines } from '../shared/signature-lines.js';
+import { readSignatureLines as readLexicalSignatureLines } from '../shared/signature-lines.js';
+export const readSignatureLines = (lines, startLine, options = {}) => readLexicalSignatureLines(lines, startLine, {
+  ...options, ecmaScriptLineTerminators: true
+});
 
 export function extractTypeScriptModifiers(signature) {
   const mods = [];
@@ -96,7 +99,8 @@ function findTopLevelDelimiterIndexes(text, delimiter, { firstOnly = false } = {
     if (ch === '}') depthBrace = Math.max(0, depthBrace - 1);
     if (ch === '<') depthAngle += 1;
     if (ch === '>' && depthAngle > 0) depthAngle -= 1;
-    if (ch === delimiter && !depthParen && !depthBracket && !depthBrace && !depthAngle) {
+    if (ch === delimiter && !(delimiter === '=' && (text[i + 1] === '>' || text[i + 1] === '=' || /[=!<>]/u.test(text[i - 1] || '')))
+      && !depthParen && !depthBracket && !depthBrace && !depthAngle) {
       if (firstOnly) return [i];
       indexes.push(i);
     }

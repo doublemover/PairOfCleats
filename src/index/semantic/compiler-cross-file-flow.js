@@ -5,22 +5,43 @@ import { createSemanticFactsRef } from './file-ref.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { propertyPathsOverlap } from './compiler-property-paths.js';
 import { buildCallDependencySummaries, joinCallDependencySummaries, callInput, callUnknownInputs } from './compiler-call-summaries.js';
+import { COMPILER_SUMMARY_MANIFEST_VERSION } from './compiler-summary-manifest.js';
+import { persistSemanticEvidence } from './lsp-evidence.js';
+import { admitCompilerSummaryManifest } from './compiler-summary-admission.js';
 /** Call-site-owned may-depend channels; shared callee facts remain immutable. */
 export const collectCompilerCrossFileFlow = async ({ group, state, policy, signal }) => {
   const documents = group.flowDocuments || [], output = [];
   const iterations = Math.max(0, ...documents.map(document => (document.policy || policy).enrichment.maxSccIterations));
   const activeDocuments = documents.filter(document => !['off', 'deferred'].includes((document.policy || policy).enrichment.crossFileFlow));
-  const summaries = buildCallDependencySummaries(activeDocuments, { maxIterations: iterations, signal });
   const hashes = [...documents.map(document => document.partition.canonicalHash),...(group.providerInputHashes||[])].sort();
+  const analysisPolicy = { summaryManifestVersion: COMPILER_SUMMARY_MANIFEST_VERSION,
+    sources: documents.map(value => ({ source: value.item.source.sourceUnitId, enrichment: (value.policy || policy).enrichment }))
+      .sort((a,b) => a.source.localeCompare(b.source)) };
+  const manifestIdentity = { producer: { callFlow: SEMANTIC_ANALYSIS_VERSIONS.callFlow,
+    compilerBindings: SEMANTIC_ANALYSIS_VERSIONS.compilerBindings, cfgFlow: SEMANTIC_ANALYSIS_VERSIONS.cfgFlow },
+  compilerContext: group.context, inputPartitionHashes: hashes,
+  dependencySummaryHashes: [...group.dependencyHashes].sort(), analysisPolicy };
+  const summaries = buildCallDependencySummaries(activeDocuments, { maxIterations: iterations, signal, manifestIdentity });
+  let summaryArtifactRef = null;
+  if (activeDocuments.length) {
+    state.semanticEvidenceArtifacts ||= [];
+    summaryArtifactRef = await persistSemanticEvidence({ value: summaries.shadowManifest,
+      stagingRoot: activeDocuments[0].item.root, diskAccount: state.semanticDiskAccount,
+      inventory: state.semanticEvidenceArtifacts, signal });
+    state.semanticCompilerSummaryAdmissions ||= new Map();
+    state.semanticCompilerSummaryAdmissions.set(summaryArtifactRef,
+      admitCompilerSummaryManifest({ manifest: summaries.shadowManifest, expectedIdentity: manifestIdentity, signal }));
+  }
   for (const document of documents) {
     throwIfAborted(signal);
     const effective = document.policy || policy, { item, bytes, calls } = document;
     const partitionId = createAnalysisPartitionId({ pass: { name: 'compiler-call-flow', version: SEMANTIC_ANALYSIS_VERSIONS.callFlow }, inputPartitionHashes: hashes,
       compilerContext: { ...group.context, source: item.source.sourceUnitId }, dependencySummaryHashes: group.dependencyHashes,
-      analysisPolicy: documents.map(value => ({ source: value.item.source.sourceUnitId, enrichment: (value.policy || policy).enrichment })).sort((a,b) => a.source.localeCompare(b.source)) });
+      analysisPolicy });
     const evidence = { partitionId, localId: 0 }, rows = [{ family: 'node', row: { id: 0, kind: 'evidence', span: null, scope: null,
-      data: { method: 'monotone-call-site-may-depend-summary', producerId: 'semantic-flow', producerVersion: SEMANTIC_ANALYSIS_VERSIONS.callFlow, evidenceKind: 'static-analysis', sourceRef: item.source.sourceUnitId, artifactRef: null } } }];
-    const edges = [], reasons = new Set(); let completed = 0, nextId = 1;
+      data: { method: 'monotone-call-site-may-depend-summary', producerId: 'semantic-flow', producerVersion: SEMANTIC_ANALYSIS_VERSIONS.callFlow, evidenceKind: 'static-analysis', sourceRef: item.source.sourceUnitId,
+        artifactRef: ['off', 'deferred'].includes(effective.enrichment.crossFileFlow) ? null : summaryArtifactRef } } }];
+    const edges = [], reasons = new Set([...summaries.ownershipReasons, ...summaries.analysisReasons]); let completed = 0, nextId = 1;
     const mode = effective.enrichment.crossFileFlow;
     const emit = (kind, from, to, call, ordinal = null) => from && to && edges.push({ kind, from, to, callSite: call.occurrence,
       operandOrdinal: ordinal, contextKey: group.context.contextKey, condition: null, evidence, certainty: 'modeled' });
@@ -135,7 +156,7 @@ export const collectCompilerCrossFileFlow = async ({ group, state, policy, signa
       }
       if (summary) completed += 1;
     }
-    if (!summaries.converged && !['off', 'deferred'].includes(mode)) reasons.add('call_summary_iteration_or_work_budget');
+    if (summaries.budgetIncomplete && !['off', 'deferred'].includes(mode)) reasons.add('call_summary_iteration_or_work_budget');
     // May dependencies do not prove execution, alias uniqueness, or exception delivery.
     if (completed) reasons.add('call_owned_return_field_exception_may_summary');
     const uniqueEdges = [...new Map(edges.map(edge => [canonicalSemanticJson(edge), edge])).values()];

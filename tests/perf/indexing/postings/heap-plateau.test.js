@@ -1,11 +1,12 @@
 #!/usr/bin/env node
+import { MINHASH_HASH_IDENTITY } from '../../../../src/index/minhash.js';
 import { buildIndexPostings } from '../../../../src/index/build/indexer/steps/postings.js';
 
 const chunks = [
   {
     tokens: ['alpha'],
     tokenCount: 1,
-    minhashSig: [1, 2],
+    minhashHashIdentity: MINHASH_HASH_IDENTITY, minhashSig: [1, 2],
     embedding: [0.1, 0.2],
     embed_doc: [],
     embed_code: [0.3, 0.4]
@@ -13,7 +14,7 @@ const chunks = [
   {
     tokens: ['beta'],
     tokenCount: 1,
-    minhashSig: [3, 4],
+    minhashHashIdentity: MINHASH_HASH_IDENTITY, minhashSig: [3, 4],
     embedding: [0.5, 0.6],
     embed_doc: [0.7, 0.8],
     embed_code: [0.9, 1.0]

@@ -14,6 +14,8 @@ try {
   const resourceChange = { ...policy, storage: { ...policy.storage, batchRows: 32 },
     planning: { ...policy.planning, inlineBudgetMs: 1 } };
   assert.equal(semanticPolicyIdentities(resourceChange).analysis, identities.analysis);
+  assert.notEqual(semanticPolicyIdentities({ ...policy, storage: { ...policy.storage, maxQueuedBytes: 1024 } }).analysis,
+    identities.analysis, 'CFG construction admission bytes change derived meaning');
   const changed = { ...policy, overrides: [{ match: { path: '**/*.js' }, set: { enrichment: { localFlow: 'off' } } }] };
   const signatures = createSemanticCacheDependencySignatures({ dependencySignatures: fixture.dependencySignatures,
     policy: changed, root: fixture.repoRoot });

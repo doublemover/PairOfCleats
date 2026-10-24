@@ -12,7 +12,7 @@ import { SPARSE_PROVIDER_IDS } from '../types.js';
  *  tailLatencyTuning?: boolean,
  *  overfetch?: { rowCap?: number|null, timeBudgetMs?: number|null, chunkSize?: number|null }|null
  * }} input
- * @returns {{ id:string, requireTables:()=>string[], search:Function }}
+ * @returns {import('../types.js').SqliteFtsProvider}
  */
 export function createSqliteFtsProvider({
   rankSqliteFts,

@@ -2,6 +2,14 @@
 
 This guide defines the canonical release-check and publish-readiness contracts.
 
+Release-check reports explicitly distinguish executed work from simulated dry
+runs. Readiness accepts executed evidence only and derives each input role's
+required check IDs/phases/surfaces from the shipped-surface registry. It rejects
+missing checks, conflicting status/exit codes, overrides and mismatched release
+versions. A report's own `requiredChecks` declaration cannot narrow the consumer's
+qualification inventory; a changelog-only report cannot establish runtime or
+package verification.
+
 ## Release Check Command
 
 Run deterministic release-check validation with:

@@ -1,4 +1,5 @@
 import { throwIfAborted } from '../../shared/abort.js';
+import { observeStorageResource } from '../../shared/storage/failure-observation.js';
 
 const MAX_EXPRESSION_BYTES = 65536;
 const MAX_FACT_BYTES = 1024 * 1024;
@@ -34,7 +35,8 @@ export const emitCompilerTypeFacts = async ({ ts, checker, sourceFile, nodes, ex
       }
       let span = spanOf(lexicalNode || node);
       if (origin !== 'declared') {
-        span = node.name ? spanOf(node.name) : [span[0], Math.min(span[1], span[0] + 1)];
+        const anchorWidth = sourceFile.text.codePointAt(span[0]) > 0xffff ? 2 : 1;
+        span = node.name ? spanOf(node.name) : [span[0], Math.min(span[1], span[0] + anchorWidth)];
       }
       const placeholder = ref(Number.MAX_SAFE_INTEGER);
       const additions = [{ family: 'node', row: { id: placeholder.localId, kind: 'type', span, scope: owner,
@@ -68,7 +70,11 @@ export const emitCompilerTypeFacts = async ({ ts, checker, sourceFile, nodes, ex
       // The compiler's default formatting limit stays enabled. Never request
       // NoTruncation or expand aliases to turn a bounded fact into an arena dump.
       else emit(checker.typeToString(type, node, 0), 'checker-inferred', node);
-    } catch {
+    } catch (error) {
+      // A checker failure is advisory only after its original work has settled.
+      // In particular, a failed dependency-reader close cannot publish a partial
+      // binding partition while the descriptor still belongs to that failure.
+      observeStorageResource(error, { phase: 'compiler-type-fact' }).requireSettled();
       complete = false; reasons.add('checker_type_failure');
     }
     if (complete) completedCount += 1;

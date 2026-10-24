@@ -84,13 +84,22 @@ try {
     https.request = (_url, _options, callback) => {
       const request = new EventEmitter();
       request.destroy = () => {};
-      request.end = () => callback({ statusCode: 302, headers: { location: `${baseUrl}/ok` }, resume() { request.emit('close'); } });
+      request.end = () => {
+        const response = Object.assign(new EventEmitter(), { statusCode: 302, headers: { location: `${baseUrl}/ok` },
+          resume() { response.emit('close'); request.emit('close'); } });
+        callback(response);
+      };
       return request;
     };
     await assert.rejects(() => fetchDownloadUrl('https://example.invalid/redirect'), /downgrade/);
   } finally { https.request = originalRequest; }
   const scheduledTimeouts = [];
   const originalSetTimeout = global.setTimeout;
+  const originalNow = Date.now;
+  const fixedNow = originalNow();
+  // Isolate the configured default from the milliseconds spent admitting a
+  // request. Real redirect/body cases separately exercise the shared deadline.
+  Date.now = () => fixedNow;
   global.setTimeout = ((handler, timeout, ...args) => {
     scheduledTimeouts.push(Number(timeout));
     return originalSetTimeout(handler, timeout, ...args);
@@ -99,6 +108,7 @@ try {
     await fetchDownloadUrl(`${baseUrl}/ok`, { timeoutMs: undefined });
   } finally {
     global.setTimeout = originalSetTimeout;
+    Date.now = originalNow;
   }
   assert.ok(
     scheduledTimeouts.includes(30000),

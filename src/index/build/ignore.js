@@ -1,6 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import ignore from 'ignore';
+import { sha1 } from '../../shared/hash.js';
+import { stableStringify } from '../../shared/stable-json.js';
 import { SKIP_DIRS, SKIP_FILES, SKIP_GLOBS } from '../constants.js';
 import { isAbsolutePathNative, toPosix } from '../../shared/file-paths.js';
 import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';
@@ -79,22 +81,21 @@ export async function buildIgnoreMatcher({ root, userConfig, generatedPolicy = n
 
   const expandIgnorePatterns = (patterns) => {
     const expanded = [];
-    const seen = new Set();
-    const reignored = new Set();
+    const prefixMatcher = ignore().add(ignoreMatcher);
     const hasGlob = (value) => /[*?\[\]{}]/.test(value);
     const addPattern = (value) => {
-      if (!value || seen.has(value)) return;
-      seen.add(value);
+      if (!value) return;
       expanded.push(value);
+      prefixMatcher.add(value);
     };
     for (const raw of patterns) {
-      const pattern = typeof raw === 'string' ? raw.trim() : '';
+      const pattern = typeof raw === 'string' ? raw : '';
       if (!pattern) continue;
       if (!pattern.startsWith('!')) {
         addPattern(pattern);
         continue;
       }
-      const negated = pattern.slice(1).trim();
+      const negated = pattern.slice(1);
       const rel = negated.startsWith('/') ? negated.slice(1) : negated;
       const parts = rel.split('/').filter(Boolean);
       if (parts.length > 1) {
@@ -104,11 +105,11 @@ export async function buildIgnoreMatcher({ root, userConfig, generatedPolicy = n
           if (!part || hasGlob(part)) break;
           current = current ? `${current}/${part}` : part;
           traversalUnignorePrefixes.add(`${current}/`);
+          // Test the complete preceding rule program before reopening traversal.
+          // Retain child exclusion so a single selected leaf does not admit siblings.
+          const excluded = prefixMatcher.ignores(`${current}/`);
           addPattern(`!${current}/`);
-          if (!reignored.has(current) && ignoreMatcher.ignores(`${current}/`)) {
-            addPattern(`${current}/**`);
-            reignored.add(current);
-          }
+          if (excluded) addPattern(`${current}/**`);
         }
       }
       addPattern(pattern);
@@ -117,17 +118,21 @@ export async function buildIgnoreMatcher({ root, userConfig, generatedPolicy = n
   };
 
   const loadedFiles = [];
+  const policyFileInputs = [];
+  let policyComplete = true;
   for (const ignoreFile of ignoreFiles) {
     const resolved = resolveIgnorePath(ignoreFile?.path);
     if (!resolved) continue;
     try {
       const contents = await fs.readFile(resolved.resolved, 'utf8');
+      policyFileInputs.push([resolved.rel || resolved.raw, sha1(contents)]);
       ignoreMatcher.add(expandIgnorePatterns(contents.split(/\r?\n/)));
       loadedFiles.push(resolved.rel || resolved.raw);
     } catch (err) {
       const code = String(err?.code || '').toUpperCase();
       const missingOptional = ignoreFile?.optional === true && (code === 'ENOENT' || code === 'ENOTDIR');
-      if (missingOptional) continue;
+      if (missingOptional) { policyFileInputs.push([resolved.rel || resolved.raw, 'absent']); continue; }
+      policyComplete = false;
       recordWarning({
         type: 'read-failed',
         file: resolved.rel || resolved.raw,
@@ -155,6 +160,9 @@ export async function buildIgnoreMatcher({ root, userConfig, generatedPolicy = n
     }
     return false;
   };
+  ignoreMatcher.policyFingerprint = policyComplete ? sha1(stableStringify({ config,
+    defaultSkips: config.useDefaultSkips ? [Array.from(SKIP_DIRS), Array.from(SKIP_FILES), Array.from(SKIP_GLOBS)] : null,
+    generatedIncludePatterns, policyFileInputs })) : null;
 
   return { ignoreMatcher, config, ignoreFiles: loadedFiles, warnings };
 }

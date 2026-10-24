@@ -5,6 +5,7 @@ import {
   closeJsonRpcWriter,
   createFramedJsonRpcParser,
   getJsonRpcWriter,
+  getJsonRpcWriteEvidence,
   isClosedStreamWriteError
 } from '../../../shared/jsonrpc.js';
 import { registerChildProcessForCleanup } from '../../../shared/subprocess/tracking-register.js';
@@ -13,6 +14,8 @@ import { killChildProcessTree, killChildProcessTreeSync } from '../../../shared/
 import { applyToolchainDaemonPolicyEnv } from '../../../shared/toolchain-env.js';
 import { resolveNearestRankPercentile } from '../../../shared/perf/percentiles.js';
 import { createJsonRpcTraceRecorder } from './trace.js';
+import { classifyLspEnvelope } from './response-envelope.js';
+import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
 
 /**
  * Convert a local path to a file:// URI.
@@ -99,9 +102,12 @@ const mergeInitializeCapabilities = (value) => {
         ? general.positionEncodings
         : DEFAULT_LSP_POSITION_ENCODINGS
     },
-    offsetEncoding: Array.isArray(source.offsetEncoding) && source.offsetEncoding.length
-      ? source.offsetEncoding
-      : DEFAULT_LSP_POSITION_ENCODINGS,
+    // Modern servers negotiate the standard capability above. Keep the legacy
+    // extension available when a caller explicitly selects it.
+    ...(Object.hasOwn(source, 'offsetEncoding') ? {
+      offsetEncoding: Array.isArray(source.offsetEncoding) && source.offsetEncoding.length
+        ? source.offsetEncoding : DEFAULT_LSP_POSITION_ENCODINGS
+    } : {}),
     textDocument: {
       ...textDocument,
       documentSymbol: {
@@ -174,7 +180,8 @@ export function createLspClient(options) {
     maxBufferBytes,
     maxHeaderBytes,
     maxMessageBytes,
-    spawnProcess
+    spawnProcess,
+    beforeSpawn
   } = options || {};
   if (!cmd) throw new Error('createLspClient requires a command.');
   const useShell = typeof shell === 'boolean'
@@ -195,11 +202,18 @@ export function createLspClient(options) {
   let writerClosed = false;
   let trackedChildProcess = null;
   const unregisterChildProcessByChild = new WeakMap();
+  const pendingTerminations = new Set();
+  const childResources = new Set();
+  const resourceClosures = new Map();
+  const pendingTreeCleanup = new Set();
+  const failedTreeCleanup = new Set();
+  const resourceSettlementObservers = new Set();
+  let unknownSpawnResource = false;
   const staleReapInFlight = new WeakMap();
   const STALE_REAP_RETRY_MS = 500;
   let nextId = 1;
   const pending = new Map();
-  let generation = 0;
+  let generation = 0, uncorrelatedProtocolEvents = 0;
   let backoffMs = 0;
   let nextStartAt = 0;
   // Ensure every LSP request is bounded unless explicitly disabled.
@@ -209,6 +223,8 @@ export function createLspClient(options) {
     succeeded: 0,
     failed: 0,
     timedOut: 0,
+    protocolFailed: 0,
+    localWriteFailed: 0,
     latencySamplesMs: [],
     latencyTotalMs: 0,
     latencyMaxMs: 0,
@@ -230,6 +246,8 @@ export function createLspClient(options) {
         succeeded: 0,
         failed: 0,
         timedOut: 0,
+        protocolFailed: 0,
+        localWriteFailed: 0,
         latencySamplesMs: [],
         latencyTotalMs: 0,
         latencyMaxMs: 0
@@ -299,6 +317,38 @@ export function createLspClient(options) {
     && child.signalCode === null
   );
 
+  const trackTreeCleanup = (child, promise) => {
+    const tracked = Promise.resolve(promise).then(value => {
+      failedTreeCleanup.delete(child);
+      return value;
+    }, error => {
+      failedTreeCleanup.add(child);
+      throw error;
+    }).finally(() => {
+      pendingTreeCleanup.delete(tracked);
+      notifyResourceSettlement();
+    });
+    pendingTreeCleanup.add(tracked);
+    return tracked;
+  };
+
+  const ownChildResource = child => {
+    if (!child || !isEventEmitterLike(child)) {
+      unknownSpawnResource = true;
+      return;
+    }
+    childResources.add(child);
+    // Exit does not settle inherited stdio or a still-running tree escalation.
+    // Even malformed spawn candidates remain owned until their actual close.
+    resourceClosures.set(child, new Promise(resolve => child.once('close', () => {
+      childResources.delete(child);
+      resourceClosures.delete(child);
+      clearTrackedChild({ force: true, child });
+      resolve();
+      notifyResourceSettlement();
+    })));
+  };
+
   const clearTrackedChild = ({ force = false, child = null } = {}) => {
     const targetChild = child || trackedChildProcess;
     if (!targetChild) return;
@@ -316,13 +366,26 @@ export function createLspClient(options) {
     }
   };
 
-  const clearTrackedChildIfTerminated = (child, outcome = null) => {
-    const terminated = !isChildRunning(child) || outcome?.terminated === true;
+  const clearTrackedChildIfTerminated = (child) => {
+    const terminated = !isChildRunning(child);
     if (terminated) {
       clearTrackedChild({ force: true, child });
     }
     return terminated;
   };
+
+  const waitForChildExit = (child) => new Promise((resolve) => {
+    if (!isChildRunning(child)) { resolve(true); return; }
+    const finish = (exited) => {
+      clearTimeout(timer);
+      child.off?.('exit', onExit);
+      resolve(exited);
+    };
+    const onExit = () => finish(true);
+    // Keep the bounded wait referenced even when disposal unrefs the handle.
+    const timer = setTimeout(() => finish(false), 2500);
+    child.once('exit', onExit);
+  });
 
   const cleanupInvalidSpawnCandidate = (child, reason = 'invalid_spawn_candidate') => {
     if (!child || typeof child !== 'object') return;
@@ -336,12 +399,12 @@ export function createLspClient(options) {
       child.stderr?.destroy?.();
     } catch {}
     try {
-      killChildProcessTree(child, {
+      trackTreeCleanup(child, killChildProcessTree(child, {
         killTree: true,
         detached: killTreeDetached,
         graceMs: 0,
         awaitGrace: false
-      }).catch(() => {});
+      })).catch(() => {});
     } catch {
       try {
         child.kill?.('SIGKILL');
@@ -363,14 +426,14 @@ export function createLspClient(options) {
     const nowMs = Date.now();
     if (lastAttemptAt > 0 && (nowMs - lastAttemptAt) < STALE_REAP_RETRY_MS) return;
     staleReapInFlight.set(child, nowMs);
-    killChildProcessTree(child, {
+    trackTreeCleanup(child, killChildProcessTree(child, {
       killTree: true,
       detached: killTreeDetached,
       graceMs: 0,
       awaitGrace: true
-    }).then((outcome) => {
+    })).then((outcome) => {
       if (!outcome || typeof outcome !== 'object') return;
-      if (clearTrackedChildIfTerminated(child, outcome)) {
+      if (clearTrackedChildIfTerminated(child)) {
         staleReapInFlight.delete(child);
         if (!outcome.fallbackAttempted) return;
       }
@@ -378,7 +441,7 @@ export function createLspClient(options) {
         kind: 'kill_diagnostics',
         reason,
         pid: Number.isFinite(Number(child?.pid)) ? Number(child.pid) : null,
-        terminated: outcome.terminated === true,
+        terminated: !isChildRunning(child),
         forced: outcome.forced === true,
         fallbackAttempted: outcome.fallbackAttempted === true,
         fallbackTerminated: Number(outcome.fallbackTerminated || 0)
@@ -400,13 +463,13 @@ export function createLspClient(options) {
     } catch {}
     setTimeout(() => {
       if (isChildRunning(child)) {
-        killChildProcessTree(child, {
+        trackTreeCleanup(child, killChildProcessTree(child, {
           killTree: true,
           detached: killTreeDetached,
           graceMs: 0,
           awaitGrace: false
-        }).then((outcome) => {
-          clearTrackedChildIfTerminated(child, outcome);
+        })).then(() => {
+          clearTrackedChildIfTerminated(child);
         }).catch(() => {});
       }
     }, 200).unref?.();
@@ -447,26 +510,40 @@ export function createLspClient(options) {
     && typeof value.destroy === 'function'
   );
 
-  const send = (payload) => {
+  const failRequest = (id, entry, error, category = null) => {
+    if (pending.get(id) !== entry) return false;
+    pending.delete(id);
+    if (entry.timeout) clearTimeout(entry.timeout);
+    requestMetrics.failed += 1;
+    const metric = ensureMethodMetric(entry.method);
+    metric.failed += 1;
+    if (category) { requestMetrics[category] += 1; metric[category] += 1; }
+    recordRequestLatency(entry.method, Date.now() - entry.startedAt);
+    invalidateMetricsSnapshot();
+    entry.reject(error);
+    return true;
+  };
+
+  const send = (payload, onWriteFailure = null) => {
     if (!writer || writerClosed) return false;
-    const currentWriter = writer;
-    const currentGen = generation;
-    traceRecorder.recordOutbound(payload, {
-      providerId: providerId || cmd,
-      sessionKey
-    });
+    const currentWriter = writer, currentGen = generation, currentChild = proc;
+    traceRecorder.recordOutbound(payload, { providerId: providerId || cmd, sessionKey });
     const pendingWrite = currentWriter.write(payload);
-    if (pendingWrite && typeof pendingWrite.catch === 'function') {
-      pendingWrite.catch((err) => {
-        if (writer !== currentWriter || generation !== currentGen) return;
-        if (isClosedStreamWriteError(err)) {
-          rejectPendingTransportClosed();
-          writerClosed = true;
-          return;
-        }
-        log(`[lsp] write error: ${err?.message || err}`);
-      });
-    }
+    pendingWrite.catch(error => {
+      if (writer !== currentWriter || generation !== currentGen) return;
+      const evidence = getJsonRpcWriteEvidence(pendingWrite);
+      const local = Boolean(evidence?.settled && !evidence.frameStarted && !evidence.streamRetired
+        && !isClosedStreamWriteError(error));
+      onWriteFailure?.(error, local, evidence?.frameStarted === true);
+      if (!local) {
+        writerClosed = true;
+        currentWriter.close();
+        const failure = addStorageFailureContext(error, { code: 'ERR_LSP_TRANSPORT_CLOSED' }, undefined, { forceAggregate: true });
+        rejectPending(failure);
+        reapStaleChildProcess(currentChild, 'outbound_write_failed');
+      }
+      emitLifecycleEvent({ kind: 'write_failed', reason: local ? 'pre-frame' : 'transport' });
+    });
     return true;
   };
 
@@ -483,7 +560,7 @@ export function createLspClient(options) {
     const latencyMs = Date.now() - Number(entry.startedAt || Date.now());
     recordRequestLatency(entry.method, latencyMs);
     const methodMetric = ensureMethodMetric(entry.method);
-    if (message.error) {
+    if (Object.hasOwn(message, 'error')) {
       requestMetrics.failed += 1;
       methodMetric.failed += 1;
       invalidateMetricsSnapshot();
@@ -528,39 +605,39 @@ export function createLspClient(options) {
   };
 
   const handleMessage = (message) => {
-    if (!message || typeof message !== 'object') return;
-    if (!Object.prototype.hasOwnProperty.call(message, 'id') && message.method) {
-      traceRecorder.recordInbound(message, {
-        providerId: providerId || cmd,
-        sessionKey
-      });
-    }
-    if (Object.prototype.hasOwnProperty.call(message, 'id')) {
-      if (message.method) {
-        void handleRequest(message);
-        return;
+    const envelope = classifyLspEnvelope(message);
+    if (!envelope.kind) {
+      const entry = message && typeof message === 'object' && !Array.isArray(message)
+        && Object.hasOwn(message, 'id') ? pending.get(message.id) : null;
+      if (entry) {
+        const error = new Error(`Invalid LSP response envelope (${envelope.reason}).`);
+        error.code = 'ERR_LSP_PROTOCOL';
+        failRequest(message.id, entry, error, 'protocolFailed');
       }
-      handleResponse(message);
+      if (entry || uncorrelatedProtocolEvents < 8) {
+        if (!entry) uncorrelatedProtocolEvents += 1;
+        emitLifecycleEvent({ kind: 'protocol_envelope_error', reason: envelope.reason, correlated: Boolean(entry) });
+      }
       return;
     }
-    if (message.method && typeof onNotification === 'function') {
-      try {
-        onNotification(message);
-      } catch (error) {
+    if (envelope.kind === 'request') { void handleRequest(message); return; }
+    if (envelope.kind === 'response') { handleResponse(message); return; }
+    traceRecorder.recordInbound(message, { providerId: providerId || cmd, sessionKey });
+    if (typeof onNotification === 'function') {
+      try { onNotification(message); }
+      catch (error) {
         log(`[lsp] notification handler failed: ${error?.message || error}`);
-        emitLifecycleEvent({
-          kind: 'notification_handler_error',
-          message: error?.message || String(error)
-        });
+        emitLifecycleEvent({ kind: 'notification_handler_error', message: error?.message || String(error) });
       }
     }
   };
 
   const start = () => {
+    beforeSpawn?.();
     if (proc) {
       if (proc.killed || proc.exitCode !== null || writerClosed) {
         const staleChild = proc;
-        if (writerClosed) {
+        if (isChildRunning(staleChild)) {
           reapStaleChildProcess(staleChild, 'writer_closed_restart');
           if (isChildRunning(staleChild)) {
             const err = new Error('LSP restart blocked: previous writer-closed process is still running.');
@@ -580,11 +657,17 @@ export function createLspClient(options) {
         return proc;
       }
     }
+    if (childResources.size || pendingTreeCleanup.size || failedTreeCleanup.size || unknownSpawnResource) {
+      const error = new Error('LSP restart blocked until previous child resources settle.');
+      error.code = 'ERR_LSP_RESTART_STALE_PROCESS';
+      throw error;
+    }
     const now = Date.now();
     if (nextStartAt && now < nextStartAt) {
       throw new Error(`LSP start backoff active (${nextStartAt - now}ms remaining).`);
     }
     generation += 1;
+    uncorrelatedProtocolEvents = 0;
     const childGen = generation;
     const invocation = useShell
       ? resolveWindowsCmdInvocation(cmd, args)
@@ -609,6 +692,7 @@ export function createLspClient(options) {
         useShell
       })
       : spawn(spawnCmd, spawnArgs, spawnOptions);
+    ownChildResource(child);
     if (!child || !isEventEmitterLike(child)) {
       cleanupInvalidSpawnCandidate(child, 'spawn_override_invalid_child');
       throw new Error('createLspClient spawnProcess override must return a ChildProcess-like object.');
@@ -646,12 +730,12 @@ export function createLspClient(options) {
           kind: 'protocol_parse_error',
           message: err?.message || String(err)
         });
-        killChildProcessTree(child, {
+        trackTreeCleanup(child, killChildProcessTree(child, {
           killTree: true,
           detached: killTreeDetached,
           graceMs: 0,
           awaitGrace: false
-        }).catch(() => {});
+        })).catch(() => {});
       },
       maxBufferBytes,
       maxHeaderBytes,
@@ -728,19 +812,21 @@ export function createLspClient(options) {
       });
     });
     child.on('exit', (code, signal) => {
-      if (proc !== child || childGen !== generation) return;
-      rejectPending(new Error(`LSP exited (${code ?? 'null'}, ${signal ?? 'null'}).`));
-      proc = null;
-      childParser?.dispose();
-      parser = null;
-      writer = null;
-      writerClosed = true;
       clearTrackedChild({ force: true, child });
+      childParser?.dispose();
       if (child?.stdin) closeJsonRpcWriter(child.stdin);
-      backoffMs = backoffMs ? Math.min(backoffMs * 2, 5000) : 250;
-      nextStartAt = Date.now() + backoffMs;
+      if (proc === child && childGen === generation) {
+        rejectPending(new Error(`LSP exited (${code ?? 'null'}, ${signal ?? 'null'}).`));
+        proc = null;
+        parser = null;
+        writer = null;
+        writerClosed = true;
+        backoffMs = backoffMs ? Math.min(backoffMs * 2, 5000) : 250;
+        nextStartAt = Date.now() + backoffMs;
+      }
       emitLifecycleEvent({
         kind: 'exit',
+        pid: Number.isFinite(Number(child.pid)) ? Number(child.pid) : null,
         code: code ?? null,
         signal: signal ?? null,
         backoffMs
@@ -775,6 +861,7 @@ export function createLspClient(options) {
       const entry = { resolve, reject, method, timeout: null, startedAt };
       if (Number.isFinite(resolvedTimeout) && resolvedTimeout > 0) {
         entry.timeout = setTimeout(() => {
+          if (pending.get(id) !== entry) return;
           pending.delete(id);
           requestMetrics.timedOut += 1;
           requestMetrics.failed += 1;
@@ -791,15 +878,15 @@ export function createLspClient(options) {
         }, resolvedTimeout);
       }
       pending.set(id, entry);
-      if (!send({ jsonrpc: '2.0', id, method, params })) {
-        pending.delete(id);
-        if (entry.timeout) clearTimeout(entry.timeout);
-        requestMetrics.failed += 1;
-        methodMetric.failed += 1;
-        recordRequestLatency(method, Date.now() - startedAt);
-        invalidateMetricsSnapshot();
-        entry.reject(new Error(`LSP writer unavailable (${method}).`));
-      }
+      const onWriteFailure = (error, local = true, frameStarted = false) => failRequest(id, entry,
+        addStorageFailureContext(error, { code: local || frameStarted ? 'ERR_LSP_REQUEST_WRITE' : 'ERR_LSP_TRANSPORT_CLOSED' },
+          undefined, { forceAggregate: true }),
+        local ? 'localWriteFailed' : null);
+      try {
+        if (!send({ jsonrpc: '2.0', id, method, params }, onWriteFailure)) {
+          failRequest(id, entry, new Error(`LSP writer unavailable (${method}).`));
+        }
+      } catch (error) { onWriteFailure(error); }
     });
   };
 
@@ -857,58 +944,41 @@ export function createLspClient(options) {
         notify('exit', null, { startIfNeeded: false });
       }
     }
-    await new Promise((resolve) => {
-      if (!isChildRunning(current)) {
-        resolve();
-        return;
-      }
-      let settled = false;
-      const finish = () => {
-        if (settled) return;
-        settled = true;
-        if (timer) clearTimeout(timer);
-        try {
-          current.off?.('exit', onExit);
-        } catch {}
-        resolve();
-      };
-      const onExit = () => {
-        finish();
-      };
-      const timer = setTimeout(() => {
-        finish();
-      }, 2500);
-      current.once('exit', onExit);
-    });
+    await waitForChildExit(current);
     if (proc === current && generation === currentGen && isChildRunning(current)) {
       await Promise.resolve(kill());
     }
   };
 
   const kill = () => {
-    if (!proc) return;
+    if (!proc) return Promise.all([...pendingTerminations]);
     const current = proc;
-    const terminatePromise = killChildProcessTree(current, {
+    // Subscribe before signalling; signal delivery does not reap a child handle.
+    const exited = waitForChildExit(current);
+    const terminatePromise = Promise.all([trackTreeCleanup(current, killChildProcessTree(current, {
       killTree: true,
       detached: killTreeDetached,
       graceMs: 0,
       awaitGrace: true
-    }).then((outcome) => {
-      if (!outcome || typeof outcome !== 'object') return outcome;
-      if (clearTrackedChildIfTerminated(current, outcome) && !outcome.fallbackAttempted) return outcome;
+    })).catch(() => null), exited]).then(([outcome, exitObserved]) => {
+      if (exitObserved) clearTrackedChild({ force: true, child: current });
+      const result = { ...outcome, terminated: exitObserved, exitObserved };
+      if (exitObserved && !outcome?.fallbackAttempted) return result;
       emitLifecycleEvent({
         kind: 'kill_diagnostics',
         reason: 'explicit_kill',
         pid: Number.isFinite(Number(current?.pid)) ? Number(current.pid) : null,
-        terminated: outcome.terminated === true,
-        forced: outcome.forced === true,
-        fallbackAttempted: outcome.fallbackAttempted === true,
-        fallbackTerminated: Number(outcome.fallbackTerminated || 0)
+        terminated: exitObserved,
+        forced: outcome?.forced === true,
+        fallbackAttempted: outcome?.fallbackAttempted === true,
+        fallbackTerminated: Number(outcome?.fallbackTerminated || 0)
       });
-      return outcome;
-    }).catch(() => {
-      clearTrackedChildIfTerminated(current);
+      return result;
+    }).finally(() => {
+      pendingTerminations.delete(terminatePromise);
+      notifyResourceSettlement();
     });
+    pendingTerminations.add(terminatePromise);
     rejectPendingTransportClosed();
     if (current.stdin) closeJsonRpcWriter(current.stdin);
     try {
@@ -923,13 +993,13 @@ export function createLspClient(options) {
     } catch {}
     setTimeout(() => {
       if (isChildRunning(current)) {
-        killChildProcessTree(current, {
+        trackTreeCleanup(current, killChildProcessTree(current, {
           killTree: true,
           detached: killTreeDetached,
           graceMs: 0,
           awaitGrace: false
-        }).then((outcome) => {
-          clearTrackedChildIfTerminated(current, outcome);
+        })).then(() => {
+          clearTrackedChildIfTerminated(current);
         }).catch(() => {});
       }
     }, 200).unref?.();
@@ -942,19 +1012,19 @@ export function createLspClient(options) {
       kind: 'kill',
       pid: Number.isFinite(Number(current?.pid)) ? Number(current.pid) : null
     });
-    return terminatePromise;
+    return Promise.all([...pendingTerminations]).then(() => terminatePromise);
   };
 
   const killSync = () => {
     if (!proc) return;
     const current = proc;
-    let outcome = null;
     try {
-      outcome = killChildProcessTreeSync(current, {
+      killChildProcessTreeSync(current, {
         killTree: true,
         detached: killTreeDetached
       });
-    } catch {}
+      failedTreeCleanup.delete(current);
+    } catch { failedTreeCleanup.add(current); }
     rejectPendingTransportClosed();
     if (current.stdin) closeJsonRpcWriter(current.stdin);
     try {
@@ -968,7 +1038,7 @@ export function createLspClient(options) {
       current.unref?.();
     } catch {}
     proc = null;
-    clearTrackedChildIfTerminated(current, outcome);
+    clearTrackedChildIfTerminated(current);
     writer = null;
     writerClosed = true;
     backoffMs = 0;
@@ -977,6 +1047,33 @@ export function createLspClient(options) {
       kind: 'kill_sync',
       pid: Number.isFinite(Number(current?.pid)) ? Number(current.pid) : null
     });
+  };
+
+  const getTerminationEvidence = () => ({ exitObserved: !trackedChildProcess && pendingTerminations.size === 0,
+    closeObserved: childResources.size === 0 && !unknownSpawnResource,
+    settled: !trackedChildProcess && childResources.size === 0 && !unknownSpawnResource
+      && pendingTerminations.size === 0 && pendingTreeCleanup.size === 0 && failedTreeCleanup.size === 0,
+    pending: pendingTerminations.size + pendingTreeCleanup.size, pendingChildren: childResources.size,
+    treeCleanupFailed: failedTreeCleanup.size > 0, unknownSpawnResource,
+    pid: trackedChildProcess?.pid ?? null });
+
+  function notifyResourceSettlement() {
+    if (getTerminationEvidence().settled !== true) return;
+    for (const observer of resourceSettlementObservers) {
+      try { observer(); } catch (error) { log(`[lsp] resource-settlement observer failed: ${error?.message || error}`); }
+    }
+  }
+
+  const waitForResourceSettlement = async ({ timeoutMs = 2500 } = {}) => {
+    if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 8000) throw new TypeError('Invalid LSP resource-settlement wait.');
+    let timer;
+    try {
+      await Promise.race([
+        Promise.allSettled([...resourceClosures.values(), ...pendingTerminations, ...pendingTreeCleanup]),
+        new Promise(resolve => { timer = setTimeout(resolve, timeoutMs); })
+      ]);
+    } finally { clearTimeout(timer); }
+    return getTerminationEvidence();
   };
 
   return {
@@ -995,6 +1092,8 @@ export function createLspClient(options) {
         succeeded: requestMetrics.succeeded,
         failed: requestMetrics.failed,
         timedOut: requestMetrics.timedOut,
+        protocolFailed: requestMetrics.protocolFailed,
+        localWriteFailed: requestMetrics.localWriteFailed,
         latencyMs: summarizeLatencies(
           requestMetrics.latencySamplesMs,
           requestMetrics.latencyTotalMs,
@@ -1008,6 +1107,8 @@ export function createLspClient(options) {
               succeeded: Number(stats?.succeeded || 0),
               failed: Number(stats?.failed || 0),
               timedOut: Number(stats?.timedOut || 0),
+              protocolFailed: Number(stats?.protocolFailed || 0),
+              localWriteFailed: Number(stats?.localWriteFailed || 0),
               latencyMs: summarizeLatencies(
                 stats?.latencySamplesMs,
                 stats?.latencyTotalMs,
@@ -1021,6 +1122,13 @@ export function createLspClient(options) {
       return cachedMetricsSnapshot;
     },
     shutdownAndExit,
+    getTerminationEvidence,
+    waitForResourceSettlement,
+    onResourcesSettled(observer) {
+      if (typeof observer !== 'function') throw new TypeError('LSP resource observer must be a function.');
+      resourceSettlementObservers.add(observer);
+      return () => resourceSettlementObservers.delete(observer);
+    },
     kill,
     killSync
   };

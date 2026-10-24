@@ -18,6 +18,20 @@ export const assertSemanticQuery = (kind, value) => {
       }
     }
     if (value.coverage.response.returnedCount !== value.records.length) throw new TypeError('Semantic response count mismatch.');
+    for (const entry of value.providerEvidence || []) {
+      for (const span of [entry.span, entry.target?.span, entry.observedTarget?.span]) {
+        if (span && span[0] > span[1]) throw new TypeError('Provider evidence range is reversed.');
+      }
+      if (entry.target && (entry.kind !== 'reference' || entry.qualification !== 'source-qualified-observation'
+        || entry.sourceUnitId === null || entry.sourceHash === null)) throw new TypeError('Navigable provider evidence lacks qualified source authority.');
+      if (entry.qualification === 'source-qualified-observation' && (entry.sourceUnitId === null || entry.sourceHash === null)) throw new TypeError('Qualified provider evidence lacks original source identity.');
+      if (entry.kind === 'observation' && entry.target) throw new TypeError('Captured provider observations are not independently verified navigation targets.');
+      if (entry.kind === 'reference' && ((entry.target !== null) !== (entry.state === 'partial')
+        || entry.target !== null && entry.candidateCount < 1)) throw new TypeError('Provider reference state differs from its qualified target.');
+      const observed = entry.observedTarget;
+      if (observed && ((observed.sourceUnitId === null) !== (observed.sourceHash === null)
+        || observed.span !== null && observed.sourceUnitId === null)) throw new TypeError('Observed provider coordinates lack captured source identity.');
+    }
   }
   return value;
 };

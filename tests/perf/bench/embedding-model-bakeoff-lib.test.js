@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { resolveDevelopmentArtifactPath } from '../../../tools/shared/dev-artifacts.js';
 import assert from 'node:assert/strict';
 import path from 'node:path';
 
@@ -124,7 +125,7 @@ assert.deepEqual(resolveBakeoffStage4Modes('prose'), ['prose', 'extracted-prose'
 assert.deepEqual(resolveBakeoffStage4Modes('both'), ['code', 'prose', 'extracted-prose', 'records']);
 assert.deepEqual(resolveBakeoffStage4Modes('all'), ['code', 'prose', 'extracted-prose', 'records']);
 
-const repoCacheRoot = path.resolve(path.join(process.cwd(), '.testCache', 'model-bakeoff-lib'));
+const repoCacheRoot = path.resolve(resolveDevelopmentArtifactPath(process.cwd(), 'test-cache', 'model-bakeoff-lib'));
 const existingBuildRoot = path.resolve(path.join(repoCacheRoot, 'builds', 'build-001'));
 const escapedLinkPath = path.resolve(path.join(repoCacheRoot, 'builds', 'current-link'));
 const escapedCanonicalPath = path.resolve(path.join(repoCacheRoot, '..', 'outside-build'));

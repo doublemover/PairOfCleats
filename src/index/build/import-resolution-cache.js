@@ -16,7 +16,7 @@ import {
   IMPORT_RESOLVER_STAGES
 } from './import-resolution/reason-codes.js';
 
-const CACHE_VERSION = 6;
+const CACHE_VERSION = 7;
 const CACHE_FILE = 'import-resolution-cache.json';
 const CACHE_DIAGNOSTICS_VERSION = 6;
 const CACHE_PERSIST_WARNING_THROTTLE_MS = 60 * 1000;
@@ -497,7 +497,7 @@ const recordImportCachePersistFailure = ({ cacheStats = null, err = null } = {})
 
 const normalizeRelPath = (value) => {
   if (typeof value !== 'string') return null;
-  const normalized = value.replace(/\\/g, '/').trim();
+  const normalized = value.replace(/\\/g, '/');
   if (!normalized) return null;
   const trimmed = normalized.replace(/^\.\/+/, '');
   const compact = path.posix.normalize(trimmed);
@@ -1019,6 +1019,7 @@ export const applyImportResolutionCacheFileSetDiffInvalidation = ({
       }
     }
     const staleEdgeCheckBudget = normalizeMaxStaleEdgeChecks(maxStaleEdgeChecks);
+    const checkedUnresolvedImporters = new Set();
     if (addedFiles.size > 0 && staleEdgeCheckBudget === 0 && unresolvedRelativeSpecs.size > 0) {
       staleEdgeBudgetExhausted = true;
     }
@@ -1045,6 +1046,17 @@ export const applyImportResolutionCacheFileSetDiffInvalidation = ({
           staleEdgeInvalidated += 1;
         }
         if (staleEdgeBudgetExhausted) break;
+        checkedUnresolvedImporters.add(importer);
+      }
+    }
+    if (addedFiles.size > 0 && staleEdgeBudgetExhausted) {
+      // The check budget bounds resolution work, not correctness. An unchecked
+      // unresolved relative edge may now resolve to an added file. Recompute
+      // those importers rather than persisting an unverified unresolved result.
+      for (const importer of unresolvedRelativeSpecs.keys()) {
+        if (!checkedUnresolvedImporters.has(importer) && markInvalidated(importer)) {
+          staleEdgeInvalidated += 1;
+        }
       }
     }
     // Compatibility fallback: if lookup-set diff is unavailable but file-set hash

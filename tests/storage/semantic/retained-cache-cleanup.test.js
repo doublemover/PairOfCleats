@@ -50,8 +50,25 @@ try {
   }
   await assert.rejects(fs.access(abandoned), { code: 'ENOENT' });
   await fs.access(path.join(fixture.bundleDir, stage2));
-  assert.ok(await readFileCompletion({ bundleDir: fixture.bundleDir, relKey: current.file, sourceBytes: current.bytes,
-    semanticContext: { repoRoot: fixture.repoRoot, repositoryNamespace: fixture.repoRoot, dependencySignatures: fixture.dependencies } }));
+  const completed = await readFileCompletion({ bundleDir: fixture.bundleDir, relKey: current.file, sourceBytes: current.bytes,
+    semanticContext: { repoRoot: fixture.repoRoot, repositoryNamespace: fixture.repoRoot, dependencySignatures: fixture.dependencies } });
+  assert.ok(completed);
+  const parentAlias = path.join(fixture.root, 'parent-alias');
+  const bundleAlias = path.join(fixture.root, 'bundle-alias');
+  const linkType = process.platform === 'win32' ? 'junction' : 'dir';
+  await fs.symlink(fixture.root, parentAlias, linkType);
+  try {
+    const aliasedBundleDir = path.join(parentAlias, 'bundles');
+    assert.notEqual(aliasedBundleDir, await fs.realpath(aliasedBundleDir), 'exercise a genuinely aliased ancestor');
+    const readCompletion = bundleDir => readFileCompletion({ bundleDir, relKey: current.file, sourceBytes: current.bytes,
+      semanticContext: { repoRoot: fixture.repoRoot, repositoryNamespace: fixture.repoRoot, dependencySignatures: fixture.dependencies } });
+    assert.deepEqual(await readCompletion(aliasedBundleDir), completed,
+      'an authorized root below an aliased ancestor retains the complete result identity');
+    await fs.symlink(fixture.bundleDir, bundleAlias, linkType);
+    try {
+      assert.equal(await readCompletion(bundleAlias), null, 'the authorized bundle root itself must still reject links');
+    } finally { await fs.unlink(bundleAlias); }
+  } finally { await fs.unlink(parentAlias); }
   assert.deepEqual(await fs.readFile(completionPath), descriptor);
   assert.deepEqual(await pruneSemanticCache({ bundleDir: fixture.bundleDir, manifest: fixture.manifest,
     diskAccount: fixture.account }), { removedFiles: 0, removedBytes: 0 });

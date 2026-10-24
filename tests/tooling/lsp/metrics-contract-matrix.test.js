@@ -274,7 +274,10 @@ const runMetricsAggregateCases = async () => {
   );
 };
 
-const runClientMetricsCacheCase = async () => {
+const runClientMetricsCacheCase = async (capabilities = {
+  textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } }
+}, expectedEncodings = ['utf-16', 'utf-8', 'utf-32'], expectedLegacy = null) => {
+  let advertised = null;
   const client = createLspClient({
     cmd: 'fake-lsp',
     args: ['--stdio'],
@@ -285,6 +288,7 @@ const runClientMetricsCacheCase = async () => {
       const outboundParser = createFramedJsonRpcParser({
         onMessage: (message) => {
           if (message?.method === 'initialize') {
+            advertised = message.params.capabilities;
             writer.write({
               jsonrpc: '2.0',
               id: message.id,
@@ -305,9 +309,18 @@ const runClientMetricsCacheCase = async () => {
   try {
     await client.initialize({
       rootUri: 'file:///fake',
-      capabilities: { textDocument: { documentSymbol: { hierarchicalDocumentSymbolSupport: true } } },
+      capabilities,
       timeoutMs: 1000
     });
+    assert.deepEqual(advertised.general.positionEncodings, expectedEncodings,
+      'the wire request advertises standard position-encoding negotiation');
+    if (expectedLegacy === null) {
+      assert.equal(Object.hasOwn(advertised, 'offsetEncoding'), false,
+        'default initialization does not advertise the deprecated clangd extension');
+    } else {
+      assert.deepEqual(advertised.offsetEncoding, expectedLegacy,
+        'explicit legacy negotiation remains available');
+    }
     const snapshot1 = client.getMetrics();
     const snapshot2 = client.getMetrics();
     assert.equal(snapshot1, snapshot2);
@@ -391,6 +404,8 @@ const runProviderDeltaManifestCase = async () => {
 
 await runMetricsAggregateCases();
 await runClientMetricsCacheCase();
+await runClientMetricsCacheCase({ general: { positionEncodings: ['utf-8'] }, offsetEncoding: ['utf-8'] },
+  ['utf-8'], ['utf-8']);
 await runFailureAccountingCase();
 await runProviderDeltaManifestCase();
 

@@ -2,6 +2,51 @@
   "schemaVersion": "1.0.0",
   "surfaces": [
     {
+      "id": "mcp-tool-schema",
+      "owner": "service-contracts",
+      "committed": true,
+      "validationMode": "registry-audited",
+      "freshnessExpectation": "regenerate after MCP schema version, tool definitions or shared input contract changes",
+      "freshness": {
+        "mode": "generated-compare",
+        "command": "node tools/docs/mcp-tool-schema.js --out {output:0}",
+        "outputs": [{ "format": "json" }]
+      },
+      "outputs": ["docs/contracts/mcp-tools.schema.json"],
+      "refresh": { "command": "node tools/docs/mcp-tool-schema.js" },
+      "audit": { "command": "node tests/services/mcp/schema-version.test.js" }
+    },
+    {
+      "id": "vscode-editor-config-bundle",
+      "owner": "editor-integrations",
+      "committed": true,
+      "validationMode": "registry-audited",
+      "freshnessExpectation": "regenerate after authoritative editor config contract changes",
+      "freshness": {
+        "mode": "generated-compare",
+        "command": "node tools/docs/editor-config-bundle.js --out {output:0}",
+        "outputs": [{ "format": "json" }]
+      },
+      "outputs": ["extensions/vscode/editor-config-contract.json"],
+      "refresh": { "command": "node tools/docs/editor-config-bundle.js" },
+      "audit": { "command": "node tools/docs/generated-surfaces.js --check-freshness --surface vscode-editor-config-bundle" }
+    },
+    {
+      "id": "sublime-editor-config-bundle",
+      "owner": "editor-integrations",
+      "committed": true,
+      "validationMode": "registry-audited",
+      "freshnessExpectation": "regenerate after authoritative editor config contract changes",
+      "freshness": {
+        "mode": "generated-compare",
+        "command": "node tools/docs/editor-config-bundle.js --out {output:0}",
+        "outputs": [{ "format": "json" }]
+      },
+      "outputs": ["sublime/PairOfCleats/editor-config-contract.json"],
+      "refresh": { "command": "node tools/docs/editor-config-bundle.js" },
+      "audit": { "command": "node tools/docs/generated-surfaces.js --check-freshness --surface sublime-editor-config-bundle" }
+    },
+    {
       "id": "script-inventory",
       "owner": "tooling-docs",
       "committed": true,
@@ -235,6 +280,60 @@
       },
       "audit": {
         "command": "node tests/runner/suite-taxonomy-report.test.js"
+      }
+    },
+    {
+      "id": "usr-document-schemas",
+      "owner": "contracts",
+      "committed": true,
+      "validationMode": "test-backed-sync",
+      "freshnessExpectation": "regenerate after authoritative runtime USR evidence or report schema changes",
+      "freshness": {
+        "mode": "audit-command",
+        "command": "node tests/tooling/docs/usr-schema-semantic-parity.test.js"
+      },
+      "outputs": [
+        "docs/schemas/usr/evidence-envelope.schema.json",
+        "docs/schemas/usr/usr-backcompat-matrix-results.schema.json",
+        "docs/schemas/usr/usr-benchmark-regression-summary.schema.json",
+        "docs/schemas/usr/usr-benchmark-summary.schema.json",
+        "docs/schemas/usr/usr-capability-transition.schema.json",
+        "docs/schemas/usr/usr-change-management-log.schema.json",
+        "docs/schemas/usr/usr-conformance-summary.schema.json",
+        "docs/schemas/usr/usr-contract-drift-report.schema.json",
+        "docs/schemas/usr/usr-contract-ownership-report.schema.json",
+        "docs/schemas/usr/usr-drift-report.schema.json",
+        "docs/schemas/usr/usr-evidence-envelope.schema.json",
+        "docs/schemas/usr/usr-evidence-freshness-report.schema.json",
+        "docs/schemas/usr/usr-failure-injection-report.schema.json",
+        "docs/schemas/usr/usr-feature-flag-policy-evaluation.schema.json",
+        "docs/schemas/usr/usr-feature-flag-state.schema.json",
+        "docs/schemas/usr/usr-gate-evaluation-summary.schema.json",
+        "docs/schemas/usr/usr-governance-readiness-summary.schema.json",
+        "docs/schemas/usr/usr-incident-response-drill-report.schema.json",
+        "docs/schemas/usr/usr-lane-policy-evaluation.schema.json",
+        "docs/schemas/usr/usr-no-cut-decision-log.schema.json",
+        "docs/schemas/usr/usr-observability-rollup.schema.json",
+        "docs/schemas/usr/usr-operational-readiness-validation.schema.json",
+        "docs/schemas/usr/usr-post-cutover-stabilization-report.schema.json",
+        "docs/schemas/usr/usr-quality-evaluation-results.schema.json",
+        "docs/schemas/usr/usr-quality-regression-report.schema.json",
+        "docs/schemas/usr/usr-registry-cross-invariant-validation.schema.json",
+        "docs/schemas/usr/usr-registry-schema-validation.schema.json",
+        "docs/schemas/usr/usr-release-readiness-scorecard.schema.json",
+        "docs/schemas/usr/usr-release-train-readiness.schema.json",
+        "docs/schemas/usr/usr-rfc-change-impact-summary.schema.json",
+        "docs/schemas/usr/usr-rollback-drill-report.schema.json",
+        "docs/schemas/usr/usr-threat-model-coverage-report.schema.json",
+        "docs/schemas/usr/usr-validation-report.schema.json",
+        "docs/schemas/usr/usr-waiver-active-report.schema.json",
+        "docs/schemas/usr/usr-waiver-expiry-report.schema.json"
+      ],
+      "refresh": {
+        "command": "node tools/docs/export-usr-schemas.js --out-dir docs/schemas/usr"
+      },
+      "audit": {
+        "command": "node tests/tooling/docs/usr-schema-semantic-parity.test.js"
       }
     }
   ]

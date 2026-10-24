@@ -31,6 +31,9 @@ await recordOrderingSeedInputs(buildRoot, {
   fileCount: 3
 }, { stage: 'stage1', mode: 'code' });
 
+assert.deepEqual((await loadOrderingLedger(buildRoot)).stages['stage1:code'].artifacts, {},
+  'a seeds-only stage must retain its required, explicitly empty artifact map');
+
 await recordOrderingHash(buildRoot, {
   stage: 'stage1',
   mode: 'code',

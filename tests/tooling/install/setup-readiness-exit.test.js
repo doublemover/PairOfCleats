@@ -2,9 +2,11 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { setupCommandHookSource } from '../../helpers/setup-command-hook.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'setup-readiness-exit');
@@ -12,26 +14,19 @@ const repo = path.join(tempRoot, 'repo');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(repo, { recursive: true });
 const shim = path.join(tempRoot, 'controlled-download.mjs');
-await fs.writeFile(shim, [
-  "import childProcess from 'node:child_process';",
-  "import { syncBuiltinESMExports } from 'node:module';",
-  'const original = childProcess.spawnSync;',
-  'childProcess.spawnSync = function(command, args, options) {',
-  "  if (args.some((arg) => /tools[\\\\/]download[\\\\/]dicts\\.js$/.test(String(arg)))) {",
-  "    return { status: 1, signal: null, pid: null, stdout: Buffer.from(''), stderr: Buffer.from('controlled dictionary failure') };",
-  '  }',
-  '  return original(command, args, options);',
-  '};',
-  'syncBuiltinESMExports();'
-].join('\n'));
+await fs.writeFile(shim, setupCommandHookSource({ selectedSuffix: '/tools/download/dicts.js',
+  result: { ok: false, status: 1, signal: null, stdout: '', stderr: 'controlled dictionary failure' } }));
 const env = applyTestEnv({ syncProcess: false, cacheRoot: path.join(tempRoot, 'cache'),
-  extraEnv: { PAIROFCLEATS_DICT_DIR: path.join(tempRoot, 'dictionary') } });
+  testConfig: { dictionary: { languages: ['en'] } },
+  extraEnv: { PAIROFCLEATS_DICT_DIR: path.join(tempRoot, 'dictionary'),
+    PAIROFCLEATS_HOME: path.join(tempRoot, 'home'), PAIROFCLEATS_TRUSTED_CONFIG: null } });
 const baseArgs = [path.join(root, 'tools/setup/setup.js'), '--root', repo, '--non-interactive',
   '--skip-install', '--skip-validate', '--skip-models', '--skip-extensions', '--skip-tooling',
   '--skip-index', '--skip-sqlite', '--skip-artifacts', '--json'];
 const run = (extra, inject = false) => {
-  const result = runNode([...(inject ? ['--import', shim] : []), ...baseArgs, ...extra],
+  const result = runNode([...(inject ? ['--import', pathToFileURL(shim).href] : []), ...baseArgs, ...extra],
     'setup readiness fixture', root, env, { stdio: 'pipe', allowFailure: true, timeoutMs: 10000 });
+  assert.ok(result.stdout.trim(), result.stderr || result.error?.message || 'setup must emit readiness JSON');
   return { result, payload: JSON.parse(result.stdout) };
 };
 const optional = run([], true);

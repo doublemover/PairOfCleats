@@ -1,3 +1,4 @@
+import { readExactAt } from '../../shared/io/read-exact.js';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
@@ -13,7 +14,7 @@ const checkHeader = async filename => {
   let handle;
   try {
     handle = await fs.open(filename, 'r');
-    const header = Buffer.alloc(16), { bytesRead } = await handle.read(header, 0, 16, 0);
+    const header = Buffer.alloc(16), { bytesRead } = await readExactAt(handle, header, 0, 16, 0);
     // Detect an invalid main header before SQLite can clean up its sidecars.
     // A zero-length file is SQLite's valid not-yet-initialized state.
     if (bytesRead && (bytesRead !== 16 || header.toString() !== 'SQLite format 3\0')) {

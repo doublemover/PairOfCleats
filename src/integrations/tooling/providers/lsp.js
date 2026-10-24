@@ -1,9 +1,9 @@
+import { createDocumentProgressRunner } from './lsp/hover-types/concurrency.js';
 import path from 'node:path';
-import { buildLineIndex } from '../../../shared/lines.js';
 import { languageIdForFileExt, pathToFileUri } from '../lsp/client.js';
-import { resolveInitializeResultPositionEncoding } from '../lsp/positions.js';
+import { resolveInitializeResultPositionEncoding, buildLspLineIndex as buildLineIndex } from '../lsp/positions.js';
 import { createLspConfigurationHandler } from '../lsp/configuration.js';
-import { resolveWorkspaceExecutionAuthority } from '../../../shared/workspace-execution-authority.js';
+import { resolveProviderWorkspaceExecutionAuthority as resolveWorkspaceExecutionAuthority } from '../../../index/tooling/workspace-execution.js';
 import { openOwnedLspDocument, closeOwnedLspDocuments } from './lsp/document-lifecycle.js';
 import { buildVfsUri } from '../lsp/uris.js';
 import { buildIndexSignature } from '../../../retrieval/index-cache.js';
@@ -57,6 +57,7 @@ import { throwIfAborted } from '../../../shared/abort.js';
 import { coercePositiveInt } from '../../../shared/number-coerce.js';
 import { sleep } from '../../../shared/sleep.js';
 import { applyToolchainDaemonPolicyEnv } from '../../../shared/toolchain-env.js';
+import { resolveDotnetRuntimeLaunch } from '../../../index/tooling/dotnet-runtime.js';
 import { sha1 } from '../../../shared/hash.js';
 
 /**
@@ -237,6 +238,7 @@ export async function collectLspTypes({
   referencesConcurrency = DEFAULT_HOVER_CONCURRENCY,
   softDeadlineMs = null,
   requestCacheMaxEntries = DEFAULT_LSP_REQUEST_CACHE_MAX_ENTRIES,
+  requestCacheGeneration = null,
   stderrFilter = null,
   initializationOptions = null,
   providerId = null,
@@ -331,6 +333,10 @@ export async function collectLspTypes({
     DEFAULT_LSP_REQUEST_CACHE_MAX_ENTRIES,
     { min: 1000, max: 200000 }
   );
+  // Unscoped direct callers get per-invocation reuse only. They cannot establish
+  // that unchanged text still sees the same imports/includes/workspace state.
+  const resolvedRequestCacheGeneration = typeof requestCacheGeneration === 'string' && requestCacheGeneration.length
+    ? requestCacheGeneration : globalThis.crypto.randomUUID();
 
   const checks = [];
   const runtime = {
@@ -476,15 +482,24 @@ export async function collectLspTypes({
   });
   const onRequest = createLspConfigurationHandler(initializationOptions);
 
+  const launch = resolveDotnetRuntimeLaunch({ command: cmd, args, cwd: resolvedWorkspaceRootDir, providerId: resolvedProviderId, toolingRoot,
+    languages: docs.map(doc => doc.languageId),
+    baseEnv: applyToolchainDaemonPolicyEnv(process.env, { toolingRoot, providerId: resolvedProviderId, command: cmd }) });
+  runtime.command = String(launch.command || '');
+  runtime.managedRuntimeInstallations = launch.managedRuntimeCommands.map(({ toolId, descriptorId, installId }) => ({ toolId, descriptorId, installId }));
+
   const runWithPooledSession = () => withLspSession({
+    abortSignal: toolingAbortSignal,
     enabled: sessionPoolingEnabled !== false,
     repoRoot: rootDir,
     providerId: resolvedProviderId,
     workspaceKey: resolvedWorkspaceKey || rootDir,
-    cmd,
+    cmd: launch.command,
     args,
+    toolingRoot,
     cwd: resolvedWorkspaceRootDir,
-    env: applyToolchainDaemonPolicyEnv(process.env, { toolingRoot, providerId: resolvedProviderId, command: cmd }),
+    env: launch.environment,
+    managedRuntimeCommands: launch.managedRuntimeCommands,
     log,
     stderrFilter,
     onNotification,
@@ -988,7 +1003,10 @@ export async function collectLspTypes({
           requestCacheContext: {
             providerId: resolvedProviderId,
             providerVersion: resolvedProviderVersion,
-            workspaceKey: resolvedWorkspaceKey
+            workspaceKey: resolvedWorkspaceKey,
+            generation: launch.managedRuntimeCommands.length
+              ? sha1(JSON.stringify([resolvedRequestCacheGeneration, launch.managedRuntimeCommands]))
+              : resolvedRequestCacheGeneration
           },
           providerConfidenceBias: resolveProviderConfidenceBias(resolvedProviderId),
           semanticTokensLegend: initializeResult?.capabilities?.semanticTokensProvider?.legend
@@ -1009,26 +1027,12 @@ export async function collectLspTypes({
         enriched += enrichedDelta;
       };
 
-      let processedDocs = 0;
-      let lastProgressLogAt = Date.now();
-      const progressLogEnabled = selectedDocsToOpen.length >= 20;
-      const runDocWithProgress = async (doc) => {
-        try {
-          await processDoc(doc);
-        } finally {
-          processedDocs += 1;
-          if (!progressLogEnabled) return;
-          const now = Date.now();
-          const shouldLog = processedDocs === selectedDocsToOpen.length
-            || processedDocs % 20 === 0
-            || (now - lastProgressLogAt) >= 5000;
-          if (!shouldLog) return;
-          lastProgressLogAt = now;
-          log(
-            `[tooling] ${cmd} progress: docs=${processedDocs}/${selectedDocsToOpen.length}, enriched=${enriched}, checks=${checks.length}`
-          );
-        }
-      };
+      const runDocWithProgress = createDocumentProgressRunner({ total: selectedDocsToOpen.length,
+        worker: processDoc,
+        onProgress: ({ processed, total }) => log(
+          `[tooling] ${cmd} progress: docs=${processed}/${total}, enriched=${enriched}, checks=${checks.length}`
+        )
+      });
       await runWithConcurrency(selectedDocsToOpen, resolvedDocumentSymbolConcurrency, runDocWithProgress, {
         signal: toolingAbortSignal
       });

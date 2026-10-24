@@ -8,7 +8,7 @@ const SHARDED_ARTIFACTS = new Set([
   'file_meta', 'chunk_meta', 'chunk_meta_cold', 'chunk_uid_map',
   'vfs_manifest', 'vfs_path_map', 'field_tokens', 'file_relations',
   'symbols', 'symbol_occurrences', 'symbol_edges', 'call_sites',
-  'risk_summaries', 'risk_flows', 'risk_partial_flows', 'repo_map', 'graph_relations'
+  'risk_summaries', 'risk_flows', 'risk_partial_flows', 'repo_map', 'graph_relations', 'graph_relation_edges'
 ]);
 const VECTOR_ARTIFACTS = new Set([
   'dense_vectors_uint8', 'dense_vectors_doc_uint8', 'dense_vectors_code_uint8'

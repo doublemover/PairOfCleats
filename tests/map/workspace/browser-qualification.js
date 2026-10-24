@@ -1,3 +1,5 @@
+import { attachQualificationDiagnostics } from './qualification-diagnostics.js';
+import { captureRenderedViewerFrame } from './qualification-rendered-frame.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -25,7 +27,8 @@ const { chromium } = await import(pathToFileURL(path.resolve(options.playwright)
 const receipt = { schemaVersion: 1, head: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
   node: process.version, platform: process.platform, architecture: process.arch, startedAt: new Date().toISOString(),
   tests: [], screenshots: [], requests: [], runtimeVerification: [], artifactPages: [], browser: null,
-  pageErrors: [], consoleErrors: [], resourceFailures: [], assets: [],
+  pageErrors: [], consoleErrors: [], resourceFailures: [], assets: [], phases: [], captures: [],
+  fidelityScenarios: { depthCompositing: 'not-run-by-this-workflow', perInstanceFog: 'not-run-by-this-workflow' },
   limits: { totalWorkMs: 30000, requestTimeoutMs: 5000, workerDeadlineMs: 1000, viewBytes: 2097152 },
   qualification: 'actual browser/service/Worker; saved synthetic capture; renderer receipt distinguishes software from hardware',
   hardwareQualification: 'not claimed by this headless run', perfetto: 'not requested; no adapter added' };
@@ -61,16 +64,16 @@ try {
   receipt.browser = { version: browser.version(), executable: path.resolve(options.chromium), rendererMode: 'requested ANGLE SwiftShader; observed renderer below' };
   context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, acceptDownloads: true, ignoreHTTPSErrors: true });
   page = await context.newPage(); page.setDefaultTimeout(5000);
-  const errors = receipt.pageErrors; page.on('pageerror', error => { if (errors.length < 32) errors.push(error.message); });
-  page.on('console', message => { if (message.type() === 'error' && receipt.consoleErrors.length < 32) receipt.consoleErrors.push(message.text()); });
-  page.on('requestfailed', request => { if (receipt.resourceFailures.length < 32) receipt.resourceFailures.push({ url: request.url(), error: request.failure()?.errorText }); });
-  page.on('response', response => { if (response.url().includes('/map/workspace') || response.url().includes('/map/vendor/')) {
-    if (receipt.assets.length < 64) receipt.assets.push({ url: response.url(), status: response.status() });
-  } });
+  const diagnostics = attachQualificationDiagnostics(page, receipt, 'workspace');
   await page.goto(base + '/map/workspace'); await page.locator('#query-toggle').click();
   await page.locator('#operation option[value="catalog"]').waitFor({ state: 'attached' });
   const query = async (operation, input, success = true) => {
     checkDeadline();
+    if (!success) {
+      const url = base + OPERATIONS[operation];
+      diagnostics.expect({ type: 'http', url, statuses: [400, 404, 409, 422], maxCount: 1 });
+      diagnostics.expect({ type: 'console', url, messagePattern: '^Failed to load resource: the server responded with a status of (400|404|409|422)\\b', maxCount: 1 });
+    }
     await page.locator('#operation').selectOption(operation); await page.locator('#request').fill(JSON.stringify(input));
     const responsePromise = page.waitForResponse(response => response.url().endsWith(OPERATIONS[operation]) && response.request().method() === 'POST');
     await page.locator('#run').click(); const response = await responsePromise;
@@ -141,6 +144,25 @@ try {
   const download = await downloadPromise, downloaded = path.join(destination, 'semantic-detail.json');
   await download.saveAs(downloaded); assert.deepEqual(JSON.parse(await fs.readFile(downloaded, 'utf8')).result, detail);
   record('download preserves the complete admitted service envelope');
+  const candidates = await query('find', { repoRoot: witness.repoRoot, generation: witness.manifest.generation,
+    selector: { field: 'astKind', value: 'CallExpression' }, limits: { records: 2, bytes: 65536, workMs: 250 } });
+  assert.ok(candidates.records.length);
+  assert.equal(candidates.records[0].generation, undefined, 'canonical records pin generation on their envelope');
+  await page.locator('#tree button').first().click();
+  const hydrationResponse = page.waitForResponse(response => response.url().endsWith('/analysis/semantic-detail') && response.request().method() === 'POST');
+  await page.getByRole('button', { name: 'Load semantic detail', exact: true }).click();
+  const hydration = await hydrationResponse;
+  assert.equal(hydration.status(), 200);
+  const hydrationInput = hydration.request().postDataJSON();
+  assert.deepEqual(hydrationInput.generation, candidates.generation);
+  assert.deepEqual(hydrationInput.refs, [candidates.records[0].ref]);
+  assert.equal(hydrationInput.repoRoot, witness.repoRoot);
+  const hydrated = (await hydration.json()).result;
+  assert.ok(hydrated.operands.length, 'hydration loads actual operands of the selected call');
+  await page.waitForFunction(() => document.getElementById('notice').textContent.startsWith('semantic detail'));
+  await page.locator('#tree button').first().click();
+  await page.getByRole('button', { name: 'Load semantic detail', exact: true }).waitFor();
+  record('canonical find → exact envelope generation/ref → hydrated operands; canonical detail remains hydratable');
   const typed = await query('find', { repoRoot: witness.repoRoot, generation: witness.manifest.generation,
     selector: { typeExpression: { expression: 'number', match: 'exact-expression', sources: ['compiler'], roles: ['parameter'] } },
     limits: { records: 2, bytes: 65536, workMs: 250 } });
@@ -167,6 +189,7 @@ try {
     await route.fulfill({ response }).catch(() => {});
   });
   await page.locator('#operation').selectOption('search'); await page.locator('#request').fill(JSON.stringify({ repoPath: witness.repoRoot, query: 'render', mode: 'code', backend: 'memory', ann: false }));
+  diagnostics.expect({ type: 'requestfailed', url: base + '/search', message: 'net::ERR_ABORTED', maxCount: 1 });
   await page.locator('#run').click(); await dispatched; await page.locator('#cancel').click(); release(); await page.unroute('**/search');
   await page.waitForFunction(() => document.getElementById('notice').textContent.includes('Request cancelled'));
   assert.deepEqual(await page.locator('#tree button').evaluateAll(nodes => nodes.map(node => node.childNodes[0].textContent)), labels);
@@ -214,32 +237,50 @@ try {
       name + ' footer must follow the complete workspace controls');
     (receipt.viewportLayouts ||= []).push({ name, width, height, ...layout });
     const filename = name + '.png'; await page.screenshot({ path: path.join(destination, filename), fullPage: true }); receipt.screenshots.push(filename);
+    receipt.captures.push({ file: filename, phase: diagnostics.phase.name, viewport: { width, height }, dpr: await page.evaluate(() => devicePixelRatio) });
   }
-  assert.deepEqual(errors, [], 'workspace emitted no uncaught browser errors');
+  diagnostics.assertClean();
   record('desktop/mobile portrait/mobile landscape rendered layout receipts');
 
   // The independent real Three.js CLI/server remains a separate viewer authority.
-  isoController = new AbortController(); let readyResolve, launcherLog = '';
+  isoController = new AbortController(); let readyResolve, launcherLog = '', launcherOutput = '';
   const ready = new Promise(resolve => { readyResolve = resolve; });
-  isoResult = spawnSubprocess(process.execPath, ['tools/analysis/map-iso-serve.js', '--repo', witness.repoRoot, '--no-open', '--cert-dir', path.join(root, 'viewer-tls')],
+  isoResult = spawnSubprocess(process.execPath, ['bin/pairofcleats.js', 'report', 'map', '--serve', '--repo', witness.repoRoot, '--no-open'],
     { cwd: process.cwd(), env: process.env, signal: isoController.signal, timeoutMs: 30000, outputMode: 'string',
-      onStderr: chunk => { launcherLog += String(chunk); const match = launcherLog.match(/Serving map: (https:\/\/localhost:\d+\/map.iso.html)/); if (match) readyResolve(match[1]); } })
+      onStderr: chunk => { launcherLog += String(chunk); },
+      onStdout: chunk => { launcherOutput += String(chunk); for (const line of launcherOutput.split('\n').slice(0,-1)) { const event = JSON.parse(line); if(event.type==='map-preview-ready')readyResolve(event.url); } } })
     .then(result => ({ result }), error => ({ error }));
   const isoUrl = await Promise.race([ready, isoResult.then(result => { throw new Error('Three.js launcher ended before readiness: ' + launcherLog + ' ' + (result.error?.message || '')); })]);
+  diagnostics.begin('three-desktop');
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto(isoUrl); await page.waitForFunction(() => document.querySelectorAll('#stack-tree details').length > 0 && document.querySelector('canvas'));
   const renderer = await page.evaluate(() => {
     const canvas = document.querySelector('canvas'), gl = canvas.getContext('webgl2'), debug = gl?.getExtension('WEBGL_debug_renderer_info');
     return { vendor: debug ? gl.getParameter(debug.UNMASKED_VENDOR_WEBGL) : null, renderer: debug ? gl.getParameter(debug.UNMASKED_RENDERER_WEBGL) : null,
       version: gl?.getParameter(gl.VERSION), contextLost: gl?.isContextLost(), width: canvas.width, height: canvas.height };
   });
+  receipt.renderedFrames = [await captureRenderedViewerFrame(page)];
   assert.ok(renderer.width > 0 && renderer.height > 0); assert.equal(renderer.contextLost, false); receipt.renderer = renderer;
   await page.locator('#stack-search').fill('build'); const member = page.locator('#stack-tree button').filter({ hasText: /^build/ }).first();
   await member.focus(); await member.press('Enter'); await page.waitForFunction(() => document.getElementById('stack-breadcrumb').textContent.includes('build'));
   assert.match(await page.locator('#selection-body').textContent(), /Directed relationships/);
   await page.locator('#stack-mode').selectOption('segments'); await page.locator('#stack-focus').click();
   await page.screenshot({ path: path.join(destination, 'three-selection.png'), fullPage: true }); receipt.screenshots.push('three-selection.png');
-  record('independent actual Three.js server/WebGL renderer/keyboard source-member selection');
+  receipt.renderedFrames.push(await captureRenderedViewerFrame(page));
+  receipt.captures.push({ file: 'three-selection.png', phase: diagnostics.phase.name, viewport: page.viewportSize(), dpr: receipt.renderedFrames.at(-1).dpr });
+  diagnostics.assertClean();
+  record('independent actual Three.js server/submitted scene frame/keyboard source-member selection');
+  diagnostics.begin('three-narrow');
+  await page.setViewportSize({ width: 390, height: 844 });
+  receipt.renderedFrames.push(await captureRenderedViewerFrame(page));
+  await page.screenshot({ path: path.join(destination, 'three-narrow.png'), fullPage: true });
+  receipt.screenshots.push('three-narrow.png');
+  receipt.captures.push({ file: 'three-narrow.png', phase: diagnostics.phase.name, viewport: page.viewportSize(), dpr: receipt.renderedFrames.at(-1).dpr });
+  diagnostics.assertClean();
   const fallback = await context.newPage(); fallback.setDefaultTimeout(5000);
+  const fallbackDiagnostics = attachQualificationDiagnostics(fallback, receipt, 'three-injected-no-webgl');
+  fallbackDiagnostics.expect({ type: 'console', message: 'THREE.WebGLRenderer: Error creating WebGL context.', maxCount: 1 });
+  await fallback.setViewportSize({ width: 1440, height: 1000 });
   await fallback.addInitScript(() => {
     const get = HTMLCanvasElement.prototype.getContext;
     HTMLCanvasElement.prototype.getContext = function(type, ...args) { return /^webgl/.test(type) ? null : get.call(this, type, ...args); };
@@ -248,7 +289,11 @@ try {
   await fallback.locator('#stack-search').fill('build'); await fallback.locator('#stack-tree button').filter({ hasText: /^build/ }).first().click();
   assert.match(await fallback.locator('#stack-breadcrumb').textContent(), /build/); assert.match(await fallback.locator('#selection-body').textContent(), /All source fields/);
   await fallback.screenshot({ path: path.join(destination, 'three-no-webgl.png'), fullPage: true }); receipt.screenshots.push('three-no-webgl.png');
+  fallbackDiagnostics.assertClean();
+  receipt.captures.push({ file: 'three-no-webgl.png', phase: fallbackDiagnostics.phase.name, viewport: fallback.viewportSize(), requestedRenderer: 'injected no WebGL', effectiveRenderer: 'source-only' });
   await fallback.close(); record('injected WebGL unavailability preserves real source hierarchy and inspector');
+  diagnostics.assertClean();
+  assert.ok(receipt.phases.every(phase => phase.status === 'passed'));
   checkDeadline(); receipt.workMs = performance.now() - started; receipt.status = 'passed';
 } catch (error) { qualificationError = error; receipt.status = 'failed'; receipt.failure = { message: error.message, stack: error.stack }; throw error; }
 finally {

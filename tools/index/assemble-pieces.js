@@ -5,6 +5,7 @@ import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { assembleIndexPieces } from '../../src/index/build/piece-assembly.js';
 import { resolveRepoConfig } from '../shared/dict-utils.js';
+import { isWithinRoot, toRealPathSync } from '../../src/workspace/identity.js';
 
 const argv = createCli({
   scriptName: 'assemble-pieces',
@@ -43,6 +44,31 @@ if (!inputDirs.length) {
 }
 
 const outDir = path.resolve(argv.out);
+let resolvedInputs;
+try {
+  // Resolve every input and both physical/lexical overlap boundaries before
+  // --force can delete anything. Nested outputs would ingest their own writes.
+  resolvedInputs = inputDirs.map(dir => {
+    const absolute = path.resolve(dir);
+    if (!fsSync.statSync(absolute).isDirectory()) throw new Error(`Input is not a directory: ${absolute}`);
+    return fsSync.realpathSync(absolute);
+  });
+  const canonicalOut = toRealPathSync(outDir);
+  for (let i = 0; i < resolvedInputs.length; i++) {
+    const input = resolvedInputs[i];
+    if (isWithinRoot(input, canonicalOut) || isWithinRoot(canonicalOut, input)
+      || isWithinRoot(inputDirs[i], outDir) || isWithinRoot(outDir, inputDirs[i])) {
+      throw new Error(`assemble-pieces input/output overlap: ${input} and ${outDir}`);
+    }
+  }
+  const outputStat = fsSync.lstatSync(outDir, { throwIfNoEntry: false });
+  if (outputStat && (outputStat.isSymbolicLink() || !outputStat.isDirectory())) {
+    throw new Error(`assemble-pieces output must be an ordinary directory: ${outDir}`);
+  }
+} catch (error) {
+  console.error(error?.message || error);
+  process.exit(1);
+}
 if (fsSync.existsSync(outDir) && !argv.force) {
   const entries = fsSync.readdirSync(outDir);
   if (entries.length) {
@@ -51,16 +77,10 @@ if (fsSync.existsSync(outDir) && !argv.force) {
     process.exit(1);
   }
 }
-if (fsSync.existsSync(outDir) && argv.force) {
-  await fs.rm(outDir, { recursive: true, force: true });
-}
-await fs.mkdir(outDir, { recursive: true });
-
 const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
 const mode = argv.mode || 'code';
 const strict = argv['non-strict'] !== true;
 
-const resolvedInputs = inputDirs.map((dir) => path.resolve(dir));
 if (argv.sort !== false) {
   resolvedInputs.sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));
 }
@@ -73,7 +93,21 @@ try {
     mode,
     userConfig,
     stage: argv.stage,
-    strict
+    strict,
+    prepareOutput: async () => {
+      const outputStat = fsSync.lstatSync(outDir, { throwIfNoEntry: false });
+      if (outputStat && (outputStat.isSymbolicLink() || !outputStat.isDirectory())) {
+        throw new Error(`assemble-pieces output must be an ordinary directory: ${outDir}`);
+      }
+      const canonicalOut = toRealPathSync(outDir);
+      for (const input of resolvedInputs) {
+        if (isWithinRoot(input, canonicalOut) || isWithinRoot(canonicalOut, input)) {
+          throw new Error(`assemble-pieces input/output overlap: ${input} and ${outDir}`);
+        }
+      }
+      if (outputStat && argv.force) await fs.rm(outDir, { recursive: true, force: true });
+      await fs.mkdir(outDir, { recursive: true });
+    }
   });
 } catch (err) {
   if (!strict && err?.code === 'ERR_MANIFEST_MISSING') {

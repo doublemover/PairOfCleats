@@ -38,7 +38,7 @@ const readSingleJsonSource = ({ sources, maxBytes, name }) => {
   }
   return {
     ok: true,
-    payload: readJsonFile(sources.paths[0], { maxBytes })
+    payload: readJsonFile(sources.paths[0], { maxBytes, containedRoot: sources.containedRoot })
   };
 };
 
@@ -84,6 +84,7 @@ const resolveGraphRelationsReadPlan = ({
     sources,
     readOptions: {
       maxBytes,
+      containedRoot: sources.containedRoot,
       requiredKeys: resolveJsonlRequiredKeys('graph_relations'),
       validationMode: strict ? 'strict' : 'trusted'
     }

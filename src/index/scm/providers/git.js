@@ -59,17 +59,6 @@ const parseNullSeparated = (value) => (
 );
 
 /**
- * Parse newline-delimited command output.
- * @param {string} value
- * @returns {string[]}
- */
-const parseLines = (value) => (
-  String(value || '')
-    .split(/\r?\n/)
-    .filter(Boolean)
-);
-
-/**
  * Normalize SCM paths to repo-relative posix and return sorted output.
  * @param {string[]} entries
  * @param {string} repoRoot
@@ -78,7 +67,11 @@ const parseLines = (value) => (
 const toSortedRepoPosixFiles = (entries, repoRoot) => {
   const filesPosix = [];
   for (const entry of Array.isArray(entries) ? entries : []) {
-    const normalized = toRepoPosixPath(toPosix(entry), repoRoot);
+    // Git -z labels already use forward slash separators. On POSIX a literal
+    // backslash is filename data, not a separator to rewrite.
+    const relative = path.relative(path.resolve(repoRoot), path.resolve(repoRoot, entry));
+    const normalized = process.platform === 'win32' ? relative.replaceAll('\\', '/') : relative;
+    if (normalized === '..' || normalized.startsWith('../') || path.isAbsolute(normalized)) continue;
     if (!normalized) continue;
     filesPosix.push(normalized);
   }
@@ -117,10 +110,11 @@ const runGitProviderCommand = (args) => runGitProviderTask(() => runScmCommand('
  * @param {{repoRoot:string,headId?:string|null}} input
  * @returns {object}
  */
-const buildGitFreshnessGuard = ({ repoRoot, headId = null }) => buildScmFreshnessGuard({
+const buildGitFreshnessGuard = ({ repoRoot, headId = null, includeChurn = false }) => buildScmFreshnessGuard({
   provider: 'git',
   repoRoot,
-  repoHeadId: headId
+  repoHeadId: headId,
+  includeChurn
 });
 
 /**
@@ -157,7 +151,7 @@ const appendDiffRefArgs = (args, { fromRef = null, toRef = null }) => {
  * @param {{stdout:string,repoRoot:string,parser:(value:string)=>string[]}} input
  * @returns {string[]}
  */
-const parseProviderFileList = ({ stdout, repoRoot, parser }) => (
+export const parseProviderFileList = ({ stdout, repoRoot, parser }) => (
   toSortedRepoPosixFiles(parser(stdout), repoRoot)
 );
 
@@ -296,7 +290,7 @@ export const gitProvider = {
   },
   async getChangedFiles({ repoRoot, fromRef = null, toRef = null, subdir = null }) {
     const args = appendScopedSubdirArg(
-      appendDiffRefArgs(['-C', repoRoot, 'diff', '--name-only'], { fromRef, toRef }),
+      appendDiffRefArgs(['-C', repoRoot, 'diff', '--name-only', '-z'], { fromRef, toRef }),
       { repoRoot, subdir }
     );
     const result = await runGitProviderCommand(args);
@@ -307,9 +301,23 @@ export const gitProvider = {
       filesPosix: parseProviderFileList({
         stdout: result.stdout,
         repoRoot,
-        parser: parseLines
+        parser: parseNullSeparated
       })
     };
+  },
+  async getHistoryAffectedFiles({ repoRoot, fromRef = null, toRef = null, subdir = null }) {
+    // Endpoint tree equality cannot certify last-author/commit/churn equality.
+    // Require an ancestry move and enumerate every path touched along it. A
+    // rewritten history deliberately invalidates the whole metadata snapshot.
+    if (!fromRef || !toRef || String(fromRef).startsWith('-') || String(toRef).startsWith('-')) return toUnavailableResult();
+    const ancestry = await runGitProviderCommand(['-C', repoRoot, 'merge-base', '--is-ancestor', fromRef, toRef]);
+    if (ancestry.exitCode !== 0) return toUnavailableResult();
+    const args = appendScopedSubdirArg(['-C', repoRoot, 'log', '--format=', '--name-only', '-z',
+      '--no-renames', '-m', `${fromRef}..${toRef}`], { repoRoot, subdir });
+    const result = await runGitProviderCommand(args);
+    if (result.exitCode !== 0 || result.truncated || result.outputCapture?.stdout?.truncated) return toUnavailableResult();
+    return { complete: true, filesPosix: parseProviderFileList({ stdout: result.stdout,
+      repoRoot, parser: parseNullSeparated }) };
   },
   async getFileMeta({ repoRoot, filePosix, timeoutMs, includeChurn = true, headId = null }) {
     const config = resolveGitConfig({ timeoutState: getGitMetaTimeoutState() });
@@ -317,7 +325,7 @@ export const gitProvider = {
     if (!normalizedFilePosix) {
       return toUnavailableResult();
     }
-    const freshnessGuard = buildGitFreshnessGuard({ repoRoot, headId });
+    const freshnessGuard = buildGitFreshnessGuard({ repoRoot, headId, includeChurn });
     const cachedMeta = readGitMetaPrefetchValue({
       freshnessGuard,
       config,
@@ -357,7 +365,7 @@ export const gitProvider = {
     if (!normalizedFiles.length) {
       return { fileMetaByPath: Object.create(null) };
     }
-    const freshnessGuard = buildGitFreshnessGuard({ repoRoot, headId });
+    const freshnessGuard = buildGitFreshnessGuard({ repoRoot, headId, includeChurn });
     const canUsePrefetchCache = Boolean(freshnessGuard.key && config.prefetchCacheMaxEntries > 0);
     if (canUsePrefetchCache) {
       const cachedEntry = getGitMetaPrefetchEntry(freshnessGuard, config);

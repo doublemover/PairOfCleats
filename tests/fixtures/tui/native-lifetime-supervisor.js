@@ -15,17 +15,30 @@ const supervisor = spawn(process.execPath, [path.join(root, 'tools/tui/superviso
   { stdio: ['pipe', 'pipe', 'inherit'] });
 record({ proxy: process.pid, supervisor: supervisor.pid });
 let failed = false;
+let outputClosed = false;
 readline.createInterface({ input: supervisor.stdout }).on('line', line => {
-  process.stdout.write(line + '\n');
+  if (!outputClosed) process.stdout.write(line + '\n');
   const event = JSON.parse(line);
   if (event.event === 'job:spawn') record({ job: event.pid, jobId: event.jobId });
   if (event.event === 'job:spawn' && mode === 'supervisor-error' && !failed) {
     failed = true;
     setTimeout(() => { supervisor.kill('SIGKILL'); process.exit(19); }, 300);
   }
+  if (event.event === 'job:spawn' && mode === 'event-transport-error' && !failed) {
+    failed = true;
+    setTimeout(() => {
+      record({ transport: 'event-eof-while-supervisor-alive' });
+      outputClosed = true;
+      process.stdout.end(() => {
+        try { fs.closeSync(1); }
+        catch (error) { if (error.code !== 'EBADF') throw error; }
+      });
+    }, 300);
+  }
 });
 readline.createInterface({ input: process.stdin }).on('line', line => {
   const request = JSON.parse(line);
+  if (mode === 'interrupt' || mode === 'event-transport-error') record({ request: request.op });
   if (request.op === 'job:run') {
     delete request.argv;
     request.command = process.execPath;
@@ -35,5 +48,11 @@ readline.createInterface({ input: process.stdin }).on('line', line => {
       child.unref();setInterval(()=>process.stdout.write('owned job alive\\n'),50);`];
   }
   supervisor.stdin.write(JSON.stringify(request) + '\n');
-}).on('close', () => supervisor.stdin.end());
-supervisor.on('close', code => process.exit(code ?? 1));
+}).on('close', () => {
+  if (mode === 'interrupt' || mode === 'event-transport-error') record({ request: 'eof' });
+  if (mode !== 'shutdown-timeout') supervisor.stdin.end();
+});
+supervisor.on('close', code => {
+  if (mode === 'shutdown-partial-frame') process.stdout.write('{"event":', () => process.exit(code ?? 1));
+  else process.exit(mode === 'shutdown-error' ? 19 : code ?? 1);
+});

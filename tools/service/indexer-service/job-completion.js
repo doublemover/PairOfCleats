@@ -5,8 +5,16 @@
  * @returns {{exitCode:number,signal:string|null,executionMode:'daemon'|'subprocess',executionClass:string,daemon:object|null,status:'done'|'failed',cancelled:boolean,shutdownMode:string|null,replay:object|null,governance:object|null}}
  */
 const normalizeRunResult = (runResult) => {
-  const parsedExitCode = Number(runResult?.exitCode);
-  const exitCode = Number.isFinite(parsedExitCode) ? Math.trunc(parsedExitCode) : 1;
+  const rawExitCode = runResult?.exitCode;
+  // A missing child status is not a successful exit. Preserve decimal string
+  // statuses already accepted here without coercing arbitrary objects, null or
+  // booleans, or rounding a fractional failure down to success.
+  const parsedExitCode = typeof rawExitCode === 'number'
+    ? rawExitCode
+    : typeof rawExitCode === 'string' && /^-?\d+$/.test(rawExitCode.trim())
+      ? Number(rawExitCode.trim())
+      : NaN;
+  const exitCode = Number.isSafeInteger(parsedExitCode) ? parsedExitCode : 1;
   const signal = typeof runResult?.signal === 'string' && runResult.signal.trim().length > 0
     ? runResult.signal.trim()
     : null;
@@ -117,7 +125,8 @@ export const createJobCompletion = ({
     const attempts = Number.isFinite(parsedAttempts)
       ? Math.max(0, Math.trunc(parsedAttempts))
       : 0;
-    const parsedMaxRetries = Number(job?.maxRetries);
+    const override = job?.maxRetries;
+    const parsedMaxRetries = override == null || override === '' ? NaN : Number(override);
     const maxRetries = Number.isFinite(parsedMaxRetries)
       ? Math.max(0, Math.trunc(parsedMaxRetries))
       : Math.max(0, Math.trunc(Number(queueMaxRetries ?? 0)));
@@ -154,8 +163,7 @@ export const createJobCompletion = ({
     }
     if (normalized.status === 'failed' && maxRetries > attempts) {
       const nextAttempts = attempts + 1;
-      metrics.retried += 1;
-      await completeJob(
+      const completed = await completeJob(
         queueDir,
         job.id,
         'queued',
@@ -178,15 +186,11 @@ export const createJobCompletion = ({
           expectedLeaseVersion: job?.lease?.version ?? null
         }
       );
+      if (completed !== null) metrics.retried += 1;
       return;
     }
-    if (normalized.status === 'done') {
-      metrics.succeeded += 1;
-    } else {
-      metrics.failed += 1;
-    }
     if (normalized.status === 'failed') {
-      await quarantineJob(
+      const quarantined = await quarantineJob(
         queueDir,
         job.id,
         'retry-exhausted',
@@ -208,9 +212,10 @@ export const createJobCompletion = ({
           expectedLeaseVersion: job?.lease?.version ?? null
         }
       );
+      if (quarantined !== null) metrics.failed += 1;
       return;
     }
-    await completeJob(
+    const completed = await completeJob(
       queueDir,
       job.id,
       normalized.status,
@@ -231,6 +236,7 @@ export const createJobCompletion = ({
         expectedLeaseVersion: job?.lease?.version ?? null
       }
     );
+    if (completed !== null) metrics.succeeded += 1;
   };
 
   return {

@@ -1,6 +1,5 @@
 import fs from 'node:fs';
 import { assertTrustedExtension, extensionDownloadPolicy } from './extension-trust.js';
-import { buildLocalCacheKey } from '../../src/shared/cache-key.js';
 import path from 'node:path';
 import { getExtensionsDir, loadUserConfig } from '../shared/dict-utils.js';
 import { incAnnCandidatePushdown, incFallback } from '../../src/shared/metrics/core.js';
@@ -14,6 +13,7 @@ import {
   normalizeCandidateSetIds
 } from '../../src/retrieval/ann/candidate-set.js';
 import { normalizeEmbeddingDims } from '../../src/retrieval/ann/dims.js';
+import { withAnnScoreSpace } from '../../src/shared/ann-similarity.js';
 
 const DEFAULT_PROVIDER = 'sqlite-vec';
 const DEFAULT_MODULE = 'vec0';
@@ -283,19 +283,10 @@ const getLoadCache = (db) => {
 
 const getLoadCacheKey = (config) => {
   const extPath = resolveVectorExtensionPath(config) || '';
-  return buildLocalCacheKey({
-    namespace: 'sqlite-vector-ext',
-    payload: {
-      provider: config?.provider || null,
-      module: config?.module || null,
-      table: config?.table || null,
-      column: config?.column || null,
-      encoding: config?.encoding || null,
-      ingestEncoding: config?.ingestEncoding || null,
-      options: config?.options || null,
-      extPath
-    }
-  }).key;
+  // Loading belongs to the connection and binary path, independently of the
+  // table/query options through which a caller reaches the loaded extension.
+  const absolute = path.resolve(extPath);
+  return process.platform === 'win32' ? absolute.toLowerCase() : absolute;
 };
 
 /**
@@ -335,24 +326,26 @@ export function loadVectorExtension(db, config, label = 'sqlite') {
   const cache = getLoadCache(db);
   const cacheKey = getLoadCacheKey(config);
   const cached = cache.get(cacheKey);
-  if (cached) {
-    return cached.label === label ? cached : { ...cached, label };
-  }
   const extPath = resolveVectorExtensionPath(config);
   if (!extPath || !fs.existsSync(extPath)) {
-    const result = { ok: false, reason: `missing extension (${extPath || 'unset'})` };
-    cache.set(cacheKey, result);
-    return result;
+    return { ok: false, reason: `missing extension (${extPath || 'unset'})` };
   }
   try {
-    assertTrustedExtension(extPath, config, config.trustedBinarySha256);
+    // Policy, registration and bytes can change while a connection survives.
+    // Reauthorize at every return sink; failed attempts must remain repairable.
+    const sha256 = assertTrustedExtension(extPath, config, config.trustedBinarySha256);
+    if (cached) {
+      if (cached.sha256 !== sha256) {
+        throw new Error('Native extension changed after loading; reopen the SQLite connection.');
+      }
+      return { ok: true, path: extPath, label };
+    }
     db.loadExtension(extPath);
     const result = { ok: true, path: extPath, label };
-    cache.set(cacheKey, result);
+    cache.set(cacheKey, { ...result, sha256 });
     return result;
   } catch (err) {
     const result = { ok: false, reason: err?.message || String(err), label };
-    cache.set(cacheKey, result);
     return result;
   }
 }
@@ -454,6 +447,7 @@ export function encodeVector(vector, config) {
  * @returns {Array<{idx:number,sim:number}>}
  */
 export function queryVectorAnn(db, config, embedding, topN, candidateSet) {
+  if (candidateSet != null && getCandidateSetSize(candidateSet) === 0) return [];
   if (!db || !embedding || !config?.enabled) return [];
   const table = config?.table || DEFAULT_TABLE;
   const column = config?.column || DEFAULT_COLUMN;
@@ -539,7 +533,10 @@ export function queryVectorAnn(db, config, embedding, topN, candidateSet) {
       const rowId = Number(row.rowid ?? row.id);
       const raw = row.distance ?? row.score ?? row.similarity ?? row.sim ?? 0;
       const sim = row.distance !== undefined ? -raw : raw;
-      return { idx: rowId, sim };
+      return withAnnScoreSpace({ idx: rowId, sim }, {
+        kind: row.distance !== undefined ? 'negative-distance' : 'dot-product',
+        metric: config.metric || 'l2', backend: 'sqlite-vector', distance: row.distance ?? null
+      });
     });
     if (candidateSize && !canInlinePushdown && !canTempPushdown) {
       hits = hits.filter((hit) => candidateSetHas(candidateSet, hit.idx));

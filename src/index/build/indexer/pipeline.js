@@ -104,7 +104,8 @@ export async function buildIndexForMode(input) {
     assertIndexCacheLease(runtime.cacheWriterLease, runtime.repoCacheRoot);
     return buildIndexForModeOwned(input);
   }
-  const lock = await acquireIndexLock({ repoCacheRoot: runtime.repoCacheRoot, signal: abortSignal,
+  const lock = await acquireIndexLock({ repoCacheRoot: runtime.repoCacheRoot, signal: abortSignal, requireSettlement: true,
+    storageContext: { repoRoot: runtime.root, userConfig: runtime.userConfig },
     metadata: { owner: 'indexer', operation: 'cache-writer' } });
   if (!lock) throw Object.assign(new Error('Repository cache writer is busy.'), { code: 'ERR_INDEX_CACHE_OWNERSHIP' });
   runtime.cacheWriterLease = createIndexCacheLease(lock, runtime.repoCacheRoot);

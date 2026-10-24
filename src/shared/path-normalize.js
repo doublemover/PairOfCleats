@@ -11,6 +11,7 @@ const hasWindowsPathHint = (value) => {
   const text = String(value || '');
   if (!text) return false;
   if (text.startsWith('\\\\')) return true;
+  if (/^\/\/[^/]+\/[^/]+(?:\/|$)/.test(text)) return true;
   if (text.length < 3) return false;
   const code = text.charCodeAt(0);
   const isAsciiLetter = (code >= 65 && code <= 90) || (code >= 97 && code <= 122);
@@ -20,13 +21,15 @@ const hasWindowsPathHint = (value) => {
 const shouldUseWin32PathApi = (repoRoot, rawPath) => {
   const repoText = String(repoRoot || '');
   const rawText = String(rawPath || '');
-  if (isAbsolutePathNative(repoText, 'win32') || hasWindowsPathHint(repoText)) {
+  if (hasWindowsPathHint(repoText)) {
     return true;
   }
-  if (isAbsolutePathNative(rawText, 'win32') || hasWindowsPathHint(rawText)) {
+  if (hasWindowsPathHint(rawText)) {
     return true;
   }
-  return false;
+  if (repoText.startsWith('/')) return false;
+  return process.platform === 'win32'
+    && (repoText.includes('\\') || rawText.startsWith('\\') || !path.posix.isAbsolute(rawText));
 };
 
 /**
@@ -36,23 +39,23 @@ const shouldUseWin32PathApi = (repoRoot, rawPath) => {
  * @param {{stripDot?:boolean}} [options]
  * @returns {string|null}
  */
-export const normalizeRepoRelativePath = (value, repoRoot, { stripDot = true } = {}) => {
+export const normalizeRepoRelativePath = (value, repoRoot, { stripDot = true, platform = null } = {}) => {
   if (!value) return null;
   const raw = String(value);
   if (!repoRoot) {
     const normalized = toPosix(raw);
     return stripDot ? stripDotPrefix(normalized) : normalized;
   }
-  const useWin32 = shouldUseWin32PathApi(repoRoot, raw);
-  const platform = useWin32 ? 'win32' : 'posix';
+  const useWin32 = platform === 'win32' || (platform !== 'posix' && shouldUseWin32PathApi(repoRoot, raw));
+  const pathPlatform = useWin32 ? 'win32' : 'posix';
   const pathApi = useWin32 ? path.win32 : path.posix;
-  const normalizedRoot = normalizePathForPlatform(repoRoot, { platform });
-  const normalizedRaw = normalizePathForPlatform(raw, { platform });
-  const abs = isAbsolutePathNative(normalizedRaw, platform)
+  const normalizedRoot = normalizePathForPlatform(repoRoot, { platform: pathPlatform });
+  const normalizedRaw = normalizePathForPlatform(raw, { platform: pathPlatform });
+  const abs = isAbsolutePathNative(normalizedRaw, pathPlatform)
     ? normalizedRaw
     : pathApi.resolve(normalizedRoot, normalizedRaw);
   const rel = pathApi.relative(normalizedRoot, abs);
-  if (isRelativePathEscape(rel) || isAbsolutePathNative(rel, platform)) return null;
+  if (isRelativePathEscape(rel) || isAbsolutePathNative(rel, pathPlatform)) return null;
   const normalized = toPosix(rel);
   return stripDot ? stripDotPrefix(normalized) : normalized;
 };

@@ -178,9 +178,6 @@ export const selectRiskFlowsWithinBudget = ({
           note: `Risk flow ${flow?.flowId || 'flow'} truncated call-site evidence for one path step.`
         });
       }
-      for (const callSiteId of limitedIds) {
-        if (callSiteId) referencedCallSiteIds.add(callSiteId);
-      }
       return limitedIds;
     });
 
@@ -248,6 +245,9 @@ export const selectRiskFlowsWithinBudget = ({
     emittedTokens += candidateTokens;
     emittedSteps += normalizedStepIds.length;
     selectedRawFlows.push(candidate);
+    for (const ids of normalizedStepIds) for (const callSiteId of ids) {
+      if (callSiteId) referencedCallSiteIds.add(callSiteId);
+    }
   }
 
   return {
@@ -303,16 +303,8 @@ export const selectRiskPartialFlowsWithinBudget = ({
     const normalizedStepIds = limitedSteps.map((ids) => {
       const sourceIds = Array.isArray(ids) ? ids : [];
       const limitedIds = sourceIds.slice(0, CONTEXT_PACK_MAX_RISK_CALL_SITES_PER_STEP);
-      for (const callSiteId of limitedIds) {
-        if (callSiteId) referencedCallSiteIds.add(callSiteId);
-      }
       return limitedIds;
     });
-    for (const blocked of Array.isArray(flow?.frontier?.blockedExpansions) ? flow.frontier.blockedExpansions : []) {
-      for (const callSiteId of Array.isArray(blocked?.callSiteIds) ? blocked.callSiteIds : []) {
-        if (callSiteId) referencedCallSiteIds.add(callSiteId);
-      }
-    }
     const candidate = {
       rank: entry.rank,
       partialFlowId: flow?.partialFlowId || null,
@@ -382,6 +374,12 @@ export const selectRiskPartialFlowsWithinBudget = ({
     partialBytes += candidateBytes;
     partialTokens += candidateTokens;
     selectedRawPartialFlows.push(candidate);
+    for (const ids of normalizedStepIds) for (const callSiteId of ids) {
+      if (callSiteId) referencedCallSiteIds.add(callSiteId);
+    }
+    for (const blocked of candidate.frontier.blockedExpansions) for (const callSiteId of blocked.callSiteIds) {
+      if (callSiteId) referencedCallSiteIds.add(callSiteId);
+    }
   }
 
   return {

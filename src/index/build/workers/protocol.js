@@ -1,4 +1,5 @@
 import util from 'node:util';
+import { resolveEmbeddingQuantizationSpec } from '../../../shared/embedding-quantization-spec.js';
 
 export const summarizeError = (err, options = {}) => {
   const {
@@ -59,11 +60,6 @@ export const sanitizeQuantizePayload = (payload) => {
   const safe = {
     vectors: Array.isArray(payload.vectors) ? payload.vectors : []
   };
-  const minVal = Number(payload.minVal);
-  if (Number.isFinite(minVal)) safe.minVal = minVal;
-  const maxVal = Number(payload.maxVal);
-  if (Number.isFinite(maxVal)) safe.maxVal = maxVal;
-  const levels = Number(payload.levels);
-  if (Number.isFinite(levels)) safe.levels = levels;
-  return safe;
+  const spec = resolveEmbeddingQuantizationSpec(payload.quantization || payload);
+  return { ...safe, quantization: spec, minVal: spec.minVal, maxVal: spec.maxVal, levels: spec.levels };
 };

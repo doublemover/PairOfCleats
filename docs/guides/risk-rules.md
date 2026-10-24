@@ -67,6 +67,24 @@ Configure caps under `indexing.riskCaps`:
 }
 ```
 
+Required stats and summaries must each be present and readable. Missing either
+produces a missing/degraded analysis, and strict risk returns
+`ERR_CONTEXT_PACK_RISK_STRICT`. Permission/I/O, schema and timeout failures remain
+visible. Valid required evidence proving zero emitted flows can still omit the
+flow artifact; this exception does not apply to required stats or summaries.
+
+Context-pack responses retain documented excerpt byte/token and partial-flow
+count/byte/token truncations as schema-valid bounded evidence. Unknown cap names
+remain invalid. Strict risk still rejects capped evidence through its existing
+surface error projection; it does not turn an ordinary cap into a schema error.
+
+Risk delta loads and validates both refs' declared evidence before comparison.
+Unreadable, malformed or schema-invalid stats/summaries/flows fail the comparison
+with `INTERNAL` and reason `risk_artifact_load_failed`, preserving the artifact and
+underlying cause in the shared error. Only undeclared flow families with valid
+stats proving zero emissions can become empty sets. Missing declared pieces are
+errors even when stats report zero; unknown evidence never establishes removal.
+
 `risk.analysisStatus` is an object containing `status`, `reason`, `caps`, `bytes`,
 and `lines`. Exceeding `maxBytes` or `maxLines` produces `status: "capped"`
 before allocating the line array or evaluating rules. Exceeding `maxNodes`,

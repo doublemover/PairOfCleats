@@ -29,7 +29,7 @@ export const resolveTerminal = (stream) => {
 };
 
 export const resolveWidth = (term, stream) => {
-  if (term && Number.isFinite(term.width)) return term.width;
-  if (stream && Number.isFinite(stream.columns)) return stream.columns;
+  if (term && Number.isFinite(term.width) && term.width > 1) return Math.floor(term.width);
+  if (stream && Number.isFinite(stream.columns) && stream.columns > 1) return Math.floor(stream.columns);
   return 120;
 };

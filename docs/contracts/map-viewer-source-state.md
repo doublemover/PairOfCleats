@@ -1,0 +1,244 @@
+# Map viewer source state and rendering boundaries
+
+The isometric viewer indexes the available saved map payload before loading
+optional renderer modules. This source inventory is independent of display and
+draw caps. Its paged hierarchy and indexed directed adjacency can inspect an
+available entity without allocating its geometry. Missing evidence in a saved
+payload stays unavailable; source indexing does not fetch an index or expand an
+export's scope.
+
+Semantic selection is authoritative. A rendered hit is a transient projection
+of that selection and is cleared when an undrawn entity is inspected. Inspector,
+source action and selected neighborhood use the same source identity. Rebuilds
+reconcile that identity against the source inventory. History retains its source
+snapshot identity and cannot silently rebind an old selection to another payload.
+Camera focus is a separate capability; selecting undrawn evidence does not move
+the camera to an unrelated overview or old hit.
+
+Three/WebGL startup progressively enhances the usable evidence browser. Failed
+assets or construction leave source inspection available and offer a local retry.
+This does not yet qualify context-loss restoration, transactional chunked rebuilds
+or a worker-owned streaming graph pipeline. Source indexing still processes the
+available in-memory payload eagerly; no larger-graph capacity is claimed.
+
+The scene owns the complete PMREM output render target, separately from transient
+input textures and generator scratch state. A successful replacement publishes
+the new target before retiring the old one. Failure keeps the accepted target;
+late callbacks after disposal retire their input without reviving scene state.
+Scene teardown retires its cached geometry, normal texture and renderer.
+
+Height fog follows each representation's world coordinates: transformed mesh
+vertices pass through batch, instance and model/parent transforms; wide lines
+derive world coordinates from their view-space segment/extrusion. Unsupported
+shader chunk layouts fail explicitly. World grid and structural rims depth-test
+against opaque foreground geometry. This does not establish physically correct
+intersecting-glass refraction or transparency sorting.
+
+These are source contracts. Authored lifecycle, shader-generation and semantic
+selection regressions have not been executed in the development-first repair
+batch. Browser pixels, WebGL compilation, context recovery, GPU resource plateau,
+keyboard interaction, frame/interaction timing and the proposed renderer/batching
+decision gates remain required qualification.
+
+The scene-first shell exposes one active Explore, Inspect, Appearance or
+Performance task surface. Core fit/focus/history/detail/help controls and compact
+snapshot scope stay outside scrolling settings. Closing preserves panel DOM;
+selection can reveal inspection without focus transfer and cannot reopen an
+explicitly dismissed inspector. Optional empty, zero and unavailable fields have
+separate labels under expandable details; lazy full-source evidence is retained.
+
+Appearance tokens independently select palette, material, lighting, motion and
+decorative quality. The default Tron composition uses dark local lighting and
+saturated solid semantic cores. Bloom and refractive capture are explicitly
+unavailable in this source slice; requesting high quality reports the effective
+balanced path. This is an implementation starting point, not pixel/art approval.
+Live edits preserve identity, query scope and camera without rebuilding topology.
+Contrast, overlap, selection-rim treatment and graphics budgets remain open.
+
+Versioned precedence is built-in defaults, report configuration, durable repository
+preferences, then selected layout override, using the existing shared merger.
+Only bounded viewer families are admitted. Saved evidence alone gets session-only
+settings; an explicitly selected repository grants local session authority
+independently of saved root fields. Preferences use the shared durable repository
+state resolver, contained paths, ownership-safe locks, optimistic revision and
+atomic writes. Random ports do not change that authority. Saves serialize; reset
+cancels queued debounce and follows any accepted earlier revision. Failed saves
+are visible. Legacy port-local settings require explicit import. Reset preserves
+unrelated settings and does not reload away source interaction state.
+
+Camera fit projects visible represented world bounds into the actual free viewport
+after measured toolbar/status/task panels, with finite additional zoom-out room.
+Fit cancels prior camera motion. Wheel zoom is multiplicative and cursor anchored.
+Screen-space label collision/occlusion and full browser corner/pixel acceptance
+remain open. Existing 20/200/500-file fixtures are regression workloads, not the
+intended source admission architecture. Modern spatial draw packets, scalable
+picking, width-capable physical paths, capture/refraction, incremental buffers and
+worker-owned progressive source data remain separate uncompleted obligations in
+the updated #729/#734/#742/#1302/#1367/#1296/#1297/#1381 contracts.
+
+The source-only progressive slice now gives an explicitly selected identity
+priority in a bounded render working set. Member pages can reach beyond initial
+display prefixes; the canonical saved-payload inventory and adjacency remain
+unchanged. Detached preparation preserves the prior scene until a source/layout/
+residency/selection/camera-qualified transaction commits. A failed or superseded
+candidate retires only its own allocations. File-level pipes can retain exact
+relations whose member detail is nonresident; fine-detail anchors are never
+invented. A zero effective budget fails with an actionable explanation.
+
+Stack picking uses a resident-object spatial broad phase followed by exact Three
+geometry/instance testing. The index belongs to the source and geometry revision;
+visibility is checked on each query, and a bounded traversal overflow falls back
+to exact resident testing. Result fences include source, slot/geometry revision,
+camera, viewport/DPR and latest pointer request. Legacy layouts keep their prior
+exact target path. Candidate upper bounds are separate from unavailable exact
+instance-test counts. Selected instance colors request changed attribute ranges;
+the counters describe requested bytes, not observed driver uploads.
+
+The renderer boundary exposes capabilities independently of measured acceptance.
+No new backend or spatial batch size is selected by this slice. Worker transport,
+whole-snapshot overview/proxy loading, spatial packet adoption and browser latency,
+GPU resources and culling/overlap qualification remain partial or deferred.
+
+Local preview sessions now offer a token-qualified `/map-snapshot` endpoint over
+the same immutable admitted map. It preserves the selected manifest/producer when
+known, source revision as unknown when unavailable, upstream drops and export-only
+coverage. It is a consumption view, not another index service or a way around
+artifact admission. Responses are at most 256 KiB, requests 16 KiB, two in flight,
+and rows at most 256 per page. A row too large for a page fails explicitly; it is
+not truncated. Cursors continue exact source order, and every result carries
+protocol, snapshot, request and revision. Session retirement releases its indexes.
+
+A module worker builds compact file/member/directed-adjacency/search rows from
+these pages, keeping rich fields in the session's lazy detail operation. It reports
+a manifest overview before row loading and publishes a new accepted store only
+after exact continuation succeeds. Failed replacement retains the prior store;
+teardown aborts fetches, messages, queries and owned maps. The current retention
+budget counts compact wire bytes (32 MiB), not measured heap. Source IDs retain
+their types and punctuation; row indices and render slots are local addresses.
+Search computes bounded pages cooperatively in the worker, and source navigation
+uses it once ready. It falls back to the retained compatibility source after a
+worker failure. Progressive layout also runs in that worker and reconnects exact
+original evidence objects before committing its bounded scene transaction.
+
+The earlier worker migration embedded the full compatibility model and added a
+compact worker representation. The current local preview uses a manifest-only
+document, a rendered whole-available directory aggregate overview, and demand
+file/member/relationship/detail pages. No full source graph is embedded or eagerly
+normalized in that client/worker path. Directory proxies are distinct aggregate
+identities with exact counts; they never count as instantiated files or members.
+File/member/search/relationship DOM replaces bounded pages with exact continuation.
+Selected rich fields load separately. Main-thread source metadata retains current
+resident detail plus one selected record; history keeps canonical references.
+
+Demand worker pages use a reversible 4 MiB/64-page LRU and source-wide search stays
+with the same immutable authoritative transport. Cache eviction never changes
+available counts or queryability. Resident layout limits apply to detail only;
+discovery records pending adjacency/byte limits separately from upstream omissions.
+The server still parses/retains the admitted compatibility map because the current
+saved JSON/HTML and live map producer materialize it. Canonical artifact streaming
+has not been substituted or bypassed. `/map.compat.html` explicitly serves the
+same pinned full model with the compatibility client, and absence of module workers
+uses demand pages on the main thread. Session-only HTML is marked and rejected by
+saved-input admission so it cannot masquerade as an empty offline graph. Standalone
+report exports retain their full admitted payload. No measured heap, browser,
+worker-host, GPU or latency/resource acceptance has been run.
+
+An optional spatial draw-packet candidate is now implemented behind the renderer
+boundary. It requires an explicit finite cell/instance/packet/attribute-byte policy;
+there is no selected default policy or public settings knob. Compatible bases and
+semantic shapes can batch across nearby files, with separate file/member surface,
+alpha/depth and geometry groups. Pipes, labels and directory trays retain their
+separate owners. Each packet records canonical typed source key, snapshot-local
+row and mutable slot separately; anonymous legacy geometry remains render-only.
+Packets retain attribute capacity, transact slot maps, update dirty ranges and
+invalidate picking on residency changes. Cross-cell/incompatible movement or
+membership/eviction changes require a new bounded scene transaction so pipes and
+coverage cannot outlive their represented endpoint geometry. Slot compaction is
+implemented as a pure transaction contract; in-place scene membership adoption
+remains open. Shared materials have one packet owner, distinct
+from instance buffers and scene-owned common geometry.
+
+The authored 20/200/500-file packet fixtures exercise identity/capacity/disposal,
+not renderer submissions or performance. The candidate's requested upload bytes,
+allocation counts and churn are operation counters; draw/GPU cost is unavailable.
+Policy selection, incremental spatial-index repair, background upload scheduling,
+backend comparison and physical path/capture semantics remain unqualified/open.
+
+Worker substring search now has optional bounded trigram acceleration over cached
+keys. Postings use snapshot-local row addresses, while results retain canonical
+typed identities. An 8 MiB posting/key-byte budget and long-field fallback bound
+the acceleration representation; overflow rows stay queryable through cooperative
+exact matching. Short queries also use that fallback. Candidate iteration merges
+stable source order without allocating a full result-candidate array. This
+supersedes the earlier linear-only search limitation, but does not establish total
+heap bounds or latency acceptance. Index bytes exclude JavaScript map/array heap
+overhead, which remains explicitly unmeasured.
+
+Search result pages also obey the 256 KiB response budget with exact continuation;
+large names cannot turn a nominal 80-row result into an unbounded worker message.
+Worker phase reporting queues at most one message per row family during loading,
+followed by the final accepted-store statistics. This avoids page-count growth in
+progress messages when the main document is suspended. Bounded resident layout
+still crosses as a structured model; columnar transfer, buffer recycling and
+scheduled GPU upload remain open. Typed protocol identities are preserved by the
+worker, while the legacy renderer's string-key compatibility maps remain a
+separate migration boundary for type-colliding legacy IDs.
+
+View revision changes now abort pending controllers that depend on the changed
+family, in addition to fencing publication. Cooperative worker messages and fetches
+therefore receive actual cancellation. Reveal preparation status has a separate
+request owner; a cancelled predecessor cannot restore its text over a newer
+request. A disposed revision owner rejects new work.
+
+Renderer lookup maps and structured-cloned layout maps now retain original scalar
+member IDs. Numeric zero stays numeric through mesh metadata, selection, culling,
+color/anchor maps, pipe endpoints, history and worker layout. Opaque numeric-looking
+strings stay strings. Source-qualified alias lookup is confined to an explicit
+legacy adapter; identity is never recovered from an instance slot or by parsing a
+semantic ID. Typed source indexes prefer exact identity before an unambiguous
+legacy text alias. Saved artifact admission still rejects String-equivalent
+duplicate member identities; this migration does not broaden that admission rule.
+
+Pipe layer descriptors now defer vertex buffers and materials until their tier,
+type and endpoint neighborhood are actually visible. Each committed layer owns
+one lazily filled full-level buffer and one capacity-retaining current-neighborhood
+buffer. Changing the neighborhood rewrites changed slots using the original
+layer ordinal, so filtering does not reroute unchanged evidence. Pending attribute
+ranges merge while rendering is suspended. Hidden types and repeated unchanged
+selections retain their buffers; previous neighborhoods do not accumulate caches.
+Scene replacement, cancelled detached preparation, rebuild and teardown retire
+these owners separately from generic group disposal. Route validation precedes
+accepted-buffer mutation. Capacity, allocations, computed route rows and requested
+attribute bytes are source operation counters; GPU upload bytes remain unavailable.
+The optional Performance HUD also exposes the last renderer submission's calls
+and renderer cache resource counts, without treating them as measured GPU memory.
+
+Plumbing inspection now carries type, original source certainty and an explicit
+static directed relationship cue. Mixed aggregates keep their constituent source
+certainty labels and evidence references. Deterministic reciprocal side/lane
+routing uses the committed layer address, not a changing subset position. The
+pattern grammar is metadata/text in this slice; the accepted thin-line backend
+has not been replaced with width-capable physical cores, nor have overlap pixels,
+dash rendering, glass capture or resource/frame budgets been qualified.
+
+Source operations now use a bounded queue in both module-worker and direct-demand
+callers: two operations can run, sixteen more can wait, and overflow fails with
+an explicit retry explanation. Supersession belongs to an operation lane within
+the actual source panel; two member disclosures no longer cancel each other
+merely because both request members. A cancelled operation retains its physical
+queue slot until its runner settles. Source panel removal and disclosure close
+abort pending work, with one shared document removal observer. Worker failure
+retires queued and pending requests with the original failure; direct manifest
+initialization can be retried after a failed attempt. These bounds concern
+requests and retained queue entries, not total source admission or measured
+network/worker/browser latency. Host integration and regressions remain unrun.
+
+Renderer failures preserve source browsing even when scene cleanup also fails.
+The full original enhancement failure and independently observed cleanup owners
+remain in state behind the display message. A resident transaction distinguishes
+failure before publication from failure in callbacks after publication; the
+reveal result retains the actual committed state and original error. Previous
+scene retirement still runs after publication callbacks fail. Boundary cleanup
+and operation completion failures are both retained. These source contracts and
+inert regressions are authored and unrun; no browser/GPU/resource or latency
+qualification follows from them.

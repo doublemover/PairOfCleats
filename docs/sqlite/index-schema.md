@@ -81,6 +81,14 @@ Doc IDs per gram ID.
 Packed minhash signatures per doc.
 - mode, doc_id, sig (BLOB of uint32)
 
+### minhash_meta
+Per-mode signature identity, required whenever the mode has signature rows (schema 16).
+- mode (TEXT PRIMARY KEY)
+- hash_identity (TEXT NOT NULL, canonical MinHash family identity)
+- sampling (nullable TEXT JSON, explicit sampled-coordinate plan)
+
+Full-width updates retain an existing sampling plan so retained sampled rows keep their coordinates. Incompatible families and conflicting sampling plans require a rebuild; metadata must never relabel unknown retained rows.
+
 ## Dense vectors
 
 ### dense_vectors

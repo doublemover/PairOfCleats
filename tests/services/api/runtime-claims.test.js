@@ -5,12 +5,12 @@ import path from 'node:path';
 import http from 'node:http';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { createRuntimeImportFixture } from '../../helpers/runtime-import-fixture.js';
+import { createVerifiedRuntimeImportFixture } from '../../helpers/verified-runtime-import-fixture.js';
 import { importRuntimeEvidence } from '../../../src/index/semantic/runtime/import.js';
 import { runRuntimeCaptureComparison, runRuntimeDerivedClaimLookup } from '../../../src/integrations/tooling/runtime-claims.js';
 import { handleToolCall } from '../../../tools/mcp/tools.js';
 import { createApiRouter } from '../../../tools/api/router.js';
-const fixture = await createRuntimeImportFixture();
+const fixture = await createVerifiedRuntimeImportFixture();
 let server, router;
 try {
   const first = await importRuntimeEvidence(fixture.options());
@@ -22,6 +22,8 @@ try {
     leftFamily: first.pointer.generationId, rightFamily: second.pointer.generationId, sources: fixture.capture.sources,
     limits: { maxRecords: 32, maxBytes: 65536, maxMs: 1000 }, persist: true } };
   const compared = await runRuntimeCaptureComparison(payload);
+  assert.equal(compared.status, 'complete', JSON.stringify(compared.reasons));
+  assert.equal(typeof compared.claimGeneration, 'string', 'verified source mappings must publish claims');
   assert.deepEqual(await handleToolCall('runtime_compare', payload), compared);
   const lookup = { ...payload, request: { schemaVersion: 1, repositoryNamespace: payload.request.repositoryNamespace,
     generation: payload.request.generation, claimGeneration: compared.claimGeneration, limits: payload.request.limits, cursor: null } };

@@ -1,8 +1,11 @@
 import fs from 'node:fs/promises';
-import fsSync from 'node:fs';
 import { runSyncCommandWithTimeout, toSyncCommandExitCode } from '../subprocess/sync-command.js';
 import { DEFAULT_WINDOWS_TASKLIST_TIMEOUT_MS } from './file-lock-constants.js';
-import { readLockInfo, readLockInfoSync, resolveLockPid } from './file-lock-info.js';
+import { readLockRecord, readFileLockFailureCode, captureFileLockIdentity, sameFileLockIdentity,
+  resolveLockPid, isOwnedBy, requiresLockResourceSettlement } from './file-lock-info.js';
+import { isFileLockPublicationPending } from './file-lock-publication.js';
+import { observeStorageResource } from '../storage/failure-observation.js';
+export { isOwnedBy, removeLockFileSyncIfOwned } from './file-lock-info.js';
 
 export const isProcessAlive = (pid) => {
   if (!Number.isFinite(pid) || pid <= 0) return false;
@@ -37,39 +40,21 @@ export const isProcessAlive = (pid) => {
   }
 };
 
-export const isOwnedBy = (info, owner) => {
-  if (!owner || typeof owner !== 'object') return false;
-  if (owner.lockId && info?.lockId) return owner.lockId === info.lockId;
-  if (Number.isFinite(owner.pid) && Number.isFinite(Number(info?.pid))) {
-    return Number(owner.pid) === Number(info.pid);
-  }
-  return false;
-};
-
-export const removeLockFileSyncIfOwned = (lockPath, owner, { force = false } = {}) => {
-  if (!lockPath) return false;
+export const removeLockFileIfOwned = async (lockPath, owner, { force = false, swallowErrors = true, expectedIdentity = null } = {}) => {
+  if (!lockPath || isFileLockPublicationPending(lockPath)) return false;
   try {
-    if (!force) {
-      const info = readLockInfoSync(lockPath);
-      if (!isOwnedBy(info, owner)) return false;
-    }
-    fsSync.rmSync(lockPath, { force: true });
-    return true;
-  } catch {
-    return false;
-  }
-};
-
-export const removeLockFileIfOwned = async (lockPath, owner, { force = false, swallowErrors = true } = {}) => {
-  if (!lockPath) return false;
-  try {
-    if (!force) {
-      const info = await readLockInfo(lockPath);
-      if (!isOwnedBy(info, owner)) return false;
-    }
-    await fs.rm(lockPath, { force: true });
+    const { value: info, identity } = await readLockRecord(lockPath);
+    if (expectedIdentity && !sameFileLockIdentity(identity, expectedIdentity)) return false;
+    if ((!force || requiresLockResourceSettlement(info)) && !isOwnedBy(info, owner)) return false;
+    if (isFileLockPublicationPending(lockPath)) return false;
+    const current = await fs.lstat(lockPath, { bigint: true });
+    if (!sameFileLockIdentity(captureFileLockIdentity(current), identity) || isFileLockPublicationPending(lockPath)) return false;
+    if (await fs.rm(lockPath, { force: true }) !== undefined) throw Object.assign(
+      new Error('Original lock metadata removal did not confirm its standard void result.'), { cacheOwnershipPending: true });
     return true;
   } catch (err) {
+    observeStorageResource(err, { phase: 'file-lock-remove' }).requireSettled();
+    if (force && readFileLockFailureCode(err) === 'ENOENT') return true;
     if (!swallowErrors) throw err;
     return false;
   }

@@ -1,18 +1,22 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
+import path from 'node:path';
+import { randomUUID } from 'node:crypto';
 import { tryImport } from '../../../src/shared/optional-deps.js';
 import { writeJsonObjectFile } from '../../../src/shared/json-stream/json-writers.js';
-import { normalizeEmbeddingVectorInPlace } from '../../../src/shared/embedding-utils.js';
-import { dequantizeUint8ToFloat32 } from '../../../src/storage/sqlite/vector.js';
-import { normalizeLanceDbConfig, resolveLanceDbPaths } from '../../../src/shared/lancedb.js';
+import { assertLanceDbPayload, normalizeLanceDbConfig, resolveLanceDbPaths } from '../../../src/shared/lancedb.js';
+import { publishLanceDbReplacement, recoverLanceDbReplacement } from './backend-publication.js';
+import { readContainedFile } from '../../../src/shared/contained-file.js';
 import { getEnvConfig } from '../../../src/shared/env/runtime.js';
 import { getLanceDbEnv } from '../../../src/shared/env/runtime.js';
-import { runIsolatedNodeScriptSync } from '../../../src/shared/subprocess/runner.js';
+import { runIsolatedBackendJobs } from './backend-isolate.js';
 import { resolveVectorsSource } from './vector-source.js';
+import { throwIfAborted } from '../../../src/shared/abort.js';
+import { buildNativeBackendReuseKey } from './backend-reuse-key.js';
+import { inventoryBackendPayload } from './backend-payload-copy.js';
+import { resolveEmbeddingQuantizationSpec } from '../../../src/shared/embedding-quantization-spec.js';
 
 let warnedMissing = false;
-const CHILD_ENV = 'PAIROFCLEATS_LANCEDB_CHILD';
-const PAYLOAD_ENV = 'PAIROFCLEATS_LANCEDB_PAYLOAD';
 const TRACE_ARTIFACT_IO = getEnvConfig().traceArtifactIo === true;
 
 const loadLanceDb = async (logger) => {
@@ -27,55 +31,12 @@ const loadLanceDb = async (logger) => {
   return result.mod?.default || result.mod;
 };
 
-const shouldIsolateLanceDb = (config, env) => {
+export const shouldIsolateLanceDb = (config, env) => {
   if (env?.child) return false;
   if (config?.isolate === false) return false;
   if (config?.isolate === true) return true;
   if (env?.isolate) return true;
   return false;
-};
-
-const createTable = async (db, tableName, rows) => {
-  if (!db || typeof db.createTable !== 'function') return null;
-  return db.createTable(tableName, rows, { mode: 'overwrite' });
-};
-
-const addRows = async (table, rows) => {
-  if (!table) return;
-  if (typeof table.add === 'function') {
-    await table.add(rows);
-    return;
-  }
-  if (typeof table.insert === 'function') {
-    await table.insert(rows);
-    return;
-  }
-  if (typeof table.append === 'function') {
-    await table.append(rows);
-  }
-};
-
-const buildBatch = (vectors, start, end, idColumn, embeddingColumn, quantization, normalize) => {
-  const rows = [];
-  for (let i = start; i < end; i += 1) {
-    const vec = vectors[i];
-    if (!vec || typeof vec.length !== 'number') continue;
-    const floatVec = dequantizeUint8ToFloat32(
-      vec,
-      quantization?.minVal,
-      quantization?.maxVal,
-      quantization?.levels
-    );
-    if (!floatVec) continue;
-    if (normalize !== false) {
-      normalizeEmbeddingVectorInPlace(floatVec);
-    }
-    rows.push({
-      [idColumn]: i,
-      [embeddingColumn]: Array.from(floatVec)
-    });
-  }
-  return rows;
 };
 
 /**
@@ -111,14 +72,18 @@ export async function writeLanceDbIndex({
   skipIsolate = false,
   emitOutput = true,
   label = null,
-  logger = console
+  logger = console,
+  signal = null
 }) {
   const resolvedConfig = normalizeLanceDbConfig(config);
   if (!resolvedConfig.enabled) return { skipped: true, reason: 'disabled' };
+  quantization = resolveEmbeddingQuantizationSpec(quantization);
+  scale = quantization.scale;
   const lanceEnv = getLanceDbEnv();
   const vectorsSource = Array.isArray(vectors) && vectors.length
     ? { count: vectors.length, vectors, rows: null }
-    : resolveVectorsSource(vectorsPath, { stopOnShardMetaWithoutManifest: true });
+    : resolveVectorsSource(vectorsPath, { stopOnShardMetaWithoutManifest: true, expectedDims: dims,
+      expectedModelId: modelId, expectedQuantization: quantization, signal });
   if (TRACE_ARTIFACT_IO && vectorsPath) {
     const exists = fsSync.existsSync(vectorsPath)
       || fsSync.existsSync(`${vectorsPath}.gz`)
@@ -133,69 +98,12 @@ export async function writeLanceDbIndex({
     return { skipped: true, reason: 'empty' };
   }
   if (!skipIsolate && shouldIsolateLanceDb(resolvedConfig, lanceEnv)) {
-    if (!vectorsPath) {
-      return { skipped: true, reason: 'missing vectors path for isolate' };
-    }
-    const moduleUrl = new URL('./lancedb.js', import.meta.url).href;
-    const payload = {
-      indexDir,
-      variant,
-      vectorsPath,
-      dims,
-      modelId,
-      quantization,
-      scale,
-      normalize,
-      config: resolvedConfig,
-      emitOutput: false,
-      label
-    };
-    const script = `
-      const payload = JSON.parse(process.env.${PAYLOAD_ENV} || '{}');
-      const moduleUrl = payload.moduleUrl;
-      const run = async () => {
-        const mod = await import(moduleUrl);
-        const result = await mod.writeLanceDbIndex(payload);
-        process.stdout.write(JSON.stringify(result || {}));
-      };
-      run().catch((err) => {
-        console.error(err && err.message ? err.message : String(err));
-        process.exit(2);
-      });
-    `;
-    payload.moduleUrl = moduleUrl;
-    const result = runIsolatedNodeScriptSync({
-      script,
-      env: {
-        ...process.env,
-        [CHILD_ENV]: '1',
-        [PAYLOAD_ENV]: JSON.stringify(payload)
-      },
-      maxOutputBytes: 1024 * 1024,
-      outputMode: 'string',
-      captureStdout: true,
-      captureStderr: true,
-      rejectOnNonZeroExit: false,
-      name: 'lancedb'
-    });
-    if (result.exitCode !== 0) {
-      const detail = typeof result.stderr === 'string' ? result.stderr.trim() : '';
-      if (emitOutput && detail) {
-        logger.warn(`[embeddings] ${label || variant}: LanceDB isolate failed: ${detail}`);
-      }
-      return { skipped: true, reason: 'isolate failed' };
-    }
-    let parsed = {};
-    try {
-      parsed = typeof result.stdout === 'string' ? JSON.parse(result.stdout) : {};
-    } catch {}
-    if (emitOutput && parsed && parsed.count) {
-      const targetLabel = label || variant;
-      logger.log(`[embeddings] ${targetLabel}: wrote LanceDB table (${parsed.count} vectors).`);
-    }
-    return parsed || { skipped: false };
+    if (!vectorsPath) return { skipped: true, reason: 'missing vectors path for isolate' };
+    const batch = await runIsolatedBackendJobs({ backend: 'lancedb', signal,
+      jobs: [{ target: variant, payload: { indexDir, variant, vectorsPath, dims, modelId,
+        quantization, scale, normalize, config: resolvedConfig, label } }] });
+    return batch.results[variant];
   }
-
   const lancedb = await loadLanceDb(logger);
   if (!lancedb) return { skipped: true, reason: 'missing dependency' };
 
@@ -205,138 +113,128 @@ export async function writeLanceDbIndex({
   const dir = target.dir;
   const metaPath = target.metaPath;
 
-  try {
-    if (fsSync.existsSync(dir)) {
-      if (TRACE_ARTIFACT_IO) {
-        logger.log(`[embeddings] ${label || variant}: deleting existing LanceDB dir ${dir}`);
-      }
-      await fs.rm(dir, { recursive: true, force: true });
-      if (TRACE_ARTIFACT_IO) {
-        logger.log(`[embeddings] ${label || variant}: deleted LanceDB dir ${dir}`);
-      }
-    }
-  } catch {}
-
   const connect = lancedb.connect || lancedb.default?.connect;
   if (typeof connect !== 'function') {
     return { skipped: true, reason: 'invalid module' };
   }
 
-  const db = await connect(dir);
-  const tableName = resolvedConfig.table;
-  const idColumn = resolvedConfig.idColumn;
-  const embeddingColumn = resolvedConfig.embeddingColumn;
-  const batchSize = Math.max(1, Math.floor(resolvedConfig.batchSize || 1024));
-
-  let table = null;
+  await fs.mkdir(indexDir, { recursive: true });
+  await recoverLanceDbReplacement({ dir, metaPath });
+  const publicationId = randomUUID();
+  const stageRoot = path.join(indexDir, `.lancedb-staging-${publicationId}`);
+  await fs.mkdir(stageRoot);
+  const stagedDir = path.join(stageRoot, path.basename(dir));
+  const stagedMetaPath = path.join(stageRoot, path.basename(metaPath));
+  let primaryError = null;
   try {
-    if (vectorsSource.rows && typeof vectorsSource.rows[Symbol.asyncIterator] === 'function') {
-      let docId = 0;
-      let firstBatch = [];
-      let batch = [];
-      for await (const entry of vectorsSource.rows) {
-        const vec = (entry && typeof entry === 'object' && !Array.isArray(entry))
-          ? (entry.vector ?? entry.values ?? null)
-          : entry;
-        if (vec && typeof vec.length === 'number') {
-          const floatVec = dequantizeUint8ToFloat32(
-            vec,
-            quantization?.minVal,
-            quantization?.maxVal,
-            quantization?.levels
-          );
-          if (floatVec) {
-            if (normalize !== false) {
-              normalizeEmbeddingVectorInPlace(floatVec);
-            }
-            batch.push({
-              [idColumn]: docId,
-              [embeddingColumn]: Array.from(floatVec)
-            });
-          }
+    const db = await connect(stagedDir);
+    const tableName = resolvedConfig.table;
+    const idColumn = resolvedConfig.idColumn;
+    const embeddingColumn = resolvedConfig.embeddingColumn;
+    const batchSize = Math.max(1, Math.floor(resolvedConfig.batchSize || 1024));
+
+    let table = null;
+    let writtenCount = 0;
+    let actualCount = 0;
+    let buildError = null;
+    try {
+      const { createLanceVectorContract } = await import('./lancedb-arrow.js');
+      const contract = createLanceVectorContract({ dims, idColumn, embeddingColumn,
+        batchSize, quantization, normalize });
+      const flush = async () => {
+        const data = contract.take();
+        if (!data) return;
+        try {
+          if (!table) table = await db.createTable(tableName, data, { mode: 'overwrite', schema: contract.schema });
+          else await table.add(data);
+          if (!table) throw new Error('LanceDB could not create a nonempty table.');
+          writtenCount += data.numRows;
+        } finally { contract.release(); }
+      };
+      const append = async (docId, vector) => {
+        throwIfAborted(signal);
+        // Absent channels retain their document-ID hole. Present malformed
+        // vectors fail the staged build instead of silently changing schema.
+        if (vector == null || vector.length === 0) return;
+        contract.append(docId, vector);
+        if (contract.size === contract.capacity) await flush();
+      };
+      if (vectorsSource.rows && typeof vectorsSource.rows[Symbol.asyncIterator] === 'function') {
+        let docId = 0;
+        for await (const entry of vectorsSource.rows) {
+          const vector = entry && typeof entry === 'object' && !Array.isArray(entry) && !ArrayBuffer.isView(entry)
+            ? (entry.vector ?? entry.values ?? null) : entry;
+          await append(docId++, vector);
         }
-        docId += 1;
-        if (batch.length >= batchSize) {
-          if (!table) {
-            firstBatch = batch;
-            table = await createTable(db, tableName, firstBatch);
-            if (!table && typeof db.openTable === 'function') {
-              table = await db.openTable(tableName);
-              if (firstBatch.length) await addRows(table, firstBatch);
-            }
-          } else if (batch.length) {
-            await addRows(table, batch);
-          }
-          batch = [];
-        }
+      } else {
+        for (let docId = 0; docId < vectorsSource.vectors.length; docId++) await append(docId, vectorsSource.vectors[docId]);
       }
-      if (!table) {
-        firstBatch = batch;
-        table = await createTable(db, tableName, firstBatch);
-        if (!table && typeof db.openTable === 'function') {
-          table = await db.openTable(tableName);
-          if (firstBatch.length) await addRows(table, firstBatch);
-        }
-      } else if (batch.length) {
-        await addRows(table, batch);
+      await flush();
+      if (table) contract.assertSchema(await table.schema());
+      if (!writtenCount) return { skipped: true, reason: 'empty', count: 0, rowCount: vectorsSource.count };
+      actualCount = table ? await table.countRows() : 0;
+      if (actualCount !== writtenCount) throw new Error(`LanceDB insert count mismatch (${actualCount} of ${writtenCount}).`);
+    } catch (error) {
+      buildError = error;
+      throw error;
+    } finally {
+      const closeErrors = [];
+      for (const resource of [table, db]) {
+        try { await resource?.close?.(); } catch (error) { closeErrors.push(error); }
       }
-    } else {
-      const resolvedVectors = vectorsSource.vectors;
-      const firstBatch = buildBatch(
-        resolvedVectors,
-        0,
-        Math.min(batchSize, resolvedVectors.length),
-        idColumn,
-        embeddingColumn,
-        quantization,
-        normalize
-      );
-      table = await createTable(db, tableName, firstBatch);
-      if (!table && typeof db.openTable === 'function') {
-        table = await db.openTable(tableName);
-        if (firstBatch.length) await addRows(table, firstBatch);
-      }
-      for (let start = batchSize; start < resolvedVectors.length; start += batchSize) {
-        const rows = buildBatch(
-          resolvedVectors,
-          start,
-          Math.min(start + batchSize, resolvedVectors.length),
-          idColumn,
-          embeddingColumn,
-          quantization,
-          normalize
-        );
-        if (rows.length) {
-          await addRows(table, rows);
-        }
-      }
+      if (closeErrors.length) throw new AggregateError(buildError ? [buildError, ...closeErrors] : closeErrors,
+        'LanceDB writer failed to close native resources.', { cause: buildError || closeErrors[0] });
     }
+
+    const nativePayloadInventory = await inventoryBackendPayload({ dir: stagedDir, signal });
+    const meta = {
+      version: 1,
+      generatedAt: new Date().toISOString(),
+      model: modelId || null,
+      dims: Number.isFinite(Number(dims)) ? Number(dims) : null,
+      count: writtenCount,
+      expectedCount: writtenCount,
+      rowCount: vectorsSource.count,
+      metric: resolvedConfig.metric,
+      table: tableName,
+      embeddingColumn,
+      idColumn,
+      scale: Number.isFinite(Number(scale)) ? Number(scale) : undefined,
+      minVal: Number.isFinite(Number(quantization?.minVal)) ? Number(quantization.minVal) : undefined,
+      maxVal: Number.isFinite(Number(quantization?.maxVal)) ? Number(quantization.maxVal) : undefined,
+      levels: Number.isFinite(Number(quantization?.levels)) ? Number(quantization.levels) : undefined,
+      quantizationVersion: quantization.version,
+      extensions: { lancePublicationId: publicationId,
+        nativeBuildKey: buildNativeBackendReuseKey({ backend: 'lancedb', config: resolvedConfig, normalize, dims, modelId, quantization, scale }),
+        ...(nativePayloadInventory ? { nativePayloadInventory } : {}) }
+    };
+    assertLanceDbPayload(stagedDir, { table: tableName, count: writtenCount });
+    throwIfAborted(signal);
+    await writeJsonObjectFile(stagedMetaPath, { fields: meta, atomic: true });
+    const publication = await publishLanceDbReplacement({ dir, metaPath, stageRoot, stagedMetaPath, id: publicationId });
+    if (publication.cleanupError) logger.warn(`[embeddings] LanceDB published; cleanup pending at ${publication.recoveryPath}: ${publication.cleanupError}`);
+
+    if (emitOutput) {
+      const targetLabel = label || variant;
+      logger.log(`[embeddings] ${targetLabel}: wrote LanceDB table (${writtenCount} vectors).`);
+    }
+    return { skipped: false, count: writtenCount, ...(publication.cleanupError ? { publication } : {}) };
+  } catch (error) {
+    primaryError = error;
+    throw error;
   } finally {
-    if (db?.close) {
-      await db.close();
+    let retainedForRecovery = false;
+    try {
+      const journal = JSON.parse((await readContainedFile(indexDir, `${metaPath}.publication.json`, { maxBytes: 65536 })).toString('utf8'));
+      retainedForRecovery = journal.stageRoot === path.basename(stageRoot);
+    } catch (error) { retainedForRecovery = error.code !== 'ENOENT'; }
+    if (!retainedForRecovery) {
+      try { await fs.rm(stageRoot, { recursive: true, force: true }); }
+      catch (cleanupError) {
+        if (!primaryError) throw cleanupError;
+        throw new AggregateError([primaryError, cleanupError],
+          `LanceDB build failed; staging cleanup retained at ${stageRoot}`, { cause: primaryError });
+      }
     }
   }
-
-  const meta = {
-    version: 1,
-    generatedAt: new Date().toISOString(),
-    model: modelId || null,
-    dims: Number.isFinite(Number(dims)) ? Number(dims) : null,
-    count: vectorsSource.count,
-    metric: resolvedConfig.metric,
-    table: tableName,
-    embeddingColumn,
-    idColumn,
-    scale: Number.isFinite(Number(scale)) ? Number(scale) : undefined,
-    minVal: Number.isFinite(Number(quantization?.minVal)) ? Number(quantization.minVal) : undefined,
-    maxVal: Number.isFinite(Number(quantization?.maxVal)) ? Number(quantization.maxVal) : undefined,
-    levels: Number.isFinite(Number(quantization?.levels)) ? Number(quantization.levels) : undefined
-  };
-  await writeJsonObjectFile(metaPath, { fields: meta, atomic: true });
-
-  if (emitOutput) {
-    const targetLabel = label || variant;
-    logger.log(`[embeddings] ${targetLabel}: wrote LanceDB table (${vectorsSource.count} vectors).`);
-  }
-  return { skipped: false, count: vectorsSource.count };
 }

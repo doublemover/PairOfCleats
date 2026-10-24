@@ -1,15 +1,19 @@
 import { randomUUID } from 'node:crypto';
+import { attachSemanticSourceReferences } from './source-references.js';
 import { semanticHash, canonicalSemanticJson } from '../index/semantic/identity.js';
 import { assertSemanticFind } from '../contracts/validators/semantic-find.js';
 import { fingerprintSemanticOperation } from './operation-fingerprint.js';
 import { throwIfAborted } from '../shared/abort.js';
 import { discoverySelector, inspectDiscoveryFact } from './discovery-facts.js';
+import { captureSemanticRequest } from './request-snapshot.js';
+import { SEMANTIC_FIND_REQUEST_SCHEMA } from '../contracts/schemas/semantic-find.js';
+import { stageSemanticPagePublication } from './page-publication.js';
 const fail=(code,message)=>Object.assign(new Error(message),{code});
 export const createSemanticFindService = ({maxRecords=128,maxBytes=65536,maxWorkMs=250,maxContinuations=64,ttlMs=300000}={}) => {
   const maxima={records:maxRecords,bytes:maxBytes,workMs:maxWorkMs},continuations=new Map();
   for(const [name,hard] of Object.entries({records:128,bytes:65536,workMs:250})) if(!Number.isSafeInteger(maxima[name])||maxima[name]<1||maxima[name]>hard)throw new TypeError('Invalid find limit.');
   if(!Number.isSafeInteger(maxContinuations)||maxContinuations<1||maxContinuations>4096||!Number.isSafeInteger(ttlMs)||ttlMs<1||ttlMs>86400000)throw new TypeError('Invalid continuation bounds.');
-  return async ({store,request,signal}) => {
+  const find = async ({store,request,signal}) => {
     assertSemanticFind('request',request);throwIfAborted(signal);
     if(request.repoRoot!==store.repoRoot)throw fail('ERR_SEMANTIC_SCOPE_MISMATCH','Repository scope differs.');
     if(canonicalSemanticJson(request.generation)!==canonicalSemanticJson(store.generation))throw fail('ERR_SEMANTIC_GENERATION_MISMATCH','Generation differs.');
@@ -24,10 +28,23 @@ export const createSemanticFindService = ({maxRecords=128,maxBytes=65536,maxWork
     if(seed===undefined)seed=request.compareTo?await fingerprintSemanticOperation({store,ref:request.compareTo,signal,deadline}):null;
     let done=false,progressed=false;
     const seenCoverage=new Set();
+    const selected = discoverySelector(request.selector);
+    let candidates = null, candidateIndex = 0;
     while(result.records.length<limits.records && (!progressed||performance.now()<deadline)){
-      const targetPage=request.selector.target?await store.getNeighbors(request.selector.target,'upstream',['callTarget','constructTarget'],{offset,limit:1,signal}):null;
-      const selected=discoverySelector(request.selector);
-      const page=targetPage?{...targetPage,refs:targetPage.edges.map(edge=>edge.from)}:await store.findOperations({field:selected.field,value:selected.value},{offset,limit:1,signal});
+      let page;
+      if (request.selector.target) {
+        const targetPage = await store.getNeighbors(request.selector.target, 'upstream', ['callTarget', 'constructTarget'], { offset, limit: 1, signal });
+        page = { ...targetPage, refs: targetPage.edges.map(edge => edge.from) };
+      } else {
+        if (!candidates || candidateIndex >= candidates.refs.length) {
+          candidates = await store.findOperations({ field: selected.field, value: selected.value },
+            { offset, limit: Math.min(32, limits.records), signal });
+          candidateIndex = 0;
+        }
+        const ref = candidates.refs[candidateIndex++];
+        page = ref ? { refs: [ref], offset: candidates.offset - candidates.refs.length + candidateIndex,
+          done: candidates.done && candidateIndex === candidates.refs.length } : candidates;
+      }
       if(!page.refs.length){offset=page.offset;done=page.done;progressed=true;if(done)break;continue;}
       const ref=page.refs[0],[record]=await store.getRecords([ref],['span','scope','data'],{signal});
       if(!record)throw fail('ERR_SEMANTIC_INTEGRITY','Operation index refers to an absent node.');
@@ -57,7 +74,23 @@ export const createSemanticFindService = ({maxRecords=128,maxBytes=65536,maxWork
     const complete=result.coverage.extraction.length>0&&result.coverage.extraction.every(row=>row.state==='complete')&&result.coverage.analysis.length>0&&result.coverage.analysis.every(row=>row.state==='complete');
     if(!complete)result.warnings.push('Requested analysis coverage is incomplete or unavailable; absence of candidates is not proof of absence.');
     result.status=done&&complete?'complete':'partial';
-    if(!done){if(!progressed)throw fail('ERR_SEMANTIC_OUTPUT_LIMIT','Selected operation evidence exceeds output allowance.');const now=Date.now();for(const [token,saved]of continuations)if(saved.expires<=now)continuations.delete(token);result.cursor=randomUUID();continuations.set(result.cursor,{key,offset,seed,expires:now+ttlMs});while(continuations.size>maxContinuations)continuations.delete(continuations.keys().next().value);result.frontier.push({reason:'response_budget',remainingCount:1});}
-    return assertSemanticFind('result',result);
+    await attachSemanticSourceReferences({ store, result, signal, began: deadline - limits.workMs, limits });
+    let pendingContinuation = null;
+    if(!done){if(!progressed)throw fail('ERR_SEMANTIC_OUTPUT_LIMIT','Selected operation evidence exceeds output allowance.');result.cursor=randomUUID();pendingContinuation={key,offset,seed};result.frontier.push({reason:'response_budget',remainingCount:1});}
+    if(Buffer.byteLength(JSON.stringify(result))>limits.bytes)throw fail('ERR_SEMANTIC_OUTPUT_LIMIT','Semantic response exceeds output budget.');
+    assertSemanticFind('result',result);
+    return {result,pendingContinuation};
+  };
+  // A page owns a bounded set of verified readers; cursors retain only facts.
+  // A fresh page/request must verify the current source content again.
+  return async args => {
+    const captured = { ...args, request: captureSemanticRequest(args.request, SEMANTIC_FIND_REQUEST_SCHEMA) };
+    const {result,pendingContinuation}=await (typeof captured.store?.withReadScope === 'function'
+      ? captured.store.withReadScope(() => find(captured)) : find(captured));
+    throwIfAborted(captured.signal);
+    return stageSemanticPagePublication(result,()=>{
+      throwIfAborted(captured.signal);
+      if(pendingContinuation){const now=Date.now();for(const [token,saved]of continuations)if(saved.expires<=now)continuations.delete(token);continuations.set(result.cursor,{...pendingContinuation,expires:now+ttlMs});while(continuations.size>maxContinuations)continuations.delete(continuations.keys().next().value);}
+    },captured.deferPublication);
   };
 };

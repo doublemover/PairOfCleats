@@ -6,6 +6,8 @@ import {
 import { getEnvConfig } from '../shared/env/runtime.js';
 import { createWarnOnce } from '../shared/logging/warn-once.js';
 import { resolveEmbeddingModelProfile } from '../shared/embedding-model-profile.js';
+import { assertEmbeddingArtifactCompatibility } from '../shared/embedding-artifact-identity.js';
+import { observeEmbeddingOwnership, preserveEmbeddingCleanupFailure } from '../shared/embedding-cache-lifetime.js';
 
 const warnOnce = createWarnOnce();
 
@@ -73,12 +75,27 @@ export async function getQueryEmbedding({
       kind: 'query',
       formatting: resolvedInputFormatting
     });
+    let primaryError, primaryCaught = false;
     try {
       const embedding = await adapter.embedOne(formattedText);
       if (!embedding || !embedding.length) return null;
+      const execution = adapter.executionInfo();
+      const requestedProvider = execution.requestedProvider || provider;
+      if (execution.provider !== requestedProvider && !resolvedUseStub) {
+        throw new Error(`Query embedding provider changed from ${requestedProvider} to ${execution.provider}; rebuild the dense index with the effective provider.`);
+      }
+      if (modelArtifact && !resolvedUseStub) {
+        assertEmbeddingArtifactCompatibility(modelArtifact, execution.modelArtifact);
+      }
       return embedding;
-    } finally { await adapter.dispose?.(); }
+    } catch (error) { primaryCaught = true; primaryError = error; throw error; }
+    finally {
+      try { await adapter.dispose?.(); }
+      catch (cleanup) { throw primaryCaught ? preserveEmbeddingCleanupFailure(primaryError, cleanup) : cleanup; }
+    }
   } catch (err) {
+    const observe = observeEmbeddingOwnership(err);
+    if (observe && !observe()) throw err;
     warnOnce(`[embeddings] Query embedder unavailable; skipping ANN. ${err?.message || err}`);
     return null;
   }

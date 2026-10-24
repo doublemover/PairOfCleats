@@ -1,7 +1,13 @@
 import { sha1 } from '../../shared/hash.js';
 import { stableStringify } from '../../shared/stable-json.js';
+import { LSP_STRUCTURED_METHODS, LSP_HIERARCHY_REQUEST_CLASSES } from '../../integrations/tooling/providers/lsp/observation-methods.js';
+import { validateProviderDeclaration } from './provider-declaration.js';
 
 export const normalizeProviderId = (value) => String(value || '').trim().toLowerCase();
+
+/** Persistent semantic answers require an immutable build identity. */
+export const resolveRequestCacheGeneration = (ctx) => typeof ctx?.buildId === 'string' && ctx.buildId.length
+  ? JSON.stringify([ctx.repoRoot ?? null, ctx.buildRoot ?? null, ctx.mode ?? null, ctx.buildId]) : null;
 
 export const PREFLIGHT_POLICY = Object.freeze({
   REQUIRED: 'required',
@@ -25,7 +31,8 @@ const PROVIDER_REQUEST_CLASS_METHODS = Object.freeze({
   inlayHints: 'textDocument/inlayHint',
   definition: 'textDocument/definition',
   typeDefinition: 'textDocument/typeDefinition',
-  references: 'textDocument/references'
+  references: 'textDocument/references',
+  ...Object.fromEntries(LSP_HIERARCHY_REQUEST_CLASSES.map(key => [key, LSP_STRUCTURED_METHODS[key]]))
 });
 
 const normalizeRuntimeRequirement = (entry) => {
@@ -421,6 +428,12 @@ export const validateToolingProvider = (provider) => {
   if (!normalizeProviderId(provider.id)) return 'provider.id missing';
   if (!provider.version) return 'provider.version missing';
   if (!provider.capabilities || typeof provider.capabilities !== 'object') return 'provider.capabilities missing';
+  if (provider.profileContractVersion !== undefined && provider.profileContractVersion !== 1) return 'provider.profileContractVersion unsupported';
+  if (provider.declaration !== undefined) {
+    const declaration = validateProviderDeclaration(provider.declaration);
+    if (!declaration.ok) return `provider.declaration invalid: ${JSON.stringify(declaration.errors)}`;
+    if (provider.declaration.providerId !== provider.id || provider.declaration.adapterVersion !== provider.version) return 'provider.declaration identity mismatch';
+  }
   if (provider.languages && !Array.isArray(provider.languages)) return 'provider.languages must be array';
   if (provider.kinds && !Array.isArray(provider.kinds)) return 'provider.kinds must be array';
   if (provider.preflightPolicy) {

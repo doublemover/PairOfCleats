@@ -36,6 +36,20 @@ assert.equal(graph.edges.length,1); assert.equal(graph.edges[0].from,'file:b');
 assert.equal(graph.coverage.omittedRelations,1);
 const search = projectOutput({code:[{id:'same',score:1,file:'a'},{id:'same',score:.8,file:'b'}]});
 assert.equal(search.nodes.length,2); assert.equal(search.nodes[1].detail.originalRank,2);
+for (const name of ['chunk_meta', 'symbols']) {
+  const rows = [{ name: 'constructor', file: 'a.js' }, { name: 'constructor', file: 'b.js' }];
+  const envelope = { kind: 'artifact-page', name, generation: 'build-one', ordinal: 200, rows };
+  const projected = projectOutput(envelope);
+  assert.equal(projected.nodes.length, 2, 'duplicate labels remain independently selectable');
+  assert.notEqual(projected.nodes[0].id, projected.nodes[1].id);
+  assert.deepEqual(projected.nodes.map(node => node.detail), rows);
+  assert.deepEqual(projected.nodes.map(node => node.label), ['constructor', 'constructor']);
+  assert.equal(projected.coverage.omittedEntities, 0);
+  assert.notEqual(projectOutput({ ...envelope, ordinal: 202 }).nodes[0].id, projected.nodes[0].id);
+  assert.notEqual(projectOutput({ ...envelope, generation: 'build-two' }).nodes[0].id, projected.nodes[0].id);
+}
+assert.equal(projectOutput({ kind: 'artifact-catalog', artifacts: [{ name: 'chunk_meta' }] }).nodes[0].id,
+  'artifact:chunk_meta', 'catalog artifact identity remains the logical artifact name');
 assert.equal(detectFamily({arbitrary:[]}), 'unknown');
 for (const family of ['enrichment','runtime','risk','impact','architecture','tests','index','artifacts']) {
   const result = projectOutput({tasks:[],observations:[],flows:[],impacted:[],violations:[],suggestions:[],partitions:[],artifacts:[]},{family});

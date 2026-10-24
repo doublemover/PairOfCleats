@@ -25,8 +25,9 @@ export const resolveManagedGoSdk = (toolingRoot, targetOptions = {}) => {
   const target = resolveGoSdkTarget(targetOptions);
   if (!toolingRoot || !target) return null;
   try {
-    const physicalTooling = fs.realpathSync(toolingRoot);
-    const cache = path.join(toolingRoot, 'sdk', 'go');
+    const absoluteTooling = path.resolve(toolingRoot);
+    const physicalTooling = fs.realpathSync(absoluteTooling);
+    const cache = path.join(absoluteTooling, 'sdk', 'go');
     if (!within(physicalTooling, fs.realpathSync(cache))) return null;
     const receipt = JSON.parse(readManagedGoText(path.join(cache, 'current.json')));
     if (receipt?.schemaVersion !== 1 || receipt.indexUrl !== GO_RELEASE_INDEX_URL
@@ -62,17 +63,20 @@ export const resolveManagedGoSdk = (toolingRoot, targetOptions = {}) => {
 };
 
 export const applyManagedGoEnvironment = (baseEnv, { toolingRoot, sdk = null } = {}) => {
-  const managed = sdk || resolveManagedGoSdk(toolingRoot);
   const env = { ...(baseEnv || {}) };
+  // Automatic discovery cannot override the launcher's SDK pin. An explicit
+  // sdk argument still binds its own matching executable, PATH and GOROOT.
+  if (!sdk && (String(env.GOROOT || '').trim() || /^go\d/u.test(String(env.GOTOOLCHAIN || '').trim()))) return env;
+  const managed = sdk || resolveManagedGoSdk(toolingRoot);
   if (!managed) return env;
   const pathInfo = normalizeEnvPathKeys(env);
-  env[pathInfo.key] = [managed.binDir, resolveEnvPath(env)].filter(Boolean).join(path.delimiter);
-  env.GOROOT = managed.goRoot;
+  env[pathInfo.key] = [path.resolve(managed.binDir), resolveEnvPath(env)].filter(Boolean).join(path.delimiter);
+  env.GOROOT = path.resolve(managed.goRoot);
   // Keep preparation serial and forbid an implicit, unverified toolchain download.
   env.GOMAXPROCS = env.GOMAXPROCS || '1';
   env.GOTOOLCHAIN = env.GOTOOLCHAIN || 'local';
-  env.GOPATH = env.GOPATH || path.join(toolingRoot, 'go-cache', 'modules');
-  env.GOCACHE = env.GOCACHE || path.join(toolingRoot, 'go-cache', 'build');
+  env.GOPATH = env.GOPATH || path.resolve(toolingRoot, 'go-cache', 'modules');
+  env.GOCACHE = env.GOCACHE || path.resolve(toolingRoot, 'go-cache', 'build');
   if (!/(?:^|\s)-p(?:=|\s)/.test(env.GOFLAGS || '')) env.GOFLAGS = `${env.GOFLAGS || ''} -p=1`.trim();
   return env;
 };

@@ -1,5 +1,6 @@
 import { SPARSE_PROVIDER_IDS } from '../types.js';
 
+/** @returns {import('../types.js').SparseProvider<import('../types.js').SparseSearchParams,import('../types.js').SparseRankedResult>} */
 export function createJsBm25Provider({ rankBM25, rankBM25Fields }) {
   return {
     id: SPARSE_PROVIDER_IDS.JS_BM25,
@@ -12,23 +13,20 @@ export function createJsBm25Provider({ rankBM25, rankBM25Fields }) {
       fieldWeights,
       k1,
       b,
-      tokenIndexOverride
+      tokenIndexOverride,
+      includeZeroScores = false,
+      work = null
     }) => {
-      const fieldWeightsEnabled = fieldWeights
-        && Object.values(fieldWeights).some((value) => (
-          Number.isFinite(Number(value)) && Number(value) > 0
-        ));
-      const hasWeightedFields = fieldWeightsEnabled && Object.entries(fieldWeights).some(([field, weight]) => (
-        Number(weight) > 0 && Array.isArray(idx.fieldPostings?.fields?.[field]?.vocab)
-        && idx.fieldPostings.fields[field].vocab.length > 0
-      ));
-      const hits = hasWeightedFields
+      const fieldPolicyConfigured = fieldWeights && typeof fieldWeights === 'object';
+      const hits = fieldPolicyConfigured
         ? rankBM25Fields({
           idx,
           tokens: queryTokens,
           topN,
           fieldWeights,
           tokenIndexOverride,
+          includeZeroScores,
+          work,
           allowedIdx: allowedIds,
           k1,
           b
@@ -38,11 +36,15 @@ export function createJsBm25Provider({ rankBM25, rankBM25Fields }) {
           tokens: queryTokens,
           topN,
           tokenIndexOverride,
+          includeZeroScores,
+          work,
           allowedIdx: allowedIds,
           k1,
           b
         });
-      return { hits, type: hasWeightedFields ? 'bm25-fielded' : 'bm25' };
+      const hasFieldPostings = idx?.fieldPostings?.fields
+        && Object.keys(idx.fieldPostings.fields).length > 0;
+      return { hits, type: fieldPolicyConfigured && hasFieldPostings ? 'bm25-fielded' : 'bm25' };
     }
   };
 }

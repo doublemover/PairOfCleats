@@ -52,6 +52,13 @@ export const ARCHITECTURE_REPORT_SCHEMA = {
       }
     },
     violations: { type: 'array', items: architectureViolationSchema },
+    summary: {
+      type: 'object', required: ['detectedViolations', 'retainedViolations', 'omittedViolations', 'edgesExamined', 'complete'],
+      properties: {
+        detectedViolations: { type: 'integer', minimum: 0 }, retainedViolations: { type: 'integer', minimum: 0 },
+        omittedViolations: { type: 'integer', minimum: 0 }, edgesExamined: { type: 'integer', minimum: 0 }, complete: { type: 'boolean' }
+      }, additionalProperties: false
+    },
     truncation: { type: ['array', 'null'], items: truncationRecordSchema },
     warnings: { type: ['array', 'null'], items: warningRecordSchema }
   },

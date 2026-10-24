@@ -1,4 +1,5 @@
 import { buildSemanticContextSection } from '../../context-pack/semantic.js';
+import { enforceContextPackResponseBudget } from '../../context-pack/response-budget.js';
 import { attachSemanticContextSection } from '../../context-pack/assemble/finalize.js';
 import path from 'node:path';
 import { createCli } from '../../shared/cli.js';
@@ -22,6 +23,8 @@ import { getRepoRoot } from '../../shared/repo-paths.js';
 import { loadWorkspaceConfig } from '../../workspace/config.js';
 import { toRealPathSync } from '../../workspace/identity.js';
 import { selectWorkspaceRepos } from '../../retrieval/federation/select.js';
+import { throwIfAborted } from '../../shared/abort.js';
+import { resolveContextTaskPolicy } from '../../context-pack/task-policy.js';
 
 const DEFAULT_MAX_FEDERATED_CONTEXT_PACK_REPOS = 4;
 const MAX_FEDERATED_CONTEXT_PACK_REPOS = 16;
@@ -314,7 +317,8 @@ const mergeFederatedRiskPayloads = ({ basePayload, repoResults, workspaceConfig,
   };
 };
 
-async function buildSingleRepoCompositeContextPackPayload(input = {}) {
+async function buildSingleRepoCompositeContextPackPayload(input = {}, context = {}) {
+  throwIfAborted(context.signal);
   const repoRoot = getRepoRoot(input.repoRoot || null, process.cwd());
   if (!input.seed) {
     throw createContextPackRequestError('ERR_CONTEXT_PACK_INVALID_REQUEST', 'Missing seed.', 400);
@@ -345,7 +349,8 @@ async function buildSingleRepoCompositeContextPackPayload(input = {}) {
     repoRoot,
     indexDir,
     strict: true,
-    includeChunkMeta: true
+    includeChunkMeta: true,
+    signal: context.signal
   });
   const chunkMeta = graphInputs.chunkMeta;
   const chunkIndex = buildChunkIndex(chunkMeta, { repoRoot });
@@ -373,7 +378,9 @@ async function buildSingleRepoCompositeContextPackPayload(input = {}) {
     selection: graphList,
     strict: true,
     graphInputs,
-    includeGraphIndex: input.includeGraph !== false
+    includeGraphIndex: input.includeGraph !== false,
+    cacheEnabled: input.taskPolicy?.task !== 'edit-safe',
+    signal: context.signal
   });
 
   let payload = assembleCompositeContextPack({
@@ -388,11 +395,14 @@ async function buildSingleRepoCompositeContextPackPayload(input = {}) {
     includeRiskPartialFlows: input.includeRiskPartialFlows === true,
     riskStrict: input.strictRisk === true,
     strictEvidence: input.strictEvidence === true,
+    taskPolicy: input.taskPolicy,
+    signal: context.signal,
     riskFilters,
     includeImports: input.includeImports !== false,
     includeUsages: input.includeUsages !== false,
     includeCallersCallees: input.includeCallersCallees !== false,
     includePaths: input.includePaths === true,
+    pathSemantics: input.pathSemantics,
     depth: Math.max(0, Math.floor(Number(input.hops))),
     maxBytes: normalizeOptionalNumber(input.maxBytes),
     maxTokens: normalizeOptionalNumber(input.maxTokens),
@@ -405,7 +415,7 @@ async function buildSingleRepoCompositeContextPackPayload(input = {}) {
   });
 
   if (input.includeSemantic === true) payload = attachSemanticContextSection(payload,
-    await buildSemanticContextSection({ repoRoot, indexDir, primary: payload.primary, userConfig }));
+    await buildSemanticContextSection({ repoRoot, indexDir, primary: payload.primary, userConfig, signal: context.signal }));
 
   const validation = validateCompositeContextPack(payload);
   if (!validation.ok) {
@@ -420,6 +430,8 @@ async function buildSingleRepoCompositeContextPackPayload(input = {}) {
 }
 
 export async function buildFederatedCompositeContextPackPayload(input = {}, context = {}) {
+  input = { ...input, taskPolicy: resolveContextTaskPolicy(input.taskPolicy) };
+  context = { ...context };
   const workspaceConfig = resolveWorkspaceConfigForContextPack(input, context);
   if (input.workspaceId && input.workspaceId !== workspaceConfig.repoSetId) {
     throw createContextPackRequestError(
@@ -465,7 +477,7 @@ export async function buildFederatedCompositeContextPackPayload(input = {}, cont
     const repoPayload = await buildSingleRepoCompositeContextPackPayload({
       ...input,
       repoRoot: repo.repoRootCanonical
-    });
+    }, context);
     repoResults.push({
       repo,
       payload: {
@@ -525,10 +537,12 @@ export async function buildFederatedCompositeContextPackPayload(input = {}, cont
  *   hops:number,
  *   includeGraph?:boolean,
  *   includeTypes?:boolean,
+ *   includeSemantic?:boolean,
  *   includeRisk?:boolean,
  *   includeRiskPartialFlows?:boolean,
  *   strictRisk?:boolean,
  *   strictEvidence?:boolean,
+ *   taskPolicy?:{schemaVersion:1,task:'edit-safe'|'exploration',granularity:'file'|'function'|'excerpt',wholeFileFallback?:boolean},
  *   riskFilters?:object|null,
  *   includeImports?:boolean,
  *   includeUsages?:boolean,
@@ -546,14 +560,21 @@ export async function buildFederatedCompositeContextPackPayload(input = {}, cont
  *   maxWorkUnits?:number|null,
  *   maxWallClockMs?:number|null
  * }} [input]
- * @param {{trustedWorkspaceConfig?:boolean}} [context]
+ * @param {{trustedWorkspaceConfig?:boolean, signal?:AbortSignal}} [context]
  * @returns {Promise<object>}
  */
 export async function buildCompositeContextPackPayload(input = {}, context = {}) {
-  if (shouldUseFederatedContextPack(input)) {
-    return await buildFederatedCompositeContextPackPayload(input, context);
-  }
-  return await buildSingleRepoCompositeContextPackPayload(input);
+  context = { ...context };
+  throwIfAborted(context.signal);
+  input = { ...input, taskPolicy: resolveContextTaskPolicy(input.taskPolicy) };
+  const payload = shouldUseFederatedContextPack(input)
+    ? await buildFederatedCompositeContextPackPayload(input, context)
+    : await buildSingleRepoCompositeContextPackPayload(input, context);
+  throwIfAborted(context.signal);
+  const bounded = enforceContextPackResponseBudget(payload, input);
+  const validation = validateCompositeContextPack(bounded);
+  if (!validation.ok) throw createContextPackRequestError('ERR_CONTEXT_PACK_SCHEMA', validation.errors.join('; '), 500);
+  return bounded;
 }
 
 /**
@@ -577,15 +598,14 @@ export async function runContextPackCli(rawArgs = process.argv.slice(2)) {
   const format = resolveFormat(argv);
 
   try {
-    const payload = await buildCompositeContextPackPayload(
-      buildCliContextPackRequestInput(argv, { repoRoot })
-    );
+    const request = buildCliContextPackRequestInput(argv, { repoRoot });
+    const payload = await buildCompositeContextPackPayload(request);
 
     return emitCliOutput({
       format,
       payload,
       renderMarkdown: renderCompositeContextPack,
-      renderJson: renderCompositeContextPackJson
+      renderJson: value => renderCompositeContextPackJson(value, request)
     });
   } catch (err) {
     const message = err?.message || String(err);

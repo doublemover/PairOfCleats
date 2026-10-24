@@ -50,3 +50,21 @@ node .\tools\ci\bench-language-rollout-gate.js `
 ```
 
 The gate reads the rollout plan, loads the referenced control-slice and full-corpus reports, computes before/after diffs, and fails when required rollout evidence is missing.
+
+All four comparison inputs must satisfy the current report projection in
+`src/contracts/bench-comparison-input.js`: supported verdict version, timestamp,
+at least one evaluated repository, nonnegative safe integer counts with matching
+category/result-class totals, retained-crash evidence, and explicit diagnostics
+parity status/counts. Empty, unrelated, unsupported or internally inconsistent
+reports cannot become healthy summaries. Informational mode records these
+failures with warning status; `--enforce` fails. A policy-load failure that makes
+repository counts inconsistent is not admissible comparison evidence.
+
+Failed or unavailable operations may omit timing fields or report null, including
+an absent overall summary/build timing object and reports without query-wall
+measurements. Unknown endpoints yield null deltas. Only finite nonnegative numeric
+measurements participate; null, empty strings, booleans and numeric strings do not
+supply zero measurements. This projection validates supplied evidence; it does
+not execute benchmarks or prove their provenance, workload parity or performance.
+The new input/unknown-timing controls are authored and unvalidated; execution is
+deferred with the current development pass.

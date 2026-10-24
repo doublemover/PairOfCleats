@@ -1,0 +1,11 @@
+# Compiler reference evaluation
+
+The compiler CFG resolves simple assignment targets through parentheses and erased TypeScript expression wrappers. The actual lexical or property location owns the write. Receiver and computed-key expressions run once before the right-hand side; the selected property's prior value is not read. Compound and logical assignment and increment/decrement retain their required prior-value read while writing the same unwrapped location.
+
+Delete evaluates the selected reference without reading its stored property value. Receiver properties still produce their own reads. A contiguous optional chain preserves its nullish guard, skips computed keys and the deletion attempt on that branch, and keeps the deletion's exceptional route on the active branch. Parentheses end the existing optional-chain region. Non-reference operands, including comma expressions and calls, still evaluate normally.
+
+The existing runtime-operation dependency owner no longer supplies the deleted property value as an input to the Boolean result. Its unknown result and heap effects remain explicit under `delete_result_and_heap_effects_unresolved`; this repair does not establish descriptor/proxy effects, property removal state, strictness-dependent outcomes, dynamic-key conversion effects, or destructuring completeness. It does not qualify runtime behavior or source-language equivalence.
+
+The reference/value distinction follows the ECMAScript [delete evaluation](https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-delete-operator) and [assignment evaluation](https://tc39.es/ecma262/multipage/ecmascript-language-expressions.html#sec-assignment-operators-runtime-semantics-evaluation) algorithms. The existing shared `cfgFlow` and `valueSlice` producer identities must advance because retained reaching definitions, field reads and value inputs change.
+
+Authored regressions inspect the real CFG, retained reaching definitions and heap writes, and both actual value consumers. They cover wrapped lexical/property writes, compound/logical/update controls, receiver reads, optional-chain routes and non-reference delete operands. All are **UNVALIDATED**. No test, syntax, format, bootstrap, compiler/source execution, native process or benchmark was run.

@@ -6,7 +6,7 @@
 
 Default output path:
 
-- `.c8/coverage-<runId>.json`
+- `.tmp/dev/tests/coverage/coverage-<runId>.json`
 
 Schema contract:
 

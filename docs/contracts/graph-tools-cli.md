@@ -200,12 +200,12 @@ Extract cross-file API contracts for exported symbols using existing artifacts.
 
 ### Command
 ```bash
-pairofcleats api-contracts --repo . --only-exports --format json
+pairofcleats api-contracts --repo . --onlyExports --format json
 ```
 
 ### Optional flags
-- `--only-exports` (boolean)
-- `--fail-on-warn` (boolean; non-zero exit if any warnings)
+- `--onlyExports` (boolean)
+- `--failOnWarn` (boolean; non-zero exit if any warnings)
 - caps:
   - `--maxSymbols <n>`
   - `--maxCallsPerSymbol <n>` (alias: `--maxCalls`)
@@ -214,10 +214,30 @@ pairofcleats api-contracts --repo . --only-exports --format json
   - `--emitArtifact` (boolean; write `api_contracts.jsonl`)
   - `--artifactDir <path>` (optional target dir; defaults to the index dir)
 
+`--maxWarnings` caps retained details, while `--failOnWarn` responds to detected
+violations independently of that cap. Zero details cannot turn a known violation
+into a successful validation; a clean zero-cap report still succeeds.
+`--onlyExports` uses explicit JS/TS symbol export identity, including default and
+aliased local exports. Internal declarations stay excluded. Missing or unknown
+JS/TS identity produces `EXPORT_IDENTITY_UNAVAILABLE`; validation is incomplete
+and `--failOnWarn` fails even when no warning details are retained.
+
+Calls with explicit targets stay attached to those exact declarations. Same-name
+declarations, imported spellings and caller-map buckets cannot retarget a call.
+Unresolved or ambiguous lexical calls are counted separately and never treated
+as definitive arity violations. The report's `callEvidence` records those counts
+and calls omitted by export/symbol/call caps; unresolved details are counts only.
+Observed calls retain `targetChunkUid` and a `join` record with admitted symbol
+and index authority. These are recorded structural targets, not runtime dispatch
+or feasibility proof.
+
 ### Output
 - JSON: `ApiContractsReport` (validated)
 - MD: deterministic ordering by `symbolId`:
-  - per symbol: signature → observed calls → warnings → truncation (if any)
+  - per symbol: signature → observed calls → retained warnings
+  - observed call labels include their recorded target/join qualification
+  - a report-wide summary exposes detected, retained and omitted warning counts
+    when details were dropped; legacy unknown omission counts stay unreported
 
 ---
 
@@ -253,6 +273,12 @@ pairofcleats architecture-check --repo . --rules ./architecture.rules.json --for
 ### Purpose
 Suggest impacted tests based on a changed file list and graph traversal.
 
+Explicit `--test-pattern` globs can select ordinary test candidates of any
+extension, including Python and Go. The existing JS/TS naming policy applies
+when no explicit pattern is supplied. Selection does not prove a file is runnable,
+compatible with a particular framework, or covered by the graph; discovered
+files are never executed automatically.
+
 ### Command
 ```bash
 pairofcleats suggest-tests --repo . --changed src/a.ts --changed src/b.ts --max 50 --format json
@@ -271,3 +297,102 @@ pairofcleats suggest-tests --repo . --changed src/a.ts --changed src/b.ts --max 
 - MD: deterministic:
   - list of suggested tests with rationale + witness path summaries
 
+
+Prepared graph indexes admit CSR independently per family. A family must match
+normalized node IDs and have complete offsets and unique ascending edge rows.
+Rejected or absent CSR is derived from ordinary graph data. Once equivalent CSR
+exists, temporary ordinary outgoing rows are released; metadata and ID tables
+remain available. Bounded fanout counts all qualifying candidates while creating
+edge descriptors only for the admitted prefix. Reverse-CSR setup remains a
+separate cold cost. Sorted edge windows merge through stable heap heads.
+
+Suggest-tests retains one predecessor and distance per discovered node. It ranks
+all lightweight matches before applying the suggestion cap, then reconstructs
+witness paths only for returned graph suggestions. Matched and omitted counts
+still describe the full admitted traversal. Structural tuple keys preserve literal
+delimiters in edges, candidate envelopes and witness paths.
+
+
+### Retained call occurrences and display evidence
+
+`createGraphStore` exposes `readCallSitesPage` and `iterateCallSites` for the
+canonical retained `call_sites` family. This route includes unresolved and
+ambiguous occurrences by source file or caller; candidate targets are never
+presented as definite incoming calls. The pair-evidence map used by neighborhood
+displays remains a derived projection. Normal graph loading streams that map
+without collecting another array of full occurrence payloads. Its existing ID
+lists still scale with resolved evidence; this is not a bounded-memory graph
+index qualification.
+
+The page cursor binds the exact pieces manifest, absolute generation root,
+physical ordering contract and exact filters/direction. Replacing the manifest,
+changing a filter, missing a retained generation, checksum corruption or a
+malformed offset table refuses continuation. Every touched piece is verified on
+the same contained data/offset handles used for hydration, including same-size,
+equal-timestamp edits. Page hydration is bounded to 512 rows, 4 MiB and 4,096
+scanned physical rows; an empty filtered page can therefore carry a continuation.
+A page too small for its next occurrence fails explicitly rather than skipping it.
+Verification still reads the touched piece and validates its offset table; no
+query speedup or bounded verification CPU claim is made.
+
+The first positioned route requires published uncompressed JSONL plus registered
+offsets, counts, byte lengths and SHA-1/SHA-256 checksums. Compressed and legacy
+representations report `ERR_CALL_SITE_PAGING_UNAVAILABLE`; their existing explicit
+compatibility loaders remain available. Cursor portability is not a retention
+lease: callers must keep the existing generation reader/retention ownership alive
+through enumeration. This source-only implementation has authored exact-set,
+multiple-shard, repeated-edge, ambiguity/unresolved, filter mismatch, replacement,
+mutation and cancellation controls; they have not been executed. Complete
+producer-to-public-consumer adoption, compressed paging, durable propagation
+resume and end-to-end qualification for #1348/#1484 remain open.
+
+
+### Complete collected adjacency versus the graph display
+
+The production streaming graph writer also emits `graph_relation_edges` through
+its existing sorted spill/merge and sharded JSONL/offset owners. Each retained
+row is a unique `{schemaVersion: 1, graph, from, to}` adjacency. Raw resolved collection now precedes
+the display node cap; exact sorted comparison performs deduplication before any
+display edge slots are spent. A recursive call is retained. Distinct call
+occurrences and unresolved/ambiguous targets remain in `call_sites`; this compact
+adjacency family does not replace occurrence multiplicity or claim complete
+upstream syntax/resolution coverage.
+
+`createGraphStore.readGraphEdgesPage` and `iterateGraphEdges` use the same pinned
+page reader as call occurrences. They enumerate every retained row, including
+high-degree tails outside the default graph display, with exact graph/from/to or
+node/direction filters. No node acquires an unbounded neighbor-array row in this
+representation. The existing capped `graph_relations` payload remains the display
+projection and advertises its retained-edge scope separately. Its legacy
+pre-materialized producer path has not been qualified as complete retained input.
+
+Graph spill merges now use the existing checkpoint planner with a 32-run fan-in,
+explicit comparator identities and cancellation-aware readers. Original inputs
+and failed checkpoints remain candidate-owned; a failure prevents publication.
+This does not yet qualify durable propagation resume or complete disk-working-set
+accounting for the legacy graph spill owner. Authored controls compare all 123
+unique edges across tiny shards against node/edge/display-byte caps, repeated
+observations, recursion, incoming pages and cancellation. No controls have run;
+public consumer adoption and end-to-end performance
+and interruption acceptance remain required.
+
+
+The private dispatcher bridge is
+`prepareGraphEvidencePage({indexDir, graphInputs?, family, filter?, cursor?, limit?,
+scanRows?, maxPageBytes?, expectedBuildId?, signal?})` in `graph-helpers.js`.
+`family` is exactly `call_sites` or `graph_relation_edges`. The supplied index root
+must be the same immutable root for every continuation; optional preloaded inputs
+must identify that root. A nonempty manifest build ID is required and an explicit
+expected ID must match. The returned envelope includes that generation, the page
+scope/ordering, rows, scanned count, done state and cursor. The adapter reserves
+cursor/envelope space before asking the page owner for rows and checks the entire
+JSON response against its 4 KiB–4 MiB allowance. It does not load chunk metadata,
+CSR, a graph index or complete occurrence arrays. Canonical public CLI/API/MCP
+request/response schemas and dispatch remain separately owned integration work.
+
+Generation/root refusal uses `ERR_RETAINED_EVIDENCE_GENERATION`; full-envelope
+size refusal uses `ERR_RETAINED_EVIDENCE_RESPONSE_BYTES`. Per-family errors retain
+`ERR_CALL_SITE_*` or `ERR_GRAPH_EDGE_*` codes for cursor scope, invalid retained
+inventory, unavailable positioned representation and an individually unfit row.
+All cursor continuations bind the exact manifest as well as build ID: matching a
+build label alone cannot authorize a changed family.

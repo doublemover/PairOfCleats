@@ -614,11 +614,11 @@ export const createSeqLedger = ({ expectedSeqs = [], leaseTimeoutMs = 60000 } = 
     startSeq,
     endSeq,
     totalSeqCount: counters.totalSeqCount,
-    terminalCount: counters.terminalCount,
-    committedCount: counters.committedCount,
-    inFlightCount: counters.inFlightCount,
-    dispatchedCount: counters.dispatchedCount,
-    nextCommitSeq: counters.nextCommitSeq,
+    get terminalCount() { return counters.terminalCount; },
+    get committedCount() { return counters.committedCount; },
+    get inFlightCount() { return counters.inFlightCount; },
+    get dispatchedCount() { return counters.dispatchedCount; },
+    get nextCommitSeq() { return counters.nextCommitSeq; },
     toSlot,
     getState,
     assertLegalTransition,
@@ -640,10 +640,7 @@ export const createSeqLedger = ({ expectedSeqs = [], leaseTimeoutMs = 60000 } = 
  * @returns {string}
  */
 export const resolveShardSubsetId = (workItem) => {
-  const shardId = normalizeOwnershipSegment(
-    String(workItem?.shard?.id || workItem?.shard?.label || 'unknown'),
-    'unknown'
-  );
+  const shardId = JSON.stringify(String(workItem?.shard?.id || workItem?.shard?.label || 'unknown'));
   const partIndex = Number.isFinite(workItem?.partIndex)
     ? Math.max(1, Math.floor(workItem.partIndex))
     : 1;

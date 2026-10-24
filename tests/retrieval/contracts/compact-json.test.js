@@ -1,7 +1,20 @@
 #!/usr/bin/env node
 import path from 'node:path';
+import assert from 'node:assert/strict';
+import { compactHit } from '../../../src/retrieval/cli/render-output.js';
+import { buildRetrievalHitKey } from '../../../src/retrieval/hit-comparison.js';
 import { ensureFixtureIndex } from '../../helpers/fixture-index.js';
 import { runNode } from '../../helpers/run-node.js';
+
+const stableUid = 'ck64:v1:compact-fixture:0000000000000001';
+const artifactHit = { id: 0, file: 'source.js', chunkUid: stableUid };
+const sqliteHit = { id: 17, file: 'source.js', metaV2: { chunkUid: stableUid } };
+assert.equal(compactHit(sqliteHit).chunkUid, stableUid);
+assert.equal(buildRetrievalHitKey(compactHit(artifactHit)), buildRetrievalHitKey(compactHit(sqliteHit)),
+  'compact representation preserves cross-backend identity independently of local ordinals');
+assert.equal(compactHit({ ...sqliteHit, chunkUid: 'authoritative-top-level' }).chunkUid, 'authoritative-top-level');
+assert.equal(compactHit({ id: 0 }).chunkUid, undefined, 'a local ordinal cannot invent stable identity');
+assert.equal(compactHit(sqliteHit).metaV2, undefined, 'compact metadata remains bounded to the public projection');
 
 const { root, fixtureRoot, env } = await ensureFixtureIndex({
   fixtureName: 'sample',

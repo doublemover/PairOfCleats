@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import crypto from 'node:crypto';
 import { createCli } from '../../src/shared/cli.js';
 import { getEnvConfig } from '../../src/shared/env/runtime.js';
 import { resolveEmbeddingInputFormatting } from '../../src/shared/embedding-input-format.js';
@@ -11,8 +10,9 @@ import { hasChunkMetaArtifactsSync } from '../../src/shared/artifact-io/chunk-me
 import { resolveCurrentBuildRoots } from '../../src/shared/indexing/build-pointer.js';
 import { writeJsonFileResolved } from '../../src/shared/json-file.js';
 import { COMPARE_MODELS_OPTIONS } from '../../src/shared/cli-options.js';
-import { resolveAnnSetting, resolveBaseline, resolveCompareModels } from '../../src/experimental/compare/config.js';
+import { resolveAnnSetting, resolveBaseline, resolveCompareModels, resolveCompareModelCacheRoot } from '../../src/experimental/compare/config.js';
 import { summarizeRetrievalHitComparison } from '../../src/retrieval/hit-comparison.js';
+import { resolveRetrievalCorpusIdentity } from '../../src/retrieval/corpus-comparison.js';
 import { readQueryFileSafe, resolveTopNAndLimit, selectQueriesByLimit } from '../shared/query-file-utils.js';
 import { mean, meanNullable } from '../../src/shared/stats.js';
 import { readJsonFileSyncSafe } from '../../src/shared/file-read.js';
@@ -108,24 +108,12 @@ if (!buildIndex && models.length > 1 && configCacheRoot) {
 }
 
 /**
- * Create a stable slug for a model id.
- * @param {string} modelId
- * @returns {string}
- */
-function modelSlug(modelId) {
-  const safe = modelId.replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^_+|_+$/g, '');
-  const hash = crypto.createHash('sha1').update(modelId).digest('hex').slice(0, 8);
-  return `${safe || 'model'}-${hash}`;
-}
-
-/**
  * Resolve the cache root for a specific model comparison run.
  * @param {string} modelId
  * @returns {string}
  */
 function getModelCacheRoot(modelId) {
-  if (configCacheRoot) return configCacheRoot;
-  return path.join(cacheRootBase, 'model-compare', modelSlug(modelId));
+  return resolveCompareModelCacheRoot({ modelId, cacheRootBase, configCacheRoot });
 }
 
 /**
@@ -296,6 +284,7 @@ if (sqliteBackend && buildSqlite) {
 
 const results = selectedQueries.map((query) => ({ query, runs: {}, comparisons: {} }));
 const warnings = [];
+const corpusByModel = new Map();
 
 for (const modelId of models) {
   const modelCacheRoot = getModelCacheRoot(modelId);
@@ -325,6 +314,12 @@ for (const modelId of models) {
     }
   }
 
+  const corpus = {};
+  for (const mode of ['code', 'prose']) {
+    if ((mode === 'code' && !compareCode) || (mode === 'prose' && !compareProse)) continue;
+    corpus[mode] = await resolveRetrievalCorpusIdentity(path.join(resolveModelIndexRoot(modelCacheRoot, mode), `index-${mode}`), mode);
+  }
+  corpusByModel.set(modelId, corpus);
   for (let i = 0; i < selectedQueries.length; i++) {
     const query = selectedQueries[i];
     const { payload, wallMs } = runSearch(query, env);
@@ -347,9 +342,14 @@ for (const modelId of models) {
  * @param {Array<object>} otherHits
  * @returns {{overlap:number,avgDelta:number,rankCorr:(number|null),top1Same:boolean}}
  */
-function compareHits(baseHits, otherHits) {
-  const { overlap, avgDelta, rankCorr, top1Same } = summarizeRetrievalHitComparison(baseHits, otherHits, { topN });
-  return { overlap, avgDelta, rankCorr, top1Same };
+function compareHits(baseHits, otherHits, modelId, mode) {
+  const baseCorpus = corpusByModel.get(baseline)?.[mode];
+  const otherCorpus = corpusByModel.get(modelId)?.[mode];
+  if (!baseCorpus?.comparable || !otherCorpus?.comparable || baseCorpus.digest !== otherCorpus.digest) {
+    const reason = 'source-or-chunking-corpus-mismatch-or-unverified';
+    return { comparable: false, reason, overlap: null, avgDelta: null, rankCorr: null, top1Same: null, baseCorpus, otherCorpus };
+  }
+  return summarizeRetrievalHitComparison(baseHits, otherHits, { topN, mode, repoScope: repoId });
 }
 
 for (const entry of results) {
@@ -359,8 +359,8 @@ for (const entry of results) {
     const otherRun = entry.runs[modelId];
     if (!baseRun || !otherRun) continue;
     entry.comparisons[modelId] = {
-      code: compareCode ? compareHits(baseRun.codeHits || [], otherRun.codeHits || []) : null,
-      prose: compareProse ? compareHits(baseRun.proseHits || [], otherRun.proseHits || []) : null
+      code: compareCode ? compareHits(baseRun.codeHits || [], otherRun.codeHits || [], modelId, 'code') : null,
+      prose: compareProse ? compareHits(baseRun.proseHits || [], otherRun.proseHits || [], modelId, 'prose') : null
     };
   }
 }
@@ -409,18 +409,20 @@ for (const modelId of models) {
   if (modelId === baseline) continue;
   const codeComparisons = results
     .map((entry) => entry.comparisons[modelId]?.code)
-    .filter(Boolean);
+    .filter(entry => entry && entry.comparable !== false);
   const proseComparisons = results
     .map((entry) => entry.comparisons[modelId]?.prose)
-    .filter(Boolean);
+    .filter(entry => entry && entry.comparable !== false);
   comparisonSummary[modelId] = {
     code: compareCode ? {
+      comparableQueries: codeComparisons.length,
       overlapAvg: mean(codeComparisons.map((entry) => entry.overlap)),
       scoreDeltaAvg: mean(codeComparisons.map((entry) => entry.avgDelta)),
       rankCorrAvg: meanNullable(codeComparisons.map((entry) => entry.rankCorr)),
       top1MatchRate: mean(codeComparisons.map((entry) => (entry.top1Same ? 1 : 0)))
     } : null,
     prose: compareProse ? {
+      comparableQueries: proseComparisons.length,
       overlapAvg: mean(proseComparisons.map((entry) => entry.overlap)),
       scoreDeltaAvg: mean(proseComparisons.map((entry) => entry.avgDelta)),
       rankCorrAvg: meanNullable(proseComparisons.map((entry) => entry.rankCorr)),

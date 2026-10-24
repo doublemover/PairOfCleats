@@ -256,6 +256,7 @@ export async function executeSearchAndEmit(input) {
 
   const payload = renderSearchOutput({
     filterEnumeration: searchResult.filterEnumeration,
+    filtersActive: queryPlan.filtersActive,
     plain,
     emitOutput,
     jsonOutput,
@@ -302,6 +303,7 @@ export async function executeSearchAndEmit(input) {
     embeddingProvider,
     embeddingOnnx,
     cacheInfo: searchResult.cache,
+    executionOutcomes: searchResult.executionOutcomes,
     profileInfo: searchResult.profile || null,
     intentInfo: queryPlan.intentInfo,
     resolvedDenseVectorMode: queryPlan.resolvedDenseVectorMode,

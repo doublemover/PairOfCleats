@@ -89,7 +89,23 @@ try {
   assert.ok(runtime.watchState.lastConsistentGeneration?.buildId, 'expected last consistent generation');
   assert.equal(runtime.watchState.lastAttemptedGeneration?.status, 'ok');
   assert.equal(runtime.watchState.activeGeneration, null);
-  const persistedWatchState = JSON.parse(await fs.readFile(watchStatePath, 'utf8'));
+  // State notification precedes queued persistence. Observe live disk convergence
+  // independently; neither the in-memory snapshot nor shutdown proves this read.
+  let persistedWatchState;
+  await waitFor(async () => {
+    const payload = await fs.readFile(watchStatePath, 'utf8');
+    try {
+      persistedWatchState = JSON.parse(payload);
+    } catch (error) {
+      if (error instanceof SyntaxError) return false; // A queued write can be in flight.
+      throw error;
+    }
+    return persistedWatchState.consistency === 'consistent'
+      && persistedWatchState.quiescent === true
+      && persistedWatchState.backlogDepth === 0
+      && persistedWatchState.lastConsistentGeneration?.buildId
+        === runtime.watchState.lastConsistentGeneration?.buildId;
+  });
   assert.equal(persistedWatchState.consistency, 'consistent');
   assert.equal(persistedWatchState.quiescent, true);
   assert.equal(persistedWatchState.backlogDepth, 0);

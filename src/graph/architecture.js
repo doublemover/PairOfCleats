@@ -1,3 +1,5 @@
+import { normalizeArchitectureRules, architectureRuleInputError } from '../contracts/architecture-rules.js';
+import { normalizeCrossFileCoverage, crossFileCoverageWarning } from '../index/cross-file-fidelity.js';
 import picomatch from 'picomatch';
 import { compareStrings } from '../shared/sort.js';
 import { normalizeCap } from '../shared/limits.js';
@@ -9,84 +11,33 @@ import { sha1 } from '../shared/hash.js';
 const compiledRuleCache = new Map();
 const orderedNodeCache = new WeakMap();
 
-const buildMatcherSet = (patterns) => patterns.map((pattern) => picomatch(pattern, { dot: true }));
+const buildMatcherSet = (patterns, identity, field) => patterns.map((pattern, index) => {
+  try { return picomatch(pattern, { dot: true }); }
+  catch (cause) { throw architectureRuleInputError({ ...identity, propertyPath: `${identity.propertyPath}.${field}[${index}]`,
+    message: 'glob compilation failed', cause }); }
+});
 
-const compilePathSelector = (selector) => {
-  const anyOf = Array.isArray(selector?.anyOf)
-    ? selector.anyOf.map((entry) => String(entry)).filter(Boolean)
-    : [];
-  const noneOf = Array.isArray(selector?.noneOf)
-    ? selector.noneOf.map((entry) => String(entry)).filter(Boolean)
-    : [];
-  const anyMatchers = buildMatcherSet(anyOf);
-  const noneMatchers = buildMatcherSet(noneOf);
-  return {
-    anyOf,
-    noneOf,
-    matches: (target) => {
-      if (!target) return false;
-      const value = String(target);
-      if (anyMatchers.length && !anyMatchers.some((matcher) => matcher(value))) return false;
-      if (noneMatchers.length && noneMatchers.some((matcher) => matcher(value))) return false;
-      return true;
-    }
-  };
+const compilePathSelector = (selector, identity) => {
+  const anyOf = selector.anyOf || [], noneOf = selector.noneOf || [];
+  const anyMatchers = buildMatcherSet(anyOf, identity, 'anyOf');
+  const noneMatchers = buildMatcherSet(noneOf, identity, 'noneOf');
+  return { anyOf, noneOf, matches: target => {
+    if (!target) return false;
+    const value = String(target);
+    if (anyMatchers.length && !anyMatchers.some(matcher => matcher(value))) return false;
+    if (noneMatchers.some(matcher => matcher(value))) return false;
+    return true;
+  } };
 };
 
-const normalizeRulesInput = (rules) => {
-  if (Array.isArray(rules)) return rules;
-  if (rules && typeof rules === 'object' && Array.isArray(rules.rules)) {
-    return rules.rules;
-  }
-  return [];
-};
-
-const compileRules = (rules, warnings) => {
-  const compiled = [];
-  for (const rule of rules) {
-    if (!rule || typeof rule !== 'object') continue;
-    const id = String(rule.id || '').trim();
-    const type = String(rule.type || '').trim();
-    if (!id || !type) continue;
-    const base = {
-      id,
-      type,
-      severity: rule.severity ?? null,
-      message: rule.message ?? null
-    };
-    if (type === 'forbiddenImport' || type === 'forbiddenCall') {
-      compiled.push({
-        ...base,
-        from: compilePathSelector(rule.from || {}),
-        to: compilePathSelector(rule.to || {})
-      });
-      continue;
-    }
-    if (type === 'layering') {
-      const layers = Array.isArray(rule.layers) ? rule.layers : [];
-      const normalizedLayers = layers.map((layer) => ({
-        name: String(layer?.name || '').trim(),
-        matcher: compilePathSelector(layer?.match || {})
-      })).filter((layer) => layer.name);
-      if (!normalizedLayers.length) {
-        warnings.push({
-          code: 'INVALID_RULE',
-          message: `Layering rule ${id} has no valid layers.`,
-          data: { ruleId: id }
-        });
-        continue;
-      }
-      compiled.push({ ...base, layers: normalizedLayers });
-      continue;
-    }
-    warnings.push({
-      code: 'UNKNOWN_RULE_TYPE',
-      message: `Unknown rule type ${type} (${id}).`,
-      data: { ruleId: id }
-    });
-  }
-  return compiled;
-};
+const compileRules = rules => rules.map((rule, ruleIndex) => {
+  const base = { id: rule.id, type: rule.type, severity: rule.severity, message: rule.message };
+  const identity = { ruleId: rule.id, ruleIndex };
+  if (rule.type === 'layering') return { ...base, layers: rule.layers.map((layer, index) => ({ name: layer.name,
+    matcher: compilePathSelector(layer.match, { ...identity, propertyPath: `rules[${ruleIndex}].layers[${index}].match` }) })) };
+  return { ...base, from: compilePathSelector(rule.from, { ...identity, propertyPath: `rules[${ruleIndex}].from` }),
+    to: compilePathSelector(rule.to, { ...identity, propertyPath: `rules[${ruleIndex}].to` }) };
+});
 
 const buildNodeIndex = (graph) => {
   const map = new Map();
@@ -104,18 +55,12 @@ const buildOrderedNodes = (nodeIndex) => {
   return nodes;
 };
 
-const resolveCompiledRules = (rules, warnings) => {
-  const serialized = JSON.stringify(rules);
-  const rulesHash = sha1(serialized);
+const resolveCompiledRules = rules => {
+  const rulesHash = sha1(JSON.stringify({ version: 1, rules }));
   const cached = compiledRuleCache.get(rulesHash);
-  if (cached) {
-    for (const warning of cached.warnings) warnings.push(warning);
-    return cached.compiledRules;
-  }
-  const localWarnings = [];
-  const compiled = compileRules(rules, localWarnings);
-  compiledRuleCache.set(rulesHash, { compiledRules: compiled, warnings: localWarnings });
-  for (const warning of localWarnings) warnings.push(warning);
+  if (cached) return cached;
+  const compiled = compileRules(rules);
+  compiledRuleCache.set(rulesHash, compiled);
   return compiled;
 };
 
@@ -156,22 +101,10 @@ const resolveNodePath = (node, fallbackId, repoRoot) => {
   return normalizePathForRepo(raw, repoRoot);
 };
 
-export const parseArchitectureRules = (payload) => {
-  if (!payload || typeof payload !== 'object') {
-    throw new Error('Rules payload must be an object.');
-  }
-  const version = Number(payload.version);
-  if (!Number.isFinite(version) || version !== 1) {
-    throw new Error('Architecture rules version must be 1.');
-  }
-  if (!Array.isArray(payload.rules)) {
-    throw new Error('Architecture rules must include a rules array.');
-  }
-  return payload;
-};
+export const parseArchitectureRules = payload => normalizeArchitectureRules(payload);
 
 export const buildArchitectureReport = ({
-  rules,
+  rules = [],
   graphRelations,
   caps = {},
   provenance = null,
@@ -182,12 +115,16 @@ export const buildArchitectureReport = ({
   repoRoot = null,
   now = () => new Date().toISOString()
 } = {}) => {
+  const normalizedRules = normalizeArchitectureRules(rules, { allowArray: true }).rules;
   const warnings = [];
+  const upstreamCoverage = normalizeCrossFileCoverage(graphRelations?.upstreamCoverage);
+  const upstreamWarning = crossFileCoverageWarning(upstreamCoverage);
+  if (upstreamWarning) warnings.push(upstreamWarning);
   const truncation = createTruncationRecorder({ scope: 'architecture' });
   const recordTruncation = (cap, detail) => truncation.record(cap, detail);
 
-  const maxViolations = normalizeCap(caps.maxViolations);
-  const maxEdgesExamined = normalizeCap(caps.maxEdgesExamined);
+  const maxViolations = caps.maxViolations == null ? null : normalizeCap(caps.maxViolations);
+  const maxEdgesExamined = caps.maxEdgesExamined == null ? null : normalizeCap(caps.maxEdgesExamined);
   const capsUsed = {
     architecture: {
       maxViolations,
@@ -206,8 +143,7 @@ export const buildArchitectureReport = ({
     label: 'Architecture report'
   });
 
-  const normalizedRules = normalizeRulesInput(rules);
-  const compiledRules = resolveCompiledRules(normalizedRules, warnings);
+  const compiledRules = resolveCompiledRules(normalizedRules);
   const summaries = compiledRules.map((rule) => ({
     id: rule.id,
     type: rule.type,
@@ -227,9 +163,12 @@ export const buildArchitectureReport = ({
     }
     return {
       version: '1.0.0',
+      upstreamCoverage,
       provenance: resolvedProvenance,
       rules: summaries,
       violations,
+      summary: { detectedViolations: 0, retainedViolations: 0, omittedViolations: 0,
+        edgesExamined: 0, complete: compiledRules.length === 0 },
       truncation: truncation.list.length ? truncation.list : null,
       warnings: warnings.length ? warnings : null
     };
@@ -249,17 +188,10 @@ export const buildArchitectureReport = ({
   const forbiddenImportRules = importRules.filter((rule) => rule.type === 'forbiddenImport');
 
   let edgesExamined = 0;
+  let detectedViolations = 0;
   let stop = false;
 
   const shouldStop = () => {
-    if (maxViolations != null && violations.length >= maxViolations) {
-      recordTruncation('maxViolations', {
-        limit: maxViolations,
-        observed: violations.length,
-        omitted: null
-      });
-      return true;
-    }
     if (maxEdgesExamined != null && edgesExamined >= maxEdgesExamined) {
       recordTruncation('maxEdgesExamined', {
         limit: maxEdgesExamined,
@@ -273,13 +205,10 @@ export const buildArchitectureReport = ({
 
   const recordViolation = (rule, edgeType, fromRef, toRef, note = null) => {
     if (!fromRef || !toRef) return;
+    detectedViolations += 1;
+    const summary = summaryById.get(rule.id);
+    if (summary) summary.summary.violations += 1;
     if (maxViolations != null && violations.length >= maxViolations) {
-      stop = true;
-      recordTruncation('maxViolations', {
-        limit: maxViolations,
-        observed: violations.length,
-        omitted: null
-      });
       return;
     }
     violations.push({
@@ -291,8 +220,6 @@ export const buildArchitectureReport = ({
       },
       evidence: note ? { note } : null
     });
-    const summary = summaryById.get(rule.id);
-    if (summary) summary.summary.violations += 1;
   };
 
   const layerResolvers = layeringRules.map((rule) => {
@@ -380,11 +307,18 @@ export const buildArchitectureReport = ({
     });
   }
 
+  if (detectedViolations > violations.length) recordTruncation('maxViolations', {
+    limit: maxViolations, observed: detectedViolations, omitted: detectedViolations - violations.length
+  });
   return {
     version: '1.0.0',
+    upstreamCoverage,
     provenance: resolvedProvenance,
     rules: summaries,
     violations,
+    summary: { detectedViolations, retainedViolations: violations.length,
+      omittedViolations: detectedViolations - violations.length, edgesExamined,
+      complete: !upstreamWarning && !truncation.list.some(entry => entry.cap === 'maxEdgesExamined') },
     truncation: truncation.list.length ? truncation.list : null,
     warnings: warnings.length ? warnings : null
   };

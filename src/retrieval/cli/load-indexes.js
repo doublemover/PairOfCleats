@@ -38,6 +38,7 @@ export async function loadSearchIndexes({
   exitOnError,
   annActive,
   filtersActive,
+  relationFilters = null,
   chunkAuthorFilterActive = false,
   contextExpansionEnabled,
   graphRankingEnabled,
@@ -64,6 +65,7 @@ export async function loadSearchIndexes({
   explicitRef = false
 }) {
   const metadata = await resolveSearchIndexMetadata({
+    filterOnly,
     rootDir,
     userConfig,
     searchMode,
@@ -203,6 +205,7 @@ export async function loadSearchIndexes({
   warnPendingState(idxExtractedProse, 'extracted-prose', { emitOutput, useSqlite, annActive });
 
   await hydrateLoadedIndexes({
+    relationFilters,
     rootDir,
     userConfig,
     useSqlite,

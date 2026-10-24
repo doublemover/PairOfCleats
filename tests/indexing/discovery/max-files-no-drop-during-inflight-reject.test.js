@@ -21,12 +21,12 @@ await fs.writeFile(path.join(tempRoot, 'src', 'good-b.js'), 'export const b = 2;
 
 const { ignoreMatcher } = await buildIgnoreMatcher({ root: tempRoot, userConfig: {} });
 const skipped = [];
-const missingPath = path.join(tempRoot, 'src', 'missing.js');
+const missingPath = path.join(tempRoot, 'src', 'aaa-missing.js');
 const scmProviderImpl = {
   async listTrackedFiles() {
     return {
       ok: true,
-      filesPosix: ['src/good-a.js', 'src/missing.js', 'src/good-b.js']
+      filesPosix: ['src/good-a.js', 'src/aaa-missing.js', 'src/good-b.js']
     };
   }
 };

@@ -1,4 +1,4 @@
-import { search as coreSearch } from '../../../../src/integrations/core/index.js';
+import { search as coreSearch } from '../../../../src/integrations/core/search.js';
 import { runFederatedSearch } from '../../../../src/retrieval/federation/coordinator.js';
 import { createError, ERROR_CODES } from '../../../../src/shared/error-codes.js';
 import { attachObservability, buildChildObservability } from '../../../../src/shared/observability.js';
@@ -30,6 +30,7 @@ export async function runSearch(args = {}, context = {}) {
   });
   return await coreSearch(repoPath, {
     args: searchArgs,
+    argsMode: 'complete',
     query,
     emitOutput: false,
     exitOnError: false,
@@ -53,7 +54,6 @@ export async function runWorkspaceSearch(args = {}, context = {}) {
   const workspacePath = typeof args.workspacePath === 'string' ? args.workspacePath.trim() : '';
   const query = String(args.query || '').trim();
   if (!workspacePath) throw createError(ERROR_CODES.INVALID_REQUEST, 'workspacePath is required.');
-  if (!query) throw createError(ERROR_CODES.INVALID_REQUEST, 'Query is required.');
 
   return await runFederatedSearch({
     ...args,

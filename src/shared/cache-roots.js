@@ -1,19 +1,12 @@
-import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { getEnvConfig } from './env.js';
+import { readStorageLocator } from './storage/locator-read.js';
 
 export const CACHE_ROOT_DIRNAME = 'cache';
 export const CACHE_ROOT_LAYOUT_VERSION = CACHE_ROOT_DIRNAME;
 const LEGACY_CACHE_ROOT_DIRNAME = 'cache-v1';
 
-const cacheRootWarnings = new Set();
-const warnCacheRootIssue = (key, message) => {
-  if (!key || !message) return;
-  if (cacheRootWarnings.has(key)) return;
-  cacheRootWarnings.add(key);
-  console.warn(message);
-};
 const isCacheRootDir = (targetRoot) => (
   typeof targetRoot === 'string'
   && targetRoot
@@ -25,17 +18,6 @@ const resolveCacheRoot = (baseRoot) => {
   return resolvedBase || '';
 };
 
-const purgeCacheRoot = (cacheRoot) => {
-  if (!cacheRoot) return;
-  try {
-    fs.rmSync(cacheRoot, { recursive: true, force: true });
-  } catch (err) {
-    warnCacheRootIssue(
-      `purge:${cacheRoot}:${err?.code || 'unknown'}`,
-      `[cache] failed to purge cache root ${cacheRoot}: ${err?.message || err}`
-    );
-  }
-};
 
 const pathHasLegacyCacheRootSegment = (targetPath) => {
   if (!targetPath) return false;
@@ -74,9 +56,9 @@ export function normalizeLegacyCacheRootPath(targetPath) {
  * Resolve the default cache root directory (ignores test overrides).
  * @returns {string}
  */
-export function getDefaultCacheRoot() {
-  if (process.env.LOCALAPPDATA) return path.join(process.env.LOCALAPPDATA, 'PairOfCleats');
-  if (process.env.XDG_CACHE_HOME) return path.join(process.env.XDG_CACHE_HOME, 'pairofcleats');
+export function getDefaultCacheRoot({ env = process.env } = {}) {
+  if (env.LOCALAPPDATA) return path.join(env.LOCALAPPDATA, 'PairOfCleats');
+  if (env.XDG_CACHE_HOME) return path.join(env.XDG_CACHE_HOME, 'pairofcleats');
   return path.join(os.homedir(), '.cache', 'pairofcleats');
 }
 
@@ -106,19 +88,40 @@ export function resolveCacheFilesystemProfile(baseRoot = null, platform = proces
  * Resolve the base (unversioned) cache root directory.
  * @returns {string}
  */
-export function getCacheRootBase() {
-  const envConfig = getEnvConfig();
+export function getCacheRootBase({ env = process.env } = {}) {
+  const envConfig = getEnvConfig(env);
   const envRoot = envConfig.cacheRoot || envConfig.homeRoot || '';
   if (envRoot) return envRoot;
-  return getDefaultCacheRoot();
+  return getDefaultCacheRoot({ env });
+}
+
+/** App home is distinct from the cache-only compatibility alias. */
+export function getApplicationHome({ env = process.env } = {}) {
+  return path.resolve(getEnvConfig(env).homeRoot || getDefaultCacheRoot({ env }));
+}
+
+/** Read-only verified cutover selection. Explicit category overrides retain
+ * precedence in their existing owners. Malformed selection is actionable and
+ * cannot silently redirect consumers back to a different generation.
+ */
+export function getStorageCategorySelection(category, { env = process.env } = {}) {
+  const locator = readStorageLocator(getApplicationHome({ env }));
+  if (locator.status === 'invalid') throw Object.assign(new Error(`Storage locator is unreadable or incompatible: ${locator.target}`), {
+    code: 'ERR_STORAGE_LOCATOR', cause: locator.error
+  });
+  return locator.value.categories[category]?.path || null;
 }
 
 /**
  * Resolve the cache root directory.
  * @returns {string}
  */
-export function getCacheRoot() {
-  return resolveVersionedCacheRoot(getCacheRootBase());
+export function getCacheRoot({ env = process.env } = {}) {
+  if (!getEnvConfig(env).cacheRoot) {
+    const selected = getStorageCategorySelection('cache', { env });
+    if (selected) return normalizeLegacyCacheRootPath(selected);
+  }
+  return resolveVersionedCacheRoot(getCacheRootBase({ env }));
 }
 
 /**
@@ -131,7 +134,7 @@ export function getCacheRoot() {
  * @returns {string}
  */
 export function getCacheTempRoot(...segments) {
-  const base = path.join(getCacheRoot(), 'tmp');
+  const base = getStorageCategorySelection('tmp') || path.join(getCacheRoot(), 'tmp');
   const suffix = segments
     .map((segment) => String(segment || '').trim())
     .filter(Boolean);
@@ -147,13 +150,13 @@ export function resolveVersionedCacheRoot(baseRoot) {
 
 export function clearCacheRoot({ baseRoot, includeLegacy = false } = {}) {
   const resolvedBase = resolveCacheRoot(baseRoot || getCacheRoot());
-  if (!resolvedBase) return;
   const targetRoot = isCacheRootDir(resolvedBase)
     ? resolvedBase
     : resolveVersionedCacheRoot(resolvedBase);
-  purgeCacheRoot(targetRoot);
-  if (includeLegacy) {
-    const legacyRoot = path.join(path.dirname(targetRoot), LEGACY_CACHE_ROOT_DIRNAME);
-    purgeCacheRoot(legacyRoot);
-  }
+  // A cache parent also holds saved triage/snapshots/diffs and active builds.
+  // Synchronous recursive removal cannot establish their owners or leases.
+  throw Object.assign(new Error('Whole-root cache deletion requires category-owner cleanup planning. Use clear-cache --json to review proven disposable files, then --apply --plan <file> --plan-id <id>.'), {
+    code: 'ERR_STORAGE_CLEANUP_PLAN_REQUIRED', cacheRoot: targetRoot,
+    legacyRequested: includeLegacy, destructiveOperationPerformed: false
+  });
 }

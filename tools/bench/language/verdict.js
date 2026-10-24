@@ -3,7 +3,8 @@ import fsPromises from 'node:fs/promises';
 import { sumDiagnosticCounts } from './diagnostics.js';
 import { resolveTaskLowYieldBailout } from '../../../src/shared/extraction-quality.js';
 
-export const BENCH_VERDICT_SCHEMA_VERSION = 1;
+import { BENCH_VERDICT_SCHEMA_VERSION } from '../../../src/contracts/bench-comparison-input.js';
+export { BENCH_VERDICT_SCHEMA_VERSION } from '../../../src/contracts/bench-comparison-input.js';
 export const BENCH_POLICY_SCHEMA_VERSION = 1;
 export const BENCH_WAIVER_SCHEMA_VERSION = 1;
 export const BENCH_POLICY_VERSION = 'bench-language-policy-v1';
@@ -298,10 +299,21 @@ export const classifyBenchTask = (entry) => {
 };
 
 const normalizeWaiver = (row) => {
-  if (!row || typeof row !== 'object' || Array.isArray(row)) return null;
+  if (!row || typeof row !== 'object' || Array.isArray(row)) throw new Error('Waiver must be an object.');
   const id = toText(row.id);
-  if (!id) return null;
+  if (!id) throw new Error('Waiver id is required.');
   const allowedUntil = toIsoStringOrNull(row.allowedUntil);
+  if (!toText(row.owner) || !toText(row.justification) || !allowedUntil) {
+    throw new Error(`Waiver ${id} requires owner, justification and a finite expiry.`);
+  }
+  if (!toText(row.failureClass) && !toText(row.diagnosticType)) {
+    throw new Error(`Waiver ${id} requires an explicit failureClass or diagnosticType.`);
+  }
+  for (const key of ['resultClass', 'failureClass', 'diagnosticType', 'repo', 'language']) {
+    if (row[key] != null && (typeof row[key] !== 'string' || !row[key].trim() || /[*?]/.test(row[key]))) {
+      throw new Error(`Waiver ${id} has an unbounded or malformed ${key}.`);
+    }
+  }
   return {
     id,
     owner: toText(row.owner) || null,
@@ -327,16 +339,23 @@ export const loadBenchPolicy = async ({ waiverFile = null } = {}) => {
   if (!waiverFile) return policy;
   try {
     const raw = JSON.parse(await fsPromises.readFile(waiverFile, 'utf8'));
-    const inputRows = Array.isArray(raw?.waivers) ? raw.waivers : [];
+    if (raw?.schemaVersion !== BENCH_WAIVER_SCHEMA_VERSION || !Array.isArray(raw?.waivers)) {
+      throw new Error('Explicit supported waiver schemaVersion and waivers array required.');
+    }
+    const inputRows = raw.waivers;
+    const seen = new Set();
     policy.policyVersion = toText(raw?.policyVersion) || BENCH_POLICY_VERSION;
     for (const row of inputRows) {
       const normalized = normalizeWaiver(row);
-      if (normalized) policy.waivers.push(normalized);
+      if (seen.has(normalized.id)) throw new Error(`Duplicate waiver id: ${normalized.id}`);
+      seen.add(normalized.id);
+      policy.waivers.push(normalized);
     }
     if (Number(raw?.schemaVersion) && Number(raw.schemaVersion) !== BENCH_WAIVER_SCHEMA_VERSION) {
       policy.loadErrors.push(`unexpected waiver schemaVersion ${raw.schemaVersion}`);
     }
   } catch (error) {
+    policy.waivers = [];
     policy.loadErrors.push(error?.message || String(error));
   }
   return policy;

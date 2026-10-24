@@ -16,7 +16,7 @@ import { redactDiagnosticText } from '../../../src/shared/diagnostic-text.js';
 import { prependLspTestPath } from '../../helpers/lsp-runtime.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { grantFixtureRepositoryExecution } from '../../helpers/execution-authority.js';
-import { withTemporaryEnv } from '../../helpers/test-env.js';
+import { applyTestEnv, withTemporaryEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const testRoot = resolveTestCachePath(root, `tooling-doctor-command-profile-contract-${process.pid}-${Date.now()}`);
@@ -325,9 +325,9 @@ const runCommandResolutionCases = async () => {
 
     const csharpProfile = resolveToolingCommandProfile({
       providerId: 'csharp-ls',
-      cmd: 'csharp-ls',
+      cmd: path.join(dotnetDir, process.platform === 'win32' ? 'csharp-ls.cmd' : 'csharp-ls'),
       args: [],
-      repoRoot: root,
+      repoRoot: testRoot,
       toolingConfig: { dir: path.join(runtimeDir, 'tooling') }
     });
     assert.equal(csharpProfile.probe.ok, true);
@@ -337,7 +337,7 @@ const runCommandResolutionCases = async () => {
       providerId: 'phpactor',
       cmd: 'phpactor',
       args: ['language-server'],
-      repoRoot: root,
+      repoRoot: testRoot,
       toolingConfig: { dir: path.join(runtimeDir, 'tooling') }
     });
     assert.equal(phpactorProfile.probe.ok, true);
@@ -372,7 +372,7 @@ const runCommandResolutionCases = async () => {
       providerId: 'csharp-ls',
       cmd: 'csharp-ls',
       args: [],
-      repoRoot: root,
+      repoRoot: testRoot,
       toolingConfig: {}
     });
     assert.equal(csharpProfile.probe.ok, true);
@@ -382,7 +382,7 @@ const runCommandResolutionCases = async () => {
       providerId: 'phpactor',
       cmd: 'phpactor',
       args: ['language-server'],
-      repoRoot: root,
+      repoRoot: testRoot,
       toolingConfig: {}
     });
     assert.equal(phpactorProfile.probe.ok, true);
@@ -455,7 +455,7 @@ const runDirectProbeCases = async () => {
     providerId: 'elixir-ls-erl',
     cmd: 'erl',
     args: ['-version'],
-    repoRoot: root,
+    repoRoot: testRoot,
     toolingConfig: {}
   });
   assert.equal(erlProfile.probe.attempted?.[0]?.args?.[0], '-version', 'expected erl probe to prefer `erl -version`');
@@ -478,7 +478,7 @@ const runPyrightOverrideCases = async () => {
       providerId: 'pyright',
       cmd: fixtureCmd,
       args: ['--stdio'],
-      repoRoot: root,
+      repoRoot: testRoot,
       toolingConfig: {}
     });
     assertCommandProbeSucceeded(explicitProfile, 'expected explicit pyright command path probe to succeed', Date.now() - startedAt);
@@ -496,7 +496,7 @@ const runProbeTimeoutCase = async () => {
     providerId: 'timeout-probe',
     cmd: 'hang-probe',
     args: [],
-    repoRoot: root,
+    repoRoot: testRoot,
     toolingConfig: {},
     probeTimeoutMs: 120
   });
@@ -531,7 +531,7 @@ const runLuaManagedLayoutValidationCase = async () => {
       providerId: 'lua-language-server',
       cmd: 'lua-language-server',
       args: ['-v'],
-      repoRoot: root,
+      repoRoot: testRoot,
       toolingConfig: { dir: toolingRoot }
     });
     assert.equal(profile.probe.ok, false, 'expected broken managed Lua layout to fail validation');
@@ -575,25 +575,30 @@ const runProviderOverrideCase = async () => {
     'solargraph'
   ];
 
-  await runToolingDoctor({
-    repoRoot: tempRoot,
-    buildRoot: tempRoot,
-    toolingConfig: {
-      enabledTools: providerIds,
-      pyright: { command: 'pyright-custom', args: ['--stdio', '--watch'] },
-      csharp: { cmd: 'csharp-custom' },
-      dart: { cmd: 'dart-custom' },
-      elixir: { cmd: 'elixir-custom' },
-      haskell: { cmd: 'hls-custom' },
-      phpactor: { cmd: 'phpactor-custom' },
-      solargraph: { cmd: 'solargraph-custom' }
-    },
-    strict: false
-  }, providerIds, {
-    log: () => {},
-    probeHandshake: false,
-    resolveCommandProfile
-  });
+  const restoreExecution = grantFixtureRepositoryExecution(tempRoot);
+  try {
+    await runToolingDoctor({
+      repoRoot: tempRoot,
+      buildRoot: tempRoot,
+      toolingConfig: {
+        enabledTools: providerIds,
+        pyright: { command: 'pyright-custom', args: ['--stdio', '--watch'] },
+        csharp: { cmd: 'csharp-custom' },
+        dart: { cmd: 'dart-custom' },
+        elixir: { cmd: 'elixir-custom' },
+        haskell: { cmd: 'hls-custom' },
+        phpactor: { cmd: 'phpactor-custom' },
+        solargraph: { cmd: 'solargraph-custom' }
+      },
+      strict: false
+    }, providerIds, {
+      log: () => {},
+      probeHandshake: false,
+      resolveCommandProfile
+    });
+  } finally {
+    restoreExecution();
+  }
 
   assert.equal(requestedByProvider.get('pyright')?.cmd, 'pyright-custom');
   assert.deepEqual(requestedByProvider.get('pyright')?.args, ['--stdio', '--watch']);
@@ -607,23 +612,30 @@ const runProviderOverrideCase = async () => {
 
 await fs.rm(testRoot, { recursive: true, force: true });
 await fs.mkdir(testRoot, { recursive: true });
-const restoreExecution = grantFixtureRepositoryExecution(testRoot);
-
 try {
-  runTimeoutTierCases();
-  runMissingDetectionCases();
-  runProbeDiagnosticCases();
-  await runCommandResolutionCases();
-  await runToolingDirPrecedenceCase();
-  await runDirectProbeCases();
-  await runPyrightOverrideCases();
-  await runProbeTimeoutCase();
-  await runLuaManagedLayoutValidationCase();
-  await runProviderOverrideCase();
-  console.log('tooling doctor command profile contract matrix test passed');
+  await withTemporaryEnv(applyTestEnv({ cacheRoot: path.join(testRoot, 'probe-cache'), syncProcess: false }), async () => {
+    const restoreExecution = grantFixtureRepositoryExecution(testRoot);
+    try {
+      runTimeoutTierCases();
+      runMissingDetectionCases();
+      runProbeDiagnosticCases();
+      await runCommandResolutionCases();
+      await runToolingDirPrecedenceCase();
+      await runDirectProbeCases();
+      await runPyrightOverrideCases();
+      await runProbeTimeoutCase();
+      await runLuaManagedLayoutValidationCase();
+      await runProviderOverrideCase();
+      const ownedProbes = await fs.readdir(path.join(testRoot, 'probe-cache', 'cache', 'tooling', 'command-probes'));
+      assert.ok(ownedProbes.some(name => /^[a-f0-9]{40}\.json$/.test(name)),
+        'the matrix exercises persistent probes in its owned cache');
+      console.log('tooling doctor command profile contract matrix test passed');
+    } finally {
+      restoreExecution();
+      __resetToolingCommandProbeCacheForTests();
+    }
+  });
 } finally {
-  restoreExecution();
-  __resetToolingCommandProbeCacheForTests();
   await restorePath();
   await fs.rm(testRoot, { recursive: true, force: true });
 }

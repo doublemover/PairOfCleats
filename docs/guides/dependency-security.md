@@ -1,5 +1,46 @@
 # Dependency security and compatibility
 
+## Current checkout baseline
+
+The checkout now requires Node >=26.12.1 <27 and pins 26.12.1 in `.nvmrc` and workflows.
+Use `npm run bootstrap:ci` for locked setup; see the
+[runtime policy](node-runtime.md). The dated Node 24 and advisory inventories
+below retain their original provenance. Current acceptance belongs in the
+[roadmap](../roadmap.md); neither those inventories nor an offline contract
+establish a fresh hosted security scan.
+
+## October 24 advisory repair
+
+The hosted gate at `50c62e7ea` stopped on seven affected npm entries (six high,
+one moderate). The revised lock graph uses Happy DOM 21.0.4, body-parser 2.4.0,
+fast-uri 3.1.9, Undici 8.12.3 and Zod 4.6.7. Their normal resolutions also update
+qs and iconv-lite. The SDK's declared Zod range admits this major; real SDK
+stdio and DOM consumer checks cover the affected integrations.
+
+Azure Identity 4.14.0 still selects MSAL 6. The scoped `@azure/identity` override
+selects the fixed MSAL 7.1.0 and its MSAL Common 16.14.2 dependency. Remove this
+bridge when Identity's own compatible range selects a fixed release. The offline
+security contract exercises the real Identity/MSAL adapter through authority
+discovery, client-credential acquisition and cached reuse with a fixture-only
+transport; it never authenticates against a live account.
+
+On Windows x64 and Node 26.12.1, locked `npm run bootstrap:ci` completed native
+rebuild, parser activation, all eight required patch verifications and readiness
+publication. Its log contained no warning/error diagnostics. The subsequent full
+graph `npm audit --json` reported zero vulnerabilities. Optional Sharp was absent
+and explicitly excluded by setup. These are dated local observations; hosted
+CI, runtime lifecycle and release qualification remain distinct. The immutable
+October 24 advisory inventory supplements the older baselines and the unchanged
+live `npm audit --audit-level=low` gate.
+
+## October 22 Windows validation preparation
+
+The locked install at source c849bf600 resolves optional `ip-address` 10.7.3 to
+10.7.4 for GHSA-rxp7-6hxx-x8q5. This is the only lockfile version change in that
+batch. The subsequent fresh `npm ci --include=dev --ignore-scripts` audit reports
+zero vulnerabilities. Full native setup and Windows suite acceptance remain
+separate, and this does not establish a hosted security rescan.
+
 ## October 7 hosted checkpoint
 
 The completion and dependency proposals through PR540 are merged or specifically
@@ -124,6 +165,14 @@ Real DOCX tests require the Mammoth backend, compare text and image bytes, run
 conversion/error cases under `--throw-deprecation`, and verify first/repeated
 patch application plus version/partial-patch rejection. Do not accept npm's
 suggested Mammoth downgrade or restore sprintf-js.
+
+On Node 26, the locked DOCX fixture generator's bundled browser deprecation
+helper accessed the experimental localStorage getter in both official Node
+exports. `patches/docx+9.5.3.patch` uses Node's deprecation process flags in those
+two exports and leaves browser behavior intact. Fresh ESM/CommonJS processes
+must generate real documents with no warnings and no browser-storage access;
+the Mammoth migration fixture also rejects parent-process runtime warnings.
+This compatibility repair changes no package version or lockfile resolution.
 
 The [additional regression baseline](../../tests/fixtures/security/dependency-advisories-2026-10-06.json)
 records the five advisory ranges with official links. The historical October 2

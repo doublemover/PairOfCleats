@@ -50,8 +50,8 @@ const options = {
   stagingRoot: root, source, sourceBytes: Buffer.from('f(1,2,3,4,5,6);'), partitionId, producerHash: 'a'.repeat(64),
   policyHash: 'b'.repeat(64), diskAccount: account
 };
-const write = async (batchSize) => {
-  const sink = await createSemanticPartitionSink(options);
+const write = async (batchSize, partRows = 4096) => {
+  const sink = await createSemanticPartitionSink({ ...options, batchRows: partRows });
   let sequence = 0;
   for (let start = 0; start < entries.length; start += batchSize) {
     await sink.appendBatch(batch(entries.slice(start, start + batchSize), sequence++));
@@ -63,7 +63,10 @@ try {
   const small = await write(2);
   const large = await write(100);
   assert.equal(small.canonicalHash, large.canonicalHash, 'physical batching must not change completed facts');
-  assert.notEqual(small.members.semantic_records.length, large.members.semantic_records.length);
+  assert.equal(small.members.semantic_records.length, large.members.semantic_records.length, 'tiny producer batches coalesce under the same part envelope');
+  const rolled = await write(2, 2);
+  assert.equal(rolled.canonicalHash, large.canonicalHash);
+  assert.ok(rolled.members.semantic_records.length > large.members.semantic_records.length, 'physical part limits still roll without changing canonical facts');
   const generation = { baseBuildId: 'fixture-build', semanticRevision: 0 };
   const store = createArtifactSemanticStore({
     root, repoRoot: root, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,

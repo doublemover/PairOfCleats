@@ -1,6 +1,6 @@
 import { semanticByteAdmissionFor } from './planning.js';
-import { createSemanticPartitionSink } from '../build/artifacts/writers/semantic/partition.js';
-import { canonicalSemanticJson } from './identity.js';
+import { createSemanticPartitionSink, abortSemanticPartitionOnFailure } from '../build/artifacts/writers/semantic/partition.js';
+import { prepareSemanticBatchEntry, semanticBatchEntryBytes } from './prepared-batch.js';
 /** Shared bounded sink for derived rows; analysis never edits syntax partitions. */
 export const writeSemanticAnalysis = async ({ rows, policy, ...options }) => {
   const sink = await createSemanticPartitionSink({ ...options, byteAdmission: semanticByteAdmissionFor(options.diskAccount, policy.storage.maxQueuedBytes),
@@ -12,12 +12,13 @@ export const writeSemanticAnalysis = async ({ rows, policy, ...options }) => {
     batch = []; byteCount = 0;
   };
   try {
-    for await (const entry of rows) {
-      const bytes = Buffer.byteLength(canonicalSemanticJson(entry)) + 1;
+    for await (const rawEntry of rows) {
+      const entry = prepareSemanticBatchEntry(rawEntry);
+      const bytes = semanticBatchEntryBytes(entry);
       if (batch.length && (batch.length >= policy.storage.batchRows || byteCount + bytes > policy.storage.batchBytes)) await flush();
       batch.push(entry); byteCount += bytes;
     }
     await flush();
     return await sink.finalizeSource();
-  } catch (error) { await sink.abort(); throw error; }
+  } catch (error) { await abortSemanticPartitionOnFailure(sink, error); }
 };

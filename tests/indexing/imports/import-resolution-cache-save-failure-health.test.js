@@ -20,7 +20,7 @@ const cacheStats = {
   health: Object.create(null)
 };
 const cache = {
-  version: 6,
+  version: 7,
   generatedAt: null,
   packageFingerprint: null,
   fileSetFingerprint: null,

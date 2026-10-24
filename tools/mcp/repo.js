@@ -39,7 +39,7 @@ export const refreshRepoCaches = async (repoPath) => {
 
 export const clearRepoCaches = (repoPath) => {
   if (!repoPath) return;
-  repoCacheManager.clearRepoCaches(repoPath);
+  return repoCacheManager.clearRepoCaches(repoPath);
 };
 
 const INDEX_MODES = ['code', 'prose', 'extracted-prose', 'records'];

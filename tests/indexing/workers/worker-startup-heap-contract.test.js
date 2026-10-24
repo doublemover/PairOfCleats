@@ -1,9 +1,10 @@
 #!/usr/bin/env node
+import { runNode as runNodeFixture } from '../../helpers/run-node.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+
 import { pathToFileURL } from 'node:url';
 import { resolveDispatchRuntimeEnv } from '../../../bin/dispatch-runtime-env.js';
 import { resolveWorkerHeapLaunchContract } from '../../../src/shared/workers/heap-contract.js';
@@ -36,7 +37,7 @@ const result = {observation,enabled:!!pools.tokenizePool,runtimeEvidence:pools.r
 await pools.destroy();
 console.log(JSON.stringify(result));`);
   const run = (flags, nodeOptions, args = []) => {
-    const child = spawnSync(process.execPath, [...flags, probe, ...args], { encoding: 'utf8', timeout: 8000, env: { ...process.env, NODE_OPTIONS: nodeOptions } });
+    const child = runNodeFixture([...flags, probe, ...args], 'Node process fixture', process.cwd(), process.env, { stdio: 'pipe', encoding: 'buffer', allowFailure: true, spawnOptions: { encoding: 'utf8', timeout: 8000, env: { ...process.env, NODE_OPTIONS: nodeOptions } } });
     assert.equal(child.status, 0, child.stderr);
     return JSON.parse(child.stdout.trim().split('\n').at(-1));
   };

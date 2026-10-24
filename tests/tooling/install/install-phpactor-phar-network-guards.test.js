@@ -3,70 +3,38 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import http from 'node:http';
+import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
+import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 const root = process.cwd();
 const scriptPath = path.join(root, 'tools', 'tooling', 'install-phpactor-phar.js');
-const tempRoot = path.join(root, '.testLogs', `install-phpactor-phar-network-${process.pid}-${Date.now()}`);
-const fetchHarnessPath = path.join(tempRoot, 'fetch-harness.mjs');
-
-await fs.rm(tempRoot, { recursive: true, force: true });
+const { dir: tempRoot } = await prepareIsolatedTestCacheDir('install-phpactor-phar-network');
+const scenarios = new Map();
+const server = http.createServer((request, response) => {
+  const scenario = scenarios.get(request.url);
+  if (!scenario) { response.writeHead(404).end(); return; }
+  const item = scenario.steps[Math.min(scenario.calls++, scenario.steps.length - 1)];
+  if (item.type === 'timeout') return;
+  if (item.type === 'network-error') { response.destroy(); return; }
+  response.writeHead(Number(item.status || 200));
+  response.end(String(item.body || ''));
+});
 await fs.mkdir(tempRoot, { recursive: true });
-
-await fs.writeFile(
-  fetchHarnessPath,
-  [
-    "import fs from 'node:fs/promises';",
-    "import { pathToFileURL } from 'node:url';",
-    "const [scenarioPath, scriptPath, ...scriptArgs] = process.argv.slice(2);",
-    "const scenario = JSON.parse(await fs.readFile(scenarioPath, 'utf8'));",
-    'let callIndex = 0;',
-    "globalThis.fetch = async (_url, options = {}) => {",
-    '  const item = scenario.steps[Math.min(callIndex, scenario.steps.length - 1)] || null;',
-    '  callIndex += 1;',
-    "  if (!item || item.type === 'network-error') throw new Error(item?.message || 'network error');",
-    "  if (item.type === 'timeout') {",
-    "    return await new Promise((_resolve, reject) => {",
-    '      const signal = options?.signal;',
-    '      if (!signal || typeof signal.addEventListener !== \"function\") return;',
-    "      const onAbort = () => reject(new Error('AbortError'));",
-    "      signal.addEventListener('abort', onAbort, { once: true });",
-    '    });',
-    '  }',
-    "  const status = Number(item.status || 200);",
-    "  const body = Buffer.from(String(item.body || ''), 'utf8');",
-    '  return {',
-    '    ok: status >= 200 && status < 300,',
-    '    status,',
-    "    statusText: String(item.statusText || ''),",
-    "    url: String(item.url || 'mock://phpactor'),",
-    '    arrayBuffer: async () => body',
-    '  };',
-    '};',
-    "process.argv = [process.execPath, scriptPath, ...scriptArgs];",
-    'await import(pathToFileURL(scriptPath).href);'
-  ].join('\n'),
-  'utf8'
-);
-
+await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const runWithScenario = async ({ steps, args }) => {
-  const scenarioPath = path.join(tempRoot, `scenario-${Date.now()}-${Math.random().toString(16).slice(2)}.json`);
-  await fs.writeFile(scenarioPath, `${JSON.stringify({ steps }, null, 2)}\n`, 'utf8');
-  const result = runNode(
-    [fetchHarnessPath, scenarioPath, scriptPath, '--sha256',
-      crypto.createHash('sha256').update(String(steps.at(-1)?.body || 'unused')).digest('hex'), ...args],
-    'install phpactor phar network guard scenario',
-    root,
-    applyTestEnv({ syncProcess: false }),
-    {
-      stdio: 'pipe',
-      allowFailure: true
-    }
-  );
-  return result;
+  const id = `/${scenarios.size}`;
+  scenarios.set(id, { steps, calls: 0 });
+  const fixtureArgs = [...args];
+  fixtureArgs[fixtureArgs.indexOf('--url') + 1] = `http://127.0.0.1:${server.address().port}${id}`;
+  const result = await spawnSubprocess(process.execPath,
+    [scriptPath, '--sha256', crypto.createHash('sha256').update(String(steps.at(-1)?.body || 'unused')).digest('hex'), ...fixtureArgs],
+    { cwd: root, env: { ...applyTestEnv({ syncProcess: false }), PAIROFCLEATS_ALLOW_LOCAL_DOWNLOADS: '1' },
+      stdio: ['ignore', 'pipe', 'pipe'], timeoutMs: 5000, maxOutputBytes: 65536, outputMode: 'string', rejectOnNonZeroExit: false });
+  return { ...result, status: result.exitCode };
 };
-
 try {
   const missingDigestReport = path.join(tempRoot, 'missing-digest-report.json');
   const missingDigest = runNode([scriptPath, '--bin-dir', path.join(tempRoot, 'missing-digest'),
@@ -142,6 +110,8 @@ try {
   const pharBytes = await fs.readFile(pharPath);
   assert.equal(Buffer.compare(pharBytes, Buffer.from(retryBody, 'utf8')), 0, 'expected downloaded phar payload to match fixture response payload');
 } finally {
+  server.closeAllConnections();
+  await new Promise(resolve => server.close(resolve));
   await fs.rm(tempRoot, { recursive: true, force: true });
 }
 

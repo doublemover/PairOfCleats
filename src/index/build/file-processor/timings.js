@@ -102,7 +102,7 @@ export function createFileTimingTracker({ mode, featureMetrics }) {
         (sum, value) => sum + (Number(value) || 0),
         0
       );
-      const lineTotal = totalLines > 0 ? totalLines : fallbackTotal;
+      const lineTotal = Math.max(totalLines, fallbackTotal);
       for (const [languageId, lineCount] of languageLines.entries()) {
         const lines = Number(lineCount) || 0;
         if (!lines) continue;

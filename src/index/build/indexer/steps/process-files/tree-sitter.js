@@ -117,7 +117,7 @@ export const applyTreeSitterBatching = (
 ) => {
   if (!treeSitterOptions || treeSitterOptions.enabled === false) return;
   if (treeSitterOptions.batchByLanguage === false) return;
-  if (!Array.isArray(entries) || entries.length < 2) return;
+  if (!Array.isArray(entries) || entries.length === 0) return;
 
   const batchMeta = new Map();
   for (const entry of entries) {

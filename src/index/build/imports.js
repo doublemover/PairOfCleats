@@ -16,6 +16,7 @@ import { sha1 } from '../../shared/hash.js';
 import { showProgress } from '../../shared/progress-runtime.js';
 import { canonicalizeForSignature, stableStringifyForSignature } from '../../shared/stable-json.js';
 import { readCachedImports } from './incremental.js';
+import { SEMANTIC_ANALYSIS_VERSIONS } from '../semantic/analysis-versions.js';
 import {
   IMPORT_REASON_CODES,
   IMPORT_RESOLUTION_STATES,
@@ -76,6 +77,7 @@ const sanitizeImportScanLanguageOptions = (value, pathSegments = []) => {
 };
 
 const buildImportScanFingerprint = ({ languageOptions, mode }) => sha1(stableStringifyForSignature({
+  producer: SEMANTIC_ANALYSIS_VERSIONS.importResolution,
   mode: typeof mode === 'string' ? mode : 'code',
   languageOptions: canonicalizeForSignature(sanitizeImportScanLanguageOptions(languageOptions || null))
 }));
@@ -338,7 +340,7 @@ const normalizeImportEntriesWithHints = (entries) => {
   for (const entry of Array.isArray(entries) ? entries : []) {
     const specifier = sanitizeImportSpecifier(
       typeof entry === 'string' ? entry : entry?.specifier,
-      { stripTrailingPunctuation: false }
+      { literal:true }
     );
     if (!specifier) continue;
     imports.push(specifier);
@@ -346,7 +348,9 @@ const normalizeImportEntriesWithHints = (entries) => {
     if (!hint) continue;
     hints[specifier] = mergeCollectorHints(hints[specifier], hint);
   }
-  const normalizedImports = normalizeImports(imports);
+  // Registry entries and persisted import-cache rows are already admitted
+  // semantic specifiers. Reapplying scanner syntax cleanup corrupts literals.
+  const normalizedImports = [...new Set(imports)].sort((a,b)=>a<b?-1:a>b?1:0);
   const filteredHints = Object.create(null);
   for (const specifier of normalizedImports) {
     if (hints[specifier]) filteredHints[specifier] = hints[specifier];
@@ -501,6 +505,7 @@ export async function scanImports({
   throwIfAborted(effectiveAbortSignal);
   const importsByFile = new Map();
   const importHintsByFile = new Map();
+  const importCoverageByFile = Object.create(null);
   const importScanFingerprint = buildImportScanFingerprint({ languageOptions, mode });
   const moduleSet = new Set();
   const start = Date.now();
@@ -588,7 +593,8 @@ export async function scanImports({
       const relKey = item.relKey;
       const ext = item.ext || fileExt(relKey);
       const hadPrefetch = cachedImportsByFile.has(relKey);
-      const options = languageOptions && typeof languageOptions === 'object' ? languageOptions : {};
+      const options = { ...(languageOptions && typeof languageOptions === 'object' ? languageOptions : {}),
+        ...(effectiveAbortSignal ? { abortSignal: effectiveAbortSignal } : {}) };
       const recordImportHints = (hints, imports = null) => {
         if (!hints || typeof hints !== 'object') return;
         const importSet = new Set(Array.isArray(imports) ? imports : []);
@@ -612,6 +618,7 @@ export async function scanImports({
       };
       const recordImportEntries = (entries) => {
         if (!Array.isArray(entries)) return false;
+        if (entries.coverage) importCoverageByFile[relKey] = entries.coverage;
         const normalized = normalizeImportEntriesWithHints(entries);
         recordImports(normalized.imports);
         recordImportHints(normalized.hints, normalized.imports);
@@ -780,6 +787,7 @@ export async function scanImports({
   }
   return {
     importsByFile: dedupedImportsByFile,
+    importCoverageByFile,
     importHintsByFile: dedupedImportHintsByFile,
     importScanFingerprint,
     durationMs: Date.now() - start,

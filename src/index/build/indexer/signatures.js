@@ -1,3 +1,4 @@
+import { resolveCrossFileFidelity } from '../../cross-file-fidelity.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../contracts/versioning.js';
 import { SCORING_ANALYZER_VERSION } from '../../../shared/tokenize-identifiers.js';
 import { TEXT_ANALYZER_VERSION } from '../../../shared/text-analyzer.js';
@@ -11,10 +12,16 @@ import {
 import { sha1 } from '../../../shared/hash.js';
 import { stableStringifyForSignature } from '../../../shared/stable-json.js';
 import { MAX_JSON_BYTES } from '../../../shared/artifact-io/constants.js';
+import { MODULE_EXPORTS_VERSION } from '../../../lang/js-ts-exports.js';
+import { TREE_SITTER_CHUNK_VERSION } from '../../../lang/tree-sitter/config.js';
+import { MINHASH_HASH_IDENTITY } from '../../minhash.js';
+import { SEMANTIC_ANALYSIS_VERSIONS } from '../../semantic/analysis-versions.js';
+import { DOCX_STRUCTURAL_EXTRACTION_VERSION } from '../../extractors/common.js';
 
 export { ARTIFACT_SCHEMA_HASH };
 
-export const SIGNATURE_VERSION = 4;
+// v14 binds capped discovery to its deterministic accepted-source ordering.
+export const SIGNATURE_VERSION = 14;
 
 const normalizeRegex = (value) => (value instanceof RegExp ? value : (value || null));
 
@@ -91,6 +98,10 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
   return {
     signatureVersion: SIGNATURE_VERSION,
     literalAnalyzer: TEXT_ANALYZER_VERSION,
+    moduleExportsProducer: MODULE_EXPORTS_VERSION,
+    nativeChunkProducer: TREE_SITTER_CHUNK_VERSION,
+    discoverySelectionProducer: SEMANTIC_ANALYSIS_VERSIONS.discoverySelection,
+    minhashHashIdentity: MINHASH_HASH_IDENTITY,
     mode,
     tokenizationKey,
     cacheSchemaVersion: derivedSchemaVersion,
@@ -101,12 +112,14 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
       controlFlowEnabled: runtime.controlFlowEnabled,
       lintEnabled: runtime.lintEnabled,
       complexityEnabled: runtime.complexityEnabled,
+      complexityAnalyzer: '2',
       riskAnalysisEnabled,
       riskAnalysisCrossFileEnabled,
       riskInterproceduralEnabled: modeRiskInterproceduralEnabled,
       riskInterproceduralSummaryOnly: modeRiskInterproceduralSummaryOnly,
       typeInferenceEnabled,
       typeInferenceCrossFileEnabled,
+      crossFileFidelity: resolveCrossFileFidelity(indexingConfig.crossFileFidelity),
       gitBlameEnabled
     },
     riskInterproceduralConfig: runtime.riskInterproceduralConfig
@@ -189,6 +202,7 @@ export const buildTokenizationKey = (runtime, mode) => {
   const payload = {
     signatureVersion: SIGNATURE_VERSION,
     scoringAnalyzer: SCORING_ANALYZER_VERSION,
+    minhashHashIdentity: MINHASH_HASH_IDENTITY,
     mode,
     dictConfig: dictConfigPayload,
     postingsConfig: runtime.postingsConfig || {},
@@ -225,7 +239,9 @@ export const buildDependencySignatures = (runtime, mode, tokenizationKey) => {
     artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     signatureVersion: SIGNATURE_VERSION, mode, cacheSchemaVersion: payload.cacheSchemaVersion, artifactSchemaHash: payload.artifactSchemaHash,
     parsers: payload.parsers, treeSitter: payload.treeSitter, yamlChunking: payload.yamlChunking,
+    moduleExportsProducer: payload.moduleExportsProducer, nativeChunkProducer: payload.nativeChunkProducer,
     kotlin: payload.kotlin, chunkIdAlgoVersion: payload.chunkIdAlgoVersion,
+    ...(mode === 'extracted-prose' ? { docxStructuralExtractionVersion: DOCX_STRUCTURAL_EXTRACTION_VERSION } : {}),
     fileCaps: payload.fileCaps, fileScan: payload.fileScan,
     segments: runtime.segmentsConfig || {}, comments: runtime.commentsConfig || {}
   };
@@ -237,6 +253,7 @@ export const buildDependencySignatures = (runtime, mode, tokenizationKey) => {
   };
   const { batchSize: _batchSize, ...embeddings } = payload.embeddings;
   const artifacts = {
+    pieceAssemblyProducer: SEMANTIC_ANALYSIS_VERSIONS.pieceAssembly,
     artifactSchemaHash: payload.artifactSchemaHash, artifacts: payload.artifacts,
     incrementalBundleFormat: payload.incrementalBundleFormat, profile: payload.profile
   };

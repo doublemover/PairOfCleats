@@ -1,3 +1,6 @@
+import { resolveCallArguments, exactCallArity } from '../../contracts/call-arguments.js';
+import { API_CONTRACT_REPORT_VERSION } from '../../contracts/schemas/api-contracts.js';
+import { CALLABLE_PARAMETERS_VERSION, isQualifiedCallableSummary, unavailableCallableParameters } from '../../contracts/callable-parameters.js';
 import path from 'node:path';
 import { createCli } from '../../shared/cli.js';
 import { isDirectExecution } from '../../shared/direct-execution.js';
@@ -20,6 +23,8 @@ import { renderApiContracts } from '../../retrieval/output/api-contracts.js';
 import { loadUserConfig } from '../../shared/dict-utils.js';
 import { getRepoRoot } from '../../shared/repo-paths.js';
 import { writeJsonLinesFile } from '../../shared/json-stream/jsonl-write.js';
+import { apiContractSymbolIdentity, buildApiContractTargetJoins, createApiContractCallTargetIndex } from './api-contract-targets.js';
+import { emitReportOutcome } from './report-outcome.js';
 
 /**
  * Build non-null API contract cap payload used in report metadata.
@@ -84,27 +89,18 @@ const collectRows = async (iterator) => {
  *
  * @param {string} indexDir
  * @param {object} manifest
- * @returns {Promise<Map<string, object[]>|null>}
+ * @returns {Promise<object|null>} Opaque captured call index.
  */
 const loadCallSitesByTarget = async (indexDir, manifest) => {
   const jsonlPaths = resolveJsonlSources(indexDir, manifest, 'call_sites');
   if (!jsonlPaths) return null;
-  const map = new Map();
+  const builder = createApiContractCallTargetIndex();
   for (const target of jsonlPaths) {
     for await (const callSite of readJsonlRows(target)) {
-      if (!callSite) continue;
-      const keys = new Set();
-      if (callSite.targetChunkUid) keys.add(callSite.targetChunkUid);
-      if (callSite.calleeNormalized) keys.add(callSite.calleeNormalized);
-      for (const key of keys) {
-        if (!key) continue;
-        const list = map.get(key) || [];
-        list.push(callSite);
-        map.set(key, list);
-      }
+      builder.add(callSite);
     }
   }
-  return map;
+  return builder.finish();
 };
 
 
@@ -115,6 +111,9 @@ const loadCallSitesByTarget = async (indexDir, manifest) => {
  * @returns {boolean}
  */
 const isExportedSymbol = (symbol) => {
+  if (typeof symbol.exported === 'boolean') return symbol.exported;
+  if (['javascript', 'typescript', 'jsx', 'tsx'].includes(String(symbol.lang || '').toLowerCase())
+    || /\.(?:[cm]?[jt]sx?)$/i.test(symbol.file || '')) return null;
   const kind = String(symbol.kind || '').toLowerCase();
   const group = String(symbol.kindGroup || '').toLowerCase();
   if (kind.includes('export')) return true;
@@ -130,11 +129,15 @@ const signatureArityCache = new Map();
  * @param {string} signature
  * @returns {{requiredCount:number,maxCount:number|null,variadic:boolean}|null}
  */
-const parseSignatureArity = (signature) => {
+const parseSignatureArity = (signature, language) => {
   if (!signature || typeof signature !== 'string') return null;
   const text = String(signature);
+  if (text.length > 4096 || /[\u2026]|\/\*|\/\//u.test(text)) return null;
   const start = text.indexOf('(');
   if (start === -1) return null;
+  const prefix = text.slice(0, start).trim();
+  if (!/^(?:(?:export|default|declare|public|private|protected|static|async|abstract|override)\s+)*(?:function\s*\*?\s*)?(?:[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)?$/u.test(prefix)) return null;
+  if (language === 'javascript' && /\b(?:declare|public|private|protected|abstract|override)\b/u.test(prefix)) return null;
   let depth = 0;
   let inSingle = false;
   let inDouble = false;
@@ -193,11 +196,13 @@ const parseSignatureArity = (signature) => {
     return {
       requiredCount: 0,
       maxCount: 0,
+      formalSlotCount: 0, runtimeSlotCount: 0,
       variadic: false
     };
   }
 
   const params = [];
+  const delimiters = [];
   let current = '';
   depth = 0;
   inSingle = false;
@@ -248,11 +253,13 @@ const parseSignatureArity = (signature) => {
       continue;
     }
     if (ch === '(' || ch === '[' || ch === '{') {
+      delimiters.push(ch === '(' ? ')' : ch === '[' ? ']' : '}');
       depth += 1;
       current += ch;
       continue;
     }
     if (ch === ')' || ch === ']' || ch === '}') {
+      if (delimiters.pop() !== ch) return null;
       depth = Math.max(0, depth - 1);
       current += ch;
       continue;
@@ -269,14 +276,17 @@ const parseSignatureArity = (signature) => {
     }
     if (ch === ',' && depth === 0 && angleDepth === 0) {
       const trimmed = current.trim();
-      if (trimmed) params.push(trimmed);
+      if (!trimmed) return null;
+      params.push(trimmed);
       current = '';
       continue;
     }
     current += ch;
   }
+  if (depth || angleDepth || inSingle || inDouble || inBacktick || params.length > 256) return null;
   const final = current.trim();
   if (final) params.push(final);
+  if (params.length > 256 || delimiters.length) return null;
 
   const isTopLevelTokenMatch = (value, predicate) => {
     let level = 0;
@@ -319,46 +329,51 @@ const parseSignatureArity = (signature) => {
     return false;
   };
 
-  let requiredCount = 0;
-  let optionalCount = 0;
-  let variadic = false;
-
-  for (const param of params) {
-    const trimmed = param.trim();
-    if (!trimmed) continue;
-    if (trimmed === '*') continue;
-    if (trimmed.startsWith('...') || trimmed.startsWith('*')) {
-      variadic = true;
+  let requiredCount = 0, runtimeSlotCount = 0, variadic = false;
+  for (let index = 0; index < params.length; index++) {
+    const trimmed = params[index].trim();
+    if (/^this\s*:/u.test(trimmed)) {
+      if (language !== 'typescript' || index !== 0) return null;
       continue;
     }
-    const hasDefault = isTopLevelTokenMatch(trimmed, (ch) => ch === '=');
-    const hasOptionalMark = isTopLevelTokenMatch(trimmed, (ch, idx, value) => {
-      if (ch !== '?') return false;
-      const rest = value.slice(idx + 1);
-      return !rest || rest.startsWith(':') || rest.startsWith(' =') || rest.startsWith('=');
-    });
-    if (hasDefault || hasOptionalMark) {
-      optionalCount += 1;
-    } else {
-      requiredCount += 1;
+    if (!/^(?:\.\.\.)?(?:[A-Za-z_$]|[\[{])/u.test(trimmed) || /\bextends\b/u.test(trimmed)) return null;
+    if (language === 'javascript' && isTopLevelTokenMatch(trimmed, ch => ch === ':' || ch === '?')) return null;
+    const position = runtimeSlotCount++;
+    if (trimmed.startsWith('...')) {
+      if (index !== params.length - 1) return null;
+      variadic = true; continue;
     }
+    const hasDefault = isTopLevelTokenMatch(trimmed, (ch, index, value) => ch === '='
+      && value[index + 1] !== '>' && value[index + 1] !== '=' && !/[=!<>]/u.test(value[index - 1] || ''));
+    const hasOptionalMark = isTopLevelTokenMatch(trimmed, (ch, index, value) => ch === '?' && /^\s*(?::|=|$)/u.test(value.slice(index + 1)));
+    if (!hasDefault && !hasOptionalMark) requiredCount = position + 1;
   }
-
-  const maxCount = variadic ? null : requiredCount + optionalCount;
-  return {
-    requiredCount,
-    maxCount,
-    variadic
-  };
+  return { requiredCount, maxCount: variadic ? null : runtimeSlotCount, variadic, formalSlotCount: params.length, runtimeSlotCount };
 };
 
-const resolveSignatureArity = (signature) => {
-  if (!signature) return null;
-  const key = String(signature);
-  if (signatureArityCache.has(key)) return signatureArityCache.get(key);
-  const parsed = parseSignatureArity(key);
-  signatureArityCache.set(key, parsed);
-  return parsed;
+const resolveSignatureArity = symbol => {
+  const declared = typeof symbol.lang === 'string' && symbol.lang ? symbol.lang.toLowerCase() : null;
+  const language = declared ? ['typescript', 'ts', 'tsx'].includes(declared) ? 'typescript'
+    : ['javascript', 'js', 'jsx'].includes(declared) ? 'javascript' : null
+    : /\.(?:[cm]?ts|tsx)$/iu.test(symbol.file || '') ? 'typescript'
+      : /\.(?:[cm]?js|jsx)$/iu.test(symbol.file || '') ? 'javascript' : null;
+  if (Object.hasOwn(symbol.extensions || {}, 'callableParameters')) {
+    const summary = symbol.extensions.callableParameters;
+    if (language && summary?.language !== language || declared && !language) return unavailableCallableParameters('parameter-language-mismatch', language);
+    return isQualifiedCallableSummary(summary) ? structuredClone(summary) : unavailableCallableParameters(summary?.reason || 'parameter-summary-invalid', language, summary?.parser || null);
+  }
+  if (!language || typeof symbol.signature !== 'string' || symbol.signature.length > 4096) return unavailableCallableParameters('legacy-language-or-signature-unavailable', language);
+  const key = JSON.stringify(['legacy-parameter-subset-v2', language, symbol.signature]);
+  if (signatureArityCache.has(key)) return structuredClone(signatureArityCache.get(key));
+  const parsed = parseSignatureArity(symbol.signature, language);
+  const summary = parsed ? { schemaVersion: CALLABLE_PARAMETERS_VERSION, projection: 'arity-summary', language, parser: null,
+    source: 'legacy-signature-subset', state: 'partial', reason: 'bounded-legacy-parameter-subset',
+    formalSlotCount: parsed.formalSlotCount, runtimeSlotCount: parsed.runtimeSlotCount, declarationRange: null, signatureRange: null,
+    arity: { state: 'complete', min: parsed.requiredCount, max: parsed.maxCount, variadic: parsed.variadic } }
+    : unavailableCallableParameters('legacy-signature-unsupported', language);
+  if (signatureArityCache.size >= 4096) signatureArityCache.delete(signatureArityCache.keys().next().value);
+  signatureArityCache.set(key, summary);
+  return structuredClone(summary);
 };
 
 /**
@@ -381,6 +396,7 @@ export const buildApiContractsReport = ({
   indexCompatKey = null,
   repo = null,
   indexDir = null,
+  metrics = null,
   now = () => new Date().toISOString()
 } = {}) => {
   const maxSymbols = Number.isFinite(caps.maxSymbols) ? Math.max(0, Math.floor(caps.maxSymbols)) : null;
@@ -389,21 +405,38 @@ export const buildApiContractsReport = ({
     : null;
   const maxWarnings = Number.isFinite(caps.maxWarnings) ? Math.max(0, Math.floor(caps.maxWarnings)) : null;
   const capsPayload = buildCapsPayload({ maxSymbols, maxCallsPerSymbol, maxWarnings });
+  const reportProvenance = resolveProvenance({ provenance, indexSignature, indexCompatKey,
+    capsUsed: { apiContracts: capsPayload }, repo, indexDir, now, label: 'ApiContracts' });
 
   const truncation = [];
   const warnings = [];
+  let detectedWarnings = 0;
   const warn = (warning) => {
-    if (!warning?.code || !warning?.message) return;
-    if (maxWarnings != null && warnings.length >= maxWarnings) return;
+    if (!warning?.code || !warning?.message) return false;
+    detectedWarnings += 1;
+    if (maxWarnings != null && warnings.length >= maxWarnings) return false;
     warnings.push(warning);
+    return true;
   };
 
-  const sortedSymbols = Array.isArray(symbols) ? [...symbols] : [];
-  sortedSymbols.sort((a, b) => String(a.symbolId || '').localeCompare(String(b.symbolId || '')));
+  const sortedSymbols = Array.isArray(symbols)
+    ? [...new Map(symbols.map(symbol => [apiContractSymbolIdentity(symbol), symbol])).values()] : [];
+  sortedSymbols.sort((a, b) => String(a.symbolId || a.id || '').localeCompare(String(b.symbolId || b.id || ''))
+    || String(a.file || '').localeCompare(String(b.file || ''))
+    || String(a.chunkUid || '').localeCompare(String(b.chunkUid || ''))
+    || String(a.signature || '').localeCompare(String(b.signature || '')));
+  const joinedCalls = buildApiContractTargetJoins({ symbols: sortedSymbols, callSites, callSitesByTarget,
+    provenance: reportProvenance, metrics });
 
   let selected = sortedSymbols;
   if (onlyExports) {
-    selected = selected.filter((symbol) => isExportedSymbol(symbol));
+    selected = selected.filter((symbol) => {
+      const exported = isExportedSymbol(symbol);
+      if (exported == null) warn({ code: 'EXPORT_IDENTITY_UNAVAILABLE',
+        message: 'Export identity is unavailable for this symbol; export-only validation is incomplete.',
+        data: { symbolId: symbol.symbolId } });
+      return exported === true;
+    });
   }
   if (maxSymbols != null && selected.length > maxSymbols) {
     truncation.push({
@@ -416,48 +449,9 @@ export const buildApiContractsReport = ({
     selected = selected.slice(0, maxSymbols);
   }
 
-  const resolvedCallSitesByTarget = callSitesByTarget instanceof Map
-    ? callSitesByTarget
-    : new Map();
-  if (!(callSitesByTarget instanceof Map)) {
-    for (const callSite of Array.isArray(callSites) ? callSites : []) {
-      if (!callSite) continue;
-      const keys = new Set();
-      if (callSite.targetChunkUid) keys.add(callSite.targetChunkUid);
-      if (callSite.calleeNormalized) keys.add(callSite.calleeNormalized);
-      for (const key of keys) {
-        if (!key) continue;
-        const list = resolvedCallSitesByTarget.get(key) || [];
-        list.push(callSite);
-        resolvedCallSitesByTarget.set(key, list);
-      }
-    }
-  }
-  const sortCallSites = (a, b) => {
-    const fileCmp = String(a.file || '').localeCompare(String(b.file || ''));
-    if (fileCmp) return fileCmp;
-    const lineCmp = Number(a.startLine || 0) - Number(b.startLine || 0);
-    if (lineCmp) return lineCmp;
-    return String(a.callSiteId || '').localeCompare(String(b.callSiteId || ''));
-  };
-  for (const list of resolvedCallSitesByTarget.values()) {
-    list.sort(sortCallSites);
-  }
-
   const symbolEntries = selected.map((symbol) => {
     const symbolId = symbol.symbolId || symbol.id || null;
-    const targetCandidates = [];
-    if (symbol.chunkUid) targetCandidates.push(symbol.chunkUid);
-    if (symbolId) targetCandidates.push(symbolId);
-    if (symbol.name) targetCandidates.push(symbol.name);
-    let rawCalls = [];
-    for (const key of targetCandidates) {
-      const list = resolvedCallSitesByTarget.get(key);
-      if (list && list.length) {
-        rawCalls = list;
-        break;
-      }
-    }
+    const rawCalls = joinedCalls.forSymbol(symbol);
 
     let observedCalls = rawCalls;
     const entryTruncation = [];
@@ -472,39 +466,55 @@ export const buildApiContractsReport = ({
       observedCalls = observedCalls.slice(0, maxCallsPerSymbol);
     }
 
-    const signatureInfo = resolveSignatureArity(symbol.signature);
+    const signatureInfo = resolveSignatureArity(symbol);
     const entryWarnings = [];
-    if (signatureInfo) {
-      const requiredCount = Number.isFinite(signatureInfo.requiredCount) ? signatureInfo.requiredCount : null;
-      const maxCount = Number.isFinite(signatureInfo.maxCount) ? signatureInfo.maxCount : null;
+    if (isQualifiedCallableSummary(signatureInfo)) {
+      const requiredCount = signatureInfo.arity.min;
+      const maxCount = signatureInfo.arity.max;
       for (const call of observedCalls) {
-        const arity = Array.isArray(call.args) ? call.args.length : null;
-        const belowRequired = requiredCount != null && arity != null && arity < requiredCount;
-        const aboveMax = maxCount != null && arity != null && arity > maxCount;
-        if (arity != null && (belowRequired || aboveMax)) {
+        const argumentsEvidence = resolveCallArguments(call), arity = exactCallArity(call);
+        const belowRequired = requiredCount != null && argumentsEvidence.arity.max != null && argumentsEvidence.arity.max < requiredCount;
+        const aboveMax = maxCount != null && argumentsEvidence.arity.min != null && argumentsEvidence.arity.min > maxCount;
+        if (belowRequired || aboveMax) {
           let expected = '';
           if (requiredCount != null && maxCount != null) {
             expected = requiredCount === maxCount
               ? `Expected ${requiredCount}.`
               : `Expected ${requiredCount}-${maxCount}.`;
-          } else if (requiredCount != null && maxCount == null && signatureInfo.variadic) {
+          } else if (requiredCount != null && maxCount == null && signatureInfo.arity.variadic) {
             expected = `Expected ${requiredCount}+ (variadic).`;
           } else if (requiredCount != null) {
             expected = `Expected >= ${requiredCount}.`;
           }
           const warning = {
             code: 'ARITY_MISMATCH',
-            message: `Observed arity ${arity} differs from signature arity. ${expected}`.trim(),
-            data: { symbolId, callSiteId: call.callSiteId }
+            message: `Observed arity ${arity ?? `${argumentsEvidence.arity.min}+`} differs from signature arity. ${expected}`.trim(),
+            data: { symbolId, callSiteId: call.callSiteId, targetChunkUid: call.targetChunkUid,
+              indexSignature: call.join.indexSignature }
           };
-          if (maxWarnings == null || warnings.length < maxWarnings) {
+          if (warn(warning)) {
             entryWarnings.push(warning);
-            warn(warning);
           }
         }
       }
     }
 
+    for (const call of observedCalls) {
+      const argumentsEvidence = resolveCallArguments(call);
+      if (argumentsEvidence.arity.state === 'exact') continue;
+      const warning = { code: 'CALL_ARGUMENT_AUTHORITY_UNAVAILABLE',
+        message: 'Exact runtime argument count is unavailable; validation uses only justified bounds.',
+        data: { symbolId, callSiteId: call.callSiteId, targetChunkUid: call.targetChunkUid,
+          indexSignature: call.join.indexSignature, arityState: argumentsEvidence.arity.state } };
+      if (warn(warning)) entryWarnings.push(warning);
+    }
+
+    if (!isQualifiedCallableSummary(signatureInfo) && observedCalls.length) {
+      const warning = { code: 'CALLABLE_PARAMETER_AUTHORITY_UNAVAILABLE',
+        message: 'Callable parameter authority is unavailable; exact argument-count validation is incomplete.',
+        data: { symbolId, reason: signatureInfo.reason, indexSignature: reportProvenance.indexSignature || null } };
+      if (warn(warning)) entryWarnings.push(warning);
+    }
     return {
       symbol: {
         symbolId: symbolId || 'unknown',
@@ -515,54 +525,61 @@ export const buildApiContractsReport = ({
       },
       signature: {
         declared: symbol.signature || null,
-        tooling: null
+        tooling: null,
+        parameters: signatureInfo
       },
       observedCalls: observedCalls.map((call) => ({
-        arity: Array.isArray(call.args) ? call.args.length : null,
-        args: Array.isArray(call.args) ? call.args : null,
+        arity: exactCallArity(call),
+        arguments: structuredClone(resolveCallArguments(call)),
+        args: Array.isArray(call.args) ? [...call.args] : null,
         callSiteId: call.callSiteId || null,
         file: call.file || null,
         startLine: Number.isFinite(call.startLine) ? call.startLine : null,
-        confidence: Number.isFinite(call.confidence) ? call.confidence : null
+        start: Number.isFinite(call.start) ? call.start : null,
+        end: Number.isFinite(call.end) ? call.end : null,
+        startCol: Number.isFinite(call.startCol) ? call.startCol : null,
+        endLine: Number.isFinite(call.endLine) ? call.endLine : null,
+        endCol: Number.isFinite(call.endCol) ? call.endCol : null,
+        confidence: Number.isFinite(call.confidence) ? call.confidence : null,
+        callerChunkUid: call.callerChunkUid,
+        calleeNormalized: call.calleeNormalized,
+        targetChunkUid: call.targetChunkUid,
+        semanticRef: call.semanticRef ? structuredClone(call.semanticRef) : null,
+        join: call.join
       })),
       warnings: entryWarnings.length ? entryWarnings : null,
       truncation: entryTruncation.length ? entryTruncation : null
     };
   });
+  joinedCalls.evidence.reportedCallCount = symbolEntries.reduce((sum, entry) => sum + entry.observedCalls.length, 0);
+  joinedCalls.evidence.omittedQualifiedCallCount = joinedCalls.evidence.qualifiedCallCount - joinedCalls.evidence.reportedCallCount;
 
-  if (maxWarnings != null && warnings.length >= maxWarnings) {
+  const omittedWarnings = detectedWarnings - warnings.length;
+  if (omittedWarnings > 0) {
     truncation.push({
       scope: 'apiContracts',
       cap: 'maxWarnings',
       limit: maxWarnings,
-      observed: warnings.length,
-      omitted: null
+      observed: detectedWarnings,
+      omitted: omittedWarnings
     });
   }
 
   const report = {
-    version: '1.0.0',
-    provenance: resolveProvenance({
-      provenance,
-      indexSignature,
-      indexCompatKey,
-      capsUsed: { apiContracts: capsPayload },
-      repo,
-      indexDir,
-      now,
-      label: 'ApiContracts'
-    }),
+    version: API_CONTRACT_REPORT_VERSION,
+    provenance: reportProvenance,
     options: {
       onlyExports,
       failOnWarn,
       caps: capsPayload
     },
     symbols: symbolEntries,
+    callEvidence: joinedCalls.evidence,
     truncation: truncation.length ? truncation : null,
     warnings: warnings.length ? warnings : null
   };
 
-  if (failOnWarn && warnings.length) {
+  if (failOnWarn && detectedWarnings > 0) {
     const error = new Error('API contracts warnings detected.');
     error.code = 'ERR_API_CONTRACT_WARN';
     error.report = report;
@@ -612,7 +629,7 @@ export async function runApiContractsCli(rawArgs = process.argv.slice(2)) {
   const callSitesByTarget = await loadCallSitesByTarget(indexDir, manifest);
   const callSites = callSitesByTarget
     ? []
-    : await collectRows(loadJsonArrayArtifactRows(indexDir, 'call_sites', { manifest, strict: true })).catch(() => []);
+    : await collectRows(loadJsonArrayArtifactRows(indexDir, 'call_sites', { manifest, strict: true }));
 
   const { key: indexCompatKey } = readCompatibilityKey(indexDir, {
     maxBytes: MAX_JSON_BYTES,
@@ -628,37 +645,29 @@ export async function runApiContractsCli(rawArgs = process.argv.slice(2)) {
     maxWarnings: normalizeOptionalNumber(argv.maxWarnings)
   };
 
-  const report = buildApiContractsReport({
-    symbols,
-    callSites,
-    callSitesByTarget,
-    onlyExports: argv.onlyExports === true,
-    failOnWarn: argv.failOnWarn === true,
-    caps,
-    indexCompatKey: indexCompatKey || null,
-    indexSignature: indexSignature || null,
-    repo: toPosix(path.relative(process.cwd(), repoRoot) || '.'),
-    indexDir: toPosix(path.relative(process.cwd(), indexDir) || '.')
+  const format = String(argv.format || 'json').toLowerCase();
+  return emitReportOutcome({ label: 'ApiContracts', validate: validateApiContracts, policyCodes: ['ERR_API_CONTRACT_WARN'],
+    build: () => buildApiContractsReport({
+      symbols,
+      callSites,
+      callSitesByTarget,
+      onlyExports: argv.onlyExports === true,
+      failOnWarn: argv.failOnWarn === true,
+      caps,
+      indexCompatKey: indexCompatKey || null,
+      indexSignature: indexSignature || null,
+      repo: toPosix(path.relative(process.cwd(), repoRoot) || '.'),
+      indexDir: toPosix(path.relative(process.cwd(), indexDir) || '.')
+    }),
+    emit: report => {
+      if (format === 'md' || format === 'markdown') console.log(renderApiContracts(report));
+      else console.log(JSON.stringify(report, null, 2));
+    },
+    emitArtifact: argv.emitArtifact ? async report => {
+      const targetDir = argv.artifactDir ? path.resolve(argv.artifactDir) : indexDir;
+      await writeJsonLinesFile(path.join(targetDir, 'api_contracts.jsonl'), report.symbols, { atomic: true });
+    } : null
   });
-
-  const validation = validateApiContracts(report);
-  if (!validation.ok) {
-    throw new Error(`ApiContracts schema validation failed: ${validation.errors.join('; ')}`);
-  }
-
-  const format = String(argv.format || (argv.json ? 'json' : 'json')).toLowerCase();
-  if (format === 'md' || format === 'markdown') {
-    console.log(renderApiContracts(report));
-  } else {
-    console.log(JSON.stringify(report, null, 2));
-  }
-
-  if (argv.emitArtifact) {
-    const targetDir = argv.artifactDir ? path.resolve(argv.artifactDir) : indexDir;
-    const outPath = path.join(targetDir, 'api_contracts.jsonl');
-    await writeJsonLinesFile(outPath, report.symbols, { atomic: true });
-  }
-  return report;
 }
 
 if (isDirectExecution(import.meta.url)) {

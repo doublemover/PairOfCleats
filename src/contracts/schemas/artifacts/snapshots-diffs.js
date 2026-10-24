@@ -4,7 +4,8 @@ const nullableBool = { type: ['boolean', 'null'] };
 const posInt = { type: 'integer', minimum: 1 };
 const modeName = { type: 'string', enum: ['code', 'prose', 'extracted-prose', 'records'] };
 const modeList = { type: 'array', items: modeName };
-const snapshotIdString = { type: 'string', pattern: '^snap-[A-Za-z0-9._-]+$' };
+export const SNAPSHOT_ID_SCHEMA = { type: 'string', pattern: '^snap-[A-Za-z0-9._-]+$' };
+const snapshotIdString = SNAPSHOT_ID_SCHEMA;
 const diffIdString = { type: 'string', pattern: '^diff_[A-Za-z0-9._-]+$' };
 
 const snapshotSummaryEntry = {
@@ -144,6 +145,17 @@ export const SNAPSHOT_DIFF_ARTIFACT_SCHEMA_DEFS = {
       frozenAt: { type: 'string' },
       method: { type: 'string' },
       frozenRoot: { type: 'string' },
+      modeProvenanceVersion: { const: 1 },
+      modeProvenance: {
+        type: 'object', propertyNames: { enum: ['code', 'prose', 'extracted-prose', 'records'] },
+        additionalProperties: {
+          type: 'object', required: ['mode', 'statePath', 'sha256', 'buildId', 'configHash', 'toolVersion', 'compatibilityKey'],
+          properties: { mode: { enum: ['code', 'prose', 'extracted-prose', 'records'] }, statePath: { type: 'string' },
+            sha256: { type: 'string', pattern: '^[a-f0-9]{64}$' }, buildId: { type: 'string' },
+            configHash: nullableString, toolVersion: nullableString, compatibilityKey: nullableString },
+          additionalProperties: false
+        }
+      },
       included: {
         type: 'object',
         required: ['modes', 'sqlite', 'lmdb'],
@@ -160,6 +172,7 @@ export const SNAPSHOT_DIFF_ARTIFACT_SCHEMA_DEFS = {
         properties: {
           checkedAt: { type: 'string' },
           ok: { type: 'boolean' },
+          status: { enum: ['verified', 'skipped'] },
           filesChecked: nullableInt,
           bytesChecked: nullableInt,
           failures: { type: ['array', 'null'], items: { type: 'string' } }

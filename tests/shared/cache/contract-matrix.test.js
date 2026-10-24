@@ -26,7 +26,7 @@ import { buildGraphIndexCacheKey } from '../../../src/graph/store.js';
 import { buildMapCacheKey } from '../../../src/map/build-map.js';
 import { buildQueryCacheKey } from '../../../src/retrieval/cli-index.js';
 import { buildQueryPlanCacheKey } from '../../../src/retrieval/query-plan-cache.js';
-import { readCacheMeta, writeCacheMeta } from '../../../tools/build/embeddings/cache.js';
+import { readCacheMeta, writeCacheMeta, buildCacheIdentity } from '../../../tools/build/embeddings/cache.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { withTemporaryEnv } from '../../helpers/test-env.js';
 
@@ -99,14 +99,14 @@ await withTemporaryEnv({
   assert.equal(path.resolve(getCacheRoot()), path.resolve(cacheRoot));
   assert.equal(path.resolve(getCacheTempRoot('sqlite-build')), path.resolve(path.join(cacheRoot, 'tmp', 'sqlite-build')));
 
-  clearCacheRoot({ baseRoot, includeLegacy: false });
-  assert.equal(fs.existsSync(versionedSentinel), false);
+  assert.throws(() => clearCacheRoot({ baseRoot, includeLegacy: false }), { code: 'ERR_STORAGE_CLEANUP_PLAN_REQUIRED' });
+  assert.equal(fs.existsSync(versionedSentinel), true);
   assert.equal(fs.existsSync(legacySentinel), true);
   assert.equal(fs.existsSync(legacyCacheSentinel), true);
 
-  clearCacheRoot({ baseRoot, includeLegacy: true });
-  assert.equal(fs.existsSync(cacheRoot), false);
-  assert.equal(fs.existsSync(legacyRoot), false);
+  assert.throws(() => clearCacheRoot({ baseRoot, includeLegacy: true }), { code: 'ERR_STORAGE_CLEANUP_PLAN_REQUIRED' });
+  assert.equal(fs.existsSync(cacheRoot), true);
+  assert.equal(fs.existsSync(legacyRoot), true);
   assert.equal(fs.existsSync(baseRoot), true);
 });
 
@@ -178,11 +178,11 @@ assert.equal(normalizeCacheNamespace(' Repo/Cache Value '), 'repo-cache-value');
 const preflightTemp = resolveTestCachePath(process.cwd(), 'cache-preflight-meta');
 await fsp.rm(preflightTemp, { recursive: true, force: true });
 await fsp.mkdir(preflightTemp, { recursive: true });
-const identity = { provider: 'test', modelId: 'model', dims: 256 };
+const { identity, key: identityKey } = buildCacheIdentity({ provider: 'test', modelId: 'model', dims: 256 });
 assert.equal(readCacheMeta(preflightTemp, identity, 'code'), null);
 const meta = {
   version: 1,
-  identityKey: 'abc123',
+  identityKey,
   dims: 256,
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString()
@@ -192,6 +192,8 @@ const loaded = readCacheMeta(preflightTemp, identity, 'code');
 assert.ok(loaded);
 assert.equal(loaded.identityKey, meta.identityKey);
 assert.equal(loaded.dims, meta.dims);
+await writeCacheMeta(preflightTemp, identity, 'code', { ...meta, identityKey: 'wrong-profile' });
+assert.equal(readCacheMeta(preflightTemp, identity, 'code'), null, 'a different identity cannot be reused');
 
 const sizeCache = createLruCache({
   name: 'size-test',
@@ -247,6 +249,10 @@ const mapKeyB = buildMapCacheKey({
   options: { include: ['src'], onlyExported: true, focus: null, scope: 'repo' }
 });
 assert.equal(mapKeyA, mapKeyB);
+const selectedMapKey = buildMapCacheKey({ indexIdentity: { indexDir: '/indexes/a', manifest: 'generation-a' } });
+assert.equal(selectedMapKey, buildMapCacheKey({ indexIdentity: { manifest: 'generation-a', indexDir: '/indexes/a' } }));
+assert.notEqual(selectedMapKey, buildMapCacheKey({ indexIdentity: { indexDir: '/indexes/b', manifest: 'generation-a' } }));
+assert.notEqual(selectedMapKey, buildMapCacheKey({ indexIdentity: { indexDir: '/indexes/a', manifest: 'generation-b' } }));
 
 const queryKeyA = buildQueryCacheKey({ query: 'foo', filters: ['a', 'b'] });
 const queryKeyB = buildQueryCacheKey({ filters: ['a', 'b'], query: 'foo' });

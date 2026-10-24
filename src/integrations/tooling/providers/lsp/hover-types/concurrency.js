@@ -1,4 +1,5 @@
-import { throwIfAborted } from '../../../../../shared/abort.js';
+import { createAbortError, isAbortSignal, throwIfAborted } from '../../../../../shared/abort.js';
+import { addStorageFailureContext } from '../../../../../shared/storage/operation-error.js';
 
 export const DEFAULT_DOCUMENT_SYMBOL_CONCURRENCY = 4;
 export const DEFAULT_HOVER_CONCURRENCY = 8;
@@ -32,25 +33,64 @@ export const runWithConcurrency = async (items, concurrency, worker, options = {
     ? options.signal
     : null;
   const maxWorkers = Math.max(1, Math.min(list.length, clampIntRange(concurrency, 1, { min: 1, max: 128 })));
-  let index = 0;
-  const runners = Array.from({ length: maxWorkers }, async () => {
-    while (true) {
-      throwIfAborted(signal);
-      const current = index;
-      index += 1;
-      if (current >= list.length) break;
-      throwIfAborted(signal);
-      await worker(list[current], current);
-      throwIfAborted(signal);
+  let index = 0, failed = false, firstRunner = -1, primary;
+  const runners = Array.from({ length: maxWorkers }, async (_, runnerIndex) => {
+    try {
+      while (!failed) {
+        throwIfAborted(signal);
+        const current = index++;
+        if (current >= list.length) break;
+        await worker(list[current], current);
+        throwIfAborted(signal);
+      }
+    } catch (error) {
+      if (!failed) { failed = true; primary = error; firstRunner = runnerIndex; }
+      throw error;
     }
   });
-  await Promise.all(runners);
+  const settled = await Promise.allSettled(runners);
+  if (failed) {
+    let failure = primary;
+    for (let runnerIndex = 0; runnerIndex < settled.length; runnerIndex++) {
+      if (runnerIndex !== firstRunner && settled[runnerIndex].status === 'rejected') {
+        failure = addStorageFailureContext(failure, {}, settled[runnerIndex].reason, { secondaryPresent: true });
+      }
+    }
+    throw failure;
+  }
+};
+
+/** Progress observes completion; it must not return out of a work finally or
+ * replace an original document failure with an independent logger failure.
+ */
+export const createDocumentProgressRunner = ({ total, worker, onProgress, now = Date.now }) => {
+  let processed = 0, lastProgressAt = now();
+  return async doc => {
+    let failed = false, primary;
+    try { return await worker(doc); }
+    catch (error) { failed = true; primary = error; throw error; }
+    finally {
+      processed += 1;
+      try {
+        if (total >= 20) {
+          const current = now();
+          if (processed === total || processed % 20 === 0 || current - lastProgressAt >= 5000) {
+            lastProgressAt = current;
+            await onProgress({ processed, total });
+          }
+        }
+      } catch (error) {
+        if (failed) throw addStorageFailureContext(primary, {}, error, { secondaryPresent: true });
+        throw error;
+      }
+    }
+  };
 };
 
 /**
  * Create a generic concurrency limiter for promise-returning tasks.
  * @param {number} concurrency
- * @returns {(fn:()=>Promise<any>)=>Promise<any>}
+ * @returns {((fn:()=>Promise<any>,options?:{signal?:AbortSignal|null})=>Promise<any>) & {getMetrics:()=>object}}
  */
 export const createConcurrencyLimiter = (concurrency) => {
   const maxWorkers = Math.max(1, clampIntRange(concurrency, 1, { min: 1, max: 256 }));
@@ -69,25 +109,45 @@ export const createConcurrencyLimiter = (concurrency) => {
     return task;
   };
 
+  let queued = 0, cancelled = 0, admitted = 0, highWater = 0;
+  const withdraw = task => {
+    if (task.state !== 'queued') return;
+    task.state = 'withdrawn'; queued -= 1; cancelled += 1;
+    task.detach();
+    const reject = task.reject;
+    task.fn = null; task.resolve = null; task.reject = null; task.signal = null;
+    reject(createAbortError());
+  };
   const pump = () => {
     while (active < maxWorkers) {
       const task = dequeue();
       if (!task) break;
-      active += 1;
-      Promise.resolve()
-        .then(task.fn)
-        .then(task.resolve, task.reject)
-        .finally(() => {
-          active -= 1;
-          pump();
-        });
+      if (task.state !== 'queued') continue;
+      if (task.signal?.aborted) { withdraw(task); continue; }
+      task.state = 'running'; queued -= 1; admitted += 1;
+      task.detach(); active += 1;
+      Promise.resolve().then(() => {
+        throwIfAborted(task.signal);
+        const fn = task.fn; task.fn = null;
+        return fn();
+      }).then(task.resolve, task.reject).finally(() => {
+        task.state = 'settled'; task.fn = null; task.resolve = null; task.reject = null; task.signal = null;
+        active -= 1; pump();
+      });
     }
   };
-
-  return (fn) => new Promise((resolve, reject) => {
-    queue.push({ fn, resolve, reject });
+  const limit = (fn, { signal: inputSignal = null } = {}) => new Promise((resolve, reject) => {
+    const signal = isAbortSignal(inputSignal) ? inputSignal : null;
+    if (signal?.aborted) { reject(createAbortError()); return; }
+    const task = { fn, resolve, reject, signal, state: 'queued', detach: () => {} };
+    const onAbort = () => withdraw(task);
+    task.detach = () => { signal?.removeEventListener('abort', onAbort); task.detach = () => {}; };
+    signal?.addEventListener('abort', onAbort, { once: true });
+    queue.push(task); queued += 1; highWater = Math.max(highWater, queued);
     pump();
   });
+  limit.getMetrics = () => ({ active, queued, cancelled, admitted, highWater });
+  return limit;
 };
 
 /**

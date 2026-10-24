@@ -3,7 +3,7 @@ import path from 'node:path';
 import { isPathWithinRoot } from './file-paths.js';
 
 const canonicalPath = (value) => {
-  try { return fs.realpathSync(path.resolve(value)); } catch { return null; }
+  try { return fs.realpathSync.native(path.resolve(value)); } catch { return null; }
 };
 
 /** Trust is granted by the launching user, never by repository configuration. */
@@ -25,6 +25,17 @@ export const isApplicationOwnedCommand = ({ commandPath, repoRoot, toolRoot }) =
   return isPathWithinRoot(application, repository)
     && (isPathWithinRoot(path.resolve(commandPath), path.resolve(toolRoot))
       || isPathWithinRoot(path.resolve(commandPath), application));
+};
+
+/** Apply the same lexical/physical repository boundary before a command runs. */
+export const isResolvedCommandTrusted = ({ commandPath, repoRoot, toolRoot, env = process.env }) => {
+  if (isRepoTrusted(repoRoot, env)) return true;
+  const command = canonicalPath(commandPath), repository = canonicalPath(repoRoot);
+  if (!command || !repository) return true;
+  return !(isPathWithinRoot(command, repository)
+    || isPathWithinRoot(path.resolve(commandPath), repository)
+    || isPathWithinRoot(path.resolve(commandPath), path.resolve(repoRoot)))
+    || isApplicationOwnedCommand({ commandPath, repoRoot, toolRoot });
 };
 
 /** A launch-selected user policy must not be stored inside the target repo. */

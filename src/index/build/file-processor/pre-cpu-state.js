@@ -47,14 +47,12 @@ export function createPreCpuArtifactState({
   if (!fileTextCache?.get || !relKey) return artifacts;
   const cached = fileTextCache.get(relKey);
   if (typeof cached === 'string') {
-    artifacts.text = cached;
+    // Unversioned legacy text has no freshness evidence. Re-read the source.
     return artifacts;
   }
   if (!cached || typeof cached !== 'object') return artifacts;
-  const stale = (
-    (Number.isFinite(cached.size) && cached.size !== fileStat.size)
-    || (Number.isFinite(cached.mtimeMs) && cached.mtimeMs !== fileStat.mtimeMs)
-  );
+  const stale = !Number.isFinite(cached.size) || !Number.isFinite(cached.mtimeMs)
+    || cached.size !== fileStat?.size || cached.mtimeMs !== fileStat?.mtimeMs;
   if (stale) return artifacts;
   if (typeof cached.text === 'string') artifacts.text = cached.text;
   if (Buffer.isBuffer(cached.buffer)) artifacts.fileBuffer = cached.buffer;

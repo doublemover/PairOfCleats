@@ -46,7 +46,12 @@ for (const globalMicroBatching of [false, true]) {
         work.complete(id);
       };
       await assert.rejects(processEntry(), (actual) => actual === error);
-      await processor.drain();
+      if (globalMicroBatching && failure === 'cancelled') {
+        await assert.rejects(processor.drain(), (actual) => actual === error,
+          'draining retains the cancelled admission queue outcome');
+      } else {
+        await processor.drain();
+      }
       assert.equal(coalescer.stats().size, 0, 'owner-only failed claims release without orphaned rejected promises');
       assert.equal(scheduled, 3);
       assert.equal(completed, 0, 'failed file cannot reach publication');

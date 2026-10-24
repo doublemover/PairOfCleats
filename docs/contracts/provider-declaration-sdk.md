@@ -1,0 +1,9 @@
+# Provider declarations and SDK
+
+Implementation status: UNVALIDATED. The SDK fixture is authored and unrun; no external language profile is qualified by it.
+
+The runtime schema in `src/contracts/schemas/provider-declaration.js` owns versioned language/dialect, execution mode, fact/evidence domain, accepting consumers, partial policy, context requirements, resource limits and prerequisite declarations. `providerDeclarationSchema()` exports an exact JSON-schema clone for authoring/publishing. The runtime validator adds semantic checks for consumer/fact parity, duplicate identities and presentation text falsely claiming structured facts. Registry admission rejects unsupported versions and declaration/provider identity mismatches. Legacy providers receive a requires-declaration migration receipt rather than fabricated completeness.
+
+The trusted in-process helper executes registered author code inside the host process; it is unsandboxed. The LSP authoring helper delegates to the shared structured collector. The canonical durable sink and its consumption receipts remain the only semantic handoff. Schema acceptance or emission is not proof of persistence, consumer acceptance or a qualified upstream tool.
+
+Selected external prerequisites declare discovery, version/components, target-specific recipe or precise system action and consumer launch. Provisioning conformance resolves actual recipe functions for discover/verify/plan/install/launch. A recipe name without that implementation fails. This API performs no provisioning; explicit installation remains with the existing tooling owner. Published schema/matrix generation, built-in declarations, a real LuaLS source/profile/consumer example and cross-file retained Lua type evidence remain pending. The fixture `tooling/providers/provider-declaration-sdk` covers structural parity, version/behavior refusal and recipe completeness; issue #1147 remains partial.

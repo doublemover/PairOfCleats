@@ -45,6 +45,7 @@ class PackageHarnessTests(unittest.TestCase):
         cls.index = importlib.import_module('PairOfCleats.commands.index')
         cls.map_commands = importlib.import_module('PairOfCleats.commands.map')
         cls.analysis = importlib.import_module('PairOfCleats.commands.analysis')
+        cls.operations = importlib.import_module('PairOfCleats.lib.operations')
         cls.index_state = importlib.import_module('PairOfCleats.lib.index_state')
         cls.map_state = importlib.import_module('PairOfCleats.lib.map_state')
         cls.results_state = importlib.import_module('PairOfCleats.lib.results_state')
@@ -264,6 +265,7 @@ class PackageHarnessTests(unittest.TestCase):
         on_done=None,
         stream_output=True,
         panel_name='pairofcleats',
+        operation_scope=None,
     ):
         full_env = dict(os.environ)
         if env:
@@ -305,7 +307,7 @@ class PackageHarnessTests(unittest.TestCase):
             except Exception as exc:
                 error = 'Failed to parse JSON output: {0}'.format(exc)
         result = _Result(completed.returncode, output, payload=payload, error=error)
-        if on_done:
+        if on_done and (operation_scope is None or self.operations.is_current(operation_scope)):
             on_done(result)
         return _Handle()
 

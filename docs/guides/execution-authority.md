@@ -40,8 +40,10 @@ Provider and command-probe pruning only considers bounded, regular, singly linke
 files whose cache ownership envelope matches their generated filename and schema.
 Unrelated JSON and unmarked legacy files are preserved, even in a trusted custom
 directory. Provider cache format `lk3` starts a fresh cache without removing older
-formats. Legacy command-probe records remain readable but are not automatically
-deleted or replaced without ownership metadata. Provider results over the 8 MiB
+formats. Command-probe format `tcp3`/schema 2 requires runtime and effective-environment
+context; older entries without it cannot establish readiness. Current-schema records
+without ownership metadata remain readable but are not automatically deleted or
+replaced. Older and unrelated bytes are preserved. Provider results over the 8 MiB
 cache-entry limit remain available live but are not persisted. Ownership metadata is a layout
 guard, not authentication against another process controlling the same storage.
 

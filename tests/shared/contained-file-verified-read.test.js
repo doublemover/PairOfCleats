@@ -26,6 +26,50 @@ try {
   const controller = new AbortController(); controller.abort();
   await assert.rejects(readVerifiedContainedFile(root, file, { signal: controller.signal }), { code: 'ABORT_ERR' });
 
+  assert.equal(typeof result.stat.ino, 'number', 'verified reads retain their existing public stat representation');
+  const alternate = path.join(root, 'same-bytes-different-object.json');
+  const alias = path.join(root, 'same-object-alias.json');
+  fs.writeFileSync(alternate, bytes);
+  fs.linkSync(file, alias);
+  const nativeFstat = fs.fstatSync;
+  const nativeStat = fs.statSync;
+  const originalId = nativeStat(file, { bigint: true }).ino;
+  const alternateId = nativeStat(alternate, { bigint: true }).ino;
+  const wideOriginal = 2n ** 53n;
+  const wideAlternate = wideOriginal + 1n;
+  assert.notEqual(originalId, alternateId);
+  assert.equal(Number(wideOriginal), Number(wideAlternate));
+  const withWideIdentity = (stat, exact) => {
+    if (exact.ino === originalId || exact.ino === alternateId) {
+      const value = exact.ino === originalId ? wideOriginal : wideAlternate;
+      stat.ino = typeof stat.ino === 'bigint' ? value : Number(value);
+    }
+    return stat;
+  };
+  fs.fstatSync = (fd, options) => {
+    const stat = nativeFstat(fd, options);
+    return withWideIdentity(stat, options?.bigint ? stat : nativeFstat(fd, { bigint: true }));
+  };
+  fs.statSync = (filename, options) => {
+    const stat = nativeStat(filename, options);
+    return withWideIdentity(stat, options?.bigint ? stat : nativeStat(filename, { bigint: true }));
+  };
+  let exactHandle;
+  try {
+    exactHandle = await openContainedFile(root, file);
+    assert.doesNotThrow(() => verifyContainedFileHandle(exactHandle, root, file));
+    assert.doesNotThrow(() => verifyContainedFileHandle(exactHandle, root, alias), 'a real hard link retains descriptor authority');
+    assert.throws(() => verifyContainedFileHandle(exactHandle, root, alternate), { code: 'ERR_UNSAFE_FILE_PATH' },
+      'same bytes and colliding numeric IDs cannot substitute a different physical object');
+    assert.deepEqual(readVerifiedContainedFileSync(root, file).buffer, bytes);
+    assert.deepEqual((await readVerifiedContainedFile(root, file)).buffer, bytes);
+  } finally {
+    await exactHandle?.close();
+    fs.fstatSync = nativeFstat;
+    fs.statSync = nativeStat;
+  }
+
+
   const originalRead = fs.readSync;
   let observedFd;
   fs.readSync = (fd, ...args) => {
@@ -48,7 +92,8 @@ try {
     return read;
   };
   try {
-    assert.throws(() => readVerifiedContainedFileSync(root, file), { code: 'ERR_UNSAFE_FILE_PATH' });
+    // Windows prevents replacement of the open file itself; POSIX reaches descriptor verification.
+    assert.throws(() => readVerifiedContainedFileSync(root, file), { code: process.platform === 'win32' ? 'EPERM' : 'ERR_UNSAFE_FILE_PATH' });
   } finally { fs.readSync = originalRead; }
   assert.throws(() => fs.fstatSync(observedFd), { code: 'EBADF' });
   if (process.platform !== 'win32') {

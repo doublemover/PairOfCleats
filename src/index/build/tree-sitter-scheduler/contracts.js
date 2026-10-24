@@ -65,7 +65,8 @@ export const assertTreeSitterScheduledJobContract = (job, { phase = 'scheduler-c
   const expectedVirtualPath = buildVfsVirtualPath({
     containerPath,
     segmentUid,
-    effectiveExt: job.effectiveExt || segment.ext || job.containerExt || ''
+    effectiveExt: job.effectiveExt || segment.ext || job.containerExt || '',
+    segmentStart, segmentEnd
   });
   if (expectedVirtualPath !== virtualPath) {
     throw failContract(

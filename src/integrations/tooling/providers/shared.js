@@ -107,13 +107,13 @@ const trimWindow = (events, now, windowMs) => {
  */
 export const createToolingLifecycleHealth = (options = {}) => {
   const name = String(options?.name || 'tooling');
-  const restartWindowMs = Number.isFinite(Number(options?.restartWindowMs))
+  const restartWindowMs = options?.restartWindowMs != null && Number.isFinite(Number(options.restartWindowMs))
     ? Math.max(1000, Math.floor(Number(options.restartWindowMs)))
     : 60_000;
-  const maxRestartsPerWindow = Number.isFinite(Number(options?.maxRestartsPerWindow))
+  const maxRestartsPerWindow = options?.maxRestartsPerWindow != null && Number.isFinite(Number(options.maxRestartsPerWindow))
     ? Math.max(2, Math.floor(Number(options.maxRestartsPerWindow)))
     : 6;
-  const fdPressureBackoffMs = Number.isFinite(Number(options?.fdPressureBackoffMs))
+  const fdPressureBackoffMs = options?.fdPressureBackoffMs != null && Number.isFinite(Number(options.fdPressureBackoffMs))
     ? Math.max(50, Math.floor(Number(options.fdPressureBackoffMs)))
     : 1500;
   const log = typeof options?.log === 'function' ? options.log : (() => {});

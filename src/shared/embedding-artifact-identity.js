@@ -2,6 +2,11 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { resolveOnnxModelPath } from './onnx-embeddings/config.js';
+import { readOnnxInstallationReceipt } from './onnx-installation.js';
+import { readEmbeddingAcquisitionReceipt } from './embedding-acquisition-receipt.js';
+import { resolveEmbeddingAcquisitionPlan } from './embedding-acquisition-plan.js';
+import { assertNoSymlinkPath } from './contained-file.js';
+import { describeStorageFailure } from './storage/failure-observation.js';
 
 const TOKENIZER_FILES = new Set([
   'config.json', 'tokenizer.json', 'tokenizer_config.json', 'special_tokens_map.json',
@@ -60,11 +65,11 @@ const inventoryFiles = (root, prefix = '', depth = 0) => {
 // Match the pinned Transformers.js loader's repository-ID/direct-path split
 // without initializing a provider. Invalid repository IDs (including bare local
 // paths with multiple slashes) are direct paths, not cache-relative model IDs.
-const isRepositoryId = id => /^(\b[\w.-]+\b\/)?\b[\w.-]{1,96}\b$/u.test(id)
+export const isEmbeddingModelRepositoryId = id => /^(\b[\w.-]+\b\/)?\b[\w.-]{1,96}\b$/u.test(id)
   && !id.includes('..') && !id.includes('--') && !/\.(?:git|ipynb)$/u.test(id);
-const resolveArtifactRoot = (id, modelsDir) => {
+export const resolveEmbeddingArtifactRoot = (id, modelsDir) => {
   if (typeof id !== 'string' || !id) return null;
-  if (!isRepositoryId(id)) {
+  if (!isEmbeddingModelRepositoryId(id)) {
     const directRoot = path.resolve(id);
     const cacheRoot = modelsDir ? path.resolve(path.join(modelsDir, id)) : null;
     // Transformers checks its filesystem cache before direct local files. A
@@ -77,37 +82,81 @@ const resolveArtifactRoot = (id, modelsDir) => {
 };
 
 /** No provider loading or network I/O. Unknown evidence is scoped to one attempt. */
-export const resolveEmbeddingArtifactIdentity = ({ provider, modelId, modelsDir, rootDir,
-  onnx = null, modelProfile = null, stub = false } = {}) => {
-  if (stub) return { status: 'stub', reuse: 'allow', digest: null, revision: null, method: 'deterministic-stub' };
-  if (modelProfile?.revision) return { status: 'immutable-revision', reuse: 'allow',
-    digest: null, revision: modelProfile.revision, method: 'qualified-model-profile' };
+export const planEmbeddingArtifactInventory = ({ provider, modelId, modelsDir, rootDir,
+  onnx = null, modelProfile = null, modelFileName = null, stub = false } = {}) => {
+  if (stub) return { immediate: { status: 'stub', reuse: 'allow', digest: null, revision: null, method: 'deterministic-stub' } };
+  // A custom graph stem is an experimental model, not the qualified registry's
+  // default graph. Its revision/default acquisition receipt proves neither its
+  // graph bytes nor numerical meaning; never lend that reusable authority.
+  if (modelFileName != null) return { immediate: { ...unknown(), revision: modelProfile?.revision ?? null,
+    method: 'custom-model-graph-needs-selected-closure' } };
+  if (modelProfile?.revision) {
+    const root = resolveEmbeddingArtifactRoot(modelId, modelsDir);
+    const selectedRoot = root && isEmbeddingModelRepositoryId(modelId) ? path.join(root, modelProfile.revision) : root;
+    let receipt = null;
+    try { if (selectedRoot) receipt = readEmbeddingAcquisitionReceipt(selectedRoot, resolveEmbeddingAcquisitionPlan(modelId, modelProfile)); }
+    catch (error) { if (describeStorageFailure(error, { phase: 'embedding-profile-receipt' }).code !== 'ENOENT') throw error; }
+    if (receipt) return { revision: modelProfile.revision, hasWeights: true, hasTokenizer: true, modelPath: null,
+      files: receipt.inventory.map(row => ({ rel: row.path, filePath: path.join(selectedRoot, ...row.path.split('/')), expected: row })) };
+    if (!isEmbeddingModelRepositoryId(modelId) || !root || inventoryFiles(selectedRoot).length) {
+      return { immediate: { ...unknown(), revision: modelProfile.revision, method: 'profile-assets-need-verified-acquisition' } };
+    }
+    return { immediate: { status: 'immutable-revision', reuse: 'allow',
+      digest: null, revision: modelProfile.revision, method: 'qualified-model-profile' } };
+  }
   const modelPath = provider === 'onnx' ? resolveOnnxModelPath({
     rootDir, modelPath: onnx?.resolvedModelPath || onnx?.modelPath, modelsDir, modelId
   }) : null;
-  const modelRoot = resolveArtifactRoot(modelId, modelsDir);
+  if (modelPath) assertNoSymlinkPath(path.dirname(modelPath), modelPath);
+  const modelRoot = resolveEmbeddingArtifactRoot(modelId, modelsDir);
+  if (provider === 'xenova' && modelRoot) {
+    let receipt = null;
+    try { receipt = readEmbeddingAcquisitionReceipt(modelRoot, resolveEmbeddingAcquisitionPlan(modelId)); }
+    catch (error) { if (describeStorageFailure(error, { phase: 'embedding-acquisition-receipt' }).code !== 'ENOENT') throw error; }
+    if (receipt) return { hasWeights: true, hasTokenizer: true, modelPath: null,
+      files: receipt.inventory.map(row => ({ rel: row.path, filePath: path.join(modelRoot, ...row.path.split('/')), expected: row })) };
+  }
   const tokenizerId = onnx?.tokenizerId || modelId;
-  const tokenizerRoot = resolveArtifactRoot(tokenizerId, modelsDir);
+  const tokenizerRoot = resolveEmbeddingArtifactRoot(tokenizerId, modelsDir);
   const rootFiles = inventoryFiles(provider === 'onnx' ? tokenizerRoot : modelRoot);
   const tokenizerFiles = rootFiles.filter(({ rel, filePath }) => !rel.includes('/')
     && TOKENIZER_FILES.has(path.basename(filePath)));
+  const installation = provider === 'onnx' && modelPath ? readOnnxInstallationReceipt(path.dirname(modelPath)) : null;
+  const weightFiles = installation ? installation.files.map(row => ({ rel: row.path,
+    filePath: path.join(path.dirname(modelPath), ...row.path.split('/')), expected: row }))
+    : modelPath ? [{ rel: 'model.onnx', filePath: modelPath }, ...inventoryFiles(path.dirname(modelPath))
+      .filter(({ filePath }) => filePath !== modelPath && !TOKENIZER_FILES.has(path.basename(filePath)))] : [];
   const files = provider === 'onnx' && modelPath
-    ? [{ rel: 'weights/model.onnx', filePath: modelPath },
-      ...inventoryFiles(path.dirname(modelPath)).filter(({ filePath }) => filePath !== modelPath
-        && !TOKENIZER_FILES.has(path.basename(filePath)))
-        .map(({ rel, filePath }) => ({ rel: `weights/${rel}`, filePath })),
+    ? [...weightFiles.map(row => ({ ...row, rel: `weights/${row.rel}` })),
       ...tokenizerFiles.map(({ rel, filePath }) => ({ rel: `tokenizer/${rel}`, filePath }))]
     : rootFiles;
   const hasWeights = files.some(({ filePath }) => /\.onnx$/u.test(filePath));
   const hasTokenizer = tokenizerFiles.some(({ filePath }) => /(?:tokenizer\.json|vocab\.(?:json|txt)|(?:tokenizer|spiece)\.model|sentencepiece\.bpe\.model)$/u.test(filePath));
-  if (!hasWeights || !hasTokenizer) return unknown(modelPath ? fingerprintFile(modelPath).sha256 : null);
   const seen = new Set();
-  const inventory = files.filter(({ rel }) => !seen.has(rel) && seen.add(rel))
-    .sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0))
-    .map(({ rel, filePath }) => ({ path: rel, ...fingerprintFile(filePath) }));
-  if (inventory.length > 128) throw new Error('Embedding artifact inventory exceeds its bounded file count.');
-  return { status: 'verified', reuse: 'allow', revision: null, method: 'opened-local-artifacts-sha256',
-    digest: crypto.createHash('sha256').update(JSON.stringify(inventory)).digest('hex'), inventory };
+  const selected = files.filter(({ rel }) => !seen.has(rel) && seen.add(rel))
+    .sort((a, b) => (a.rel < b.rel ? -1 : a.rel > b.rel ? 1 : 0));
+  if (selected.length > 128) throw new Error('Embedding artifact inventory exceeds its bounded file count.');
+  return { files: selected, modelPath, hasWeights, hasTokenizer };
+};
+
+export const buildVerifiedEmbeddingArtifact = (inventory, revision = null) => ({ status: 'verified', reuse: 'allow', revision, method: 'opened-local-artifacts-sha256',
+  digest: crypto.createHash('sha256').update(JSON.stringify(inventory)).digest('hex'), inventory });
+export const unknownEmbeddingArtifact = unknown;
+
+/** Compatibility synchronous resolver; async runtime owners use verification leases. */
+export const resolveEmbeddingArtifactIdentity = options => {
+  const plan = planEmbeddingArtifactInventory(options);
+  if (plan.immediate) return plan.immediate;
+  if (!plan.hasWeights || !plan.hasTokenizer) return unknown();
+  const inventory = plan.files
+    .map(({ rel, filePath, expected }) => {
+      const identity = fingerprintFile(filePath);
+      if (expected && (identity.bytes !== expected.bytes || identity.sha256 !== expected.sha256)) {
+        throw Object.assign(new Error('Selected ONNX closure bytes disagree with their installation identity.'), { code: 'ERR_ONNX_ARTIFACT_INTEGRITY' });
+      }
+      return { path: rel, ...identity };
+    });
+  return buildVerifiedEmbeddingArtifact(inventory, plan.revision ?? null);
 };
 
 export const embeddingArtifactReusable = (artifact) => artifact?.reuse === 'allow'

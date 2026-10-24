@@ -2,6 +2,7 @@ import importlib
 import os
 import sys
 import unittest
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.dirname(__file__))
 
@@ -31,10 +32,47 @@ class ResultsBehaviorTests(unittest.TestCase):
         command.run()
         self.assertEqual(len(window.quick_panel_items), 1)
         window.quick_panel_callback(0)
-        expected_path = '{0}:7'.format(os.path.join('C:/repo', 'src/app.js'))
+        expected_path = '{0}:7'.format(os.path.normpath(os.path.join('C:/repo', 'src/app.js')))
         self.assertEqual(window.opened_files[0]['path'], expected_path)
         view = window.opened_files[0]['view']
         self.assertIn(self.results.HIGHLIGHT_KEY, view.regions)
+
+    def test_saved_sessions_and_reopen_keep_original_nested_evidence(self):
+        window = FakeWindow()
+        hit = {'file': 'original.py', 'startLine': 1, 'ref': {'symbol': {'id': 'original-symbol'}},
+               'sourceEvidence': {'warnings': [{'code': 'original-frontier'}]}}
+        payload = {'code': [hit]}
+        collected = self.results.collect_hits(payload)
+        hit['ref']['symbol']['id'] = 'transport-replacement'
+        self.assertEqual(collected[0]['ref']['symbol']['id'], 'original-symbol')
+        session = self.results.build_session('original', {}, 'C:/repo', collected, 'quick_panel')
+        self.results_state.record_last_results(window, session)
+        session['hits'][0]['sourceEvidence']['warnings'][0]['code'] = 'caller-replacement'
+        saved = self.results_state.get_last_results(window)
+        self.assertEqual(saved['hits'][0]['sourceEvidence']['warnings'][0]['code'], 'original-frontier')
+        saved['hits'][0]['ref']['symbol']['id'] = 'reader-replacement'
+        current = self.results_state.get_last_results(window)
+        self.assertEqual(current['hits'][0]['ref']['symbol']['id'], 'original-symbol')
+
+        with patch.object(self.results, 'open_hit') as opened:
+            self.results.reopen_session(window, current)
+            current['hits'][0]['ref']['symbol']['id'] = 'native-wait-replacement'
+            selected = window.quick_panel_callback
+            selected(0)
+            selected(0)
+            self.assertEqual(opened.call_count, 1)
+            self.assertEqual(opened.call_args[0][1]['ref']['symbol']['id'], 'original-symbol')
+            self.results.reopen_session(window, self.results_state.get_last_results(window))
+            cancelled = window.quick_panel_callback
+            cancelled(-1)
+            cancelled(0)
+            self.assertEqual(opened.call_count, 1)
+
+        panel_session = self.results_state.get_last_results(window)
+        panel = self.results.open_output_panel(window, 'original evidence', session=panel_session)
+        panel_session['hits'][0]['ref']['symbol']['id'] = 'panel-caller-replacement'
+        self.assertEqual(panel.settings().get(self.results.RESULTS_SESSION_KEY)['hits'][0]['ref']['symbol']['id'],
+                         'original-symbol')
 
     def test_reopen_last_explain_restores_output_panel(self):
         window = FakeWindow()
@@ -77,9 +115,10 @@ class ResultsBehaviorTests(unittest.TestCase):
         captured = {}
         original = self.search._search_with_query
 
-        def _capture(_window, query, overrides=None, force_prompt=False):
+        def _capture(_window, query, overrides=None, force_prompt=False, operation_scope=None):
             captured['query'] = query
             captured['overrides'] = overrides
+            self.assertIsNotNone(operation_scope)
 
         self.search._search_with_query = _capture
         try:
@@ -87,12 +126,12 @@ class ResultsBehaviorTests(unittest.TestCase):
             command.run(hit_index=0, action='copy_path')
             self.assertEqual(
                 sys.modules['sublime'].clipboard,
-                os.path.join('C:/repo', 'src/app.js'),
+                os.path.normpath(os.path.join('C:/repo', 'src/app.js')),
             )
 
             command.run(hit_index=0, action='open_new_group')
             self.assertEqual(window.current_group, 1)
-            expected_path = '{0}:9'.format(os.path.join('C:/repo', 'src/app.js'))
+            expected_path = '{0}:9'.format(os.path.normpath(os.path.join('C:/repo', 'src/app.js')))
             self.assertEqual(window.opened_files[-1]['path'], expected_path)
 
             command.run(hit_index=0, action='rerun_context')

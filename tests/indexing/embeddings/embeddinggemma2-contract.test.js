@@ -49,11 +49,12 @@ for (const dimensions of [128, 256, 512, 768]) {
   vectors[0][0] = 7;
   assert.notEqual(vectors[1][0], 7, 'rows must not alias');
 }
-assert.throws(() => normalizeEmbeddingGemma2Output({ last_hidden_state: tensor().last_hidden_state }, 1, 128), /shape/);
-assert.throws(() => normalizeEmbeddingGemma2Output(tensor(2), 1, 128), /shape/);
+assert.throws(() => normalizeEmbeddingGemma2Output({ last_hidden_state: tensor().last_hidden_state }, 1, 128), { code: 'ERR_EMBEDDING_OUTPUT' });
+assert.throws(() => normalizeEmbeddingGemma2Output(tensor(2), 1, 128), error => error.code === 'ERR_EMBEDDING_OUTPUT'
+  && error.expectedRows === 1 && error.observedRows === 2);
 const nonfinite = tensor();
 nonfinite.sentence_embedding.data[767] = NaN;
-assert.throws(() => normalizeEmbeddingGemma2Output(nonfinite, 1, 128), /nonfinite/);
+assert.throws(() => normalizeEmbeddingGemma2Output(nonfinite, 1, 128), { code: 'ERR_EMBEDDING_OUTPUT' });
 const zero = tensor();
 zero.sentence_embedding.data.fill(0);
 assert.throws(() => normalizeEmbeddingGemma2Output(zero, 1, 128), /norm/);
@@ -69,17 +70,28 @@ for (const changed of [{ ...profile, dimensions: 256 }, { ...profile, dtype: 'fp
 assert.equal('modelProfile' in buildEmbeddingIdentity({ modelId: 'legacy-model' }), false);
 
 const calls = { loads: [], tokens: [], generic: 0 };
+class Tensor {
+  constructor(type, data, dims) { Object.assign(this, { type, data, dims }); }
+  dispose() {}
+}
 const fakeModule = {
   env: { version: '4.3.1' },
+  Tensor,
   EmbeddingGemma2Model: class {},
   AutoConfig: { from_pretrained: async () => ({ model_type: 'embedding_gemma2', vision_config: {}, audio_config: {} }) },
   AutoTokenizer: { from_pretrained: async () => async (texts, options) => {
     calls.tokens.push({ texts, options });
-    return { count: texts.length };
+    if (options.return_tensor === false) return {
+      input_ids: texts.map(() => [1, 2]), attention_mask: texts.map(() => [1, 1])
+    };
+    return {
+      input_ids: new Tensor('int64', new BigInt64Array(texts.length * 2).fill(1n), [texts.length, 2]),
+      attention_mask: new Tensor('int64', new BigInt64Array(texts.length * 2).fill(1n), [texts.length, 2])
+    };
   } },
   AutoModel: { from_pretrained: async (id, options) => {
     calls.loads.push({ id, options });
-    return async ({ count }) => tensor(count);
+    return async ({ input_ids }) => tensor(input_ids.dims[0]);
   } },
   pipeline: async (task, id, options) => {
     calls.generic += 1;
@@ -121,7 +133,7 @@ try {
 
   const cacheCalls = [];
   const resolve = createEmbeddingResolver({
-    throwIfAborted: () => {}, embeddingQueryText: 'alpha', modelConfig: {},
+    throwIfAborted: () => {}, embeddingQueryText: 'alpha', modelConfig: { dir: options.modelsDir },
     embeddingProvider: 'xenova', rootDir: process.cwd(),
     getQueryEmbeddingImpl: async (request) => { cacheCalls.push(request); return [1]; }
   });
@@ -160,7 +172,7 @@ __setTransformersModuleLoaderForTests(async () => ({
   AutoModel: { from_pretrained: async () => {
     attempts += 1;
     if (attempts === 1) throw new Error('temporary model initialization failure');
-    return async ({ count }) => tensor(count);
+    return async ({ input_ids }) => tensor(input_ids.dims[0]);
   } }
 }));
 try {
@@ -172,14 +184,14 @@ try {
   __setTransformersModuleLoaderForTests(null);
 }
 
-for (const moduleOverride of [
-  { env: { version: '4.3.0' } },
-  { AutoConfig: { from_pretrained: async () => ({ model_type: 'other' }) } }
+for (const [moduleOverride, expected] of [
+  [{ env: { version: '4.3.0' } }, /requires its qualified Transformers.js runtime/],
+  [{ AutoConfig: { from_pretrained: async () => ({ model_type: 'other' }) } }, /unexpected model_type/]
 ]) {
   __setTransformersModuleLoaderForTests(async () => ({ ...fakeModule, ...moduleOverride }));
   try {
     await assert.rejects(() => getEmbeddingAdapter({ modelId }).embedOne('alpha'),
-      /cache identity|unexpected model_type/);
+      expected);
   } finally {
     __setTransformersModuleLoaderForTests(null);
   }

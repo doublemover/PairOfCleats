@@ -617,6 +617,9 @@ export const runBenchExecutionLoop = async ({
       }
     }
 
+    let cacheCleanupAdmitted = false;
+    let completedResult = null;
+    let workloadFailed = false, workloadFailure;
     try {
       if (!lifecycle.hasRepoPath(repoPath)) {
         progressRuntime.update();
@@ -655,7 +658,7 @@ export const runBenchExecutionLoop = async ({
             ? { diagnostics: { crashRetention } }
             : {})
         };
-        results.push(result);
+        completedResult = result; results.push(result);
         runLedger?.recordRepoCompleted?.(result);
         continue;
       }
@@ -683,7 +686,7 @@ export const runBenchExecutionLoop = async ({
           failureReason, failureCode: 1, diagnostics: { ...checkoutDiagnostics,
             ...(prerequisiteCampaignBlocked ? { prerequisiteCampaignBlocked: true } : {}) } };
         progressRuntime.completeRepo();
-        results.push(result);
+        completedResult = result; results.push(result);
         runLedger?.recordRepoCompleted?.(result);
         continue;
       }
@@ -711,7 +714,7 @@ export const runBenchExecutionLoop = async ({
           failureCode: preflightState.failureCode ?? null,
           diagnostics: { ...checkoutDiagnostics, ...(crashRetention ? { crashRetention } : {}) }
         };
-        results.push(result);
+        completedResult = result; results.push(result);
         runLedger?.recordRepoCompleted?.(result);
         continue;
       }
@@ -839,10 +842,11 @@ export const runBenchExecutionLoop = async ({
           skipReason: 'lock',
           lock: lockCheck.detail || null
         };
-        results.push(result);
+        completedResult = result; results.push(result);
         runLedger?.recordRepoCompleted?.(result);
         continue;
       }
+      cacheCleanupAdmitted = true;
 
       const benchArgs = buildBenchChildArgs({
         benchScript,
@@ -994,7 +998,7 @@ export const runBenchExecutionLoop = async ({
             })) {
               appendLog(line, 'warn');
             }
-            results.push(result);
+            completedResult = result; results.push(result);
             runLedger?.recordRepoCompleted?.(result);
             continue;
           }
@@ -1051,7 +1055,7 @@ export const runBenchExecutionLoop = async ({
           })) {
             appendLog(line, 'warn');
           }
-          results.push(result);
+          completedResult = result; results.push(result);
           runLedger?.recordRepoCompleted?.(result);
           continue;
         }
@@ -1085,10 +1089,20 @@ export const runBenchExecutionLoop = async ({
           appendLog(line);
         }
       }
-      results.push(result);
+      completedResult = result; results.push(result);
       runLedger?.recordRepoCompleted?.(result);
+    } catch (error) {
+      workloadFailed = true; workloadFailure = error; throw error;
     } finally {
-      await lifecycle.cleanRepoCache({ repoCacheRoot, repoLabel });
+      try {
+        const cleanup = await lifecycle.cleanRepoCache({ repoCacheRoot, repoLabel, admitted: cacheCleanupAdmitted });
+        if (completedResult) completedResult.cacheCleanup = cleanup;
+        runLedger?.recordCloseoutEvent?.('repo.cache-cleanup', { repo: task.repo, repoPath, cleanup });
+      } catch (cleanupError) {
+        if (workloadFailed) throw new AggregateError([workloadFailure, cleanupError],
+          'Benchmark workload and cleanup both failed.', { cause: workloadFailure });
+        throw cleanupError;
+      }
     }
   }
 

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { readJsonFileResolved } from '../../src/shared/json-file.js';
 import { emitGateResult } from '../shared/tooling-gate-utils.js';
+import { validateBenchComparisonInput } from '../../src/contracts/bench-comparison-input.js';
 
 const parseArgs = () => createCli({
   scriptName: 'pairofcleats bench-language-rollout-gate',
@@ -34,8 +35,7 @@ const resolvePlanPath = (planPath, relativePath) => {
 };
 
 const toFiniteOrNull = (value) => {
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : null;
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
 };
 
 const buildDeltaMap = (beforeMap, afterMap) => {
@@ -55,6 +55,8 @@ const buildDeltaMap = (beforeMap, afterMap) => {
 
 const loadBenchReportSummary = async (reportPath) => {
   const payload = await readJsonFileResolved(reportPath);
+  const validation = validateBenchComparisonInput(payload);
+  if (!validation.ok) throw new Error(`invalid benchmark comparison evidence at ${reportPath}: ${validation.errors.join('; ')}`);
   const run = payload?.run && typeof payload.run === 'object' ? payload.run : {};
   const overallSummary = payload?.overallSummary && typeof payload.overallSummary === 'object'
     ? payload.overallSummary
@@ -75,7 +77,7 @@ const loadBenchReportSummary = async (reportPath) => {
     },
     retainedCrashBundleCount: Number(payload?.diagnostics?.crashRetention?.retainedCount) || 0,
     diagnosticsParity: {
-      status: normalizeText(payload?.diagnostics?.parity?.status) || 'ok',
+      status: payload.diagnostics.parity.status,
       mismatchCount: Number(payload?.diagnostics?.parity?.mismatchCount) || 0,
       materialMismatchCount: Number(payload?.diagnostics?.parity?.materialMismatchCount) || 0
     },

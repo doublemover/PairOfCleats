@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { createCli } from '../../src/shared/cli.js';
 import { writeJsonFileSyncResolved } from '../../src/shared/json-file.js';
 import { resolveRepoRootArg } from '../shared/dict-utils.js';
 import { resolveRepoContainedOutputPath, resolveRepoContainedPath } from './file-walk.js';
 import { toIso } from './metadata-support.js';
+import { withOperationalTool } from '../tooling/operational-execution.js';
 
 const argv = createCli({
   scriptName: 'pairofcleats release generate-trust-materials',
@@ -121,8 +121,8 @@ const writeSbomFromInput = ({ inputPath, outputPath }) => {
   fs.copyFileSync(inputPath, outputPath);
 };
 
-const runNodeSbom = (outputPath) => {
-  const result = spawnSync('npm', [
+const runNodeSbom = async (outputPath) => {
+  const result = await withOperationalTool('npm-sbom', { repoRoot: root }, tool => tool.run([
     'sbom',
     '--package-lock-only',
     '--sbom-format',
@@ -131,44 +131,39 @@ const runNodeSbom = (outputPath) => {
     'application'
   ], {
     cwd: root,
-    encoding: 'utf8'
-  });
-  if (result.status !== 0) {
+    maxOutputBytes: 32 * 1024 * 1024
+  }));
+  if (result.exitCode !== 0) {
     throw new Error(`release trust materials: npm sbom failed\n${String(result.stderr || result.stdout || '').trim()}`);
   }
+  const bom = JSON.parse(result.stdout);
+  if (bom?.bomFormat !== 'CycloneDX' || typeof bom.specVersion !== 'string') throw new Error('release trust materials: npm sbom returned no CycloneDX document.');
   ensureDir(path.dirname(outputPath));
   fs.writeFileSync(outputPath, result.stdout);
 };
 
-const runCargoSbom = (outputPath) => {
-  const probe = spawnSync('cargo', ['cyclonedx', '--help'], {
-    cwd: root,
-    encoding: 'utf8'
-  });
-  if (probe.status !== 0) {
-    throw new Error('release trust materials: cargo cyclonedx is required but not installed.');
-  }
+const runCargoSbom = async (outputPath) => {
   const manifestDir = path.dirname(cargoManifestPath);
-  const result = spawnSync('cargo', [
-    'cyclonedx',
+  const result = await withOperationalTool('cargo-cyclonedx', { repoRoot: root }, tool => tool.run([
     '--manifest-path',
     cargoManifestPath,
     '--format',
     'json',
-    '--output-prefix',
-    'sbom-tui',
-    '--output-cdx'
+    '--override-filename',
+    'sbom-tui'
   ], {
     cwd: manifestDir,
-    encoding: 'utf8'
-  });
-  if (result.status !== 0) {
+    maxOutputBytes: 1024 * 1024
+  }));
+  if (result.exitCode !== 0) {
     throw new Error(`release trust materials: cargo cyclonedx failed\n${String(result.stderr || result.stdout || '').trim()}`);
   }
   const generatedPath = path.join(manifestDir, 'sbom-tui.cdx.json');
   if (!fs.existsSync(generatedPath)) {
     throw new Error(`release trust materials: cargo cyclonedx did not produce ${toPosixRelative(generatedPath)}`);
   }
+  const bom = readJson(generatedPath);
+  if (bom?.bomFormat !== 'CycloneDX' || typeof bom.specVersion !== 'string') throw new Error('release trust materials: cargo-cyclonedx returned no CycloneDX document.');
   ensureDir(path.dirname(outputPath));
   fs.copyFileSync(generatedPath, outputPath);
 };
@@ -192,12 +187,12 @@ const run = async () => {
   if (nodeSbomInput) {
     writeSbomFromInput({ inputPath: nodeSbomInput, outputPath: nodeSbomPath });
   } else {
-    runNodeSbom(nodeSbomPath);
+    await runNodeSbom(nodeSbomPath);
   }
   if (cargoSbomInput) {
     writeSbomFromInput({ inputPath: cargoSbomInput, outputPath: cargoSbomPath });
   } else {
-    runCargoSbom(cargoSbomPath);
+    await runCargoSbom(cargoSbomPath);
   }
 
   const checksumBundle = {

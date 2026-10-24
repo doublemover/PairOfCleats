@@ -21,6 +21,12 @@ Define conservative build-time filtering for noisy relations metadata before rel
 
 `imports` and `exports` are not filtered in v1.
 
+Qualified keyword members (`obj.default`, `obj::default`, `obj->default`,
+`obj#default`, `obj/default`) share one admission predicate across call tuples,
+details and range details. Keeping a call also preserves its location evidence;
+the bare keyword is still filtered under the configured policy. Existing
+literal/builtin/type category policies and stable ordering remain applicable.
+
 ## Default Behavior
 - Fail-open.
 - Enabled only when `indexing.lexicon.enabled` is true and relation filtering is enabled by runtime policy.

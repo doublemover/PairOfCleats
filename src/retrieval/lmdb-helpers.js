@@ -1,4 +1,6 @@
 import { normalizeHnswConfig, resolveHnswPaths, resolveHnswTarget } from '../shared/hnsw.js';
+import { assertMinhashHashIdentity } from '../index/minhash.js';
+import { admitSortedPostings } from '../shared/posting-order.js';
 import { LMDB_ARTIFACT_KEYS, LMDB_META_KEYS } from '../storage/lmdb/schema.js';
 import { decodeLmdbValue } from '../storage/lmdb/utils.js';
 import {
@@ -59,8 +61,7 @@ export function createLmdbHelpers(options) {
       requireFileMetaForFileIdChunks(chunkMeta);
     } else if (fileMetaById && includeChunks) {
       hydrateChunksFromFileMeta(chunkMeta, fileMetaById, {
-        churnAssignment: 'nullish',
-        skipWhenFileAndExt: true
+        churnAssignment: 'nullish'
       });
     }
 
@@ -88,8 +89,11 @@ export function createLmdbHelpers(options) {
     const denseVecCode = embeddingsReady && includeDense
       ? getArtifact(db, LMDB_ARTIFACT_KEYS.denseVectorsCode)
       : null;
+    const hnswTarget = resolveHnswTarget(mode, denseVectorMode);
+    const hnswMetaKey = hnswTarget === 'doc' ? LMDB_ARTIFACT_KEYS.denseHnswMetaDoc
+      : hnswTarget === 'code' ? LMDB_ARTIFACT_KEYS.denseHnswMetaCode : LMDB_ARTIFACT_KEYS.denseHnswMeta;
     const hnswMeta = embeddingsReady && includeDense && includeHnsw && hnswConfig.enabled
-      ? getArtifact(db, LMDB_ARTIFACT_KEYS.denseHnswMeta)
+      ? getArtifact(db, hnswMetaKey)
       : null;
     let hnswIndex = null;
     let hnswAvailable = false;
@@ -97,11 +101,13 @@ export function createLmdbHelpers(options) {
       const indexDir = indexDirs?.[mode] || null;
       if (indexDir) {
         const target = resolveHnswTarget(mode, denseVectorMode);
-        const { indexPath } = resolveHnswPaths(indexDir, target);
+        const { indexPath } = resolveHnswPaths(indexDir, target, hnswMeta.backendGeneration);
         const loadedHnsw = loadSearchHnswIndex({
           indexPath,
           hnswConfig,
           hnswMeta,
+          embeddingsState,
+          strict: options.strict !== false,
           denseVec,
           denseVecDoc,
           denseVecCode
@@ -137,13 +143,14 @@ export function createLmdbHelpers(options) {
       phraseNgrams: includeTokenIndex ? getArtifact(db, LMDB_ARTIFACT_KEYS.phraseNgrams) : null,
       chargrams: includeTokenIndex ? getArtifact(db, LMDB_ARTIFACT_KEYS.chargramPostings) : null
     };
+    if (idx.minhash?.signatures?.length) assertMinhashHashIdentity(idx.minhash.hashIdentity);
     hydrateSearchIndexPostProcessing(idx, {
       chunkMeta,
       fileChargramN,
       filterIndexRaw,
       includeFilterIndex
     });
-    idx.tokenIndex = includeTokenIndex ? getArtifact(db, LMDB_ARTIFACT_KEYS.tokenPostings) : null;
+    idx.tokenIndex = includeTokenIndex ? admitSortedPostings(getArtifact(db, LMDB_ARTIFACT_KEYS.tokenPostings), { completeVocabulary: true }) : null;
     return idx;
   }
 

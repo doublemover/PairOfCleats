@@ -409,7 +409,8 @@ export const collectJvmStyleImports = (
   {
     precheckTokens = ['import', 'package', 'extends'],
     typeReferenceKeywords = ['extends'],
-    includePackageDeclarations = false
+    includePackageDeclarations = false,
+    nestedBlockComments = false
   } = {}
 ) => {
   const imports = new Set();
@@ -427,7 +428,9 @@ export const collectJvmStyleImports = (
     if (!token) return;
     imports.add(token);
   };
-  for (const line of lines) {
+  const stripComments = createCommentAwareLineStripper({ markers: ['//'], blockCommentPairs: [['/*','*/']], nestedBlockComments });
+  for (const rawLine of lines) {
+    const line = stripComments(rawLine);
     if (!shouldScanLine(line, precheck)) continue;
     const importMatch = line.match(/^\s*import\s+([^\s;]+)/);
     if (importMatch?.[1]) addImport(importMatch[1]);
@@ -448,21 +451,25 @@ export const collectJvmStyleImports = (
  * Collect `{{> partial}}` template partial references.
  *
  * @param {string} text
- * @param {{lineTokens?:string[]}} [options]
- * @returns {string[]}
+ * @param {{lineTokens?:string[],scanBudget?:object|null}} [options]
+ * @returns {Generator<string>}
  */
-export const collectTemplatePartialImports = (text, { lineTokens = ['{{>'] } = {}) => {
-  const imports = [];
+export function* scanTemplatePartialImports(text, { lineTokens = ['{{>'], scanBudget = null } = {}) {
   const lines = stripTemplateCommentBlocks(text).split('\n');
   const precheck = (value) => lineHasAny(value, lineTokens);
   for (const line of lines) {
+    if (scanBudget && !scanBudget.consumeTime()) return;
     if (!shouldScanLine(line, precheck)) continue;
-    const matches = line.matchAll(/\{\{>\s*(?:"([^"]+)"|'([^']+)'|([A-Za-z0-9_./-]+))/g);
+    // Only complete unescaped name tokens are supported by this fallback.
+    // A trailing comma/parenthesis is part of a literal, never cleanup syntax.
+    const matches = line.matchAll(/(?<!\\)\{\{>\s*(?:"([^"\\]*)"|'([^'\\]*)'|([A-Za-z0-9_./-]+))(?=\s|~?\}\})/g);
     for (const match of matches) {
-      const token = sanitizeCollectorImportToken(match[1] || match[2] || match[3]);
+      if (scanBudget && !scanBudget.consumeMatch()) return;
+      const token = sanitizeImportSpecifier(match[1] ?? match[2] ?? match[3], { literal: true });
       if (!token) continue;
-      imports.push(token);
+      yield token;
     }
   }
-  return imports;
-};
+}
+
+export const collectTemplatePartialImports = (text, options = {}) => [...scanTemplatePartialImports(text, options)];

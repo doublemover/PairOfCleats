@@ -7,6 +7,7 @@ const handleSemanticExplainRoute = async (...args) => (await import('./router/se
 const handleSemanticEnrichmentRoute = async (...args) => (await import('./router/semantic-enrichment.js')).handleSemanticEnrichmentRoute(...args);
 const handleRuntimeEvidenceRoute = async (...args) => (await import('./router/runtime-evidence.js')).handleRuntimeEvidenceRoute(...args);
 const handleSemanticDetailRoute = async (...args) => (await import('./router/semantic.js')).handleSemanticDetailRoute(...args);
+const handleGraphEvidenceRoute = async (...args) => (await import('./router/graph-evidence.js')).handleGraphEvidenceRoute(...args);
 import { projectIndexFormatError } from '../../src/shared/index-format-error.js';
 import path from 'node:path';
 const search = async (...args) => (await import('../../src/integrations/core/search.js')).search(...args);
@@ -29,6 +30,7 @@ import { createAuthGuard } from './router/auth.js';
 import { createAuthorityGuard, isSameOriginRequest } from './router/authority.js';
 import { createBodyParser } from './router/body.js';
 import { createRepoCacheManager } from './router/cache.js';
+import { closeApiRouterResources } from './router/close.js';
 import { createCorsResolver } from './router/cors.js';
 import { createRepoResolver } from './router/paths.js';
 import { getRepoCacheGenerationContext } from '../../src/shared/repo-cache-config.js';
@@ -252,6 +254,7 @@ export const createApiRouter = ({
     const searchObservability = buildSearchObservability(requestObservability, repoPath, caches, searchContext);
     return await search(repoPath, {
       args: searchParams.args,
+      argsMode: 'complete',
       query: searchParams.query,
       emitOutput: false,
       exitOnError: false,
@@ -415,6 +418,10 @@ export const createApiRouter = ({
 
       if (requestUrl.pathname === '/analysis/semantic-detail' && req.method === 'POST') {
         await handleSemanticDetailRoute({ req, res, corsHeaders, parseJsonBody, resolveRepo });
+        return;
+      }
+      if (requestUrl.pathname === '/analysis/graph-evidence' && req.method === 'POST') {
+        await handleGraphEvidenceRoute({ req, res, corsHeaders, parseJsonBody, resolveRepo });
         return;
       }
 
@@ -657,10 +664,10 @@ export const createApiRouter = ({
           repoPath,
           searchParams
         } = prepared;
-        await sse.sendHeaders();
-        await sse.sendEvent('start', attachObservability({ ok: true }, requestObservability));
-        await sse.sendEvent('progress', attachObservability({ ok: true, phase: 'search', message: 'Searching.' }, requestObservability));
         try {
+          await sse.sendHeaders();
+          await sse.sendEvent('start', attachObservability({ ok: true }, requestObservability));
+          await sse.sendEvent('progress', attachObservability({ ok: true, phase: 'search', message: 'Searching.' }, requestObservability));
           await sse.sendEvent('progress', attachObservability({ ok: true, phase: 'search', message: 'Running search.' }, requestObservability));
           const body = await runPreparedSearch({
             requestObservability,
@@ -675,19 +682,20 @@ export const createApiRouter = ({
           }
         } catch (err) {
           if (controller.signal.aborted || sse.isClosed()) {
-            sse.end();
             return;
           }
           const isNoIndex = isNoIndexError(err);
+          const format = projectIndexFormatError(err);
           await sse.sendEvent('error', attachObservability({
             ok: false,
-            code: isNoIndex ? ERROR_CODES.NO_INDEX : ERROR_CODES.INTERNAL,
+            code: format ? ERROR_CODES.INVALID_REQUEST : isNoIndex ? ERROR_CODES.NO_INDEX : ERROR_CODES.INTERNAL,
             message: err?.message || 'Search failed.',
             ...(format ? { ...format, details: format } : {})
           }, requestObservability));
           await sse.sendEvent('done', attachObservability({ ok: false }, requestObservability));
+        } finally {
+          sse.end();
         }
-        sse.end();
         return;
       }
 
@@ -710,6 +718,10 @@ export const createApiRouter = ({
       sendError(res, 404, ERROR_CODES.NOT_FOUND, 'Not found.', {}, corsHeaders || {});
     } catch (err) {
       if (res.writableEnded) return;
+      if (res.headersSent) {
+        res.destroy(err);
+        return;
+      }
       const format = projectIndexFormatError(err);
       if (format) {
         sendError(res, 409, ERROR_CODES.INVALID_REQUEST, err.message, format, corsHeaders || {});
@@ -729,13 +741,10 @@ export const createApiRouter = ({
   return {
     handleRequest,
     close() {
-      if (!closing) closing = (async () => {
-        try { await artifactBrowser?.close(); }
-        finally {
-          try { await closeRepoCaches(); }
-          finally { await (await import('../../src/shared/embedding-adapter.js')).disposeEmbeddingAdapterCaches(); }
-        }
-      })();
+      if (!closing) closing = closeApiRouterResources({
+        closeArtifacts: () => artifactBrowser?.close(), closeRepoCaches,
+        closeEmbeddings: async () => (await import('../../src/shared/embedding-adapter.js')).disposeEmbeddingAdapterCaches()
+      });
       return closing;
     }
   };

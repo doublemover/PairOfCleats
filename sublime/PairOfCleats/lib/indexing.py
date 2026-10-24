@@ -1,5 +1,6 @@
 def build_index_args(mode, repo_root=None, watch=False, watch_poll_ms=None, watch_debounce_ms=None):
     args = ['index', 'watch' if watch else 'build']
+    args.extend(['--progress', 'jsonl'])
     if mode:
         args.extend(['--mode', mode])
     if watch:

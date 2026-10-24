@@ -13,6 +13,9 @@ const tempRoot = resolveTestCachePath(root, 'vfs-merge-core');
 const outDir = path.join(tempRoot, 'out');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(outDir, { recursive: true });
+const siblingRunDir = path.join(tempRoot, 'vfs_manifest.runs', 'other-collector');
+await fs.mkdir(siblingRunDir, { recursive: true });
+await fs.writeFile(path.join(siblingRunDir, 'owned-by-sibling'), 'preserve');
 
 const collector = createVfsManifestCollector({
   buildRoot: tempRoot,
@@ -51,6 +54,7 @@ const sorted = rows.slice().sort(compareVfsManifestRows);
 assert.deepEqual(rows, sorted, 'vfs_manifest output should be sorted');
 
 const runDir = path.join(tempRoot, 'vfs_manifest.runs');
-await assert.rejects(fs.access(runDir), 'spill runs should be cleaned');
+assert.deepEqual(await fs.readdir(runDir), ['other-collector'], 'only this collector\'s spill runs are retired');
+assert.equal(await fs.readFile(path.join(siblingRunDir, 'owned-by-sibling'), 'utf8'), 'preserve');
 
 console.log('vfs merge core integration test passed');

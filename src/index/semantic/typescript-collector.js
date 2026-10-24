@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { canonicalSemanticJson } from './identity.js';
+import { prepareSemanticBatchEntry, semanticBatchEntryBytes } from './prepared-batch.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { semanticLiteralScalar } from './semantic-literal.js';
 import { getTypeScriptSyntaxIdentity } from '../../lang/typescript/syntax-context.js';
@@ -195,9 +195,10 @@ export const createTypeScriptSemanticCollector = ({ ast, ts, source, partitionId
   }
   function* batches() {
     let batch = []; let byteCount = 0; let sequence = 0;
-    for (const entry of rows()) {
+    for (const rawEntry of rows()) {
+      const entry = prepareSemanticBatchEntry(rawEntry);
       throwIfAborted(signal);
-      const bytes = Buffer.byteLength(canonicalSemanticJson(entry)) + 1;
+      const bytes = semanticBatchEntryBytes(entry);
       if (bytes > batchBytes) throw Object.assign(new Error('Semantic record exceeds producer batch allowance.'), { code: 'ERR_SEMANTIC_RECORD_LIMIT' });
       if (batch.length && (batch.length >= batchRows || byteCount + bytes > batchBytes)) {
         yield { partitionId, sequence: sequence++, rows: batch, byteCount };

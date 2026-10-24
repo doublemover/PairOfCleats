@@ -4,7 +4,7 @@ import { ARTIFACT_SURFACE_VERSION } from '../../../../src/contracts/versioning.j
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { writeBundleFile } from '../../../../src/shared/bundle-io.js';
+import { writeIncrementalBundleSnapshot } from '../../../../src/index/build/incremental/bundle-snapshot.js';
 import { incrementalUpdateDatabase } from '../../../../src/storage/sqlite/build/incremental-update.js';
 import { CREATE_TABLES_BASE_SQL, SCHEMA_VERSION } from '../../../../src/storage/sqlite/schema.js';
 
@@ -40,12 +40,10 @@ insertManifest.run('code', 'keep-2.txt', 'keep-2', 120, 1, 0);
 insertManifest.run('code', 'keep-3.txt', 'keep-3', 120, 1, 0);
 db.close();
 
-const bundleName = 'bundle.json';
-const bundlePath = path.join(bundleDir, bundleName);
-await writeBundleFile({
-  bundlePath,
+const selectedEntry = { mtimeMs: 123, size: 5, hash: 'abc' };
+const snapshot = await writeIncrementalBundleSnapshot({ bundleDir, relKey: 'sample.txt', entry: selectedEntry,
   format: 'json',
-  bundle: {
+  bundles: [{ file: 'sample.txt', hash: 'abc', size: 5,
     chunks: [
       {
         file: 'sample.txt',
@@ -55,16 +53,15 @@ await writeBundleFile({
         embedding: [0.1, 0.2]
       }
     ]
-  }
+  }]
 });
+const bundleName = snapshot.bundles[0];
 
 const manifest = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   files: {
     'sample.txt': {
-      bundles: [bundleName],
-      mtimeMs: 123,
-      size: 5,
-      hash: 'abc'
+      ...selectedEntry,
+      ...snapshot
     },
     'keep-1.txt': { bundles: [bundleName], mtimeMs: 120, size: 1, hash: 'keep-1' },
     'keep-2.txt': { bundles: [bundleName], mtimeMs: 120, size: 1, hash: 'keep-2' },

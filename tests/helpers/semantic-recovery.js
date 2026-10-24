@@ -8,6 +8,7 @@ import { createSemanticPartitionSink, createSemanticDiskAccount } from '../../sr
 import { createArtifactSemanticStore } from '../../src/semantic/artifact-store.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 import { applyTestEnv } from './test-env.js';
+import { toRealPathSync } from '../../src/workspace/identity.js';
 
 export const semanticBatch = (partitionId, rows, sequence = 0) => ({
   partitionId, rows, sequence,
@@ -25,7 +26,7 @@ export const deferred = () => {
   return { promise, resolve };
 };
 export const createRecoveryFixture = async (text = 'f(1);') => {
-  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-semantic-recovery-'));
+  const root = toRealPathSync(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-semantic-recovery-')));
   applyTestEnv({ cacheRoot: path.join(root, 'cache') });
   const bytes = Buffer.from(text);
   const source = createSemanticSourceSnapshot({

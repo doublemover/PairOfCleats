@@ -1,5 +1,22 @@
 # Runtime receipts and launch evidence
 
+Dynamic stage, language, setting and telemetry channel names are own data keys,
+including reserved object names. Per-language attribution conserves observed
+file/setting duration when embedded language spans overlap. Startup calibration
+uses an invocation-unique file and cleans up only that file, including failures.
+Shipped config-schema caching retains one immutable schema identity; repository,
+trusted config, environment and trust inputs are refreshed on every load.
+
+Worker availability and observed tokenization routes are separate evidence.
+Until a chunk executes, the observed route is `not-yet-observed`; receipts can
+report mixed worker/process, inline, pretokenized and disabled routes with bounded
+counts and reasons. Counts contain no source text or filename labels. Cancellation
+is propagated, rather than classified as a worker error that triggers inline CPU
+retry. Outstanding requests retain drain ownership; throttle waits, backend queues
+and observed running workers are distinct. Worker start/end events report task
+wall time, not CPU time or parent-plus-worker CPU sums. Historical completed-task
+counts do not certify that those workers remain live.
+
 `pairofcleats index report --runtime --repo .` lists bounded persisted attempts from
 published mode roots and other build candidates. A candidate is never labeled as
 a live build based on directory age. `status` includes published-mode receipt

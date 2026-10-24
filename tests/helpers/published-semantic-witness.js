@@ -27,28 +27,39 @@ firstRun();secondRun();
 /** Real whole-generation publication, shared by semantic/runtime/browser tests.
  * This helper only executes when an authorized acceptance fixture invokes it.
  */
-export const createPublishedSemanticWitness = async ({ root, revision = 0, incremental = false, abortSignal = null } = {}) => {
+export const createPublishedSemanticWitness = async ({ root, revision = 0, incremental = false,
+  abortSignal = null, recordPartitionFilter = null, threads = undefined, extraIgnore = undefined,
+  compilerAdmission = { maxResidentBytes: 1024 * 1024 * 1024 }, extraEnv = undefined,
+  sourceFiles = SEMANTIC_WITNESS_SOURCES, compilerOptions = {} } = {}) => {
   if (!root) throw new TypeError('Task-owned witness root required.');
   const repoRoot = path.join(root, 'repo'), cacheRoot = path.join(root, 'cache');
   await fs.mkdir(repoRoot, { recursive: true });
   await fs.writeFile(path.join(repoRoot, 'tsconfig.json'), JSON.stringify({ compilerOptions: {
-    types: ['node'], typeRoots: [path.resolve('node_modules/@types')], target: 'ES2022', module: 'NodeNext', moduleResolution: 'NodeNext'
+    types: ['node'], typeRoots: [path.resolve('node_modules/@types')], target: 'ES2022', module: 'NodeNext', moduleResolution: 'NodeNext',
+    ...compilerOptions
   }, include: ['*.ts'] }));
   await fs.writeFile(path.join(repoRoot, 'package.json'), JSON.stringify({ type: 'module' }));
-  for (const [file, text] of Object.entries(SEMANTIC_WITNESS_SOURCES)) await fs.writeFile(path.join(repoRoot, file), text + '// source revision ' + revision + '\n');
-  applyTestEnv({ cacheRoot, embeddings: 'stub', testConfig: { indexing: {
-    workerPool: { enabled: false }, semantic: { enabled: true, profile: 'rich',
-      execution: { compilerAdmission: { maxResidentBytes: 1024 * 1024 * 1024 } },
-      enrichment: { bindings: 'eager', localFlow: 'eager', crossFileFlow: 'eager' } },
-    embeddings: { enabled: false }, typeInference: false, typeInferenceCrossFile: false,
-    riskAnalysis: false, treeSitter: { enabled: false }
-  } } });
-  await buildIndex(repoRoot, { mode: 'code', stage: 'stage2', incremental, abortSignal, 'stub-embeddings': true, 'scm-provider': 'none' });
+  for (const [file, text] of Object.entries(sourceFiles)) await fs.writeFile(path.join(repoRoot, file), text + '// source revision ' + revision + '\n');
+  applyTestEnv({ cacheRoot, embeddings: 'stub', extraEnv, testConfig: {
+    ...(extraIgnore === undefined ? {} : { extraIgnore }),
+    indexing: {
+      workerPool: { enabled: false }, semantic: { enabled: true, profile: 'rich',
+        execution: { compilerAdmission },
+        enrichment: { bindings: 'eager', localFlow: 'eager', crossFileFlow: 'eager' } },
+      embeddings: { enabled: false }, typeInference: false, typeInferenceCrossFile: false,
+      riskAnalysis: false, treeSitter: { enabled: false }
+    } } });
+  await buildIndex(repoRoot, { mode: 'code', stage: 'stage2', incremental, abortSignal,
+    ...(threads === undefined ? {} : { threads }),
+    'stub-embeddings': true, 'scm-provider': 'none' });
   const indexDir = getIndexDir(repoRoot, 'code', loadUserConfig(repoRoot));
   const { store, manifest } = await openPublishedSemanticStore({ repoRoot, indexDir });
   const sources = new Map(), records = [];
   for (const partition of manifest.partitions) {
-    for await (const source of store.iterateRows(partition.partitionId, 'semantic_sources')) sources.set(source.sourceUnitId, source);
+    if (!sources.has(partition.sourceUnitId)) {
+      for await (const source of store.iterateRows(partition.partitionId, 'semantic_sources')) sources.set(source.sourceUnitId, source);
+    }
+    if (recordPartitionFilter && !recordPartitionFilter(partition)) continue;
     for await (const row of store.iterateRows(partition.partitionId, 'semantic_records')) records.push({ ...row,
       ref: { partitionId: partition.partitionId, localId: row.id }, sourceUnitId: partition.sourceUnitId });
   }

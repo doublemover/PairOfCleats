@@ -8,7 +8,7 @@ import { buildDatabaseFromArtifacts, loadIndexPieces } from '../../../src/storag
 import { compactDatabase } from '../../../tools/build/compact-sqlite-index.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 applyTestEnv({testing:'1'});
-const parent = process.env.PAIROFCLEATS_FTS_TEST_DIR || path.resolve('temp/tasks/retrieval-fts-tables');
+const parent = process.env.PAIROFCLEATS_FTS_TEST_DIR || path.resolve('.tmp/tasks/retrieval-fts-tables');
 await fs.mkdir(parent,{recursive:true});
 const folder = await fs.mkdtemp(path.join(parent,'build-'));
 const indexDir=path.join(folder,'artifacts'),outPath=path.join(folder,'prose.db');

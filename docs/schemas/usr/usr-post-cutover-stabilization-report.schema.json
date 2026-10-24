@@ -1,32 +1,117 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "usr/usr-post-cutover-stabilization-report.schema.json",
-  "title": "usr-post-cutover-stabilization-report.schema.json",
-  "allOf": [
-    {
-      "$ref": "./evidence-envelope.schema.json"
-    }
-  ],
+  "title": "usr-post-cutover-stabilization-report-report",
   "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "artifactId",
+    "generatedAt",
+    "producerId",
+    "runId",
+    "lane",
+    "buildId",
+    "status",
+    "scope",
+    "summary",
+    "rows"
+  ],
   "properties": {
+    "schemaVersion": {
+      "type": "string"
+    },
     "artifactId": {
       "type": "string",
       "const": "usr-post-cutover-stabilization-report"
     },
+    "generatedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "producerId": {
+      "type": "string"
+    },
+    "producerVersion": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "runId": {
+      "type": "string"
+    },
+    "lane": {
+      "type": "string"
+    },
+    "buildId": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "pass",
+        "warn",
+        "fail",
+        "error",
+        "partial"
+      ]
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scopeType",
+        "scopeId"
+      ],
+      "properties": {
+        "scopeType": {
+          "type": "string",
+          "enum": [
+            "global",
+            "lane",
+            "language",
+            "framework"
+          ]
+        },
+        "scopeId": {
+          "type": "string"
+        }
+      }
+    },
+    "blockingFindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "advisoryFindings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    },
+    "evidenceRefs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "summary": {
-      "type": "object"
+      "type": "object",
+      "additionalProperties": true
     },
     "rows": {
       "type": "array",
       "items": {
-        "type": "object"
+        "type": "object",
+        "additionalProperties": true
       }
     }
   },
-  "unevaluatedProperties": false,
-  "required": [
-    "artifactId",
-    "summary",
-    "rows"
-  ]
+  "$id": "usr/usr-post-cutover-stabilization-report.schema.json"
 }

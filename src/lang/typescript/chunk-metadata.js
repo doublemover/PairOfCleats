@@ -13,7 +13,11 @@ export const createTypeScriptChunkMetadataContext = (text) => {
   const lineIndex = buildLineIndex(text);
   const lines = text.split('\n');
 
-  const buildSignature = (start, bodyStart) => sliceSignature(text, start, bodyStart);
+  const buildSignature = (start, bodyStart, declarationEnd = null) => {
+    if (!Number.isSafeInteger(declarationEnd)) return sliceSignature(text, start, bodyStart);
+    const end = bodyStart > start && bodyStart <= declarationEnd ? bodyStart : declarationEnd;
+    return text.slice(start, Math.min(end, start + 4096)).replace(/\s+/gu, ' ').trim();
+  };
 
   const buildMetaBase = (start, end, signature) => {
     const startLine = offsetToLine(lineIndex, start);

@@ -1,3 +1,9 @@
+import { projectJsTsCallArguments } from '../js-ts/call-arguments.js';
+import { projectBabelCallable } from '../js-ts/callable-metadata.js';
+import { projectJsTsLiteral, collectCallLiteralEvidence } from '../js-ts/literal.js';
+import { collectConstantReferences } from '../js-ts/constant-references.js';
+import { createReturnCallEvidence } from '../js-ts/return-call-evidence.js';
+import { recordJsTsImportBindings } from '../js-ts/import-bindings.js';
 import * as esprima from 'esprima';
 import {
   collectPatternNames,
@@ -6,7 +12,7 @@ import {
   keyName,
   visibilityFor
 } from './ast-utils.js';
-import { parseJavaScriptAst } from './parse.js';
+import { parseJavaScriptAst, ownsJavaScriptSyntaxText, getJavaScriptSyntaxIdentity } from './parse.js';
 import {
   buildCallDetail,
   formatJsTsCallArg,
@@ -50,14 +56,18 @@ export function buildCodeRelations(text, relPath, options = {}) {
   const functionStack = [];
   const classStack = [];
 
-  const getMemberName = (node) => resolveAstMemberName(node);
+  const ast = options.ast || parseJavaScriptAst(text, options);
+  const sourceOwned = ownsJavaScriptSyntaxText(ast, text);
+  const returnEvidence = createReturnCallEvidence(ast, { sourceOwned });
+  const constants = collectConstantReferences(ast);
+  const getMemberName = (node) => resolveAstMemberName(node, { constantKeys: constants.keys });
 
   const getCalleeName = (callee) => {
     if (!callee) return null;
     if (callee.type === 'ChainExpression') return getCalleeName(callee.expression);
     if (callee.type === 'OptionalCallExpression') return getCalleeName(callee.callee);
     if (callee.type === 'Import') return null;
-    if (callee.type === 'Identifier') return callee.name;
+    if (callee.type === 'Identifier') return constants.aliases.get(callee) || callee.name;
     if (callee.type === 'MemberExpression' || callee.type === 'OptionalMemberExpression') {
       return getMemberName(callee);
     }
@@ -195,7 +205,7 @@ export function buildCodeRelations(text, relPath, options = {}) {
     return '(anonymous)';
   };
 
-  const MAX_PARAM_NAMES = 16;
+  const MAX_PARAM_NAMES = 256;
   const resolveStableParamName = (param, index) => {
     if (!param) return `arg${index}`;
     if (param.type === 'Identifier') return param.name;
@@ -215,13 +225,14 @@ export function buildCodeRelations(text, relPath, options = {}) {
     const params = [];
     const paramNames = [];
     const stableParamNames = [];
-    const paramDefaults = {};
+    const paramDefaults = Object.create(null);
+    const paramDefaultLiterals = Object.create(null);
     if (!node?.params) {
       return {
         params,
         paramNames,
         stableParamNames,
-        paramDefaults
+        paramDefaults, paramDefaultLiterals
       };
     }
     node.params.forEach((param, index) => {
@@ -232,6 +243,8 @@ export function buildCodeRelations(text, relPath, options = {}) {
         paramNames.push(name);
         if (param.type === 'AssignmentPattern' && param.left?.type === 'Identifier') {
           paramDefaults[name] = formatDefault(param.right);
+          const literal = sourceOwned && !ast.errors?.length ? projectJsTsLiteral(param.right, text) : null;
+          if (literal) paramDefaultLiterals[name] = literal;
         }
       });
       if (stableParamNames.length < MAX_PARAM_NAMES) {
@@ -242,7 +255,7 @@ export function buildCodeRelations(text, relPath, options = {}) {
       params,
       paramNames,
       stableParamNames,
-      paramDefaults
+      paramDefaults, paramDefaultLiterals
     };
   };
 
@@ -260,8 +273,10 @@ export function buildCodeRelations(text, relPath, options = {}) {
     const name = inferFunctionName(node, parent);
     const hasExisting = Object.prototype.hasOwnProperty.call(functionMeta, name);
     const existing = hasExisting ? functionMeta[name] : null;
-    const { paramNames, stableParamNames, paramDefaults } = collectParamMeta(node);
+    const { paramNames, stableParamNames, paramDefaults, paramDefaultLiterals } = collectParamMeta(node);
     const signature = buildSignature(node, name);
+    const callableParameters = sourceOwned ? projectBabelCallable({ node, text, start: node.start, end: node.end,
+      parseComplete: !ast.errors?.length, language: 'javascript', parser: `javascript-${getJavaScriptSyntaxIdentity(ast)?.family}` }).callableParameters : null;
     const modifiers = {
       async: !!node.async,
       generator: !!node.generator,
@@ -285,7 +300,7 @@ export function buildCodeRelations(text, relPath, options = {}) {
       functionMeta[name] = {
         params: paramNames,
         paramNames: stableParamNames,
-        paramDefaults,
+        paramDefaults, paramDefaultLiterals, callableParameters,
         signature,
         modifiers,
         methodKind,
@@ -300,6 +315,7 @@ export function buildCodeRelations(text, relPath, options = {}) {
       existing.params = existing.params?.length ? existing.params : paramNames;
       existing.paramNames = existing.paramNames?.length ? existing.paramNames : stableParamNames;
       existing.paramDefaults = Object.keys(existing.paramDefaults || {}).length ? existing.paramDefaults : paramDefaults;
+      existing.paramDefaultLiterals = Object.keys(existing.paramDefaultLiterals || {}).length ? existing.paramDefaultLiterals : paramDefaultLiterals;
       existing.signature = existing.signature || signature;
       existing.modifiers = existing.modifiers || modifiers;
       existing.methodKind = existing.methodKind || methodKind;
@@ -369,7 +385,7 @@ export function buildCodeRelations(text, relPath, options = {}) {
   const MAX_CALL_ARGS = 5;
   const MAX_CALL_ARG_LEN = 80;
   const walk = (root) => {
-    const stack = [{ node: root, parent: null, phase: 0, exitType: null }];
+    const stack = [{ node: root, parent: null, phase: 0, exitType: null, returnOwner: null }];
     while (stack.length) {
       const frame = stack.pop();
       const { node, parent, phase, exitType } = frame;
@@ -381,34 +397,17 @@ export function buildCodeRelations(text, relPath, options = {}) {
       }
       if (Array.isArray(node)) {
         for (let i = node.length - 1; i >= 0; i -= 1) {
-          stack.push({ node: node[i], parent, phase: 0, exitType: null });
+          stack.push({ node: node[i], parent, phase: 0, exitType: null, returnOwner: frame.returnOwner });
         }
         continue;
       }
       if (typeof node !== 'object') continue;
+      const returnOwner = returnEvidence.enter(node, parent, frame.returnOwner);
 
       if (node.type === 'ImportDeclaration') {
         if (node.source?.value) imports.add(node.source.value);
-        const sourceValue = typeof node.source?.value === 'string' ? node.source.value : null;
-        if (sourceValue && Array.isArray(node.specifiers)) {
-          for (const specifier of node.specifiers) {
-            const localName = specifier?.local?.name;
-            if (!localName) continue;
-            usages.add(localName);
-            if (specifier.type === 'ImportSpecifier') {
-              const importedName = specifier.imported?.name || null;
-              importBindings[localName] = { imported: importedName || null, module: sourceValue };
-              continue;
-            }
-            if (specifier.type === 'ImportDefaultSpecifier') {
-              importBindings[localName] = { imported: 'default', module: sourceValue };
-              continue;
-            }
-            if (specifier.type === 'ImportNamespaceSpecifier') {
-              importBindings[localName] = { imported: '*', module: sourceValue };
-            }
-          }
-        }
+        for (const specifier of node.specifiers || []) if (specifier?.local?.name) usages.add(specifier.local.name);
+        recordJsTsImportBindings(node, parent, importBindings, sourceOwned && !ast.errors?.length);
       }
 
       if (node.type === 'ImportExpression' && node.source) {
@@ -463,11 +462,12 @@ export function buildCodeRelations(text, relPath, options = {}) {
         if (left && left.startsWith('exports.')) exports.add(left.slice('exports.'.length));
       }
 
-      if (node.type === 'CallExpression' || node.type === 'OptionalCallExpression') {
+      if (node.type === 'CallExpression' || node.type === 'OptionalCallExpression'
+        || node.type === 'NewExpression' && returnEvidence.get(node)) {
         const calleeName = getCalleeName(node.callee);
         const callerName = functionStack.length ? functionStack[functionStack.length - 1] : '(module)';
         if (calleeName) {
-          calls.push([callerName, calleeName]);
+          if (node.type !== 'NewExpression') calls.push([callerName, calleeName]);
           const args = [];
           if (Array.isArray(node.arguments)) {
             for (let i = 0; i < node.arguments.length && args.length < MAX_CALL_ARGS; i += 1) {
@@ -479,7 +479,17 @@ export function buildCodeRelations(text, relPath, options = {}) {
             }
           }
           const location = resolveCallLocation(node);
-          callDetails.push(buildCallDetail({ callerName, calleeName, args, location }));
+          const detail = buildCallDetail({ callerName, calleeName, args, location });
+          if (sourceOwned && !ast.errors?.length) {
+            detail.argLiterals = collectCallLiteralEvidence(node.arguments, text);
+            detail.arguments = projectJsTsCallArguments(node.arguments, text);
+          }
+          const returnedValue = returnEvidence.get(node);
+          if (returnedValue) detail.returnedValue = returnedValue;
+          const lexicalBinding = sourceOwned && !ast.errors?.length ? constants.callRoots.get(node) : null;
+          if (lexicalBinding?.root === calleeName.split(/::|\./u)[0]) detail.lexicalBinding = lexicalBinding;
+          if (node.type === 'NewExpression') detail.role = 'constructor';
+          callDetails.push(detail);
         }
       }
 
@@ -587,7 +597,7 @@ export function buildCodeRelations(text, relPath, options = {}) {
         classStack.push(node.id.name);
         stack.push({ node, parent, phase: 1, exitType: 'class' });
         if (node.body?.body) {
-          stack.push({ node: node.body.body, parent: node, phase: 0, exitType: null });
+          stack.push({ node: node.body.body, parent: node, phase: 0, exitType: null, returnOwner });
         }
         continue;
       }
@@ -597,7 +607,7 @@ export function buildCodeRelations(text, relPath, options = {}) {
         functionStack.push(fnName);
         stack.push({ node, parent, phase: 1, exitType: 'function' });
         if (node.body) {
-          stack.push({ node: node.body, parent: node, phase: 0, exitType: null });
+          stack.push({ node: node.body, parent: node, phase: 0, exitType: null, returnOwner });
         }
         continue;
       }
@@ -607,13 +617,12 @@ export function buildCodeRelations(text, relPath, options = {}) {
         if (WALK_SKIP_KEYS.has(key)) continue;
         const child = node[key];
         if (child && typeof child === 'object') {
-          stack.push({ node: child, parent: node, phase: 0, exitType: null });
+          stack.push({ node: child, parent: node, phase: 0, exitType: null, returnOwner });
         }
       }
     }
   };
 
-  const ast = options.ast || parseJavaScriptAst(text, options);
   if (ast) {
     walk(ast);
   }

@@ -62,7 +62,7 @@ const expectThrow = async (label, fn) => {
 };
 
 await expectThrow('call_sites maxJsonBytes guard', async () => {
-  enqueueCallSitesArtifacts({
+  await enqueueCallSitesArtifacts({
     state,
     outDir: callSitesDir,
     maxJsonBytes: 200,
@@ -88,7 +88,7 @@ const runEnqueuedWrites = async (label, enqueue) => {
 };
 
 await runEnqueuedWrites('call_sites', async ({ enqueueWrite }) => {
-  enqueueCallSitesArtifacts({
+  await enqueueCallSitesArtifacts({
     state,
     outDir: callSitesDir,
     maxJsonBytes: 1024 * 1024,

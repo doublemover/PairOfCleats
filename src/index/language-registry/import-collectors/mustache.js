@@ -19,7 +19,7 @@ export const createMustacheImportCollector = ({ parseStructure = parseMustacheSt
       if (context.scanBudget.exhausted || !context.scanBudget.consumeMatch()) break;
       // Mustache partial names are literal lookup keys, unlike Handlebars strings.
       addBudgetedCollectorImport(imports, entry.name, context.scanBudget,
-        { stripSurroundingQuotes: false, stripTrailingPunctuation: false });
+        { literal:true });
     }
     return [...imports];
   } finally {

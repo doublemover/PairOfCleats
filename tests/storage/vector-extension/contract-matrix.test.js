@@ -59,6 +59,8 @@ await fs.mkdir(tempRoot, { recursive: true });
   };
   queryVectorAnn(db, baseConfig, [1, 2], 5, null);
   queryVectorAnn(db, baseConfig, [1, 2, 3, 4, 5], 5, null);
+  assert.deepEqual(queryVectorAnn(db, baseConfig, [1, 2, 3, 4], 5, new Set()), []);
+  assert.deepEqual(queryVectorAnn(db, baseConfig, [1, 2, 3, 4], 5, []), []);
   assert.equal(captured.length, 2);
   assert.deepEqual(Array.from(new Float32Array(captured[0].buffer, captured[0].byteOffset, captured[0].byteLength / 4)), [1, 2, 0, 0]);
   assert.deepEqual(Array.from(new Float32Array(captured[1].buffer, captured[1].byteOffset, captured[1].byteLength / 4)), [1, 2, 3, 4]);

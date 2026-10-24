@@ -36,6 +36,7 @@ const { root, repoRoot, triageFixtureRoot, env, cacheRoot, writeTestLog } = awai
   fixtureBuilder: buildTriageEvidenceRepo,
   testConfig: {
     indexing: {
+      scm: { provider: 'none' },
       typeInference: false,
       typeInferenceCrossFile: false,
       riskAnalysis: false,

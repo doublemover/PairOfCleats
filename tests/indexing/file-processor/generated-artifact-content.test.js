@@ -12,6 +12,7 @@ import { sha1 } from '../../../src/shared/hash.js';
 import { stableStringifyForSignature } from '../../../src/shared/stable-json.js';
 import { withGeneratedArtifactMetadata } from '../../../src/shared/generated-artifact-core.js';
 import { withGeneratedCacheMetadata } from '../../../src/shared/generated-artifact-cache.js';
+import { MAP_MODEL_VERSION } from '../../../src/map/model-version.js';
 
 const repoRoot = process.cwd();
 const map = { version: '1.0.0', generatedAt: '2026-10-06T00:00:00.000Z',
@@ -21,6 +22,10 @@ const { key } = generatedMapCacheIdentity('content-fixture');
 const text = JSON.stringify(createMapCacheEnvelope(map, key));
 const classify = value => classifyGeneratedArtifactContentPrefix({ prefix: Buffer.from(value), repoRoot });
 assert.equal(classify(text)?.action, 'omit');
+const currentText = JSON.stringify(createMapCacheEnvelope({ ...map, version: MAP_MODEL_VERSION }, key));
+assert.equal(classify(currentText)?.action, 'omit', 'renamed current producer caches retain their generated identity');
+assert.equal(classify(JSON.stringify(createMapCacheEnvelope({ ...map, version: '999.0.0' }, key))), null,
+  'unknown map versions never become automatic exclusions');
 assert.equal(classify(JSON.stringify({ documentation: text })), null);
 assert.equal(classify(`// quoted example\n${text}`), null);
 assert.equal(classify(JSON.stringify(createMapCacheEnvelope({ authored: true }, key))), null,
@@ -46,6 +51,8 @@ const checkContent = async (contents, mode = 'code') => {
 const owned = await checkContent(text);
 assert.equal(owned.result.skip.reason, 'generated-artifact');
 assert.equal(owned.artifacts.text, undefined, 'omit before decoding/parsing/chunking');
+assert.equal((await checkContent(currentText)).result.skip?.reason, 'generated-artifact');
+assert.equal((await checkContent(currentText, 'records')).result.skip, null);
 const quoted = await checkContent(JSON.stringify({ documentation: text }));
 assert.equal(quoted.result.skip, null);
 const records = await checkContent(text, 'records');
@@ -74,6 +81,10 @@ const coreOnlyHash = sha1(stableStringifyForSignature({ generatedArtifactPolicyV
   config: normalizeContentConfig(config), env: { ...env, cacheRoot: '' } }));
 assert.notEqual(buildContentConfigHash(config, env), coreOnlyHash,
   'object-cache recognition must refresh earlier bundles once');
+const previousMapVersionHash = sha1(stableStringifyForSignature({ generatedArtifactPolicyVersion: 'poc.generated-discovery@4',
+  config: normalizeContentConfig(config), env: { ...env, cacheRoot: '' } }));
+assert.notEqual(buildContentConfigHash(config, env), previousMapVersionHash,
+  'current map recognition invalidates bundles that admitted renamed caches');
 assert.equal(buildContentConfigHash(config, env), buildContentConfigHash(config, { cacheRoot: '/elsewhere' }));
 
 const ordinary = Buffer.from('export function authored() { return "poc.generated@1"; }');

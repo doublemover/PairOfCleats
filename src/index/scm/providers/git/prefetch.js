@@ -19,7 +19,6 @@ let gitMetaPrefetchInFlight = new Map();
 const pruneGitMetaPrefetchCache = (config) => {
   if (!config || config.prefetchCacheMaxEntries <= 0) {
     gitMetaPrefetchCache.clear();
-    gitMetaPrefetchInFlight.clear();
     return;
   }
   const ttlMs = Number.isFinite(Number(config.prefetchCacheTtlMs)) && Number(config.prefetchCacheTtlMs) > 0
@@ -31,14 +30,12 @@ const pruneGitMetaPrefetchCache = (config) => {
       const updatedAt = Number(entry?.updatedAt) || 0;
       if (updatedAt > 0 && now - updatedAt <= ttlMs) continue;
       gitMetaPrefetchCache.delete(key);
-      gitMetaPrefetchInFlight.delete(key);
     }
   }
   while (gitMetaPrefetchCache.size > config.prefetchCacheMaxEntries) {
     const oldestKey = gitMetaPrefetchCache.keys().next()?.value;
     if (!oldestKey) break;
     gitMetaPrefetchCache.delete(oldestKey);
-    gitMetaPrefetchInFlight.delete(oldestKey);
   }
 };
 
@@ -74,15 +71,12 @@ export const setGitMetaPrefetchEntry = (freshnessGuard, entry, config) => {
 export const runGitMetaPrefetchTask = async (freshnessGuard, task) => {
   const key = freshnessGuard?.key || null;
   if (!key) return task();
-  const inFlight = gitMetaPrefetchInFlight.get(key);
-  if (inFlight) return inFlight;
-  const promise = (async () => {
-    try {
-      return await task();
-    } finally {
-      gitMetaPrefetchInFlight.delete(key);
-    }
-  })();
+  // A joiner's callback owns its own missing-path recheck. Serialize callbacks
+  // at this guard, rather than returning a different caller's partial coverage.
+  const previous = gitMetaPrefetchInFlight.get(key);
+  const promise = Promise.resolve(previous).catch(() => {}).then(task).finally(() => {
+    if (gitMetaPrefetchInFlight.get(key) === promise) gitMetaPrefetchInFlight.delete(key);
+  });
   gitMetaPrefetchInFlight.set(key, promise);
   return promise;
 };

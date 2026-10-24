@@ -1,4 +1,5 @@
 import importlib
+import copy
 import json
 import os
 import sys
@@ -77,6 +78,54 @@ class AnalysisBehaviorTests(unittest.TestCase):
             elif key == 'run_process':
                 self.analysis.runner.run_process = value
 
+    def test_canonical_nested_and_partial_risk_evidence_reaches_registered_session(self):
+        original = self._payload_for_args
+
+        def canonical(args):
+            payload = copy.deepcopy(original(args))
+            if args[:2] == ['risk', 'explain']:
+                flow = payload['flows'][0]
+                flow['evidence'] = {'callSitesByStep': flow.pop('callSitesByStep')}
+                flow['callSitesByStep'] = [[{'details': {'file': 'stale-alias.js'}}]]
+                payload['partialFlows'] = [{'partialFlowId': 'partial-1', 'evidence': {
+                    'callSitesByStep': [[{'details': {'file': 'src/partial.js', 'startLine': 9}}]]}}]
+            return payload
+
+        self._payload_for_args = canonical
+        try:
+            self.analysis.PairOfCleatsRiskExplainCommand(self.window).run(chunk='chunk-risk')
+            session = self.results_state.get_last_risk_explain(self.window)
+            hits = session['hits']
+            self.assertTrue(any(hit.get('file') == 'src/util.js' and hit.get('startLine') == 7 for hit in hits))
+            partial = next(hit for hit in hits if hit.get('file') == 'src/partial.js')
+            self.assertEqual(partial['section'], 'risk-step-partial')
+            self.assertIn('partial flow partial-1', partial['headline'])
+            self.assertFalse(any(hit.get('file') == 'stale-alias.js' for hit in hits))
+        finally:
+            self._payload_for_args = original
+
+    def test_context_primary_retains_source_identity_without_inventing_hash_authority(self):
+        digest = 'a' * 64
+        identity = {'policy': 'working-tree-preview', 'currentHash': 'sha256:' + digest,
+                    'indexedHash': 'sha256:' + digest, 'drift': 'unchanged'}
+        payload = {'primary': {'file': 'src/index.js', 'ref': {'type': 'chunk', 'chunkUid': 'owned'},
+                              'range': {'startLine': 1, 'endLine': 2}, 'excerpt': 'context'},
+                   'evidence': {'primary': {'fileBacked': True, 'source': 'indexed-source-verified', 'sourceIdentity': identity}}}
+        hit = self.analysis._collect_context_pack_hits(payload)[0]
+        self.assertEqual(hit['sourceHash'], digest)
+        self.assertEqual(hit['sourceIdentity'], identity)
+        self.assertEqual(hit['ref']['chunkUid'], 'owned')
+        identity['drift'] = 'changed'
+        self.assertEqual(hit['sourceIdentity']['drift'], 'unchanged', 'retained evidence is invocation-owned')
+        self.assertIsNone(self.analysis._collect_context_pack_hits(payload)[0]['sourceHash'])
+        identity['drift'] = 'unchanged'
+        identity['currentHash'] = identity['indexedHash'] = 'sha1:' + 'b' * 40
+        self.assertIsNone(self.analysis._collect_context_pack_hits(payload)[0]['sourceHash'],
+                          'SHA1 identity cannot masquerade as the editor verifier SHA256 receipt')
+        payload['primary']['evidence'] = {'fileBacked': False, 'sourceIdentity': None}
+        self.assertIsNone(self.analysis._collect_context_pack_hits(payload)[0]['sourceIdentity'],
+                          'an explicit primary observation cannot borrow envelope fallback authority')
+
     def test_context_pack_panel_export_reopen_and_actions(self):
         with isolated_temp_directory() as temp_root:
             out_path = os.path.join(temp_root, 'context-pack.json')
@@ -118,6 +167,10 @@ class AnalysisBehaviorTests(unittest.TestCase):
 
         session = self.results_state.get_last_risk_explain(self.window)
         self.assertEqual(session['analysisKind'], 'risk-explain')
+        risk_call = next(call for call in self.runner_calls if call['args'][:2] == ['risk', 'explain'])
+        self.assertEqual(risk_call['args'][risk_call['args'].index('--index') + 1],
+                         os.path.join(self.fixture_repo, 'custom-cache', 'code-only', 'index-code'))
+        self.assertEqual(session['payload']['sourceQualification']['indexSignature'], 'generation-code-only')
 
         self.analysis.PairOfCleatsReopenLastRiskExplainCommand(self.window).run()
         reopened = self.window.panels[self.results.RESULTS_PANEL]
@@ -128,6 +181,49 @@ class AnalysisBehaviorTests(unittest.TestCase):
         opened = self.window.opened_files[-1]['path'].replace('\\', '/')
         self.assertIn('src/util.js:7', opened)
         self.assertEqual(self.window.current_group, 1)
+
+    def test_risk_seed_kinds_use_canonical_code_generation(self):
+        for seed in ['chunk:chunk-risk', 'file:src/index.js', 'symbol:buildWidget']:
+            self.runner_calls = []
+            self.analysis.PairOfCleatsRiskExplainCommand(self.window).run(chunk=seed)
+            resolution, explain = self.runner_calls
+            self.assertEqual(resolution['args'][0], 'context-pack')
+            self.assertEqual(resolution['args'][resolution['args'].index('--seed') + 1], seed)
+            self.assertEqual(explain['args'][explain['args'].index('--index') + 1],
+                             os.path.join(self.fixture_repo, 'custom-cache', 'code-only', 'index-code'))
+            self.assertEqual(explain['args'][explain['args'].index('--chunk') + 1], 'chunk-risk')
+
+    def test_risk_missing_source_provenance_never_uses_repo_local_fallback(self):
+        original = self._payload_for_args
+        self._payload_for_args = lambda _args: {'primary': {'ref': {'chunkUid': 'chunk-risk'}},
+                                               'indexDir': os.path.join(self.fixture_repo, 'index-code')}
+        try:
+            self.analysis.PairOfCleatsRiskExplainCommand(self.window).run(chunk='chunk-risk')
+            self.assertEqual(len(self.runner_calls), 1)
+            self.assertEqual(self.runner_calls[0]['args'][0], 'context-pack')
+        finally:
+            self._payload_for_args = original
+
+    def test_risk_retained_generation_is_pinned_and_missing_generation_does_not_retry(self):
+        with isolated_temp_directory() as temp_root:
+            generation = os.path.join(temp_root, 'retained-code')
+            os.makedirs(os.path.join(generation, 'pieces'))
+            manifest = os.path.join(generation, 'pieces', 'manifest.json')
+            with open(manifest, 'w') as handle:
+                handle.write('{}')
+            source = {'source': 'context-pack', 'repoRoot': self.fixture_repo, 'mode': 'code',
+                      'indexDir': generation, 'indexSignature': 'retained-generation',
+                      'seed': 'chunk:chunk-risk', 'chunkUid': 'chunk-risk'}
+            self.analysis.PairOfCleatsRiskExplainCommand(self.window).run(
+                chunk='chunk-risk', source_qualification=source)
+            self.assertEqual(len(self.runner_calls), 1)
+            self.assertEqual(self.runner_calls[0]['args'][0:2], ['risk', 'explain'])
+            self.assertIn(generation, self.runner_calls[0]['args'])
+            os.remove(manifest)
+            self.runner_calls = []
+            self.analysis.PairOfCleatsRiskExplainCommand(self.window).run(
+                chunk='chunk-risk', source_qualification=source)
+            self.assertEqual(self.runner_calls, [])
 
     def test_architecture_impact_and_suggest_tests_commands(self):
         self.analysis.PairOfCleatsArchitectureCheckCommand(self.window).run(
@@ -308,7 +404,8 @@ class AnalysisBehaviorTests(unittest.TestCase):
         self.assertIn('API mode is not supported for context pack.', self.sublime.last_error)
 
     def _run_process(self, command, args, cwd=None, env=None, window=None, title=None,
-                     capture_json=None, on_done=None, stream_output=None, panel_name='pairofcleats'):
+                     capture_json=None, on_done=None, stream_output=None, panel_name='pairofcleats', **options):
+        self.assertIsNotNone(options.get('operation_scope'))
         self.runner_calls.append({
             'command': command,
             'args': list(args or []),
@@ -327,7 +424,10 @@ class AnalysisBehaviorTests(unittest.TestCase):
         args = list(args or [])
         if args and args[0] == 'context-pack':
             return {
+                'provenance': {'repo': '.', 'indexDir': os.path.join('custom-cache', 'code-only', 'index-code'),
+                               'indexSignature': 'generation-code-only'},
                 'primary': {
+                    'ref': {'type': 'chunk', 'chunkUid': 'chunk-risk'},
                     'file': 'src/index.js',
                     'range': {'startLine': 1, 'endLine': 8},
                     'excerpt': 'export function buildWidget() {'

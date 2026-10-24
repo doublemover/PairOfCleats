@@ -9,7 +9,7 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-filter-cli-cold-'));
 applyTestEnv({ cacheRoot: path.join(root, 'cache') });
 try {
-  const indexDir = await createCompatibilityIndex(root, { compatibilityKey: 'cold-enumeration', profileId: 'default' });
+  const indexDir = await createCompatibilityIndex(root, { published: true, compatibilityKey: 'cold-enumeration', profileId: 'default' });
   const rows = 1000;
   await fs.writeFile(path.join(indexDir, 'chunk_meta.json'), JSON.stringify(Array.from({ length: rows }, (_, id) => ({
     id, file: 'src/' + id + '.ts', kind: 'FunctionDeclaration', name: 'fn' + id, start: 0, end: 1, chunkUid: 'uid:' + id }))));

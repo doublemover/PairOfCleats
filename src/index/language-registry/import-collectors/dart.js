@@ -1,4 +1,4 @@
-import { lineHasAny, shouldScanLine } from './utils.js';
+import { createCommentAwareLineStripper, lineHasAny, shouldScanLine } from './utils.js';
 
 export const collectDartImports = (text) => {
   const imports = new Set();
@@ -9,7 +9,9 @@ export const collectDartImports = (text) => {
     if (!token) return;
     imports.add(token);
   };
-  for (const line of lines) {
+  const stripComments = createCommentAwareLineStripper({ markers: ['//'], blockCommentPairs: [['/*','*/']], nestedBlockComments: true });
+  for (const rawLine of lines) {
+    const line = stripComments(rawLine);
     if (!shouldScanLine(line, precheck)) continue;
     const match = line.match(/^\s*(import|export|part)\s+['"]([^'"]+)['"]/);
     if (match?.[2]) addImport(match[2]);

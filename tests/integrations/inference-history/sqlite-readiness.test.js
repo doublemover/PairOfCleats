@@ -8,7 +8,7 @@ import { projectArtifact } from '../../../src/integrations/inference-history/art
 import { createLocalSourceHistoryService } from '../../../src/integrations/inference-history/service.js';
 
 const base = process.env.PAIROFCLEATS_ARCHIVE_DISCOVERY_TEST_DIR
-  || path.resolve('temp/tasks/archive-sqlite-readiness');
+  || path.resolve('.tmp/tasks/archive-sqlite-readiness');
 await fs.mkdir(base, { recursive: true });
 const root = await fs.realpath(await fs.mkdtemp(path.join(base, 'production-no-model-')));
 const source = path.join(root, 'artifacts-0001.json');

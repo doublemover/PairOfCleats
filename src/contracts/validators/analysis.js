@@ -14,6 +14,9 @@ import {
 import { validateContextPackRiskContractCompatibility } from '../context-pack-risk-contract.js';
 import { formatValidatorErrors, toValidationResult } from './result.js';
 import { validateMetadataV2Semantics } from './metadata.js';
+import { graphPathProjectionErrors } from '../../graph/path-capability.js';
+import { contextTaskProjectionErrors } from '../context-task.js';
+import { apiContractProjectionErrors } from '../schemas/api-contracts.js';
 
 const ajv = createAjv({
   allErrors: true,
@@ -48,11 +51,17 @@ export function validateAnalysisPolicy(payload) {
 }
 
 export function validateGraphContextPack(payload) {
-  return toValidationResult(GRAPH_CONTEXT_PACK_VALIDATOR, payload);
+  const result = toValidationResult(GRAPH_CONTEXT_PACK_VALIDATOR, payload);
+  if (!result.ok) return result;
+  const errors = graphPathProjectionErrors(payload, 'graph_context');
+  return { ok: !errors.length, errors };
 }
 
 export function validateGraphImpact(payload) {
-  return toValidationResult(GRAPH_IMPACT_VALIDATOR, payload);
+  const result = toValidationResult(GRAPH_IMPACT_VALIDATOR, payload);
+  if (!result.ok) return result;
+  const errors = graphPathProjectionErrors(payload, 'graph_impact');
+  return { ok: !errors.length, errors };
 }
 
 export function validateRiskDelta(payload) {
@@ -62,6 +71,8 @@ export function validateRiskDelta(payload) {
 export function validateCompositeContextPack(payload) {
   const schemaOk = Boolean(COMPOSITE_CONTEXT_PACK_VALIDATOR(payload));
   const errors = schemaOk ? [] : formatValidatorErrors(COMPOSITE_CONTEXT_PACK_VALIDATOR);
+  if (schemaOk && payload.graph?.pathCapability) errors.push(...graphPathProjectionErrors(payload.graph, 'graph_context'));
+  if (schemaOk) errors.push(...contextTaskProjectionErrors(payload));
   const compatibility = validateContextPackRiskContractCompatibility(payload);
   if (!compatibility.ok) {
     errors.push(...compatibility.errors);
@@ -70,7 +81,10 @@ export function validateCompositeContextPack(payload) {
 }
 
 export function validateApiContracts(payload) {
-  return toValidationResult(API_CONTRACTS_VALIDATOR, payload);
+  const result = toValidationResult(API_CONTRACTS_VALIDATOR, payload);
+  if (!result.ok) return result;
+  const errors = apiContractProjectionErrors(payload);
+  return { ok: !errors.length, errors };
 }
 
 export function validateArchitectureReport(payload) {

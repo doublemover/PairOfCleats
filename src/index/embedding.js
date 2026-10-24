@@ -123,12 +123,14 @@ export function createEmbedder({
     try {
       const estimated = await adapter.estimateTokensBatch(payloads);
       if (!Array.isArray(estimated) || estimated.length !== payloads.length) {
+        estimated?.release?.();
         return fallback;
       }
       const out = new Array(estimated.length);
       for (let i = 0; i < estimated.length; i += 1) {
         out[i] = Math.max(1, Math.floor(Number(estimated[i]) || fallback[i] || 1));
       }
+      if (typeof estimated.release === 'function') Object.defineProperty(out, 'release', { value: estimated.release });
       return out;
     } catch {
       return fallback;

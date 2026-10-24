@@ -1,4 +1,5 @@
 import crypto from 'node:crypto';
+import { projectDiagnosticEnvironment } from '../../../src/shared/diagnostic-environment.js';
 import { log, logError } from '../../../src/shared/progress-runtime.js';
 import {
   normalizeReuseSource,
@@ -6,16 +7,6 @@ import {
   resolveQualityImpactForCause,
   resolveScmFallbackCause
 } from '../../../src/shared/reuse-diagnostics.js';
-
-const ENV_METADATA_KEYS = Object.freeze([
-  'NODE_OPTIONS',
-  'ORG_GRADLE_DAEMON',
-  'GRADLE_OPTS',
-  'PAIROFCLEATS_TESTING',
-  'PAIROFCLEATS_TEST_CONFIG',
-  'PAIROFCLEATS_CACHE_ROOT',
-  'PAIROFCLEATS_CRASH_LOG_ANNOUNCE'
-]);
 
 export const BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION = 2;
 export const BENCH_DIAGNOSTIC_EVENT_TYPES = Object.freeze([
@@ -978,16 +969,11 @@ export const buildBenchDiagnosticEventId = ({ eventType, signature } = {}) => {
 };
 
 export const buildBenchEnvironmentMetadata = (env = process.env) => {
-  const selected = {};
-  for (const [key, value] of Object.entries(env || {})) {
-    const includeKey = ENV_METADATA_KEYS.includes(key) || key.startsWith('PAIROFCLEATS_');
-    if (!includeKey) continue;
-    if (value == null || value === '') continue;
-    selected[key] = String(value);
-  }
+  const { projectionVersion, selected } = projectDiagnosticEnvironment(env);
   const fingerprint = crypto
-    .createHash('sha1')
+    .createHash('sha256')
     .update(JSON.stringify({
+      projectionVersion,
       platform: process.platform,
       arch: process.arch,
       nodeVersion: process.version,
@@ -995,11 +981,12 @@ export const buildBenchEnvironmentMetadata = (env = process.env) => {
     }))
     .digest('hex');
   return {
+    projectionVersion,
     platform: process.platform,
     arch: process.arch,
     nodeVersion: process.version,
     selected,
-    fingerprint: `sha1:${fingerprint}`
+    fingerprint: `sha256:${fingerprint}`
   };
 };
 

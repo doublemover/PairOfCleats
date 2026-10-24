@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { resolveDevelopmentArtifactPath } from '../../../tools/shared/dev-artifacts.js';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -11,7 +12,7 @@ const modes = ['legacy'];
 if (caps?.mcp?.sdk) modes.push('sdk');
 
 for (const mode of modes) {
-  const cacheRoot = path.join(process.cwd(), 'tests', '.cache', `mcp-errors-${mode}`);
+  const cacheRoot = resolveDevelopmentArtifactPath(process.cwd(), 'test-cache', `mcp-errors-${mode}`);
   const emptyRepo = path.join(cacheRoot, 'empty');
   const missingRepo = path.join(cacheRoot, 'missing');
   await fsPromises.rm(cacheRoot, { recursive: true, force: true });

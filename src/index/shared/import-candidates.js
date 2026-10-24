@@ -26,7 +26,7 @@ export const resolveRelativeImportCandidates = (normalizedPath, extensions = [])
   const trimmed = rawPath.replace(/\/+$/, '');
   if (!trimmed) return [];
   const ext = path.posix.extname(trimmed);
-  if (ext) {
+  if (ext && !hasTrailingSlash) {
     // Preserve literal-file precedence. ESM imports in TypeScript source often
     // name the emitted runtime extension even when only the source is indexed.
     // Keep these alternatives bounded and within the caller's extension policy.

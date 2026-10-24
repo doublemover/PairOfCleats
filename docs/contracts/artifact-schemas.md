@@ -1,13 +1,20 @@
 # Artifact Schemas (0.0.2)
 
-This document is the canonical contract for on-disk index artifacts. Schema validation is enforced by `src/index/validate` against the registry in `src/contracts/schemas/artifacts.js`.
+This is the human reference for on-disk index artifacts. Runtime schemas and
+validators under `src/contracts/` are authoritative; validation is enforced by
+`src/index/validate.js` and the registry in `src/contracts/schemas/artifacts.js`.
 
-> Phase 11 adds an optional new artifact (`api_contracts`) if artifact emission is enabled for cross-file API contract reports.
+`api_contracts` is an optional emitted report artifact where the producer enables
+it. Old phase numbers describe design history, not current qualification status.
 
 ## General expectations
 
 - Strict readers resolve artifacts via `pieces/manifest.json` (manifest-first).
-- Non-strict readers may fall back to file-system discovery with warnings when manifest entries are missing.
+- Strict readers fail when referenced manifest parts are missing on disk.
+- Non-strict readers may use filesystem discovery with warnings, but must reject detectably partial shard sets.
+- Parallel JSONL readers preserve declared shard/record order; a smaller valid prefix is not a complete load.
+- Packed binary readers validate checksum metadata when provided by sidecars.
+- JSONL writers use the owning byte-bound option so oversized rows fail explicitly.
 - Paths are **relative** and **posix-normalized**; `..` and absolute paths are invalid.
 - Unknown top-level fields are errors when a schema sets `additionalProperties: false`.
 - Most artifact schemas allow `additionalProperties`; use `extensions` for namespaced data but it is not the only permitted location.
@@ -21,6 +28,26 @@ Artifacts written as `*.jsonl.parts/` must include `*.meta.json` with:
 - `parts`: `{ path, records, bytes, checksum? }[]`
 
 Sharded meta is defined for: `chunk_meta_meta`, `chunk_uid_map_meta`, `vfs_manifest_meta`, `vfs_path_map_meta`, `file_relations_meta`, `symbols_meta`, `symbol_occurrences_meta`, `symbol_edges_meta`, `call_sites_meta`, `risk_summaries_meta`, `risk_flows_meta`, `risk_partial_flows_meta`, `repo_map_meta`, and `graph_relations_meta`.
+
+Optional offsets metadata under `extensions.offsets` declares `version`,
+`format: u64-le`, `compression: none`, a suffix and offsets-part paths. Readers
+must follow the actual supported sidecar version and declared parts; an offset
+is not a source identity or proof of complete artifact publication.
+
+## Identity and small examples
+
+`id`/`docId` are build-local lookup identities. `chunkUid` and symbol/source
+identities have separate source/normalization contracts. Build/generation
+identity selects compatible published bytes; character/byte offsets locate data
+within a declared source or artifact encoding. Do not substitute these concepts.
+See [public artifact surfaces](public-artifact-surface.md) and
+[identity contracts](../specs/identity-contracts.md).
+
+A minimal `chunk_meta` row shape is `[{"id":0,"start":0,"end":8}]`;
+`[{"id":0,"start":0}]` is invalid because `end` is missing. This illustrates
+the row schema only, not a complete searchable generation. Source-backed schema
+fixtures live under `tests/shared/contracts/`; actual validator execution for
+this consolidation remains **UNVALIDATED** in the current development batch.
 
 ## Artifact registry
 
@@ -60,7 +87,7 @@ Machine-readable index:
 - `field_postings` (object): requires `fields` map; each field requires `vocab`, `postings`, `docLengths`.
 - `field_tokens` (array): entries may include `name`, `signature`, `doc`, `comment`, `body` token arrays.
 - `field_tokens_meta` (object): sharded JSONL metadata for `field_tokens`.
-- `minhash_signatures` (object): requires `signatures` (array of int arrays).
+- `minhash_signatures` (object): requires `signatures` (array of int arrays) and canonical `hashIdentity`; optional sampling metadata identifies the selected coordinates. Missing/unknown hash identities require rebuilding, including packed, SQLite and LMDB forms.
 - `dense_vectors`, `dense_vectors_doc`, `dense_vectors_code` (object): requires `dims`, `vectors`. Optional: `model`, `scale`, `minVal`, `maxVal`, `levels`.
 - `dense_vectors_binary_meta`, `dense_vectors_doc_binary_meta`, `dense_vectors_code_binary_meta` (object): requires `dims`, `count`, `path`. Optional: `schemaVersion`, `artifact`, `format`, `generatedAt`, `model`, `bytes`, `scale`, `minVal`, `maxVal`, `levels`.
 - `dense_vectors_hnsw_meta`, `dense_vectors_doc_hnsw_meta`, `dense_vectors_code_hnsw_meta` (object): requires `dims`, `count`, `space`, `m`, `efConstruction`, `efSearch`. Optional: `scale`, `minVal`, `maxVal`, `levels`.
@@ -86,6 +113,8 @@ Machine-readable index:
 - `diff_inputs` (object): requires `id`, `createdAt`, `from`, `to`, `modes`, `allowMismatch`, `identityHash`.
 - `diff_summary` (object): requires `id`, `createdAt`, `from`, `to`, `modes`.
 - `graph_relations` (object): requires `version`, `generatedAt`, `callGraph`, `usageGraph`, `importGraph`. Each graph requires `nodeCount`, `edgeCount`, `nodes[]` (node requires `id`, `out`, `in`; optional `file`, `name`, `kind`, `chunkId`).
+- `graph_relation_edges` (array/JSONL): canonical graph edge evidence; exact row fields are defined in `src/contracts/schemas/graph-relation-edges.js`.
+- `graph_relation_edges_meta` (object): sharded JSONL metadata for `graph_relation_edges`.
 - `import_resolution_graph` (object): requires `generatedAt`, `nodes`, `edges`, `stats`. Nodes require `id`, `type`. Edges require `from`, `to`, `rawSpecifier`, `resolvedType`. Optional edge fields include `kind`, `resolvedPath`, `packageName`, `tsconfigPath`, `tsPathPattern`. Optional top-level `warnings[]`.
 
 Semantic family members support either an array of canonical rows or a generation
@@ -142,6 +171,12 @@ If Phase 11 enables artifact emission for API contracts, a new JSONL artifact MA
       - `symbolId` (string)
     - `signature` (object; `declared`, `tooling` optional)
     - `observedCalls[]` (bounded)
+      - Newly emitted rows retain `targetChunkUid`, caller/source identity,
+        optional canonical `semanticRef`, and `join` qualification with the
+        exact admitted symbol and available index signature/compatibility key.
+        A name match is never target authority. Recorded targets do not prove
+        runtime dispatch or feasibility. Legacy rows without additive join
+        fields do not acquire qualified-target guarantees.
   - Optional fields:
     - `symbol.chunkUid` (string|null)
     - `symbol.file` (string|null)
@@ -168,5 +203,9 @@ Canonical contract for the report surface:
 - Schema definitions are authoritative in `src/contracts/schemas/artifacts.js`.
 - `metaV2` uses the metadata schema defined in `docs/specs/metadata-schema-v2.md` (see analysis schemas).
 - SQLite stores canonical `metaV2` per chunk in `chunks.metaV2_json` for parity with JSONL artifacts.
+- SQLite FTS is ranking-only; render source/metadata from canonical artifacts,
+  not contentless FTS text columns.
+- Proposed delta/dictionary row encoding remains unavailable until writers and
+  readers share a versioned decoder; unsupported variants must not be emitted.
 
 

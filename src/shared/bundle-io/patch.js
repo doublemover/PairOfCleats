@@ -1,7 +1,17 @@
+import path from 'node:path';
+import { readVerifiedContainedFile } from '../contained-file.js';
+import { throwIfAborted } from '../abort.js';
 import { assertCurrentIndexFormat } from '../../contracts/index-format.js';
 import fs from 'node:fs/promises';
 import { atomicWriteJson, atomicWriteText } from '../io/atomic-write.js';
 import { stringifyJsonValue } from '../json-stream/encode.js';
+import { canonicalizeBundlePayloadForChecksum } from '../bundle-checksum.js';
+import { stableStringify } from '../stable-json.js';
+import { createContainedFileResource } from '../contained-file-resource.js';
+import { readArtifactFailureField, requireArtifactReadFailureSettled } from '../artifact-io/json/fallback.js';
+import { persistenceFileIdentity, assertPersistenceFileIdentity } from '../io/file-identity.js';
+import { retainPersistenceFailure } from '../io/persistence-helpers.js';
+import { observeStorageResource } from '../storage/failure-observation.js';
 import {
   BUNDLE_PATCH_FIELD_KEYS,
   BUNDLE_PATCH_FORMAT_TAG,
@@ -47,11 +57,13 @@ const buildBundlePatch = async ({ previousBundle, nextBundle }) => {
   const { buildBundlePatchPayload } = await loadBundlePatchModule();
   const payload = buildBundlePatchPayload({ previousBundle, nextBundle });
   if (!payload) return null;
+  if(payload.requiresFullRewrite)return payload;
   return {
     format: BUNDLE_PATCH_FORMAT_TAG,
     version: BUNDLE_PATCH_VERSION,
     chunks: payload.chunks || null,
-    set: payload.set || null
+    set: payload.set || null,
+    unset:payload.unset || null
   };
 };
 
@@ -66,11 +78,13 @@ const buildBundlePatchAsync = async ({ previousBundle, nextBundle }) => {
     if (workerResult.ok) {
       const patch = workerResult.result;
       if (!patch) return null;
+      if(patch.requiresFullRewrite)return patch;
       return {
         format: BUNDLE_PATCH_FORMAT_TAG,
         version: BUNDLE_PATCH_VERSION,
         chunks: patch.chunks || null,
-        set: patch.set || null
+        set: patch.set || null,
+        unset:patch.unset || null
       };
     }
   }
@@ -79,12 +93,12 @@ const buildBundlePatchAsync = async ({ previousBundle, nextBundle }) => {
 
 export const validateBundlePatch = (patch) => {
   if (!isPlainObject(patch)) return { ok: false, reason: 'invalid patch envelope' };
-  if (patch.format !== BUNDLE_PATCH_FORMAT_TAG || patch.version !== BUNDLE_PATCH_VERSION) {
+  if (patch.format !== BUNDLE_PATCH_FORMAT_TAG || ![1,BUNDLE_PATCH_VERSION].includes(patch.version)) {
     return { ok: false, reason: 'unsupported patch envelope' };
   }
   const keys = Object.keys(patch);
   for (const key of keys) {
-    if (key !== 'format' && key !== 'version' && key !== 'chunks' && key !== 'set') {
+    if (key !== 'format' && key !== 'version' && key !== 'chunks' && key !== 'set' && !(key === 'unset' && patch.version >= 2)) {
       return { ok: false, reason: 'invalid patch envelope' };
     }
   }
@@ -109,7 +123,11 @@ export const validateBundlePatch = (patch) => {
       if (!BUNDLE_PATCH_FIELD_KEY_SET.has(key)) return { ok: false, reason: 'invalid patch set' };
     }
   }
-  if (patch.chunks == null && patch.set == null) {
+  if(patch.unset != null) {
+    if(patch.version < 2 || !Array.isArray(patch.unset) || patch.unset.some(key=>typeof key !== 'string'
+      || !BUNDLE_PATCH_FIELD_KEY_SET.has(key) || Object.hasOwn(patch.set || {},key))) return {ok:false,reason:'invalid patch unset'};
+  }
+  if (patch.chunks == null && patch.set == null && !patch.unset?.length) {
     return { ok: false, reason: 'invalid patch payload' };
   }
   return { ok: true, reason: null };
@@ -121,6 +139,7 @@ export const applyBundlePatch = ({ bundle, patch }) => {
     throw new Error(result.reason || 'invalid bundle patch');
   }
   const next = isPlainObject(bundle) ? { ...bundle } : {};
+  for(const key of patch.unset || []) delete next[key];
   if (isPlainObject(patch.set)) {
     for (const key of Object.keys(patch.set)) {
       next[key] = patch.set[key];
@@ -150,12 +169,16 @@ const countPatchEntries = (raw) => {
   return count;
 };
 
-export const readBundlePatches = async (bundlePath, { repoRoot = process.cwd() } = {}) => {
+export const readBundlePatches = async (bundlePath, { repoRoot = process.cwd(), signal = null, expectedBytes = null } = {}) => {
   const patchPath = resolveBundlePatchPath(bundlePath);
   let stat = null;
   try {
     stat = await fs.stat(patchPath);
-  } catch {
+  } catch (value) {
+    const error = requireArtifactReadFailureSettled(value);
+    throwIfAborted(signal);
+    if (readArtifactFailureField(error, 'code') !== 'ENOENT') throw error;
+    if (expectedBytes > 0) return { ok: false, reason: 'selected bundle patch missing' };
     return { ok: true, patches: [] };
   }
   if (stat.size > MAX_BUNDLE_PATCH_BYTES) {
@@ -163,8 +186,13 @@ export const readBundlePatches = async (bundlePath, { repoRoot = process.cwd() }
   }
   let raw = '';
   try {
-    raw = await fs.readFile(patchPath, 'utf8');
-  } catch {
+    const read = await readVerifiedContainedFile(path.dirname(patchPath), patchPath, {
+      maxBytes: MAX_BUNDLE_PATCH_BYTES, expectedBytes, signal });
+    raw = read.buffer.toString('utf8');
+  } catch (value) {
+    const error = requireArtifactReadFailureSettled(value);
+    throwIfAborted(signal);
+    if (['EACCES', 'EPERM'].includes(readArtifactFailureField(error, 'code'))) throw error;
     return { ok: false, reason: 'failed to read bundle patch' };
   }
   const entryCount = countPatchEntries(raw);
@@ -182,7 +210,7 @@ export const readBundlePatches = async (bundlePath, { repoRoot = process.cwd() }
     } catch {
       return { ok: false, reason: 'invalid bundle patch' };
     }
-    assertCurrentIndexFormat({ operation: 'import', component: 'bundle patch schema', expectedVersion: BUNDLE_PATCH_VERSION,
+    if (parsed?.version !== 1) assertCurrentIndexFormat({ operation: 'import', component: 'bundle patch schema', expectedVersion: BUNDLE_PATCH_VERSION,
       foundVersion: parsed?.version, repoRoot, indexPath: patchPath });
     const validation = validateBundlePatch(parsed);
     if (!validation.ok) {
@@ -196,7 +224,8 @@ export const readBundlePatches = async (bundlePath, { repoRoot = process.cwd() }
 const readBundlePatchMeta = async (bundlePath) => {
   const metaPath = resolveBundlePatchMetaPath(bundlePath);
   try {
-    const raw = await fs.readFile(metaPath, 'utf8');
+    const read = await readVerifiedContainedFile(path.dirname(metaPath), metaPath, { maxBytes: 65536 });
+    const raw = read.buffer.toString('utf8');
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== 'object') return null;
     const bytes = Number(parsed.bytes);
@@ -208,7 +237,8 @@ const readBundlePatchMeta = async (bundlePath) => {
       bytes: Math.floor(bytes),
       entries: Math.floor(entries)
     };
-  } catch {
+  } catch (error) {
+    requireArtifactReadFailureSettled(error);
     return null;
   }
 };
@@ -246,7 +276,13 @@ export async function writeBundlePatch({
   nextBundle = normalizeBundleWriteIdentity(nextBundle, bundlePath);
   const patch = await buildBundlePatchAsync({ previousBundle, nextBundle });
   if (!patch) return { applied: false, reason: 'no-changes' };
+  if(patch.requiresFullRewrite)return {applied:false,reason:'full-rewrite-required',field:patch.field};
   const serialized = `${stringifyJsonValue(patch)}\n`;
+  // Prove the persisted patch reconstructs the same persisted payload before
+  // acquiring publication artifacts or writing the checksum for nextBundle.
+  const reconstructed=applyBundlePatch({bundle:previousBundle,patch:JSON.parse(serialized)});
+  const canonical=value=>stableStringify(canonicalizeBundlePayloadForChecksum(value,{typedArraysBeforeToJSON:true}));
+  if(canonical(reconstructed) !== canonical(nextBundle)) return {applied:false,reason:'full-rewrite-required'};
   const bytes = Buffer.byteLength(serialized, 'utf8');
   if (!Number.isFinite(bytes) || bytes <= 0 || bytes > MAX_BUNDLE_PATCH_ENTRY_BYTES) {
     return { applied: false, reason: 'patch-entry-too-large' };
@@ -269,75 +305,108 @@ export async function writeBundlePatch({
   }
   let workerResult = null;
   let workerError = null;
+  let workerFailed = false;
+  let workerObservation = null;
   try {
     let existingBytes = 0;
     let existingEntries = 0;
     let existingRaw = '';
     let stat = null;
     try {
-      stat = await fs.stat(patchPath);
-    } catch {}
-    if (stat && stat.size > 0) {
-      const meta = await readBundlePatchMeta(bundlePath);
-      if (
-        meta
+      stat = await fs.lstat(patchPath, { bigint: true });
+    } catch (value) {
+      const error = requireArtifactReadFailureSettled(value);
+      if (readArtifactFailureField(error, 'code') !== 'ENOENT') throw error;
+    }
+    if (stat && stat.size > BigInt(MAX_BUNDLE_PATCH_BYTES)) {
+      workerResult = { applied: false, reason: 'patch-file-too-large' };
+    } else {
+      const patchIdentity = stat ? persistenceFileIdentity(stat) : null;
+      if (stat && stat.size > 0) {
+        const meta = await readBundlePatchMeta(bundlePath);
+        if (
+          meta
         && Number.isFinite(meta.bytes)
         && Number.isFinite(meta.entries)
-        && meta.bytes === stat.size
-      ) {
-        existingBytes = meta.bytes;
-        existingEntries = meta.entries;
-      } else {
-        existingRaw = await fs.readFile(patchPath, 'utf8');
-        existingBytes = Buffer.byteLength(existingRaw, 'utf8');
-        existingEntries = countPatchEntries(existingRaw);
+        && meta.bytes === Number(stat.size)
+        ) {
+          existingBytes = meta.bytes;
+          existingEntries = meta.entries;
+        } else {
+          const existingRead = await readVerifiedContainedFile(path.dirname(patchPath), patchPath,
+            { maxBytes: MAX_BUNDLE_PATCH_BYTES, expectedBytes: Number(stat.size) });
+          existingRaw = existingRead.buffer.toString('utf8');
+          existingBytes = Buffer.byteLength(existingRaw, 'utf8');
+          existingEntries = countPatchEntries(existingRaw);
+        }
       }
-    }
-    const appendBytes = existingBytes > 0 && !existingRaw
-      ? Buffer.byteLength(`\n${serialized}`, 'utf8')
-      : bytes;
-    if ((existingBytes + appendBytes) > MAX_BUNDLE_PATCH_BYTES) {
-      workerResult = { applied: false, reason: 'patch-file-too-large' };
-    } else if (existingEntries >= MAX_BUNDLE_PATCH_ENTRIES) {
-      workerResult = { applied: false, reason: 'patch-entry-limit' };
-    } else {
-      if (existingBytes > 0 && !existingRaw) {
-        await fs.appendFile(patchPath, `\n${serialized}`, 'utf8');
+      const appendBytes = existingBytes > 0 && !existingRaw
+        ? Buffer.byteLength(`\n${serialized}`, 'utf8')
+        : bytes;
+      if ((existingBytes + appendBytes) > MAX_BUNDLE_PATCH_BYTES) {
+        workerResult = { applied: false, reason: 'patch-file-too-large' };
+      } else if (existingEntries >= MAX_BUNDLE_PATCH_ENTRIES) {
+        workerResult = { applied: false, reason: 'patch-entry-limit' };
       } else {
-        const nextRaw = appendSerializedPatchLine(existingRaw, serialized);
-        await atomicWriteText(patchPath, nextRaw, { newline: false });
-      }
-      const nextBytes = existingBytes + appendBytes;
-      const nextEntries = existingEntries + 1;
-      await writeBundlePatchMeta(bundlePath, {
-        bytes: nextBytes,
-        entries: nextEntries
-      });
-      await writeBundleJsonChecksum(bundlePath, nextBundle);
-      const chunkPatch = patch.chunks;
-      const operation = chunkPatch
-        ? ((chunkPatch.deleteCount === 0
+        if (existingBytes > 0 && !existingRaw) {
+          const handle = await fs.open(patchPath, 'a');
+          const owner = createContainedFileResource({ handle, sync: false, additionalMethods: ['writeFile', 'sync'] });
+          await owner.run(async descriptor => {
+            assertPersistenceFileIdentity(await descriptor.stat({ bigint: true }), patchIdentity);
+            if (await descriptor.writeFile(`\n${serialized}`, 'utf8') !== undefined) throw Object.assign(
+              new Error('Bundle patch append did not confirm its standard void result.'), { cacheOwnershipPending: true });
+            if (await descriptor.sync() !== undefined) throw Object.assign(
+              new Error('Bundle patch sync did not confirm its standard void result.'), { cacheOwnershipPending: true });
+            const writtenIdentity = persistenceFileIdentity(await descriptor.stat({ bigint: true }));
+            assertPersistenceFileIdentity(await fs.lstat(patchPath, { bigint: true }), writtenIdentity);
+          });
+        } else {
+          const nextRaw = appendSerializedPatchLine(existingRaw, serialized);
+          await atomicWriteText(patchPath, nextRaw, { newline: false, beforeCommit: async () => {
+            let current;
+            try { current = await fs.lstat(patchPath, { bigint: true }); }
+            catch (value) {
+              const error = requireArtifactReadFailureSettled(value);
+              if (!patchIdentity && readArtifactFailureField(error, 'code') === 'ENOENT') return;
+              throw error;
+            }
+            assertPersistenceFileIdentity(current, patchIdentity);
+          } });
+        }
+        const nextBytes = existingBytes + appendBytes;
+        const nextEntries = existingEntries + 1;
+        await writeBundlePatchMeta(bundlePath, {
+          bytes: nextBytes,
+          entries: nextEntries
+        });
+        await writeBundleJsonChecksum(bundlePath, nextBundle);
+        const chunkPatch = patch.chunks;
+        const operation = chunkPatch
+          ? ((chunkPatch.deleteCount === 0
             && chunkPatch.start >= (Array.isArray(previousBundle?.chunks)
               ? previousBundle.chunks.length
               : 0))
-          ? 'append'
-          : 'replace')
-        : 'set';
-      workerResult = {
-        applied: true,
-        reason: null,
-        patchPath,
-        bytes,
-        operation
-      };
+            ? 'append'
+            : 'replace')
+          : 'set';
+        workerResult = {
+          applied: true,
+          reason: null,
+          patchPath,
+          bytes,
+          operation
+        };
+      }
     }
   } catch (error) {
-    workerError = error;
+    workerFailed = true; workerError = error;
+    workerObservation = observeStorageResource(error, { phase: 'bundle-patch-worker' }).retain();
   }
-  await releaseFileLockOrThrow(lock, {
-    workerError,
-    releaseOptions: { force: true }
-  });
-  if (workerError) throw workerError;
+  try {
+    await releaseFileLockOrThrow(lock, { workerError: workerFailed ? workerObservation : null, releaseOptions: { force: true } });
+  } catch (error) {
+    throw retainPersistenceFailure(error, workerFailed ? [workerObservation] : [], { bundlePatchPath: patchPath });
+  }
+  if (workerFailed) throw workerError;
   return workerResult;
 }
