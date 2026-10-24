@@ -847,3 +847,31 @@ Objective-C native suite asserts the actual signed selector `Widget.-greet:`.
 Fake protocol-child tests now explicitly emit the close events their zero-PID
 inert processes cannot obtain from an OS kill; separate actual Windows child
 fixtures retain OS termination qualification. This source wave awaits tests.
+
+The 15-case cohort at `c470cea9bfaec4ece13c10a20c1d27cbb8af045c`
+passed eight and failed seven, with no timeouts/skips/crashes. C declaration
+roles, YAML boundaries and EG2 contracts passed. The native suites reached a
+later stale HTML name expectation. Cursor regressions exposed two enumeration
+constructors using different payload projections; `filter-only-cli` regressed
+and the adjacent real federation control also failed. Both remain recorded as
+failures, not inherited greens. The original 100 now have 53 source-bound
+passing closures and 47 outstanding; the adjacent federation failure is tracked
+separately. The full front gate at this source passed (40/40); its pass did not
+qualify these broader behaviors. The source and PR body were verified after push.
+
+The repair centralizes cursor projection in createFilterEnumeration, shared by
+the loader and search-session constructors. Only producer payloads with proven
+canonical roots normalize invocation context; other generation representations
+retain their original exact identity. The LSP writer-failure classifier now
+passes an explicit boolean: missing write evidence is a transport failure, not
+an undefined argument that accidentally selects the request-local default.
+The existing current-writer negative retains its typed transport expectation.
+
+The subprocess fixture now uses a bounded isolated child after removing only
+the canonical runner's test-env preload. That preload had already cached the
+real termination module before fixture hooks; moving a normal import could
+not repair it. Other Node options, test environment and setup remain intact.
+The fixture still asserts actual controlled termination invocation, pending
+writer protection and exact close negatives. Native HTML expectations retain
+all elements using their canonical qualified names. These latest repairs await
+the next focused cohort.

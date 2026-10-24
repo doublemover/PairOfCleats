@@ -2592,11 +2592,429 @@
           "historicalAuthorWorkspaceEvidence": true
         }
       ]
+    },
+    {
+      "sourceHead": "c470cea9bfaec4ece13c10a20c1d27cbb8af045c",
+      "startedAt": "2026-10-24T13:04:59.455Z",
+      "finishedAt": "2026-10-24T13:05:35.484Z",
+      "scope": "Canonical cursor root, grammar declaration/root identities and lifetime controls; includes newly exposed cursor-constructor regression.",
+      "policy": {
+        "timeoutMs": 30000,
+        "retries": 0,
+        "nativeStatusRedo": false,
+        "threads": 1,
+        "platform": "win32",
+        "node": "v26.12.1",
+        "removedLaunchSetting": "PAIROFCLEATS_TRUSTED_CONFIG: missing configured file; no replacement authority granted"
+      },
+      "summary": {
+        "selected": 15,
+        "passed": 8,
+        "failed": 7,
+        "timeouts": 0,
+        "skipped": 0
+      },
+      "cohorts": [
+        {
+          "name": "cursor-grammar-wave-01",
+          "summary": {
+            "total": 5,
+            "passed": 2,
+            "failed": 3,
+            "skipped": 0,
+            "durationMs": 11525
+          },
+          "ids": [
+            "indexing/embeddings/embeddinggemma2-contract",
+            "indexing/runtime/subprocess-cleanup-cache-barrier",
+            "indexing/tree-sitter/declaration-role-and-scope-contract",
+            "services/api/filter-enumeration-surfaces",
+            "tooling/lsp/restart-generation-safety"
+          ]
+        },
+        {
+          "name": "cursor-grammar-wave-02",
+          "summary": {
+            "total": 5,
+            "passed": 2,
+            "failed": 3,
+            "skipped": 0,
+            "durationMs": 18399
+          },
+          "ids": [
+            "indexing/tree-sitter/scheduler-native-language-contract",
+            "indexing/tree-sitter/scheduler-native-smoke",
+            "lang/contracts/yaml-syntax-node-boundaries",
+            "retrieval/filters/filter-only-cli",
+            "retrieval/filters/filter-only-enumeration"
+          ]
+        },
+        {
+          "name": "cursor-grammar-wave-03",
+          "summary": {
+            "total": 5,
+            "passed": 4,
+            "failed": 1,
+            "skipped": 0,
+            "durationMs": 3278
+          },
+          "ids": [
+            "retrieval/federation/enumeration-page-admission",
+            "retrieval/federation/structured-enumeration-real",
+            "retrieval/output/retrieval-metadata",
+            "retrieval/pipeline/query-plan-cache-contract-matrix",
+            "retrieval/pipeline/query-plan-cache-filters-coverage"
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "id": "indexing/embeddings/embeddinggemma2-contract",
+          "path": "indexing/embeddings/embeddinggemma2-contract.test.js",
+          "lane": "integration",
+          "tags": [
+            "embeddings",
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 336,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-c470cea9bfaec4ece13c10a20c1d27cbb8af045c/cursor-grammar-wave-01-logs/run-1792847100329-dttgh7/indexing_embeddings_embeddinggemma2-contract.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/runtime/subprocess-cleanup-cache-barrier",
+          "path": "indexing/runtime/subprocess-cleanup-cache-barrier.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "failed",
+          "durationMs": 128,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-c470cea9bfaec4ece13c10a20c1d27cbb8af045c/cursor-grammar-wave-01-logs/run-1792847100329-dttgh7/indexing_runtime_subprocess-cleanup-cache-barrier.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-c470cea9bfaec4ece13c10a20c1d27cbb8af045c/cursor-grammar-wave-01-logs/run-1792847100329-dttgh7/indexing_runtime_subprocess-cleanup-cache-barrier.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/tree-sitter/declaration-role-and-scope-contract",
+          "path": "indexing/tree-sitter/declaration-role-and-scope-contract.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 311,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-c470cea9bfaec4ece13c10a20c1d27cbb8af045c/cursor-grammar-wave-01-logs/run-1792847100329-dttgh7/indexing_tree-sitter_declaration-role-and-scope-contract.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "services/api/filter-enumeration-surfaces",
+          "path": "services/api/filter-enumeration-surfaces.test.js",
+          "lane": "api",
+          "tags": [
+            "api",
+            "services"
+          ],
+          "status": "failed",
+          "durationMs": 8764,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-c470cea9bfaec4ece13c10a20c1d27cbb8af045c/cursor-grammar-wave-01-logs/run-1792847100329-dttgh7/services_api_filter-enumeration-surfaces.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-c470cea9bfaec4ece13c10a20c1d27cbb8af045c/cursor-grammar-wave-01-logs/run-1792847100329-dttgh7/services_api_filter-enumeration-surfaces.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/lsp/restart-generation-safety",
+          "path": "tooling/lsp/restart-generation-safety.test.js",
+          "lane": "unit",
+          "tags": [
+            "tooling",
+            "unit"
+          ],
+          "status": "failed",
+          "durationMs": 1967,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-c470cea9bfaec4ece13c10a20c1d27cbb8af045c/cursor-grammar-wave-01-logs/run-1792847100329-dttgh7/tooling_lsp_restart-generation-safety.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-c470cea9bfaec4ece13c10a20c1d27cbb8af045c/cursor-grammar-wave-01-logs/run-1792847100329-dttgh7/tooling_lsp_restart-generation-safety.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/tree-sitter/scheduler-native-language-contract",
+          "path": "indexing/tree-sitter/scheduler-native-language-contract.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "failed",
+          "durationMs": 7510,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-c470cea9bfaec4ece13c10a20c1d27cbb8af045c/cursor-grammar-wave-02-logs/run-1792847112780-5n0786/indexing_tree-sitter_scheduler-native-language-contract.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-c470cea9bfaec4ece13c10a20c1d27cbb8af045c/cursor-grammar-wave-02-logs/run-1792847112780-5n0786/indexing_tree-sitter_scheduler-native-language-contract.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/tree-sitter/scheduler-native-smoke",
+          "path": "indexing/tree-sitter/scheduler-native-smoke.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "failed",
+          "durationMs": 7793,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-c470cea9bfaec4ece13c10a20c1d27cbb8af045c/cursor-grammar-wave-02-logs/run-1792847112780-5n0786/indexing_tree-sitter_scheduler-native-smoke.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-c470cea9bfaec4ece13c10a20c1d27cbb8af045c/cursor-grammar-wave-02-logs/run-1792847112780-5n0786/indexing_tree-sitter_scheduler-native-smoke.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "lang/contracts/yaml-syntax-node-boundaries",
+          "path": "lang/contracts/yaml-syntax-node-boundaries.test.js",
+          "lane": "unit",
+          "tags": [
+            "lang",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 794,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-c470cea9bfaec4ece13c10a20c1d27cbb8af045c/cursor-grammar-wave-02-logs/run-1792847112780-5n0786/lang_contracts_yaml-syntax-node-boundaries.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "retrieval/filters/filter-only-cli",
+          "path": "retrieval/filters/filter-only-cli.test.js",
+          "lane": "integration",
+          "tags": [
+            "integration",
+            "retrieval"
+          ],
+          "status": "failed",
+          "durationMs": 1680,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-c470cea9bfaec4ece13c10a20c1d27cbb8af045c/cursor-grammar-wave-02-logs/run-1792847112780-5n0786/retrieval_filters_filter-only-cli.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-c470cea9bfaec4ece13c10a20c1d27cbb8af045c/cursor-grammar-wave-02-logs/run-1792847112780-5n0786/retrieval_filters_filter-only-cli.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "retrieval/filters/filter-only-enumeration",
+          "path": "retrieval/filters/filter-only-enumeration.test.js",
+          "lane": "integration",
+          "tags": [
+            "integration",
+            "retrieval"
+          ],
+          "status": "passed",
+          "durationMs": 607,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-c470cea9bfaec4ece13c10a20c1d27cbb8af045c/cursor-grammar-wave-02-logs/run-1792847112780-5n0786/retrieval_filters_filter-only-enumeration.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "retrieval/federation/enumeration-page-admission",
+          "path": "retrieval/federation/enumeration-page-admission.test.js",
+          "lane": "integration",
+          "tags": [
+            "integration",
+            "retrieval"
+          ],
+          "status": "passed",
+          "durationMs": 194,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-c470cea9bfaec4ece13c10a20c1d27cbb8af045c/cursor-grammar-wave-03-logs/run-1792847132188-eipg89/retrieval_federation_enumeration-page-admission.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "retrieval/federation/structured-enumeration-real",
+          "path": "retrieval/federation/structured-enumeration-real.test.js",
+          "lane": "integration",
+          "tags": [
+            "integration",
+            "retrieval"
+          ],
+          "status": "failed",
+          "durationMs": 2529,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-c470cea9bfaec4ece13c10a20c1d27cbb8af045c/cursor-grammar-wave-03-logs/run-1792847132188-eipg89/retrieval_federation_structured-enumeration-real.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-c470cea9bfaec4ece13c10a20c1d27cbb8af045c/cursor-grammar-wave-03-logs/run-1792847132188-eipg89/retrieval_federation_structured-enumeration-real.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "retrieval/output/retrieval-metadata",
+          "path": "retrieval/output/retrieval-metadata.test.js",
+          "lane": "integration",
+          "tags": [
+            "integration",
+            "retrieval"
+          ],
+          "status": "passed",
+          "durationMs": 81,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-c470cea9bfaec4ece13c10a20c1d27cbb8af045c/cursor-grammar-wave-03-logs/run-1792847132188-eipg89/retrieval_output_retrieval-metadata.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "retrieval/pipeline/query-plan-cache-contract-matrix",
+          "path": "retrieval/pipeline/query-plan-cache-contract-matrix.test.js",
+          "lane": "integration",
+          "tags": [
+            "integration",
+            "retrieval"
+          ],
+          "status": "passed",
+          "durationMs": 280,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-c470cea9bfaec4ece13c10a20c1d27cbb8af045c/cursor-grammar-wave-03-logs/run-1792847132188-eipg89/retrieval_pipeline_query-plan-cache-contract-matrix.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "retrieval/pipeline/query-plan-cache-filters-coverage",
+          "path": "retrieval/pipeline/query-plan-cache-filters-coverage.test.js",
+          "lane": "integration",
+          "tags": [
+            "integration",
+            "retrieval"
+          ],
+          "status": "passed",
+          "durationMs": 183,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-c470cea9bfaec4ece13c10a20c1d27cbb8af045c/cursor-grammar-wave-03-logs/run-1792847132188-eipg89/retrieval_pipeline_query-plan-cache-filters-coverage.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        }
+      ]
     }
   ],
   "cumulativeClosure": {
     "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
-    "originalFailuresMovedToPassing": 51,
-    "originalFailuresWithoutPassingClosure": 49
+    "originalFailuresMovedToPassing": 53,
+    "originalFailuresWithoutPassingClosure": 47,
+    "additionalObservedFailuresOutsideOriginal100": [
+      "retrieval/federation/structured-enumeration-real"
+    ]
   }
 }

@@ -44,8 +44,11 @@
     },
     "followUpClosure": {
       "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
-      "originalFailuresMovedToPassing": 51,
-      "originalFailuresWithoutPassingClosure": 49
+      "originalFailuresMovedToPassing": 53,
+      "originalFailuresWithoutPassingClosure": 47,
+      "additionalObservedFailuresOutsideOriginal100": [
+        "retrieval/federation/structured-enumeration-real"
+      ]
     }
   },
   "items": [
@@ -138,7 +141,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 308
+      "recheckDurationMs": 308,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "c470cea9bfaec4ece13c10a20c1d27cbb8af045c",
+      "latestRecheckDurationMs": 311
     },
     {
       "id": "indexing/tree-sitter/scheduler-crash-fallback",
@@ -188,7 +194,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 7903
+      "recheckDurationMs": 7903,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "c470cea9bfaec4ece13c10a20c1d27cbb8af045c",
+      "latestRecheckDurationMs": 7510
     },
     {
       "id": "indexing/tree-sitter/scheduler-native-smoke",
@@ -206,7 +215,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 8067
+      "recheckDurationMs": 8067,
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "c470cea9bfaec4ece13c10a20c1d27cbb8af045c",
+      "latestRecheckDurationMs": 7793
     },
     {
       "id": "indexing/tree-sitter/xml-runtime",
@@ -1080,8 +1092,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 11237,
       "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "7705d94030edbfbc0ea462bedf2721b1fb7d2073",
-      "latestRecheckDurationMs": 11987
+      "latestRecheckSourceHead": "c470cea9bfaec4ece13c10a20c1d27cbb8af045c",
+      "latestRecheckDurationMs": 8764
     },
     {
       "id": "services/api/semantic-trace",
@@ -1510,9 +1522,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 4843,
-      "latestRecheckStatus": "passed",
-      "latestRecheckSourceHead": "60dbba13fc856253c69b560867c71184f907e65e",
-      "latestRecheckDurationMs": 5110
+      "latestRecheckStatus": "failed",
+      "latestRecheckSourceHead": "c470cea9bfaec4ece13c10a20c1d27cbb8af045c",
+      "latestRecheckDurationMs": 1680
     },
     {
       "id": "retrieval/filters/filter-only-cold-cli",
@@ -3107,8 +3119,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 4278,
       "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "7705d94030edbfbc0ea462bedf2721b1fb7d2073",
-      "latestRecheckDurationMs": 6836
+      "latestRecheckSourceHead": "c470cea9bfaec4ece13c10a20c1d27cbb8af045c",
+      "latestRecheckDurationMs": 1967
     },
     {
       "id": "tooling/lsp/rust-quoted-const-type-inputs",
@@ -4614,9 +4626,9 @@
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 353,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "7705d94030edbfbc0ea462bedf2721b1fb7d2073",
-      "latestRecheckDurationMs": 381
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "c470cea9bfaec4ece13c10a20c1d27cbb8af045c",
+      "latestRecheckDurationMs": 336
     },
     {
       "id": "indexing/embeddings/embeddinggemma2-prepared",
@@ -5203,8 +5215,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 158,
       "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "7705d94030edbfbc0ea462bedf2721b1fb7d2073",
-      "latestRecheckDurationMs": 139
+      "latestRecheckSourceHead": "c470cea9bfaec4ece13c10a20c1d27cbb8af045c",
+      "latestRecheckDurationMs": 128
     },
     {
       "id": "indexing/scm/git-provider-parse",
@@ -6232,7 +6244,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 573
+      "recheckDurationMs": 573,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "c470cea9bfaec4ece13c10a20c1d27cbb8af045c",
+      "latestRecheckDurationMs": 794
     },
     {
       "id": "lang/css-import-source-tokens",
