@@ -200,8 +200,8 @@ jobs:
       PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
       DOTNET_GENERATE_ASPNET_CERTIFICATE: 'false'
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
-      DOTNET_CLI_HOME: ${{ runner.temp }}/poc-dotnet-cli-home
-      NUGET_PACKAGES: ${{ runner.temp }}/poc-nuget-packages
+      DOTNET_CLI_HOME: ${{ github.workspace }}/.tmp/ci/dotnet-cli-home
+      NUGET_PACKAGES: ${{ github.workspace }}/.tmp/ci/nuget-packages
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -467,8 +467,8 @@ jobs:
       PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
       DOTNET_GENERATE_ASPNET_CERTIFICATE: 'false'
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
-      DOTNET_CLI_HOME: ${{ runner.temp }}/poc-dotnet-cli-home
-      NUGET_PACKAGES: ${{ runner.temp }}/poc-nuget-packages
+      DOTNET_CLI_HOME: ${{ github.workspace }}/.tmp/ci/dotnet-cli-home
+      NUGET_PACKAGES: ${{ github.workspace }}/.tmp/ci/nuget-packages
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -754,8 +754,8 @@ jobs:
       PAIROFCLEATS_CACHE_ROOT: .ci-cache/pairofcleats
       DOTNET_GENERATE_ASPNET_CERTIFICATE: 'false'
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
-      DOTNET_CLI_HOME: ${{ runner.temp }}/poc-dotnet-cli-home
-      NUGET_PACKAGES: ${{ runner.temp }}/poc-nuget-packages
+      DOTNET_CLI_HOME: ${{ github.workspace }}/.tmp/ci/dotnet-cli-home
+      NUGET_PACKAGES: ${{ github.workspace }}/.tmp/ci/nuget-packages
     steps:
       - name: Checkout
         uses: actions/checkout@v7

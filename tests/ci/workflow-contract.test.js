@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -350,6 +351,25 @@ const minimumActionMajor = {
   'github-script': 9,
   'attest-build-provenance': 3
 };
+// GitHub expands job env before runner context exists. Step env may use it.
+const assertJobEnvironmentContexts = (workflow, label) => {
+  for (const [id, job] of Object.entries(workflow.jobs || {})) {
+    for (const [key, value] of Object.entries(job.env || {})) {
+      if (typeof value !== 'string') continue;
+      for (const [, expression] of value.matchAll(/\$\{\{([\s\S]*?)\}\}/g)) {
+        const code = expression.replace(/'(?:[^']|'')*'/g, '');
+        if (/\brunner\s*[.\[]/.test(code)) throw new Error(`${label}:${id}.env.${key}: runner context is unavailable in job env.`);
+      }
+    }
+  }
+};
+for (const expression of ['${{ runner.temp }}/home', '${{ runner[\'temp\'] }}/home']) {
+  assert.throws(() => assertJobEnvironmentContexts({ jobs: { fixture: { env: { HOME: expression } } } }, 'negative'), /runner context is unavailable/);
+}
+assert.doesNotThrow(() => assertJobEnvironmentContexts({ jobs: { fixture: {
+  env: { HOME: '${{ github.workspace }}/.tmp/home', LABEL: '${{ format(\'runner.temp\') }}' },
+  steps: [{ env: { HOME: '${{ runner.temp }}/home' } }]
+} } }, 'supported'));
 // v9 adds getOctokit to the injected parameters and makes @actions/github ESM-only.
 const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
 const githubScriptParameters = [
@@ -371,6 +391,7 @@ for (const fileName of fs.readdirSync(path.join(ROOT, '.github', 'workflows'))) 
     }
   }
   const workflow = parse(workflowText);
+  assertJobEnvironmentContexts(workflow, fileName);
   for (const job of Object.values(workflow.jobs || {})) {
     for (const step of job.steps || []) {
       const pinnedAction = step.uses?.match(/^actions\/(checkout|github-script)@([0-9a-f]{40})$/);
@@ -431,6 +452,8 @@ for (const platform of ['ubuntu', 'windows', 'macos']) {
     || dotnet.with?.['dotnet-version'] !== '10.0.113'
     || dotnet.env?.DOTNET_INSTALL_DIR !== '${{ runner.temp }}/poc-dotnet-sdk'
     || parse(ciWorkflow).jobs[platform].env?.DOTNET_GENERATE_ASPNET_CERTIFICATE !== 'false'
+    || parse(ciWorkflow).jobs[platform].env?.DOTNET_CLI_HOME !== '${{ github.workspace }}/.tmp/ci/dotnet-cli-home'
+    || parse(ciWorkflow).jobs[platform].env?.NUGET_PACKAGES !== '${{ github.workspace }}/.tmp/ci/nuget-packages'
     || !steps[dotnetVerify].run.includes('DOTNET_HOST_PATH=')
     || !steps[dotnetVerify].run.includes('DOTNET_ROOT_')
     || !steps[dotnetVerify].run.includes('.diagnostics/dotnet-sdk.json')
