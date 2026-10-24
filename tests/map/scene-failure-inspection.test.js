@@ -115,4 +115,20 @@ try {
   sceneSettled = true; cacheSettled = true; constructionSettled = true; fallbackSettled = true; nativeCloseAllowed = true;
   for (const owner of getPendingSceneResourceOwners()) if (!baseline.has(owner)) { try { owner.release(); } catch {} }
 }
-console.log('Map original diagnostic/lazy-stack/proxy/falsey/construction/fallback controls authored; execution deferred.');
+{
+  let reads = 0, released = false;
+  const diagnostic = Object.freeze(Object.defineProperty(new Error('late diagnostic resource'),
+    'cacheOwnershipReleased', { value: () => released }));
+  const original = Object.freeze(Object.defineProperties({}, {
+    message: { get() { reads++; throw diagnostic; } },
+    name: { get() { reads++; return 'OriginalFailure'; } }
+  }));
+  const passive = captureSceneFailure(original, { diagnostics: false });
+  assert.equal(reads, 0); assert.equal(passive.released(), true);
+  const active = captureSceneFailure(original);
+  assert.equal(active, passive); assert.equal(reads, 2);
+  assert.deepEqual(active.inspectionErrors, [diagnostic]); assert.equal(active.released(), false);
+  captureSceneFailure(original); assert.equal(reads, 2, 'upgrading capture inspects diagnostics only once');
+  released = true; assert.equal(active.released(), true);
+}
+console.log('Map diagnostic, lazy-stack, passive-upgrade, proxy, falsey and independent ownership controls passed.');

@@ -1,4 +1,5 @@
 import { joinProviderCallSummaries } from './provider-call-joins.js';
+import { syncCallDetailResolution } from '../type-inference-crossfile/call-detail-resolution.js';
 import { collectCompilerImplicitCalls } from './compiler-implicit-calls.js';
 import { createCompilerRuntimeContext } from './compiler-runtime-context.js';
 import { emitCompilerTypeFacts } from './compiler-type-facts.js';
@@ -352,6 +353,7 @@ export const createSemanticCompilerSession = async ({ state, runtime, signal = n
             detail.compilerBinding = { ref: binding, contextKey: context.contextKey,
               symbolRef: { v: 1, targetName: detail.callee, kindHint: null, importHint: null, candidates,
                 status, resolved: status === 'resolved' ? { symbolId: candidates[0].symbolId, chunkUid: candidates[0].chunkUid } : null } };
+            syncCallDetailResolution(detail, detail.compilerBinding.symbolRef);
           }
         }
         rows.push({ family: 'node', row: { id: nextId++, kind: 'binding', span: observation.span, scope: observation.scope,

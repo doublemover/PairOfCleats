@@ -1141,3 +1141,23 @@ failures; passive captures can upgrade if later selected for diagnostics. A new
 regression requires both original scene and cache channels to close independently
 while stale diagnostic getters remain unread through retirement. These changes
 await focused validation; no stage2 performance improvement is yet established.
+
+The 12-case follow-up at `cd69811d0ba88b0fe1d3b11d061ba7630670a213`
+passed seven and failed five (two runner timeouts), with no skips/native crashes.
+Remote map navigation and independent stale scene/cache closure passed. A
+neighboring default diagnostic test caught ordering drift; eager capture now
+retains its original diagnostic-before-metadata order. A passive-to-active
+upgrade regression retains a newly observed diagnostic resource until its own
+cache channel closes. Original closure totals 84; 16 remain, with the adjacent
+map diagnostic control awaiting its corrected-source re-check. Both SSR cases
+still exceeded 30 seconds; metadata/library scoping did not close their bounds.
+
+A real API producer defect is now demonstrated by the required join assertions:
+compiler-session stores an established compilerBinding, but only the optional
+legacy propagation pass synchronized it into calleeRef/targetChunkUid consumed
+by call_sites. The existing exact projection is extracted into one small leaf
+and used immediately by the compiler owner as well as legacy propagation.
+Resolved, ambiguous and unresolved candidates keep the same projection rules;
+no heuristic target is invented. CompilerBindings 25 invalidates changed output
+meaning. Required API source queries and positive/negative joins remain strict.
+This producer repair and the diagnostic-order correction await focused checks.

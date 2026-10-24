@@ -4,6 +4,7 @@ import { literalEvidenceType } from '../../contracts/literal-evidence.js';
 import { setImmediate as yieldPropagation } from 'node:timers/promises';
 import { resolveCrossFileFidelity, resolveCrossFilePropagationBudget, orderCrossFileChunks } from '../cross-file-fidelity.js';
 import { createSymbolRefCacheMaintenance } from './symbol-ref-cache-maintenance.js';
+import { syncCallDetailResolution } from './call-detail-resolution.js';
 import { isShadowedImportCall, collectShadowedImportCallees, unresolvedShadowedImport } from './lexical-call-binding.js';
 import { uniqueTypes } from '../../integrations/tooling/providers/shared.js';
 import { mergeSymbolicTypeGraphs } from '../../shared/symbolic-types.js';
@@ -64,27 +65,6 @@ const addLink = (list, link) => {
   if (!keys || keys.has(key)) return;
   keys.add(key);
   list.push(link);
-};
-
-const formatCandidateId = (candidate) => {
-  if (!candidate) return null;
-  return candidate.chunkUid || candidate.symbolId || candidate.symbolKey || null;
-};
-
-const buildCandidateIds = (symbolRef) => {
-  if (!symbolRef || !Array.isArray(symbolRef.candidates)) return [];
-  const ids = symbolRef.candidates.map(formatCandidateId).filter(Boolean);
-  return ids.length ? ids : [];
-};
-
-const syncCallDetailResolution = (detail, symbolRef) => {
-  if (!detail || typeof detail !== 'object') return;
-  const resolvedChunkUid = symbolRef?.resolved?.chunkUid || null;
-  const candidateIds = buildCandidateIds(symbolRef);
-  detail.calleeRef = symbolRef || null;
-  detail.resolvedCalleeChunkUid = resolvedChunkUid;
-  detail.targetChunkUid = resolvedChunkUid;
-  detail.targetCandidates = candidateIds;
 };
 
 const buildEdgeLink = ({ edgeKind, fromChunkUid, symbolRef, resolvedEntry }) => {

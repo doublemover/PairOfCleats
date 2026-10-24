@@ -44,9 +44,11 @@
     },
     "followUpClosure": {
       "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
-      "originalFailuresMovedToPassing": 83,
-      "originalFailuresWithoutPassingClosure": 17,
-      "additionalObservedFailuresOutsideOriginal100": []
+      "originalFailuresMovedToPassing": 84,
+      "originalFailuresWithoutPassingClosure": 16,
+      "additionalObservedFailuresOutsideOriginal100": [
+        "map/scene-failure-inspection"
+      ]
     }
   },
   "items": [
@@ -5599,8 +5601,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 30666,
       "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "8a1d21e1e45088ddd48e911cf87515bdff6903f5",
-      "latestRecheckDurationMs": 7402
+      "latestRecheckSourceHead": "cd69811d0ba88b0fe1d3b11d061ba7630670a213",
+      "latestRecheckDurationMs": 30522
     },
     {
       "id": "indexing/semantic/ssr-snapshot-witness-incremental-parity",
@@ -5617,8 +5619,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 30578,
       "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "8a1d21e1e45088ddd48e911cf87515bdff6903f5",
-      "latestRecheckDurationMs": 11290
+      "latestRecheckSourceHead": "cd69811d0ba88b0fe1d3b11d061ba7630670a213",
+      "latestRecheckDurationMs": 30501
     },
     {
       "id": "indexing/semantic/verified-replay-handoff",
@@ -6585,7 +6587,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 100
+      "recheckDurationMs": 100,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "cd69811d0ba88b0fe1d3b11d061ba7630670a213",
+      "latestRecheckDurationMs": 88
     },
     {
       "id": "map/saved-artifact-admission",
@@ -6763,8 +6768,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 14060,
       "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "8a1d21e1e45088ddd48e911cf87515bdff6903f5",
-      "latestRecheckDurationMs": 10083
+      "latestRecheckSourceHead": "cd69811d0ba88b0fe1d3b11d061ba7630670a213",
+      "latestRecheckDurationMs": 13213
     },
     {
       "id": "tooling/api-contracts/export-identity-cli/ts-fail",
@@ -6898,8 +6903,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 13455,
       "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "8a1d21e1e45088ddd48e911cf87515bdff6903f5",
-      "latestRecheckDurationMs": 9694
+      "latestRecheckSourceHead": "cd69811d0ba88b0fe1d3b11d061ba7630670a213",
+      "latestRecheckDurationMs": 14474
     }
   ]
 }

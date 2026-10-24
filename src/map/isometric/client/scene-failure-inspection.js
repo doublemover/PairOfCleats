@@ -61,11 +61,11 @@ export const captureSceneFailure = (primary, { diagnostics = true } = {}) => {
   if (objectLike(primary)) snapshots.set(primary, captured);
   refresh();
   if (!objectLike(primary)) return captured;
+  if (diagnostics) captureDiagnostics();
   for (const key of core) {
     if (diagnosticFields.has(key)) continue;
     try { fields.set(key, Reflect.get(primary, key)); } catch (error) { remember(error); }
   }
-  if (diagnostics) captureDiagnostics();
   try {
     const multiple = fields.get('sceneResourceOwners'), single = fields.get('sceneResourceOwner');
     owners = Array.isArray(multiple) ? Array.prototype.slice.call(multiple) : objectLike(single) ? [single] : [];
