@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { createBoundedWriterQueue } from '../../../tools/build/embeddings/writer-queue.js';
 import { settleEmbeddingCacheConsumers } from '../../../tools/build/embeddings/cache/settle-consumers.js';
 import { createTextDatabaseLifetime } from '../../../tools/build/embeddings/cache/text-database-lifetime.js';
+import { errorGraphIncludes } from '../../helpers/error-graph.js';
 
 const abort = Object.assign(new Error('cancelled write'), { name: 'AbortError', code: 'ABORT_ERR' });
 const cancelled = createBoundedWriterQueue({ maxPending: 1 });
@@ -20,7 +21,8 @@ await assert.rejects(settleEmbeddingCacheConsumers({ primary: abort,
   compute: { drain: async () => { attempts.push('compute'); throw pending; } },
   reader: { drain: async () => { attempts.push('reader'); } }, writer: queue,
   shards: { close: async () => { attempts.push('shards'); } } }), error => error instanceof AggregateError
-    && error.errors[0] === abort && error.errors.includes(pending));
+    && error.cause === abort && error.code === 'ABORT_ERR' && error.name === 'AbortError'
+    && errorGraphIncludes(error, pending));
 assert.deepEqual(attempts, ['compute', 'reader', 'shards'], 'one failed drain cannot strand other original cache owners');
 
 let closes = 0, leaseReleases = 0;

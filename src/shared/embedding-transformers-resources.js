@@ -78,7 +78,7 @@ export const captureTransformersResource = (resource, role = 'transformers resou
 /** One existing acquisition or operation scope, never a model/cache factory. */
 export const createTransformersResourceScope = (kind = 'transformers resources', { drainFailuresBeforeResources = false } = {}) => {
   const resources = new Map(), blockers = new Map();
-  let flight = null, lastError = null, closed = false;
+  let flight = null, lastError = null, closed = false, prerequisitesBlocked = false;
   const retainFailure = error => {
     const captured = captureEmbeddingFailureDiagnostics(error);
     if (captured.hasOwnership && !blockers.has(error)) blockers.set(error, captured.released);
@@ -86,12 +86,19 @@ export const createTransformersResourceScope = (kind = 'transformers resources',
   const close = ({ retry = false } = {}) => {
     if (closed) return Promise.resolve(true);
     if (flight) return flight;
-    if (lastError && !retry) return Promise.reject(lastError);
+    if (lastError && !retry && !prerequisitesBlocked) return Promise.reject(lastError);
     flight = Promise.resolve().then(async () => {
       const errors = [];
+      prerequisitesBlocked = false;
       if (drainFailuresBeforeResources) {
         for (const [error, observe] of blockers) if (!observe()) errors.push(error);
-        if (errors.length) throw transformersCleanupFailure(scope, errors);
+        if (errors.length) {
+          // No resource closer has run. Once the actual prerequisites settle,
+          // permit its first invocation; failed native closers remain guarded
+          // independently by their original resource owners below.
+          prerequisitesBlocked = true;
+          throw transformersCleanupFailure(scope, errors);
+        }
       }
       for (const owner of [...resources.values()].reverse()) {
         try { if (retry) await owner.release(); else await owner.retire(); } catch (error) { errors.push(error); }

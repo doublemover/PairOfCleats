@@ -1,6 +1,7 @@
 import { createAbortError, throwIfAborted } from './abort.js';
 import { assertVectorArrays } from './embedding-batches.js';
 import { planEmbeddingBatches } from './embedding-batch-plan.js';
+import { awaitWithKeepalive } from './promise-keepalive.js';
 
 const batchers = new WeakMap();
 const closedError = () => Object.assign(new Error('Inline embedding batch owner is closed.'), { code: 'ERR_EMBEDDING_RUNTIME_CLOSED' });
@@ -51,7 +52,7 @@ export const createInlineEmbeddingBatcher = (embed, { maxQueuedItems = 4096, max
   };
   const flush = () => {
     if (running) return running;
-    running = (async () => {
+    running = awaitWithKeepalive((async () => {
       while (entries.size && !closed) {
         const snapshot = [...entries.values()].filter(entry => !entry.batch && entry.waiters.size);
         if (!snapshot.length) break;
@@ -86,7 +87,7 @@ export const createInlineEmbeddingBatcher = (embed, { maxQueuedItems = 4096, max
           for (const entry of snapshot) if (entries.get(entry.text) === entry) settleEntry(entry, null, error);
         } finally { tokenEstimates?.release?.(); }
       }
-    })().finally(() => { running = null; if (entries.size && !closed) schedule(); });
+    })()).finally(() => { running = null; if (entries.size && !closed) schedule(); });
     return running;
   };
   const schedule = () => {
