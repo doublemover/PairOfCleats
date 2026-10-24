@@ -10,14 +10,16 @@ import { planManagedPrerequisites } from './provision-prerequisites.js';
 export const createToolInstallPreview = ({ tools, scope = 'cache', allowFallback = false, env = process.env,
   isAllowed = () => true } = {}, dependencies = {}) => {
   const entries = tools.map(tool => {
-    const selection = (dependencies.select || selectInstallPlan)(tool, scope, allowFallback);
+    const unsupported = Array.isArray(tool.install?.platforms) && !tool.install.platforms.includes(process.platform);
+    const selection = unsupported ? { plan: null, scope, fallback: false, reason: 'unsupported_platform' }
+      : (dependencies.select || selectInstallPlan)(tool, scope, allowFallback);
     const located = (dependencies.locate || locateToolExecutable)(tool);
     const provisioning = (dependencies.provisioning || createToolProvisioningPlan)({ tool, selection, env, isAllowed });
     const prerequisiteSetup = planManagedPrerequisites({ provisioning, scope: selection.scope, env });
     const admission = selection.plan ? resolveDeclaredInstallAdmission(selection.plan) : null;
     const blockers = [];
-    if (!selection.plan) blockers.push({ code: 'selected-recipe-unavailable', reason: tool.provisioningBlocker || selection.reason || null });
-    if (selection.scope === 'cache' && admission?.state !== 'estimate-declared') blockers.push({ code: 'storage-estimate-unavailable' });
+    if (!selection.plan) blockers.push({ code: 'selected-recipe-unavailable', reason: unsupported ? selection.reason : tool.provisioningBlocker || selection.reason || null });
+    if (selection.plan && selection.scope === 'cache' && admission?.state !== 'estimate-declared') blockers.push({ code: 'storage-estimate-unavailable' });
     for (const step of provisioning.steps) if (['missing', 'incompatible', 'blocked'].includes(step.state)) blockers.push({ code: 'prerequisite-missing', requirement: step.id, reason: step.reason,
       ...(step.blockedBy ? { blockedBy: step.blockedBy } : {}) });
     return { id: tool.id, scope: selection.scope, fallback: selection.fallback === true,

@@ -21,12 +21,17 @@ if (process.platform === 'win32') {
     const result = runNode(['tools/tooling/install.js', '--root', repo, '--tools', 'phpactor', '--no-fallback',
       '--json', ...(dryRun ? ['--dry-run'] : [])], 'native Windows PHPactor platform declaration', process.cwd(), env,
     { stdio: 'pipe', allowFailure: true, timeoutMs: 10000 });
-    assert.equal(result.status, dryRun ? 0 : 1, result.stderr);
+    assert.equal(result.status, 1, result.stderr);
     const payload = JSON.parse(result.stdout);
     assert.deepEqual(payload.actions, [], 'an unsupported stock install cannot run or download');
-    assert.equal(payload.results[0].reason, 'unsupported_platform');
-    assert.equal(payload.results[0].status, 'missing-requirement');
-    assert.match(payload.results[0].error, /POSIX.*Linux.*macOS.*WSL/);
+    if (dryRun) {
+      assert.equal(payload.preview.execution, 'none');
+      assert.equal(payload.preview.entries[0].blockers.some(blocker => blocker.reason === 'unsupported_platform'), true);
+    } else {
+      assert.equal(payload.results[0].reason, 'unsupported_platform');
+      assert.equal(payload.results[0].status, 'missing-requirement');
+      assert.match(payload.results[0].error, /POSIX.*Linux.*macOS.*WSL/);
+    }
     assert.equal(payload.readiness.ready, false);
     assert.equal(payload.readiness.state, dryRun ? 'planned' : 'blocked');
   }
