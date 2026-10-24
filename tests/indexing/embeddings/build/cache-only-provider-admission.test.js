@@ -11,7 +11,10 @@ import { applyTestEnv } from '../../../helpers/test-env.js';
 import { prepareIsolatedTestCacheDir } from '../../../helpers/test-cache.js';
 import { runNode } from '../../../helpers/run-node.js';
 
-const { dir } = await prepareIsolatedTestCacheDir('cache-only-provider-admission', { clean: true });
+const selected = process.env.PAIROFCLEATS_TEST_ID?.split('indexing/embeddings/build/cache-only-provider-admission/')[1];
+assert.ok(['cache-only', 'missing-coverage', 'unknown-width', 'tokenizer-change', 'provider-fallback'].includes(selected),
+  'select an explicit independently bounded provider-admission case');
+const { dir } = await prepareIsolatedTestCacheDir(`cache-only-provider-admission-${selected}`, { clean: true });
 const repo = path.join(dir, 'repo'), models = path.join(dir, 'models');
 const modelId = 'fixture/cache-only', modelDir = path.join(models, 'fixture', 'cache-only');
 await fs.mkdir(repo, { recursive: true }); await fs.mkdir(modelDir, { recursive: true });
@@ -57,56 +60,66 @@ try {
   await runBuildEmbeddingsWithConfig(makeConfig());
   assert.equal(loads, 1); assert.equal(probes, 1); assert.equal(disposals, 1);
   const firstState = await state(), firstBytes = await fs.readFile(path.join(indexDir, 'dense_vectors_uint8.bin'));
-  const before = { loads, probes, calls, disposals };
-  __setAdapterFactoryForTests(() => { throw Error('cache-only path attempted to construct a provider'); });
-  await runBuildEmbeddingsWithConfig(makeConfig());
-  assert.deepEqual({ loads, probes, calls, disposals }, before, 'complete verified cache coverage never constructs or probes a model');
-  assert.deepEqual(await fs.readFile(path.join(indexDir, 'dense_vectors_uint8.bin')), firstBytes);
-  const cached = await attempt();
-  assert.equal(cached.embeddings.observation.state, 'cache-only');
-  assert.equal(cached.embeddings.observation.provider, null);
-  assert.equal(cached.embeddings.observation.dims, null, 'persisted dimensions are not current execution observations');
-  assert.equal(cached.embeddings.observation.method, 'validated-cache-reuse');
-  assert.equal(cached.runtime.providerMeasurement.execution.loaded, false);
-  assert.equal(cached.runtime.providerMeasurement.stage3.cachePreflight.eligible, true);
-  assert.equal(cached.runtime.providerMeasurement.stage3.cachePreflight.work.modesChecked, 1);
-  assert.equal(cached.runtime.providerMeasurement.stage3.vectorSpool.closed, true);
-  assert.equal(cached.runtime.providerMeasurement.stage3.vectorSpool.pendingWrites, 0);
-  assert.equal(cached.runtime.providerMeasurement.stage3.vectorSpool.retainedCorpusVectorBytes, 0);
-  assert.equal((await fs.readdir(indexDir)).some(name => name.startsWith('.stage3-vector-spool-')), false);
+  if (selected === 'cache-only') {
+    const before = { loads, probes, calls, disposals };
+    __setAdapterFactoryForTests(() => { throw Error('cache-only path attempted to construct a provider'); });
+    await runBuildEmbeddingsWithConfig(makeConfig());
+    assert.deepEqual({ loads, probes, calls, disposals }, before, 'complete verified cache coverage never constructs or probes a model');
+    assert.deepEqual(await fs.readFile(path.join(indexDir, 'dense_vectors_uint8.bin')), firstBytes);
+    const cached = await attempt();
+    assert.equal(cached.embeddings.observation.state, 'cache-only');
+    assert.equal(cached.embeddings.observation.provider, null);
+    assert.equal(cached.embeddings.observation.dims, null, 'persisted dimensions are not current execution observations');
+    assert.equal(cached.embeddings.observation.method, 'validated-cache-reuse');
+    assert.equal(cached.runtime.providerMeasurement.execution.loaded, false);
+    assert.equal(cached.runtime.providerMeasurement.stage3.cachePreflight.eligible, true);
+    assert.equal(cached.runtime.providerMeasurement.stage3.cachePreflight.work.modesChecked, 1);
+    assert.equal(cached.runtime.providerMeasurement.stage3.vectorSpool.closed, true);
+    assert.equal(cached.runtime.providerMeasurement.stage3.vectorSpool.pendingWrites, 0);
+    assert.equal(cached.runtime.providerMeasurement.stage3.vectorSpool.retainedCorpusVectorBytes, 0);
+    assert.equal((await fs.readdir(indexDir)).some(name => name.startsWith('.stage3-vector-spool-')), false);
+  }
 
-  const identity = firstState.embeddings.embeddingIdentity;
-  const fileDir = resolveCacheDir(resolveCacheRoot({ cacheDirConfig: cacheRoot }), identity, 'code');
-  const index = await readCacheIndex(fileDir, firstState.embeddings.embeddingIdentityKey, { strict: true });
-  const missing = index.files['beta.js']; assert.ok(missing);
-  delete index.entries[missing]; delete index.files['beta.js'];
-  await writeCacheIndex(fileDir, index);
-  install();
-  const beforeMiss = probes;
-  await runBuildEmbeddingsWithConfig(makeConfig());
-  assert.equal(probes, beforeMiss + 1, 'one missing file triggers the probe before accepting any mixed generation');
-  assert.equal((await attempt()).runtime.providerMeasurement.stage3.cachePreflight.eligible, false);
-  assert.equal((await attempt()).embeddings.observation.method, 'provider-probe');
+  if (selected === 'missing-coverage') {
+    const identity = firstState.embeddings.embeddingIdentity;
+    const fileDir = resolveCacheDir(resolveCacheRoot({ cacheDirConfig: cacheRoot }), identity, 'code');
+    const index = await readCacheIndex(fileDir, firstState.embeddings.embeddingIdentityKey, { strict: true });
+    const missing = index.files['beta.js']; assert.ok(missing);
+    delete index.entries[missing]; delete index.files['beta.js'];
+    await writeCacheIndex(fileDir, index);
+    install();
+    const beforeMiss = probes;
+    await runBuildEmbeddingsWithConfig(makeConfig());
+    assert.equal(probes, beforeMiss + 1, 'one missing file triggers the probe before accepting any mixed generation');
+    assert.equal((await attempt()).runtime.providerMeasurement.stage3.cachePreflight.eligible, false);
+    assert.equal((await attempt()).embeddings.observation.method, 'provider-probe');
+  }
 
-  const unknownDims = makeConfig(); unknownDims.configuredDims = null; delete unknownDims.argv.dims;
-  const beforeUnknown = probes;
-  await runBuildEmbeddingsWithConfig(unknownDims);
-  assert.equal(probes, beforeUnknown + 1, 'unknown width cannot select cache-only from a previous entry');
-  assert.equal((await state()).embeddings.embeddingIdentity.dims, 4);
-  await fs.writeFile(tokenizer, '{"inert":2}');
-  const beforeTokenizer = probes;
-  await runBuildEmbeddingsWithConfig(makeConfig());
-  assert.equal(probes, beforeTokenizer + 1, 'changed tokenizer bytes invalidate cache-only selection');
-  assert.notEqual((await state()).embeddings.embeddingIdentityKey, firstState.embeddings.embeddingIdentityKey);
+  if (selected === 'unknown-width') {
+    const unknownDims = makeConfig(); unknownDims.configuredDims = null; delete unknownDims.argv.dims;
+    const beforeUnknown = probes;
+    await runBuildEmbeddingsWithConfig(unknownDims);
+    assert.equal(probes, beforeUnknown + 1, 'unknown width cannot select cache-only from a previous entry');
+    assert.equal((await state()).embeddings.embeddingIdentity.dims, 4);
+  }
+  if (selected === 'tokenizer-change' || selected === 'provider-fallback') {
+    await fs.writeFile(tokenizer, '{"inert":2}');
+    const beforeTokenizer = probes;
+    await runBuildEmbeddingsWithConfig(makeConfig());
+    assert.equal(probes, beforeTokenizer + 1, 'changed tokenizer bytes invalidate cache-only selection');
+    assert.notEqual((await state()).embeddings.embeddingIdentityKey, firstState.embeddings.embeddingIdentityKey);
+  }
 
-  // Fallback must select fresh cache authority before old ONNX rows are mixed.
-  await fs.writeFile(graph, 'changed inert graph bytes');
-  install('xenova', 0.75);
-  const beforeFallback = probes;
-  await runBuildEmbeddingsWithConfig(makeConfig());
-  assert.equal(probes, beforeFallback + 1);
-  assert.equal((await state()).embeddings.embeddingIdentity.provider, 'xenova');
-  assert.equal((await state()).embeddings.cacheStats.hits, 0);
-  assert.notDeepEqual(await fs.readFile(path.join(indexDir, 'dense_vectors_uint8.bin')), firstBytes);
+  if (selected === 'provider-fallback') {
+    // Fallback must select fresh cache authority before old ONNX rows are mixed.
+    await fs.writeFile(graph, 'changed inert graph bytes');
+    install('xenova', 0.75);
+    const beforeFallback = probes;
+    await runBuildEmbeddingsWithConfig(makeConfig());
+    assert.equal(probes, beforeFallback + 1);
+    assert.equal((await state()).embeddings.embeddingIdentity.provider, 'xenova');
+    assert.equal((await state()).embeddings.cacheStats.hits, 0);
+    assert.notDeepEqual(await fs.readFile(path.join(indexDir, 'dense_vectors_uint8.bin')), firstBytes);
+  }
 } finally { __resetEmbeddingAdapterCachesForTests(); }
 console.log('cache-only provider admission, missing coverage and fallback identity assertions complete');

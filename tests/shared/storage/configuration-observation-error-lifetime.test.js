@@ -48,14 +48,20 @@ try {
   const lockPath = path.join(home, 'config', 'storage-locator.lock');
   const lstat = fs.lstat, opendir = fs.opendir, remove = fs.rm;
   let announce, permit, completed = false, denyRelease = true, denyClose = true;
+  let sourceObservations = 0, destinationObservations = 0;
   const closing = new Promise(resolve => { announce = resolve; });
   const permitted = new Promise(resolve => { permit = resolve; });
   let failure;
   try {
-    fs.lstat = async (target, ...args) => { if (target === source) throw primary; return lstat(target, ...args); };
+    fs.lstat = async (target, ...args) => {
+      // Initial revalidation precedes coordinator acquisition. Inject the
+      // failure into the separately owned observation under the actual lock.
+      if (target === source && ++sourceObservations === 2) throw primary;
+      return lstat(target, ...args);
+    };
     fs.opendir = async (target, ...args) => {
       const directory = await opendir(target, ...args);
-      if (target !== destination) return directory;
+      if (target !== destination || ++destinationObservations === 1) return directory;
       return { read: directory.read.bind(directory), close: async () => {
         announce(); await permitted;
         if (denyClose) throw secondary;
@@ -69,6 +75,8 @@ try {
     const running = applyStorageConfiguration(plan, { approvedPlanId: plan.planId, home, category: 'models', target: destination })
       .catch(error => { failure = error; }).finally(() => { completed = true; });
     await closing;
+    assert.equal(sourceObservations, 2);
+    assert.equal(destinationObservations, 2);
     assert.equal(completed, false, 'a rejected source observation cannot abandon the independently owned destination directory');
     assert.equal((await lstat(lockPath)).isFile(), true, 'configuration keeps its coordinator through every observation close');
     permit();

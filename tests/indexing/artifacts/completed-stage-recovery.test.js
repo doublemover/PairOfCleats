@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
+import { validateBuildState } from '../../../src/contracts/validators/build-state.js';
 import { initBuildState, markBuildPhase } from '../../../src/index/build/build-state.js';
 import { getBuildsRoot, getRepoCacheRoot } from '../../../src/shared/dict-utils.js';
 import { acquireIndexLock } from '../../../src/index/build/lock.js';
@@ -46,6 +47,20 @@ try {
   assert.equal(completion.output.pieces, 1);
   assert.equal(completion.output.bytes, 2);
   assert.equal(completion.originatingAttemptId, 'original-attempt');
+  const sealedState = JSON.parse(await fs.readFile(path.join(buildRoot, 'build_state.json'), 'utf8'));
+  const checkState = completed => validateBuildState({ ...sealedState, completedStages: { code: completed } });
+  assert.equal(checkState(completion).ok, true, 'the actual sealed completion satisfies the strict build-state schema');
+  const missingReason = structuredClone(completion); delete missingReason.producer.reason;
+  assert.equal(checkState(missingReason).ok, false, 'unobserved producer identity requires its reason');
+  const observed = { ...completion, producer: { schemaVersion: 1, identity: 'a'.repeat(64), revision: 'fixture',
+    dirty: 'b'.repeat(64), dirtyFiles: 0, bootstrap: 'c'.repeat(64), node: process.version,
+    signatureVersion: 1, analysisVersions: {}, evidenceScope: 'observed-implementation-files-and-bootstrap-receipt' },
+  sourceValidation: { status: 'verified', reason: 'fixture', files: 0, algorithm: 'sha1', identity: 'd'.repeat(64) } };
+  assert.equal(checkState(observed).ok, true);
+  const missingBootstrap = structuredClone(observed); delete missingBootstrap.producer.bootstrap;
+  assert.equal(checkState(missingBootstrap).ok, false, 'observed producer identity retains every conditional requirement');
+  const missingSourceIdentity = structuredClone(observed); delete missingSourceIdentity.sourceValidation.identity;
+  assert.equal(checkState(missingSourceIdentity).ok, false, 'verified source observations require their identity');
   await lock.release();
   lease.invalidate();
   assert.equal((await verifyCompletedStage({ root, repoRoot: root, buildRoot, buildId: 'generation', mode: 'code' })).output.contentHash,

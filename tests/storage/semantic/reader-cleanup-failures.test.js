@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { normalizeIdentityPath } from '../../../src/workspace/identity.js';
 import { createRecoveryFixture, semanticNode } from '../../helpers/semantic-recovery.js';
 import { getContainedFileSession, isContainedFileSession } from '../../../src/shared/contained-file-resource.js';
 import { writeSemanticQueryIndex } from '../../../src/index/build/artifacts/writers/semantic/query-index.js';
@@ -54,12 +55,12 @@ try {
   const queryIndex = await writeSemanticQueryIndex({ root: fixture.stagingRoot, generation: fixture.generation,
     partitions: [first], store: base, diskAccount: fixture.account, batchRows: 1024, batchBytes: 1048576 });
   assert.equal(queryIndex.pieces.length, 1); assert.ok(queryIndex.pieces[0].bytes > 65536);
-  const queryFile = path.resolve(fixture.stagingRoot, queryIndex.pieces[0].path);
-  const queryOffsets = path.resolve(fixture.stagingRoot, queryIndex.pieces[0].offsetsPath);
+  const queryFile = normalizeIdentityPath(path.join(fixture.stagingRoot, queryIndex.pieces[0].path));
+  const queryOffsets = normalizeIdentityPath(path.join(fixture.stagingRoot, queryIndex.pieces[0].offsetsPath));
   const install = ({ open = null, read: readFault = null, close = null } = {}) => {
     const states = [];
     fs.open = async (file, ...args) => {
-      const filename = path.resolve(String(file));
+      const filename = normalizeIdentityPath(String(file));
       if (open) await open(filename);
       const handle = await originalOpen(file, ...args), read = handle.read, nativeClose = handle.close;
       const state = { filename, handle, reads: 0, closes: 0 }; states.push(state);
@@ -139,7 +140,7 @@ try {
   {
     let deny = true;
     const peerFailure = Object.freeze(new Error('successful peer reader close rejected'));
-    const missing = path.resolve(fixture.stagingRoot, first.members.semantic_records[0].path);
+    const missing = normalizeIdentityPath(path.join(fixture.stagingRoot, first.members.semantic_records[0].path));
     const states = install({ open: filename => { if (filename === missing) throw false; },
       close: (_state, native) => { if (deny) throw peerFailure; return native(); } });
     const store = fixture.store([first, second]);
@@ -193,7 +194,7 @@ try {
         return 'ERR_JSONL_CONTENT_INTEGRITY';
       } }
     });
-    const dataFile = path.resolve(fixture.stagingRoot, first.members.semantic_records[0].path);
+    const dataFile = normalizeIdentityPath(path.join(fixture.stagingRoot, first.members.semantic_records[0].path));
     const states = install({ read: (state, native, ...args) => {
       if (state.filename === dataFile) throw primary; return native(...args);
     } });

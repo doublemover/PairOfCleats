@@ -16,9 +16,9 @@ const producer = closed({
 }, ['identity']);
 producer.allOf = [{
   if: { properties: { identity: { type: 'string' } } },
-  then: { required: ['schemaVersion', 'revision', 'dirty', 'dirtyFiles', 'bootstrap', 'node',
+  then: { properties: producer.properties, required: ['schemaVersion', 'revision', 'dirty', 'dirtyFiles', 'bootstrap', 'node',
     'signatureVersion', 'analysisVersions', 'evidenceScope'] },
-  else: { required: ['reason'] }
+  else: { properties: { reason: producer.properties.reason }, required: ['reason'] }
 }];
 
 const sourceSnapshot = closed({
@@ -32,7 +32,7 @@ const sourceValidation = closed({
 }, ['status', 'reason']);
 sourceValidation.allOf = [{
   if: { properties: { status: { const: 'verified' } } },
-  then: { required: ['files', 'algorithm', 'identity'] }
+  then: { properties: sourceValidation.properties, required: ['files', 'algorithm', 'identity'] }
 }];
 
 export const STAGE_SNAPSHOT_SCHEMA = closed({

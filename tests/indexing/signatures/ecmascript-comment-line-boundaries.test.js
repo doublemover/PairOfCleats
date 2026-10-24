@@ -53,5 +53,6 @@ for (const ending of ['\r','\u2028','\u2029']) {
   assert.equal(findDeclarationBoundary(text).bodyStart,-1,'default language policy is not silently changed to ECMAScript');
   assert.equal(findDeclarationBoundary(text,0,{ecmaScriptLineTerminators:true}).bodyStart,text.indexOf('{'));
 }
-assert.equal(TREE_SITTER_CHUNK_VERSION,'7');
+assert.ok(Number.isSafeInteger(Number(TREE_SITTER_CHUNK_VERSION)) && Number(TREE_SITTER_CHUNK_VERSION) >= 7,
+  'the ECMAScript boundary repair requires producer 7 or a later semantic revision');
 console.log('explicit ECMAScript comment terminators preserve native previews and actual TypeScript chunks/relations');

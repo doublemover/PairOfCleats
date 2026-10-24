@@ -126,12 +126,15 @@ try {
       assert.ok(states.every(state => state.handle.fd === -1)); fs.open = originalOpen;
     }
     {
-      const states = install({ stat: async (state, native, ...args) => {
-        const value = await native(...args); return state.filename === filename ? { ...value, size: 32 * 1024 * 1024 + 1 } : value;
-      } });
-      await assert.rejects(open(), { code: 'ERR_SEMANTIC_INTEGRITY' });
-      const state = states.find(state => state.filename === filename);
-      assert.equal(state.reads, 0); assert.equal(state.handle.fd, -1); fs.open = originalOpen;
+      // Verified reads use captured native descriptor metadata. Grow the real
+      // file instead of replacing an unused async handle.stat method.
+      await fs.truncate(filename, 32 * 1024 * 1024 + 1);
+      const states = install();
+      try {
+        await assert.rejects(open(), { code: 'ERR_SEMANTIC_INTEGRITY' });
+        const state = states.find(state => state.filename === filename);
+        assert.equal(state.reads, 0); assert.equal(state.handle.fd, -1);
+      } finally { fs.open = originalOpen; await fixture.restore(); }
     }
     {
       // Replace the regular file before its descriptor acquisition. No links or

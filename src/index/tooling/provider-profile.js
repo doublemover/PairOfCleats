@@ -89,7 +89,7 @@ export const observeProviderProfile = async ({ providerId, adapterVersion, contr
   if (path.isAbsolute(resolved[0])) {
     try { resolvedExecutable = await fs.realpath(resolved[0]); } catch { /* Incomplete identity remains non-durable. */ }
   }
-  if (!resolvedExecutable || !tool.some(entry => path.resolve(entry.path) === path.resolve(resolvedExecutable))) reasons.push('resolved_executable_unobserved');
+  if (!resolvedExecutable || !tool.some(entry => path.relative(path.resolve(entry.path), path.resolve(resolvedExecutable)) === '')) reasons.push('resolved_executable_unobserved');
   if (dependencyClosure !== 'complete') reasons.push('read_dependency_closure_unknown');
   if (expectedToolHash !== null && expectedToolHash !== toolHash) reasons.push('install_runtime_identity_mismatch');
   if (!['explicit', 'managed', 'ambient-fallback'].includes(selection)) throw fail('Unknown tool selection source.');
@@ -114,7 +114,7 @@ export const providerProfileCacheIdentity = (receipt, { providerId, adapterVersi
   if (receipt) canonicalSemanticJson(receipt);
   if (!receipt || receipt.schemaVersion !== PROVIDER_PROFILE_VERSION || receipt.durable !== true
     || !digest(receipt.profileHash) || receipt.providerId !== providerId || receipt.adapterVersion !== adapterVersion
-    || (repoRoot && path.resolve(receipt.project?.root || '') !== path.resolve(repoRoot))) return null;
+    || (repoRoot && path.relative(path.resolve(receipt.project?.root || ''), path.resolve(repoRoot)) !== '')) return null;
   const { profileHash, ...identity } = receipt;
   if (semanticHash('tooling.provider-profile.v1', identity) !== profileHash) throw fail('Provider profile receipt content changed.');
   // Canonicalization also rejects accessors, exotic objects and non-JSON values.

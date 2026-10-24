@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { normalizeIdentityPath } from '../../../src/workspace/identity.js';
 import { createRecoveryFixture, semanticNode } from '../../helpers/semantic-recovery.js';
 import { createSemanticFindService } from '../../../src/semantic/find.js';
 import { writeSemanticQueryIndex } from '../../../src/index/build/artifacts/writers/semantic/query-index.js';
@@ -22,7 +23,7 @@ try {
   const store={...underlying,findOperations:(selector,options)=>underlying.findOperations(selector,{...options,metrics})};
   const active = new Set(), opens = new Map(), bytes = new Map();
   fs.open = async (...args) => {
-    const handle = await originalOpen(...args), name = path.resolve(String(args[0]));
+    const handle = await originalOpen(...args), name = normalizeIdentityPath(String(args[0]));
     const read = handle.read.bind(handle), close = handle.close.bind(handle);
     opens.set(name, (opens.get(name) || 0) + 1); active.add(handle);
     handle.read = async (...readArgs) => {
@@ -33,7 +34,7 @@ try {
     handle.close = async () => { try { return await close(); } finally { active.delete(handle); } };
     return handle;
   };
-  const operationFile = path.resolve(fixture.stagingRoot, index.pieces[0].path);
+  const operationFile = normalizeIdentityPath(path.join(fixture.stagingRoot, index.pieces[0].path));
   const request = { repoRoot: fixture.root, generation: fixture.generation,
     selector: { field: 'astKind', value: 'Identifier' }, limits: { records: 32 } };
   const find = createSemanticFindService();

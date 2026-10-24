@@ -3135,7 +3135,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
           }
         });
         getBatchingStats = computeFileEmbeddings.batchingStats;
-        let fileProcessingFailure = null;
+        let fileProcessingFailure = null, fileProcessingFailurePresent = false;
         try {
           /**
            * Process one file's chunk items with cache lookup and fallback compute.
@@ -3554,11 +3554,12 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
               Math.max(0, Math.floor(Number(adaptiveRun?.adjustments || 0)))
             );
           }
-        } catch (error) { fileProcessingFailure = error; throw error; }
+        } catch (error) { fileProcessingFailure = error; fileProcessingFailurePresent = true; throw error; }
         finally {
           stopProgressTimer();
           await settleEmbeddingCacheConsumers({ compute: computeFileEmbeddings, reader: cacheBatchReader,
-            writer: writerQueue, shards: cacheShardHandlePool, primary: fileProcessingFailure });
+            writer: writerQueue, shards: cacheShardHandlePool, primary: fileProcessingFailure,
+            primaryPresent: fileProcessingFailurePresent });
           emitProgressSnapshot({ force: true, summary: true });
           cacheTask.done({ message: `${cacheHits}/${cacheAttempts} cache hits` });
           embedTask.done({

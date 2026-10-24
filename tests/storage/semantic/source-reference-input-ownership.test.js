@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { normalizeIdentityPath } from '../../../src/workspace/identity.js';
 import { createRecoveryFixture, semanticNode } from '../../helpers/semantic-recovery.js';
 import { createSemanticSourceSnapshot } from '../../../src/index/semantic/source.js';
 import { createSyntaxPartitionId } from '../../../src/index/semantic/identity.js';
@@ -20,13 +21,13 @@ try {
     { source: otherSource, sourceBytes: otherBytes, partitionId: otherId });
   const store = f.store([syntax, other]);
   const ref = () => ({ partitionId: f.partitionId, localId: 0 });
-  const target = path.resolve(f.stagingRoot, syntax.members.semantic_sources[0].path);
+  const target = normalizeIdentityPath(path.join(f.stagingRoot, syntax.members.semantic_sources[0].path));
   for (const changeSpan of [false, true]) {
     const record = { ref: ref(), span: [0, f.source.textLength] }, submittedRef = record.ref;
     const handles = []; let mutations = 0;
     fs.open = async (file, ...args) => {
       const handle = await originalOpen.call(fs, file, ...args); handles.push(handle);
-      if (path.resolve(String(file)) === target) {
+      if (normalizeIdentityPath(String(file)) === target) {
         const read = handle.read;
         handle.read = function (...readArgs) {
           assert.equal(this, handle);

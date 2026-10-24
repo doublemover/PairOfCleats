@@ -53,7 +53,7 @@ export const runRequestLocalBindingRefinement = async ({ request, grant, profile
   const authorized = () => authority && authority.requestHash === requestIdentity(pinned)
     && authority.profileHash === profileHash && isRepoTrusted(pinned.repoRoot);
   if (!authorized()) return { ...result, status: 'denied', reason: 'execution_grant_unavailable' };
-  if (!same(store.generation, pinned.generation) || path.resolve(store.repoRoot) !== path.resolve(pinned.repoRoot)) throw fail('Request-local overlay generation/root differs from its pinned store.');
+  if (!same(store.generation, pinned.generation) || path.relative(path.resolve(store.repoRoot), path.resolve(pinned.repoRoot)) !== '') throw fail('Request-local overlay generation/root differs from its pinned store.');
   if (!provider || provider.qualification?.state !== 'qualified' || provider.qualification.profileHash !== profileHash
     || !provider.qualification.methods?.includes('textDocument/definition') || typeof provider.request !== 'function') {
     return { ...result, reason: 'qualified_binding_provider_unavailable' };
@@ -73,7 +73,7 @@ export const runRequestLocalBindingRefinement = async ({ request, grant, profile
     if (!source || source.encoding !== 'utf8' || source.mapping) return { ...result, reason: 'source_mapping_not_supported' };
     await store.verifySource(source, { signal: boundedSignal });
     const filename = path.resolve(pinned.repoRoot, source.path);
-    if (!profile.sources.some(value => path.resolve(value.path) === filename && value.hash === source.byteHash)) return { ...result, status: 'stale', reason: 'profile_source_mismatch' };
+    if (!profile.sources.some(value => path.relative(path.resolve(value.path), filename) === '' && value.hash === source.byteHash)) return { ...result, status: 'stale', reason: 'profile_source_mismatch' };
     const { buffer } = await readVerifiedContainedFile(pinned.repoRoot, filename, {
       expectedHash: source.byteHash, maxBytes: pinned.limits.maxSourceBytes, signal: boundedSignal
     });

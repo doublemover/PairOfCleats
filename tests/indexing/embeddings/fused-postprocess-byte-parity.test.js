@@ -10,7 +10,7 @@ const legacy = ({ codeVector: code, docVector: doc, normalize, quantization }) =
   return { quantizedCode: encode(code), quantizedDoc: encode(doc), quantizedMerged: encode(merged) };
 };
 const originals = [[], [0, 0, 0], [1, 0, 0], [-1, 0, 1], [0.123456789012, -0.444444444444, 0.999999999999],
-  [0.00000001, -0.00000001, 0.00000002], [0.5 + Number.EPSILON, -0.5, 0.5 - Number.EPSILON]];
+  [0.00000001, -0.00000001, 0.00000002], [0.5 + Number.EPSILON, -0.5, 0.5 - Number.EPSILON], [-4, 0, 4]];
 const warnings = [], originalWarn = console.warn;
 try {
   console.warn = warning => warnings.push(String(warning));
@@ -33,7 +33,7 @@ try {
     }
   }
 } finally { console.warn = originalWarn; }
-assert.ok(warnings.length > 0, 'boundary cases exercise expected quantization-clamp diagnostics');
+assert.equal(warnings.length, 1, 'actual out-of-range inputs emit the bounded quantization-clamp diagnostic');
 assert.ok(warnings.every(warning => warning.startsWith('[embeddings] Quantization clamped')));
 for (const invalid of [NaN, Infinity, -Infinity, '1']) assert.throws(() => postprocessEmbeddingChannels({ codeVector: [invalid] }), /Non-finite/);
 assert.throws(() => postprocessEmbeddingChannels({ codeVector: [1, 2], docVector: [1] }), /dims mismatch/);

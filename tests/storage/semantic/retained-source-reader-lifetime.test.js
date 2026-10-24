@@ -85,9 +85,9 @@ try {
     restore();
   }
   for (const mode of ['excerpt', 'verify']) {
-    const states = install({ async stat(state, native) {
+    const states = install({ async read(state, native) {
       const result = await native();
-      if (state.stats === 1) await fs.appendFile(target, Buffer.alloc(4096, 120));
+      if (state.reads === 1) await fs.appendFile(target, Buffer.alloc(4096, 120));
       return result;
     } });
     await assert.rejects(run(mode), { code: 'ERR_SEMANTIC_INTEGRITY' },

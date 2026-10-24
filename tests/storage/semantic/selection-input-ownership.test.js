@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { normalizeIdentityPath } from '../../../src/workspace/identity.js';
 import Database from 'better-sqlite3';
 import { createRecoveryFixture, semanticNode } from '../../helpers/semantic-recovery.js';
 import { writeSemanticQueryIndex } from '../../../src/index/build/artifacts/writers/semantic/query-index.js';
@@ -38,12 +39,12 @@ try {
     directoryPrefix: 'semantic-operation-index-', schemaVersion: 2 });
   const artifact = f.store([partition], { queryIndex, operationIndex });
   const selector = { field: 'astKind', value: 'Identifier' };
-  const operationFiles = new Set(operationIndex.pieces.map(piece => path.resolve(f.stagingRoot, piece.path)));
+  const operationFiles = new Set(operationIndex.pieces.map(piece => normalizeIdentityPath(path.join(f.stagingRoot, piece.path))));
   let changes = 0;
   const handles = [];
   fs.open = async (file, ...args) => {
     const handle = await originalOpen.call(fs, file, ...args); handles.push(handle);
-    if (operationFiles.has(path.resolve(String(file)))) {
+    if (operationFiles.has(normalizeIdentityPath(String(file)))) {
       const nativeRead = handle.read;
       handle.read = function (...readArgs) {
         assert.equal(this, handle);

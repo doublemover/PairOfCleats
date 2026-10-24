@@ -25,6 +25,14 @@ await assert.rejects(settleEmbeddingCacheConsumers({ primary: abort,
     && errorGraphIncludes(error, pending));
 assert.deepEqual(attempts, ['compute', 'reader', 'shards'], 'one failed drain cannot strand other original cache owners');
 
+for (const primary of [undefined, null, false, 0, '']) {
+  await assert.rejects(settleEmbeddingCacheConsumers({ primary, primaryPresent: true,
+    compute: { drain: async () => { throw pending; } },
+    reader: { drain: async () => { throw Error('independent reader failure'); } } }),
+  error => errorGraphIncludes(error, primary) && errorGraphIncludes(error, pending),
+  'an explicitly present falsey work failure survives every cleanup observation');
+}
+
 let closes = 0, leaseReleases = 0;
 const native = { open: true, close() { closes++; if (closes === 1) throw Error('close pending'); this.open = false; return this; } };
 const lifetime = createTextDatabaseLifetime(native, { resourceId: 'fixture', releaseAfterSettlement() { leaseReleases++; } });

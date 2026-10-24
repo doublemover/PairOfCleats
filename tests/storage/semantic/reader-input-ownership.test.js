@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { normalizeIdentityPath } from '../../../src/workspace/identity.js';
 import { createRecoveryFixture, semanticNode } from '../../helpers/semantic-recovery.js';
 import { createSemanticSourceSnapshot } from '../../../src/index/semantic/source.js';
 import { createSyntaxPartitionId } from '../../../src/index/semantic/identity.js';
@@ -26,13 +27,13 @@ try {
     partitions, store: base, diskAccount: f.account });
   const store = f.store(partitions, { queryIndex });
   const duringRead = async (relative, run, mutate) => {
-    const target = path.resolve(f.stagingRoot, relative);
+    const target = normalizeIdentityPath(path.join(f.stagingRoot, relative));
     let changes = 0;
     const handles = [];
     fs.open = async (file, ...args) => {
       const handle = await originalOpen.call(fs, file, ...args);
       handles.push(handle);
-      if (path.resolve(String(file)) === target) {
+      if (normalizeIdentityPath(String(file)) === target) {
         const nativeRead = handle.read;
         handle.read = function (...readArgs) {
           assert.equal(this, handle);

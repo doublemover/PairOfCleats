@@ -23,6 +23,15 @@ try {
   const first = await observeProviderProfile(options);
   assert.equal(first.durable, true);
   assert.equal(providerProfileCacheIdentity(first, { providerId: options.providerId, adapterVersion: '1', repoRoot: root }), first.profileHash);
+  if (process.platform === 'win32') {
+    assert.equal(providerProfileCacheIdentity(first, { providerId: options.providerId, adapterVersion: '1',
+      repoRoot: root.toUpperCase() }), first.profileHash, 'Windows path casing cannot revoke an exact observed repository');
+    const caseAlias = await observeProviderProfile({ ...options,
+      resolvedCommand: [path.join(root.toUpperCase(), 'TOOL.BIN')] });
+    assert.equal(caseAlias.durable, true, 'resolved executable byte admission uses Windows path identity');
+  }
+  assert.equal(providerProfileCacheIdentity(first, { providerId: options.providerId, adapterVersion: '1',
+    repoRoot: root + '-sibling' }), null, 'case handling cannot admit a sibling repository');
   assert.ok(Object.isFrozen(first.tool.files[0]));
   assert.equal(await verifyProviderProfileReceipt(JSON.parse(JSON.stringify(first))), first.profileHash,
     'a serialized receipt needs a fresh bounded verification of every observed file');

@@ -35,7 +35,7 @@ try {
   delete env.PAIROFCLEATS_TRUSTED_CONFIG;
   for (const [digest, expectedStatus] of [[hash('new approved bytes'), 0], ['0'.repeat(64), 1]]) {
     const result = runNodeFixture(['tools/sqlite/verify-extensions.js', '--repo', dir,
-      '--path', file, '--sha256', digest, '--json', '--no-load'], 'isolated Node fixture', process.cwd(), process.env, { allowFailure: true, spawnOptions: {
+      '--path', file, '--sha256', digest, '--json', '--no-load'], 'isolated Node fixture', process.cwd(), process.env, { allowFailure: true, stdio: 'pipe', spawnOptions: {
       cwd: process.cwd(), env, encoding: 'utf8', timeout: 10000
     } });
     assert.equal(result.status, expectedStatus, result.stderr);
