@@ -12,6 +12,10 @@ export const SQLITE_ZERO_STATE_SCHEMA_VERSION = '1.1.0';
 const invalid = message => Object.assign(new Error(message), { code: 'ERR_SQLITE_ZERO_STATE' });
 const sha256 = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
 export const sqliteZeroStateChecksum = payload => sha256(stableStringify(payload));
+const sameSelectedPath = (sealed, selected) => typeof sealed === 'string'
+  && path.isAbsolute(sealed)
+  && path.relative(path.toNamespacedPath(path.resolve(sealed)),
+    path.toNamespacedPath(path.resolve(selected))) === '';
 
 /** Bind the waiver to selected source bytes, independently proving empty data. */
 export const resolveSqliteZeroStateSourceProof = async (indexDir, mode, { identityIndexDir = null } = {}) => {
@@ -83,11 +87,14 @@ export const validateSqliteZeroStateManifest = async ({ indexDir, mode, outputPa
   if (body.schemaVersion !== SQLITE_ZERO_STATE_SCHEMA_VERSION
     || body.artifactSurfaceVersion !== ARTIFACT_SURFACE_VERSION
     || body.mode !== mode || body.chunkCount !== 0 || body.denseCount !== 0
-    || body.indexDir !== path.resolve(indexDir) || body.outputPath !== path.resolve(outputPath)
+    || !sameSelectedPath(body.indexDir, indexDir) || !sameSelectedPath(body.outputPath, outputPath)
     || typeof checksum !== 'string' || checksum !== sqliteZeroStateChecksum(body)) {
     throw invalid('Zero-state marker schema, checksum, or mode identity is invalid.');
   }
-  const sourceProof = await resolveSqliteZeroStateSourceProof(indexDir, mode);
+  // Hash the producer's sealed spelling after proving it selects this directory.
+  // Windows observers may normalize case or add the extended-length namespace.
+  const sourceProof = await resolveSqliteZeroStateSourceProof(indexDir, mode,
+    { identityIndexDir: body.indexDir });
   if (body.sourceProof !== sourceProof) throw invalid('Zero-state source generation changed.');
   return true;
 };

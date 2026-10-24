@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { buildSqliteReport } from '../../../src/index/validate/sqlite-report.js';
 import { writeSqliteZeroStateManifest } from '../../../src/storage/sqlite/build/runner/config.js';
+import { validateSqliteZeroStateManifest, sqliteZeroStateChecksum } from '../../../src/storage/sqlite/zero-state.js';
 import { resolveSqlitePaths } from '../../../src/shared/dict-utils.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 const root = resolveTestCachePath(process.cwd(), `sqlite-zero-proof-${crypto.randomUUID()}`);
@@ -24,6 +25,24 @@ try {
   await fs.writeFile(path.join(indexDir, 'pieces', 'manifest.json'), JSON.stringify(manifest));
   await writeSqliteZeroStateManifest({ modeIndexDir: indexDir, mode: 'code', outputPath, chunkCount: 0, denseCount: 0 });
   assert.equal((await report()).ok, true, 'verified current empty sources waive DB checks');
+  const payload = JSON.parse(await fs.readFile(marker, 'utf8'));
+  if (process.platform === 'win32') {
+    assert.equal(await validateSqliteZeroStateManifest({
+      indexDir: path.toNamespacedPath(indexDir.toUpperCase()), mode: 'code',
+      outputPath: path.toNamespacedPath(outputPath.toUpperCase()), payload
+    }), true, 'Windows namespace and case normalization retain the exact sealed source proof');
+  }
+  const { checksum: _checksum, ...body } = payload;
+  for (const changes of [
+    { indexDir: path.join(root, 'other-index') },
+    { outputPath: path.join(root, 'other.db') },
+    { indexDir: path.relative(process.cwd(), indexDir) }
+  ]) {
+    const changed = { ...body, ...changes };
+    await assert.rejects(validateSqliteZeroStateManifest({ indexDir, mode: 'code', outputPath,
+      payload: { ...changed, checksum: sqliteZeroStateChecksum(changed) }
+    }), { code: 'ERR_SQLITE_ZERO_STATE' }, 'a re-signed marker cannot select another or relative path');
+  }
   manifest.buildId = 'B';
   await fs.writeFile(path.join(indexDir, 'pieces', 'manifest.json'), JSON.stringify(manifest));
   assert.equal((await report()).ok, false, 'stale source generation rejects prior marker');

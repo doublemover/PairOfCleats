@@ -98,14 +98,15 @@ const prepareConfigurationDirectory = async directory => {
   const firstCreated = await fs.mkdir(directory, { recursive: true });
   const owned = new Map();
   if (!firstCreated) return owned;
-  const boundary = path.resolve(firstCreated);
+  const boundary = path.toNamespacedPath(path.resolve(firstCreated));
   for (let current = directory; ; current = path.dirname(current)) {
     assertNoSymlinkPath(path.parse(current).root, current);
     const stat = await fs.lstat(current, { bigint: true });
     if (!stat.isDirectory()) throw new Error('Configuration metadata ancestor is not a directory.');
     owned.set(current, storageFileIdentity(stat));
-    if (path.relative(boundary, current) === '') break;
-    if (!isPathWithinRoot(current, boundary) || path.dirname(current) === current) {
+    const ownerPath = path.toNamespacedPath(current);
+    if (path.relative(boundary, ownerPath) === '') break;
+    if (!isPathWithinRoot(ownerPath, boundary) || path.dirname(current) === current) {
       throw new Error('Configuration directory preparation escaped its created owner.');
     }
   }
