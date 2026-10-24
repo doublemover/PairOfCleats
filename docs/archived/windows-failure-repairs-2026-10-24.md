@@ -1089,3 +1089,32 @@ positive now explicitly forwards only the helper-granted disposable root and
 restores the parent grant in finally. No global trust preservation, security
 setting, arbitrary command authorization or untrusted-provider relaxation is
 introduced. The existing tooling-source assertions and trust negatives remain.
+
+The four-case follow-up at `ef0ecda4677c097dfa4be85c0a7297fdf894f4dc`
+passed three and failed the full Sublime matrix, with no timeouts/skips/crashes.
+Swift tooling enrichment, SourceKit passive/trust controls and qualified
+navigation lifetime passed. Eighty-two original failures have passing closure;
+18 remain. Aggregating the editor matrix exposed five older helper groups,
+including missing current-source hashes, no selected settings repository, stale
+search/cursor mocks, missing headless host modules and PID-less termination
+expectations. Those helpers now retain actual host/source contracts. Inert
+runner-state positives explicitly select their controlled tree owner, and an
+unconfirmed-tree negative preserves cleanup_unconfirmed after parent exit.
+These are unit controls, not native Windows descendant-reaping qualification.
+
+One intrusive filesystem profiling attempt changed descriptor observations and
+is discarded as runtime evidence. Passive Node FS trace and CPU profiles retained
+the original API build timeout. They show substantial synchronous path checks
+and stage snapshot publication work. API report/join fixtures do not consume
+completed-stage recovery snapshots: the normal stage1 pipeline runs their same
+explicit eager compiler binding pass and ordinary generation publication. They
+now select that production stage while explicitly preserving native parser
+selection, original source fixtures, positive/negative joins, and unchanged
+10-second build/5-second CLI bounds. SSR witnesses likewise select ordinary
+stage1 publication for typed-array snapshot/MessageChannel semantics; their
+rich eager analysis and existing backend selection are unchanged, and the
+general published-witness helper retains its stage2 default. Existing real
+stage2 SQLite, recovery and copy-owner controls remain separate. No production
+path/ownership validation, stage2 implementation or deadline was weakened.
+These scope refinements await full affected-case validation; no speedup or
+passing observation is inferred from diagnostic profiles.

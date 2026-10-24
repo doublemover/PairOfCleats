@@ -1,5 +1,6 @@
 import importlib
 import copy
+import hashlib
 import json
 import os
 import sys
@@ -156,6 +157,8 @@ class AnalysisBehaviorTests(unittest.TestCase):
             action_command.run(source='context_pack', hit_index=2, action='open')
             opened = self.window.opened_files[-1]['path'].replace('\\', '/')
             self.assertIn('src/util.js:7', opened)
+            self.assertTrue(self.window.opened_files[-1]['view'].regions.get(self.results.HIGHLIGHT_KEY),
+                            'the source-hash-qualified range is highlighted after opening')
 
     def test_risk_explain_panel_reopen_and_actions(self):
         command = self.analysis.PairOfCleatsRiskExplainCommand(self.window)
@@ -180,6 +183,7 @@ class AnalysisBehaviorTests(unittest.TestCase):
         action_command.run(source='risk_explain', hit_index=2, action='open_new_group')
         opened = self.window.opened_files[-1]['path'].replace('\\', '/')
         self.assertIn('src/util.js:7', opened)
+        self.assertTrue(self.window.opened_files[-1]['view'].regions.get(self.results.HIGHLIGHT_KEY))
         self.assertEqual(self.window.current_group, 1)
 
     def test_risk_seed_kinds_use_canonical_code_generation(self):
@@ -413,8 +417,24 @@ class AnalysisBehaviorTests(unittest.TestCase):
             'title': title,
         })
         payload = self._payload_for_args(args)
+        self._capture_source_hashes(payload)
         if on_done:
             on_done(_FakeResult(payload))
+
+    def _capture_source_hashes(self, value):
+        if isinstance(value, dict):
+            filename = value.get('file')
+            if isinstance(filename, str):
+                source = os.path.join(self.fixture_repo, filename)
+                if os.path.isfile(source):
+                    with open(source, 'rb') as handle:
+                        value['sourceHash'] = hashlib.sha256(handle.read()).hexdigest()
+                    value['coordinateUnit'] = 'utf16'
+            for child in value.values():
+                self._capture_source_hashes(child)
+        elif isinstance(value, list):
+            for child in value:
+                self._capture_source_hashes(child)
 
     def _validate_settings(self, _settings, _repo_root, workflow=None):
         self.validation_calls.append(workflow)
@@ -447,7 +467,7 @@ class AnalysisBehaviorTests(unittest.TestCase):
                                 {
                                     'file': 'src/util.js',
                                     'startLine': 7,
-                                    'endLine': 9,
+                                    'endLine': 7,
                                     'headline': 'helper use',
                                     'section': 'code',
                                 },

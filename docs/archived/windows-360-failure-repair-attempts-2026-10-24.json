@@ -44,8 +44,8 @@
     },
     "followUpClosure": {
       "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
-      "originalFailuresMovedToPassing": 81,
-      "originalFailuresWithoutPassingClosure": 19,
+      "originalFailuresMovedToPassing": 82,
+      "originalFailuresWithoutPassingClosure": 18,
       "additionalObservedFailuresOutsideOriginal100": []
     }
   },
@@ -482,8 +482,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 682,
       "latestRecheckStatus": "passed",
-      "latestRecheckSourceHead": "5459d486ee55b6558af99e270396c2c67058cbbd",
-      "latestRecheckDurationMs": 640
+      "latestRecheckSourceHead": "ef0ecda4677c097dfa4be85c0a7297fdf894f4dc",
+      "latestRecheckDurationMs": 628
     },
     {
       "id": "tooling/sublime/semantic-source-lifetime",
@@ -3721,8 +3721,8 @@
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 2189,
       "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "5459d486ee55b6558af99e270396c2c67058cbbd",
-      "latestRecheckDurationMs": 1666
+      "latestRecheckSourceHead": "ef0ecda4677c097dfa4be85c0a7297fdf894f4dc",
+      "latestRecheckDurationMs": 6177
     },
     {
       "id": "tooling/sublime/extended-editor-workflows",
@@ -5741,7 +5741,10 @@
       "finalBatchStatus": "pending",
       "recheckStatus": "failed",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
-      "recheckDurationMs": 16432
+      "recheckDurationMs": 16432,
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "ef0ecda4677c097dfa4be85c0a7297fdf894f4dc",
+      "latestRecheckDurationMs": 17452
     },
     {
       "id": "indexing/type-inference/providers/type-inference-sourcekit-provider-no-sourcekit",

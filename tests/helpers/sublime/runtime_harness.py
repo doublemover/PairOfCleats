@@ -81,6 +81,9 @@ class FakeView:
         FakeView._next_id += 1
         self._change_count = 0
         self._valid = True
+        self._dirty = False
+        self._loading = False
+        self.shown = []
         self._file_name = file_name
         self._settings = FakeSettings()
         self.appended = ''
@@ -95,6 +98,15 @@ class FakeView:
 
     def file_name(self):
         return self._file_name
+
+    def is_dirty(self):
+        return self._dirty
+
+    def is_loading(self):
+        return self._loading
+
+    def show(self, region):
+        self.shown.append(region)
 
     def id(self):
         return self._id
@@ -229,7 +241,22 @@ class FakeWindow:
         return view
 
     def open_file(self, encoded_path, flags=0):
-        view = FakeView(encoded_path.split(':', 1)[0])
+        filename = encoded_path
+        # Encoded positions follow the path; a Windows drive colon is not a
+        # position delimiter. Preserve the actual source loaded by the host.
+        for _ in range(2):
+            head, separator, tail = filename.rpartition(':')
+            if separator and tail.isdigit():
+                filename = head
+            else:
+                break
+        text = ''
+        try:
+            with open(filename, encoding='utf-8') as handle:
+                text = handle.read()
+        except (OSError, UnicodeError):
+            pass
+        view = FakeView(filename, text)
         view.set_window(self)
         self.opened_files.append({'path': encoded_path, 'flags': flags, 'view': view})
         self._active_view = view

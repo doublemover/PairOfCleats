@@ -7,7 +7,7 @@ from unittest import mock
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-from runtime_harness import FakeWindow, install_fake_modules
+from runtime_harness import FakeWindow, install_fake_modules, isolated_temp_directory
 
 
 class SettingsBehaviorTests(unittest.TestCase):
@@ -20,6 +20,10 @@ class SettingsBehaviorTests(unittest.TestCase):
     def setUp(self):
         self.sublime.reset()
         self.window = FakeWindow()
+        temporary = isolated_temp_directory()
+        self.repo = temporary.__enter__()
+        self.addCleanup(temporary.__exit__, None, None, None)
+        self.window.set_folders([self.repo])
         self.sublime.set_active_window(self.window)
         settings = self.sublime.load_settings(self.config.SETTINGS_FILE)
         settings.set('search_limit', 33)
