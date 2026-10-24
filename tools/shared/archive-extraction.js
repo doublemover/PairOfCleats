@@ -239,6 +239,9 @@ async function extractTarNode(archivePath, destDir, gzip, limits, owner) {
   const tasks = new Set();
   let stopped = false;
   extract.on('entry', (header, stream, next) => {
+    // The source can fail while an entry is awaiting mkdir, before its write
+    // pipeline subscribes. Retain that error now and still drain the task.
+    stream.on('error', value => { stopped = true; owner.record(value); });
     if (stopped) { stream.resume(); return; }
     const task = (async () => {
       const rawName = header?.name || '', type = header?.type || 'file';

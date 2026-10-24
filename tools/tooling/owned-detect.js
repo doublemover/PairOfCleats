@@ -136,7 +136,7 @@ const detectToolOwnedSelected = async (tool, { signal = null, env = process.env 
       try { return release(); }
       catch (error) { observePending(error); throw retainFailure(firstFailure || error, error, { secondaryPresent: true }); }
     } });
-  const retainFailure = (value, secondary = null, { secondaryPresent = secondary !== null && secondary !== undefined,
+  const retainFailure = (value, secondary, { secondaryPresent = secondary !== null && secondary !== undefined,
     secondaryField = 'managedProbeReleaseError' } = {}) => {
     const error = asError(value);
     if (!firstFailure) firstFailure = error;
