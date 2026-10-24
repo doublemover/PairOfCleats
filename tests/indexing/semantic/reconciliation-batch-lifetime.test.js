@@ -39,9 +39,10 @@ const partitions = Array.from({ length: 8 }, (_, index) => {
     async *iterateRows(id, member) {
       if (member !== 'semantic_sources') return;
       admitted.add(id); active++; highWater = Math.max(highWater, active);
+      if (active === 4) held.resolve();
       try {
         if (id === partitions[0].partitionId) { await held.promise; throw failure; }
-        held.resolve(); await release.promise; yield source;
+        await release.promise; yield source;
       } finally { active--; closed.add(id); if (id === partitions[0].partitionId) failed.resolve(); }
     },
     async verifySource() {}
@@ -50,6 +51,7 @@ const partitions = Array.from({ length: 8 }, (_, index) => {
     () => { settled = true; return null; }, error => { settled = true; return error; });
   try {
     await failed.promise;
+    await new Promise(resolve => setImmediate(resolve));
     assert.equal(settled, false, 'failure must wait for independently held original iterators');
     assert.equal(highWater, 4, 'the validation owner admits at most four partition readers');
   } finally { release.resolve(); }

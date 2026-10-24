@@ -32,6 +32,11 @@ try {
     searchHistory(db, { query: 'cobalt', top: 3 });
     assert.equal(db.inTransaction, true, 'an existing caller transaction remains owned by its caller');
   })();
+  const generationRef = historyIndexState(db).generationRef;
+  assert.equal(searchHistory(db, { query: 'cobalt', top: 3, expectedGeneration: generationRef }).hits.length, 3);
+  for (const expectedGeneration of ['f'.repeat(64), null, 'invalid']) {
+    assert.throws(() => searchHistory(db, { query: 'cobalt', expectedGeneration }), { code: 'ERR_INFERENCE_HISTORY_STALE' });
+  }
   const semantic = { kind: 'local', indexGenerationRef: historyIndexState(db).generationRef,
     modelId: 'synthetic-no-model', modelVersion: '1', dimensions: 2,
     async search() { return { candidates: [], complete: true }; } };

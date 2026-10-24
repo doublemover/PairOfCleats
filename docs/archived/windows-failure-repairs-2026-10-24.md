@@ -1223,3 +1223,26 @@ selects that actual stage1 cold setup through the same public binary/supervisor.
 The original 15-second bound, code/prose inputs, traced descendant assertions
 and immediate removal remain. This fixture does not qualify stage2 semantics;
 the existing API and SSR stage2 cases retain their strict independent checks.
+
+The 13-case run at `fd4b37d1ff332863b704f81f7b154e6796089f3f` passed
+five and failed eight, including two SSR timeouts, without skips/native crashes.
+The real stage1 parity cold setup passed its unchanged 15-second bound (12.0s),
+and the TypeScript clean qualified-target CLI passed. Original closure is 93;
+seven remain. The new reconciliation regression's initial barrier released the
+first failure when only two readers had started, so its exact-four assertion
+was invalid. Its barrier now waits for all four admitted readers, then gives the
+queue one event-loop turn to observe failure before releasing held iterators.
+No production reader-bound failure or latency improvement is inferred from that
+fixture synchronization mistake. Four export-identity builds still abort before
+graph-capability reconciliation begins; parallel reconciliation does not resolve
+that earlier snapshot-copy/publication cost. SSR still exceeds 30 seconds.
+
+History's full-detail budget negative and 100-record positive now pass, exposing
+the next original negative: direct hybrid search ignored expectedGeneration and
+returned a successful stale request. The actual service had a guard; the shared
+retrieval entry points did not. Generation admission is centralized in the existing
+generation owner and reused by service, lexical and hybrid reads. Lexical admission
+runs inside its retained snapshot. Correct pins remain positive, malformed/null
+and mismatched pins remain stale errors, and original cursor negatives remain.
+The unmodified negative at fd4b37d1f is fail-before evidence; repaired-source
+acceptance remains pending.

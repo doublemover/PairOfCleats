@@ -1,7 +1,7 @@
 import { historyError } from './common.js';
 import { runHistoryCallback } from './bounded-callback.js';
 import { READ_GUARDS, searchHistory, readHistoryCandidates } from './reader.js';
-import { historyIndexState } from './generation.js';
+import { historyIndexState, assertHistoryExpectedGeneration } from './generation.js';
 import { fuseHistoryRanks, applyHistoryRerank } from './ranking.js';
 const key=row=>JSON.stringify([row.sourceRef,row.snapshotRef]);
 export async function searchHybridHistory(db,request,semantic,reauthorize) {
@@ -11,6 +11,7 @@ export async function searchHybridHistory(db,request,semantic,reauthorize) {
   const bodySurface=(request.searchField??'text')==='text';
   const effectiveMode=mode==='auto'?(semantic&&bodySurface?'hybrid':'lexical'):mode;
   if(effectiveMode!=='lexical'&&!bodySurface)throw historyError('ERR_INFERENCE_HISTORY_INPUT','Semantic retrieval requires text evidence; select lexical mode for explicit metadata fields.');
+  const state=assertHistoryExpectedGeneration(db,request.expectedGeneration);
   if (effectiveMode==='lexical') {
     if(request.rerank===true)throw historyError('ERR_INFERENCE_HISTORY_UNAVAILABLE','Reranking requires a configured local semantic reranker.');
     const result=searchHistory(db,request);
@@ -23,7 +24,6 @@ export async function searchHybridHistory(db,request,semantic,reauthorize) {
     'Hybrid and semantic search support offsets within one bounded candidate pool, not lexical continuation tokens.');
   if (!semantic || semantic.kind!=='local') throw historyError('ERR_INFERENCE_HISTORY_UNAVAILABLE','Local semantic index not configured.');
   if (request.rerank===true && typeof semantic.rerank!=='function') throw historyError('ERR_INFERENCE_HISTORY_UNAVAILABLE','Local reranker not configured.');
-  const state=historyIndexState(db);
   if (semantic.indexGenerationRef!==state.generationRef) throw historyError('ERR_INFERENCE_HISTORY_STALE','Semantic index requires refresh.');
   const candidateLimit=request.candidateLimit ?? 50,top=request.top ?? 10,offset=request.offset ?? 0;
   if (!Number.isSafeInteger(candidateLimit) || candidateLimit<1 || candidateLimit>100

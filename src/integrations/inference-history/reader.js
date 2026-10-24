@@ -1,5 +1,5 @@
 import { archiveAnalyzerFor } from './lexical-analyzer.js';
-import { historyIndexState } from './generation.js';
+import { historyIndexState, assertHistoryExpectedGeneration } from './generation.js';
 import { historyPrivacy, privacyText, privacyNode } from './privacy.js';
 import { HISTORY_SEARCH_VERSION, parseHistoryQuery, matchesHistoryQuery, matchesHistoryHardConstraints } from './query.js';
 import { hashCanonicalJson, normalizeTimestamp } from './normalize.js';
@@ -232,6 +232,7 @@ function searchHistorySnapshot(db, request) {
   if (role !== null && !['user', 'assistant', 'artifact'].includes(role)) throw invalid();
   const from = dateBound(request.dateFrom, false), to = dateBound(request.dateTo, true);
   if (from && to && from > to) throw invalid();
+  const index = assertHistoryExpectedGeneration(db, request.expectedGeneration);
   const envelope = { query: { version: HISTORY_SEARCH_VERSION, original: request.query, tokens,
     excluded: parsed.excluded, phrases: parsed.phrases, effectiveMatch: matchMode,
     semantics: matchMode === 'strict' ? 'literal_word_AND' : 'literal_word_OR_with_required_phrases_and_exclusions',
@@ -244,7 +245,7 @@ function searchHistorySnapshot(db, request) {
   let query = tokens.map(token => `"${token}"`).join(matchMode === 'strict' ? ' AND ' : ' OR ');
   // Exact phrases are enforced on preserved text, not alias-expanded FTS positions.
   const namespace = db.prepare("SELECT value FROM vault_meta WHERE key='reference_key'").get().value;
-  const generation = historyIndexState(db).generationRef;
+  const generation = index.generationRef;
   const queryKey = digest(JSON.stringify([request.query,matchMode,top,snippetChars,role,from,to,pathState,request.snapshotRef ?? null,request.includeHistory === true,searchField,groupBy]));
   const signature = start => privateReference(namespace, JSON.stringify([start,queryKey,generation,matchMode]));
   let candidateStart = 0;

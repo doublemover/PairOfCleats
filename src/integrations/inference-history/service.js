@@ -16,7 +16,7 @@ import { normalizeMemberLinks } from './member-links.js';
 import { READ_GUARDS, createVisibleNodeReader, readVisibleContext, readHistoryReferences } from './reader.js';
 import { openHistoryStore, openMemoryHistoryStore, openLocalArchiveStore } from './store.js';
 import { searchHybridHistory } from './hybrid.js';
-import { historyIndexState, advanceHistoryGeneration } from './generation.js';
+import { historyIndexState, advanceHistoryGeneration, assertHistoryExpectedGeneration } from './generation.js';
 import { correlateAuthorizedCode, validateCodeAccess } from './correlation.js';
 import { ADAPTER_VERSION, PROJECTION_VERSION, DEFAULT_LIMITS, digest, privateReference, historyError, projectHistoryText, redactHistoryText, resolveLimits } from './common.js';
 
@@ -97,9 +97,7 @@ export function createInferenceHistoryService({ vaultRoot, resolveAccess, resolv
         if(!memoryStores.has(partitionKey)){const memory=localIndexPath?await openLocalArchiveStore(localIndexPath,partitionKey,{lexical}):openMemoryHistoryStore(partitionKey,{lexical}),close=memory.close.bind(memory);memory.close=()=>{};memoryStores.set(partitionKey,{db:memory,close});}
         db=memoryStores.get(partitionKey).db;
       }else db = await openHistoryStore(vaultRoot, partitionKey, { create, verifyPrivateVault, lexical });
-      const initialIndex = historyIndexState(db);
-      if (request.expectedGeneration !== undefined && (!opaqueId(request.expectedGeneration)
-        || request.expectedGeneration !== initialIndex.generationRef)) throw historyError('ERR_INFERENCE_HISTORY_STALE', 'Index generation changed.');
+      const initialIndex = assertHistoryExpectedGeneration(db, request.expectedGeneration);
       const result = await operation(db, access, () => recheck(access, request));
       if(result && typeof result==='object') result.index=historyIndexState(db);
       await persistAudit(historyAuditEvent(request,access,'allowed',result));
