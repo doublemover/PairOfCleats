@@ -4,6 +4,7 @@ import path from 'node:path';
 import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
 import { registerToolingProvider, TOOLING_PROVIDERS } from '../../../src/index/tooling/provider-registry.js';
 import { createLspProviderTempRepo } from '../../helpers/lsp-provider-fixture.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 
 // Authored actual replay-consumer regression; deferred to lead validation.
 const saved = new Map(TOOLING_PROVIDERS);
@@ -29,7 +30,7 @@ try {
   assert.equal((await runToolingProviders(ctx, request(base))).byChunkUid.get(chunkUid).payload.returnType, 'First');
   await runToolingProviders(ctx, request(base));
   assert.equal(calls, 1, 'control proves a real persisted cache hit');
-  const files = await fs.readdir(ctx.cache.dir);
+  const files = await fs.readdir(path.join(ctx.cache.dir, 'format-' + ARTIFACT_SURFACE_VERSION));
   assert.ok(files.some(file => file.includes('tooling-provider_lk5_')));
   const edited = { ...base, text: 'other' };
   assert.equal((await runToolingProviders(ctx, request(edited))).byChunkUid.get(chunkUid).payload.returnType, 'Second');

@@ -20,6 +20,9 @@ export const createStaleProcessRestartHarness = () => {
   const startAfterSettlement = async () => {
     assert.equal((await client.waitForResourceSettlement()).settled, true,
       'actual child close and original tree cleanup must both finish before restart');
+    const backoff = lifecycleEvents.findLast(event => event.backoffMs > 0);
+    const remaining = backoff ? Math.max(0, backoff.at + backoff.backoffMs - Date.now()) : 0;
+    if (remaining) await new Promise(resolve => setTimeout(resolve, remaining));
     return client.start();
   };
 

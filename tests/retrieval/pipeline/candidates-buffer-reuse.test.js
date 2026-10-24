@@ -15,12 +15,13 @@ const scoreBufferPool = createScoreBufferPool({ maxBuffers: 2, maxEntries: 100 }
 
 const pipeline = createSearchPipelineFixture({
   annDiscovery: 'lexical-rerank',
+  annEnabled: true,
   sqliteFtsWeights: null,
   postingsConfig: {
-    enablePhraseNgrams: false,
+    enablePhraseNgrams: true,
     enableChargrams: false,
-    phraseMinN: 2,
-    phraseMaxN: 3,
+    phraseMinN: 1,
+    phraseMaxN: 1,
     chargramMinN: 3,
     chargramMaxN: 3
   },
@@ -50,18 +51,22 @@ const idx = createAlphaSearchIndex({
     avgDocLen: 1.5
   }
 });
+idx.phraseNgrams = { vocab: ['alpha'], postings: [[0, 1]] };
 
 const cases = [
   {
     name: 'pipeline reuse avoids new candidate and score buffer allocations',
     async run() {
-      await pipeline(idx, 'code', null);
+      const first = await pipeline(idx, 'code', null);
+      assert.equal(first.length, 2, 'the indexed alpha candidates reach retrieval');
       const allocationsAfterFirst = {
         candidate: candidatePool.stats.allocations,
         score: scoreBufferPool.stats.allocations
       };
 
-      await pipeline(idx, 'code', null);
+      const second = await pipeline(idx, 'code', null);
+      assert.deepEqual(second.map(hit => [hit.id, hit.score]), first.map(hit => [hit.id, hit.score]),
+        'pool reuse preserves the same indexed results and scores');
 
       assert.ok(candidatePool.stats.reuses > 0, 'expected candidate pool reuse');
       assert.ok(scoreBufferPool.stats.reuses > 0, 'expected score buffer reuse');

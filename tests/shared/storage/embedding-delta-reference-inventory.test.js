@@ -12,7 +12,7 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 
 const temporary = await makeTempDir('poc-storage-embedding-delta-');
 try {
-  const { identity, key } = buildCacheIdentity({ provider: 'stub', modelId: 'storage-fixture', dims: 2 });
+  const { identity, key } = buildCacheIdentity({ provider: 'stub', modelId: 'storage-fixture', dims: 2, stub: true });
   const global = resolveGlobalChunkCacheDir(temporary, identity);
   const files = resolveCacheDir(temporary, identity, 'code');
   const chunkKey = 'a'.repeat(40);

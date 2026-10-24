@@ -32,9 +32,11 @@ try {
   assert.equal(preview.totals.repos, 1, 'quota accounting includes only the requested repository');
   assert.deepEqual(preview.removals.map(entry => entry.id), [path.basename(caches[0].cache)]);
   assert.equal(await fs.readFile(path.join(caches[1].cache, 'data'), 'utf8'), 'repo-b');
-  const applied = await cacheGc({ repoPath: caches[0].repo, maxBytes: 0, dryRun: false });
+  await assert.rejects(cacheGc({ repoPath: caches[0].repo, maxBytes: 0, dryRun: false }),
+    { code: 'INVALID_REQUEST' }, 'MCP requires an explicit positive cleanup limit');
+  const applied = await cacheGc({ repoPath: caches[0].repo, maxBytes: 1, dryRun: false });
   assert.equal(applied.ok, true);
-  assert.equal(applied.quotaSatisfied, true, 'explicit zero byte quota is distinct from omitted limits');
+  assert.equal(applied.quotaSatisfied, true, 'the positive byte quota removes only the selected oversized cache');
   assert.deepEqual(applied.removals.map(entry => entry.id), [path.basename(caches[0].cache)]);
   await assert.rejects(fs.stat(caches[0].cache), { code: 'ENOENT' });
   assert.equal(await fs.readFile(path.join(caches[1].cache, 'data'), 'utf8'), 'repo-b');
