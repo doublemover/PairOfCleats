@@ -4,7 +4,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { assertNoSymlinkPath, readVerifiedContainedFile, withContainedFile } from '../../shared/contained-file.js';
-import { resolveArtifactPath, resolveArtifactIdentityPath } from '../../shared/artifact-io/contained-path.js';
+import { assertArtifactFilePath, resolveArtifactPath, resolveArtifactIdentityPath } from '../../shared/artifact-io/contained-path.js';
 import { atomicWriteChunks } from '../../shared/io/atomic-write.js';
 import { sha256File } from '../../shared/hash.js';
 import { throwIfAborted } from '../../shared/abort.js';
@@ -46,7 +46,6 @@ const inventoryStageOutputUsing = async ({ buildRoot, buildId, mode, signal, sel
     // The unpublished copy checks this exact digest against its actual held
     // source bytes before any completion descriptor can be published. Ordinary
     // inventory/reuse verification still rehashes every physical member.
-    if (pinned) resolveArtifactPath(outDir, piece.path);
     const hash = pinned ? pinned[1].toLowerCase() : await sha256File(filename, { containedRoot: outDir, signal });
     bytes += piece.bytes;
     if (!Number.isSafeInteger(bytes)) throw stageFailure('Completed-stage byte total exceeds safe integer range.');
@@ -63,11 +62,12 @@ export const inventoryStageOutputForCopy = options => inventoryStageOutputUsing(
 /** Copy one admitted mode member through the existing contained reader and
  * durable atomic writer. The target is an owned generation, never a hardlink.
  */
-const copyStageMemberUsing = async ({ sourceRoot, targetRoot, part, signal, assertOwned, createOnly = true }, writeChunks) => {
+const copyStageMemberUsing = async ({ sourceRoot, targetRoot, part, signal, assertOwned, createOnly = true }, writeChunks,
+  resolveTarget = resolveArtifactPath) => {
   throwIfAborted(signal); assertOwned();
   // The contained reader admits the source at open, and the atomic writer
   // creates target parents before its existing lease/path commit recheck.
-  const source = resolveArtifactIdentityPath(sourceRoot, part.path), target = resolveArtifactPath(targetRoot, part.path, { allowMissing: true });
+  const source = resolveArtifactIdentityPath(sourceRoot, part.path), target = resolveTarget(targetRoot, part.path, { allowMissing: true });
   await withContainedFile(sourceRoot, source, async descriptor => {
     const before = await descriptor.stat();
     if (!before.isFile() || before.size !== part.bytes) throw stageFailure('Sealed mode member changed size.');
@@ -111,7 +111,9 @@ export const copyUnpublishedStageMembers = async ({ inventory, sourceRoot, targe
   const parents = new Map();
   for (const part of inventory) {
     throwIfAborted(signal);
-    const target = resolveArtifactPath(targetRoot, part.path, { allowMissing: true });
+    // Planning compares labels only. Each parent is admitted at creation below,
+    // and each file is physically admitted by its writer at actual open/use.
+    const target = resolveArtifactIdentityPath(targetRoot, part.path);
     if (!parents.has(path.dirname(target))) parents.set(path.dirname(target), { target, identity: null });
   }
   for (const [parent, entry] of parents) {
@@ -124,7 +126,7 @@ export const copyUnpublishedStageMembers = async ({ inventory, sourceRoot, targe
   }
   const writeChunks = async (target, produce, options) => {
     throwIfAborted(signal); assertOwned();
-    assertNoSymlinkPath(targetRoot, target, { allowMissing: true });
+    assertArtifactFilePath(targetRoot, target, { allowMissing: true });
     const parent = parents.get(path.dirname(target));
     assertDirectoryIdentity(await fs.stat(path.dirname(target), { bigint: true }), parent.identity);
     const handle = await fs.open(target, 'wx');
@@ -132,7 +134,7 @@ export const copyUnpublishedStageMembers = async ({ inventory, sourceRoot, targe
     await owner.run(async descriptor => {
       const initial = persistenceFileIdentity(await descriptor.stat({ bigint: true }));
       if (initial.size !== '0') throw stageFailure('Unpublished stage member was not exclusively created empty.');
-      assertNoSymlinkPath(targetRoot, target);
+      assertArtifactFilePath(targetRoot, target);
       assertPersistenceFileIdentity(await fs.lstat(target, { bigint: true }), initial);
       let written = 0;
       const write = async bytes => {
@@ -161,7 +163,7 @@ export const copyUnpublishedStageMembers = async ({ inventory, sourceRoot, targe
   };
   await runWithSettledConcurrency(inventory, 4, part => copyStageMemberUsing({
     sourceRoot, targetRoot, part, signal, assertOwned, createOnly: true
-  }, writeChunks), { signal });
+  }, writeChunks, resolveArtifactIdentityPath), { signal });
   await runWithSettledConcurrency([...parents.values()], 4,
     async entry => { assertOwned(); await syncParentDirectory(entry.target, { expectedParent: entry.identity }); }, { signal });
 };

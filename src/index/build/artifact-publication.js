@@ -5,6 +5,8 @@ import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { toPosix } from '../../shared/file-paths.js';
 import { assertArtifactFilePath, resolveArtifactPath, resolveArtifactIdentityPath } from '../../shared/artifact-io/contained-path.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
+import { observeStorageResource } from '../../shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../shared/storage/operation-error.js';
 
 export const ARTIFACT_PUBLICATION_SCHEMA_VERSION = 1;
 export const ARTIFACT_PUBLICATION_FAMILY_CONTRACTS_VERSION = 1;
@@ -26,6 +28,26 @@ const ensureCommittedPieceEntries = (pieceEntries) => {
     typeof entry?.path !== 'string' || !entry.path || typeof entry?.name !== 'string' || !entry.name
   ))) throw new Error('[artifact-publication] invalid committed piece identity.');
   return pieceEntries;
+};
+
+/** Each small batch drains before yielding ordered observations. Consumer
+ * diagnostics may fail without stranding native work or admitting another
+ * batch. Only four queue entries exist, even for a large piece inventory.
+ */
+const statCommittedArtifacts = async function* (values, resolvePath) {
+  if (!values.length) return;
+  // Read-only path/status consumers need not eagerly load the queue runtime.
+  const { runWithSettledConcurrency } = await import('../../shared/concurrency/run-with-queue.js');
+  for (let start = 0; start < values.length; start += 4) {
+    yield await runWithSettledConcurrency(values.slice(start, start + 4), 4, async value => {
+      const filename = resolvePath(value);
+      try { await fs.stat(filename); return { value, failed: false }; }
+      catch (error) {
+        observeStorageResource(error, { phase: 'artifact-publication-stat' }).requireSettled();
+        return { value, failed: true, error };
+      }
+    }, { collectResults: true });
+  }
 };
 
 export const resolveCommittedArtifactPaths = ({
@@ -151,16 +173,11 @@ export const validateArtifactPublicationGeneration = async ({
     });
   }
   const missingCommittedPaths = [];
-  for (const entry of committedPieceEntries) {
-    const resolvedPath = resolveArtifactPath(outDir, entry.path);
-    try {
-      await fs.stat(resolvedPath);
-    } catch (error) {
-      missingCommittedPaths.push({
-        path: entry.path,
-        message: error?.message || String(error)
-      });
-    }
+  for await (const batch of statCommittedArtifacts(committedPieceEntries, entry => resolveArtifactPath(outDir, entry.path))) {
+    for (const { value: entry, failed, error } of batch) if (failed) missingCommittedPaths.push({
+      path: entry.path,
+      message: error?.message || String(error)
+    });
   }
   const missingManifestEntries = committedPieceEntries
     .filter((entry) => !manifestByPath.has(entry.path))
@@ -272,16 +289,17 @@ export const writeArtifactPublicationRecord = async ({
     pieceEntries: committedPieceEntries,
     manifestPath: resolvedManifestPath
   });
-  for (const requiredPath of requiredPaths) {
-    try {
-      await fs.stat(requiredPath);
-    } catch (error) {
+  for await (const batch of statCommittedArtifacts(requiredPaths, filename => filename)) {
+    let failure = null;
+    for (const { value: requiredPath, failed, error } of batch) if (failed) {
       const rel = toPosix(path.relative(buildRoot, requiredPath));
-      throw new Error(
+      const current = new Error(
         `[artifact-publication] cannot publish ${mode}: missing committed artifact ${rel} `
         + `(${error?.message || error})`, { cause: error }
       );
+      failure = failure ? addStorageFailureContext(failure, {}, current, { secondaryPresent: true }) : current;
     }
+    if (failure) throw failure;
   }
   const payload = {
     schemaVersion: ARTIFACT_PUBLICATION_SCHEMA_VERSION,

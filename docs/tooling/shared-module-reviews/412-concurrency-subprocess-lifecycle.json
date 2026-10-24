@@ -139,7 +139,7 @@
     },
     {
       "path": "src/shared/concurrency/run-with-queue.js",
-      "consumerCount": 22,
+      "consumerCount": 24,
       "classifications": [
         "keep",
         "document",

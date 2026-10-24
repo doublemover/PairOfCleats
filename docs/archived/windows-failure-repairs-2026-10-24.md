@@ -1344,3 +1344,31 @@ Unknown/dirty records use the existing exact dirty-file byte inventory and final
 membership/revision checks. Identity fields/meaning remain unchanged; no receipt,
 branch, dirty-byte or native readiness authority is fabricated. This is a process
 work reduction, not yet a claimed production latency result.
+
+At `bba77ee0baaed14572b6a08b36e2769b8313cbcb`, seven of eleven focused
+cases passed, with four export-identity failures and zero timeouts/skips/crashes.
+Both original SSR witnesses now pass, including exact cold/warm forward content,
+artifact/SQLite parity and owned directory cleanup, under unchanged 30-second
+bounds. Original closure is 96; only the four export CLI cases remain. The real
+producer check confirms two clean Git processes. A separate single observation
+measured 240.3ms versus the earlier 495.6ms diagnostic; this is not a production
+throughput or platform latency qualification.
+
+Next, redundant physical checks during private-copy planning are removed while
+retaining physical admission at every actual source/target access. Parent plans
+compare canonical lexical labels, then each distinct parent is physically
+admitted at creation. Every file writer still checks its physical target before
+open, after open and before completion, plus exact opened/path/parent identities.
+Source manifest pins grant no access: the held contained source reader still
+admits and hashes actual bytes. A portable regression simulates a target parent
+becoming a link after planning (without creating a symlink), requires rejection
+before target open and confirms closure of the actual source descriptor. Ordinary
+atomic restore/replacement keeps its original physical admission path.
+
+Publication stat observations now use the existing settled-concurrency owner in
+small batches of four. Ordered per-entry diagnostics remain; each batch drains
+before projection/yield, and failed publication stops later batches while retaining
+all observed peer failures. Unknown original resource observations still reject
+before diagnostic classification. Large inventories never enqueue more than four
+stat tasks at once. This is an internal I/O scheduling change; family, manifest,
+identity, cleanup and publication requirements are unchanged and await validation.

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -9,7 +10,7 @@ import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 
 const gate = () => { let resolve; const promise = new Promise(done => { resolve = done; }); return { promise, resolve }; };
 const root = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'poc-unpublished-copy-')));
-const originalOpen = fs.open;
+const originalOpen = fs.open, originalLstat = fsSync.lstatSync;
 const bytes = Buffer.from('independent snapshot bytes: \u03bb\n');
 const part = name => ({ path: name, bytes: bytes.length, hash: createHash('sha256').update(bytes).digest('hex') });
 const roots = async name => {
@@ -62,7 +63,46 @@ try {
       inventory: corrupted.inventory, assertOwned() {} }), /content changed during copy/);
     assert.equal((await inventoryStageOutput(options)).inventory[0].hash, part('data').hash,
       'ordinary verification never promotes the corrupt pin into a physical hash');
+    fsSync.lstatSync = function(file, ...args) {
+      const stat = originalLstat.call(this, file, ...args);
+      return file === filename ? new Proxy(stat, {
+        get: (value, key) => key === 'isSymbolicLink' ? () => true : Reflect.get(value, key)
+      }) : stat;
+    };
+    sourceOpens = 0;
+    const redirected = await inventoryStageOutputForCopy(options);
+    await assert.rejects(copyUnpublishedStageMembers({ sourceRoot, targetRoot: rejectedRoot,
+      inventory: redirected.inventory, assertOwned() {} }), { code: 'ERR_UNSAFE_FILE_PATH' });
+    assert.equal(sourceOpens, 0, 'a manifest digest never grants access to a redirected physical source');
+    fsSync.lstatSync = originalLstat;
     fs.open = originalOpen;
+  }
+  {
+    const options = await roots('late-target'), name = 'nested/data';
+    await fs.mkdir(path.join(options.sourceRoot, 'nested'));
+    await fs.writeFile(path.join(options.sourceRoot, name), bytes);
+    const parent = path.join(options.targetRoot, 'nested');
+    let denyParent = false, targetOpens = 0, sourceCloses = 0;
+    fsSync.lstatSync = function(filename, ...args) {
+      const stat = originalLstat.call(this, filename, ...args);
+      return denyParent && filename === parent ? new Proxy(stat, {
+        get: (value, key) => key === 'isSymbolicLink' ? () => true : Reflect.get(value, key)
+      }) : stat;
+    };
+    fs.open = async function(filename, ...args) {
+      if (filename === path.join(options.targetRoot, name)) targetOpens++;
+      const handle = await originalOpen.call(this, filename, ...args);
+      if (filename === path.join(options.sourceRoot, name)) {
+        denyParent = true;
+        const close = handle.close;
+        handle.close = async function(...closeArgs) { sourceCloses++; return close.apply(this, closeArgs); };
+      }
+      return handle;
+    };
+    await assert.rejects(copyUnpublishedStageMembers({ ...options, inventory: [part(name)] }), { code: 'ERR_ARTIFACT_PATH' });
+    assert.equal(targetOpens, 0, 'planning never substitutes for physical target admission at actual use');
+    assert.equal(sourceCloses, 1, 'a target admission failure closes its actual borrowed source');
+    fs.open = originalOpen; fsSync.lstatSync = originalLstat;
   }
   {
     const options = await roots('ordinary'), inventory = [part('nested/data'), { path: 'empty', bytes: 0,
@@ -154,6 +194,7 @@ try {
   allowClose = true;
   for (const session of pendingSessions) if (!session.isSettled()) await session.releaseAfterClose();
   fs.open = originalOpen;
+  fsSync.lstatSync = originalLstat;
   assert.equal(await fs.realpath(root), root);
   assert.ok(path.basename(root).startsWith('poc-unpublished-copy-'));
   await fs.rm(root, { recursive: true, force: true });
