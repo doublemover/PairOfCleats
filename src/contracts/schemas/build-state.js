@@ -1,4 +1,5 @@
 import { BUILD_RUNTIME_RECEIPT_SCHEMA } from './runtime-receipt.js';
+import { COMPLETED_STAGE_SCHEMA } from './completed-stage.js';
 export const BUILD_STATE_SCHEMA_VERSION = 1;
 
 const ISO_DATE_TIME = {
@@ -462,6 +463,10 @@ export const BUILD_STATE_SCHEMA = {
     orderingLedger: ORDERING_LEDGER,
     analysisShortcuts: { type: 'object', additionalProperties: ANALYSIS_SHORTCUT },
     byteBudgets: BYTE_BUDGET_SNAPSHOT,
+    completedStages: {
+      type: 'object', additionalProperties: false,
+      properties: Object.fromEntries(['code', 'prose', 'extracted-prose', 'records'].map(mode => [mode, COMPLETED_STAGE_SCHEMA]))
+    },
     runtime: BUILD_RUNTIME_RECEIPT_SCHEMA,
     ignore: {
       type: 'object',

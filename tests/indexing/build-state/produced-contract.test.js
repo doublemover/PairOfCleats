@@ -38,7 +38,12 @@ for (const mutate of [
   value => { value.analysisShortcuts.code.disableImportGraph = 'false'; },
   value => { value.byteBudgets.policies.chunk_meta.overflow = 'unknown'; },
   value => { value.signatures.code.dependencySignatures.parse = 42; },
-  value => { delete value.orderingLedger.stages['stage1:code'].artifacts; }
+  value => { delete value.orderingLedger.stages['stage1:code'].artifacts; },
+  value => { value.completedStages.code.extra = true; },
+  value => { value.completedStages.code.schemaVersion = '2'; },
+  value => { value.completedStages.code.output.bytes = -1; },
+  value => { value.completedStages.code.sourceValidation.status = 'unknown'; },
+  value => { value.completedStages.code.snapshot.descriptorHash = 'wrong'; }
 ]) {
   const invalid = structuredClone(state); mutate(invalid);
   assert.equal(validateConfig(BUILD_STATE_SCHEMA, invalid).ok, false, 'strict field/error contracts stay enforced');

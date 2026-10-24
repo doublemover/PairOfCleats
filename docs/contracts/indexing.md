@@ -98,6 +98,14 @@ Key requirements:
 - With `provider=none`, file discovery falls back to filesystem crawl and SCM-based metadata (annotate/churn) is disabled with an explicit log reason.
 - Build ids use a deterministic `noscm` marker when no SCM head is available.
 
+Completed Stage2 modes appear in `completedStages`. Their closed receipt schema
+is `src/contracts/schemas/completed-stage.js`: it records source and producer
+evidence, dependency signatures, publication hashes, the exact output inventory
+identity, and the immutable snapshot locator. Unknown receipt fields, invalid
+versions or digests, and negative counts are rejected. Structural validation
+does not replace runtime verification of contained paths, sealed bytes or
+generation ownership.
+
 ## Invariants
 - Each mode writes to its own index directory under the cache root.
 - Artifact counts and dimensions must be internally consistent.
