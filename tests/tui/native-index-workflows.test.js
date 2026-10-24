@@ -129,7 +129,8 @@ try {
         if (paintedOutput !== output) { paintedOutput = output; paintedScreen = reconstructTerminalScreen(output, { columns, rows }).text; }
         return paintedScreen;
       };
-      const rendered = async label => { await wait(() => screen().includes(label), label); await fs.writeFile(path.join(dir, `screen-${frame++}.txt`), screen()); };
+      const rendered = async label => { await wait(() => { const frame = screen(); return frame.includes(label)
+        && (label !== 'Tab pane' || /\bconn\s+(?:connected|streaming)\b/.test(frame)); }, label); await fs.writeFile(path.join(dir, `screen-${frame++}.txt`), screen()); };
       const last = async prefix => Math.max(0, ...(await events()).filter(row => row.jobId?.startsWith(prefix)).map(row => Number(row.jobId.split('-').at(-1))));
       const settled = async (prefix, method, after) => {
         let end;
@@ -175,9 +176,9 @@ try {
         let end; await wait(async () => { end = (await events()).find(row => row.event === 'job:end' && row.jobId === jobId); return end; }, 'actual owned job end'); return end;
       };
       const backToCatalog = async () => { terminal.write('\x1b'); await rendered('Arrows select | Enter opens typed form'); };
-      const closeCatalog = async () => { terminal.write('\x1b'); await rendered('Tab focus'); };
+      const closeCatalog = async () => { terminal.write('\x1b'); await rendered('Tab pane'); };
       try {
-        await rendered('Tab focus');
+        await rendered('Tab pane');
         terminal.write('b'); await rendered('Workflow scope: repository directory');
         const after = await last('native-workflow-');
         terminal.write(`${mode === 'workspace' ? '\t' : ''}\x15${mode === 'workspace' ? workspace : repo}\r`);
@@ -192,7 +193,7 @@ try {
           terminal.write('nativeWorkflowAnswer\t\x15code\t\x15memory\t\x155\t\t\t\x15{"ann":false}\r');
           const search = await settled('native-search-', 'query', searchAfter);
           assert.ok(search.hits.some(hit => hit.file === 'answer.js'), JSON.stringify(search));
-          await rendered('answer.js'); terminal.write('\x1b'); await rendered('Tab focus'); terminal.write('q');
+          await rendered('answer.js'); terminal.write('\x1b'); await rendered('Tab pane'); terminal.write('q');
         } else if (['missing-model', 'invalid-provider'].includes(mode)) {
           await choose('index.build'); const preview = await operation('preview', 'p');
           assert.equal(preview.launchable, false); assert.equal(preview.previewId, undefined);

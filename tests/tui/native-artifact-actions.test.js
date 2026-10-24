@@ -77,10 +77,11 @@ try {
           await new Promise(resolve => setTimeout(resolve, 20)); }
       };
       const screen = () => reconstructTerminalScreen(output, { columns, rows }).text;
-      const rendered = async label => { await wait(() => screen().includes(label), label);
-        await fs.writeFile(path.join(dir, `screen-${frame++}.txt`), screen()); };
+      const rendered = async label => { await wait(() => { const frame = screen(); return frame.includes(label)
+        && (label !== 'Tab pane' || /\bconn\s+(?:connected|streaming)\b/.test(frame)); }, label);
+      await fs.writeFile(path.join(dir, `screen-${frame++}.txt`), screen()); };
       try {
-        await rendered('Tab focus'); terminal.write('r');
+        await rendered('Tab pane'); terminal.write('r');
         await wait(async () => (await events()).some(event => event.event === 'job:artifacts'), 'real inventory');
         const inventory = (await events()).find(event => event.event === 'job:artifacts');
         assert.match(inventory.inventoryId, /^[a-f0-9-]{36}$/);

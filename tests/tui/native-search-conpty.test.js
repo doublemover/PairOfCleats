@@ -119,7 +119,8 @@ try {
     };
     const screen = () => reconstructTerminalScreen(output, { columns, rows: terminalRows }).text;
     const rendered = async witness => {
-      await wait(() => screen().includes(witness), witness);
+      await wait(() => { const frame = screen(); return frame.includes(witness)
+        && (witness !== 'Tab pane' || /\bconn\s+(?:connected|streaming)\b/.test(frame)); }, witness);
       await fs.writeFile(path.join(dir, `screen-${screens++}.txt`), screen());
     };
     const lastJob = async () => Math.max(0, ...(await readEvents()).filter(row => row.jobId?.startsWith('native-search-'))
@@ -138,7 +139,7 @@ try {
     try {
       await wait(async () => (await readEvents()).some(row => row.event === 'hello'), 'actual supervisor hello');
       if (mode === 'handshake') {
-        await rendered('Tab focus'); terminal.write('R');
+        await rendered('Tab pane'); terminal.write('R');
         await rendered('Read only: repository search requires a controllable local supervisor');
         assert.equal((await readEvents()).some(row => row.internal && row.event === 'job:start'), false);
         await fs.writeFile(path.join(dir, 'release-hello'), 'explicit fixture handshake release\n');
@@ -265,7 +266,7 @@ try {
       }
       if (mode !== 'interrupt') {
         if (mode !== 'cancel') terminal.write('\x1b');
-        await rendered('Tab focus'); terminal.write('q');
+        await rendered('Tab pane'); terminal.write('q');
       }
     } finally {
       subscription.dispose();

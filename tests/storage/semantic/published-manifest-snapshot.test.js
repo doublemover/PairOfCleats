@@ -14,22 +14,18 @@ const open = signal => openPublishedSemanticStore({ indexDir: fixture.indexDir, 
   generation: fixture.generation, requireQueryIndex: true, signal });
 const files = [...fixture.originals.keys()].map(name => path.resolve(fixture.indexDir, name + '.json'));
 const dispose = new Map();
-const install = ({ read = null, stat = null, close = null, beforeOpen = null } = {}) => {
+const install = ({ read = null, close = null, beforeOpen = null } = {}) => {
   const states = [];
   fs.open = async (file, ...args) => {
     const filename = path.resolve(String(file));
     if (beforeOpen) await beforeOpen(filename);
-    const handle = await originalOpen(file, ...args), nativeRead = handle.read, nativeStat = handle.stat, nativeClose = handle.close;
+    const handle = await originalOpen(file, ...args), nativeRead = handle.read, nativeClose = handle.close;
     const state = { filename, handle, reads: 0, bytes: 0, maxRead: 0, closes: 0 }; states.push(state);
     dispose.set(handle, () => nativeClose.call(handle));
     handle.read = async function (...readArgs) {
       assert.equal(this, handle); state.reads++; state.maxRead = Math.max(state.maxRead, readArgs[2]);
       const native = async (...next) => { const value = await nativeRead.call(handle, ...next); state.bytes += value.bytesRead; return value; };
       return read ? read(state, native, ...readArgs) : native(...readArgs);
-    };
-    handle.stat = function (...statArgs) {
-      const native = (...next) => nativeStat.call(handle, ...next);
-      return stat ? stat(state, native, ...statArgs) : native(...statArgs);
     };
     handle.close = function () {
       state.closes++;

@@ -76,12 +76,13 @@ try {
       };
       const screen = () => reconstructTerminalScreen(output, { columns, rows }).text;
       const rendered = async label => {
-        await wait(() => screen().includes(label), label);
+        await wait(() => { const frame = screen(); return frame.includes(label)
+        && (label !== 'Tab pane' || /\bconn\s+(?:connected|streaming)\b/.test(frame)); }, label);
         await fs.writeFile(path.join(dir, `screen-${frame++}.txt`), screen());
       };
       try {
         await wait(async () => (await events()).some(event => event.event === 'hello'), 'actual supervisor hello');
-        await rendered('Tab focus'); terminal.write('r');
+        await rendered('Tab pane'); terminal.write('r');
         await wait(async () => (await events()).some(event => event.event === 'job:spawn'), 'actual child spawn');
         if (mode === 'incomplete') {
           await wait(async () => (await events()).some(event => event.taskId === 'inspection-partial'), 'actual partial operation');

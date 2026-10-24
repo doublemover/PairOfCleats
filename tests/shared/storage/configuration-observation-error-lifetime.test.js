@@ -46,22 +46,28 @@ try {
   const primary = Object.freeze(Object.assign(new Error('frozen source observation failed'), { code: 'EIO' }));
   const secondary = Object.freeze(Object.assign(new Error('destination close diagnostic failed'), { code: 'EACCES' }));
   const lockPath = path.join(home, 'config', 'storage-locator.lock');
-  const lstat = fs.lstat, opendir = fs.opendir, remove = fs.rm;
+  const lstat = fs.lstat, opendir = fs.opendir, remove = fs.rm, open = fs.open;
   let announce, permit, completed = false, denyRelease = true, denyClose = true;
-  let sourceObservations = 0, destinationObservations = 0;
+  let coordinatorObserved = false, sourceObservations = 0, destinationObservations = 0;
   const closing = new Promise(resolve => { announce = resolve; });
   const permitted = new Promise(resolve => { permit = resolve; });
   let failure;
   try {
+    fs.open = async (target, ...args) => {
+      const handle = await open(target, ...args);
+      if (target === lockPath) coordinatorObserved = true;
+      return handle;
+    };
     fs.lstat = async (target, ...args) => {
       // Initial revalidation precedes coordinator acquisition. Inject the
       // failure into the separately owned observation under the actual lock.
-      if (target === source && ++sourceObservations === 2) throw primary;
+      if (target === source && coordinatorObserved) { sourceObservations++; throw primary; }
       return lstat(target, ...args);
     };
     fs.opendir = async (target, ...args) => {
       const directory = await opendir(target, ...args);
-      if (target !== destination || ++destinationObservations === 1) return directory;
+      if (target !== destination || !coordinatorObserved) return directory;
+      destinationObservations++;
       return { read: directory.read.bind(directory), close: async () => {
         announce(); await permitted;
         if (denyClose) throw secondary;
@@ -75,8 +81,9 @@ try {
     const running = applyStorageConfiguration(plan, { approvedPlanId: plan.planId, home, category: 'models', target: destination })
       .catch(error => { failure = error; }).finally(() => { completed = true; });
     await closing;
-    assert.equal(sourceObservations, 2);
-    assert.equal(destinationObservations, 2);
+    assert.equal(coordinatorObserved, true);
+    assert.equal(sourceObservations, 1);
+    assert.equal(destinationObservations, 1);
     assert.equal(completed, false, 'a rejected source observation cannot abandon the independently owned destination directory');
     assert.equal((await lstat(lockPath)).isFile(), true, 'configuration keeps its coordinator through every observation close');
     permit();
@@ -102,7 +109,7 @@ try {
     await assert.rejects(lstat(lockPath), { code: 'ENOENT' });
     assert.deepEqual(await fs.readdir(source), []);
     assert.deepEqual(await fs.readdir(destination), []);
-  } finally { permit(); fs.lstat = lstat; fs.opendir = opendir; fs.rm = remove; }
+  } finally { permit(); fs.lstat = lstat; fs.opendir = opendir; fs.rm = remove; fs.open = open; }
   const readFailure = Object.freeze(Object.assign(new Error('frozen directory read failed'), { code: 'EIO' }));
   const closeFailure = Object.freeze(Object.assign(new Error('frozen directory close failed'), { code: 'ENOENT' }));
   try {

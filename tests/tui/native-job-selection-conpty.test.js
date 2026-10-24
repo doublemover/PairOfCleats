@@ -45,12 +45,13 @@ try {
     };
     const screen = () => reconstructTerminalScreen(output, { columns, rows }).text;
     const rendered = async label => {
-      await wait(() => screen().includes(label), label);
+      await wait(() => { const frame = screen(); return frame.includes(label)
+        && (label !== 'Tab pane' || /\bconn\s+(?:connected|streaming)\b/.test(frame)); }, label);
       await fs.writeFile(path.join(dir, `screen-${frame++}.txt`), screen());
     };
     try {
       await wait(async () => (await events()).some(event => event.event === 'hello'), 'real supervisor hello');
-      await rendered('Tab focus');
+      await rendered('Tab pane');
       terminal.write('r');
       await wait(async () => (await events()).some(event => event.jobId === 'job-1'
         && event.event === 'task:progress'), 'first real worker progress');

@@ -16,9 +16,11 @@ const supervisor = spawn(process.execPath, [path.join(root, 'tools/tui/superviso
 record({ proxy: process.pid, supervisor: supervisor.pid });
 let failed = false;
 let outputClosed = false;
+let helloForwarded = false, creditsObserved = 0, nativeReady = false;
 readline.createInterface({ input: supervisor.stdout }).on('line', line => {
   if (!outputClosed) process.stdout.write(line + '\n');
   const event = JSON.parse(line);
+  if (event.event === 'hello') helloForwarded = true;
   if (event.event === 'job:spawn') record({ job: event.pid, jobId: event.jobId });
   if (event.event === 'job:spawn' && mode === 'supervisor-error' && !failed) {
     failed = true;
@@ -38,6 +40,14 @@ readline.createInterface({ input: supervisor.stdout }).on('line', line => {
 });
 readline.createInterface({ input: process.stdin }).on('line', line => {
   const request = JSON.parse(line);
+  // The first credit is the native startup grant. A later credit acknowledges
+  // actual consumed protocol frames, including the ordered hello handshake.
+  if (request.op === 'flow:credit') {
+    creditsObserved++;
+    if (helloForwarded && creditsObserved > 1 && !nativeReady) {
+      nativeReady = true; record({ nativeReady: true });
+    }
+  }
   if (mode === 'interrupt' || mode === 'event-transport-error') record({ request: request.op });
   if (request.op === 'job:run') {
     delete request.argv;

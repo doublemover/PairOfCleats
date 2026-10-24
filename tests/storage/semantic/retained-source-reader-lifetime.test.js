@@ -34,7 +34,7 @@ try {
   const target = path.resolve(f.stagingRoot, 'semantic-sources', f.source.byteHash + '.utf8');
   const isTarget = file => path.relative(path.toNamespacedPath(path.resolve(String(file))),
     path.toNamespacedPath(target)) === '';
-  const install = ({ read = null, stat = null, close = null } = {}) => {
+  const install = ({ read = null, close = null } = {}) => {
     const states = [];
     fs.readFile = function (file, ...args) {
       assert.equal(isTarget(file), false, 'retained sources never use unbounded raw readFile');
@@ -43,8 +43,8 @@ try {
     fs.open = async (file, ...args) => {
       const handle = await originalOpen(file, ...args);
       if (!isTarget(file)) return handle;
-      const nativeRead = handle.read, nativeStat = handle.stat, nativeClose = handle.close;
-      const state = { handle, reads: 0, readBytes: 0, maxBuffer: 0, maxRequest: 0, stats: 0, closes: 0 };
+      const nativeRead = handle.read, nativeClose = handle.close;
+      const state = { handle, reads: 0, readBytes: 0, maxBuffer: 0, maxRequest: 0, closes: 0 };
       states.push(state); disposal.set(handle, () => nativeClose.call(handle));
       handle.read = async function (buffer, offset, length, position) {
         assert.equal(this, handle); state.reads++; state.maxBuffer = Math.max(state.maxBuffer, buffer.length);
@@ -54,11 +54,6 @@ try {
           state.readBytes += value.bytesRead; return value;
         };
         return read ? read(state, native) : native();
-      };
-      handle.stat = async function () {
-        assert.equal(this, handle); state.stats++;
-        const native = () => nativeStat.call(handle);
-        return stat ? stat(state, native) : native();
       };
       handle.close = function () {
         assert.equal(this, handle); state.closes++;

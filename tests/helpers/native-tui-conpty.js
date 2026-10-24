@@ -36,7 +36,7 @@ export const verifyNativeTuiConpty = async (mode, { binaryPath = null } = {}) =>
         const until = Date.now() + 16000;
         for (;;) {
           const rows = await readPids();
-          if (!sentRun && rows.some(row => row.supervisor)) { terminal.write('r'); sentRun = true; }
+          if (!sentRun && rows.some(row => row.nativeReady)) { terminal.write('r'); sentRun = true; }
           if (rows.some(row => row.descendant)) {
             if (['quit', 'shutdown-error', 'shutdown-timeout', 'shutdown-partial-frame'].includes(mode)) terminal.write('q');
             if (mode === 'interrupt') {

@@ -36,7 +36,7 @@ try {
   await markBuildPhase(buildRoot, 'stage3', 'failed', { reason: 'injected embedding failure' });
   const publicationValidation = await writeArtifactPublicationValidationReport({ buildRoot, outDir, mode: 'code',
     buildId: 'generation', pieceEntries: pieces, manifestPath,
-    familyDeclarations: [{ family: 'fixture', requiredMembers: ['chunk_meta'] }] });
+    familyDeclarations: [{ family: 'fixture', owner: 'fixture', requiredMembers: ['chunk_meta'] }] });
   await writeArtifactPublicationRecord({ buildRoot, outDir, mode: 'code', buildId: 'generation',
     pieceEntries: pieces, manifestPath, publicationValidation });
   const lock = await acquireIndexLock({ repoCacheRoot, requireSettlement: true });
@@ -49,7 +49,7 @@ try {
   assert.equal(completion.originatingAttemptId, 'original-attempt');
   const sealedState = JSON.parse(await fs.readFile(path.join(buildRoot, 'build_state.json'), 'utf8'));
   const checkState = completed => validateBuildState({ ...sealedState, completedStages: { code: completed } });
-  assert.equal(checkState(completion).ok, true, 'the actual sealed completion satisfies the strict build-state schema');
+  assert.equal(checkState(completion).ok, true, JSON.stringify(checkState(completion)));
   const missingReason = structuredClone(completion); delete missingReason.producer.reason;
   assert.equal(checkState(missingReason).ok, false, 'unobserved producer identity requires its reason');
   const observed = { ...completion, producer: { schemaVersion: 1, identity: 'a'.repeat(64), revision: 'fixture',
