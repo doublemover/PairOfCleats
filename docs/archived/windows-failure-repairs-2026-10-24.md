@@ -1458,3 +1458,21 @@ an explicit borrowed-descriptor route still executes both originally captured
 async stats around the actual read after public methods are replaced. Thus the
 old two-stat lifetime proof remains rather than being removed to fit the
 optimized verified-read path.
+
+At `01ac575545ee7ba1e05bf6ade1a6ecd32335405a`, 16/20 affected fixtures
+passed, including both SSR witnesses, captured async-method replacement/recovery,
+verified-contained async mutation refusal and closed native descriptor checks,
+checksum/hash/streamed-reader lifetimes, private copies and stage/graph
+publication. Four export fixtures still fail the original internal ten-second
+build deadline. There were zero outer timeouts, skips or native crashes. Original
+closure remains 96/100 with no adjacent observed regression. The metadata change
+has work-count and correctness evidence, not an accepted production latency
+speedup claim. The initial 360-case receipt and all earlier source observations
+remain unchanged. A new source-keyed front gate is pending before publication.
+
+The complete local front gate passed again at
+`01ac575545ee7ba1e05bf6ade1a6ecd32335405a`: format/ESLint, config budget,
+environment usage, generated freshness, command surface, workflow contract,
+40/40 gate fixtures, and whitespace all exited zero. This qualifies the exact
+latest production/test source for the recorded gate only. Four original export
+fixtures remain unresolved; no deep-suite or whole-backlog green is claimed.
