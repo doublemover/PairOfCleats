@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { serialize } from 'node:v8';
 import { createOrderedTokenizeBatchWindow, executeTokenizeBatch, TOKENIZE_BATCH_MAX_CHUNKS,
   TOKENIZE_BATCH_MAX_OUTPUT_BYTES, TOKENIZE_BATCH_RESULT_VERSION } from '../../../src/index/build/workers/tokenize-batch.js';
 import { createTokenizationContext, createTokenizationBuffers, tokenizeChunkText } from '../../../src/index/build/tokenization.js';
@@ -37,6 +38,9 @@ for (const [reason, corrupt] of [
   ['source-policy', batch => { batch.inputIdentity = '0'.repeat(64); }],
   ['source-policy', batch => { batch.inputBytes++; }],
   ['membership', batch => { batch.results.pop(); }],
+  ['encoded-output', batch => { batch.results[0] = { ok: true, value: {} }; }],
+  ['encoded-output', batch => { batch.results[0] = new Uint8Array(new SharedArrayBuffer(4)); }],
+  ['cloneable-output', batch => { batch.results[0] = Buffer.from('corrupt'); batch.outputBytes = batch.results.reduce((sum, row) => sum + row.length, 0); }],
   ['output-bytes', batch => { batch.outputBytes = 0; }]
 ]) {
   const { window, metrics } = make({ runBatch: async payload => {
@@ -48,7 +52,7 @@ for (const [reason, corrupt] of [
 {
   const { window, metrics } = make({ runBatch: async payload => {
     const batch = executeTokenizeBatch(payload, tokenize);
-    batch.results[0] = { ok: true, value: { tokens: ['x'.repeat(TOKENIZE_BATCH_MAX_OUTPUT_BYTES + 1)] } };
+    batch.results[0] = serialize({ ok: true, value: { tokens: ['x'.repeat(TOKENIZE_BATCH_MAX_OUTPUT_BYTES + 1)] } });
     return batch;
   } });
   await assert.rejects(window.take(0, rows[0]), { code: 'ERR_TOKENIZE_BATCH_BUDGET' });
@@ -89,7 +93,7 @@ const fixture = createProcessChunksFixtureContext({ text, analysisPolicy: create
       tokenizeChunk: async row => tokenizeReal(row), tokenizeBatch: async payload => {
         calls++;
         const batch = executeTokenizeBatch(payload, tokenizeReal);
-        batch.results[0].value.tokens = ['poisoned-worker-row']; batch.outputBytes = 0;
+        batch.results[0] = serialize({ ok: true, value: { tokens: ['poisoned-worker-row'] } }); batch.outputBytes = 0;
         return batch;
       } } } });
 const processed = await processFixtureChunks(fixture.context);

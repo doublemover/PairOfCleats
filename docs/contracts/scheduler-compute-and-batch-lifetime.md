@@ -95,8 +95,13 @@ AST memory reclamation.
 
 The existing tokenizer batch worker emits
 `TOKENIZE_BATCH_RESULT_VERSION`, ordered source/dictionary-policy identity,
-input bytes and measured output bytes. The coordinator verifies that receipt and
-independently serializes the returned member rows before retaining lookahead.
+input bytes and measured output bytes. Version 2 carries each member's serialized
+bytes. The coordinator verifies their aggregate size and receipt before decoding
+or retaining lookahead. V8 may encode equal cloned arrays differently; it must
+not reserialize returned objects to authenticate the producer's byte count.
+Malformed encodings, shared mutable buffers, obsolete versions and incorrect
+byte counts remain protocol failures. The unchanged 8 MiB limit applies to the
+actual serialized members on both sides of transport.
 The identity covers submitted text, mode, extension, language and per-task
 dictionary settings. Pool generation and shared dictionary/postings ownership
 remain with the existing worker lifecycle.

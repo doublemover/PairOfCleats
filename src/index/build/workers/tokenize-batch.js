@@ -1,9 +1,9 @@
-import { serialize } from 'node:v8';
+import { deserialize, serialize } from 'node:v8';
 import { createHash } from 'node:crypto';
 import { throwIfAborted, isAbortError } from '../../../shared/abort.js';
 import { sanitizeDictConfig } from './pool/payload.js';
 
-export const TOKENIZE_BATCH_RESULT_VERSION = 1;
+export const TOKENIZE_BATCH_RESULT_VERSION = 2;
 export const TOKENIZE_BATCH_MAX_CHUNKS = 8;
 export const TOKENIZE_BATCH_MAX_TEXT_BYTES = 128 * 1024;
 export const TOKENIZE_BATCH_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
@@ -54,10 +54,16 @@ const validateResult = (batch, { items, bytes, identity }) => {
     || batch.outputBytes > TOKENIZE_BATCH_MAX_OUTPUT_BYTES) throw budgetError();
   let observedBytes = 0;
   for (const result of batch.results) {
-    try { observedBytes += serialize(result).length; } catch { throw protocolError('cloneable-output'); }
+    if (!(result instanceof Uint8Array) || result.buffer instanceof SharedArrayBuffer) throw protocolError('encoded-output');
+    observedBytes += result.byteLength;
     if (observedBytes > TOKENIZE_BATCH_MAX_OUTPUT_BYTES) throw budgetError();
   }
   if (observedBytes !== batch.outputBytes) throw protocolError('output-bytes');
+  // V8 does not guarantee identical encodings when equal objects are serialized
+  // again after structured cloning. Admit the actual wire bytes before decoding.
+  return batch.results.map(result => {
+    try { return deserialize(result); } catch { throw protocolError('cloneable-output'); }
+  });
 };
 
 /** Scratch belongs to the existing single-task worker; each result owns its output arrays. */
@@ -74,9 +80,10 @@ export const executeTokenizeBatch = (payload, tokenize) => {
       result = { ok: false, error: { name: String(error?.name || 'Error').slice(0, 128),
         message: String(error?.message || error).slice(0, 2048), code: typeof error?.code === 'string' ? error.code.slice(0, 128) : null } };
     }
-    outputBytes += serialize(result).length;
+    const encoded = serialize(result);
+    outputBytes += encoded.length;
     if (outputBytes > TOKENIZE_BATCH_MAX_OUTPUT_BYTES) throw budgetError();
-    results.push(result);
+    results.push(encoded);
   }
   return { version: TOKENIZE_BATCH_RESULT_VERSION, inputIdentity: identity, results, inputBytes: bytes, outputBytes };
 };
@@ -137,8 +144,7 @@ export const createOrderedTokenizeBatchWindow = ({ runBatch, runSingle, getInput
         const identity = inputIdentity(items);
         const batch = await runBatch({ items });
         throwIfAborted(signal);
-        if (batch !== null) validateResult(batch, { items, bytes, identity });
-        const results = batch?.results || items.map(() => null);
+        const results = batch === null ? items.map(() => null) : validateResult(batch, { items, bytes, identity });
         for (let offset = 1; offset < items.length; offset += 1) ready.set(index + offset, { input: items[offset], result: results[offset] });
         metrics.retainedChunks = ready.size;
         metrics.retainedChunksHighWater = Math.max(metrics.retainedChunksHighWater || 0, ready.size);

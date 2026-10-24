@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { deserialize } from 'node:v8';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
 import { createOrderedTokenizeBatchWindow, executeTokenizeBatch, validateTokenizeBatch,
   TOKENIZE_BATCH_MAX_CHUNKS, TOKENIZE_BATCH_MAX_TEXT_BYTES } from '../../../src/index/build/workers/tokenize-batch.js';
@@ -12,10 +13,11 @@ const scratch = createTokenizationBuffers();
 const tokenize = row => tokenizeChunkText({ ...row, context: tokenContext, buffers: scratch });
 const payload = { items: [input('const Alpha = 1;'), input(''), input('const beta = "two";')] };
 const batch = executeTokenizeBatch(payload, tokenize);
-assert.deepEqual(batch.results.map(row => row.value), payload.items.map(row => tokenize(row)));
-const retained = batch.results[0].value.tokens.slice();
+const decoded = batch.results.map(row => deserialize(row));
+assert.deepEqual(decoded.map(row => row.value), payload.items.map(row => tokenize(row)));
+const retained = decoded[0].value.tokens.slice();
 tokenize(input('changed scratch contents'));
-assert.deepEqual(batch.results[0].value.tokens, retained);
+assert.deepEqual(deserialize(batch.results[0]).value.tokens, retained);
 assert.throws(() => validateTokenizeBatch({ items: Array.from({ length: TOKENIZE_BATCH_MAX_CHUNKS + 1 }, () => input('x')) }), { code: 'ERR_TOKENIZE_BATCH_BUDGET' });
 assert.throws(() => validateTokenizeBatch({ items: [input('é'.repeat(TOKENIZE_BATCH_MAX_TEXT_BYTES))] }), { code: 'ERR_TOKENIZE_BATCH_BUDGET' });
 assert.throws(() => validateTokenizeBatch({ items: [input('x'), { ...input('y'), languageId: 'python' }] }), { code: 'ERR_TOKENIZE_BATCH_BUDGET' });
@@ -32,9 +34,9 @@ const failureWindow = createOrderedTokenizeBatchWindow({ count: 3, getInput: ind
   runSingle: async row => tokenize(row), runBatch: async rows => executeTokenizeBatch(rows, row => {
     if (!row.text) throw new Error('one member failed'); return tokenize(row);
   }) });
-assert.deepEqual(await failureWindow.take(0, payload.items[0]), batch.results[0].value);
+assert.deepEqual(await failureWindow.take(0, payload.items[0]), decoded[0].value);
 await assert.rejects(failureWindow.take(1, payload.items[1]), /one member failed/);
-assert.deepEqual(await failureWindow.take(2, payload.items[2]), batch.results[2].value);
+assert.deepEqual(await failureWindow.take(2, payload.items[2]), decoded[2].value);
 const abort = new AbortController();
 const canceled = createOrderedTokenizeBatchWindow({ count: 3, signal: abort.signal, getInput: index => payload.items[index],
   runSingle: async () => assert.fail('aborted batch cannot retry inline'), runBatch: async rows => {

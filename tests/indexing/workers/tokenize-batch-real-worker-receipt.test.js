@@ -14,6 +14,8 @@ try {
       const result = await workerPool.tokenizeBatch(payload);
       assert.equal(result.version, TOKENIZE_BATCH_RESULT_VERSION);
       assert.match(result.inputIdentity, /^[a-f0-9]{64}$/u);
+      assert.equal(result.results.reduce((bytes, row) => bytes + row.byteLength, 0), result.outputBytes,
+        'the receipt accounts for the actual bytes transported by the real worker');
       return result;
     } });
   for (let index = 0; index < rows.length; index++) {
