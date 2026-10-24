@@ -309,10 +309,9 @@ export const runEmbeddingsStage = async ({
         if (indexRootArg) {
           args.push('--index-root', indexRootArg);
         }
-        args.push(...buildEmbeddingLaunchArgs(embeddingPlan.options), '--progress', 'off');
         // The parent owns structured framing. Preserve the child's complete
         // diagnostic text before that framing instead of borrowing human width.
-        if (argv.progress === 'jsonl' || argv.verbose) args.push('--verbose');
+        args.push(...buildEmbeddingLaunchArgs(embeddingPlan.options), '--progress', 'off', '--verbose');
         const embedResult = await runEmbeddingsTool(args, {
           baseEnv: attachEmbeddingExecutionPlan(runtimeEnv, embeddingPlan, launchObservability),
           signal: effectiveAbortSignal,

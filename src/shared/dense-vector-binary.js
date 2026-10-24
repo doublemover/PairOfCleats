@@ -115,7 +115,9 @@ export const writeDenseVectorBinaryFile = async ({
   if (!Array.isArray(vectors) || count > 0 && !rowWidth || rowWidth > 16 * 1024 * 1024
     || !Number.isSafeInteger(rowWidth * count)) throw Object.assign(new Error('Invalid dense vector binary dimensions/count.'), { code: 'ERR_DENSE_VECTOR_INVALID' });
   const spec = resolveEmbeddingQuantizationSpec(quantization);
-  for (const row of vectors || []) assertQuantizedEmbeddingRow(row, { spec, dims: rowWidth });
+  for (const row of vectors || []) {
+    if (row !== null) assertQuantizedEmbeddingRow(row, { spec, dims: rowWidth });
+  }
   const totalBytes = rowWidth > 0 ? rowWidth * count : 0;
   const tempBinPath = createTempPath(binPath);
   await fsPromises.mkdir(path.dirname(binPath), { recursive: true });
