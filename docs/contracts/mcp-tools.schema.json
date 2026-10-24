@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.9.0",
+  "schemaVersion": "1.10.0",
   "tools": [
     {
       "name": "bootstrap",
@@ -269,6 +269,71 @@
           "seed": {
             "type": "string",
             "description": "Chunk/file/symbol seed reference."
+          },
+          "taskPolicy": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "schemaVersion",
+              "task",
+              "granularity"
+            ],
+            "properties": {
+              "schemaVersion": {
+                "const": 1
+              },
+              "task": {
+                "enum": [
+                  "edit-safe",
+                  "exploration"
+                ]
+              },
+              "granularity": {
+                "enum": [
+                  "file",
+                  "function",
+                  "excerpt"
+                ]
+              },
+              "wholeFileFallback": {
+                "type": "boolean"
+              }
+            },
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "task": {
+                    "const": "edit-safe"
+                  },
+                  "granularity": {
+                    "enum": [
+                      "file",
+                      "function"
+                    ]
+                  }
+                }
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "task": {
+                    "const": "exploration"
+                  },
+                  "granularity": {
+                    "const": "excerpt"
+                  },
+                  "wholeFileFallback": {
+                    "const": false
+                  }
+                }
+              }
+            ]
+          },
+          "pathSemantics": {
+            "enum": [
+              "graph-witness"
+            ]
           },
           "hops": {
             "type": "number",
@@ -704,6 +769,13 @@
                       }
                     },
                     "then": {
+                      "properties": {
+                        "chunkUid": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 4096
+                        }
+                      },
                       "required": [
                         "chunkUid"
                       ]
@@ -826,6 +898,13 @@
                       }
                     },
                     "then": {
+                      "properties": {
+                        "node": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 4096
+                        }
+                      },
                       "required": [
                         "node"
                       ]
@@ -3566,6 +3645,12 @@
               "sqlite"
             ]
           },
+          "pathSemantics": {
+            "enum": [
+              "balanced-call-value",
+              "relation-neighborhood"
+            ]
+          },
           "slot": {
             "type": "object",
             "additionalProperties": false,
@@ -3991,6 +4076,12 @@
             "enum": [
               "artifact",
               "sqlite"
+            ]
+          },
+          "pathSemantics": {
+            "enum": [
+              "balanced-call-value",
+              "relation-neighborhood"
             ]
           },
           "slot": {

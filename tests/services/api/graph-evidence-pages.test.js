@@ -71,6 +71,10 @@ try {
   await assert.rejects(runGraphEvidence(request, { userConfig, signal: abort.signal }), { name: 'AbortError' });
   assert.ok(getToolDefs().find(tool => tool.name === 'graph_evidence'));
   assert.deepEqual(await handleToolCall('graph_evidence', request), first);
+  await assert.rejects(handleToolCall('graph_evidence', { ...request, filter: { direction: 'out' } }),
+    { code: 'ERR_GRAPH_EVIDENCE_CONTRACT' });
+  await assert.rejects(handleToolCall('graph_evidence', { ...request, repoRoot: root }),
+    { code: 'ENOENT' }, 'an explicit foreign namespace cannot borrow the retained repository');
   router = createApiRouter({ host: '127.0.0.1', defaultRepo: repoRoot, allowedRepoRoots: [repoRoot] });
   server = http.createServer((req, res) => router.handleRequest(req, res));
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));

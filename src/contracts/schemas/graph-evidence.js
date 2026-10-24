@@ -9,7 +9,7 @@ const cursor = { anyOf: [{ type: 'null' }, { type: 'string', minLength: 1, maxLe
 const object = (properties, required = Object.keys(properties)) => ({ type: 'object', additionalProperties: false, properties, required });
 const filter = (properties, directionKey) => ({ ...object({ ...properties, direction: { enum: ['out', 'in', 'both'] } }, []),
   allOf: [{ if: { required: ['direction'], properties: { direction: { enum: ['out', 'in'] } } },
-    then: { required: [directionKey] } }] });
+    then: { properties: { [directionKey]: properties[directionKey] }, required: [directionKey] } }] });
 const limits = object({ rows: { type: 'integer', minimum: 1, maximum: 512 },
   scanRows: { type: 'integer', minimum: 1, maximum: 4096 },
   bytes: { type: 'integer', minimum: 8192, maximum: 4194304 } }, []);

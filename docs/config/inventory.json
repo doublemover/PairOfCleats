@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-24T03:17:24.546Z",
+  "generatedAt": "2026-10-24T03:58:26.804Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -7489,6 +7489,12 @@
         ]
       },
       {
+        "file": "tools/docs/mcp-tool-schema.js",
+        "flags": [
+          "out"
+        ]
+      },
+      {
         "file": "tools/docs/repo-inventory.js",
         "flags": [
           "json",
@@ -8163,7 +8169,7 @@
       },
       {
         "flag": "out",
-        "count": 47,
+        "count": 48,
         "files": [
           "tests/fixtures/medium/generate.js",
           "tests/retrieval/parity/equivalence.test.js",
@@ -8196,6 +8202,7 @@
           "tools/dicts/generate-repo-dict.js",
           "tools/docs/editor-config-bundle.js",
           "tools/docs/export-artifact-schema-index.js",
+          "tools/docs/mcp-tool-schema.js",
           "tools/download/extensions.js",
           "tools/eval/risk-pack.js",
           "tools/index/assemble-pieces.js",

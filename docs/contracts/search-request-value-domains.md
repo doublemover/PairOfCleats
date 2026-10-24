@@ -24,7 +24,9 @@ Actual advertised MCP schema, HTTP validator, shared builder and canonical CLI
 fixtures cover lists, metadata, backends, integer bounds, absent/null/zero and the
 intentional transport differences. They have not executed.
 
-MCP schema version advances to1.9.0. The generated mcp-tools.schema.json and MCP
-response snapshot must be refreshed through their existing generators during
-the deferred validation phase; current generated snapshots are stale. Source
-declarations alone do not qualify MCP clients, backends or final-head acceptance.
+The MCP schema snapshot is now at 1.10.0, including these value domains and later
+context/semantic contract changes. Regenerate it with
+`node tools/docs/generated-surfaces.js --refresh --surface mcp-tool-schema`;
+the shared freshness gate compares it with the authoritative definitions.
+Source declarations and a fresh snapshot do not qualify MCP clients, backends
+or final-head acceptance.

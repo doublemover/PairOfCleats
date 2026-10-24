@@ -2,6 +2,21 @@
   "schemaVersion": "1.0.0",
   "surfaces": [
     {
+      "id": "mcp-tool-schema",
+      "owner": "service-contracts",
+      "committed": true,
+      "validationMode": "registry-audited",
+      "freshnessExpectation": "regenerate after MCP schema version, tool definitions or shared input contract changes",
+      "freshness": {
+        "mode": "generated-compare",
+        "command": "node tools/docs/mcp-tool-schema.js --out {output:0}",
+        "outputs": [{ "format": "json" }]
+      },
+      "outputs": ["docs/contracts/mcp-tools.schema.json"],
+      "refresh": { "command": "node tools/docs/mcp-tool-schema.js" },
+      "audit": { "command": "node tests/services/mcp/schema-version.test.js" }
+    },
+    {
       "id": "vscode-editor-config-bundle",
       "owner": "editor-integrations",
       "committed": true,
