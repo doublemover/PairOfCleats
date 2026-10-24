@@ -19,6 +19,9 @@ const ids = validateAuthorityManifest(manifest, available, required);
 assert.ok(available.includes('tooling/ci/lsp-runtime-artifact-admission'), 'the ordinary cohort still owns stock runtime admission');
 assert.equal(ids.includes('tooling/ci/lsp-runtime-artifact-admission'), false,
   'POSIX PHAR symlinks cannot be counted as native Windows link coverage; its Windows branch asserts unsupported');
+assert.ok(available.includes('tooling/install/postinstall-patch-enforcement'), 'ordinary CI retains the complete patch contract');
+assert.equal(ids.includes('tooling/install/postinstall-patch-enforcement'), false,
+  'controlled linked-directory admission belongs to portable CI and creates no file symlink');
 assert.ok(ids.includes('security/repository-authority') && ids.includes('storage/semantic/runtime-opened-byte-integrity'));
 assert.ok(ids.includes('tui/operator-search-file-authority'), 'source previews and editor PATH aliases need actual file-link coverage');
 assert.ok(ids.includes('tui/operator-artifact-file-authority'), 'artifact reads and export destinations need actual link authority coverage');

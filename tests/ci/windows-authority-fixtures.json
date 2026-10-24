@@ -38,7 +38,6 @@
     "storage/semantic/runtime-opened-byte-integrity",
     "tooling/cache/gc-contract-matrix",
     "tooling/install/bootstrap-preflight",
-    "tooling/install/postinstall-patch-enforcement",
     "tooling/lsp/pyright-workspace-config-jsonc",
     "tooling/release/file-walk",
     "tooling/release/readiness-gate",
