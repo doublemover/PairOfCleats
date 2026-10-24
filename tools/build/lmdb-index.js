@@ -251,8 +251,14 @@ await runNativeDatabaseCommand({ commandIdentity: 'lmdb.build', delegated: true 
       const loadDenseVectorArtifact = async (artifactName) => {
         const descriptor = resolveDenseVectorBinaryArtifact(artifactName);
         if (!descriptor) return null;
-        const declared = manifest.pieces.some(piece => piece.name === artifactName || piece.name === descriptor.metaName);
-        if (!declared) return null;
+        const binaryDeclared = manifest.pieces.some(piece => piece.name === descriptor.metaName
+          || (piece.name === descriptor.binName && piece.format === 'binary'));
+        if (!binaryDeclared) {
+          // Logical dense rows also have a sharded JSON representation. Its
+          // declaration does not imply that optional binary sidecars exist.
+          if (!manifest.pieces.some(piece => piece.name === artifactName || piece.name === `${artifactName}_meta`)) return null;
+          return loadJsonObjectArtifact(indexDir, artifactName, { maxBytes: MAX_JSON_BYTES, manifest, strict: true });
+        }
         const meta = await loadJsonObjectArtifact(indexDir, descriptor.metaName, {
           maxBytes: MAX_JSON_BYTES, manifest, strict: true
         });

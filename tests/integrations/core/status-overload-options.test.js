@@ -4,6 +4,7 @@ import path from 'node:path';
 import { status } from '../../../src/integrations/core/status.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { toRealPathSync } from '../../../src/workspace/identity.js';
 const { dir } = await prepareIsolatedTestCacheDir('status-overload-options');
 const repo = path.join(dir, 'repo'), cacheRoot = path.join(dir, 'cache');
 await fs.mkdir(repo); await fs.mkdir(path.join(cacheRoot, 'repos', 'known'), { recursive: true });
@@ -14,7 +15,7 @@ try {
   assert.equal(plain.allRepos, undefined);
   const stringForm = await status(repo, { includeAll: true, repoRoot: path.join(dir, 'wrong') });
   const objectForm = await status({ repoRoot: repo, includeAll: true });
-  assert.equal(stringForm.repo.root, await fs.realpath(repo));
+  assert.equal(stringForm.repo.root, toRealPathSync(repo));
   assert.equal(objectForm.repo.root, stringForm.repo.root);
   assert.deepEqual(stringForm.allRepos, objectForm.allRepos);
   assert.ok(stringForm.allRepos.repos.some(row => row.id === 'known'));

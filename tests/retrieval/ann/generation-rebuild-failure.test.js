@@ -45,7 +45,8 @@ const failure = invoke(build(), 'changed normalization with native writer failur
 assert.match(`${failure.stdout}\n${failure.stderr}`, /fixture: native writer failure/, 'The production wrappers must observe the injected writer failures');
 const failureOutput = `${failure.stdout}\n${failure.stderr}`;
 assert.equal((failureOutput.match(/failed to write HNSW index: fixture: native writer failure/g) || []).length, 3);
-assert.equal((failureOutput.match(/failed to write LanceDB indexes: fixture: native writer failure/g) || []).length, 1);
+assert.equal((failureOutput.match(/failed to write LanceDB index: fixture: native writer failure/g) || []).length, 3,
+  'each merged/doc/code writer reports its own original failure');
 const current = await state();
 assert.equal(current.embeddings.embeddingIdentity.modelId, original.embeddings.embeddingIdentity.modelId);
 assert.equal(current.embeddings.embeddingIdentity.dims, original.embeddings.embeddingIdentity.dims);

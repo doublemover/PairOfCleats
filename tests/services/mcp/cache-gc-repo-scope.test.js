@@ -8,6 +8,7 @@ import { CACHE_OWNER_FILE } from '../../../src/shared/cache-deletion.js';
 import { resolveRepoCacheRootPath } from '../../../src/shared/repo-paths.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
+import { withGeneratedCacheMetadata } from '../../../src/shared/generated-artifact-cache.js';
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-mcp-gc-scope-'));
 const cacheRoot = path.join(root, 'cache');
@@ -18,7 +19,11 @@ try {
     const repo = path.join(root, name);
     await fs.mkdir(repo); await fs.writeFile(path.join(repo, '.pairofcleats.json'), '{}');
     const cache = resolveRepoCacheRootPath(repo, { cache: { root: cacheRoot } });
-    await fs.mkdir(cache, { recursive: true }); await fs.writeFile(path.join(cache, 'data'), name);
+    await fs.mkdir(cache, { recursive: true });
+    if (name === 'repo-a') {
+      await fs.writeFile(path.join(cache, 'tree-sitter-chunk_lk1_' + 'a'.repeat(40) + '.json'),
+        JSON.stringify(withGeneratedCacheMetadata({ chunks: [] }, 'tree-sitter-chunks')));
+    } else await fs.writeFile(path.join(cache, 'data'), name);
     caches.push({ repo, cache });
   }
   await fs.writeFile(path.join(cacheRoot, CACHE_OWNER_FILE), JSON.stringify({ owner: 'pairofcleats', layoutVersion: 1 }));

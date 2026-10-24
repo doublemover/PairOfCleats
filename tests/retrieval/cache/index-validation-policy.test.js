@@ -6,6 +6,7 @@ import { createIndexCache } from '../../../src/retrieval/index-cache.js';
 import { loadIndexCached } from '../../../src/retrieval/cli/index-loader.js';
 import { createIndexBackendLoader } from '../../../src/retrieval/cli/load-indexes/backend.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { writePiecesManifest } from '../../helpers/artifact-io-fixture.js';
 
 applyTestEnv();
 const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-index-policy-'));
@@ -62,6 +63,10 @@ try {
   await fs.writeFile(path.join(dir, 'chunk_meta.json'), JSON.stringify([
     { id: 0, file: 'src/fixture.js', tokens: ['needle'] }
   ]));
+  await writePiecesManifest(dir, [
+    { name: 'chunk_meta', path: 'chunk_meta.json', format: 'json' },
+    { name: 'token_postings', path: 'token_postings.json', format: 'json' }
+  ]);
   const modeLoadOptions = {
     includeHnsw: false, includeDense: false, includeMinhash: false,
     includeFilterIndex: false, includeFileRelations: false, includeRepoMap: false,

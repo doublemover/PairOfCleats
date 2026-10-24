@@ -93,7 +93,7 @@ const lanceDb = await lance.connect(path.join(indexDir, lancePiece.path));
 try {
   const table = await lanceDb.openTable('vectors');
   const rows = await table.query().toArray();
-  assert.deepEqual(rows.map(row => row.id).sort(), [0, 2], 'Lance and HNSW preserve source ordinals across null gaps');
+  assert.deepEqual(rows.map(row => row.id).sort(), [0n, 2n], 'Lance Int64 IDs and HNSW numeric IDs preserve source ordinals across null gaps');
 } finally { await lanceDb.close(); }
 await writeDenseVectorArtifacts({ indexDir, baseName: 'dense_vectors_uint8', vectors: vectors.merged,
   writeBinary: true, vectorFields: { dims: 4, model: embeddingIdentity.modelId, embeddingIdentity, embeddingGeneration } });

@@ -18,7 +18,7 @@ import { createRequestController } from '../../../src/map/workspace/request.js';
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-public-enumeration-'));
 applyTestEnv({ cacheRoot: path.join(root, 'cache') });
-const indexDir = await createCompatibilityIndex(root, { compatibilityKey: 'public-enumeration', profileId: 'default' });
+const indexDir = await createCompatibilityIndex(root, { compatibilityKey: 'public-enumeration', profileId: 'default', published: true });
 const chunks = Array.from({ length: 17 }, (_, id) => ({ id, file: 'src/' + id + '.ts', start: 0, end: 1,
   kind: 'FunctionDeclaration', name: 'fn' + id, chunkUid: 'uid:' + id, tokens: ['unused'],
   docmeta: { returns: id % 2 ? 'boolean' : 'number' } }));

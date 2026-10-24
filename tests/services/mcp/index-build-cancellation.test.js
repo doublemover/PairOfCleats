@@ -27,6 +27,9 @@ globalThis.__indexBuildCancellation = {
         state.cancel();
         if (options.abortSignal) await waitFor(() => options.abortSignal.aborted);
       }
+      // The core build owns its requested SQLite stage. The MCP handler must
+      // not duplicate it after a normal build, unlike artifact restoration.
+      if (!options.abortSignal?.aborted && options.sqlite) await globalThis.__indexBuildCancellation.sqlite(_root, options);
       if (!options.abortSignal?.aborted) await fs.writeFile(path.join(root, 'published'), 'published');
       return { ok: true };
     } finally { state.settled = true; }

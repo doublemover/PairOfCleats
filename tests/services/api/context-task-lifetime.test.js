@@ -45,8 +45,14 @@ try {
     if (seam === 'operation') {
       let failure; try { await run(); assert.fail('must retain the original pending source descriptor'); } catch (error) { failure = error; }
       assert.equal(failure.cacheOwnershipReleased(), false); assert.equal(closes, 1);
-      deny = false; getContainedFileSession(failure).releaseAfterCloseSync();
-      assert.equal(failure.cacheOwnershipReleased(), true); assert.equal(closes, 2); assert.equal(reads, 1); held = null;
+      deny = false;
+      assert.throws(() => getContainedFileSession(failure).releaseAfterCloseSync());
+      assert.equal(failure.cacheOwnershipReleased(), false, 'an ambiguous synchronous native close cannot be retried by a reusable fd number');
+      assert.equal(closes, 1); assert.equal(reads, 1);
+      // The harness knows its injected close threw before touching this exact
+      // real descriptor. Physical fixture cleanup is independent of production
+      // retirement and cannot manufacture a settled ownership receipt.
+      originalClose(held); held = null;
     } else await run();
     assert.equal(calls, seam === 'operation' ? 1 : 0); assert.equal(writes, 0);
     for (const [surface, event] of [[req, 'aborted'], [req, 'error'], [res, 'close'], [res, 'error']]) assert.equal(surface.listenerCount(event), 0);

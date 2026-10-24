@@ -21,14 +21,18 @@ resetAtomicWriteRuntimeMetricsForTests();
 const targetPath = path.join(repoRoot, 'degraded.txt');
 const originalRename = fsPromises.rename;
 let exdevAttempts = 0;
+let crossDeviceSource = null;
+const committedSources = [];
 fsPromises.rename = async (...args) => {
-  const [, nextTarget] = args;
-  if (String(nextTarget || '').includes('degraded.txt')) {
+  const [source, nextTarget] = args;
+  if (String(nextTarget || '') === targetPath && (crossDeviceSource === null || source === crossDeviceSource)) {
+    crossDeviceSource = source;
     exdevAttempts += 1;
     const err = new Error('cross-device link not permitted');
     err.code = 'EXDEV';
     throw err;
   }
+  if (String(nextTarget || '') === targetPath) committedSources.push(source);
   return originalRename(...args);
 };
 try {
@@ -38,7 +42,9 @@ try {
 }
 
 assert.equal(fs.readFileSync(targetPath, 'utf8'), 'degraded-ok');
-assert.ok(exdevAttempts >= 1, 'expected EXDEV fallback path to execute');
+assert.ok(exdevAttempts >= 1, 'the cross-device source cannot be renamed to this volume');
+assert.equal(committedSources.length, 1, 'the same-volume staged commit succeeds once');
+assert.notEqual(committedSources[0], crossDeviceSource);
 
 const payload = await status({ repoRoot });
 assert.equal(payload?.durability?.runtime?.degradedDurability, true, 'expected status payload to expose degraded durability');
