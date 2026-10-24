@@ -20,6 +20,7 @@ import { createRuntimeAttempt } from '../../../shared/runtime-envelope/receipt.j
 import { persistRuntimeAttempt } from '../../../index/build/build-state/runtime.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
+import { toRealPathSync } from '../../../workspace/identity.js';
 
 const MODES = new Set(['code', 'prose', 'extracted-prose', 'records']);
 const hash = value => crypto.createHash('sha256').update(stableStringifyForSignature(value)).digest('hex');
@@ -102,7 +103,7 @@ export const planBuildRecovery = async ({ root, userConfig, indexRoot, operation
     && row.completion?.producer?.identity && row.completion?.sourceSnapshot?.identity).map(row => row.mode);
   const missingModes = fresh ? selectedModes : selectedModes.filter(mode => !evidence.find(row => row.mode === mode)?.completion);
   const invalidModes = selectedModes.filter(mode => !reusableModes.includes(mode) && !missingModes.includes(mode));
-  const plan = { schemaVersion: 1, operation, repoRoot: path.resolve(root), buildRoot, buildId: state.buildId,
+  const plan = { schemaVersion: 1, operation, repoRoot: toRealPathSync(root), buildRoot, buildId: state.buildId,
     modes: selectedModes, stateHash, configIdentity: hash(userConfig), currentPointerIdentity: await pointerIdentity(root, userConfig),
     sourceScope: fresh ? 'current-working-tree-refresh' : 'retained-historical-snapshot', sourceFreshness: 'not-checked-against-working-tree',
     ...(executeBuild ? { resumeTarget, sourceVerification: 'fresh-canonical-preprocessing-required-before-any-restore',

@@ -36,7 +36,7 @@ try {
     'an output repair preserves unchanged per-file content bundles');
   const before = await loadIncrementalState({ repoCacheRoot: root, mode: 'code', enabled: true,
     cacheSignature: old.signature, tokenizationKey: 'tokens', dependencySignatures: old.dependencies });
-  before.manifest.files = { 'src/kept.js': { hash: 'unchanged', size: 4, mtimeMs: 1, bundle: 'kept.json' } };
+  before.manifest.files = { 'src/kept.js': { hash: 'unchanged', size: 4, mtimeMs: 1, bundle: 'kept.json', dependencySignatures: null } };
   await persistIncrementalManifest(before.manifestPath, before.manifest);
   const after = await loadIncrementalState({ repoCacheRoot: root, mode: 'code', enabled: true,
     cacheSignature: old.signature, tokenizationKey: 'tokens', dependencySignatures: current });

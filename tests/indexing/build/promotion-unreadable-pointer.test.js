@@ -29,14 +29,14 @@ try {
     assert.equal(await fs.readFile(pointer, 'utf8'), bytes, 'unknown prior authority remains byte-for-byte intact');
   }
   await fs.writeFile(pointer, prior);
-  const originalRead = fs.readFile;
+  const originalOpen = fs.open;
   const failure = Object.assign(new Error('controlled pointer read failure'), { code: 'EIO' });
-  fs.readFile = async (target, ...args) => {
-    if (target === pointer) throw failure;
-    return originalRead(target, ...args);
+  fs.open = async (target, ...args) => {
+    if (String(target).toLowerCase() === pointer.toLowerCase()) throw failure;
+    return originalOpen(target, ...args);
   };
   try { await assert.rejects(promoteBuild(input), error => error.code === 'ERR_CURRENT_POINTER_UNREADABLE' && error.cause === failure); }
-  finally { fs.readFile = originalRead; }
+  finally { fs.open = originalOpen; }
   assert.equal(await fs.readFile(pointer, 'utf8'), prior);
   await promoteBuild(input);
   const published = JSON.parse(await fs.readFile(pointer, 'utf8'));

@@ -8,6 +8,7 @@ import { writeIncrementalBundle } from '../../../src/index/build/incremental.js'
 import { recordsLogicalContentHash } from '../../../src/integrations/triage/index-records.js';
 import { buildMetaV2 } from '../../../src/index/metadata-v2.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 applyTestEnv({ testing: '1' });
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-record-reuse-'));
 try {
@@ -55,6 +56,8 @@ try {
   assert.notEqual(logicalHash, recordsLogicalContentHash({ text, record: { source: 'one' }, recordMeta: {},
     policy: policy.snapshot, sourceHash: 'changed-raw-source' }), 'raw source identity is part of replay admission');
   await fs.writeFile(path.join(bundleDir, oldEntry.bundles[0]), '{}');
+  await assert.rejects(read(), { code: 'ERR_INDEX_FORMAT_UNSUPPORTED' }, 'unsupported cached formats retain their strict error contract');
+  await fs.writeFile(path.join(bundleDir, oldEntry.bundles[0]), JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION }));
   assert.equal((await read()).chunk, null, 'corrupt cached products recompute');
   const controller = new AbortController(); controller.abort();
   await assert.rejects(read({ signal: controller.signal }), { code: 'ABORT_ERR' });

@@ -41,7 +41,7 @@ const manifest = { partitions: [
   { partitionId: sb, sourceUnitId: b.sourceUnitId }, { partitionId: ab, sourceUnitId: b.sourceUnitId }
 ] };
 const identical = (left, right) => left.partitionId === right.partitionId && left.localId === right.localId;
-let closes = 0;
+let closes = 0, opens = 0;
 const store = {
   generation, withReadScope: operation => operation(),
   async *iterateRows(partitionId, member) {
@@ -61,7 +61,7 @@ const store = {
 };
 const request = { repoRoot: root, userConfig: { cache: { root: path.join(root, '.cache') } }, kind: 'definitions', query: 'duplicate',
   filePath: 'a.js', sourceHash: a.byteHash, sourceVersion: '7', line: 3, column: 1, coordinateUnit: 'utf16', includeDeclaration: true };
-const options = { openStore: async () => ({ store, manifest, close: () => { closes++; } }), clock: () => 0 };
+const options = { openStore: async () => { opens++; return { store, manifest, close: () => { closes++; } }; }, clock: () => 0 };
 try {
   const definition = await queryQualifiedNavigation(request, options);
   assert.equal(definition.status, 'resolved');
@@ -101,6 +101,7 @@ try {
   const partial = await queryQualifiedNavigation(request, { ...options, maxRows: 0 });
   assert.equal(partial.status, 'partial'); assert.ok(partial.degraded.includes('ERR_NAVIGATION_BUDGET'));
   await assert.rejects(() => queryQualifiedNavigation(request, { ...options, openStore: async () => { throw Object.assign(new Error('corrupt declared member'), { code: 'ERR_SEMANTIC_INTEGRITY' }); } }), { code: 'ERR_SEMANTIC_INTEGRITY' });
-  assert.ok(closes >= 8, 'every opened store closes including partial and stale paths');
+  assert.ok(opens > 0, 'the control opens its selected store');
+  assert.equal(closes, opens, 'every actually opened store closes, including partial and stale paths');
 } finally { await fs.rm(root, { recursive: true, force: true }); }
 console.log('Navigation uses exact source binding witnesses and retained UTF-16 coordinates; ambiguity and stale bytes remain explicit.');

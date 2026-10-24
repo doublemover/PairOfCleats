@@ -24,6 +24,7 @@ try {
     await writeCacheIndex(directory, createCacheIndex(key));
     await withEmbeddingCacheReadLock(directory, async () => {
       const index = await readEmbeddingIndex(directory, key, { forUpdate: true });
+      assert.equal(index.journal?.version, 1, 'the canonical initial checkpoint must establish its journal generation');
       index.entries[entryKey] = { key: entryKey, shard: 'shard-00000.bin', offset: 0, length: 4, storageEpoch: 0, ...extra };
       index.shards['shard-00000.bin'] = { sizeBytes: 8 };
       await appendEmbeddingIndexDelta(directory, index, { keys: [entryKey] });

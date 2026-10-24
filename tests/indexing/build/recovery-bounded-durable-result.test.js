@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { buildIndex } from '../../../src/integrations/core/build-index/index.js';
-import { executeBuildRecovery } from '../../../src/integrations/core/build-index/recovery.js';
+import { executeBuildRecovery, planBuildRecovery } from '../../../src/integrations/core/build-index/recovery.js';
 import { MAX_DURABLE_RECOVERY_RESULT_BYTES } from '../../../src/integrations/core/build-index/recovery-result.js';
 import { getRepoCacheRoot, loadUserConfig } from '../../../src/shared/dict-utils.js';
 import { readIndexLockInfo } from '../../../src/index/build/lock.js';
@@ -24,6 +24,9 @@ try {
   const original = await buildIndex(root, { mode: 'code', stage: 'stage2', progress: 'off' });
   const plan = await buildIndex(root, { recovery: { action: 'inspect', indexRoot: original.buildRoot,
     operation: 'refresh', resumeTarget: 'stage2', modes: ['code'] } });
+  const directPlan = await planBuildRecovery({ root, userConfig: loadUserConfig(root), indexRoot: original.buildRoot,
+    operation: 'refresh', resumeTarget: 'stage2', modes: ['code'] });
+  assert.deepEqual(directPlan, plan, 'core and direct recovery owners agree on canonical repository identity');
   const diagnostic = 'original backend diagnostic evidence '.repeat(32768);
   const result = await executeBuildRecovery({ root, userConfig: loadUserConfig(root), plan,
     resumeBuild: async (grant, request) => ({ ...await buildIndex(root, { ...request, progress: 'off', buildRecoveryGrant: grant }), diagnostic }) });

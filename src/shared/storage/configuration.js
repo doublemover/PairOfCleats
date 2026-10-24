@@ -90,6 +90,43 @@ const sameDirectoryObservation = (expected, actual) => {
     && ['dev', 'ino', 'mode'].every(key => expected.ancestorIdentity[key] === actual.ancestorIdentity[key]);
   return false;
 };
+
+// Lock preparation may create home/config while a category beneath home is
+// still absent. Retain exactly those newly created ancestors; unrelated new
+// directories and replacement ancestors still invalidate the reviewed plan.
+const prepareConfigurationDirectory = async directory => {
+  const firstCreated = await fs.mkdir(directory, { recursive: true });
+  const owned = new Map();
+  if (!firstCreated) return owned;
+  const boundary = path.resolve(firstCreated);
+  for (let current = directory; ; current = path.dirname(current)) {
+    assertNoSymlinkPath(path.parse(current).root, current);
+    const stat = await fs.lstat(current, { bigint: true });
+    if (!stat.isDirectory()) throw new Error('Configuration metadata ancestor is not a directory.');
+    owned.set(current, storageFileIdentity(stat));
+    if (current === boundary) break;
+    if (!isPathWithinRoot(current, boundary) || path.dirname(current) === current) {
+      throw new Error('Configuration directory preparation escaped its created owner.');
+    }
+  }
+  return owned;
+};
+
+const inspectPreparedDirectory = async (target, expected, owned) => {
+  const actual = await inspectDirectory(target);
+  if (expected.status !== 'missing' || actual.status !== 'missing'
+    || expected.ancestor === actual.ancestor) return actual;
+  for (let current = actual.ancestor; current !== expected.ancestor; current = path.dirname(current)) {
+    const identity = owned.get(current);
+    if (!identity || !isPathWithinRoot(current, expected.ancestor) || path.dirname(current) === current) return actual;
+    assertNoSymlinkPath(path.parse(current).root, current);
+    const stat = await fs.lstat(current, { bigint: true });
+    const observed = storageFileIdentity(stat);
+    if (!stat.isDirectory() || !['dev', 'ino', 'mode'].every(key => identity[key] === observed[key])) return actual;
+  }
+  const ancestor = await fs.lstat(expected.ancestor, { bigint: true });
+  return { ...actual, ancestor: expected.ancestor, ancestorIdentity: storageFileIdentity(ancestor) };
+};
 const machineSource = async file => {
   if (!file) return null;
   const source = await readVerifiedContainedFile(path.parse(file).root, file, { maxBytes: 1024 * 1024 });
@@ -166,6 +203,12 @@ export const applyStorageConfiguration = async (plan, { approvedPlanId, home, ca
   if (body.before !== body.after && body.shadowedByExplicitOverride) throw new Error('Current explicit override retains authority; locator publication cannot relocate that category.');
   const directory = path.join(body.home, 'config');
   assertNoSymlinkPath(path.parse(directory).root, directory, { allowMissing: true });
+  const initial = await settleObservations([inspectDirectory(body.before), inspectDirectory(body.after)]);
+  if (!sameDirectoryObservation(body.sourceObservation, initial[0])
+    || !sameDirectoryObservation(body.destinationObservation, initial[1])) {
+    throw new Error('Storage source or destination changed after preview; both are preserved.');
+  }
+  const preparedDirectories = await prepareConfigurationDirectory(directory);
   const lock = await acquireFileLock({ lockPath: path.join(directory, 'storage-locator.lock'), waitMs: 0,
     staleMs: Number.MAX_SAFE_INTEGER, metadata: { scope: 'storage-locator', planId } });
   if (!lock) throw new Error('Storage locator already has an exclusive configuration owner.');
@@ -176,7 +219,10 @@ export const applyStorageConfiguration = async (plan, { approvedPlanId, home, ca
     if (storagePlanDigest(await machineSource(body.configurationSource?.path)) !== storagePlanDigest(body.configurationSource)) {
       throw new Error('Trusted machine configuration changed after preview.');
     }
-    const [source, destination] = await settleObservations([inspectDirectory(body.before), inspectDirectory(body.after)]);
+    const [source, destination] = await settleObservations([
+      inspectPreparedDirectory(body.before, body.sourceObservation, preparedDirectories),
+      inspectPreparedDirectory(body.after, body.destinationObservation, preparedDirectories)
+    ]);
     if (!sameDirectoryObservation(body.sourceObservation, source) || !sameDirectoryObservation(body.destinationObservation, destination)) {
       throw new Error('Storage source or destination changed after preview; both are preserved.');
     }

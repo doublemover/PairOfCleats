@@ -32,7 +32,7 @@ try {
   await assert.rejects(buildIndex(root, { mode: 'code', stage: 'stage2', sqlite: false,
     progress: 'off', semanticEnrichmentDrain: grant }), { code: 'ERR_FIXTURE_BACKEND' });
   const completion = await readCompletedStage({ buildRoot: retainedRoot, mode: 'code' });
-  assert.equal(completion.snapshot.graphCapability.status, 'ready');
+  assert.equal(completion.snapshot.graphCapability.status, 'ready', completion.snapshot.graphCapability.reason);
   const graph = await buildIndex(root, { recovery: { action: 'open-graph', indexRoot: retainedRoot } });
   assert.equal(graph.buildId, retainedId);
   assert.equal(graph.status, 'ready');

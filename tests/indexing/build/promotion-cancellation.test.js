@@ -7,6 +7,7 @@ import { seedPublishedArtifacts } from '../../helpers/artifact-publication.js';
 import { promoteBuild } from '../../../src/index/build/promotion.js';
 import { getBuildsRoot } from '../../../tools/shared/dict-utils.js';
 import { validateIndexArtifacts } from '../../../src/index/validate.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-promotion-cancel-'));
 const originalOpen = fs.open, originalRename = fs.rename;
@@ -17,7 +18,7 @@ try {
   const userConfig = {}, buildsRoot = getBuildsRoot(repoRoot, userConfig), buildRoot = path.join(buildsRoot, 'new-build');
   await seedPublishedArtifacts({ buildRoot, mode: 'code', buildId: 'new-build' });
   const pointer = path.join(buildsRoot, 'current.json');
-  const prior = JSON.stringify({ buildId: 'old-build', marker: 'must-remain' });
+  const prior = JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, buildId: 'old-build', marker: 'must-remain' });
   const input = { repoRoot, userConfig, buildRoot, buildId: 'new-build', modes: ['code'] };
   await assert.rejects(validateIndexArtifacts({ root: repoRoot, abortSignal: AbortSignal.abort() }), error => error.name === 'AbortError');
   for (const boundary of ['already-aborted', 'temp-closed', 'rename-retry', 'after-commit']) {

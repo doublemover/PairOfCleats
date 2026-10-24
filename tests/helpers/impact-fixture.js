@@ -2,6 +2,7 @@ import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { loadUserConfig, resolveRepoCacheRootPath } from '../../src/shared/dict-utils.js';
 
 const resolveJsonArray = (value) => (Array.isArray(value) ? value : []);
 
@@ -14,13 +15,21 @@ export const createImpactRepoFixture = ({
   chunkMeta = []
 } = {}) => {
   const repoRoot = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
-  const indexDir = path.join(repoRoot, 'index-code');
+  fs.writeFileSync(path.join(repoRoot, '.pairofcleats.json'), JSON.stringify({ cache: { root: path.join(repoRoot, 'cache') } }));
+  const repoCacheRoot = resolveRepoCacheRootPath(repoRoot, loadUserConfig(repoRoot));
+  const buildRoot = path.join(repoCacheRoot, 'builds', 'impact-fixture');
+  const indexDir = path.join(buildRoot, 'index-code');
   const piecesDir = path.join(indexDir, 'pieces');
   fs.mkdirSync(piecesDir, { recursive: true });
+  fs.writeFileSync(path.join(repoCacheRoot, 'builds', 'current.json'), JSON.stringify({
+    artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, buildId: 'impact-fixture',
+    buildRoot: 'builds/impact-fixture', buildRootsByMode: { code: 'builds/impact-fixture' }
+  }));
 
   fs.writeFileSync(path.join(piecesDir, 'manifest.json'), JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     compatibilityKey,
     pieces: [
+      { name: 'chunk_meta', path: 'chunk_meta.json', format: 'json' },
       { name: 'graph_relations', path: 'pieces/graph_relations.json' },
       { name: 'symbol_edges', path: 'pieces/symbol_edges.json' },
       { name: 'call_sites', path: 'pieces/call_sites.json' }

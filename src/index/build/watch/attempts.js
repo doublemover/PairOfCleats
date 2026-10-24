@@ -37,9 +37,22 @@ export const createWatchAttemptManager = ({ repoRoot, userConfig, log }) => {
   };
 
   const trimAttempts = async (list, keep) => {
-    if (!Number.isFinite(keep)) return;
+    if (!Number.isFinite(keep) || list.length <= keep) return;
+    const readProtectedRoots = async () => {
+      try {
+        await fs.lstat(path.join(buildsRoot, 'current.json'));
+        const current = getCurrentBuildInfo(repoRoot, userConfig);
+        if (!current) throw new Error('Cannot establish published roots for watch retention.');
+        return [current.buildRoot, current.activeRoot, ...Object.values(current.buildRoots || {})];
+      } catch (error) { if (error.code !== 'ENOENT') throw error; return []; }
+    };
+    let protectedRoots = await readProtectedRoots();
+    const isProtected = attempt => protectedRoots.some(root => root && sameIdentityPath(root, attempt.buildRoot));
+    // Published generations do not consume the failed/successful attempt budget.
+    // Otherwise two pinned modes can cause every new failed attempt to vanish.
+    let removals = Math.max(0, list.filter(attempt => !isProtected(attempt)).length - keep);
     let remaining = list.length;
-    while (list.length > keep && remaining-- > 0) {
+    while (removals > 0 && remaining-- > 0) {
       const oldest = list.shift();
       const target = path.resolve(oldest.buildRoot);
       if (!sameIdentityPath(path.dirname(target), attemptsRoot)) {
@@ -47,20 +60,11 @@ export const createWatchAttemptManager = ({ repoRoot, userConfig, log }) => {
         throw new Error(`Watch retention target is not a direct attempt root: ${target}`);
       }
       try {
-        await fs.lstat(path.join(buildsRoot, 'current.json'));
-        const current = getCurrentBuildInfo(repoRoot, userConfig);
-        if (!current) throw new Error('Cannot establish published roots for watch retention.');
-        const protectedRoots = [current.buildRoot, current.activeRoot, ...Object.values(current.buildRoots || {})];
-        if (protectedRoots.some(root => root && sameIdentityPath(root, target))) {
-          list.push(oldest);
-          continue;
-        }
-      } catch (error) {
-        if (error.code !== 'ENOENT') { list.unshift(oldest); throw error; }
-      }
-      try {
+        protectedRoots = await readProtectedRoots();
+        if (isProtected(oldest)) { list.push(oldest); continue; }
         assertNoSymlinkPath(attemptsRoot, target, { allowMissing: true });
         await removeAttemptRoot(oldest?.buildRoot, log);
+        removals -= 1;
       } catch (error) { list.unshift(oldest); throw error; }
     }
   };

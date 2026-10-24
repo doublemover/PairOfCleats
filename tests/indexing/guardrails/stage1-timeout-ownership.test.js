@@ -32,7 +32,8 @@ for (const [reason, expression] of calls) {
       { stdio: ['ignore', 'ignore', 'ignore', 'ipc'] });
     children.push(child);
     unregister.push(registerChildProcessForCleanup(child, { ownershipId, scope: ownershipId, killTree: true }));
-    assert.deepEqual(await once(child, 'message'), ['ready']);
+    const [message] = await once(child, 'message');
+    assert.equal(message, 'ready');
     return child;
   };
   try {
@@ -43,7 +44,8 @@ for (const [reason, expression] of calls) {
     assert.deepEqual(result.targetedPids, [owned.pid], reason);
     const reply = once(foreign, 'message');
     foreign.send({ witness: reason });
-    assert.deepEqual(await reply, [{ witness: reason }], 'the other build remains usable after timeout cleanup');
+    const [message] = await reply;
+    assert.deepEqual(message, { witness: reason }, 'the other build remains usable after timeout cleanup');
   } finally {
     for (const child of children) {
       if (child.exitCode === null && child.signalCode === null) {

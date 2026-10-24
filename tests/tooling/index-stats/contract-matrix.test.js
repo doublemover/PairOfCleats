@@ -54,7 +54,8 @@ const createIndexStatsRepoFixture = async (prefix, {
     path.join(repoCacheRoot, 'builds', 'current.json'),
     { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       buildId,
-      buildRoot
+      buildRoot,
+      buildRootsByMode: { code: buildRoot }
     }
   );
   return {

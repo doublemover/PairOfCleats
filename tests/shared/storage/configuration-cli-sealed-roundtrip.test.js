@@ -14,8 +14,9 @@ try {
   const destination = path.join(temporary, 'empty-model-target');
   await fs.mkdir(repo);
   const env = applyTestEnv({ syncProcess: false });
-  const invoke = args => runNode(['tools/storage/cli.js', ...args, '--repo', repo, '--home', home, '--json'],
+  const invokeAt = (selectedHome, args) => runNode(['tools/storage/cli.js', ...args, '--repo', repo, '--home', selectedHome, '--json'],
     'storage sealed CLI plan', process.cwd(), env, { stdio: 'pipe', allowFailure: true, timeoutMs: 10000 });
+  const invoke = args => invokeAt(home, args);
   const preview = invoke(['configure-plan', '--category', 'models', '--path', destination]);
   assert.equal(preview.status, 0, preview.stderr || preview.stdout);
   const plan = JSON.parse(preview.stdout);
@@ -32,5 +33,19 @@ try {
   await assert.rejects(fs.lstat(destination), { code: 'ENOENT' });
   const stale = invoke(['configure-apply', '--category', 'models', '--path', destination, '--plan', file, '--plan-id', planId]);
   assert.notEqual(stale.status, 0, 'successful roundtrip does not weaken stale-plan rejection');
+  for (const change of ['source-ancestor', 'destination-ancestor']) {
+    const selectedHome = path.join(temporary, `${change}-home`);
+    const parent = path.join(temporary, `${change}-parent`), target = path.join(parent, 'models');
+    const preview = invokeAt(selectedHome, ['configure-plan', '--category', 'models', '--path', target]);
+    assert.equal(preview.status, 0, preview.stderr || preview.stdout);
+    const plan = JSON.parse(preview.stdout), file = path.join(temporary, `${change}-plan.json`);
+    await fs.writeFile(file, JSON.stringify(plan));
+    await fs.mkdir(change === 'source-ancestor' ? selectedHome : parent);
+    const refused = invokeAt(selectedHome, ['configure-apply', '--category', 'models', '--path', target,
+      '--plan', file, '--plan-id', plan.planId]);
+    assert.notEqual(refused.status, 0, 'unrelated ancestor creation cannot inherit lock-preparation authority');
+    await assert.rejects(fs.lstat(target), { code: 'ENOENT' });
+    assert.equal(readStorageLocator(selectedHome).value.categories.models, undefined);
+  }
 } finally { await rmDirRecursive(temporary); }
 console.log('configuration CLI sealed review roundtrip passed');
