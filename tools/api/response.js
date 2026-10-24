@@ -22,7 +22,10 @@ const preserveValidationFieldPath = (original, redacted) => {
     const trimmed = original.trim();
     const pointerToken = trimmed.split(/\s+/, 1)[0] || '';
     if (VALIDATION_POINTER_RE.test(pointerToken) && VALIDATION_MESSAGE_RE.test(trimmed)) {
-      return original;
+      // Only the leading field pointer is validation identity. Redact the
+      // remaining diagnostic independently so restoring it cannot disclose
+      // an embedded server path from a nested failure.
+      return pointerToken + redactPublicDiagnostic(trimmed.slice(pointerToken.length));
     }
     return redacted;
   }
@@ -35,6 +38,9 @@ const preserveValidationFieldPath = (original, redacted) => {
   const pathValue = original.path;
   if (typeof pathValue === 'string' && VALIDATION_POINTER_RE.test(pathValue)) {
     result.path = pathValue;
+  }
+  if (typeof original.message === 'string') {
+    result.message = preserveValidationFieldPath(original.message, result.message);
   }
   return result;
 };

@@ -15,13 +15,18 @@ for (const message of ['Repo path not found: /srv/example-checkout', 'Repo path 
   "ENOENT: no such file or directory, open '/srv/example-cache/state.json'", 'Denied \\\\server\\share\\private.txt']) {
   let json;
   const response = { writeHead() {}, end(body) { json = JSON.parse(body); } };
-  sendError(response, 500, 'INTERNAL', message, { query: '/ordinary/source/query', errors: [{ path: '/top', message: '/top must be integer' }] });
+  sendError(response, 500, 'INTERNAL', message, { query: '/ordinary/source/query', errors: [
+    { path: '/top', message: '/top must be integer' },
+    { path: '/limit', message: '/limit must be integer; unable to read /srv/private/state.json' }
+  ] });
   assert.equal(json.message.includes('/srv/'), false);
   assert.equal(json.message.includes('C:\\Example'), false);
   assert.equal(json.message.includes('server\\share'), false);
   assert.equal(json.query, '/ordinary/source/query');
   assert.equal(json.errors[0].path, '/top');
   assert.equal(json.errors[0].message, '/top must be integer');
+  assert.match(json.errors[1].message, /^\/limit must be integer;/);
+  assert.equal(json.errors[1].message.includes('/srv/'), false, 'restored pointers cannot restore embedded server paths');
   const req = new EventEmitter(), res = new EventEmitter();
   let chunks = '';
   res.write = chunk => { chunks += chunk; return true; }; res.writeHead = () => {}; res.end = () => {};

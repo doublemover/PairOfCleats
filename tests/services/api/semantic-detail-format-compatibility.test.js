@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import { formatToolError } from '../../../src/integrations/mcp/protocol.js';
 import { handleToolCall } from '../../../tools/mcp/tools.js';
 import { createSemanticDetailFixture } from '../../helpers/api-semantic-detail-fixture.js';
+import { writePiecesManifest } from '../../../src/index/build/artifacts/checksums.js';
 
 const versions = { missing: undefined, legacy: '0.0.2', future: '0.1.1' };
 const caseId = process.env.PAIROFCLEATS_TEST_ID?.split('services/api/semantic-detail-format-compatibility/')[1];
@@ -23,7 +24,7 @@ try {
   try {
     await fs.writeFile(piecePath, JSON.stringify({ ...JSON.parse(originalPieces), artifactSurfaceVersion: version }));
     const rejected = await post(request);
-    assert.equal(rejected.status, 409);
+    assert.equal(rejected.status, 409, JSON.stringify(rejected.body));
     assert.equal(rejected.body.nativeCode, 'ERR_INDEX_FORMAT_UNSUPPORTED');
     assert.equal(path.resolve(rejected.body.repoRoot).toLowerCase(), path.resolve(repoRoot).toLowerCase());
     assert.equal(path.resolve(rejected.body.indexPath).toLowerCase(), path.resolve(piecePath).toLowerCase());
@@ -44,12 +45,22 @@ try {
   const originalSemantic = await fs.readFile(semanticPath, 'utf8');
   try {
     await fs.writeFile(semanticPath, JSON.stringify({ ...JSON.parse(originalSemantic), artifactSurfaceVersion: version }));
+    // Keep byte identity valid so this case reaches format admission rather
+    // than the independent and earlier checksum/extent rejection.
+    const pieces = JSON.parse(originalPieces);
+    await writePiecesManifest({ outDir: indexDir, mode: 'code', indexState: pieces,
+      pieceEntries: pieces.pieces.map(piece => {
+        if (piece.name !== 'semantic_manifest') return piece;
+        const { bytes: _bytes, checksum: _checksum, ...unsealed } = piece;
+        return unsealed;
+      }) });
     const rejected = await post(request);
-    assert.equal(rejected.status, 409);
+    assert.equal(rejected.status, 409, JSON.stringify(rejected.body));
     assert.equal(rejected.body.component, 'semantic manifest');
     assert.equal(path.resolve(rejected.body.indexPath).toLowerCase(), path.resolve(semanticPath).toLowerCase());
   } finally {
     await fs.writeFile(semanticPath, originalSemantic);
+    await fs.writeFile(piecePath, originalPieces);
   }
   console.log(`Semantic detail ${caseId} format compatibility passed`);
 } finally {
