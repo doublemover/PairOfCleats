@@ -1,10 +1,21 @@
 # Platform and performance qualification
 
-Audited: 2026-10-23. Source contracts and workflow definitions describe required
+Audited: 2026-10-24. Source contracts and workflow definitions describe required
 behavior; a configured job is not evidence that the current candidate passed it.
 Current execution evidence and unresolved failures belong to the
 [deep test audit](../archived/deep-test-audit-2026-10-18.md) and the
 [active roadmap](../roadmap.md).
+
+The [360-case repair receipt](../archived/windows-failure-repairs-2026-10-24.md)
+records all initial attempts before the frozen 260-pass/100-failure batch. Later
+source-bound cohorts give 96 original failures passing observations and leave
+four export CLI cases at their unchanged internal ten-second build deadline.
+At `18854141bca198934000bca1ce5655c92aad37d8`, 14/18 affected cases pass,
+including both SSR witnesses and real descriptor-close/capability controls, with
+zero outer timeouts, skips or native crashes. These are targeted observations,
+not a final-tree pass of all historical greens. The complete local front gate at that same source passed all commands and
+40/40 gate fixtures; it does not close the four export failures. Prior remote CI failed the POSIX postinstall Git child-signal assertion;
+no local Linux/WSL work was performed. Setup dependencies remain unchanged.
 
 The repair program targets Windows with Node 26.12.1. All workers are parked.
 After `d256540ac`, the user requested a full solo Windows validation pass and

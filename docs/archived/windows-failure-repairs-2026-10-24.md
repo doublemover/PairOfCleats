@@ -1418,3 +1418,25 @@ backend is disabled or silently substituted. The JS export fixture also now
 explicitly admits its actual JS inputs in tsconfig, avoiding the proven spurious
 'No inputs' configuration warning; source/assertions and deadlines are unchanged.
 Repaired-source checks are pending.
+
+The 18-case run at `18854141bca198934000bca1ce5655c92aad37d8` passed
+14 and failed the four export fixtures, with zero outer timeouts/skips/native
+crashes. Both SSR witnesses, checksum original-owner controls, private copies,
+completed-stage/graph publication, explicit worker policy, MCP launch/root and
+complete capability serialization controls passed. The original failure closure
+remains 96/100. One export reached normal current-pointer publication but its
+signal expired before the post-build assertion; others still cancelled during
+final validation. None is counted green. The original 10-second build deadline,
+5-second CLI bound and 30-second runner cap remain unchanged. The JS fixture no
+longer reports a tsconfig with no inputs. The prior remote 74f59e3c9 hosted gate
+also failed its POSIX postinstall Git child-signal assertion; policy passed and
+all downstream platform jobs were skipped. This is separate from local Windows
+observations; no local Linux/WSL execution was added.
+
+The full local pre-push gate passed at production/test source
+`18854141bca198934000bca1ce5655c92aad37d8`: format/ESLint, config budget,
+environment usage, generated freshness, command surface, workflow contracts,
+40/40 gate fixtures (4.27s), and whitespace all exited zero. The historical
+f663002908a receipt was not overwritten: this gate has its own source-keyed
+.tmp task directory. The four export failures remain open despite a green gate;
+selected gate coverage is not broad deep-suite acceptance.

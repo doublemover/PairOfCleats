@@ -10887,6 +10887,494 @@
           "historicalAuthorWorkspaceEvidence": true
         }
       ]
+    },
+    {
+      "sourceHead": "18854141bca198934000bca1ce5655c92aad37d8",
+      "startedAt": "2026-10-24T17:34:26.978Z",
+      "finishedAt": "2026-10-24T17:36:39.110Z",
+      "scope": "Narrow backend capability probing, complete reporting, descriptor closure, stage publication and remaining export/SSR fixtures",
+      "policy": {
+        "timeoutMs": 30000,
+        "retries": 0,
+        "nativeStatusRedo": false,
+        "threads": 1,
+        "platform": "win32",
+        "node": "v26.12.1",
+        "removedLaunchSetting": "PAIROFCLEATS_TRUSTED_CONFIG: missing configured file; no replacement authority granted"
+      },
+      "summary": {
+        "selected": 18,
+        "passed": 14,
+        "failed": 4,
+        "timeouts": 0,
+        "skipped": 0
+      },
+      "cohorts": [
+        {
+          "name": "policy-activation-wave-01",
+          "summary": {
+            "total": 5,
+            "passed": 5,
+            "failed": 0,
+            "skipped": 0,
+            "durationMs": 4995
+          },
+          "ids": [
+            "shared/config/contract-matrix",
+            "shared/capabilities/mcp-sdk",
+            "shared/capabilities/mcp-launch-root",
+            "indexing/runtime/worker-pool-explicit-policy",
+            "indexing/validate/manifest-shared-read-plan"
+          ]
+        },
+        {
+          "name": "policy-activation-wave-02",
+          "summary": {
+            "total": 5,
+            "passed": 5,
+            "failed": 0,
+            "skipped": 0,
+            "durationMs": 1402
+          },
+          "ids": [
+            "shared/artifact-io/streamed-checksum-resource-lifetime",
+            "shared/contained-file-verified-read",
+            "shared/artifact-io/manifest-read-plan",
+            "indexing/artifacts/unpublished-stage-copy",
+            "indexing/build/artifact-publication-identity-gate"
+          ]
+        },
+        {
+          "name": "policy-activation-wave-03",
+          "summary": {
+            "total": 5,
+            "passed": 4,
+            "failed": 1,
+            "skipped": 0,
+            "durationMs": 83066
+          },
+          "ids": [
+            "indexing/artifacts/completed-stage-recovery",
+            "indexing/build/immutable-graph-capability",
+            "indexing/semantic/ssr-snapshot-witness-incremental",
+            "indexing/semantic/ssr-snapshot-witness-incremental-parity",
+            "tooling/api-contracts/export-identity-cli/js-fail"
+          ]
+        },
+        {
+          "name": "policy-activation-wave-04",
+          "summary": {
+            "total": 3,
+            "passed": 0,
+            "failed": 3,
+            "skipped": 0,
+            "durationMs": 38884
+          },
+          "ids": [
+            "tooling/api-contracts/export-identity-cli/js-report",
+            "tooling/api-contracts/export-identity-cli/ts-fail",
+            "tooling/api-contracts/export-identity-cli/ts-report"
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "id": "indexing/runtime/worker-pool-explicit-policy",
+          "path": "indexing/runtime/worker-pool-explicit-policy.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 2154,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-18854141bca198934000bca1ce5655c92aad37d8/policy-activation-wave-01-logs/run-1792863267887-ajehsc/indexing_runtime_worker-pool-explicit-policy.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/validate/manifest-shared-read-plan",
+          "path": "indexing/validate/manifest-shared-read-plan.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 791,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-18854141bca198934000bca1ce5655c92aad37d8/policy-activation-wave-01-logs/run-1792863267887-ajehsc/indexing_validate_manifest-shared-read-plan.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "shared/capabilities/mcp-launch-root",
+          "path": "shared/capabilities/mcp-launch-root.test.js",
+          "lane": "unit",
+          "tags": [
+            "mcp",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 643,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-18854141bca198934000bca1ce5655c92aad37d8/policy-activation-wave-01-logs/run-1792863267887-ajehsc/shared_capabilities_mcp-launch-root.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "shared/capabilities/mcp-sdk",
+          "path": "shared/capabilities/mcp-sdk.test.js",
+          "lane": "unit",
+          "tags": [
+            "mcp",
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 582,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-18854141bca198934000bca1ce5655c92aad37d8/policy-activation-wave-01-logs/run-1792863267887-ajehsc/shared_capabilities_mcp-sdk.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "shared/config/contract-matrix",
+          "path": "shared/config/contract-matrix.test.js",
+          "lane": "unit",
+          "tags": [
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 816,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-18854141bca198934000bca1ce5655c92aad37d8/policy-activation-wave-01-logs/run-1792863267887-ajehsc/shared_config_contract-matrix.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/artifacts/unpublished-stage-copy",
+          "path": "indexing/artifacts/unpublished-stage-copy.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 249,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-18854141bca198934000bca1ce5655c92aad37d8/policy-activation-wave-02-logs/run-1792863273868-2y68g2/indexing_artifacts_unpublished-stage-copy.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/build/artifact-publication-identity-gate",
+          "path": "indexing/build/artifact-publication-identity-gate.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 631,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-18854141bca198934000bca1ce5655c92aad37d8/policy-activation-wave-02-logs/run-1792863273868-2y68g2/indexing_build_artifact-publication-identity-gate.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "shared/artifact-io/manifest-read-plan",
+          "path": "shared/artifact-io/manifest-read-plan.test.js",
+          "lane": "unit",
+          "tags": [
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 168,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-18854141bca198934000bca1ce5655c92aad37d8/policy-activation-wave-02-logs/run-1792863273868-2y68g2/shared_artifact-io_manifest-read-plan.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "shared/artifact-io/streamed-checksum-resource-lifetime",
+          "path": "shared/artifact-io/streamed-checksum-resource-lifetime.test.js",
+          "lane": "unit",
+          "tags": [
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 243,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-18854141bca198934000bca1ce5655c92aad37d8/policy-activation-wave-02-logs/run-1792863273868-2y68g2/shared_artifact-io_streamed-checksum-resource-lifetime.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "shared/contained-file-verified-read",
+          "path": "shared/contained-file-verified-read.test.js",
+          "lane": "unit",
+          "tags": [
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 103,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-18854141bca198934000bca1ce5655c92aad37d8/policy-activation-wave-02-logs/run-1792863273868-2y68g2/shared_contained-file-verified-read.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/artifacts/completed-stage-recovery",
+          "path": "indexing/artifacts/completed-stage-recovery.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 3312,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-18854141bca198934000bca1ce5655c92aad37d8/policy-activation-wave-03-logs/run-1792863276153-xh7ied/indexing_artifacts_completed-stage-recovery.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/build/immutable-graph-capability",
+          "path": "indexing/build/immutable-graph-capability.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 10357,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-18854141bca198934000bca1ce5655c92aad37d8/policy-activation-wave-03-logs/run-1792863276153-xh7ied/indexing_build_immutable-graph-capability.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/semantic/ssr-snapshot-witness-incremental",
+          "path": "indexing/semantic/ssr-snapshot-witness-incremental.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 29152,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-18854141bca198934000bca1ce5655c92aad37d8/policy-activation-wave-03-logs/run-1792863276153-xh7ied/indexing_semantic_ssr-snapshot-witness-incremental.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "indexing/semantic/ssr-snapshot-witness-incremental-parity",
+          "path": "indexing/semantic/ssr-snapshot-witness-incremental-parity.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 27185,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-18854141bca198934000bca1ce5655c92aad37d8/policy-activation-wave-03-logs/run-1792863276153-xh7ied/indexing_semantic_ssr-snapshot-witness-incremental-parity.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/js-fail",
+          "path": "tooling/api-contracts/export-identity-cli.test.js",
+          "lane": "gate",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "status": "failed",
+          "durationMs": 13048,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-18854141bca198934000bca1ce5655c92aad37d8/policy-activation-wave-03-logs/run-1792863276153-xh7ied/tooling_api-contracts_export-identity-cli_js-fail.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-18854141bca198934000bca1ce5655c92aad37d8/policy-activation-wave-03-logs/run-1792863276153-xh7ied/tooling_api-contracts_export-identity-cli_js-fail.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/js-report",
+          "path": "tooling/api-contracts/export-identity-cli.test.js",
+          "lane": "gate",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "status": "failed",
+          "durationMs": 12944,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-18854141bca198934000bca1ce5655c92aad37d8/policy-activation-wave-04-logs/run-1792863360207-gj55p3/tooling_api-contracts_export-identity-cli_js-report.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-18854141bca198934000bca1ce5655c92aad37d8/policy-activation-wave-04-logs/run-1792863360207-gj55p3/tooling_api-contracts_export-identity-cli_js-report.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/ts-fail",
+          "path": "tooling/api-contracts/export-identity-cli.test.js",
+          "lane": "gate",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "status": "failed",
+          "durationMs": 12950,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-18854141bca198934000bca1ce5655c92aad37d8/policy-activation-wave-04-logs/run-1792863360207-gj55p3/tooling_api-contracts_export-identity-cli_ts-fail.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-18854141bca198934000bca1ce5655c92aad37d8/policy-activation-wave-04-logs/run-1792863360207-gj55p3/tooling_api-contracts_export-identity-cli_ts-fail.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "tooling/api-contracts/export-identity-cli/ts-report",
+          "path": "tooling/api-contracts/export-identity-cli.test.js",
+          "lane": "gate",
+          "tags": [
+            "gate",
+            "tooling"
+          ],
+          "status": "failed",
+          "durationMs": 12971,
+          "attempts": 1,
+          "exitCode": 1,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-18854141bca198934000bca1ce5655c92aad37d8/policy-activation-wave-04-logs/run-1792863360207-gj55p3/tooling_api-contracts_export-identity-cli_ts-report.attempt-1.log",
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-18854141bca198934000bca1ce5655c92aad37d8/policy-activation-wave-04-logs/run-1792863360207-gj55p3/tooling_api-contracts_export-identity-cli_ts-report.attempt-1.failure.json"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        }
+      ]
     }
   ],
   "cumulativeClosure": {
