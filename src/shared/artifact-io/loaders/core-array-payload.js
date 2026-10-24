@@ -1,11 +1,16 @@
 import { readJsonFile, readJsonLinesArray, readJsonLinesArraySync, readJsonLinesIterator } from '../json.js';
 import { inflateColumnarRows } from '../columnar-rows.js';
 import { createLoaderError, ensureOffsetsValid } from './shared.js';
-import { iterateBinaryColumnarJsonRows } from './core-binary-columnar.js';
+import { createRequire } from 'node:module';
 import {
   resolveBinaryColumnarSourcePart,
   resolveReadableArtifactPath
 } from './core-source-resolution.js';
+
+const require = createRequire(import.meta.url);
+let binaryRowReader;
+const iterateBinaryColumnarJsonRows = options =>
+  (binaryRowReader ||= require('./core-binary-columnar.js').iterateBinaryColumnarJsonRows)(options);
 
 const appendRows = (target, rows) => {
   for (let i = 0; i < rows.length; i += 1) {

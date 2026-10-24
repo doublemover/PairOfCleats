@@ -1,10 +1,12 @@
 import { currentVerifiedArtifactReadScope } from './verified-read-scope.js';
 import fs from 'node:fs';
-import { buildLocalCacheKey } from '../cache-key.js';
+import { createRequire } from 'node:module';
 import { MAX_JSON_BYTES } from './constants.js';
 
 const PIECE_CACHE_LIMIT = 8;
 const pieceCache = new Map();
+const require = createRequire(import.meta.url);
+let cacheKeyBuilder;
 
 const buildCacheKey = (filePath, {
   maxBytes = MAX_JSON_BYTES,
@@ -20,7 +22,9 @@ const buildCacheKey = (filePath, {
     if (typeof maxBytes !== 'number' || !Number.isFinite(maxBytes) || maxBytes <= 0
       || (containedRoot !== null && typeof containedRoot !== 'string')) return null;
     const stat = fs.statSync(filePath);
-    return buildLocalCacheKey({
+    // Keep synchronous cache admission while deferring the canonical key
+    // owner's memo/config dependencies until an artifact is actually read.
+    return (cacheKeyBuilder ||= require('../cache-key.js').buildLocalCacheKey)({
       namespace: 'artifact-io',
       payload: {
         filePath,

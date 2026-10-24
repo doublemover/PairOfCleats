@@ -1,5 +1,5 @@
 import { assertNoSymlinkPath } from '../contained-file.js';
-import { retainCachePathAccess } from '../cache/repo-access-reader.js';
+import { createRequire } from 'node:module';
 import { assertCurrentIndexFormat } from '../../contracts/index-format.js';
 import path from 'node:path';
 import { MAX_JSON_BYTES } from './constants.js';
@@ -10,6 +10,11 @@ import { getTestEnvConfig } from '../env/testing.js';
 import { logLine } from '../progress-runtime.js';
 
 const MIN_MANIFEST_BYTES = 64 * 1024;
+const require = createRequire(import.meta.url);
+let cachePathAccessOwner;
+// Admission remains synchronous and precedes the original manifest read.
+const retainCachePathAccess = dir =>
+  (cachePathAccessOwner ||= require('../cache/repo-access-reader.js').retainCachePathAccess)(dir);
 const warnedMissingCompat = new Set();
 const DEFAULT_STRICT_MANIFEST_RETRY_DELAYS_MS = Object.freeze([25, 50]);
 

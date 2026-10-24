@@ -1,5 +1,10 @@
 import { SEARCH_DISPATCH_METADATA } from '../retrieval/cli-options.js';
-import { STORAGE_ACTIONS } from '../../tools/storage/options.js';
+
+// The command registry owns action identity; storage CLI option declarations
+// consume this same list without becoming a dependency of registry queries.
+export const STORAGE_ACTIONS = Object.freeze(['list', 'inspect', 'explain', 'doctor', 'configure-plan', 'configure-apply',
+  'cleanup-plan', 'cleanup-apply', 'migration-plan', 'migration-apply', 'migration-rollback', 'migration-status',
+  'policy-plan', 'policy-apply']);
 
 const entry = (id, commandPath, script, description, extras = {}) => Object.freeze({
   id,
