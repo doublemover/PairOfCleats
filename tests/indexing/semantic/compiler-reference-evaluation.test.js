@@ -104,8 +104,9 @@ try {
   while (ts.isParenthesizedExpression(storeTarget)) storeTarget = storeTarget.expression;
   const written = edges.find(edge => edge.kind === 'writes' && key(edge.to) === key(doc.expressionFor(storeTarget)));
   assert.ok(written, 'the retained heap write belongs to the selected property anchor');
-  assert.ok(edges.some(edge => edge.kind === 'defines' && key(edge.from) === key(doc.expressionFor(propertyStore.right))
-    && key(edge.to) === key(written.from)));
+  assert.ok(edges.some(edge => edge.kind === 'flowsTo' && edge.certainty === 'modeled'
+    && key(edge.from) === key(doc.expressionFor(propertyStore.right)) && key(edge.to) === key(written.from)),
+  'the actual RHS reaches the may-location heap state without claiming an alias-safe definition');
   assert.ok(!flow.fieldAccesses.some(access => key(access.ref) === key(doc.expressionFor(storeTarget))), 'the store target is not retained as a heap read');
   const remove = owner('remove').body.statements[0].expression;
   let removeTarget = remove.expression;

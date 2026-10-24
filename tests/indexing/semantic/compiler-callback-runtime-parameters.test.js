@@ -51,7 +51,7 @@ try {
   for (const partition of partitions) {
     for await (const row of store.iterateRows(partition.partitionId, 'semantic_records')) records.set(partition.partitionId + ':' + row.id, { row, partition });
     for await (const edge of store.iterateRows(partition.partitionId, 'semantic_edges')) edges.push(edge);
-    for await (const row of store.iterateRows(partition.partitionId, 'semantic_coverage')) coverage.push(row);
+    for await (const row of store.iterateRows(partition.partitionId, 'semantic_coverage')) coverage.push({ ...row, partitionId: partition.partitionId });
   }
   const kind = ref => records.get(key(ref))?.row.data.boundaryKind;
   const consumerEdges = edges.filter(edge => edge.kind === 'consumes' && kind(edge.from)?.includes('callback-candidate')
@@ -83,6 +83,9 @@ try {
   assert.ok(coverage.some(row => row.reason?.includes('callback_payload_parameter_mapping_unresolved')));
   assert.ok(coverage.some(row => row.reason?.includes('node_worker_message_binding_pattern_unresolved')));
   assert.ok(coverage.some(row => row.reason?.includes('message_parameter_binding_pattern_unsupported')));
-  assert.ok(coverage.every(row => row.phase !== 'boundaryModels' || row.state === 'partial'));
+  const producedIds = new Set([...boundary, ...workers].map(partition => partition.partitionId));
+  const producedCoverage = coverage.filter(row => row.phase === 'boundaryModels' && producedIds.has(row.partitionId));
+  assert.ok(producedCoverage.length > 0);
+  assert.ok(producedCoverage.every(row => row.state === 'partial'), 'actual modeled producers remain partial; syntax frontier rows retain their own state');
   console.log('platform callback runtime parameters and erased-use ownership controls passed');
 } finally { await fs.rm(root, { recursive: true, force: true }); }

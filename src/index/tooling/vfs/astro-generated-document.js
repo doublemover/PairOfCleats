@@ -83,7 +83,10 @@ export const qualifyAstroGeneratedMap = ({ map, code, originalText, filename, ch
         }
       }
       if (points.at(-1)?.generated === generated) {
-        if (points.at(-1).original !== original) throw fail('Conflicting Astro map anchors at one generated coordinate.');
+        if (points.at(-1).original !== original) throw Object.assign(fail('Conflicting Astro map anchors at one generated coordinate.'), {
+          mappingConflict: { generatedLine: line, generatedColumn, generatedOffset: generated,
+            previousOriginalOffset: points.at(-1).original, originalOffset: original }
+        });
       } else points.push({ generated, original });
     }
   }

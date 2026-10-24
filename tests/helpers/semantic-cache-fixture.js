@@ -11,6 +11,7 @@ import { normalizeSemanticConfig } from '../../src/index/semantic/config.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 import { semanticBatch, semanticNode } from './semantic-recovery.js';
 import { applyTestEnv } from './test-env.js';
+import { sha1 } from '../../src/shared/hash.js';
 
 export const createSemanticCacheFixture = async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-semantic-cache-'));
@@ -30,7 +31,7 @@ export const createSemanticCacheFixture = async () => {
     dependencySignatures, files: {} };
   const createFile = async ({ file = 'input.js', text = 'f(1);', zeroChunks = false,
     nodeCount = 1, extraRows = [], analysisReason = null, analysisRows = [],
-    producerHash = 'a'.repeat(64), chunks: suppliedChunks = null, fileHash = 'hash-' + file } = {}) => {
+    producerHash = 'a'.repeat(64), chunks: suppliedChunks = null, fileHash = null } = {}) => {
     const bytes = Buffer.from(text);
     const source = createSemanticSourceSnapshot({ bytes, repositoryNamespace: repoRoot, path: file, language: 'javascript' }).manifest;
     await fs.mkdir(path.dirname(path.join(repoRoot, file)), { recursive: true });
@@ -65,7 +66,7 @@ export const createSemanticCacheFixture = async () => {
     const chunks = suppliedChunks || (zeroChunks ? [] : [{ file, start: 0, end: text.length,
       kind: 'code', name: 'input', tokens: ['fixture'], text }]);
     const entry = await writeIncrementalBundle({ enabled: true, bundleDir, manifest, relKey: file,
-      fileStat: { mtimeMs: 1234567.25, size: bytes.length }, fileHash,
+      fileStat: { mtimeMs: 1234567.25, size: bytes.length }, fileHash: fileHash ?? sha1(bytes),
       fileChunks: chunks, fileRelations: null, dependencySignatures, semanticFactsRef: factsRef,
       semanticContext: { buildRoot, diskAccount: account, dependencySignatures: dependencies } });
     if (!entry) throw new Error('Fixture bundle write failed.');

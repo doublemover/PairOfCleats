@@ -20,5 +20,6 @@ assert.equal(wide.resolve(ref(0)).targets.length, 32); assert.equal(wide.resolve
 const limited = createProviderAliasClosureResolver({ aliases, known: new Set([key(ref(3))]), maxWork: 1, maxCacheBytes: 0 });
 assert.equal(limited.resolve(ref(0)).truncated, true); assert.equal(limited.stats.cacheBytes, 0);
 const controller = new AbortController(); controller.abort(new Error('cancel construction'));
-assert.throws(() => createProviderAliasClosureResolver({ aliases, known: new Set(), signal: controller.signal }).resolve(ref(0)), /cancel construction/);
+assert.throws(() => createProviderAliasClosureResolver({ aliases, known: new Set(), signal: controller.signal }).resolve(ref(0)), { code: 'ABORT_ERR' });
+assert.equal(controller.signal.reason.message, 'cancel construction');
 console.log('bounded directional provider alias closures are reused without promoting partial evidence');

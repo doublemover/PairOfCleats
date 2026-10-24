@@ -8,6 +8,7 @@ import { collectCompilerCompletions } from '../../../src/index/semantic/compiler
 import { buildCallDependencySummaries } from '../../../src/index/semantic/compiler-call-summaries.js';
 import { createCompilerBoundaryFixture } from '../../helpers/compiler-boundary-fixture.js';
 import { validateSemanticPartitions } from '../../../src/index/semantic/reconcile.js';
+import { canonicalSemanticJson } from '../../../src/index/semantic/identity.js';
 
 // UNVALIDATED. Compiler syntax/CFG/retained summaries only. No source function,
 // finalizer, loop, thrown value or cancellation callback is executed.
@@ -80,7 +81,7 @@ try {
     const implicit = inputs.filter(edge => edge.from.partitionId === flow.partition.partitionId
       && rows.get(edge.from.localId)?.data.flags?.includes('implicit-return'));
     assert.equal(implicit.length, item.implicit, item.name + ' implicit undefined is separate from suspended return');
-    const derived = dependencies.functions.get(key(summary.declaration));
+    const derived = dependencies.functions.get(canonicalSemanticJson(summary.declaration));
     assert.deepEqual([...derived.dependencies].sort(), item.depends,
       item.name + ' actual call-summary consumer preserves/suppresses the original input channel');
     if (item.name === 'localCatch' || item.name === 'localBreak') {
@@ -91,7 +92,7 @@ try {
   }
   const arrow = flow.summaries.find(value => doc.ts.isArrowFunction(value.owner));
   assert.equal(arrow.returns.length, 1);
-  assert.deepEqual([...dependencies.functions.get(key(arrow.declaration)).dependencies], [0],
+  assert.deepEqual([...dependencies.functions.get(canonicalSemanticJson(arrow.declaration)).dependencies], [0],
     'expression-bodied functions use the same explicit completion destination');
   console.log('actual CFG finalizer destinations, retained return rows and call-summary channels preserve completion alternatives');
 } finally { await fs.rm(root, { recursive: true, force: true }); }

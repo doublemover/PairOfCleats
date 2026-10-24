@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { discoverSegments } from '../../../src/index/segments.js';
+import { discoverSegments, assignSegmentUids } from '../../../src/index/segments.js';
 import { collectFileSemanticFacts } from '../../../src/index/semantic/collect-file.js';
 import { collectEmbeddedSemanticSources, getSegmentSemanticContext } from '../../../src/index/semantic/embedded-source.js';
 import { createRecoveryFixture } from '../../helpers/semantic-recovery.js';
@@ -11,6 +11,7 @@ const text = '---' + frontmatter + '---\r\n<main>{title}</main>\r\n<script>conso
 const fixture = await createRecoveryFixture(text);
 try {
   const segments = discoverSegments({ text, ext: '.astro', relPath: 'Page.astro', mode: 'code' });
+  await assignSegmentUids({ text, segments, ext: '.astro', mode: 'code' });
   const front = segments.find(segment => segment.meta?.block === 'frontmatter');
   assert.ok(front);
   assert.equal(front.languageId, 'typescript');
