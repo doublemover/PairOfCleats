@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-24T11:29:40.970Z",
+  "generatedAt": "2026-10-24T15:51:30.165Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -5084,6 +5084,7 @@
         "tests/helpers/execution-authority.js",
         "tests/helpers/sourcekit-preflight-fixture.js",
         "tests/indexing/semantic/request-local-binding-overlay.test.js",
+        "tests/indexing/type-inference/providers/type-inference-lsp-enrichment.test.js",
         "tests/perf/bench/language-resource-roots.test.js",
         "tests/retrieval/parity/partial-ranks-report.test.js",
         "tests/security/java-workspace-execution-authority.test.js",

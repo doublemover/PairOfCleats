@@ -8599,14 +8599,161 @@
           "historicalAuthorWorkspaceEvidence": true
         }
       ]
+    },
+    {
+      "sourceHead": "f663002908a4628bb57776f24311b000d4004732",
+      "startedAt": "2026-10-24T15:50:27.053Z",
+      "finishedAt": "2026-10-24T15:50:41.770Z",
+      "scope": "Generation pin closure, full-detail history budget, privacy/diversity and bounded reconciliation lifetime controls",
+      "policy": {
+        "timeoutMs": 30000,
+        "retries": 0,
+        "nativeStatusRedo": false,
+        "threads": 1,
+        "platform": "win32",
+        "node": "v26.12.1",
+        "removedLaunchSetting": "PAIROFCLEATS_TRUSTED_CONFIG: missing configured file; no replacement authority granted"
+      },
+      "summary": {
+        "selected": 5,
+        "passed": 5,
+        "failed": 0,
+        "timeouts": 0,
+        "skipped": 0
+      },
+      "cohorts": [
+        {
+          "name": "generation-closure-wave-01",
+          "summary": {
+            "total": 5,
+            "passed": 5,
+            "failed": 0,
+            "skipped": 0,
+            "durationMs": 13820
+          },
+          "ids": [
+            "indexing/semantic/reconciliation-batch-lifetime",
+            "shared/concurrency/settled-concurrency-lifetime",
+            "integrations/inference-history/hybrid-pagination-contract",
+            "integrations/inference-history/hybrid-source-diversity",
+            "integrations/inference-history/privacy-roundtrip"
+          ]
+        }
+      ],
+      "tests": [
+        {
+          "id": "indexing/semantic/reconciliation-batch-lifetime",
+          "path": "indexing/semantic/reconciliation-batch-lifetime.test.js",
+          "lane": "integration",
+          "tags": [
+            "indexing",
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 103,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-f663002908a4628bb57776f24311b000d4004732/generation-closure-wave-01-logs/run-1792857027935-mt1suy/indexing_semantic_reconciliation-batch-lifetime.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "integrations/inference-history/hybrid-pagination-contract",
+          "path": "integrations/inference-history/hybrid-pagination-contract.test.js",
+          "lane": "integration",
+          "tags": [
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 11779,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-f663002908a4628bb57776f24311b000d4004732/generation-closure-wave-01-logs/run-1792857027935-mt1suy/integrations_inference-history_hybrid-pagination-contract.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "integrations/inference-history/hybrid-source-diversity",
+          "path": "integrations/inference-history/hybrid-source-diversity.test.js",
+          "lane": "integration",
+          "tags": [
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 824,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-f663002908a4628bb57776f24311b000d4004732/generation-closure-wave-01-logs/run-1792857027935-mt1suy/integrations_inference-history_hybrid-source-diversity.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "integrations/inference-history/privacy-roundtrip",
+          "path": "integrations/inference-history/privacy-roundtrip.test.js",
+          "lane": "integration",
+          "tags": [
+            "integration"
+          ],
+          "status": "passed",
+          "durationMs": 1019,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-f663002908a4628bb57776f24311b000d4004732/generation-closure-wave-01-logs/run-1792857027935-mt1suy/integrations_inference-history_privacy-roundtrip.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        },
+        {
+          "id": "shared/concurrency/settled-concurrency-lifetime",
+          "path": "shared/concurrency/settled-concurrency-lifetime.test.js",
+          "lane": "unit",
+          "tags": [
+            "unit"
+          ],
+          "status": "passed",
+          "durationMs": 88,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false,
+          "timeoutClass": null,
+          "skipReason": null,
+          "termination": null,
+          "localLogs": [
+            ".tmp/tasks/windows-failure-repairs-20261024/candidate-f663002908a4628bb57776f24311b000d4004732/generation-closure-wave-01-logs/run-1792857027935-mt1suy/shared_concurrency_settled-concurrency-lifetime.attempt-1.log"
+          ],
+          "historicalAuthorWorkspaceEvidence": true
+        }
+      ]
     }
   ],
   "cumulativeClosure": {
     "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
-    "originalFailuresMovedToPassing": 93,
-    "originalFailuresWithoutPassingClosure": 7,
-    "additionalObservedFailuresOutsideOriginal100": [
-      "indexing/semantic/reconciliation-batch-lifetime"
-    ]
+    "originalFailuresMovedToPassing": 94,
+    "originalFailuresWithoutPassingClosure": 6,
+    "additionalObservedFailuresOutsideOriginal100": []
   }
 }

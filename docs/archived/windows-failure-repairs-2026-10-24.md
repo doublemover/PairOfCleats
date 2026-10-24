@@ -1246,3 +1246,28 @@ runs inside its retained snapshot. Correct pins remain positive, malformed/null
 and mismatched pins remain stale errors, and original cursor negatives remain.
 The unmodified negative at fd4b37d1f is fail-before evidence; repaired-source
 acceptance remains pending.
+
+All five repaired-generation/lifetime checks passed at
+`f663002908a4628bb57776f24311b000d4004732` in 13.8 seconds total, with
+zero retries, skips, timeouts or native crashes. The 1,001-record history case
+retains both hybrid/auto page loops, full-detail output-budget rejection and
+100-record positive/continuation, exact valid generation pins and stale/invalid
+pin and cursor negatives. The reconciliation owner regression now passes with
+four held readers, original failure identity, confirmed draining and no later
+admission. No adjacent observed regression remains. Closure totals 94 original
+failures; six still lack passing closure: the four JS/TS export-identity CLI
+cases and two incremental SSR witnesses.
+
+The complete local publication front gate at the same source candidate passed:
+format/lint, configuration budget, environment usage, generated-surface freshness,
+command surface, workflow contracts, 40/40 gate fixtures and whitespace. The
+existing configuration inventory generator refreshed the scoped Swift fixture's
+TRUSTED_REPOS consumer entry; no public key/budget changed. Logs under this
+checkout's .tmp and .testLogs are historical author-workspace receipts, not
+clean-checkout dependencies. Source behavior is frozen for this publication;
+subsequent receipt/inventory updates do not claim another full-suite run.
+
+Read-only hosted status for the preceding published 3345becd3 reports gate FAILURE,
+policy SUCCESS and downstream jobs SKIPPED. Its failure is a POSIX postinstall Git
+child-signal assertion, separate from this Windows-only execution. No Linux/WSL
+checks were launched locally and no hosted-green claim is made.

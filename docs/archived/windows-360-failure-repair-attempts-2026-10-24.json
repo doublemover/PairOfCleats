@@ -44,11 +44,9 @@
     },
     "followUpClosure": {
       "scope": "Original 100 failures lacking source-bound passing closure; this is not final-tree acceptance.",
-      "originalFailuresMovedToPassing": 93,
-      "originalFailuresWithoutPassingClosure": 7,
-      "additionalObservedFailuresOutsideOriginal100": [
-        "indexing/semantic/reconciliation-batch-lifetime"
-      ]
+      "originalFailuresMovedToPassing": 94,
+      "originalFailuresWithoutPassingClosure": 6,
+      "additionalObservedFailuresOutsideOriginal100": []
     }
   },
   "items": [
@@ -6069,9 +6067,9 @@
       "recheckStatus": "timed-out",
       "recheckSourceHead": "1aa6e757e743dcb113b360783d004649bf019ff9",
       "recheckDurationMs": 30600,
-      "latestRecheckStatus": "failed",
-      "latestRecheckSourceHead": "fd4b37d1ff332863b704f81f7b154e6796089f3f",
-      "latestRecheckDurationMs": 15381
+      "latestRecheckStatus": "passed",
+      "latestRecheckSourceHead": "f663002908a4628bb57776f24311b000d4004732",
+      "latestRecheckDurationMs": 11779
     },
     {
       "id": "integrations/triage/records-bundle-reuse-policy",
