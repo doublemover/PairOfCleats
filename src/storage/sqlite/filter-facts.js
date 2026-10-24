@@ -45,8 +45,8 @@ const factRow = row => {
   let metaV2;
   try { metaV2 = typeof row.metaV2_json === 'string' ? JSON.parse(row.metaV2_json) : row.metaV2_json; }
   catch (cause) { throw new Error('SQLite filter facts require valid canonical metadata.', { cause }); }
-  if (!metaV2 || typeof metaV2 !== 'object' || Array.isArray(metaV2)
-    || metaV2.chunkId && row.chunk_id && metaV2.chunkId !== row.chunk_id) {
+  if (metaV2 != null && (typeof metaV2 !== 'object' || Array.isArray(metaV2)
+    || metaV2.chunkId && row.chunk_id && metaV2.chunkId !== row.chunk_id)) {
     throw new Error('SQLite filter facts disagree with canonical chunk metadata.');
   }
   if (!Number.isSafeInteger(row.id) || row.id < 0

@@ -87,7 +87,7 @@ try {
   }
   const controller = new AbortController(); controller.abort(new Error('cancel filter facts'));
   await assert.rejects(readSqliteFilterFactPage({ db, mode: 'code', limit: 2, rowCount: 32,
-    signal: controller.signal }), /cancel filter facts/);
+    signal: controller.signal }), { name: 'AbortError', code: 'ABORT_ERR' });
   db.prepare("UPDATE chunks SET file='moved.js' WHERE id=7").run();
   assert.equal(await readSqliteFilterFactPage({ db, mode: 'code', filters, limit: 2, rowCount: 32 }), null,
     'any external chunk mutation revokes the accelerator seal');
@@ -98,6 +98,11 @@ try {
   assert.equal(await readSqliteFilterFactPage({ db, mode: 'code', limit: 2, rowCount: 32 }), null);
   assert.equal(sealSqliteFilterFacts(db, 'code'), true);
   assert.deepEqual((await readSqliteFilterFactPage({ db, mode: 'code', limit: 8, rowCount: 32 })).ids, [7, 29, 31]);
+  statements.insertChunk.run({ ...emptyRow, id: 32, chunk_id: 'legacy:32', mode: 'code', file: 'legacy.c',
+    kind: 'FunctionDeclaration', metaV2_json: null, docmeta: '{}', tokens: '[]' });
+  await rebuildSqliteFilterFacts(db, 'code');
+  assert.deepEqual((await readSqliteFilterFactPage({ db, mode: 'code', filters: { file: 'legacy.c' },
+    limit: 2, rowCount: 33 })).ids, [32], 'nullable SQLite metadata retains canonical file-filter behavior');
   console.log('SQLite indexed filter facts preserve cold/warm predicate, pagination, sparse IDs and invalidation authority.');
 } finally {
   db.close();

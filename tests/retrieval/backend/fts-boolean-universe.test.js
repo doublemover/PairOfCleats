@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { quantizeEmbeddingVector } from '../../../src/shared/embedding-quantization.js';
 import Database from 'better-sqlite3';
 import { CREATE_TABLES_BASE_SQL } from '../../../src/storage/sqlite/schema.js';
 import { createInsertStatements } from '../../../src/storage/sqlite/build/statements.js';
@@ -125,7 +126,7 @@ try {
         filters: plan.filters, filtersActive: plan.filtersActive, topN: 10,
         overrides: { annEnabled, queryAst: plan.queryAst, filterPredicates: plan.filterPredicates } });
       assert.deepEqual((await planned({ chunkMeta: prose, tokenIndex,
-        denseVec: { vectors: prose.map(() => [0.1, 0.2]) }, minhash: { signatures: [] } },
+        denseVec: { vectors: prose.map(() => quantizeEmbeddingVector([0.1, 0.2])) }, minhash: { signatures: [] } },
       'prose', annEnabled ? [0.1, 0.2] : null)).map(hit => hit.idx ?? hit.id).sort((a, b) => a - b), expected,
       `${query}: the production plan preserves Boolean term/phrase scope with independent filters (ANN=${annEnabled})`);
       assert.equal(annCalls, annEnabled ? 1 : 0, 'hybrid checks actually execute the vector provider');

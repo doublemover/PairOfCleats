@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { quantizeEmbeddingVector } from '../../../src/shared/embedding-quantization.js';
 import { resolveSparseFallbackModesWithoutAnn } from '../../../src/retrieval/cli.js';
 
 const sparseMissingByMode = {
@@ -75,7 +76,7 @@ const availableWithDenseLoader = await resolveSparseFallbackModesWithoutAnn({
       minhash: null,
       denseVec: null,
       loadDenseVectors: async function loadDenseVectors() {
-        this.denseVec = { vectors: [[0.1, 0.2, 0.3]] };
+        this.denseVec = { vectors: [quantizeEmbeddingVector([0.1, 0.2, 0.3])] };
         return this.denseVec;
       }
     }

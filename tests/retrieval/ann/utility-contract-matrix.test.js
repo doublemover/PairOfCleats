@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { quantizeEmbeddingVector } from '../../../src/shared/embedding-quantization.js';
 
 import { createSearchPipeline } from '../../../src/retrieval/pipeline.js';
 import { resolveDenseVector } from '../../../src/retrieval/cli/index-loader.js';
@@ -123,7 +124,7 @@ const cases = [
           vectors: [
             [0.1, 0.2],
             [0.2, 0.1]
-          ]
+          ].map(vector => quantizeEmbeddingVector(vector))
         };
         return idx.denseVec;
       };

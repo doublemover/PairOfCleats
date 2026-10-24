@@ -1,4 +1,5 @@
 import { createSearchPipeline } from '../../../../src/retrieval/pipeline.js';
+import { quantizeEmbeddingVector } from '../../../../src/shared/embedding-quantization.js';
 import { createRetrievalStageTracker } from '../../../../src/retrieval/pipeline/stage-checkpoints.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 
@@ -90,7 +91,7 @@ export const buildAnnPipelineFixture = ({ createAnnProviders = () => new Map() }
       vectors: [
         [0.1, 0.2],
         [0.2, 0.1]
-      ],
+      ].map(vector => quantizeEmbeddingVector(vector)),
       dims: 2,
       minVal: -1,
       maxVal: 1,

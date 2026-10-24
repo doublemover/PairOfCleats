@@ -1,4 +1,5 @@
 import { MINHASH_HASH_IDENTITY } from '../../../../src/index/minhash.js';
+import { quantizeEmbeddingVector } from '../../../../src/shared/embedding-quantization.js';
 import { SimpleMinHash } from '../../../../src/index/minhash.js';
 import { createRetrievalStageTracker } from '../../../../src/retrieval/pipeline/stage-checkpoints.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
@@ -33,7 +34,7 @@ export const createFilteredMinhashIndex = () => ({
       [0.2, 0.2],
       [0.3, 0.3],
       [0.4, 0.4]
-    ]
+    ].map(vector => quantizeEmbeddingVector(vector))
   },
   minhash: { hashIdentity: MINHASH_HASH_IDENTITY,
     signatures: [

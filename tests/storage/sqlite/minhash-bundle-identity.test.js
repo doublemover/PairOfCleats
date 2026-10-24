@@ -4,7 +4,7 @@ import path from 'node:path';
 import Database from 'better-sqlite3';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { MINHASH_HASH_IDENTITY, SimpleMinHash } from '../../../src/index/minhash.js';
-import { writeBundleFile } from '../../../src/shared/bundle-io.js';
+import { writeIncrementalBundleSnapshot } from '../../../src/index/build/incremental/bundle-snapshot.js';
 import { buildDatabaseFromBundles } from '../../../src/storage/sqlite/build/from-bundles.js';
 import { incrementalUpdateDatabase } from '../../../src/storage/sqlite/build/incremental-update.js';
 import { readSqliteMinhashHeader } from '../../../src/storage/sqlite/minhash.js';
@@ -21,11 +21,17 @@ const hash = new SimpleMinHash();
 for (const token of ['alpha', 'beta']) hash.update(token);
 const chunk = { file, start: 0, end: 1, tokens: ['alpha', 'beta'], minhashSig: hash.hashValues,
   minhashHashIdentity: MINHASH_HASH_IDENTITY };
-const write = async (identity) => writeBundleFile({ bundlePath: path.join(bundleDir, 'a.json'),
-  bundle: { chunks: [{ ...chunk, minhashHashIdentity: identity }] }, format: 'json' });
+const snapshots = new Map();
+const write = async (identity, revision = 1, selectedFile = file) => {
+  const entry = { hash: `revision-${revision}`, mtimeMs: revision, size: 1 };
+  const descriptor = await writeIncrementalBundleSnapshot({ bundleDir, relKey: selectedFile, entry,
+    bundles: [{ file: selectedFile, hash: entry.hash, size: entry.size,
+      chunks: [{ ...chunk, file: selectedFile, minhashHashIdentity: identity }] }] });
+  snapshots.set(selectedFile, { ...entry, ...descriptor });
+};
 const manifest = revision => ({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
   files: Object.fromEntries([file, 'src/b.js', 'src/c.js', 'src/d.js'].map((name, index) => [name,
-    { hash: `revision-${index ? 1 : revision}`, mtimeMs: index ? 1 : revision, size: 1, bundles: [`${name[4]}.json`] }])) });
+    { ...snapshots.get(name), hash: `revision-${index ? 1 : revision}`, mtimeMs: index ? 1 : revision }])) });
 const options = revision => ({ Database, outPath, mode: 'code',
   incrementalData: { manifest: manifest(revision), bundleDir },
   envConfig: { bundleThreads: 1 }, threadLimits: { fileConcurrency: 1 }, emitOutput: false,
@@ -49,15 +55,14 @@ const assertCurrent = () => {
   } finally { db.close(); }
 };
 for (const name of ['b', 'c', 'd']) {
-  await writeBundleFile({ bundlePath: path.join(bundleDir, `${name}.json`),
-    bundle: { chunks: [{ ...chunk, file: `src/${name}.js` }] }, format: 'json' });
+  await write(MINHASH_HASH_IDENTITY, 1, `src/${name}.js`);
 }
 await write(MINHASH_HASH_IDENTITY);
 await buildDatabaseFromBundles(options(1));
 assertCurrent();
 const fresh = snapshot();
 for (const identity of [undefined, 'legacy-polynomial-v1']) {
-  await write(identity);
+  await write(identity, 2);
   // The caller owns full-build staging; the low-level builder owns its disposable output.
   const failed = await buildDatabaseFromBundles({ ...options(2), outPath: path.join(dir, 'rejected-stage.db') });
   assert.equal(failed.count, 0, 'failed full build retains the existing structured failure contract');
@@ -66,17 +71,19 @@ for (const identity of [undefined, 'legacy-polynomial-v1']) {
   await assert.rejects(incrementalUpdateDatabase(options(2)), { code: 'ERR_ARTIFACT_INVALID' });
   assert.deepEqual(snapshot(), fresh, 'invalid new bundle rolls back deletes and dependent writes');
 }
-await write(MINHASH_HASH_IDENTITY);
+await write(MINHASH_HASH_IDENTITY, 1);
 const old = new Database(outPath);
 old.prepare('UPDATE minhash_meta SET hash_identity = ?').run('legacy-polynomial-v1');
 old.close();
 const stale = snapshot();
 await assert.rejects(incrementalUpdateDatabase(options(1)), { code: 'ERR_ARTIFACT_INVALID' });
 assert.deepEqual(snapshot(), stale, 'even the unchanged warm path must reject stale hash authority');
+await write(MINHASH_HASH_IDENTITY, 2);
 await assert.rejects(incrementalUpdateDatabase(options(2)), { code: 'ERR_ARTIFACT_INVALID' });
 assert.deepEqual(snapshot(), stale, 'unknown retained signatures cannot be relabelled by an incremental update');
 await buildDatabaseFromBundles(options(2));
 assertCurrent();
+await write(MINHASH_HASH_IDENTITY, 3);
 assert.equal((await incrementalUpdateDatabase(options(3))).used, true);
 assertCurrent();
 const warm = await incrementalUpdateDatabase(options(3));

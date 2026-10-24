@@ -249,7 +249,7 @@ export function rankBM25Fields({
   if (!fieldWeights) {
     return rankBM25({ idx, tokens, topN, k1, b, allowedIdx, tokenIndexOverride, includeZeroScores, scoreBoundPruning, work });
   }
-  if (!tokens.length) return [];
+  if (!tokens.length && !includeZeroScores) return [];
   if (allowedIdx && getBitmapSize(allowedIdx) === 0) return [];
 
   // NOTE:
