@@ -534,7 +534,7 @@ export function createLspClient(options) {
       const evidence = getJsonRpcWriteEvidence(pendingWrite);
       const local = Boolean(evidence?.settled && !evidence.frameStarted && !evidence.streamRetired
         && !isClosedStreamWriteError(error));
-      onWriteFailure?.(error, local);
+      onWriteFailure?.(error, local, evidence?.frameStarted === true);
       if (!local) {
         writerClosed = true;
         currentWriter.close();
@@ -878,8 +878,8 @@ export function createLspClient(options) {
         }, resolvedTimeout);
       }
       pending.set(id, entry);
-      const onWriteFailure = (error, local = true) => failRequest(id, entry,
-        addStorageFailureContext(error, { code: local ? 'ERR_LSP_REQUEST_WRITE' : 'ERR_LSP_TRANSPORT_CLOSED' },
+      const onWriteFailure = (error, local = true, frameStarted = false) => failRequest(id, entry,
+        addStorageFailureContext(error, { code: local || frameStarted ? 'ERR_LSP_REQUEST_WRITE' : 'ERR_LSP_TRANSPORT_CLOSED' },
           undefined, { forceAggregate: true }),
         local ? 'localWriteFailed' : null);
       try {

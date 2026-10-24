@@ -38,16 +38,26 @@ export const coerceAbortSignal = (signal) => {
 
 export const throwIfAborted = (signal, message) => {
   if (!signal || !signal.aborted) return;
-  throw createAbortError(message);
+  throw createSignalAbortError(signal, message);
+};
+
+const createSignalAbortError = (signal, message) => {
+  const error = createAbortError(message);
+  // Keep the stable AbortError/ABORT_ERR contract and the caller's original
+  // reason graph, including falsey reasons and fallible reason inspection.
+  let cause;
+  try { cause = signal.reason; } catch (inspection) { cause = inspection; }
+  Object.defineProperty(error, 'cause', { value: cause, writable: true, configurable: true });
+  return error;
 };
 
 export const raceAbort = (signal, promise, message) => {
   if (!signal) return promise;
-  if (signal.aborted) return Promise.reject(createAbortError(message));
+  if (signal.aborted) return Promise.reject(createSignalAbortError(signal, message));
   return new Promise((resolve, reject) => {
     const onAbort = () => {
       cleanup();
-      reject(createAbortError(message));
+      reject(createSignalAbortError(signal, message));
     };
     const cleanup = () => {
       signal.removeEventListener('abort', onAbort);
