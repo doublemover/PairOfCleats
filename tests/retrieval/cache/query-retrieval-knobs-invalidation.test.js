@@ -34,6 +34,7 @@ const buildTestConfig = ({
   sqliteTailLatencyTuning = false,
   sqliteFtsOverfetchRowCap = null
 }) => ({
+  quality: 'balanced',
   indexing: {
     typeInference: false,
     typeInferenceCrossFile: false,
@@ -96,6 +97,7 @@ const searchArgs = [
   'code',
   '--json',
   '--stats',
+  '--no-ann',
   '--backend',
   'memory',
   '--repo',
@@ -163,6 +165,9 @@ if (new Set([baseKey, relationKey, bm25Key, sqliteTuningKey]).size !== 4) {
 
 const runSearch = (env, label, expectedHit, args = searchArgs) => {
   const payload = JSON.parse(run(args, label, env));
+  if (!payload.code?.some(hit => hit.file === 'src/cache-knobs.js')) {
+    throw new Error(`${label} did not retrieve the indexed fixture source`);
+  }
   const cacheHit = payload?.stats?.cache?.hit;
   if (cacheHit !== expectedHit) {
     console.error(`${label} failed: expected cache hit=${expectedHit}, got ${cacheHit}`);

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import path from 'node:path';
 import { buildQueryPlan } from '../../../src/retrieval/cli/query-plan.js';
 import { buildQueryCacheKey } from '../../../src/retrieval/cli-index.js';
 import { findQueryCacheEntry, rememberQueryCacheEntry } from '../../../src/retrieval/query-cache.js';
@@ -8,12 +9,13 @@ const plan = (match, extra = {}) => buildQueryPlan({ query: 'alpha beta', argv: 
   dictConfig: {}, postingsConfig: {}, ...extra });
 const key = value => buildQueryCacheKey({ query: 'alpha beta', filters: value.cacheFilters }).key;
 for (const order of [['all', 'any'], ['any', 'all']]) {
+  const cachePath = path.resolve('.tmp', `query-plan-policy-${process.pid}-${order.join('-')}.json`);
   const first = plan(order[0]), second = plan(order[1]);
   const firstKey = key(first), secondKey = key(second);
   assert.notEqual(first.queryAst.type, second.queryAst.type, 'the match policy changes Boolean semantics');
   assert.notEqual(firstKey, secondKey, 'different Boolean semantics select distinct persisted query identities');
-  rememberQueryCacheEntry(null, firstKey, 'generation', { key: firstKey, signature: 'generation', value: ['first policy only'], ts: Date.now() }, 16);
-  const cacheOptions = { strategy: 'memory-first' };
+  rememberQueryCacheEntry(cachePath, firstKey, 'generation', { key: firstKey, signature: 'generation', value: ['first policy only'], ts: Date.now() }, 16);
+  const cacheOptions = { strategy: 'memory-first', cachePath };
   assert.ok(findQueryCacheEntry(null, firstKey, 'generation', cacheOptions), 'the first policy actually warms the production cache');
   assert.equal(findQueryCacheEntry(null, secondKey, 'generation', cacheOptions), null, 'a warm result cannot cross match-policy identities');
 }

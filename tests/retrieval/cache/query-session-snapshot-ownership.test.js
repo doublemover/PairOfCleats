@@ -66,10 +66,11 @@ try {
   const lock = await acquireFileLock({ lockPath: `${miss.queryCachePath}.lock`, waitMs: 1000, timeoutBehavior: 'throw' });
   let pending;
   try {
-    pending = persistSearchSession(createQueryCachePersistInput(miss, { cacheKey: 'cancelled-before-publication', cacheData: null, signal: controller.signal }));
+    pending = assert.rejects(persistSearchSession(createQueryCachePersistInput(miss,
+      { cacheKey: 'cancelled-before-publication', cacheData: null, signal: controller.signal })), { name: 'AbortError' });
     controller.abort();
   } finally { await lock.release(); }
-  await assert.rejects(pending, { name: 'AbortError' });
+  await pending;
   assert.equal(findQueryCacheEntry(null, 'cancelled-before-publication', miss.cacheSignature,
     { cachePath: miss.queryCachePath, strategy: 'memory-first' }), null);
   assert.equal(loadQueryCache(miss.queryCachePath).entries.some(entry => entry.key === 'cancelled-before-publication'), false);

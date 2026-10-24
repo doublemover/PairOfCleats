@@ -17,7 +17,7 @@ for (const capacity of [2, 64]) for (const rejected of [false, true]) for (const
     return aCalls === 1 ? old.promise : replacement.promise;
   };
   const resolve = text => createEmbeddingResolver({ throwIfAborted() {}, embeddingQueryText: text,
-    modelConfig: {}, embeddingProvider: 'xenova', getQueryEmbeddingImpl: impl, maxCacheEntries: capacity
+    modelConfig: {}, useStubEmbeddings: true, embeddingProvider: 'xenova', getQueryEmbeddingImpl: impl, maxCacheEntries: capacity
   })('fixture', 1, true, null);
   const first = resolve('A');
   const firstResult = rejected ? assert.rejects(first, /retired failure/) : first;
