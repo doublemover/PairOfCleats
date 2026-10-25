@@ -1292,3 +1292,34 @@ oracle and arbitrary-precision support assertions are retained.
 Format/ESLint, syntax, affected generated inventories, new-case discovery and staged
 diff checks passed. Functional execution and the final front gate remain deferred.
 Coverage is **35 fixed / 403 implemented / 151 partial / 174 pending**.
+
+
+## Explicit regex benchmark engine and operation identity
+
+**#1724** (`abba3b867`) removes auto-selected engine labels and the asymmetric
+wrapped-JS/direct-native comparison. Both arms explicitly select and verify their
+requested SafeRegex backend and effective flags before warmup/timing. Missing
+optional native RE2 remains unavailable. The public-wrapper comparison resets
+lastIndex to zero before every test operation; repeated matching witnesses check
+first-match position/groups across engines before timing. Production regex auto
+selection and ranking/search behavior are unchanged.
+
+Version 2 reports retain requested/effective engines, installed package versions
+or unknown, Node/V8/ABI/platform/arch, operation policy, normalized flags, UTF8
+input bytes and an exact UTF16-code-unit hash. Work counts distinguish measured
+and warmup operations. Sample count is clamped to iterations so short runs cannot
+execute excess operations through the shared sampler; observed callback count
+must match the declared work. Raw sample durations are retained, with a null rate
+for zero duration. Other shared sampler callers retain their existing behavior.
+
+The authored regression instruments the actual SafeRegex selector and actual
+RE2JS backend. An explicitly named RegExp-backed optional-native adapter provides
+present/absent dispatch controls, not native speed evidence. Exact compile/exec
+counts, matching/nonmatching inputs, global state reset and sample admission are
+checked; engine substitution and result disagreement fail before sampling.
+Invalid count/flag controls remain explicit. No benchmark or native performance
+execution has been claimed.
+
+Full format, scoped ESLint, syntax, affected generated inventories, discovery and
+staged diff checks passed. Functional execution and the final front gate remain
+deferred. Coverage is **35 fixed / 404 implemented / 151 partial / 173 pending**.
