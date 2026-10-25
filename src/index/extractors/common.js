@@ -15,7 +15,7 @@ export const DOCUMENT_EXTRACTION_REASON_CODES = Object.freeze([
 
 export const DOCUMENT_EXTRACTION_FIDELITY_SCHEMA_VERSION = 1;
 // Structural DOCX paragraph meaning changes invalidate extraction and bundle reuse.
-export const DOCX_STRUCTURAL_EXTRACTION_VERSION = 2;
+export const DOCX_STRUCTURAL_EXTRACTION_VERSION = 3;
 export const DOCUMENT_EXTRACTION_POLICY_MODES = Object.freeze([
   'permissive',
   'quality-sensitive'
@@ -32,6 +32,12 @@ export const DEFAULT_DOCUMENT_EXTRACTION_POLICY = Object.freeze({
 });
 
 export const EXTRACTION_NORMALIZATION_POLICY = 'v1';
+
+// Persist the format-specific source transformation beside the package version.
+// XML structure changes affect DOCX provenance without invalidating PDF meaning.
+export const resolveExtractionNormalizationPolicy = sourceType => sourceType === 'docx'
+  ? `${EXTRACTION_NORMALIZATION_POLICY}:docx-xml:${DOCX_STRUCTURAL_EXTRACTION_VERSION}`
+  : EXTRACTION_NORMALIZATION_POLICY;
 
 const normalizePositiveInt = (value, fallback) => {
   const num = Number(value);

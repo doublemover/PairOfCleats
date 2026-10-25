@@ -137,7 +137,7 @@ const escapeXml = (value) => String(value || '')
   .replace(/</g, '&lt;')
   .replace(/>/g, '&gt;');
 
-export const buildMinimalDocxBuffer = (paragraphs = ['docx fixture text']) => {
+export const buildMinimalDocxBuffer = (paragraphs = ['docx fixture text'], { xml = null } = {}) => {
   const paragraphXml = paragraphs.map((text) => (
     `<w:p><w:r><w:t>${escapeXml(text)}</w:t></w:r></w:p>`
   )).join('');
@@ -173,7 +173,7 @@ export const buildMinimalDocxBuffer = (paragraphs = ['docx fixture text']) => {
     },
     {
       name: 'word/document.xml',
-      data: documentXml
+      data: xml ?? documentXml
     }
   ];
   return buildStoredZip(entries);

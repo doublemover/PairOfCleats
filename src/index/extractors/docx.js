@@ -1,6 +1,9 @@
-import fs from 'node:fs/promises';
+import path from 'node:path';
 import zlib from 'node:zlib';
 import sax from 'sax';
+import { assertDocxXmlCharacters, assertDocxXmlDeclaration, decodeDocxXmlBytes } from './docx-xml-bytes.js';
+import { readVerifiedContainedFile } from '../../shared/contained-file.js';
+import { describeStorageFailure } from '../../shared/storage/failure-observation.js';
 import { tryImport } from '../../shared/optional-deps.js';
 import { getDocumentExtractorTestConfig } from '../../shared/env/testing.js';
 import {
@@ -33,7 +36,7 @@ const resolveDocxFailureReason = (err) => {
   const code = String(err?.code || '');
   const message = String(err?.message || '').toLowerCase();
   if (code === 'EXTRACT_TIMEOUT') return 'extract_timeout';
-  if (code === 'ERR_BUFFER_TOO_LARGE' || code === 'ERR_DOCX_EXPANDED_LIMIT') return 'oversize';
+  if (code === 'ERR_BUFFER_TOO_LARGE' || code === 'ERR_DOCX_EXPANDED_LIMIT' || code === 'ERR_DOCX_XML_LIMIT') return 'oversize';
   if (message.includes('encrypted')) return 'unsupported_encrypted';
   return 'extract_failed';
 };
@@ -113,20 +116,57 @@ export const extractZipEntry = (buffer, entry, maxOutputBytes) => {
   return null;
 };
 
-export const parseDocxParagraphsFromXml = (xml) => {
+export const parseDocxParagraphsFromXml = (xml, { maxChars = 64 * 1024 * 1024, timeoutMs = 15000 } = {}) => {
+  const limit = message => Object.assign(new Error(message), { code: 'ERR_DOCX_XML_LIMIT' });
+  if (typeof xml !== 'string' || !Number.isSafeInteger(maxChars) || maxChars < 1 || !Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    throw new TypeError('Bounded DOCX XML text required.');
+  }
+  if (xml.length > Math.min(maxChars, 64 * 1024 * 1024)) throw limit('DOCX XML character allowance exceeded.');
+  const deadline = performance.now() + timeoutMs;
+  const checkTime = () => { if (performance.now() >= deadline) throw Object.assign(new Error('DOCX XML parsing timed out.'), { code: 'EXTRACT_TIMEOUT' }); };
+  assertDocxXmlCharacters(xml);
+  assertDocxXmlDeclaration(xml);
+  checkTime();
   const paragraphs = [];
-  const parser = sax.parser(true, { xmlns: true });
+  const parser = sax.parser(true, { xmlns: true, strictEntities: true });
   const stack = [];
   const excludedRanges = new Set();
   let paragraph = null;
   let index = 0;
+  let nodes = 0, events = 0, attributes = 0, rootSeen = false, declarationSeen = false;
+  const event = () => {
+    if (++events > 1000000) throw limit('DOCX XML token allowance exceeded.');
+    if ((events & 63) === 0) checkTime();
+  };
   const isWord = (node, local) => WORD_NS.has(node?.uri) && node.local === local;
   const wordAttribute = (node, local) => Object.values(node.attributes).find(
     (attribute) => WORD_NS.has(attribute.uri) && attribute.local === local
   )?.value;
   const canRead = () => paragraph && !stack.at(-1)?.excluded && excludedRanges.size === 0;
+  parser.onopentagstart = () => {
+    event(); attributes = 0;
+    if (++nodes > 250000 || stack.length >= 256) throw limit('DOCX XML node/depth allowance exceeded.');
+  };
+  parser.onattribute = attribute => {
+    event(); if (++attributes > 128) throw limit('DOCX XML attribute allowance exceeded.');
+    assertDocxXmlCharacters(attribute.value);
+  };
+  parser.oncomment = event;
+  parser.onprocessinginstruction = instruction => {
+    event();
+    if (instruction.name.toLowerCase() === 'xml') {
+      if (declarationSeen || rootSeen || instruction.name !== 'xml' || !xml.startsWith('<?xml')) throw new Error('DOCX XML declaration must appear once at the beginning.');
+      declarationSeen = true;
+    }
+  };
   parser.ondoctype = () => { throw new Error('DOCX document XML must not contain a DTD.'); };
   parser.onopentag = (node) => {
+    if (!stack.length) {
+      if (rootSeen || !isWord(node, 'document')) throw new Error('DOCX XML root must be a supported WordprocessingML document.');
+      rootSeen = true;
+    }
+    const physicalIndex = isWord(node, 'p') ? ++index : null;
+    if (index > 100000) throw limit('DOCX physical paragraph allowance exceeded.');
     const excluded = Boolean(stack.at(-1)?.excluded)
       || isWord(node, 'del') || isWord(node, 'moveFrom');
     stack.push({ node, excluded });
@@ -141,7 +181,7 @@ export const parseDocxParagraphsFromXml = (xml) => {
     if (excluded) return;
     if (isWord(node, 'p') && excludedRanges.size === 0) {
       if (paragraph) throw new Error('Nested DOCX paragraphs cannot be ordered.');
-      paragraph = { index: ++index, runs: [], style: null };
+      paragraph = { index: physicalIndex, runs: [], style: null };
     } else if (isWord(node, 'pStyle') && paragraph) {
       paragraph.style = wordAttribute(node, 'val') || null;
     } else if (canRead() && (isWord(node, 'tab') || isWord(node, 'br') || isWord(node, 'cr'))) {
@@ -149,10 +189,13 @@ export const parseDocxParagraphsFromXml = (xml) => {
     }
   };
   parser.ontext = (value) => {
+    event();
+    assertDocxXmlCharacters(value);
     if (canRead() && isWord(stack.at(-1)?.node, 't')) paragraph.runs.push(value);
   };
   parser.oncdata = parser.ontext;
   parser.onclosetag = () => {
+    event();
     const { node, excluded } = stack.pop();
     if (isWord(node, 'p') && !excluded && paragraph) {
       const text = normalizeExtractedText(paragraph.runs.join(''));
@@ -164,12 +207,15 @@ export const parseDocxParagraphsFromXml = (xml) => {
       paragraph = null;
     }
   };
-  parser.write(xml).close();
+  for (let offset = 0; offset < xml.length; offset += 16384) { checkTime(); parser.write(xml.slice(offset, offset + 16384)); }
+  parser.close(); checkTime();
+  if (!rootSeen) throw new Error('DOCX XML document root is missing.');
   if (excludedRanges.size) throw new Error('Unclosed DOCX moved-from range.');
   return paragraphs;
 };
 
 const parseDocxParagraphsFromBuffer = (buffer, policy = null) => {
+  const startedAt = performance.now();
   const entries = parseCentralDirectory(buffer);
   if (hasEncryptedDocxEntries(entries)) {
     return buildFailedResult('unsupported_encrypted', [], { sourceType: 'docx', policy });
@@ -178,12 +224,15 @@ const parseDocxParagraphsFromBuffer = (buffer, policy = null) => {
   if (!documentEntry) {
     return buildFailedResult('extract_failed', ['word/document.xml missing'], { sourceType: 'docx', policy });
   }
-  const xmlBuffer = extractZipEntry(buffer, documentEntry, normalizeDocumentExtractionPolicy(policy).maxBytesPerFile);
+  const resolvedPolicy = normalizeDocumentExtractionPolicy(policy);
+  const xmlBuffer = extractZipEntry(buffer, documentEntry, resolvedPolicy.maxBytesPerFile);
   if (!xmlBuffer) {
     return buildFailedResult('extract_failed', ['word/document.xml unreadable'], { sourceType: 'docx', policy });
   }
-  const xml = xmlBuffer.toString('utf8');
-  const paragraphs = parseDocxParagraphsFromXml(xml);
+  const xml = decodeDocxXmlBytes(xmlBuffer);
+  const remainingMs = resolvedPolicy.extractTimeoutMs - (performance.now() - startedAt);
+  if (remainingMs <= 0) throw Object.assign(new Error('DOCX XML acquisition timed out.'), { code: 'EXTRACT_TIMEOUT' });
+  const paragraphs = parseDocxParagraphsFromXml(xml, { maxChars: resolvedPolicy.maxBytesPerFile, timeoutMs: remainingMs });
   if (!paragraphs.length) return buildFailedResult('unsupported_scanned', [], { sourceType: 'docx', policy });
   return { ok: true, paragraphs, warnings: [] };
 };
@@ -232,12 +281,13 @@ export async function loadDocxExtractorRuntime({ refresh = false } = {}) {
 }
 
 const extractWithMammoth = async (runtime, source, policy) => {
+  const structural = parseDocxParagraphsFromBuffer(source, policy);
+  if (!structural.ok) return structural;
   const extracted = await runtime.mod.extractRawText({ buffer: source });
   const warnings = normalizeWarnings(extracted?.messages);
   // Raw Mammoth lines are display output, not Word paragraph identities. The
   // bounded structural owner supplies physical ordinals and paragraph styles
   // for both backends, including omitted empty paragraphs and table paragraphs.
-  const structural = parseDocxParagraphsFromBuffer(source, policy);
   return { ...structural, warnings: normalizeWarnings([...(structural.warnings || []), ...warnings]) };
 };
 
@@ -249,9 +299,16 @@ export async function extractDocx({
   const resolvedPolicy = normalizeDocumentExtractionPolicy(policy);
   const testConfig = getDocumentExtractorTestConfig();
   const stubExtract = testConfig.testing && testConfig.stubDocxExtract === true;
-  const source = Buffer.isBuffer(buffer)
-    ? buffer
-    : (filePath ? await fs.readFile(filePath) : null);
+  let source = Buffer.isBuffer(buffer) ? buffer : null;
+  if (!source && filePath) {
+    const file = path.resolve(filePath);
+    try { source = (await readVerifiedContainedFile(path.dirname(file), file, { maxBytes: resolvedPolicy.maxBytesPerFile })).buffer; }
+    catch (error) {
+      const failure = describeStorageFailure(error, { phase: 'docx-source-admission' });
+      if (failure.code !== 'ERR_FILE_TOO_LARGE') throw error;
+      return buildFailedResult('oversize', [], { sourceType: 'docx', policy: resolvedPolicy });
+    }
+  }
   if (!source) {
     return buildFailedResult('extract_failed', ['Missing file buffer'], {
       sourceType: 'docx',

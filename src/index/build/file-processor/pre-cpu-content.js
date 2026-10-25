@@ -6,7 +6,7 @@ import { extractDocx } from '../../extractors/docx.js';
 import {
   buildDocumentExtractionFidelity,
   buildDocumentExtractionPolicySummary,
-  EXTRACTION_NORMALIZATION_POLICY,
+  resolveExtractionNormalizationPolicy,
   sha256Hex
 } from '../../extractors/common.js';
 import {
@@ -56,7 +56,7 @@ const buildDocumentExtractionInfo = ({
   sourceBytesHashAlgo: 'sha256',
   counts: joined.counts,
   units: buildDocumentExtractionUnits(joined.units),
-  normalizationPolicy: EXTRACTION_NORMALIZATION_POLICY,
+  normalizationPolicy: resolveExtractionNormalizationPolicy(sourceType),
   warnings: extracted.warnings || [],
   policy: buildDocumentExtractionPolicySummary(policy),
   fidelity: extracted.fidelity || buildDocumentExtractionFidelity({

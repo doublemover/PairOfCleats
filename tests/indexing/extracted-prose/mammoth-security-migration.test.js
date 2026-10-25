@@ -119,10 +119,12 @@ try {
   const revised = await extractDocx({ buffer: revisionBytes });
   assert.equal(revised.ok, true, JSON.stringify(revised));
   assert.equal(revised.extractor?.name, 'mammoth');
+  // The omitted move-origin paragraph is physical paragraph 2, so subsequent
+  // visible anchors retain source ordinals 3 and 4 rather than dense numbering.
   assert.deepEqual(revised.paragraphs, [
     { index: 1, text: 'Custom XML paragraph survives' },
-    { index: 2, text: 'Moved paragraph survives' },
-    { index: 3, text: 'Before moved run after' }
+    { index: 3, text: 'Moved paragraph survives' },
+    { index: 4, text: 'Before moved run after' }
   ]);
   assert.deepEqual(revised.warnings, []);
 

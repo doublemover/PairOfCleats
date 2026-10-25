@@ -7,6 +7,29 @@ and expanded `word/document.xml` bytes. Declared sizes cannot bypass zlib's actu
 output bound; XML parsing only receives bounded output. Expansion overflow is an
 `oversize` extraction failure.
 
+The direct DOCX pathname adapter also uses the existing bounded contained-file
+descriptor reader before allocation. Source read/close failures retain their
+original ownership; a size refusal becomes `oversize` only after closure confirms.
+
+DOCX XML uses fatal UTF-8 decoding with an optional UTF-8 BOM and XML 1.0
+declaration. UTF-16/32 and legacy encodings are explicitly unsupported; a declared
+encoding conflict, malformed byte sequence or invalid XML character fails
+extraction. The existing namespace-aware SAX reader admits supported transitional
+and strict WordprocessingML URIs independent of prefix spelling. It validates the
+document root, namespace rebinding and well-formed element boundaries; comments
+and processing instructions do not provide searchable text. DTDs remain rejected.
+
+XML admission caps depth at 256, elements at 250,000, attributes per element at
+128, events at 1,000,000 and physical paragraphs at 100,000. Decoded input is
+bounded by the file allowance and a 64 Mi-character parser ceiling. Tokenization
+runs in 16 Ki-character pieces with monotonic deadline checks; ZIP expansion and
+decoding consume the same structural phase allowance. Structural admission
+precedes preferred-provider work. Empty and omitted revision paragraphs retain
+their physical positions, while only admitted nonempty paragraphs become chunks.
+DOCX structural producer version 3 invalidates prior extraction/bundle products;
+persisted normalization identity `v1:docx-xml:3` also distinguishes the changed
+source transformation. The installed provider's package version remains exact.
+
 PDF extraction owns both the loading task and loaded document. Success, page
 failure and timeout dispose them through bounded cleanup. The timeout signal
 initiates cancellation immediately, each awaited page boundary checks it, and a

@@ -7,7 +7,7 @@ import { MODULE_EXPORTS_VERSION } from '../../lang/js-ts-exports.js';
 export const SEMANTIC_ANALYSIS_VERSIONS = Object.freeze({
   moduleExports: MODULE_EXPORTS_VERSION,
   lexicalAnalyzer: '2', importResolution: '17', pieceAssembly: '4',
-  recordsProducer: '8', ignoreRules: '4', documentExtraction: '2', discoverySelection: '3',
+  recordsProducer: '8', ignoreRules: '4', documentExtraction: '3', discoverySelection: '3',
   repoMapProducer: '2', graphRelations: '1',
   sourceChunking: '28', typeNormalization: '11', vfsRouting: '2', complexityAnalysis: '2',
   riskPropagation: '7', callSiteIdentity: '3',
