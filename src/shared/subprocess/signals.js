@@ -1,3 +1,5 @@
+import { dispatchSelfSignal } from './signal-dispatch.js';
+
 const TRACKED_SUBPROCESS_TERMINATION_SIGNALS = Object.freeze([
   'SIGINT',
   'SIGTERM',
@@ -54,7 +56,7 @@ const forwardSignalToDefault = (signal) => {
   if (!normalizedSignal || signalForwardInFlight.has(normalizedSignal)) return;
   signalForwardInFlight.add(normalizedSignal);
   try {
-    process.kill(process.pid, normalizedSignal);
+    dispatchSelfSignal(normalizedSignal);
   } catch {}
   setImmediate(() => {
     signalForwardInFlight.delete(normalizedSignal);

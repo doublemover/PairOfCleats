@@ -1,3 +1,5 @@
+import { dispatchSelfSignal } from './signal-dispatch.js';
+
 /**
  * Exit current process using child-command semantics.
  *
@@ -16,14 +18,11 @@ export const exitLikeChildResult = (result, proc = process) => {
     ? result.signal.trim()
     : null;
   if (signal) {
-    // A self-signal handled by Node is dispatched asynchronously. An installed
-    // cleanup hook may be the only remaining activity after the child closes;
-    // keep one event-loop turn alive so natural exit cannot beat dispatch.
-    const dispatch = proc === process ? setImmediate(() => {}) : null;
     try {
-      proc.kill(proc.pid, signal);
+      if (proc === process) dispatchSelfSignal(signal);
+      else proc.kill(proc.pid, signal);
       return;
-    } catch { if (dispatch) clearImmediate(dispatch); }
+    } catch {}
   }
 
   proc.exit(1);
