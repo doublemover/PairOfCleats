@@ -50,7 +50,9 @@ try {
   const sealedState = JSON.parse(await fs.readFile(path.join(buildRoot, 'build_state.json'), 'utf8'));
   const checkState = completed => validateBuildState({ ...sealedState, completedStages: { code: completed } });
   assert.equal(checkState(completion).ok, true, JSON.stringify(checkState(completion)));
-  const missingReason = structuredClone(completion); delete missingReason.producer.reason;
+  const unobserved = { ...completion, producer: { schemaVersion: 1, identity: null, reason: 'fixture-unavailable' } };
+  assert.equal(checkState(unobserved).ok, true);
+  const missingReason = structuredClone(unobserved); delete missingReason.producer.reason;
   assert.equal(checkState(missingReason).ok, false, 'unobserved producer identity requires its reason');
   const observed = { ...completion, producer: { schemaVersion: 1, identity: 'a'.repeat(64), revision: 'fixture',
     dirty: 'b'.repeat(64), dirtyFiles: 0, bootstrap: 'c'.repeat(64), node: process.version,

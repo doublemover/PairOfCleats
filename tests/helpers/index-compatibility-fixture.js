@@ -55,10 +55,11 @@ export const createCompatibilityIndex = async (
     profileId = null,
     includeFileLists = true,
     fileName = `src/${mode}.js`,
-    published = false
+    published = false,
+    userConfig = null
   }
 ) => {
-  const config = published ? loadUserConfig(rootDir) : null;
+  const config = published ? (userConfig || loadUserConfig(rootDir)) : null;
   const buildRoot = published ? path.join(getBuildsRoot(rootDir, config), 'compatibility-fixture') : rootDir;
   const indexDir = path.join(buildRoot, directory || `index-${mode}`);
   await fs.mkdir(path.join(indexDir, 'pieces'), { recursive: true });

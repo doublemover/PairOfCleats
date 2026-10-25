@@ -74,7 +74,7 @@ try {
       terminal.write('p'); await rendered('follow live');
       assert.ok(screen().includes('selected job-1 (pinned)'));
       terminal.write('/job-2\r'); await rendered('hidden/unavailable; cancel disabled');
-      terminal.write('c'); await rendered('Select a visible running job');
+      terminal.write('c'); await rendered('requires a visible running owned job');
       assert.equal((await pids()).filter(row => row.request === 'job:cancel').length, 0);
       assert.ok(workers.every(row => isProcessAlive(row.job)));
       terminal.write('x'); await rendered('>job-1 | running');
@@ -94,7 +94,7 @@ try {
       }, 'real completed-ID reuse with a new owned child');
       await rendered('hidden/unavailable; cancel disabled');
       assert.equal(screen().includes('GAMMA_TASK'), false);
-      terminal.write('c'); await rendered('selected job instance expired');
+      terminal.write('c'); await rendered('Selected job instance expired');
       assert.deepEqual((await pids()).filter(row => row.request === 'job:cancel').map(row => row.jobId), ['job-1']);
       assert.equal(isProcessAlive(replacement.job), true);
       terminal.write('['); await rendered('selected job-2 (pinned)');
