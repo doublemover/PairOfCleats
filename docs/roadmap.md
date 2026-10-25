@@ -1,13 +1,20 @@
 # PairOfCleats Roadmap
 
-Status: Windows validation in progress; solo issue repairs
-Last audited: 2026-10-24
-Last reconciled: 2026-10-24
+Status: Solo implementation resumed; Windows validation retained for closeout
+Last audited: 2026-10-25
+Last reconciled: 2026-10-25
 Canonical for: initiative status, execution order, and remaining work
 
 ## Current GitHub repair program
 
-Current reconciliation, 2026-10-24: the user replaced the proposed full Windows
+Current reconciliation, 2026-10-25: the user resumed implementation first, solo,
+with tests deferred until the source batches are ready. The live intake has
+**763 open issues**: P1 31, P2 336, P3 46, Perf 115 and other 235. The
+[current implementation receipt](archived/solo-issue-repairs-2026-10-25.md)
+records new source batches and unvalidated coverage. Historical inventories
+below describe their recorded sources, not the current open count.
+
+Previous validation reconciliation, 2026-10-24: the user replaced the proposed full Windows
 rerun with **targeted re-checks** of failures and changed shared owners. Work is
 solo; workers remain parked. The [current validation receipt](archived/windows-solo-validation-2026-10-23.md)
 separates current observations from older qualified sources. Prior source-bound checks are preserved in that receipt.
