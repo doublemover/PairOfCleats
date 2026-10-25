@@ -177,6 +177,12 @@ export function buildSearchRequestArgs(payload = {}, {
   }
 
   const query = String(payload.query || '').trim();
+  for (const field of ['asOf', 'snapshot', 'snapshotId']) {
+    if (Object.hasOwn(payload, field) && payload[field] !== undefined
+      && (typeof payload[field] !== 'string' || !payload[field].trim())) {
+      return { ok: false, message: `${field} must be a nonempty historical reference.` };
+    }
+  }
   const contextResult = validateLegacySearchContext(payload);
   if (!contextResult.ok) return contextResult;
   if (query && payload.cursor) return { ok: false, message: 'cursor requires a filter-only search without query text.' };

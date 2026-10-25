@@ -12,6 +12,12 @@ This document describes the **public HTTP API server** and the **MCP (Model Cont
 - `GET /status/stream` streams `start` → `result`/`error` → `done` SSE events.
 - `GET /metrics` returns Prometheus metrics.
 - `POST /search` accepts `{ query, mode, top, ... }` and returns `{ ok: true, repo, result }`.
+- `GET /search` applies the same historical-selector admission. `snapshot` and
+  `snapshotId` remain separate until canonical conflict validation. `asOf`/`as-of`
+  and repeated historical scalar keys accept identical trimmed values and reject
+  distinct ones. Explicit blank selectors reject instead of selecting latest;
+  omission retains current-data behavior. Intentional list fields such as
+  `path`/`paths` continue to accumulate.
 - `POST /search/stream` streams `start` → `progress` → `result`/`error` → `done` SSE events.
 - Invalid input returns HTTP 400 with `{ ok: false, code: "INVALID_REQUEST", message }` plus optional `errors`.
 - Missing indexes return HTTP 409 with `{ ok: false, code: "NO_INDEX", message }`.
