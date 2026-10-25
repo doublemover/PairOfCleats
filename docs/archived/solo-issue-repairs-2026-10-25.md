@@ -70,6 +70,25 @@ The following priority implementations are also authored with execution deferred
   the complete bitmap per lookup. SQLite ingestion admits a private mask snapshot
   once for array, buffer and async-row paths; later invocations re-admit changed
   metadata and retain invalid-count/mask rejection.
+- **#1716:** symbolic graph admission captures bounded passive JSON before signal
+  or hydration callbacks. Only privately owned frozen entries carry cached
+  validation; the writer uses their admitted byte/hash measurement. Regressions
+  exercise raw mutation, accessors/proxies, byte/node bounds, cache reuse and a
+  real writer-to-reader roundtrip.
+- **#1698:** decision, context-pack and history selection share one contained,
+  bounded snapshot reader and reject requested/embedded identity conflicts.
+  Decisions retain a compact receipt for exact admitted bytes and source/ID
+  provenance. A later same-ID finding update cannot retarget an earlier receipt.
+  Source extension fields remain supported; no outer record version is invented.
+- **#1565:** replay, completion preload and missing-bundle recovery use the
+  existing descriptor-verified source owner. Import scans pass their actual root
+  and cancellation signal. Shared read entries carry private map/root/file
+  receipts, fresh descriptor checks and a 16 MiB/256-entry retention bound;
+  callers cannot forge admission or mutate retained bytes. SHA-1, semantic
+  SHA-256 and text derive from the same snapshot. The existing one-payload-read
+  bundle/import assertion remains, now observing actual descriptor reads and
+  real fixture timestamps. Prefix preprocessing also passes containment authority.
+  Original pending read/close errors cannot become ordinary cache misses.
 
 New/extended regressions cover the numeric, continuation, capacity, backup,
 startup and per-ingestion invariants. They have not been executed in this wave;
