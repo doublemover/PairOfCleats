@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "5e7b00778",
+  "sourceHead": "40483ef6c",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 374,
+    "implemented": 375,
     "partial": 150,
-    "pending": 204
+    "pending": 203
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -552,6 +552,7 @@
       1609,
       1610,
       1611,
+      1614,
       1635,
       1636,
       1637,
@@ -830,7 +831,6 @@
       1607,
       1612,
       1613,
-      1614,
       1615,
       1616,
       1617,
@@ -5528,8 +5528,10 @@
       "number": 1614,
       "title": "[P2] Preserve typed MCP request IDs in legacy admission and cancellation",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "40483ef6c",
+      "validation": "deferred"
     },
     {
       "number": 1615,

@@ -424,3 +424,22 @@ Existing shared/typed map, spill, vector-only and no-yield fixtures remain. Stat
 format/syntax/generated/diff checks passed; execution and measured peak/latency
 qualification remain deferred. Coverage is **35 fixed / 374 implemented / 150
 partial / 204 pending**.
+
+## Typed MCP identity
+
+**#1614** (`40483ef6c`) retains primitive ID type in legacy pending, active,
+progress and cancellation keys. Numeric/string forms and zero remain independent;
+same-type duplicate protection and actual execution settlement remain. Responses
+retain original IDs. Domain validation matches the installed SDK's strings and
+safe integers without importing its schema graph into production legacy startup.
+The duplicate cancellation bypass was removed: the existing async message handler
+executes cancellation synchronously before any await and now owns validation too.
+
+Authored real-transport/parser controls use inert deferred tools and JSON-captured
+responses, with virtual time for progress and timeout settlement. They cover
+queued/active cancellation, unknown/invalid targets, typed duplicate diagnostics,
+exact cleanup, peer progress state, empty string, safe bounds and SDK-domain parity.
+Original numeric duplicate and native execution-settlement fixtures remain. No
+framing, scheduling, timeout, drain or output-writer contract changed. Formatting,
+syntax, generated refreshes and diff checks passed; functional execution remains
+deferred. Coverage is **35 fixed / 375 implemented / 150 partial / 203 pending**.
