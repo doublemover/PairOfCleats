@@ -9,7 +9,8 @@ import { createFileScanner, readFileSample } from './file-scan.js';
 import { discoverEntries } from './discover.js';
 import { forwardDiscoveryDirectoryInventory } from './discovery/directory-inventory.js';
 import { createPreprocessSnapshotSession } from './preprocess-snapshot.js';
-import { createRecordsClassifier, shouldSniffRecordContent } from './records.js';
+import { createRecordsClassifier } from './records.js';
+import { SEMANTIC_ANALYSIS_VERSIONS } from '../semantic/analysis-versions.js';
 import { resolveFileCaps } from './file-processor/read.js';
 import { isCodeEntryForPath, isProseEntryForPath } from './mode-routing.js';
 import { atomicWriteJson } from '../../shared/io/atomic-write.js';
@@ -149,7 +150,8 @@ export async function preprocessFiles({
       ignorePolicy: ignoreMatcher?.policyFingerprint || null, modes,
       generatedPolicy: { includePatterns: effectiveGeneratedPolicy.includePatterns || [],
         excludePatterns: effectiveGeneratedPolicy.excludePatterns || [], extractedProse: effectiveGeneratedPolicy.extractedProse || null },
-      recordsDir, recordsConfig: recordsClassifier.config, documentExtractionConfig,
+      recordsDir, recordsConfig: recordsClassifier.config, recordsRoutingProducer: SEMANTIC_ANALYSIS_VERSIONS.recordsProducer,
+      documentExtractionConfig,
       semanticRouting: { enabled: semanticPolicy?.enabled === true, languages: semanticPolicy?.languages || [] },
       fileScan, fileCaps, maxFileBytes, maxDepth, maxFiles, needsLines
     },
@@ -200,7 +202,7 @@ export async function preprocessFiles({
       let sampleText = null;
       let sampleBuffer = scanResult?.sampleBuffer || null;
       if (recordsClassifier && !entry.record) {
-        if (!sampleBuffer && recordSniffBytes > 0 && shouldSniffRecordContent(entry.ext)) {
+        if (!sampleBuffer && recordsClassifier.shouldSniff({ absPath: entry.abs, relPath: entry.rel, ext: entry.ext })) {
           try {
             sampleBuffer = await sample(entry.abs, recordSniffBytes);
           } catch (error) {

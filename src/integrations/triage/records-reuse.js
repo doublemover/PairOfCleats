@@ -17,6 +17,7 @@ export const recordsReusePolicy = ({ runtime, policy, stop, synonyms }) => {
     && Number.isSafeInteger(identity?.dims) && identity.dims > 0);
   const complete = { schema: 'records-producer-reuse.v1', artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     producer: SEMANTIC_ANALYSIS_VERSIONS.recordsProducer, metadata: META_V2_SCHEMA_VERSION,
+    sourceRepresentation: 'original-decoded-utf8.v1', embeddingRepresentation: 'document-summary-or-original-source.v1',
     toolInfo: runtime.toolInfo || null, metadataPolicy: runtime.analysisPolicy?.metadata || null, lexical: SEMANTIC_ANALYSIS_VERSIONS.lexicalAnalyzer, literal: TEXT_ANALYZER_VERSION,
     minhash: MINHASH_HASH_IDENTITY, policy, stop: [...stop].sort(),
     synonyms: [...synonyms].sort(([left], [right]) => String(left).localeCompare(String(right))),

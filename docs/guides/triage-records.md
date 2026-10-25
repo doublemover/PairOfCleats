@@ -5,6 +5,27 @@ Triage records store vulnerability findings and decisions outside the repo (in t
 
 ## Record defaults
 
+Repository records exclusions are terminal for records classification. Exclusion
+wins over an include glob or content signal and prevents an extra record-sniff
+read in initial preprocessing and watch routing. Normal prose/code eligibility
+remains independent, and the dedicated triage records root retains its existing
+explicit routing authority.
+
+The triage Markdown inventory uses the shared bounded deterministic discovery
+walker. A missing optional root is recorded separately from a successfully read
+empty root. Directory errors, cancellation and disappearance after admission fail
+the build before completed artifact publication or manifest pruning. The completed
+inventory receipt appears under `index_state.extensions.recordsInventory`; it
+describes enumeration, separately from source-byte admission. A changed source
+that disappears during processing also fails instead of becoming a deletion.
+
+Records ranges, chunk identity input and literal phrase tokens use original
+decoded source text. Scoring tokens apply their own normalization; embedding
+input uses an admitted document summary when present, otherwise original source
+text. Producer version 8 and explicit source/embedding representation identities
+invalidate older record products. Discovery selection version 3 and preprocessing
+snapshot policy invalidate cached routing decisions.
+
 Triage tools use the repository cache's `triage/records` directory. Raw-payload
 retention is off by default; context packs use up to five history entries and
 five evidence results per query.

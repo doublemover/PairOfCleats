@@ -29,7 +29,7 @@ import { coerceAbortSignal, throwIfAborted, createAbortError, isAbortError } fro
 import { inspectGeneratedArtifact, isGeneratedArtifactCandidatePath } from '../../shared/generated-artifact.js';
 import { createDebouncedScheduler } from '../../shared/scheduler/debounce.js';
 import { getLanguageForFile } from '../language-registry.js';
-import { createRecordsClassifier, shouldSniffRecordContent } from './records.js';
+import { createRecordsClassifier } from './records.js';
 import { initBuildState, markBuildPhase, updateBuildState } from './build-state.js';
 import { runBuildCleanupWithTimeout } from './cleanup-timeout.js';
 import { SIGNATURE_VERSION } from './indexer/signatures.js';
@@ -523,7 +523,7 @@ export async function watchIndex({
         record = { source: 'triage', recordType: 'record', reason: 'records-dir' };
       }
       if (!record && recordsClassifier) {
-        const sampleText = shouldSniffRecordContent(ext)
+        const sampleText = recordsClassifier.shouldSniff({ absPath, relPath: relPosix, ext })
           ? await readRecordSample(absPath, recordsClassifier.config?.sniffBytes)
           : '';
         record = recordsClassifier.classify({ absPath, relPath: relPosix, ext, sampleText });

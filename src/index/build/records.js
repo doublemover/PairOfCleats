@@ -114,24 +114,32 @@ export const createRecordsClassifier = ({ root, config }) => {
     const rel = rootDir ? path.relative(rootDir, value) : value;
     return toPosix(rel);
   };
-  const classify = ({ absPath, relPath, ext, sampleText }) => {
+  const classifyPath = ({ absPath, relPath, ext }) => {
     const rel = relPath ? toPosix(relPath) : normalizeRel(absPath || '');
-    if (!rel || isRelativePathEscape(rel)) return null;
+    if (!rel || isRelativePathEscape(rel)) return { state: 'invalid', record: null, reason: 'invalid-path' };
     const pathResult = detectRecordByPath({
       relPath: rel,
-      ext,
+      ext: typeof ext === 'string' ? ext.toLowerCase() : '',
       includeMatcher,
       excludeMatcher
     });
+    if (pathResult.reason === 'exclude') return { state: 'excluded', record: null, reason: 'exclude' };
     if (pathResult.match) {
-      return {
+      return { state: 'matched', reason: pathResult.reason, record: {
         source: 'repo',
         recordType: pathResult.recordType || 'log',
         reason: pathResult.reason
-      };
+      } };
     }
-    if (!normalized.detect || normalized.sniffBytes === 0) return null;
-    if (!shouldSniffRecordContent(ext)) return null;
+    return { state: 'unmatched', record: null, reason: 'none' };
+  };
+  const shouldSniff = (input, decision = classifyPath(input)) => decision.state === 'unmatched'
+    && normalized.detect && normalized.sniffBytes > 0 && shouldSniffRecordContent(input.ext);
+  const classify = input => {
+    const decision = classifyPath(input);
+    if (decision.state === 'matched') return decision.record;
+    if (!shouldSniff(input, decision)) return null;
+    const { sampleText } = input;
     const contentResult = detectRecordByContent(sampleText || '');
     if (!contentResult.match) return null;
     return {
@@ -142,6 +150,8 @@ export const createRecordsClassifier = ({ root, config }) => {
   };
   return {
     config: normalized,
+    classifyPath,
+    shouldSniff,
     classify
   };
 };

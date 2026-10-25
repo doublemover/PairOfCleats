@@ -245,6 +245,7 @@ export const buildDependencySignatures = (runtime, mode, tokenizationKey) => {
     moduleExportsProducer: payload.moduleExportsProducer, nativeChunkProducer: payload.nativeChunkProducer,
     kotlin: payload.kotlin, chunkIdAlgoVersion: payload.chunkIdAlgoVersion,
     ...(mode === 'extracted-prose' ? { docxStructuralExtractionVersion: DOCX_STRUCTURAL_EXTRACTION_VERSION } : {}),
+    ...(mode === 'records' ? { recordsProducer: SEMANTIC_ANALYSIS_VERSIONS.recordsProducer } : {}),
     fileCaps: payload.fileCaps, fileScan: payload.fileScan,
     segments: runtime.segmentsConfig || {}, comments: runtime.commentsConfig || {}
   };
@@ -257,6 +258,7 @@ export const buildDependencySignatures = (runtime, mode, tokenizationKey) => {
   };
   const { batchSize: _batchSize, ...embeddings } = payload.embeddings;
   const artifacts = {
+    discoverySelectionProducer: payload.discoverySelectionProducer,
     pieceAssemblyProducer: SEMANTIC_ANALYSIS_VERSIONS.pieceAssembly,
     artifactSchemaHash: payload.artifactSchemaHash, artifacts: payload.artifacts,
     incrementalBundleFormat: payload.incrementalBundleFormat, profile: payload.profile
