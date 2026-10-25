@@ -78,7 +78,7 @@ try {
   try {
     await waitFor(
       () => observedBuildSnapshots.some((snapshot) => (
-        snapshot.entries.includes(fileBKey) || snapshot.skipped.includes(fileBKey)
+        snapshot.entries.includes(fileBKey) && !snapshot.skipped.includes(fileBKey)
       )),
       5000
     );

@@ -6,14 +6,6 @@ import { createIndexCacheLease } from './cache-lease.js';
 import { cacheWritersAreIdle, drainCacheWriters, combineCacheWriterErrors, releaseCacheWriterOwnership } from './cache-writer-drain.js';
 import { promoteBuild } from './promotion.js';
 import { validateIndexArtifacts } from '../validate.js';
-import {
-  EXTS_CODE,
-  EXTS_PROSE,
-  isLockFile,
-  isManifestFile,
-  isSpecialCodeFile,
-  resolveSpecialCodeExt
-} from '../constants.js';
 import { log } from '../../shared/progress-runtime.js';
 import {
   incWatchBurst,
@@ -22,13 +14,10 @@ import {
   observeWatchBuildDuration,
   setWatchBacklog
 } from '../../shared/metrics/core.js';
-import { fileExt, isRelativePathEscape, toPosix } from '../../shared/file-paths.js';
 import { runWithConcurrency, runWithQueue } from '../../shared/concurrency/run-with-queue.js';
 import { runWithIndependentSchedulerOwner } from '../../shared/concurrency/scheduler-task-scope.js';
 import { coerceAbortSignal, throwIfAborted, createAbortError, isAbortError } from '../../shared/abort.js';
-import { inspectGeneratedArtifact, isGeneratedArtifactCandidatePath } from '../../shared/generated-artifact.js';
 import { createDebouncedScheduler } from '../../shared/scheduler/debounce.js';
-import { getLanguageForFile } from '../language-registry.js';
 import { createRecordsClassifier } from './records.js';
 import { initBuildState, markBuildPhase, updateBuildState } from './build-state.js';
 import { runBuildCleanupWithTimeout } from './cleanup-timeout.js';
@@ -36,22 +25,20 @@ import { SIGNATURE_VERSION } from './indexer/signatures.js';
 import { buildIgnoredMatcher } from '../../shared/fs/ignore.js';
 import { resolveWatcherBackend } from './watch/resolve-backend.js';
 import { waitForStableFile } from './watch/stability.js';
-import { resolveRecordsRoot, readRecordSample } from './watch/records.js';
-import { resolveMaxBytesForFile, resolveMaxDepthCap, resolveMaxFilesCap, isIndexablePath } from './watch/guardrails.js';
+import { resolveRecordsRoot } from './watch/records.js';
+import { resolveMaxDepthCap, resolveMaxFilesCap, isIndexablePath } from './watch/guardrails.js';
 import { startChokidarWatcher } from './watch/backends/chokidar.js';
 import { startParcelWatcher } from './watch/backends/parcel.js';
 import { createWatchAttemptManager } from './watch/attempts.js';
 import { normalizeRoot } from './watch/shared.js';
 import { createWatchProgress } from './watch/progress.js';
+import { createWatchPathClassifier } from './watch/classify-path.js';
+import { createWatchSourceObservations } from './watch/source-observations.js';
+import { observeStorageResource } from '../../shared/storage/failure-observation.js';
 import { isCodeEntryForPath, isProseEntryForPath } from './mode-routing.js';
-import { detectShebangLanguage } from './shebang.js';
-import { isWithinRoot, toRealPathSync } from '../../workspace/identity.js';
+import { toRealPathSync } from '../../workspace/identity.js';
 import { addStorageFailureContext } from '../../shared/storage/operation-error.js';
-import {
-  buildGeneratedPolicyConfig,
-  buildGeneratedPolicyDowngradePayload,
-  resolveGeneratedPolicyDecision
-} from './generated-policy.js';
+import { buildGeneratedPolicyConfig } from './generated-policy.js';
 
 export { createDebouncedScheduler, acquireIndexLockWithBackoff };
 
@@ -146,8 +133,6 @@ export async function watchIndex({
   const trackedFiles = new Set();
   const pendingPaths = new Set();
   const pendingUpdates = new Set();
-  const stabilityRetryCounts = new Map();
-  const stabilityRetryTimers = new Map();
   const burstWindowMs = 1000;
   const burstThreshold = 25;
   let burstStart = 0;
@@ -155,6 +140,7 @@ export async function watchIndex({
   let burstMax = 0;
   let scheduler;
   let stabilityGuard = null;
+  let sourceObservations = null;
   let updateScheduled = false;
   let updateRunning = false;
   const watchState = {
@@ -216,12 +202,12 @@ export async function watchIndex({
   };
 
   const emitWatchState = () => {
-    const backlogDepth = pendingPaths.size + stabilityRetryTimers.size;
+    const backlogDepth = pendingPaths.size;
     const pendingReplay = pending
       || updateScheduled
       || updateRunning
       || pendingUpdates.size > 0
-      || stabilityRetryTimers.size > 0;
+      || sourceObservations?.pendingCount() > 0;
     const quiescent = !running && !pendingReplay && backlogDepth === 0;
     const snapshot = {
       pid: process.pid,
@@ -232,7 +218,8 @@ export async function watchIndex({
       pendingReplay,
       running,
       updateQueueRunning: updateRunning,
-      stabilityRetries: stabilityRetryTimers.size,
+      stabilityRetries: sourceObservations?.stabilityRetryCount() || 0,
+      sourceObservations: sourceObservations?.snapshot() || { pending: 0, failures: [] },
       lastConsistentGeneration: snapshotGeneration(watchState.lastConsistentGeneration),
       lastAttemptedGeneration: snapshotGeneration(watchState.lastAttemptedGeneration),
       activeGeneration: snapshotGeneration(watchState.activeGeneration),
@@ -270,11 +257,7 @@ export async function watchIndex({
         : addStorageFailureContext(terminalError, {}, error, { secondaryPresent: true }); }
     };
     shutdownStep(() => scheduler?.cancel?.());
-    for (const timer of stabilityRetryTimers.values()) {
-      clearTimeout(timer);
-    }
-    stabilityRetryTimers.clear();
-    stabilityRetryCounts.clear();
+    shutdownStep(() => sourceObservations?.close());
     setWatchBacklog(pendingPaths.size);
     shutdownStep(() => { if (activeBuildAbort && !activeBuildAbort.signal.aborted) activeBuildAbort.abort(); });
     shutdownStep(() => emitWatchState());
@@ -313,6 +296,7 @@ export async function watchIndex({
       const handleUpdate = async (absPath) => {
         const beforeTracked = trackedCounts.get(absPath) || 0;
         const changed = await updateTrackedEntry(absPath);
+        if (changed === null) return;
         const afterTracked = trackedCounts.get(absPath) || 0;
         if (beforeTracked > 0 || afterTracked > 0 || changed) scheduleBuild();
         else if (!pendingUpdates.has(absPath)) {
@@ -378,6 +362,8 @@ export async function watchIndex({
         }
         watchProgress.recovered(watchState, ['update-queue']);
       } catch (err) {
+        try { observeStorageResource(err, { phase: 'watch-update-queue' }).requireSettled(); }
+        catch (owned) { terminalError = owned; requestShutdown('source-observation-ownership'); return; }
         if (!abortSignal?.aborted) watchProgress.degraded('update-queue', err, watchState);
         if (!abortSignal?.aborted) {
           log(`[watch] Update queue failed: ${err?.message || err}`);
@@ -388,6 +374,8 @@ export async function watchIndex({
       }
       if (pendingUpdates.size) {
         scheduleUpdateFlush();
+      } else if (pending && !running && !sourceObservations?.pendingCount() && !shouldExit) {
+        pending = false; scheduleBuild();
       }
     };
 
@@ -463,118 +451,37 @@ export async function watchIndex({
      * @param {string} absPath
      * @returns {Promise<object>}
      */
-    const classifyPath = async (absPath) => {
-      const canonicalAbs = toRealPathSync(absPath);
-      if (!isWithinRoot(canonicalAbs, canonicalRoot)) {
-        return { skip: true, reason: 'outside-root' };
+    const classifyPath = createWatchPathClassifier({ root, canonicalRoot, normalizedRecordsRoot, maxDepthCap,
+      ignoreMatcher, maxFileBytes, fileCaps, recordsClassifier, generatedPolicy, lstatPath: resolvedDeps.lstatPath });
+    sourceObservations = (resolvedDeps.createWatchSourceObservations || createWatchSourceObservations)({
+      onRetry: absPath => { pendingPaths.add(absPath); pendingUpdates.add(absPath); scheduleUpdateFlush(); },
+      onChange: emitWatchState,
+      onFailure: (error, _file, receipt) => {
+        if (activeBuildAbort && !activeBuildAbort.signal.aborted) activeBuildAbort.abort(
+          Object.assign(new Error(`Source observation pending (${receipt.code}).`, { cause: error }), { code: 'ERR_WATCH_OBSERVATION_PENDING' }));
+        watchProgress.degraded('source-observation', { code: receipt.code }, watchState);
       }
-      const relPosix = toPosix(path.relative(canonicalRoot, canonicalAbs));
-      if (!relPosix || relPosix === '.' || isRelativePathEscape(relPosix)) {
-        return { skip: true, reason: 'outside-root' };
-      }
-      const inRecordsRoot = normalizedRecordsRoot
-        ? isWithinRoot(canonicalAbs, normalizedRecordsRoot)
-        : false;
-      if (maxDepthCap != null) {
-        const depth = relPosix.split('/').length - 1;
-        if (depth > maxDepthCap) {
-          return { skip: true, reason: 'max-depth', extra: { depth, maxDepth: maxDepthCap } };
-        }
-      }
-      if (ignoreMatcher?.ignores(relPosix)) {
-        return { skip: true, reason: 'ignored' };
-      }
-      const baseName = path.basename(absPath);
-      let ext = resolveSpecialCodeExt(baseName) || fileExt(absPath);
-      let stat;
-      try {
-        stat = await fs.lstat(absPath);
-      } catch {
-        return { skip: true, reason: 'stat-failed' };
-      }
-      if (stat.isSymbolicLink()) {
-        return { skip: true, reason: 'symlink' };
-      }
-      let language = getLanguageForFile(ext, relPosix);
-      if (!ext && !language && stat.isFile()) {
-        const shebang = await detectShebangLanguage(absPath);
-        if (shebang?.languageId) {
-          ext = shebang.ext || ext;
-          language = getLanguageForFile(ext, relPosix);
-        }
-      }
-      const maxBytesForFile = resolveMaxBytesForFile(ext, language?.id || null, maxFileBytes, fileCaps);
-      if (maxBytesForFile && stat.size > maxBytesForFile) {
-        return {
-          skip: true,
-          reason: 'oversize',
-          extra: {
-            stage: 'watch',
-            capSource: 'maxBytes',
-            bytes: stat.size,
-            maxBytes: maxBytesForFile
-          }
-        };
-      }
-      const isSpecialLanguage = !!language && !EXTS_CODE.has(ext) && !EXTS_PROSE.has(ext);
-      const isSpecial = isSpecialCodeFile(baseName) || isManifestFile(baseName) || isLockFile(baseName) || isSpecialLanguage;
-      let record = null;
-      if (inRecordsRoot) {
-        record = { source: 'triage', recordType: 'record', reason: 'records-dir' };
-      }
-      if (!record && recordsClassifier) {
-        const sampleText = recordsClassifier.shouldSniff({ absPath, relPath: relPosix, ext })
-          ? await readRecordSample(absPath, recordsClassifier.config?.sniffBytes)
-          : '';
-        record = recordsClassifier.classify({ absPath, relPath: relPosix, ext, sampleText });
-      }
-      // Preserve records routing even when generated-policy heuristics match.
-      if (!record) {
-        if (stat.isFile() && isGeneratedArtifactCandidatePath(relPosix)) {
-          const artifact = await inspectGeneratedArtifact({ repoRoot: root, filePath: absPath, relativePath: relPosix });
-          if (artifact?.action === 'omit') {
-            return { skip: true, reason: 'generated-artifact', extra: {
-              artifactKind: artifact.kind, artifactFormat: artifact.format, artifactFlags: artifact.flags, action: artifact.action
-            } };
-          }
-        }
-        const generatedPolicyDecision = resolveGeneratedPolicyDecision({
-          generatedPolicy,
-          relPath: relPosix,
-          absPath,
-          baseName
-        });
-        if (generatedPolicyDecision?.downgrade) {
-          return {
-            skip: true,
-            reason: generatedPolicyDecision.classification || 'generated',
-            extra: {
-              indexMode: generatedPolicyDecision.indexMode,
-              downgrade: buildGeneratedPolicyDowngradePayload(generatedPolicyDecision)
-            }
-          };
-        }
-      }
-      return {
-        skip: false,
-        relPosix,
-        ext,
-        stat,
-        record,
-        isSpecial
-      };
-    };
+    });
 
     /**
      * Reconcile one absolute path across all active modes and update tracked
      * entry/skip maps while maintaining cross-mode reference counts.
      *
      * @param {string} absPath
-     * @returns {Promise<boolean>} true when tracked membership changed.
+     * @returns {Promise<boolean|null>} Membership change, or null while observation is pending/superseded.
      */
     const updateTrackedEntry = async (absPath) => {
       const beforeCount = trackedCounts.get(absPath) || 0;
-      const classification = await classifyPath(absPath);
+      const classification = await sourceObservations.observe(absPath, async () => {
+        if (stabilityGuard?.enabled && !await waitForStableFile(absPath, { ...stabilityGuard,
+          signal: taskAbortSignal, throwOnObservationError: true, statPath: resolvedDeps.stabilityStatPath })) {
+          return { state: 'unknown', code: 'ERR_WATCH_SOURCE_UNSTABLE',
+            error: Object.assign(new Error('Source is still changing.'), { code: 'ERR_WATCH_SOURCE_UNSTABLE' }) };
+        }
+        return classifyPath(absPath);
+      });
+      if (!classification) return null;
+      if (!sourceObservations.pendingCount()) watchProgress.recovered(watchState, ['source-observation']);
       if (classification.skip) {
         if (beforeCount > 0) removeEntryFromModes(absPath);
         for (const mode of modes) {
@@ -658,6 +565,9 @@ export async function watchIndex({
         return;
       }
       if (shouldExit) return;
+      if (sourceObservations.pendingCount() || updateRunning || pendingUpdates.size) {
+        pending = true; emitWatchState(); return;
+      }
       running = true;
       emitWatchState();
       const startTime = process.hrtime.bigint();
@@ -676,6 +586,9 @@ export async function watchIndex({
       const assertBeforePublication = () => {
         throwIfAborted(activeBuildAbort?.signal);
         if (shouldExit) throw createAbortError('Watch shutdown requested before publication.');
+        if (sourceObservations.pendingCount() || updateRunning || pendingUpdates.size) {
+          throw Object.assign(new Error('Source observation remains pending before watch publication.'), { code: 'ERR_WATCH_OBSERVATION_PENDING' });
+        }
       };
       try {
         lock = await resolvedDeps.acquireIndexLockWithBackoff({
@@ -910,7 +823,7 @@ export async function watchIndex({
          * On failures, preserve pending paths and force a replay so updates are
          * never forgotten by transient build errors.
          */
-        if (status === 'ok' && !pending) {
+        if (status === 'ok' && !pending && !updateRunning && !updateScheduled && !pendingUpdates.size && !sourceObservations.pendingCount()) {
           pendingPaths.clear();
           setWatchBacklog(0);
         } else if (queuedPathsAtStart > 0 && !shouldExit) {
@@ -948,71 +861,21 @@ export async function watchIndex({
       }
     });
 
-    const clearStabilityRetry = (absPath) => {
-      stabilityRetryCounts.delete(absPath);
-      const timer = stabilityRetryTimers.get(absPath);
-      if (timer) {
-        clearTimeout(timer);
-        stabilityRetryTimers.delete(absPath);
-      }
-      emitWatchState();
-    };
-
-    /**
-     * Requeue unstable write events with exponential backoff instead of dropping
-     * them. This keeps watch mode eventually consistent under long write bursts.
-     *
-     * @param {string} absPath
-     * @returns {void}
-     */
-    const scheduleStabilityRetry = (absPath) => {
-      if (shouldExit || stabilityRetryTimers.has(absPath)) return;
-      const nextAttempt = (stabilityRetryCounts.get(absPath) || 0) + 1;
-      stabilityRetryCounts.set(absPath, nextAttempt);
-      const baseIntervalMs = Number(stabilityGuard?.intervalMs);
-      const baseDelayMs = Number.isFinite(baseIntervalMs) && baseIntervalMs > 0
-        ? Math.floor(baseIntervalMs)
-        : 50;
-      const delayMs = Math.min(5000, baseDelayMs * (2 ** Math.min(nextAttempt - 1, 6)));
-      const timer = setTimeout(() => {
-        stabilityRetryTimers.delete(absPath);
-        emitWatchState();
-        void recordAddOrChange(absPath, { fromStabilityRetry: true });
-      }, delayMs);
-      timer.unref?.();
-      stabilityRetryTimers.set(absPath, timer);
-      emitWatchState();
-    };
-
-    const recordAddOrChange = async (absPath, { fromStabilityRetry = false } = {}) => {
+    const recordAddOrChange = (absPath) => {
       if (shouldExit) return;
+      sourceObservations.invalidate(absPath);
       watchState.lastEventAt = new Date().toISOString();
-      if (stabilityGuard?.enabled) {
-        const stable = await waitForStableFile(absPath, stabilityGuard);
-        if (shouldExit) return;
-        if (!stable) {
-          if (!fromStabilityRetry) {
-            log(`[watch] Deferring unstable update: ${absPath}`);
-          }
-          pendingPaths.add(absPath);
-          setWatchBacklog(pendingPaths.size);
-          scheduleStabilityRetry(absPath);
-          emitWatchState();
-          return;
-        }
-        clearStabilityRetry(absPath);
-      }
       pendingPaths.add(absPath);
-      setWatchBacklog(pendingPaths.size);
       pendingUpdates.add(absPath);
+      setWatchBacklog(pendingPaths.size);
       emitWatchState();
       scheduleUpdateFlush();
     };
 
     const recordRemove = (absPath) => {
       watchState.lastEventAt = new Date().toISOString();
-      clearStabilityRetry(absPath);
       pendingPaths.add(absPath);
+      sourceObservations.remove(absPath); pendingUpdates.delete(absPath);
       setWatchBacklog(pendingPaths.size);
       emitWatchState();
       const before = trackedCounts.get(absPath) || 0;
@@ -1144,8 +1007,7 @@ export async function watchIndex({
       if (abortSignal && abortHandler) abortSignal.removeEventListener('abort', abortHandler);
     });
     await cleanupStep(() => scheduler?.cancel?.());
-    for (const timer of stabilityRetryTimers.values()) clearTimeout(timer);
-    stabilityRetryTimers.clear(); stabilityRetryCounts.clear();
+    await cleanupStep(() => sourceObservations?.close());
     await cleanupStep(() => { if (activeBuildAbort && !activeBuildAbort.signal.aborted) activeBuildAbort.abort(); });
     stop();
     if (watcher) await cleanupStep(() => runBuildCleanupWithTimeout({ label: 'watch.watcher.close', log,
