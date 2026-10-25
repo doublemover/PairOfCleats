@@ -242,21 +242,3 @@ export function resolveBm25Defaults(metricsRoot, modeFlags) {
   const b = values.reduce((sum, v) => sum + v.b, 0) / values.length;
   return { k1, b };
 }
-
-/**
- * Load the recorded branch name for a metrics mode, if present.
- *
- * @param {string|null|undefined} metricsDir
- * @param {string} mode
- * @returns {string|null}
- */
-export function loadBranchFromMetrics(metricsDir, mode) {
-  try {
-    const metricsPath = path.join(metricsDir, `index-${mode}.json`);
-    if (!fs.existsSync(metricsPath)) return null;
-    const raw = JSON.parse(fs.readFileSync(metricsPath, 'utf8'));
-    return raw?.git?.branch || null;
-  } catch {
-    return null;
-  }
-}

@@ -800,16 +800,12 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       branchFilter,
       caseSensitive: caseFile,
       root: rootDir,
-      metricsDir,
-      queryCacheDir,
-      runCode,
-      runProse,
+      signal,
       backendLabel,
       backendPolicy: backendPolicyInfo,
       emitOutput,
       jsonOutput,
-      recordSearchMetrics,
-      warn: console.warn
+      recordSearchMetrics
     });
     if (branchResult?.payload) {
       return branchResult.payload;
@@ -1176,6 +1172,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     }
 
     const payload = await executeSearchAndEmit({
+      branchQualification: branchResult.receipt,
       filterOnly,
       filterCursor: argv.cursor || null,
       plain: argv.plain === true,
@@ -1301,7 +1298,9 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       }
       const code = isErrorCode(err?.code) ? err.code : ERROR_CODES.INTERNAL;
       const format = projectIndexFormatError(err);
-      console.log(JSON.stringify({ ok: false, code: format?.nativeCode || code, message, ...(format ? { ...format, details: format } : {}) }));
+      console.log(JSON.stringify({ ok: false, code: format?.nativeCode || code, message,
+        ...(err?.branchQualification ? { details: { branchQualification: err.branchQualification } } : {}),
+        ...(format ? { ...format, details: format } : {}) }));
       if (err) err.emitted = true;
     }
     throw err;

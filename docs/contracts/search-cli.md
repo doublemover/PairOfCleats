@@ -61,6 +61,17 @@ This document defines the CLI interface and output contract for **search**.
 - `--modified-after <iso-date>`, `--modified-since <days>`, `--churn <spec>`, `--branch <name>`
 - `--branches`, `--loops`, `--breaks`, `--continues`
 
+`--branch` predicates the selected repository's current checkout branch, including
+historical/snapshot searches. It uses one bounded SCM observation of current HEAD
+and its symbolic branch; index metrics never substitute for that observation.
+Known mismatch returns no hits. Detached, unavailable or unqualified observations
+reject the requested predicate with `CAPABILITY_MISSING`. Structured results retain
+`stats.branchQualification` with requested/observed names, `current-checkout` basis,
+observed revision and verified/mismatch state. Unavailable errors retain the same
+qualification in details. Output compaction preserves the required receipt; the
+receipt describes the request's observation, not a historical branch assignment
+or a promise that the checkout cannot change afterward.
+
 ### Backend + ranking flags
 - `--backend auto|sqlite|sqlite-fts|lmdb|memory|tantivy` (alias: `fts`)
 - `--ann` / `--no-ann`

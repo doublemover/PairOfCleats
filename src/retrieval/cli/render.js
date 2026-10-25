@@ -297,6 +297,7 @@ export function renderSearchOutput({
   rootDir,
   backendLabel,
   backendPolicyInfo,
+  branchQualification = null,
   routingPolicy = null,
   runCode,
   runProse,
@@ -546,6 +547,10 @@ export function renderSearchOutput({
   }
 
   applyJsonDiagnosticNormalization(payload, profileInfo);
+
+  if (branchQualification) {
+    payload.stats = { ...payload.stats, branchQualification };
+  }
 
   if (filterEnumeration) payload.pagination = buildFilterPagination(filterEnumeration, payload);
   const budgetPolicy = normalizeOutputBudgetPolicy(outputBudget);
