@@ -112,6 +112,7 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
       astDataflowEnabled: runtime.astDataflowEnabled,
       controlFlowEnabled: runtime.controlFlowEnabled,
       lintEnabled: runtime.lintEnabled,
+      ...(runtime.lintEnabled === true ? { lintProjectionProducer: SEMANTIC_ANALYSIS_VERSIONS.lintProjection } : {}),
       complexityEnabled: runtime.complexityEnabled,
       complexityAnalyzer: '2',
       riskAnalysisEnabled,
