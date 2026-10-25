@@ -1262,3 +1262,33 @@ discovery and staged diff checks passed. Functional execution and the final fron
 gate remain deferred. A complete live metadata refresh at `242dc95e1` reconfirmed
 763 open issues, no additions/closures or title changes. Coverage is **35 fixed /
 402 implemented / 151 partial / 175 pending**.
+
+
+## Owned adjacency bootstrap and transition capture
+
+**#1696** (`3ffdf2230`) captures one passive bounded canonical bootstrap/batch
+before option getters or cancellation effects. Validation, digest, coalescing,
+application, destination world/completeness and replay ledger all consume that
+private value. The byte allowance covers aggregate metadata and rows/edits before
+JSON parsing; replacement snapshots also use bounded encoding. Accessors, sparse/
+decorated arrays, hidden fields and invalid typed data are rejected without getter
+execution. Bootstrap byte configuration must itself be passive.
+
+Initial cancellation now observes one value, each distinct support update polls
+the original signal, and a final poll precedes next-view construction. Cancellation
+retains the old authoritative handle and leaves the batch unconsumed. Exact replay
+still precedes cancellation polling. Ordinary algebra, valid-input hashes and the
+1024-entry checkpoint boundary remain unchanged; this private WeakMap-owned pilot
+has no indexed semantic producer or durable replay product requiring a version bump.
+
+The authored regression changes edits, endpoints/source refs, destination world,
+completeness, ID and definition at first/later/final cancellation polls. It checks
+hand-computed old/new cursor bags, independent clean-bootstrap equality, root/
+ledger identity, exact replay and conflicting replay. Native cancellation, option
+getter mutation, work rejection, passive-array/object negatives and byte overflow
+before JSON parsing remain explicit. The existing 40-transition flat multiset
+oracle and arbitrary-precision support assertions are retained.
+
+Format/ESLint, syntax, affected generated inventories, new-case discovery and staged
+diff checks passed. Functional execution and the final front gate remain deferred.
+Coverage is **35 fixed / 403 implemented / 151 partial / 174 pending**.
