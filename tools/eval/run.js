@@ -15,6 +15,7 @@ import { evaluateDatasetShadowRouting } from './shadow-routing.js';
 import { evaluateDatasetTaskSpans } from './task-spans.js';
 import { runEvaluationResourceScope } from './resource-scope.js';
 import { captureEvaluationDatasetCases } from './dataset-admission.js';
+import { createEvaluationDepthPlan, evaluationDepthCoverage } from './depth-plan.js';
 
 const argv = createCli({
   scriptName: 'eval-run',
@@ -42,7 +43,6 @@ const backend = argv.backend ? String(argv.backend) : 'auto';
 const topN = Math.max(1, parseInt(argv.top, 10) || 10);
 const limit = Math.max(0, parseInt(argv.limit, 10) || 0);
 const annFlag = typeof argv.ann === 'boolean' ? argv.ann : null;
-const ks = [1, 3, 5, 10].filter((k) => k <= Math.max(10, topN));
 const matchMode = (() => {
   try {
     return resolveMatchMode(argv['match-mode']);
@@ -50,6 +50,8 @@ const matchMode = (() => {
     fail(err?.message || 'Invalid match mode.', 2);
   }
 })();
+const evaluationPlan = createEvaluationDepthPlan(topN, matchMode);
+const ks = evaluationPlan.cutoffs;
 
 const loadDataset = () => {
   const raw = fs.readFileSync(datasetPath, 'utf8');
@@ -99,6 +101,7 @@ const output = await runEvaluationResourceScope({ sqliteCache: evalCaches.sqlite
     const payload = await runSearch(query, selection.requestMode);
     const cohorts = selection.modes.map(cohortMode => {
       const hits = selectEvaluationCohort(payload, cohortMode);
+      const depthCoverage = evaluationDepthCoverage(hits, evaluationPlan);
       const scopedSilver = judgmentsForCohort(silver, cohortMode), scopedGold = judgmentsForCohort(gold, cohortMode);
       const silverJudgments = collectExpectedJudgments(hits, scopedSilver, isMatch, { mode: cohortMode });
       const goldJudgments = collectExpectedJudgments(hits, scopedGold, isMatch, { mode: cohortMode });
@@ -106,7 +109,8 @@ const output = await runEvaluationResourceScope({ sqliteCache: evalCaches.sqlite
         recallAtK: Object.fromEntries(ks.map(k => [k, computeRecallAtK(ranks, totalRelevant, k)])),
         mrr: computeMRR(ranks), ndcgAtK: Object.fromEntries(ks.map(k => [k, computeNDCG(ranks, totalRelevant, k)]))
       } : null;
-      return { mode: cohortMode, totals: { relevant: silverJudgments.totalRelevant, gold: goldJudgments.totalRelevant, hits: hits.length },
+      return { mode: cohortMode, depthCoverage,
+        totals: { relevant: silverJudgments.totalRelevant, gold: goldJudgments.totalRelevant, hits: hits.length },
         metrics: metric(silverJudgments), goldMetrics: metric(goldJudgments) };
     });
     const macroMetrics = key => {
@@ -145,6 +149,7 @@ const output = await runEvaluationResourceScope({ sqliteCache: evalCaches.sqlite
   };
 
   const summary = {
+    evaluationPlan,
     cases: results.length,
     recallAtK: aggregateMap('recallAtK'),
     ndcgAtK: aggregateMap('ndcgAtK'),
@@ -160,7 +165,8 @@ const output = await runEvaluationResourceScope({ sqliteCache: evalCaches.sqlite
     topN,
     ann: annFlag,
     ks,
-    relevancePolicy: 'mode-qualified-cohort-macro.v2:distinct-document-one-to-one.v1',
+    evaluationPlan,
+    relevancePolicy: evaluationPlan.policy,
     vectorEvaluationPolicy: 'independent-original-and-stored.v1;saved-stage-replay-separated',
     summary,
     results

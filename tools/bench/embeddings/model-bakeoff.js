@@ -3,6 +3,7 @@ import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js'
 await guardBootstrapEntry(import.meta.url);
 import crypto from 'node:crypto';
 import { evaluationFileIdentity, bakeoffGenerationIdentity } from './evaluation-identity.js';
+import { assertCompatibleEvaluationDepthPlans } from '../../eval/depth-plan.js';
 import { stableStringify } from '../../../src/shared/stable-json.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
@@ -515,7 +516,7 @@ const evaluationInputIdentity = {
   queries: runCompare && queriesPath ? evaluationFileIdentity(queriesPath) : null,
   policies: Object.fromEntries([...(runEval ? [evalScript,
     path.join(toolRoot, 'tools', 'eval', 'metrics.js'), path.join(toolRoot, 'tools', 'eval', 'match.js'),
-    path.join(toolRoot, 'tools', 'eval', 'cohorts.js')] : []), ...(runCompare ? [compareScript] : [])].map(file => [path.relative(toolRoot, file), evaluationFileIdentity(file)]))
+    path.join(toolRoot, 'tools', 'eval', 'cohorts.js'), path.join(toolRoot, 'tools', 'eval', 'depth-plan.js')] : []), ...(runCompare ? [compareScript] : [])].map(file => [path.relative(toolRoot, file), evaluationFileIdentity(file)]))
 };
 const currentModelGeneration = modelId => bakeoffGenerationIdentity(path.join(resolveVersionedCacheRoot(modelCacheRoot(modelId)), 'repos', repoId));
 const outputSettings = {
@@ -839,6 +840,10 @@ for (const modelId of models) {
       if (annOverride === false) evalArgs.push('--no-ann');
       if (limit > 0) evalArgs.push('--limit', String(limit));
       const evalReport = await runPhase('eval', async () => runJsonNode(evalArgs, env, `eval (${modelId})`));
+      assertCompatibleEvaluationDepthPlans(evalReport?.evaluationPlan, evalReport?.summary?.evaluationPlan);
+      for (const prior of modelReports) if (prior.eval) {
+        assertCompatibleEvaluationDepthPlans(prior.eval.evaluationPlan, evalReport.evaluationPlan);
+      }
       evalSummary = evalReport?.summary || null;
     }
 
@@ -999,12 +1004,14 @@ if (argv.json) {
 } else {
   console.error('Embedding model bakeoff summary');
   for (const entry of modelReports) {
-    const recallAt5 = Number(entry.eval?.recallAtK?.['5'] ?? 0);
-    const mrr = Number(entry.eval?.mrr ?? 0);
-    const ndcgAt10 = Number(entry.eval?.ndcgAtK?.['10'] ?? 0);
+    const metric = value => Number.isFinite(value) ? value.toFixed(3) : 'n/a';
+    const recallAt5 = metric(entry.eval?.recallAtK?.['5']);
+    const mrr = metric(entry.eval?.mrr);
+    const ndcgAt10 = metric(entry.eval?.ndcgAtK?.['10']);
+    const depth = entry.eval?.evaluationPlan?.requestedDepth ?? '?';
     console.error(
       `- ${entry.modelId}: build=${entry.build.totalBuildMs}ms cache=${entry.cache.gib}GiB `
-      + `recall@5=${recallAt5.toFixed(3)} mrr=${mrr.toFixed(3)} ndcg@10=${ndcgAt10.toFixed(3)} `
+      + `recall@5=${recallAt5} mrr@${depth}=${mrr} ndcg@10=${ndcgAt10} `
       + `format=${entry.inputFormatting.family}`
     );
   }

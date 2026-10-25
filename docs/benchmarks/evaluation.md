@@ -1,6 +1,6 @@
 # Retrieval Evaluation
 
-`tools/eval/run.js` runs a query set against a repo and emits JSON metrics (Recall@k, MRR, nDCG@k).
+`tools/eval/run.js` runs a query set against a repo and emits JSON metrics (Recall@k, MRR@depth, nDCG@k).
 
 ## Usage
 
@@ -51,8 +51,31 @@ Sample dataset:
 ## Metrics
 
 - Recall@k: relevant hits found in the top k results.
-- MRR: mean reciprocal rank of the first relevant hit.
+- MRR@depth: mean reciprocal rank within the requested retrieval prefix.
 - nDCG@k: rank-aware gain normalized by the ideal ordering.
+
+The evaluation plan keeps only standard cutoffs (1, 3, 5, 10) within `--top`, plus
+the requested depth itself. `--top 1` therefore reports @1; `--top 20` also reports
+@20. Reporting never increases the search request depth. `evaluationPlan` binds
+the retrieval depth, cutoffs, matching policy, cohort/judgment policy and censored
+reciprocal-rank meaning to one stable key, retained in the summary as well.
+The existing numeric `mrr` field follows the plan's explicit `MRR@depth` label;
+an unobserved tail has unknown global reciprocal rank.
+
+Each cohort reports requested and observed prefix lengths. A short successful
+response has unknown exhaustion: its hit array alone cannot prove that further
+eligible ranks do not exist. Scores describe the returned system output at the
+requested depth. Failed/missing cohorts or output-budget hit omissions remain
+unavailable, preserving the existing admission contract. Silver and gold labels
+share the same depth plan, and independently ranked cohorts retain their own
+denominators before macro averaging.
+
+Depth/matching policy mismatches and legacy reports without a plan cannot
+authorize paired quality comparison. Model bakeoff validates the same plans and
+binds this owner into its resume identity. Its summary labels reciprocal rank
+with the depth and shows unrequested cutoff values as `n/a`. Authored module-hook
+controls exercise the actual evaluator with fixed rankings, boundary cutoffs,
+mixed cohorts and incompatible plans; functional qualification remains deferred.
 
 Judgment policy `distinct-document-one-to-one.v1` deduplicates identical expected
 labels and assigns each distinct retrieved document to at most one relevant
