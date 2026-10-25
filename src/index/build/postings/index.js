@@ -12,10 +12,10 @@ import {
 import { buildDenseVectors } from './dense-vectors.js';
 import { resolveEmbeddingQuantizationSpec } from '../../../shared/embedding-quantization-spec.js';
 import { resolveMinhashOutputs } from './minhash.js';
-import { normalizeTfPostingList } from './id-lists.js';
 import { buildPhraseAndChargramPostings } from './phrase-chargram.js';
 import { createSpillHelpers, compareChargramRows } from './spill.js';
 import { buildTokenAndFieldPostings } from './token-field.js';
+import { throwIfAborted } from '../../../shared/abort.js';
 
 /**
  * @typedef {object} BuildPostingsInput
@@ -108,6 +108,7 @@ export async function buildPostings(input) {
     sparsePostingsEnabled = true,
     buildStage = null
   } = input;
+  throwIfAborted(abortSignal);
   const quantization = resolveEmbeddingQuantizationSpec(configuredQuantization);
   void df;
   const sparseEnabled = sparsePostingsEnabled !== false;
@@ -289,7 +290,7 @@ export async function buildPostings(input) {
     fieldDocLengths,
     normalizedDocLengths,
     requestYield,
-    normalizeTfPostingList
+    signal: abortSignal
   });
 
   const {
@@ -305,6 +306,7 @@ export async function buildPostings(input) {
     log
   });
 
+  throwIfAborted(abortSignal);
   return {
     k1,
     b,

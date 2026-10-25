@@ -176,6 +176,24 @@ This is a partial #1364 repair. Existing field-count partitioning can still leav
 
 Live build-state updates retain trailing coalescing while admitting a healthy-storage flush no later than two seconds after the oldest pending patch. New updates cannot move that deadline. An in-flight write owns its detached batch; best-effort arrivals merge into one next snapshot until it settles. Required writes and explicit captured-tail barriers retain their existing serialized order. Storage failure retains the failed snapshot and retry backoff, rather than creating immediate retry loops after the healthy age expires.
 
+Token/field sparse materialization observes the build signal before admission,
+after cooperative waits and before successful return. Vocabulary ordering and
+large common-term normalization use stable bounded sorted runs and incremental
+merging. Ordinary small TF lists retain the synchronous legacy normalizer; the
+work driver creates promises only for actual waits. A 25 ms active-work check at
+bounded batch boundaries prevents a long single bucket from relying only on
+between-term yields. This is cooperative responsiveness, not an absolute latency
+bound for native comparison, caller hooks or other postings phases.
+
+Source maps are consumable attempt inputs. Cancellation before any map is
+consumed leaves them available after actual settlement; once consumption starts,
+the same map identities cannot be replayed as an empty successful index. Rebuild
+the attempt's index state. The original failure remains the outward error.
+Outstanding cooperative waits retain the caller's ownership until they actually
+settle. Authored controls compare exact vocabularies, token IDs, TF ordering,
+field names/doc lengths, every cancellation phase and concurrent retry refusal.
+No sparse content, import budget, deadline or retry limit is relaxed.
+
 Durability lag is the age of the oldest unacknowledged logical update, including active and failed batches. `oldestPendingAgeMs`, `activeWriteAgeMs` and `newestLogicalUpdateAgeMs` separate queued, active and newest-update ages; acknowledgement timestamps describe the actual completed batch. The legacy `pendingSinceMs` telemetry remains an age alias. An older acknowledgement cannot reset a newer pending batch. Age telemetry uses the existing process wall clock; the healthy scheduling bound assumes that clock progresses normally and excludes blocked event-loop or storage time. Heartbeat warnings consume this production lag and retain the separate age/acknowledgement fields. Virtual-clock regression coverage is authored; runtime qualification is deferred.
 
 
