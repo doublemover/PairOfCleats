@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "8fb9fb262",
+  "sourceHead": "f3dbdaae0",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 379,
+    "implemented": 380,
     "partial": 150,
-    "pending": 199
+    "pending": 198
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -556,6 +556,7 @@
       1613,
       1614,
       1616,
+      1617,
       1619,
       1635,
       1636,
@@ -834,7 +835,6 @@
       1604,
       1607,
       1615,
-      1617,
       1618,
       1620,
       1622,
@@ -5557,8 +5557,10 @@
       "number": 1617,
       "title": "[P2] Validate map artifact prefixes and retain exact EOF before omitting source inputs",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "f3dbdaae0",
+      "validation": "deferred"
     },
     {
       "number": 1618,

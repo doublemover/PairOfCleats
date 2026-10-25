@@ -557,3 +557,34 @@ explicitly declare their simulated completion; all their assertions remain.
 Format/ESLint, syntax, generated refreshes, test discovery and diff checks passed.
 Functional execution remains deferred. Coverage is **35 fixed / 379 implemented /
 150 partial / 199 pending**.
+
+## Generated prefix and warm admission qualification
+
+**#1617** (`f3dbdaae0`) captures prefix bytes and source extent from the same
+contained descriptor. EOF exactly at the unchanged 8-KiB cap is complete, rather
+than presumed truncation. Existing full buffers preserve extent before slicing;
+custom readers with unknown extent cannot authorize omission. UTF-8 admission
+distinguishes visible corruption from an unfinished scalar. All map routes now
+share core/object-cache visible JSON/duplicate-key validation and the existing
+depth limit. Marker, filename and renamed/legacy model restrictions remain.
+Ordinary path discovery still performs no marker I/O, and the existing-content
+route reuses its source buffer. No byte-8193 probe or whole-file read was added.
+
+Policy `poc.generated-discovery@7` also binds a dedicated `sourceAdmission`
+dependency. A changed/missing prior identity requalifies the current physical
+prefix before cached chunks or semantic relocation. A stale text-cache buffer
+cannot supply that observation. Ordinary sources retain parse/lexical products
+and publish a new immutable bundle with current admission identity; records
+bypass omission. Strict build-state/completed-stage schemas declare this exact
+hash field and still reject unknown or invalid fields. Discovery selection is 5.
+
+Authored controls cover complete/capped sizes around 8 KiB, actual EOF, malformed
+visible map payloads, duplicate outer/reserved keys, escaped/partial UTF-8, unknown
+reader extents, physical read bounds and malformed/owned discovery. The migration
+fixture seeds a compatible pre-policy bundle plus a stale text cache for a
+renamed marked input, and retains an ordinary sibling's cached parse witness.
+Existing corpus/grammar, record-mode, zero-extra-I/O and descriptor-lifetime
+assertions remain; capped fixtures now explicitly supply observed extent.
+Format/ESLint, syntax, affected generated refreshes, discovery and diff checks
+passed. Functional execution remains deferred. Coverage is **35 fixed / 380
+implemented / 150 partial / 198 pending**.
