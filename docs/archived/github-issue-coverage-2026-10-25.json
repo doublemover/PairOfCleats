@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "ef238bec3",
+  "sourceHead": "4295cd4c8",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 384,
+    "implemented": 385,
     "partial": 150,
-    "pending": 194
+    "pending": 193
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -541,6 +541,7 @@
       1583,
       1586,
       1587,
+      1588,
       1595,
       1598,
       1599,
@@ -825,7 +826,6 @@
       1581,
       1584,
       1585,
-      1588,
       1589,
       1590,
       1591,
@@ -4898,7 +4898,7 @@
     },
     {
       "number": 1530,
-      "title": "Qualify adaptive retrieval and evidence policies with independent risk–coverage receipts",
+      "title": "Qualify adaptive retrieval and evidence policies with independent risk\u2013coverage receipts",
       "priority": "other",
       "status": "pending",
       "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
@@ -5326,8 +5326,10 @@
       "number": 1588,
       "title": "[P2] Preserve member provenance and completion when merging federated risk packs",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "4295cd4c8",
+      "validation": "deferred"
     },
     {
       "number": 1589,

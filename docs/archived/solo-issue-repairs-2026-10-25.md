@@ -728,3 +728,30 @@ Coverage is **35 fixed / 384 implemented / 150 partial / 194 pending**.
 A new exhaustive GitHub metadata refresh at `ef238bec3` again matched **763** open
 issues, with no added or closed IDs. The refresh is metadata evidence, not test
 qualification or accepted issue closure.
+
+
+## Federated risk member qualification
+
+**#1588** (`4295cd4c8`) captures one immutable child-payload attestation per
+selected repository, bounded by the existing 16-repository cap. Domain-separated
+identities cover actual index/rule/config/artifact provenance, status, support,
+stats and caps. Findings and evidence locations reference their exact member;
+validators reject dangling, substituted or changed attestations and unsupported
+artifact surfaces. Base-only summary/guidance/anchor scope is explicit; global
+provenance/support/stats/caps defer to the registry. Completion is conservative
+across capped, missing or otherwise unavailable members and repository omissions.
+
+Risk contract 1.1.0 enforces the new exact-version boundary. JSON, Markdown and
+SARIF retain member qualification; SARIF finding and physical/thread-flow
+locations preserve the reference. Final-envelope budgeting includes rendered
+companions. Optional risk is removed as a complete owner if it cannot fit;
+strict risk preserves the existing refusal contract.
+
+Authored controls extend the real direct/API/MCP federation fixture with distinct
+member fingerprints, peer-only identity changes, a base swap, capped input and a
+missing peer artifact. They retain all original alias/order assertions and add
+rendered-output and public-validator negatives. A focused fixture covers registry
+integrity, conservative status and whole-owner compaction. Format/ESLint, syntax,
+affected generated refreshes, fixture discovery and diff checks passed.
+Functional execution remains deferred. Coverage is **35 fixed / 385 implemented /
+150 partial / 193 pending**.
