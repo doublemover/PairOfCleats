@@ -50,7 +50,10 @@ export const openRuntimeQueryFamily = async ({ destination, generationId, signal
         || end > BigInt(manifest.evidence.byteLength)) throw runtimeImportError('Runtime lookup offset range mismatch.');
       const bytes = Buffer.alloc(entry.byte_length);
       const read = await readExactAt(evidence, bytes, 0, bytes.length, Number(start), { signal });
-      if (metrics) metrics.verificationBytes = (metrics.verificationBytes || 0) + read.bytesRead;
+      if (metrics) {
+        metrics.verificationBytes = (metrics.verificationBytes || 0) + read.bytesRead;
+        if (Object.hasOwn(metrics, 'hydratedBytes')) metrics.hydratedBytes += read.bytesRead;
+      }
       if (read.bytesRead !== bytes.length
         || bytes.at(-1) !== 10 || runtimeByteHash(bytes) !== entry.row_hash) throw runtimeImportError('Runtime selected evidence row hash mismatch.');
       throwIfAborted(signal);

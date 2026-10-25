@@ -1,6 +1,7 @@
 import { classifySemanticDetailError } from '../tooling/semantic-errors.js';
 import { ERROR_CODES } from '../../shared/error-codes.js';
 import { getRuntimeClaimPublication } from '../../shared/runtime-claim-publication.js';
+import { getRuntimeClaimVerification } from '../../shared/runtime-claim-verification.js';
 
 const KEYS = new Set(['complete', 'state', 'source', 'fileBacked', 'substituted', 'missing', 'truncated',
   'truncatedBytes', 'truncatedTokens', 'warningCodes', 'policy', 'strictEvidence', 'included', 'count',
@@ -43,6 +44,8 @@ export const projectMcpDomainError = error => {
   const result = {};
   const publication = getRuntimeClaimPublication(error);
   if (publication) result.runtimeClaimPublication = publication;
+  const verification = getRuntimeClaimVerification(error);
+  if (verification) result.runtimeClaimVerification = verification;
   if (typeof error?.reason === 'string' && /^[a-z0-9_-]{1,128}$/.test(error.reason)) result.reason = error.reason;
   if (error?.evidence && typeof error.evidence === 'object') result.evidence = projectDetails(error.evidence);
   if (error?.details && typeof error.details === 'object') result.details = projectDetails(error.details);

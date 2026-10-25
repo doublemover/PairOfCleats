@@ -629,6 +629,11 @@ available. MCP tools are `runtime_compare` and `runtime_claims`; HTTP POST route
 repository destination authority and bounded service. General causal inference remains
 unsupported.
 
+Claim response bytes/records size the returned page. All-family physical citation
+verification has separate fixed allowances and a `verification` cost receipt;
+insufficient work or output allowance is a budget refusal, not evidence corruption.
+See [saved-claim verification](../contracts/runtime-claims-verification.md).
+
 Queries verify the manifest, registered lookup index, offset table and hydrated row
 hashes. They do not read every raw artifact on each request; that distinction is
 reported in the result's integrity fields. All imported generation directories are

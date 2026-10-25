@@ -17,6 +17,7 @@ import { performance } from 'node:perf_hooks';
 import { RUNTIME_QUERY_LIMITS_SCHEMA } from '../../../contracts/schemas/runtime-query.js';
 import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
 import { createRuntimeClaimPublicationState } from '../../../shared/runtime-claim-publication.js';
+import { createRuntimeClaimVerification } from '../../../shared/runtime-claim-verification.js';
 
 const domain = 'pairofcleats.runtime.claim-family.v1';
 const fail = message => { throw runtimeImportError(message, 'ERR_RUNTIME_CLAIMS_INTEGRITY'); };
@@ -77,47 +78,60 @@ const writeClaimMember = async (filename, bytes, check) => {
 };
 
 /** Bounded authoritative citations. Observation IDs must identify one pinned capture, never an inferred claim. */
-const verifyCitations = async ({ destination, inputs, citations, repositoryNamespace, generation, limits, signal, check }) => {
+const verifyCitations = async ({ destination, inputs, citations, repositoryNamespace, generation, limits, signal, check,
+  verification = createRuntimeClaimVerification({ maxHydratedBytes: limits.maxBytes }, { maxMs: limits.maxMs }) }) => {
   const records = new Map(), rawChecked = new Set();
   if (new Set(inputs.map(row => row.generationId)).size !== inputs.length
     || new Set(inputs.map(row => row.captureId)).size !== inputs.length) fail('Claim input capture identities must be distinct.');
-  let diskReserveBytes = 0, bytes = 0, primaryCapture = null;
-  for (const pin of inputs) {
-    check();
-    const family = await bounded(() => openRuntimeQueryFamily({ destination, generationId: pin.generationId, signal: check.signal }), check);
-    let citationError = null, citationErrorPresent = false;
-    try {
-      if (family.manifestHash !== pin.manifestHash || family.capture.captureId !== pin.captureId
-        || family.capture.repositoryNamespace !== repositoryNamespace || !same(family.capture.generation, generation)) fail('Claim input family scope or manifest changed.');
-      diskReserveBytes = Math.max(diskReserveBytes, family.capture.limits.diskReserveBytes);
-      if (primaryCapture && runtimeCaptureCompatibility(primaryCapture, family.capture).length) fail('Derived claim inputs are incompatible.');
-      primaryCapture ||= family.capture;
-      for (const citation of citations.filter(row => row.generationId === pin.generationId)) {
-        check();
-        if (citation.captureId !== pin.captureId || records.has(citation.evidenceId)) fail('Ambiguous claim evidence owner.');
-        const entry = family.db.prepare('SELECT * FROM evidence WHERE evidence_id=?').get(citation.evidenceId);
-        if (!entry || entry.row_hash !== citation.rowHash) fail('Claim citation no longer matches its retained observation.');
-        const row = await bounded(() => family.hydrate(entry, limits.maxBytes - bytes), check);
-        if (!row || row.evidenceClass !== 'observed') fail('Claim support must be a bounded direct observation.');
-        bytes += entry.byte_length;
-        for (const ref of row.rawRefs) {
-          const raw = family.capture.rawArtifacts.find(item => item.artifactId === ref.artifactId && item.hash === ref.hash);
-          if (!raw?.retained || !raw.storageRef) fail('Claim raw support is not retained.');
-          if (raw.storageRef !== 'raw/' + raw.hash + '.bin') fail('Claim raw storage identity differs from its content hash.');
-          if (!rawChecked.has(raw.hash)) {
-            const filename = await resolveSemanticPartPath(destination, raw.storageRef);
-            await bounded(() => hashRuntimeFile({ filename, expectedHash: raw.hash, expectedBytes: raw.byteLength,
-              maxBytes: Math.min(family.capture.limits.maxBytes, 64 * 1024 * 1024), signal: check.signal }), check);
-            rawChecked.add(raw.hash); check();
+  let diskReserveBytes = 0, primaryCapture = null;
+  try {
+    for (const pin of inputs) {
+      check();
+      verification.admit('familyOpens', 1); verification.metrics.familyOpens++;
+      const family = await bounded(() => openRuntimeQueryFamily({ destination, generationId: pin.generationId,
+        signal: check.signal, metrics: verification.metrics }), check);
+      let citationError = null, citationErrorPresent = false;
+      try {
+        if (family.manifestHash !== pin.manifestHash || family.capture.captureId !== pin.captureId
+          || family.capture.repositoryNamespace !== repositoryNamespace || !same(family.capture.generation, generation)) fail('Claim input family scope or manifest changed.');
+        diskReserveBytes = Math.max(diskReserveBytes, family.capture.limits.diskReserveBytes);
+        if (primaryCapture && runtimeCaptureCompatibility(primaryCapture, family.capture).length) fail('Derived claim inputs are incompatible.');
+        primaryCapture ||= family.capture;
+        for (const citation of citations.filter(row => row.generationId === pin.generationId)) {
+          check();
+          if (citation.captureId !== pin.captureId || records.has(citation.evidenceId)) fail('Ambiguous claim evidence owner.');
+          const entry = family.db.prepare('SELECT * FROM evidence WHERE evidence_id=?').get(citation.evidenceId);
+          if (!entry || entry.row_hash !== citation.rowHash) fail('Claim citation no longer matches its retained observation.');
+          if (!Number.isSafeInteger(entry.byte_length) || entry.byte_length < 1 || entry.byte_length > 16 * 1024 * 1024) fail('Claim citation row extent is invalid.');
+          verification.admit('citationRows', 1); verification.metrics.citationRows++;
+          verification.admit('hydratedBytes', entry.byte_length);
+          const remaining = verification.limits.maxHydratedBytes - verification.metrics.hydratedBytes;
+          const row = await bounded(() => family.hydrate(entry, remaining), check);
+          if (!row) verification.refuse('hydratedBytes', verification.metrics.hydratedBytes,
+            entry.byte_length, verification.limits.maxHydratedBytes);
+          if (row.evidenceClass !== 'observed') fail('Claim support must be a bounded direct observation.');
+          for (const ref of row.rawRefs) {
+            const raw = family.capture.rawArtifacts.find(item => item.artifactId === ref.artifactId && item.hash === ref.hash);
+            if (!raw?.retained || !raw.storageRef) fail('Claim raw support is not retained.');
+            if (raw.storageRef !== 'raw/' + raw.hash + '.bin') fail('Claim raw storage identity differs from its content hash.');
+            if (!rawChecked.has(raw.hash)) {
+              verification.admit('rawVerificationBytes', raw.byteLength);
+              const filename = await resolveSemanticPartPath(destination, raw.storageRef);
+              await bounded(() => hashRuntimeFile({ filename, expectedHash: raw.hash, expectedBytes: raw.byteLength,
+                maxBytes: Math.min(family.capture.limits.maxBytes, 64 * 1024 * 1024), signal: check.signal,
+                metrics: verification.metrics }), check);
+              rawChecked.add(raw.hash); check();
+            }
           }
+          records.set(row.evidenceId, row);
         }
-        records.set(row.evidenceId, row);
-      }
-    } catch (error) { citationErrorPresent = true; citationError = error; throw error; }
-    finally { await closeRuntimeResources([family], citationError, { hasOperationError: citationErrorPresent }); }
-  }
-  if (records.size !== citations.length) fail('Claim citation points outside the pinned family inventory.');
-  return { records, diskReserveBytes };
+      } catch (error) { citationErrorPresent = true; citationError = error; throw error; }
+      finally { await closeRuntimeResources([family], citationError, { hasOperationError: citationErrorPresent }); }
+    }
+    if (records.size !== citations.length) fail('Claim citation points outside the pinned family inventory.');
+    verification.markVerified();
+    return { records, diskReserveBytes };
+  } catch (error) { throw verification.retainFailure(error); }
 };
 
 const validateClaims = (claims, records) => {
@@ -222,12 +236,12 @@ const persistRuntimeDerivedClaimsOwned = async ({ destination, repositoryNamespa
   }
 };
 
-const queryClaims = async ({ destination, request, signal = null }) => {
+const queryClaims = async ({ destination, request, signal = null, verification }) => {
   assertRuntimeClaims('request', request);
   const check = runtimeClaimsBudget(request.limits, signal); check();
   const root = await resolveSemanticPartPath(destination, 'claims/' + request.claimGeneration);
   const manifest = assertRuntimeClaims('manifest', (await readRuntimeMemberJson({ root,
-    relativePath: 'manifest.json', maxBytes: 1048576, signal: check.signal })).value);
+    relativePath: 'manifest.json', maxBytes: 1048576, signal: check.signal, metrics: verification.claimMetrics })).value);
   if (manifest.claimGeneration !== request.claimGeneration || semanticHash(domain, { ...manifest, claimGeneration: null }) !== request.claimGeneration) fail('Claim family hash mismatch.');
   if (manifest.repositoryNamespace !== request.repositoryNamespace || !same(manifest.generation, request.generation)) throw runtimeImportError('Derived family scope mismatch.', 'ERR_RUNTIME_QUERY_SCOPE');
   const queryId = semanticHash('pairofcleats.runtime.claim-query.v1', { ...request, cursor: null });
@@ -242,9 +256,10 @@ const queryClaims = async ({ destination, request, signal = null }) => {
       ordinal = cursor.ordinal;
     } catch { throw runtimeImportError('Claim cursor does not match the pinned request.', 'ERR_RUNTIME_QUERY_CURSOR'); }
   }
-  const verified = await verifyCitations({ ...request, destination, inputs: manifest.inputs, citations: manifest.citations, signal, check });
+  const verified = await verifyCitations({ ...request, destination, inputs: manifest.inputs, citations: manifest.citations, signal, check, verification });
   const offsets = (await bounded(() => readRuntimeMemberBytes({ root, relativePath: 'claims.offsets',
-    expectedHash: manifest.offsetsHash, expectedBytes: manifest.rows.length * 8, maxBytes: 512, signal: check.signal }), check)).buffer;
+    expectedHash: manifest.offsetsHash, expectedBytes: manifest.rows.length * 8, maxBytes: 512, signal: check.signal,
+    metrics: verification.claimMetrics }), check)).buffer;
   let expectedStart = 0;
   for (let index = 0; index < manifest.rows.length; index++) {
     const row = manifest.rows[index];
@@ -253,38 +268,50 @@ const queryClaims = async ({ destination, request, signal = null }) => {
   }
   if (expectedStart !== manifest.byteLength) fail('Claim row inventory length mismatch.');
   const handle = await bounded(() => openVerifiedRuntimeMember({ root, relativePath: 'claims.jsonl',
-      expectedHash: manifest.evidenceHash, expectedBytes: manifest.byteLength, maxBytes: 1048576, signal: check.signal }), check), claims = [];
+      expectedHash: manifest.evidenceHash, expectedBytes: manifest.byteLength, maxBytes: 1048576, signal: check.signal,
+      metrics: verification.claimMetrics }), check), claims = [];
   let outputBytes = 1024 + Buffer.byteLength(JSON.stringify(manifest.inputs));
+  let rowFailure, rowFailed = false;
   try {
     for (; ordinal < manifest.rows.length && claims.length < request.limits.maxRecords; ordinal++) {
       check(); const row = manifest.rows[ordinal];
       if (row.start + row.byteLength > manifest.byteLength) fail('Claim row bounds mismatch.');
       if (outputBytes + row.byteLength > request.limits.maxBytes) {
-        if (!claims.length) throw runtimeImportError('Claim row exceeds response allowance.', 'ERR_RUNTIME_QUERY_BUDGET');
+        if (!claims.length) verification.refuse('responseBytes', outputBytes, row.byteLength, request.limits.maxBytes);
         break;
       }
       const bytes = Buffer.alloc(row.byteLength);
-      if ((await readExactAt(handle, bytes, 0, bytes.length, row.start, { signal: check.signal })).bytesRead !== bytes.length || runtimeByteHash(bytes) !== row.hash) fail('Claim row integrity mismatch.');
+      const read = await readExactAt(handle, bytes, 0, bytes.length, row.start, { signal: check.signal });
+      verification.metrics.claimRowBytes += read.bytesRead;
+      if (read.bytesRead !== bytes.length || runtimeByteHash(bytes) !== row.hash) fail('Claim row integrity mismatch.');
       const claim = JSON.parse(bytes.toString('utf8'));
       if (claim.evidenceId !== row.evidenceId) fail('Claim row identity mismatch.');
       validateClaims([claim], verified.records); claims.push(claim); outputBytes += row.byteLength;
     }
-  } finally { await handle.close(); }
+  } catch (error) { rowFailed = true; rowFailure = error; throw error;
+  } finally { await closeRuntimeResources([handle], rowFailure, { hasOperationError: rowFailed }); }
   check();
   const payload = { queryId, ordinal };
   const nextCursor = ordinal < manifest.rows.length ? Buffer.from(canonicalSemanticJson({ ...payload,
     checksum: semanticHash('pairofcleats.runtime.claim-cursor.v1', payload) })).toString('base64url') : null;
   const result = { schemaVersion: 1, executionAuthorized: false, repositoryNamespace: request.repositoryNamespace,
     generation: request.generation, claimGeneration: request.claimGeneration, inputs: manifest.inputs, claims,
-    integrity: 'claims-and-cited-observations-verified', nextCursor };
-  if (Buffer.byteLength(JSON.stringify(result)) > request.limits.maxBytes) throw runtimeImportError('Claim result exceeds response allowance.', 'ERR_RUNTIME_QUERY_BUDGET');
+    integrity: 'claims-and-cited-observations-verified', nextCursor, verification: verification.snapshot() };
+  for (let pass = 0; pass < 4; pass++) result.verification.cost.responseBytes = Buffer.byteLength(JSON.stringify(result));
+  verification.metrics.responseBytes = result.verification.cost.responseBytes;
+  if (verification.metrics.responseBytes > request.limits.maxBytes) verification.refuse('responseBytes', 0,
+    verification.metrics.responseBytes, request.limits.maxBytes);
+  check();
   return assertRuntimeClaims('result', result);
 };
 export const queryRuntimeDerivedClaims = async options => {
-  try { return await queryClaims(options); }
+  assertRuntimeClaims('request', options.request);
+  const verification = createRuntimeClaimVerification(options.verificationLimits, { maxMs: options.request.limits.maxMs });
+  try { return await queryClaims({ ...options, verification }); }
   catch (error) {
-    if (error.code === 'ENOENT') throw runtimeImportError('Pinned derived claim family or retained support is unavailable.', 'ERR_RUNTIME_FAMILY_UNAVAILABLE');
-    throw error;
+    const failure = error.code === 'ENOENT'
+      ? addStorageFailureContext(runtimeImportError('Pinned derived claim family or retained support is unavailable.', 'ERR_RUNTIME_FAMILY_UNAVAILABLE'), {}, error, { secondaryPresent: true }) : error;
+    throw verification.retainFailure(failure);
   }
 };
 
