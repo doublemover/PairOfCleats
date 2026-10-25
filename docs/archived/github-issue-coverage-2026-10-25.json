@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "60045f6f8",
+  "sourceHead": "e022aa39f",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 382,
+    "implemented": 383,
     "partial": 150,
-    "pending": 196
+    "pending": 195
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -560,6 +560,7 @@
       1617,
       1619,
       1620,
+      1622,
       1635,
       1636,
       1637,
@@ -837,7 +838,6 @@
       1607,
       1615,
       1618,
-      1622,
       1623,
       1624,
       1625,
@@ -5593,8 +5593,10 @@
       "number": 1622,
       "title": "[P2] Separate runtime claim-page budgets from citation integrity failures",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "e022aa39f",
+      "validation": "deferred"
     },
     {
       "number": 1623,

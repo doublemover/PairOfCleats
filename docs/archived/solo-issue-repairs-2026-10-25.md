@@ -663,3 +663,35 @@ invocation binding, snapshot mutation, lazy capability reporting and unknown
 custom callbacks. Format/ESLint, syntax, affected generated refreshes, discovery
 and diff checks passed. Functional execution and measured performance remain
 deferred. Coverage is **35 fixed / 382 implemented / 150 partial / 196 pending**.
+
+
+## Claim verification versus page admission
+
+**#1622** (`e022aa39f`) retains verification of every family citation and its
+supporting/contradicting retained raw dependencies on every request. Response
+records/bytes now govern only the returned page. Separate fixed physical
+allowances bound two families, 128 citation rows, 1 MiB hydration and 128 MiB raw
+verification, alongside existing metadata/index/member bounds and the original
+single operation deadline. Internal diagnostic controls can only lower caps.
+
+Refusal uses ERR_RUNTIME_QUERY_BUDGET rather than misclassifying a healthy row
+as corruption. A strictly declared optional verification receipt separates
+physical rows, hydration/raw/metadata/claim verification, selected row reads and
+final response bytes. Bounded producer-attested refusal receipts preserve
+consumed/next-required/limit basis through HTTP422 and MCP; serialized lookalikes
+supply no authority. Missing, tampered, scope and cursor failures retain their
+error classes. Selected claim and raw hash reads now preserve primary failure
+alongside independent close failure, using the existing resource owner.
+
+The authored fixture imports sixteen real distinct observations in two saved
+captures, then publishes two claims with distinct support/contradiction subsets.
+It checks a fitting small page below total citation bytes, identical first-claim
+identity with a larger allowance, exact-once paging, repeated all-family work,
+physical-cap refusals, original raw tampering/missing data, wrong scope and tracked
+file closure. API/MCP/CLI parity preserves every content/physical field; it checks
+response byte counts directly and omits only the owner's proven invocation-time
+and consequent byte-count fields from cross-invocation equality.
+
+Format/ESLint, syntax, affected schema/ledger/taxonomy refreshes, discovery and
+diff checks passed. Functional execution remains deferred. Coverage is **35 fixed /
+383 implemented / 150 partial / 195 pending**.
