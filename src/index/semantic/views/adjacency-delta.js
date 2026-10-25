@@ -9,6 +9,19 @@ const fields = (value, names) => value && Object.getPrototypeOf(value) === Objec
   && !Object.getOwnPropertySymbols(value).length && Object.keys(value).length === names.length
   && names.every(name => Object.hasOwn(value, name) && Object.hasOwn(Object.getOwnPropertyDescriptor(value, name), 'value'));
 const fail = message => { throw new TypeError('Adjacency delta: ' + message); };
+const MAX_INPUT_BYTES = 64 * 1024 * 1024;
+const captureInput = (input, maxBytes) => JSON.parse(canonicalSemanticJson(input, {
+  maxBytes,
+  onObjectEncoded(original) {
+    // The shared encoder owns values without invoking accessors. Reject hidden
+    // decorations too, rather than normalizing them away during JSON capture.
+    const names = Object.getOwnPropertyNames(original);
+    if (names.length !== Object.keys(original).length + (Array.isArray(original) ? 1 : 0)) {
+      fail('nonenumerable or decorated input is not passive JSON');
+    }
+  }
+}));
+
 const freeze = value => {
   if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value); }
   return value;
@@ -35,8 +48,7 @@ const aggregates = rows => {
 };
 const make = ({ definition, world, rows, ledger, complete, maxBytes }) => {
   const snapshot = { definition, world, rows: sortRows(rows), ledger, complete };
-  const encoded = key(snapshot);
-  if (Buffer.byteLength(encoded) > maxBytes) throw new RangeError('Adjacency snapshot allowance exceeded; old view remains authoritative.');
+  const encoded = key(snapshot, { maxBytes });
   const immutable = freeze(JSON.parse(encoded));
   const relation = createOccurrenceRelation({ world, relationId: definition.viewId,
     atomRoleId: 'adjacency-input', schema: [
@@ -51,34 +63,41 @@ const make = ({ definition, world, rows, ledger, complete, maxBytes }) => {
 };
 
 /** Nonrecursive exact input-edge view; a source receipt must declare its captured domain. */
-export const bootstrapAdjacencyView = ({ definition, world, rows, complete, maxBytes = 8 * 1024 * 1024 }) => {
+export const bootstrapAdjacencyView = input => {
+  if (!input || typeof input !== 'object') fail('invalid bootstrap');
+  const limit = Object.getOwnPropertyDescriptor(input, 'maxBytes');
+  if (limit && !Object.hasOwn(limit, 'value')) fail('byte allowance must be passive data');
+  const maxBytes = limit?.value === undefined ? 8 * 1024 * 1024 : limit.value;
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > MAX_INPUT_BYTES) fail('invalid bootstrap allowance');
+  const captured = captureInput(input, maxBytes);
+  const names = ['definition', 'world', 'rows', 'complete', ...(Object.hasOwn(captured, 'maxBytes') ? ['maxBytes'] : [])];
+  if (!fields(captured, names)) fail('invalid bootstrap fields');
+  const { definition, world, rows, complete } = captured;
   if (!definitionValid(definition) || !worldValid(world) || !Array.isArray(rows) || rows.length > 16384
-    || typeof complete !== 'boolean' || !Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 64 * 1024 * 1024) fail('invalid bootstrap');
+    || typeof complete !== 'boolean') fail('invalid bootstrap');
   const seen = new Set();
-  let bytes = 0;
   for (const row of rows) {
     if (!rowValid(row, false) || seen.has(supportKey(row))) fail('invalid or duplicated support');
-    seen.add(supportKey(row)); bytes += Buffer.byteLength(key(row));
-    if (bytes > maxBytes) throw new RangeError('Adjacency input allowance exceeded.');
+    seen.add(supportKey(row));
   }
-  return make({ definition, world, rows: [...rows], ledger: [], complete, maxBytes });
+  return make({ definition, world, rows, ledger: [], complete, maxBytes });
 };
 
 /** Atomic private transition. Batch transport may replay; identical replay never reapplies support. */
-export const applyAdjacencyDelta = (view, batch, { signal = null, maxWork = 32768 } = {}) => {
+export const applyAdjacencyDelta = (view, input, options = {}) => {
   const state = owned.get(view);
-  if (!state || !fields(batch, ['batchId', 'definition', 'fromWorld', 'toWorld', 'baseRoot', 'edits', 'capturedDomainComplete'])
+  if (!state) fail('unknown view; rebuild required');
+  // Capture before option getters, cancellation polls or other caller effects.
+  // Validation, digest, coalescing, next world and ledger consume only this value.
+  const batch = captureInput(input, state.maxBytes);
+  const { signal = null, maxWork = 32768 } = options;
+  if (!fields(batch, ['batchId', 'definition', 'fromWorld', 'toWorld', 'baseRoot', 'edits', 'capturedDomainComplete'])
     || !text(batch.batchId) || !definitionValid(batch.definition) || !worldValid(batch.fromWorld)
     || !worldValid(batch.toWorld) || !text(batch.baseRoot) || !Array.isArray(batch.edits) || batch.edits.length > 16384
     || typeof batch.capturedDomainComplete !== 'boolean' || !Number.isSafeInteger(maxWork) || maxWork < 0
     || key(batch.definition) !== key(state.definition)) fail('invalid typed batch or model identity; rebuild required');
-  let bytes = 0;
-  for (const edit of batch.edits) {
-    if (!rowValid(edit, true)) fail('invalid signed support edit');
-    bytes += Buffer.byteLength(key(edit));
-    if (bytes > state.maxBytes) throw new RangeError('Adjacency delta allowance exceeded; batch unconsumed.');
-  }
-  const digest = semanticHash('pairofcleats.adjacency-batch.v1', batch);
+  for (const edit of batch.edits) if (!rowValid(edit, true)) fail('invalid signed support edit');
+  const digest = semanticHash('pairofcleats.adjacency-batch.v1', batch, { maxBytes: state.maxBytes });
   const previous = state.ledger.find(entry => entry.batchId === batch.batchId);
   if (previous) {
     if (previous.digest !== digest) fail('batch identity replay changed content');
@@ -86,9 +105,8 @@ export const applyAdjacencyDelta = (view, batch, { signal = null, maxWork = 3276
   }
   if (batch.baseRoot !== view.rootId || key(batch.fromWorld) !== key(state.world)) fail('wrong base root/world');
   if (state.ledger.length >= 1024) return { status: 'checkpoint-required', view, consumed: false };
-  if (signal?.aborted || batch.edits.length + state.rows.length > maxWork) {
-    return { status: signal?.aborted ? 'cancelled' : 'work-budget', view, consumed: false };
-  }
+  if (signal?.aborted) return { status: 'cancelled', view, consumed: false };
+  if (batch.edits.length + state.rows.length > maxWork) return { status: 'work-budget', view, consumed: false };
   // Coalesce by immutable producer support, not tuple membership or edit arrival order.
   const changes = new Map();
   for (const edit of batch.edits) {
@@ -117,6 +135,7 @@ export const applyAdjacencyDelta = (view, batch, { signal = null, maxWork = 3276
       const [from, to] = JSON.parse(id); membershipChanges.push({ from, to, polarity: newPresent ? 1 : -1 });
     }
   }
+  if (signal?.aborted) return { status: 'cancelled', view, consumed: false };
   const nextView = make({ ...state, world: batch.toWorld, rows: [...next.values()],
     ledger: [...state.ledger, { batchId: batch.batchId, digest }], complete: batch.capturedDomainComplete });
   return { status: 'materialized-private', view: nextView, consumed: true,

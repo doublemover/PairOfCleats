@@ -34,7 +34,13 @@ artifact/publication owner must admit and publish a compatible cohort. Captured
 domain completeness, relation enumeration and semantic closure remain separate.
 
 The bounded reference implementation permits 16384 supports/edits and 8 MiB
-encoded snapshots by default. Input rows are byte-admitted before full cloning.
+encoded snapshots by default. Bootstrap and each incoming batch use one bounded
+passive canonical JSON capture. The aggregate allowance includes definitions,
+worlds, IDs, rows/edits and container overhead, before parsing/cloning the owned
+value. Accessors, sparse/decorated arrays, hidden decorations and invalid typed
+fields are rejected without invoking getters. Bootstrap's byte limit itself must
+be an own passive value. The resulting snapshot is also encoded under its byte
+allowance before allocation of a replacement handle.
 `maxWork` is an admission allowance for old supports plus incoming edits, not a
 CPU accounting claim: coalescing, sorting, hashing, cloning, full membership
 comparison and occurrence preparation still cost work proportional to retained
@@ -49,3 +55,20 @@ changed rules, unknown-to-present lookups, cancellation, work rejection and
 coefficients above the exact Number range. Joins/anti-joins, arrangements, shared
 publication, spill/checkpoint recovery, cost-based choice and qualified recursion
 remain open issue #1516 obligations. No runtime qualification has been performed.
+
+Delta validation, digest, coalescing, destination world, completeness and replay
+ledger consume the same private capture. Option getters and the original
+cancellation source are consulted only after that capture. Mutating caller-owned
+input from a cancellation poll cannot change applied work. Cancellation is polled
+once at initial admission, before each distinct support update, and before next
+view construction; a cancelled transition remains unconsumed. Identical replay
+still returns before cancellation polling, preserving its established ordering.
+The normal algebra and valid-input identities are unchanged; this private
+in-memory owner has no indexed semantic producer or durable replay cache to bump.
+
+Additional authored controls mutate multiplicity, endpoints/source references,
+world, completeness, batch ID and definition at first/later/final polls. They
+compare old/new cursor bags against hand-computed counts and clean bootstrap,
+check exact original replay and changed-content rejection, preserve native
+cancellation/work rejection, and prove aggregate byte overflow precedes JSON
+parsing. Those controls remain unexecuted with the existing flat multiset oracle.
