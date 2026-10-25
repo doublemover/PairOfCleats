@@ -32,18 +32,25 @@ export const readRuntimeDestinationBudget = async (destination, signal = null) =
 };
 
 /** Serialize accounting and mutations; pinned immutable readers need no writer lock. */
-export const withRuntimeDestinationWriter = async ({ destination, maxDiskWorkingSetBytes, diskAccount = null, signal = null }, operation) => {
+export const withRuntimeDestinationWriter = async ({ destination, maxDiskWorkingSetBytes, diskAccount = null, signal = null,
+  checkAdmission = null, remainingMs = null }, operation) => {
   if (maxDiskWorkingSetBytes != null && (!Number.isSafeInteger(maxDiskWorkingSetBytes) || maxDiskWorkingSetBytes < 0)) throw new TypeError('Runtime destination working-set allowance required.');
   if (diskAccount && (typeof diskAccount.reserve !== 'function' || typeof diskAccount.release !== 'function')) throw new TypeError('Shared runtime disk account required.');
-  throwIfAborted(signal);
+  if (checkAdmission !== null && typeof checkAdmission !== 'function') throw new TypeError('Invalid runtime writer admission owner.');
+  if (remainingMs !== null && typeof remainingMs !== 'function') throw new TypeError('Invalid runtime writer remaining allowance.');
+  const check = () => { throwIfAborted(signal); checkAdmission?.(); };
+  check();
   await fs.mkdir(destination, { recursive: true });
+  check();
   const root = await fs.realpath(destination);
-  const rawLock = await acquireFileLock({ lockPath: path.join(root, '.writer.lock'), waitMs: 15000,
+  check();
+  const waitMs = remainingMs ? Math.min(15000, Math.max(0, remainingMs())) : 15000;
+  const rawLock = await acquireFileLock({ lockPath: path.join(root, '.writer.lock'), waitMs,
     pollMs: 25, signal, metadata: { scope: 'runtime-destination', destination: root } });
-  if (!rawLock) throw Object.assign(new Error('Runtime destination writer is busy.'), { code: 'ERR_RUNTIME_WRITER_BUSY' });
+  if (!rawLock) { check(); throw Object.assign(new Error('Runtime destination writer is busy.'), { code: 'ERR_RUNTIME_WRITER_BUSY' }); }
   const lock = createLockReleaseHandle({ lock: rawLock, releaseLabel: 'runtime-writer.release' });
   let lockBytes;
-  try { lockBytes = (await fs.lstat(rawLock.lockPath)).size; }
+  try { check(); lockBytes = (await fs.lstat(rawLock.lockPath)).size; check(); }
   catch (error) { await closeRuntimeResources([{ close: () => lock.release() }], error, { hasOperationError: true }); }
   if (maxDiskWorkingSetBytes == null) {
     try { maxDiskWorkingSetBytes = await readRuntimeDestinationBudget(root, signal); }
@@ -74,13 +81,14 @@ export const withRuntimeDestinationWriter = async ({ destination, maxDiskWorking
   };
   let operationFailed = false, operationError;
   try {
-    throwIfAborted(signal);
+    check();
     for (const other of ledger.keys()) {
       if (other !== root && (root.startsWith(other + path.sep) || other.startsWith(root + path.sep))) {
         throw new TypeError('A shared runtime account cannot own overlapping destination scopes.');
       }
     }
     const retained = await inventory(root, signal);
+    check();
     if (retained.retainedBytes > maxDiskWorkingSetBytes) throw Object.assign(new Error('Retained runtime destination exceeds its working-set allowance.'),
       { code: 'ERR_SEMANTIC_DISK_LIMIT', retainedBytes: retained.retainedBytes });
     const prior = ledger.get(root) || 0;
@@ -94,11 +102,13 @@ export const withRuntimeDestinationWriter = async ({ destination, maxDiskWorking
     try { oldBytes = (await fs.lstat(filename)).size; } catch (error) { if (error.code !== 'ENOENT') throw error; }
     const oldReceipt = await readVerifiedContainedFile(root, filename, { maxBytes: 1024, signal })
       .catch(error => { if (error.code === 'ENOENT') return { buffer: Buffer.alloc(0) }; throw error; });
+    check();
     if (!oldReceipt.buffer.equals(receipt)) {
       account.reserve(receipt.length);
       await atomicWriteText(filename, receipt, { newline: false });
       account.release(oldBytes);
     }
+    check();
     return await operation({ destination: root, account });
   } catch (error) { operationFailed = true; operationError = error; throw error; }
   finally {

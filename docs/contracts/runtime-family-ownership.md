@@ -14,6 +14,24 @@ refuses new work without deleting pinned families. Promotion relinquishes exclus
 ownership of an immutable family. Cancellation or pointer failure cleans only
 owned staging and keeps promoted bytes charged and available to pinned readers.
 
+Saved comparison and standalone claim persistence each establish one absolute
+operation deadline before writer admission. Comparison passes that same private
+budget through lock/account waits, citation verification and publication; nested
+owners cannot renew it. Lock waiting receives only the remaining allowance.
+Mutation admission rechecks the budget after asynchronous boundaries, including
+immediately before family and pointer promotion. Caller cancellation remains
+`ABORT_ERR`; internal expiry is `ERR_RUNTIME_QUERY_BUDGET`. Cleanup joins actual
+opened handles and both independent staging removals even after expiry, preserving
+original and secondary failures before writer ownership settles.
+
+A rename can win a cancellation race. A producer-authenticated passive
+`runtimeClaimPublication` error receipt then reports the claim generation,
+manifest hash, family promotion state and pointer commit state. HTTP errors and
+MCP domain details preserve this bounded receipt. `commit-unconfirmed` requires
+reconciliation of the pointer; `committed` records observed rename completion.
+The receipt grants no mutation or cleanup authority. Serialized error lookalikes
+are not authenticated receipts, and failure never rolls back an immutable family.
+
 An import can receive `semanticContext: { repoRoot, store, manifest }` for an exact
 published source generation. Record targets require partition membership, record
 existence, source ownership/hash and supported source coordinates. Direct UTF-16

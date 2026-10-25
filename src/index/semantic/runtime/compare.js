@@ -2,7 +2,7 @@ import { assertRuntimeClaims } from '../../../contracts/validators/runtime-claim
 import { canonicalSemanticJson, semanticHash } from '../identity.js';
 import { openRuntimeQueryFamily } from './query-store.js';
 import { runtimeImportError } from './raw-store.js';
-import { persistRuntimeDerivedClaims, runtimeClaimsBudget } from './claims.js';
+import { persistRuntimeDerivedClaims, runtimeClaimsBudget, runtimeClaimsFailure, retainRuntimeClaimFailure } from './claims.js';
 import { runtimeCaptureCompatibility } from './compatibility.js';
 import { mergeRuntimeObservationWarnings } from './adapters/shared.js';
 import { closeRuntimeResources } from './close-resources.js';
@@ -92,10 +92,13 @@ export const compareRuntimeCaptures = async ({ destination, request, signal = nu
     check();
     if (request.persist && result.claims.length) result.claimGeneration = await persistRuntimeDerivedClaims({ destination,
       repositoryNamespace: request.repositoryNamespace, generation: request.generation, inputs: pins, citations,
-      claims: result.claims, limits: request.limits, signal });
+      claims: result.claims, limits: request.limits, signal: check.signal, budget: check });
     check(); return assertRuntimeClaims('compareResult', result);
   } catch (error) {
-    try { check(); } catch (budgetError) { error = budgetError; }
+    error = runtimeClaimsFailure(error, check);
     operationErrorPresent = true; operationError = error; throw error;
-  } finally { await closeRuntimeResources(families, operationError, { hasOperationError: operationErrorPresent }); }
+  } finally {
+    try { await closeRuntimeResources(families, operationError, { hasOperationError: operationErrorPresent }); }
+    catch (error) { throw retainRuntimeClaimFailure(error, check); }
+  }
 };

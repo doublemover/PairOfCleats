@@ -13,22 +13,67 @@ import { throwIfAborted } from '../../../shared/abort.js';
 import { openRuntimeQueryFamily } from './query-store.js';
 import { runtimeByteHash, hashRuntimeFile, runtimeImportError, assertRuntimeDiskReserve } from './raw-store.js';
 import { runtimeCaptureCompatibility } from './compatibility.js';
+import { performance } from 'node:perf_hooks';
+import { RUNTIME_QUERY_LIMITS_SCHEMA } from '../../../contracts/schemas/runtime-query.js';
+import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
+import { createRuntimeClaimPublicationState } from '../../../shared/runtime-claim-publication.js';
 
 const domain = 'pairofcleats.runtime.claim-family.v1';
 const fail = message => { throw runtimeImportError(message, 'ERR_RUNTIME_CLAIMS_INTEGRITY'); };
 const same = (a, b) => canonicalSemanticJson(a) === canonicalSemanticJson(b);
-export const runtimeClaimsBudget = (limits, signal) => {
-  const started = Date.now();
-  const deadline = AbortSignal.timeout(limits.maxMs);
+const budgets = new WeakMap();
+
+export const runtimeClaimsBudget = (limits, signal = null, inherited = null) => {
+  const maxMs = limits?.maxMs;
+  if (!Number.isSafeInteger(maxMs) || maxMs < 1 || maxMs > RUNTIME_QUERY_LIMITS_SCHEMA.properties.maxMs.maximum) {
+    throw new TypeError('Invalid runtime claims time allowance.');
+  }
+  if (inherited !== null) {
+    const owner = budgets.get(inherited);
+    if (!owner || owner.maxMs !== maxMs || (signal && signal !== owner.callerSignal && signal !== inherited.signal)) {
+      throw new TypeError('Runtime claims require the original operation budget.');
+    }
+    inherited(); return inherited;
+  }
+  throwIfAborted(signal);
+  const deadlineAt = performance.now() + maxMs;
+  const deadline = AbortSignal.timeout(maxMs);
   const check = () => {
     throwIfAborted(signal);
-    if (deadline.aborted || Date.now() - started > limits.maxMs) throw runtimeImportError('Saved comparison exceeded its allowance.', 'ERR_RUNTIME_QUERY_BUDGET');
+    if (deadline.aborted || performance.now() >= deadlineAt) throw runtimeImportError('Saved comparison exceeded its allowance.', 'ERR_RUNTIME_QUERY_BUDGET');
   };
-  check.signal = signal ? AbortSignal.any([signal, deadline]) : deadline;
+  Object.defineProperties(check, {
+    signal: { value: signal ? AbortSignal.any([signal, deadline]) : deadline },
+    deadlineAt: { value: deadlineAt },
+    remainingMs: { value: () => Math.max(0, Math.ceil(deadlineAt - performance.now())) }
+  });
+  budgets.set(check, { maxMs, callerSignal: signal, publicationState: null });
+  Object.freeze(check);
   return check;
 };
+
+/** Deadline classification retains the original resource failure and any
+ * producer-attested publication identity. The receipt grants no mutation rights. */
+export const runtimeClaimsFailure = (error, check) => {
+  let failure = error;
+  try { check(); }
+  catch (budgetError) { failure = addStorageFailureContext(budgetError, {}, error, { secondaryPresent: true }); }
+  return retainRuntimeClaimFailure(failure, check);
+};
+export const retainRuntimeClaimFailure = (error, check) => budgets.get(check)?.publicationState?.retainFailure(error) || error;
 const bounded = async (operation, check) => {
-  try { return await operation(); } catch (error) { check(); throw error; }
+  try { return await operation(); } catch (error) { throw runtimeClaimsFailure(error, check); }
+};
+
+const writeClaimMember = async (filename, bytes, check) => {
+  check();
+  const handle = await fs.open(filename, 'wx');
+  let failed = false, failure;
+  try {
+    check(); await handle.writeFile(bytes);
+    check(); await handle.sync(); check();
+  } catch (error) { failed = true; failure = error; throw error; }
+  finally { await closeRuntimeResources([handle], failure, { hasOperationError: failed }); }
 };
 
 /** Bounded authoritative citations. Observation IDs must identify one pinned capture, never an inferred claim. */
@@ -95,8 +140,8 @@ const validateClaims = (claims, records) => {
 
 /** Separate immutable derived family. Publishing never changes direct evidence or source index pointers. */
 const persistRuntimeDerivedClaimsOwned = async ({ destination, repositoryNamespace, generation, inputs, citations, claims,
-  limits, signal = null, diskAccount }) => {
-  const check = runtimeClaimsBudget(limits, signal); check();
+  limits, signal = null, diskAccount, check, publicationState }) => {
+  check();
   assertRuntimeClaims('request', { schemaVersion: 1, repositoryNamespace, generation, claimGeneration: '0'.repeat(64), limits, cursor: null });
   if (!claims.length || claims.length > 64 || citations.length > Math.min(128, limits.maxRecords)) fail('Claim inventory exceeds allowance.');
   assertRuntimeClaims('manifest', { schemaVersion: 1, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
@@ -117,27 +162,34 @@ const persistRuntimeDerivedClaimsOwned = async ({ destination, repositoryNamespa
   manifest.claimGeneration = semanticHash(domain, manifest);
   assertRuntimeClaims('manifest', manifest);
   const manifestBytes = Buffer.from(canonicalSemanticJson(manifest));
+  Object.assign(publicationState, { claimGeneration: manifest.claimGeneration, manifestHash: runtimeByteHash(manifestBytes),
+    familyState: 'not-published', pointerState: 'not-started' });
   if (manifestBytes.length + byteLength + offsets.length > limits.maxBytes) fail('Derived family exceeds byte allowance.');
-  await fs.mkdir(path.join(destination, 'claims'), { recursive: true });
+  check(); await fs.mkdir(path.join(destination, 'claims'), { recursive: true }); check();
   const root = await resolveSemanticPartPath(destination, 'claims');
   await assertRuntimeDiskReserve({ destination, diskReserveBytes: verified.diskReserveBytes, additionalBytes: manifestBytes.length + byteLength + offsets.length });
+  check();
   const reservation = manifestBytes.length + evidence.length + offsets.length + 1024;
   diskAccount.reserve(reservation);
   let retained = false;
-  const pending = await fs.mkdtemp(path.join(root, '.pending-'));
+  let pending = null;
   const final = path.join(root, manifest.claimGeneration);
-  const pointerTemporary = path.join(root, '.current-' + path.basename(pending));
+  let pointerTemporary = null;
+  let operationFailed = false, operationError;
   try {
+    check(); pending = await fs.mkdtemp(path.join(root, '.pending-')); check();
+    pointerTemporary = path.join(root, '.current-' + path.basename(pending));
     for (const [name, bytes] of [['claims.jsonl', evidence], ['claims.offsets', offsets], ['manifest.json', manifestBytes]]) {
       await assertRuntimeDiskReserve({ destination, diskReserveBytes: verified.diskReserveBytes, additionalBytes: bytes.length });
-      check(); const handle = await fs.open(path.join(pending, name), 'wx');
-      try { await handle.writeFile(bytes); await handle.sync(); } finally { await handle.close(); }
+      await writeClaimMember(path.join(pending, name), bytes, check);
     }
     check();
     await assertRuntimeDiskReserve({ destination, diskReserveBytes: verified.diskReserveBytes, additionalBytes: 512 });
-    try { await fs.rename(pending, final); retained = true; }
+    check(); publicationState.familyState = 'promotion-unconfirmed'; retained = true;
+    try { await fs.rename(pending, final); retained = true; publicationState.familyState = 'promoted'; }
     catch (error) {
       if (!['EEXIST', 'ENOTEMPTY', 'EPERM'].includes(error.code)) throw error;
+      check();
       const old = (await readRuntimeMemberBytes({ root, relativePath: manifest.claimGeneration + '/manifest.json',
         maxBytes: limits.maxBytes, signal })).buffer;
       if (!old.equals(manifestBytes)) fail('Existing immutable claim family differs.');
@@ -145,16 +197,26 @@ const persistRuntimeDerivedClaimsOwned = async ({ destination, repositoryNamespa
         expectedHash: manifest.evidenceHash, expectedBytes: byteLength, maxBytes: limits.maxBytes, signal });
       await hashRuntimeFile({ filename: await resolveSemanticPartPath(root, manifest.claimGeneration + '/claims.offsets'),
         expectedHash: manifest.offsetsHash, expectedBytes: offsets.length, maxBytes: limits.maxBytes, signal });
+      publicationState.familyState = 'reused'; retained = false;
     }
     check();
-    const pointer = await fs.open(pointerTemporary, 'wx');
-    try { await pointer.writeFile(canonicalSemanticJson({ schemaVersion: 1, claimGeneration: manifest.claimGeneration,
-      manifestHash: runtimeByteHash(manifestBytes) })); await pointer.sync(); } finally { await pointer.close(); }
-    check(); await fs.rename(pointerTemporary, path.join(root, 'current.json'));
+    await writeClaimMember(pointerTemporary, canonicalSemanticJson({ schemaVersion: 1, claimGeneration: manifest.claimGeneration,
+      manifestHash: runtimeByteHash(manifestBytes) }), check);
+    check(); publicationState.pointerState = 'commit-unconfirmed';
+    await fs.rename(pointerTemporary, path.join(root, 'current.json'));
+    publicationState.pointerState = 'committed'; check();
     return manifest.claimGeneration;
+  } catch (error) { operationFailed = true; operationError = error; throw error;
   } finally {
-    await fs.rm(pending, { recursive: true, force: true }); await fs.rm(pointerTemporary, { force: true });
-    if (!retained) diskAccount.release(reservation);
+    try {
+      await closeRuntimeResources([
+        pending && { close: () => fs.rm(pending, { recursive: true, force: true }) },
+        pointerTemporary && { close: () => fs.rm(pointerTemporary, { force: true }) }
+      ]);
+      if (!retained) diskAccount.release(reservation);
+    } catch (error) {
+      throw operationFailed ? addStorageFailureContext(operationError, {}, error, { secondaryPresent: true }) : error;
+    }
     // A complete content-addressed family may already be reused by another publisher or pinned reader.
     // Keep it immutable even if this convenience-pointer update fails; only staging is owned here.
   }
@@ -227,8 +289,19 @@ export const queryRuntimeDerivedClaims = async options => {
 };
 
 /** Derived claims share destination ownership and the explicitly admitted total cap. */
-export const persistRuntimeDerivedClaims = async options => {
-  return withRuntimeDestinationWriter({ destination: options.destination, maxDiskWorkingSetBytes: null,
-    diskAccount: options.diskAccount, signal: options.signal }, ({ destination, account }) =>
-    persistRuntimeDerivedClaimsOwned({ ...options, destination, diskAccount: account }));
+export const persistRuntimeDerivedClaims = async input => {
+  assertRuntimeClaims('request', { schemaVersion: 1, repositoryNamespace: input.repositoryNamespace, generation: input.generation,
+    claimGeneration: '0'.repeat(64), limits: input.limits, cursor: null });
+  const options = { ...input, limits: { ...input.limits } };
+  assertRuntimeClaims('request', { schemaVersion: 1, repositoryNamespace: options.repositoryNamespace, generation: options.generation,
+    claimGeneration: '0'.repeat(64), limits: options.limits, cursor: null });
+  const check = runtimeClaimsBudget(options.limits, options.signal, options.budget ?? null);
+  const publication = createRuntimeClaimPublicationState();
+  budgets.get(check).publicationState = publication;
+  try {
+    const result = await withRuntimeDestinationWriter({ destination: options.destination, maxDiskWorkingSetBytes: null,
+      diskAccount: options.diskAccount, signal: check.signal, checkAdmission: check, remainingMs: check.remainingMs }, ({ destination, account }) =>
+      persistRuntimeDerivedClaimsOwned({ ...options, destination, diskAccount: account, signal: check.signal, check, publicationState: publication.state }));
+    check(); return result;
+  } catch (error) { throw runtimeClaimsFailure(error, check); }
 };
