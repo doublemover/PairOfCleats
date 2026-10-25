@@ -37,6 +37,25 @@ document arriving after timeout is disposed before use. Cleanup failures retain
 the primary extraction error and attach cleanup evidence. This lifecycle
 contract requires pdf.js cleanup to actually settle; a timeout race alone is not
 proof that a worker terminated.
+
+PDF text coverage records observed document pages independently of retained text
+units and chunks. Empty-text pages retain their original page numbers in a
+versioned receipt: attempted/completed, text/no-text, failed, in-flight and
+not-attempted counts. The receipt includes at most 256 contiguous state ranges;
+exact aggregate counts and `page-detail-budget` omission counts remain when that
+detail allowance is exhausted. A page completes only after its cleanup settles.
+Page-cap, page-error and timeout outcomes retain the actual observed boundary.
+
+A no-text observation does not establish that a page is blank or scanned. No
+visual classification or OCR runs. Mixed PDFs retain useful text with
+`coverage_gap` fidelity and a concise page-count warning; files with no observed
+text use `no_text_observed`. Permissive policy retains unknown coverage, while
+quality-sensitive policy marks it as a violation. Both policies report identical
+page evidence. A missing legacy page receipt is explicitly unqualified. PDF
+producer version 2, normalization `v1:pdf-text:2` and fidelity schema version 2
+invalidate prior complete-without-page-evidence interpretations. Extraction-cache
+hits preserve the receipt and report identity; incremental bundle persistence is
+owned separately by the bundle receipt contract.
 - Applies to `indexing.mode = extracted-prose`.
 - Supported source types: `pdf`, `docx`.
 
@@ -54,6 +73,7 @@ proof that a worker terminated.
 ## Typed extraction failure reasons
 - `unsupported_encrypted`
 - `unsupported_scanned`
+- `no_text_observed` (no blank/scanned inference)
 - `oversize`
 - `extract_timeout`
 - `missing_dependency`
@@ -90,7 +110,7 @@ proof that a worker terminated.
 
 ## Extraction report artifact
 - Path: `extraction_report.json` in extracted-prose index output.
-- `schemaVersion = 1`.
+- `schemaVersion = 2`.
 - Includes:
   - counts by status (`ok`, `skipped`) and `byReason`.
   - per-file extraction status and reason.

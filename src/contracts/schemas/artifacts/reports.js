@@ -1,3 +1,5 @@
+import { PDF_PAGE_COVERAGE_SCHEMA } from '../document-extraction.js';
+
 const intId = { type: 'integer', minimum: 0 };
 const nullableString = { type: ['string', 'null'] };
 const nullableInt = { type: ['integer', 'null'], minimum: 0 };
@@ -113,7 +115,8 @@ const extractionReportFidelity = {
     policyMode: { type: 'string', enum: ['permissive', 'quality-sensitive'] },
     qualitySensitive: { type: 'boolean' },
     policyViolation: { type: 'boolean' },
-    warningCount: intId
+    warningCount: intId,
+    pageCoverage: PDF_PAGE_COVERAGE_SCHEMA
   },
   additionalProperties: false
 };

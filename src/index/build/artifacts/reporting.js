@@ -385,11 +385,12 @@ export const buildExtractionReport = ({
         },
         warnings: Array.isArray(extraction?.warnings) ? extraction.warnings : [],
         policy: extraction?.policy || policy,
-        fidelity: extraction?.fidelity || buildDocumentExtractionFidelity({
+        fidelity: sourceType !== 'pdf' && extraction?.fidelity || buildDocumentExtractionFidelity({
           sourceType,
           status: 'ok',
           warnings: extraction?.warnings || [],
-          policy
+          policy,
+          pageCoverage: extraction?.fidelity?.pageCoverage || null
         })
       });
     }
@@ -421,7 +422,8 @@ export const buildExtractionReport = ({
         status: 'skipped',
         reason,
         warnings: skipped?.warnings || [],
-        policy
+        policy,
+        pageCoverage: skipped?.fidelity?.pageCoverage || null
       })
     });
   }
@@ -469,6 +471,8 @@ export const buildExtractionReport = ({
       });
     }
   }
+  const coverageLossCount = files.filter(file => file.fidelity?.state !== 'complete').length;
+  const qualitySensitiveFailures = policy.qualitySensitive ? coverageLossCount : 0;
   return {
     schemaVersion: 2,
     mode,
@@ -479,13 +483,13 @@ export const buildExtractionReport = ({
     coverage: {
       state: files.length === 0
         ? 'missing'
-        : skippedCount === 0
+        : coverageLossCount === 0
           ? 'complete'
           : okCount > 0
             ? 'partial'
             : 'missing',
-      coverageLossCount: skippedCount,
-      qualitySensitiveFailures: policy.qualitySensitive ? skippedCount : 0,
+      coverageLossCount,
+      qualitySensitiveFailures,
       bySourceType
     },
     quality: {

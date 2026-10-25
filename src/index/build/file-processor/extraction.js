@@ -55,7 +55,7 @@ export const buildPdfExtractionText = (pages) => {
     text: parts.join(''),
     units,
     counts: {
-      pages: units.length,
+      pages: Array.isArray(pages) ? pages.length : 0,
       paragraphs: 0,
       totalUnits: units.length
     }

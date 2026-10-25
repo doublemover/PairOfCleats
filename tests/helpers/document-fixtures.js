@@ -16,8 +16,7 @@ const buildPdfBodyObjects = (text) => {
   ];
 };
 
-export const buildMinimalPdfBuffer = (text = 'pdf fixture text') => {
-  const objects = buildPdfBodyObjects(text);
+const buildPdfObjectBuffer = objects => {
   const chunks = [PDF_HEADER];
   const offsets = [0];
   let cursor = Buffer.byteLength(PDF_HEADER, 'utf8');
@@ -33,6 +32,25 @@ export const buildMinimalPdfBuffer = (text = 'pdf fixture text') => {
   }
   const trailer = `trailer << /Root 1 0 R /Size ${objects.length + 1} >>\nstartxref\n${xrefOffset}\n%%EOF\n`;
   return Buffer.from(chunks.join('') + xrefRows.join('') + trailer, 'utf8');
+};
+
+export const buildMinimalPdfBuffer = (text = 'pdf fixture text') => buildPdfObjectBuffer(buildPdfBodyObjects(text));
+
+/** Tiny real PDF pages: blank content is distinct from an inline image with no
+ * text operator. Neither fixture requires rendering/OCR or a document tool. */
+export const buildMinimalPdfPagesBuffer = pages => {
+  const font = 3 + pages.length * 2;
+  const objects = ['1 0 obj << /Type /Catalog /Pages 2 0 R >> endobj\n',
+    `2 0 obj << /Type /Pages /Kids [${pages.map((_, index) => `${3 + index * 2} 0 R`).join(' ')}] /Count ${pages.length} >> endobj\n`];
+  for (const [index, page] of pages.entries()) {
+    const id = 3 + index * 2;
+    const stream = page.image ? 'q 1 0 0 1 72 72 cm BI /W 1 /H 1 /BPC 8 /CS /RGB /F /AHx ID FF0000> EI Q'
+      : page.text ? `BT /F1 24 Tf 72 96 Td (${escapePdfText(page.text)}) Tj ET` : '';
+    objects.push(`${id} 0 obj << /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] /Contents ${id + 1} 0 R /Resources << /Font << /F1 ${font} 0 R >> >> >> endobj\n`,
+      `${id + 1} 0 obj << /Length ${Buffer.byteLength(stream)} >> stream\n${stream}\nendstream endobj\n`);
+  }
+  objects.push(`${font} 0 obj << /Type /Font /Subtype /Type1 /BaseFont /Helvetica >> endobj\n`);
+  return buildPdfObjectBuffer(objects);
 };
 
 const CRC32_TABLE = (() => {

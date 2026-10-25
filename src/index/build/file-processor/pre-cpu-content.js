@@ -174,7 +174,8 @@ export async function resolvePreCpuFileContent({
           reason: extracted?.reason || 'extract_failed',
           stage: 'extract',
           sourceType: documentSourceType,
-          warnings: extracted?.warnings || []
+          warnings: extracted?.warnings || [],
+          fidelity: extracted?.fidelity || null
         }
       };
     }

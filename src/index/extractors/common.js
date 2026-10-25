@@ -1,21 +1,24 @@
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { createTimeoutError, runWithTimeout } from '../../shared/promise-timeout.js';
+import { PDF_PAGE_COVERAGE_SCHEMA_VERSION } from '../../contracts/document-extraction.js';
 
 const require = createRequire(import.meta.url);
 
 export const DOCUMENT_EXTRACTION_REASON_CODES = Object.freeze([
   'unsupported_encrypted',
   'unsupported_scanned',
+  'no_text_observed',
   'oversize',
   'extract_timeout',
   'missing_dependency',
   'extract_failed'
 ]);
 
-export const DOCUMENT_EXTRACTION_FIDELITY_SCHEMA_VERSION = 1;
+export const DOCUMENT_EXTRACTION_FIDELITY_SCHEMA_VERSION = 2;
 // Structural DOCX paragraph meaning changes invalidate extraction and bundle reuse.
 export const DOCX_STRUCTURAL_EXTRACTION_VERSION = 3;
+export const PDF_TEXT_EXTRACTION_VERSION = 2;
 export const DOCUMENT_EXTRACTION_POLICY_MODES = Object.freeze([
   'permissive',
   'quality-sensitive'
@@ -37,7 +40,10 @@ export const EXTRACTION_NORMALIZATION_POLICY = 'v1';
 // XML structure changes affect DOCX provenance without invalidating PDF meaning.
 export const resolveExtractionNormalizationPolicy = sourceType => sourceType === 'docx'
   ? `${EXTRACTION_NORMALIZATION_POLICY}:docx-xml:${DOCX_STRUCTURAL_EXTRACTION_VERSION}`
-  : EXTRACTION_NORMALIZATION_POLICY;
+  : sourceType === 'pdf' ? `${EXTRACTION_NORMALIZATION_POLICY}:pdf-text:${PDF_TEXT_EXTRACTION_VERSION}`
+    : EXTRACTION_NORMALIZATION_POLICY;
+export const resolveDocumentExtractionProducerVersion = sourceType => sourceType === 'docx'
+  ? DOCX_STRUCTURAL_EXTRACTION_VERSION : sourceType === 'pdf' ? PDF_TEXT_EXTRACTION_VERSION : null;
 
 const normalizePositiveInt = (value, fallback) => {
   const num = Number(value);
@@ -118,24 +124,32 @@ export const buildDocumentExtractionFidelity = ({
   status = 'ok',
   reason = null,
   warnings = [],
-  policy = null
+  policy = null,
+  pageCoverage = null
 } = {}) => {
   const policySummary = buildDocumentExtractionPolicySummary(policy);
   const warningList = normalizeWarnings(warnings);
   const normalizedStatus = status === 'ok' ? 'ok' : 'skipped';
+  const qualifiedPageText = pageCoverage?.schemaVersion === PDF_PAGE_COVERAGE_SCHEMA_VERSION
+    && Number.isSafeInteger(pageCoverage.totalPages) && pageCoverage.totalPages > 0
+    && ['attemptedPages', 'completedPages', 'textPages'].every(key => pageCoverage[key] === pageCoverage.totalPages)
+    && ['noTextPages', 'failedPages', 'inFlightPages', 'notAttemptedPages'].every(key => pageCoverage[key] === 0)
+    && pageCoverage.complete === true && pageCoverage.textCoverage === 'all-pages-have-text';
+  const pageGap = sourceType === 'pdf' && !qualifiedPageText;
   const normalizedReason = normalizedStatus === 'ok'
-    ? null
+    ? pageGap ? pageCoverage ? 'pdf_page_text_coverage_unknown' : 'pdf_page_coverage_unrecorded' : null
     : resolveFailureReason(reason);
   return {
     schemaVersion: DOCUMENT_EXTRACTION_FIDELITY_SCHEMA_VERSION,
     sourceType: sourceType === 'docx' ? 'docx' : 'pdf',
-    state: normalizedStatus === 'ok' ? 'complete' : 'coverage_gap',
+    state: normalizedStatus === 'ok' && !pageGap ? 'complete' : 'coverage_gap',
     status: normalizedStatus,
     reasonCode: normalizedReason,
     policyMode: policySummary.fidelityMode,
     qualitySensitive: policySummary.qualitySensitive,
-    policyViolation: policySummary.qualitySensitive && normalizedStatus !== 'ok',
-    warningCount: warningList.length
+    policyViolation: policySummary.qualitySensitive && (normalizedStatus !== 'ok' || pageGap),
+    warningCount: warningList.length,
+    ...(sourceType === 'pdf' ? { pageCoverage } : {})
   };
 };
 
@@ -169,7 +183,8 @@ export const buildFailedResult = (reason, warnings = [], options = {}) => ({
     status: 'skipped',
     reason,
     warnings,
-    policy: options?.policy || null
+    policy: options?.policy || null,
+    pageCoverage: options?.pageCoverage || null
   })
 });
 

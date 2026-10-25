@@ -35,7 +35,7 @@ assert.deepEqual(baseline.extracted.units.map(unit => unit.index), [2, 3, 5]);
 assert.equal(baseline.chunks[0].segment.paragraphStart, 2);
 assert.equal(baseline.chunks.at(-1).segment.paragraphEnd, 5);
 assert.equal(resolveExtractionNormalizationPolicy('docx'), 'v1:docx-xml:3');
-assert.equal(resolveExtractionNormalizationPolicy('pdf'), 'v1');
+assert.equal(resolveExtractionNormalizationPolicy('pdf'), 'v1:pdf-text:2');
 for (const xml of [document('w'), document('m'), document(''), document('m', strictWord)]) {
   assert.deepEqual(parseDocxParagraphsFromXml(xml), expected);
   assert.deepEqual(chunked(parseDocxParagraphsFromXml(xml)), baseline,

@@ -209,11 +209,12 @@ export const summarizeDocumentExtractionForMode = (state, documentExtractionConf
       unitCounts,
       normalizationPolicy: extraction.normalizationPolicy || null,
       policy: extraction.policy || policy,
-      fidelity: extraction.fidelity || buildDocumentExtractionFidelity({
+      fidelity: extraction.sourceType !== 'pdf' && extraction.fidelity || buildDocumentExtractionFidelity({
         sourceType: extraction.sourceType || null,
         status: 'ok',
         warnings: extraction.warnings || [],
-        policy
+        policy,
+        pageCoverage: extraction.fidelity?.pageCoverage || null
       })
     });
   }
@@ -245,7 +246,8 @@ export const summarizeDocumentExtractionForMode = (state, documentExtractionConf
         status: 'skipped',
         reason,
         warnings: skipped?.warnings || [],
-        policy
+        policy,
+        pageCoverage: skipped?.fidelity?.pageCoverage || null
       })
     });
   }
@@ -258,19 +260,20 @@ export const summarizeDocumentExtractionForMode = (state, documentExtractionConf
     if (left > right) return 1;
     return 0;
   });
+  const coverageLossCount = files.filter(file => file.fidelity.state !== 'complete').length;
   return {
     schemaVersion: 2,
     policy,
     coverage: {
       state: counts.total === 0
         ? 'missing'
-        : counts.skipped === 0
+        : coverageLossCount === 0
           ? 'complete'
           : counts.ok > 0
             ? 'partial'
             : 'missing',
-      coverageLossCount: counts.skipped,
-      qualitySensitiveFailures: policy.qualitySensitive ? counts.skipped : 0,
+      coverageLossCount,
+      qualitySensitiveFailures: policy.qualitySensitive ? coverageLossCount : 0,
       bySourceType: counts.bySourceType
     },
     counts,

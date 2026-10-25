@@ -33,7 +33,7 @@ import { resolvePreCpuFileContent } from './file-processor/pre-cpu-content.js';
 import { getLanguageForFile } from '../language-registry.js';
 import {
   EXTRACTION_NORMALIZATION_POLICY,
-  DOCX_STRUCTURAL_EXTRACTION_VERSION,
+  resolveDocumentExtractionProducerVersion,
   buildDocumentExtractionFidelity,
   buildDocumentExtractionPolicySummary,
   sha256Hex,
@@ -201,6 +201,7 @@ export function createFileProcessor(options) {
           }))
         : [],
       normalizationPolicy: record.normalizationPolicy || EXTRACTION_NORMALIZATION_POLICY,
+      pageCoverage: record.pageCoverage ? structuredClone(record.pageCoverage) : null,
       warnings: Array.isArray(record.warnings)
         ? record.warnings.slice(0, 32).map((item) => String(item))
         : []
@@ -236,7 +237,7 @@ export function createFileProcessor(options) {
       extractor?.name || 'unknown',
       extractor?.version || 'unknown',
       extractor?.target || '',
-      sourceType === 'docx' ? DOCX_STRUCTURAL_EXTRACTION_VERSION : '',
+      resolveDocumentExtractionProducerVersion(sourceType),
       documentExtractionPolicyCacheKey
     ].join('|'));
   };
@@ -667,7 +668,8 @@ export function createFileProcessor(options) {
               sourceType: documentSourceType,
               status: 'ok',
               warnings,
-              policy: documentExtractionPolicy
+              policy: documentExtractionPolicy,
+              pageCoverage: cachedExtraction.pageCoverage
             })
           };
           updateCrashStage('pre-cpu:extract:cache-hit', {
@@ -722,7 +724,8 @@ export function createFileProcessor(options) {
         counts: artifacts.documentExtraction.counts || { pages: 0, paragraphs: 0, totalUnits: 0 },
         units: Array.isArray(artifacts.documentExtraction.units) ? artifacts.documentExtraction.units : [],
         normalizationPolicy: artifacts.documentExtraction.normalizationPolicy || EXTRACTION_NORMALIZATION_POLICY,
-        warnings: cacheWarnings
+        warnings: cacheWarnings,
+        pageCoverage: artifacts.documentExtraction.fidelity?.pageCoverage || null
       });
     }
 

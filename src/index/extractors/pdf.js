@@ -1,6 +1,9 @@
-import fs from 'node:fs/promises';
+import { readVerifiedContainedFile } from '../../shared/contained-file.js';
+import { describeStorageFailure } from '../../shared/storage/failure-observation.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { createPdfExtractionLifetime, isPendingPdfExtractionFailure } from './pdf-lifetime.js';
+import { createPdfPageCoverage, admitPdfPageCoverage, getPdfPageCoverage, pdfPageCoverageWarning } from './pdf-page-coverage.js';
+import { addStorageFailureContext } from '../../shared/storage/operation-error.js';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { tryImport } from '../../shared/optional-deps.js';
@@ -115,6 +118,7 @@ export async function loadPdfExtractorRuntime({ refresh = false } = {}) {
 export const readPdfPages = async ({ pdfjs, source, policy, standardFontDataUrl = null }) => {
   let primaryError = null;
   const lifetime = createPdfExtractionLifetime();
+  const coverage = createPdfPageCoverage();
   try {
     return await withTimeout(async signal => {
       try {
@@ -128,41 +132,54 @@ export const readPdfPages = async ({ pdfjs, source, policy, standardFontDataUrl 
         finally { signal?.removeEventListener('abort', cancel); }
         lifetime.adopt(doc, { required: false });
         throwIfAborted(signal);
-        const numPages = Number(doc?.numPages) || 0;
+        const numPages = doc?.numPages;
+        coverage.observeTotal(numPages);
         if (numPages > policy.maxPages) throw Object.assign(new Error('PDF page count exceeds extraction policy.'), { code: 'ERR_PDF_PAGE_LIMIT' });
         const pages = [];
         for (let pageNumber = 1; pageNumber <= numPages; pageNumber += 1) {
           throwIfAborted(signal);
-          const page = await doc.getPage(pageNumber);
-          let pageError = null;
+          coverage.start(pageNumber);
           try {
-            throwIfAborted(signal);
-            const content = await page.getTextContent();
-            throwIfAborted(signal);
-            pages.push({ pageNumber, text: normalizePageText(content?.items || []) });
-          } catch (value) {
-            pageError = value && typeof value === 'object' ? value : new Error(String(value), { cause: value });
-            lifetime.observe(pageError); throw pageError;
-          } finally {
-            try { await page.cleanup?.(); }
-            catch (value) {
-              const cleanupError = value && typeof value === 'object' ? value : new Error(String(value), { cause: value });
-              lifetime.observe(cleanupError);
-              throw lifetime.retain(pageError, [cleanupError]);
+            const page = await doc.getPage(pageNumber);
+            let pageError = null;
+            let pageText;
+            try {
+              throwIfAborted(signal);
+              const content = await page.getTextContent();
+              throwIfAborted(signal);
+              pageText = normalizePageText(content?.items || []);
+            } catch (value) {
+              pageError = value && typeof value === 'object' ? value : new Error(String(value), { cause: value });
+              lifetime.observe(pageError); throw pageError;
+            } finally {
+              try { await page.cleanup?.(); }
+              catch (value) {
+                const cleanupError = value && typeof value === 'object' ? value : new Error(String(value), { cause: value });
+                lifetime.observe(cleanupError);
+                throw lifetime.retain(pageError, [cleanupError]);
+              }
             }
-          }
+            coverage.complete(pageNumber, pageText);
+            pages.push({ pageNumber, text: pageText });
+          } catch (error) { coverage.failCurrent(); throw error; }
         }
-        return pages;
+        return admitPdfPageCoverage(pages, coverage.snapshot());
       } catch (error) { lifetime.observe(error); throw error; }
       finally { lifetime.finishOperation(); }
     }, policy.extractTimeoutMs);
   } catch (value) {
     primaryError = value && typeof value === 'object' ? value : new Error(String(value), { cause: value });
-    lifetime.observe(primaryError); throw primaryError;
+    lifetime.observe(primaryError);
+    primaryError = addStorageFailureContext(primaryError, { pdfPageCoverage: coverage.snapshot() });
+    throw primaryError;
   }
   finally {
     const cleanupErrors = await lifetime.dispose();
-    if (cleanupErrors.length || !lifetime.isSettled()) throw lifetime.retain(primaryError, cleanupErrors);
+    if (cleanupErrors.length || !lifetime.isSettled()) {
+      const failure = addStorageFailureContext(primaryError || cleanupErrors[0] || new Error('PDF disposal is unconfirmed.'),
+        { pdfPageCoverage: coverage.snapshot() });
+      throw lifetime.retain(failure, cleanupErrors);
+    }
   }
 };
 
@@ -176,9 +193,16 @@ export async function extractPdf({
   const stubExtract = testConfig.testing && testConfig.stubPdfExtract === true;
   const stubDelayMs = testConfig.testing ? testConfig.stubPdfExtractDelayMs : 0;
   const warnings = [];
-  const source = Buffer.isBuffer(buffer)
-    ? buffer
-    : (filePath ? await fs.readFile(filePath) : null);
+  let source = Buffer.isBuffer(buffer) ? buffer : null;
+  if (!source && filePath) {
+    const file = path.resolve(filePath);
+    try { source = (await readVerifiedContainedFile(path.dirname(file), file, { maxBytes: resolvedPolicy.maxBytesPerFile })).buffer; }
+    catch (error) {
+      const failure = describeStorageFailure(error, { phase: 'pdf-source-admission' });
+      if (failure.code !== 'ERR_FILE_TOO_LARGE') throw error;
+      return buildFailedResult('oversize', [], { sourceType: 'pdf', policy: resolvedPolicy });
+    }
+  }
   if (!source) {
     return buildFailedResult('extract_failed', ['Missing file buffer'], {
       sourceType: 'pdf',
@@ -192,27 +216,31 @@ export async function extractPdf({
     });
   }
   if (stubExtract) {
+    const coverage = createPdfPageCoverage(); coverage.observeTotal(1); coverage.start(1);
     try {
-      return await withTimeout(async () => {
+      return await withTimeout(async signal => {
         if (stubDelayMs > 0) {
           await new Promise((resolve) => setTimeout(resolve, stubDelayMs));
         }
+        throwIfAborted(signal);
         const text = normalizeExtractedText(source.toString('utf8'));
+        coverage.complete(1, text);
+        const pageCoverage = coverage.snapshot();
         if (!text) {
-          return buildFailedResult('unsupported_scanned', [], {
+          return buildFailedResult('no_text_observed', [pdfPageCoverageWarning(pageCoverage)], {
             sourceType: 'pdf',
-            policy: resolvedPolicy
+            policy: resolvedPolicy, pageCoverage
           });
         }
         return {
           ok: true,
-          pages: [{ pageNumber: 1, text }],
+          pages: admitPdfPageCoverage([{ pageNumber: 1, text }], pageCoverage),
           warnings: [],
           fidelity: buildDocumentExtractionFidelity({
             sourceType: 'pdf',
             status: 'ok',
             warnings: [],
-            policy: resolvedPolicy
+            policy: resolvedPolicy, pageCoverage
           }),
           extractor: {
             name: 'pdf-test-stub',
@@ -224,7 +252,7 @@ export async function extractPdf({
     } catch (err) {
       return buildFailedResult(resolvePdfFailureReason(err), [err?.message], {
         sourceType: 'pdf',
-        policy: resolvedPolicy
+        policy: resolvedPolicy, pageCoverage: coverage.snapshot()
       });
     }
   }
@@ -239,11 +267,14 @@ export async function extractPdf({
     const result = await readPdfPages({ pdfjs: runtime.mod, source, policy: resolvedPolicy,
       standardFontDataUrl: resolveStandardFontDataUrl() });
     const pages = result;
+    const pageCoverage = getPdfPageCoverage(pages);
+    const pageWarning = pdfPageCoverageWarning(pageCoverage);
+    if (pageWarning) warnings.push(pageWarning);
     const nonEmptyPageCount = pages.reduce((count, page) => count + (page.text ? 1 : 0), 0);
     if (!pages.length || nonEmptyPageCount === 0) {
-      return buildFailedResult('unsupported_scanned', [], {
+      return buildFailedResult('no_text_observed', warnings, {
         sourceType: 'pdf',
-        policy: resolvedPolicy
+        policy: resolvedPolicy, pageCoverage
       });
     }
     return {
@@ -254,7 +285,7 @@ export async function extractPdf({
         sourceType: 'pdf',
         status: 'ok',
         warnings,
-        policy: resolvedPolicy
+        policy: resolvedPolicy, pageCoverage
       }),
       extractor: {
         name: runtime.name,
@@ -266,7 +297,7 @@ export async function extractPdf({
     if (isPendingPdfExtractionFailure(err)) throw err;
     return buildFailedResult(resolvePdfFailureReason(err), [err?.message], {
       sourceType: 'pdf',
-      policy: resolvedPolicy
+      policy: resolvedPolicy, pageCoverage: Object.getOwnPropertyDescriptor(err, 'pdfPageCoverage')?.value || null
     });
   }
 }

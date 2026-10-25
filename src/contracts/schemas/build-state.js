@@ -1,5 +1,6 @@
 import { BUILD_RUNTIME_RECEIPT_SCHEMA } from './runtime-receipt.js';
 import { COMPLETED_STAGE_SCHEMA } from './completed-stage.js';
+import { PDF_PAGE_COVERAGE_SCHEMA } from './document-extraction.js';
 export const BUILD_STATE_SCHEMA_VERSION = 1;
 
 const ISO_DATE_TIME = {
@@ -124,7 +125,8 @@ const DOCUMENT_EXTRACTION_FIDELITY = {
     policyMode: { type: 'string', enum: ['permissive', 'quality-sensitive'] },
     qualitySensitive: { type: 'boolean' },
     policyViolation: { type: 'boolean' },
-    warningCount: { type: 'number' }
+    warningCount: { type: 'number' },
+    pageCoverage: PDF_PAGE_COVERAGE_SCHEMA
   }
 };
 
