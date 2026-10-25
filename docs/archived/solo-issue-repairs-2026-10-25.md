@@ -823,3 +823,37 @@ fallible diagnostics and frozen core outcome presentation. Format/ESLint, syntax
 affected ledger/taxonomy refreshes, discovery and diff checks passed. Functional
 execution remains deferred. Coverage is **35 fixed / 388 implemented / 150 partial /
 190 pending**.
+
+
+## Runtime source scope and observation occurrence ownership
+
+**#1639 and #1640** (`b77f72e80`) retain per-requested-source/hash qualification in
+each pinned family. Snapshot presence, exact retained observation counts and
+absence/no-retained-observation reasons remain separate. Global join counts are
+explicitly family-wide. Indexed pair predicates avoid row hydration and report
+physical predicate counts under the original deadline. Excluded captures retain
+not-selected receipts and cannot downgrade selected capture completion. Source
+execution coverage remains unknown; retained-row scan completion is a different
+fact. OR row selection, existing hard limits and immutable verification remain.
+
+Each observation is an explicitly qualified projection occurrence. Compact family
+handles resolve through the complete pinned generation/manifest/capture table;
+retained row hashes qualify observations, explanations and omissions. Logical IDs
+remain stable across same-capture reimports without deduplicating or overwriting
+attribution variants. Each retained occurrence keeps its own row verification.
+Public schemas/cross-reference validators enforce these associations; query
+identity v2 invalidates prior semantic cursors without changing stored artifacts.
+
+Authored fixtures use actual imports and physical row-byte/hash oracles, indexed
+predicate instrumentation, absent versus present/unobserved sources, wrong hashes,
+source OR order, stable coverage through cursor pages, excluded partial captures,
+family order, duplicate logical IDs, invalid references and tampered sibling rows.
+The existing real published-semantic witness adds verified/ambiguous/unverified
+same-capture variants across one-record pages. Original distinct-capture and
+selection assertions remain. Format/ESLint, syntax, affected schema/ledger/taxonomy
+refreshes, discovery and diff checks passed; functional and public-surface
+execution remain deferred. Coverage is **35 fixed / 390 implemented / 150 partial /
+188 pending**.
+
+A complete metadata refresh at `b77f72e80` again found **763 open issues**, with no
+added/closed IDs or changed titles. No issue is closed on unexecuted source alone.

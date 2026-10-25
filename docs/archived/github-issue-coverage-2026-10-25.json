@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "83438cd59",
+  "sourceHead": "b77f72e80",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 388,
+    "implemented": 390,
     "partial": 150,
-    "pending": 190
+    "pending": 188
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -569,6 +569,8 @@
       1635,
       1636,
       1637,
+      1639,
+      1640,
       1684,
       1688,
       1698,
@@ -846,8 +848,6 @@
       1633,
       1634,
       1638,
-      1639,
-      1640,
       1641,
       1642,
       1643,
@@ -5695,15 +5695,19 @@
       "number": 1639,
       "title": "[P2] Qualify runtime observation references by immutable family in multi-family results",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "b77f72e80",
+      "validation": "deferred"
     },
     {
       "number": 1640,
       "title": "[P2] Qualify runtime source coverage for each requested source rather than any source",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "b77f72e80",
+      "validation": "deferred"
     },
     {
       "number": 1641,
@@ -6376,7 +6380,7 @@
   ],
   "githubRefresh": {
     "date": "2026-10-25",
-    "head": "ef238bec385d023d862f3ea0d17abcac6035d0b8",
+    "head": "b77f72e805d4c441bb39b26e519a5e7604f0c3a7",
     "open": 763,
     "added": 0,
     "closed": 0,
