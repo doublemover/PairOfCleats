@@ -3,19 +3,15 @@ import path from 'node:path';
 import { getRecordPackages } from '../../src/integrations/triage/record-utils.js';
 import { runWithConcurrency } from '../../src/shared/concurrency/run-with-queue.js';
 import { MinHeap } from '../../src/shared/min-heap.js';
-import { readVerifiedContainedFile } from '../../src/shared/contained-file.js';
+import { loadTriageRecordSnapshot } from './record-snapshot.js';
 import { describeStorageFailure } from '../../src/shared/storage/failure-observation.js';
 import { redactDiagnosticText } from '../../src/shared/diagnostic-text.js';
 
 export const TRIAGE_HISTORY_READ_CONCURRENCY = 4;
 export const TRIAGE_HISTORY_DIAGNOSTIC_SAMPLES = 8;
-const MAX_RECORD_BYTES = 16 * 1024 * 1024;
 
 export const readTriageHistoryRecord = async filePath => {
-  const source = await readVerifiedContainedFile(path.dirname(filePath), filePath, { maxBytes: MAX_RECORD_BYTES });
-  const value = JSON.parse(source.buffer.toString('utf8'));
-  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new TypeError('Triage history record must be a JSON object.');
-  return value;
+  return (await loadTriageRecordSnapshot(path.dirname(filePath), path.basename(filePath, '.json'))).record;
 };
 
 const valuesEqual = (left, right) => Boolean(left && right && String(left).trim() === String(right).trim());

@@ -7,7 +7,8 @@ import { getRepoCacheRoot, getRuntimeConfig, getTriageConfig, resolveRepoConfig,
 import { setEmbeddingsEnv } from '../../src/shared/env/runtime.js';
 import { writeJsonFileResolved } from '../../src/shared/json-file.js';
 import { resolveRecordPathSafe } from './context-pack-paths.js';
-import { buildTriageHistory, readTriageHistoryRecord } from './history.js';
+import { buildTriageHistory } from './history.js';
+import { loadTriageRecordSnapshot } from './record-snapshot.js';
 import { describeStorageFailure } from '../../src/shared/storage/failure-observation.js';
 
 const argv = createCli({
@@ -182,7 +183,7 @@ async function loadRecord(recordsDir, recordId) {
   const filePath = resolveRecordPathSafe(recordsDir, recordId);
   if (!filePath) return null;
   try {
-    return await readTriageHistoryRecord(filePath);
+    return (await loadTriageRecordSnapshot(recordsDir, recordId, { recordType: 'finding' })).record;
   } catch (error) {
     const diagnostic = describeStorageFailure(error, { phase: 'triage-finding-read', defaultCode: 'ERR_TRIAGE_FINDING_READ' });
     if (diagnostic.code === 'ENOENT') return null;

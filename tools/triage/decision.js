@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-import fsPromises from 'node:fs/promises';
-import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { getTriageConfig, resolveRepoConfig } from '../shared/dict-utils.js';
 import { buildRecordId } from '../../src/integrations/triage/record-utils.js';
@@ -8,6 +6,8 @@ import { applyRoutingMeta } from '../../src/integrations/triage/normalize/helper
 import { parseMetaArgs } from '../shared/input-parsers.js';
 import { resolveRecordPathSafe } from './context-pack-paths.js';
 import { writeTriageRecordArtifacts } from './record-writer.js';
+import { loadTriageRecordSnapshot } from './record-snapshot.js';
+import { describeStorageFailure } from '../../src/shared/storage/failure-observation.js';
 
 const argv = createCli({
   scriptName: 'triage-decision',
@@ -48,13 +48,14 @@ if (!findingPath) {
   process.exit(1);
 }
 
-let finding;
+let finding, findingObservation;
 try {
-  const raw = await fsPromises.readFile(findingPath, 'utf8');
-  finding = JSON.parse(raw);
-} catch {
-  console.error(`Finding record not found: ${findingPath}`);
-  process.exit(1);
+  ({ record: finding, observation: findingObservation } = await loadTriageRecordSnapshot(triageConfig.recordsDir,
+    findingId, { recordType: 'finding' }));
+} catch (error) {
+  const diagnostic = describeStorageFailure(error, { phase: 'triage-decision-finding' });
+  if (diagnostic.code !== 'ENOENT') throw error;
+  console.error(`Finding record not found: ${findingPath}`); process.exit(1);
 }
 
 const meta = parseMetaArgs(argv.meta);
@@ -74,7 +75,8 @@ const decisionRecord = {
   package: finding.package || null,
   asset: finding.asset || null,
   decision: {
-    findingRecordId: finding.recordId || findingId,
+    findingRecordId: finding.recordId,
+    findingObservation,
     status,
     justification: argv.justification || '',
     justificationCodes: toArray(argv.code),

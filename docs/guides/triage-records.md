@@ -72,6 +72,22 @@ Each ingest writes:
 node tools/triage/decision.js --finding <recordId> --status accept --justification "..." --reviewer "..."
 ```
 
+The selected finding must have the requested `recordId`, `recordType: "finding"`
+and a nonempty `source`. Selection reads at most 16 MiB through a contained,
+descriptor-verified snapshot. ID-less, mismatched, malformed and unsupported
+records fail before a decision is written; only actual absence is reported as
+not found. History and selected context-pack records use the same admission.
+
+Each new decision retains `decision.findingRecordId` and
+`decision.findingObservation`: receipt version 1, record/source identity,
+SHA-256 of the exact admitted bytes, byte count, observed timestamps and ID
+provenance. Reimporting a finding under its stable ID does not retarget an older
+decision's observation receipt. Existing decisions remain readable; their
+missing receipt is unknown historical observation identity, not a verified link
+to the newest finding. The receipt versions its own observation and retains
+bounded known ID-provenance/timestamp fields. Source-specific record extension
+fields are preserved; the receipt hash identifies the complete original bytes.
+
 ## Exposure metadata
 You can attach environment exposure context to records (especially generic/manual):
 - `internetExposed` (true/false)
