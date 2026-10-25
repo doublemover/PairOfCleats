@@ -5,7 +5,7 @@ import { MAX_JSON_BYTES } from '../../shared/artifact-io/constants.js';
 import { readJsonFile } from '../../shared/artifact-io/json.js';
 import { loadJsonArrayArtifact } from '../../shared/artifact-io/loaders/core.js';
 import { loadChunkMeta } from '../../shared/artifact-io/loaders/chunk-meta.js';
-import { addIssue } from './issues.js';
+import { addIssue, validationErrorMetadata } from './issues.js';
 import { validateSchema } from './schema.js';
 import { validateRiskInterproceduralArtifacts } from './risk-interprocedural.js';
 import {
@@ -146,7 +146,7 @@ export const loadAndValidateChunkMeta = async ({
     });
   } catch (err) {
     if (strict) {
-      addIssue(report, mode, `chunk_meta primary load failed (${err?.code || err?.message || err})`, 'Rebuild index artifacts for this mode.');
+      addIssue(report, mode, `chunk_meta primary load failed (${err?.code || err?.message || err})`, 'Rebuild index artifacts for this mode.', 'issues', validationErrorMetadata(err, 'chunk_meta'));
       modeReport.ok = false;
     }
     const fallback = normalizeChunkMetaFallbackPayload(
@@ -156,9 +156,9 @@ export const loadAndValidateChunkMeta = async ({
     if (fallback) {
       chunkMeta = fallback;
       modeReport.warnings.push('chunk_meta fallback parser used');
-      report.warnings.push(`[${mode}] chunk_meta fallback parser used`);
+      addIssue(report, mode, 'chunk_meta fallback parser used', null, 'warnings', { artifact: 'chunk_meta', state: 'unverified', code: 'WARN_INDEX_FALLBACK_PARSER' });
     } else if (!strict) {
-      addIssue(report, mode, `chunk_meta load failed (${err?.code || err?.message || err})`, 'Rebuild index artifacts for this mode.');
+      addIssue(report, mode, `chunk_meta load failed (${err?.code || err?.message || err})`, 'Rebuild index artifacts for this mode.', 'issues', validationErrorMetadata(err, 'chunk_meta'));
       modeReport.ok = false;
     }
   }

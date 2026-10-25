@@ -4,7 +4,7 @@ import { MAX_JSON_BYTES } from '../../shared/artifact-io/constants.js';
 import { readJsonFile } from '../../shared/artifact-io/json.js';
 import { resolveArtifactPresence } from '../../shared/artifact-io/manifest.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION, isSupportedVersion } from '../../contracts/versioning.js';
-import { addIssue } from './issues.js';
+import { addIssue, validationErrorMetadata } from './issues.js';
 import { validateSchema } from './schema.js';
 
 export const createArtifactPresenceHelpers = ({
@@ -44,20 +44,22 @@ export const createArtifactPresenceHelpers = ({
       if (required) {
         modeReport.ok = false;
         modeReport.missing.push(name);
-        report.issues.push(`[${mode}] ${label}`);
+        addIssue(report, mode, label, null, 'issues', { state: 'missing', artifact: name, modeMessage: name, code: 'ERR_INDEX_ARTIFACT_MISSING' });
       } else {
         modeReport.warnings.push(name);
-        report.warnings.push(`[${mode}] optional ${name} missing`);
+        addIssue(report, mode, `optional ${name} missing`, null, 'warnings', { state: 'missing', artifact: name, modeMessage: name, code: 'WARN_INDEX_OPTIONAL_MISSING' });
       }
       return presence;
     }
     if (presence.missingMeta) {
-      addIssue(report, mode, `${name} meta missing`, 'Rebuild index artifacts for this mode.');
+      addIssue(report, mode, `${name} meta missing`, 'Rebuild index artifacts for this mode.', 'issues',
+        { artifact: name, state: 'missing', code: 'ERR_INDEX_ARTIFACT_META_MISSING' });
       modeReport.ok = false;
     }
     if (presence.missingPaths.length) {
       presence.missingPaths.forEach((missing) => {
-        addIssue(report, mode, `${name} shard missing: ${path.relative(dir, missing)}`);
+        addIssue(report, mode, `${name} shard missing: ${path.relative(dir, missing)}`, null, 'issues',
+          { artifact: name, state: 'missing', code: 'ERR_INDEX_ARTIFACT_SHARD_MISSING' });
       });
       modeReport.ok = false;
     }
@@ -109,10 +111,10 @@ export const createArtifactPresenceHelpers = ({
       if (allowOversize && err?.code === 'ERR_JSON_TOO_LARGE') {
         const warning = `${name} load skipped (${err?.message || err})`;
         modeReport.warnings.push(warning);
-        report.warnings.push(`[${mode}] ${warning}`);
+        addIssue(report, mode, warning, null, 'warnings', { artifact: name, state: 'unverified', code: 'WARN_INDEX_ARTIFACT_UNVERIFIED' });
         return null;
       }
-      addIssue(report, mode, `${name} load failed (${err?.message || err})`, 'Rebuild index artifacts for this mode.');
+      addIssue(report, mode, `${name} load failed (${err?.message || err})`, 'Rebuild index artifacts for this mode.', 'issues', validationErrorMetadata(err, name));
       if (required) modeReport.ok = false;
       return null;
     }

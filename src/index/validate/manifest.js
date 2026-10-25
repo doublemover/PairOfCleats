@@ -7,7 +7,7 @@ import { checksumFile, sha1File, sha256File } from '../../shared/hash.js';
 import { fromPosix, isAbsolutePathNative, isRelativePathEscape } from '../../shared/file-paths.js';
 import { ARTIFACT_SURFACE_VERSION, isSupportedVersion } from '../../contracts/versioning.js';
 import { isManifestPathSafe, normalizeManifestPath } from './paths.js';
-import { addIssue } from './issues.js';
+import { addIssue, validationFindings, mergeValidationFindings } from './issues.js';
 import { validateManifestEntries, validateSchema } from './schema.js';
 
 const verifyManifestPiece = async ({ report, mode, dir, strict, modeReport, piece, readPlan = null, signal = null }) => {
@@ -19,10 +19,10 @@ const verifyManifestPiece = async ({ report, mode, dir, strict, modeReport, piec
     if (strict) {
       modeReport.ok = false;
       modeReport.missing.push(issue);
-      report.issues.push(`[${mode}] ${issue}`);
+      addIssue(report, mode, issue);
     } else {
       modeReport.warnings.push(issue);
-      report.warnings.push(`[${mode}] ${issue}`);
+      addIssue(report, mode, issue, null, 'warnings');
     }
     return;
   }
@@ -34,10 +34,10 @@ const verifyManifestPiece = async ({ report, mode, dir, strict, modeReport, piec
     if (strict) {
       modeReport.ok = false;
       modeReport.missing.push(issue);
-      report.issues.push(`[${mode}] ${issue}`);
+      addIssue(report, mode, issue);
     } else {
       modeReport.warnings.push(issue);
-      report.warnings.push(`[${mode}] ${issue}`);
+      addIssue(report, mode, issue, null, 'warnings');
     }
     return;
   }
@@ -45,7 +45,7 @@ const verifyManifestPiece = async ({ report, mode, dir, strict, modeReport, piec
     const issue = `piece missing: ${relPath}`;
     modeReport.ok = false;
     modeReport.missing.push(issue);
-    report.issues.push(`[${mode}] ${issue}`);
+    addIssue(report, mode, issue, null, 'issues', { state: 'missing', artifact: piece.name || relPath, code: 'ERR_INDEX_PIECE_MISSING' });
     return;
   }
   const checksum = typeof piece?.checksum === 'string' ? piece.checksum : '';
@@ -59,10 +59,10 @@ const verifyManifestPiece = async ({ report, mode, dir, strict, modeReport, piec
       if (strict) {
         modeReport.ok = false;
         modeReport.missing.push(issue);
-        report.issues.push(`[${mode}] ${issue}`);
+        addIssue(report, mode, issue);
       } else {
         modeReport.warnings.push(issue);
-        report.warnings.push(`[${mode}] ${issue}`);
+        addIssue(report, mode, issue, null, 'warnings');
       }
       return;
     }
@@ -76,7 +76,7 @@ const verifyManifestPiece = async ({ report, mode, dir, strict, modeReport, piec
       const issue = `piece checksum mismatch: ${relPath}`;
       modeReport.ok = false;
       modeReport.missing.push(issue);
-      report.issues.push(`[${mode}] ${issue}`);
+      addIssue(report, mode, issue, null, 'issues', { artifact: piece.name || relPath, code: 'ERR_INDEX_PIECE_CHECKSUM' });
       report.hints.push('Run `pairofcleats index build` to refresh index artifacts.');
     }
   }
@@ -96,7 +96,7 @@ const verifyManifestPieces = async input => {
     for (const result of results) {
       if (!result.mode.ok) modeReport.ok = false;
       modeReport.missing.push(...result.mode.missing); modeReport.warnings.push(...result.mode.warnings);
-      report.issues.push(...result.report.issues); report.warnings.push(...result.report.warnings); report.hints.push(...result.report.hints);
+      mergeValidationFindings(report, result.report); report.hints.push(...result.report.hints);
     }
   }
 };
@@ -119,11 +119,11 @@ const reportManifestFailure = ({ report, mode, dir, strict, modeReport }, err) =
   if (strict) {
     modeReport.ok = false;
     modeReport.missing.push(issue);
-    report.issues.push(`[${mode}] ${issue}`);
+    addIssue(report, mode, issue, null, 'issues', { state: missing ? 'missing' : 'invalid', artifact: 'pieces_manifest', code: missing ? 'ERR_INDEX_MANIFEST_MISSING' : 'ERR_INDEX_MANIFEST_INVALID' });
     report.hints.push('Rebuild index artifacts for this mode.');
   } else {
     modeReport.warnings.push(issue);
-    report.warnings.push(`[${mode}] ${issue}`);
+    addIssue(report, mode, issue, null, 'warnings', { state: 'unverified', artifact: 'pieces_manifest', code: 'WARN_INDEX_MANIFEST_UNVERIFIED' });
   }
 };
 
@@ -156,10 +156,10 @@ export const loadAndValidateManifest = async ({ report, mode, dir, strict, modeR
       const issue = 'pieces/manifest.json invalid';
       modeReport.ok = false;
       modeReport.missing.push(issue);
-      report.issues.push(`[${mode}] ${issue}`);
+      addIssue(report, mode, issue);
     } else {
       if (readPlan && await readPlan.prepare(manifest)) {
-        const anchors = { issues: report.issues.length, warnings: report.warnings.length, hints: report.hints.length,
+        const anchors = { findings: validationFindings(report).length, hints: report.hints.length,
           missing: modeReport.missing.length, modeWarnings: modeReport.warnings.length };
         let finalized = false;
         finalizeManifest = async () => {
@@ -173,8 +173,7 @@ export const loadAndValidateManifest = async ({ report, mode, dir, strict, modeR
             readPlan.finish();
           } catch (error) { reportManifestFailure(pieceInput, error); }
           // Manifest diagnostics keep their original position before family/schema diagnostics.
-          insertDiagnostics(report.issues, anchors.issues, pieceReport.issues);
-          insertDiagnostics(report.warnings, anchors.warnings, pieceReport.warnings);
+          mergeValidationFindings(report, pieceReport, anchors.findings);
           insertDiagnostics(report.hints, anchors.hints, pieceReport.hints);
           insertDiagnostics(modeReport.missing, anchors.missing, pieceModeReport.missing);
           insertDiagnostics(modeReport.warnings, anchors.modeWarnings, pieceModeReport.warnings);

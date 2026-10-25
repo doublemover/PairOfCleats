@@ -36,11 +36,13 @@ export const buildLmdbReport = async ({ root, userConfig, indexRoot, modes, repo
     const addLmdbIssue = (label, message, hint) => {
       lmdbReport.ok = false;
       lmdbReport.issues.push(`${label}: ${message}`);
-      addIssue(report, `lmdb/${label}`, message, hint);
+      addIssue(report, ['code', 'prose'].includes(label) ? label : null, message, hint, 'issues',
+        { capability: 'lmdb', displayScope: `lmdb/${label}`, code: 'ERR_INDEX_LMDB_VALIDATION' });
     };
     const addLmdbWarning = (label, message) => {
       lmdbReport.warnings.push(`${label}: ${message}`);
-      report.warnings.push(`[lmdb/${label}] ${message}`);
+      addIssue(report, ['code', 'prose'].includes(label) ? label : null, message, null, 'warnings',
+        { capability: 'lmdb', displayScope: `lmdb/${label}`, state: 'unverified', code: 'WARN_INDEX_LMDB_UNVERIFIED' });
     };
     const validateStore = (label, storePath) => {
       if (!hasLmdbStore(storePath)) {

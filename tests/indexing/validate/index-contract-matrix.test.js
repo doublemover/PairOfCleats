@@ -28,6 +28,8 @@ const runValidation = async ({ repoRoot, indexRoot, strict = true }) => validate
 
 const assertValidationIssue = (report, expectedText, message) => {
   assert.equal(report.ok, false, message || `expected validation failure containing ${expectedText}`);
+  assert.equal(report.modes.code.ok, false, 'mode verdict must agree with its owned semantic/manifest failure');
+  assert.ok(report.findings.some(row => row.mode === 'code' && row.severity === 'error'));
   assert.ok(
     report.issues.some((issue) => issue.includes(expectedText)),
     `expected validation issue containing ${expectedText}; got: ${report.issues.join('; ')}`
@@ -410,7 +412,7 @@ const cases = [
     async run() {
       const tempRoot = await createTempRoot('index-validate-contract-checksum-mismatch');
       const manifestPieces = createManifestPieces({
-        chunk_meta: { checksum: 'sha1:deadbeef' }
+        chunk_meta: { checksum: 'sha1:' + '0'.repeat(40) }
       });
       const { repoRoot, indexRoot } = await createBaseIndex({ rootDir: tempRoot, manifestPieces });
 

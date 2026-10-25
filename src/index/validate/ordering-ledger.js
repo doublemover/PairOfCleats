@@ -2,6 +2,7 @@ import {
   hashDeterministicIterable
 } from '../../shared/invariants.js';
 import { createGraphRelationsIterator } from '../build/artifacts/helpers.js';
+import { addIssue } from './issues.js';
 
 const hashOrderingRows = (
   rows,
@@ -51,7 +52,6 @@ const recordOrderingDrift = ({
   const rule = expected?.rule || null;
   const issueLabel = `ordering ledger mismatch for ${artifact}`;
   const detail = `${issueLabel} (expected ${expectedHash ?? 'null'}, got ${actualHash ?? 'null'})`;
-  const note = `[${mode}] ${detail}`;
   const drift = {
     stage: stageKey,
     mode,
@@ -65,10 +65,10 @@ const recordOrderingDrift = ({
   if (strict) {
     modeReport.ok = false;
     modeReport.missing.push(detail);
-    report.issues.push(note);
+    addIssue(report, mode, detail, null, 'issues', { artifact, code: 'ERR_INDEX_ORDERING_MISMATCH' });
   } else {
     modeReport.warnings.push(issueLabel);
-    report.warnings.push(note);
+    addIssue(report, mode, detail, null, 'warnings', { artifact, modeMessage: issueLabel, code: 'WARN_INDEX_ORDERING_MISMATCH' });
   }
   report.hints.push('Rebuild ordering ledger by re-running index build.');
 };
@@ -90,14 +90,14 @@ export const validateOrderingLedger = ({
   const stageKey = resolveLedgerStageKey(orderingLedger, indexState?.stage || 'stage2', mode);
   const ledgerStage = stageKey ? orderingLedger.stages?.[stageKey] : null;
   if (!ledgerStage || !ledgerStage.artifacts) {
-    const warning = `[${mode}] ordering ledger missing stage ${stageKey || 'unknown'}`;
+    const warning = `ordering ledger missing stage ${stageKey || 'unknown'}`;
     if (orderingStrict) {
       modeReport.ok = false;
       modeReport.missing.push(warning);
-      report.issues.push(warning);
+      addIssue(report, mode, warning, null, 'issues', { state: 'missing', artifact: 'ordering_ledger', code: 'ERR_INDEX_ORDERING_STAGE_MISSING' });
     } else {
       modeReport.warnings.push('ordering ledger stage missing');
-      report.warnings.push(warning);
+      addIssue(report, mode, warning, null, 'warnings', { state: 'unverified', artifact: 'ordering_ledger', code: 'WARN_INDEX_ORDERING_STAGE_UNVERIFIED' });
     }
     return;
   }

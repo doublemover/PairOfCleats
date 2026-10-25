@@ -18,7 +18,7 @@ import { isWithinRoot, toRealPathSync } from '../workspace/identity.js';
 import { resolveIndexDir } from './validate/paths.js';
 import { buildArtifactLists } from './validate/artifacts.js';
 import { normalizeFilterIndex } from './validate/normalize.js';
-import { addIssue } from './validate/issues.js';
+import { addIssue, finalizeValidationReport, validationErrorMetadata } from './validate/issues.js';
 import { validateSchema } from './validate/schema.js';
 import { createArtifactPresenceHelpers } from './validate/presence.js';
 import { loadAndValidateManifest, sumManifestCounts } from './validate/manifest.js';
@@ -142,7 +142,7 @@ export async function validateIndexArtifacts(input = {}) {
             const issue = `${label} manifest count mismatch (${expected} !== ${actualCount})`;
             modeReport.ok = false;
             modeReport.missing.push(issue);
-            report.issues.push(`[${mode}] ${issue}`);
+            addIssue(report, mode, issue);
           }
         };
 
@@ -164,14 +164,14 @@ export async function validateIndexArtifacts(input = {}) {
             if (!hasLegacyArtifact(name)) {
               modeReport.ok = false;
               modeReport.missing.push(name);
-              report.issues.push(`[${mode}] missing ${name}`);
+              addIssue(report, mode, `missing ${name}`, null, 'issues', { state: 'missing', artifact: name, modeMessage: name, code: 'ERR_INDEX_ARTIFACT_MISSING' });
               report.hints.push('Run `pairofcleats index build` to rebuild missing artifacts.');
             }
           }
           for (const name of optionalArtifactsForMode) {
             if (!hasLegacyArtifact(name)) {
               modeReport.warnings.push(name);
-              report.warnings.push(`[${mode}] optional ${name} missing`);
+              addIssue(report, mode, `optional ${name} missing`, null, 'warnings', { state: 'missing', artifact: name, modeMessage: name, code: 'WARN_INDEX_OPTIONAL_MISSING' });
             }
           }
         }
@@ -466,7 +466,7 @@ export async function validateIndexArtifacts(input = {}) {
           const issue = `validation failed (${err?.code || err?.message || 'error'})`;
           modeReport.ok = false;
           modeReport.missing.push(issue);
-          report.issues.push(`[${mode}] ${issue}`);
+          addIssue(report, mode, issue, null, 'issues', validationErrorMetadata(err, null, 'ERR_INDEX_VALIDATION_EXCEPTION'));
         }
         report.modes[mode] = modeReport;
       } finally {
@@ -551,6 +551,5 @@ export async function validateIndexArtifacts(input = {}) {
 
   report.lmdb = lmdbReport;
   report.sqlite = sqliteReport;
-  report.ok = report.issues.length === 0;
-  return report;
+  return finalizeValidationReport(report);
 }

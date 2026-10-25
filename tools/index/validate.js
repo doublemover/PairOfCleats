@@ -92,11 +92,12 @@ async function runCli() {
       console.error(`- ${mode}: missing (no report entry)`);
       continue;
     }
-    const status = entry.ok ? 'ok' : 'missing';
+    const status = entry.state === 'unverified' ? 'unverified' : entry.ok ? 'ok' : entry.state || 'invalid';
     console.error(`- ${mode}: ${status} (${entry.path})`);
     if (entry.missing.length) {
       console.error(`  - missing: ${entry.missing.join(', ')}`);
     }
+    if (entry.invalid?.length) console.error(`  - invalid: ${entry.invalid.join(', ')}`);
     if (entry.warnings.length) {
       console.error(`  - optional: ${entry.warnings.join(', ')}`);
     }

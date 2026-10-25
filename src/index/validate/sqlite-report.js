@@ -3,6 +3,7 @@ import path from 'node:path';
 import { getIndexDir, resolveSqlitePaths } from '../../shared/dict-utils.js';
 import { readJsonFile } from '../../shared/artifact-io/json.js';
 import { validateSqliteZeroStateManifest } from '../../storage/sqlite/zero-state.js';
+import { addIssue } from './issues.js';
 
 export const buildSqliteReport = async ({ root, userConfig, indexRoot, modes, report, sqliteEnabled }) => {
   const sqlitePaths = resolveSqlitePaths(root, userConfig, indexRoot ? { indexRoot } : {});
@@ -20,7 +21,7 @@ export const buildSqliteReport = async ({ root, userConfig, indexRoot, modes, re
           payload: readJsonFile(zeroStateManifestPath, { containedRoot: modeIndexDir }) });
         zeroStateModes.add(mode);
       } catch (error) {
-        zeroStateIssues.push(`${mode} zero-state proof invalid (${error?.message || error})`);
+        zeroStateIssues.push({ mode, detail: `${mode} zero-state proof invalid (${error?.message || error})`, state: 'invalid' });
       }
     }
   }
@@ -56,12 +57,13 @@ export const buildSqliteReport = async ({ root, userConfig, indexRoot, modes, re
 
   if (sqliteReport.enabled) {
     const sqliteIssues = [...zeroStateIssues];
-    if (requireCodeDb && !fs.existsSync(sqlitePaths.codePath)) sqliteIssues.push('code db missing');
-    if (requireProseDb && !fs.existsSync(sqlitePaths.prosePath)) sqliteIssues.push('prose db missing');
+    if (requireCodeDb && !fs.existsSync(sqlitePaths.codePath)) sqliteIssues.push({ mode: 'code', detail: 'code db missing', state: 'missing' });
+    if (requireProseDb && !fs.existsSync(sqlitePaths.prosePath)) sqliteIssues.push({ mode: 'prose', detail: 'prose db missing', state: 'missing' });
     if (sqliteIssues.length) {
       sqliteReport.ok = false;
-      sqliteReport.issues.push(...sqliteIssues);
-      sqliteIssues.forEach((issue) => report.issues.push(`[sqlite] ${issue}`));
+      sqliteReport.issues.push(...sqliteIssues.map(row => row.detail));
+      sqliteIssues.forEach(row => addIssue(report, row.mode, row.detail, null, 'issues',
+        { capability: 'sqlite', displayScope: 'sqlite', state: row.state, artifact: 'sqlite', code: 'ERR_INDEX_SQLITE_ADMISSION' }));
       report.hints.push('Run `pairofcleats index build --stage 4` (or `node build_index.js --stage 4`) to rebuild SQLite artifacts.');
     } else if (requireCodeDb || requireProseDb) {
       let Database = null;
@@ -71,7 +73,7 @@ export const buildSqliteReport = async ({ root, userConfig, indexRoot, modes, re
         sqliteReport.ok = false;
         const issue = 'better-sqlite3 not available';
         sqliteReport.issues.push(issue);
-        report.issues.push(`[sqlite] ${issue}`);
+        addIssue(report, null, issue, null, 'issues', { capability: 'sqlite', displayScope: 'sqlite', artifact: 'sqlite', state: 'unverified', code: 'ERR_INDEX_SQLITE_UNAVAILABLE' });
         report.hints.push('Run `npm install` to install better-sqlite3.');
       }
       if (Database) {
@@ -85,7 +87,7 @@ export const buildSqliteReport = async ({ root, userConfig, indexRoot, modes, re
               sqliteReport.ok = false;
               const issue = `${label} missing tables: ${missing.join(', ')}`;
               sqliteReport.issues.push(issue);
-              report.issues.push(`[sqlite] ${issue}`);
+              addIssue(report, label, issue, null, 'issues', { capability: 'sqlite', displayScope: 'sqlite', artifact: 'sqlite', code: 'ERR_INDEX_SQLITE_TABLES' });
               report.hints.push('Run `pairofcleats index build --stage 4` (or `node build_index.js --stage 4`) to rebuild SQLite artifacts.');
             }
           } finally {

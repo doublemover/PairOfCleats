@@ -39,7 +39,7 @@ export const validateEmbeddingArtifacts = ({
   const validateBinding = (name, meta) => {
     const mismatches = embeddingBindingMismatches(meta, embeddings);
     if (mismatches.length) addIssue(report, mode, `${name} embedding identity mismatch (${mismatches.join(', ')})`,
-      'Rebuild embeddings for this mode.');
+      'Rebuild embeddings for this mode.', 'issues', { artifact: name, code: 'ERR_INDEX_EMBEDDING_IDENTITY' });
   };
   const denseTargets = [
     {
@@ -92,7 +92,7 @@ export const validateEmbeddingArtifacts = ({
       const issue = `${target.label} count mismatch (${denseCount} !== ${chunkMeta.length})`;
       modeReport.ok = false;
       modeReport.missing.push(issue);
-      report.issues.push(`[${mode}] ${issue}`);
+      addIssue(report, mode, issue);
     }
     if (!denseDims) {
       addIssue(report, mode, `${target.label} dims missing from binary metadata`, 'Rebuild embeddings for this mode.');
@@ -179,7 +179,7 @@ export const validateEmbeddingArtifacts = ({
       const issue = `${target.label} count mismatch (${detail})`;
       modeReport.ok = false;
       modeReport.missing.push(issue);
-      report.issues.push(`[${mode}] ${issue}`);
+      addIssue(report, mode, issue);
     }
     const hnswIndexPath = resolveBinaryArtifactPath(dir, target.binName, {
       manifest,
@@ -237,7 +237,7 @@ export const validateEmbeddingArtifacts = ({
         const issue = `${target.label} count mismatch (${meta.count} !== ${expectedCount} expected nonempty vectors; ${chunkMeta.length} chunk rows)`;
         modeReport.ok = false;
         modeReport.missing.push(issue);
-        report.issues.push(`[${mode}] ${issue}`);
+        addIssue(report, mode, issue);
       }
       const lanceDir = resolveDirArtifactPath(dir, target.dirName, {
         manifest,
