@@ -1,8 +1,9 @@
 import fsPromises from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { observeStorageResource } from '../../src/shared/storage/failure-observation.js';
+import { BENCH_QUERY_WORKLOAD_VERSION } from '../../src/contracts/benchmark-query-workload.js';
 
-export const QUERY_INPUT_PLAN_VERSION = 1;
+export const QUERY_INPUT_PLAN_VERSION = 2;
 const JSON_MODE_QUERY_FIELD = 'query-field';
 const digest = (domain, value) => createHash('sha256').update(`${domain}\0`).update(value).digest('hex');
 const invalid = (message, filePath, index = null, cause = undefined) => Object.assign(
@@ -26,9 +27,24 @@ const normalizeJsonEntries = (entries, jsonMode, filePath) => {
 };
 
 const parseJsonQueries = (parsed, jsonMode, filePath) => {
-  if (Array.isArray(parsed)) return normalizeJsonEntries(parsed, jsonMode, filePath);
+  if (Array.isArray(parsed)) return { queries: normalizeJsonEntries(parsed, jsonMode, filePath), producer: null };
+  if (parsed?.kind === 'bench-query-workload' && parsed.schemaVersion === BENCH_QUERY_WORKLOAD_VERSION) {
+    const fields = ['schemaVersion', 'kind', 'querySemantics', 'generation', 'generatedAt', 'seed', 'indexDir',
+      'mode', 'count', 'languageFamily', 'intentWeights', 'intentCounts', 'variantCounts', 'querySet', 'queries'];
+    const generation = parsed.generation;
+    if (Object.keys(parsed).some(key => !fields.includes(key)) || !Array.isArray(parsed.queries)
+      || !Array.isArray(parsed.querySet) || parsed.count !== parsed.queries.length
+      || parsed.querySet.length !== parsed.queries.length || parsed.querySet.some((row, index) => row?.query !== parsed.queries[index])
+      || generation?.schemaVersion !== BENCH_QUERY_WORKLOAD_VERSION || !Number.isSafeInteger(generation.requestedCount) || generation.requestedCount < 0
+      || generation.emittedCount !== parsed.count || generation.complete !== (generation.requestedCount === generation.emittedCount)) {
+      throw invalid('inconsistent declared benchmark query workload.', filePath);
+    }
+    return { queries: normalizeJsonEntries(parsed.queries, 'strings', filePath),
+      producer: Object.freeze({ kind: parsed.kind, schemaVersion: parsed.schemaVersion, qualification: 'producer-declared',
+        requestedCount: generation.requestedCount, emittedCount: generation.emittedCount, complete: generation.complete }) };
+  }
   if (parsed && typeof parsed === 'object' && Object.keys(parsed).length === 1 && Array.isArray(parsed.queries)) {
-    return normalizeJsonEntries(parsed.queries, jsonMode, filePath);
+    return { queries: normalizeJsonEntries(parsed.queries, jsonMode, filePath), producer: null };
   }
   throw invalid('expected an array or an object containing only a queries array.', filePath);
 };
@@ -40,19 +56,22 @@ const parseJsonQueries = (parsed, jsonMode, filePath) => {
  * @param {{allowJson?:boolean,jsonMode?:'strings'|'stringify'|'query-field'}} [options]
  * @returns {string[]}
  */
-export function parseQueryFileContent(raw, filePath, options = {}) {
+const parseQueryContent = (raw, filePath, options = {}) => {
   const allowJson = options.allowJson !== false;
   const jsonMode = options.jsonMode === JSON_MODE_QUERY_FIELD ? JSON_MODE_QUERY_FIELD : 'strings';
-  let queries;
+  let queries, producer = null;
   if (String(filePath || '').toLowerCase().endsWith('.json')) {
     if (!allowJson) throw invalid('JSON input is not supported by this text-only consumer.', filePath);
     let parsed;
     try { parsed = JSON.parse(raw); }
     catch (cause) { throw invalid('malformed JSON.', filePath, null, cause); }
-    queries = parseJsonQueries(parsed, jsonMode, filePath);
+    ({ queries, producer } = parseJsonQueries(parsed, jsonMode, filePath));
   } else queries = parseTextQueries(raw);
   if (!queries.length) throw invalid('no queries were supplied.', filePath);
-  return queries;
+  return { queries, producer };
+};
+export function parseQueryFileContent(raw, filePath, options = {}) {
+  return parseQueryContent(raw, filePath, options).queries;
 }
 
 /** Capture the actual ordered workload once. Paths are human provenance;
@@ -79,10 +98,11 @@ export async function readQueryInputPlan(filePath, { limit = 0, explicit = true,
   try { raw = new TextDecoder('utf-8', { fatal: true }).decode(bytes); }
   catch (cause) { throw invalid('input must be valid UTF-8.', filePath, null, cause); }
   const format = selection === 'missing-default-fallback' ? 'json' : String(filePath).toLowerCase().endsWith('.json') ? 'json' : 'text';
-  const queries = selection === 'missing-default-fallback'
-    ? normalizeJsonEntries(JSON.parse(raw), 'strings', filePath)
-    : parseQueryFileContent(raw, filePath, { allowJson, jsonMode });
+  const { queries, producer } = selection === 'missing-default-fallback'
+    ? { queries: normalizeJsonEntries(JSON.parse(raw), 'strings', filePath), producer: null }
+    : parseQueryContent(raw, filePath, { allowJson, jsonMode });
   const normalization = Object.freeze({ encoding: 'utf8-fatal-bom-strip', text: 'trim-lines-ignore-blank-comments',
+    container: 'array-queries-or-declared-bench-query-workload-v2',
     json: jsonMode === JSON_MODE_QUERY_FIELD ? 'query-field-text-projection-trim-reject-invalid' : 'strings-trim-reject-invalid' });
   const cases = Object.freeze(selectQueriesByLimit(queries, limit).map((query, index) => Object.freeze({
     caseId: `qc1:${digest('query-occurrence-v1', JSON.stringify([contentHash, index, query]))}`, index, query, weight: 1
@@ -90,9 +110,9 @@ export async function readQueryInputPlan(filePath, { limit = 0, explicit = true,
   const identity = { schemaVersion: QUERY_INPUT_PLAN_VERSION, contentHash, selection, format, normalization, limit,
     availableCount: queries.length, cases };
   return Object.freeze({ schemaVersion: QUERY_INPUT_PLAN_VERSION, kind: 'admitted-query-input',
-    key: `qp1:${digest('query-input-plan-v1', JSON.stringify(identity))}`,
+    key: `qp2:${digest('query-input-plan-v2', JSON.stringify(identity))}`,
     source: Object.freeze({ path: filePath, selection, format, contentHash,
-      effectiveSource: selection === 'missing-default-fallback' ? 'inline-smoke-fallback' : 'file' }),
+      effectiveSource: selection === 'missing-default-fallback' ? 'inline-smoke-fallback' : 'file', producer }),
     normalization, limit, availableCount: queries.length, selectedCount: cases.length, cases });
 }
 
