@@ -1,6 +1,6 @@
 import { SimpleMinHash } from '../minhash.js';
 import { STOP } from '../constants.js';
-import { extractPunctuationTokens, splitId, splitWordsWithDict, stem } from '../../shared/tokenize.js';
+import { capturePunctuationTokens, splitId, splitWordsWithDict, stem } from '../../shared/tokenize.js';
 import { hashTokenId } from '../../shared/token-id.js';
 import { buildChargramHashSet } from '../../shared/chargram-hash.js';
 import {
@@ -181,9 +181,11 @@ export function buildTokenSequence({
   for (const token of baseTokens) {
     scratch.push(normalizeToken(token));
   }
+  let punctuation = null;
   if (mode === 'code' && includeCodePunctuation) {
-    const punctuation = extractPunctuationTokens(text);
-    for (const token of punctuation) scratch.push(token);
+    const captured = capturePunctuationTokens(text);
+    punctuation = captured.coverage;
+    for (const token of captured.tokens) scratch.push(token);
   }
 
   let working = scratch;
@@ -214,12 +216,13 @@ export function buildTokenSequence({
   // can retain per-chunk token lists without being mutated by the next chunk.
   const tokens = useBuffers ? tokensOut.slice() : tokensOut;
   if (!includeSeq) {
-    return { tokens, seq: [] };
+    return { tokens, seq: [], ...(punctuation ? { punctuation } : {}) };
   }
   const seq = buildSequenceFromTokens(tokens, seqOut);
   return {
     tokens,
-    seq
+    seq,
+    ...(punctuation ? { punctuation } : {})
   };
 }
 
@@ -272,12 +275,13 @@ export function tokenizeChunkText(input) {
   const dictWords = resolveTokenDictWords({ context, mode, languageId });
   const providedTokens = Array.isArray(pretokenized?.tokens) ? pretokenized.tokens : null;
   const providedSeq = Array.isArray(pretokenized?.seq) ? pretokenized.seq : null;
-  const { tokens, seq } = providedTokens
+  const { tokens, seq, punctuation } = providedTokens
     ? {
       tokens: providedTokens.slice(),
       seq: providedSeq && providedSeq.length
         ? providedSeq.slice()
-        : buildSequenceFromTokens(providedTokens)
+        : buildSequenceFromTokens(providedTokens),
+      punctuation: pretokenized.punctuation || null
     }
     : buildTokenSequence({
       text,
@@ -327,7 +331,7 @@ export function tokenizeChunkText(input) {
     tokenIds,
     minhashSig: buffers?.minhash ? mh.hashValues.slice() : mh.hashValues,
     minhashHashIdentity: mh.hashIdentity,
-    stats: computeTokenStats(frequencies),
+    stats: { ...computeTokenStats(frequencies), ...(punctuation ? { punctuation } : {}) },
     ...(classification ? {
       identifierTokens: classification.identifierTokens,
       keywordTokens: classification.keywordTokens,

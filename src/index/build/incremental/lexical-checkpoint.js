@@ -3,6 +3,7 @@ import { TOKEN_ID_META } from '../../../shared/token-id.js';
 import { stableStringifyForSignature } from '../../../shared/stable-json.js';
 import { MINHASH_HASH_IDENTITY } from '../../minhash.js';
 import { SEMANTIC_ANALYSIS_VERSIONS } from '../../semantic/analysis-versions.js';
+import { PUNCTUATION_TOKEN_LIMIT } from '../../../shared/tokenize-query-features.js';
 
 export const LEXICAL_CHECKPOINT_VERSION = 1;
 const MAX_BYTES = 8 * 1024 * 1024;
@@ -45,6 +46,10 @@ const validRuntime = value => value === null || (value && Object.keys(value).len
   && typeof value.treeSitterEnabled === 'boolean'
   && (value.treeSitterDisabledReason === null || typeof value.treeSitterDisabledReason === 'string')
   && RUNTIME_FIELDS.slice(2).every(key => value[key] === null || (Number.isFinite(value[key]) && value[key] >= 0)));
+const validPunctuation = value => value === undefined || (value && Object.keys(value).length === 3
+  && value.limit === PUNCTUATION_TOKEN_LIMIT && Number.isSafeInteger(value.emitted)
+  && value.emitted >= 0 && value.emitted <= value.limit && typeof value.truncated === 'boolean'
+  && (!value.truncated || value.emitted === value.limit));
 const validPayload = (payload, classificationEnabled) => payload && strings(payload.tokens) && payload.tokens.length > 0
   && strings(payload.seq) && payload.seq.length > 0 && Array.isArray(payload.tokenIds)
   && payload.tokenIds.length === payload.tokens.length && payload.tokenIds.every(value => typeof value === 'string' && /^[0-9a-f]{16}$/.test(value))
@@ -53,6 +58,7 @@ const validPayload = (payload, classificationEnabled) => payload && strings(payl
   && payload.stats && Number.isSafeInteger(payload.stats.unique) && payload.stats.unique >= 0
   && Number.isSafeInteger(payload.stats.sum) && payload.stats.sum === payload.tokens.length
   && Number.isFinite(payload.stats.entropy) && payload.stats.entropy >= 0
+  && validPunctuation(payload.stats.punctuation)
   && (!classificationEnabled || CLASS_FIELDS.every(key => strings(payload[key])));
 
 /** A verified bundle supplies the outer integrity authority; each product additionally binds exact transformed text. */

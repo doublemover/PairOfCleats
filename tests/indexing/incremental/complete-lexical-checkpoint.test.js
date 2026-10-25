@@ -34,6 +34,12 @@ assert.equal(session.resolve(0, session.key({ ...keyInput, text: 'const Beta = a
 assert.notEqual(session.key({ ...keyInput, text: '\ud800' }), session.key({ ...keyInput, text: '\ud801' }));
 const corrupt = structuredClone(cached); delete corrupt.rows[0].payload.tokenIds;
 assert.equal(createLexicalCheckpointSession({ ...options, cached: corrupt }).resolve(0, key, null, null), null);
+for (const punctuation of [{ limit: 20000, emitted: 20001, truncated: true },
+  { limit: 20000, emitted: 1, truncated: true }, { limit: 20000, emitted: 1, truncated: 'false' }]) {
+  const invalidCoverage = structuredClone(cached);
+  invalidCoverage.rows[0].payload.stats.punctuation = punctuation;
+  assert.equal(createLexicalCheckpointSession({ ...options, cached: invalidCoverage }).resolve(0, key, null, null), null);
+}
 assert.equal(createLexicalCheckpointSession({ ...options, cached: { ...cached, version: 0 } }).resolve(0, key, null, null), null);
 const state = { treeSitterEnabled: true, treeSitterDisabledReason: null, maxChunkBytes: 65536,
   maxFileBytes: 1048576, maxChunksPerFile: 2, maxBytesPerFile: 65536,

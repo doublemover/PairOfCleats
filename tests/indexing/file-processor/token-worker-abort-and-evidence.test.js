@@ -10,7 +10,6 @@ const controller = new AbortController(); let attempts = 0;
 const { context } = createProcessChunksFixtureContext({ overrides: {
   signal: controller.signal, workerState: { tokenWorkerDisabled: false },
   tokenizationStats: { routeObservations: evidence },
-  cachedLexicalBySpan: null,
   workerPool: { shouldUseForFile: () => true, tokenizeChunk: async () => {
     attempts += 1; controller.abort(); throw Object.assign(new Error('canceled'), { name: 'AbortError' });
   } }

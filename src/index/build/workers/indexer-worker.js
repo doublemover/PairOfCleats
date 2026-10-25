@@ -254,6 +254,10 @@ const sanitizeTokenizeResult = (result) => {
       sum: Number(stats.sum) || 0
     }
   };
+  if (stats.punctuation) {
+    output.stats.punctuation = { limit: stats.punctuation.limit, emitted: stats.punctuation.emitted,
+      truncated: stats.punctuation.truncated };
+  }
   if (Array.isArray(result?.identifierTokens)) {
     output.identifierTokens = normalizeStringArray(result.identifierTokens);
   }

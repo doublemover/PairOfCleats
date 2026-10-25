@@ -39,12 +39,11 @@ export const canUseLineTokenStreamSlice = ({
   return chunkStart === startLineOffset && chunkEnd === endLineOffset;
 };
 
-export const createChunkTokenBatchInput = ({ chunksForProcessing, text, cachedLexicalBySpan, lexicalCheckpoint,
+export const createChunkTokenBatchInput = ({ chunksForProcessing, text, lexicalCheckpoint,
   tokenMode, containerExt, relKey, containerLanguageId, commentRangeAssignments, normalizedCommentsConfig,
   chunkLineRanges, fileLineCount, tokenizationFileStreamEnabled, lineIndex, fileStat, workerDictOverride }) => index => {
   const chunk = chunksForProcessing[index];
-  if (!chunk || chunk.end - chunk.start > TOKENIZE_BATCH_MAX_TEXT_BYTES
-    || cachedLexicalBySpan?.has(chunk.start + ':' + chunk.end)) return null;
+  if (!chunk || chunk.end - chunk.start > TOKENIZE_BATCH_MAX_TEXT_BYTES) return null;
   const chunkText = text.slice(chunk.start, chunk.end);
   const chunkMode = (chunk.segment ? resolveSegmentTokenMode(chunk.segment) : tokenMode) || tokenMode;
   const effectiveExt = chunk.segment?.ext || containerExt;

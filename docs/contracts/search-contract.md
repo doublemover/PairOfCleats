@@ -242,3 +242,16 @@ cap-admitted projection drives outgoing, reverse and witness expansion. Candidat
 witnesses carry uncertain candidate provenance; recorded resolved witnesses keep
 their authoritative route. A zero candidate cap retains source evidence and
 omission accounting without visiting any ambiguous destination.
+
+Code scoring tokenization admits the first 20,000 punctuation matches per chunk.
+Direct, file-line reuse and worker routes share that allowance and preserve the
+same ordered scoring tokens, TF/doc-length inputs and synonym sequence. Per-line
+storage retains a bounded prefix plus a truncation bit, so an earlier chunk cannot
+spend a later chunk's allowance. `stats.punctuation` records the fixed limit,
+emitted matches and whether additional matches were observed; it does not claim
+the total number omitted. Literal phrase tokenization remains independent. The
+scoring analyzer is `unicode-identifiers.v3` with the existing ICU identity, and
+the shared lexical producer is 3. Incremental tokenization signatures and lexical
+checkpoints invalidate older scoring products. Authored parity coverage compares
+all ordered tokens/IDs, statistics, postings, exact production span selection and
+a real worker; execution remains deferred.

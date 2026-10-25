@@ -471,7 +471,7 @@ export const processChunks = async (context) => {
     metrics: tokenizationStats ? (tokenizationStats.lexicalCheckpoint ||= {}) : {} });
   const workerBatchMetrics = tokenizationStats ? (tokenizationStats.workerBatch ||= {}) : {};
   const prepareBatchInput = createChunkTokenBatchInput({ chunksForProcessing, text,
-    cachedLexicalBySpan: context.cachedLexicalBySpan, lexicalCheckpoint, tokenMode, containerExt, relKey,
+    lexicalCheckpoint, tokenMode, containerExt, relKey,
     containerLanguageId, commentRangeAssignments, normalizedCommentsConfig, chunkLineRanges, fileLineCount,
     tokenizationFileStreamEnabled, lineIndex, fileStat, workerDictOverride });
   const tokenBatchWindow = effectiveTokenizeEnabled && runTokenize && typeof workerPool?.tokenizeBatch === 'function'
@@ -682,7 +682,7 @@ export const processChunks = async (context) => {
     const reusedLexical = effectiveTokenizeEnabled && lexicalCheckpoint
       ? lexicalCheckpoint.resolve(ci, lexicalKey, lexicalBefore, fileTokenContext.tokenClassificationRuntime) : null;
     let tokenPayload = reusedLexical?.payload || null;
-    let pretokenized = context.cachedLexicalBySpan?.get(c.start+':'+c.end) || null;
+    let pretokenized = null;
     const useLineTokenStream = !pretokenized && !tokenPayload && effectiveTokenizeEnabled
       && tokenizationFileStreamEnabled
       && tokenText === ctext
