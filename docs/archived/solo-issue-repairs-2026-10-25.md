@@ -342,3 +342,32 @@ Formatting/ESLint, syntax and affected generated refreshes passed for the new
 source batches. Current coverage is **35 fixed / 370 implemented / 150 partial /
 208 pending**. Latest live intake inspection still ends at #1748. No issue was
 closed merely for implementation and no combined suite pass is claimed.
+
+## Search selector authority
+
+- **#1606** (`03e6cfca3`): branch predicates use one bounded current-checkout
+  branch/HEAD observation, with ambient Git redirection removed, cancellation and
+  truncation admission. Metrics cannot substitute stale or conflicting branches.
+  Unknown/detached observations reject the requested predicate; known mismatch
+  remains empty. Ordinary structured output retains the exact branch receipt,
+  including through output compaction. Historical searches retain the documented
+  current-checkout predicate. Authored cases include an isolated real two-branch
+  repository, unchanged indexed metrics, exact expected file sets, cold/warm
+  requests, synthetic source disagreements, cancellation and output budgets.
+  The existing Git migration test retains environment isolation, real provenance
+  and metadata assertions; its branch assertion now includes the revision receipt.
+  `loadBranchFromMetrics` was removed only after a source/test/tool reference
+  search proved its sole caller was the obsolete branch fallback; no tests were
+  removed. No native or command-budget threshold was relaxed.
+- **#1608 / #883 followup** (`4a9b093c7`): HTTP GET preserves both snapshot aliases
+  until canonical admission and rejects distinct repeated historical scalars.
+  Identical trimmed values remain equivalent; list-field accumulation remains.
+  Explicit blanks cannot become latest through URL projection or shared request
+  normalization. Authored GET/POST server cases assert invalid-request status and
+  zero search cache admission. Positive adapter/MCP tables retain exact selected
+  refs, one emitted selector, alias equality, omissions and path accumulation.
+  The existing successful historical search witness remains unchanged.
+
+Formatting/ESLint, syntax, generated shared-module/taxonomy refreshes and diff
+checks passed. These fixtures remain unexecuted. Current inventory is **35 fixed /
+372 implemented / 150 partial / 206 pending** across the same 763 open reports.

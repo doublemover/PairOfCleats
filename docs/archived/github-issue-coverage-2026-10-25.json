@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "bb5a68187",
+  "sourceHead": "4a9b093c7",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 370,
+    "implemented": 372,
     "partial": 150,
-    "pending": 208
+    "pending": 206
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -545,6 +545,8 @@
       1599,
       1600,
       1605,
+      1606,
+      1608,
       1609,
       1610,
       1611,
@@ -825,9 +827,7 @@
       1602,
       1603,
       1604,
-      1606,
       1607,
-      1608,
       1612,
       1613,
       1614,
@@ -1334,7 +1334,10 @@
       "title": "[P3] Reject explicit blank historical selectors instead of querying latest",
       "priority": "P3",
       "status": "implemented",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementationFollowups": [
+        "4a9b093c7"
+      ]
     },
     {
       "number": 893,
@@ -5455,8 +5458,10 @@
       "number": 1606,
       "title": "[P2] Qualify branch filters against their declared source instead of stale index metrics",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "03e6cfca3",
+      "validation": "deferred"
     },
     {
       "number": 1607,
@@ -5469,8 +5474,10 @@
       "number": 1608,
       "title": "[P2] Preserve conflicting snapshot aliases through GET search admission",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "4a9b093c7",
+      "validation": "deferred"
     },
     {
       "number": 1609,
