@@ -103,7 +103,9 @@ const installTrackedSubprocessHooks = (terminateTrackedSubprocesses, terminateTr
         const timeout = setTimeout(() => {
           forwardSignal();
         }, SIGNAL_FORWARD_TIMEOUT_MS);
-        timeout.unref?.();
+        // This bounded wait owns signal forwarding while shutdown settles. A
+        // pending Promise or unreferenced native reap alone cannot keep Node
+        // alive; unref here can turn a requested signal into natural exit 0.
         void triggerTrackedSubprocessShutdown(`signal_${String(signal || '').toLowerCase()}`, {
           allowRepeat: true
         })

@@ -141,7 +141,7 @@ try {
     const signaled = runNode([postinstall], 'Git signal propagation', noGit.cwd, {
       ...withoutPath, PATH: isolatedPath
     }, { stdio: 'pipe', allowFailure: true, timeoutMs: 30000 });
-    assert.equal(signaled.signal, 'SIGTERM', 'preserve Git child signals through postinstall');
+    assert.equal(signaled.signal, 'SIGTERM', `preserve Git child signals through postinstall; status=${signaled.status}; stderr=${signaled.stderr}`);
     assert.equal(await fs.readFile(noGit.target, 'utf8'), originalText);
   }
 
