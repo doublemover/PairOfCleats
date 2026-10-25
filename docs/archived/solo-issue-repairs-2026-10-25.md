@@ -161,6 +161,32 @@ The following priority implementations are also authored with execution deferred
   the real chunker, BOM/encoding/grammar/capacity/deadline controls and direct
   pathname byte refusal. Source: `34d54951c`. Execution remains deferred.
 
+- **#1563:** PDF page observations now retain actual total pages separately from
+  text units/chunks, exact original page numbers, completed/no-text/failed/
+  in-flight/unattempted counts and at most 256 state ranges with exact omission
+  counts. Completion follows page cleanup. Unknown text coverage remains distinct
+  from blank/scanned classification and OCR. Mixed PDFs keep useful text with a
+  coverage-gap diagnostic; files with no observed text have a precise reason.
+  Extraction cache, report and build-state summary preserve the same evidence;
+  quality-sensitive policy marks unknown coverage without changing observations.
+  PDF producer **1 → 2**, fidelity **1 → 2**, and normalization `v1:pdf-text:2`
+  invalidate old completeness claims. Sources: `875251600`, `916a4e326`.
+- **#1564:** immutable bundles carry a bounded versioned extraction receipt tied
+  to the selected source hash/size. It preserves provider/format/chunker identity,
+  effective policy, source-unit mapping, warnings and fidelity across JSON and
+  msgpack, first-shard ownership, reassembly and Stage2 writeback. Admission checks
+  shape, current policy/producer, extents/counts and page evidence before restoring
+  metadata on the early replay return. Missing or malformed receipts require
+  scoped refresh, and missing provenance cannot shrink the report denominator.
+  Mode reuse resolves provider identity first; its separate document dependency
+  domain preserves ordinary parse/lexical identities for policy-only changes.
+  Invocation-only cache hints do not change persisted warnings/fidelity. Shared
+  document extraction producer advances **4 → 5**. Authored actual partial-rebuild
+  cases cover unchanged/changed supported sources, report membership/identity,
+  policy decreases including two pages to one, scheduling/effective-policy
+  controls, missing/corrupt receipts, Stage2 and real shard splitting in both
+  encodings. Source: `916a4e326`. Execution remains deferred.
+
 Implementation reconciliation also reviewed the existing reverse initialization
 unwind and actual final-receipt failure fixture for **#1073** (`8d46b2a43`),
 and terminal append/immutable error precedence plus multi-process regression for
@@ -195,3 +221,17 @@ and the complete front gate remain deferred; this is not final-tree acceptance.
 Static followup at `34d54951c`: formatting and syntax checks passed. Runner list
 mode discovered all eight newly authored dictionary/WASM/risk/scheduler/records/
 DOCX regression files selected for this wave. Listing executed no fixtures.
+
+Static closeout at `56cb3511f`: formatting, syntax, config budget, environment
+usage and artifact-schema/shared-module freshness checks passed. Runner list mode
+discovered both new PDF fixtures and the incremental receipt fixture; no fixture
+executed. WASM diagnostics now retain the original failure plus source/partition
+identity; the old corruption assertion now requires the verified reader's typed
+integrity error instead of its superseded message (`56cb3511f`).
+
+Hosted CI at `875251600` remains red: the gate's postinstall patch-enforcement
+fixture expected SIGTERM but observed a null signal at line 144. Policy passed;
+Windows/authority/native/Rust/platform jobs were skipped behind that failed gate.
+The [source-bound job log](https://github.com/doublemover/PairOfCleats/actions/runs/40190762343/job/121161077154)
+was inspected; no Linux/WSL execution was started locally. Full front-gate,
+functional and native/performance qualification remain deferred.

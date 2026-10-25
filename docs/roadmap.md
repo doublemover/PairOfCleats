@@ -15,7 +15,7 @@ records new source batches and unvalidated coverage. Historical inventories
 below describe their recorded sources, not the current open count.
 New solo batches cover #1746, #1742, #1741, #1740, #1737, #1736, #1734, #1730,
 #1729, #1716, #1698, #1565, #1598, #1599, #1684, #1688, #1610, #1611,
-#1397, #1562 and #1635–#1637. Their authored regressions remain deferred; the
+#1397, #1562–#1564 and #1635–#1637. Their authored regressions remain deferred; the
 source receipt records exact ownership, identity, capacity and lifecycle changes.
 
 Previous validation reconciliation, 2026-10-24: the user replaced the proposed full Windows
@@ -50,11 +50,11 @@ Continue on `codex/pr557-audit-repairs-20261012` through
 [PR #572](https://github.com/doublemover/PairOfCleats/pull/572), retaining its
 existing `main` base. Node is **26.12.1**. Publication is authorized; no merge is
 authorized. The user resumed work **solo**, with all workers parked, and requested
-source implementation first, then explicitly switched to validation after the
-next commit. Formatting and static checks continue before granular commits. Commit and push completed batches;
+source implementation first on October 25, with functional execution deferred
+until the implementation batches are ready. Formatting and static checks continue. Commit and push completed batches;
 refresh the PR overview at least every 20 commits.
 
-The refreshed snapshot contains **1,151 open reports (#147–#1722)**: P0 0,
+The historical October 23 snapshot contained **1,151 open reports (#147–#1722)**: P0 0,
 P1 58, P2 574, P3 105, P4 0, Perf 125, and other/unprioritized 289.
 Compared with the previous 970-report snapshot this adds 181 reports, including
 12 older/reopened reports. Titles supply priority; labels do not supply those
@@ -65,11 +65,11 @@ and [pause handoff](archived/implementation-pause-2026-10-23.md) retain the
 previous wave's detailed mappings and provenance. Open status, source changes
 and accepted issue closure are separate facts.
 
-Recent solo source batches repair exact embedding/cache identities, sparse Boolean
+Earlier solo source batches repaired exact embedding/cache identities, sparse Boolean
 completion and execution-qualified result reuse, offsets/bitmap/signed ranking,
 transactional TUI installation, document/wire/lease/method LSP lifetimes, and
-original SQLite/profile/native-read failure propagation. The refreshed GitHub
-snapshot still has 1,151 open reports. These implementations and their authored
+original SQLite/profile/native-read failure propagation. Those historical
+counts are superseded by the current intake above. These implementations and their authored
 regressions remain unqualified; category cleanup/parent drain and the broader
 intake remain unfinished. LSP identity is 47/rq11; offline runtime parser is 4.
 
