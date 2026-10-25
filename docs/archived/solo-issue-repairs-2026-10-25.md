@@ -857,3 +857,26 @@ execution remain deferred. Coverage is **35 fixed / 390 implemented / 150 partia
 
 A complete metadata refresh at `b77f72e80` again found **763 open issues**, with no
 added/closed IDs or changed titles. No issue is closed on unexecuted source alone.
+
+
+## Live evaluation depth qualification
+
+**#1641** (`36c0dddf3`) gives live judged evaluation an explicit immutable metric
+plan: operator-requested retrieval depth, standard cutoffs within that depth plus
+the depth itself, matching/cohort/judgment policy and censored MRR@depth. Search
+requests keep the operator's depth. Cohorts retain requested/observed lengths;
+short responses keep exhaustion unknown rather than guessing from array length.
+Existing numeric MRR is qualified by the shared plan. Silver/gold and cohort
+macro denominators remain. Missing/failed cohorts and output omissions retain
+existing unavailable-evidence admission.
+
+The plan key binds report and summary semantics. Comparison rejects mismatched
+or legacy/unqualified plans; model bakeoff consumes this gate, binds the new
+owner in resume identity, prints MRR with its depth and represents unavailable
+cutoffs as n/a. The actual-runner module-hook fixture supplies fixed rankings with
+relevant ranks 1/2/4/6/11, depths 1/3/5/10/20, silver/gold and independently ranked
+mixed cohorts. It checks every advertised cutoff, depth and denominator, a short
+response's unproven exhaustion, plan integrity and incompatible comparisons.
+Format/ESLint, syntax, affected inventory/ledger/taxonomy refreshes, discovery and
+diff checks passed. Functional execution remains deferred. Coverage is **35 fixed /
+391 implemented / 150 partial / 187 pending**.

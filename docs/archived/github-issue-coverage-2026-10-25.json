@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "b77f72e80",
+  "sourceHead": "36c0dddf3",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 390,
+    "implemented": 391,
     "partial": 150,
-    "pending": 188
+    "pending": 187
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -571,6 +571,7 @@
       1637,
       1639,
       1640,
+      1641,
       1684,
       1688,
       1698,
@@ -848,7 +849,6 @@
       1633,
       1634,
       1638,
-      1641,
       1642,
       1643,
       1644,
@@ -5713,8 +5713,10 @@
       "number": 1641,
       "title": "[P2] Bind live evaluation metric cutoffs to the depth actually requested from retrieval",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "36c0dddf3",
+      "validation": "deferred"
     },
     {
       "number": 1642,
