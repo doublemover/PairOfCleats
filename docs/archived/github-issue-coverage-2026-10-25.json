@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "77f9c0329",
+  "sourceHead": "305f2cf7a",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 376,
+    "implemented": 377,
     "partial": 150,
-    "pending": 202
+    "pending": 201
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -552,6 +552,7 @@
       1609,
       1610,
       1611,
+      1612,
       1614,
       1616,
       1635,
@@ -830,7 +831,6 @@
       1603,
       1604,
       1607,
-      1612,
       1613,
       1615,
       1617,
@@ -5514,8 +5514,10 @@
       "number": 1612,
       "title": "[P2] Give lint enrichment a repository-qualified policy and explicit completion receipt",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "305f2cf7a",
+      "validation": "deferred"
     },
     {
       "number": 1613,

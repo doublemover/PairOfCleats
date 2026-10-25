@@ -470,3 +470,39 @@ Existing raw-integrity, contradiction and pagination controls remain. Formatting
 syntax, affected generated refreshes and diff checks passed. Functional execution
 remains deferred. Coverage is **35 fixed / 376 implemented / 150 partial / 202
 pending**.
+
+## Isolated lint evidence
+
+**#1612** (`305f2cf7a`) replaces the process-wide ESLint singleton and unsupported
+legacy fallback with a bounded root/policy owner. The built-in policy disables
+config search, executable repository plugins/processors, inline directives and
+fixes. Absolute indexed roots and contained file identities are explicit; process
+cwd is unchanged. Declared core rules/parser behavior and ESLint/Node/V8 versions
+bind the effective policy identity. No public configuration knob was added.
+
+Whole-file results distinguish completed, disabled, ignored, unsupported,
+unavailable, failed and canceled outcomes. Only completed zero-message analysis is
+clean. Messages retain their existing chunk projection while bounded counts,
+source/policy/producer identity and failure diagnostics persist separately in
+`docmeta.lintOutcome` and the immutable file bundle. Errors retain their original
+in-process identity; diagnostic getters are not executed. Cancellation joins
+actual lint settlement, and failed runtimes can recover without a sticky latch.
+
+One owner captures source text once, admits the file cache and runs analysis once
+per file. Enrichment signatures and worker identities share the policy/producer;
+the lint projection version advances to 3. Replay requires matching whole-file
+and chunk receipts. Deterministic unsupported/ignored/downshift states can replay
+explicitly; execution/init failures, missing admission, unqualified empty results,
+cancellation and truncated evidence cannot replay as clean output. Idle session
+eviction bounds reuse; active saturation refuses additional initialization.
+
+Authored controls cover real ESLint policy isolation in both root orders,
+executable-config sentinels, inline directives, positive diagnostics and clean
+controls, initialization/execution recovery, ignored/no-result, unsupported and
+disabled outcomes, frozen/unreadable errors, cancellation/capacity, exact source
+and policy invalidation, actual immutable bundle read-back and nested interval
+coverage. All three new fixtures in this and the deadline batch appear in deep
+test discovery. Format/ESLint, syntax, generated refreshes and diff checks passed;
+functional execution remains deferred. Coverage is **35 fixed / 377 implemented /
+150 partial / 201 pending**. The deadline fixture's writer path is canonicalized
+in `4ccdaf639` so Windows path spelling cannot hide its admission barrier.
