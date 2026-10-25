@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { bindClaimedJobExecution, createQueueWorker } from '../../../tools/service/indexer-service/queue-worker.js';
 import { ownsBuildProgress, pickOwnedBuildState, startBuildProgressMonitor } from '../../../tools/service/indexer-service/progress-monitor.js';
+import { createQueueClaimFixture } from '../../helpers/queue-claim.js';
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-service-progress-'));
 const inherited = { correlation: { correlationId: 'shared-request' } };
@@ -17,7 +18,8 @@ let claimed = false, monitored, executed;
 const worker = createQueueWorker({
   queueDir: 'fixture-queue', resolvedQueueName: 'index', staleQueueMaxRetries: 0,
   monitorBuildProgress: true,
-  claimNextJob: async () => claimed ? null : (claimed = true, { ...original, repo: root, stage: 'stage2' }),
+  claimNextJob: async (_dir, _queue, options) => claimed ? null
+    : (claimed = true, createQueueClaimFixture({ ...original, repo: root, stage: 'stage2' }, options)),
   startBuildProgressMonitor: ({ job }) => { monitored = job; return async () => {}; },
   executeClaimedJob: async ({ job }) => { executed = job; return { handled: false, runResult: { exitCode: 0 } }; },
   touchJobHeartbeat: async () => ({}), requeueStaleJobs: async () => ({}), ensureQueueDir: async () => {},

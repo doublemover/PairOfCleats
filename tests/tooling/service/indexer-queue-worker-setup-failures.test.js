@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { createQueueWorker } from '../../../tools/service/indexer-service/queue-worker.js';
+import { createQueueClaimFixture } from '../../helpers/queue-claim.js';
 
 for (const failure of ['monitor', 'initial-state', 'final-state']) {
   const timers = new Set(), updates = [], diagnostics = [];
@@ -20,7 +21,7 @@ for (const failure of ['monitor', 'initial-state', 'final-state']) {
         return async () => { stopped++; };
       },
       touchJobHeartbeat: async () => { renewals++; }, requeueStaleJobs: async () => {},
-      claimNextJob: async () => ({ id: 'one', repo: 'fixture-repo' }), ensureQueueDir: async () => {},
+      claimNextJob: async (_dir, _queue, options) => createQueueClaimFixture({ id: 'one', repo: 'fixture-repo' }, options), ensureQueueDir: async () => {},
       executeClaimedJob: async () => { executions++; return { handled: false, runResult: { exitCode: 0 } }; },
       finalizeJobRun: async ({ runResult }) => { finalizations++; finalizedResult = runResult; },
       buildDefaultRunResult: () => ({ exitCode: 1 }), printPayload: () => {},
@@ -64,7 +65,7 @@ for (const failure of ['monitor', 'initial-state', 'final-state']) {
       renewalFinished = true;
     },
     requeueStaleJobs: async () => {}, ensureQueueDir: async () => {},
-    claimNextJob: async () => ({ id: 'drain', repo: 'fixture-repo' }),
+    claimNextJob: async (_dir, _queue, options) => createQueueClaimFixture({ id: 'drain', repo: 'fixture-repo' }, options),
     executeClaimedJob: async () => {
       await renewalStarted;
       return { handled: false, runResult: { exitCode: 0 } };

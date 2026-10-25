@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createManualClock } from '../../helpers/manual-clock.js';
 import { createPatchQueue } from '../../../src/index/build/build-state/patch-queue.js';
 import { mergeState } from '../../../src/index/build/build-state/store.js';
 import { startHeartbeat } from '../../../src/index/build/build-state/heartbeat.js';
@@ -6,34 +7,8 @@ import { setProgressHandlers } from '../../../src/shared/progress-runtime.js';
 
 // Exercise the production queue and heartbeat against a virtual event loop.
 // No production timer/clock override or wall-clock soak is needed.
-const native = { now: Date.now, setTimeout, clearTimeout, setInterval, clearInterval };
-let now = 1000000, sequence = 0;
-const timers = new Map();
-const addTimer = (callback, delay = 0, interval = false, args = []) => {
-  const timer = { id: ++sequence, at: now + Math.max(0, delay), callback, args,
-    interval: interval ? Math.max(1, delay) : null, unref() { return this; } };
-  timers.set(timer.id, timer); return timer;
-};
-Date.now = () => now;
-globalThis.setTimeout = (callback, delay, ...args) => addTimer(callback, delay, false, args);
-globalThis.setInterval = (callback, delay, ...args) => addTimer(callback, delay, true, args);
-globalThis.clearTimeout = globalThis.clearInterval = timer => timers.delete(timer?.id);
-const settle = async () => { for (let step = 0; step < 80; step++) await Promise.resolve(); };
-const advance = async milliseconds => {
-  const target = now + milliseconds;
-  let steps = 0;
-  for (;;) {
-    const next = [...timers.values()].filter(timer => timer.at <= target)
-      .sort((left, right) => left.at - right.at || left.id - right.id)[0];
-    if (!next) break;
-    assert.ok(++steps < 1000, 'bounded virtual timer activity');
-    now = next.at;
-    if (next.interval) next.at += next.interval;
-    else timers.delete(next.id);
-    next.callback(...next.args); await settle();
-  }
-  now = target; await settle();
-};
+const clock = createManualClock();
+const { timers, settle, advance } = clock;
 const deferred = () => {
   let resolve;
   const promise = new Promise(done => { resolve = done; });
@@ -48,10 +23,10 @@ try {
   const queue = createPatchQueue({ mergeState, recordStateError: error => { throw error; },
     applyStatePatch: async (_root, patch) => {
       peak = Math.max(peak, ++inFlight); await Promise.resolve();
-      state = mergeState(state, patch); writes.push({ at: now, state }); inFlight--; return state;
+      state = mergeState(state, patch); writes.push({ at: Date.now(), state }); inFlight--; return state;
     } });
   const root = 'virtual-live-state';
-  const started = now;
+  const started = Date.now();
   await queue.queueStatePatch(root, { progress: { code: 0, prose: 0 }, heartbeat: { sequence: 0 } }, [], { waitForFlush: false });
   for (let index = 1; index <= 60; index++) {
     await advance(100);
@@ -74,10 +49,10 @@ try {
       if (slowWrites.length === 1) await gate.promise;
       slowState = mergeState(slowState, patch); slowEvents.push(...events); active--; return slowState;
     } });
-  const slowRoot = 'virtual-slow-state', firstLogicalAt = now;
+  const slowRoot = 'virtual-slow-state', firstLogicalAt = Date.now();
   await slow.queueStatePatch(slowRoot, { progress: { code: 0 }, original: true }, ['original'], { waitForFlush: false });
   await advance(500);
-  const firstStartedAt = now;
+  const firstStartedAt = Date.now();
   for (let index = 1; index <= 100; index++) {
     await advance(100);
     await slow.queueStatePatch(slowRoot, { progress: { code: index } }, [index], { waitForFlush: false });
@@ -85,14 +60,14 @@ try {
   const before = await slow.queueStatePatch(slowRoot, { heartbeat: { live: true } }, [], { waitForFlush: false });
   assert.equal(slowWrites.length, 1, 'slow storage retains one pending snapshot instead of detached write backlog');
   assert.equal(before.activeFlushes, 1);
-  assert.equal(before.pendingLagMs, now - firstLogicalAt);
-  assert.equal(before.activeWriteAgeMs, now - firstStartedAt);
+  assert.equal(before.pendingLagMs, Date.now() - firstLogicalAt);
+  assert.equal(before.activeWriteAgeMs, Date.now() - firstStartedAt);
   assert.equal(before.newestLogicalUpdateAgeMs, 0);
   gate.resolve(); await settle();
   const after = await slow.queueStatePatch(slowRoot, { heartbeat: { afterAck: true } }, [], { waitForFlush: false });
-  assert.equal(after.oldestPendingAgeMs, now - firstStartedAt - 100);
+  assert.equal(after.oldestPendingAgeMs, Date.now() - firstStartedAt - 100);
   assert.equal(after.pendingLagMs, after.oldestPendingAgeMs, 'older acknowledgement cannot erase newer pending age');
-  assert.equal(after.lastDurableAcknowledgementAtMs, now);
+  assert.equal(after.lastDurableAcknowledgementAtMs, Date.now());
   assert.equal(after.lastDurableLogicalUpdateAtMs, firstLogicalAt);
   assert.ok(after.coalescedPatches >= 100);
   await advance(0); await slow.flushBuildState(slowRoot); await settle();
@@ -136,8 +111,6 @@ try {
 } finally {
   for (const gate of held) gate.resolve();
   await settle(); restoreLogs();
-  Date.now = native.now;
-  globalThis.setTimeout = native.setTimeout; globalThis.clearTimeout = native.clearTimeout;
-  globalThis.setInterval = native.setInterval; globalThis.clearInterval = native.clearInterval;
+  clock.restore();
 }
 console.log('Build-state coalescing bounds live age and keeps durability telemetry with its owning batch.');

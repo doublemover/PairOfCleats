@@ -31,4 +31,11 @@ assert.equal(slow.renewIntervalMs, 60 * 1000);
 assert.equal(slow.renewIntervalMs < slow.leaseMs, true, 'expected renew interval to stay below lease');
 assert.equal(slow.progressIntervalMs <= slow.leaseMs, true, 'expected bounded progress interval');
 
+for (const renewIntervalMs of [250, 999, 5000]) {
+  const short = resolveQueueLeasePolicy({ overrides: { leaseMs: 1000, renewIntervalMs } });
+  assert.ok(short.renewIntervalMs <= Math.floor(short.leaseMs / 3));
+  assert.equal(short.maxRenewalGapMs, 950, 'confirmation gap retains the authority safety margin');
+  assert.ok(short.maxRenewalGapMs > short.renewIntervalMs && short.maxRenewalGapMs < short.leaseMs);
+}
+
 console.log('service queue lease policy test passed');

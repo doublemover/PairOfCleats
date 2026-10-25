@@ -64,9 +64,9 @@ export const resolveQueueLeasePolicy = ({
     stage: stage || null,
     workloadClass,
     leaseMs,
-    renewIntervalMs: Math.min(renewIntervalMs, leaseMs),
+    renewIntervalMs: Math.min(renewIntervalMs, Math.floor(leaseMs / 3)),
     progressIntervalMs: Math.min(progressIntervalMs, leaseMs),
-    maxRenewalGapMs: Math.max(leaseMs - renewIntervalMs, renewIntervalMs),
+    maxRenewalGapMs: leaseMs - Math.min(250, Math.max(1, Math.floor(leaseMs * 0.05))),
     maxConsecutiveRenewalFailures: 3
   };
 };

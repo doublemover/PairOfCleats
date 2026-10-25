@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { setImmediate as turn } from 'node:timers/promises';
 import { createQueueWorker } from '../../../tools/service/indexer-service/queue-worker.js';
+import { createQueueClaimFixture } from '../../helpers/queue-claim.js';
 
 const deferred = () => {
   let resolve;
@@ -21,7 +22,7 @@ const base = { queueDir: 'claim-generation-fixture', resolvedQueueName: 'index',
     claimNextJob: async (_dir, _queue, options) => {
       claims++;
       if (claims > 2) { fatalClaim.resolve(); throw failure; }
-      return { id: 'reused-id', repo: 'fixture-repo', lease: { owner: options.ownerId, version: claims } };
+      return createQueueClaimFixture({ id: 'reused-id', repo: 'fixture-repo', lease: { version: claims } }, options);
     },
     executeClaimedJob: async ({ job, abortSignal, jobLifecycle }) => {
       if (job.lease.version === 1) {
@@ -60,8 +61,8 @@ for (const kind of ['owner', 'version', 'transition', 'missing', 'not-running'])
   console.error = (...args) => { diagnostics.push(args.join(' ')); };
   try {
     const worker = createQueueWorker({ ...base,
-      claimNextJob: async (_dir, _queue, options) => ({ id: kind, repo: 'fixture-repo',
-        lease: { owner: options.ownerId, version: 7 } }),
+      claimNextJob: async (_dir, _queue, options) => createQueueClaimFixture({ id: kind, repo: 'fixture-repo',
+        lease: { version: 7 } }, options),
       touchJobHeartbeat: async (_dir, _id, _queue, options) => {
         renewalCalls++; assert.equal(options.expectedLeaseVersion, 7);
         if (kind === 'missing') return null;

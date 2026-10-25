@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { createQueueWorker } from '../../../tools/service/indexer-service/queue-worker.js';
+import { createQueueClaimFixture } from '../../helpers/queue-claim.js';
 
 const payloads = [];
 let claimed = false;
@@ -12,10 +13,10 @@ const worker = createQueueWorker({
   startBuildProgressMonitor: () => async () => {},
   touchJobHeartbeat: async () => ({ ok: true }),
   requeueStaleJobs: async () => ({ stale: 0, retried: 0, failed: 0, quarantined: 0 }),
-  claimNextJob: async () => {
+  claimNextJob: async (_dir, _queue, options) => {
     if (claimed) return null;
     claimed = true;
-    return {
+    return createQueueClaimFixture({
       id: 'job-a',
       repo: '/tmp/repo',
       stage: 'stage1',
@@ -23,7 +24,7 @@ const worker = createQueueWorker({
         owner: 'worker-metrics',
         version: 1
       }
-    };
+    }, options);
   },
   ensureQueueDir: async () => {},
   executeClaimedJob: async () => ({

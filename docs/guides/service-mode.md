@@ -91,6 +91,23 @@ Orphan cleanup requires a reviewed candidate inventory. Keep live locks, snapsho
 and original failure evidence. Do not use these interventions as routine readiness
 spot checks against ambient production defaults.
 
+Each running queue execution owns the persisted claim owner, version and expiry.
+An independent deadline aborts its existing job signal when confirmed authority
+runs out, even if replay loading or heartbeat I/O is still pending. The safety
+margin is 5% of the lease, capped at 250 ms; normalized renewal intervals are at
+most one third of the lease. Expiry is anchored to a monotonic deadline at claim
+admission, with an additional wall-clock expiry check for this local queue.
+Successful I/O extends authority only by a matching persisted expiry increase;
+a minimum-interval no-write receipt, rollback of the wall clock or late renewal
+cannot revive an abandoned execution. Missing claim receipts reject admission.
+
+Lease loss stops renewal admission and skips stale completion. Pending producer,
+renewal and cleanup work remains owned until actual settlement; the failed count
+includes the abandoned execution. Structured diagnostics retain the execution ID,
+owner/version, confirmed expiry, confirmation and in-flight ages, cancellation
+reason and cleanup-pending state. Positive simulated fixtures use actual claim
+receipt fields. These new expiry/lifecycle regressions are authored and unexecuted.
+
 After an approved repair, inspect/status this exact config/queue again, then
 verify selected job outcome and target mode readiness/known query. The config-A /
 ambient-config-B sentinel, embeddings namespace and live-lock transcript fixtures

@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { startClaimRenewal } from './claim-renewal.js';
 import { createLifecycleRegistry } from '../../../src/shared/lifecycle/registry.js';
 import { createCorrelationId, normalizeObservability } from '../../../src/shared/observability.js';
 import { captureQueueFailureOwnership, createQueueCleanupRecovery, queueCleanupRecoveryError } from '../queue-cleanup.js';
@@ -157,63 +158,12 @@ export const createQueueWorker = ({
    */
   const startJobLifecycle = (job, jobLifecycle, claimControl) => {
     const leasePolicy = resolveLeasePolicy({ job, queueName: resolvedQueueName });
-    const renewalIntervalMs = Number.isFinite(Number(leasePolicy?.renewIntervalMs))
-      ? Math.max(250, Math.trunc(Number(leasePolicy.renewIntervalMs)))
-      : jobHeartbeatIntervalMs;
-    const renewalState = {
-      inFlight: false,
-      consecutiveFailures: 0,
-      lastSuccessAt: Date.now()
-    };
-    const heartbeat = setInterval(() => {
-      if (jobLifecycle.isClosed() || claimControl.leaseLost || renewalState.inFlight) return;
-      renewalState.inFlight = true;
-      const renewal = (async () => {
-        const replayState = await loadJobReplayState(job);
-        return await touchJobHeartbeat(queueDir, job.id, resolvedQueueName, {
-          ownerId: workerOwnerId,
-          expectedLeaseVersion: job?.lease?.version ?? null,
-          leaseMs: leasePolicy?.leaseMs ?? null,
-          renewIntervalMs: leasePolicy?.renewIntervalMs ?? null,
-          progressIntervalMs: leasePolicy?.progressIntervalMs ?? null,
-          minIntervalMs: renewalIntervalMs,
-          replayState,
-          progress: {
-            kind: 'renewal',
-            note: `workload=${leasePolicy?.workloadClass || 'balanced'}`
-          }
-        });
-      })().then(observed => {
-        // The queue owner returns null for a missing job, and a non-running
-        // record before lease inspection. Neither confirms this execution's
-        // claim, even though the I/O itself fulfilled successfully.
-        if (observed === null || (observed?.status && observed.status !== 'running')) {
-          throw Object.assign(new Error(`Job ${job.id} no longer has a running queue claim.`),
-            { code: 'QUEUE_INVALID_TRANSITION' });
-        }
-        renewalState.consecutiveFailures = 0;
-        renewalState.lastSuccessAt = Date.now();
-      }).catch((err) => {
-        if (LEASE_FENCE_ERRORS.has(err?.code)) {
-          claimControl.leaseLost = err;
-          clearInterval(heartbeat);
-          if (!claimControl.abortController.signal.aborted) claimControl.abortController.abort(err);
-        }
-        renewalState.consecutiveFailures += 1;
-        const gapMs = Date.now() - renewalState.lastSuccessAt;
-        const failureLimit = Number.isFinite(Number(leasePolicy?.maxConsecutiveRenewalFailures))
-          ? Math.max(1, Math.trunc(Number(leasePolicy.maxConsecutiveRenewalFailures)))
-          : 3;
-        if (renewalState.consecutiveFailures <= failureLimit || gapMs >= (leasePolicy?.maxRenewalGapMs ?? renewalIntervalMs)) {
-          console.error(`[indexer] job ${job.id} lease renewal failed: ${err?.message || err}`);
-        }
-      }).finally(() => {
-        renewalState.inFlight = false;
-      });
-      void jobLifecycle.registerPromise(renewal, { label: 'indexer-service-job-heartbeat-renewal' });
-    }, renewalIntervalMs);
-    jobLifecycle.registerTimer(heartbeat, { label: 'indexer-service-job-heartbeat' });
+    startClaimRenewal({ job, ownerId: workerOwnerId,
+      leasePolicy: { ...leasePolicy, renewIntervalMs: leasePolicy?.renewIntervalMs ?? jobHeartbeatIntervalMs }, jobLifecycle, claimControl,
+      loadReplayState: loadJobReplayState,
+      touchHeartbeat: options => touchJobHeartbeat(queueDir, job.id, resolvedQueueName, options) });
     const logPath = job.logPath || path.join(queueDir, 'logs', `${job.id}.log`);
+    if (claimControl.leaseLost) return { logPath };
     const stopProgress = monitorBuildProgress
       ? startBuildProgressMonitor({ job, repoPath: job.repo, stage: job.stage })
       : NOOP_ASYNC;
@@ -288,6 +238,8 @@ export const createQueueWorker = ({
       // Resource recovery preserves the failed disposer outcome. It never
       // retries work or turns an earlier nominal process exit into job success.
       pendingRetirements.delete(retirement); activeJobControls.delete(claimControl);
+      claimControl.cleanupSettled = true;
+      claimControl.checkLeaseAuthority?.();
       recovered++;
       try {
         if (!claimControl.leaseLost) {
@@ -363,6 +315,7 @@ export const createQueueWorker = ({
       } else {
         const { logPath } = startJobLifecycle(executionJob, jobLifecycle, claimControl);
         await syncWorkerShutdownState();
+        claimControl.checkLeaseAuthority?.();
         if (batchState?.failed || claimControl.leaseLost) {
           if (!abortController.signal.aborted) abortController.abort(batchState?.error || claimControl.leaseLost);
           execution.runResult = {

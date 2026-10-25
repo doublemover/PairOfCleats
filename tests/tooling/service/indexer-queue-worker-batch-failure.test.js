@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { setImmediate } from 'node:timers/promises';
 import { createQueueWorker } from '../../../tools/service/indexer-service/queue-worker.js';
+import { createQueueClaimFixture } from '../../helpers/queue-claim.js';
 
 const deferred = () => {
   let resolve;
@@ -19,9 +20,9 @@ for (const failure of ['claim', 'completion', 'secondary-completion', 'late-clai
     queueDir: 'fixture-queue', resolvedQueueName: 'index', staleQueueMaxRetries: 0,
     monitorBuildProgress: false, startBuildProgressMonitor: () => async () => {},
     touchJobHeartbeat: async () => {}, requeueStaleJobs: async () => {}, ensureQueueDir: async () => {},
-    claimNextJob: async () => {
+    claimNextJob: async (_dir, _queue, options) => {
       claims++;
-      if (claims === 1) return { id: 'first', repo: 'fixture-repo' };
+      if (claims === 1) return createQueueClaimFixture({ id: 'first', repo: 'fixture-repo' }, options);
       if (claims === 2) {
         if (failure === 'claim') {
           await started.promise;
@@ -29,7 +30,7 @@ for (const failure of ['claim', 'completion', 'secondary-completion', 'late-clai
           throw firstError;
         }
         if (failure === 'late-claim') await lateClaim.promise;
-        return { id: 'sibling', repo: 'fixture-repo' };
+        return createQueueClaimFixture({ id: 'sibling', repo: 'fixture-repo' }, options);
       }
       throw new Error('must not claim new work after fatal failure');
     },
