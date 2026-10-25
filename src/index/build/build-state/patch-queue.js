@@ -17,6 +17,7 @@ import {
 const DEFAULT_DEBOUNCE_MS = 250;
 const LONG_DEBOUNCE_MS = 500;
 const VERY_LONG_DEBOUNCE_MS = 1000;
+const MAX_PENDING_AGE_MS = 2000;
 const LARGE_PATCH_BYTES = 64 * 1024;
 const PATCH_WAITER_TIMEOUT_MS_DEFAULT = 30000;
 const LOCK_UNAVAILABLE_RETRY_LOG_INTERVAL_MS = 5000;
@@ -242,12 +243,16 @@ export const createPatchQueue = ({
         durabilityClass: BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT,
         waiters: [],
         activeFlushes: 0,
+        activeBatches: new Set(),
+        retryNotBeforeMs: null,
         pendingSinceMs: null,
         lastLogicalUpdateAtMs: null,
         coalescedPatchCount: 0,
         lastFlushStartedAtMs: null,
         lastFlushCompletedAtMs: null,
-        lastFlushDurationMs: null
+        lastFlushDurationMs: null,
+        lastDurableAcknowledgementAtMs: null,
+        lastDurableLogicalUpdateAtMs: null
       });
     }
     return statePending.get(key);
@@ -267,49 +272,87 @@ export const createPatchQueue = ({
   const buildPendingTelemetry = (pending) => {
     if (!pending || typeof pending !== 'object') return {};
     const nowMs = Date.now();
-    const pendingLagMs = Number.isFinite(Number(pending.lastLogicalUpdateAtMs))
-      ? Math.max(0, nowMs - Number(pending.lastLogicalUpdateAtMs))
-      : 0;
+    const pendingBatches = [pending.patch ? pending : null, pending.failedBatch].filter(Boolean);
+    const unacknowledged = [...pendingBatches, ...pending.activeBatches];
+    const oldest = entries => entries.reduce((time, batch) => Number.isFinite(batch.pendingSinceMs)
+      ? Math.min(time, batch.pendingSinceMs) : time, Infinity);
+    const age = time => Number.isFinite(time) ? Math.max(0, nowMs - time) : 0;
+    const pendingLagMs = age(oldest(unacknowledged));
+    const activeStartedAtMs = [...pending.activeBatches].reduce((time, batch) => Number.isFinite(batch.startedAtMs)
+      ? Math.min(time, batch.startedAtMs) : time, Infinity);
+    const newestLogicalAtMs = unacknowledged.reduce((time, batch) => Number.isFinite(batch.lastLogicalUpdateAtMs)
+      ? Math.max(time, batch.lastLogicalUpdateAtMs) : time, -Infinity);
     return {
       queued: true,
       pendingLagMs,
-      pendingSinceMs: Number.isFinite(Number(pending.pendingSinceMs))
-        ? Math.max(0, nowMs - Number(pending.pendingSinceMs))
-        : 0,
+      pendingSinceMs: pendingLagMs,
+      oldestPendingAgeMs: age(oldest(pendingBatches)),
+      activeWriteAgeMs: age(activeStartedAtMs),
+      newestLogicalUpdateAgeMs: age(newestLogicalAtMs),
+      lastDurableAcknowledgementAtMs: pending.lastDurableAcknowledgementAtMs,
+      lastDurableLogicalUpdateAtMs: pending.lastDurableLogicalUpdateAtMs,
+      activeFlushes: pending.activeFlushes,
       pendingPatchBytes: estimateJsonBytes(pending.patch),
       pendingWaiterCount: Array.isArray(pending.waiters) ? pending.waiters.length : 0,
       coalescedPatches: Math.max(0, Math.floor(Number(pending.coalescedPatchCount) || 0)),
-      lastFlushDurationMs: Number.isFinite(Number(pending.lastFlushDurationMs))
+      lastFlushDurationMs: Number.isFinite(pending.lastFlushDurationMs)
         ? Math.max(0, Math.floor(Number(pending.lastFlushDurationMs)))
         : null
     };
+  };
+
+  const cancelPendingTimer = pending => {
+    if (pending.timerCancel) pending.timerCancel();
+    else if (pending.timer) clearTimeout(pending.timer);
+    pending.timerCancel = null;
+    pending.timer = null;
+  };
+
+  const schedulePendingFlush = (buildRoot, pending) => {
+    cancelPendingTimer(pending);
+    if (pending.activeFlushes > 0 || (!pending.patch && !pending.failedBatch)) return;
+    const nowMs = Date.now();
+    const oldestAtMs = Math.min(...[pending.patch ? pending.pendingSinceMs : null,
+      pending.failedBatch?.pendingSinceMs].filter(Number.isFinite));
+    const debounceMs = resolveDebounceMs(pending.patch || pending.failedBatch.patch);
+    const ageRemainingMs = Math.max(0, MAX_PENDING_AGE_MS - Math.max(0, nowMs - oldestAtMs));
+    // Failed storage retains a retry backoff even after maximum healthy age.
+    // New progress cannot reset the original healthy deadline or bypass backoff.
+    const delay = Math.max(Math.min(debounceMs, ageRemainingMs),
+      Number.isFinite(pending.retryNotBeforeMs) ? Math.max(0, pending.retryNotBeforeMs - nowMs) : 0);
+    pending.timer = setTimeout(() => {
+      const cancel = pending.timerCancel;
+      pending.timer = null; pending.timerCancel = null;
+      cancel?.();
+      void flushPendingState(buildRoot);
+    }, delay);
+    pending.timer.unref?.();
+    pending.timerCancel = pending.lifecycle.registerTimer(pending.timer, { label: 'build-state-debounce' });
   };
 
   const flushPendingState = async (buildRoot) => {
     const key = path.resolve(buildRoot);
     const pending = statePending.get(key);
     if (!pending || (!pending.patch && !pending.failedBatch)) return null;
-    if (pending.timerCancel) {
-      pending.timerCancel();
-      pending.timerCancel = null;
-      pending.timer = null;
-    }
+    cancelPendingTimer(pending);
     let patch = pending.patch;
     let events = pending.events;
     let durabilityClass = resolveBuildStateDurabilityClass(
       pending.durabilityClass,
       BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT
     );
-    const pendingSinceMs = pending.pendingSinceMs;
-    const lastLogicalUpdateAtMs = pending.lastLogicalUpdateAtMs;
-    const coalescedPatchCount = pending.coalescedPatchCount;
+    const batch = { pendingSinceMs: pending.pendingSinceMs, lastLogicalUpdateAtMs: pending.lastLogicalUpdateAtMs,
+      coalescedPatchCount: pending.coalescedPatchCount, startedAtMs: null };
     const waiters = pending.waiters;
     pending.patch = null;
     pending.events = [];
     pending.durabilityClass = BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT;
     pending.waiters = [];
+    pending.pendingSinceMs = null;
+    pending.lastLogicalUpdateAtMs = null;
+    pending.coalescedPatchCount = 0;
     pending.activeFlushes += 1;
-    pending.lastFlushStartedAtMs = Date.now();
+    pending.activeBatches.add(batch);
     try {
       const result = await enqueueStateUpdate(
         buildRoot,
@@ -318,6 +361,11 @@ export const createPatchQueue = ({
           // can commit. Newer fields win and event chronology remains oldest first.
           if (pending.failedBatch) {
             const failed = pending.failedBatch;
+            batch.pendingSinceMs = Number.isFinite(batch.pendingSinceMs)
+              ? Math.min(batch.pendingSinceMs, failed.pendingSinceMs) : failed.pendingSinceMs;
+            batch.lastLogicalUpdateAtMs = Number.isFinite(batch.lastLogicalUpdateAtMs)
+              ? Math.max(batch.lastLogicalUpdateAtMs, failed.lastLogicalUpdateAtMs) : failed.lastLogicalUpdateAtMs;
+            batch.coalescedPatchCount += failed.coalescedPatchCount + (patch ? 1 : 0);
             patch = patch ? mergeState(failed.patch, patch) : failed.patch;
             events = [...failed.events, ...events];
             if (isRequiredBuildStateDurability(failed.durabilityClass)) {
@@ -325,21 +373,23 @@ export const createPatchQueue = ({
             }
             pending.failedBatch = null;
           }
+          batch.startedAtMs = Date.now();
+          pending.lastFlushStartedAtMs = batch.startedAtMs;
           try {
             const value = await applyStatePatch(buildRoot, patch, events, { durabilityClass });
             if (isLockUnavailable(value)) throw value;
             return value;
           } catch (error) {
-            pending.failedBatch = { patch, events, durabilityClass };
+            pending.failedBatch = { ...batch, patch, events, durabilityClass };
             throw error;
           }
         }
       );
       pending.lastFlushCompletedAtMs = Date.now();
-      pending.lastFlushDurationMs = Math.max(0, pending.lastFlushCompletedAtMs - pending.lastFlushStartedAtMs);
-      pending.pendingSinceMs = null;
-      pending.lastLogicalUpdateAtMs = null;
-      pending.coalescedPatchCount = 0;
+      pending.lastFlushDurationMs = Math.max(0, pending.lastFlushCompletedAtMs - batch.startedAtMs);
+      pending.lastDurableAcknowledgementAtMs = pending.lastFlushCompletedAtMs;
+      pending.lastDurableLogicalUpdateAtMs = batch.lastLogicalUpdateAtMs;
+      pending.retryNotBeforeMs = null;
       if (isLockUnavailable(result)) {
         throw result;
       }
@@ -347,7 +397,7 @@ export const createPatchQueue = ({
       return result;
     } catch (err) {
       pending.lastFlushCompletedAtMs = Date.now();
-      pending.lastFlushDurationMs = Math.max(0, pending.lastFlushCompletedAtMs - pending.lastFlushStartedAtMs);
+      pending.lastFlushDurationMs = Math.max(0, pending.lastFlushCompletedAtMs - batch.startedAtMs);
       const lockUnavailable = isLockUnavailable(err);
       if (lockUnavailable) {
         waiters.forEach((waiter) => {
@@ -365,30 +415,7 @@ export const createPatchQueue = ({
       } else {
         waiters.forEach((waiter) => settleWaiter(pending, waiter, 'reject', err));
       }
-      /**
-       * Preserve pending patch/events on write failure so state updates are not
-       * dropped when the next flush succeeds.
-       */
-      pending.pendingSinceMs = Number.isFinite(Number(pendingSinceMs)) ? pendingSinceMs : Date.now();
-      pending.lastLogicalUpdateAtMs = Number.isFinite(Number(lastLogicalUpdateAtMs))
-        ? lastLogicalUpdateAtMs
-        : pending.pendingSinceMs;
-      pending.coalescedPatchCount = Math.max(
-        Math.floor(Number(pending.coalescedPatchCount) || 0),
-        Math.floor(Number(coalescedPatchCount) || 0)
-      );
-      if (!pending.timer && (pending.patch || pending.failedBatch)) {
-        const delay = resolveDebounceMs(pending.patch || pending.failedBatch.patch);
-        pending.timer = setTimeout(() => {
-          pending.timer = null;
-          pending.timerCancel = null;
-          void flushPendingState(buildRoot);
-        }, delay);
-        pending.timer.unref?.();
-        pending.timerCancel = pending.lifecycle.registerTimer(pending.timer, {
-          label: 'build-state-debounce-retry'
-        });
-      }
+      pending.retryNotBeforeMs = Date.now() + resolveDebounceMs(pending.patch || pending.failedBatch?.patch);
       if (lockUnavailable) {
         const nowMs = Date.now();
         const lastLoggedAtMs = Number(lockRetryLogAtMsByBuildRoot.get(key) || 0);
@@ -414,6 +441,8 @@ export const createPatchQueue = ({
       return null;
     } finally {
       pending.activeFlushes -= 1;
+      pending.activeBatches.delete(batch);
+      if (pending.activeFlushes === 0) schedulePendingFlush(buildRoot, pending);
       releaseIdlePendingEntry(buildRoot, pending);
     }
   };
@@ -451,28 +480,11 @@ export const createPatchQueue = ({
       pending.waiters.push(waiterResult.waiter);
       promise = waiterResult.promise;
     }
-    if (pending.timerCancel) {
-      pending.timerCancel();
-      pending.timerCancel = null;
-    } else if (pending.timer) {
-      clearTimeout(pending.timer);
-    }
-    if (pending.timer) {
-      pending.timer = null;
-    }
+    cancelPendingTimer(pending);
     if (flushNow || isRequiredBuildStateDurability(resolvedDurabilityClass)) {
       void flushPendingState(buildRoot);
     } else {
-      const delay = resolveDebounceMs(pending.patch);
-      pending.timer = setTimeout(() => {
-        pending.timer = null;
-        pending.timerCancel = null;
-        void flushPendingState(buildRoot);
-      }, delay);
-      pending.timer.unref?.();
-      pending.timerCancel = pending.lifecycle.registerTimer(pending.timer, {
-        label: 'build-state-debounce'
-      });
+      schedulePendingFlush(buildRoot, pending);
     }
     if (promise) return promise;
     return Promise.resolve(createFlushedOutcome(null, buildPendingTelemetry(pending)));

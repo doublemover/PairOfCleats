@@ -147,7 +147,7 @@ export async function initBuildState({
  * @param {string} buildRoot
  * @param {object} patch
  * @param {{durabilityClass?:'required'|'best_effort',waitForFlush?:boolean}} [options]
- * @returns {Promise<{status:'flushed'|'timed_out',value:object|null,queued?:boolean,pendingLagMs?:number,pendingSinceMs?:number,pendingPatchBytes?:number,pendingWaiterCount?:number,coalescedPatches?:number,lastFlushDurationMs?:number}>}
+ * @returns {Promise<{status:'flushed'|'timed_out',value:object|null,queued?:boolean,pendingLagMs?:number,pendingSinceMs?:number,oldestPendingAgeMs?:number,activeWriteAgeMs?:number,newestLogicalUpdateAgeMs?:number,lastDurableAcknowledgementAtMs?:number|null,lastDurableLogicalUpdateAtMs?:number|null,activeFlushes?:number,pendingPatchBytes?:number,pendingWaiterCount?:number,coalescedPatches?:number,lastFlushDurationMs?:number|null}>}
  */
 export async function updateBuildStateOutcome(
   buildRoot,
