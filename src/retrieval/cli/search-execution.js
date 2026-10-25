@@ -258,6 +258,7 @@ export async function executeSearchAndEmit(input) {
   const elapsedMs = Date.now() - t0;
 
   const payload = renderSearchOutput({
+    effectivePlanIdentity,
     filterEnumeration: searchResult.filterEnumeration,
     filtersActive: queryPlan.filtersActive,
     plain,

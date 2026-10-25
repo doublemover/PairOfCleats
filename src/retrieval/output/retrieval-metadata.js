@@ -56,6 +56,7 @@ export function buildRetrievalMetadata({
   backendPolicyInfo = null,
   cacheInfo = null,
   executionOutcomes = null,
+  effectivePlanIdentity = null,
   idxCode = null,
   idxProse = null,
   idxExtractedProse = null,
@@ -83,6 +84,8 @@ export function buildRetrievalMetadata({
   );
 
   return {
+    effectivePlanIdentity: typeof effectivePlanIdentity === 'string' && /^eqp1-[a-f0-9]{64}$/.test(effectivePlanIdentity)
+      ? effectivePlanIdentity : null,
     backend: {
       selected: typeof backendLabel === 'string' && backendLabel.trim() ? backendLabel : null,
       requested,

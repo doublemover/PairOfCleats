@@ -16,6 +16,7 @@ import { evaluateDatasetTaskSpans } from './task-spans.js';
 import { runEvaluationResourceScope } from './resource-scope.js';
 import { captureEvaluationDatasetCases } from './dataset-admission.js';
 import { createEvaluationDepthPlan, evaluationDepthCoverage } from './depth-plan.js';
+import { captureLiveEvaluationInput, createRetrievalEvidenceRegistry } from '../shared/retrieval-execution-evidence.js';
 
 const argv = createCli({
   scriptName: 'eval-run',
@@ -92,13 +93,16 @@ const output = await runEvaluationResourceScope({ sqliteCache: evalCaches.sqlite
     throw Object.assign(new Error(`No eval cases found at ${datasetPath}`), { code: 'ERR_EVAL_DATASET' });
   }
 
-  const admittedCases = captureEvaluationDatasetCases(cases).map(admitted => ({ ...admitted,
+  const capturedCases = captureEvaluationDatasetCases(cases).map(admitted => ({ ...admitted,
     selection: resolveEvaluationCohorts(admitted.mode, [...admitted.silver, ...admitted.gold]) }));
+  const { cases: admittedCases, identity: evaluationInput } = captureLiveEvaluationInput(capturedCases, evaluationPlan, limit);
+  const evidence = createRetrievalEvidenceRegistry();
   const results = [];
   const queryTask = display.task('Queries', { total: cases.length, stage: 'queries' });
   let processedCases = 0;
-  for (const { entry, query, silver, gold, selection } of admittedCases) {
+  for (const { entry, query, silver, gold, selection, caseId } of admittedCases) {
     const payload = await runSearch(query, selection.requestMode);
+    const execution = evidence.observe(payload, selection.modes);
     const cohorts = selection.modes.map(cohortMode => {
       const hits = selectEvaluationCohort(payload, cohortMode);
       const depthCoverage = evaluationDepthCoverage(hits, evaluationPlan);
@@ -121,7 +125,7 @@ const output = await runEvaluationResourceScope({ sqliteCache: evalCaches.sqlite
         ndcgAtK: Object.fromEntries(ks.map(k => [k, average(row => row.ndcgAtK[k])])), mrr: average(row => row.mrr) };
     };
     const vectorOracleReplay = await evaluateDatasetVectorReplay({ entry, query, topN });
-    results.push({ query, mode: selection.requestMode || 'default', cohorts,
+    results.push({ query, caseId, execution, mode: selection.requestMode || 'default', cohorts,
       ...(vectorOracleReplay ? { vectorOracleReplay } : {}),
       totals: { relevant: cohorts.reduce((sum, row) => sum + row.totals.relevant, 0),
         gold: cohorts.reduce((sum, row) => sum + row.totals.gold, 0), hits: cohorts.reduce((sum, row) => sum + row.totals.hits, 0) },
@@ -157,9 +161,14 @@ const output = await runEvaluationResourceScope({ sqliteCache: evalCaches.sqlite
   };
 
   const report = {
+    schemaVersion: 2,
+    kind: 'live-judged-evaluation',
     generatedAt: new Date().toISOString(),
     repo: repoRoot,
     dataset: datasetPath,
+    matchMode,
+    evaluationInput,
+    executionEvidence: evidence.snapshot(),
     limit,
     backend,
     topN,

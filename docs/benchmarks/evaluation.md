@@ -77,6 +77,12 @@ with the depth and shows unrequested cutoff values as `n/a`. Authored module-hoo
 controls exercise the actual evaluator with fixed rankings, boundary cutoffs,
 mixed cohorts and incompatible plans; functional qualification remains deferred.
 
+Live report version 2 also retains the selected query/judgment identity and
+interned observed execution receipts. Backend, generation, effective policy,
+fallback and actual per-mode execution remain distinct from requested flags.
+Unknown or mixed execution can retain descriptive scores but cannot authorize a
+strict bakeoff comparison. See [live evaluation identity](../contracts/live-evaluation-identity.md).
+
 Judgment policy `distinct-document-one-to-one.v1` deduplicates identical expected
 labels and assigns each distinct retrieved document to at most one relevant
 slot. Overlapping file and symbol predicates use deterministic maximum matching;

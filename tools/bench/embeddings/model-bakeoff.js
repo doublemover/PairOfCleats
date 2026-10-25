@@ -4,6 +4,7 @@ await guardBootstrapEntry(import.meta.url);
 import crypto from 'node:crypto';
 import { evaluationFileIdentity, bakeoffGenerationIdentity } from './evaluation-identity.js';
 import { assertCompatibleEvaluationDepthPlans } from '../../eval/depth-plan.js';
+import { assertQualifiedEvaluationComparison } from '../../shared/retrieval-execution-evidence.js';
 import { stableStringify } from '../../../src/shared/stable-json.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
@@ -516,7 +517,8 @@ const evaluationInputIdentity = {
   queries: runCompare && queriesPath ? evaluationFileIdentity(queriesPath) : null,
   policies: Object.fromEntries([...(runEval ? [evalScript,
     path.join(toolRoot, 'tools', 'eval', 'metrics.js'), path.join(toolRoot, 'tools', 'eval', 'match.js'),
-    path.join(toolRoot, 'tools', 'eval', 'cohorts.js'), path.join(toolRoot, 'tools', 'eval', 'depth-plan.js')] : []), ...(runCompare ? [compareScript] : [])].map(file => [path.relative(toolRoot, file), evaluationFileIdentity(file)]))
+    path.join(toolRoot, 'tools', 'eval', 'cohorts.js'), path.join(toolRoot, 'tools', 'eval', 'depth-plan.js'),
+    path.join(toolRoot, 'tools', 'shared', 'retrieval-execution-evidence.js')] : []), ...(runCompare ? [compareScript] : [])].map(file => [path.relative(toolRoot, file), evaluationFileIdentity(file)]))
 };
 const currentModelGeneration = modelId => bakeoffGenerationIdentity(path.join(resolveVersionedCacheRoot(modelCacheRoot(modelId)), 'repos', repoId));
 const outputSettings = {
@@ -841,10 +843,12 @@ for (const modelId of models) {
       if (limit > 0) evalArgs.push('--limit', String(limit));
       const evalReport = await runPhase('eval', async () => runJsonNode(evalArgs, env, `eval (${modelId})`));
       assertCompatibleEvaluationDepthPlans(evalReport?.evaluationPlan, evalReport?.summary?.evaluationPlan);
+      assertQualifiedEvaluationComparison(evalReport);
       for (const prior of modelReports) if (prior.eval) {
         assertCompatibleEvaluationDepthPlans(prior.eval.evaluationPlan, evalReport.evaluationPlan);
+        assertQualifiedEvaluationComparison(prior.eval, evalReport);
       }
-      evalSummary = evalReport?.summary || null;
+      evalSummary = { ...evalReport.summary, evaluationInput: evalReport.evaluationInput, executionEvidence: evalReport.executionEvidence };
     }
 
     const cacheBytes = await directorySizeBytes(env.PAIROFCLEATS_CACHE_ROOT);
