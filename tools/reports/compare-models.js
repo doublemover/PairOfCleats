@@ -13,7 +13,7 @@ import { COMPARE_MODELS_OPTIONS } from '../../src/shared/cli-options.js';
 import { resolveAnnSetting, resolveBaseline, resolveCompareModels, resolveCompareModelCacheRoot } from '../../src/experimental/compare/config.js';
 import { summarizeRetrievalHitComparison } from '../../src/retrieval/hit-comparison.js';
 import { resolveRetrievalCorpusIdentity } from '../../src/retrieval/corpus-comparison.js';
-import { readQueryFileSafe, resolveTopNAndLimit, selectQueriesByLimit } from '../shared/query-file-utils.js';
+import { readQueryInputPlan, resolveTopNAndLimit } from '../shared/query-file-utils.js';
 import { mean, meanNullable } from '../../src/shared/stats.js';
 import { readJsonFileSyncSafe } from '../../src/shared/file-read.js';
 import { runSearchCliWithSubprocessSync } from '../shared/search-cli-harness.js';
@@ -38,6 +38,19 @@ const argv = createCli({
 
 const { repoRoot: root, userConfig, runtimeEnv: baseEnv } = bootstrapRuntime(argv.repo);
 const scriptRoot = resolveToolRoot();
+const defaultQueryCandidates = [
+  path.join(root, 'tests', 'retrieval', 'parity', 'parity-queries.txt'),
+  path.join(root, 'queries.txt'),
+  path.join(scriptRoot, 'tests', 'retrieval', 'parity', 'parity-queries.txt')
+];
+const defaultQueriesPath = defaultQueryCandidates.find((candidate) => fs.existsSync(candidate)) || defaultQueryCandidates[0];
+const queriesPath = argv.queries != null ? path.resolve(argv.queries) : defaultQueriesPath;
+const { topN, limit } = resolveTopNAndLimit({ top: argv.top, limit: argv.limit, defaultTop: 5, defaultLimit: 0 });
+let queryPlan;
+try { queryPlan = await readQueryInputPlan(queriesPath, { limit, explicit: argv.queries != null }); }
+catch (error) { console.error(`[${error.code || 'ERR_QUERY_INPUT'}] ${error.message}`); process.exit(1); }
+const selectedQueries = queryPlan.cases.map(entry => entry.query);
+
 const envConfig = getEnvConfig();
 const embeddingsConfig = userConfig.indexing?.embeddings || {};
 const embeddingProvider = normalizeEmbeddingProvider(embeddingsConfig.provider, { strict: true });
@@ -254,27 +267,6 @@ function runSearch(query, env) {
   }
 }
 
-const defaultQueryCandidates = [
-  path.join(root, 'tests', 'retrieval', 'parity', 'parity-queries.txt'),
-  path.join(root, 'queries.txt'),
-  path.join(scriptRoot, 'tests', 'retrieval', 'parity', 'parity-queries.txt')
-];
-const defaultQueriesPath = defaultQueryCandidates.find((candidate) => fs.existsSync(candidate)) || defaultQueryCandidates[0];
-const queriesPath = argv.queries ? path.resolve(argv.queries) : defaultQueriesPath;
-const queries = await readQueryFileSafe(queriesPath, { allowJson: true, jsonMode: 'stringify' });
-if (!queries.length) {
-  console.error(`No queries found at ${queriesPath}`);
-  process.exit(1);
-}
-
-const { topN, limit } = resolveTopNAndLimit({
-  top: argv.top,
-  limit: argv.limit,
-  defaultTop: 5,
-  defaultLimit: 0
-});
-const selectedQueries = selectQueriesByLimit(queries, limit);
-
 if (sqliteBackend && buildSqlite) {
   if (!buildIndex && !ensureIndex(getModelCacheRoot(models[0]))) {
     console.error('Index missing. Use --build or build the index first.');
@@ -282,7 +274,7 @@ if (sqliteBackend && buildSqlite) {
   }
 }
 
-const results = selectedQueries.map((query) => ({ query, runs: {}, comparisons: {} }));
+const results = queryPlan.cases.map(({ query, caseId, weight }) => ({ query, caseId, weight, runs: {}, comparisons: {} }));
 const warnings = [];
 const corpusByModel = new Map();
 
@@ -444,6 +436,8 @@ const outputResults = results.map((entry) => {
   }
   return {
     query: entry.query,
+    caseId: entry.caseId,
+    weight: entry.weight,
     runs,
     comparisons: entry.comparisons
   };
@@ -455,6 +449,7 @@ const output = {
     root: path.resolve(root),
     repoId
   },
+  queryPlan,
   settings: {
     backend,
     topN,

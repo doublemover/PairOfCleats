@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { createCli } from '../../../src/shared/cli.js';
 import { summarizeRetrievalHitComparison } from '../../../src/retrieval/hit-comparison.js';
 import { mean, meanNullable } from '../../../src/shared/stats.js';
-import { readQueryFileSafe, resolveTopNAndLimit, selectQueriesByLimit } from '../../../tools/shared/query-file-utils.js';
+import { readQueryInputPlan, resolveTopNAndLimit } from '../../../tools/shared/query-file-utils.js';
 import { runSearchCliWithSpawnSync } from '../../../tools/shared/search-cli-harness.js';
 import { loadUserConfig, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
 import { ensureParityArtifacts } from '../../../tools/shared/parity-indexes.js';
@@ -43,6 +43,36 @@ const argv = createCli({
 
 const workspaceRoot = process.cwd();
 const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
+const defaultQueriesPath = path.join(scriptRoot, 'tests', 'retrieval', 'parity', 'parity-queries.txt');
+const queriesPath = argv.queries != null ? path.resolve(argv.queries) : defaultQueriesPath;
+const fallbackQueries = [
+  'index',
+  'search',
+  'sqlite',
+  'dictionary',
+  'bootstrap',
+  'chunk',
+  'minhash',
+  'ann',
+  'bm25',
+  'cache'
+];
+
+const { topN, limit } = resolveTopNAndLimit({ top: argv.top, limit: argv.limit,
+  defaultTop: 5, defaultLimit: isTestRun ? 1 : 0 });
+let queryPlan;
+try {
+  queryPlan = await readQueryInputPlan(queriesPath, { limit, explicit: argv.queries != null,
+    fallback: fallbackQueries });
+} catch (error) {
+  console.error(`[${error.code || 'ERR_QUERY_INPUT'}] ${error.message}`);
+  process.exit(1);
+}
+const selectedQueries = queryPlan.cases.map(entry => entry.query);
+if (queryPlan.source.selection === 'missing-default-fallback') {
+  console.warn(`Default query file is absent; using the named smoke fallback (${selectedQueries.length} selected cases).`);
+}
+
 const createTestParityRepo = async () => {
   const repoRoot = path.join(resolveTestCachePath(workspaceRoot, 'retrieval-parity'), 'repo');
   await fs.rm(repoRoot, { recursive: true, force: true });
@@ -160,38 +190,6 @@ if (missing.length) {
   process.exit(1);
 }
 
-const defaultQueriesPath = path.join(scriptRoot, 'tests', 'retrieval', 'parity', 'parity-queries.txt');
-const queriesPath = argv.queries ? path.resolve(argv.queries) : defaultQueriesPath;
-if (argv.queries && !fsSync.existsSync(queriesPath)) {
-  console.error(`Query file not found at ${queriesPath}`);
-  process.exit(1);
-}
-const fallbackQueries = [
-  'index',
-  'search',
-  'sqlite',
-  'dictionary',
-  'bootstrap',
-  'chunk',
-  'minhash',
-  'ann',
-  'bm25',
-  'cache'
-];
-
-const loadedQueries = await readQueryFileSafe(queriesPath, { allowJson: true, jsonMode: 'stringify' });
-const queries = loadedQueries.length ? loadedQueries : fallbackQueries;
-if (!loadedQueries.length) {
-  console.warn(`Query file not found or empty; using fallback queries (${queries.length}).`);
-}
-
-const { topN, limit } = resolveTopNAndLimit({
-  top: argv.top,
-  limit: argv.limit,
-  defaultTop: 5,
-  defaultLimit: 0
-});
-const selectedQueries = selectQueriesByLimit(queries, limit);
 const annEnabled = argv.ann !== false;
 const annArg = annEnabled ? '--ann' : '--no-ann';
 const sqliteBackendRaw = String(argv['sqlite-backend'] || 'sqlite').toLowerCase();
@@ -252,7 +250,8 @@ const results = [];
 const totalQueries = selectedQueries.length;
 const overallStart = performance.now();
 let completed = 0;
-for (const query of selectedQueries) {
+for (const queryCase of queryPlan.cases) {
+  const query = queryCase.query;
   const queryStart = performance.now();
   const memRun = runSearch(query, 'memory');
   const sqlRun = runSearch(query, sqliteBackend);
@@ -261,6 +260,8 @@ for (const query of selectedQueries) {
 
   results.push({
     query,
+    caseId: queryCase.caseId,
+    weight: queryCase.weight,
     memory: {
       stats: memPayload.stats || {},
       wallMs: memRun.wallMs
@@ -338,6 +339,7 @@ console.log(`- RSS MB avg (memory/sqlite): ${summary.rssMbAvg.memory.toFixed(1)}
 const report = {
   generatedAt: new Date().toISOString(),
   queryFile: queriesPath,
+  queryPlan,
   topN,
   annEnabled,
   summary,

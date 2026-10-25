@@ -12,7 +12,7 @@ import {
   resolveToolRoot
 } from '../shared/dict-utils.js';
 import { parseCommaList } from '../../src/shared/comma-list.js';
-import { readQueryFile } from '../shared/query-file-utils.js';
+import { readQueryInputPlan } from '../shared/query-file-utils.js';
 
 const argv = createCli({
   scriptName: 'pairofcleats report parity',
@@ -93,13 +93,21 @@ const appendArgs = (args, flag, value) => {
 };
 
 async function resolveQueryFile() {
+  const writeCaptured = async ({ plans, source }) => {
+    const queries = plans.flatMap(plan => plan.cases.map(entry => entry.query));
+    const captureRoot = await fsPromises.mkdtemp(path.join(runRoot, 'queries-'));
+    const outPath = path.join(captureRoot, 'queries.json');
+    await writeJsonFileResolved(outPath, queries, { trailingNewline: true });
+    return { path: outPath, source, count: queries.length, inputPlans: plans,
+      selectionPolicy: 'ordered-query-text-pools-preserve-occurrences' };
+  };
   if (argv.queries) {
     const resolved = path.resolve(argv.queries);
     if (!fs.existsSync(resolved)) {
       throw new Error(`Query file not found: ${resolved}`);
     }
-    const queries = await readQueryFile(resolved, { allowJson: true, jsonMode: 'query-field' });
-    return { path: resolved, source: 'file', count: queries.length };
+    const plan = await readQueryInputPlan(resolved, { allowJson: true, jsonMode: 'query-field' });
+    return writeCaptured({ plans: [plan], source: resolved });
   }
 
   const queriesDir = path.resolve(
@@ -114,30 +122,17 @@ async function resolveQueryFile() {
     throw new Error(`No query files found in ${queriesDir}`);
   }
 
-  const seen = new Set();
-  const combined = [];
+  const plans = [];
   for (const file of files) {
     const filePath = path.join(queriesDir, file);
-    const lines = await readQueryFile(filePath, { allowJson: true, jsonMode: 'query-field' });
-    for (const line of lines) {
-      if (seen.has(line)) continue;
-      seen.add(line);
-      combined.push(line);
-    }
+    plans.push(await readQueryInputPlan(filePath, { allowJson: true, jsonMode: 'query-field' }));
   }
 
-  if (!combined.length) {
+  if (!plans.length) {
     throw new Error(`No queries resolved from ${queriesDir}`);
   }
 
-  const outPath = path.join(runRoot, 'parity-queries.txt');
-  const header = [
-    '# Generated from benchmarks/queries/*.txt',
-    `# Source: ${queriesDir}`,
-    ''
-  ];
-  await fsPromises.writeFile(outPath, `${header.join('\n')}${combined.join('\n')}\n`);
-  return { path: outPath, source: queriesDir, count: combined.length };
+  return writeCaptured({ plans, source: queriesDir });
 }
 
 const configToArgs = (config, queryFile, outFile, top, limit) => {
@@ -274,6 +269,8 @@ async function main() {
     queryFile: queryInfo.path,
     querySource: queryInfo.source,
     queryCount: queryInfo.count,
+    queryInputPlans: queryInfo.inputPlans,
+    querySelectionPolicy: queryInfo.selectionPolicy,
     top,
     limit,
     results

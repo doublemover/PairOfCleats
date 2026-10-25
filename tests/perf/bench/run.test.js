@@ -9,7 +9,7 @@ import { BENCH_OPTIONS, validateBenchArgs } from '../../../src/shared/cli-option
 import { createDisplay } from '../../../src/shared/cli/display.js';
 import { hasChunkMetaArtifactsSync } from '../../../src/shared/artifact-io/chunk-meta-presence.js';
 import { buildSearchCliArgs } from '../../../tools/shared/search-cli-harness.js';
-import { readQueryFileSafe, resolveTopNAndLimit, selectQueriesByLimit } from '../../../tools/shared/query-file-utils.js';
+import { readQueryInputPlan, resolveTopNAndLimit } from '../../../tools/shared/query-file-utils.js';
 import { getIndexDir, getRuntimeConfig, loadUserConfig, resolveRuntimeEnv, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
 import { getEnvConfig } from '../../../src/shared/env/runtime.js';
 import { runWithConcurrency } from '../../../src/shared/concurrency/run-with-queue.js';
@@ -117,20 +117,13 @@ const indexerServicePath = path.join(root, 'tools', 'service', 'indexer-service.
 const queryWorkerPath = path.join(root, 'tests', 'perf', 'bench', 'query-worker.js');
 
 const defaultQueriesPath = path.join(root, 'tests', 'retrieval', 'parity', 'parity-queries.txt');
-const queriesPath = argv.queries ? path.resolve(argv.queries) : defaultQueriesPath;
+const queriesPath = argv.queries != null ? path.resolve(argv.queries) : defaultQueriesPath;
 
-const queries = await readQueryFileSafe(queriesPath, { allowJson: false });
-if (!queries.length) {
-  fatalExit(`No queries found at ${queriesPath}`);
-}
-
-const { topN, limit } = resolveTopNAndLimit({
-  top: argv.top,
-  limit: argv.limit,
-  defaultTop: 5,
-  defaultLimit: 0
-});
-const selectedQueries = selectQueriesByLimit(queries, limit);
+const { topN, limit } = resolveTopNAndLimit({ top: argv.top, limit: argv.limit, defaultTop: 5, defaultLimit: 0 });
+let queryPlan;
+try { queryPlan = await readQueryInputPlan(queriesPath, { limit, explicit: argv.queries != null }); }
+catch (error) { fatalExit(`[${error.code || 'ERR_QUERY_INPUT'}] ${error.message}`); }
+const selectedQueries = queryPlan.cases.map(entry => entry.query);
 const annFlagPresent = rawArgs.includes('--ann') || rawArgs.includes('--no-ann');
 const annEnabled = annFlagPresent ? argv.ann === true : true;
 const annArg = annEnabled ? '--ann' : '--no-ann';
@@ -770,6 +763,7 @@ const summary = summaries[0]
   : null;
 
 const output = {
+  queryPlan,
   generatedAt: new Date().toISOString(),
   repo: { root: repoArg || root },
   summary,
