@@ -12,11 +12,15 @@ const SCM_CHUNK_AUTHOR_ANNOTATE_TIMEOUT_MS = 15000;
 const SCM_CHUNK_AUTHOR_ANNOTATE_CONCURRENCY = 4;
 const SCM_CHUNK_AUTHOR_CACHE_MAX_ENTRIES = 16;
 const scmChunkAuthorHydrationCache = new Map();
+let scmChunkAuthorMaterializations = new WeakMap();
 const scmChunkAuthorHydrationStats = {
   cacheHits: 0,
   cacheMisses: 0,
   hydrateRuns: 0,
-  annotatedFiles: 0
+  annotatedFiles: 0,
+  metadataCopies: 0,
+  filterIndexBuilds: 0,
+  materializationHits: 0
 };
 
 const shouldHydrateScmChunkAuthors = ({ filtersActive, chunkAuthorFilterActive = false } = {}) => {
@@ -140,9 +144,19 @@ const resolveMissingChunkAuthorRefs = (chunkMeta, repoRoot) => {
   return { byFile, missingCount };
 };
 
-const applyChunkAuthorMapToChunks = ({ chunkMeta, chunkAuthorsByKey }) => {
+const applyChunkAuthorMapToChunks = ({ idx, chunkAuthorsByKey, fileChargramN }) => {
+  const chunkMeta = idx.chunkMeta;
   if (!Array.isArray(chunkMeta) || !chunkMeta.length) return 0;
   if (!(chunkAuthorsByKey instanceof Map) || !chunkAuthorsByKey.size) return 0;
+  let materializations = scmChunkAuthorMaterializations.get(chunkAuthorsByKey);
+  if (!materializations) { materializations = new WeakMap(); scmChunkAuthorMaterializations.set(chunkAuthorsByKey, materializations); }
+  const previous = materializations.get(chunkMeta);
+  if (previous && previous.baseFilterIndex === idx.filterIndex && previous.fileChargramN === fileChargramN) {
+    Object.assign(idx, { chunkMeta: previous.chunkMeta, filterIndex: previous.filterIndex });
+    scmChunkAuthorHydrationStats.materializationHits++;
+    return previous.applied;
+  }
+  const next = chunkMeta.slice();
   let applied = 0;
   for (let index = 0; index < chunkMeta.length; index += 1) {
     const chunk = chunkMeta[index];
@@ -152,10 +166,18 @@ const applyChunkAuthorMapToChunks = ({ chunkMeta, chunkAuthorsByKey }) => {
     const authors = chunkAuthorsByKey.get(key);
     if (!Array.isArray(authors) || !authors.length) continue;
     if (hasExistingChunkAuthors(chunk)) continue;
-    const nextAuthors = Array.from(authors);
-    chunk.chunk_authors = nextAuthors;
-    chunk.chunkAuthors = nextAuthors;
+    const nextAuthors = Object.freeze(Array.from(authors));
+    next[index] = { ...chunk, chunk_authors: nextAuthors, chunkAuthors: nextAuthors };
     applied += 1;
+  }
+  if (applied) {
+    // Construct both derivatives before publishing either. Cache-owned rows and
+    // other request wrappers retain their original coherent facts/filter pair.
+    const overlay = { chunkMeta: next, filterIndex: idx.filterIndex };
+    if (rebuildFilterIndexIfPresent({ idx: overlay, fileChargramN })) scmChunkAuthorHydrationStats.filterIndexBuilds++;
+    materializations.set(chunkMeta, { ...overlay, applied, baseFilterIndex: idx.filterIndex, fileChargramN });
+    Object.assign(idx, overlay);
+    scmChunkAuthorHydrationStats.metadataCopies++;
   }
   return applied;
 };
@@ -256,12 +278,9 @@ export const hydrateChunkAuthorsForIndex = async ({
   if (cached?.chunkAuthorsByKey instanceof Map) {
     scmChunkAuthorHydrationStats.cacheHits += 1;
     const applied = applyChunkAuthorMapToChunks({
-      chunkMeta: idx.chunkMeta,
+      idx, fileChargramN,
       chunkAuthorsByKey: cached.chunkAuthorsByKey
     });
-    if (applied > 0) {
-      rebuildFilterIndexIfPresent({ idx, fileChargramN });
-    }
     return { applied, cacheHit: true };
   }
   scmChunkAuthorHydrationStats.cacheMisses += 1;
@@ -327,22 +346,22 @@ export const hydrateChunkAuthorsForIndex = async ({
   });
   scmChunkAuthorHydrationStats.hydrateRuns += 1;
   const applied = applyChunkAuthorMapToChunks({
-    chunkMeta: idx.chunkMeta,
-    chunkAuthorsByKey
+    idx, fileChargramN, chunkAuthorsByKey
   });
-  if (applied > 0) {
-    rebuildFilterIndexIfPresent({ idx, fileChargramN });
-  }
   return { applied, cacheHit: false };
 };
 
 export const __testScmChunkAuthorHydration = Object.freeze({
   reset: () => {
     scmChunkAuthorHydrationCache.clear();
+    scmChunkAuthorMaterializations = new WeakMap();
     scmChunkAuthorHydrationStats.cacheHits = 0;
     scmChunkAuthorHydrationStats.cacheMisses = 0;
     scmChunkAuthorHydrationStats.hydrateRuns = 0;
     scmChunkAuthorHydrationStats.annotatedFiles = 0;
+    scmChunkAuthorHydrationStats.metadataCopies = 0;
+    scmChunkAuthorHydrationStats.filterIndexBuilds = 0;
+    scmChunkAuthorHydrationStats.materializationHits = 0;
   },
   getStats: () => ({
     ...scmChunkAuthorHydrationStats,
