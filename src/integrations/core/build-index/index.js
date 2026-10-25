@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { consumeBuildCacheRebuild, rebuildRepoCache } from './cache-rebuild.js';
 import path from 'node:path';
 import { createBuildRuntime } from '../../../index/build/runtime.js';
+import { validateSemanticEnrichmentAdmission } from '../../../index/semantic/enrichment-context.js';
 import { watchIndex } from '../../../index/build/watch.js';
 import { log as defaultLog, logError as defaultLogError, logLine } from '../../../shared/progress-runtime.js';
 import { observeIndexDuration } from '../../../shared/metrics/core.js';
@@ -149,6 +150,7 @@ async function buildIndexRun(repoRoot, options = {}) {
   throwIfAborted(abortSignal);
   let configSources = null;
   const userConfig = loadUserConfig(root, { onSources: value => { configSources = value; } });
+  if (options.semanticEnrichmentDrain != null) await validateSemanticEnrichmentAdmission(options.semanticEnrichmentDrain, { root, userConfig });
   if (rebuild.requested) {
     await rebuildRepoCache({ root, userConfig, argv, log, abortSignal });
   }
@@ -198,7 +200,8 @@ async function buildIndexRun(repoRoot, options = {}) {
   throwIfAborted(abortSignal);
 
   if (argv.watch) {
-    const runtime = await createBuildRuntime({ root, argv, rawArgv, policy, observability });
+    const runtime = await createBuildRuntime({ root, argv, rawArgv, policy, observability,
+      semanticEnrichmentDrain: options.semanticEnrichmentDrain });
     computeCompatibilityKey({ runtime, modes, sharedDiscovery: null });
     const pollMs = Number.isFinite(Number(argv['watch-poll'])) ? Number(argv['watch-poll']) : 2000;
     const debounceMs = Number.isFinite(Number(argv['watch-debounce'])) ? Number(argv['watch-debounce']) : 500;

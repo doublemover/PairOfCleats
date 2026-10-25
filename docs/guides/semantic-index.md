@@ -481,6 +481,9 @@ Missing control-store capability leaves work deferred. Completion is acknowledge
 only after normal whole-generation promotion. Changing generations produces a new
 target request; old tasks are never retargeted by filename. Bindings, local flow and
 cross-file flow can be selected through the experimental manual enrichment service.
+Manual drains bind live configuration, cache/build publication ownership and
+tooling authority before builder/runtime mutation and again before publication;
+see [drain authority](../contracts/semantic-drain-authority.md).
 Independent overlay publication and complete field/context-sensitive analysis are
 not available. Local and cross-file deferred tasks retain durable descriptors.
 Targeted LSP locations reuse the existing session independently of signature

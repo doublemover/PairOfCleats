@@ -4,6 +4,7 @@ import { persistRuntimeAttempt } from '../build-state/runtime.js';
 import { initializeRuntimeReceipt, withRuntimeReceiptInitialization, refreshRuntimeReceipt, logRuntimeReceiptLocation } from './receipt.js';
 import { resolveEmbeddingIntent } from '../../../shared/embedding-intent.js';
 import { normalizeSemanticConfig } from '../../semantic/config.js';
+import { validateSemanticEnrichmentAdmission } from '../../semantic/enrichment-context.js';
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -135,7 +136,8 @@ async function createBuildRuntimeImpl({
   indexRoot: indexRootOverride = null,
   observability = null,
   onRuntimeAttempt,
-  onStorageAdmission
+  onStorageAdmission,
+  semanticEnrichmentDrain = null
 } = {}) {
   const initialization = createLifecycleRegistry({ name: 'build-runtime-initialization' });
   let indexRuntimeStorage = null;
@@ -171,6 +173,7 @@ async function createBuildRuntimeImpl({
 
     let configSources = null;
     const userConfig = await timeInit('load config', () => loadUserConfig(root, { onSources: (sources) => { configSources = sources; } }));
+    if (semanticEnrichmentDrain != null) await validateSemanticEnrichmentAdmission(semanticEnrichmentDrain, { root, userConfig });
     indexRuntimeStorage = acquireBuildRuntimeStorage(root, userConfig);
     onStorageAdmission(indexRuntimeStorage);
     indexRuntimeStorage.revalidate();

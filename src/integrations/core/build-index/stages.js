@@ -793,6 +793,7 @@ export const runStage = async (
       rawArgv,
       policy,
       indexRoot: recovery?.buildRoot || null,
+      semanticEnrichmentDrain: options.semanticEnrichmentDrain,
       observability: context?.observability || null
     });
     await runtime.loggerScope.run(async () => {
