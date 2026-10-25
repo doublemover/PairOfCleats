@@ -11,6 +11,10 @@ const text = (value, maximum = 512) => typeof value === 'string' && value.length
 const bool = value => typeof value === 'boolean' ? value : null;
 const snapshot = value => JSON.parse(canonicalSemanticJson(value, { maxBytes: 8192 }));
 const modeField = mode => mode === 'extracted-prose' ? 'extractedProse' : mode;
+const freezeData = value => {
+  if (value && typeof value === 'object') { for (const child of Object.values(value)) freezeData(child); Object.freeze(value); }
+  return value;
+};
 
 /** Compact passive observations, never a claim inferred from requested flags
  * or native installation. Unknown evidence preserves descriptive results. */
@@ -46,12 +50,12 @@ export const captureRetrievalExecutionEvidence = (payload, modes) => {
     execution[mode] = outcome && isRetrievalExecution(outcome, mode) ? outcome : null;
     modeKeys[mode] = semanticHash('retrieval-observed-system.v1', { selected, policy, generation });
   }
-  return snapshot({ schemaVersion: RETRIEVAL_EVIDENCE_VERSION, kind: 'observed-retrieval-execution', modes: [...modes],
+  return freezeData(snapshot({ schemaVersion: RETRIEVAL_EVIDENCE_VERSION, kind: 'observed-retrieval-execution', modes: [...modes],
     backend: { selected, requested: text(own(backend, 'requested')), selectionKind: text(own(backend, 'selectionKind')),
       selectionReason: text(own(backend, 'selectionReason')), availabilityDriven: bool(own(backend, 'availabilityDriven')) },
     effectivePlanIdentity: policy, fallbackDerived, fidelityStatus, generations, execution, modeKeys,
     cache: { hit: bool(own(cache, 'hit')), strategy: text(own(cache, 'strategy')), memoryHotPath: bool(own(cache, 'memoryHotPath')) },
-    qualification: { state: reasons.size ? 'unqualified' : 'qualified', reasons: [...reasons] } });
+    qualification: { state: reasons.size ? 'unqualified' : 'qualified', reasons: [...reasons] } }));
 };
 
 /** Intern bounded receipts; consistency state uses one original key and a
@@ -65,6 +69,7 @@ export const createRetrievalEvidenceRegistry = () => {
     else { previous.observations++; if (previous.firstKey !== key) previous.mixed = true; }
   };
   return {
+    receipt: ref => Number.isSafeInteger(ref) && ref >= 0 ? receipts[ref]?.receipt || null : null,
     observe(payload, modes) {
       const receipt = captureRetrievalExecutionEvidence(payload, modes), encoded = canonicalSemanticJson(receipt, { maxBytes: 8192 });
       const key = semanticHash('retrieval-execution-receipt.v1', receipt, { maxBytes: 8192 });

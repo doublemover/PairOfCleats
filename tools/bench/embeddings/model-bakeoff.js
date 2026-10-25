@@ -518,7 +518,9 @@ const evaluationInputIdentity = {
   policies: Object.fromEntries([...(runEval ? [evalScript,
     path.join(toolRoot, 'tools', 'eval', 'metrics.js'), path.join(toolRoot, 'tools', 'eval', 'match.js'),
     path.join(toolRoot, 'tools', 'eval', 'cohorts.js'), path.join(toolRoot, 'tools', 'eval', 'depth-plan.js'),
-    path.join(toolRoot, 'tools', 'shared', 'retrieval-execution-evidence.js')] : []), ...(runCompare ? [compareScript] : [])].map(file => [path.relative(toolRoot, file), evaluationFileIdentity(file)]))
+    path.join(toolRoot, 'tools', 'shared', 'retrieval-execution-evidence.js'),
+    path.join(toolRoot, 'tools', 'shared', 'retrieval-result-admission.js'),
+    path.join(toolRoot, 'tools', 'shared', 'retrieval-cohort-admission.js')] : []), ...(runCompare ? [compareScript] : [])].map(file => [path.relative(toolRoot, file), evaluationFileIdentity(file)]))
 };
 const currentModelGeneration = modelId => bakeoffGenerationIdentity(path.join(resolveVersionedCacheRoot(modelCacheRoot(modelId)), 'repos', repoId));
 const outputSettings = {

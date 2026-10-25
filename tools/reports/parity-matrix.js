@@ -219,12 +219,16 @@ async function main() {
       try {
         const report = JSON.parse(await fsPromises.readFile(outFile, 'utf8'));
         const candidate = report?.summary;
-        if (candidate && typeof candidate === 'object' && !Array.isArray(candidate)
+        if (report.schemaVersion === 2 && candidate && typeof candidate === 'object' && !Array.isArray(candidate)
           && Number.isInteger(candidate.queries) && candidate.queries > 0
           && Array.isArray(report.results) && report.results.length === candidate.queries
           && candidate.sqliteBackend === config.backend
           && candidate.annEnabled === (config.annMode === 'on')) {
-          summary = candidate;
+          const coverage = candidate.coverage;
+          const executions = report.executionEvidence;
+          if (coverage?.requestedComparisons === candidate.queries * 2 && coverage.unavailableComparisons === 0
+            && coverage.positiveByMode?.code > 0 && coverage.positiveByMode?.prose > 0
+            && ['memory', 'sqlite'].every(arm => executions?.[arm]?.status === 'qualified' && executions[arm].consistency === 'stable')) summary = candidate;
         }
       } catch {
         summary = null;

@@ -39,6 +39,8 @@ console.log(JSON.stringify({ exitCode: result.exitCode, summary: report.summary,
   correlations: report.results.map(row => row.code.rankCorr), dir }));
 assert.deepEqual(report.results.map(row => row.code.rankCorr), [1, -1, null]);
 assert.equal(report.summary.rankCorrAvg, 0, 'undefined correlations cannot alter the actual parity average');
+assert.equal(report.summary.coverage.unavailableComparisons, 0);
+assert.equal(report.summary.coverage.positiveByMode.prose, 3, 'explicit prose controls qualify its independent required cohort');
 assert.equal(result.exitCode, 0, result.stderr);
 assert.match(result.stdout, /Rank corr avg: 0\.000/);
 assert.doesNotMatch(result.stderr, /Parity thresholds failed/);

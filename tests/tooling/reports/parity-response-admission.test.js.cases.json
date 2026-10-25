@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["positive", "ranking-difference", "explicit-empty", "missing-code", "null-code", "nonarray-code", "failed-status", "malformed-hit", "omitted-hits", "unknown-identity", "wrong-backend", "mixed-queries"]
+}

@@ -108,7 +108,7 @@ try {
       phase('artifacts ' + mode);
     }
     await fs.writeFile(path.join(buildRoot, 'build_state.json'), JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, schemaVersion: 1, signatureVersion: 2,
-      buildId, configHash: 'parity-fixture', tool: { version: '1.0.0' },
+      buildId, configHash: 'parity-fixture', profile: { id: 'default' }, tool: { version: '1.0.0' },
       validation: { ok: true, issueCount: 0, warningCount: 0, issues: [] } }));
     await fs.writeFile(path.join(cache, 'builds/current.json'), JSON.stringify({ artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, buildId,
       buildRoot: 'builds/' + buildId, buildRoots: roots }));

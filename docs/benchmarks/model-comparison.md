@@ -13,6 +13,10 @@ Compare search latency and ranking differences across embedding models.
 - The harness isolates per-model indexes under `<cache>/model-compare/<modelId>` by default.
 - If `cache.root` is set in `.pairofcleats.json`, caches are shared; use `--build` to rebuild per model.
 - SQLite backends require sqlite artifacts per model cache. Use `--build-sqlite` when those artifacts are missing; otherwise prebuilt sqlite artifacts are reused.
+- Report version 2 retains observed execution and per-cohort comparison coverage.
+  Missing/failed cohorts or hit omissions cannot become empty successful runs;
+  unavailable comparisons and missing measurements remain null. See the
+  [response admission contract](../contracts/retrieval-comparison-admission.md).
 
 ## Options
 - `--models`: Comma-separated list of models to compare.
