@@ -85,7 +85,11 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
   }
   const { stream, done, getBytesWritten } = createJsonWriteStream(filePath, {
     compression: useWorkerCompression ? null : resolvedCompression,
-    gzipOptions, atomic, highWaterMark, signal, preallocateBytes
+    gzipOptions, atomic, highWaterMark, signal, preallocateBytes,
+    settleBeforePublish: ownedPool ? async () => {
+      await compressionPool.close();
+      compressionPool = null;
+    } : null
   });
 
   const maxInFlight = useWorkerCompression
@@ -157,7 +161,9 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
       }
       if (ownedPool && compressionPool) {
         try { await compressionPool.close(); compressionPool = null; }
-        catch (error) { failed = addStorageFailureContext(failed, {}, error, { secondaryPresent: true }); }
+        catch (error) {
+          if (error !== failed) failed = addStorageFailureContext(failed, {}, error, { secondaryPresent: true });
+        }
       }
     })();
     await failPromise;
@@ -299,10 +305,6 @@ export const createJsonlBatchWriter = (filePath, options = {}) => {
       }
       stream.end();
       await done;
-      if (ownedPool && compressionPool) {
-        await compressionPool.close();
-        compressionPool = null;
-      }
       if (failed) throw failed;
     } catch (err) {
       await fail(err);

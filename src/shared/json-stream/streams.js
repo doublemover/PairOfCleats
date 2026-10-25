@@ -376,8 +376,12 @@ export const createJsonWriteStream = (filePath, options = {}) => {
     maxBytes = null,
     checksumAlgo = null,
     preallocateBytes = null,
-    waitTimeoutMs = null
+    waitTimeoutMs = null,
+    settleBeforePublish = null
   } = options;
+  if (settleBeforePublish != null && typeof settleBeforePublish !== 'function') {
+    throw new TypeError('JSON stream publication settlement must be a function.');
+  }
   const resolvedWaitTimeoutMs = resolveJsonStreamWaitTimeoutMs(waitTimeoutMs);
   const highWaterMark = normalizeHighWaterMark(options.highWaterMark);
   const resolvedPreallocateBytes = compression
@@ -476,6 +480,11 @@ export const createJsonWriteStream = (filePath, options = {}) => {
         if (resolvedPreallocateBytes > 0) {
           await fsPromises.truncate(targetPath, getBytes());
         }
+        // Output is sealed and all descriptors are closed. The enclosing
+        // producer still owns delegated work that must settle before commit.
+        if (signal?.aborted) throw createAbortError();
+        if (settleBeforePublish) await settleBeforePublish();
+        if (signal?.aborted) throw createAbortError();
         if (atomic) {
           await replaceFile(targetPath, filePath);
         }
