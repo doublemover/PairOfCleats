@@ -1,9 +1,19 @@
-import fsSync from 'node:fs';
-import fs from 'node:fs/promises';
+import path from 'node:path';
 import readline from 'node:readline';
-import { acquireDictionaryStorageRead, isDictionaryStorageAccessError } from './storage/dictionary-access.js';
+import { acquireDictionaryStorageRead } from './storage/dictionary-access.js';
+import { createDictionaryInputStream } from './dictionary-input-stream.js';
+import { describeStorageFailure, observeStorageResource } from './storage/failure-observation.js';
+import { addStorageFailureContext } from './storage/operation-error.js';
 
 const DEFAULT_DICTIONARY_READ_CONCURRENCY = 8;
+const snapshotScopes = new WeakMap();
+const snapshotWords = (scope, file, lowerCase) => {
+  const admission = snapshotScopes.get(scope), record = admission?.records.get(file);
+  if (!record || admission.lowerCase !== Boolean(lowerCase) || scope.get(file) !== record.receipt) {
+    throw new TypeError('Dictionary snapshot does not own the selected input/normalization scope.');
+  }
+  return record.words;
+};
 const asDictionaryError = error => error && typeof error === 'object' ? error : new Error(String(error), { cause: error });
 const captureDictionaryClosure = error => {
   let observer;
@@ -166,8 +176,11 @@ const readDictionaryWordsFromFile = async (
   let closed = null;
   let closeFailure = null;
   let operationError = null;
+  let input = null;
+  const staged = new Set();
   try {
-    stream = fsSync.createReadStream(dictFile, { encoding: 'utf8' });
+    input = createDictionaryInputStream(dictFile, access.root || path.dirname(path.resolve(dictFile)));
+    stream = input.stream;
     stream.on('error', error => { if (error?.syscall === 'close') closeFailure = error; });
     closed = new Promise(resolve => stream.once('close', resolve));
     lineReader = readline.createInterface({ input: stream, crlfDelay: Infinity });
@@ -175,11 +188,10 @@ const readDictionaryWordsFromFile = async (
     // Keep observing that exact interface through the native close barrier.
     lineReader.on('error', error => { operationError ||= asDictionaryError(error); });
     for await (const line of lineReader) {
-      addDictionaryWordFromLine(line, target, lowerCase);
+      addDictionaryWordFromLine(line, staged, lowerCase);
     }
   } catch (error) {
     operationError = asDictionaryError(error);
-    throw operationError;
   } finally {
     let cleanupError = null;
     try { lineReader?.close(); } catch (error) { cleanupError = asDictionaryError(error); }
@@ -190,8 +202,13 @@ const readDictionaryWordsFromFile = async (
     // readline completion/destroy requests are not native handle closure.
     // Keep the exact scoped lease until the ReadStream emits actual close.
     if (closed) await closed;
-    if (closeFailure) {
-      const error = Object.assign(new Error('Dictionary file close is unconfirmed; its storage lease remains retained.', { cause: closeFailure }), {
+    let pendingObservation = null;
+    if (operationError) {
+      try { observeStorageResource(operationError, { phase: 'dictionary-input-read' }).requireSettled(); }
+      catch (error) { pendingObservation = error; }
+    }
+    if (closeFailure || pendingObservation) {
+      const error = Object.assign(new Error('Dictionary file close is unconfirmed; its storage lease remains retained.', { cause: closeFailure || pendingObservation }), {
         code: 'ERR_DICTIONARY_STORAGE_CLOSE_PENDING', cacheOwnershipPending: true
       });
       Object.defineProperty(error, 'dictionaryStorageAccess', { value: access });
@@ -201,8 +218,42 @@ const readDictionaryWordsFromFile = async (
       catch (error) { cleanupError = cleanupError ? retainDictionaryFailure(cleanupError, error, 'dictionaryCleanupErrors') : asDictionaryError(error); }
     }
     if (cleanupError) throw operationError ? retainDictionaryFailure(operationError, cleanupError, 'dictionaryCleanupErrors') : cleanupError;
-    if (operationError) throw operationError;
   }
+  if (operationError) {
+    const diagnostic = describeStorageFailure(operationError, { phase: 'dictionary-input-read' });
+    if (diagnostic.code === 'ENOENT' && !input?.opened()) return Object.freeze({ outcome: 'optional-missing', bytes: 0, hash: null });
+    throw operationError;
+  }
+  const receipt = input.receipt();
+  for (const word of staged) target.add(word);
+  return receipt;
+};
+
+/** One global reader budget for all selected base/common/language inputs. The
+ * returned word sets and content receipts come from the same completed stream.
+ */
+export const loadDictionaryFileSnapshots = async (filePaths, { lowerCase = false } = {}) => {
+  const files = [...new Set(toFileList(filePaths))], results = new Map(), records = new Map();
+  let failed = 0;
+  try {
+    await runWithBoundedConcurrency(files, DEFAULT_DICTIONARY_READ_CONCURRENCY, async file => {
+      const words = new Set();
+      try {
+        const receipt = await readDictionaryWordsFromFile(file, words, { lowerCase });
+        results.set(file, receipt); records.set(file, { receipt, words });
+      } catch (error) {
+        failed++;
+        throw addStorageFailureContext(error, { dictionaryInput: Object.freeze({ path: file, outcome: 'failed' }) });
+      }
+    });
+  } catch (error) {
+    const completed = [...results.values()].filter(receipt => receipt.outcome === 'complete').length;
+    const optionalMissing = results.size - completed;
+    throw addStorageFailureContext(error, { dictionaryInputs: Object.freeze({ selected: files.length, completed,
+      optionalMissing, failed, unstarted: files.length - results.size - failed, complete: false }) });
+  }
+  snapshotScopes.set(results, { lowerCase: Boolean(lowerCase), records });
+  return results;
 };
 
 /**
@@ -217,16 +268,13 @@ const readDictionaryWordsFromFile = async (
  */
 export const loadDictionaryWordSetFromFiles = async (
   filePaths,
-  { target = null, lowerCase = false } = {}
+  { target = null, lowerCase = false, snapshots = null } = {}
 ) => {
   const words = target instanceof Set ? target : new Set();
   const files = toFileList(filePaths);
   if (!files.length) return words;
-  await runWithBoundedConcurrency(files, DEFAULT_DICTIONARY_READ_CONCURRENCY, async (dictFile) => {
-    try {
-      await readDictionaryWordsFromFile(dictFile, words, { lowerCase });
-    } catch (error) { if (isDictionaryStorageAccessError(error)) throw error; }
-  });
+  const inputs = snapshots || await loadDictionaryFileSnapshots(files, { lowerCase });
+  for (const file of files) for (const word of snapshotWords(inputs, file, lowerCase)) words.add(word);
   return words;
 };
 
@@ -244,13 +292,10 @@ const buildDictionaryFileSignature = async (
   const signaturePath = typeof toSignaturePath === 'function'
     ? toSignaturePath(dictFile)
     : String(dictFile || '');
-  const access = acquireDictionaryStorageRead(dictFile, { scope: 'dictionary-signature-stat' });
-  try {
-    const stat = await fs.stat(dictFile);
-    return `${prefix}${signaturePath}:${stat.size}:${stat.mtimeMs}`;
-  } catch {
-    return `${prefix}${signaturePath}:missing`;
-  } finally { access.releaseAfterClosure(); }
+  const inputs = await loadDictionaryFileSnapshots([dictFile]);
+  const receipt = inputs.get(dictFile);
+  return receipt.outcome === 'optional-missing' ? `${prefix}${signaturePath}:missing`
+    : `${prefix}${signaturePath}:sha256:${receipt.bytes}:${receipt.hash}`;
 };
 
 /**
@@ -267,7 +312,8 @@ export const loadCodeDictionaryWordSets = async (
   {
     commonFiles = [],
     byLanguage = new Map(),
-    lowerCase = true
+    lowerCase = true,
+    snapshots = null
   } = {}
 ) => {
   const entries = byLanguage instanceof Map
@@ -285,10 +331,8 @@ export const loadCodeDictionaryWordSets = async (
   }
   // Common and all language scopes consume one file-reader budget. A separate
   // pool per language multiplies open descriptors by configured language count.
-  await runWithBoundedConcurrency(jobs, DEFAULT_DICTIONARY_READ_CONCURRENCY, async ({ file, words }) => {
-    try { await readDictionaryWordsFromFile(file, words, { lowerCase }); }
-    catch (error) { if (isDictionaryStorageAccessError(error)) throw error; }
-  });
+  const inputs = snapshots || await loadDictionaryFileSnapshots(jobs.map(job => job.file), { lowerCase });
+  for (const { file, words } of jobs) for (const word of snapshotWords(inputs, file, lowerCase)) words.add(word);
   for (const word of commonWords) allWords.add(word);
   for (const [language, words] of wordsByLanguage) {
     if (!words.size) { wordsByLanguage.delete(language); continue; }
@@ -298,7 +342,7 @@ export const loadCodeDictionaryWordSets = async (
 };
 
 /**
- * Build stable dictionary signature rows from path + stat metadata.
+ * Build stable signature rows from the exact completed dictionary bytes.
  *
  * @param {string[]|Set<string>|Iterable<string>} filePaths
  * @param {{toSignaturePath?:(filePath:string)=>string,prefix?:string}} [options]

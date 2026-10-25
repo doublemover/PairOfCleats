@@ -1,17 +1,19 @@
 import path from 'node:path';
 import { getCodeDictionaryPaths, getDictionaryPaths, getDictConfig } from '../../../shared/dict-utils.js';
 import {
-  collectDictionaryFileSignatures,
+  loadDictionaryFileSnapshots,
   loadCodeDictionaryWordSets,
   loadDictionaryWordSetFromFiles
 } from '../../../shared/dictionary-wordlists.js';
 import { createSharedDictionary, createSharedDictionaryView } from '../../../shared/dictionary.js';
 import { sha1 } from '../../../shared/hash.js';
+import { canonicalSemanticJson } from '../../semantic/identity.js';
 import { DEFAULT_CODE_DICT_LANGUAGES, normalizeCodeDictLanguages } from '../../../shared/code-dictionaries.js';
 import { normalizeDictSignaturePath } from './normalize.js';
 import { getDaemonDictionaryCacheEntry, setDaemonDictionaryCacheEntry } from './daemon-session.js';
 
 const LARGE_DICT_SHARED_THRESHOLD = 200000;
+const daemonDictionaryAdmissions = new WeakMap();
 
 /**
  * Narrow values to plain object records (excluding arrays).
@@ -110,9 +112,22 @@ const cloneDaemonDictionaryEntry = (entry) => {
     codeDictCommonWords: cloneSet(entry.codeDictCommonWords),
     codeDictWordsAll: cloneSet(entry.codeDictWordsAll),
     codeDictWordsByLanguage: cloneMapOfSets(entry.codeDictWordsByLanguage),
-    dictSharedPayload: cloneSharedDictionaryPayload(entry.dictSharedPayload),
+    dictSharedPayload: copySharedDictionaryPayload(entry.dictSharedPayload),
     dictSummary: cloneDictSummary(entry.dictSummary)
   };
+};
+
+// The cache owns its compiled bytes privately. A runtime/worker view cannot
+// mutate the representation subsequently handed to a different runtime.
+const copySharedDictionaryPayload = payload => {
+  const copy = cloneSharedDictionaryPayload(payload);
+  if (!copy) return null;
+  for (const key of ['bytes', 'offsets']) {
+    const source = new Uint8Array(copy[key]);
+    copy[key] = new SharedArrayBuffer(source.byteLength);
+    new Uint8Array(copy[key]).set(source);
+  }
+  return copy;
 };
 
 /**
@@ -242,24 +257,20 @@ export const resolveRuntimeDictionaries = async ({
   const codeDictLanguages = normalizeCodeDictLanguages(Array.from(codeDictPaths.byLanguage.keys()));
 
   const toDictSignaturePath = createDictSignaturePathResolver({ dictDir, repoRoot: root });
-  const [baseSignatures, codeSignatures] = await Promise.all([
-    collectDictionaryFileSignatures(dictionaryPaths, { toSignaturePath: toDictSignaturePath }),
-    collectDictionaryFileSignatures(codeDictPaths.all, {
-      toSignaturePath: toDictSignaturePath,
-      prefix: 'code:'
-    })
-  ]);
-  const dictSignatureParts = baseSignatures.concat(codeSignatures);
-  dictSignatureParts.sort();
-  const dictSignature = dictSignatureParts.length
-    ? sha1(`scoring-dictionary-lowercase-nfkd.v2|${dictSignatureParts.join('|')}`)
-    : null;
-
-  const cachedDaemonDict = cloneDaemonDictionaryEntry(
-    daemonSession && dictSignature
-      ? getDaemonDictionaryCacheEntry(daemonSession, dictSignature)
-      : null
-  );
+  const snapshots = await loadDictionaryFileSnapshots([...dictionaryPaths, ...codeDictPaths.all], { lowerCase: true });
+  const inputs = files => [...new Set(files)].map(file => {
+    const receipt = snapshots.get(file);
+    return { path: toDictSignaturePath(file), outcome: receipt.outcome, bytes: receipt.bytes, hash: receipt.hash };
+  }).sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
+  const inputReceipt = { schemaVersion: 1, decoding: 'utf8-replacement', normalization: 'trim-lowercase-nfkd.v3',
+    base: inputs(dictionaryPaths), common: inputs(codeDictPaths.common),
+    languages: [...codeDictPaths.byLanguage].sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0)
+      .map(([language, files]) => ({ language, inputs: inputs(files) })) };
+  const dictSignature = snapshots.size ? sha1(canonicalSemanticJson(inputReceipt, { maxBytes: 4 * 1024 * 1024 })) : null;
+  const candidate = daemonSession && dictSignature ? getDaemonDictionaryCacheEntry(daemonSession, dictSignature) : null;
+  const admittedCandidate = candidate ? daemonDictionaryAdmissions.get(candidate) : null;
+  const cachedDaemonDict = admittedCandidate?.identity === dictSignature
+    ? cloneDaemonDictionaryEntry(admittedCandidate.payload) : null;
   let dictWords = cachedDaemonDict?.dictWords || new Set();
   let codeDictCommonWords = cachedDaemonDict?.codeDictCommonWords || new Set();
   let codeDictWordsByLanguage = cachedDaemonDict?.codeDictWordsByLanguage || new Map();
@@ -268,12 +279,13 @@ export const resolveRuntimeDictionaries = async ({
 
   if (!daemonDictCacheHit) {
     const [, codeDictWordSets] = await Promise.all([
-      loadDictionaryWordSetFromFiles(dictionaryPaths, { target: dictWords, lowerCase: true }),
+      loadDictionaryWordSetFromFiles(dictionaryPaths, { target: dictWords, lowerCase: true, snapshots }),
       codeDictEnabled
         ? loadCodeDictionaryWordSets({
           commonFiles: codeDictPaths.common,
           byLanguage: codeDictPaths.byLanguage,
-          lowerCase: true
+          lowerCase: true,
+          snapshots
         })
         : Promise.resolve(createEmptyCodeDictWordSets())
     ]);
@@ -291,6 +303,10 @@ export const resolveRuntimeDictionaries = async ({
     codeDictWordsAll,
     codeDictWordsByLanguage
   });
+  dictSummary.inputs = { schemaVersion: 1, selected: snapshots.size,
+    completed: [...snapshots.values()].filter(receipt => receipt.outcome === 'complete').length,
+    optionalMissing: [...snapshots.values()].filter(receipt => receipt.outcome === 'optional-missing').length,
+    failed: 0, complete: true, bytes: [...snapshots.values()].reduce((sum, receipt) => sum + receipt.bytes, 0) };
 
   const shouldShareDict = dictSummary.words
     && (workerPoolConfig.enabled !== false || dictSummary.words >= LARGE_DICT_SHARED_THRESHOLD);
@@ -303,14 +319,17 @@ export const resolveRuntimeDictionaries = async ({
   const dictShared = dictSharedPayload ? createSharedDictionaryView(dictSharedPayload) : null;
 
   if (daemonSession && dictSignature && !daemonDictCacheHit) {
-    setDaemonDictionaryCacheEntry(daemonSession, dictSignature, {
+    const entry = Object.freeze({ inputReceiptVersion: 1, inputIdentity: dictSignature,
+      files: snapshots.size, words: dictWords.size });
+    daemonDictionaryAdmissions.set(entry, { identity: dictSignature, payload: cloneDaemonDictionaryEntry({
       dictWords,
       codeDictCommonWords,
       codeDictWordsAll,
       codeDictWordsByLanguage,
       dictSharedPayload,
       dictSummary
-    });
+    }) });
+    setDaemonDictionaryCacheEntry(daemonSession, dictSignature, entry);
   }
   logInit('dictionaries', dictStartedAt);
 
