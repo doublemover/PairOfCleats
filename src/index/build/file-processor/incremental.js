@@ -2,8 +2,9 @@ import { readParseCheckpointDescriptor } from '../incremental/parse-checkpoint-d
 import { readVerifiedContainedFile } from '../../../shared/contained-file.js';
 import { resolveStageRefresh } from '../incremental/stage-reuse.js';
 import { readCachedBundle, writeIncrementalBundle } from '../incremental.js';
-import fs from 'node:fs/promises';
+import { readIncrementalSourceSnapshot, isIncrementalSourceMiss } from '../incremental/source-snapshot.js';
 import { readFileCompletion } from '../incremental/file-completion.js';
+import { composeAbortSignals } from '../../../shared/abort.js';
 
 export async function loadCachedBundleForFile({
   repoRoot = process.cwd(),
@@ -12,8 +13,10 @@ export async function loadCachedBundleForFile({
   absPath,
   relKey,
   fileStat,
-  semanticContext = null
+  semanticContext = null,
+  signal = null
 }) {
+  if (semanticContext) semanticContext = { ...semanticContext, signal: composeAbortSignals(signal, semanticContext.signal) };
   if (semanticContext && incrementalState.semanticReplayVerification) semanticContext = {
     ...semanticContext, replayVerification: incrementalState.semanticReplayVerification
   };
@@ -27,11 +30,17 @@ export async function loadCachedBundleForFile({
     bundleDir: incrementalState.bundleDir,
     bundleFormat: incrementalState.bundleFormat,
     semanticContext,
+    signal,
     sharedReadState: incrementalState.readHashCache || null
   }));
   let result = await read();
   if (!result.cachedBundle && semanticContext && incrementalState.enabled) {
-    const sourceBytes = result.buffer || await runIo(() => fs.readFile(absPath), { waitOnly: true });
+    let sourceBytes = result.buffer;
+    if (!sourceBytes) {
+      try { sourceBytes = (await runIo(() => readIncrementalSourceSnapshot({ repoRoot, absPath, fileStat,
+        relKey, sharedReadState: incrementalState.readHashCache, signal: semanticContext.signal }), { waitOnly: true })).buffer; }
+      catch (error) { if (!isIncrementalSourceMiss(error)) throw error; return result; }
+    }
     const completed = await runIo(() => readFileCompletion({
       bundleDir: incrementalState.bundleDir, relKey, sourceBytes, semanticContext
     }));
@@ -57,11 +66,11 @@ export async function loadCachedBundleForFile({
         // exists in this attempt's ordinary bundle cache.
         try {
           const current = await runIo(() => readVerifiedContainedFile(repoRoot, absPath, {
-            expectedStat: fileStat, expectedBytes: previous.size, expectedHash: previous.hash, hashAlgorithm: 'sha1' }));
+            expectedStat: fileStat, expectedBytes: previous.size, expectedHash: previous.hash, hashAlgorithm: 'sha1', signal }));
           result = { ...result, fileHash: current.hash, buffer: current.buffer,
             parseCheckpointFallback: { sourceHash: current.hash, checkpoint } };
         } catch (error) {
-          if (!['ENOENT', 'ENOTDIR', 'ERR_FILE_CHANGED', 'ERR_FILE_INTEGRITY', 'ERR_UNSAFE_FILE_PATH'].includes(error.code)) throw error;
+          if (!isIncrementalSourceMiss(error)) throw error;
         }
       }
     }

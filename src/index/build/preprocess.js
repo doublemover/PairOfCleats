@@ -184,7 +184,7 @@ export async function preprocessFiles({
         if (observation?.sample && (bytes <= observation.sample.length || observation.bytes <= observation.sample.length)) {
           return observation.sample.subarray(0, Math.min(bytes, observation.sample.length));
         }
-        return readFileSample(filename, bytes);
+        return readFileSample(filename, bytes, root);
       };
       const scanResult = await fileScanner.scanFile({
         absPath: entry.abs,

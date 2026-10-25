@@ -538,6 +538,7 @@ export function createFileProcessor(options) {
     } : null;
     const cachedResult = await loadCachedBundleForFile({
       repoRoot: root,
+      signal,
       semanticContext,
       runIo,
       incrementalState,

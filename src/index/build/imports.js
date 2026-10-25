@@ -560,6 +560,8 @@ export async function scanImports({
         throwIfAborted(effectiveAbortSignal);
         if (!item.stat) return;
         const cachedImports = await readCachedImportsFn({
+          repoRoot: root,
+          signal: effectiveAbortSignal,
           enabled: true,
           absPath: item.absPath,
           relKey: item.relKey,
@@ -716,6 +718,8 @@ export async function scanImports({
       }
       if (!hadPrefetch && incrementalState?.enabled && item.stat) {
         const cachedImportsFallback = await readCachedImportsFn({
+          repoRoot: root,
+          signal: effectiveAbortSignal,
           enabled: true,
           absPath: item.absPath,
           relKey,

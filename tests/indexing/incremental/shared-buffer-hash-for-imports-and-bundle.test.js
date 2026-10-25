@@ -32,10 +32,8 @@ const text = [
 await fs.writeFile(absPath, `${text}\n`, 'utf8');
 const sourceBuffer = await fs.readFile(absPath);
 const relKey = 'src/file.js';
-const coarseStat = {
-  size: sourceBuffer.length,
-  mtimeMs: 2000
-};
+await fs.utimes(absPath, new Date(2000), new Date(2000));
+const coarseStat = await fs.stat(absPath);
 const fileHash = sha1(sourceBuffer);
 
 const manifestEntry = await writeIncrementalBundle({
@@ -59,15 +57,19 @@ const manifest = {
 };
 
 const sharedReadState = new Map();
-const originalReadFile = fsPromises.readFile;
+const originalOpen = fsPromises.open;
 let sourceReadCount = 0;
 /**
  * Intercept source reads so this test can assert shared read-state reuse
  * across bundle/import cache lookups.
  */
-fsPromises.readFile = async (...args) => {
-  if (String(args[0]) === absPath) sourceReadCount += 1;
-  return originalReadFile(...args);
+fsPromises.open = async (file, ...args) => {
+  const handle = await originalOpen.call(fsPromises, file, ...args);
+  if (path.relative(String(file), absPath) === '') {
+    const read = handle.read;
+    handle.read = async function (...args) { const result = await read.apply(this, args); if (result.bytesRead > 0) sourceReadCount++; return result; };
+  }
+  return handle;
 };
 
 let bundleResult = null;
@@ -94,7 +96,7 @@ try {
     sharedReadState
   });
 } finally {
-  fsPromises.readFile = originalReadFile;
+  fsPromises.open = originalOpen;
 }
 
 assert.ok(bundleResult?.cachedBundle, 'expected cached bundle hit');
@@ -102,18 +104,20 @@ assert.equal(bundleResult.fileHash, fileHash, 'expected source hash from cached 
 assert.deepEqual(importsResult, ['./dep.js'], 'expected cached imports to match bundle contents');
 assert.equal(sourceReadCount, 1, 'expected source bytes to be read once across bundle/import cache checks');
 
-const changedStat = {
-  size: coarseStat.size,
-  mtimeMs: coarseStat.mtimeMs + 1
-};
+await fs.utimes(absPath, new Date(2001), new Date(2001));
+const changedStat = await fs.stat(absPath);
 const changedSharedReadState = new Map();
 let changedSourceReadCount = 0;
 /**
  * Second interception verifies hash-fallback lookups still share one source read.
  */
-fsPromises.readFile = async (...args) => {
-  if (String(args[0]) === absPath) changedSourceReadCount += 1;
-  return originalReadFile(...args);
+fsPromises.open = async (file, ...args) => {
+  const handle = await originalOpen.call(fsPromises, file, ...args);
+  if (path.relative(String(file), absPath) === '') {
+    const read = handle.read;
+    handle.read = async function (...args) { const result = await read.apply(this, args); if (result.bytesRead > 0) changedSourceReadCount++; return result; };
+  }
+  return handle;
 };
 
 let changedBundleResult = null;
@@ -140,7 +144,7 @@ try {
     sharedReadState: changedSharedReadState
   });
 } finally {
-  fsPromises.readFile = originalReadFile;
+  fsPromises.open = originalOpen;
 }
 
 assert.ok(changedBundleResult?.cachedBundle, 'expected hash-validated bundle hit after stat drift');
