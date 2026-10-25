@@ -89,6 +89,7 @@ export async function runSampledBench(fn, { iterations, samples, warmup = 0 }) {
   }
   return {
     totalMs,
+    timings,
     stats: summarizeDurations(timings)
   };
 }
