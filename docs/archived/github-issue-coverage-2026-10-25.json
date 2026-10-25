@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "f175ef11e",
+  "sourceHead": "5e7b00778",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 373,
+    "implemented": 374,
     "partial": 150,
-    "pending": 205
+    "pending": 204
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -545,6 +545,7 @@
       1599,
       1600,
       1601,
+      1602,
       1605,
       1606,
       1608,
@@ -824,7 +825,6 @@
       1594,
       1596,
       1597,
-      1602,
       1603,
       1604,
       1607,
@@ -5430,8 +5430,10 @@
       "number": 1602,
       "title": "[P2] Honor cancellation through token and field postings materialization",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "5e7b00778",
+      "validation": "deferred"
     },
     {
       "number": 1603,

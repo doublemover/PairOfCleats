@@ -398,3 +398,29 @@ retains the original replay/content/identity/classification tests. No test was
 deleted, no coverage assertion removed and no limit raised. Formatting/ESLint,
 syntax, affected generated refreshes and diff checks passed. Coverage is now
 **35 fixed / 373 implemented / 150 partial / 205 pending**.
+
+## Sparse materialization cancellation
+
+**#1602** (`5e7b00778`) threads the build signal through token/field assembly,
+including vocabulary preparation, stable bounded-run sorting, common-term pair
+copy/normalization, field construction and final success admission. The work
+driver keeps ordinary no-wait work synchronous and suspends only for an actual
+cooperative wait. Its elapsed active-work check operates at bounded batch
+boundaries; it is not a whole-build/native comparison latency guarantee. Existing
+token-ID mapping, equal-ID TF ordering, field names and length statistics remain.
+No semantic output/version change is intended.
+
+Map content consumption belongs to the attempt. Pre-aborted/unconsumed inputs can
+retry after settlement. Once content is consumed, source identities cannot be
+replayed as an empty index; the caller must rebuild its state. Truly empty inputs
+retain existing vector-only fixture behavior. Pending cooperative owners keep
+the request active until actual settlement, with no cancellation race releasing
+reservations early. The original failure propagates.
+
+Authored checks retain an independent legacy TF oracle, stable ordering, exact
+artifacts, all cancellation phases, safe `__proto__` fields, pre-abort, final-return
+admission, retained versus consumed ownership and concurrent retry refusal.
+Existing shared/typed map, spill, vector-only and no-yield fixtures remain. Static
+format/syntax/generated/diff checks passed; execution and measured peak/latency
+qualification remain deferred. Coverage is **35 fixed / 374 implemented / 150
+partial / 204 pending**.
