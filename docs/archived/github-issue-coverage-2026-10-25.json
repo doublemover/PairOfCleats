@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "bf8594995",
+  "sourceHead": "f237f29f9",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 399,
+    "implemented": 400,
     "partial": 150,
-    "pending": 179
+    "pending": 178
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -578,6 +578,7 @@
       1645,
       1648,
       1649,
+      1658,
       1668,
       1671,
       1684,
@@ -867,7 +868,6 @@
       1655,
       1656,
       1657,
-      1658,
       1659,
       1660,
       1661,
@@ -5846,8 +5846,10 @@
       "number": 1658,
       "title": "[P2] Preserve observed execution and judgment identity in live evaluation reports",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "f237f29f9",
+      "validation": "deferred"
     },
     {
       "number": 1659,

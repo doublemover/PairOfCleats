@@ -1100,3 +1100,37 @@ supplement the existing language-family/count/weight assertions. Format/ESLint,
 syntax, affected script/ledger/taxonomy refreshes, discovery and diff checks
 passed. Functional execution remains deferred. Coverage is **35 fixed / 399
 implemented / 150 partial / 179 pending**.
+
+
+## Live evaluation input and observed execution identity
+
+**#1658** (`f237f29f9`) retains ordered selected queries/cohorts, captured silver/
+gold judgments, limit and depth/matching policy in an immutable live-input
+identity with case IDs. Human dataset paths remain provenance. Live report
+version 2 carries matchMode and per-case execution references. Retrieval's existing
+effective query-policy hash now reaches output metadata through the real render
+handoff without exposing raw configuration. Observed backend, source generation/
+surface/profile/signature, fallback/fidelity, actual mode execution and cache
+facts remain distinct from requested flags.
+
+A passive owner interns at most 256 receipts, 8 KiB each and 512 KiB of retained
+receipt bytes. Source signature hashing shares the bounded admission; live input
+frames allow 128 KiB each. Unknown/omitted observations preserve descriptive
+numbers without becoming qualified. Cache facts do not invent a changed system.
+The run detects generation changes across modes and backend/effective-policy
+changes within declared selection contexts; no new run-wide native lease is
+claimed. Strict bakeoff comparison requires a stable complete registry with
+matching selected input/metric identity. It preserves registry/receipt integrity
+and source-bound resume identity; fallback, partial, unknown, mixed and retained-
+evidence limits cannot authorize a quality recommendation. Saved replay/oracle
+sections keep their separate provenance.
+
+The authored actual-runner fixture uses inert search/filesystem/display seams
+and the real metadata producer. It covers equal numerical hits under distinct
+backends, stable/changed generations and policies, fallback, missing evidence,
+requested versus observed ANN, cache interning, retention limits, copied
+snapshots, changed labels/queries/matching mode and tampered/passive evidence.
+Existing response/cohort/cleanup assertions remain. Format/ESLint, syntax,
+affected script/ledger/taxonomy refreshes, discovery and diff checks passed.
+Functional and real model/backend execution remain deferred. Coverage is **35
+fixed / 400 implemented / 150 partial / 178 pending**.
