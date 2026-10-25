@@ -695,3 +695,36 @@ and consequent byte-count fields from cross-invocation equality.
 Format/ESLint, syntax, affected schema/ledger/taxonomy refreshes, discovery and
 diff checks passed. Functional execution remains deferred. Coverage is **35 fixed /
 383 implemented / 150 partial / 195 pending**.
+
+
+## Semantic drain publication authority
+
+**#1623** (`ef238bec3`) captures canonical repository/cache/build publication
+ownership and the existing effective content/environment/tooling projection.
+The service clones caller configuration, and native/compiler verification uses
+that same tooling configuration. Live trusted configuration is revalidated at
+drain admission, after both normal-builder/runtime loads before mutation/storage
+admission, at attachment, recovery and pre-publication. Runtime cache/build-root
+ownership is checked explicitly. A changed owner rejects with bounded opaque
+expected/actual identities; no old snapshot is forced over revoked authority.
+
+Request domain v2 includes that authority identity, so journals cannot alias a
+different configuration's operation. Historical journals remain preserved rather
+than silently acknowledged. Task/artifact/journal shapes remain. Existing content
+projection permits excluded cache-retention/runtime/logging changes while the
+publication location stays independently bound. Independent release/close failure
+now survives with the original drain failure through the existing context owner.
+
+The authored real WASM fixture controls two ordinary builder barriers, switching
+trusted cache A to B before entry or during initial policy selection before the
+second config load. It covers loaded and supplied config routes, an early injected
+owner mismatch, unchanged A pointers, no B creation, failed journals, released
+leases and healthy A-to-A generation publication after an admitted cache-retention
+change. Existing native/compiler, source/dependency mutation and cancelled/lost
+lease fixtures retain their assertions. Format/ESLint, syntax, affected generated
+refreshes, discovery and diff checks passed. Functional execution remains deferred.
+Coverage is **35 fixed / 384 implemented / 150 partial / 194 pending**.
+
+A new exhaustive GitHub metadata refresh at `ef238bec3` again matched **763** open
+issues, with no added or closed IDs. The refresh is metadata evidence, not test
+qualification or accepted issue closure.
