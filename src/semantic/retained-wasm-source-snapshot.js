@@ -5,6 +5,7 @@ import { createWasmSourceSnapshot } from '../index/semantic/source.js';
 import { WASM_LIMITS } from '../index/semantic/wasm/decode.js';
 import { readVerifiedContainedFile } from '../shared/contained-file.js';
 import { throwIfAborted } from '../shared/abort.js';
+import { addStorageFailureContext } from '../shared/storage/operation-error.js';
 
 const fail = message => Object.assign(new Error(message), { code: 'ERR_SEMANTIC_SOURCE_MISMATCH' });
 
@@ -40,13 +41,18 @@ export const readRetainedWasmSourceSnapshot = async ({ store, partitionId, sourc
   if (retained.byteLength > WASM_LIMITS.bytes) {
     throw Object.assign(new RangeError('Retained WASM source exceeds its decoder byte allowance.'), { code: 'ERR_FILE_TOO_LARGE' });
   }
-  const { buffer: bytes } = await readVerifiedContainedFile(root,
-    path.join(root, 'semantic-sources', retained.byteHash + '.utf8'), {
-      maxBytes: WASM_LIMITS.bytes, expectedBytes: retained.byteLength, expectedHash: retained.byteHash, signal
-    });
-  const captured = snapshotRetainedWasmSourceManifest(createWasmSourceSnapshot({ bytes,
-    repositoryNamespace: retained.repositoryNamespace, path: retained.path }));
-  if (canonicalSemanticJson(captured) !== canonicalSemanticJson(retained)) throw fail('Retained WASM source differs from its captured bytes.');
-  throwIfAborted(signal);
-  return { bytes, source: captured };
+  try {
+    const { buffer: bytes } = await readVerifiedContainedFile(root,
+      path.join(root, 'semantic-sources', retained.byteHash + '.utf8'), {
+        maxBytes: WASM_LIMITS.bytes, expectedBytes: retained.byteLength, expectedHash: retained.byteHash, signal
+      });
+    const captured = snapshotRetainedWasmSourceManifest(createWasmSourceSnapshot({ bytes,
+      repositoryNamespace: retained.repositoryNamespace, path: retained.path }));
+    if (canonicalSemanticJson(captured) !== canonicalSemanticJson(retained)) throw fail('Retained WASM source differs from its captured bytes.');
+    throwIfAborted(signal);
+    return { bytes, source: captured };
+  } catch (error) {
+    throw addStorageFailureContext(error, { sourceUnitId: retained.sourceUnitId, sourcePath: retained.path,
+      partitionId, operation: 'read-retained-wasm-source' });
+  }
 };

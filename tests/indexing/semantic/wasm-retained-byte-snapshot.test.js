@@ -81,7 +81,9 @@ try {
     () => fs.truncate(target, 8)]) {
     await fs.writeFile(target, bytes); observations = [];
     control = { shortRead: 3, afterRead: change };
-    await assert.rejects(run(), error => ['ERR_FILE_CHANGED', 'ERR_FILE_INTEGRITY'].includes(error.code));
+    await assert.rejects(run(), error => ['ERR_FILE_CHANGED', 'ERR_FILE_INTEGRITY'].includes(error.code)
+      && error.sourceUnitId === source.sourceUnitId && error.sourcePath === 'module.wasm'
+      && error.partitionId === facts.syntaxPartitionId);
     assert.equal(observations.length, 1); assert.equal(observations[0].closes, 1);
     assert.ok(observations[0].maxBuffer <= 65536);
     assert.ok(observations[0].bytes <= bytes.length + 1);
@@ -101,6 +103,7 @@ try {
   let failure;
   try { await run(); } catch (error) { failure = error; }
   assert.ok(failure?.cacheOwnershipPending);
+  assert.equal(failure.sourceUnitId, source.sourceUnitId); assert.equal(failure.sourcePath, 'module.wasm');
   const pending = [failure], seen = new Set(); let session = null;
   while (pending.length) {
     const value = pending.pop();
