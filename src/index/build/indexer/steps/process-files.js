@@ -2145,6 +2145,7 @@ const processFilesInTransformScope = async ({
         seenFiles,
         gitBlameEnabled: runtimeRef.gitBlameEnabled,
         lintEnabled: runtimeRef.lintEnabled,
+        lintPolicy: runtimeRef.lintPolicy || null,
         complexityEnabled: runtimeRef.complexityEnabled,
         tokenizationStats,
         structuralMatches,

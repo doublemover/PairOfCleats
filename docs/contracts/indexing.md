@@ -127,6 +127,7 @@ generation ownership.
 - When columnar variants are present, readers should prefer them over JSON/JSONL.
 
 ## References
+- [Lint policy, completion receipts and replay admission](lint-evidence.md)
 - `docs/contracts/artifact-contract.md`
 - `docs/specs/metadata-schema-v2.md`
 - `docs/specs/unified-syntax-representation.md`

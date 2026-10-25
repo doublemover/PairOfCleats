@@ -4,6 +4,7 @@ import { buildJsChunks } from '../../../src/lang/javascript/chunks.js';
 import { createDisabledAnalysisPolicy, createProcessChunksFixtureContext, processFixtureChunks } from './process-chunks-fixture.js';
 import { buildIncrementalSignaturePayload } from '../../../src/index/build/indexer/signatures.js';
 import { SEMANTIC_ANALYSIS_VERSIONS } from '../../../src/index/semantic/analysis-versions.js';
+import { createLintPolicy, createLintSource, lintCacheKey } from '../../../src/index/lint-policy.js';
 
 const entries = [
   { id: 'later', line: 7, endLine: 7, message: 'later method only' },
@@ -35,9 +36,13 @@ assert.deepEqual(structural.map(chunk => chunk.name), ['Demo', 'Demo.early', 'De
 const { context } = createProcessChunksFixtureContext({ text, tokenizeEnabled: false,
   analysisPolicy: createDisabledAnalysisPolicy(), riskAnalysisEnabled: false, typeInferenceEnabled: false,
   overrides: { sc: structural.map(chunk => ({ ...chunk, segment: { languageId: 'javascript', segmentUid: 'lint-fixture' } })),
-    lintEnabled: true } });
+    lintEnabled: true, root: process.cwd() } });
+const policy = createLintPolicy(context.root), source = createLintSource(text, context.rel, policy);
+const completed = { receipt: { schemaVersion: 1, status: 'completed', reason: null, source, producer: policy.producer,
+  policy: { mode: policy.mode, identity: policy.identity, rootHash: policy.rootHash }, clean: false,
+  diagnostics: { total: entries.length, shown: entries.length, omitted: 0, truncated: false } }, messages: entries };
 let reads = 0, writes = 0;
-context.lintCache = { get(key) { reads++; assert.equal(key, context.rel); return entries; },
+context.lintCache = { get(key) { reads++; assert.equal(key, lintCacheKey(policy, source)); return completed; },
   set() { writes++; throw new Error('the completed file result must not invoke lint once per chunk'); } };
 const result = await processFixtureChunks(context);
 assert.equal(result.skip, undefined); assert.equal(result.chunks.length, 3);

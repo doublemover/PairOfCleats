@@ -146,6 +146,7 @@ export const processFileCpu = async (context) => {
     contextWin,
     relationsEnabled,
     lintEnabled,
+    lintPolicy = null,
     complexityEnabled,
     typeInferenceEnabled,
     riskAnalysisEnabled,
@@ -950,6 +951,7 @@ export const processFileCpu = async (context) => {
 
   updateCrashStage('process-chunks');
   const chunkResult = await processChunks({
+    root,
     sc,
     cachedLexicalCheckpoint: context.cachedLexicalCheckpoint || (cachedStageBundle?.stageRefresh?.lexical === false ? cachedStageBundle.lexicalCheckpoint : null),
     lexicalCheckpointDependencies: context.lexicalCheckpointDependencies,
@@ -995,6 +997,7 @@ export const processFileCpu = async (context) => {
     tokenizeEnabled,
     complexityEnabled,
     lintEnabled,
+    lintPolicy,
     complexityCache,
     lintCache,
     log,
@@ -1045,6 +1048,7 @@ export const processFileCpu = async (context) => {
     chunks: chunkResult.chunks,
     parseCheckpoint,
     lexicalCheckpoint: chunkResult.lexicalCheckpoint || null,
+    lintOutcome: chunkResult.lintOutcome || null,
     fileRelations,
     lexiconFilterStats,
     vfsManifestRows: chunkResult.vfsManifestRows || null,

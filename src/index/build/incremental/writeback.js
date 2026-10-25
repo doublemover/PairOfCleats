@@ -100,6 +100,7 @@ const splitBundleChunksBySize = (bundle) => {
 const buildBundleShards = ({ bundle }) => {
   const shardChunks = splitBundleChunksBySize(bundle);
   return { bundles: shardChunks.map((chunks, index) => ({ ...bundle,
+    lintOutcome: index === 0 ? bundle.lintOutcome || null : null,
     documentExtraction: index === 0 ? bundle.documentExtraction || null : null,
     parseCheckpoint: index === 0 ? bundle.parseCheckpoint : null,
     lexicalCheckpoint: index === 0 ? bundle.lexicalCheckpoint : null,
@@ -239,6 +240,7 @@ export async function writeIncrementalBundle({
   fileStat,
   fileHash,
   fileChunks,
+  lintOutcome = null,
   documentExtraction = null,
   semanticFactsRef = null,
   semanticSegmentFactsRefs = [],
@@ -284,6 +286,7 @@ export async function writeIncrementalBundle({
     mtimeMs: fileStat.mtimeMs,
     size: fileStat.size,
     chunks: fileChunks,
+    lintOutcome,
     documentExtraction: createDocumentExtractionReceipt({ extraction: documentExtraction, sourceHash: fileHash, sourceSize: fileStat.size }),
     parseCheckpoint,
     lexicalCheckpoint,
@@ -581,6 +584,7 @@ export async function updateBundlesWithChunks({
         mtimeMs: entry.mtimeMs,
         size: entry.size,
         chunks: fileChunks,
+        lintOutcome: existingBundle?.lintOutcome || null,
         documentExtraction: existingBundle?.documentExtraction || null,
         parseCheckpoint: existingBundle?.parseCheckpoint || null,
         lexicalCheckpoint: existingBundle?.lexicalCheckpoint || null,

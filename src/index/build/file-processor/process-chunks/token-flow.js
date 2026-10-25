@@ -8,7 +8,7 @@ import util from 'node:util';
 import { isAbortError, throwIfAborted } from '../../../../shared/abort.js';
 import { isQueueRecoveryUnsafe } from '../../../../shared/concurrency/queue-recovery.js';
 import { recordTokenizationRoute } from '../tokenization-evidence.js';
-import { analyzeComplexity, COMPLEXITY_ANALYZER_VERSION, lintChunk } from '../../../analysis.js';
+import { analyzeComplexity, COMPLEXITY_ANALYZER_VERSION, lintFile } from '../../../analysis.js';
 import { getLanguageForFile } from '../../../language-registry.js';
 import { getChunkAuthorsFromLines } from '../../../scm/annotate.js';
 import { isJsLike } from '../../../constants.js';
@@ -140,6 +140,7 @@ const resolveParserFallbackProfile = ({
  */
 export const processChunks = async (context) => {
   const {
+    root,
     sc,
     text,
     ext,
@@ -183,6 +184,7 @@ export const processChunks = async (context) => {
     tokenizeEnabled = true,
     complexityEnabled,
     lintEnabled,
+    lintPolicy = null,
     complexityCache,
     lintCache,
     log,
@@ -393,6 +395,7 @@ export const processChunks = async (context) => {
         : workerPool?.getRoutingReason?.(fileBytes) || tokenizationStats?.routeObservations?.defaultInlineReason || 'pool-unavailable';
   let fileComplexity = {};
   let fileLint = [];
+  let lintOutcome = null;
   if (isJsLike(ext) && mode === 'code') {
     const effectiveComplexityEnabled = complexityEnabled && !heavyFileDownshift && parserIsAstFull;
     const effectiveLintEnabled = lintEnabled && !heavyFileDownshift && parserIsAstFull;
@@ -410,20 +413,15 @@ export const processChunks = async (context) => {
       }
       fileComplexity = cachedComplexity || {};
     }
-    if (effectiveLintEnabled) {
-      const cacheKey = fileHash ? `${rel}:${fileHash}` : rel;
-      let cachedLint = lintCache?.get(cacheKey);
-      if (!cachedLint) {
-        const enrichStart = Date.now();
-        const fullCode = text;
-        const lintResult = await lintChunk(fullCode, rel);
-        lintCache?.set(cacheKey, lintResult);
-        cachedLint = lintResult;
-        const enrichDurationMs = Date.now() - enrichStart;
-        addLintDuration(enrichDurationMs);
-      }
-      fileLint = cachedLint || [];
+    const enrichStart = Date.now();
+    const lintResult = await lintFile(text, rel, { root, policy: lintPolicy, signal, enabled: effectiveLintEnabled,
+      cache: effectiveLintEnabled ? lintCache : null,
+      reason: !lintEnabled ? 'disabled' : heavyFileDownshift ? 'heavy-file-downshift' : 'parser-not-ast-full' });
+    if (lintResult.error !== undefined || lintResult.receipt.failure) {
+      log?.(`[lint] ${rel}: ${lintResult.receipt.status} (${lintResult.receipt.reason}): ${lintResult.receipt.failure?.message || 'execution failed'}`);
     }
+    addLintDuration(Date.now() - enrichStart);
+    lintOutcome = lintResult.receipt; fileLint = lintResult.messages;
   }
 
   let lastLineLogged = 0;
@@ -601,6 +599,7 @@ export const processChunks = async (context) => {
     }
     let { codeRelations, docmeta } = enrichment;
     docmeta = normalizeDocMeta(docmeta);
+    if (lintOutcome) docmeta = { ...docmeta, lintOutcome };
     if (
       chunkMode === 'code'
       && chunkLanguageId === 'sql'
@@ -1122,5 +1121,5 @@ export const processChunks = async (context) => {
   }
 
   throwIfAborted(signal);
-  return { chunks, vfsManifestRows, lexicalCheckpoint: lexicalCheckpoint?.finish() || null };
+  return { chunks, vfsManifestRows, lexicalCheckpoint: lexicalCheckpoint?.finish() || null, lintOutcome };
 };

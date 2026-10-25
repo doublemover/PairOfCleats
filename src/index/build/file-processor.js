@@ -85,6 +85,7 @@ export function createFileProcessor(options) {
     seenFiles,
     gitBlameEnabled,
     lintEnabled: lintEnabledRaw,
+    lintPolicy = null,
     complexityEnabled: complexityEnabledRaw,
     structuralMatches,
     cacheConfig,
@@ -542,7 +543,8 @@ export function createFileProcessor(options) {
       knownLines,
       fileLanguageId,
       mode,
-      documentExtractionAdmission
+      documentExtractionAdmission,
+      root, lintEnabled, lintPolicy
     });
     if (cachedOutcome?.skip) {
       const { reason, ...extra } = cachedOutcome.skip;
@@ -572,7 +574,7 @@ export function createFileProcessor(options) {
         });
       }
       if (artifacts.cachedBundle?.stageRefresh?.embeddings) {
-        cachedOutcome.result.manifestEntry = await writeBundleForFile({semanticContext,semanticSegmentFactsRefs:cachedResult.semanticSegmentFactsRefs || [],semanticEvidenceArtifacts:cachedResult.semanticEvidenceArtifacts || [],semanticFactsRef:cachedResult.semanticFactsRef,runIo,incrementalState,relKey,fileStat,fileHash:cachedOutcome.result.fileInfo.hash,fileChunks:cachedOutcome.result.chunks,documentExtraction:cachedOutcome.result.fileInfo.extraction || null,parseCheckpoint:artifacts.cachedBundle.parseCheckpoint,lexicalCheckpoint:artifacts.cachedBundle.lexicalCheckpoint || null,fileRelations:cachedOutcome.result.fileRelations,vfsManifestRows:cachedOutcome.result.vfsManifestRows,fileEncoding:cachedOutcome.result.fileInfo.encoding,fileEncodingFallback:cachedOutcome.result.fileInfo.encodingFallback,fileEncodingFallbackClass:cachedOutcome.result.fileInfo.encodingFallbackClass,fileEncodingFallbackRisk:cachedOutcome.result.fileInfo.encodingFallbackRisk,fileEncodingConfidence:cachedOutcome.result.fileInfo.encodingConfidence});
+        cachedOutcome.result.manifestEntry = await writeBundleForFile({semanticContext,semanticSegmentFactsRefs:cachedResult.semanticSegmentFactsRefs || [],semanticEvidenceArtifacts:cachedResult.semanticEvidenceArtifacts || [],semanticFactsRef:cachedResult.semanticFactsRef,runIo,incrementalState,relKey,fileStat,fileHash:cachedOutcome.result.fileInfo.hash,fileChunks:cachedOutcome.result.chunks,lintOutcome:artifacts.cachedBundle.lintOutcome || null,documentExtraction:cachedOutcome.result.fileInfo.extraction || null,parseCheckpoint:artifacts.cachedBundle.parseCheckpoint,lexicalCheckpoint:artifacts.cachedBundle.lexicalCheckpoint || null,fileRelations:cachedOutcome.result.fileRelations,vfsManifestRows:cachedOutcome.result.vfsManifestRows,fileEncoding:cachedOutcome.result.fileInfo.encoding,fileEncodingFallback:cachedOutcome.result.fileInfo.encodingFallback,fileEncodingFallbackClass:cachedOutcome.result.fileInfo.encodingFallbackClass,fileEncodingFallbackRisk:cachedOutcome.result.fileInfo.encodingFallbackRisk,fileEncodingConfidence:cachedOutcome.result.fileInfo.encodingConfidence});
       }
       warnEncodingFallback(relKey, cachedOutcome.result.fileInfo);
       return cachedOutcome.result;
@@ -758,6 +760,7 @@ export function createFileProcessor(options) {
       contextWin,
       relationsEnabled,
       lintEnabled,
+      lintPolicy,
       complexityEnabled,
       analysisPolicy: resolvedAnalysisPolicy,
       typeInferenceEnabled: resolvedTypeInferenceEnabled,
@@ -847,6 +850,7 @@ export function createFileProcessor(options) {
       fileStat,
       fileHash: artifacts.fileHash,
       fileChunks,
+      lintOutcome: cpuResult?.lintOutcome || null,
       documentExtraction: artifacts.documentExtraction || null,
       parseCheckpoint: cpuResult?.parseCheckpoint || null,
       lexicalCheckpoint: cpuResult?.lexicalCheckpoint || null,

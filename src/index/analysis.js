@@ -2,47 +2,8 @@ import esprima from 'esprima';
 import escomplexCore from 'escomplex/src/core.js';
 import escomplexWalker from 'escomplex/src/walker.js';
 import escomplexSyntax from 'escomplex/src/syntax/index.js';
-import { ESLint } from 'eslint';
-import { log } from '../shared/progress-runtime.js';
-
-let eslintInstance = null;
-let eslintInitFailed = false;
-let eslintInitWarned = false;
-
-async function getEslintInstance() {
-  if (eslintInitFailed) return null;
-  if (eslintInstance) return eslintInstance;
-  const primaryOptions = {
-    overrideConfigFile: null,
-    overrideConfig: {}
-  };
-  try {
-    eslintInstance = new ESLint(primaryOptions);
-    return eslintInstance;
-  } catch (err) {
-    const message = String(err?.message || err || '');
-    if (!eslintInitWarned && message) {
-      log(`[lint] ESLint init failed with overrideConfigFile=null: ${message}`);
-      eslintInitWarned = true;
-    }
-    try {
-      eslintInstance = new ESLint({ useEslintrc: false });
-      if (!eslintInitWarned) {
-        log('[lint] ESLint fallback initialized with useEslintrc=false.');
-        eslintInitWarned = true;
-      }
-      return eslintInstance;
-    } catch (fallbackErr) {
-      const fallbackMessage = String(fallbackErr?.message || fallbackErr || '');
-      if (!eslintInitWarned && fallbackMessage) {
-        log(`[lint] ESLint fallback init failed: ${fallbackMessage}`);
-        eslintInitWarned = true;
-      }
-      eslintInitFailed = true;
-      return null;
-    }
-  }
-}
+import { lintFile } from './lint-runtime.js';
+export { lintFile } from './lint-runtime.js';
 
 /**
  * Compute basic cyclomatic complexity metrics for JS code.
@@ -94,15 +55,9 @@ export async function analyzeComplexity(code) {
  * Run ESLint on a code chunk and return lint messages.
  * @param {string} text
  * @param {string} relPath
+ * @param {{root:string,policy?:object,signal?:AbortSignal,enabled?:boolean}} options
  * @returns {Promise<Array<{message:string}>>}
  */
-export async function lintChunk(text, relPath) {
-  try {
-    const eslint = await getEslintInstance();
-    if (!eslint) return [];
-    const results = await eslint.lintText(text, { filePath: relPath });
-    return results.length ? results[0].messages : [];
-  } catch {
-    return [];
-  }
+export async function lintChunk(text, relPath, options) {
+  return (await lintFile(text, relPath, options)).messages;
 }

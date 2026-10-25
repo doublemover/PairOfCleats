@@ -18,6 +18,7 @@ import { MINHASH_HASH_IDENTITY } from '../../minhash.js';
 import { SEMANTIC_ANALYSIS_VERSIONS } from '../../semantic/analysis-versions.js';
 import { DOCX_STRUCTURAL_EXTRACTION_VERSION, PDF_TEXT_EXTRACTION_VERSION } from '../../extractors/common.js';
 import { getRiskRulesPolicyReceipt } from '../../risk-rule-receipt.js';
+import { lintPolicyDependency } from '../../lint-policy.js';
 
 export { ARTIFACT_SCHEMA_HASH };
 
@@ -112,7 +113,8 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
       astDataflowEnabled: runtime.astDataflowEnabled,
       controlFlowEnabled: runtime.controlFlowEnabled,
       lintEnabled: runtime.lintEnabled,
-      ...(runtime.lintEnabled === true ? { lintProjectionProducer: SEMANTIC_ANALYSIS_VERSIONS.lintProjection } : {}),
+      ...(runtime.lintEnabled !== false ? { lintProjectionProducer: SEMANTIC_ANALYSIS_VERSIONS.lintProjection,
+        lintPolicy: lintPolicyDependency(runtime.root, runtime.lintPolicy) } : {}),
       complexityEnabled: runtime.complexityEnabled,
       complexityAnalyzer: '2',
       riskAnalysisEnabled,

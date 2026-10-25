@@ -1,6 +1,7 @@
 import { serialize, deserialize } from 'node:v8';
 import { createHash } from 'node:crypto';
 import { SEMANTIC_ANALYSIS_VERSIONS } from '../../semantic/analysis-versions.js';
+import { LINT_PRODUCER } from '../../lint-policy.js';
 import { projectFileAnalysisRisk, projectFileAnalysisComments } from './file-analysis-risk.js';
 import { fileAnalysisProtocolError, fileAnalysisBudgetError } from './file-analysis-errors.js';
 export { fileAnalysisProtocolError, fileAnalysisBudgetError } from './file-analysis-errors.js';
@@ -52,7 +53,7 @@ export const validateFileAnalysisProjection = (root, maxBytes) => {
 };
 
 const producerIdentity = () => ({ contract: FILE_ANALYSIS_CONTRACT_VERSION, node: process.versions.node,
-  v8: process.versions.v8, producers: SEMANTIC_ANALYSIS_VERSIONS });
+  v8: process.versions.v8, producers: SEMANTIC_ANALYSIS_VERSIONS, lint: LINT_PRODUCER });
 const bytesOf = value => {
   if (!ArrayBuffer.isView(value) || value.BYTES_PER_ELEMENT !== 1) throw fileAnalysisProtocolError('byte-envelope');
   return Buffer.from(value.buffer, value.byteOffset, value.byteLength);
@@ -115,7 +116,7 @@ export const isFileAnalysisCandidate = ({ mode, ext, workerPool }) => mode === '
 
 const COPY_KEYS = ['abs', 'root', 'mode', 'fileIndex', 'ext', 'rel', 'relKey', 'text', 'fileHash', 'fileHashAlgo',
   'fileCaps', 'fileStructural', 'normalizedSegmentsConfig', 'normalizedCommentsConfig', 'dictConfig', 'postingsConfig',
-  'contextWin', 'relationsEnabled', 'lintEnabled', 'complexityEnabled', 'typeInferenceEnabled', 'riskAnalysisEnabled',
+  'contextWin', 'relationsEnabled', 'lintEnabled', 'lintPolicy', 'complexityEnabled', 'typeInferenceEnabled', 'riskAnalysisEnabled',
   'riskConfig', 'gitBlameEnabled', 'analysisPolicy', 'tokenizeEnabled', 'astDataflowEnabled', 'controlFlowEnabled',
   'toolInfo', 'vfsManifestConcurrency', 'buildStage', 'cachedLexicalCheckpoint', 'lexicalCheckpointDependencies'];
 const LANGUAGE_KEYS = ['rootDir', 'astDataflowEnabled', 'controlFlowEnabled', 'skipUnknownLanguages', 'skipOnParseError',

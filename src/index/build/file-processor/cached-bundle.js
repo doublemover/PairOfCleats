@@ -10,6 +10,8 @@ import { stripFileRelations } from './relations.js';
 import { log } from '../../../shared/progress-runtime.js';
 import { buildPostingsPayloadMetadata } from '../postings-payload.js';
 import { admitDocumentExtractionReceipt } from '../../extractors/receipt.js';
+import { resolveLintPolicy, isReusableLintOutcome } from '../../lint-policy.js';
+import { isJsLike } from '../../constants.js';
 
 /**
  * Rehydrate a cached per-file bundle when structural and cap invariants still
@@ -39,9 +41,18 @@ export function reuseCachedBundle({
   knownLines,
   fileLanguageId,
   mode = null,
-  documentExtractionAdmission = null
+  documentExtractionAdmission = null,
+  root = null, lintEnabled = false, lintPolicy = null
 }) {
   if (!cachedBundle || !Array.isArray(cachedBundle.chunks)) return { result: null, skip: null };
+  if (lintEnabled && mode === 'code' && isJsLike(ext)) {
+    try {
+      const policy = resolveLintPolicy(root, lintPolicy), receipt = cachedBundle.lintOutcome;
+      if (!isReusableLintOutcome(receipt, policy) || receipt.source.path !== relKey.split('\\').join('/')
+        || cachedBundle.chunks.some(chunk => chunk?.docmeta?.lintOutcome?.source?.hash !== receipt.source.hash
+          || !isReusableLintOutcome(chunk.docmeta.lintOutcome, policy, receipt.source))) return { result: null, skip: null };
+    } catch { return { result: null, skip: null }; }
+  }
   const document = mode === 'extracted-prose' && ['.pdf', '.docx'].includes(ext);
   const extraction = document && documentExtractionAdmission ? admitDocumentExtractionReceipt({
     receipt: cachedBundle.documentExtraction, sourceHash: cachedBundle.hash, sourceSize: fileStat.size,
