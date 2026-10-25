@@ -35,7 +35,7 @@ export const indexCompilerOrderedStorage = ({ ts, checker, sourceFile, nodes, si
  * context, never value equality. Unsupported roots continue through may-locations.
  */
 export const createCompilerOrderedStorage = ({ ts, checker, isDefaultLibrary, owner, sourceFile, nodes, expressionFor,
-  index = indexCompilerOrderedStorage({ ts, checker, sourceFile, nodes }), signal }) => {
+  index = indexCompilerOrderedStorage({ ts, checker, sourceFile, nodes }), signal, reasons = new Set() }) => {
   const descriptors = new Map(), memo = new WeakMap(), resolving = new Set(), operations = new Map(), accesses = new Set();
   const { nearestOwner } = index;
   const localNodes = index.buckets.get(owner) || [];
@@ -143,20 +143,38 @@ export const createCompilerOrderedStorage = ({ ts, checker, isDefaultLibrary, ow
     const at = nested === owner ? node.getStart(sourceFile) : nested.getStart(sourceFile);
     if (canonical) canonical.escapeAt = Math.min(canonical.escapeAt, at);
     descriptor.escapeAt = Math.min(descriptor.escapeAt, at);
+    reasons.add('ordered_storage_alias_escape_unresolved');
+  };
+  // A fresh view result has the same alias obligation as a named view. Only
+  // bounded local aliases, indexed uses and recognized compositions are owned;
+  // putting a view into an unsupported container ends its backing-root frontier.
+  const supportedUse = input => {
+    let node = input;
+    for (let depth = 0; depth < 32; depth++) {
+      const parent = node.parent;
+      if (!parent) return false;
+      if ((ts.isParenthesizedExpression(parent) || ts.isAsExpression(parent) || ts.isTypeAssertionExpression(parent)
+        || ts.isNonNullExpression(parent) || ts.isSatisfiesExpression(parent)) && parent.expression === node) {
+        node = parent; continue;
+      }
+      if (ts.isVariableDeclaration(parent) && ts.isIdentifier(parent.name)
+        && (parent.name === node || parent.initializer === node) && (parent.parent.flags & ts.NodeFlags.Const)) return true;
+      if ((ts.isPropertyAccessExpression(parent) || ts.isElementAccessExpression(parent)) && parent.expression === node) {
+        if (ts.isDeleteExpression(parent.parent)) return false;
+        return locationsFor(parent).length > 0 || ts.isPropertyAccessExpression(parent)
+          && ts.isCallExpression(parent.parent) && operations.has(parent.parent);
+      }
+      return false;
+    }
+    reasons.add('ordered_storage_use_depth_budget');
+    return false;
   };
   for (const node of [...localNodes, ...(index.captures.get(owner) || [])]) {
     throwIfAborted(signal);
-    if (!ts.isIdentifier(node)) continue;
+    if (!ts.isIdentifier(node) && !operations.has(node)) continue;
     const descriptor = resolve(node); if (!descriptor) continue;
     if (nearestOwner(node) !== owner) { escape(descriptor, node); continue; }
-    const parent = node.parent;
-    if (ts.isVariableDeclaration(parent) && (parent.name === node || parent.initializer === node) && (parent.parent.flags & ts.NodeFlags.Const)) continue;
-    if ((ts.isPropertyAccessExpression(parent) || ts.isElementAccessExpression(parent)) && parent.expression === node) {
-      if (ts.isDeleteExpression(parent.parent)) { escape(descriptor, parent.parent); continue; }
-      if (locationsFor(parent).length) continue;
-      if (ts.isPropertyAccessExpression(parent) && ts.isCallExpression(parent.parent) && operations.has(parent.parent)) continue;
-    }
-    escape(descriptor, node);
+    if (!supportedUse(node)) escape(descriptor, node);
   }
   const canonicalDescriptor = descriptor => descriptors.get(canonicalSemanticJson(descriptor.root)) || descriptor;
   const qualified = descriptor => !descriptor?.snapshotSource || descriptor.node.getStart(sourceFile) < canonicalDescriptor(descriptor.snapshotSource).escapeAt;

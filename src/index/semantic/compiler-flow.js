@@ -60,7 +60,7 @@ export const collectCompilerFlow = async ({ ts, checker, isDefaultLibrary, sourc
     const fields = createCompilerFieldPaths({ ts, checker, owner, sourceFile, assignments, expressionFor, declarationFor,
       depthLimit: policy.enrichment.fieldPathDepth, reasons });
     const ordered = createCompilerOrderedStorage({ ts, checker, isDefaultLibrary, owner, sourceFile, nodes, expressionFor,
-      index: orderedIndex, signal });
+      index: orderedIndex, signal, reasons });
     const registerField = location => {
       const token = 'field:' + location.key;
       if (!symbols.has(token)) symbols.set(token, {key:token,site:location.site || location.root,unknown:null,location});
