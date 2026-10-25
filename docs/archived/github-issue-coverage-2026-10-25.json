@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "665928c55",
+  "sourceHead": "d0539aad2",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 393,
+    "implemented": 394,
     "partial": 150,
-    "pending": 185
+    "pending": 184
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -544,6 +544,7 @@
       1586,
       1587,
       1588,
+      1589,
       1591,
       1595,
       1598,
@@ -832,7 +833,6 @@
       1581,
       1584,
       1585,
-      1589,
       1590,
       1592,
       1593,
@@ -4898,7 +4898,7 @@
     },
     {
       "number": 1530,
-      "title": "Qualify adaptive retrieval and evidence policies with independent risk\u2013coverage receipts",
+      "title": "Qualify adaptive retrieval and evidence policies with independent risk–coverage receipts",
       "priority": "other",
       "status": "pending",
       "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
@@ -5339,8 +5339,10 @@
       "number": 1589,
       "title": "[P2] Preserve watch backlog when source classification cannot observe a path",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "d0539aad2",
+      "validation": "deferred"
     },
     {
       "number": 1590,

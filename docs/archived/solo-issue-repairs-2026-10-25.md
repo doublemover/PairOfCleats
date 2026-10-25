@@ -938,3 +938,34 @@ diff checks passed. Functional execution remains deferred. Coverage is **35 fixe
 A complete metadata refresh at `665928c55` again found **763 open reports**, with
 no added/closed IDs or changed titles. Source implementation remains distinct
 from accepted closure and current-tree runtime qualification.
+
+
+## Watch source observation and retry ownership
+
+**#1589** (`d0539aad2`) distinguishes known policy exclusions and confirmed
+absence from unknown I/O observations. Unknown paths retain membership and
+backlog. Owned retries re-enter only the affected path without another event,
+with 50 ms exponential backoff capped at 5 seconds. Persistent failures remain
+visible; snapshots bound detailed paths to 16. Explicit unlink invalidates late
+observations. ENOENT/ENOTDIR without unlink requires two consecutive observations;
+a new event resets absence evidence. Replacement gaps preserve source membership.
+
+Both backend selections share this owner. Parcel's stability prerequisite now
+runs inside the update queue, preserving typed observation failures and active
+shutdown ownership. Its former separate retry timers are replaced by this same
+bounded owner; standalone boolean stability checks keep their previous contract.
+Rebuild/pre-publication admission waits for unresolved classification. Recognized
+failure aborts active publication through the existing abort owner. Shutdown
+cancels timers, drains active observations and retains unresolved backlog.
+Original resource release prerequisites cannot become ordinary I/O retries.
+
+Authored pure-owner and real watch orchestration controls cover one-event
+recovery, new source bytes in exact published entries, no skipped substitution,
+successful siblings, both backend selections, persistent errors under virtual
+time, real deletion, atomic-save gaps, Parcel stability observation failure,
+active-build publication cancellation, unlink versus gated old observation and
+active/timer shutdown. The previous queue no-loss assertion now requires the
+valid source in entries and absent from skips. No assertions or wrappers were
+removed. Format/ESLint, syntax, affected ledger/taxonomy refreshes, discovery and
+diff checks passed. Functional execution remains deferred. Coverage is **35 fixed /
+394 implemented / 150 partial / 184 pending**.
