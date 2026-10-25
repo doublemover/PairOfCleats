@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "a1395ceac",
+  "sourceHead": "5a23ec9db",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
     "implemented": 402,
-    "partial": 150,
-    "pending": 176
+    "partial": 151,
+    "pending": 175
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -748,7 +748,8 @@
       1521,
       1522,
       1523,
-      1574
+      1574,
+      1675
     ],
     "pending": [
       147,
@@ -881,7 +882,6 @@
       1667,
       1673,
       1674,
-      1675,
       1676,
       1677,
       1680,
@@ -5968,8 +5968,11 @@
       "number": 1675,
       "title": "[P2] Admit all benchmark query pools against one aggregate resource plan",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "partial",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "5a23ec9db",
+      "validation": "deferred",
+      "remaining": "Whole process-tree RSS measurement owner; current sampled parent/known-worker RSS explicitly excludes unknown descendants."
     },
     {
       "number": 1676,
@@ -6404,7 +6407,7 @@
   ],
   "githubRefresh": {
     "date": "2026-10-25",
-    "head": "dd7934f98",
+    "head": "242dc95e1",
     "open": 763,
     "added": 0,
     "closed": 0,

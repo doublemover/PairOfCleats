@@ -1219,3 +1219,46 @@ Full format, scoped ESLint, syntax, generated script/ledger/taxonomy refreshes,
 fixture discovery and staged diff checks passed. Functional fixtures, native/model
 execution, performance and the final front gate remain deferred by instruction.
 Coverage is **35 fixed / 402 implemented / 150 partial / 176 pending**.
+
+
+## Aggregate benchmark query admission and retirement capacity
+
+**#1675** (`5a23ec9db`) now admits all selected query backends against one global
+concurrency/shared memory estimate. Memory and the canonical SQLite resource class
+share an allowance; sqlite/sqlite-fts/fts retain their requested workload identities
+while sharing serialization and per-query retirement. When simultaneous minimum
+capacity cannot fit, the existing grouped pool/queue executes separate stages,
+closing each before allocating the next. An oversize required worker produces an
+explicit unsupported plan before launch. No backend/query coverage is dropped;
+existing empty-mode admission and generation/cancellation owners remain.
+
+Source review also found that a successful retiring worker became available as
+soon as its response cleared activeRequest, before awaited process close. Another
+worker's completion could pump a replacement during that retirement. A separate
+running reservation now spans the entire run/retirement promise. Lifecycle events
+count actual live processes, and start/completion RSS samples retain short queries.
+Reports distinguish global planned capacity, submitted reservations, running
+queries, live processes and per-backend counts. SQLite alias spelling no longer
+bypasses resource sizing, serialization or retirement.
+
+The authored actual-entry fixture uses named inert artifact/search adapters and
+the real planner/executor/report reducers. Six discovered cases cover default,
+all, alias and single selections with limits 1/4, checking one aggregate admission
+call, stage allocations and exact executed denominators. Independent size inputs
+reproduce the 8 GiB shared-budget example and reject an oversize plan before any
+pool creation. A separate real IPC-worker fixture uses a parent barrier, delayed
+SQLite shutdown and independent live-PID counting to witness the retirement cap,
+per-alias execution and memory-worker reuse. These fixtures are not executed yet.
+
+**Partial remains deliberate:** sampled RSS covers the benchmark parent and known
+query workers, including idle/retiring generations, with missing samples explicit.
+Arbitrary nested descendant memory has no measurement owner; whole-process-tree
+RSS remains null/unavailable. That requested qualification is not represented by
+known-worker samples or an estimate and remains implementation scope for #1675.
+No performance improvement or final native acceptance is claimed.
+
+Full format, scoped ESLint, syntax, affected generated inventories, seven-case
+discovery and staged diff checks passed. Functional execution and the final front
+gate remain deferred. A complete live metadata refresh at `242dc95e1` reconfirmed
+763 open issues, no additions/closures or title changes. Coverage is **35 fixed /
+402 implemented / 151 partial / 175 pending**.
