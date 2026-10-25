@@ -36,6 +36,50 @@ and historical receipts remain separate from GitHub open/closed state.
   silently redirect the fixture's artifacts. Assertions remain intact; rechecks
   are deferred.
 
+## Authored priority batch
+
+The following priority implementations are also authored with execution deferred:
+
+- **#1742:** ANN health/preflight success preserves unknown latency. Only finite
+  nonnegative numeric observations update the EWMA, whose first sample initializes
+  directly. Healthy measured providers precede unknown providers in stable base
+  order; cooldown/failure penalties remain independent.
+- **#1730:** adaptive I/O growth uses actual configured/sampled FD caps. Unknown
+  evidence remains null with explicit provenance, rather than copying current
+  capacity into an invented ceiling. Cap contraction preserves admitted use.
+- **#1736:** Python import continuation balances signed delimiter changes across
+  logical lines and preserves blank/comment continuation lines. Both collector
+  APIs and registry projection retain later independent imports. Import-resolution
+  producer version advances **16 → 17** to invalidate incomplete cached extraction.
+- **#1741:** shard-gap checks and binary sidecar/checksum selection use canonical
+  artifact names separately from physical backup paths. Primary and backup reads
+  retain the same missing-shard and checksum obligations.
+- **#1740:** streamed binary rows enforce their byte allowance before allocation
+  independently of aggregate data-file admission. Many small rows may still stream
+  across a larger file; an oversized row reports a typed capacity error.
+- **#1737:** zstd JSONL always uses the existing owned streaming decoder. The
+  optional whole-buffer decoder had no decoded-output allocation bound. Its now
+  unreferenced private reader resolver/threshold were removed after a repository
+  reference search; writer/native dependency support is unchanged.
+- **#1734:** watch startup and steady state share one closeout region, including
+  discovery/backend/callback failures and startup cancellation. The original close
+  receiver/method is captured once; each cleanup step proceeds despite sibling
+  failure. Failed/unknown closure retains pending ownership. Exact listeners are
+  removed, active work drained and terminal observations attempted on every exit.
+- **#1729:** dense validity compares captured semantic fields without serializing
+  the complete bitmap per lookup. SQLite ingestion admits a private mask snapshot
+  once for array, buffer and async-row paths; later invocations re-admit changed
+  metadata and retain invalid-count/mask rejection.
+
+New/extended regressions cover the numeric, continuation, capacity, backup,
+startup and per-ingestion invariants. They have not been executed in this wave;
+no latency/memory speedup or acceptance count is inferred from these source changes.
+
+Static formatting, config budget/environment checks, generated freshness and
+command-surface checks passed for the earlier cleanup/fixture batch. Roadmap
+history moved to a linked archive to restore its 20 KB budget. The missing inherited
+trusted-config selection was omitted only from check children; no trust was granted.
+
 ## Remaining work
 
 Implement remaining priority defects before perf/unprioritized work, retaining

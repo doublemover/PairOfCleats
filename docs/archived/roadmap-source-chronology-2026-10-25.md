@@ -78,4 +78,3 @@ original work/leases gate exact cleanup, and evaluation finalizes resources befo
 publishing metrics. Compiler type-only syntax stays out of runtime consumers.
 Original editor views and map callbacks retain authority across delayed/reentrant
 work. These authored controls remain unrun; real host/native qualification stays open.
-
