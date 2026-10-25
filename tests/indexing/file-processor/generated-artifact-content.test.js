@@ -34,6 +34,9 @@ assert.equal(classify(text.replace('"flags":1', '"flags":1,"flags":1')), null);
 assert.equal(classify(text.replace('poc.generated@1', 'poc.generated@99')), null);
 assert.equal(classify(text.replace('"flags":1', '"flags":3')), null);
 assert.equal(classify(text.replace(key, 'invalid-key')), null);
+const malformedMap = text.replace('"nodes":[]', '"nodes":[oops]');
+assert.equal(classify(malformedMap), null, 'renamed maps cannot bypass visible payload validation');
+assert.equal(classify(text.slice(0, -1) + ',"data":{}}'), null, 'duplicate outer data stays ordinary source');
 
 let reads = 0;
 const checkContent = async (contents, mode = 'code') => {
@@ -49,6 +52,7 @@ const checkContent = async (contents, mode = 'code') => {
   return { result, artifacts };
 };
 const owned = await checkContent(text);
+assert.equal((await checkContent(malformedMap)).result.skip, null, 'visible malformed maps remain source on the existing-buffer route');
 assert.equal(owned.result.skip.reason, 'generated-artifact');
 assert.equal(owned.artifacts.text, undefined, 'omit before decoding/parsing/chunking');
 assert.equal((await checkContent(currentText)).result.skip?.reason, 'generated-artifact');

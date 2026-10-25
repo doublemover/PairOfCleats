@@ -1,6 +1,6 @@
 # Generated-artifact ownership
 
-Current coverage: map caches and registered core metadata, 2026-10-06.
+Current coverage: map caches, registered core metadata and object caches, 2026-10-25.
 
 Generated content is not automatically disposable or unsearchable. Authored
 configuration, triage records, documentation and useful reports retain their input
@@ -37,11 +37,23 @@ JSON without the map structure remain searchable. The signature starts in the
 first 512 bytes, as emitted by the producer. Explicit records keep their searchable
 semantic role. Unmarked legacy caches still require the exact historical path.
 
-The discovery-policy version participates in the incremental content hash.
-The first build after this policy change re-evaluates previously cached source
-bundles; otherwise a warm pre-guard bundle could bypass the first-content read.
-Subsequent unchanged builds retain normal incremental reuse. Frozen snapshots are
-not rewritten by this migration.
+Discovery policy `poc.generated-discovery@7` participates in both the build content
+hash and a dedicated `sourceAdmission` dependency. A policy migration qualifies
+current physical prefix bytes before cached chunks or semantic relocation can be
+returned. A warm text-cache buffer alone cannot supply that witness. Ordinary
+sources retain compatible parse/lexical products and publish a new immutable
+bundle with current admission identity; prior snapshots remain untouched. Record
+mode bypasses this omission policy. Discovery selection producer is version 5.
+
+One observation carries bounded bytes and source extent from the same contained
+descriptor. EOF exactly at 8 KiB is complete and must contain valid JSON. Larger
+sources are explicitly capped; all visible JSON must be valid or extendable,
+including unique visible keys and a depth allowance of 256. Modern, renamed and
+legacy maps share this validation with core/object caches. A capped observation
+does not certify an unseen suffix. No extra byte probe or whole-file read is
+introduced. Existing full source buffers preserve their original extent before
+slicing; unknown custom-reader extents cannot authorize omission. The byte owner
+also distinguishes an unfinished UTF-8 scalar from invalid visible encoding.
 
 For old defaults, only
 `.pairofcleats/maps/cache/code-map:lk1:<40 hexadecimal digits>.json` is considered.
@@ -59,6 +71,13 @@ the existing-content guard also recognizes renamed marked metadata. Referenced
 JSONL/array/native members remain outside this metadata-only exclusion policy.
 Authored siblings and unmarked lookalikes are preserved, including when a manifest
 contains their paths. Generic JSON writers remain policy-neutral.
+
+## Object caches
+
+The [registered object-cache contract](generated-object-cache-metadata.md) covers
+audited fixed-root object producers. Named and renamed recognition use the same
+visible grammar and source-extent observation. Generic maps, arrays, JSONL,
+configuration and unregistered cache-like files retain their input semantics.
 
 ## Remaining formats
 

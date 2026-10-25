@@ -68,8 +68,12 @@ unknown families/fields, and duplicate keys visible in the prefix. A shared boun
 iterative validator checks every visible character and grammar state, so a cut tail
 cannot hide an earlier bad escape or syntax error. Only genuinely extendable tails
 are allowed at the byte cap, including partial strings, escapes, Unicode sequences,
-numbers, literals and containers. Short inputs must be complete JSON objects;
-nesting beyond 256 containers fails open.
+numbers, literals and containers. Complete observations, including EOF exactly at
+8 KiB, must be complete JSON objects; nesting beyond 256 containers fails open.
+The shared descriptor observation retains source extent/EOF. Full source Buffers
+preserve their extent before slicing; unknown custom-reader extents cannot grant
+omission. Warm bundle admission also checks the current policy dependency before
+returning cached source, independently of parse and lexical reuse.
 An unseen suffix of a large file cannot be validated from its prefix. Filesystem
 containment and index-admission wiring remain the caller's responsibilities.
 

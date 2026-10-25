@@ -332,7 +332,7 @@ export async function discoverEntries({
       return;
     }
     if (!preclassifiedRecord && stat.isFile() && isGeneratedArtifactCandidatePath(relPosix)) {
-      const artifact = await inspectGeneratedArtifact({ repoRoot: root, filePath: absPath, relativePath: relPosix });
+      const artifact = await inspectGeneratedArtifact({ repoRoot: root, filePath: absPath, relativePath: relPosix, signal: abortSignal });
       if (artifact?.action === 'omit') {
         recordSkip(absPath, 'generated-artifact', { artifactKind: artifact.kind, artifactFormat: artifact.format,
           artifactFlags: artifact.flags, action: artifact.action });

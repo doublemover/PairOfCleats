@@ -10,7 +10,8 @@ export const resolveStageRefresh = (current, previous) => {
     parse: changed('parse'),
     lexical: changed('lexical'),
     enrichment: changed('enrichment'),
-    embeddings: changed('embeddings')
+    embeddings: changed('embeddings'),
+    sourceAdmission: Boolean(current?.sourceAdmission && current.sourceAdmission !== previous?.sourceAdmission)
   };
 };
 

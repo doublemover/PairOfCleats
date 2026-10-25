@@ -48,10 +48,10 @@ for (const [artifact, relativePath] of cases) {
     }), null);
   }
   const large = JSON.stringify({ ...payload, data: 'x'.repeat(32000) });
-  assert.equal(classifyGeneratedArtifactCachePrefix({ prefix: large })?.artifact, artifact);
-  assert.equal(classifyGeneratedArtifactCachePrefix({ prefix: ' '.repeat(8192) + prefix }), null);
+  assert.equal(classifyGeneratedArtifactCachePrefix({ prefix: Buffer.from(large) })?.artifact, artifact);
+  assert.equal(classifyGeneratedArtifactCachePrefix({ prefix: Buffer.from(' '.repeat(8192) + prefix) }), null);
   const malformed = prefix.slice(0, -1) + ',"nested":' + '['.repeat(6000);
-  assert.equal(classifyGeneratedArtifactCachePrefix({ prefix: malformed }), null, 'untrusted deep nesting cannot escape parser guard');
+  assert.equal(classifyGeneratedArtifactCachePrefix({ prefix: Buffer.from(malformed) }), null, 'untrusted deep nesting cannot escape parser guard');
 }
 for (const name of ['pyrightconfig.json', 'queryCache.json', 'Package.resolved', 'Cargo.lock', 'cache.index.bin', `cas/meta/${hash}.json`, 'report.json']) {
   assert.equal(isGeneratedArtifactCacheCandidatePath(name), false, name);

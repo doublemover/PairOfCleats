@@ -71,7 +71,7 @@ const SIGNATURE_ENTRY = {
     dependencySignatures: {
       type: 'object', additionalProperties: false,
       required: ['parse', 'lexical', 'enrichment', 'embeddings', 'artifacts'],
-      properties: Object.fromEntries(['parse', 'lexical', 'enrichment', 'embeddings', 'artifacts', 'documentExtraction']
+      properties: Object.fromEntries(['parse', 'lexical', 'enrichment', 'embeddings', 'artifacts', 'documentExtraction', 'sourceAdmission']
         .map(key => [key, { type: 'string', pattern: '^[0-9a-f]{40}$' }]))
     },
     signatureVersion: { type: 'number' }

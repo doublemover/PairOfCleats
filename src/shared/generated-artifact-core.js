@@ -1,8 +1,8 @@
 import path from 'node:path';
 import { hasAmbiguousGeneratedArtifactPrefix } from './generated-artifact-prefix.js';
+import { resolveGeneratedArtifactPrefixObservation } from './generated-artifact-observation.js';
 
 const FORMAT = 'poc.generated@1';
-const PREFIX_BYTES = 8192;
 const OMIT = 1;
 const SHARDED_ARTIFACTS = new Set([
   'file_meta', 'chunk_meta', 'chunk_meta_cold', 'chunk_uid_map',
@@ -90,16 +90,15 @@ export const isGeneratedArtifactCoreCandidatePath = (relativePath) => metadataCa
 export const classifyGeneratedArtifactCorePrefix = ({ relativePath = null, prefix }) => {
   const candidates = relativePath == null ? null : metadataCandidates(relativePath);
   if (candidates && !candidates.length) return null;
-  const bytes = Buffer.isBuffer(prefix)
-    ? prefix.subarray(0, PREFIX_BYTES)
-    : Buffer.from(String(prefix || '').slice(0, PREFIX_BYTES), 'utf8').subarray(0, PREFIX_BYTES);
-  const text = bytes.toString('utf8');
+  const observation = resolveGeneratedArtifactPrefixObservation(prefix);
+  if (!observation || observation.text === null) return null;
+  const { text, complete } = observation;
   const match = /^\s*\{\s*"extensions"\s*:\s*\{\s*"__poc_generated"\s*:\s*(\{[^{}]{0,512}\})\s*[,}]/.exec(text);
   if (!match) return null;
   try {
     // Reject all visible syntax errors and duplicate keys, while allowing only
     // a genuinely extendable JSON tail at the byte cap.
-    if (hasAmbiguousGeneratedArtifactPrefix(text, bytes.length < PREFIX_BYTES)) return null;
+    if (hasAmbiguousGeneratedArtifactPrefix(text, complete)) return null;
     const header = JSON.parse(match[1]);
     const keys = [...match[1].matchAll(/"((?:[^"\\]|\\.)*)"\s*:/g)]
       .map((entry) => JSON.parse(`"${entry[1]}"`)).sort();

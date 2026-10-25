@@ -31,7 +31,7 @@ assert.equal(validation.ok, true, JSON.stringify(validation.errors));
 assert.deepEqual(state.orderingLedger.stages['stage1:code'].artifacts, {});
 assert.ok(state.analysisShortcuts.code);
 assert.ok(state.byteBudgets.policies.chunk_meta);
-assert.deepEqual(Object.keys(state.signatures.code.dependencySignatures).sort(), ['artifacts', 'embeddings', 'enrichment', 'lexical', 'parse']);
+assert.deepEqual(Object.keys(state.signatures.code.dependencySignatures).sort(), ['artifacts', 'embeddings', 'enrichment', 'lexical', 'parse', 'sourceAdmission']);
 const publication = await observeIndexPublication(repo, config);
 assert.equal(publication.ready, true, JSON.stringify(publication));
 for (const mutate of [
@@ -39,10 +39,13 @@ for (const mutate of [
   value => { value.analysisShortcuts.code.disableImportGraph = 'false'; },
   value => { value.byteBudgets.policies.chunk_meta.overflow = 'unknown'; },
   value => { value.signatures.code.dependencySignatures.parse = 42; },
+  value => { value.signatures.code.dependencySignatures.sourceAdmission = 'wrong'; },
+  value => { value.signatures.code.dependencySignatures.unknownAdmission = 'a'.repeat(40); },
   value => { delete value.orderingLedger.stages['stage1:code'].artifacts; },
   value => { value.completedStages.code.extra = true; },
   value => { value.completedStages.code.schemaVersion = '2'; },
   value => { value.completedStages.code.output.bytes = -1; },
+  value => { value.completedStages.code.dependencySignatures = { ...value.signatures.code.dependencySignatures, sourceAdmission: 'wrong' }; },
   value => { value.completedStages.code.sourceValidation.status = 'unknown'; },
   value => { value.completedStages.code.snapshot.descriptorHash = 'wrong'; }
 ]) {

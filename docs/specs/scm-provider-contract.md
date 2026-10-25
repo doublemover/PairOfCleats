@@ -80,7 +80,8 @@ Discovery records `scmInventory` and the actual `selectionPolicy`:
 fallback is a statement about its filtered candidates, not complete SCM coverage.
 Streamed providers also declare a complete source and retain actual iterator
 settlement/cancellation. Early candidate caps still report incomplete enumeration.
-Discovery selection producer version 4 invalidates prior selection identity.
+Discovery selection producer version 5 also includes generated-source admission;
+its versioned identity invalidates prior selection behavior.
 
 ### getRepoProvenance
 

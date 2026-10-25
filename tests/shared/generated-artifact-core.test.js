@@ -5,7 +5,7 @@ import { buildShardedJsonlMetaFields } from '../../src/index/build/artifacts/wri
 import { SHARDED_META_ARTIFACT_SCHEMA_DEFS } from '../../src/contracts/schemas/artifacts/sharded-meta.js';
 import { validateArtifact } from '../../src/contracts/artifact-schemas.js';
 
-const classify = (fields, relativePath) => classifyGeneratedArtifactCorePrefix({ prefix: JSON.stringify(fields), relativePath });
+const classify = (fields, relativePath) => classifyGeneratedArtifactCorePrefix({ prefix: Buffer.from(JSON.stringify(fields)), relativePath });
 for (const [schema, definition] of Object.entries(SHARDED_META_ARTIFACT_SCHEMA_DEFS)) {
   const artifact = definition.properties.artifact.const;
   const fields = buildShardedJsonlMetaFields({ artifact, extensions: { caller: 'x'.repeat(16000) } });
@@ -47,7 +47,7 @@ for (const [kind, file, artifact] of fixtures) {
   assert.equal(classifyGeneratedArtifactCorePrefix({ prefix: prefix.replace('"retained":2', '"retained":2,"__poc_generated":{}') }), null, 'duplicate marker island');
   assert.equal(classifyGeneratedArtifactCorePrefix({ prefix: prefix.slice(0, -1) + ',"extensions":{}}' }), null, 'duplicate extensions field');
   assert.equal(classifyGeneratedArtifactCorePrefix({ relativePath: file, prefix: prefix.replace('"flags":1', '"flags":1,"flags":1') }), null);
-  assert.equal(classifyGeneratedArtifactCorePrefix({ prefix: ' '.repeat(8192) + prefix }), null);
+  assert.equal(classifyGeneratedArtifactCorePrefix({ prefix: Buffer.from(' '.repeat(8192) + prefix) }), null);
   assert.equal(classifyGeneratedArtifactCorePrefix({ prefix: prefix.slice(0, 50) }), null);
 }
 assert.equal(isGeneratedArtifactCoreCandidatePath('src/current.json'), false);
@@ -57,7 +57,7 @@ assert.equal(isGeneratedArtifactCoreCandidatePath('dense_vectors.lancedb/authore
 const unknown = { artifact: 'authored', extensions: { custom: true } };
 assert.equal(withGeneratedArtifactMetadata(unknown, 'sharded-meta', 'authored'), unknown);
 const nestedPrefix = '{"extensions":{"__poc_generated":{"format":"poc.generated@1","kind":"index-state","flags":1}},"nested":' + '['.repeat(6000);
-assert.equal(classifyGeneratedArtifactCorePrefix({ prefix: nestedPrefix }), null,
+assert.equal(classifyGeneratedArtifactCorePrefix({ prefix: Buffer.from(nestedPrefix) }), null,
   'deeply nested malformed JSON must fail open without throwing from the parser');
 for (const [schema, kind, fields] of [
   ['index_state', 'index-state', { generatedAt: '2026-10-06T00:00:00Z', mode: 'code', artifactSurfaceVersion: '1.0.0' }],

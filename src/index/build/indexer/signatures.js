@@ -19,6 +19,7 @@ import { SEMANTIC_ANALYSIS_VERSIONS } from '../../semantic/analysis-versions.js'
 import { DOCX_STRUCTURAL_EXTRACTION_VERSION, PDF_TEXT_EXTRACTION_VERSION } from '../../extractors/common.js';
 import { getRiskRulesPolicyReceipt } from '../../risk-rule-receipt.js';
 import { lintPolicyDependency } from '../../lint-policy.js';
+import { GENERATED_ARTIFACT_POLICY_VERSION } from '../../../shared/generated-artifact-observation.js';
 
 export { ARTIFACT_SCHEMA_HASH };
 
@@ -272,6 +273,7 @@ export const buildDependencySignatures = (runtime, mode, tokenizationKey) => {
   return {
     parse: hash(parse), lexical: hash(lexical), enrichment: hash(enrichment),
     embeddings: hash(embeddings), artifacts: hash(artifacts),
+    ...(mode !== 'records' ? { sourceAdmission: hash({ generatedArtifactPolicy: GENERATED_ARTIFACT_POLICY_VERSION }) } : {}),
     ...(mode === 'extracted-prose' ? { documentExtraction: hash(payload.documentExtraction) } : {})
   };
 };

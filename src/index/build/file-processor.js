@@ -22,6 +22,7 @@ import { resolvePreReadSkip } from './file-processor/skip.js';
 import { createCrashStageUpdater } from './file-processor/crash-stage.js';
 import { createFileTimingTracker } from './file-processor/timings.js';
 import { resolveExt } from './file-processor/read.js';
+import { classifyGeneratedArtifactContentPrefix, readGeneratedArtifactPrefix } from '../../shared/generated-artifact.js';
 import {
   createPreCpuArtifactState,
   applyCachedResultToArtifacts,
@@ -492,6 +493,21 @@ export function createFileProcessor(options) {
       relKey,
       fileStat
     });
+    const previousSource = incrementalState.enabled ? incrementalState.manifest?.files?.[relKey] : null;
+    const sourceAdmission = incrementalState.manifest?.dependencySignatures?.sourceAdmission;
+    if (mode !== 'records' && previousSource && sourceAdmission
+      && sourceAdmission !== previousSource.dependencySignatures?.sourceAdmission) {
+      // Requalify before semantic relocation or a cached chunk return. A warm
+      // text-cache buffer has no fresh read witness; borrow the bounded owner.
+      const prefix = await runIo(() => readGeneratedArtifactPrefix(root, abs, undefined, { signal }));
+      throwIfAborted();
+      const artifact = classifyGeneratedArtifactContentPrefix({ prefix });
+      if (artifact?.action === 'omit') {
+        recordSkip(abs, 'generated-artifact', { artifactKind: artifact.kind, artifactFormat: artifact.format,
+          artifactFlags: artifact.flags, action: artifact.action, recognition: 'incremental-policy-requalification' });
+        return null;
+      }
+    }
     updateCrashStage('pre-cpu:load-cached-bundle:start');
     const semanticContext = semantic ? {
       repoRoot: root,
@@ -573,7 +589,7 @@ export function createFileProcessor(options) {
           vfsManifestRows: cachedOutcome.result.vfsManifestRows
         });
       }
-      if (artifacts.cachedBundle?.stageRefresh?.embeddings) {
+      if (artifacts.cachedBundle?.stageRefresh?.embeddings || artifacts.cachedBundle?.stageRefresh?.sourceAdmission) {
         cachedOutcome.result.manifestEntry = await writeBundleForFile({semanticContext,semanticSegmentFactsRefs:cachedResult.semanticSegmentFactsRefs || [],semanticEvidenceArtifacts:cachedResult.semanticEvidenceArtifacts || [],semanticFactsRef:cachedResult.semanticFactsRef,runIo,incrementalState,relKey,fileStat,fileHash:cachedOutcome.result.fileInfo.hash,fileChunks:cachedOutcome.result.chunks,lintOutcome:artifacts.cachedBundle.lintOutcome || null,documentExtraction:cachedOutcome.result.fileInfo.extraction || null,parseCheckpoint:artifacts.cachedBundle.parseCheckpoint,lexicalCheckpoint:artifacts.cachedBundle.lexicalCheckpoint || null,fileRelations:cachedOutcome.result.fileRelations,vfsManifestRows:cachedOutcome.result.vfsManifestRows,fileEncoding:cachedOutcome.result.fileInfo.encoding,fileEncodingFallback:cachedOutcome.result.fileInfo.encodingFallback,fileEncodingFallbackClass:cachedOutcome.result.fileInfo.encodingFallbackClass,fileEncodingFallbackRisk:cachedOutcome.result.fileInfo.encodingFallbackRisk,fileEncodingConfidence:cachedOutcome.result.fileInfo.encodingConfidence});
       }
       warnEncodingFallback(relKey, cachedOutcome.result.fileInfo);
