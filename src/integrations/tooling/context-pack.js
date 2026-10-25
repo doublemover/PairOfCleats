@@ -25,9 +25,11 @@ import { toRealPathSync } from '../../workspace/identity.js';
 import { selectWorkspaceRepos } from '../../retrieval/federation/select.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { resolveContextTaskPolicy } from '../../context-pack/task-policy.js';
+import { aggregateRiskMemberStatus, createRiskMemberAttestation } from '../../context-pack/federated-risk.js';
+import { CONTEXT_PACK_RISK_FIELD_SCOPES, CONTEXT_PACK_RISK_FEDERATED_REPO_LIMIT } from '../../contracts/context-pack-risk-contract.js';
 
 const DEFAULT_MAX_FEDERATED_CONTEXT_PACK_REPOS = 4;
-const MAX_FEDERATED_CONTEXT_PACK_REPOS = 16;
+const MAX_FEDERATED_CONTEXT_PACK_REPOS = CONTEXT_PACK_RISK_FEDERATED_REPO_LIMIT;
 
 const createContextPackRequestError = (code, message, status = 400) => {
   const error = new Error(message);
@@ -292,6 +294,9 @@ const mergeFederatedRiskPayloads = ({ basePayload, repoResults, workspaceConfig,
     maxRepos,
     includePaths
   });
+  federation.attestations = repoResults.map(entry => entry.attestation);
+  federation.fieldScopes = { ...CONTEXT_PACK_RISK_FIELD_SCOPES };
+  const analysisStatus = aggregateRiskMemberStatus(federation.attestations, skippedRepos.length > 0);
   const mergedFlows = rerankFederatedFlows(repoResults.flatMap((entry) => entry.payload.risk?.flows || []));
   const mergedPartialFlows = rerankFederatedPartialFlows(repoResults.flatMap((entry) => entry.payload.risk?.partialFlows || []));
   const mergedWarnings = Array.from(new Set(
@@ -300,15 +305,16 @@ const mergeFederatedRiskPayloads = ({ basePayload, repoResults, workspaceConfig,
   const mergedTruncation = Array.from(new Set(
     repoResults.flatMap((entry) => Array.isArray(entry.payload?.risk?.truncation) ? entry.payload.risk.truncation.map((item) => JSON.stringify(item)) : [])
   )).map((entry) => JSON.parse(entry));
-  const degraded = repoResults.some((entry) => entry.payload?.risk?.degraded === true);
+  const degraded = analysisStatus.degraded;
   return {
     ...basePayload,
     warnings: mergedWarnings.length ? mergedWarnings : basePayload.warnings,
     risk: {
       ...basePayload.risk,
-      status: degraded ? 'degraded' : basePayload.risk.status,
+      status: analysisStatus.status,
       degraded: degraded || basePayload.risk.degraded === true,
-      reason: degraded ? 'federated-partial-artifacts' : basePayload.risk.reason,
+      reason: analysisStatus.reason,
+      provenance: null, support: null, stats: null, caps: null, analysisStatus,
       flows: mergedFlows,
       partialFlows: mergedPartialFlows,
       truncation: mergedTruncation.length ? mergedTruncation : basePayload.risk.truncation,
@@ -478,8 +484,11 @@ export async function buildFederatedCompositeContextPackPayload(input = {}, cont
       ...input,
       repoRoot: repo.repoRootCanonical
     }, context);
+    const attestation = createRiskMemberAttestation(repoPayload.risk, repo.repoId);
+    repoInfo.attestationId = attestation.attestationId;
     repoResults.push({
       repo,
+      attestation,
       payload: {
         ...repoPayload,
         risk: annotateFederatedRisk(repoPayload.risk, repoInfo)
@@ -570,6 +579,11 @@ export async function buildCompositeContextPackPayload(input = {}, context = {})
   const payload = shouldUseFederatedContextPack(input)
     ? await buildFederatedCompositeContextPackPayload(input, context)
     : await buildSingleRepoCompositeContextPackPayload(input, context);
+  if (input.strictRisk === true && payload.risk?.analysisStatus?.strictFailure === true) {
+    const error = Object.assign(new Error('Federated risk analysis is incomplete.'), { code: 'ERR_CONTEXT_PACK_RISK_STRICT' });
+    error.risk = { status: payload.risk.status, code: payload.risk.analysisStatus.code, reason: payload.risk.reason };
+    throw error;
+  }
   throwIfAborted(context.signal);
   const bounded = enforceContextPackResponseBudget(payload, input);
   const validation = validateCompositeContextPack(bounded);

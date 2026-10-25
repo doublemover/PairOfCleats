@@ -58,6 +58,7 @@ const normalizeExplainEvidence = (evidence) => (
 );
 
 const normalizeBlockedExpansion = (entry) => ({
+  ...(entry?.repo ? { repo: entry.repo } : {}),
   targetChunkUid: entry?.targetChunkUid || null,
   reason: entry?.reason || null,
   callSiteIds: Array.isArray(entry?.callSiteIds) ? entry.callSiteIds.filter(Boolean) : []
@@ -68,6 +69,7 @@ const normalizeExplainFlow = (flow) => {
   const evidence = flow?.evidence && typeof flow.evidence === 'object' ? flow.evidence : null;
   return {
     flowId: flow.flowId || null,
+    ...(flow.repo ? { repo: flow.repo } : {}),
     confidence: Number.isFinite(flow.confidence) ? flow.confidence : null,
     category: flow.category || flow?.sink?.category || flow?.source?.category || null,
     source: flow.source || null,
@@ -82,10 +84,12 @@ const normalizeExplainPartialFlow = (flow) => {
   const evidence = flow?.evidence && typeof flow.evidence === 'object' ? flow.evidence : null;
   return {
     partialFlowId: flow.partialFlowId || null,
+    ...(flow.repo ? { repo: flow.repo } : {}),
     confidence: Number.isFinite(flow.confidence) ? flow.confidence : null,
     source: flow.source || null,
     frontier: flow.frontier && typeof flow.frontier === 'object'
       ? {
+        ...(flow.frontier.repo ? { repo: flow.frontier.repo } : {}),
         chunkUid: flow.frontier.chunkUid || null,
         terminalReason: flow.frontier.terminalReason || null,
         blockedExpansions: Array.isArray(flow.frontier.blockedExpansions)
@@ -240,6 +244,7 @@ export const buildRiskNarrativeSteps = (flow, maxEvidencePerFlow) => {
     if (!evidence && !watchWindow) return null;
     return {
       step: index + 1,
+      ...(flow?.repo ? { repo: flow.repo } : {}),
       evidence: evidence ? evidence.rendered.slice() : [],
       watchWindow
     };
@@ -257,6 +262,7 @@ export const normalizeRiskNarrativeConfidence = (flow) => {
 export const normalizeRiskNarrativeRuleRef = (rule) => (
   rule && typeof rule === 'object'
     ? {
+      ...(rule.repo ? { repo: rule.repo } : {}),
       ruleId: rule.ruleId || null,
       ruleName: rule.ruleName || null,
       ruleRole: rule.ruleRole || rule.ruleType || null,
@@ -289,6 +295,7 @@ export const buildRiskFlowNarrativeList = (
       const path = formatRiskPath(flow?.path) || null;
       return {
         flowId: flow?.flowId || 'flow',
+        ...(flow?.repo ? { repo: flow.repo } : {}),
         ...confidence,
         category: flow?.category || null,
         sourceRule,
@@ -324,6 +331,7 @@ export const buildPartialRiskFlowNarrativeList = (
       const path = formatRiskPath(flow?.path) || null;
       return {
         partialFlowId: flow?.partialFlowId || 'partial-flow',
+        ...(flow?.repo ? { repo: flow.repo } : {}),
         ...confidence,
         source: normalizeRiskNarrativeRuleRef(flow?.source),
         terminalReason: flow?.frontier?.terminalReason || flow?.notes?.terminalReason || null,
@@ -344,6 +352,7 @@ export const buildRiskExplanationModel = ({
   support = null,
   stats = null,
   provenance = null,
+  federation = null,
   analysisStatus = null,
   flowPopulation = null,
   partialFlowPopulation = null,
@@ -359,6 +368,7 @@ export const buildRiskExplanationModel = ({
   support: support && typeof support === 'object' ? support : null,
   stats: stats && typeof stats === 'object' ? stats : null,
   provenance: provenance && typeof provenance === 'object' ? provenance : null,
+  ...(federation?.enabled === true ? { federation } : {}),
   analysisStatus: analysisStatus && typeof analysisStatus === 'object' ? analysisStatus : null,
   flowPopulation,
   partialFlowPopulation,
@@ -411,6 +421,7 @@ export const buildRiskExplanationModelFromRiskSlice = (risk, { subject = null, f
   support: risk?.support || null,
   stats: normalizeExplainStats(risk?.stats || null),
   provenance: risk?.provenance || null,
+  federation: risk?.federation || null,
   analysisStatus: risk?.analysisStatus || null,
   anchor: risk?.anchor || null,
   caps: risk?.caps || null,

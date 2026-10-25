@@ -15,14 +15,41 @@ complete cross-piece result.
 ## Current contract
 
 - `risk.version`: `1`
-- `risk.contractVersion`: `1.0.0`
+- `risk.contractVersion`: `1.1.0`
 - Accepted `risk.provenance.artifactSurfaceVersion`: `0.0.2`
+
+Federated packs keep the captured child qualification in
+`risk.federation.attestations`, with one entry per selected repository (at most
+16). Each `rpa1:` identity hashes repository ID, status, reason, degradation,
+provenance, analysis status, support, stats and caps. It excludes presentation
+labels and the base flag. Findings, source/sink locations, path nodes, call-site
+details and partial-flow frontier/blocked locations carry
+`repo.attestationId`; each must resolve to its owning member. Validators reject
+missing, substituted or changed attestations, including unsupported artifact
+surface versions.
+
+`risk.federation.fieldScopes` declares summary, guidance and anchor as base
+repository fields. Top-level provenance, support, stats and caps are null;
+their exact per-member values remain in the registry. Aggregate analysis status
+cannot claim completion if any member is capped, missing, disabled, degraded,
+otherwise unavailable, or omitted by the repository cap. A capped member can
+remain non-degraded while still making `strictFailure` true. No workspace-wide
+index identity or aggregate count is invented.
+
+JSON and SARIF retain the registry and finding/evidence references. Markdown
+identifies each finding's member attestation and lists member qualification.
+Final response budgeting counts the registry, including rendered companions.
+If optional risk cannot fit, its findings and registry are removed together;
+strict risk instead fails through the existing budget contract. Independently
+authored member identities, base swaps, peer caps and missing artifacts have
+regression fixtures; execution remains pending Windows qualification.
 
 ## Compatibility rules
 
-- Readers and validators must fail closed when `risk.contractVersion` is missing or does not exactly equal `1.0.0`.
+- Readers and validators must fail closed when `risk.contractVersion` is missing or does not exactly equal `1.1.0`.
 - Readers and validators must fail closed when `risk.version !== 1`.
 - Readers and validators must fail closed when `risk.provenance.artifactSurfaceVersion` is present and outside the accepted set.
+- The same artifact compatibility check applies to each federated attestation.
 - There is no dual-read or compatibility shim path for incompatible risk payloads.
 
 ## Hard cutover

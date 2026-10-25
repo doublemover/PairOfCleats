@@ -114,6 +114,7 @@ const renderRiskFlowNarrativeMarkdown = (narrative) => {
   for (const flow of narrative.flows) {
     const category = flow?.category ? ` ${flow.category}` : '';
     lines.push(`- [${flow.confidenceLabel || 'n/a'}] ${flow.flowId || 'flow'}${category}`);
+    if (flow.repo) lines.push(`  member: ${flow.repo.alias || flow.repo.repoId} (${flow.repo.attestationId})`);
     const sourceRule = flow?.sourceRule || null;
     const sinkRule = flow?.sinkRule || null;
     if (sourceRule || sinkRule) {
@@ -148,6 +149,7 @@ const projectRiskExplanationNarrative = (
   support: model?.support || null,
   stats: model?.stats || null,
   provenance: model?.provenance || null,
+  ...(model?.federation ? { federation: model.federation } : {}),
   caps: model?.caps || null,
   truncation: Array.isArray(model?.truncation) ? model.truncation.slice() : [],
   filters: model?.filters || null,
@@ -267,6 +269,19 @@ const renderStats = (model, lines) => {
 };
 
 const renderProvenance = (model, lines) => {
+  if (model?.federation) {
+    const federation = model.federation;
+    const aliases = new Map((federation.selection?.selectedRepos || []).map(repo => [repo.repoId, repo.alias]));
+    lines.push('- summary, guidance and anchor scope: base repository; completion scope: all selected members');
+    for (const member of federation.attestations || []) {
+      const provenance = member.provenance;
+      lines.push(`- member ${aliases.get(member.repoId) || member.repoId}: ${member.analysisStatus?.code || 'unavailable'} (${member.attestationId})`);
+      const parts = [provenance?.indexSignature && `index ${provenance.indexSignature}`,
+        provenance?.ruleBundle?.fingerprint && `rules ${provenance.ruleBundle.fingerprint}`,
+        provenance?.effectiveConfigFingerprint && `config ${provenance.effectiveConfigFingerprint}`].filter(Boolean);
+      if (parts.length) lines.push(`  provenance: ${parts.join(', ')}`);
+    }
+  }
   const provenance = model?.provenance || null;
   if (!provenance) return;
   const parts = [];
@@ -357,6 +372,7 @@ const renderPartialNarrativeMarkdown = (narrative) => {
   for (const flow of narrative.partialFlows) {
     const suffix = flow?.terminalReason ? ` ${flow.terminalReason}` : '';
     lines.push(`- [${flow.confidenceLabel || 'n/a'}] ${flow.partialFlowId || 'partial-flow'}${suffix}`);
+    if (flow.repo) lines.push(`  member: ${flow.repo.alias || flow.repo.repoId} (${flow.repo.attestationId})`);
     if (flow?.frontierChunkUid) {
       lines.push(`  frontier: ${flow.frontierChunkUid}`);
     }

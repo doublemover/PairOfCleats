@@ -87,6 +87,7 @@ const collectFlowSteps = (flow, maxEvidencePerFlow) => {
     if (!limited.length) {
       locations.push({
         step: index + 1,
+        ...(flow?.repo ? { repo: flow.repo } : {}),
         ordinal: locations.length + 1,
         evidenceIndex: 0,
         callSiteId: null,
@@ -99,6 +100,7 @@ const collectFlowSteps = (flow, maxEvidencePerFlow) => {
     limited.forEach((entry, entryIndex) => {
       locations.push({
         step: index + 1,
+        ...(flow?.repo ? { repo: flow.repo } : {}),
         ordinal: locations.length + 1,
         evidenceIndex: entryIndex,
         callSiteId: entry?.callSiteId || ids[entryIndex] || null,
@@ -118,6 +120,7 @@ const buildThreadFlowLocation = (flowStep, { uriBaseId = DEFAULT_URI_BASE_ID } =
     properties: {
       pairOfCleats: {
         callSiteId: flowStep.callSiteId || null,
+        ...(flowStep.repo ? { repo: flowStep.repo } : {}),
         evidenceIndex: flowStep.evidenceIndex,
         step: flowStep.step,
         watchWindow: normalizeRiskWatchWindow(flowStep.watchWindow)
@@ -137,6 +140,7 @@ const buildResultLocation = (flowSteps, { uriBaseId = DEFAULT_URI_BASE_ID } = {}
     if (!physicalLocation) continue;
     return [{
       physicalLocation,
+      ...(flowSteps[index].repo ? { properties: { pairOfCleats: { repo: flowSteps[index].repo } } } : {}),
       message: { text: flowSteps[index].message }
     }];
   }
@@ -174,6 +178,7 @@ const buildFlowResult = (flow, index, { uriBaseId = DEFAULT_URI_BASE_ID, maxEvid
     properties: {
       pairOfCleats: {
         flowId: flow?.flowId || null,
+        ...(flow?.repo ? { repo: flow.repo } : {}),
         confidence: Number.isFinite(flow?.confidence) ? flow.confidence : null,
         category: flow?.category || null,
         sourceRuleId: flow?.source?.ruleId || null,
@@ -193,6 +198,7 @@ const buildPartialFlowCompanion = (partialFlows, { maxPartialFlows = 3, maxEvide
   const list = Array.isArray(partialFlows) ? partialFlows : [];
   const limited = list.slice(0, maxPartialFlows).map((flow) => ({
     partialFlowId: flow?.partialFlowId || null,
+    ...(flow?.repo ? { repo: flow.repo } : {}),
     confidence: Number.isFinite(flow?.confidence) ? flow.confidence : null,
     source: flow?.source || null,
     frontier: flow?.frontier || null,
@@ -200,6 +206,7 @@ const buildPartialFlowCompanion = (partialFlows, { maxPartialFlows = 3, maxEvide
     notes: flow?.notes || null,
     blockedExpansions: Array.isArray(flow?.frontier?.blockedExpansions)
       ? flow.frontier.blockedExpansions.slice(0, maxEvidencePerFlow).map((entry) => ({
+        ...(entry?.repo ? { repo: entry.repo } : {}),
         targetChunkUid: entry?.targetChunkUid || null,
         reason: entry?.reason || null,
         callSiteIds: Array.isArray(entry?.callSiteIds) ? entry.callSiteIds.filter(Boolean) : []
@@ -251,6 +258,7 @@ export const renderRiskExplanationSarif = (model, {
           summary: model?.summary || null,
           stats: model?.stats || null,
           provenance: model?.provenance || null,
+          ...(model?.federation ? { federation: model.federation } : {}),
           caps: model?.caps || null,
           truncation: Array.isArray(model?.truncation) ? model.truncation.slice() : [],
           filters: model?.filters || null,
