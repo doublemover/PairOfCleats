@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "38214a128",
+  "sourceHead": "34d54951c",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 359,
+    "implemented": 360,
     "partial": 150,
-    "pending": 219
+    "pending": 218
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -521,6 +521,7 @@
       1552,
       1553,
       1554,
+      1562,
       1565,
       1567,
       1570,
@@ -795,7 +796,6 @@
       1559,
       1560,
       1561,
-      1562,
       1563,
       1564,
       1566,
@@ -5121,8 +5121,10 @@
       "number": 1562,
       "title": "[P2] Parse DOCX structure by XML namespace and element boundaries, not literal w: regexes",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "34d54951c",
+      "validation": "deferred"
     },
     {
       "number": 1563,

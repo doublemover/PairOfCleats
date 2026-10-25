@@ -146,6 +146,21 @@ The following priority implementations are also authored with execution deferred
   producer handoff, prior-manifest preservation, cold/warm/fresh products, Unicode,
   case/CRLF/astral extents and old receipt rejection. Source: `38214a128`.
 
+- **#1562:** the existing namespace-aware SAX owner already handled prefixes,
+  comments and self-closing paragraphs. This batch completes UTF-8/BOM/XML 1.0
+  admission, explicit unsupported-encoding refusal, root/entity/character checks,
+  depth/node/attribute/event/paragraph bounds and monotonic deadline checks.
+  Structural admission precedes optional provider work. Physical ordinals include
+  omitted revision paragraphs; old compacted-index assertions were identified by
+  counting the fixture's actual Word paragraph elements, while all visible and
+  excluded-content assertions remain. The pathname adapter uses bounded verified
+  source admission with original close ownership. DOCX structure advances **2 → 3**
+  and persisted format-specific normalization identity records that meaning.
+  Authored coverage exercises prefix/default namespace rebinding, comments, empty
+  and deleted paragraphs, tables/separators, actual preferred/fallback paths into
+  the real chunker, BOM/encoding/grammar/capacity/deadline controls and direct
+  pathname byte refusal. Source: `34d54951c`. Execution remains deferred.
+
 Implementation reconciliation also reviewed the existing reverse initialization
 unwind and actual final-receipt failure fixture for **#1073** (`8d46b2a43`),
 and terminal append/immutable error precedence plus multi-process regression for
@@ -176,3 +191,7 @@ usage, script-inventory/shared-module freshness passed. The first command-surfac
 audit rejected the inherited missing trusted-config selector; its isolated-child
 recheck passed after removing that stale selector without granting trust. Functional execution
 and the complete front gate remain deferred; this is not final-tree acceptance.
+
+Static followup at `34d54951c`: formatting and syntax checks passed. Runner list
+mode discovered all eight newly authored dictionary/WASM/risk/scheduler/records/
+DOCX regression files selected for this wave. Listing executed no fixtures.
