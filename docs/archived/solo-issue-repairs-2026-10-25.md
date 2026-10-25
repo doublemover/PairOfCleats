@@ -969,3 +969,36 @@ valid source in entries and absent from skips. No assertions or wrappers were
 removed. Format/ESLint, syntax, affected ledger/taxonomy refreshes, discovery and
 diff checks passed. Functional execution remains deferred. Coverage is **35 fixed /
 394 implemented / 150 partial / 184 pending**.
+
+
+## SQLite FTS cooperative work qualification
+
+**#1592** (`dc3e4e3df`) makes the existing chunk-size control govern actual
+qualification/hydration batches and gives candidate SQL, cursor steps, metadata
+hydration and term queries one cooperative dispatch allowance. Native tokenizer,
+Boolean/literal eligibility still precede SQL LIMIT. Qualified rows retain
+stable SQL ties and global weighting/normalization before final top-N selection.
+The existing native cursor is disposed on completion, deadline, cap, cancellation
+and error. Metadata/term failures retain their original propagation contracts;
+only native candidate-query failures use the existing unavailable fallback.
+Unconfirmed cleanup retains resource ownership and cannot become empty success.
+
+Synchronous SQLite work cannot be interrupted by a JavaScript timer. Receipts
+explicitly declare cooperative dispatch, no hard deadline and no native
+interruption, with observed overrun, batches, cursor steps and phase timings.
+Scoring/cleanup count toward observed total; route/tokenizer preflight is outside
+the declared allowance. After an overrun no further budgeted call dispatches.
+Deadline-truncated execution remains partial/uncacheable through the shared
+`sparse-budget` reason even when a separate sparse fallback finds hits. Work
+policy version participates in query-cache identity. Row and time defaults and
+existing tail profile overrides remain.
+
+Authored controls cover virtual-time dispatch/qualification boundaries, real
+batch-size differences, zero/one/multiple batches, cap and cleanup failures,
+real native SQLite cursor disposal/cancellation/syntax failure, metadata/term
+allowance exhaustion, cold/warm weighted Boolean/literal results with independent
+expected IDs and a pipeline/cache partial-outcome witness. The former budget
+fixture retains default-value assertions and labels them diagnostic plumbing.
+Format/ESLint, syntax, affected ledger/taxonomy refreshes, discovery and diff
+checks passed. Functional and serial latency qualification remain deferred.
+Coverage is **35 fixed / 395 implemented / 150 partial / 183 pending**.
