@@ -174,7 +174,7 @@ The rank query must match the admitted query-text digest. Capture owns channel,
 metadata, relation and baseline values before yielding for the independent oracle;
 later mutations of borrowed input arrays cannot enter the saved generation.
 
-The strict version1 record binds source/model/query/filter/oracle identities,
+The strict version2 record binds source/model/query/filter/oracle identities,
 Node runtime and whole scoring-owner source hashes. A changed policy requires a
 fresh capture. Replay uses production calibration, fusion, gates, boosts, tie
 selection, diversity and graph owners. Its temporary scoring path preserves all
@@ -187,6 +187,25 @@ list maximum and dense scores through production calibration, then divides the
 weighted sum by the full configured weight total. Missing normalized
 contributions count as zero only in this experimental formula; their raw source
 scores stay null. Zero-weight-only members remain in the union.
+
+Version2 also records each channel's captured count, ranked-prefix semantics and
+requested capture depth (null when unknown). Replays can ablate within that
+prefix. A larger depth requires an explicit capture-owner complete-enumeration
+receipt with eligible count, query/corpus generation/source identity and the
+ordered source-key prefix hash. A short or empty hit array never supplies this
+evidence by itself. These receipts declare the capture owner's enumeration;
+replay cannot independently reconstruct an unseen tail. Old version1 captures
+must be recaptured, rather than upgraded with guessed exhaustion.
+
+Replay receipts retain requested/effective depths and availability reasons.
+Sweep admission checks every query/configuration depth before selecting any
+policy; one shallow query cannot be silently clipped or dropped. Grid settings
+are captured before asynchronous work. Channel availability, source hashes,
+checkpoint and frozen selection identities bind the new policy. Cost remains
+saved-score work and cannot estimate uncaptured retrieval/model/index latency.
+Authored controls cover independent sparse/dense boundaries, explicit exhaustion,
+mixed available depths, mutated/wrong receipts and a genuinely captured rank3
+that changes the expected winner. Functional qualification remains deferred.
 
 `sweepFusionReplays` accepts an explicit grid of at most64 settings and256 unique
 queries sharing one model/source generation/output cap. Seeded query-identity

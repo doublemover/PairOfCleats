@@ -3,10 +3,11 @@ import { performance } from 'node:perf_hooks';
 import { setImmediate as yieldImmediate } from 'node:timers/promises';
 import { stableStringify } from '../../shared/stable-json.js';
 import { FUSION_REPLAY_VERSION, admitFusionReplayRecord, replayFusionRecord } from './fusion-replay.js';
+import { fusionDepthAvailability, FUSION_DEPTH_POLICY } from './fusion-channel-coverage.js';
 import { comparePairedQuality, PAIRED_QUALITY_POLICY } from './paired-quality.js';
 import { QUALITY_COMPARISON_VERSION } from '../../contracts/schemas/quality-comparison.js';
 
-export const FUSION_SWEEP_METRIC_POLICY = `graded-ndcg.recall-positive.mrr.v1;paired-query-normal-95.v1;${PAIRED_QUALITY_POLICY}`;
+export const FUSION_SWEEP_METRIC_POLICY = `graded-ndcg.recall-positive.mrr.v1;paired-query-normal-95.v1;${PAIRED_QUALITY_POLICY};${FUSION_DEPTH_POLICY}`;
 const digest = value => createHash('sha256').update(stableStringify(value)).digest('hex');
 const fail = message => Object.assign(new Error(message), { code: 'ERR_FUSION_SWEEP' });
 const caps = { records: 256, configurations: 64, inputBytes: 16 * 1024 * 1024,
@@ -71,13 +72,22 @@ export const sweepFusionReplays = async ({ records, grid, seed = 'fusion-sweep-v
   const emit = report => Buffer.byteLength(JSON.stringify(report)) <= budget.outputBytes ? report : {
     schemaVersion: FUSION_REPLAY_VERSION, kind: 'fusion-sweep', complete: false, reason: 'output-bytes', selected: null, metrics: null };
   if (records.length > budget.records || grid.length > budget.configurations) return emit(partial('admission-limit'));
+  const capturedGrid = grid.map(row => Object.fromEntries(Object.keys(row).map(name => {
+    const descriptor = Object.getOwnPropertyDescriptor(row, name);
+    if (!descriptor || !Object.hasOwn(descriptor, 'value') || !['string', 'number', 'boolean'].includes(typeof descriptor.value)) {
+      throw fail('Grid settings require original scalar policy values.');
+    }
+    return [name, descriptor.value];
+  })));
   const seenQueries = new Set(), seenKeys = new Set(), admitted = [], policies = new Set(), identities = new Set();
   const baseline = [];
   for (const input of records) {
     if (stop()) return emit(partial(stop()));
     // The replay owner admits an immutable bounded plain-data copy and checks
     // the exact source/runtime policy. Its replay first proves current parity.
-    const record = admitFusionReplayRecord(input), receipt = replayFusionRecord(record);
+    const record = admitFusionReplayRecord(input);
+    for (const candidate of capturedGrid) { if (stop()) return emit(partial(stop())); fusionDepthAvailability(record, candidate); }
+    const receipt = replayFusionRecord(record);
     if (stableStringify(receipt.results) !== stableStringify(record.baseline)) throw fail('Current fusion baseline parity failed.');
     inputBytes += Buffer.byteLength(JSON.stringify(record));
     if (inputBytes > budget.inputBytes) return emit(partial('input-bytes'));
@@ -93,7 +103,7 @@ export const sweepFusionReplays = async ({ records, grid, seed = 'fusion-sweep-v
     await yieldImmediate();
   }
   if (policies.size !== 1 || identities.size !== 1) throw fail('One sweep requires one source/model/generation/output policy.');
-  const configurations = [...new Map(grid.map(row => [digest(row), structuredClone(row)])).entries()]
+  const configurations = [...new Map(capturedGrid.map(row => [digest(row), row])).entries()]
     .sort(([a], [b]) => a.localeCompare(b));
   const sorted = admitted.map((record, index) => ({ record, baseline: baseline[index] }))
     .sort((a, b) => a.record.provenance.queryKey.localeCompare(b.record.provenance.queryKey));
@@ -114,7 +124,8 @@ export const sweepFusionReplays = async ({ records, grid, seed = 'fusion-sweep-v
       work += cost;
       const receipt = candidate ? replayFusionRecord(record, candidate) : current;
       output.push({ queryKey: record.provenance.queryKey, policyKey: receipt.policyKey,
-        metrics: quality(record, receipt), candidateRecall: receipt.candidateRecall, missingness: receipt.missingness });
+        metrics: quality(record, receipt), candidateRecall: receipt.candidateRecall, missingness: receipt.missingness,
+        depthAvailability: receipt.depthAvailability });
       completedQueries++;
       await yieldImmediate();
     }
@@ -138,7 +149,7 @@ export const sweepFusionReplays = async ({ records, grid, seed = 'fusion-sweep-v
   const winner = judged[0];
   // This immutable selection receipt is constructed before accessing any test
   // judgment. Changing held-out grades cannot change its key or parameters.
-  const frozen = Object.freeze({ policy: winner.candidate, policyKey: winner.key,
+  const frozen = Object.freeze({ policy: winner.candidate, policyKey: winner.key, depthPolicy: FUSION_DEPTH_POLICY,
     selection: 'dev graded NDCG; stable policy-key tie', seed, splits: splitIds,
     key: digest({ version: FUSION_REPLAY_VERSION, metric: FUSION_SWEEP_METRIC_POLICY, seed, splitIds,
       trainDev: [...splits.train, ...splits.dev].map(row => row.record.recordKey), policyKey: winner.key }) });

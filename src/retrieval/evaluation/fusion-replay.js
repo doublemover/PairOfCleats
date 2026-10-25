@@ -10,6 +10,7 @@ import { calibrateAnnScore } from '../../shared/ann-similarity.js';
 import { admitVectorEvaluationRecord, evaluateVectorOracles } from './vector-oracle.js';
 import { FUSION_REPLAY_VERSION } from '../../contracts/schemas/fusion-replay.js';
 import { validateFusionReplayRecord } from '../../contracts/validators/fusion-replay.js';
+import { captureFusionChannelCoverage, validateFusionChannelCoverage, fusionDepthAvailability, FUSION_DEPTH_POLICY } from './fusion-channel-coverage.js';
 
 export { FUSION_REPLAY_VERSION };
 const MAX_BYTES = 8 * 1024 * 1024, MAX_CANDIDATES = 4096;
@@ -61,7 +62,7 @@ const policySources = ['../pipeline/fusion.js', '../pipeline/rank-stage.js', '..
   '../pipeline/evidence-selection.js', '../pipeline/graph-ranking.js', '../pipeline/provider-runtime.js',
   '../scoring/relation-boost.js', '../scoring/exact-intent.js', '../../shared/ann-similarity.js',
   '../../graph/prepared-node-indexes.js', '../../graph/work-budget.js', '../../shared/limits.js',
-  '../../shared/sort.js', './fusion-replay.js'];
+  '../../shared/sort.js', './fusion-replay.js', './fusion-channel-coverage.js'];
 const loadedPolicy = digest({ version: FUSION_REPLAY_VERSION, node: process.version,
   sources: policySources.map(file => [file, createHash('sha256').update(readFileSync(new URL(file, import.meta.url))).digest('hex')]) });
 const currentPolicy = () => loadedPolicy;
@@ -91,6 +92,7 @@ const validateChannels = record => {
       else checkSpace(hit);
     });
   }
+  validateFusionChannelCoverage(record);
   return candidates;
 };
 
@@ -116,7 +118,7 @@ const summarize = (entries, candidates) => entries.map(entry => ({ key: candidat
  * resolved file relations from the same source generation before any grid runs.
  * Original/stored oracle evidence supplies independently admitted source keys.
  */
-export const captureFusionReplay = async ({ evaluationRecord, fusionInput, rankInput, idToSourceKey, signal = null }) => {
+export const captureFusionReplay = async ({ evaluationRecord, fusionInput, rankInput, idToSourceKey, channelCoverage = {}, signal = null }) => {
   throwIfAborted(signal);
   const { record: evaluation, key: oracleRecordKey } = admitVectorEvaluationRecord(evaluationRecord);
   const k = rankInput.searchTopN, slack = rankInput.topkSlack || 0;
@@ -165,6 +167,7 @@ export const captureFusionReplay = async ({ evaluationRecord, fusionInput, rankI
       queryKey: evaluation.observed.provenance.queryKey, oracleRecordKey, queryId: evaluation.query.id,
       textDigest: evaluation.query.textDigest, filterDigest: evaluation.query.filterDigest },
     fusionOptions: options(fusionInput, fusionOptionNames), rankOptions: { ...options(rankInput, rankOptionNames), topkSlack: slack },
+    channelCoverage: captureFusionChannelCoverage({ sparse: fusionInput.bmHits, dense: fusionInput.annHits }, channelCoverage),
     channels: { sparse: fusionInput.bmHits.map((hit, index) => ({ idx: hit.idx, score: hit.score, rank: index + 1 })),
       dense: fusionInput.annHits.map((hit, index) => ({ idx: hit.idx, sim: hit.sim, rank: index + 1,
         scoreSpace: hit.scoreSpace ? { kind: hit.scoreSpace.kind, metric: hit.scoreSpace.metric, backend: hit.scoreSpace.backend ?? null } : null,
@@ -214,6 +217,7 @@ export const replayFusionRecord = (input, candidate = null) => {
   if (setting.mode === 'rrf' && (!Number.isSafeInteger(setting.rrfK) || setting.rrfK < 1 || setting.rrfK > 1024)
     || ['blend', 'fixed-missing'].includes(setting.mode) && (![setting.sparseWeight, setting.denseWeight].every(value => Number.isFinite(value) && value >= 0 && value <= 1)
       || setting.sparseWeight + setting.denseWeight <= 0)) throw fail('Fusion sweep parameters are outside their bounded domain.');
+  const depthAvailability = fusionDepthAvailability(record, setting);
   const sparse = record.channels.sparse.slice(0, setting.sparseDepth), dense = record.channels.dense.slice(0, setting.denseDepth);
   const fusionOptions = { ...record.fusionOptions };
   if (setting.mode !== 'current') Object.assign(fusionOptions, { rrfEnabled: setting.mode === 'rrf',
@@ -262,7 +266,8 @@ export const replayFusionRecord = (input, candidate = null) => {
   }
   const union = new Set([...sparse, ...dense].map(hit => hit.idx)), sparseIds = new Set(sparse.map(hit => hit.idx)), denseIds = new Set(dense.map(hit => hit.idx));
   const reference = record.oracle.referenceKeys, unionKeys = new Set([...union].map(id => mapping.get(id).key));
-  return { schemaVersion: FUSION_REPLAY_VERSION, recordKey, policyKey: digest(setting), setting, results,
+  return { schemaVersion: FUSION_REPLAY_VERSION, recordKey, policyKey: digest({ setting, depthPolicy: FUSION_DEPTH_POLICY }),
+    setting, depthPolicy: FUSION_DEPTH_POLICY, depthAvailability, results,
     candidateRecall: { hits: reference.filter(key => unionKeys.has(key)).length, denominator: reference.length,
       value: reference.length ? reference.filter(key => unionKeys.has(key)).length / reference.length : null,
       representation: record.oracle.representation },

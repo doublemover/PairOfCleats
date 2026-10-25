@@ -1,4 +1,4 @@
-export const FUSION_REPLAY_VERSION = 1;
+export const FUSION_REPLAY_VERSION = 2;
 const hash = { type: 'string', pattern: '^[a-f0-9]{64}$' };
 const nullable = schema => ({ anyOf: [{ type: 'null' }, schema] });
 const text = maxLength => ({ type: 'string', maxLength });
@@ -9,6 +9,12 @@ const scoreSpace = record({ kind: { enum: ['cosine', 'jaccard', 'negative-distan
   metric: { enum: ['cosine', 'jaccard', 'l2', 'ip', 'dot'] }, backend: nullable(text(128)) });
 const result = record({ key: hash, score: { type: 'number' }, scoreType: text(128),
   sparseScore: nullable({ type: 'number' }), annScore: nullable({ type: 'number' }) });
+const channelCoverage = record({ ordering: { const: 'ranked-prefix' },
+  requestedDepth: nullable({ type: 'integer', minimum: 0, maximum: 4096 }),
+  capturedCount: { type: 'integer', minimum: 0, maximum: 4096 },
+  exhaustion: nullable(record({ state: { const: 'exhausted' }, basis: { const: 'capture-owner-complete-enumeration' },
+    eligibleCount: { type: 'integer', minimum: 0, maximum: 4096 }, prefixHash: hash, queryKey: hash,
+    sourceDigest: hash, generation: hash })) });
 export const FUSION_REPLAY_RECORD_SCHEMA = record({ schemaVersion: { const: FUSION_REPLAY_VERSION },
   kind: { const: 'retrieval-fusion-replay' }, recordKey: hash, policy: hash,
   provenance: record({ corpus: record({ id: text(256), sourceDigest: hash, generation: hash }),
@@ -20,6 +26,7 @@ export const FUSION_REPLAY_RECORD_SCHEMA = record({ schemaVersion: { const: FUSI
       fieldWeightsEnabled: { type: 'boolean' } } },
   rankOptions: { ...data, required: ['searchTopN', 'topkSlack'], properties: {
     searchTopN: { type: 'integer', minimum: 1, maximum: 128 }, topkSlack: { type: 'integer', minimum: 0, maximum: 256 } } },
+  channelCoverage: record({ sparse: channelCoverage, dense: channelCoverage }),
   channels: record({ sparse: { type: 'array', maxItems: 4096, items: record({ idx, score: { type: 'number' }, rank: { type: 'integer', minimum: 1, maximum: 4096 } }) },
     dense: { type: 'array', maxItems: 4096, items: record({ idx, sim: { type: 'number' }, rank: { type: 'integer', minimum: 1, maximum: 4096 },
       scoreSpace, rawDistance: nullable({ type: 'number' }) }) } }),
