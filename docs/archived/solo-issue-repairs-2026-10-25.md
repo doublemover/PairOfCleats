@@ -187,6 +187,34 @@ The following priority implementations are also authored with execution deferred
   controls, missing/corrupt receipts, Stage2 and real shard splitting in both
   encodings. Source: `916a4e326`. Execution remains deferred.
 
+- **#1600:** lazy author hydration publishes a request-owned metadata/filter pair
+  instead of mutating artifact-cache rows beneath another wrapper's stale index.
+  Weakly retained materializations reuse the completed pair for equivalent warm
+  requests. Construction completes before either derivative is installed. The
+  authored fixture composes the actual index cache and backend wrapper with
+  admitted SCM evidence, checks independent expected IDs across cold/warm and
+  coordinated wrappers, generation replacement and construction failure, and
+  asserts one metadata copy/filter build for the unchanged warm cohort. Source:
+  `9007a937b`, qualification followup `4e9bb310c`. No allocation/latency gain is
+  claimed from these unexecuted assertions.
+- **#1605:** SCM selection and revision/policy admission precede author-cache
+  lookup. Complete per-file evidence is retained under the existing freshness
+  owner; failed/empty/partial/unsupported work is retryable on a later request,
+  with lower-level provider backoff unchanged. Successful files are reused while
+  unresolved files retry. Immutable map revisions preserve coherent filter
+  overlays; subset receipts cannot certify unseen chunks in the same file.
+  Retention is bounded to 16 entries/16 MiB of accounted evidence. Current and
+  legacy build-ID forms use the SCM component, preferring explicit `repo.head`.
+  Annotation cancellation and unconfirmed resources propagate through Git and
+  provider normalization. Typed coverage and `chunk-author-unavailable` execution
+  mark uncertain filtering partial, and final query-cache lookup/publication
+  requires the privately admitted evidence identity. JJ still annotates through
+  its existing adapter but cannot claim immutable historical cache authority
+  because that adapter ignores the input revision. Authored cases cover recovery,
+  partial-file reuse, source/policy/provider changes, shared row projections,
+  actual query-cache invalidation, cancellation, original pending resources and
+  retention bounds. Source: `4e9bb310c`. Execution remains deferred.
+
 Implementation reconciliation also reviewed the existing reverse initialization
 unwind and actual final-receipt failure fixture for **#1073** (`8d46b2a43`),
 and terminal append/immutable error precedence plus multi-process regression for
@@ -235,3 +263,11 @@ Windows/authority/native/Rust/platform jobs were skipped behind that failed gate
 The [source-bound job log](https://github.com/doublemover/PairOfCleats/actions/runs/40190762343/job/121161077154)
 was inspected; no Linux/WSL execution was started locally. Full front-gate,
 functional and native/performance qualification remain deferred.
+
+Signal-lifetime repair `ba78bbb4f` retains a dispatch turn for a self-signal and
+keeps the existing bounded forwarding deadline referenced until tracked shutdown
+settles. A fresh-process portable fixture controls delayed signal delivery and
+unreferenced cleanup, including rejection, without issuing a POSIX signal. The
+original postinstall SIGTERM assertion remains, with added status/stderr context.
+Formatting/syntax passed; the fixture was discovered without execution. Hosted
+requalification remains separate from this source repair.

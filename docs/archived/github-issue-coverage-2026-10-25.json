@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "56cb3511f",
+  "sourceHead": "4e9bb310c",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 362,
+    "implemented": 364,
     "partial": 150,
-    "pending": 216
+    "pending": 214
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -538,6 +538,8 @@
       1595,
       1598,
       1599,
+      1600,
+      1605,
       1610,
       1611,
       1635,
@@ -818,12 +820,10 @@
       1594,
       1596,
       1597,
-      1600,
       1601,
       1602,
       1603,
       1604,
-      1605,
       1606,
       1607,
       1608,
@@ -5399,8 +5399,10 @@
       "number": 1600,
       "title": "[P2] Keep cached filter indexes coherent after shared chunk-author hydration",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "4e9bb310c",
+      "validation": "deferred"
     },
     {
       "number": 1601,
@@ -5434,8 +5436,10 @@
       "number": 1605,
       "title": "[P2] Retry unavailable chunk-author hydration instead of caching it as terminal evidence",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "4e9bb310c",
+      "validation": "deferred"
     },
     {
       "number": 1606,
