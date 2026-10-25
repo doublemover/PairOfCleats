@@ -530,3 +530,30 @@ and listener cleanup. Actual server lifecycle coverage remains. Format/ESLint,
 syntax, generated refreshes, discovery and diff checks passed. Functional execution
 remains deferred. Coverage is **35 fixed / 378 implemented / 150 partial / 200
 pending**.
+
+## Complete SCM inventory admission
+
+**#1613** (`8fb9fb262`) requires successful terminal state, qualified stdout
+capture, exact complete byte counts, no loss/truncation and terminal record
+framing before Git/JJ file inventories supply names. Git history enumeration
+shares that guard while retaining ancestry qualification. A successful empty
+inventory stays authoritative. JJ's existing compatibility output is qualified
+independently; its unchanged changed-file cap now returns unavailable instead of
+certifying a prefix. Caller cancellation propagates before/after producer work.
+
+Registered wrappers require explicit completion and reject contradictory capture
+evidence or invalid list shape. Discovery carries bounded `scmInventory` evidence
+and actual selection policy through filesystem fallback. Complete filtered
+filesystem candidates do not assert complete SCM coverage. Unsettled resource
+failures bypass fallback catches; streaming candidates retain their iterator
+settlement and early-cap behavior. Discovery selection producer advances to 4.
+
+The authored fixture exercises actual Git/JJ adapters and wrappers with complete,
+empty, truncated/partial-first, lossy, missing/unknown, extent, framing and signal
+controls. It covers history, contradictory declarations, asserted JJ fallback/cap
+warnings, omitted-tail filesystem fallback, no-crawl empty authority, and an
+actual bounded Node-child collector handoff. Existing positive fixtures now
+explicitly declare their simulated completion; all their assertions remain.
+Format/ESLint, syntax, generated refreshes, test discovery and diff checks passed.
+Functional execution remains deferred. Coverage is **35 fixed / 379 implemented /
+150 partial / 199 pending**.

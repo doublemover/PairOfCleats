@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "86f14145d",
+  "sourceHead": "8fb9fb262",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 378,
+    "implemented": 379,
     "partial": 150,
-    "pending": 200
+    "pending": 199
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -553,6 +553,7 @@
       1610,
       1611,
       1612,
+      1613,
       1614,
       1616,
       1619,
@@ -832,7 +833,6 @@
       1603,
       1604,
       1607,
-      1613,
       1615,
       1617,
       1618,
@@ -5523,8 +5523,10 @@
       "number": 1613,
       "title": "[P2] Reject truncated SCM file inventories before declaring discovery complete",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "8fb9fb262",
+      "validation": "deferred"
     },
     {
       "number": 1614,
