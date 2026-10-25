@@ -33,7 +33,7 @@ import { teardownRuntime } from './runtime.js';
 import { buildSqliteIndex } from './sqlite.js';
 import { runEmbeddingsStage, runSqliteStage, runStage } from './stages.js';
 import { validateBuildIntent } from '../../../shared/cli-option-validators.js';
-import { createBuildIndexOutcome } from './outcome.js';
+import { createBuildIndexOutcome, retainBuildIndexFailureOutcome } from './outcome.js';
 import { planBuildRecovery, executeBuildRecovery, withBuildGraphCapability as consumeBuildGraphCapability } from './recovery.js';
 import { readBuildAttemptComparison, formatBuildAttemptComparison } from '../../../index/build/runtime/compare.js';
 import { listBuildRecoveryCandidates } from './recovery-candidates.js';
@@ -492,7 +492,6 @@ export async function buildIndex(repoRoot, options = {}) {
     return { ...result, outcome: createBuildIndexOutcome({ result, repo: repoRoot,
       requestedStage, modes: result?.modes || options.modes || [] }) };
   } catch (error) {
-    error.outcome = createBuildIndexOutcome({ repo: repoRoot, requestedStage, modes: options.modes || [], error });
-    throw error;
+    throw retainBuildIndexFailureOutcome(error, { repo: repoRoot, requestedStage, modes: options.modes || [] });
   }
 }

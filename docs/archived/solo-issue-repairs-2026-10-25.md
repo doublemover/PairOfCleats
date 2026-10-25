@@ -776,3 +776,27 @@ partial/deferred/unsupported phases, covered positives, empty selectors, missing
 record frontiers and monotonicity. Format/ESLint, syntax, affected ledger/taxonomy
 refreshes, fixture discovery and diff checks passed. Functional execution remains
 deferred. Coverage is **35 fixed / 386 implemented / 150 partial / 192 pending**.
+
+
+## Canonical parser degradation scope
+
+**#1569** (`a5b1e0897`) replaces substring/prefix inference with one scheduler
+query owner and a versioned typed receipt. Explicit grammar failures remain
+broad; container and segment occurrence failures match exact canonical VFS
+identities. The VFS builder supplies encoding/case/coordinate round-trip admission.
+Canonical historical summaries and exact-key adapters remain supported; raw,
+ambiguous, noncanonical or unsupported paths stay diagnostically unknown rather
+than becoming another path's authority. Explicit failed grammars survive an
+unqualified additional receipt.
+
+The crash publisher emits the same receipt in summaries and local/durable
+forensics. Per-file diagnostics/checkpoints preserve scope counts, bounded cause
+samples, omitted samples and unknown receipt counts. Source-chunking producer 29
+invalidates old routing meaning. Authored counting-adapter fixtures retain healthy
+sentinel chunks through prefix/sibling collisions and cover container, occurrence,
+grammar, mixed-language, encoding/Unicode/case, historical/invalid receipts,
+lookup release and cold/checkpoint parity. The real publisher fixture checks its
+receipt without changing existing failure assertions. Format/ESLint, syntax,
+affected ledger/taxonomy refreshes, discovery and diff checks passed. Functional
+and native execution remain deferred. Coverage is **35 fixed / 387 implemented /
+150 partial / 191 pending**.

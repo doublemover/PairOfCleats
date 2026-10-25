@@ -26,6 +26,25 @@ aggregate. A throwing retry-policy getter preserves the worker and inspection
 failure independently. Explicit non-retryable data errors retain their identity;
 confirmed closure keeps existing independently retryable operation behavior.
 
+In-process daemon normalization now captures original build ownership before
+reading message/name/code/outcome properties or writing diagnostics. Unsettled
+builds reject through the existing exact-claim cleanup hold, preventing ordinary
+completion, retry, session recycling or subprocess fallback from retiring that
+owner. The core build outcome presenter applies the same rule and uses the shared
+failure-context owner rather than assigning a property onto a possibly frozen
+error. Diagnostic inspection and logging failures retain their independent cause.
+
+Only confirmed settled failures become ordinary exit results. Cancellation keeps
+exit 130, and captured build outcomes/publication receipts survive inside daemon
+metadata through queue completion. A later failure cannot imply that a previously
+published generation was never published. JSON metadata grants no reconciliation
+capability; retirement still needs the original in-process resource observation.
+
+The daemon/queue cross-boundary fixture injects an inert build at the production
+normalization boundary, covering pending/frozen/hostile errors, mutable observer
+properties, abort cleanup, exact-once recovery, sibling isolation and ordinary
+settled/cancelled/post-publication outcomes. These controls remain unrun.
+
 The actual queue regressions use inert observers and preserve ordinary retry and
 failure contracts. They are authored and **UNVALIDATED**. No test, formatter,
 runtime, native or performance qualification has been executed for this change.

@@ -1,3 +1,6 @@
+import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
+
 /**
  * A selected command outcome. Unknown validation/publication is kept explicit;
  * repository-global preprocess files never qualify counts for this invocation.
@@ -44,6 +47,20 @@ export const createBuildIndexOutcome = ({ result = {}, repo = null, requestedSta
     stages, generations, counts: null,
     ...(error?.publication ? { publication: error.publication } : {}),
     error: error ? { code: error.code || null, message: String(error.message || error) } : null };
+};
+
+/** Failure presentation cannot erase an unresolved build-runtime owner. */
+export const retainBuildIndexFailureOutcome = (error, context = {}) => {
+  const observation = observeStorageResource(error, { phase: 'build-index-outcome' });
+  observation.requireSettled();
+  let outcome;
+  try {
+    outcome = createBuildIndexOutcome({ ...context, error: observation.primary });
+  } catch (inspection) {
+    throw observation.retain(inspection, { inspectionPresent: true });
+  }
+  observation.requireSettled();
+  return addStorageFailureContext(error, { outcome });
 };
 
 export const describeBuildIndexOutcome = (outcome, seconds) => {

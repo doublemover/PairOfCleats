@@ -12,6 +12,7 @@ import {
 import { collectEmbeddingReplayState, repairEmbeddingReplayState } from '../embedding-replay.js';
 import { buildEmbeddingsArgs, normalizeEmbeddingJob } from '../indexer-service-helpers.js';
 import { runLoggedSubprocess } from '../subprocess-log.js';
+import { observeStorageResource } from '../../../src/shared/storage/failure-observation.js';
 
 /**
  * Build the default run result shape used when execution fails unexpectedly.
@@ -64,6 +65,7 @@ const toNonNegativeInt = (value, fallback = 0) => {
  *   completeNonRetriableFailure:(job:{id:string},error:string)=>Promise<void>,
  *   runBuildIndexSubprocessImpl?:(repoPath:string,mode:string|null,stage:string|null,extraArgs?:string[]|null,logPath?:string|null,abortSignal?:AbortSignal|null,observability?:object|null)=>Promise<{exitCode:number,signal:string|null,cancelled:boolean,errorCode:string|null,errorMessage:string|null}>,
  *   runBuildIndexDaemonImpl?:(repoPath:string,mode:string|null,stage:string|null,extraArgs?:string[]|null,logPath?:string|null,daemonOptions?:object,abortSignal?:AbortSignal|null,observability?:object|null)=>Promise<{exitCode:number,signal:null,executionMode:'daemon',daemon:object,cancelled:boolean,shutdownMode:string|null}>
+ *   buildIndexImpl?:typeof buildIndex
  * }} input
  * @returns {{
  *   buildDefaultRunResult:()=>{exitCode:number,signal:null,executionMode:'subprocess',executionClass:'subprocess-isolated',daemon:null},
@@ -80,7 +82,8 @@ export const createJobExecutor = ({
   toolRoot,
   completeNonRetriableFailure,
   runBuildIndexSubprocessImpl = null,
-  runBuildIndexDaemonImpl = null
+  runBuildIndexDaemonImpl = null,
+  buildIndexImpl = buildIndex
 }) => {
   const daemonGovernanceConfig = (() => {
     const raw = daemonWorkerConfig?.governance && typeof daemonWorkerConfig.governance === 'object'
@@ -341,11 +344,12 @@ export const createJobExecutor = ({
       logPath,
       `[daemon] started ${new Date(startedAt).toISOString()} sessionKey=${daemonSessionKey} args=${JSON.stringify(rawArgs)}`
     );
+    let buildResult = null;
     try {
       const { argv: parsedArgv } = parseBuildArgs(rawArgs);
       const buildArgv = sanitizeBuildArgv(parsedArgv);
       const resolvedRepo = buildArgv.repo || repoPath;
-      const buildResult = await buildIndex(resolvedRepo, {
+      buildResult = await buildIndexImpl(resolvedRepo, {
         ...buildArgv,
         rawArgv: rawArgs,
         abortSignal,
@@ -367,29 +371,47 @@ export const createJobExecutor = ({
         daemon: {
           sessionKey: daemonSessionKey,
           deterministic: daemonDeterministic,
-          durationMs
+          durationMs,
+          outcome: structuredClone(buildResult?.outcome ?? null)
         }
       };
     } catch (err) {
-      const durationMs = Math.max(0, Date.now() - startedAt);
-      const message = err?.message || String(err);
-      const cancelled = err?.name === 'AbortError' || err?.code === 'ABORT_ERR';
-      await appendDaemonLogLine(logPath, `[daemon] failed durationMs=${durationMs} error=${message}`);
-      console.error(`[indexer] daemon build failed: ${message}`);
-      return {
-        exitCode: cancelled ? 130 : 1,
-        signal: null,
-        executionMode: 'daemon',
-        cancelled,
-        shutdownMode: cancelled ? 'force-stop' : null,
-        observability: observability || null,
-        daemon: {
-          sessionKey: daemonSessionKey,
-          deterministic: daemonDeterministic,
-          durationMs,
-          error: message
-        }
-      };
+      // Normalization is not a resource release. Pending ownership must reach
+      // the queue's existing exact-claim retirement path before any diagnosis.
+      const observation = observeStorageResource(err, { phase: 'indexer-daemon-execution' });
+      observation.requireSettled();
+      let normalized;
+      try {
+        const durationMs = Math.max(0, Date.now() - startedAt);
+        const primary = observation.primary;
+        const rawMessage = primary.message;
+        const message = typeof rawMessage === 'string' ? rawMessage.slice(0, 4096) : 'Daemon build failed.';
+        const cancelled = primary.name === 'AbortError' || primary.code === 'ABORT_ERR';
+        const outcome = structuredClone(primary.outcome ?? buildResult?.outcome ?? null);
+        const publication = structuredClone(primary.publication ?? outcome?.publication ?? null);
+        await appendDaemonLogLine(logPath, `[daemon] failed durationMs=${durationMs} error=${message}`);
+        console.error(`[indexer] daemon build failed: ${message}`);
+        normalized = {
+          exitCode: cancelled ? 130 : 1,
+          signal: null,
+          executionMode: 'daemon',
+          cancelled,
+          shutdownMode: cancelled ? 'force-stop' : null,
+          observability: observability || null,
+          daemon: {
+            sessionKey: daemonSessionKey,
+            deterministic: daemonDeterministic,
+            durationMs,
+            error: message,
+            outcome,
+            publication
+          }
+        };
+      } catch (inspection) {
+        throw observation.retain(inspection, { inspectionPresent: true });
+      }
+      observation.requireSettled();
+      return normalized;
     }
   };
 

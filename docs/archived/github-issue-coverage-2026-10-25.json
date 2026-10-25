@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "1ebc6f5bb",
+  "sourceHead": "a5b1e0897",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 386,
+    "implemented": 387,
     "partial": 150,
-    "pending": 192
+    "pending": 191
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -528,6 +528,7 @@
       1565,
       1567,
       1568,
+      1569,
       1570,
       1571,
       1572,
@@ -822,7 +823,6 @@
       1559,
       1560,
       1566,
-      1569,
       1581,
       1584,
       1585,
@@ -5185,8 +5185,10 @@
       "number": 1569,
       "title": "[P2] Scope parser degradation by canonical VFS identity, not path substrings",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "a5b1e0897",
+      "validation": "deferred"
     },
     {
       "number": 1570,
