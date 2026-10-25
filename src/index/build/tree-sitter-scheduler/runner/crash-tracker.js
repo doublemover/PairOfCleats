@@ -5,6 +5,7 @@ import { atomicWriteText } from '../../../../shared/io/atomic-write.js';
 import { toArray } from '../../../../shared/iterables.js';
 import { NATIVE_GRAMMAR_MODULES } from '../../../../lang/tree-sitter/native-runtime.js';
 import { parseSubprocessCrashEvents, tailLines } from './crash-utils.js';
+import { buildSchedulerDegradationReceipt } from '../degradation.js';
 
 const TREE_SITTER_RUNTIME_PACKAGE = 'tree-sitter';
 const CRASH_BUNDLE_SCHEMA_VERSION = '1.0.0';
@@ -227,6 +228,7 @@ const makeBundleSnapshot = ({
   outDir: path.resolve(outDir),
   failedGrammarKeys: Array.from(failedGrammarKeys).sort(),
   degradedVirtualPaths: Array.from(degradedVirtualPaths).sort(),
+  degradation: buildSchedulerDegradationReceipt({ failedGrammarKeys, degradedVirtualPaths }),
   quarantineDecisions: buildQuarantineDecisions(eventsBySignature),
   failureClasses: Object.fromEntries(
     Array.from(failureClassCounts.entries()).sort((a, b) => String(a[0]).localeCompare(String(b[0])))
@@ -531,6 +533,7 @@ export const createSchedulerCrashTracker = ({
         .sort((a, b) => String(a.signature).localeCompare(String(b.signature))),
       failedGrammarKeys: Array.from(failedGrammarKeys).sort(),
       degradedVirtualPaths: Array.from(degradedVirtualPaths).sort(),
+      degradation: buildSchedulerDegradationReceipt({ failedGrammarKeys, degradedVirtualPaths }),
       quarantineDecisions: buildQuarantineDecisions(eventsBySignature),
       failureClasses: Object.fromEntries(
         Array.from(failureClassCounts.entries()).sort((a, b) => String(a[0]).localeCompare(String(b[0])))

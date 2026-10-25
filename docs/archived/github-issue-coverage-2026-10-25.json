@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "4295cd4c8",
+  "sourceHead": "1ebc6f5bb",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 385,
+    "implemented": 386,
     "partial": 150,
-    "pending": 193
+    "pending": 192
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -527,6 +527,7 @@
       1564,
       1565,
       1567,
+      1568,
       1570,
       1571,
       1572,
@@ -821,7 +822,6 @@
       1559,
       1560,
       1566,
-      1568,
       1569,
       1581,
       1584,
@@ -5176,8 +5176,10 @@
       "number": 1568,
       "title": "[P2] Require coverage for every returned source before marking semantic queries complete",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "1ebc6f5bb",
+      "validation": "deferred"
     },
     {
       "number": 1569,

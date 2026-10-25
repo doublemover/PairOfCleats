@@ -44,6 +44,8 @@ try {
       const bundle = JSON.parse(await fs.readFile(filename, 'utf8'));
       assert.equal(bundle.events.length, 1);
       assert.equal(bundle.events[0].errorMessage, primary.message);
+      assert.equal(bundle.degradation.schemaVersion, 1);
+      assert.deepEqual(bundle.degradation.scopes, [{ scope: 'grammar', grammarKey: 'fixture', reason: 'failed-grammar' }]);
     }
     assert.equal(external.length, mode === 'external-getter' ? 0 : 1);
     assert.ok(presented.length > 0);
@@ -61,6 +63,8 @@ try {
         'an external getter failure belongs to its own sink');
     }
     assert.deepEqual(tracker.summarize().persistence, receipt);
+    assert.deepEqual(tracker.summarize().degradation.scopes,
+      [{ scope: 'grammar', grammarKey: 'fixture', reason: 'failed-grammar' }]);
   }
   await new Promise(resolve => setImmediate(resolve));
   assert.deepEqual(unhandled, [], 'rejected warning presentation cannot escape as unhandled work');

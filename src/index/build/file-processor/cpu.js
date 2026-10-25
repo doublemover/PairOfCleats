@@ -875,6 +875,7 @@ export const processFileCpu = async (context) => {
     codeFallbackSegmentCount: 0,
     schedulerMissingCount: 0,
     schedulerDegradedCount: 0,
+    schedulerDegradation: null,
     usedHeuristicChunking: false,
     usedHeuristicCodeChunking: false
   };
@@ -943,6 +944,7 @@ export const processFileCpu = async (context) => {
     codeFallbackSegmentCount: chunkingDiagnostics.codeFallbackSegmentCount,
     schedulerMissingCount: chunkingDiagnostics.schedulerMissingCount,
     schedulerDegradedCount: chunkingDiagnostics.schedulerDegradedCount,
+    schedulerDegradation: chunkingDiagnostics.schedulerDegradation,
     usedHeuristicChunking: chunkingDiagnostics.usedHeuristicChunking,
     usedHeuristicCodeChunking: chunkingDiagnostics.usedHeuristicCodeChunking
   });

@@ -9,6 +9,7 @@ import {
 import { buildTreeSitterSchedulerPlan } from './plan.js';
 import { createTreeSitterSchedulerLookup } from './lookup.js';
 import { createSchedulerCrashTracker } from './runner/crash-tracker.js';
+import { createSchedulerDegradationQuery } from './degradation.js';
 import { loadIndexEntries } from './runner/index-loader.js';
 import {
   buildTreeSitterPlannerFailureSnapshot
@@ -162,7 +163,7 @@ export const runTreeSitterScheduler = async ({
   const crashSummary = crashTracker.summarize();
   const failedGrammarKeySet = new Set(crashSummary.failedGrammarKeys);
   const successfulGrammarKeys = grammarKeys.filter((grammarKey) => !failedGrammarKeySet.has(grammarKey));
-  const degradedVirtualPathSet = new Set(crashSummary.degradedVirtualPaths);
+  const degradation = createSchedulerDegradationQuery(crashSummary);
   const quarantineDecisionCount = Array.isArray(crashSummary.quarantineDecisions)
     ? crashSummary.quarantineDecisions.length
     : 0;
@@ -263,12 +264,14 @@ export const runTreeSitterScheduler = async ({
       parserCrashEvents: crashSummary.parserCrashEvents.map((event) => ({ ...event })),
       failedGrammarKeys: crashSummary.failedGrammarKeys.slice(),
       degradedVirtualPaths: crashSummary.degradedVirtualPaths.slice(),
+      degradation: structuredClone(degradation.receipt),
       quarantineDecisions: Array.isArray(crashSummary.quarantineDecisions)
         ? crashSummary.quarantineDecisions.map((entry) => ({ ...entry }))
         : [],
       failureClasses: { ...(crashSummary.failureClasses || {}) }
     }),
-    isDegradedVirtualPath: (virtualPath) => degradedVirtualPathSet.has(virtualPath),
+    queryDegradation: degradation.query,
+    isDegradedVirtualPath: (virtualPath) => degradation.query({ virtualPath }).degraded,
     plannedSegmentsByContainer,
     loadPlannedSegments: (containerPath) => {
       if (!containerPath || !plannedSegmentsByContainer.has(containerPath)) return null;

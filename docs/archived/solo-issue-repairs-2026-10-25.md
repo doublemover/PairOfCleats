@@ -755,3 +755,24 @@ integrity, conservative status and whole-owner compaction. Format/ESLint, syntax
 affected generated refreshes, fixture discovery and diff checks passed.
 Functional execution remains deferred. Coverage is **35 fixed / 385 implemented /
 150 partial / 193 pending**.
+
+
+## Per-source semantic query qualification
+
+**#1568** (`1ebc6f5bb`) gives find, detail and trace one shared source-related
+coverage qualifier. Each lookup must contain syntax and analysis evidence across
+its associated physical partitions, and every present row must be complete.
+Uncovered sources cannot borrow another source's complete phases. Raw physical
+coverage remains page-local; five bounded monotone booleans retain whole-request
+qualification through continuations, distinguishing missing and incomplete phases.
+Enumeration status stays independent from analysis completeness. Detail also
+retains unavailable requested evidence across pages instead of erasing an earlier
+missing record when a later page completes.
+
+The authored matrix uses actual artifact and SQLite stores, distinct source
+identities and sibling syntax/analysis partitions. It covers both detail orders,
+single/two-page requests, missing syntax, missing analysis, both missing,
+partial/deferred/unsupported phases, covered positives, empty selectors, missing
+record frontiers and monotonicity. Format/ESLint, syntax, affected ledger/taxonomy
+refreshes, fixture discovery and diff checks passed. Functional execution remains
+deferred. Coverage is **35 fixed / 386 implemented / 150 partial / 192 pending**.
