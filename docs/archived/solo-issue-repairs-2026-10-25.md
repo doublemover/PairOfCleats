@@ -1175,3 +1175,47 @@ check was removed before publication. Functional execution remains deferred.
 Score-space/paired-measurement admission remains #1670; response admission alone
 is not its numerical score proof. Coverage is **35 fixed / 401 implemented / 150
 partial / 177 pending**.
+
+
+## Qualified paired score measurement and stable system identity
+
+**#1670** (`a1395ceac`) replaces implicit missing/component score substitution
+with final finite observations and fixed-size score-space receipts. Ranking/output
+owners bind resolved model/dictionary/ranking policy, selected source generation,
+actual provider metric, calibration, fusion, FTS normalization/variant, adjustment
+and graph outcome. Identified model reranking replaces that coordinate. Unknown
+metrics/adapters remain unknown. Hash allocation is restricted to retained hits;
+the pooled fusion owner retains/releases the extra provider fact. Compact and
+budgeted output preserve receipts. Query-cache key version 10 invalidates old
+results without coordinate ownership, and rendering never reuses a prior output
+receipt as authority. Production score/rank calculations remain unchanged.
+
+Comparisons preserve measured zero, distinguish missing values/unknown spaces/
+incompatible spaces/nonfinite differences, and retain bounded domain-pair samples.
+Disjoint and both-empty results have zero paired measurements and null delta.
+Rank/membership comparisons stay independent. Report means distinguish comparison
+macro and pooled shared-hit units with requested/defined/complete counts. Strict
+numerical parity requires complete shared-pair measurement for every requested
+comparison, independently of optional FTS quality warnings. Different-model or
+BM25/FTS scales cannot satisfy a numerical tolerance merely through equal values.
+
+Source review also exposed a follow-up to **#1658**: `eqp1` includes query text,
+so using it as the stable system key marked ordinary multi-query runs mixed.
+The original invocation identity remains; `esp1` removes only query text from the
+same resolved policy. Execution receipt/registry version 2 and their hash domains
+advance together. Backend/model/filter/policy changes still invalidate system
+consistency, and historical missing system identity cannot silently qualify.
+
+Authored controls cover zeros/missing/component-only scores, empty/disjoint
+intersections, unknown/conflicting spaces, model/metric/calibration changes,
+monotone rescaling, finite-arithmetic overflow, passive fields, distinct macro/pair
+denominators, real pooled fusion/rank/output ownership and model-stage replacement.
+Nineteen independently discovered actual parity/model report cases retain prior
+response assertions and add seven score controls. The actual evaluation identity
+fixture now witnesses distinct production query hashes under one stable system.
+Historical fusion/score assertions remain, with explicit new provenance fields.
+
+Full format, scoped ESLint, syntax, generated script/ledger/taxonomy refreshes,
+fixture discovery and staged diff checks passed. Functional fixtures, native/model
+execution, performance and the final front gate remain deferred by instruction.
+Coverage is **35 fixed / 402 implemented / 150 partial / 176 pending**.

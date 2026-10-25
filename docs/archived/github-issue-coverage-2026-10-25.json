@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "2233afe28",
+  "sourceHead": "a1395ceac",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 401,
+    "implemented": 402,
     "partial": 150,
-    "pending": 177
+    "pending": 176
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -581,6 +581,7 @@
       1658,
       1668,
       1669,
+      1670,
       1671,
       1684,
       1688,
@@ -878,7 +879,6 @@
       1665,
       1666,
       1667,
-      1670,
       1673,
       1674,
       1675,
@@ -4898,7 +4898,7 @@
     },
     {
       "number": 1530,
-      "title": "Qualify adaptive retrieval and evidence policies with independent risk–coverage receipts",
+      "title": "Qualify adaptive retrieval and evidence policies with independent risk\u2013coverage receipts",
       "priority": "other",
       "status": "pending",
       "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
@@ -5936,8 +5936,10 @@
       "number": 1670,
       "title": "[P2] Qualify reported score deltas by score space and paired measurement support",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "a1395ceac",
+      "validation": "deferred"
     },
     {
       "number": 1671,
