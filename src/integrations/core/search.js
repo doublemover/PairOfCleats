@@ -1,6 +1,6 @@
-import path from 'node:path';
 import { runSearchCli, INTERNAL_EXACT_SEARCH_MODE } from '../../retrieval/cli.js';
-import { buildSearchArgs } from './args.js';
+import { buildCoreSearchInvocation } from './search-invocation.js';
+import { INTERNAL_SEARCH_POLICY } from '../../retrieval/cli/effective-plan.js';
 import { attachObservability, normalizeObservability } from '../../shared/observability.js';
 
 /**
@@ -10,9 +10,7 @@ import { attachObservability, normalizeObservability } from '../../shared/observ
  * @returns {Promise<object>}
  */
 export async function search(repoRoot, params = {}) {
-  const rootOverride = repoRoot
-    ? path.resolve(repoRoot)
-    : (params.root ? path.resolve(params.root) : null);
+  const { root: rootOverride, rawArgs } = buildCoreSearchInvocation(repoRoot, params);
   const observability = normalizeObservability(params.observability, {
     surface: 'search',
     operation: 'search',
@@ -22,12 +20,6 @@ export async function search(repoRoot, params = {}) {
       output: params.output || null
     }
   });
-  if (params.argsMode != null && !['additional', 'complete'].includes(params.argsMode)) throw new TypeError('argsMode must be additional or complete.');
-  if (params.args != null && !Array.isArray(params.args)) throw new TypeError('Search args must be an array.');
-  const namedArgs = buildSearchArgs({ ...params, args: [] });
-  const rawArgs = params.argsMode === 'complete' ? (params.args || []).slice() : [...namedArgs, ...(params.args || [])];
-  const query = typeof params.query === 'string' ? params.query : '';
-  if (query) rawArgs.push('--', query);
   const result = await runSearchCli(rawArgs, {
     root: rootOverride || undefined,
     emitOutput: params.emitOutput === true,
@@ -37,7 +29,8 @@ export async function search(repoRoot, params = {}) {
     signal: params.signal || null,
     scoreMode: params.scoreMode ?? null,
     generationContext: params.generationContext || null,
-    [INTERNAL_EXACT_SEARCH_MODE]: params[INTERNAL_EXACT_SEARCH_MODE]
+    [INTERNAL_EXACT_SEARCH_MODE]: params[INTERNAL_EXACT_SEARCH_MODE],
+    [INTERNAL_SEARCH_POLICY]: params[INTERNAL_SEARCH_POLICY]
   });
   return attachObservability(result, observability);
 }

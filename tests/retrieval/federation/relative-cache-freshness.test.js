@@ -45,7 +45,7 @@ try {
       ? { workspacePath, query: 'alpha', search: { mode: 'code', backend: 'memory', modifiedSince: 1 } }
       : parseFederatedCliRequest(['--workspace', workspacePath, '--mode', 'code', '--backend', 'memory', '--modified-since=1', 'alpha']);
     let calls = 0;
-    const context = { searchFn: async (...args) => { calls += 1; return coreSearch(...args); } };
+    const context = { searchPolicyId: 'fixture-query-policy@1', searchFn: async (...args) => { calls += 1; return coreSearch(...args); } };
     const cold = await runFederatedSearch(request, context);
     assert.equal(cold.code.length, 1, `${form}: recent indexed source must be retrieved before testing expiration`);
     const warm = await runFederatedSearch(request, context);
@@ -62,7 +62,7 @@ try {
   now = RealDate.parse('2026-10-01T00:00:00Z');
   let calls = 0;
   const context = { federatedCachePolicy: { maxAgeDays: 1 },
-    searchFn: async (...args) => { calls += 1; return coreSearch(...args); } };
+    searchPolicyId: 'fixture-query-policy@1', searchFn: async (...args) => { calls += 1; return coreSearch(...args); } };
   const staticRequest = { workspacePath, query: 'alpha', search: { mode: 'code', backend: 'memory' } };
   const cold = await runFederatedSearch(staticRequest, context);
   assert.equal(cold.code.length, 1);

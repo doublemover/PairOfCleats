@@ -22,15 +22,15 @@ try {
     prose: [], extractedProse: [], records: [] };
   };
   const request = { workspacePath, query: 'why does this function fail', search: { mode: 'code', top: 4 } };
-  const observed = await runFederatedSearch(request, { searchFn, shadowRouting: true, onShadowRouting: report => reports.push(report) });
+  const observed = await runFederatedSearch(request, { searchPolicyId: 'fixture-query-policy@1', searchFn, shadowRouting: true, onShadowRouting: report => reports.push(report) });
   assert.equal(searches, 2, 'shadow capture reuses actual per-repository heads and issues no extra query');
   assert.equal(reports.length, 1); assert.equal(reports[0].extraRepositoryCalls, 0);
   assert.equal(reports[0].complete, true); assert.equal(reports[0].modes[0].allocation.authoritative, false);
   assert.equal(reports[0].modes[0].allocation.metrics.proposed.gradedGain, null, 'live unknown judgments never become quality zeros');
   assert.equal(Object.isFrozen(reports[0].modes[0].witnesses), true);
-  const control = await runFederatedSearch(request, { searchFn });
+  const control = await runFederatedSearch(request, { searchPolicyId: 'fixture-query-policy@1', searchFn });
   assert.equal(searches, 2); assert.equal(JSON.stringify(observed), JSON.stringify(control), 'normal cache reuse is byte-identical with the observational hook');
-  const cached = await runFederatedSearch(request, { searchFn, shadowRouting: true, onShadowRouting: report => {
+  const cached = await runFederatedSearch(request, { searchPolicyId: 'fixture-query-policy@1', searchFn, shadowRouting: true, onShadowRouting: report => {
     reports.push(report); throw new Error('observational callback failed');
   } });
   assert.equal(JSON.stringify(cached), JSON.stringify(control)); assert.equal(searches, 2);

@@ -63,6 +63,7 @@ import {
 } from './options.js';
 import { createBackendContextWithTracking } from './backend-context.js';
 import { createBackendDisposer } from '../backend-disposal.js';
+import { INTERNAL_SEARCH_POLICY, resolveEffectiveSearchPlanIdentity, consumeEffectiveSearchPlan } from '../effective-plan.js';
 
 import {
   INDEX_PROFILE_DEFAULT,
@@ -156,7 +157,9 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
   const rootOverride = options.root ? path.resolve(options.root) : null;
   const rootArg = rootOverride || (argv.repo ? path.resolve(argv.repo) : null);
   const rootDir = getRepoRoot(rootArg);
-  const userConfig = loadUserConfig(rootDir);
+  const capturedPolicy = consumeEffectiveSearchPlan(options[INTERNAL_SEARCH_POLICY], { rootDir, rawArgs,
+    exactMode: options[INTERNAL_EXACT_SEARCH_MODE] ?? null, scoreModeOverride });
+  const userConfig = capturedPolicy?.userConfig || loadUserConfig(rootDir);
   const cacheConfig = getCacheRuntimeConfig(rootDir, userConfig);
   const verboseCache = false;
   const cacheLog = verboseCache ? (msg) => process.stderr.write(`\n${msg}\n`) : null;
@@ -180,7 +183,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
 
     const metricsDir = getMetricsDir(rootDir, userConfig);
     const queryCacheDir = getQueryCacheDir(rootDir, userConfig);
-    const policy = await getAutoPolicy(rootDir, userConfig);
+    const policy = capturedPolicy?.policy || await getAutoPolicy(rootDir, userConfig);
     if (!queryPlanCache) {
       const queryPlanCachePath = resolveRetrievalCachePath({
         queryCacheDir,
@@ -196,7 +199,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     }
     let normalized;
     try {
-      normalized = normalizeSearchOptions({
+      normalized = capturedPolicy?.normalized || normalizeSearchOptions({
         argv,
         rawArgs,
         rootDir,
@@ -399,9 +402,9 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
 
     telemetry.setMode(searchMode);
 
-    const modelConfig = getModelConfig(rootDir, userConfig);
+    const modelConfig = capturedPolicy?.modelConfig || getModelConfig(rootDir, userConfig);
     const modelIdDefault = argv.model || modelConfig.id || DEFAULT_MODEL_ID;
-    const { useStubEmbeddings } = resolveEmbeddingIntent({
+    const { useStubEmbeddings } = capturedPolicy || resolveEmbeddingIntent({
       argv,
       embeddingsConfig: userConfig.indexing?.embeddings,
       envConfig: getEnvConfig(),
@@ -811,7 +814,10 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       return branchResult.payload;
     }
 
-    const dictConfigBase = getDictConfig(rootDir, userConfig);
+    const dictConfigBase = capturedPolicy?.dictConfig || getDictConfig(rootDir, userConfig);
+    const effectivePlanIdentity = capturedPolicy?.identity || resolveEffectiveSearchPlanIdentity({ rootDir, rawArgs,
+      exactMode: options[INTERNAL_EXACT_SEARCH_MODE] ?? null, scoreModeOverride, normalized, userConfig, policy,
+      modelConfig: { ...modelConfig, id: modelIdDefault }, dictConfig: dictConfigBase, useStubEmbeddings });
     const dictConfig = applyAdaptiveDictConfig(
       dictConfigBase,
       resolveIndexedFileCount(metricsDir, {
@@ -1177,6 +1183,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       filterCursor: argv.cursor || null,
       plain: argv.plain === true,
       outputMaxBytes: argv['output-bytes'] ?? null,
+      effectivePlanIdentity,
       t0,
       emitOutput,
       jsonOutput,

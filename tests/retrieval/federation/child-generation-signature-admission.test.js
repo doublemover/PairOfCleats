@@ -55,7 +55,7 @@ try {
       // then sees B as current, while its explicit admitted build remains A.
       ...(shape === 'ranked-all' ? { resolveRepoCaches: async () => ({ buildId: admittedBuild.buildId,
         activeBuildRoot: admittedBuild.activeRoot, buildGenerationKey: admittedBuild.generationKey }) } : {}),
-      searchFn: async (...args) => {
+      searchPolicyId: 'fixture-query-policy@1', searchFn: async (...args) => {
         await select('build-b');
         try {
           const result = await coreSearch(...args);
@@ -73,7 +73,7 @@ try {
       admitted.manifestHash, 'the returned pointer and manifest retain the same identity');
 
     const forged = { ...request, search: { ...request.search, output: 'full' } };
-    await assert.rejects(runFederatedSearch(forged, { searchFn: async (...args) => {
+    await assert.rejects(runFederatedSearch(forged, { searchPolicyId: 'fixture-query-policy@1', searchFn: async (...args) => {
       const result = structuredClone(await coreSearch(...args));
       result.retrieval.freshness.byMode.code.signature = 'different-selected-source';
       return result;
@@ -83,7 +83,7 @@ try {
       return true;
     });
     let calls = 0;
-    const healthy = await runFederatedSearch(forged, { searchFn: async (...args) => { calls++; return coreSearch(...args); } });
+    const healthy = await runFederatedSearch(forged, { searchPolicyId: 'fixture-query-policy@1', searchFn: async (...args) => { calls++; return coreSearch(...args); } });
     assert.equal(calls, 1, 'a rejected child generation must never populate the outer result cache');
     assert.equal(healthy.code[0].name, 'build-a');
     assert.equal(healthy.meta.manifestHash, admitted.manifestHash);

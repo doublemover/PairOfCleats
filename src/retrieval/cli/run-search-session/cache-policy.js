@@ -70,6 +70,7 @@ export function resolveEmbeddingInputFormattingByMode({
 }
 
 export async function resolveQueryCacheLookup({
+  effectivePlanIdentity = null,
   queryCacheEnabled,
   queryCacheDir,
   metricsDir,
@@ -188,6 +189,7 @@ export async function resolveQueryCacheLookup({
       asOfContext
     });
   cacheSignature = stableStringifyForSignature({index:signature,queryParserVersion:QUERY_PARSER_VERSION,metadataPredicateVersion:2,
+    effectivePlanIdentity,
     ...(chunkAuthorEvidence ? { chunkAuthorEvidence } : {})});
   const cacheKeyInfo = buildQueryCacheKey({
     query,

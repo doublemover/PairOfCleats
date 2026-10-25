@@ -70,7 +70,7 @@ try {
           }
           return null;
         },
-        searchFn: async (repo, params) => {
+        searchPolicyId: 'fixture-query-policy@1', searchFn: async (repo, params) => {
           searched.push(repo);
           observeCaches(params);
           if (repo === first) { await started.promise; throw original; }
@@ -122,7 +122,7 @@ try {
     const pending = runFederatedSearch({ ...request, query: `external-abort-${strict}`, strict }, {
       signal: controller.signal,
       resolveRepoCaches: async repo => { resolved.push(repo); return null; },
-      searchFn: async repo => {
+      searchPolicyId: 'fixture-query-policy@1', searchFn: async repo => {
         const index = searched.push(repo) - 1;
         if (searched.length === 2) started.resolve();
         await gates[index].promise;
@@ -144,13 +144,13 @@ try {
 
   const sequential = [];
   await assert.rejects(runFederatedSearch({ ...request, query: 'concurrency-one', limits: { concurrency: 1 } }, {
-    searchFn: async repo => { sequential.push(repo); throw createError(ERROR_CODES.INTERNAL, 'first'); }
+    searchPolicyId: 'fixture-query-policy@1', searchFn: async repo => { sequential.push(repo); throw createError(ERROR_CODES.INTERNAL, 'first'); }
   }), { code: ERROR_CODES.INTERNAL });
   assert.deepEqual(sequential, [first]);
 
   const bestEffort = [];
   const partial = await runFederatedSearch({ ...request, query: 'non-strict-control', strict: false }, {
-    searchFn: async repo => {
+    searchPolicyId: 'fixture-query-policy@1', searchFn: async repo => {
       bestEffort.push(repo);
       if (repo === first) throw createError(ERROR_CODES.INTERNAL, 'repo fault');
       return emptyResult();
@@ -162,7 +162,7 @@ try {
   for (const strict of [false, true]) {
     let calls = 0;
     const cachedRequest = { ...request, query: `cancelled-cache-hit-${strict}`, strict };
-    const context = { searchFn: async () => { calls++; return emptyResult(); } };
+    const context = { searchPolicyId: 'fixture-query-policy@1', searchFn: async () => { calls++; return emptyResult(); } };
     await runFederatedSearch(cachedRequest, context);
     assert.equal(calls, 4);
     const controller = new AbortController();
@@ -180,7 +180,7 @@ try {
   const modeRelease = deferred();
   const modeCalls = [];
   const pending = runFederatedSearch({ ...request, query: 'stop-second-mode', search: { mode: 'all' } }, {
-    searchFn: async (repo, { args }) => {
+    searchPolicyId: 'fixture-query-policy@1', searchFn: async (repo, { args }) => {
       modeCalls.push([repo, args[args.indexOf('--mode') + 1]]);
       if (repo === first) { await modeStarted.promise; throw createError(ERROR_CODES.INVALID_REQUEST, 'mode failure'); }
       modeStarted.resolve();

@@ -345,6 +345,7 @@ async function persistSessionQueryCache({
  * @returns {Promise<object>}
  */
 export async function runSearchSession({
+  effectivePlanIdentity = null,
   filterOnly = false,
   filterCursor = null,
   rootDir,
@@ -594,6 +595,7 @@ export async function runSearchSession({
       idxRecords
     },
     cacheLookupInput: {
+      effectivePlanIdentity,
       chunkAuthorEvidence: chunkAuthorCache.evidence,
       queryCacheEnabled,
       queryCacheDir,

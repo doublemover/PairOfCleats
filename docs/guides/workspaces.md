@@ -93,6 +93,11 @@ support. Use [graph/context contracts](../contracts/graph-tools-cli.md) for each
 command's scope. Current HTTP/MCP routes are defined by
 [their contract](../contracts/mcp-api.md), not proposed additions in old phase specs.
 
+Ranked outer cache reuse also binds each selected repository/mode's effective
+query policy. Search-only ranking changes invalidate reuse without rebuilding
+the index. Child execution consumes the captured policy used for that identity;
+see [effective search plan ownership](../contracts/effective-search-plan.md).
+
 This authored journey and the new authoring fixtures are **UNVALIDATED** in the
 current development batch. Two-disposable-repo execution, missing-index controls,
 Windows path behavior and final-head source acceptance remain deferred.

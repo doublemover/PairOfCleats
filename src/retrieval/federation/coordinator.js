@@ -37,6 +37,7 @@ import { resolveFederatedCursor } from './request.js';
 import { INTERNAL_EXACT_SEARCH_MODE } from '../cli.js';
 import { validateFederatedModeResult, isReusableFederatedCacheResult } from './results.js';
 import { observeStorageResource } from '../../shared/storage/failure-observation.js';
+import { INTERNAL_SEARCH_POLICY } from '../cli/effective-plan.js';
 
 export const resolveFederatedUnavailableModes = ({repos,requestedModes,eligibleModesByRepo,cohortExcluded={}}) =>
   (repos || []).flatMap(repo=>(requestedModes || [])
@@ -627,7 +628,53 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     return toStableResponse(result, includePaths);
   }
   const cohortSelectors = request.cohort || request.cohorts?.cohort || [];
-  const cachePath = resolveFederatedQueryCachePath(manifest, workspaceConfig.repoSetId);
+  const customSearch = typeof context.searchFn === 'function' && context.searchFn !== coreSearch;
+  const customPolicyId = typeof context.searchPolicyId === 'string' && context.searchPolicyId.trim()
+    && context.searchPolicyId.length <= 256 ? context.searchPolicyId : null;
+  let policyQualified = !customSearch || customPolicyId !== null;
+  const manifestRepoMap = new Map(
+    toArray(manifest.repos).map((entry) => [entry?.repoId, entry])
+  );
+  const selectedRepoMap = new Map(selection.selectedRepos.map(repo => [repo.repoId, repo]));
+  const capturedModePlans = new Map();
+  const policyIdentities = [];
+  const { loadFederatedSearchPolicy, captureFederatedSearchPolicy } = policyQualified
+    ? await import('./effective-plan.js') : {};
+  // This uses the same bounded repository concurrency as execution. Load config
+  // and auto-policy once per repo, then normalize all its pinned mode calls.
+  let policyCursor = 0;
+  const policyWorkers = await Promise.allSettled(Array.from({ length: Math.min(concurrency, activeRepoIds.length) }, async () => {
+    while (policyCursor < activeRepoIds.length) {
+      checkAbort();
+      const repoId = activeRepoIds[policyCursor++];
+      const repo = selectedRepoMap.get(repoId);
+      const pinned = buildPinnedFederatedModePlans({ modes: Array.from(repoEligibleModesById.get(repoId) || []),
+        manifestRepo: manifestRepoMap.get(repoId), args: basePerRepoArgs });
+      const plans = (pinned.length ? pinned : [{ modeFlag: null, modesCovered: new Set(requestedModes) }])
+        .map(plan => ({ ...plan, args: bindFederatedBuildRef(applyModeOverride(basePerRepoArgs, plan.modeFlag), plan.indexRef) }));
+      capturedModePlans.set(repoId, plans);
+      if (!loadFederatedSearchPolicy) continue;
+      try {
+        const inputs = await loadFederatedSearchPolicy(repo.repoRootCanonical, context.signal);
+        for (const plan of plans) {
+          const exactMode = plan.modesCovered.size === 1 ? [...plan.modesCovered][0] : null;
+          plan.policy = captureFederatedSearchPolicy(inputs, { args: plan.args, query: perRepoQuery, exactMode });
+          policyIdentities.push({ repoId, modes: [...plan.modesCovered].sort(), identity: plan.policy.identity });
+        }
+      } catch (error) {
+        observeStorageResource(error, { phase: 'federated-search-policy' }).requireSettled();
+        if (isFederatedAbortError(error, context.signal)) throw error;
+        policyQualified = false;
+        for (const plan of plans) plan.policyError = error;
+      }
+    }
+  }));
+  const failedPolicyWorker = policyWorkers.find(outcome => outcome.status === 'rejected');
+  if (failedPolicyWorker) throw failedPolicyWorker.reason;
+  policyIdentities.sort((left, right) => {
+    const a = stableStringify(left), b = stableStringify(right); return a < b ? -1 : a > b ? 1 : 0;
+  });
+  const cachePath = policyQualified ? resolveFederatedQueryCachePath(manifest, workspaceConfig.repoSetId) : null;
   const cachePolicy = {
     ...context.federatedCachePolicy
   };
@@ -667,6 +714,8 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
       concurrency
     },
     runtime: {
+      effectivePlans: policyIdentities,
+      searchPolicyId: customPolicyId,
       perRepoArgs: basePerRepoArgs,
       requestedBackend: request.search?.backend || request.backend || null,
       requestedAnn: request.search?.ann ?? request.ann ?? null,
@@ -688,12 +737,12 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     repoSetId: workspaceConfig.repoSetId
   });
   checkAbort();
-  const cachedEntry = findFederatedQueryCacheEntry(cacheData, {
+  const cachedEntry = policyQualified ? findFederatedQueryCacheEntry(cacheData, {
     keyHash: cacheKeyInfo.keyHash,
     manifestHash: manifest.manifestHash,
     policy: cachePolicy,
     now: timeAnchor
-  });
+  }) : null;
   if (isReusableFederatedCacheResult(cachedEntry?.result, { manifestHash: manifest.manifestHash,
     repoSetId: workspaceConfig.repoSetId, selectedRepoIds: selection.selectedRepoIds,
     selectedReposByMode: selectedByMode, topN, strictFailures })) {
@@ -709,6 +758,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     return structuredClone(cachedEntry.result);
   }
   const persistCachedResult = async (result) => {
+    if (!policyQualified) return;
     checkAbort();
     try {
       upsertFederatedQueryCacheEntry(cacheData, {
@@ -758,9 +808,6 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
   const perRepoErrors = [];
   const repoMap = new Map(workspaceConfig.repos.map((repo) => [repo.repoId, repo]));
   const repoOutcomes = new Map();
-  const manifestRepoMap = new Map(
-    toArray(manifest.repos).map((entry) => [entry?.repoId, entry])
-  );
 
   const recordRepoOutcome = (repoId, patch) => {
     const existing = repoOutcomes.get(repoId) || { repoId };
@@ -897,13 +944,7 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
           throw createError(ERROR_CODES.INVALID_REQUEST, `Repository ${repo.repoId} generation changed after workspace admission. Retry the search.`);
         }
         let callSucceeded = false;
-        const repoModePlan = buildPinnedFederatedModePlans({
-          modes: Array.from(repoEligibleModesById.get(repo.repoId) || []),
-          manifestRepo: manifestRepoMap.get(repo.repoId), args: basePerRepoArgs
-        });
-        const modePlans = repoModePlan.length
-          ? repoModePlan
-          : [{ modeFlag: null, modesCovered: new Set(requestedModes) }];
+        const modePlans = capturedModePlans.get(repo.repoId);
         const combined = {
           backend: 'federated',
           code: [],
@@ -916,9 +957,11 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
         const executionFailures = [];
         for (const plan of modePlans) {
           if (!admission.accepting()) return;
-          const repoArgs = bindFederatedBuildRef(applyModeOverride(basePerRepoArgs, plan.modeFlag), plan.indexRef);
+          const repoArgs = plan.args;
           try {
+            if (plan.policyError) throw plan.policyError;
             const result = await searchFn(repo.repoRootCanonical, {
+              [INTERNAL_SEARCH_POLICY]: plan.policy,
               args: repoArgs,
               argsMode: 'complete',
               query: perRepoQuery,

@@ -19,17 +19,17 @@ try {
     { code: {} }, { code: [undefined] }, { code: [null] }, { code: [[]] }];
   for (const [index, result] of malformed.entries()) {
     const request = { workspacePath, query: `admit-${index}`, search: { mode: 'code' }, strict: true };
-    await assert.rejects(runFederatedSearch(request, { searchFn: async () => result }),
+    await assert.rejects(runFederatedSearch(request, { searchPolicyId: 'fixture-query-policy@1', searchFn: async () => result }),
       { code: result?.code === ERROR_CODES.INVALID_REQUEST ? ERROR_CODES.INVALID_REQUEST : ERROR_CODES.INTERNAL });
     let calls = 0;
-    const healthy = await runFederatedSearch(request, { searchFn: async () => { calls++; return { code: [] }; } });
+    const healthy = await runFederatedSearch(request, { searchPolicyId: 'fixture-query-policy@1', searchFn: async () => { calls++; return { code: [] }; } });
     assert.equal(calls, 2, 'a rejected mode payload must not become a cached empty success');
     assert.equal(healthy.status, 'empty');
     assert.equal(healthy.partialSuccess, false);
   }
   let calls = 0;
   const request = { workspacePath, query: 'non-strict-malformed', search: { mode: 'code' } };
-  const context = { searchFn: async repo => {
+  const context = { searchPolicyId: 'fixture-query-policy@1', searchFn: async repo => {
     calls++;
     return path.basename(repo) === 'a' ? { ok: false, code: 'ERR_REPO', message: 'failed' } : { code: [] };
   } };

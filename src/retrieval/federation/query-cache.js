@@ -166,8 +166,8 @@ export const buildFederatedQueryCacheKeyPayload = ({
   limits = {},
   runtime = {}
 } = {}) => ({
-  // Child authority plus sign-safe ranking and reconciled final score evidence.
-  v: 9,
+  // Child authority, ranking and captured effective query policy per repo/mode.
+  v: 10,
   repoSetId: repoSetId || null,
   manifestHash: manifestHash || null,
   workspace: normalizeWorkspace(workspace),

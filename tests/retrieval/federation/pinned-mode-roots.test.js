@@ -41,13 +41,13 @@ try {
     return coreSearch(repo, options);
   };
   const request = { workspacePath, query: 'alpha', strict: true, search: { mode: 'both', backend: 'memory' } };
-  const response = await runFederatedSearch(request, { searchFn });
+  const response = await runFederatedSearch(request, { searchPolicyId: 'fixture-query-policy@1', searchFn });
   assert.deepEqual(calls, [{ mode: 'code', asOf: 'build:code-generation' }, { mode: 'prose', asOf: 'build:prose-generation' }]);
   assert.equal(response.code[0].name, 'code-generation');
   assert.equal(response.prose[0].name, 'prose-generation');
   assert.equal(response.extractedProse[0].name, 'prose-generation');
   assert.equal(response.partialSuccess, false);
-  assert.deepEqual(await runFederatedSearch(request, { searchFn }), response);
+  assert.deepEqual(await runFederatedSearch(request, { searchPolicyId: 'fixture-query-policy@1', searchFn }), response);
   assert.equal(calls.length, 2, 'the qualified mixed-root result is reusable without resolving current roots again');
 
   // Historical selectors preserve the caller's authority and cannot label a
@@ -56,7 +56,7 @@ try {
     error => { assert.ok(['NO_INDEX', 'NOT_FOUND', 'INVALID_REQUEST'].includes(error.code)); return true; });
   const controller = new AbortController();
   controller.abort();
-  await assert.rejects(runFederatedSearch(request, { searchFn, signal: controller.signal }), { code: 'CANCELLED' });
+  await assert.rejects(runFederatedSearch(request, { searchPolicyId: 'fixture-query-policy@1', searchFn, signal: controller.signal }), { code: 'CANCELLED' });
   assert.equal(calls.length, 2);
 } finally { await fs.rm(root, { recursive: true, force: true }); }
 console.log('Actual core federation pins mixed per-mode roots, preserves historical-selector authority, and reuses qualified warm results.');

@@ -19,6 +19,7 @@ export async function executeSearchAndEmit(input) {
     jsonOutput,
     jsonCompact,
     outputMaxBytes = null,
+    effectivePlanIdentity = null,
     explain,
     explainTier = 'summary',
     rootDir,
@@ -129,6 +130,7 @@ export async function executeSearchAndEmit(input) {
 
   const searchStart = stageTracker.mark();
   const searchResult = await runSearchSession({
+    effectivePlanIdentity,
     filterOnly,
     filterCursor,
     rootDir,

@@ -39,7 +39,7 @@ try {
   };
   const request = { workspacePath, query: 'coordinator-heads', strict: true,
     search: { mode: 'all', top: 3 }, limits: { perRepoTop: 20, concurrency: 2 } };
-  const cold = await runFederatedSearch(request, { searchFn });
+  const cold = await runFederatedSearch(request, { searchPolicyId: 'fixture-query-policy@1', searchFn });
   assert.equal(calls, 4);
   assert.equal(payloadReads, 12, 'the actual coordinator materializes three retained rows once per admitted mode');
   assert.ok(identityReads < 320, 'strict-RRF preflight must not read every source hit identity');
@@ -49,33 +49,33 @@ try {
     assert.ok(cold[key].every(hit => hit.sourceScore === 0 && hit.sourceScoreType === 'source'));
     assert.ok(cold[key].every(hit => hit.score === Number((1 / 61).toFixed(12))));
   }
-  assert.deepEqual(await runFederatedSearch(request, { searchFn }), cold);
+  assert.deepEqual(await runFederatedSearch(request, { searchPolicyId: 'fixture-query-policy@1', searchFn }), cold);
   assert.equal(calls, 4, 'the warm coordinator response reuses its qualified outer cache entry');
   assert.equal(payloadReads, 12);
   assert.ok(sourceHits.every(Object.isFrozen), 'merge does not mutate the original shared payload rows');
 
   payloadReads = 0;
   identityReads = 0;
-  const zero = await runFederatedSearch({ ...request, query: 'zero-heads', search: { mode: 'all', top: 0 } }, { searchFn });
+  const zero = await runFederatedSearch({ ...request, query: 'zero-heads', search: { mode: 'all', top: 0 } }, { searchPolicyId: 'fixture-query-policy@1', searchFn });
   assert.ok(keys.every(key => zero[key].length === 0));
   assert.equal(payloadReads, 0);
   assert.equal(identityReads, 0);
 
   payloadReads = 0;
   const limited = await runFederatedSearch({ ...request, query: 'per-repository-admission-cap',
-    limits: { ...request.limits, perRepoTop: 1 } }, { searchFn });
+    limits: { ...request.limits, perRepoTop: 1 } }, { searchPolicyId: 'fixture-query-policy@1', searchFn });
   assert.equal(payloadReads, 12);
   assert.ok(limited.repos.every(repo => Object.values(repo.modes.hitCounts).every(count => count === 1)),
     'coordinator result pools and diagnostics retain only each mode\'s admitted per-repository rows');
   const noCandidates = await runFederatedSearch({ ...request, query: 'zero-per-repository-cap',
-    limits: { ...request.limits, perRepoTop: 0 } }, { searchFn });
+    limits: { ...request.limits, perRepoTop: 0 } }, { searchPolicyId: 'fixture-query-policy@1', searchFn });
   assert.ok(keys.every(key => noCandidates[key].length === 0));
   assert.ok(noCandidates.repos.every(repo => Object.values(repo.modes.hitCounts).every(count => count === 0)));
   assert.equal(payloadReads, 12, 'zero per-repository admission does not materialize any source payload');
 
   payloadReads = 0;
   const tied = await runFederatedSearch({ ...request, query: 'rounded-heads', search: { mode: 'all', top: 2 },
-    merge: { rrfK: Number.MAX_VALUE } }, { searchFn });
+    merge: { rrfK: Number.MAX_VALUE } }, { searchPolicyId: 'fixture-query-policy@1', searchFn });
   assert.equal(payloadReads, 8, 'the bounded fallback materializes only retained rows across all four actual mode calls');
   for (const key of keys) {
     assert.deepEqual(tied[key].map(hit => hit.payload.name), ['r3', 'r3']);
@@ -87,11 +87,11 @@ try {
   const controller = new AbortController();
   abortOnPayload = controller;
   const cancelled = { ...request, query: 'cancelled-materialization' };
-  await assert.rejects(runFederatedSearch(cancelled, { searchFn, signal: controller.signal }), { code: 'CANCELLED' });
+  await assert.rejects(runFederatedSearch(cancelled, { searchPolicyId: 'fixture-query-policy@1', searchFn, signal: controller.signal }), { code: 'CANCELLED' });
   assert.equal(payloadReads, 1, 'merge stops materialization when its admitted request is cancelled');
   abortOnPayload = null;
   const beforeRetry = calls;
-  const recovered = await runFederatedSearch(cancelled, { searchFn });
+  const recovered = await runFederatedSearch(cancelled, { searchPolicyId: 'fixture-query-policy@1', searchFn });
   assert.equal(calls - beforeRetry, 4, 'cancelled materialization cannot publish a warm partial cache entry');
   assert.equal(recovered.code.length, 3);
 } finally { await fs.rm(root, { recursive: true, force: true }); }

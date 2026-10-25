@@ -19,7 +19,7 @@ try {
   const request = { workspacePath, query: 'cached-envelope', strict: true, search: { mode: 'code', top: 1 } };
   const marker = 'federation-warm-owned-payload-'.repeat(4096);
   let calls = 0;
-  const context = { searchFn: async () => {
+  const context = { searchPolicyId: 'fixture-query-policy@1', searchFn: async () => {
     calls++;
     return { backend: 'memory', code: [{ id: 'original', file: 'source.js', score: 1,
       payload: { marker, rendering: { note: 'original' } } }], prose: [], extractedProse: [], records: [] };
