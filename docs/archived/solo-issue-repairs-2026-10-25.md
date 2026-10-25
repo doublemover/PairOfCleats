@@ -1069,3 +1069,34 @@ implemented / 150 partial / 180 pending**.
 A complete metadata refresh at `dd7934f98` again found **763 open reports**, with
 no added/closed IDs or changed titles. Response/observed-backend, judgment and
 performance qualifications remain distinct from input admission.
+
+
+## Generated Boolean query intent
+
+**#1671** (`bf8594995`) constructs literal/phrase/AND/OR/leaf-negation expressions
+and validates each newly admitted query through the production parser with exact
+intended operators, leaf kinds and literal contents. API OR and symbol/type/API/
+behavior exclusions no longer become whole literal phrases. Intentional phrase
+strategies retain their shape. Parenthesized signatures, dotted names, literal
+backslashes and alternate quote delimiters follow the actual grammar. A literal
+containing both quote delimiters is explicitly rejected; bounded rejection
+counts/samples remain in generation qualification. Structural/parser defects
+propagate rather than becoming ignored candidate failures.
+
+Workload semantics/JSON format advance to 2 through a shared contract constant.
+Rows retain intended/observed classes and actual parsed operator/leaf counts;
+JSON/text metadata records shape distribution and requested/emitted completeness.
+Seed/intent weights, unique-query generation and existing attempt bounds remain.
+Duplicate candidates are recognized before repeated parser work. The input-plan
+owner advances to 2, admits the declared workload only when rows/string list/
+counts/generation agree, and retains producer-declared completeness separately.
+Its identity changes; older input receipts are not silently reused. This format
+is an input projection, not independent runtime or representative-quality proof.
+
+Independent OR/exclusion token witnesses, literal OR/hyphen controls, quote and
+backslash round trips, dotted names, signatures, unsupported literals, repeated
+fixed seeds, actual parsed distributions and declared-workload mismatch controls
+supplement the existing language-family/count/weight assertions. Format/ESLint,
+syntax, affected script/ledger/taxonomy refreshes, discovery and diff checks
+passed. Functional execution remains deferred. Coverage is **35 fixed / 399
+implemented / 150 partial / 179 pending**.
