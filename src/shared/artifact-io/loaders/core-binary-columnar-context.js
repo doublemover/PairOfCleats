@@ -101,7 +101,8 @@ export const resolveBinaryColumnarContext = ({
 }) => {
   const sourcePath = sources.paths[0];
   const sidecars = sources.binaryColumnar || null;
-  const defaults = resolveBinaryColumnarDefaultPaths(sourcePath);
+  const canonicalSourcePath = sources.canonicalPaths?.[0] || sourcePath;
+  const defaults = resolveBinaryColumnarDefaultPaths(canonicalSourcePath);
   const dataPath = sidecars?.dataPath || sourcePath;
   const metaPath = sidecars?.metaPath || defaults.metaPath;
   const offsetsPath = sidecars?.offsetsPath || defaults.offsetsPath;
@@ -185,21 +186,21 @@ export const resolveBinaryColumnarContext = ({
     dataValidator: createManifestChecksumValidator({
       manifest,
       dir,
-      targetPath: resolvedDataPath,
+      targetPath: joinPathSafe(dir, [fields?.data || canonicalSourcePath]),
       expectedName: sidecars?.dataName || null,
       label: `${baseName} binary-columnar data`
     }),
     offsetsValidator: createManifestChecksumValidator({
       manifest,
       dir,
-      targetPath: resolvedOffsetsPath,
+      targetPath: joinPathSafe(dir, [fields?.offsets || offsetsPath]),
       expectedName: sidecars?.offsetsName || null,
       label: `${baseName} binary-columnar offsets`
     }),
     lengthsValidator: createManifestChecksumValidator({
       manifest,
       dir,
-      targetPath: resolvedLengthsPath,
+      targetPath: joinPathSafe(dir, [fields?.lengths || lengthsPath]),
       expectedName: sidecars?.lengthsName || null,
       label: `${baseName} binary-columnar lengths`
     })

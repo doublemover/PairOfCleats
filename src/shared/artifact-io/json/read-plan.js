@@ -1,30 +1,8 @@
-import { tryRequire } from '../../optional-deps.js';
-
-let cachedZstd = null;
-let checkedZstd = false;
-
 export const SMALL_JSONL_BYTES = 128 * 1024;
 const MEDIUM_JSONL_BYTES = 8 * 1024 * 1024;
 const JSONL_HIGH_WATERMARK_SMALL = 64 * 1024;
 const JSONL_HIGH_WATERMARK_MEDIUM = 256 * 1024;
 const JSONL_HIGH_WATERMARK_LARGE = 1024 * 1024;
-
-export const ZSTD_STREAM_THRESHOLD = 8 * 1024 * 1024;
-
-/**
- * Resolve optional userland zstd bindings once and memoize the result.
- *
- * @returns {{decompress:(buffer:Buffer)=>Promise<Buffer|Uint8Array>}|null}
- */
-export const resolveOptionalZstd = () => {
-  if (checkedZstd) return cachedZstd;
-  checkedZstd = true;
-  const result = tryRequire('@mongodb-js/zstd');
-  if (result.ok && typeof result.mod?.decompress === 'function') {
-    cachedZstd = result.mod;
-  }
-  return cachedZstd;
-};
 
 /**
  * Choose stream chunk sizes based on compressed/plain JSONL file size.

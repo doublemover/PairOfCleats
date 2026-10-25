@@ -217,9 +217,10 @@ const resolveRequiredSources = ({
   const layout = resolveSourceLayoutSummary({ manifest, sources });
 
   if (!isSingleSourceFormat) {
-    assertNoShardIndexGaps(resolvedPaths, name);
+    assertNoShardIndexGaps(paths, name);
     return {
       ...sources,
+      canonicalPaths: paths,
       paths: resolvedPaths,
       offsets: resolvedOffsets,
       layout
@@ -227,8 +228,10 @@ const resolveRequiredSources = ({
   }
   return {
     ...sources,
+    canonicalPaths: paths,
     paths: resolvedPaths,
     offsets: resolvedOffsets,
+    canonicalBinaryColumnar: sidecars,
     binaryColumnar: resolvedBinaryColumnar,
     layout
   };
@@ -269,25 +272,27 @@ const resolveBinaryColumnarSourcePart = (sources, partIndex = 0) => {
   if (!paths.length) return { ...sources, paths: [] };
   const normalizedIndex = Math.max(0, Math.min(paths.length - 1, Math.floor(Number(partIndex) || 0)));
   const dataPath = paths[normalizedIndex];
-  const binaryColumnar = sources?.binaryColumnar && typeof sources.binaryColumnar === 'object'
+  const canonicalDataPath = sources?.canonicalPaths?.[normalizedIndex] || dataPath;
+  const binaryColumnar = sources?.canonicalBinaryColumnar || (sources?.binaryColumnar && typeof sources.binaryColumnar === 'object'
     ? sources.binaryColumnar
-    : null;
-  const primaryDataPath = binaryColumnar?.dataPath || paths[0] || null;
+    : null);
+  const primaryDataPath = binaryColumnar?.dataPath || sources?.canonicalPaths?.[0] || paths[0] || null;
   let isPrimaryPath = false;
   if (typeof primaryDataPath === 'string' && primaryDataPath) {
-    if (primaryDataPath === dataPath) {
+    if (primaryDataPath === canonicalDataPath) {
       isPrimaryPath = true;
     } else {
       try {
-        isPrimaryPath = path.resolve(primaryDataPath) === path.resolve(dataPath);
+        isPrimaryPath = path.resolve(primaryDataPath) === path.resolve(canonicalDataPath);
       } catch {
         isPrimaryPath = false;
       }
     }
   }
-  const defaults = resolveBinaryColumnarDefaultPaths(dataPath);
+  const defaults = resolveBinaryColumnarDefaultPaths(canonicalDataPath);
   return {
     ...sources,
+    canonicalPaths: [canonicalDataPath],
     paths: [dataPath],
     offsets: Array.isArray(sources?.offsets) && sources.offsets[normalizedIndex]
       ? [sources.offsets[normalizedIndex]]

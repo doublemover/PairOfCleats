@@ -196,7 +196,8 @@ const resolveBinaryColumnarRowSlice = ({
     throw new Error(`Invalid binary-columnar row length: ${length}`);
   }
   if (enforceRowBudget && max && length > max) {
-    throw new Error(`Binary-columnar row exceeds maxBytes (${length} > ${max})`);
+    throw Object.assign(new Error(`Binary-columnar row exceeds maxBytes (${length} > ${max})`),
+      { code: 'ERR_ARTIFACT_TOO_LARGE', bytes: length, maxBytes: max });
   }
   const end = start + length;
   if ((requireSafeEnd && !Number.isSafeInteger(end)) || end > dataSize) {
@@ -279,7 +280,7 @@ const iterateBinaryColumnarRowPayloads = ({
         length: lengths[i],
         dataSize,
         max,
-        enforceRowBudget: enforceDataBudget,
+        enforceRowBudget: true,
         requireSafeEnd: true
       });
       const length = end - start;

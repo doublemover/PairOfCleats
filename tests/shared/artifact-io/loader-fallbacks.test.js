@@ -60,6 +60,18 @@ await assert.rejects(
 );
 
 const multiSourceDir = path.join(testRoot, 'nonstrict-multi-source-json');
+for (const part of ['000000', '000002']) {
+  const file = path.join(partialPartsDir, `sample.part-${part}.jsonl`);
+  await fs.rename(file, `${file}.bak`);
+  for (const streaming of [false, true]) {
+    await assert.rejects(async () => {
+      if (!streaming) return loadJsonArrayArtifact(partialDir, 'sample', { strict: false });
+      for await (const _row of loadJsonArrayArtifactRows(partialDir, 'sample', { strict: false })) { /* consume */ }
+    }, error => error?.code === 'ERR_ARTIFACT_PARTS_MISSING' && /sample\.part-000001\.jsonl/.test(error.message),
+    'supported backup selection cannot conceal a missing logical shard');
+  }
+}
+
 await fs.mkdir(path.join(multiSourceDir, 'pieces'), { recursive: true });
 await fs.writeFile(
   path.join(multiSourceDir, 'sample-a.json'),

@@ -8,7 +8,7 @@ import { gzipSync, zstdCompressSync } from 'node:zlib';
 import { readJsonLinesIterator, readJsonLinesEachAwait } from '../../../src/shared/artifact-io/json/read-jsonl-stream.js';
 
 // Source-authored; native zstd qualification and timings belong to the later
-// pinned-runtime validation. The zstd fixture crosses the optional-buffer path.
+// pinned-runtime validation. The zstd fixture covers large encoded input.
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-jsonl-reader-owned-'));
 const nativeCreate = fsSync.createReadStream;
 let sources = [], decoders = [];

@@ -26,9 +26,7 @@ import {
 } from './fallback.js';
 import {
   resolveJsonlReadPlan,
-  resolveOptionalZstd,
-  SMALL_JSONL_BYTES,
-  ZSTD_STREAM_THRESHOLD
+  SMALL_JSONL_BYTES
 } from './read-plan.js';
 import {
   shouldAbortForHeap,
@@ -283,32 +281,9 @@ const readJsonlIteratorSingle = async function* (
               return;
             }
           }
-          if (compression === 'zstd') {
-            const zstd = resolveOptionalZstd();
-            if (zstd && rawBytes <= ZSTD_STREAM_THRESHOLD) {
-              const buffer = readBuffer(sourcePath, maxBytes, { containedRoot });
-              const decoded = await zstd.decompress(buffer);
-              const payload = Buffer.isBuffer(decoded) ? decoded : Buffer.from(decoded);
-              if (payload.length > maxBytes || shouldAbortForHeap(payload.length)) {
-                throw toJsonTooLargeError(sourcePath, payload.length);
-              }
-              ({ rows, bytes } = await emitBufferedJsonlEntries({
-                sourcePath,
-                buffer: payload,
-                maxBytes,
-                requiredKeys,
-                validationMode,
-                pushEntry,
-                cleanup,
-                queue,
-                shouldMeasure,
-                start,
-                compression,
-                rawBytes
-              }));
-              return;
-            }
-          }
+          // The optional whole-buffer decoder cannot enforce decoded output
+          // admission during allocation. Use the owned native stream for zstd
+          // regardless of encoded size, so decoded counting precedes staging.
           if (containedRoot) {
             const fd = openContainedFileSync(containedRoot, sourcePath);
             let descriptorOwnedByStream = false;
