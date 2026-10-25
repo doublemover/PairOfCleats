@@ -54,8 +54,8 @@ export const COMPLETED_STAGE_SCHEMA = closed({
     id: { enum: ['default', 'vector_only'] }, schemaVersion: { const: 1 }
   })),
   sourceSnapshot: nullable(sourceSnapshot),
-  dependencySignatures: nullable(closed(Object.fromEntries(['parse', 'lexical', 'enrichment', 'embeddings', 'artifacts']
-    .map(key => [key, { type: 'string', pattern: '^[0-9a-f]{40}$' }])))),
+  dependencySignatures: nullable(closed(Object.fromEntries(['parse', 'lexical', 'enrichment', 'embeddings', 'artifacts', 'documentExtraction']
+    .map(key => [key, { type: 'string', pattern: '^[0-9a-f]{40}$' }])), ['parse', 'lexical', 'enrichment', 'embeddings', 'artifacts'])),
   producer, reusePolicy: nullable(digest), sourceValidation,
   output: closed({ manifestHash: digest, contentHash: digest, pieces: count, bytes: count }),
   publicationHash: digest, validationHash: digest, familyContractsVersion: { const: 1 },

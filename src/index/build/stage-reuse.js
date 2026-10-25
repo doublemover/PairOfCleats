@@ -14,6 +14,7 @@ import { semanticHash } from '../semantic/identity.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { observeStorageResource } from '../../shared/storage/failure-observation.js';
 import { loadJsonArrayArtifact } from '../../shared/artifact-io/loaders.js';
+import { prepareDocumentExtractionAdmission } from '../extractors/admission.js';
 
 export const stageReuseMismatch = reason => Object.assign(new Error(`Retained Stage2 reuse refused: ${reason}.`),
   { code: 'ERR_RECOVERY_INPUT_CHANGED', reuseReason: reason });
@@ -89,6 +90,7 @@ export const prepareStageReuse = async ({ runtime, modes, plan, signal }) => {
   const source = plan.modeEvidence.map(row => row.completion?.sourceSnapshot).find(value => value?.identity);
   requireEqual(source, runtime.buildSourceSnapshot, 'source-or-discovery-snapshot-changed');
   for (const mode of modes) {
+    await prepareDocumentExtractionAdmission(runtime, mode);
     const evidence = plan.modeEvidence.find(row => row.mode === mode);
     if (!evidence?.completion) continue;
     const receipt = await readCompletedStage({ buildRoot: runtime.buildRoot, mode, signal });

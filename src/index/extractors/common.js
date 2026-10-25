@@ -1,7 +1,8 @@
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { createTimeoutError, runWithTimeout } from '../../shared/promise-timeout.js';
-import { PDF_PAGE_COVERAGE_SCHEMA_VERSION } from '../../contracts/document-extraction.js';
+import { PDF_PAGE_COVERAGE_SCHEMA_VERSION, DOCUMENT_EXTRACTION_FIDELITY_SCHEMA_VERSION } from '../../contracts/document-extraction.js';
+export { DOCUMENT_EXTRACTION_FIDELITY_SCHEMA_VERSION } from '../../contracts/document-extraction.js';
 
 const require = createRequire(import.meta.url);
 
@@ -15,7 +16,6 @@ export const DOCUMENT_EXTRACTION_REASON_CODES = Object.freeze([
   'extract_failed'
 ]);
 
-export const DOCUMENT_EXTRACTION_FIDELITY_SCHEMA_VERSION = 2;
 // Structural DOCX paragraph meaning changes invalidate extraction and bundle reuse.
 export const DOCX_STRUCTURAL_EXTRACTION_VERSION = 3;
 export const PDF_TEXT_EXTRACTION_VERSION = 2;
@@ -128,7 +128,7 @@ export const buildDocumentExtractionFidelity = ({
   pageCoverage = null
 } = {}) => {
   const policySummary = buildDocumentExtractionPolicySummary(policy);
-  const warningList = normalizeWarnings(warnings);
+  const warningList = normalizeWarnings(warnings).filter(warning => warning !== 'document-extraction-cache-hit');
   const normalizedStatus = status === 'ok' ? 'ok' : 'skipped';
   const qualifiedPageText = pageCoverage?.schemaVersion === PDF_PAGE_COVERAGE_SCHEMA_VERSION
     && Number.isSafeInteger(pageCoverage.totalPages) && pageCoverage.totalPages > 0

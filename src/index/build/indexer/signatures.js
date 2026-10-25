@@ -187,7 +187,9 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
       formats: indexingConfig.artifacts || null,
       byteBudgets: indexingConfig.byteBudgets || indexingConfig.byteBudget || null,
       indexer: indexingConfig.indexer || null
-    }
+    },
+    ...(mode === 'extracted-prose' ? { documentExtraction: runtime.documentExtractionAdmission
+      || { enabled: indexingConfig.documentExtraction?.enabled === true, qualified: false } } : {})
   };
 };
 
@@ -266,6 +268,7 @@ export const buildDependencySignatures = (runtime, mode, tokenizationKey) => {
   };
   return {
     parse: hash(parse), lexical: hash(lexical), enrichment: hash(enrichment),
-    embeddings: hash(embeddings), artifacts: hash(artifacts)
+    embeddings: hash(embeddings), artifacts: hash(artifacts),
+    ...(mode === 'extracted-prose' ? { documentExtraction: hash(payload.documentExtraction) } : {})
   };
 };

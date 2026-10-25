@@ -3,6 +3,7 @@ import { readTextFileWithHash } from '../../../shared/encoding.js';
 import { sha1 } from '../../../shared/hash.js';
 import { extractPdf } from '../../extractors/pdf.js';
 import { extractDocx } from '../../extractors/docx.js';
+import { buildDocumentExtractionAdmission } from '../../extractors/admission.js';
 import {
   buildDocumentExtractionFidelity,
   buildDocumentExtractionPolicySummary,
@@ -57,6 +58,7 @@ const buildDocumentExtractionInfo = ({
   counts: joined.counts,
   units: buildDocumentExtractionUnits(joined.units),
   normalizationPolicy: resolveExtractionNormalizationPolicy(sourceType),
+  admission: buildDocumentExtractionAdmission({ sourceType, policy, extractor: extracted.extractor }),
   warnings: extracted.warnings || [],
   policy: buildDocumentExtractionPolicySummary(policy),
   fidelity: extracted.fidelity || buildDocumentExtractionFidelity({

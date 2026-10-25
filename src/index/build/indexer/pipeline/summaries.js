@@ -148,6 +148,7 @@ export const summarizeDocumentExtractionForMode = (state, documentExtractionConf
   if (!(fileInfoByPath && typeof fileInfoByPath.entries === 'function')) return null;
   const policy = buildDocumentExtractionPolicySummary(documentExtractionConfig);
   const files = [];
+  const unavailable = [];
   const extractorMap = new Map();
   const totals = {
     files: 0,
@@ -167,7 +168,12 @@ export const summarizeDocumentExtractionForMode = (state, documentExtractionConf
   };
   for (const [file, info] of fileInfoByPath.entries()) {
     const extraction = info?.extraction;
-    if (!extraction || extraction.status !== 'ok') continue;
+    if (!extraction || extraction.status !== 'ok') {
+      const sourceType = /\.pdf$/i.test(file) ? 'pdf' : /\.docx$/i.test(file) ? 'docx' : null;
+      if (sourceType) unavailable.push({ file, sourceType, reason: 'extract_failed',
+        warnings: ['Document extraction receipt is unavailable; re-extract this source.'] });
+      continue;
+    }
     const extractorName = extraction?.extractor?.name || null;
     const extractorVersion = extraction?.extractor?.version || null;
     const extractorTarget = extraction?.extractor?.target || null;
@@ -218,11 +224,11 @@ export const summarizeDocumentExtractionForMode = (state, documentExtractionConf
       })
     });
   }
-  for (const skipped of state?.skippedFiles || []) {
+  for (const skipped of [...(state?.skippedFiles || []), ...unavailable]) {
     const sourceType = skipped?.sourceType === 'docx' ? 'docx' : skipped?.sourceType === 'pdf' ? 'pdf' : null;
     if (!sourceType) continue;
     const file = skipped?.file;
-    if (!file || files.some((entry) => entry.file === file && entry.status === 'ok')) continue;
+    if (!file || files.some((entry) => entry.file === file)) continue;
     const reasonRaw = String(skipped?.reason || 'extract_failed');
     const reason = DOCUMENT_EXTRACTION_REASON_SET.has(reasonRaw) ? reasonRaw : 'extract_failed';
     counts.total += 1;

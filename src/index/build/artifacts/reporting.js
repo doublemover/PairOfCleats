@@ -351,11 +351,17 @@ export const buildExtractionReport = ({
   const configDigest = sha256Hex(stableStringifyForSignature(documentExtractionConfig || {}));
   const policy = buildDocumentExtractionPolicySummary(documentExtractionConfig);
   const entries = new Map();
+  const unavailable = [];
   const fileInfoByPath = state?.fileInfoByPath;
   if (fileInfoByPath && typeof fileInfoByPath.entries === 'function') {
     for (const [file, info] of fileInfoByPath.entries()) {
       const extraction = info?.extraction;
-      if (!extraction || extraction.status !== 'ok') continue;
+      if (!extraction || extraction.status !== 'ok') {
+        const sourceType = resolveDocumentSourceType(file);
+        if (mode === 'extracted-prose' && sourceType) unavailable.push({ file, sourceType,
+          reason: 'extract_failed', warnings: ['Document extraction receipt is unavailable; re-extract this source.'] });
+        continue;
+      }
       const normalizedFile = normalizeExtractionFilePath(file, root);
       const sourceType = resolveDocumentSourceType(normalizedFile, extraction.sourceType || null);
       if (!sourceType) continue;
@@ -395,7 +401,7 @@ export const buildExtractionReport = ({
       });
     }
   }
-  for (const skipped of state?.skippedFiles || []) {
+  for (const skipped of [...unavailable, ...(state?.skippedFiles || [])]) {
     const filePath = normalizeExtractionFilePath(skipped?.file, root);
     const sourceType = resolveDocumentSourceType(filePath, skipped?.sourceType || null);
     if (!filePath || !sourceType) continue;

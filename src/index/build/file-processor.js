@@ -10,7 +10,6 @@ import { estimateJsonBytes } from '../../shared/cache/size.js';
 import { fromPosix, toPosix } from '../../shared/file-paths.js';
 import { log, logLine } from '../../shared/progress-runtime.js';
 import { getEnvConfig } from '../../shared/env/runtime.js';
-import { getDocumentExtractorTestConfig } from '../../shared/env/testing.js';
 import { buildPostingsPayloadMetadata } from './postings-payload.js';
 import { createFileScanner } from './file-scan.js';
 import { createTokenizationContext } from './tokenization.js';
@@ -33,14 +32,12 @@ import { resolvePreCpuFileContent } from './file-processor/pre-cpu-content.js';
 import { getLanguageForFile } from '../language-registry.js';
 import {
   EXTRACTION_NORMALIZATION_POLICY,
-  resolveDocumentExtractionProducerVersion,
   buildDocumentExtractionFidelity,
   buildDocumentExtractionPolicySummary,
   sha256Hex,
   normalizeDocumentExtractionPolicy
 } from '../extractors/common.js';
-import { loadPdfExtractorRuntime } from '../extractors/pdf.js';
-import { loadDocxExtractorRuntime } from '../extractors/docx.js';
+import { buildDocumentExtractionAdmission, resolveDocumentExtractorIdentity } from '../extractors/admission.js';
 import {
   isDocumentExt,
   normalizeFallbackLanguageFromExt
@@ -154,16 +151,9 @@ export function createFileProcessor(options) {
   const resolvedDocumentExtraction = documentExtractionConfig && typeof documentExtractionConfig === 'object'
     ? documentExtractionConfig
     : {};
-  const documentExtractorTestConfig = getDocumentExtractorTestConfig();
   const documentExtractionEnabled = mode === 'extracted-prose'
     && resolvedDocumentExtraction.enabled === true;
   const documentExtractionPolicy = normalizeDocumentExtractionPolicy(resolvedDocumentExtraction);
-  const documentExtractionPolicyCacheKey = [
-    documentExtractionPolicy.maxBytesPerFile,
-    documentExtractionPolicy.maxPages,
-    documentExtractionPolicy.extractTimeoutMs,
-    EXTRACTION_NORMALIZATION_POLICY
-  ].join('|');
   const supportsDocumentExtractionCache = Boolean(
     documentExtractionCache
     && typeof documentExtractionCache.get === 'function'
@@ -203,43 +193,16 @@ export function createFileProcessor(options) {
       normalizationPolicy: record.normalizationPolicy || EXTRACTION_NORMALIZATION_POLICY,
       pageCoverage: record.pageCoverage ? structuredClone(record.pageCoverage) : null,
       warnings: Array.isArray(record.warnings)
-        ? record.warnings.slice(0, 32).map((item) => String(item))
+        ? record.warnings.map((item) => String(item))
         : []
-    };
-  };
-  const resolveDocumentExtractorIdentity = async (sourceType) => {
-    if (sourceType === 'pdf') {
-      if (documentExtractorTestConfig.stubPdfExtract) {
-        return { name: 'pdf-test-stub', version: 'test', target: 'stub' };
-      }
-      const runtimeInfo = await loadPdfExtractorRuntime();
-      return {
-        name: runtimeInfo?.name || 'pdfjs-dist',
-        version: runtimeInfo?.version || null,
-        target: runtimeInfo?.target || null
-      };
-    }
-    if (documentExtractorTestConfig.stubDocxExtract) {
-      return { name: 'docx-test-stub', version: 'test', target: 'stub' };
-    }
-    const runtimeInfo = await loadDocxExtractorRuntime();
-    return {
-      name: runtimeInfo?.name || 'mammoth',
-      version: runtimeInfo?.version || null,
-      target: runtimeInfo?.target || null
     };
   };
   const buildDocumentExtractionCacheKey = ({ sourceBytesHash, extractor, sourceType }) => {
     const bytesHash = typeof sourceBytesHash === 'string' ? sourceBytesHash.trim() : '';
     if (!bytesHash) return null;
-    return sha256Hex([
-      bytesHash,
-      extractor?.name || 'unknown',
-      extractor?.version || 'unknown',
-      extractor?.target || '',
-      resolveDocumentExtractionProducerVersion(sourceType),
-      documentExtractionPolicyCacheKey
-    ].join('|'));
+    return sha256Hex(JSON.stringify([bytesHash, buildDocumentExtractionAdmission({
+      sourceType, policy: documentExtractionPolicy, extractor
+    })]));
   };
   const loadCachedDocumentExtraction = (cacheKey) => {
     if (!supportsDocumentExtractionCache || !cacheKey) return null;
@@ -555,6 +518,11 @@ export function createFileProcessor(options) {
     throwIfAborted();
     applyCachedResultToArtifacts({ artifacts, cachedResult });
 
+    const documentExtractionIdentity = documentSourceType ? await resolveDocumentExtractorIdentity(documentSourceType) : null;
+    const documentExtractionAdmission = documentSourceType ? buildDocumentExtractionAdmission({
+      sourceType: documentSourceType, policy: documentExtractionPolicy, extractor: documentExtractionIdentity
+    }) : null;
+
     const cachedOutcome = reuseCachedBundle({
       abs,
       relKey,
@@ -573,7 +541,8 @@ export function createFileProcessor(options) {
       fileStart,
       knownLines,
       fileLanguageId,
-      mode
+      mode,
+      documentExtractionAdmission
     });
     if (cachedOutcome?.skip) {
       const { reason, ...extra } = cachedOutcome.skip;
@@ -603,14 +572,16 @@ export function createFileProcessor(options) {
         });
       }
       if (artifacts.cachedBundle?.stageRefresh?.embeddings) {
-        cachedOutcome.result.manifestEntry = await writeBundleForFile({semanticContext,semanticSegmentFactsRefs:cachedResult.semanticSegmentFactsRefs || [],semanticEvidenceArtifacts:cachedResult.semanticEvidenceArtifacts || [],semanticFactsRef:cachedResult.semanticFactsRef,runIo,incrementalState,relKey,fileStat,fileHash:cachedOutcome.result.fileInfo.hash,fileChunks:cachedOutcome.result.chunks,parseCheckpoint:artifacts.cachedBundle.parseCheckpoint,lexicalCheckpoint:artifacts.cachedBundle.lexicalCheckpoint || null,fileRelations:cachedOutcome.result.fileRelations,vfsManifestRows:cachedOutcome.result.vfsManifestRows,fileEncoding:cachedOutcome.result.fileInfo.encoding,fileEncodingFallback:cachedOutcome.result.fileInfo.encodingFallback,fileEncodingFallbackClass:cachedOutcome.result.fileInfo.encodingFallbackClass,fileEncodingFallbackRisk:cachedOutcome.result.fileInfo.encodingFallbackRisk,fileEncodingConfidence:cachedOutcome.result.fileInfo.encodingConfidence});
+        cachedOutcome.result.manifestEntry = await writeBundleForFile({semanticContext,semanticSegmentFactsRefs:cachedResult.semanticSegmentFactsRefs || [],semanticEvidenceArtifacts:cachedResult.semanticEvidenceArtifacts || [],semanticFactsRef:cachedResult.semanticFactsRef,runIo,incrementalState,relKey,fileStat,fileHash:cachedOutcome.result.fileInfo.hash,fileChunks:cachedOutcome.result.chunks,documentExtraction:cachedOutcome.result.fileInfo.extraction || null,parseCheckpoint:artifacts.cachedBundle.parseCheckpoint,lexicalCheckpoint:artifacts.cachedBundle.lexicalCheckpoint || null,fileRelations:cachedOutcome.result.fileRelations,vfsManifestRows:cachedOutcome.result.vfsManifestRows,fileEncoding:cachedOutcome.result.fileInfo.encoding,fileEncodingFallback:cachedOutcome.result.fileInfo.encodingFallback,fileEncodingFallbackClass:cachedOutcome.result.fileInfo.encodingFallbackClass,fileEncodingFallbackRisk:cachedOutcome.result.fileInfo.encodingFallbackRisk,fileEncodingConfidence:cachedOutcome.result.fileInfo.encodingConfidence});
       }
       warnEncodingFallback(relKey, cachedOutcome.result.fileInfo);
       return cachedOutcome.result;
     }
+    // A refused document receipt also invalidates its optional parser checkpoints;
+    // they describe text produced under the old extraction admission.
+    if (documentSourceType) artifacts.cachedBundle = null;
     let usedDocumentExtractionCacheHit = false;
     let documentExtractionCacheKey = null;
-    let documentExtractionIdentity = null;
     if (documentSourceType && supportsDocumentExtractionCache) {
       if (!artifacts.fileBuffer) {
         throwIfAborted();
@@ -628,7 +599,6 @@ export function createFileProcessor(options) {
       }
       if (Buffer.isBuffer(artifacts.fileBuffer)) {
         const sourceBytesHash = sha256Hex(artifacts.fileBuffer);
-        documentExtractionIdentity = await resolveDocumentExtractorIdentity(documentSourceType);
         documentExtractionCacheKey = buildDocumentExtractionCacheKey({
           sourceBytesHash,
           extractor: documentExtractionIdentity,
@@ -638,7 +608,7 @@ export function createFileProcessor(options) {
         if (cachedExtraction?.text) {
           usedDocumentExtractionCacheHit = true;
           const warnings = Array.isArray(cachedExtraction.warnings)
-            ? cachedExtraction.warnings.slice(0, 32)
+            ? cachedExtraction.warnings.slice()
             : [];
           if (!warnings.includes('document-extraction-cache-hit')) {
             warnings.push('document-extraction-cache-hit');
@@ -662,6 +632,7 @@ export function createFileProcessor(options) {
             counts: cachedExtraction.counts || { pages: 0, paragraphs: 0, totalUnits: 0 },
             units: Array.isArray(cachedExtraction.units) ? cachedExtraction.units : [],
             normalizationPolicy: cachedExtraction.normalizationPolicy || EXTRACTION_NORMALIZATION_POLICY,
+            admission: documentExtractionAdmission,
             warnings,
             policy: buildDocumentExtractionPolicySummary(documentExtractionPolicy),
             fidelity: buildDocumentExtractionFidelity({
@@ -715,7 +686,6 @@ export function createFileProcessor(options) {
       const cacheWarnings = Array.isArray(artifacts.documentExtraction.warnings)
         ? artifacts.documentExtraction.warnings
           .filter((item) => item && item !== 'document-extraction-cache-hit')
-          .slice(0, 32)
         : [];
       storeCachedDocumentExtraction(documentExtractionCacheKey, {
         sourceType: documentSourceType,
@@ -877,6 +847,7 @@ export function createFileProcessor(options) {
       fileStat,
       fileHash: artifacts.fileHash,
       fileChunks,
+      documentExtraction: artifacts.documentExtraction || null,
       parseCheckpoint: cpuResult?.parseCheckpoint || null,
       lexicalCheckpoint: cpuResult?.lexicalCheckpoint || null,
       fileRelations,

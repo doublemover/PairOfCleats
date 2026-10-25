@@ -9,6 +9,7 @@ import { pickMinLimit, resolveFileCaps } from './read.js';
 import { stripFileRelations } from './relations.js';
 import { log } from '../../../shared/progress-runtime.js';
 import { buildPostingsPayloadMetadata } from '../postings-payload.js';
+import { admitDocumentExtractionReceipt } from '../../extractors/receipt.js';
 
 /**
  * Rehydrate a cached per-file bundle when structural and cap invariants still
@@ -37,9 +38,16 @@ export function reuseCachedBundle({
   fileStart,
   knownLines,
   fileLanguageId,
-  mode = null
+  mode = null,
+  documentExtractionAdmission = null
 }) {
   if (!cachedBundle || !Array.isArray(cachedBundle.chunks)) return { result: null, skip: null };
+  const document = mode === 'extracted-prose' && ['.pdf', '.docx'].includes(ext);
+  const extraction = document && documentExtractionAdmission ? admitDocumentExtractionReceipt({
+    receipt: cachedBundle.documentExtraction, sourceHash: cachedBundle.hash, sourceSize: fileStat.size,
+    admission: documentExtractionAdmission
+  }) : null;
+  if (document && !extraction) return { result: null, skip: null };
   const hasValidChunks = cachedBundle.chunks.every((chunk) => {
     if (!chunk || typeof chunk !== 'object') return false;
     const start = Number(chunk.start);
@@ -111,6 +119,7 @@ export function reuseCachedBundle({
     ? cachedBundle.encodingConfidence
     : (Number.isFinite(cachedEntry?.encodingConfidence) ? cachedEntry.encodingConfidence : null);
   const fileInfo = {
+    ...(extraction ? { extraction } : {}),
     size: fileStat.size,
     hash: resolvedHash,
     hashAlgo: resolvedHashAlgo,

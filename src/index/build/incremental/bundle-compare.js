@@ -52,7 +52,7 @@ export const shouldReuseExistingBundle = (existingBundle, nextBundle) => {
   if ((existingBundle.encodingFallbackClass || null) !== (nextBundle.encodingFallbackClass || null)) return false;
   if ((existingBundle.encodingFallbackRisk || null) !== (nextBundle.encodingFallbackRisk || null)) return false;
   if ((existingBundle.encodingConfidence || null) !== (nextBundle.encodingConfidence || null)) return false;
-  for(const key of ['lexiconFilterStats','parseCheckpoint','lexicalCheckpoint','dependencySignatures']) {
+  for(const key of ['lexiconFilterStats','parseCheckpoint','lexicalCheckpoint','dependencySignatures','documentExtraction']) {
     if(buildStableJsonSignature(existingBundle[key]) !== buildStableJsonSignature(nextBundle[key])) return false;
   }
   return true;

@@ -5,6 +5,7 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import { persistIncrementalManifest } from './manifest-codec.js';
 import { writeIncrementalBundleSnapshot } from './bundle-snapshot.js';
+import { createDocumentExtractionReceipt } from '../../extractors/receipt.js';
 import {
   normalizeBundleFormat,
   resolveManifestBundleNames
@@ -99,6 +100,7 @@ const splitBundleChunksBySize = (bundle) => {
 const buildBundleShards = ({ bundle }) => {
   const shardChunks = splitBundleChunksBySize(bundle);
   return { bundles: shardChunks.map((chunks, index) => ({ ...bundle,
+    documentExtraction: index === 0 ? bundle.documentExtraction || null : null,
     parseCheckpoint: index === 0 ? bundle.parseCheckpoint : null,
     lexicalCheckpoint: index === 0 ? bundle.lexicalCheckpoint : null,
     chunks, bundleShardIndex: index, bundleShardCount: shardChunks.length })) };
@@ -237,6 +239,7 @@ export async function writeIncrementalBundle({
   fileStat,
   fileHash,
   fileChunks,
+  documentExtraction = null,
   semanticFactsRef = null,
   semanticSegmentFactsRefs = [],
   semanticEvidenceArtifacts = [],
@@ -281,6 +284,7 @@ export async function writeIncrementalBundle({
     mtimeMs: fileStat.mtimeMs,
     size: fileStat.size,
     chunks: fileChunks,
+    documentExtraction: createDocumentExtractionReceipt({ extraction: documentExtraction, sourceHash: fileHash, sourceSize: fileStat.size }),
     parseCheckpoint,
     lexicalCheckpoint,
     dependencySignatures,
@@ -577,6 +581,7 @@ export async function updateBundlesWithChunks({
         mtimeMs: entry.mtimeMs,
         size: entry.size,
         chunks: fileChunks,
+        documentExtraction: existingBundle?.documentExtraction || null,
         parseCheckpoint: existingBundle?.parseCheckpoint || null,
         lexicalCheckpoint: existingBundle?.lexicalCheckpoint || null,
         ...(Object.hasOwn(existingBundle || {},'lexiconFilterStats') ? {lexiconFilterStats:existingBundle.lexiconFilterStats} : {}),

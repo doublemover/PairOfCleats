@@ -30,6 +30,25 @@ DOCX structural producer version 3 invalidates prior extraction/bundle products;
 persisted normalization identity `v1:docx-xml:3` also distinguishes the changed
 source transformation. The installed provider's package version remains exact.
 
+Incremental extracted-document bundles carry a version 1 extraction receipt,
+bounded to 16 MiB and 100,000 source units. It binds the source SHA-1/size and
+SHA-256 provenance, selected provider, format producer, normalization/chunker
+identity, effective policy, unit extents/counts, warnings and fidelity. The
+immutable bundle's manifest-selected checksum covers this receipt. Only the
+first shard stores it; reassembly and Stage2 replacement preserve that owner.
+Malformed or missing receipts require scoped re-extraction. A compatible receipt
+restores `fileInfo.extraction` before the early replay return without running the
+extractor. Invocation-only cache-hit diagnostics do not change fidelity counts
+or persist as source warnings.
+
+The extracted-prose dependency domain includes normalized policy and provider
+admission before whole-mode reuse. Per-file admission independently compares the
+receipt against the selected source and current policy/producer. Policy-only
+changes leave ordinary parse/lexical/enrichment identities equal and requalify
+document sources; scheduling-only changes preserve reuse. Successfully processed
+documents with unavailable metadata remain in coverage accounting with an
+explicit unavailable-receipt diagnostic.
+
 PDF extraction owns both the loading task and loaded document. Success, page
 failure and timeout dispose them through bounded cleanup. The timeout signal
 initiates cancellation immediately, each awaited page boundary checks it, and a

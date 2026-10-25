@@ -9,6 +9,7 @@ import { canonicalizeBundlePayloadForChecksum } from '../../../shared/bundle-che
 import { canonicalBundleSourceKey, normalizeBundleSourceKeys } from '../../../shared/bundle-source-key.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { writeAccountedBundle } from './accounted-bundle.js';
+import { admitDocumentExtractionReceipt } from '../../extractors/receipt.js';
 
 const digest = (bundle, format) => createHash('sha256').update(JSON.stringify(
   canonicalizeBundlePayloadForChecksum(bundle, { typedArraysBeforeToJSON: format === 'json' })
@@ -58,6 +59,9 @@ export const readIncrementalBundleSnapshot = async ({ repoRoot = process.cwd(), 
       if (!validateIncrementalBundleShardAuthority({ relKey: file, sourceHash: entry.hash, sourceSize: entry.size,
         dependencySignatures: entry.dependencySignatures, bundleName: name, part, index,
         count: names.length, format, bundle })) return null;
+      if (bundle.documentExtraction && (index !== 0 || !admitDocumentExtractionReceipt({
+        receipt: bundle.documentExtraction, sourceHash: entry.hash, sourceSize: entry.size
+      }))) return null;
       shards.push({ bundleName: name, bundlePath: filename, bundleFormat: format, bundle });
     }
     const first = shards[0].bundle;
@@ -82,6 +86,9 @@ export const writeIncrementalBundleSnapshot = async ({ repoRoot = process.cwd(),
     throwIfAborted(signal);
     const bundle = normalizeBundleSourceKeys({ ...bundles[index], file,
       artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, bundleShardIndex: index, bundleShardCount: bundles.length });
+    if (bundle.documentExtraction && (index !== 0 || !admitDocumentExtractionReceipt({
+      receipt: bundle.documentExtraction, sourceHash: bundle.hash, sourceSize: bundle.size
+    }))) throw new TypeError('Invalid document extraction receipt in bundle publication.');
     if (entry && (bundle.hash !== entry.hash || !same(bundle.dependencySignatures, entry.dependencySignatures))) {
       throw new TypeError('Replacement bundle differs from its selected source/dependency snapshot.');
     }

@@ -43,6 +43,7 @@ import { processFiles } from '../steps/process-files.js';
 import { postScanImports, preScanImports, runCrossFileInference } from '../steps/relations.js';
 import { writeIndexArtifactsForMode } from '../steps/write.js';
 import { runWithHangProbe } from '../hang-probe.js';
+import { prepareDocumentExtractionAdmission } from '../../../extractors/admission.js';
 
 export const runPipelineStageOrchestrator = async ({
   mode,
@@ -152,6 +153,7 @@ export const runPipelineStageOrchestrator = async ({
       + 'Enable inline/stub embeddings or service-mode embedding queueing and rebuild.'
     );
   }
+  await prepareDocumentExtractionAdmission(runtimeRef, mode);
   const tokenizationKey = buildTokenizationKey(runtimeRef, mode);
   const cacheSignature = buildIncrementalSignature(runtimeRef, mode, tokenizationKey);
   const dependencySignatures = buildDependencySignatures(runtimeRef, mode, tokenizationKey);
