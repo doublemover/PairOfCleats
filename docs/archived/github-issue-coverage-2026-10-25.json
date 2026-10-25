@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "e672aad3e",
+  "sourceHead": "665928c55",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 392,
+    "implemented": 393,
     "partial": 150,
-    "pending": 186
+    "pending": 185
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -573,6 +573,7 @@
       1639,
       1640,
       1641,
+      1645,
       1684,
       1688,
       1698,
@@ -852,7 +853,6 @@
       1642,
       1643,
       1644,
-      1645,
       1646,
       1647,
       1648,
@@ -5745,8 +5745,10 @@
       "number": 1645,
       "title": "[P2] Reject fusion depth sweeps beyond the captured channel prefix without exhaustion evidence",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "665928c55",
+      "validation": "deferred"
     },
     {
       "number": 1646,
@@ -6384,7 +6386,7 @@
   ],
   "githubRefresh": {
     "date": "2026-10-25",
-    "head": "b77f72e805d4c441bb39b26e519a5e7604f0c3a7",
+    "head": "665928c5561dd6a9a924ed0ec980b8e70aa84e70",
     "open": 763,
     "added": 0,
     "closed": 0,

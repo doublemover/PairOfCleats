@@ -907,3 +907,34 @@ projection. Pure owner controls check deferred ordering and backend scope.
 Format/ESLint, syntax, affected ledger/taxonomy refreshes, discovery and diff checks
 passed. Functional execution remains deferred. Coverage is **35 fixed / 392
 implemented / 150 partial / 186 pending**.
+
+
+## Captured fusion depth availability
+
+**#1645** (`665928c55`) versions saved fusion captures to 2 and records per-channel
+captured count, ranked-prefix semantics and requested capture depth (unknown when
+not supplied). Larger replay depths require an explicit capture-owner exhausted
+enumeration receipt bound to eligible count, ordered source-key prefix hash and
+query/corpus generation/source identity. A short or empty list does not mint that
+claim. Receipts state capture-owner enumeration evidence; replay does not recover
+unseen ranks or qualify live latency.
+
+Replay retains requested/effective depth and availability reasons. Sweeps admit
+every query/configuration depth without silently clipping or dropping a query.
+Scalar grids are captured before asynchronous work. New schema/source, depth
+policy, checkpoint and frozen selection identities invalidate stale capture or
+selection meaning. Existing scoring/gating/boost/diversity owners and hard bounds
+remain. No production ranking default changes.
+
+Authored controls cover independent sparse/dense depth zero/exact/one-past/100,
+bound exhausted positives, query/generation/prefix/count tampering, old-version
+rejection, capture mutation, mixed query depths in either order and a genuinely
+captured rank3 whose known export boost changes the selected result and sweep
+winner. Original baseline/held-out/cancellation/restart assertions remain.
+Format/ESLint, syntax, affected schema/ledger/taxonomy refreshes, discovery and
+diff checks passed. Functional execution remains deferred. Coverage is **35 fixed /
+393 implemented / 150 partial / 185 pending**.
+
+A complete metadata refresh at `665928c55` again found **763 open reports**, with
+no added/closed IDs or changed titles. Source implementation remains distinct
+from accepted closure and current-tree runtime qualification.
