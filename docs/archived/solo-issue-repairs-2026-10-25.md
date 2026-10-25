@@ -271,3 +271,39 @@ unreferenced cleanup, including rejection, without issuing a POSIX signal. The
 original postinstall SIGTERM assertion remains, with added status/stderr context.
 Formatting/syntax passed; the fixture was discovered without execution. Hosted
 requalification remains separate from this source repair.
+
+## Admission and publication followup
+
+- **#1609** (`fec7ee41e`): lint interval projection rechecks both ends for nested
+  chunks while retaining the source-ordered sweep, provider ordering and exact
+  fallback intersections. Lint producer identity advances to 2. Authored cases
+  compare an independent interval oracle and the actual chunk processor/cache.
+- **#1561** (`ca637a617`): context expansion charges rejected, duplicate, missing
+  and empty-bucket candidates before expensive work; cancellation and time checks
+  apply inside fanout. Index/filter preparation is reported separately. Authored
+  cases preserve eligible-result order and exercise the actual mode adapter.
+- **#1575** (`2b95a280a`): standalone atomic JSONL output closes descriptors and
+  awaits its owned codec settlement before the existing replacement owner can
+  publish. Borrowed pool ownership is unchanged. Authored cases retain a previous
+  artifact through delayed/failed teardown, cancellation, destination and commit
+  failure; successful output is decoded and compared exactly.
+- **#1580** (`6bba53513`): semantic SQLite payload reads admit UTF-8 row and
+  aggregate page bytes in SQL before exporting text. Iterative hydration retains
+  deterministic member ordering and cursor boundaries. Oversize evidence remains
+  an explicit output-limit failure; admitted invalid JSON is an integrity error.
+  Authored cases cover all five related families, exact/multibyte boundaries,
+  aggregate rejection, continuations, detail/trace consumers and cancellation.
+
+Hosted gate at `04a1fd14d` still observed postinstall **status 0, signal null**
+after its Git child died with SIGTERM; the first dispatch-turn repair did not
+close the failure. [Job evidence](https://github.com/doublemover/PairOfCleats/actions/runs/40196892937/job/121179619742).
+Followup `5a2d1958a` replaces the one-turn assumption with a bounded referenced
+dispatch owner that releases on actual signal delivery, preserves custom handler
+authority and fails closed if delivery never occurs. The portable regression now
+delays delivery beyond an event-loop turn and covers custom handler ordering.
+This source change still requires hosted confirmation.
+
+Formatting and syntax checks passed for these source batches. Functional fixtures,
+the complete front gate and final Windows qualification remain deferred. Current
+coverage is 35 previously fixed, 368 implemented, 150 partial and 210 pending;
+implementation does not close an issue or claim final-head acceptance.

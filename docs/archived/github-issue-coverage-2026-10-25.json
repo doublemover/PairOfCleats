@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "4e9bb310c",
+  "sourceHead": "6bba53513",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 364,
+    "implemented": 368,
     "partial": 150,
-    "pending": 214
+    "pending": 210
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -521,6 +521,7 @@
       1552,
       1553,
       1554,
+      1561,
       1562,
       1563,
       1564,
@@ -529,10 +530,12 @@
       1570,
       1571,
       1572,
+      1575,
       1576,
       1577,
       1578,
       1579,
+      1580,
       1582,
       1583,
       1595,
@@ -540,6 +543,7 @@
       1599,
       1600,
       1605,
+      1609,
       1610,
       1611,
       1635,
@@ -799,13 +803,10 @@
       1558,
       1559,
       1560,
-      1561,
       1566,
       1568,
       1569,
       1573,
-      1575,
-      1580,
       1581,
       1584,
       1585,
@@ -827,7 +828,6 @@
       1606,
       1607,
       1608,
-      1609,
       1612,
       1613,
       1614,
@@ -5114,8 +5114,10 @@
       "number": 1561,
       "title": "[P2] Charge context-expansion work budgets for rejected candidate scans",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "ca637a617",
+      "validation": "deferred"
     },
     {
       "number": 1562,
@@ -5220,8 +5222,10 @@
       "number": 1575,
       "title": "[P2] Delay standalone atomic zstd publication until owned codec teardown settles",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "2b95a280a",
+      "validation": "deferred"
     },
     {
       "number": 1576,
@@ -5255,8 +5259,10 @@
       "number": 1580,
       "title": "[P2] Enforce semantic SQLite byte admission before hydrating related payloads",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "6bba53513",
+      "validation": "deferred"
     },
     {
       "number": 1581,
@@ -5466,8 +5472,10 @@
       "number": 1609,
       "title": "[P2] Recheck lint interval ends when source-ordered chunks are nested",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "fec7ee41e",
+      "validation": "deferred"
     },
     {
       "number": 1610,
