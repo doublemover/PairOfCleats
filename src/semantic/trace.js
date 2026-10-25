@@ -1,6 +1,7 @@
 import { advanceTraceContext } from './trace-context.js';
 import { attachSemanticSourceReferences } from './source-references.js';
 import { randomUUID } from 'node:crypto';
+import { createSemanticCoverageQualification, qualifySemanticCoverage, semanticCoverageIsComplete, semanticCoverageWarning } from './coverage-qualification.js';
 import { canonicalSemanticJson, semanticHash } from '../index/semantic/identity.js';
 import { assertSemanticTrace } from '../contracts/validators/semantic-trace.js';
 import { throwIfAborted } from '../shared/abort.js';
@@ -38,7 +39,7 @@ export const createSemanticTraceService = ({ maxRecords = 128, maxEdges = 512, m
     const key = semanticHash('semantic.trace-continuation.v2', { ...request, cursor: null, operation, declaration,
       limits, kinds, backend: store.backend || 'custom', storeId: store.storeId || store.repoRoot, inventory: store.cursorScope || null });
     let state = { queue: [{ ref: request.seed, depth: 0, traverse: true }], seen: [visitKey(request.seed)], index: 0,
-      truncated: false, analysisIncomplete: false, stage: request.slot ? request.slot.name === 'output' ? 'output' : 'slot' : 'record', offset: 0 };
+      truncated: false, qualification: createSemanticCoverageQualification(), stage: request.slot ? request.slot.name === 'output' ? 'output' : 'slot' : 'record', offset: 0 };
     if (request.cursor) {
       const saved = continuations.get(request.cursor);
       if (!saved || saved.key !== key || saved.expires <= Date.now()) throw fail('ERR_SEMANTIC_CURSOR_EXPIRED', 'Trace continuation expired or differs from the pinned request/store.');
@@ -90,7 +91,7 @@ export const createSemanticTraceService = ({ maxRecords = 128, maxEdges = 512, m
           const target = row.phase === 'syntax' ? result.coverage.extraction : result.coverage.analysis;
           if (!target.some(existing => canonicalSemanticJson(existing) === canonicalSemanticJson(row))) target.push(row);
         }
-        if (!coverage.some(row => row.phase === 'syntax') || !coverage.some(row => row.phase !== 'syntax') || coverage.some(row => row.state !== 'complete')) state.analysisIncomplete = true;
+        state.qualification = qualifySemanticCoverage(state.qualification, coverage);
         pageCoverage.add(ref.partitionId);
         if (!fits()) throw fail('ERR_SEMANTIC_OUTPUT_LIMIT', 'Trace source coverage exceeds response budget.');
       }
@@ -144,10 +145,10 @@ export const createSemanticTraceService = ({ maxRecords = 128, maxEdges = 512, m
     }
     const done = state.index === state.queue.length;
     result.coverage.response = { state: done && !state.truncated ? 'complete' : 'partial', returnedCount: result.records.length, hydratedCount: result.edges.length + result.operands.length };
-    const complete = result.coverage.extraction.length > 0 && result.coverage.extraction.every(row => row.state === 'complete')
-      && result.coverage.analysis.length > 0 && result.coverage.analysis.every(row => row.state === 'complete');
-    if (!complete || state.analysisIncomplete) { result.warnings.push('Source analysis includes unavailable or incomplete phases; coverage retains every physical partition.'); result.frontier.push({ reason: 'analysis_incomplete' }); }
-    result.status = done && !state.truncated && !state.analysisIncomplete && complete && !result.frontier.length ? 'complete' : 'partial';
+    const complete = semanticCoverageIsComplete(state.qualification);
+    if (!complete) { result.warnings.push('Source analysis includes unavailable or incomplete phases; coverage retains every physical partition.',
+      semanticCoverageWarning(state.qualification)); result.frontier.push({ reason: 'analysis_incomplete' }); }
+    result.status = done && !state.truncated && complete && !result.frontier.length ? 'complete' : 'partial';
     await attachSemanticSourceReferences({ store, result, signal, began, limits });
     let pendingContinuation = null;
     if (!done) {

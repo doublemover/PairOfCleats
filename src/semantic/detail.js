@@ -10,6 +10,7 @@ import { captureSemanticRequest } from './request-snapshot.js';
 import { SEMANTIC_DETAIL_REQUEST_SCHEMA } from '../contracts/schemas/semantic-query.js';
 import { readProviderEvidenceEntry, providerEvidenceState, createProviderEvidenceBudget } from './provider-evidence-detail.js';
 import { stageSemanticPagePublication } from './page-publication.js';
+import { createSemanticCoverageQualification, qualifySemanticCoverage, semanticCoverageIsComplete, semanticCoverageWarning } from './coverage-qualification.js';
 
 const fail = (code, message) => Object.assign(new Error(message), { code });
 const fieldGroups = ['span', 'scope', 'data'];
@@ -40,7 +41,8 @@ export const createSemanticDetailService = ({ maxContinuations = 64, ttlMs = 300
     const key = semanticHash('semantic.detail-continuation.v2', { repoRoot: request.repoRoot, generation: request.generation,
       refs: request.refs, fields, include, limits, backend: store.backend || 'custom', storeId: store.storeId || store.repoRoot,
       cursorScope: store.cursorScope || null });
-    let state = { index: 0, stage: 'record', offset: 0, nameRef: null, afterName: null, companionDone: false };
+    let state = { index: 0, stage: 'record', offset: 0, nameRef: null, afterName: null, companionDone: false,
+      qualification: createSemanticCoverageQualification(), evidenceIncomplete: false };
     if (request.cursor) {
       const saved = continuations.get(request.cursor);
       if (!saved || saved.key !== key || saved.expires <= Date.now()) throw fail('ERR_SEMANTIC_CURSOR_EXPIRED', 'Restart semantic detail with the pinned generation and original request; continuation is expired or mismatched.');
@@ -76,6 +78,7 @@ export const createSemanticDetailService = ({ maxContinuations = 64, ttlMs = 300
         // Source coverage remains bounded alongside node hydration.
         if (partitions.size >= 16) break;
         const coverage = await store.getCoverage([ref.partitionId], { signal });
+        state.qualification = qualifySemanticCoverage(state.qualification, coverage);
         result.coverage.extraction.push(...coverage.filter((row) => row.phase === 'syntax'));
         result.coverage.analysis.push(...coverage.filter((row) => row.phase !== 'syntax'));
         partitions.add(ref.partitionId);
@@ -91,6 +94,7 @@ export const createSemanticDetailService = ({ maxContinuations = 64, ttlMs = 300
         if (!row) {
           result.frontier.push({ ref, reason: 'record_not_found' });
           if (!fits()) { result.frontier.pop(); break; }
+          state.evidenceIncomplete = true;
           state.stage = 'next'; progressed = true; continue;
         }
         if (!admit('records', project(row, fields))) break;
@@ -184,9 +188,13 @@ export const createSemanticDetailService = ({ maxContinuations = 64, ttlMs = 300
     }
     const done = state.index === request.refs.length;
     result.coverage.response = { state: done ? 'complete' : 'partial', returnedCount: result.records.length, hydratedCount: hydrated };
-    const analysisComplete = result.coverage.analysis.length > 0 && result.coverage.analysis.every((row) => row.state === 'complete');
-    const extractionComplete = result.coverage.extraction.length > 0 && result.coverage.extraction.every((row) => row.state === 'complete');
-    result.status = done && analysisComplete && extractionComplete && !result.frontier.length && !result.providerEvidence?.length ? 'complete' : 'partial';
+    const coverageComplete = semanticCoverageIsComplete(state.qualification);
+    if (!coverageComplete) result.warnings.push(semanticCoverageWarning(state.qualification));
+    state.evidenceIncomplete ||= Boolean(result.providerEvidence?.length);
+    if (state.evidenceIncomplete && !result.frontier.length && !result.providerEvidence?.length) {
+      result.warnings.push('Earlier requested evidence remains unavailable or incomplete.');
+    }
+    result.status = done && coverageComplete && !state.evidenceIncomplete && !result.frontier.length ? 'complete' : 'partial';
     await attachSemanticSourceReferences({ store, result, signal, began, limits: { ...limits, bytes: limits.bytes - evidenceReadBytes } });
     let pendingContinuation = null;
     if (!done) {

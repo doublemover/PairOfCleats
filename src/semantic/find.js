@@ -8,6 +8,7 @@ import { discoverySelector, inspectDiscoveryFact } from './discovery-facts.js';
 import { captureSemanticRequest } from './request-snapshot.js';
 import { SEMANTIC_FIND_REQUEST_SCHEMA } from '../contracts/schemas/semantic-find.js';
 import { stageSemanticPagePublication } from './page-publication.js';
+import { createSemanticCoverageQualification, qualifySemanticCoverage, semanticCoverageIsComplete, semanticCoverageWarning } from './coverage-qualification.js';
 const fail=(code,message)=>Object.assign(new Error(message),{code});
 export const createSemanticFindService = ({maxRecords=128,maxBytes=65536,maxWorkMs=250,maxContinuations=64,ttlMs=300000}={}) => {
   const maxima={records:maxRecords,bytes:maxBytes,workMs:maxWorkMs},continuations=new Map();
@@ -20,8 +21,8 @@ export const createSemanticFindService = ({maxRecords=128,maxBytes=65536,maxWork
     const limits={...maxima,...request.limits};
     for(const name of Object.keys(maxima))if(limits[name]>maxima[name])throw fail('ERR_SEMANTIC_QUERY_LIMIT','Find limit exceeds configured maximum.');
     const key=semanticHash('semantic.find-continuation.v1',{...request,cursor:null,limits,backend:store.backend||'custom',inventory:store.cursorScope||null,storeId:store.storeId||store.repoRoot});
-    let offset=0,seed;
-    if(request.cursor){const saved=continuations.get(request.cursor);if(!saved||saved.key!==key||saved.expires<=Date.now())throw fail('ERR_SEMANTIC_CURSOR_EXPIRED','Restart discovery with the original generation and selector.');offset=saved.offset;seed=saved.seed;}
+    let offset=0,seed,qualification=createSemanticCoverageQualification();
+    if(request.cursor){const saved=continuations.get(request.cursor);if(!saved||saved.key!==key||saved.expires<=Date.now())throw fail('ERR_SEMANTIC_CURSOR_EXPIRED','Restart discovery with the original generation and selector.');offset=saved.offset;seed=saved.seed;qualification=saved.qualification;}
     const result={schemaVersion:1,generation:request.generation,status:'partial',records:[],edges:[],operands:[],ownership:[],names:[],evidenceRefs:[],matches:[],
       coverage:{extraction:[],analysis:[],response:{state:'partial',returnedCount:0}},frontier:[],cursor:null,warnings:['Structural candidates are not behavioral equivalence; types, bindings and effects require separate evidence.']};
     const deadline=performance.now()+limits.workMs;
@@ -67,16 +68,17 @@ export const createSemanticFindService = ({maxRecords=128,maxBytes=65536,maxWork
       for(const row of coverage){const target=row.phase==='syntax'?result.coverage.extraction:result.coverage.analysis;if(!target.some(value=>canonicalSemanticJson(value)===canonicalSemanticJson(row)))target.push(row);}
       result.records.push(record);result.matches.push(match);
       if(Buffer.byteLength(JSON.stringify(result))+1024>limits.bytes){result.records.pop();result.matches.pop();result.coverage.extraction.length=previousExtraction;result.coverage.analysis.length=previousAnalysis;break;}
+      if(!seenCoverage.has(ref.partitionId))qualification=qualifySemanticCoverage(qualification,coverage);
       seenCoverage.add(ref.partitionId);offset=page.offset;done=page.done;progressed=true;if(done)break;
     }
     result.coverage.response={state:done?'complete':'partial',returnedCount:result.records.length};
     // No-match scope is not certified complete by an index selector alone.
-    const complete=result.coverage.extraction.length>0&&result.coverage.extraction.every(row=>row.state==='complete')&&result.coverage.analysis.length>0&&result.coverage.analysis.every(row=>row.state==='complete');
-    if(!complete)result.warnings.push('Requested analysis coverage is incomplete or unavailable; absence of candidates is not proof of absence.');
+    const complete=semanticCoverageIsComplete(qualification);
+    if(!complete)result.warnings.push('Requested analysis coverage is incomplete or unavailable; absence of candidates is not proof of absence.',semanticCoverageWarning(qualification));
     result.status=done&&complete?'complete':'partial';
     await attachSemanticSourceReferences({ store, result, signal, began: deadline - limits.workMs, limits });
     let pendingContinuation = null;
-    if(!done){if(!progressed)throw fail('ERR_SEMANTIC_OUTPUT_LIMIT','Selected operation evidence exceeds output allowance.');result.cursor=randomUUID();pendingContinuation={key,offset,seed};result.frontier.push({reason:'response_budget',remainingCount:1});}
+    if(!done){if(!progressed)throw fail('ERR_SEMANTIC_OUTPUT_LIMIT','Selected operation evidence exceeds output allowance.');result.cursor=randomUUID();pendingContinuation={key,offset,seed,qualification};result.frontier.push({reason:'response_budget',remainingCount:1});}
     if(Buffer.byteLength(JSON.stringify(result))>limits.bytes)throw fail('ERR_SEMANTIC_OUTPUT_LIMIT','Semantic response exceeds output budget.');
     assertSemanticFind('result',result);
     return {result,pendingContinuation};
