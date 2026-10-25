@@ -48,15 +48,39 @@ Rules:
 ### listTrackedFiles
 
 ```ts
-function listTrackedFiles({ repoRoot, subdir }:
-  { repoRoot: string; subdir?: string | null }):
-  { filesPosix: string[] } | { ok: false; reason: 'unavailable' };
+function listTrackedFiles({ repoRoot, subdir, signal }:
+  { repoRoot: string; subdir?: string | null; signal?: AbortSignal | null }):
+  { complete: true; filesPosix: string[]; inventory?: ScmFileInventoryReceipt }
+  | { ok: false; complete: false; reason: 'unavailable'; inventory: ScmFileInventoryReceipt };
 ```
 
 Rules:
 - `filesPosix` are repo-relative, POSIX separators, sorted ascending.
 - `subdir` filters to a repo-relative folder (provider may ignore if unsupported).
 - On provider errors (missing tool, repo unreadable), return `{ ok:false, reason:'unavailable' }` so callers can fall back.
+
+File-list success requires explicit completion, including an empty list. Git/JJ
+adapters qualify exit/signal settlement, enabled stdout capture, complete byte
+counts, zero dropped bytes, lossless encoding and terminal record framing before
+parsing names. Known partial/unknown output has no `filesPosix` result. The capture
+cap is unchanged. JJ's compatibility newline route receives the same checks;
+its changed-file record cap returns unavailable rather than a complete prefix.
+Git history-derived enumeration keeps its ancestry requirement and now shares
+the full capture qualification. Caller cancellation propagates through commands
+and registered wrappers. Unsettled resource failures bypass fallback catches.
+
+`ScmFileInventoryReceipt` is bounded passive data: schema version 1, provider,
+operation (`tracked`, `changed`, `history`), completion/status/reason and nullable
+capture byte counts/truncation/encoding observations. It contains no filenames,
+environments or cleanup authority. Registered external providers explicitly
+declare completion; contradictory supplied capture receipts remain inadmissible.
+
+Discovery records `scmInventory` and the actual `selectionPolicy`:
+`scm-tracked-only`, `filesystem-fallback` or `filesystem`. A complete filesystem
+fallback is a statement about its filtered candidates, not complete SCM coverage.
+Streamed providers also declare a complete source and retain actual iterator
+settlement/cancellation. Early candidate caps still report incomplete enumeration.
+Discovery selection producer version 4 invalidates prior selection identity.
 
 ### getRepoProvenance
 
@@ -87,9 +111,10 @@ Rules:
 ### getChangedFiles
 
 ```ts
-function getChangedFiles({ repoRoot, fromRef, toRef, subdir }:
-  { repoRoot: string; fromRef?: string | null; toRef?: string | null; subdir?: string | null }):
-  { filesPosix: string[] } | { ok: false; reason: 'unsupported' | 'unavailable' };
+function getChangedFiles({ repoRoot, fromRef, toRef, subdir, signal }:
+  { repoRoot: string; fromRef?: string | null; toRef?: string | null; subdir?: string | null; signal?: AbortSignal | null }):
+  { complete: true; filesPosix: string[]; inventory?: ScmFileInventoryReceipt }
+  | { ok: false; complete?: false; reason: 'unsupported' | 'unavailable'; inventory?: ScmFileInventoryReceipt };
 ```
 
 Rules:

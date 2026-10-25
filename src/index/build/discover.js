@@ -14,7 +14,9 @@ import {
 import { getLanguageForFile } from '../language-registry.js';
 import { fileExt, isRelativePathEscape, toPosix } from '../../shared/file-paths.js';
 import { createRecordsClassifier } from './records.js';
-import { throwIfAborted } from '../../shared/abort.js';
+import { throwIfAborted, isAbortError } from '../../shared/abort.js';
+import { declaredScmFileInventory, scmFileInventoryReceipt } from '../scm/file-inventory.js';
+import { observeStorageResource } from '../../shared/storage/failure-observation.js';
 import { inspectGeneratedArtifact, isGeneratedArtifactCandidatePath } from '../../shared/generated-artifact.js';
 import { pickMinLimit, resolveFileCaps, resolveSharedDiscoveryFileCaps } from './file-processor/read.js';
 import { getEnvConfig } from '../../shared/env/runtime.js';
@@ -192,40 +194,59 @@ export async function discoverEntries({
       : null)
     : null;
   const recordsClassifier = createRecordsClassifier({ root, config: recordsConfig });
+  const unavailableInventory = reason => {
+    metrics.scmInventory = scmFileInventoryReceipt({ provider: scmProvider || 'unknown', operation: 'tracked', reason });
+    return null;
+  };
   const listScmFiles = async () => {
-    if (!scmProviderImpl || scmProvider === 'none') return null;
-    if (!scmRepoRoot || !canonicalRepoRoot) return null;
-    if (rootRel == null) return null;
+    if (scmProvider === 'none' || (!scmProviderImpl && !scmProvider)) return null;
+    if (!scmProviderImpl) return unavailableInventory('provider-unavailable');
+    if (!scmRepoRoot || !canonicalRepoRoot) return unavailableInventory('repo-unavailable');
+    if (rootRel == null) return unavailableInventory('outside-repo-scope');
     try {
       if (typeof scmProviderImpl.iterateTrackedFiles === 'function') {
         const result = await scmProviderImpl.iterateTrackedFiles({ repoRoot: scmRepoRoot,
           subdir: rootRel || null, signal: abortSignal });
+        throwIfAborted(abortSignal);
+        metrics.scmInventory = declaredScmFileInventory(result, { provider: scmProvider, operation: 'tracked' });
+        if (!metrics.scmInventory.complete) return null;
         const files = result?.files || result;
         if (files && (typeof files[Symbol.asyncIterator] === 'function' || typeof files[Symbol.iterator] === 'function')) {
           metrics.source = 'scm-stream';
           return { repoRoot: scmRepoRoot, files, ordered: result?.ordering === 'utf16-lex' };
         }
+        return unavailableInventory('invalid-stream-inventory');
       }
-      if (typeof scmProviderImpl.listTrackedFiles !== 'function') return null;
+      if (typeof scmProviderImpl.listTrackedFiles !== 'function') return unavailableInventory('provider-unavailable');
       const result = await scmProviderImpl.listTrackedFiles({
         repoRoot: scmRepoRoot,
-        subdir: rootRel || null
+        subdir: rootRel || null,
+        signal: abortSignal
       });
-      if (result?.ok === false) return null;
+      throwIfAborted(abortSignal);
+      metrics.scmInventory = declaredScmFileInventory(result, { provider: scmProvider, operation: 'tracked' });
+      if (!metrics.scmInventory.complete) return null;
       const files = Array.isArray(result?.filesPosix)
         ? result.filesPosix
         : null;
-      if (!files) return null;
+      if (!files || files.some(entry => typeof entry !== 'string' || !entry || entry.includes('\0'))) {
+        metrics.scmInventory = scmFileInventoryReceipt({ provider: scmProvider, operation: 'tracked', reason: 'invalid-path-inventory' });
+        return null;
+      }
       metrics.source = 'scm-legacy';
       metrics.providerMaterialized = true;
       return { repoRoot: scmRepoRoot, files, ordered: false };
-    } catch {
+    } catch (error) {
+      observeStorageResource(error, { phase: 'discovery-scm-inventory' }).requireSettled();
+      if (isAbortError(error)) throw error;
       throwIfAborted(abortSignal);
+      metrics.scmInventory = scmFileInventoryReceipt({ provider: scmProvider, operation: 'tracked', reason: 'provider-threw' });
       return null;
     }
   };
 
   const scmResult = await listScmFiles();
+  metrics.selectionPolicy = scmResult ? 'scm-tracked-only' : metrics.scmInventory ? 'filesystem-fallback' : 'filesystem';
   const directoryInventory = !scmResult ? createDiscoveryDirectoryInventory({ root, canonicalRoot, metrics }) : null;
   if (!scmResult) metrics.source = 'filesystem-bounded';
   const candidates = scmResult

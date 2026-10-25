@@ -57,12 +57,12 @@ try {
     } finally { finalized = true; }
   };
   const streamed = await discoverEntries({ root, modes: ['code'], ignoreMatcher, maxFiles: 2, scmProvider: 'git', scmRepoRoot: root,
-    scmProviderImpl: { iterateTrackedFiles: async () => ({ files: stream(), ordering: 'utf16-lex' }) } });
+    scmProviderImpl: { iterateTrackedFiles: async () => ({ complete: true, files: stream(), ordering: 'utf16-lex' }) } });
   assert.deepEqual(streamed.entries.map(entry => entry.rel), ['file-000.js', 'file-001.js']);
   assert.equal(produced, 2, 'qualified ordered SCM source receives terminal admission upstream');
   assert.equal(finalized, true);
   const empty = await discoverEntries({ root, modes: ['code'], ignoreMatcher, scmProvider: 'git', scmRepoRoot: root,
-    scmProviderImpl: { listTrackedFiles: async () => ({ filesPosix: [] }) } });
+    scmProviderImpl: { listTrackedFiles: async () => ({ complete: true, filesPosix: [] }) } });
   assert.deepEqual(empty.entries, [], 'empty SCM success stays authoritative');
 
   const controller = new AbortController(); controller.abort();

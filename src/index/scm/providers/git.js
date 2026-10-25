@@ -8,6 +8,8 @@ import {
 import { toPosix } from '../../../shared/file-paths.js';
 import { findUpwards } from '../../../shared/fs/find-upwards.js';
 import { runScmCommand } from '../runner.js';
+import { inspectScmFileInventory, unavailableScmFileInventory } from '../file-inventory.js';
+import { throwIfAborted } from '../../../shared/abort.js';
 import { toRepoPosixPath } from '../paths.js';
 import { buildScmFreshnessGuard } from '../runtime.js';
 import { preserveScmMetadataFailure } from '../metadata-diagnostics.js';
@@ -101,9 +103,10 @@ const runGitProviderTask = (task, options = {}) => runGitTask(task, {
  * @param {string[]} args
  * @returns {Promise<{exitCode:number,stdout:string,stderr:string}>}
  */
-const runGitProviderCommand = (args) => runGitProviderTask(() => runScmCommand('git', args, {
-  ...SCM_STRING_COMMAND_OPTIONS
-}));
+const runGitProviderCommand = (args, signal = null) => runGitProviderTask(() => {
+  throwIfAborted(signal);
+  return runScmCommand('git', args, { ...SCM_STRING_COMMAND_OPTIONS, signal });
+});
 
 /**
  * Build freshness guard key used for metadata prefetch cache scoping.
@@ -256,13 +259,14 @@ export const gitProvider = {
     const repoRoot = findGitRoot(startPath || process.cwd());
     return repoRoot ? { ok: true, provider: 'git', repoRoot, detectedBy: 'git-root' } : { ok: false };
   },
-  async listTrackedFiles({ repoRoot, subdir = null }) {
+  async listTrackedFiles({ repoRoot, subdir = null, signal = null }) {
     const args = appendScopedSubdirArg(['-C', repoRoot, 'ls-files', '-z'], { repoRoot, subdir });
-    const result = await runGitProviderCommand(args);
-    if (result.exitCode !== 0) {
-      return toUnavailableResult();
-    }
+    const result = await runGitProviderCommand(args, signal);
+    throwIfAborted(signal);
+    const inventory = inspectScmFileInventory(result, { provider: 'git', operation: 'tracked' });
+    if (!inventory.complete) return unavailableScmFileInventory(inventory);
     return {
+      complete: true, inventory,
       filesPosix: parseProviderFileList({
         stdout: result.stdout,
         repoRoot,
@@ -288,16 +292,17 @@ export const gitProvider = {
       isRepo: repoProvenance?.isRepo ?? null
     };
   },
-  async getChangedFiles({ repoRoot, fromRef = null, toRef = null, subdir = null }) {
+  async getChangedFiles({ repoRoot, fromRef = null, toRef = null, subdir = null, signal = null }) {
     const args = appendScopedSubdirArg(
       appendDiffRefArgs(['-C', repoRoot, 'diff', '--name-only', '-z'], { fromRef, toRef }),
       { repoRoot, subdir }
     );
-    const result = await runGitProviderCommand(args);
-    if (result.exitCode !== 0) {
-      return toUnavailableResult();
-    }
+    const result = await runGitProviderCommand(args, signal);
+    throwIfAborted(signal);
+    const inventory = inspectScmFileInventory(result, { provider: 'git', operation: 'changed' });
+    if (!inventory.complete) return unavailableScmFileInventory(inventory);
     return {
+      complete: true, inventory,
       filesPosix: parseProviderFileList({
         stdout: result.stdout,
         repoRoot,
@@ -305,18 +310,22 @@ export const gitProvider = {
       })
     };
   },
-  async getHistoryAffectedFiles({ repoRoot, fromRef = null, toRef = null, subdir = null }) {
+  async getHistoryAffectedFiles({ repoRoot, fromRef = null, toRef = null, subdir = null, signal = null }) {
+    throwIfAborted(signal);
     // Endpoint tree equality cannot certify last-author/commit/churn equality.
     // Require an ancestry move and enumerate every path touched along it. A
     // rewritten history deliberately invalidates the whole metadata snapshot.
     if (!fromRef || !toRef || String(fromRef).startsWith('-') || String(toRef).startsWith('-')) return toUnavailableResult();
-    const ancestry = await runGitProviderCommand(['-C', repoRoot, 'merge-base', '--is-ancestor', fromRef, toRef]);
+    const ancestry = await runGitProviderCommand(['-C', repoRoot, 'merge-base', '--is-ancestor', fromRef, toRef], signal);
+    throwIfAborted(signal);
     if (ancestry.exitCode !== 0) return toUnavailableResult();
     const args = appendScopedSubdirArg(['-C', repoRoot, 'log', '--format=', '--name-only', '-z',
       '--no-renames', '-m', `${fromRef}..${toRef}`], { repoRoot, subdir });
-    const result = await runGitProviderCommand(args);
-    if (result.exitCode !== 0 || result.truncated || result.outputCapture?.stdout?.truncated) return toUnavailableResult();
-    return { complete: true, filesPosix: parseProviderFileList({ stdout: result.stdout,
+    const result = await runGitProviderCommand(args, signal);
+    throwIfAborted(signal);
+    const inventory = inspectScmFileInventory(result, { provider: 'git', operation: 'history' });
+    if (!inventory.complete) return unavailableScmFileInventory(inventory);
+    return { complete: true, inventory, filesPosix: parseProviderFileList({ stdout: result.stdout,
       repoRoot, parser: parseNullSeparated }) };
   },
   async getFileMeta({ repoRoot, filePosix, timeoutMs, includeChurn = true, headId = null }) {

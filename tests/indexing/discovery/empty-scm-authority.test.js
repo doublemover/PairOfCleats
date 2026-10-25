@@ -8,7 +8,7 @@ try {
   await fs.writeFile(path.join(root,'untracked.js'), 'export const value = 1;');
   for (const scmProvider of ['git', 'jj']) {
     const entries = await discoverFiles({ root, mode: 'code', scmProvider, scmRepoRoot: root,
-      scmProviderImpl: { listTrackedFiles: async () => ({ filesPosix: [] }) } });
+      scmProviderImpl: { listTrackedFiles: async () => ({ complete: true, filesPosix: [] }) } });
     assert.deepEqual(entries, [], `${scmProvider} empty success is authoritative`);
   }
   const fallback = await discoverFiles({ root, mode: 'code', scmProvider: 'git', scmRepoRoot: root,

@@ -26,7 +26,7 @@ const scmProviderImpl = {
   async listTrackedFiles() {
     return {
       ok: true,
-      filesPosix: ['src/good-a.js', 'src/aaa-missing.js', 'src/good-b.js']
+      complete: true, filesPosix: ['src/good-a.js', 'src/aaa-missing.js', 'src/good-b.js']
     };
   }
 };

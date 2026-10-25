@@ -4,6 +4,7 @@ import path from 'node:path';
 import { gitProvider } from '../../../src/index/scm/providers/git.js';
 import { getScmRuntimeConfig, setScmRuntimeConfig } from '../../../src/index/scm/runtime.js';
 import { getScmCommandRunner, setScmCommandRunner } from '../../../src/index/scm/runner.js';
+import { completeScmFixtureOutput } from '../../helpers/scm-output.js';
 
 const defaultRunner = getScmCommandRunner();
 const defaultScmConfig = getScmRuntimeConfig();
@@ -21,11 +22,11 @@ try {
       calls.push({ command, args });
       await sleep(25);
       if (args.includes('ls-files')) {
-        return { exitCode: 0, stdout: 'src\\a.js\0src/b.js\0', stderr: '' };
+        return completeScmFixtureOutput('src\\a.js\0src/b.js\0');
       }
       if (args.includes('diff')) {
         assert.ok(args.includes('-z'), 'changed-file output preserves exact Git NUL-delimited paths');
-        return { exitCode: 0, stdout: 'src/c.js\0src/d.js\0', stderr: '' };
+        return completeScmFixtureOutput('src/c.js\0src/d.js\0');
       }
       return { exitCode: 1, stdout: '', stderr: '' };
     } finally {

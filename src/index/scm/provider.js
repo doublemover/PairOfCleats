@@ -1,6 +1,7 @@
 import { preserveScmMetadataFailure, normalizeScmMetadataDiagnostics } from './metadata-diagnostics.js';
 import { SCM_PROVIDER_NAMES } from './types.js';
 import { observeStorageResource } from '../../shared/storage/failure-observation.js';
+import { declaredScmFileInventory, unavailableScmFileInventory, scmFileInventoryReceipt } from './file-inventory.js';
 import { isAbortError, throwIfAborted } from '../../shared/abort.js';
 
 const REQUIRED_METHODS = [
@@ -98,16 +99,24 @@ export const assertScmProvider = (provider) => {
       reason: allowedReasons.has(reason) ? reason : fallbackReason
     };
   };
-  const normalizeFileList = (result, allowedReasons) => {
-    if (result && Array.isArray(result.filesPosix)) {
+  const normalizeFileList = (result, allowedReasons, operation) => {
+    let inventory = declaredScmFileInventory(result, { provider: name, operation });
+    if (inventory.complete && Array.isArray(result?.filesPosix)
+      && result.filesPosix.every(entry => typeof entry === 'string' && entry.length > 0 && !entry.includes('\0'))) {
       const filesPosix = Array.from(new Set(
         result.filesPosix
-          .map((entry) => process.platform === 'win32' ? String(entry || '').replace(/\\/g, '/') : String(entry || ''))
-          .filter(Boolean)
+          .map((entry) => process.platform === 'win32' ? entry.replace(/\\/g, '/') : entry)
       )).sort((a, b) => a.localeCompare(b));
-      return { filesPosix };
+      return { complete: true, inventory, filesPosix };
     }
-    return normalizeReason(result, allowedReasons);
+    if (inventory.complete) inventory = scmFileInventoryReceipt({ provider: name, operation, reason: 'invalid-path-inventory' });
+    return { ...normalizeReason(result, allowedReasons), complete: false, inventory };
+  };
+  const fileListFailure = (error, input, operation) => {
+    observeStorageResource(error, { phase: 'scm-' + operation + '-inventory' }).requireSettled();
+    if (isAbortError(error)) throw error;
+    throwIfAborted(input?.signal);
+    return unavailableScmFileInventory(scmFileInventoryReceipt({ provider: name, operation, reason: 'provider-threw' }));
   };
   const normalizeFileMetaValue = (meta) => {
     const value = meta && typeof meta === 'object' ? meta : {};
@@ -222,11 +231,11 @@ export const assertScmProvider = (provider) => {
     },
     async listTrackedFiles(input) {
       try {
+        throwIfAborted(input?.signal);
         const result = await Promise.resolve(provider.listTrackedFiles(input));
-        return normalizeFileList(result, FILE_LIST_UNAVAILABLE_REASONS);
-      } catch {
-        return { ok: false, reason: 'unavailable' };
-      }
+        throwIfAborted(input?.signal);
+        return normalizeFileList(result, FILE_LIST_UNAVAILABLE_REASONS, 'tracked');
+      } catch (error) { return fileListFailure(error, input, 'tracked'); }
     },
     async getRepoProvenance(input) {
       try {
@@ -241,11 +250,11 @@ export const assertScmProvider = (provider) => {
     },
     async getChangedFiles(input) {
       try {
+        throwIfAborted(input?.signal);
         const result = await Promise.resolve(provider.getChangedFiles(input));
-        return normalizeFileList(result, CHANGED_FILES_UNAVAILABLE_REASONS);
-      } catch {
-        return { ok: false, reason: 'unavailable' };
-      }
+        throwIfAborted(input?.signal);
+        return normalizeFileList(result, CHANGED_FILES_UNAVAILABLE_REASONS, 'changed');
+      } catch (error) { return fileListFailure(error, input, 'changed'); }
     },
     async getFileMeta(input) {
       try {
@@ -259,11 +268,11 @@ export const assertScmProvider = (provider) => {
   if (typeof provider.getHistoryAffectedFiles === 'function') {
     wrapped.getHistoryAffectedFiles = async input => {
       try {
+        throwIfAborted(input?.signal);
         const result = await provider.getHistoryAffectedFiles(input);
-        if (result?.complete !== true) return { ok: false, reason: 'unavailable' };
-        const normalized = normalizeFileList(result, CHANGED_FILES_UNAVAILABLE_REASONS);
-        return normalized.ok === false ? normalized : { ...normalized, complete: true };
-      } catch { return { ok: false, reason: 'unavailable' }; }
+        throwIfAborted(input?.signal);
+        return normalizeFileList(result, CHANGED_FILES_UNAVAILABLE_REASONS, 'history');
+      } catch (error) { return fileListFailure(error, input, 'history'); }
     };
   }
   if (typeof provider.annotate === 'function') {

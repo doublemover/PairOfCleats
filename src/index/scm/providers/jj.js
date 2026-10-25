@@ -2,6 +2,8 @@ import fsSync from 'node:fs';
 import path from 'node:path';
 import PQueue from 'p-queue';
 import { runScmCommand } from '../runner.js';
+import { inspectScmFileInventory, unavailableScmFileInventory, scmFileInventoryReceipt } from '../file-inventory.js';
+import { throwIfAborted } from '../../../shared/abort.js';
 import { getScmRuntimeConfig } from '../runtime.js';
 import { toUniqueRepoPosixFiles } from '../paths.js';
 import { toPosix } from '../../../shared/file-paths.js';
@@ -295,28 +297,32 @@ export const jjProvider = {
     const repoRoot = findJjRoot(startPath || process.cwd());
     return repoRoot ? { ok: true, provider: 'jj', repoRoot, detectedBy: 'jj-root' } : { ok: false };
   },
-  async listTrackedFiles({ repoRoot, subdir = null }) {
+  async listTrackedFiles({ repoRoot, subdir = null, signal = null }) {
+    throwIfAborted(signal);
     const nulResult = await runJjCommand({
       repoRoot,
-      args: ['file', 'list', '--tracked', '-0', '-r', '@']
+      args: ['file', 'list', '--tracked', '-0', '-r', '@'], signal
     });
+    throwIfAborted(signal);
     let output = nulResult.stdout;
     let nullDelimited = true;
+    let inventory = inspectScmFileInventory(nulResult, { provider: 'jj', operation: 'tracked' });
     if (nulResult.exitCode !== 0) {
+      if (nulResult.signal !== null) return unavailableScmFileInventory(inventory);
       warnOnce('jj-file-list-nul', '[scm] jj file list -0 failed; falling back to newline output.');
       const lineResult = await runJjCommand({
         repoRoot,
-        args: ['file', 'list', '-r', '@']
+        args: ['file', 'list', '-r', '@'], signal
       });
-      if (lineResult.exitCode !== 0) {
-        return { ok: false, reason: 'unavailable' };
-      }
+      throwIfAborted(signal);
+      inventory = inspectScmFileInventory(lineResult, { provider: 'jj', operation: 'tracked', framing: 'line' });
       output = lineResult.stdout;
       nullDelimited = false;
     }
+    if (!inventory.complete) return unavailableScmFileInventory(inventory);
     const entries = parseJjFileListOutput({ output, nullDelimited });
     const { filesPosix } = normalizeJjPathList({ entries, repoRoot, subdir });
-    return { filesPosix };
+    return { complete: true, inventory, filesPosix };
   },
   async getRepoProvenance({ repoRoot }) {
     const config = resolveJjConfig();
@@ -377,7 +383,8 @@ export const jjProvider = {
       bookmarks
     };
   },
-  async getChangedFiles({ repoRoot, fromRef = null, toRef = null, subdir = null }) {
+  async getChangedFiles({ repoRoot, fromRef = null, toRef = null, subdir = null, signal = null }) {
+    throwIfAborted(signal);
     if (!fromRef && !toRef) {
       return { ok: false, reason: 'unsupported' };
     }
@@ -385,10 +392,10 @@ export const jjProvider = {
     const args = ['diff', '--name-only'];
     if (fromRef) args.push('--from', fromRef);
     if (toRef) args.push('--to', toRef);
-    const result = await runJjCommand({ repoRoot, args });
-    if (result.exitCode !== 0) {
-      return { ok: false, reason: 'unavailable' };
-    }
+    const result = await runJjCommand({ repoRoot, args, signal });
+    throwIfAborted(signal);
+    const inventory = inspectScmFileInventory(result, { provider: 'jj', operation: 'changed', framing: 'line' });
+    if (!inventory.complete) return unavailableScmFileInventory(inventory);
     const entries = parseJjFileListOutput({ output: result.stdout, nullDelimited: false });
     const { filesPosix, truncated } = normalizeJjPathList({
       entries,
@@ -401,8 +408,10 @@ export const jjProvider = {
         'jj-changed-files-truncated',
         `[scm] jj changed files truncated to ${config.maxChangedFiles} entries.`
       );
+      return unavailableScmFileInventory(scmFileInventoryReceipt({ provider: 'jj', operation: 'changed',
+        reason: 'record-limit', capture: inventory.capture }));
     }
-    return { filesPosix };
+    return { complete: true, inventory, filesPosix };
   },
   async getFileMeta({ repoRoot, filePosix, timeoutMs, includeChurn = true, headId = null }) {
     const cached = readJjFileMetaCache({

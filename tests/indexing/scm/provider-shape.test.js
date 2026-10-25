@@ -16,7 +16,7 @@ const gitWrapped = assertScmProvider({
     return { ok: true, provider: 'git', repoRoot: '/repo', detectedBy: 'git-root' };
   },
   listTrackedFiles() {
-    return { filesPosix: ['b/file.js', 'a/file.js', 'a/file.js'] };
+    return { complete: true, filesPosix: ['b/file.js', 'a/file.js', 'a/file.js'] };
   },
   getRepoProvenance() {
     return {
@@ -36,7 +36,7 @@ const gitWrapped = assertScmProvider({
     };
   },
   getChangedFiles() {
-    return { filesPosix: ['src/z.js', 'src/a.js'] };
+    return { complete: true, filesPosix: ['src/z.js', 'src/a.js'] };
   },
   getFileMeta() {
     return {
@@ -120,7 +120,7 @@ const jjWrapped = assertScmProvider({
     return { ok: true, provider: 'jj', repoRoot: '/repo', detectedBy: 'jj-root' };
   },
   listTrackedFiles() {
-    return { filesPosix: ['src/main.js'] };
+    return { complete: true, filesPosix: ['src/main.js'] };
   },
   getRepoProvenance() {
     return {
@@ -143,7 +143,7 @@ const jjWrapped = assertScmProvider({
     };
   },
   getChangedFiles() {
-    return { filesPosix: ['src/main.js'] };
+    return { complete: true, filesPosix: ['src/main.js'] };
   },
   getFileMeta() {
     return {
