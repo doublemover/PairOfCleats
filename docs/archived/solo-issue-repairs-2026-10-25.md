@@ -90,6 +90,18 @@ The following priority implementations are also authored with execution deferred
   real fixture timestamps. Prefix preprocessing also passes containment authority.
   Original pending read/close errors cannot become ordinary cache misses.
 
+- **#1598/#1599:** dictionary words stage until verified EOF and actual original
+  descriptor closure. Operational/open/read/selection failures retain original
+  diagnostics, path and cleanup ownership; permitted optional absence stays
+  distinct. A single global reader budget hashes the same bytes it parses.
+  Framed content/scope/normalization receipts invalidate metadata-only warm
+  entries. Daemon vocabulary and shared buffers remain privately owned; returned
+  sets/buffers and forged public entries cannot poison later runtimes. Structured
+  input counts distinguish completion, optional absence and failure. Regressions
+  cover partial reads, recovery, selection denial, scope changes, same-size edits,
+  worker/inline agreement, global concurrency and pending close. Execution is
+  deferred. Source: `3088ee1eb`.
+
 New/extended regressions cover the numeric, continuation, capacity, backup,
 startup and per-ingestion invariants. They have not been executed in this wave;
 no latency/memory speedup or acceptance count is inferred from these source changes.
