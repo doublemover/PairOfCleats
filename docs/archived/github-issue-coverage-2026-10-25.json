@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "a5b1e0897",
+  "sourceHead": "83438cd59",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 387,
+    "implemented": 388,
     "partial": 150,
-    "pending": 191
+    "pending": 190
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -544,6 +544,7 @@
       1586,
       1587,
       1588,
+      1591,
       1595,
       1598,
       1599,
@@ -828,7 +829,6 @@
       1585,
       1589,
       1590,
-      1591,
       1592,
       1593,
       1594,
@@ -5353,8 +5353,10 @@
       "number": 1591,
       "title": "[P2] Preserve in-process daemon cleanup ownership before normalizing job failure",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "83438cd59",
+      "validation": "deferred"
     },
     {
       "number": 1592,

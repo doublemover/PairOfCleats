@@ -4,6 +4,7 @@ import { throwIfAborted } from '../../../shared/abort.js';
 import { runtimeImportError } from './raw-store.js';
 import { openRuntimeQueryFamily } from './query-store.js';
 import { closeRuntimeResources } from './close-resources.js';
+import { qualifyRuntimeRequestedSources } from './source-query-coverage.js';
 
 export const defaultRuntimeQuerySelectors = () => ({ captureIds: [], runtime: null, workload: null, scope: null,
   sources: [], records: [], codeVersions: [], evidenceIds: [], kinds: [], joinQualities: [] });
@@ -72,7 +73,8 @@ const explain = row => {
     statement = row.data.claim;
     limitations.push(...row.data.assumptions.slice(0, 8));
   }
-  return { evidenceIds: [row.evidenceId], statement, basis: row.evidenceClass === 'observed' ? 'direct-observation' : 'derived-claim', limitations, nextObservation };
+  return { evidenceIds: [row.evidenceId], evidenceRefs: [{ ...row.reference, evidenceId: row.evidenceId }],
+    statement, basis: row.evidenceClass === 'observed' ? 'direct-observation' : 'derived-claim', limitations, nextObservation };
 };
 const responseBytes = result => Buffer.byteLength(JSON.stringify(result));
 
@@ -81,7 +83,7 @@ export const queryRuntimeEvidence = async ({ destination, request, signal = null
   assertRuntimeQuery('request', request);
   request = structuredClone(request);
   throwIfAborted(signal);
-  const queryId = semanticHash('pairofcleats.runtime.query.v1', { ...request, cursor: null });
+  const queryId = semanticHash('pairofcleats.runtime.query.v2', { ...request, cursor: null });
   let position = readCursor(request.cursor, queryId, request.familyGenerations.length);
   const started = Date.now(), deadline = started + request.limits.maxMs;
   const child = new AbortController();
@@ -93,7 +95,7 @@ export const queryRuntimeEvidence = async ({ destination, request, signal = null
     derivedCoverage: { state: 'unsupported', reason: 'current_saved_adapters_project_direct_observations_only' },
     status: 'complete', warnings: [], nextCursor: null,
     integrity: { manifest: 'verified', queryIndex: 'verified', returnedRows: 'verified', rawArtifacts: 'not-read' },
-    cost: { visitedRecords: 0, hydratedRecords: 0, elapsedMs: 0, responseBytes: 0, familyOpens: 0, verificationBytes: 0 } };
+    cost: { visitedRecords: 0, hydratedRecords: 0, elapsedMs: 0, responseBytes: 0, familyOpens: 0, verificationBytes: 0, sourcePredicates: 0 } };
   const deadlineReached = () => Date.now() >= deadline;
   if (request.selectors.kinds.includes('derivedClaim')) {
     result.status = 'partial'; result.warnings.push('derived_claim_projection_not_supported_by_current_offline_adapters');
@@ -119,18 +121,22 @@ export const queryRuntimeEvidence = async ({ destination, request, signal = null
         }
         if (Object.values(sourceJoinCounts).reduce((sum, count) => sum + count, 0) !== manifest.evidence.count) throw runtimeImportError('Runtime lookup inventory count mismatch.');
         const reasons = [...new Set(manifest.coverage.flatMap(row => row.reasons))].slice(0, 8).map(reason => reason.slice(0, 256));
-        if (selected && request.selectors.sources.length) {
-          if (!request.selectors.sources.some(source => capture.sources.some(saved => saved.sourceUnitId === source.sourceUnitId && saved.byteHash === source.byteHash))) {
-            reasons.push('requested_source_not_in_capture_snapshot'); result.status = 'partial';
-          } else if (!sourceJoinCounts.exactSource) { reasons.push('exact_source_mapping_unavailable_in_saved_capture'); result.status = 'partial'; }
+        const requestedSources = qualifyRuntimeRequestedSources({ family, sources: request.selectors.sources, selected,
+          metrics: result.cost, check: () => {
+            throwIfAborted(child.signal);
+            if (deadlineReached()) throw runtimeImportError('Runtime source coverage exceeded its time allowance.', 'ERR_RUNTIME_QUERY_BUDGET');
+          } });
+        for (const source of requestedSources) for (const reason of source.reasons) {
+          if (!reasons.includes(reason)) reasons.push(reason);
+          result.status = 'partial';
         }
         result.pinnedFamilies.push({ generationId: manifest.generationId, captureId: capture.captureId, manifestHash: family.manifestHash });
         result.coverage.push({ generationId: manifest.generationId, captureId: capture.captureId, completion: capture.completion, selected,
           formats: [...new Set(manifest.raw.map(row => row.format + '@' + row.formatVersion))], importStates: [...new Set(manifest.coverage.map(row => row.status))],
-          sourceJoinCounts,
+          sourceJoinCounts, sourceJoinCountsScope: 'family', requestedSources,
           joinStatus: request.selectors.sources.length ? 'exact-source-requested' : request.selectors.records.length ? 'record-reference-requested' : 'not-filtered',
           reasons });
-        if (capture.completion !== 'complete' || manifest.coverage.some(row => row.status !== 'complete')) result.status = 'partial';
+        if (selected && (capture.completion !== 'complete' || manifest.coverage.some(row => row.status !== 'complete'))) result.status = 'partial';
         if (familyIndex < position.familyIndex) continue;
         if (result.cost.visitedRecords >= request.limits.maxRecords || deadlineReached()) continue;
         if (position.familyIndex === familyIndex && position.ordinal > manifest.evidence.count) throw cursorError();
@@ -143,13 +149,15 @@ export const queryRuntimeEvidence = async ({ destination, request, signal = null
           throwIfAborted(child.signal);
           result.cost.visitedRecords += 1;
           const row = await family.hydrate(entry, request.limits.maxBytes);
+          const reference = { family: familyIndex, rowHash: entry.row_hash };
           position = { familyIndex, ordinal: entry.ordinal + 1 }; updateCursor();
           if (row) {
             const bucket = row.evidenceClass === 'observed' ? result.observations : result.derivedClaims;
-            bucket.push(row); result.explanations.push(explain(row));
+            const occurrence = { ...row, reference };
+            bucket.push(occurrence); result.explanations.push(explain(occurrence));
             if (responseBytes(result) <= request.limits.maxBytes - 256) result.cost.hydratedRecords += 1;
-            else { bucket.pop(); result.explanations.pop(); result.omitted.push({ generationId: manifest.generationId, evidenceId: entry.evidence_id, reason: 'response_byte_allowance' }); result.status = 'partial'; }
-          } else { result.omitted.push({ generationId: manifest.generationId, evidenceId: entry.evidence_id, reason: 'row_byte_allowance' }); result.status = 'partial'; }
+            else { bucket.pop(); result.explanations.pop(); result.omitted.push({ generationId: manifest.generationId, evidenceId: entry.evidence_id, reference, reason: 'response_byte_allowance' }); result.status = 'partial'; }
+          } else { result.omitted.push({ generationId: manifest.generationId, evidenceId: entry.evidence_id, reference, reason: 'row_byte_allowance' }); result.status = 'partial'; }
         }
         if (entries.length <= remaining && !deadlineReached()) position = { familyIndex: familyIndex + 1, ordinal: 0 };
       } catch (error) { familyErrorPresent = true; familyError = error; throw error; }

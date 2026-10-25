@@ -131,6 +131,28 @@ try {
   }
   const unverified = await importRuntimeEvidence({ ...options, semanticContext: null });
   assert.ok((await fixture.readRows(unverified)).every(row => row.join.targets.length === 0));
+  const variants = [imported, overlappingImport, unverified].map(result => result.pointer.generationId);
+  const expectedQualities = new Map([[variants[0], 'verified-coordinate'], [variants[1], 'ambiguous'], [variants[2], 'unverified-candidate']]);
+  for (const familyGenerations of [variants, [...variants].reverse()]) {
+    const logicalIds = new Set(), owners = new Set();
+    let cursor = null;
+    do {
+      const page = await queryRuntimeEvidence({ destination: options.destination, request: { ...request,
+        familyGenerations, selectors: { ...request.selectors, kinds: ['cpuProfile'] },
+        limits: { ...request.limits, maxRecords: 1 }, cursor } });
+      cursor = page.nextCursor;
+      for (const row of page.observations.filter(row => row.data.functionName === 'build')) {
+        const owner = page.pinnedFamilies[row.reference.family];
+        logicalIds.add(row.evidenceId); owners.add(owner.generationId);
+        assert.equal(row.join.targetQuality, expectedQualities.get(owner.generationId));
+        assert.deepEqual(row.join.targets, owner.generationId === variants[0] ? [functions[0].ref] : []);
+        assert.equal(page.explanations[0].evidenceRefs[0].rowHash, row.reference.rowHash);
+        assert.equal(page.explanations[0].evidenceRefs[0].family, row.reference.family);
+      }
+    } while (cursor);
+    assert.equal(logicalIds.size, 1, 'the same observation keeps its logical ID across attribution variants');
+    assert.deepEqual(owners, new Set(variants), 'no weaker projection overwrites or disappears behind a sibling');
+  }
   await assert.rejects(importRuntimeEvidence({ ...options, semanticContext: { ...witness.semanticContext,
     manifest: { ...witness.manifest, generation: { baseBuildId: 'stale', semanticRevision: 0 } } } }), { code: 'ERR_RUNTIME_QUERY_SCOPE' });
   const outOfRange = structuredClone(profile); outOfRange.nodes.forEach(row => { row.callFrame.columnNumber = source.textLength + 1; });

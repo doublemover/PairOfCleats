@@ -800,3 +800,26 @@ receipt without changing existing failure assertions. Format/ESLint, syntax,
 affected ledger/taxonomy refreshes, discovery and diff checks passed. Functional
 and native execution remain deferred. Coverage is **35 fixed / 387 implemented /
 150 partial / 191 pending**.
+
+
+## In-process daemon cleanup authority
+
+**#1591** (`83438cd59`) captures the original resource observation before daemon
+failure diagnosis or result normalization. Pending ownership rejects through the
+existing queue exact-claim cleanup hold, without normal completion/retry,
+session recycling or subprocess fallback. Core build outcome presentation uses
+the same rule and shared failure context rather than assigning onto frozen
+errors. Diagnostic getter/logging failures retain original and secondary causes.
+Confirmed settled cancellation keeps exit 130; build outcome/publication metadata
+survives ordinary result normalization and queue completion.
+
+The cross-boundary fixture injects an inert build at the real daemon boundary,
+then drives the actual executor, lifecycle registry, queue worker and durable queue
+owners. It covers pending/mutable/frozen/hostile and abort-cleanup errors, original
+observer mutation, retained exact-claim fences, zero normal finalization before
+release, exact-once recovery and a separate sibling's later success. Additional
+controls cover settled failure/cancellation/success/post-publication context,
+fallible diagnostics and frozen core outcome presentation. Format/ESLint, syntax,
+affected ledger/taxonomy refreshes, discovery and diff checks passed. Functional
+execution remains deferred. Coverage is **35 fixed / 388 implemented / 150 partial /
+190 pending**.
