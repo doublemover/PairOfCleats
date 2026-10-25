@@ -12,6 +12,11 @@ import { attachObservability, normalizeObservability } from '../../src/shared/ob
 import { logError } from '../../src/shared/progress-runtime.js';
 import { withTimeout } from './runner.js';
 
+// Match the SDK request-ID domain without importing its full schema graph into
+// the legacy transport. A key identifies the typed primitive, not its label.
+const requestIdKey = value => typeof value === 'string' ? `s:${value}`
+  : Number.isSafeInteger(value) ? `n:${value}` : null;
+
 /**
  * Start the MCP stdio transport.
  * @param {{toolDefs:any,schemaVersion?:string,toolVersion?:string,serverInfo:{name:string,version:string},handleToolCall:Function,resolveToolTimeoutMs:Function,queueMax:number,maxBufferBytes?:number,capabilities?:object,capabilityManifest?:object}} config
@@ -45,7 +50,6 @@ export const createMcpTransport = ({
     slow: 0
   };
   const FAST_TOOL_NAMES = new Set(['index_status', 'config_status']);
-  const normalizeId = (value) => (value === null || value === undefined ? null : String(value));
   const progressState = new Map();
   const PROGRESS_THROTTLE_MS = 250;
   const attachToolResultObservability = (result, requestObservability) => (
@@ -58,7 +62,7 @@ export const createMcpTransport = ({
     if (id === null || id === undefined) return;
     const message = payload?.message ? String(payload.message) : '';
     if (!message) return;
-    const idKey = normalizeId(id);
+    const idKey = requestIdKey(id);
     const now = Date.now();
     const state = progressState.get(idKey) || { lastSent: 0, timer: null, pending: null };
     const emit = (nextPayload) => {
@@ -172,14 +176,14 @@ export const createMcpTransport = ({
     sendError(id, -32600, 'Duplicate request id while prior request is still pending or running.', undefined, {
       code: ERROR_CODES.INVALID_REQUEST,
       reason: 'duplicate-request-id',
-      requestId: idKey,
+      requestId: id,
       state
     });
     return true;
   };
 
   const applyCancellation = (params) => {
-    const cancelKey = normalizeId(params?.id);
+    const cancelKey = requestIdKey(params?.id);
     if (cancelKey === null) return false;
     const entry = inFlight.get(cancelKey);
     if (entry) {
@@ -210,7 +214,7 @@ export const createMcpTransport = ({
     const requestObservability = normalizeObservability({
       correlationId: task.meta?.correlationId || null,
       parentCorrelationId: task.meta?.parentCorrelationId || null,
-      requestId: task.meta?.requestId || idKey
+      requestId: task.meta?.requestId || String(id)
     }, {
       surface: 'mcp',
       operation: name,
@@ -329,6 +333,11 @@ export const createMcpTransport = ({
   async function handleMessage(message) {
     if (!message || message.jsonrpc !== '2.0') return;
     const { id, method, params } = message;
+    if (Object.hasOwn(message, 'id') && requestIdKey(id) === null) {
+      sendError(null, -32600, 'Request id must be a string or safe integer.', undefined,
+        { code: ERROR_CODES.INVALID_REQUEST, reason: 'invalid-request-id' });
+      return;
+    }
 
     if (method === 'initialize') {
       sendResult(id, buildInitializeResult({
@@ -371,7 +380,7 @@ export const createMcpTransport = ({
     if (method === 'tools/call') {
       if (id === null || id === undefined) return;
       if (closing) { sendCancelledResponse(id); return; }
-      const idKey = normalizeId(id);
+      const idKey = requestIdKey(id);
       if (rejectDuplicateRequestId(id, idKey)) return;
       const name = params?.name;
       const args = params?.arguments || {};
@@ -407,10 +416,6 @@ export const createMcpTransport = ({
   }
 
   function enqueueMessage(message) {
-    if (message?.method === '$/cancelRequest') {
-      applyCancellation(message.params);
-      return;
-    }
     void handleMessage(message).catch((error) => {
       logError('[mcp] queue error', { error: error?.message || String(error) });
     });

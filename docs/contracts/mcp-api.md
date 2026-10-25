@@ -105,6 +105,13 @@ Response:
 - Mode selection (precedence): `--mcp-mode` CLI → `MCP_MODE`/`PAIROFCLEATS_MCP_MODE` env (exception) → `mcp.mode` config.
 - `initialize` must return server info, capabilities, and tool schema versions.
 - `$/cancelRequest` aborts in-flight tool calls (including id `0`).
+- Legacy request IDs preserve their JSON type across admission, queued/active
+  cancellation, progress and settlement. Numeric `1` and string `"1"` (likewise
+  `0`/`"0"`) are independent identities; exact same-type duplicates remain
+  rejected until the original started work settles. Responses retain the original
+  wire ID. The admitted ID domain matches the installed SDK: strings, including
+  the empty string, and safe integers. Invalid request IDs reject; invalid or
+  unknown cancellation targets cannot affect a different request.
 - `build_index` and `build_sqlite_index` retain that request signal through core
   work and SQLite ingestion. Cancellation is checked before restore/follow-on
   stages and publication; restore subprocesses and parser workers settle before
