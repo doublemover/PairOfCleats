@@ -9,7 +9,7 @@ Canonical for: initiative status, execution order, and remaining work
 
 Current reconciliation, 2026-10-25: the user resumed implementation first, solo,
 with tests deferred until the source batches are ready. The live intake has
-**763 open issues**: P1 31, P2 336, P3 46, Perf 115 and other 235. The
+**763 open issues**: P1 31, P2 336, P3 46, Perf 116 and other 234. The
 [current implementation receipt](archived/solo-issue-repairs-2026-10-25.md)
 records new source batches and unvalidated coverage. Historical inventories
 below describe their recorded sources, not the current open count.

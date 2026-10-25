@@ -588,3 +588,8 @@ assertions remain; capped fixtures now explicitly supply observed extent.
 Format/ESLint, syntax, affected generated refreshes, discovery and diff checks
 passed. Functional execution remains deferred. Coverage is **35 fixed / 380
 implemented / 150 partial / 198 pending**.
+
+A complete live GitHub metadata refresh at `173198cf9` matched all **763** open
+IDs, with no additions or closures. It corrected the `[Performance]` classification
+of #1394 and normalized #1530's Unicode title from GitHub. Current intake is P1
+31, P2 336, P3 46, Perf 116 and other 234; implementation status is unchanged.

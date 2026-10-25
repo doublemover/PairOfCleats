@@ -4267,7 +4267,7 @@
     {
       "number": 1394,
       "title": "[Performance] Bound recorded-session seeks instead of replaying the entire prefix on the UI thread",
-      "priority": "other",
+      "priority": "Perf",
       "status": "implemented",
       "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
     },
@@ -4898,7 +4898,7 @@
     },
     {
       "number": 1530,
-      "title": "Qualify adaptive retrieval and evidence policies with independent risk\u00e2\u20ac\u201ccoverage receipts",
+      "title": "Qualify adaptive retrieval and evidence policies with independent risk\u2013coverage receipts",
       "priority": "other",
       "status": "pending",
       "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
@@ -6357,5 +6357,13 @@
       "status": "pending",
       "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
     }
-  ]
+  ],
+  "githubRefresh": {
+    "date": "2026-10-25",
+    "head": "173198cf9785cadf48309e0b21fa70aedbd26c42",
+    "open": 763,
+    "added": 0,
+    "closed": 0,
+    "source": "Complete gh issue list metadata"
+  }
 }
