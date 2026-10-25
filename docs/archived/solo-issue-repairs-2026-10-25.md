@@ -1134,3 +1134,44 @@ Existing response/cohort/cleanup assertions remain. Format/ESLint, syntax,
 affected script/ledger/taxonomy refreshes, discovery and diff checks passed.
 Functional and real model/backend execution remain deferred. Coverage is **35
 fixed / 400 implemented / 150 partial / 178 pending**.
+
+
+## Retrieval comparison response admission
+
+**#1669** (`2233afe28`) shares successful response/selected-cohort/retained-hit
+admission with judged evaluation, parity and model comparison. Missing/null/
+non-array/failed/malformed/omitted-hit observations remain unavailable, not
+fabricated empty arrays. Explicit empty arrays remain valid zero-hit observations.
+Passive identity/score snapshots precede later work; unknown IDs stay incomparable.
+Valid sibling cohorts survive another selected cohort's failure. Each query and
+its exact comparison denominator remains in version 2 parity/model reports.
+Missing physical timing/memory and unavailable means remain null.
+
+Each arm/model uses the bounded observed execution registry. Requested versus
+actual backend, fallback/fidelity and generation remain distinct. FTS-positive
+claims need actual FTS execution. Parity compares exact selected source generation
+between arms; model reports preserve their existing logical-corpus guard. Strict
+parity fails on unavailable/mismatched/mixed evidence and absent positive cohort
+witnesses independently of optional FTS quality warnings. Invalid responses fail
+after complete result retention, including non-enforced reports. The matrix
+requires fresh version 2 reports with qualified comparison/positive coverage.
+The small shared cohort owner avoids pulling comparison-only dependencies into
+judged cohort selection. Bakeoff resume identity includes these owners.
+
+Authored shared-owner controls and twelve independently discovered process cases
+exercise actual parity and model-report reducers with named adapters: positive
+and changed rankings, explicit emptiness, missing/null/non-array/failed/malformed
+cohorts, output omissions, unknown identity, wrong backend and mixed valid/
+unavailable queries. Existing partial-rank assertions remain. Its independent
+single-hit prose control preserves the former prose numeric overlap/delta/rank-
+correlation contribution while supplying a real positive witness. The real matrix
+capsule now explicitly declares its intended default profile instead of missing
+source identity. Canned adapters retain a fixture profile/reason/signature and do
+not claim native/backend quality qualification.
+
+Format/ESLint, syntax, sidecar discovery, affected script/ledger/taxonomy refreshes
+and final staged diff checks passed. A trailing blank line found in the staged
+check was removed before publication. Functional execution remains deferred.
+Score-space/paired-measurement admission remains #1670; response admission alone
+is not its numerical score proof. Coverage is **35 fixed / 401 implemented / 150
+partial / 177 pending**.
