@@ -880,3 +880,30 @@ response's unproven exhaustion, plan integrity and incompatible comparisons.
 Format/ESLint, syntax, affected inventory/ledger/taxonomy refreshes, discovery and
 diff checks passed. Functional execution remains deferred. Coverage is **35 fixed /
 391 implemented / 150 partial / 187 pending**.
+
+
+## Typed validation findings and mode verdicts
+
+**#1632** (`e672aad3e`) gives every validation helper a shared finding owner with
+mode/capability, stable code, severity, artifact, state and detail. Global
+issue/warning strings project from those findings; display prefixes do not supply
+ownership. Final mode and aggregate verdicts reconcile after deferred manifest
+and backend checks, without new artifact reads. Present invalid identities no
+longer leave their mode green or become missing-artifact summaries. Known I/O
+observation failures and skipped checks retain unverified status. Backend-wide
+and mode-owned SQLite/LMDB findings keep distinct scope.
+
+Manifest workers preserve original diagnostic order, including deferred checksum
+insertion at its original typed anchor. Appended finding batches merge without
+reprojecting the growing full report on each piece; final projection occurs once.
+Human output uses the resulting state and preserves failing aggregate exit status.
+The existing contract matrix gains mode-error assertions; its intended checksum
+mismatch now uses a correctly sized false SHA-1 instead of a malformed digest.
+
+The authored two-mode capsule covers either mode failing with symbol collision,
+fractional posting, invalid metadata schema, embedding identity, checksum,
+missing-piece or read failure, plus optional-only warnings and human/JSON CLI
+projection. Pure owner controls check deferred ordering and backend scope.
+Format/ESLint, syntax, affected ledger/taxonomy refreshes, discovery and diff checks
+passed. Functional execution remains deferred. Coverage is **35 fixed / 392
+implemented / 150 partial / 186 pending**.
