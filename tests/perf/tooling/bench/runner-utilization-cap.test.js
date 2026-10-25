@@ -24,5 +24,12 @@ assert.ok(
     && report.summary.perCoreUtilization.timeline.length <= 512,
   'expected utilization timeline to remain bounded to 512 entries'
 );
+const utilization = report.summary.perCoreUtilization;
+assert.equal(utilization.validCount, 3000);
+assert.equal(utilization.omittedCount, 952);
+assert.equal(utilization.timeline.find(row => row.sample === 2501).utilizationPct, 1,
+  'low percentages in the retained suffix must not be scaled as ratios');
+assert.equal(utilization.timeline.find(row => row.sample === 2500).utilizationPct, 0);
+assert.equal(utilization.hardwareCpuMeasurement, false);
 
 console.log('bench runner utilization cap test passed');

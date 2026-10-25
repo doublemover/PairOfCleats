@@ -5,7 +5,7 @@
   "type": "object",
   "required": ["schemaVersion", "generatedAt", "runner", "summary", "results"],
   "properties": {
-    "schemaVersion": { "type": "integer", "const": 1 },
+    "schemaVersion": { "type": "integer", "const": 2 },
     "generatedAt": { "type": "string" },
     "runner": {
       "type": "object",
@@ -89,24 +89,46 @@
         },
         "perCoreUtilization": {
           "type": "object",
-          "required": ["sampleCount", "avgPct", "minPct", "maxPct", "p50Pct", "p95Pct", "timeline"],
+          "required": ["sampleCount", "avgPct", "minPct", "maxPct", "p50Pct", "p95Pct", "timeline", "scope", "hardwareCpuMeasurement", "observedCount", "validCount", "unavailableCount", "omittedCount", "byScope"],
           "properties": {
             "sampleCount": { "type": "integer", "minimum": 0 },
-            "avgPct": { "type": "number", "minimum": 0, "maximum": 100 },
-            "minPct": { "type": "number", "minimum": 0, "maximum": 100 },
-            "maxPct": { "type": "number", "minimum": 0, "maximum": 100 },
-            "p50Pct": { "type": "number", "minimum": 0, "maximum": 100 },
-            "p95Pct": { "type": "number", "minimum": 0, "maximum": 100 },
+            "avgPct": { "$ref": "#/$defs/optionalPercent" },
+            "minPct": { "$ref": "#/$defs/optionalPercent" },
+            "maxPct": { "$ref": "#/$defs/optionalPercent" },
+            "p50Pct": { "$ref": "#/$defs/optionalPercent" },
+            "p95Pct": { "$ref": "#/$defs/optionalPercent" },
+            "scope": { "enum": ["producer-declared-utilization", "scheduler-token-occupancy", "mixed", "unavailable"] },
+            "hardwareCpuMeasurement": { "const": false },
+            "observedCount": { "type": "integer", "minimum": 0 },
+            "validCount": { "type": "integer", "minimum": 0 },
+            "unavailableCount": { "type": "integer", "minimum": 0 },
+            "omittedCount": { "type": "integer", "minimum": 0 },
+            "byScope": {
+              "type": "object",
+              "required": ["producer-declared-utilization", "scheduler-token-occupancy"],
+              "properties": {
+                "producer-declared-utilization": { "$ref": "#/$defs/utilizationStats" },
+                "scheduler-token-occupancy": { "$ref": "#/$defs/utilizationStats" }
+              },
+              "additionalProperties": false
+            },
             "timeline": {
               "type": "array",
+              "maxItems": 512,
               "items": {
                 "type": "object",
-                "required": ["script", "sample", "utilizationPct"],
+                "required": ["script", "sample", "utilizationPct", "source", "sourceUnit", "scope", "rawValue"],
                 "properties": {
                   "script": { "type": "string" },
                   "sample": { "type": "integer", "minimum": 0 },
                   "atMs": { "anyOf": [{ "type": "number", "minimum": 0 }, { "type": "null" }] },
-                  "utilizationPct": { "type": "number", "minimum": 0, "maximum": 100 }
+                  "utilizationPct": { "type": "number", "minimum": 0, "maximum": 100 },
+                  "source": { "enum": ["utilizationPct", "overallPct", "utilization.overallPct", "utilization.overall", "cpuUsed/cpuTotal", "tokensUsed.cpu/tokensTotal.cpu", "used.cpu/limits.cpu"] },
+                  "sourceUnit": { "enum": ["percent", "ratio", "token-ratio"] },
+                  "scope": { "enum": ["producer-declared-utilization", "scheduler-token-occupancy"] },
+                  "rawValue": { "type": "number", "minimum": 0, "maximum": 100 },
+                  "used": { "type": "number", "minimum": 0 },
+                  "total": { "type": "number", "exclusiveMinimum": 0 }
                 },
                 "additionalProperties": true
               }
@@ -142,6 +164,10 @@
           "args",
           "expect",
           "ok",
+          "status",
+          "processOk",
+          "signal",
+          "processFailure",
           "skipped",
           "skipReason",
           "parsedOk",
@@ -161,6 +187,10 @@
           "args": { "type": "array", "items": { "type": "string" } },
           "expect": { "anyOf": [{ "type": "object" }, { "type": "null" }] },
           "ok": { "type": "boolean" },
+          "status": { "enum": ["ok", "error", "timeout", "skipped"] },
+          "processOk": { "type": "boolean" },
+          "signal": { "type": ["string", "null"] },
+          "processFailure": { "type": ["string", "null"] },
           "skipped": { "type": "boolean" },
           "skipReason": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
           "parsedOk": { "type": "boolean" },
@@ -182,11 +212,37 @@
           "stdout": { "type": "string" },
           "stderr": { "type": "string" }
         },
+        "allOf": [
+          {
+            "if": { "properties": { "status": { "const": "ok" } } },
+            "then": { "properties": { "ok": { "const": true }, "skipped": { "const": false }, "processOk": { "const": true } } },
+            "else": { "properties": { "ok": { "const": false } } }
+          },
+          {
+            "if": { "properties": { "status": { "const": "skipped" } } },
+            "then": { "properties": { "skipped": { "const": true }, "processOk": { "const": true } } },
+            "else": { "properties": { "skipped": { "const": false } } }
+          }
+        ],
         "additionalProperties": true
       }
     }
   },
   "$defs": {
+    "optionalPercent": { "anyOf": [{ "type": "number", "minimum": 0, "maximum": 100 }, { "type": "null" }] },
+    "utilizationStats": {
+      "type": "object",
+      "required": ["sampleCount", "avgPct", "minPct", "maxPct", "p50Pct", "p95Pct"],
+      "properties": {
+        "sampleCount": { "type": "integer", "minimum": 0, "maximum": 2048 },
+        "avgPct": { "$ref": "#/$defs/optionalPercent" },
+        "minPct": { "$ref": "#/$defs/optionalPercent" },
+        "maxPct": { "$ref": "#/$defs/optionalPercent" },
+        "p50Pct": { "$ref": "#/$defs/optionalPercent" },
+        "p95Pct": { "$ref": "#/$defs/optionalPercent" }
+      },
+      "additionalProperties": false
+    },
     "benchLine": {
       "anyOf": [
         { "type": "null" },

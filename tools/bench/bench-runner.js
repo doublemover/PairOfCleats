@@ -4,6 +4,11 @@ await guardBootstrapEntry(import.meta.url);
 import path from 'node:path';
 import os from 'node:os';
 import { createHash } from 'node:crypto';
+import { isDirectExecution } from '../../src/shared/direct-execution.js';
+import { observeStorageResource } from '../../src/shared/storage/failure-observation.js';
+import { BENCH_RUNNER_REPORT_VERSION } from './runner-contract.js';
+import { classifyBenchOutcome, summarizeBenchOutcomes } from './runner-outcome.js';
+import { collectUtilizationSamples, summarizeUtilization } from './runner-utilization.js';
 
 const { getEnvConfig } = await import('../../src/shared/env/runtime.js');
 const { writeJsonFileResolved } = await import('../../src/shared/json-file.js');
@@ -209,6 +214,7 @@ const resolvePercentile = (values, ratio) => {
 };
 
 const toFiniteNumber = (value) => {
+  if (value == null || typeof value === 'boolean' || typeof value === 'string' && !value.trim()) return null;
   const num = Number(value);
   return Number.isFinite(num) ? num : null;
 };
@@ -222,21 +228,6 @@ const resolveDeltaDurationMs = (entry) => {
   }
   const duration = toFiniteNumber(metrics.duration);
   return Number.isFinite(duration) ? duration : null;
-};
-
-const resolveSkipReason = (result) => {
-  const lines = `${result?.stdout || ''}\n${result?.stderr || ''}`
-    .split(/\r?\n/g)
-    .map((line) => line.trim())
-    .filter(Boolean);
-  const reason = lines.find((line) => /\bskipp(?:ed|ing)\b/i.test(line));
-  return reason || null;
-};
-
-const toPercent = (value, scale = 100) => {
-  const num = toFiniteNumber(value);
-  if (!Number.isFinite(num)) return null;
-  return Math.max(0, Math.min(100, num * scale));
 };
 
 /**
@@ -257,49 +248,6 @@ const resolveTraceEntries = (json) => {
     if (Array.isArray(entry) && entry.length) return entry;
   }
   return [];
-};
-
-const resolveUtilizationPct = (sample) => {
-  const direct = [
-    sample?.utilizationPct,
-    sample?.overallPct,
-    sample?.utilization?.overallPct,
-    sample?.utilization?.overall
-  ];
-  for (const value of direct) {
-    const asPercent = toPercent(value, Number(value) > 1 ? 1 : 100);
-    if (Number.isFinite(asPercent)) return asPercent;
-  }
-  const cpuUsed = toFiniteNumber(sample?.cpuUsed ?? sample?.tokensUsed?.cpu ?? sample?.used?.cpu);
-  const cpuTotal = toFiniteNumber(sample?.cpuTotal ?? sample?.tokensTotal?.cpu ?? sample?.limits?.cpu);
-  if (Number.isFinite(cpuUsed) && Number.isFinite(cpuTotal) && cpuTotal > 0) {
-    return Math.max(0, Math.min(100, (cpuUsed / cpuTotal) * 100));
-  }
-  return null;
-};
-
-/**
- * Build normalized utilization samples from scheduler traces.
- *
- * @param {{json:any,script:string}} input
- * @returns {Array<{script:string,sample:number,atMs:number|null,utilizationPct:number}>}
- */
-const collectUtilizationSamples = ({ json, script }) => {
-  const trace = resolveTraceEntries(json);
-  if (!trace.length) return [];
-  const out = [];
-  for (let index = 0; index < trace.length; index += 1) {
-    const sample = trace[index];
-    const utilizationPct = resolveUtilizationPct(sample);
-    if (!Number.isFinite(utilizationPct)) continue;
-    out.push({
-      script,
-      sample: index,
-      atMs: toFiniteNumber(sample?.atMs ?? sample?.timeMs ?? sample?.elapsedMs),
-      utilizationPct
-    });
-  }
-  return out;
 };
 
 /**
@@ -394,7 +342,7 @@ const runOne = ({ script, args, timeoutMs, tokens }) => {
   const absScript = path.isAbsolute(script) ? script : path.join(process.cwd(), script);
   const start = Date.now();
   let result = null;
-  let timedOut = false;
+  let timedOut = false, processFailure = null;
   try {
     result = spawnSubprocessSync(
       process.execPath,
@@ -411,6 +359,8 @@ const runOne = ({ script, args, timeoutMs, tokens }) => {
       }
     );
   } catch (error) {
+    observeStorageResource(error, { phase: 'bench-child-settlement' }).requireSettled();
+    processFailure = typeof error?.code === 'string' ? error.code : 'SUBPROCESS_EXECUTION_FAILED';
     timedOut = error?.name === 'SubprocessTimeoutError'
       || error?.code === 'SUBPROCESS_TIMEOUT'
       || String(error?.result?.errorCode || '').toUpperCase() === 'ETIMEDOUT';
@@ -436,7 +386,9 @@ const runOne = ({ script, args, timeoutMs, tokens }) => {
     durationMs,
     exitCode,
     timedOut,
-    ok: exitCode === 0 && !timedOut,
+    signal: typeof result?.signal === 'string' ? result.signal : null,
+    processFailure,
+    ok: exitCode === 0 && !timedOut && !result?.signal && !processFailure,
     stdout,
     stderr,
     parsed,
@@ -447,11 +399,10 @@ const runOne = ({ script, args, timeoutMs, tokens }) => {
 /**
  * Run selected benchmark suite/scripts and emit summary report artifact.
  *
- * @returns {Promise<void>}
+ * @returns {Promise<{report:object|null,exitCode:number}>}
  */
-const main = async () => {
+export const runBenchRunner = async ({ argv = parseArgs(), resolveSuite = resolveBenchSuite, run = runOne } = {}) => {
   const envConfig = getEnvConfig(process.env);
-  const argv = parseArgs();
   if (argv.help) {
     const lines = [
       'bench-runner',
@@ -465,10 +416,10 @@ const main = async () => {
       '- Use --repo-root/--index-dir to populate suite placeholders.'
     ];
     console.log(lines.join('\n'));
-    return;
+    return { report: null, exitCode: 0 };
   }
 
-  const suiteEntries = argv.suite ? resolveBenchSuite(argv.suite) : null;
+  const suiteEntries = argv.suite ? resolveSuite(argv.suite) : null;
   const tokens = {
     repoRoot: argv.repoRoot ? path.resolve(argv.repoRoot) : '',
     indexDir: argv.indexDir ? path.resolve(argv.indexDir) : ''
@@ -478,7 +429,7 @@ const main = async () => {
     : (suiteEntries || []);
   if (!entries.length) {
     console.error('bench-runner: no scripts selected (use --scripts or --suite).');
-    process.exit(2);
+    return { report: null, exitCode: 2 };
   }
 
   const results = [];
@@ -487,7 +438,7 @@ const main = async () => {
     if (!argv.quiet) {
       process.stderr.write(`[bench-runner] ${entry.script}\n`);
     }
-    const result = runOne({
+    const result = run({
       script: entry.script,
       args: entry.args,
       timeoutMs: argv.timeoutMs,
@@ -501,48 +452,16 @@ const main = async () => {
       ? { ...entry.expect }
       : null;
 
-    const errors = [];
-    const expect = entry.expect && typeof entry.expect === 'object' ? entry.expect : null;
-    if (expect) {
-      if (expect.json === true && !result.json) {
-        errors.push('missing json output');
-      }
-      if (expect.baseline === true && !result.parsed?.baseline) {
-        errors.push('missing baseline bench line');
-      }
-      if (expect.current === true && !result.parsed?.current) {
-        errors.push('missing current bench line');
-      }
-      if (expect.delta === true && !result.parsed?.delta) {
-        errors.push('missing delta bench line');
-      }
-    }
-
-    const parsedOk = errors.length === 0;
-    if (suiteMode && expect && !parsedOk) {
-      const allowSkip = entry.allowSkip === true;
-      const combined = `${result.stdout}\n${result.stderr}`.toLowerCase();
-      const looksSkipped = combined.includes('skipping') || combined.includes('skipped');
-      if (allowSkip && looksSkipped) {
-        result.skipped = true;
-        result.skipReason = resolveSkipReason(result);
-      } else {
-        result.ok = false;
-      }
-    }
-    result.parsedOk = parsedOk;
-    if (errors.length) result.errors = errors;
+    Object.assign(result, classifyBenchOutcome({ result, id: result.id,
+      expect: result.expect, allowSkip: entry.allowSkip === true, suiteMode }));
     results.push(result);
   }
 
-  const summary = results.reduce((acc, entry) => {
-    const status = entry.timedOut ? 'timeout' : (entry.skipped ? 'skipped' : (entry.ok ? 'ok' : 'error'));
-    acc[status] = (acc[status] || 0) + 1;
-    return acc;
-  }, { ok: 0, error: 0, timeout: 0, skipped: 0 });
+  const summary = summarizeBenchOutcomes(results);
   const artifactDurations = [];
   const stageOverlapRows = [];
   const utilizationSamples = [];
+  let utilizationObserved = 0, utilizationValid = 0, utilizationUnavailable = 0;
   for (const entry of results) {
     const stageOverlapRow = resolveStageOverlapRow({
       json: entry?.json,
@@ -550,11 +469,11 @@ const main = async () => {
       durationMs: entry.durationMs
     });
     if (stageOverlapRow) stageOverlapRows.push(stageOverlapRow);
-    appendBoundedEntries(
-      utilizationSamples,
-      collectUtilizationSamples({ json: entry?.json, script: entry.script }),
-      MAX_UTILIZATION_SAMPLES
-    );
+    const utilization = collectUtilizationSamples({ trace: resolveTraceEntries(entry?.json), script: entry.script });
+    appendBoundedEntries(utilizationSamples, utilization.samples, MAX_UTILIZATION_SAMPLES);
+    utilizationObserved += utilization.observedCount;
+    utilizationValid += utilization.validCount;
+    utilizationUnavailable += utilization.unavailableCount;
     const artifacts = Array.isArray(entry?.json?.timings?.artifacts)
       ? entry.json.timings.artifacts
       : [];
@@ -631,18 +550,8 @@ const main = async () => {
     maxPct: overlapValues.length ? Math.max(...overlapValues) : 0,
     rows: stageOverlapRows
   };
-  const utilizationValues = utilizationSamples.map((entry) => entry.utilizationPct);
-  const perCoreUtilization = {
-    sampleCount: utilizationSamples.length,
-    avgPct: utilizationValues.length
-      ? utilizationValues.reduce((acc, value) => acc + value, 0) / utilizationValues.length
-      : 0,
-    minPct: utilizationValues.length ? Math.min(...utilizationValues) : 0,
-    maxPct: utilizationValues.length ? Math.max(...utilizationValues) : 0,
-    p50Pct: utilizationValues.length ? resolvePercentile(utilizationValues, 0.5) : 0,
-    p95Pct: utilizationValues.length ? resolvePercentile(utilizationValues, 0.95) : 0,
-    timeline: utilizationSamples.slice(-512)
-  };
+  const perCoreUtilization = summarizeUtilization({ samples: utilizationSamples, observedCount: utilizationObserved,
+    validCount: utilizationValid, unavailableCount: utilizationUnavailable, percentile: resolvePercentile });
   const triageHints = [];
   if ((summary.error || 0) > 0 || (summary.timeout || 0) > 0) {
     triageHints.push('One or more bench scripts failed or timed out; inspect stderr for first failing script.');
@@ -675,7 +584,7 @@ const main = async () => {
   summary.triageHints = triageHints;
 
   const report = {
-    schemaVersion: 1,
+    schemaVersion: BENCH_RUNNER_REPORT_VERSION,
     generatedAt: new Date().toISOString(),
     runner: {
       cwd: process.cwd(),
@@ -712,6 +621,10 @@ const main = async () => {
       args: entry.args || [],
       expect: entry.expect || null,
       ok: entry.ok,
+      status: entry.status,
+      processOk: entry.processOk,
+      signal: entry.signal,
+      processFailure: entry.processFailure,
       skipped: entry.skipped === true,
       skipReason: entry.skipReason || null,
       parsedOk: entry.parsedOk === true,
@@ -736,10 +649,12 @@ const main = async () => {
   }
 
   const hasFailures = (summary.error || 0) > 0 || (summary.timeout || 0) > 0;
-  process.exit(hasFailures ? 1 : 0);
+  return { report, exitCode: hasFailures ? 1 : 0 };
 };
 
-main().catch((err) => {
-  console.error(err?.stack || err?.message || String(err));
-  process.exit(1);
-});
+if (isDirectExecution(import.meta.url)) {
+  runBenchRunner().then(({ exitCode }) => { process.exitCode = exitCode; }).catch((err) => {
+    console.error(err?.stack || err?.message || String(err));
+    process.exitCode = 1;
+  });
+}
