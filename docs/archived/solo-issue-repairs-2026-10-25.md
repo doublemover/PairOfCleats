@@ -307,3 +307,38 @@ Formatting and syntax checks passed for these source batches. Functional fixture
 the complete front gate and final Windows qualification remain deferred. Current
 coverage is 35 previously fixed, 368 implemented, 150 partial and 210 pending;
 implementation does not close an issue or claim final-head acceptance.
+
+## Live state and claim authority
+
+- **#1587** (`07f2379ea`): live build-state coalescing retains the oldest
+  two-second healthy-storage deadline. Best-effort arrivals during a write merge
+  into one pending snapshot; required updates and captured-tail barriers preserve
+  their serialized order. Each detached/failed batch retains its own logical age
+  and acknowledgement. Heartbeat diagnostics distinguish queued/active/newest
+  ages and consume actual oldest-unacknowledged lag. Authored virtual-clock cases
+  cover continuous producers, slow storage, recovery, required ordering and an
+  actual heartbeat warning.
+- **#1586** (`bb5a68187`): the per-claim renewal owner tracks persisted expiry
+  independently of replay/heartbeat I/O. A bounded safety margin cancels the
+  original job signal and fences late completion. Same-expiry receipts cannot
+  extend authority; late receipts cannot revive an abandoned execution. Original
+  owner/version fences and outstanding I/O/cleanup ownership remain. Renewal
+  intervals fit inside short leases. Authored clock/worker cases cover transient
+  recovery, repeated failure, stuck reads/writes, no-write receipts, clock rollback,
+  replacement claims, missing authority and delayed actual cleanup. Positive
+  simulated claims now carry the real queue's persisted receipt fields; negative
+  ownership and completion assertions remain intact.
+
+Hosted [gate](https://github.com/doublemover/PairOfCleats/actions/runs/40200024025/job/121189039695)
+and [policy](https://github.com/doublemover/PairOfCleats/actions/runs/40200024023/job/121189039223)
+passed at **`76bf785cb638e3d181a2e252b119497a97c71c1c`**, confirming the gate
+containing the original postinstall signal assertion after `5a2d1958a`. Its only
+annotation was GitHub's Ubuntu runner-image migration notice. Dependent platform
+jobs were queued when inspected. This supersedes the earlier red gate observation
+for signal closure, not final-tree or Windows acceptance. No local Linux/WSL run
+was started. New local fixtures remain unexecuted at the user's request.
+
+Formatting/ESLint, syntax and affected generated refreshes passed for the new
+source batches. Current coverage is **35 fixed / 370 implemented / 150 partial /
+208 pending**. Latest live intake inspection still ends at #1748. No issue was
+closed merely for implementation and no combined suite pass is claimed.

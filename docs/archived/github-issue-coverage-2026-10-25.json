@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "6bba53513",
+  "sourceHead": "bb5a68187",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 368,
+    "implemented": 370,
     "partial": 150,
-    "pending": 210
+    "pending": 208
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -538,6 +538,8 @@
       1580,
       1582,
       1583,
+      1586,
+      1587,
       1595,
       1598,
       1599,
@@ -810,8 +812,6 @@
       1581,
       1584,
       1585,
-      1586,
-      1587,
       1588,
       1589,
       1590,
@@ -5303,15 +5303,19 @@
       "number": 1586,
       "title": "[P2] Stop producer execution when its last confirmed queue lease expires",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "bb5a68187",
+      "validation": "deferred"
     },
     {
       "number": 1587,
       "title": "[P2] Bound live build-state coalescing age and measure durable lag from pending work",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "07f2379ea",
+      "validation": "deferred"
     },
     {
       "number": 1588,
