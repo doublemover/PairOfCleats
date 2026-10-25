@@ -3,6 +3,7 @@ import os from 'node:os';
 
 export function createAdaptiveSignalReader({ config, state }) {
   const readSystemSignals = (at = config.nowMs()) => {
+    const configuredFdCap = config.normalizePositiveInt(config.fdPressureRoot?.maxTokenCap, null);
     const cpuTokenUtilization = state.tokens.cpu.total > 0 ? (state.tokens.cpu.used / state.tokens.cpu.total) : 0;
     const ioTokenUtilization = state.tokens.io.total > 0 ? (state.tokens.io.used / state.tokens.io.total) : 0;
     const memTokenUtilization = state.tokens.mem.total > 0 ? (state.tokens.mem.used / state.tokens.mem.total) : 0;
@@ -18,7 +19,12 @@ export function createAdaptiveSignalReader({ config, state }) {
         1,
         config.normalizePositiveInt(config.fdPressureRoot?.maxTokenCap, config.maxLimits.io) || config.maxLimits.io
       ),
-      tokenCap: Math.max(1, Math.floor(state.tokens.io.total || 1)),
+      // Current controller capacity is not an observed external FD ceiling.
+      // Without a configured/sampled cap, the ordinary max-I/O and memory
+      // envelopes remain binding while adaptation may recover or grow.
+      tokenCap: configuredFdCap == null ? null : Math.min(config.maxLimits.io, configuredFdCap),
+      available: configuredFdCap != null,
+      source: configuredFdCap == null ? 'unavailable' : 'configured-max-token-cap',
       pressureScore: 0
     };
     const defaultSignals = {
@@ -93,10 +99,9 @@ export function createAdaptiveSignalReader({ config, state }) {
             heapUtilization: config.normalizeRatio(sampled?.memory?.heapUtilization, defaultSignals.memory.heapUtilization, { min: 0, max: 1 }),
             freeRatio: config.normalizeRatio(sampled?.memory?.freeRatio, defaultSignals.memory.freeRatio, { min: 0, max: 1 })
           };
-          const sampledFdTokenCap = config.normalizePositiveInt(
-            sampled?.fd?.tokenCap,
-            defaultSignals.fd.tokenCap
-          );
+          const observedCap = sampled?.fd?.tokenCap;
+          const sampledFdTokenCap = typeof observedCap === 'number' && Number.isSafeInteger(observedCap) && observedCap > 0
+            ? observedCap : defaultSignals.fd.tokenCap;
           const sampledFdMaxTokenCap = Math.max(
             defaultSignals.fd.minTokenCap,
             config.normalizePositiveInt(sampled?.fd?.maxTokenCap, defaultSignals.fd.maxTokenCap)
@@ -115,10 +120,10 @@ export function createAdaptiveSignalReader({ config, state }) {
               config.normalizePositiveInt(sampled?.fd?.minTokenCap, defaultSignals.fd.minTokenCap) || defaultSignals.fd.minTokenCap
             ),
             maxTokenCap: sampledFdMaxTokenCap,
-            tokenCap: Math.max(
-              1,
-              Math.min(sampledFdMaxTokenCap, sampledFdTokenCap || defaultSignals.fd.tokenCap)
-            ),
+            tokenCap: sampledFdTokenCap == null ? null : Math.max(1, Math.min(sampledFdMaxTokenCap, sampledFdTokenCap)),
+            available: sampledFdTokenCap != null,
+            source: sampledFdTokenCap == null ? 'unavailable'
+              : sampledFdTokenCap === observedCap ? 'injected-sample' : defaultSignals.fd.source,
             pressureScore: config.normalizeRatio(
               sampled?.fd?.pressureScore,
               defaultSignals.fd.pressureScore,
