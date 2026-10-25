@@ -63,7 +63,7 @@ try {
   const options = fixture.options(); options.capture = structuredClone(fixture.capture);
   options.capture.captureId = 'capture-b'; options.capture.rawArtifacts.forEach(row => { row.captureId = 'capture-b'; });
   options.authority = { ...options.authority, captureId: 'capture-b' };
-  const second = await importRuntimeEvidence(options), destination = options.destination;
+  const second = await importRuntimeEvidence(options), destination = await fs.realpath(options.destination);
   const request = { schemaVersion: 1, repositoryNamespace: fixture.capture.repositoryNamespace, generation: fixture.capture.generation,
     leftFamily: first.pointer.generationId, rightFamily: second.pointer.generationId, sources: fixture.capture.sources,
     limits: { maxRecords: 32, maxBytes: 65536, maxMs: 1000 }, persist: true };
