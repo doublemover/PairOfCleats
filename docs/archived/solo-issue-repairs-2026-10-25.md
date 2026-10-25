@@ -1035,3 +1035,37 @@ Format/ESLint, syntax/JSON syntax, affected script/ledger/taxonomy refreshes,
 discovery and diff checks passed. Functional execution and real measured workload
 qualification remain deferred. Coverage is **35 fixed / 397 implemented / 150
 partial / 181 pending**.
+
+
+## Admitted query input plans
+
+**#1668** (`dd7934f98`) replaces coercive comparison/parity query loading with
+version 1 immutable input plans. Selected strings, normalization, limit,
+source-content hash, source policy and ordered occurrence IDs/unit weights remain
+in reports. Deliberate repeats stay separate. JSON primitives/records/blank
+entries cannot silently become unrelated string queries. Explicit files fail on
+missing, malformed, unreadable, empty or invalid UTF-8 content before index/search
+work. Parity's optional missing-default smoke fallback is explicitly named in the
+plan and is unavailable for malformed/empty/default read failures. The legacy
+optional helper only suppresses actual absence; resource uncertainty propagates.
+
+The matrix preserves its intentionally selected query-field text projection but
+captures admitted strings into a unique run-owned JSON input before child
+dispatch, retaining original plans and the ordered-pool policy. It no longer
+silently deduplicates repeated pool occurrences. The search benchmark uses the
+same plan. Comparison/parity rows retain case IDs and weights; source paths remain
+human provenance rather than substitutes for content identity.
+
+Authored controls cover primitives/records/blank/malformed/top-level rejection,
+literal object-looking strings, explicit query-field projection, duplicates,
+frozen state, changed file content and selected limits, fallback provenance,
+read failures, pending resource ownership and UTF-8. Actual CLI child fixtures
+reject invalid explicit files before builds/searches; a matrix dry-run fixture
+checks captured text and repeated occurrence identity without an index. Format/
+ESLint, syntax, affected script/ledger/taxonomy refreshes, discovery and diff checks
+passed. Functional execution remains deferred. Coverage is **35 fixed / 398
+implemented / 150 partial / 180 pending**.
+
+A complete metadata refresh at `dd7934f98` again found **763 open reports**, with
+no added/closed IDs or changed titles. Response/observed-backend, judgment and
+performance qualifications remain distinct from input admission.
