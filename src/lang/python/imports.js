@@ -107,7 +107,7 @@ const countParenDelta = (statement) => {
   let depth = 0;
   for (const char of String(statement || '')) {
     if (char === '(' || char === '[' || char === '{') depth += 1;
-    if (char === ')' || char === ']' || char === '}') depth = Math.max(0, depth - 1);
+    if (char === ')' || char === ']' || char === '}') depth -= 1;
   }
   return depth;
 };
@@ -137,15 +137,14 @@ const collectPythonImportState = (text) => {
       .map((segment) => segment.trim())
       .filter(Boolean);
     if (!segments.length) {
-      if (!parenDepth) pushStatement(current);
-      current = '';
+      if (!parenDepth) { pushStatement(current); current = ''; }
       continue;
     }
     for (const segment of segments) {
       const continued = segment.endsWith('\\');
       const normalizedSegment = continued ? segment.slice(0, -1).trimEnd() : segment;
       current = current ? `${current} ${normalizedSegment}` : normalizedSegment;
-      parenDepth += countParenDelta(normalizedSegment);
+      parenDepth = Math.max(0, parenDepth + countParenDelta(normalizedSegment));
       if (continued || parenDepth > 0) continue;
       pushStatement(current);
       current = '';
