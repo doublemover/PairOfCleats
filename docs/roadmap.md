@@ -15,7 +15,7 @@ records new source batches and unvalidated coverage. Historical inventories
 below describe their recorded sources, not the current open count.
 New solo batches cover #1746, #1742, #1741, #1740, #1737, #1736, #1734, #1730,
 #1729, #1716, #1698, #1565, #1598, #1599, #1684, #1688, #1610, #1611,
-#1397, #1561–#1564, #1575, #1580, #1586–#1587, #1600–#1602, #1605–#1606, #1608–#1609, #1614 and #1635–#1637. Their authored regressions remain deferred; the
+#1397, #1561–#1564, #1575, #1580, #1586–#1587, #1600–#1602, #1605–#1606, #1608–#1609, #1614, #1616 and #1635–#1637. Their authored regressions remain deferred; the
 source receipt records exact ownership, identity, capacity and lifecycle changes.
 
 Previous validation reconciliation, 2026-10-24: the user replaced the proposed full Windows

@@ -443,3 +443,30 @@ Original numeric duplicate and native execution-settlement fixtures remain. No
 framing, scheduling, timeout, drain or output-writer contract changed. Formatting,
 syntax, generated refreshes and diff checks passed; functional execution remains
 deferred. Coverage is **35 fixed / 375 implemented / 150 partial / 203 pending**.
+
+## Runtime claim deadline ownership
+
+**#1616** (`77f9c0329`) establishes the persistence budget before writer admission
+and carries the comparison's original absolute deadline through that owner.
+Lock waits receive remaining time; account admission, citation verification,
+staging writes and pre-promotion gates share the same budget. Explicit caller
+cancellation remains distinct from internal expiry. No nested operation renews
+the allowance. Actual resource cleanup settles before ownership is released,
+preserving independent failures and attempting both private staging removals.
+
+Errors after a promotion attempt retain a producer-authenticated, bounded claim
+generation/manifest identity and observed family/pointer state. HTTP and MCP
+preserve that passive reconciliation receipt. An uncertain pointer rename is
+reported as unconfirmed; a completed rename is reported as committed. Promoted
+families remain immutable and retained. Serialized lookalikes confer no receipt
+or mutation authority.
+
+The authored fixture uses two tiny saved synthetic capture families, actual
+destination leases and narrow virtual-clock/admission seams. It covers expired
+comparison and standalone waits, caller cancellation, early-release success,
+deterministic reuse, post-promotion/commit expiry, committed cancellation,
+uncertain replacement, independent cleanup failure and public error projection.
+Existing raw-integrity, contradiction and pagination controls remain. Formatting,
+syntax, affected generated refreshes and diff checks passed. Functional execution
+remains deferred. Coverage is **35 fixed / 376 implemented / 150 partial / 202
+pending**.

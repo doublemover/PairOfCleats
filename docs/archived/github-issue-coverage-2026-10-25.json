@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "40483ef6c",
+  "sourceHead": "77f9c0329",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 375,
+    "implemented": 376,
     "partial": 150,
-    "pending": 203
+    "pending": 202
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -553,6 +553,7 @@
       1610,
       1611,
       1614,
+      1616,
       1635,
       1636,
       1637,
@@ -832,7 +833,6 @@
       1612,
       1613,
       1615,
-      1616,
       1617,
       1618,
       1619,
@@ -4898,7 +4898,7 @@
     },
     {
       "number": 1530,
-      "title": "Qualify adaptive retrieval and evidence policies with independent risk–coverage receipts",
+      "title": "Qualify adaptive retrieval and evidence policies with independent risk\u00e2\u20ac\u201ccoverage receipts",
       "priority": "other",
       "status": "pending",
       "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
@@ -5544,8 +5544,10 @@
       "number": 1616,
       "title": "[P2] Carry runtime comparison deadlines through claim writer admission and publication",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "77f9c0329",
+      "validation": "deferred"
     },
     {
       "number": 1617,
