@@ -506,3 +506,27 @@ test discovery. Format/ESLint, syntax, generated refreshes and diff checks passe
 functional execution remains deferred. Coverage is **35 fixed / 377 implemented /
 150 partial / 201 pending**. The deadline fixture's writer path is canonicalized
 in `4ccdaf639` so Windows path spelling cannot hide its admission barrier.
+## Explicit MCP test framing
+
+**#1619** (`86f14145d`) replaces the helper's mixed-framing heuristic with an
+independent bounded byte reader. The existing server helper chooses the expected
+transport before spawning. Legacy first-CRLF fragments stay owned until their
+complete header/body arrives; SDK input requires newline framing. Non-protocol
+stdout, invalid UTF-8/JSON/envelopes and malformed or unsafe lengths fail visibly.
+Continuous listeners retain messages between reads; concurrent read owners are
+rejected. EOF, cancellation and original stream errors settle pending reads and
+detach the owned listeners.
+
+Headers, body extent, queued messages, notification history and active delivery
+are bounded. Fixed body slabs also bound buffer-object count under bytewise
+fragmentation. Internal state reports logical retained wire bytes and segments,
+not measured RSS. No production transport, writer, flush or execution-lifetime
+contract changed; **#1620** remains a separate production outbound owner repair.
+
+The discoverable authored fixture uses independent wire vectors at every split
+point, including multibyte scalars, coalesced/bytewise delivery, a larger fragmented
+body, framing/contamination negatives, bounds, EOF, cancellation, original errors
+and listener cleanup. Actual server lifecycle coverage remains. Format/ESLint,
+syntax, generated refreshes, discovery and diff checks passed. Functional execution
+remains deferred. Coverage is **35 fixed / 378 implemented / 150 partial / 200
+pending**.
