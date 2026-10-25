@@ -730,6 +730,7 @@ export async function runSearchSession({
     contextExpansionStats,
     expandModeHits
   } = createModeExpander({
+    signal,
     contextCacheDir: resolveRetrievalCacheDir({ queryCacheDir, metricsDir }),
     contextExpansionEnabled,
     contextExpansionOptions,

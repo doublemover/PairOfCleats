@@ -4,6 +4,7 @@ import { createWorkBudget } from '../graph/work-budget.js';
 import { normalizeLimit as normalizeLimitValue, normalizeOptionalLimit as normalizeOptionalLimitValue } from '../shared/limits.js';
 import { compareStrings } from '../shared/sort.js';
 import { createTruncationRecorder } from '../shared/truncation.js';
+import { throwIfAborted } from '../shared/abort.js';
 
 const DEFAULT_MAX_PER_HIT = 4;
 const DEFAULT_MAX_TOTAL = 40;
@@ -224,8 +225,11 @@ export function expandContext({
   graphRelations,
   options = {},
   allowedIds = null,
-  contextIndex = null
+  contextIndex = null,
+  signal = null,
+  now = () => performance.now()
 }) {
+  throwIfAborted(signal);
   if (!Array.isArray(hits) || !hits.length || !Array.isArray(chunkMeta)) {
     return { contextHits: [], stats: { added: 0, workUnitsUsed: 0, truncation: null } };
   }
@@ -239,6 +243,9 @@ export function expandContext({
 
   const caps = resolveContextCaps({ options, maxPerHit, maxTotal });
 
+  const preparationStarted = performance.now();
+  const suppliedLookups = Boolean(contextIndex?.byDocId && contextIndex?.byChunkUid && contextIndex?.byName
+    && contextIndex?.byFile && contextIndex?.repoMapByName);
   const resolvedIndex = ensureChunkLookups(
     contextIndex || buildContextIndex({ chunkMeta, repoMap }),
     chunkMeta
@@ -253,8 +260,11 @@ export function expandContext({
 
   const workBudget = createWorkBudget({
     maxWorkUnits: caps.maxWorkUnits,
-    maxWallClockMs: caps.maxWallClockMs
+    maxWallClockMs: caps.maxWallClockMs,
+    checkEvery: 16,
+    now
   });
+  const work = { edgeVisits: 0, candidateAttempts: 0, candidateVisits: 0, nameBucketVisits: 0 };
 
   const stopForBudget = (state) => {
     if (!state?.stop || !state.reason) return false;
@@ -375,6 +385,9 @@ export function expandContext({
   };
 
   const graphIndexes = resolveGraphIndexes(graphRelations);
+  const preparation = { contextIndex: suppliedLookups ? 'supplied' : 'built-or-completed',
+    availableChunkRows: chunkMeta.length, scannedChunkRows: suppliedLookups ? 0 : chunkMeta.length,
+    elapsedMs: Math.max(0, performance.now() - preparationStarted) };
 
   let halted = false;
 
@@ -387,12 +400,21 @@ export function expandContext({
     const sourceChunkUid = resolveChunkUid(sourceChunk);
     const sourceFile = sourceChunk.file || null;
 
-    const consumeWork = () => {
+    const consumeWork = (kind = 'edge') => {
+      throwIfAborted(signal);
+      if (kind === 'candidate') work.candidateAttempts++;
+      if (caps.maxWorkUnits === 0 || caps.maxWallClockMs === 0) {
+        recordTruncation(caps.maxWorkUnits === 0 ? 'maxWorkUnits' : 'maxWallClockMs', { limit: 0, observed: 0 });
+        halted = true; return true;
+      }
       const state = workBudget.consume(1);
       if (stopForBudget(state)) {
         halted = true;
         return true;
       }
+      if (kind === 'candidate') work.candidateVisits++;
+      else if (kind === 'name-bucket') work.nameBucketVisits++;
+      else work.edgeVisits++;
       return false;
     };
 
@@ -405,6 +427,7 @@ export function expandContext({
         const targets = resolveTargets(edge);
         for (const docId of targets) {
           if (halted || perHitState.capped) break;
+          if (consumeWork('candidate')) break;
           registerCandidate(docId, reasonType, reason, sourceId, perHitState);
         }
       }
@@ -525,6 +548,7 @@ export function expandContext({
           let seen = 0;
           for (const id of ids) {
             if (halted || perHitState.capped) break;
+            if (consumeWork('candidate')) break;
             if (primaryIds.has(id) || (allowedIds && !allowedIds.has(id)) || !byDocId.has(id)) continue;
             if (caps.maxNameCandidates != null && seen >= caps.maxNameCandidates) {
               recordTruncation('maxNameCandidates', { limit: caps.maxNameCandidates, observed: seen + 1 });
@@ -541,9 +565,11 @@ export function expandContext({
         let seen = 0;
         let nameCapped = false;
         for (const file of files) {
+          if (halted || perHitState.capped || consumeWork('name-bucket')) break;
           const fileIds = resolveDocIdsByFile(file);
           for (const id of fileIds) {
             if (halted || perHitState.capped) break;
+            if (consumeWork('candidate')) break;
             if (primaryIds.has(id) || (allowedIds && !allowedIds.has(id)) || !byDocId.has(id)) continue;
             if (caps.maxNameCandidates != null && seen >= caps.maxNameCandidates) {
               recordTruncation('maxNameCandidates', { limit: caps.maxNameCandidates, observed: seen + 1 });
@@ -614,6 +640,8 @@ export function expandContext({
     contextHits,
     stats: {
       added: contextHits.length,
+      ...work,
+      preparation,
       workUnitsUsed: workBudget.getUsed(),
       truncation: truncation.list.length ? truncation.list : null
     }

@@ -11,12 +11,16 @@ import {
   hydrateContextIndex
 } from '../../context-expansion.js';
 import { filterChunks } from '../../output.js';
+import { isAbortError, throwIfAborted } from '../../../shared/abort.js';
+import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
 
 const readContextCacheJson = (filePath, maxBytes = MAX_JSON_BYTES) => {
   if (!filePath) return null;
   try {
     return readJsonFile(filePath, { maxBytes });
-  } catch {
+  } catch (error) {
+    observeStorageResource(error, { phase: 'context-index-cache-read' }).requireSettled();
+    if (isAbortError(error)) throw error;
     return null;
   }
 };
@@ -29,7 +33,8 @@ export function createModeExpander({
   filtersActive,
   filterPredicates,
   explain,
-  contextCacheDir = null
+  contextCacheDir = null,
+  signal = null
 }) {
   const contextExpansionStats = {
     enabled: contextExpansionEnabled,
@@ -73,9 +78,15 @@ export function createModeExpander({
     const payload = serializeContextIndex(contextIndex);
     if (!signature || !payload) return;
     try {
+      throwIfAborted(signal);
       await atomicWriteJson(dataPath, payload, { spaces: 0 });
+      throwIfAborted(signal);
       await atomicWriteJson(metaPath, { version: 2, signature }, { spaces: 0 });
-    } catch {}
+    } catch (error) {
+      observeStorageResource(error, { phase: 'context-index-cache-write' }).requireSettled();
+      if (isAbortError(error)) throw error;
+      throwIfAborted(signal);
+    }
   };
   const getContextIndex = async (idx) => {
     if (!idx?.chunkMeta?.length) return null;
@@ -87,6 +98,7 @@ export function createModeExpander({
     if (pending) return pending;
     const nextPromise = (async () => {
       let next = await loadContextIndexCache(idx);
+      throwIfAborted(signal);
       if (next) {
         next.chunkMeta = idx.chunkMeta;
         next.repoMap = idx.repoMap;
@@ -94,6 +106,7 @@ export function createModeExpander({
         return next;
       }
       next = buildContextIndex({ chunkMeta: idx.chunkMeta, repoMap: idx.repoMap });
+      throwIfAborted(signal);
       idx.contextIndex = next;
       await persistContextIndexCache(idx, next);
       return next;
@@ -106,22 +119,34 @@ export function createModeExpander({
     }
   };
   const getAllowedIds = (idx) => {
-    if (!(contextExpansionRespectFilters && filtersActive)) return null;
+    if (!(contextExpansionRespectFilters && filtersActive)) return { ids: null,
+      preparation: { state: 'not-requested', availableChunkRows: idx.chunkMeta.length, selectedRows: null, elapsedMs: 0 } };
     const cached = allowedIdsByIndex.get(idx);
-    if (cached) return cached;
+    if (cached && cached.chunkMeta === idx.chunkMeta && cached.filterIndex === idx.filterIndex
+      && cached.fileRelations === idx.fileRelations) return {
+      ids: cached.ids, preparation: { ...cached.preparation, state: 'reused', elapsedMs: 0 }
+    };
+    const started = performance.now();
     const next = new Set(
       filterChunks(idx.chunkMeta, filters, idx.filterIndex, idx.fileRelations, {
         compiled: filterPredicates
       })
         .map((chunk) => chunk.id)
     );
-    allowedIdsByIndex.set(idx, next);
-    return next;
+    const prepared = { ids: next, preparation: { state: 'built', availableChunkRows: idx.chunkMeta.length,
+      selectedRows: next.size, elapsedMs: Math.max(0, performance.now() - started) } };
+    allowedIdsByIndex.set(idx, { ...prepared, chunkMeta: idx.chunkMeta, filterIndex: idx.filterIndex, fileRelations: idx.fileRelations });
+    return prepared;
   };
   const expandModeHits = async (mode, idx, hits) => {
+    throwIfAborted(signal);
     if (!contextExpansionEnabled || !hits.length || !idx?.chunkMeta?.length) {
       return { hits, contextHits: [], stats: { added: 0, workUnitsUsed: 0, truncation: null } };
     }
+    const prepared = await getContextIndex(idx);
+    throwIfAborted(signal);
+    const allowed = getAllowedIds(idx);
+    throwIfAborted(signal);
     const result = expandContext({
       hits,
       chunkMeta: idx.chunkMeta,
@@ -132,9 +157,11 @@ export function createModeExpander({
         ...contextExpansionOptions,
         explain
       },
-      allowedIds: getAllowedIds(idx),
-      contextIndex: await getContextIndex(idx)
+      allowedIds: allowed.ids,
+      contextIndex: prepared,
+      signal
     });
+    result.stats.preparation.filterSet = allowed.preparation;
     contextExpansionStats[mode] = result.stats;
     return {
       hits: hits.concat(result.contextHits),

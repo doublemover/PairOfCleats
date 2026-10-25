@@ -33,6 +33,17 @@ Filter ordering and top semantics:
 - `--top` applies after ranking/fusion within each mode; the pipeline over-fetches to improve fulfillment but returns fewer results when filters or candidate sets are too small.
 - Context expansion runs after the primary top-N selection and may append extra context hits when enabled.
 
+Context-expansion work admission counts relation-edge visits, every attempted
+candidate examination (including primary, duplicate, filtered and missing rows),
+and repository-name file-bucket lookups. Candidate checks occur before membership
+or metadata access. Time is checked at least every 16 admitted work ticks, with
+at most 15 intervening ticks; cancellation is checked at every admission. A zero
+work/time allowance performs no traversal. Budget exhaustion reports explicit
+partiality without scanning the omitted tail to invent a count. Existing output
+and eligible-name caps retain their meanings. Context lookup preparation and the
+mode adapter's filtered-set preparation are reported separately from traversal;
+these preparation observations do not imply a whole-query latency bound.
+
 Filters are ANDed together unless explicitly documented otherwise.
 
 Lazy chunk-author hydration uses request-owned metadata/filter pairs. Shared
