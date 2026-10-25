@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "dc3e4e3df",
+  "sourceHead": "3d7e57c64",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 395,
+    "implemented": 397,
     "partial": 150,
-    "pending": 183
+    "pending": 181
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -576,6 +576,8 @@
       1640,
       1641,
       1645,
+      1648,
+      1649,
       1684,
       1688,
       1698,
@@ -855,8 +857,6 @@
       1644,
       1646,
       1647,
-      1648,
-      1649,
       1650,
       1651,
       1652,
@@ -5772,15 +5772,19 @@
       "number": 1648,
       "title": "[P2] Normalize benchmark utilization by declared units instead of value magnitude",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "3d7e57c64",
+      "validation": "deferred"
     },
     {
       "number": 1649,
       "title": "[P2] Keep failed benchmark subprocesses from being reclassified as allowed skips",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "3d7e57c64",
+      "validation": "deferred"
     },
     {
       "number": 1650,

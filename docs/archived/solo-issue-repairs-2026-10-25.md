@@ -1002,3 +1002,36 @@ fixture retains default-value assertions and labels them diagnostic plumbing.
 Format/ESLint, syntax, affected ledger/taxonomy refreshes, discovery and diff
 checks passed. Functional and serial latency qualification remain deferred.
 Coverage is **35 fixed / 395 implemented / 150 partial / 183 pending**.
+
+
+## Benchmark utilization units and terminal outcomes
+
+**#1648 and #1649** (`3d7e57c64`) version the generic runner report to 2.
+Percentage fields retain their declared scale at zero/fractional/exactly-one
+values. Scheduler ratios and paired token-counter fallback carry source/unit
+and occupancy scope; no hardware/per-core CPU measurement is inferred. Null,
+invalid and nonfinite values remain unavailable and may use valid fallback.
+Absent/mixed-scope aggregates are null, with separate scope summaries. A bounded
+ring retains 2048 samples and a 512-entry timeline; counts retain observed,
+valid, unavailable and omitted observations. Historical reports are not rewritten.
+
+One terminal outcome owner supplies status, mutually exclusive summary counts
+and final exit. Timeout/signal/spawn/nonzero/null-exit failures outrank any skip
+receipt. Allowed skips require clean process execution, explicit suite policy,
+missing expected measurement output and a bounded final stdout receipt matching
+the selected benchmark ID. Incidental log words cannot waive missing output or
+process failure. Missing-output diagnostics and skip reason remain separate.
+The optional filter-index unavailable branch keeps its human message and adds
+the canonical terminal receipt. Original native resource ownership cannot be
+retired during child failure presentation.
+
+The actual runner has an internal suite/child seam. Authored fixtures exercise
+real tiny child completion/skip/nonzero/missing-output cases and aggregate exit;
+injected facts cover signal, timeout and spawn failure portably. Pure and actual
+runner numerical controls use independent expected percentage/ratio statistics,
+missingness, mixed scopes and retained-suffix values. Existing cap/log-line
+assertions remain. Schema controls reject old version and missing scope.
+Format/ESLint, syntax/JSON syntax, affected script/ledger/taxonomy refreshes,
+discovery and diff checks passed. Functional execution and real measured workload
+qualification remain deferred. Coverage is **35 fixed / 397 implemented / 150
+partial / 181 pending**.
