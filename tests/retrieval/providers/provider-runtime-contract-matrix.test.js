@@ -7,6 +7,7 @@ import { ANN_PROVIDER_IDS } from '../../../src/retrieval/ann/types.js';
 import { createSearchPipeline } from '../../../src/retrieval/pipeline.js';
 import { buildAnnPipelineFixture } from '../pipeline/helpers/ann-scenarios.js';
 import { createTantivyProvider } from '../../../src/retrieval/sparse/providers/tantivy.js';
+import { getGenerationProviderRuntime } from '../../../src/retrieval/pipeline/provider-runtime.js';
 
 const withMockedNow = async (action) => {
   const originalNow = Date.now;
@@ -25,6 +26,42 @@ const withMockedNow = async (action) => {
 };
 
 const cases = [
+  {
+    name: 'preflight health and unknown latency never create timing samples',
+    async run() {
+      const generation = {}, runtime = getGenerationProviderRuntime(generation);
+      let preflights = 0;
+      const measured = { id: 'measured', preflight: async () => { preflights++; return true; } };
+      const unknown = { id: 'unknown' }, otherUnknown = { id: 'other-unknown' };
+      const providers = new Map([['unknown', unknown], ['measured', measured], ['other', otherUnknown]]);
+      const base = [...providers.keys()], state = runtime.getProviderModeState(measured, 'code');
+      await withMockedNow(async clock => {
+        assert.equal(await runtime.ensureProviderPreflight(measured, { mode: 'code' }), true);
+        assert.equal(state.latencyEwmaMs, null); assert.equal(state.latencySamples, 0);
+        assert.deepEqual(runtime.resolveAnnBackends(providers, 'code', base, true), base);
+        runtime.recordProviderSuccess(measured, 'code', { latencyMs: 40 });
+        assert.equal(state.latencyEwmaMs, 40); assert.equal(state.latencySamples, 1);
+        runtime.recordProviderSuccess(measured, 'code', { latencyMs: 80 });
+        assert.equal(state.latencyEwmaMs, 50); assert.equal(state.latencySamples, 2);
+        for (const latencyMs of [null, undefined, NaN, Infinity, -1, '', '0']) {
+          runtime.recordProviderSuccess(measured, 'code', { latencyMs });
+          assert.equal(state.latencyEwmaMs, 50); assert.equal(state.latencySamples, 2);
+        }
+        assert.equal(getGenerationProviderRuntime(generation), runtime);
+        clock.advance(1_000_000);
+        assert.equal(await runtime.ensureProviderPreflight(measured, { mode: 'code' }), true);
+        assert.equal(preflights, 2); assert.equal(state.latencySamples, 2); assert.equal(state.latencyEwmaMs, 50);
+        assert.deepEqual(runtime.resolveAnnBackends(providers, 'code', base, true), ['measured', 'unknown', 'other']);
+        runtime.recordProviderFailure(measured, 'code', 'controlled failure');
+        assert.deepEqual(runtime.resolveAnnBackends(providers, 'code', base, true), ['unknown', 'other', 'measured']);
+        clock.advance(1_000_000);
+        await runtime.ensureProviderPreflight(measured, { mode: 'code' });
+        assert.equal(state.failures, 0); assert.equal(state.latencySamples, 2);
+        runtime.recordProviderSuccess(measured, 'code', { latencyMs: 0 });
+        assert.equal(state.latencyEwmaMs, 37.5); assert.equal(state.latencySamples, 3);
+      });
+    }
+  },
   {
     name: 'Tantivy filters global overfetch without narrowing it to eligible cardinality',
     run() {

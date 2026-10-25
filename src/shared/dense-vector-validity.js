@@ -13,35 +13,51 @@ export const buildDenseVectorValidity = vectors => {
   return { version: DENSE_VECTOR_VALIDITY_VERSION, encoding: 'bitset-base64', count, validCount, bits: bits.toString('base64') };
 };
 
-export const decodeDenseVectorValidity = payload => {
+const admitDenseVectorValidity = payload => {
   const validity = payload?.validity;
   if (!validity) return null;
   const cached = decoded.get(validity);
-  const signature = JSON.stringify(validity);
+  const { version, encoding, count: rowLimit, validCount, bits: encodedBits } = validity;
   const invalid = () => { throw Object.assign(new Error('Dense vector validity metadata is invalid; rebuild embeddings.'), { code: 'ERR_DENSE_VECTOR_VALIDITY' }); };
   const rowCount = payload.count ?? payload.totalRecords ?? payload.vectors?.length;
-  if (rowCount != null && rowCount !== validity.count) invalid();
-  if (cached?.signature === signature) return cached.bits;
-  if (validity.version !== DENSE_VECTOR_VALIDITY_VERSION || validity.encoding !== 'bitset-base64'
-    || !Number.isSafeInteger(validity.count) || validity.count < 0
-    || !Number.isSafeInteger(validity.validCount) || validity.validCount < 0 || validity.validCount > validity.count
-    || typeof validity.bits !== 'string') invalid();
-  const bits = Buffer.from(validity.bits, 'base64');
-  if (bits.length !== Math.ceil(validity.count / 8) || bits.toString('base64') !== validity.bits) invalid();
+  if (rowCount != null && rowCount !== rowLimit) invalid();
+  if (cached && cached.version === version && cached.encoding === encoding && cached.count === rowLimit
+    && cached.validCount === validCount && cached.encodedBits === encodedBits) return cached;
+  if (version !== DENSE_VECTOR_VALIDITY_VERSION || encoding !== 'bitset-base64'
+    || !Number.isSafeInteger(rowLimit) || rowLimit < 0
+    || !Number.isSafeInteger(validCount) || validCount < 0 || validCount > rowLimit
+    || typeof encodedBits !== 'string') invalid();
+  const bits = Buffer.from(encodedBits, 'base64');
+  if (bits.length !== Math.ceil(rowLimit / 8) || bits.toString('base64') !== encodedBits) invalid();
   let count = 0;
   for (let id = 0; id < bits.length * 8; id++) {
     if (!(bits[id >> 3] & (1 << (id & 7)))) continue;
-    if (id >= validity.count) invalid();
+    if (id >= rowLimit) invalid();
     count += 1;
   }
-  if (count !== validity.validCount) invalid();
-  decoded.set(validity, { signature, bits });
-  return bits;
+  if (count !== validCount) invalid();
+  const admission = { version, encoding, count: rowLimit, validCount, encodedBits, bits };
+  decoded.set(validity, admission);
+  return admission;
+};
+
+export const decodeDenseVectorValidity = payload => admitDenseVectorValidity(payload)?.bits || null;
+
+/** Capture one validated mask before ingestion callbacks/awaits. Mutable public
+ * metadata is re-admitted on the next operation, never serialized per row.
+ */
+export const createDenseVectorRowPresence = payload => {
+  const admission = admitDenseVectorValidity(payload);
+  const bits = admission ? Buffer.from(admission.bits) : null;
+  const count = admission?.count, vectors = payload?.vectors;
+  return id => Number.isSafeInteger(id) && id >= 0 && (bits
+    ? id < count && Boolean(bits[id >> 3] & (1 << (id & 7)))
+    : Array.isArray(vectors) ? Boolean(vectors[id]?.length) : true);
 };
 
 export const isDenseVectorRowPresent = (payload, id) => {
   if (!Number.isSafeInteger(id) || id < 0) return false;
-  const bits = decodeDenseVectorValidity(payload);
-  return bits ? id < payload.validity.count && Boolean(bits[id >> 3] & (1 << (id & 7)))
+  const admission = admitDenseVectorValidity(payload);
+  return admission ? id < admission.count && Boolean(admission.bits[id >> 3] & (1 << (id & 7)))
     : Array.isArray(payload?.vectors) ? Boolean(payload.vectors[id]?.length) : true;
 };

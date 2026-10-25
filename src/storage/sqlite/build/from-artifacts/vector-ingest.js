@@ -1,7 +1,7 @@
 import { performance } from 'node:perf_hooks';
 import { assertMinhashHashIdentity, normalizeMinhashSampling } from '../../../../index/minhash.js';
 import { assertSqliteMinhashReceiver, writeSqliteMinhashHeader } from '../../minhash.js';
-import { decodeDenseVectorValidity, isDenseVectorRowPresent } from '../../../../shared/dense-vector-validity.js';
+import { createDenseVectorRowPresence } from '../../../../shared/dense-vector-validity.js';
 import {
   packUint32,
   packUint8,
@@ -109,7 +109,7 @@ export const createVectorIngestor = (ctx) => {
         vectors: dense.vectors ?? arrays?.vectors
       };
     }
-    decodeDenseVectorValidity(dense);
+    const isRowPresent = createDenseVectorRowPresence(dense);
     const hasDenseArray = Array.isArray(dense?.vectors) && dense.vectors.length > 0;
     const hasDenseBuffer = !!(
       dense?.buffer
@@ -150,7 +150,7 @@ export const createVectorIngestor = (ctx) => {
       for (const item of batch) {
         const docId = item?.docId;
         const vec = item?.vec;
-        if (!Number.isFinite(docId) || !vec?.length || !isDenseVectorRowPresent(dense, docId)) continue;
+        if (!Number.isFinite(docId) || !vec?.length || !isRowPresent(docId)) continue;
         ensureDenseMeta(vec);
         insertDense.run(targetMode, docId, packUint8(vec, { onClamp: recordDenseClamp }));
         validationStats.dense += 1;
@@ -196,7 +196,7 @@ export const createVectorIngestor = (ctx) => {
     if (hasDenseArray) {
       for (let docId = 0; docId < dense.vectors.length; docId += 1) {
         const vec = dense.vectors[docId];
-        if (!vec?.length || !isDenseVectorRowPresent(dense, docId)) continue;
+        if (!vec?.length || !isRowPresent(docId)) continue;
         denseBatch.push({ docId, vec });
         if (denseBatch.length >= resolvedBatchSize) flush();
       }
@@ -208,7 +208,7 @@ export const createVectorIngestor = (ctx) => {
         : (rowWidth > 0 ? Math.floor(buffer.length / rowWidth) : 0);
       if (rowWidth > 0 && count > 0) {
         for (let docId = 0; docId < count; docId += 1) {
-          if (!isDenseVectorRowPresent(dense, docId)) continue;
+          if (!isRowPresent(docId)) continue;
           const start = docId * rowWidth;
           const end = start + rowWidth;
           if (end > buffer.length) break;
@@ -230,7 +230,7 @@ export const createVectorIngestor = (ctx) => {
           ? Math.max(0, Math.floor(Number(entryDocIdRaw)))
           : null;
         const docId = entryDocId ?? fallbackDocId;
-        if (vec?.length && isDenseVectorRowPresent(dense, docId)) {
+        if (vec?.length && isRowPresent(docId)) {
           denseBatch.push({ docId, vec });
           if (denseBatch.length >= resolvedBatchSize) flush();
         }

@@ -111,10 +111,10 @@ export const createProviderRuntime = () => {
     state.preflight = true;
     state.preflightFailureUntil = 0;
     state.preflightCheckedAt = Date.now();
-    if (Number.isFinite(Number(latencyMs)) && Number(latencyMs) >= 0) {
-      const resolvedLatencyMs = Number(latencyMs);
-      const prev = Number.isFinite(Number(state.latencyEwmaMs))
-        ? Number(state.latencyEwmaMs)
+    if (typeof latencyMs === 'number' && Number.isFinite(latencyMs) && latencyMs >= 0) {
+      const resolvedLatencyMs = latencyMs;
+      const prev = state.latencySamples > 0 && Number.isFinite(state.latencyEwmaMs)
+        ? state.latencyEwmaMs
         : null;
       state.latencyEwmaMs = prev == null
         ? resolvedLatencyMs
@@ -129,8 +129,10 @@ export const createProviderRuntime = () => {
     const scored = base.map((backend, baseIndex) => {
       const provider = providers.get(backend);
       const state = getProviderModeState(provider, mode);
-      const hasLatency = Number.isFinite(Number(state?.latencyEwmaMs));
-      const latencyMs = hasLatency ? Number(state.latencyEwmaMs) : Number.POSITIVE_INFINITY;
+      const hasLatency = state?.latencySamples > 0 && Number.isFinite(state?.latencyEwmaMs);
+      // Prefer measured healthy providers; unknown providers retain their base
+      // order behind them. A health/preflight success is no timing observation.
+      const latencyMs = hasLatency ? state.latencyEwmaMs : Number.POSITIVE_INFINITY;
       const failures = Number.isFinite(Number(state?.failures))
         ? Math.max(0, Math.floor(Number(state.failures)))
         : 0;
