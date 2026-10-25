@@ -1,6 +1,6 @@
 export const RETRIEVAL_EXECUTION_VERSION = 1;
 export const RETRIEVAL_EXECUTION_MODES = Object.freeze(['code', 'prose', 'extracted-prose', 'records']);
-export const RETRIEVAL_EXECUTION_REASONS = Object.freeze(['sparse-provider-failure', 'ann-provider-failure',
+export const RETRIEVAL_EXECUTION_REASONS = Object.freeze(['sparse-provider-failure', 'sparse-budget', 'ann-provider-failure',
   'ann-unavailable', 'ann-budget', 'graph-budget', 'reranker-fallback', 'reranker-pending', 'outcome-unrecorded', 'chunk-author-unavailable']);
 
 const record = value => value !== null && typeof value === 'object' && !Array.isArray(value);

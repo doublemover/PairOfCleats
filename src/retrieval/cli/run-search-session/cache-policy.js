@@ -12,6 +12,7 @@ import { throwIfAborted, isAbortError } from '../../../shared/abort.js';
 import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
 import { QUERY_PARSER_VERSION } from '../../query-plan-schema.js';
 import { areRetrievalExecutionsReusable } from '../../../contracts/retrieval-execution.js';
+import { FTS_WORK_POLICY_VERSION } from '../../fts-work-policy.js';
 
 const normalizePositiveIntOrNull = (value) => (
   Number.isFinite(Number(value)) ? Math.max(1, Math.floor(Number(value))) : null
@@ -41,6 +42,7 @@ export function resolveQueryCachePolicy({
     ? Math.max(0, Math.floor(Number(queryCacheMemoryFreshMs)))
     : 0;
   const sqliteFtsOverfetchCacheKey = {
+    policyVersion: FTS_WORK_POLICY_VERSION,
     rowCap: normalizePositiveIntOrNull(sqliteFtsOverfetch?.rowCap),
     timeBudgetMs: normalizePositiveIntOrNull(sqliteFtsOverfetch?.timeBudgetMs),
     chunkSize: normalizePositiveIntOrNull(sqliteFtsOverfetch?.chunkSize)

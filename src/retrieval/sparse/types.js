@@ -21,7 +21,7 @@
  * @typedef {'unicode61'|'trigram'|'porter'} FtsVariant
  * @typedef {{table:string,tokenizer:string,variant:FtsVariant}} SparseFtsExecution
  * @typedef {{code:string,reason:'db_unavailable'|'missing_table'|'query_failed',mode:'code'|'prose'|'records'|'extracted-prose',message:string|null}} SparseFtsDiagnostic
- * @typedef {{rowCap:number,timeBudgetMs:number,rowsScanned:number,rowsMatched:number,canPushdown:boolean,filteredByAllowedIds:boolean,truncated:boolean,elapsedMs:number}} SparseFtsOverfetch
+ * @typedef {{policyVersion:number,mechanism:'cooperative-dispatch',hardDeadline:false,nativeInterruption:false,scope:string,rowCap:number,timeBudgetMs:number,chunkSize:number,cursorSteps:number,batches:number,rowsScanned:number,rowsMatched:number,canPushdown:boolean,filteredByAllowedIds:boolean,truncated:boolean,termination:'complete'|'row-cap'|'deadline'|'query-failed',elapsedMs:number,overrunMs:number,phases:Record<string,number>}} SparseFtsOverfetch
  * @typedef {(idx:object,id:number,chunk:object,semanticCandidate?:boolean)=>boolean} SparseQueryMatcher
  * @typedef {Omit<SparseSearchParams,'allowedIds'> & {allowedIds?:ReadonlySet<number>|null,ftsMatch?:string|null,ftsVariant?:FtsVariant,queryAst?:import('../query-types.js').QueryAst|null,onDiagnostic?:(diagnostic:SparseFtsDiagnostic)=>void,onOverfetch?:(stats:SparseFtsOverfetch)=>void}} SqliteFtsSearchParams
  */

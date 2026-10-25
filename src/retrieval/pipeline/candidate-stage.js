@@ -163,6 +163,7 @@ export const runCandidateStage = ({
       mode,
       topN: expandedTopN,
       allowedIds: sqliteFtsCanPushdown ? sqliteFtsAllowed : null,
+      throwIfAborted,
       onDiagnostic: (diagnostic) => {
         if (!diagnostic || typeof diagnostic !== 'object') return;
         sqliteFtsDiagnostics.push(diagnostic);

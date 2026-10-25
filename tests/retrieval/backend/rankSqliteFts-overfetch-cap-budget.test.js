@@ -22,6 +22,8 @@ helpers.rankSqliteFts(
 );
 assert.equal(statsSmall.rowCap, 5000, 'expected default minimum overfetch row cap');
 assert.equal(statsSmall.timeBudgetMs, 150, 'expected default overfetch time budget');
+assert.equal(statsSmall.mechanism, 'cooperative-dispatch');
+assert.equal(statsSmall.hardDeadline, false, 'default plumbing cannot prove native interruption');
 
 let statsLarge = null;
 helpers.rankSqliteFts(
@@ -41,4 +43,4 @@ assert.equal(statsLarge.rowCap, 8000, 'expected scaled overfetch row cap for lar
 assert.equal(statsLarge.timeBudgetMs, 150, 'expected unchanged default time budget');
 
 db.close();
-console.log('rankSqliteFts overfetch cap budget test passed');
+console.log('rankSqliteFts overfetch configuration and diagnostic plumbing test passed');

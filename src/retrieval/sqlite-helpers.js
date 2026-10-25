@@ -14,6 +14,8 @@ import { normalizeMetaV2ForRead } from '../index/metadata/meta-v2.js';
 import { assertMinhashHashIdentity } from '../index/minhash.js';
 import { readSqliteMinhashHeader } from '../storage/sqlite/minhash.js';
 import { hydrateSelectiveSqliteBm25 } from './sqlite-bm25-source.js';
+import { createFtsWork } from './fts-work.js';
+import { observeRetrievalProviderFailure } from './pipeline/provider-failure.js';
 
 const SQLITE_IN_LIMIT = 900;
 const FTS_TOKEN_SAFE = /^[\p{L}\p{N}_]+$/u;
@@ -88,6 +90,7 @@ export function unpackUint32(buffer) {
  * @returns {object}
  */
 export function createSqliteHelpers(options) {
+  const ftsNow = options.ftsNow;
   const {
     getDb,
     postingsConfig,
@@ -365,7 +368,7 @@ export function createSqliteHelpers(options) {
    * @param {Array<object>|null} target
    * @returns {Array<object>}
    */
-  function loadChunkMetaByIds(mode, ids, target = null) {
+  function loadChunkMetaByIds(mode, ids, target = null, work = null) {
     const db = getDb(mode);
     if (!db || !ids || !ids.length) return target || [];
     const unique = Array.from(new Set(ids.filter((id) => Number.isFinite(id))));
@@ -373,13 +376,13 @@ export function createSqliteHelpers(options) {
     const out = target || [];
     for (const chunk of chunkArray(unique, SQLITE_IN_LIMIT)) {
       const placeholders = buildPlaceholders(chunk.length);
-      const stmt = getCachedStatement(
-        db,
-        `chunks:${chunk.length}`,
-        `SELECT * FROM chunks WHERE mode = ? AND id IN (${placeholders})`
-      );
-      const rows = stmt.all(mode, ...chunk);
-      hydrateChunkMeta(rows, out);
+      const hydrate = () => {
+        const stmt = getCachedStatement(db, `chunks:${chunk.length}`,
+          `SELECT * FROM chunks WHERE mode = ? AND id IN (${placeholders})`);
+        hydrateChunkMeta(stmt.all(mode, ...chunk), out);
+      };
+      if (work) work.run('metadata', hydrate);
+      else hydrate();
     }
     return out;
   }
@@ -714,67 +717,62 @@ export function createSqliteHelpers(options) {
        ${eligibility ? `AND (${eligibility.sql})` : ''}
        ${allowedClause}
        ORDER BY score ASC, ${table}.rowid ASC LIMIT ?`;
-    let rows = [];
-    const startedAt = Date.now();
-    let rowsScanned = 0;
-    let truncated = false;
+    const work = createFtsWork({ timeBudgetMs: overfetchTimeBudgetMs,
+      chunkSize: Math.min(overfetchChunkSize, overfetchRowCap), now: ftsNow,
+      throwIfAborted: options.throwIfAborted });
+    const termRows = new Map();
+    const collectTerms = node => {
+      if (!node) return;
+      if (node.type === 'term') termRows.set(compileFtsMatchFromAst(node), new Set());
+      collectTerms(node.left); collectTerms(node.right); collectTerms(node.child);
+    };
+    if (options.queryAst) collectTerms(options.queryAst);
+    const matcher = options.queryAst ? createQueryAstHelpers({ queryAst: options.queryAst,
+      termMatches: (node, id) => termRows.get(compileFtsMatchFromAst(node))?.has(id) === true }).matchesQueryAst : null;
+    const qualifyBatch = batch => {
+      if (!matcher) return batch;
+      const missing = batch.filter(row => !idx.chunkMeta[row.id]).map(row => row.id);
+      if (missing.length) loadChunkMetaByIds(mode, missing, idx.chunkMeta, work);
+      const candidateIds = JSON.stringify(batch.map(row => row.id));
+      for (const [match, ids] of termRows) {
+        const matches = work.run('terms', () => db.prepare(`SELECT rowid AS id FROM ${table}
+          WHERE ${table} MATCH ? AND rowid IN (SELECT value FROM json_each(?))`).all(match, candidateIds));
+        for (const row of matches) ids.add(row.id);
+      }
+      return batch.filter(row => {
+        const chunk = idx.chunkMeta[row.id];
+        return chunk && matcher(idx, row.id, chunk);
+      });
+    };
+    let rows, termination;
     try {
       const stmtKey = canPushdown
         ? `rankSqliteFtsPushdown:${table}:${allowedList.length}`
         : 'rankSqliteFts:'+table;
-      const stmt = getCachedStatement(db, stmtKey, fetchSql());
       const queryLimit = canPushdown
         ? Math.min(overfetchRowCap, Math.max(topLimit, allowedList.length))
         : overfetchRowCap;
       const params = [...(ftsQuery ? [ftsQuery] : []), mode, ...(eligibility?.params || []),
         ...(canPushdown ? jsonPushdown ? [JSON.stringify(allowedList)] : allowedList : []), queryLimit];
-      rows = stmt.all(...params);
-      rowsScanned = rows.length;
-      truncated = rows.length >= overfetchRowCap;
+      ({ rows, termination } = work.collect({
+        openCursor: () => getCachedStatement(db, stmtKey, fetchSql()).iterate(...params), rowLimit: queryLimit, qualifyBatch }));
+      if (termination === 'row-cap' && canPushdown && queryLimit === allowedList.length && queryLimit < overfetchRowCap) {
+        termination = 'complete';
+      }
     } catch (error) {
-      emitDiagnostic('query_failed', error);
+      const failure = observeRetrievalProviderFailure(error);
+      options.throwIfAborted?.();
+      if (failure.abort || !work.isQueryFailure(error)) throw error;
+      try {
+        emitOverfetch({ ...work.snapshot(), rowCap: overfetchRowCap, rowsMatched: 0,
+          canPushdown, filteredByAllowedIds: Boolean(allowedIds), truncated: true, termination: 'query-failed' });
+        emitDiagnostic('query_failed', { message: failure.message || 'SQLite FTS query failed.' });
+      } catch (diagnostic) { throw failure.retain(diagnostic, { inspectionPresent: true }); }
+      failure.requireSettled();
       return [];
     }
-    if (options.queryAst && rows.length) {
-      // Chunk metadata may be lazy. Apply literal/Boolean checks only after
-      // fetching bounded candidates; absent metadata is not a negative match.
-      const missing = rows.filter(row => !idx.chunkMeta[row.id]).map(row => row.id);
-      if (missing.length) loadChunkMetaByIds(mode, missing, idx.chunkMeta);
-      const candidateIds = JSON.stringify(rows.map(row => row.id));
-      const termRows = new Map();
-      const collect = node => {
-        if (!node) return;
-        if (node.type === 'term') {
-          const match = compileFtsMatchFromAst(node);
-          if (!termRows.has(match)) {
-            const matches = db.prepare(`SELECT rowid AS id FROM ${table}
-              WHERE ${table} MATCH ? AND rowid IN (SELECT value FROM json_each(?))`).all(match, candidateIds);
-            termRows.set(match, new Set(matches.map(row => row.id)));
-          }
-        }
-        collect(node.left); collect(node.right); collect(node.child);
-      };
-      collect(options.queryAst);
-      const matcher = createQueryAstHelpers({
-        queryAst: options.queryAst,
-        termMatches: (node, id) => termRows.get(compileFtsMatchFromAst(node))?.has(id) === true
-      }).matchesQueryAst;
-      options.onEligibility?.(matcher);
-      rows = rows.filter(row => {
-        const chunk = idx.chunkMeta[row.id];
-        return chunk && matcher(idx, row.id, chunk);
-      });
-    }
-    emitOverfetch({
-      rowCap: overfetchRowCap,
-      timeBudgetMs: overfetchTimeBudgetMs,
-      rowsScanned,
-      rowsMatched: rows.length,
-      canPushdown,
-      filteredByAllowedIds: Boolean(allowedIds),
-      truncated,
-      elapsedMs: Date.now() - startedAt
-    });
+    if (matcher) options.onEligibility?.(matcher);
+    const scoreStarted = work.snapshot().elapsedMs;
     let min = 0;
     let max = 0;
     if (normalizeScores && rows.length) {
@@ -803,9 +801,14 @@ export function createSqliteHelpers(options) {
         : raw;
       hits.push({ idx: row.id, score: normalized * weight });
     }
-    return hits
+    const ranked = hits
       .sort((a, b) => (b.score - a.score) || (a.idx - b.idx))
       .slice(0, topLimit);
+    const stats = work.snapshot();
+    stats.phases.scoring = Math.max(0, stats.elapsedMs - scoreStarted);
+    emitOverfetch({ ...stats, rowCap: overfetchRowCap, rowsMatched: rows.length,
+      canPushdown, filteredByAllowedIds: Boolean(allowedIds), truncated: termination !== 'complete', termination });
+    return ranked;
   }
 
   /**

@@ -22,6 +22,7 @@ try {
     entry => { delete entry.meta.executionOutcomes; },
     entry => { entry.meta.executionOutcomes = {}; },
     entry => { entry.meta.executionOutcomes.code = createRetrievalExecutionOutcome({ mode: 'code', annRequested: true }); },
+    entry => { entry.meta.executionOutcomes.code = createRetrievalExecutionOutcome({ mode: 'code', sparseBudget: true }); },
     entry => { entry.meta.executionOutcomes.code.mode = 'prose'; },
     entry => { entry.meta.executionOutcomes.code.reasons = ['unqualified-provider-reason']; },
     entry => { entry.meta.executionOutcomes.code.extraUnqualified = true; }

@@ -32,7 +32,8 @@ export function createSqliteFtsProvider({
   return {
     id: SPARSE_PROVIDER_IDS.SQLITE_FTS,
     requireTables: ({ variant = 'unicode61', mode } = {}) => ['chunks', FTS_VARIANT_TABLES[mode === 'code' && variant === 'porter' ? 'unicode61' : variant]],
-    search: ({ idx, queryTokens, ftsMatch = null, ftsVariant = 'unicode61', queryAst = null, mode, topN, allowedIds, onDiagnostic, onOverfetch }) => {
+    search: ({ idx, queryTokens, ftsMatch = null, ftsVariant = 'unicode61', queryAst = null, mode, topN, allowedIds,
+      onDiagnostic, onOverfetch, throwIfAborted }) => {
       const tuningEnabled = tailLatencyTuning === true;
       const defaultRowCap = tuningEnabled
         ? Math.max(topN * 6, 1200)
@@ -47,6 +48,7 @@ export function createSqliteFtsProvider({
         ftsMatch,
         ftsVariant,
         queryAst,
+        throwIfAborted,
         onEligibility: matcher => { matchesQueryAst = matcher; },
         overfetchRowCap: configuredRowCap || defaultRowCap,
         overfetchTimeBudgetMs: configuredTimeBudgetMs || defaultTimeBudgetMs,

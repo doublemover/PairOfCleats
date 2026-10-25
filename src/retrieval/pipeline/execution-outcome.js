@@ -7,7 +7,7 @@ const budgetReasons = new Set(['deadline', 'attempt-limit', 'requested-hit-work-
  * whether the returned hit array happens to be empty or nonempty.
  */
 export const createRetrievalExecutionOutcome = ({ mode, requestedSparse = null, effectiveSparse = null,
-  sparseFailed = false, annRequested = false, annMetrics = null, rerankerRequested = false,
+  sparseFailed = false, sparseBudget = false, annRequested = false, annMetrics = null, rerankerRequested = false,
   rerankerDiagnostic = null, graphMetrics = null, eligibleEmpty = false, unrecorded = false, chunkAuthorCoverage = null }) => {
   if (!RETRIEVAL_EXECUTION_MODES.includes(mode)) throw new TypeError('Invalid retrieval execution mode.');
   const reasons = new Set();
@@ -15,6 +15,7 @@ export const createRetrievalExecutionOutcome = ({ mode, requestedSparse = null, 
   if (chunkAuthorCoverage && chunkAuthorCoverage.state !== 'complete') reasons.add('chunk-author-unavailable');
   if (!eligibleEmpty) {
     if (sparseFailed) reasons.add('sparse-provider-failure');
+    if (sparseBudget) reasons.add('sparse-budget');
     if (annRequested && annMetrics?.bypassedToSparse !== true) {
       if (annMetrics?.failedAttempts > 0 || annMetrics?.preflightFailures > 0 || annMetrics?.cooldownSkips > 0) reasons.add('ann-provider-failure');
       if (annMetrics?.providerAvailable !== true) reasons.add('ann-unavailable');

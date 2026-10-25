@@ -818,7 +818,8 @@ export function createSearchPipeline(context) {
       return attachRetrievalExecution(reranked, createRetrievalExecutionOutcome({ mode,
         chunkAuthorCoverage: idx.chunkAuthorCoverage,
         requestedSparse,
-        effectiveSparse: sparseType, sparseFailed, annRequested: Boolean(annEnabledForMode), annMetrics,
+        effectiveSparse: sparseType, sparseFailed, sparseBudget: candidateMetrics.fts?.overfetch?.termination === 'deadline',
+        annRequested: Boolean(annEnabledForMode), annMetrics,
         rerankerRequested: Boolean(reranker), rerankerDiagnostic: rankMetrics.modelReranker,
         graphMetrics: rankMetrics.graph, eligibleEmpty: meta.length === 0 || annMetrics.countAware?.eligibleCount === 0 }));
     } finally {
