@@ -189,7 +189,7 @@ export const applyGraphRanking = ({
       ? 1
       : (Number.isFinite(seedDistance) ? (1 / (seedDistance + 1)) : 0);
     const graphScore = (degreeWeight * degree) + (proximityWeight * proximity);
-    const next = { ...entry };
+    const next = { ...entry, graphScoreCoordinate: { kind: 'graph-additive-v1', stopReason } };
     next.score = entry.score + graphScore;
     if (explain) {
       next.scoreBreakdown = {

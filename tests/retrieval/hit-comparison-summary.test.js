@@ -1,17 +1,20 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { buildRetrievalHitKey, compareRetrievalHitLists, summarizeRetrievalHitComparison } from '../../src/retrieval/hit-comparison.js';
+import { createFixtureRetrievalMetadata, bindFixtureRetrievalScores } from '../helpers/retrieval-response-fixture.js';
+const retrieval = createFixtureRetrievalMetadata({ fixtureId: 'shared-score-arithmetic', backend: 'memory' });
+const scored = hits => bindFixtureRetrievalScores(hits, retrieval);
 
-const baseHits = [
+const baseHits = scored([
   { chunkUid: 'a', score: 0.9 },
   { chunkUid: 'b', score: 0.7 },
   { chunkUid: 'c', score: 0.3 }
-];
-const otherHits = [
+]);
+const otherHits = scored([
   { chunkUid: 'b', score: 0.6 },
   { chunkUid: 'd', score: 0.5 },
   { chunkUid: 'e', score: 0.4 }
-];
+]);
 
 const summary = summarizeRetrievalHitComparison(baseHits, otherHits, {
   topN: 3,
@@ -35,7 +38,7 @@ assert.equal(emptyParity.overlap, 1, 'parity-style empty comparisons can opt int
 assert.deepEqual(emptyParity.baseKeys, [], 'empty comparisons should keep top key arrays empty');
 assert.deepEqual(emptyParity.otherKeys, [], 'empty comparisons should keep top key arrays empty');
 
-const hits = ids => ids.map(chunkUid => ({ chunkUid, score: 1 }));
+const hits = ids => scored(ids.map(chunkUid => ({ chunkUid, score: 1 })));
 const first = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j'];
 const displaced = ['k', 'l', 'm', 'n', 'o', 'p', 'q', 'r'];
 for (const [label, left, right, expected] of [
@@ -60,7 +63,7 @@ assert.equal(compareRetrievalHitLists(hits(['a']), hits(['b'])).rankCorr, null);
 assert.equal(compareRetrievalHitLists(hits(['a', 'a']), hits(['a'])).rankCorr, null,
   'repeated rows cannot create independent shared ranks');
 assert.equal(compareRetrievalHitLists(hits(first), hits(first), { topN: 0 }).rankCorr, null);
-const duplicates = compareRetrievalHitLists([{ chunkUid: 'a', score: 1 }, { chunkUid: 'a', score: 99 }], [{ chunkUid: 'a', score: 1 }]);
+const duplicates = compareRetrievalHitLists(scored([{ chunkUid: 'a', score: 1 }, { chunkUid: 'a', score: 99 }]), scored([{ chunkUid: 'a', score: 1 }]));
 assert.equal(duplicates.overlap, 1);
 assert.equal(duplicates.avgDelta, 0, 'the first ranked occurrence owns the distinct hit score');
 assert.equal(duplicates.baseKeys.length, 1);

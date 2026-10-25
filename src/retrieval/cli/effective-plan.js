@@ -12,7 +12,7 @@ const operationalKeys = new Set(['queryCacheEnabled', 'queryCacheMaxEntries', 'q
 
 /** Reuse the runtime projection, not a second copy of its option names. Raw
  * config/credentials stay private; only resolved result-affecting policy hashes. */
-export const resolveEffectiveSearchPlanIdentity = ({ scoreModeOverride = null,
+const resolveCanonicalSearchPolicy = ({ scoreModeOverride = null,
   normalized, userConfig, policy, modelConfig, dictConfig, useStubEmbeddings }) => {
   const runtime = resolveRunConfig({ normalized, scoreModeOverride });
   for (const key of operationalKeys) delete runtime[key];
@@ -23,7 +23,28 @@ export const resolveEffectiveSearchPlanIdentity = ({ scoreModeOverride = null,
     codeDictLanguages: [...normalizeCodeDictLanguages(userConfig?.indexing?.codeDictLanguages ?? DEFAULT_CODE_DICT_LANGUAGES)].sort(),
     adaptiveProviders: userConfig?.retrieval?.ann?.adaptiveProviders !== false,
     backendDefault: runtime.backendArg ? null : policy?.retrieval?.backend || 'sqlite', vectorOnly: policy?.vectorOnly === true };
-  return 'eqp1-' + createHash('sha256').update(stableStringifyForSignature(canonical)).digest('hex');
+  return canonical;
+};
+
+export const resolveEffectiveSearchPlanIdentity = input => 'eqp1-' + createHash('sha256')
+  .update(stableStringifyForSignature(resolveCanonicalSearchPolicy(input))).digest('hex');
+
+// Query input keeps its invocation identity above; system consistency describes
+// the unchanged result policy across different selected evaluation queries.
+export const resolveObservedSearchSystemIdentity = input => {
+  const canonical = resolveCanonicalSearchPolicy(input);
+  delete canonical.runtime.query;
+  return 'esp1-' + createHash('sha256').update(stableStringifyForSignature(canonical)).digest('hex');
+};
+
+/** Storage selection is not a score unit. Preserve the complete resolved model,
+ * dictionary and ranking policy; actual provider/formula and source identities
+ * are independently bound by the ranking/output owners. */
+export const resolveEffectiveScorePolicyIdentity = input => {
+  const canonical = resolveCanonicalSearchPolicy(input);
+  delete canonical.runtime.backendArg;
+  delete canonical.backendDefault;
+  return 'sqp1-' + createHash('sha256').update(stableStringifyForSignature(canonical)).digest('hex');
 };
 
 export const captureEffectiveSearchPlan = ({ rootDir, rawArgs, exactMode = null, scoreModeOverride = null,

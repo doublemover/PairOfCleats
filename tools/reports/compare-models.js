@@ -12,6 +12,7 @@ import { writeJsonFileResolved } from '../../src/shared/json-file.js';
 import { COMPARE_MODELS_OPTIONS } from '../../src/shared/cli-options.js';
 import { resolveAnnSetting, resolveBaseline, resolveCompareModels, resolveCompareModelCacheRoot } from '../../src/experimental/compare/config.js';
 import { summarizeRetrievalHitComparison } from '../../src/retrieval/hit-comparison.js';
+import { aggregateRetrievalScoreDeltas } from '../../src/retrieval/score-observation.js';
 import { resolveRetrievalCorpusIdentity } from '../../src/retrieval/corpus-comparison.js';
 import { readQueryInputPlan, resolveTopNAndLimit } from '../shared/query-file-utils.js';
 import { meanNullable } from '../../src/shared/stats.js';
@@ -422,6 +423,8 @@ for (const modelId of models) {
   const proseComparisons = results
     .map((entry) => entry.comparisons[modelId]?.prose)
     .filter(entry => entry && entry.comparable !== false);
+  const scoreDeltas = Object.fromEntries(selectedModes.map(mode => [mode, aggregateRetrievalScoreDeltas(
+    results.map(entry => entry.comparisons[modelId]?.[mode]))]));
   comparisonSummary[modelId] = {
     code: compareCode ? {
       comparableQueries: codeComparisons.length,
@@ -429,7 +432,8 @@ for (const modelId of models) {
       zeroHitQueries: codeComparisons.filter(row => row.zeroHits).length,
       positiveHitQueries: codeComparisons.filter(row => !row.zeroHits).length,
       overlapAvg: meanNullable(codeComparisons.map((entry) => entry.overlap)),
-      scoreDeltaAvg: meanNullable(codeComparisons.map((entry) => entry.avgDelta)),
+      scoreDeltaAvg: scoreDeltas.code.meanAbsoluteDelta,
+      scoreDelta: scoreDeltas.code,
       rankCorrAvg: meanNullable(codeComparisons.map((entry) => entry.rankCorr)),
       top1MatchRate: meanNullable(codeComparisons.map((entry) => (entry.top1Same ? 1 : 0)))
     } : null,
@@ -439,7 +443,8 @@ for (const modelId of models) {
       zeroHitQueries: proseComparisons.filter(row => row.zeroHits).length,
       positiveHitQueries: proseComparisons.filter(row => !row.zeroHits).length,
       overlapAvg: meanNullable(proseComparisons.map((entry) => entry.overlap)),
-      scoreDeltaAvg: meanNullable(proseComparisons.map((entry) => entry.avgDelta)),
+      scoreDeltaAvg: scoreDeltas.prose.meanAbsoluteDelta,
+      scoreDelta: scoreDeltas.prose,
       rankCorrAvg: meanNullable(proseComparisons.map((entry) => entry.rankCorr)),
       top1MatchRate: meanNullable(proseComparisons.map((entry) => (entry.top1Same ? 1 : 0)))
     } : null
@@ -532,6 +537,11 @@ if (argv.json) {
     const codeLabel = cmp.code ? `code overlap ${metric(cmp.code.overlapAvg, 3)}` : 'code n/a';
     const proseLabel = cmp.prose ? `prose overlap ${metric(cmp.prose.overlapAvg, 3)}` : 'prose n/a';
     console.error(`- ${modelId} vs ${baseline}: ${codeLabel}, ${proseLabel}`);
+    for (const mode of selectedModes) {
+      const measurement = cmp[mode]?.scoreDelta;
+      console.error(`  ${mode} final score delta ${metric(measurement?.meanAbsoluteDelta, 4)} ` +
+        `(${measurement?.comparedPairs ?? 0}/${measurement?.requestedPairs ?? 0} compatible shared pairs)`);
+    }
   }
 }
 

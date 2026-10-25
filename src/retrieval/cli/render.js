@@ -13,6 +13,7 @@ import {
 import { applyOutputBudgetPolicy, normalizeOutputBudgetPolicy } from '../output/score-breakdown.js';
 import { buildTrustSurface } from '../output/explain.js';
 import { buildRetrievalMetadata } from '../output/retrieval-metadata.js';
+import { bindRetrievalScoreSpaces } from '../scoring/score-space.js';
 import { explainEmptyResults } from '../output/empty-results.js';
 import { buildSearchDiagnostics } from '../output/search-diagnostics.js';
 import { ANSI } from '../../shared/cli/ansi-utils.js';
@@ -326,6 +327,8 @@ export function renderSearchOutput({
   cacheInfo,
   executionOutcomes = null,
   effectivePlanIdentity = null,
+  scorePolicyIdentity = null,
+  effectiveSystemIdentity = null,
   profileInfo = null,
   intentInfo,
   resolvedDenseVectorMode,
@@ -394,6 +397,8 @@ export function renderSearchOutput({
     cacheInfo,
     executionOutcomes,
     effectivePlanIdentity,
+    scorePolicyIdentity,
+    effectiveSystemIdentity,
     idxCode,
     idxProse,
     idxExtractedProse,
@@ -402,6 +407,10 @@ export function renderSearchOutput({
     asOfContext,
     generationContext
   });
+  for (const mode of ['code', 'prose', 'extractedProse', 'records']) {
+    payload[mode] = bindRetrievalScoreSpaces(payload[mode], { policyIdentity: payload.retrieval.scorePolicyIdentity,
+      freshness: payload.retrieval.freshness.byMode[mode] });
+  }
   if (![payload.code, payload.prose, payload.extractedProse, payload.records].some((hits) => hits.length)) {
     payload.retrieval.emptyResults = explainEmptyResults({
       filtersActive, filterEnumeration, backend: payload.retrieval.backend

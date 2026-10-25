@@ -7,6 +7,7 @@ import { classifyRerankerError } from './reranker-error-classification.js';
 import { captureRerankerAdapter, captureRerankerScores } from './reranker-evidence-admission.js';
 import { assertRerankPoolAdapter } from './rerank-policy.js';
 import { reconcileSelectedScore } from '../scoring/score-adjustment.js';
+import { createScoreCoordinateIdentity } from '../scoring/score-space.js';
 
 const digest = value => createHash('sha256').update(stableStringify(value)).digest('hex');
 const freeze = (value, depth = 0) => {
@@ -75,6 +76,9 @@ const runEvidence = async ({ adapter, query, hits, signal, maxMs = 2000,
     diagnostic.status = 'scored';
     const ranked = members.map((hit, index) => ({ ...hit, sourceScore: hit.score, sourceScoreType: hit.scoreType,
       score: scores.get(index), scoreType: 'model_rerank', reranker: originalAdapter.id,
+      scoreCoordinateIdentity: originalAdapter.identityKey && originalAdapter.formattingIdentity
+        ? createScoreCoordinateIdentity({ type: 'model_rerank', adapter: originalAdapter.identityKey,
+          formatting: originalAdapter.formattingIdentity, metric: 'adapter-score', normalization: 'none', calibration: 'none' }) : null,
       ...(hit.scoreBreakdown ? { scoreBreakdown: reconcileSelectedScore(hit.scoreBreakdown, {
         score: scores.get(index), type: 'model_rerank', stage: 'model', sourceScore: hit.score, sourceType: hit.scoreType
       }) } : {}),

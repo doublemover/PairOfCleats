@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { runNode } from '../../helpers/run-node.js';
-import { createFixtureRetrievalMetadata } from '../../helpers/retrieval-response-fixture.js';
+import { createFixtureRetrievalMetadata, bindFixtureRetrievalScores } from '../../helpers/retrieval-response-fixture.js';
 
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/reports/parity-response-admission/')[1];
 assert.ok(selected, 'the runner selects one independently bounded admission case');
@@ -15,13 +15,27 @@ try {
   const payloadFile = path.join(dir, 'payloads.json'), search = path.join(dir, 'explicit-search.mjs');
   const shim = path.join(dir, 'parity-prerequisites.mjs');
   const hit = id => ({ chunkUid: `fixture:${id}`, score: 1 });
-  const build = backend => ({ code: [hit(0), hit(1)], prose: [hit('prose')],
-    retrieval: createFixtureRetrievalMetadata({ fixtureId: 'parity-response-v1', backend }),
-    stats: { elapsedMs: 2, memory: { rss: 1024 * 1024 } } });
+  const build = backend => {
+    const retrieval = createFixtureRetrievalMetadata({ fixtureId: 'parity-response-v1', backend });
+    return { code: bindFixtureRetrievalScores([hit(0), hit(1)], retrieval),
+      prose: bindFixtureRetrievalScores([hit('prose')], retrieval, 'prose'), retrieval,
+      stats: { elapsedMs: 2, memory: { rss: 1024 * 1024 } } };
+  };
   const payloads = Object.fromEntries(['first', 'second'].map(query => [query, { memory: build('memory'), sqlite: build('sqlite') }]));
   for (const query of ['first', 'second']) {
     const row = payloads[query].sqlite;
-    if (selected === 'ranking-difference') row.code = [hit(2), hit(1)];
+    if (selected === 'ranking-difference') row.code = bindFixtureRetrievalScores([hit(2), hit(1)], row.retrieval);
+    if (selected === 'disjoint') row.code = bindFixtureRetrievalScores([hit(2), hit(3)], row.retrieval);
+    if (selected === 'measured-zero') for (const arm of Object.values(payloads[query])) for (const mode of ['code', 'prose'])
+      arm[mode] = arm[mode].map(hit => ({ ...hit, score: 0 }));
+    if (['missing-score', 'component-only'].includes(selected)) {
+      delete row.code[0].score; if (selected === 'component-only') row.code[0].sparseScore = 1;
+    }
+    if (selected === 'missing-space') delete row.code[0].scoreSpace;
+    if (['incompatible-space', 'rescaled'].includes(selected)) for (const hit of row.code) {
+      hit.scoreSpace = { ...hit.scoreSpace, coordinateIdentity: 'sc1-' + 'a'.repeat(64) };
+      if (selected === 'rescaled') hit.score *= 100;
+    }
     if (selected === 'explicit-empty') {
       row.code = []; row.prose = []; payloads[query].memory.code = []; payloads[query].memory.prose = [];
     }
@@ -57,12 +71,29 @@ try {
   const result = runNode(['tests/retrieval/parity/equivalence.test.js', '--repo', dir, '--queries', queryFile,
     '--search', search, '--top', '2', '--limit', '2', '--no-ann', '--enforce', '--write-report', '--out', out],
   `actual parity response ${selected}`, process.cwd(), env, { stdio: 'pipe', allowFailure: true, timeoutMs: 10000 });
-  assert.equal(result.status, selected === 'positive' ? 0 : 1, result.stderr);
+  assert.equal(result.status, ['positive', 'measured-zero'].includes(selected) ? 0 : 1, result.stderr);
   const report = JSON.parse(await fs.readFile(out, 'utf8'));
   assert.equal(report.results.length, 2, 'every requested query remains represented');
   assert.equal(report.summary.coverage.requestedComparisons, 4);
   assert.ok(report.results.every(row => row.caseId && row.memory.admission && row.sqlite.admission));
-  if (selected === 'positive') {
+  const scoreCases = ['measured-zero', 'missing-score', 'component-only', 'missing-space', 'incompatible-space', 'rescaled', 'disjoint'];
+  if (scoreCases.includes(selected)) {
+    const measurement = report.results[0].code.scoreDelta;
+    assert.equal(report.summary.coverage.comparableComparisons, 4, 'score availability cannot discard valid rank comparisons');
+    if (selected === 'measured-zero') {
+      assert.equal(report.summary.scoreDeltaAvg, 0); assert.equal(report.summary.scoreDelta.complete, true);
+    } else {
+      assert.equal(report.summary.scoreDelta.complete, false);
+      assert.match(result.stderr, /Parity score evidence is incomplete/);
+      if (['missing-score', 'component-only'].includes(selected)) assert.equal(measurement.missingValuePairs, 1);
+      if (selected === 'missing-space') assert.equal(measurement.unknownSpacePairs, 1);
+      if (['incompatible-space', 'rescaled'].includes(selected)) {
+        assert.equal(measurement.incompatibleSpacePairs, 2);
+        assert.equal(report.results[0].code.avgDelta, null); assert.equal(report.results[0].code.rankCorr, 1);
+      }
+      if (selected === 'disjoint') { assert.equal(measurement.comparedPairs, 0); assert.equal(report.results[0].code.avgDelta, null); }
+    }
+  } else if (selected === 'positive') {
     assert.equal(report.summary.coverage.comparableComparisons, 4);
     assert.equal(report.summary.overlapAvg, 1);
     assert.equal(report.summary.coverage.positiveByMode.code, 2);
@@ -97,6 +128,14 @@ try {
   for (const query of ['first', 'second']) {
     modelPayloads[query].memory.retrieval = createFixtureRetrievalMetadata({ fixtureId: 'model-response-a', backend: 'memory' });
     modelPayloads[query].sqlite.retrieval = createFixtureRetrievalMetadata({ fixtureId: 'model-response-b', backend: selected === 'wrong-backend' ? 'sqlite' : 'memory' });
+  }
+  // Bind each explicit model capsule independently. A changed model's numbers
+  // remain rank evidence, never a shared numeric score coordinate.
+  for (const query of ['first', 'second']) for (const arm of ['memory', 'sqlite']) for (const mode of ['code', 'prose']) {
+    const hits = modelPayloads[query][arm][mode];
+    if (Array.isArray(hits) && hits.every(hit => hit && typeof hit === 'object')) {
+      modelPayloads[query][arm][mode] = bindFixtureRetrievalScores(hits, modelPayloads[query][arm].retrieval, mode);
+    }
   }
   const modelFile = path.join(dir, 'model-payloads.json'), modelShim = path.join(dir, 'model-adapter.mjs');
   const modelOut = path.join(dir, 'models.json');
@@ -135,8 +174,10 @@ try {
   assert.equal(modelReport.results.length, 2);
   const codeSummary = modelReport.summary.comparisons['fixture-b'].code;
   assert.equal(codeSummary.requestedQueries, 2);
-  if (selected === 'positive') {
+  if (selected === 'positive' || scoreCases.includes(selected)) {
     assert.equal(codeSummary.comparableQueries, 2);
+    assert.equal(codeSummary.scoreDeltaAvg, null, 'different declared models do not share a numeric scale');
+    if (selected === 'positive') assert.equal(codeSummary.scoreDelta.incompatibleSpacePairs, 4);
     assert.equal(modelReport.qualification.state, 'qualified');
   } else if (selected === 'mixed-queries') {
     assert.equal(codeSummary.comparableQueries, 1);

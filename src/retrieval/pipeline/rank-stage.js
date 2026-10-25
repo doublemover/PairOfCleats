@@ -6,6 +6,7 @@ import { createRelationBoostEvaluator } from '../scoring/relation-boost.js';
 import { resolveAnnType } from './provider-runtime.js';
 import { exactLookupIntent } from '../scoring/exact-intent.js';
 import { applyRankFactor } from '../scoring/score-adjustment.js';
+import { createScoreCoordinateIdentity } from '../scoring/score-space.js';
 
 /**
  * Execute ranking stage over fused sparse+ANN scores.
@@ -246,7 +247,9 @@ export const runRankStage = ({
       sparseScore,
       sparseType: sparseTypeValue,
       annScore,
-      annSource: entry.annSource || null
+      annSource: entry.annSource || null,
+      annScoreSpace: entry.annScoreSpace || null,
+      blendInfo
     };
     reducer.pushRaw(score, idxVal, sourceRank, payload);
   };
@@ -298,6 +301,14 @@ export const runRankStage = ({
   return scored
     .map((entry) => ({
       ...entry.chunk,
+      scoreCoordinateIdentity: createScoreCoordinateIdentity({ type: entry.scoreType,
+        sparseType: entry.sparseType, usesAnn: Number.isFinite(entry.annScore), ann: entry.annScoreSpace, annSource: entry.annSource,
+        fusion: useRrf ? { kind: 'rrf', k: entry.blendInfo?.k }
+          : entry.scoreType === 'blend' ? { kind: 'blend', pureDense: entry.blendInfo?.pureDense,
+            calibration: entry.blendInfo?.calibration, normalization: 'sparse-query-max-v1' } : { kind: 'none' },
+        fts: entry.sparseType === 'fts' ? { normalize: sqliteFtsNormalize, profile: sqliteFtsProfile,
+          weights: sqliteFtsWeights, variant: sqliteFtsExecution?.variant, tokenizer: sqliteFtsExecution?.tokenizer } : null,
+        adjustments: 'signed-relative-phrase-symbol-relation-v1', graph: entry.graphScoreCoordinate || null }),
       score: entry.score,
       scoreType: entry.scoreType,
       sparseScore: entry.sparseScore,

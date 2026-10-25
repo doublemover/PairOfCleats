@@ -520,7 +520,8 @@ const evaluationInputIdentity = {
     path.join(toolRoot, 'tools', 'eval', 'cohorts.js'), path.join(toolRoot, 'tools', 'eval', 'depth-plan.js'),
     path.join(toolRoot, 'tools', 'shared', 'retrieval-execution-evidence.js'),
     path.join(toolRoot, 'tools', 'shared', 'retrieval-result-admission.js'),
-    path.join(toolRoot, 'tools', 'shared', 'retrieval-cohort-admission.js')] : []), ...(runCompare ? [compareScript] : [])].map(file => [path.relative(toolRoot, file), evaluationFileIdentity(file)]))
+    path.join(toolRoot, 'tools', 'shared', 'retrieval-cohort-admission.js'),
+    path.join(toolRoot, 'src', 'retrieval', 'score-observation.js'), path.join(toolRoot, 'src', 'retrieval', 'hit-comparison.js')] : []), ...(runCompare ? [compareScript] : [])].map(file => [path.relative(toolRoot, file), evaluationFileIdentity(file)]))
 };
 const currentModelGeneration = modelId => bakeoffGenerationIdentity(path.join(resolveVersionedCacheRoot(modelCacheRoot(modelId)), 'repos', repoId));
 const outputSettings = {

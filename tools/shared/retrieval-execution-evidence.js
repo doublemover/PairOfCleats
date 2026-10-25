@@ -3,7 +3,7 @@ import { canonicalSemanticJson, semanticHash } from '../../src/index/semantic/id
 import { isRetrievalExecution } from '../../src/contracts/retrieval-execution.js';
 import { readEvaluationData } from '../eval/passive-evidence.js';
 
-export const RETRIEVAL_EVIDENCE_VERSION = 1;
+export const RETRIEVAL_EVIDENCE_VERSION = 2;
 const fail = message => Object.assign(new Error(message), { code: 'ERR_RETRIEVAL_EVIDENCE' });
 const own = (value, key) => value && typeof value === 'object' && !Array.isArray(value)
   ? readEvaluationData(value, key, fail).value : undefined;
@@ -26,7 +26,10 @@ export const captureRetrievalExecutionEvidence = (payload, modes) => {
   const outcomes = own(fidelity, 'byMode'), cache = own(metadata, 'cache');
   const selected = text(own(backend, 'selected')), rawPolicy = text(own(metadata, 'effectivePlanIdentity'), 128);
   const policy = rawPolicy && /^eqp1-[a-f0-9]{64}$/.test(rawPolicy) ? rawPolicy : null;
+  const rawSystem = text(own(metadata, 'effectiveSystemIdentity'), 128);
+  const systemPolicy = rawSystem && /^esp1-[a-f0-9]{64}$/.test(rawSystem) ? rawSystem : null;
   const reasons = new Set();
+  if (!systemPolicy) reasons.add('effective-system-policy-missing');
   if (!selected) reasons.add('observed-backend-missing');
   if (!policy) reasons.add('effective-policy-missing');
   const fallbackDerived = bool(own(fidelity, 'fallbackDerived'));
@@ -48,12 +51,12 @@ export const captureRetrievalExecutionEvidence = (payload, modes) => {
     const outcome = original == null ? null : snapshot(original);
     if (!isRetrievalExecution(outcome, mode) || outcome.status !== 'complete') reasons.add('mode-execution-unqualified');
     execution[mode] = outcome && isRetrievalExecution(outcome, mode) ? outcome : null;
-    modeKeys[mode] = semanticHash('retrieval-observed-system.v1', { selected, policy, generation });
+    modeKeys[mode] = semanticHash('retrieval-observed-system.v2', { selected, policy: systemPolicy, generation });
   }
   return freezeData(snapshot({ schemaVersion: RETRIEVAL_EVIDENCE_VERSION, kind: 'observed-retrieval-execution', modes: [...modes],
     backend: { selected, requested: text(own(backend, 'requested')), selectionKind: text(own(backend, 'selectionKind')),
       selectionReason: text(own(backend, 'selectionReason')), availabilityDriven: bool(own(backend, 'availabilityDriven')) },
-    effectivePlanIdentity: policy, fallbackDerived, fidelityStatus, generations, execution, modeKeys,
+    effectivePlanIdentity: policy, effectiveSystemIdentity: systemPolicy, fallbackDerived, fidelityStatus, generations, execution, modeKeys,
     cache: { hit: bool(own(cache, 'hit')), strategy: text(own(cache, 'strategy')), memoryHotPath: bool(own(cache, 'memoryHotPath')) },
     qualification: { state: reasons.size ? 'unqualified' : 'qualified', reasons: [...reasons] } }));
 };
@@ -72,7 +75,7 @@ export const createRetrievalEvidenceRegistry = () => {
     receipt: ref => Number.isSafeInteger(ref) && ref >= 0 ? receipts[ref]?.receipt || null : null,
     observe(payload, modes) {
       const receipt = captureRetrievalExecutionEvidence(payload, modes), encoded = canonicalSemanticJson(receipt, { maxBytes: 8192 });
-      const key = semanticHash('retrieval-execution-receipt.v1', receipt, { maxBytes: 8192 });
+      const key = semanticHash('retrieval-execution-receipt.v2', receipt, { maxBytes: 8192 });
       observations++;
       for (const mode of modes) {
         track(contexts, `${modes.join(',')}/${mode}`, receipt.modeKeys[mode]);
@@ -98,7 +101,7 @@ export const createRetrievalEvidenceRegistry = () => {
         status: !mixed && observations > 0 && qualified === observations ? 'qualified' : 'unqualified',
         contexts: Object.fromEntries(contexts), generations: Object.fromEntries(generations), receipts };
       return JSON.parse(canonicalSemanticJson({ ...result,
-        key: semanticHash('retrieval-experiment-evidence.v1', result, { maxBytes: 1024 * 1024 }) }, { maxBytes: 1024 * 1024 }));
+        key: semanticHash('retrieval-experiment-evidence.v2', result, { maxBytes: 1024 * 1024 }) }, { maxBytes: 1024 * 1024 }));
     }
   };
 };
@@ -135,7 +138,7 @@ export const assertQualifiedEvaluationComparison = (left, right = left) => {
       throw fail('Strict evaluation comparison requires complete, stable observed execution and input qualification.');
     }
     const { key, ...evidence } = report.executionEvidence;
-    if (key !== semanticHash('retrieval-experiment-evidence.v1', evidence, { maxBytes: 1024 * 1024 })
+    if (key !== semanticHash('retrieval-experiment-evidence.v2', evidence, { maxBytes: 1024 * 1024 })
       || !Array.isArray(evidence.receipts) || !evidence.receipts.length || evidence.receipts.length > 256
       || evidence.receipts.reduce((total, row) => total + row.observations, 0) !== evidence.observations) {
       throw fail('Observed execution registry is incomplete or changed.');
@@ -144,7 +147,8 @@ export const assertQualifiedEvaluationComparison = (left, right = left) => {
     for (const row of evidence.receipts) {
       const receipt = row.receipt;
       if (!Number.isSafeInteger(row.observations) || row.observations < 1
-        || row.key !== semanticHash('retrieval-execution-receipt.v1', receipt, { maxBytes: 8192 })
+        || row.key !== semanticHash('retrieval-execution-receipt.v2', receipt, { maxBytes: 8192 })
+        || receipt.schemaVersion !== RETRIEVAL_EVIDENCE_VERSION || !/^esp1-[a-f0-9]{64}$/.test(receipt.effectiveSystemIdentity || '')
         || receipt.qualification?.state !== 'qualified' || receipt.qualification.reasons.length
         || receipt.fidelityStatus !== 'complete' || receipt.fallbackDerived !== false
         || receipt.backend?.availabilityDriven !== false || !receipt.backend?.selected || !/^eqp1-[a-f0-9]{64}$/.test(receipt.effectivePlanIdentity || '')
@@ -155,8 +159,8 @@ export const assertQualifiedEvaluationComparison = (left, right = left) => {
         throw fail('Execution receipt lacks required observed source, policy or route evidence.');
       }
       for (const mode of receipt.modes) {
-        const key = semanticHash('retrieval-observed-system.v1', { selected: receipt.backend.selected,
-          policy: receipt.effectivePlanIdentity, generation: receipt.generations[mode] });
+        const key = semanticHash('retrieval-observed-system.v2', { selected: receipt.backend.selected,
+          policy: receipt.effectiveSystemIdentity, generation: receipt.generations[mode] });
         const context = `${receipt.modes.join(',')}/${mode}`;
         const generation = semanticHash('retrieval-source-generation.v1', receipt.generations[mode]);
         if (receipt.modeKeys[mode] !== key || contexts.has(context) && contexts.get(context) !== key

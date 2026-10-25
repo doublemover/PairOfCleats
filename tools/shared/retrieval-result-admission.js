@@ -2,11 +2,12 @@ import { readEvaluationData } from '../eval/passive-evidence.js';
 import { selectRetrievalCohort } from './retrieval-cohort-admission.js';
 export { selectRetrievalCohort, RETRIEVAL_COHORT_FIELDS } from './retrieval-cohort-admission.js';
 import { captureEvaluationHit } from '../eval/hit-evidence.js';
+import { captureRetrievalScoreSpace } from '../../src/retrieval/score-observation.js';
 import { observeStorageResource } from '../../src/shared/storage/failure-observation.js';
 
 const invalidResponse = message => Object.assign(new Error(message), { code: 'ERR_RETRIEVAL_RESPONSE' });
 
-const captureComparisonHit = hit => {
+const captureComparisonHit = (hit, policyIdentity) => {
   const captured = { ...captureEvaluationHit(hit) };
   for (const key of ['score', 'sparseScore', 'annScore']) {
     const field = readEvaluationData(hit, key, invalidResponse);
@@ -30,6 +31,9 @@ const captureComparisonHit = hit => {
       captured.scoreBreakdown = Object.freeze({ selected: Object.freeze({ score: score ?? null }) });
     }
   }
+  const scoreSpace = readEvaluationData(hit, 'scoreSpace', invalidResponse);
+  const space = captureRetrievalScoreSpace(scoreSpace.value);
+  captured.scoreSpace = space && space.policyIdentity === policyIdentity ? space : null;
   return Object.freeze(captured);
 };
 
@@ -38,7 +42,13 @@ const captureComparisonHit = hit => {
 export const admitComparisonResponse = (payload, modes, { registry, expectedBackend = null } = {}) => {
   const cohorts = {}, failures = {};
   for (const mode of modes) {
-    try { cohorts[mode] = Object.freeze(selectRetrievalCohort(payload, mode).map(captureComparisonHit)); }
+    try {
+      const hits = selectRetrievalCohort(payload, mode);
+      const metadata = readEvaluationData(payload, 'retrieval', invalidResponse).value;
+      const policy = metadata && typeof metadata === 'object'
+        ? readEvaluationData(metadata, 'scorePolicyIdentity', invalidResponse).value : null;
+      cohorts[mode] = Object.freeze(hits.map(hit => captureComparisonHit(hit, policy)));
+    }
     catch (error) {
       const observation = observeStorageResource(error, { phase: 'comparison-response-admission' });
       observation.requireSettled();

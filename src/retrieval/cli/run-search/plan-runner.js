@@ -63,7 +63,7 @@ import {
 } from './options.js';
 import { createBackendContextWithTracking } from './backend-context.js';
 import { createBackendDisposer } from '../backend-disposal.js';
-import { INTERNAL_SEARCH_POLICY, resolveEffectiveSearchPlanIdentity, consumeEffectiveSearchPlan } from '../effective-plan.js';
+import { INTERNAL_SEARCH_POLICY, resolveEffectiveSearchPlanIdentity, resolveEffectiveScorePolicyIdentity, resolveObservedSearchSystemIdentity, consumeEffectiveSearchPlan } from '../effective-plan.js';
 
 import {
   INDEX_PROFILE_DEFAULT,
@@ -818,6 +818,10 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     const effectivePlanIdentity = capturedPolicy?.identity || resolveEffectiveSearchPlanIdentity({ rootDir, rawArgs,
       exactMode: options[INTERNAL_EXACT_SEARCH_MODE] ?? null, scoreModeOverride, normalized, userConfig, policy,
       modelConfig: { ...modelConfig, id: modelIdDefault }, dictConfig: dictConfigBase, useStubEmbeddings });
+    const effectiveSystemIdentity = resolveObservedSearchSystemIdentity({ scoreModeOverride, normalized, userConfig, policy,
+      modelConfig: { ...modelConfig, id: modelIdDefault }, dictConfig: dictConfigBase, useStubEmbeddings });
+    const scorePolicyIdentity = resolveEffectiveScorePolicyIdentity({ scoreModeOverride, normalized, userConfig, policy,
+      modelConfig: { ...modelConfig, id: modelIdDefault }, dictConfig: dictConfigBase, useStubEmbeddings });
     const dictConfig = applyAdaptiveDictConfig(
       dictConfigBase,
       resolveIndexedFileCount(metricsDir, {
@@ -1184,6 +1188,8 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       plain: argv.plain === true,
       outputMaxBytes: argv['output-bytes'] ?? null,
       effectivePlanIdentity,
+      scorePolicyIdentity,
+      effectiveSystemIdentity,
       t0,
       emitOutput,
       jsonOutput,

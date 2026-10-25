@@ -259,7 +259,7 @@ export const assertParitySummaryReport = async ({ sqliteBackend, outFileName }) 
     annEnabled: false,
     sqliteBackend,
     overlapAvg: mean(overlapValues),
-    scoreDeltaAvg: mean(deltaValues),
+    scoreDeltaAvg: meanNullable(deltaValues),
     rankCorrAvg: meanNullable(rankCorrValues),
     latencyMsAvg: {
       memory: mean(results.map((entry) => entry.memory.stats.elapsedMs)),

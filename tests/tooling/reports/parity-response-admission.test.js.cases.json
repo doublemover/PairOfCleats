@@ -1,4 +1,24 @@
 {
   "schemaVersion": 1,
-  "cases": ["positive", "ranking-difference", "explicit-empty", "missing-code", "null-code", "nonarray-code", "failed-status", "malformed-hit", "omitted-hits", "unknown-identity", "wrong-backend", "mixed-queries"]
+  "cases": [
+    "positive",
+    "ranking-difference",
+    "explicit-empty",
+    "missing-code",
+    "null-code",
+    "nonarray-code",
+    "failed-status",
+    "malformed-hit",
+    "omitted-hits",
+    "unknown-identity",
+    "wrong-backend",
+    "mixed-queries",
+    "measured-zero",
+    "missing-score",
+    "component-only",
+    "missing-space",
+    "incompatible-space",
+    "rescaled",
+    "disjoint"
+  ]
 }

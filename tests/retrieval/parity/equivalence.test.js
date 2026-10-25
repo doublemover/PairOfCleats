@@ -6,6 +6,7 @@ import { performance } from 'node:perf_hooks';
 import { fileURLToPath } from 'node:url';
 import { createCli } from '../../../src/shared/cli.js';
 import { summarizeRetrievalHitComparison } from '../../../src/retrieval/hit-comparison.js';
+import { aggregateRetrievalScoreDeltas } from '../../../src/retrieval/score-observation.js';
 import { meanNullable } from '../../../src/shared/stats.js';
 import { readQueryInputPlan, resolveTopNAndLimit } from '../../../tools/shared/query-file-utils.js';
 import { runSearchCliWithSpawnSync } from '../../../tools/shared/search-cli-harness.js';
@@ -240,6 +241,7 @@ function summarizeMatch(memory, sqlite, mode) {
   return { comparable: reasons.length === 0 && comparison.comparable, status: 'available', reasons,
     overlap: comparison.comparable ? comparison.overlap : null, avgDelta: comparison.comparable ? comparison.avgDelta : null,
     missingFromSqlite: comparison.missingFromOther, missingFromMemory: comparison.missingFromBase,
+    scoreDelta: comparison.scoreDelta,
     rankCorr: comparison.comparable ? comparison.rankCorr : null, zeroHits: comparison.zeroHits,
     unknownIdentityCounts: comparison.unknownIdentityCounts, identityPolicy: comparison.identityPolicy,
     duplicatePolicy: comparison.duplicatePolicy, topMemory: comparison.baseKeys, topSqlite: comparison.otherKeys };
@@ -296,7 +298,7 @@ for (const queryCase of queryPlan.cases) {
 const comparisons = results.flatMap(entry => [entry.code, entry.prose]);
 const qualified = comparisons.filter(entry => entry.comparable);
 const overlapValues = qualified.map(entry => entry.overlap);
-const deltaValues = qualified.map(entry => entry.avgDelta);
+const scoreDelta = aggregateRetrievalScoreDeltas(comparisons);
 const rankCorrValues = qualified.map(entry => entry.rankCorr);
 const memLatency = results.map(entry => entry.memory.stats.elapsedMs);
 const sqlLatency = results.map(entry => entry.sqlite.stats.elapsedMs);
@@ -319,7 +321,8 @@ const summary = {
   annEnabled,
   sqliteBackend,
   overlapAvg: meanNullable(overlapValues),
-  scoreDeltaAvg: meanNullable(deltaValues),
+  scoreDeltaAvg: scoreDelta.meanAbsoluteDelta,
+  scoreDelta,
   rankCorrAvg: meanNullable(rankCorrValues),
   latencyMsAvg: {
     memory: meanNullable(memLatency),
@@ -378,6 +381,10 @@ if (argv.enforce) {
   const unavailable = coverage.unavailableComparisons > 0 || Object.values(coverage.positiveByMode).some(count => count === 0)
     || Object.values(report.executionEvidence).some(evidence => evidence.status !== 'qualified' || evidence.consistency !== 'stable');
   if (unavailable) { console.error('Parity evidence is incomplete: required comparisons or positive-hit witnesses are unavailable.'); process.exitCode = 1; }
+  if (!scoreDelta.complete) {
+    console.error('Parity score evidence is incomplete: every requested comparison requires measured shared pairs in compatible final score spaces.');
+    process.exitCode = 1;
+  }
   const isFts = sqliteBackend === 'sqlite-fts';
   const defaults = isFts
     ? { minOverlap: 0.7, minRankCorr: 0.55, maxDelta: 0.5, minSingleOverlap: 0.6 }

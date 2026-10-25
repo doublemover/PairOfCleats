@@ -32,6 +32,8 @@ export function compactHit(hit, includeExplain = false) {
     'headline',
     'score',
     'scoreType',
+    'scoreSpace',
+    'scoreCoordinateIdentity',
     'sparseScore',
     'sparseType',
     'annScore',

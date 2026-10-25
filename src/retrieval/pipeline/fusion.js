@@ -141,6 +141,7 @@ export const fuseRankedHits = ({
       annScore,
       annSource: scores.annSource || null,
       sparseType: sparseTypeValue,
+      annScoreSpace: scores.annScoreSpace || null,
       blendInfo
     };
     if (scoreBuffer?.push) {

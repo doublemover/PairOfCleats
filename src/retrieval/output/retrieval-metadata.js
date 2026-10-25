@@ -57,6 +57,8 @@ export function buildRetrievalMetadata({
   cacheInfo = null,
   executionOutcomes = null,
   effectivePlanIdentity = null,
+  scorePolicyIdentity = null,
+  effectiveSystemIdentity = null,
   idxCode = null,
   idxProse = null,
   idxExtractedProse = null,
@@ -84,6 +86,10 @@ export function buildRetrievalMetadata({
   );
 
   return {
+    effectiveSystemIdentity: typeof effectiveSystemIdentity === 'string' && /^esp1-[a-f0-9]{64}$/.test(effectiveSystemIdentity)
+      ? effectiveSystemIdentity : null,
+    scorePolicyIdentity: typeof scorePolicyIdentity === 'string' && /^sqp1-[a-f0-9]{64}$/.test(scorePolicyIdentity)
+      ? scorePolicyIdentity : null,
     effectivePlanIdentity: typeof effectivePlanIdentity === 'string' && /^eqp1-[a-f0-9]{64}$/.test(effectivePlanIdentity)
       ? effectivePlanIdentity : null,
     backend: {

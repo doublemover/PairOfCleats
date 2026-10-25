@@ -4,10 +4,12 @@ import { buildRetrievalMetadata } from '../../../src/retrieval/output/retrieval-
 import { createRetrievalExecutionOutcome } from '../../../src/retrieval/pipeline/execution-outcome.js';
 import { createRetrievalEvidenceRegistry, captureRetrievalExecutionEvidence, assertQualifiedEvaluationComparison } from '../../../tools/shared/retrieval-execution-evidence.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
+import { resolveObservedSearchSystemIdentity, resolveEffectiveSearchPlanIdentity } from '../../../src/retrieval/cli/effective-plan.js';
 
 const hit = { file: 'fixture.ts', name: 'greeting', kind: 'FunctionDeclaration', chunkUid: 'fixture:1' };
 const response = ({ selected = 'memory', buildId = 'build-a', policy = 'a', fallback = false, cacheHit = false, ann = false } = {}) => ({
   code: [hit], retrieval: buildRetrievalMetadata({ backendLabel: selected, effectivePlanIdentity: 'eqp1-' + (policy.length === 64 ? policy : policy.repeat(64)),
+    effectiveSystemIdentity: 'esp1-' + (policy.length === 64 ? policy : policy.repeat(64)),
     backendPolicyInfo: { requested: 'auto', reason: fallback ? 'sqlite unavailable; memory fallback' : 'selected-by-policy' },
     cacheInfo: { hit: cacheHit, strategy: 'disk-first', memoryHotPath: false },
     idxCode: { state: { buildId, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, profile: { id: 'fixture-default' } } },
@@ -18,6 +20,19 @@ const response = ({ selected = 'memory', buildId = 'build-a', policy = 'a', fall
   })
 });
 
+const policies = query => ({ normalized: { query, backendArg: 'memory' }, userConfig: {}, policy: {}, modelConfig: { id: 'fixed-model' }, dictConfig: {} });
+const queryRegistry = createRetrievalEvidenceRegistry();
+for (const query of ['first', 'second']) {
+  const payload = response();
+  payload.retrieval.effectivePlanIdentity = resolveEffectiveSearchPlanIdentity(policies(query));
+  payload.retrieval.effectiveSystemIdentity = resolveObservedSearchSystemIdentity(policies(query));
+  queryRegistry.observe(payload, ['code']);
+}
+assert.equal(queryRegistry.snapshot().consistency, 'stable', 'distinct query identities do not invent a changed system');
+assert.equal(queryRegistry.snapshot().receipts.length, 2, 'each invocation identity remains retained');
+const changedSystem = response(); changedSystem.retrieval.effectiveSystemIdentity = 'esp1-' + 'd'.repeat(64);
+queryRegistry.observe(changedSystem, ['code']);
+assert.equal(queryRegistry.snapshot().consistency, 'mixed');
 const registry = createRetrievalEvidenceRegistry();
 const original = response();
 registry.observe(original, ['code']);

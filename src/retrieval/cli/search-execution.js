@@ -20,6 +20,8 @@ export async function executeSearchAndEmit(input) {
     jsonCompact,
     outputMaxBytes = null,
     effectivePlanIdentity = null,
+    scorePolicyIdentity = null,
+    effectiveSystemIdentity = null,
     explain,
     explainTier = 'summary',
     rootDir,
@@ -259,6 +261,8 @@ export async function executeSearchAndEmit(input) {
 
   const payload = renderSearchOutput({
     effectivePlanIdentity,
+    scorePolicyIdentity,
+    effectiveSystemIdentity,
     filterEnumeration: searchResult.filterEnumeration,
     filtersActive: queryPlan.filtersActive,
     plain,

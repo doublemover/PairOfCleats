@@ -42,3 +42,13 @@ stable and changing generations/policies, fallback, missing metadata, actual
 versus requested ANN, cache interning, changed queries/judgments/matching mode,
 passive admission and registry integrity. This contract coverage does not qualify
 a native model/backend or a physical performance experiment.
+
+
+Observed execution receipts/registries advance to version 2. The original `eqp1`
+invocation identity still includes query input and remains on each receipt.
+`esp1` system policy projects the same resolved policy with only query text
+removed; backend, filters, model and other result-affecting controls remain.
+Consistency compares this system identity and selected generation, rather than
+mistaking different selected queries for policy drift. Missing system identity
+cannot qualify strict historical comparison. The receipt/system/registry hash
+domains advance together; old registries are not silently reinterpreted.

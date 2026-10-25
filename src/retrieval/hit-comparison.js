@@ -1,3 +1,5 @@
+import { observeRetrievalHitScore, retrievalScoreSpaceKey } from './score-observation.js';
+
 /**
  * Build a stable comparison key for a retrieval/search hit.
  * @param {object} hit
@@ -17,19 +19,9 @@ export function buildRetrievalHitKey(hit, index, options = {}) {
   return null;
 }
 
-/**
- * Resolve the score field used for retrieval/search hit parity comparisons.
- * @param {object} hit
- * @returns {number}
- */
+/** Resolve only the measured final score. Components are different stages. */
 export function resolveRetrievalHitScore(hit) {
-  if (!hit || typeof hit !== 'object') return 0;
-  if (Number.isFinite(hit.score)) return hit.score;
-  const selected = hit.scoreBreakdown?.selected?.score;
-  if (Number.isFinite(selected)) return selected;
-  if (Number.isFinite(hit.sparseScore)) return hit.sparseScore;
-  if (Number.isFinite(hit.annScore)) return hit.annScore;
-  return 0;
+  return observeRetrievalHitScore(hit).value;
 }
 
 /**
@@ -44,7 +36,7 @@ export function resolveRetrievalHitScore(hit) {
  *   otherKeys: Array<string>,
  *   intersection: Array<string>,
  *   overlap: number,
- *   avgDelta: number,
+ *   avgDelta: (number|null),
  *   rankCorr: (number|null),
  *   top1Same: boolean,
  *   missingFromOther: Array<string>,
@@ -70,10 +62,28 @@ export function compareRetrievalHitLists(baseHits, otherHits, options = {}) {
   const intersection = [...new Set(baseKeys.filter((key) => otherSet.has(key)))];
   const overlap = intersection.length / Math.max(1, Math.min(baseKeys.length, otherKeys.length));
 
-  const baseScores = new Map([...baseRows].map(([key, hit]) => [key, resolveRetrievalHitScore(hit)]));
-  const otherScores = new Map([...otherRows].map(([key, hit]) => [key, resolveRetrievalHitScore(hit)]));
-  const deltas = intersection.map((key) => Math.abs((baseScores.get(key) || 0) - (otherScores.get(key) || 0)));
-  const avgDelta = deltas.length ? deltas.reduce((sum, delta) => sum + delta, 0) / deltas.length : 0;
+  const scoreDelta = { aggregationUnit: 'shared-distinct-hit-pair', requestedPairs: intersection.length,
+    comparedPairs: 0, missingValuePairs: 0, unknownSpacePairs: 0, incompatibleSpacePairs: 0,
+    nonFiniteDeltaPairs: 0, complete: false, domainPairs: [], omittedDomainPairObservations: 0 };
+  const domains = new Map();
+  let avgDelta = null;
+  for (const key of intersection) {
+    const base = observeRetrievalHitScore(baseRows.get(key)), other = observeRetrievalHitScore(otherRows.get(key));
+    if (base.value === null || other.value === null) { scoreDelta.missingValuePairs++; continue; }
+    const baseSpace = retrievalScoreSpaceKey(base.space), otherSpace = retrievalScoreSpaceKey(other.space);
+    if (!base.qualified || !other.qualified) { scoreDelta.unknownSpacePairs++; continue; }
+    const pairKey = JSON.stringify([baseSpace, otherSpace]);
+    if (domains.has(pairKey)) domains.get(pairKey).pairs++;
+    else if (domains.size < 16) domains.set(pairKey, { base: base.space, other: other.space, pairs: 1 });
+    else scoreDelta.omittedDomainPairObservations++;
+    if (baseSpace !== otherSpace) { scoreDelta.incompatibleSpacePairs++; continue; }
+    const delta = Math.abs(base.value - other.value);
+    if (!Number.isFinite(delta)) { scoreDelta.nonFiniteDeltaPairs++; continue; }
+    scoreDelta.comparedPairs++;
+    avgDelta = avgDelta === null ? delta : avgDelta + (delta - avgDelta) / scoreDelta.comparedPairs;
+  }
+  scoreDelta.complete = intersection.length > 0 && scoreDelta.comparedPairs === intersection.length;
+  scoreDelta.domainPairs = [...domains.values()];
 
   let rankCorr = null;
   const shared = new Set(intersection);
@@ -97,6 +107,7 @@ export function compareRetrievalHitLists(baseHits, otherHits, options = {}) {
     intersection,
     overlap,
     avgDelta,
+    scoreDelta,
     rankCorr,
     top1Same: baseKeys[0] && otherKeys[0] ? baseKeys[0] === otherKeys[0] : false,
     comparable: !unknownBase && !unknownOther,

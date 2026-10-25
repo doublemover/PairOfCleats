@@ -705,6 +705,7 @@ export function createSearchPipeline(context) {
           'sparseScore',
           'annScore',
           'annSource',
+          'annScoreSpace',
           'sparseType',
           'blendInfo'
         ],

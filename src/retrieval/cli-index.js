@@ -346,8 +346,8 @@ export function requireIndexDir(root, mode, userConfig, options = {}) {
 export function buildQueryCacheKey(payload) {
   const keyInfo = buildLocalCacheKey({
     namespace: 'query-cache',
-    // v8 includes sign-safe ranking and reconciled final score explanations.
-    version: 9,
+    // v10 retains score-coordinate ownership on cached ranking results.
+    version: 10,
     payload
   });
   return { key: keyInfo.key, payload };
