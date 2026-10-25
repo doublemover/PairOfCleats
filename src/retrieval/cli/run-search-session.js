@@ -25,6 +25,7 @@ import {
 } from './run-search-session/comment-excerpts.js';
 import { normalizeDenseVectorMode } from '../../shared/dense-vector-mode.js';
 import { isDenseVectorPayloadAvailable } from '../../shared/dense-vector-artifacts.js';
+import { resolveChunkAuthorCacheEvidence } from './chunk-author-cache.js';
 
 const EMBEDDING_MODE_ORDER = Object.freeze([
   'code',
@@ -466,6 +467,11 @@ export async function runSearchSession({
     annActive = false;
     contextExpansionEnabled = false;
   }
+  const chunkAuthorCache = resolveChunkAuthorCacheEvidence([
+    ...(runCode ? [['code', idxCode]] : []), ...(runProse ? [['prose', idxProse]] : []),
+    ...(runExtractedProse ? [['extracted-prose', idxExtractedProse]] : []), ...(runRecords ? [['records', idxRecords]] : [])
+  ]);
+  if (!chunkAuthorCache.qualified) queryCacheEnabled = false;
   const resolvedDenseMode = normalizeDenseVectorMode(resolvedDenseVectorMode, 'merged');
   enforceSqliteAnnDenseModeCompatibility({
     resolvedDenseMode,
@@ -588,6 +594,7 @@ export async function runSearchSession({
       idxRecords
     },
     cacheLookupInput: {
+      chunkAuthorEvidence: chunkAuthorCache.evidence,
       queryCacheEnabled,
       queryCacheDir,
       metricsDir,
@@ -740,7 +747,8 @@ export async function runSearchSession({
   };
   const executionOutcomes = cacheHit ? cachedPayload.executionOutcomes
     : Object.fromEntries(EMBEDDING_MODE_ORDER.filter(mode => modeState[mode].run).map(mode => [mode,
-      hitsByMode[mode].executionOutcome || createRetrievalExecutionOutcome({ mode, unrecorded: true })]));
+      hitsByMode[mode].executionOutcome || createRetrievalExecutionOutcome({ mode, unrecorded: true,
+        chunkAuthorCoverage: modeState[mode].idx?.chunkAuthorCoverage })]));
   const expandedByMode = await expandSessionHitsByMode({
     expandModeHits,
     modeState,

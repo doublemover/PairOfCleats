@@ -559,7 +559,7 @@ export function createSearchPipeline(context) {
       const allowedIdx = filterResult.allowed;
       const allowedCount = allowedIdx ? getAllowedSize(allowedIdx) : 0;
       if (filtersEnabled && allowedIdx && allowedCount === 0) {
-        return attachRetrievalExecution([], createRetrievalExecutionOutcome({ mode, eligibleEmpty: true,
+        return attachRetrievalExecution([], createRetrievalExecutionOutcome({ mode, eligibleEmpty: true, chunkAuthorCoverage: idx.chunkAuthorCoverage,
           requestedSparse: vectorOnlyProfile ? null : normalizedSparseBackend, annRequested: annEnabled }));
       }
       throwIfAborted();
@@ -816,6 +816,7 @@ export function createSearchPipeline(context) {
         diagnostic.code === RETRIEVAL_SPARSE_UNAVAILABLE_CODE && diagnostic.provider === requestedSparse
           && diagnostic.reason !== 'profile_vector_only')));
       return attachRetrievalExecution(reranked, createRetrievalExecutionOutcome({ mode,
+        chunkAuthorCoverage: idx.chunkAuthorCoverage,
         requestedSparse,
         effectiveSparse: sparseType, sparseFailed, annRequested: Boolean(annEnabledForMode), annMetrics,
         rerankerRequested: Boolean(reranker), rerankerDiagnostic: rankMetrics.modelReranker,

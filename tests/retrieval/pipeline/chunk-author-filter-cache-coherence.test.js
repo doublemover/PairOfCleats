@@ -16,7 +16,6 @@ const { dir: root } = await prepareIsolatedTestCacheDir('chunk-author-filter-cac
 await fs.mkdir(path.join(root, '.git'));
 await fs.writeFile(path.join(root, 'alpha.txt'), 'first line\n');
 const indexDir = path.join(root, 'index-prose'); await fs.mkdir(indexDir);
-await fs.writeFile(path.join(indexDir, 'index_state.json'), JSON.stringify({ mode: 'prose', buildId: 'coherence' }));
 const provider = getScmProvider('git'), originalAnnotate = provider.annotate;
 let annotated = 0;
 try {
@@ -26,7 +25,9 @@ try {
   const backend = createIndexBackendLoader({ rootDir: root, userConfig: {}, indexCache: cache,
     filtersActive: true, annActive: false, fileChargramN: 3, requiredArtifacts: new Set(['filterIndex']), strict: true });
   const row = { id: 0, file: 'alpha.txt', startLine: 1, endLine: 1, last_author: 'Alice' };
-  const base = { indexDir, state: { buildId: 'fixture_0000_abcdef123456' }, chunkMeta: [row] };
+  const base = { indexDir, state: { buildId: '20261025T120000Z_abcd_abcdef1_12345678',
+    repo: { head: { commitId: 'a'.repeat(40) } } }, chunkMeta: [row] };
+  await fs.writeFile(path.join(indexDir, 'index_state.json'), JSON.stringify({ mode: 'prose', ...base.state }));
   base.filterIndex = buildFilterIndex(base.chunkMeta, { fileChargramN: 3 });
   let loads = 0;
   const prime = async payload => loadIndexCached({ ...backend.cachedLoadOptions, indexCache: cache, dir: indexDir,
@@ -64,9 +65,10 @@ try {
   assert.equal(badRow.chunk_authors, undefined, 'failed construction cannot publish half-enriched facts');
   cache.clear();
   const replacementRow = { ...row, id: 0, file: 'alpha.txt', last_author: 'Carol' };
-  const replacement = { ...base, state: { buildId: 'replacement_0000_123456abcdef' }, chunkMeta: [replacementRow] };
+  const replacement = { ...base, state: { buildId: '20261025T120001Z_abcd_cdef123_12345678',
+    repo: { head: { commitId: 'c'.repeat(40) } } }, chunkMeta: [replacementRow] };
   replacement.filterIndex = buildFilterIndex(replacement.chunkMeta, { fileChargramN: 3 });
-  await fs.writeFile(path.join(indexDir, 'index_state.json'), JSON.stringify({ mode: 'prose', buildId: replacement.state.buildId }));
+  await fs.writeFile(path.join(indexDir, 'index_state.json'), JSON.stringify({ mode: 'prose', ...replacement.state }));
   await prime(replacement);
   const fresh = await load(); await hydrate(fresh); assert.deepEqual(ids(fresh), [0]);
   assert.notStrictEqual(fresh.chunkMeta, first.chunkMeta); assert.notStrictEqual(fresh.filterIndex, first.filterIndex);

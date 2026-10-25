@@ -232,7 +232,7 @@ export async function loadSearchIndexes({
     resolveOptions
   });
 
-  await hydrateChunkAuthorIndexes({
+  const chunkAuthorCoverage = await hydrateChunkAuthorIndexes({
     idxCode,
     idxProse,
     idxExtractedProse,
@@ -246,7 +246,8 @@ export async function loadSearchIndexes({
     fileChargramN,
     filtersActive,
     chunkAuthorFilterActive,
-    emitOutput
+    emitOutput,
+    signal
   });
 
   await attachAnnAndGraphArtifacts({
@@ -353,6 +354,7 @@ export async function loadSearchIndexes({
   });
 
   return {
+    chunkAuthorCoverage,
     idxProse,
     idxExtractedProse,
     idxCode,

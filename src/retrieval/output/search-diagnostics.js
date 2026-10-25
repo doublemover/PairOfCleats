@@ -25,8 +25,12 @@ export const buildSearchDiagnostics = (retrieval) => {
   const executionReasons = ['code', 'prose', 'extracted-prose', 'records'].flatMap(mode => {
     const outcome = retrieval?.fidelity?.byMode?.[mode];
     return isRetrievalExecution(outcome, mode) && outcome.status === 'partial' ? [{ code: 'retrieval-provider-fallback',
-      message: `Recorded ${mode} execution is partial: ${(outcome.reasons || []).slice(0, 8).join(', ')}.`,
-      next: 'Retry after provider recovery; use tooling-doctor if it persists.' }] : [];
+      message: outcome.reasons.includes('chunk-author-unavailable')
+        ? `Recorded ${mode} chunk-author filtering lacks complete line-author evidence; file-author fallback does not establish that predicate.`
+        : `Recorded ${mode} execution is partial: ${(outcome.reasons || []).slice(0, 8).join(', ')}.`,
+      next: outcome.reasons.includes('chunk-author-unavailable')
+        ? 'Retry after SCM annotation recovers; check the selected SCM provider and revision.'
+        : 'Retry after provider recovery; use tooling-doctor if it persists.' }] : [];
   });
   const inputReasons = [...executionReasons, ...(Array.isArray(retrieval?.emptyResults) ? retrieval.emptyResults : [])];
   if (inputReasons.length > 8) truncated = true;

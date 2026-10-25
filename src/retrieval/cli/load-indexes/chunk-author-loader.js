@@ -19,7 +19,8 @@ export async function hydrateChunkAuthorIndexes({
   fileChargramN,
   filtersActive,
   chunkAuthorFilterActive = false,
-  emitOutput
+  emitOutput,
+  signal = null
 }) {
   const scmHydrationTargets = [
     runCode ? { idx: idxCode, mode: 'code' } : null,
@@ -27,9 +28,9 @@ export async function hydrateChunkAuthorIndexes({
     resolvedLoadExtractedProse ? { idx: idxExtractedProse, mode: 'extracted-prose' } : null,
     runRecords ? { idx: idxRecords, mode: 'records' } : null
   ].filter(Boolean);
-  if (!scmHydrationTargets.length) return;
-  await Promise.all(
-    scmHydrationTargets.map(({ idx, mode }) => hydrateChunkAuthorsForIndex({
+  if (!scmHydrationTargets.length) return {};
+  return Object.fromEntries(await Promise.all(
+    scmHydrationTargets.map(async ({ idx, mode }) => [mode, (await hydrateChunkAuthorsForIndex({
       idx,
       mode,
       rootDir,
@@ -37,7 +38,7 @@ export async function hydrateChunkAuthorIndexes({
       fileChargramN,
       filtersActive,
       chunkAuthorFilterActive,
-      emitOutput
-    }))
-  );
+      emitOutput, signal
+    })).coverage || null])
+  ));
 }

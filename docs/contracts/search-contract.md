@@ -35,6 +35,25 @@ Filter ordering and top semantics:
 
 Filters are ANDed together unless explicitly documented otherwise.
 
+Lazy chunk-author hydration uses request-owned metadata/filter pairs. Shared
+artifact-cache rows remain unchanged, and equivalent warm requests reuse the
+completed pair. SCM evidence is qualified by repository, index generation,
+selected provider, pinned revision and effective provider policy. Successful
+files are reusable; unavailable, empty, timed-out or partial file evidence is
+retried on a later request under the existing provider backoff. No healthy empty
+author map is inferred from an unavailable provider. Retention is bounded to 16
+entries and 16 MiB of accounted author evidence.
+
+Unresolved line-author predicates retain typed per-mode coverage and the
+`chunk-author-unavailable` execution reason. They produce partial, non-cacheable
+execution even when filtering returns no candidates. Existing file-author
+fallback remains available but does not prove complete line-author coverage.
+Cancellation and unsettled resource ownership propagate instead of becoming
+negative author evidence; cancellation cannot publish a half-enriched pair.
+The final query-result cache includes the admitted author-evidence identity and
+refuses lookup/publication when that evidence is incomplete. Public coverage
+copies cannot grant that private cache identity.
+
 Each supplied file or author argument is one value, including internal spaces
 and commas. Repeated arguments form alternatives within that filter. Filename
 prefilters must retain every exact match; an unprovable regex or short alternative

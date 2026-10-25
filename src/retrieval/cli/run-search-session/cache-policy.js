@@ -90,6 +90,7 @@ export async function resolveQueryCacheLookup({
   indexBaseRootByMode = null,
   explicitRef = false,
   indexSignaturePayload = null,
+  chunkAuthorEvidence = null,
   asOfContext = null,
   query,
   searchMode,
@@ -186,7 +187,8 @@ export async function resolveQueryCacheLookup({
       explicitRef,
       asOfContext
     });
-  cacheSignature = stableStringifyForSignature({index:signature,queryParserVersion:QUERY_PARSER_VERSION,metadataPredicateVersion:2});
+  cacheSignature = stableStringifyForSignature({index:signature,queryParserVersion:QUERY_PARSER_VERSION,metadataPredicateVersion:2,
+    ...(chunkAuthorEvidence ? { chunkAuthorEvidence } : {})});
   const cacheKeyInfo = buildQueryCacheKey({
     query,
     backend: backendLabel,

@@ -15,6 +15,8 @@ import { buildLocalCacheKey } from '../shared/cache-key.js';
 import { isAbsolutePathNative, toPosix } from '../shared/file-paths.js';
 import { log } from '../shared/progress-runtime.js';
 import { getChunkAuthorsFromLines } from './scm/annotate.js';
+import { isAbortError, throwIfAborted } from '../shared/abort.js';
+import { observeStorageResource } from '../shared/storage/failure-observation.js';
 
 let gitMetaCache = createLruCache({
   name: 'gitMeta',
@@ -204,6 +206,7 @@ export function configureGitMetaCache(cacheConfig, reporter = null) {
  * @returns {Promise<string[]|null>}
  */
 export async function getGitLineAuthorsForFile(file, options = {}) {
+  throwIfAborted(options.signal);
   const baseDir = options.baseDir
     ? path.resolve(options.baseDir)
     : (isAbsolutePathNative(file) ? path.dirname(file) : process.cwd());
@@ -258,6 +261,9 @@ export async function getGitLineAuthorsForFile(file, options = {}) {
         lineAuthors = parseLineAuthors(blame);
         break;
       } catch (err) {
+        observeStorageResource(err, { phase: 'git-line-authors-attempt' }).requireSettled();
+        if (isAbortError(err)) throw err;
+        throwIfAborted(signal);
         const canRetry = i < timeoutLadderMs.length - 1
           && isTimeoutLikeError(err)
           && !signal?.aborted;
@@ -270,6 +276,9 @@ export async function getGitLineAuthorsForFile(file, options = {}) {
     clearGitFailureState(baseDir, GIT_FAILURE_SCOPE.BLAME);
     return lineAuthors || null;
   } catch (err) {
+    observeStorageResource(err, { phase: 'git-line-authors' }).requireSettled();
+    if (isAbortError(err)) throw err;
+    throwIfAborted(signal);
     recordGitFailure(baseDir, err, GIT_FAILURE_SCOPE.BLAME);
     warnGitUnavailable(baseDir, formatGitUnavailableMessage({
       scope: GIT_FAILURE_SCOPE.BLAME,

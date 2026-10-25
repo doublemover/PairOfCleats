@@ -1,5 +1,7 @@
 import { preserveScmMetadataFailure, normalizeScmMetadataDiagnostics } from './metadata-diagnostics.js';
 import { SCM_PROVIDER_NAMES } from './types.js';
+import { observeStorageResource } from '../../shared/storage/failure-observation.js';
+import { isAbortError, throwIfAborted } from '../../shared/abort.js';
 
 const REQUIRED_METHODS = [
   'detect',
@@ -230,7 +232,10 @@ export const assertScmProvider = (provider) => {
       try {
         const result = await Promise.resolve(provider.getRepoProvenance(input));
         return normalizeProvenance(result, input);
-      } catch {
+      } catch (error) {
+        observeStorageResource(error, { phase: 'scm-provenance' }).requireSettled();
+        if (isAbortError(error)) throw error;
+        throwIfAborted(input?.signal);
         return normalizeProvenance(null, input);
       }
     },
@@ -276,7 +281,10 @@ export const assertScmProvider = (provider) => {
           return { lines };
         }
         return normalizeReason(result, ANNOTATE_UNAVAILABLE_REASONS);
-      } catch {
+      } catch (error) {
+        observeStorageResource(error, { phase: 'scm-annotation' }).requireSettled();
+        if (isAbortError(error)) throw error;
+        throwIfAborted(input?.signal);
         return { ok: false, reason: 'unavailable' };
       }
     };

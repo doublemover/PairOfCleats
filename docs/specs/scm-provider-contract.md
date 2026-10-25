@@ -157,7 +157,10 @@ Decision table:
 
 ## 4) BuildId and signature provenance rules
 
-- `buildId` format: `YYYYMMDDTHHMMSSZ_<scmHeadShort>_<configHash8>`
+- `buildId` format: `YYYYMMDDTHHMMSSZ_<nonce>_<scmHeadShort>_<configHash8>`
+  (an optional collision suffix may follow). Explicit `repo.head` provenance is
+  preferred to parsing a display identifier; legacy three-component identifiers
+  use their SCM component, never their configuration-hash component.
 - `scmHeadShort` rules:
   - git: short commit SHA
   - jj: changeId (preferred) else commitId
@@ -187,4 +190,6 @@ When a provider cannot perform an operation:
 - Returned file lists are normalized to repo-relative POSIX paths and sorted deterministically.
 - Throwing provider methods are normalized to deterministic unavailable payloads:
   - `{ ok:false, reason:'unavailable' }` for operational failures.
+  - Annotation/provenance cancellation and unconfirmed original resource
+    settlement propagate; they cannot be normalized into a completed negative.
 - Provenance payloads are normalized to a stable shape so downstream build-state serialization is strict.
