@@ -628,3 +628,38 @@ fixtures retain their assertions with explicit asynchronous admission waits.
 Format/ESLint, syntax, generated refreshes, discovery and diff checks passed.
 Functional execution, empirical performance and final-head acceptance remain
 deferred. Coverage is **35 fixed / 381 implemented / 150 partial / 197 pending**.
+
+
+## Captured effective federation policy
+
+**#1573** (`60045f6f8`) qualifies ranked outer reuse with every selected
+repository/mode's normalized runtime policy. One existing argv owner supplies
+core execution and admission. The CLI normalizer and runtime projection supply
+the fingerprint, with model/dictionary and adaptive-provider policy. Effective
+field weights and graph-ranking normalization share their execution owners.
+Query-cache retention/prewarm settings and raw credential configuration are
+excluded. The same identity reaches local query-cache signatures; the outer
+producer namespace advances to 10. Index/workspace generation fences remain.
+
+Policy loads once per repository with bounded concurrency, then captures each
+pinned mode plan. Started preparation workers join before propagating errors.
+An opaque process-local capture binds canonical root, exact argv/mode and score
+override. Actual child config, normalized options, model/dictionary policy and
+embedding intent consume that capture, preventing policy edits from mixing
+execution and publication identity. Downstream mutation gets its own values.
+Capturing policy avoids the full capability report's lazy native getter.
+
+Custom search callbacks need a stable host execution-policy ID for persistent
+outer reuse; unknown callback semantics still execute with normal generation and
+request checks. Existing cache fixtures explicitly declare their simulated IDs,
+retaining warm, corruption, strictness, generation, redaction and cancellation
+assertions. No public CLI/config/API option was added or relaxed.
+
+The authored fixture uses actual core retrieval over two tiny two-hit indexes,
+with explicit before/after relation-ranking order, unchanged generations, warm
+reuse, independent member policy, normalized override/cache-only changes,
+environment policy and secret controls. It covers a mid-request config edit,
+invocation binding, snapshot mutation, lazy capability reporting and unknown
+custom callbacks. Format/ESLint, syntax, affected generated refreshes, discovery
+and diff checks passed. Functional execution and measured performance remain
+deferred. Coverage is **35 fixed / 382 implemented / 150 partial / 196 pending**.

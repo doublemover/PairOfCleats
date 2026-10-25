@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "bdb040aba",
+  "sourceHead": "60045f6f8",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 381,
+    "implemented": 382,
     "partial": 150,
-    "pending": 197
+    "pending": 196
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -530,6 +530,7 @@
       1570,
       1571,
       1572,
+      1573,
       1575,
       1576,
       1577,
@@ -819,7 +820,6 @@
       1566,
       1568,
       1569,
-      1573,
       1581,
       1584,
       1585,
@@ -5211,8 +5211,10 @@
       "number": 1573,
       "title": "[P2] Bind federated result-cache reuse to each repository's effective retrieval plan",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "60045f6f8",
+      "validation": "deferred"
     },
     {
       "number": 1574,
