@@ -27,3 +27,14 @@ physical related-row index. They are **UNVALIDATED**. This change does not captu
 store-construction options, foreign reader implementations, native SQLite input
 ownership, or every direct operation/neighbor argument. Broader runtime, provider,
 performance and full-index qualification remains open.
+
+SQLite payload readers apply the configured UTF-8 `maxRowBytes` allowance in SQL
+before exporting payload text. Related, coverage and frontier pages also admit
+their aggregate encoded bytes against `maxHydrationBytes` (defaulting to the row
+allowance), then hydrate through an iterator. Direct record batches share the
+same aggregate admission. Oversized evidence rejects with
+`ERR_SEMANTIC_OUTPUT_LIMIT`; invalid admitted JSON rejects with
+`ERR_SEMANTIC_INTEGRITY`. A failed page publishes no continuation past unreturned
+evidence. Internal `hydratedRows`/`hydratedBytes` metrics describe exported payload
+text, not SQLite's native scan or expression-evaluation work. Resource admission
+does not change semantic producer identities or persisted formats.
