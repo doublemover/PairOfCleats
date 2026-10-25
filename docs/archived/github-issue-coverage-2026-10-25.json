@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "4a9b093c7",
+  "sourceHead": "f175ef11e",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 372,
+    "implemented": 373,
     "partial": 150,
-    "pending": 206
+    "pending": 205
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -544,6 +544,7 @@
       1598,
       1599,
       1600,
+      1601,
       1605,
       1606,
       1608,
@@ -823,7 +824,6 @@
       1594,
       1596,
       1597,
-      1601,
       1602,
       1603,
       1604,
@@ -5421,8 +5421,10 @@
       "number": 1601,
       "title": "[P2] Preserve chunk-wide punctuation limits when reusing file-line tokens",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "f175ef11e",
+      "validation": "deferred"
     },
     {
       "number": 1602,

@@ -371,3 +371,30 @@ closed merely for implementation and no combined suite pass is claimed.
 Formatting/ESLint, syntax, generated shared-module/taxonomy refreshes and diff
 checks passed. These fixtures remain unexecuted. Current inventory is **35 fixed /
 372 implemented / 150 partial / 206 pending** across the same 763 open reports.
+
+## Punctuation route parity
+
+**#1601** (`f175ef11e`) applies one 20,000-match punctuation allowance to each
+requested chunk. File-line reuse retains a sufficient bounded prefix per line
+plus one truncation bit, preserving the same ordered first matches for later
+independent chunks. Direct, reused and worker routes retain bounded
+`stats.punctuation` evidence (limit, emitted, truncated), including through lexical
+checkpoint replay. Malformed checkpoint evidence rejects reuse. Scoring analyzer
+identity advances to `unicode-identifiers.v3` with its ICU suffix, and the shared
+lexical producer advances to 3; incremental keys/checkpoints cannot reuse old
+scoring meaning. Literal phrase tokens remain independent.
+
+Authored cases cover below/exact/over-cap, one/two lines, a later independent
+range, identifiers/operators and CRLF. They compare full ordered tokens, synonym
+sequence, IDs, statistics, MinHash and actual appendChunk TF/doc lengths; the real
+chunk processor proves exact-span route selection, and a separate real-worker
+fixture compares its output. Existing large prose, worker failure/cleanup and
+lexical replay fixtures remain. Execution is deferred.
+
+The `cachedLexicalBySpan` adapter was removed after a complete source/tool/test
+reference search found no producer/writer, only reads and one null fixture input.
+The source-qualified full lexical checkpoint is the production replacement and
+retains the original replay/content/identity/classification tests. No test was
+deleted, no coverage assertion removed and no limit raised. Formatting/ESLint,
+syntax, affected generated refreshes and diff checks passed. Coverage is now
+**35 fixed / 373 implemented / 150 partial / 205 pending**.
