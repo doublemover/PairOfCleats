@@ -385,3 +385,6 @@ configuration changes or child-side exception handling are required.
 Native redo exits are configured separately from `--retries`; disable them with
 `--native-status-redo=false`. A passing redo does
 not resolve a preceding native failure. Preserve every attempt receipt.
+
+MCP integration fixtures use the [explicit bounded wire-reader contract](mcp-reader-contract.md).
+Malformed response stdout fails the fixture; it is not skipped as diagnostic noise.
