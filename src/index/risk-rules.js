@@ -1,11 +1,12 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import {
   attachSafeRegexPrefilter,
   compileSafeRegex,
   normalizeSafeRegexConfig
 } from '../shared/safe-regex.js';
-import { isAbsolutePathNative } from '../shared/file-paths.js';
+import { readRiskRuleInput } from './risk-rule-input.js';
+import { SEMANTIC_ANALYSIS_VERSIONS } from './semantic/analysis-versions.js';
+import { recordRiskRulesPolicyReceipt } from './risk-rule-receipt.js';
+export { getRiskRulesPolicyReceipt, buildRiskRulesBundleFingerprint, serializeRiskRulesBundle } from './risk-rule-receipt.js';
 import { sha1 } from '../shared/hash.js';
 import { toArray } from '../shared/iterables.js';
 import { stableStringifyForSignature } from '../shared/stable-json.js';
@@ -304,20 +305,9 @@ const mergeRules = (baseList, overrideList) => {
   return Array.from(byId.values());
 };
 
-const resolveRulesFromPath = (rootDir, rulesPath) => {
-  if (!rulesPath || typeof rulesPath !== 'string') return null;
-  const absPath = isAbsolutePathNative(rulesPath) ? rulesPath : path.join(rootDir, rulesPath);
-  if (!fs.existsSync(absPath)) return null;
-  try {
-    const raw = fs.readFileSync(absPath, 'utf8');
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object' ? { ...parsed, sourcePath: absPath } : null;
-  } catch {
-    return null;
-  }
-};
+const policyReceipts = new WeakMap();
 
-export const normalizeRiskRules = (input = {}, { rootDir, regexConfig } = {}) => {
+export const normalizeRiskRules = (input = {}, { rootDir, regexConfig, signal = null } = {}) => {
   const config = input && typeof input === 'object' ? input : {};
   const regexConfigRaw = regexConfig || config.regex || config.safeRegex || {};
   const regexConfigBase = regexConfigRaw && typeof regexConfigRaw === 'object' ? { ...regexConfigRaw } : {};
@@ -326,7 +316,8 @@ export const normalizeRiskRules = (input = {}, { rootDir, regexConfig } = {}) =>
   }
   const safeRegexConfig = normalizeSafeRegexConfig(regexConfigBase);
   const includeDefaults = config.includeDefaults !== false;
-  const overrideBundle = resolveRulesFromPath(rootDir || process.cwd(), config.rulesPath);
+  const admittedInput = readRiskRuleInput(rootDir || process.cwd(), config.rulesPath, { signal });
+  const overrideBundle = admittedInput.bundle;
   const inlineRules = config.rules && typeof config.rules === 'object' ? config.rules : {};
   const base = includeDefaults ? DEFAULT_RULES : { sources: [], sinks: [], sanitizers: [] };
   const diagnostics = createDiagnostics();
@@ -353,61 +344,14 @@ export const normalizeRiskRules = (input = {}, { rootDir, regexConfig } = {}) =>
     diagnostics: {
       warnings: diagnostics.warnings
     },
+    inputReceipt: admittedInput.receipt,
+    producerVersion: SEMANTIC_ANALYSIS_VERSIONS.riskPropagation,
     provenance: {
       defaults: includeDefaults,
-      sourcePath: overrideBundle?.sourcePath || null
+      sourcePath: admittedInput.receipt.sourcePath
     }
   };
 
+  recordRiskRulesPolicyReceipt(bundle);
   return bundle;
-};
-
-const serializePattern = (pattern) => {
-  if (!pattern) return null;
-  if (typeof pattern === 'string') return pattern;
-  if (typeof pattern.source === 'string') return pattern.source;
-  return null;
-};
-
-const serializeRule = (rule) => ({
-  id: typeof rule?.id === 'string' ? rule.id : null,
-  type: typeof rule?.type === 'string' ? rule.type : null,
-  name: typeof rule?.name === 'string' ? rule.name : null,
-  category: typeof rule?.category === 'string' ? rule.category : null,
-  severity: typeof rule?.severity === 'string' ? rule.severity : null,
-  tags: Array.isArray(rule?.tags) ? rule.tags.filter(Boolean) : [],
-  confidence: Number.isFinite(rule?.confidence) ? rule.confidence : null,
-  languages: Array.isArray(rule?.languages) ? rule.languages.filter(Boolean) : null,
-  patterns: Array.isArray(rule?.patterns)
-    ? rule.patterns.map(serializePattern).filter(Boolean)
-    : [],
-  requires: rule?.requires ? serializePattern(rule.requires) : null
-});
-
-const fingerprintSerializedRiskRulesBundle = (serializedBundle) => {
-  if (!serializedBundle || typeof serializedBundle !== 'object') return null;
-  return `sha1:${sha1(stableStringifyForSignature(serializedBundle))}`;
-};
-
-export const buildRiskRulesBundleFingerprint = (bundle) => {
-  if (!bundle || typeof bundle !== 'object') return null;
-  const serialized = serializeRiskRulesBundle(bundle);
-  return serialized?.fingerprint || null;
-};
-
-export const serializeRiskRulesBundle = (bundle) => {
-  if (!bundle || typeof bundle !== 'object') return null;
-  const serialized = {
-    version: typeof bundle.version === 'string' ? bundle.version : '1.0.0',
-    sources: Array.isArray(bundle.sources) ? bundle.sources.map(serializeRule) : [],
-    sinks: Array.isArray(bundle.sinks) ? bundle.sinks.map(serializeRule) : [],
-    sanitizers: Array.isArray(bundle.sanitizers) ? bundle.sanitizers.map(serializeRule) : [],
-    regexConfig: bundle.regexConfig || null,
-    diagnostics: bundle.diagnostics || null,
-    provenance: bundle.provenance || null
-  };
-  return {
-    ...serialized,
-    fingerprint: fingerprintSerializedRiskRulesBundle(serialized)
-  };
 };

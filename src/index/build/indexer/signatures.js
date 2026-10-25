@@ -17,6 +17,7 @@ import { TREE_SITTER_CHUNK_VERSION } from '../../../lang/tree-sitter/config.js';
 import { MINHASH_HASH_IDENTITY } from '../../minhash.js';
 import { SEMANTIC_ANALYSIS_VERSIONS } from '../../semantic/analysis-versions.js';
 import { DOCX_STRUCTURAL_EXTRACTION_VERSION } from '../../extractors/common.js';
+import { getRiskRulesPolicyReceipt } from '../../risk-rule-receipt.js';
 
 export { ARTIFACT_SCHEMA_HASH };
 
@@ -130,6 +131,8 @@ export const buildIncrementalSignaturePayload = (runtime, mode, tokenizationKey)
       }
       : null,
     riskRules: indexingConfig.riskRules || null,
+    riskRegex: indexingConfig.riskRegex || null,
+    riskPolicyReceipt: getRiskRulesPolicyReceipt(runtime.riskConfig?.rules),
     riskCaps: indexingConfig.riskCaps || null,
     parsers: {
       javascript: languageOptions.javascript?.parser || null,
@@ -248,7 +251,8 @@ export const buildDependencySignatures = (runtime, mode, tokenizationKey) => {
   const lexical = { mode, tokenizationKey, literalAnalyzer: payload.literalAnalyzer, lexicon: payload.lexicon, profile: payload.profile };
   const enrichment = {
     features: payload.features, riskInterproceduralConfig: payload.riskInterproceduralConfig,
-    riskRules: payload.riskRules, riskCaps: payload.riskCaps, importScan: payload.importScan,
+    riskRules: payload.riskRules, riskRegex: payload.riskRegex, riskPolicyReceipt: payload.riskPolicyReceipt,
+    riskCaps: payload.riskCaps, importScan: payload.importScan,
     scm: payload.features.gitBlameEnabled ? payload.scm : payload.scm ? {provider: payload.scm.provider} : null
   };
   const { batchSize: _batchSize, ...embeddings } = payload.embeddings;

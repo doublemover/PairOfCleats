@@ -16,14 +16,14 @@ const normalizeCap = (value, fallback) => (
   normalizeCapNullOnZero(value, fallback)
 );
 
-export function normalizeRiskConfig(raw = {}, { rootDir } = {}) {
+export function normalizeRiskConfig(raw = {}, { rootDir, signal = null } = {}) {
   const input = raw && typeof raw === 'object' ? raw : {};
   const rulesInput = input.rules !== undefined ? input.rules : input;
   const regexConfig = input.regex || input.regexConfig || rulesInput?.regex || rulesInput?.safeRegex;
   const caps = input.caps && typeof input.caps === 'object' ? input.caps : {};
   return {
     enabled: input.enabled !== false,
-    rules: normalizeRiskRules(rulesInput, { rootDir, regexConfig }),
+    rules: normalizeRiskRules(rulesInput, { rootDir, regexConfig, signal }),
     caps: {
       maxBytes: normalizeCap(caps.maxBytes, DEFAULT_CAPS.maxBytes),
       maxLines: normalizeCap(caps.maxLines, DEFAULT_CAPS.maxLines),
