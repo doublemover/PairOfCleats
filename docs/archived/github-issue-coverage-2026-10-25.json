@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "3088ee1eb",
+  "sourceHead": "38214a128",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 349,
-    "partial": 153,
-    "pending": 226
+    "implemented": 359,
+    "partial": 150,
+    "pending": 219
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -300,6 +300,7 @@
       1069,
       1070,
       1072,
+      1073,
       1074,
       1075,
       1076,
@@ -391,6 +392,7 @@
       1298,
       1309,
       1310,
+      1315,
       1316,
       1318,
       1319,
@@ -452,6 +454,7 @@
       1393,
       1394,
       1396,
+      1397,
       1398,
       1399,
       1407,
@@ -532,6 +535,13 @@
       1595,
       1598,
       1599,
+      1610,
+      1611,
+      1635,
+      1636,
+      1637,
+      1684,
+      1688,
       1698,
       1716,
       1718,
@@ -560,7 +570,6 @@
       1054,
       1058,
       1059,
-      1073,
       1119,
       1120,
       1121,
@@ -652,7 +661,6 @@
       1312,
       1313,
       1314,
-      1315,
       1317,
       1320,
       1324,
@@ -669,7 +677,6 @@
       1391,
       1392,
       1395,
-      1397,
       1459,
       1469,
       1470,
@@ -821,8 +828,6 @@
       1607,
       1608,
       1609,
-      1610,
-      1611,
       1612,
       1613,
       1614,
@@ -840,9 +845,6 @@
       1632,
       1633,
       1634,
-      1635,
-      1636,
-      1637,
       1638,
       1639,
       1640,
@@ -886,9 +888,7 @@
       1681,
       1682,
       1683,
-      1684,
       1687,
-      1688,
       1689,
       1691,
       1692,
@@ -2012,8 +2012,11 @@
       "number": 1073,
       "title": "[P1] Build runtime can leak worker pools when final receipt refresh fails",
       "priority": "P1",
-      "status": "partial",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "8d46b2a43",
+      "validation": "deferred",
+      "implementationReview": "Existing initialization/terminal ownership implementation and regressions independently reviewed; no new execution claim."
     },
     {
       "number": 1074,
@@ -3706,8 +3709,11 @@
       "number": 1315,
       "title": "[P1] Serialize crash-log error writes with live appenders and preserve terminal error state",
       "priority": "P1",
-      "status": "partial",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "65e3d44d6",
+      "validation": "deferred",
+      "implementationReview": "Existing initialization/terminal ownership implementation and regressions independently reviewed; no new execution claim."
     },
     {
       "number": 1316,
@@ -4280,8 +4286,10 @@
       "number": 1397,
       "title": "[P1] Preserve pending subprocess cleanup before releasing the build cache-writer lock",
       "priority": "P1",
-      "status": "partial",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "4739ea325",
+      "validation": "deferred"
     },
     {
       "number": 1398,
@@ -5455,15 +5463,19 @@
       "number": 1610,
       "title": "[P2] Bind risk enrichment reuse to the effective loaded rule bundle and regex policy",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "a1fdd2abc",
+      "validation": "deferred"
     },
     {
       "number": 1611,
       "title": "[P2] Do not silently replace a requested risk-rule file with defaults or an empty policy",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "a1fdd2abc",
+      "validation": "deferred"
     },
     {
       "number": 1612,
@@ -5588,22 +5600,28 @@
       "number": 1635,
       "title": "[P2] Make explicit records exclusions terminal before content sniffing",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "38214a128",
+      "validation": "deferred"
     },
     {
       "number": 1636,
       "title": "[P2] Preserve records inventory failures instead of publishing them as empty or partial input",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "38214a128",
+      "validation": "deferred"
     },
     {
       "number": 1637,
       "title": "[P2] Keep records source ranges and literal evidence bound to original decoded text",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "38214a128",
+      "validation": "deferred"
     },
     {
       "number": 1638,
@@ -5910,8 +5928,10 @@
       "number": 1684,
       "title": "[P2] Decode retained WASM from the same bounded snapshot that source verification admits",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "8ddd0a321",
+      "validation": "deferred"
     },
     {
       "number": 1687,
@@ -5924,8 +5944,10 @@
       "number": 1688,
       "title": "[P2] Revoke ordered storage precision when fresh typed-array views escape through containers",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "b38c5a22a",
+      "validation": "deferred"
     },
     {
       "number": 1689,

@@ -19,6 +19,21 @@ requested boundaries are captured before awaits, without copying source line-sta
 inventories. Mutating a supplied header cannot replace its expected hashes mid-read.
 Binary sources keep their existing separate empty-text/hash semantics.
 
+Retained WASM producers now capture binary inputs through the same bounded
+descriptor owner. A dedicated binary adapter admits the pinned syntax manifest,
+checks binary/byte coordinates and empty text fields, and compares the complete
+manifest against `createWasmSourceSnapshot` of the returned verified bytes.
+The 64 KiB decoder allowance applies before source allocation. Host byte recovery
+and deferred tasks decode/project that captured buffer after native closure;
+neither reopens the pathname after a separate verification pass. Existing
+generation leases, task-authority verification and final unchanged-syntax checks
+retain their separate owners. WASM producer identity advances to version 6.
+
+Authored coverage uses real retained partitions, short reads, same-size edits,
+growth/truncation, bounded allocation/read counters, cancellation, original
+read/close failures and close-only recovery, plus deferred execution handoff.
+It creates no symlinks and instantiates no WASM. Execution remains deferred.
+
 Ordinary descriptor size/hash/change/containment failures retain semantic-integrity
 classification, independently of response/decoded-source output limits. Error
 remapping first captures and confirms the original storage observation, safely reads

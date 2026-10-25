@@ -102,6 +102,56 @@ The following priority implementations are also authored with execution deferred
   worker/inline agreement, global concurrency and pending close. Execution is
   deferred. Source: `3088ee1eb`.
 
+- **#1684:** retained WASM uses one bounded, descriptor-verified binary snapshot
+  tied to the pinned syntax manifest. Host recovery and deferred execution consume
+  those exact bytes after original native closure. The adapter preserves byte
+  coordinates/empty text semantics, task authority and final syntax checks. WASM
+  producer advances **5 → 6**. Authored real-partition tests cover short reads,
+  corruption/growth/truncation, byte admission, cancellation, close-only recovery
+  and deferred handoff; no module instantiation. Source: `8ddd0a321`.
+- **#1688:** named aliases and fresh typed view results share a bounded use
+  classifier. Unsupported container insertion ends the canonical backing-root
+  frontier and publishes incomplete alias/effect coverage. Earlier snapshots and
+  independent slice sources retain their own histories. CFG producer advances
+  **30 → 31**. Combined artifact/SQLite trace and owner/checker scaling regressions
+  are extended. Source: `b38c5a22a`.
+- **#1610/#1611:** an explicitly requested risk-rule input must complete bounded
+  exact-byte acquisition and validation; missing, denied, malformed, oversized,
+  canceled and unsettled inputs fail without policy fallback. The same admitted
+  bundle is compiled/projected to workers, with original errors retained. Effective
+  policy receipts bind file SHA-256, defaults/inline rules, regex policy and producer
+  identity to enrichment/full reuse while preserving parse/lexical identities for
+  policy-only changes. Risk producer advances **6 → 7**. Pure receipt/serialization
+  ownership keeps signature consumers independent of file/regex acquisition.
+  Authored tests cover actual local findings, worker parity, strict failures,
+  descriptor recovery and the per-file reuse boundary. Source: `a1fdd2abc`.
+- **#1397:** scheduler failure inspection preserves the original resource
+  observation. Frozen errors and fallible diagnostic/termination fields cannot
+  become an ownership-free TypeError or normal degradation. Both diagnostic
+  buffers are flushed independently; secondary flush failures retain the primary
+  pending child. Task retries are explicitly zero. The actual scheduler/writer
+  release regression asserts exact child scope, unknown cleanup refusal, delayed
+  original closure and confirmed-cleanup degradation. No native child is launched
+  by that fixture; Windows live-child qualification remains deferred. Source:
+  `4739ea325`. Existing structured teardown receipt checks remain in place.
+- **#1635/#1636/#1637:** records path exclusions are terminal before optional
+  content sniffing; prose/code and explicit triage-root routing stay independent.
+  The builder reuses bounded deterministic discovery, obtains a terminal inventory
+  receipt before publication/pruning and propagates root/subtree/source errors.
+  Missing optional roots remain distinct from successful empty scans. Original
+  decoded text owns ranges, UID input and literal tokens; scoring normalization
+  and summary/source embedding representations are explicit. Records producer
+  advances **7 → 8**, discovery selection **2 → 3**, and cached preprocessing
+  routing is version-qualified. New regressions cover actual preprocessing and
+  producer handoff, prior-manifest preservation, cold/warm/fresh products, Unicode,
+  case/CRLF/astral extents and old receipt rejection. Source: `38214a128`.
+
+Implementation reconciliation also reviewed the existing reverse initialization
+unwind and actual final-receipt failure fixture for **#1073** (`8d46b2a43`),
+and terminal append/immutable error precedence plus multi-process regression for
+**#1315** (`65e3d44d6`). Their coverage moves from partial to implemented; this
+credits existing source, not new repairs or newly executed tests.
+
 New/extended regressions cover the numeric, continuation, capacity, backup,
 startup and per-ingestion invariants. They have not been executed in this wave;
 no latency/memory speedup or acceptance count is inferred from these source changes.
@@ -120,3 +170,9 @@ native lifecycle cases when execution resumes. Preserve the original failure
 receipts and distinguish mixed-source passing observations from acceptance of
 the final candidate. Update PR #572 with source batches and exact validation
 status; no all-issues or whole-suite closure is claimed here.
+
+Static closeout through source `38214a128`: formatting, config budget, environment
+usage, script-inventory/shared-module freshness passed. The first command-surface
+audit rejected the inherited missing trusted-config selector; its isolated-child
+recheck passed after removing that stale selector without granting trust. Functional execution
+and the complete front gate remain deferred; this is not final-tree acceptance.
