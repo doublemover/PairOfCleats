@@ -71,19 +71,24 @@ try {
     try {
       session.call(1, 'number'); await session.clock.settle();
       session.cancel('1'); session.cancel(true); session.cancel({ value: 1 });
+      await session.clock.settle();
       assert.equal(session.gates.get('number').signal.aborted, false, 'unknown string/invalid cancellation must not target numeric identity');
       session.call('1', 'string', 'fixture-slow'); await session.clock.settle();
       assert.deepEqual(session.started.map(entry => entry.id), [1, '1']);
       session.call(1, 'duplicate-number'); session.call('1', 'duplicate-string');
+      await session.clock.settle();
       const duplicates = session.messages().filter(message => message.error?.data?.reason === 'duplicate-request-id');
       assert.deepEqual(duplicates.map(message => message.id), [1, '1']);
       assert.deepEqual(duplicates.map(message => message.error.data.requestId), [1, '1']);
       session.cancel(1);
+      await session.clock.settle();
       assert.equal(session.gates.get('number').signal.aborted, true);
       assert.equal(session.gates.get('string').signal.aborted, false);
       session.call(2, 'overloaded');
+      await session.clock.settle();
       assert.equal(session.messages().at(-1).error.data.code, 'QUEUE_OVERLOADED', 'cancellation retains started capacity until real settlement');
       session.call(1, 'still-duplicate');
+      await session.clock.settle();
       assert.equal(session.messages().at(-1).error.data.reason, 'duplicate-request-id');
       session.gates.get('number').release(); await session.clock.settle();
       assert.equal(results(session).find(message => message.id === 1).result.isError, true);
@@ -119,6 +124,7 @@ try {
       assert.equal(JSON.parse(results(session).find(message => message.id === 0).result.content[0].text).code, 'TOOL_TIMEOUT');
       assert.equal(session.gates.get('healthy-zero').signal.aborted, false);
       session.call(0, 'timeout-duplicate');
+      await session.clock.settle();
       assert.equal(session.messages().at(-1).error.data.reason, 'duplicate-request-id');
       session.gates.get('timeout-zero').release(); await session.clock.settle();
       session.call(0, 'after-timeout'); await session.clock.settle();

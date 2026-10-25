@@ -1,12 +1,12 @@
 import { createFramedJsonRpcParser } from '../../src/shared/jsonrpc.js';
 import {
   buildInitializeResult,
-  closeOutput,
   formatToolError,
-  sendError,
-  sendNotification,
-  sendResult
+  sendError as protocolSendError,
+  sendNotification as protocolSendNotification,
+  sendResult as protocolSendResult
 } from '../../src/integrations/mcp/protocol.js';
+import { createMcpOutput } from '../../src/integrations/mcp/output.js';
 import { ERROR_CODES } from '../../src/shared/error-codes.js';
 import { attachObservability, normalizeObservability } from '../../src/shared/observability.js';
 import { logError } from '../../src/shared/progress-runtime.js';
@@ -31,11 +31,32 @@ export const createMcpTransport = ({
   queueMax,
   maxBufferBytes,
   capabilities,
-  capabilityManifest
+  capabilityManifest,
+  input = process.stdin,
+  outputStream = process.stdout,
+  exit = code => process.exit(code),
+  outputLimits
 }) => {
   const inFlight = new Map();
   const activeTasks = new Set();
-  let closing = false, closePromise = null;
+  let closing = false, stopped = false, stopPromise = null, closePromise = null, parser = null;
+  const output = createMcpOutput({ ...outputLimits, stream: outputStream, onFailure: onOutputFailure });
+  const sendTerminal = async (id, write) => {
+    try { return await write(); }
+    catch (error) {
+      if (error?.code !== 'ERR_JSONRPC_MESSAGE_LIMIT') throw error;
+      // Preserve the ID and strict error envelope; replace an oversized result
+      // once, without recursively adding overload errors to a failed channel.
+      try {
+        await protocolSendError(id, -32603, 'Response exceeds output allowance.', output,
+          { code: ERROR_CODES.INTERNAL, reason: 'output-limit' });
+      } catch (fallbackError) { output.abort(fallbackError); throw fallbackError; }
+    }
+  };
+  const sendResult = (id, result) => sendTerminal(id, () => protocolSendResult(id, result, output));
+  const sendError = (id, code, message, _output, data) => sendTerminal(id,
+    () => protocolSendError(id, code, message, output, data));
+  const sendNotification = (method, params) => protocolSendNotification(method, params, output);
   const pendingById = new Map();
   const laneQueues = {
     fast: [],
@@ -59,6 +80,7 @@ export const createMcpTransport = ({
   );
 
   const sendProgress = (id, tool, payload, observability = null) => {
+    if (closing) return;
     if (id === null || id === undefined) return;
     const message = payload?.message ? String(payload.message) : '';
     if (!message) return;
@@ -68,7 +90,7 @@ export const createMcpTransport = ({
     const emit = (nextPayload) => {
       const nextMessage = nextPayload?.message ? String(nextPayload.message) : '';
       if (!nextMessage) return;
-      sendNotification('notifications/progress', {
+      Promise.resolve(sendNotification('notifications/progress', {
         id,
         tool,
         message: nextMessage,
@@ -76,7 +98,7 @@ export const createMcpTransport = ({
         phase: nextPayload?.phase || 'progress',
         ts: new Date().toISOString(),
         observability: nextPayload?.observability || observability || null
-      });
+      })).catch(onOutputFailure);
       state.lastSent = Date.now();
       state.pending = null;
     };
@@ -107,17 +129,19 @@ export const createMcpTransport = ({
 
   const sendCancelledResponse = (id) => {
     const payload = formatToolError({ code: ERROR_CODES.CANCELLED, message: 'Request cancelled.' });
-    sendResult(id, {
+    return sendResult(id, {
       content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
       isError: true
     });
   };
 
-  const totalQueued = () => laneQueues.fast.length + laneQueues.slow.length;
+  const totalQueued = () => pendingById.size;
   const totalActive = () => laneActive.fast + laneActive.slow;
-  const laneOccupancy = (lane) => (
-    (laneQueues[lane]?.length || 0) + (laneActive[lane] || 0)
-  );
+  const laneOccupancy = lane => {
+    let count = laneActive[lane] || 0;
+    for (const task of pendingById.values()) if (task.lane === lane) count++;
+    return count;
+  };
   const reservedFastCapacity = Number.isFinite(queueMax) && queueMax > 1 ? 1 : 0;
   const slowLaneAdmissionLimit = Number.isFinite(queueMax) && queueMax > 0
     ? Math.max(1, queueMax - reservedFastCapacity)
@@ -152,7 +176,6 @@ export const createMcpTransport = ({
   const removePendingTask = (idKey) => {
     if (!pendingById.has(idKey)) return null;
     const task = pendingById.get(idKey);
-    pendingById.delete(idKey);
     const queue = laneQueues[task?.lane] || [];
     const index = queue.findIndex((entry) => entry.idKey === idKey);
     if (index >= 0) {
@@ -170,10 +193,10 @@ export const createMcpTransport = ({
     return null;
   };
 
-  const rejectDuplicateRequestId = (id, idKey) => {
+  const rejectDuplicateRequestId = async (id, idKey) => {
     const state = resolveActiveRequestState(idKey);
     if (!state) return false;
-    sendError(id, -32600, 'Duplicate request id while prior request is still pending or running.', undefined, {
+    await sendError(id, -32600, 'Duplicate request id while prior request is still pending or running.', undefined, {
       code: ERROR_CODES.INVALID_REQUEST,
       reason: 'duplicate-request-id',
       requestId: id,
@@ -182,7 +205,15 @@ export const createMcpTransport = ({
     return true;
   };
 
-  const applyCancellation = (params) => {
+  const cancelPendingTask = task => {
+    if (task.response) return task.response;
+    removePendingTask(task.idKey);
+    clearProgressState(task.idKey);
+    task.response = sendCancelledResponse(task.id).finally(() => pendingById.delete(task.idKey));
+    return task.response;
+  };
+
+  const applyCancellation = async (params) => {
     const cancelKey = requestIdKey(params?.id);
     if (cancelKey === null) return false;
     const entry = inFlight.get(cancelKey);
@@ -193,8 +224,7 @@ export const createMcpTransport = ({
     }
     const pendingTask = removePendingTask(cancelKey);
     if (pendingTask) {
-      clearProgressState(cancelKey);
-      sendCancelledResponse(pendingTask.id);
+      await cancelPendingTask(pendingTask);
       return true;
     }
     return false;
@@ -209,7 +239,6 @@ export const createMcpTransport = ({
       args,
       timeoutMs
     } = task;
-    if (rejectDuplicateRequestId(id, idKey)) return;
     const controller = new AbortController();
     const requestObservability = normalizeObservability({
       correlationId: task.meta?.correlationId || null,
@@ -228,8 +257,9 @@ export const createMcpTransport = ({
     inFlight.set(idKey, entry);
     let timedOut = false;
     let execution = null;
+    let responding = false;
     const progress = (payload) => {
-      if (timedOut) return;
+      if (timedOut || controller.signal.aborted) return;
       sendProgress(id, name, payload, requestObservability);
     };
     try {
@@ -252,29 +282,34 @@ export const createMcpTransport = ({
         }
       );
       if (entry.cancelled) {
-        sendCancelledResponse(id);
+        responding = true;
+        await sendCancelledResponse(id);
         return;
       }
-      sendResult(id, {
+      const response = {
         content: [{ type: 'text', text: JSON.stringify(attachToolResultObservability(result, requestObservability), null, 2) }]
-      });
+      };
+      responding = true;
+      await sendResult(id, response);
     } catch (error) {
+      if (responding) throw error;
+      responding = true;
       const activeEntry = inFlight.get(idKey);
       if (activeEntry?.cancelled && error?.code !== ERROR_CODES.TOOL_TIMEOUT) {
-        sendCancelledResponse(id);
+        await sendCancelledResponse(id);
         return;
       }
       const payload = formatToolError(error);
       if (error?.code === 'TOOL_TIMEOUT' && timeoutMs) {
         payload.timeoutMs = timeoutMs;
       }
-      sendResult(id, {
+      await sendResult(id, {
         content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
         isError: true
       });
     } finally {
       // The timeout response is prompt, but capacity and request identity stay
-      // owned until the aborted operation and its children actually settle.
+      // owned until delivery and the aborted operation/children actually settle.
       await execution?.catch(() => {});
       inFlight.delete(idKey);
       clearProgressState(idKey);
@@ -299,6 +334,7 @@ export const createMcpTransport = ({
       const executionTask = processTask(task)
         .catch((error) => {
           logError('[mcp] queue error', { error: error?.message || String(error), lane });
+          onOutputFailure(error);
         })
         .finally(() => {
           laneActive[lane] = Math.max(0, laneActive[lane] - 1);
@@ -309,21 +345,56 @@ export const createMcpTransport = ({
     }
   };
 
-  const close = () => {
-    if (closePromise) return closePromise;
+  const stopExecution = () => {
+    if (stopPromise) return stopPromise;
     closing = true;
-    for (const [idKey, task] of pendingById) {
-      removePendingTask(idKey);
-      clearProgressState(idKey);
-      sendCancelledResponse(task.id);
-    }
+    output.beginClose();
+    for (const idKey of progressState.keys()) clearProgressState(idKey);
     for (const entry of inFlight.values()) {
       entry.cancelled = true;
       entry.controller.abort();
     }
-    closePromise = Promise.allSettled(Array.from(activeTasks)).then(() => {});
+    stopPromise = Promise.resolve().then(async () => {
+      // One cancellation producer joins the two lane producers and the single
+      // control producer, matching the four reserved terminal slots.
+      for (const task of pendingById.values()) {
+        try { await cancelPendingTask(task); }
+        catch (error) { onOutputFailure(error); }
+      }
+      await Promise.allSettled(Array.from(activeTasks));
+    });
+    return stopPromise;
+  };
+
+  const detachInput = () => {
+    input.pause();
+    input.off('data', onData); input.off('end', onEnd); input.off('error', onInputError);
+    parser?.dispose();
+  };
+  const close = () => {
+    if (closePromise) return closePromise;
+    stopped = true; detachInput();
+    closePromise = stopExecution().then(() => output.finish());
     return closePromise;
   };
+  let exitPromise = null, requestedExitCode = 0;
+  function terminate(code) {
+    requestedExitCode = Math.max(requestedExitCode, code);
+    if (!exitPromise) exitPromise = close().then(receipt => {
+      if (receipt.status !== 'drained') {
+        requestedExitCode = 1;
+        logError('[mcp] output delivery failed', { output: receipt });
+      }
+      exit(requestedExitCode);
+      return receipt;
+    });
+    return exitPromise;
+  }
+  function onOutputFailure(error) {
+    if (stopped) return;
+    logError('[mcp] output error', { error: error?.code || 'ERR_MCP_OUTPUT' });
+    void terminate(1);
+  }
 
   /**
    * Handle a JSON-RPC message from stdin.
@@ -334,13 +405,13 @@ export const createMcpTransport = ({
     if (!message || message.jsonrpc !== '2.0') return;
     const { id, method, params } = message;
     if (Object.hasOwn(message, 'id') && requestIdKey(id) === null) {
-      sendError(null, -32600, 'Request id must be a string or safe integer.', undefined,
+      await sendError(null, -32600, 'Request id must be a string or safe integer.', undefined,
         { code: ERROR_CODES.INVALID_REQUEST, reason: 'invalid-request-id' });
       return;
     }
 
     if (method === 'initialize') {
-      sendResult(id, buildInitializeResult({
+      await sendResult(id, buildInitializeResult({
         serverInfo,
         schemaVersion,
         toolVersion,
@@ -351,44 +422,45 @@ export const createMcpTransport = ({
     }
 
     if (method === 'shutdown') {
-      await close();
-      sendResult(id, {});
+      await stopExecution();
+      await sendResult(id, {});
       return;
     }
 
     if (method === 'exit') {
-      await close();
-      closeOutput();
-      process.exit(0);
+      await terminate(0);
+      return;
     }
 
     if (method === 'tools/list') {
-      sendResult(id, { tools: toolDefs });
+      await sendResult(id, { tools: toolDefs });
       return;
     }
 
     if (method === 'resources/list') {
-      sendResult(id, { resources: [] });
+      await sendResult(id, { resources: [] });
       return;
     }
 
     if (method === '$/cancelRequest') {
-      applyCancellation(params);
+      await applyCancellation(params);
       return;
     }
 
     if (method === 'tools/call') {
       if (id === null || id === undefined) return;
-      if (closing) { sendCancelledResponse(id); return; }
+      if (closing) { await sendCancelledResponse(id); return; }
       const idKey = requestIdKey(id);
-      if (rejectDuplicateRequestId(id, idKey)) return;
+      if (await rejectDuplicateRequestId(id, idKey)) return;
+      // Close may have begun while a duplicate-response delivery was pending.
+      if (closing) { await sendCancelledResponse(id); return; }
       const name = params?.name;
       const args = params?.arguments || {};
       const timeoutMs = resolveToolTimeoutMs(name, args);
       const lane = classifyToolLane(name, timeoutMs);
       const overloadDecision = resolveOverloadDecision(lane);
       if (overloadDecision.overloaded) {
-        sendError(id, -32001, 'Server overloaded.', undefined, {
+        await sendError(id, -32001, 'Server overloaded.', undefined, {
           code: ERROR_CODES.QUEUE_OVERLOADED,
           lane,
           reason: overloadDecision.reason
@@ -411,35 +483,42 @@ export const createMcpTransport = ({
     }
 
     if (id !== null && id !== undefined) {
-      sendError(id, -32601, `Method not found: ${method}`, undefined, { code: ERROR_CODES.NOT_FOUND });
+      await sendError(id, -32601, `Method not found: ${method}`, undefined, { code: ERROR_CODES.NOT_FOUND });
     }
   }
 
   function enqueueMessage(message) {
-    void handleMessage(message).catch((error) => {
-      logError('[mcp] queue error', { error: error?.message || String(error) });
+    if (stopped) return false;
+    input.pause();
+    // Serialize admission, not execution. At most one control response can
+    // wait for stdout, and coalesced input remains in the bounded parser.
+    void handleMessage(message).catch(onOutputFailure).finally(() => {
+      if (!stopped && parser.resume()) input.resume();
     });
+    return false;
   }
 
+  function onData(chunk) { parser.push(chunk); }
+  function onEnd() { void terminate(0); }
+  function onInputError(err) {
+    logError('[mcp] stream error', { error: err?.message || String(err) });
+    void terminate(1);
+  }
   const start = () => {
-    const parser = createFramedJsonRpcParser({
+    if (parser || stopped) throw new Error('MCP transport can only start once.');
+    parser = createFramedJsonRpcParser({
       onMessage: enqueueMessage,
       onError: (err) => {
         logError('[mcp] stream error', { error: err?.message || String(err) });
-        void close().finally(() => { closeOutput(); process.exit(1); });
+        void terminate(1);
       },
       maxBufferBytes
     });
-    process.stdin.on('data', (chunk) => parser.push(chunk));
-    process.stdin.on('end', () => {
-      void close().finally(() => { closeOutput(); process.exit(0); });
-    });
-    process.stdin.on('error', (err) => {
-      logError('[mcp] stream error', { error: err?.message || String(err) });
-      void close().finally(() => { closeOutput(); process.exit(1); });
-    });
+    input.on('data', onData); input.on('end', onEnd); input.on('error', onInputError);
     return parser;
   };
 
-  return { start, close };
+  return { start, close, getState: () => ({ closing, stopped, activeTasks: activeTasks.size,
+    pendingRequests: pendingById.size, inFlightRequests: inFlight.size,
+    input: parser?.getState() || null, output: output.getState() }) };
 };

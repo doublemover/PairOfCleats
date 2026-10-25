@@ -2,6 +2,7 @@ import { projectIndexFormatError } from '../../shared/index-format-error.js';
 import { buildErrorPayload, ERROR_CODES, isErrorCode, resolveErrorHint } from '../../shared/error-codes.js';
 import { closeJsonRpcWriter, writeFramedJsonRpc } from '../../shared/jsonrpc.js';
 import { projectMcpDomainError } from './domain-error.js';
+import { isMcpOutput } from './output.js';
 
 export const MCP_PROTOCOL_VERSION = '2024-11-05';
 
@@ -11,7 +12,7 @@ export const MCP_PROTOCOL_VERSION = '2024-11-05';
  * @param {NodeJS.WritableStream} [output]
  */
 export function sendMessage(payload, output = process.stdout) {
-  const pending = writeFramedJsonRpc(output, payload);
+  const pending = isMcpOutput(output) ? output.write(payload) : writeFramedJsonRpc(output, payload);
   if (pending && typeof pending.catch === 'function') {
     pending.catch(() => {});
   }
@@ -25,7 +26,7 @@ export function sendMessage(payload, output = process.stdout) {
  * @param {NodeJS.WritableStream} [output]
  */
 export function sendNotification(method, params, output = process.stdout) {
-  sendMessage({ jsonrpc: '2.0', method, params }, output);
+  return sendMessage({ jsonrpc: '2.0', method, params }, output);
 }
 
 /**
@@ -35,7 +36,7 @@ export function sendNotification(method, params, output = process.stdout) {
  * @param {NodeJS.WritableStream} [output]
  */
 export function sendResult(id, result, output = process.stdout) {
-  sendMessage({ jsonrpc: '2.0', id, result }, output);
+  return sendMessage({ jsonrpc: '2.0', id, result }, output);
 }
 
 /**
@@ -48,7 +49,7 @@ export function sendResult(id, result, output = process.stdout) {
 export function sendError(id, code, message, output = process.stdout, data) {
   const error = { code, message };
   if (data !== undefined) error.data = data;
-  sendMessage({ jsonrpc: '2.0', id, error }, output);
+  return sendMessage({ jsonrpc: '2.0', id, error }, output);
 }
 
 /**
@@ -56,6 +57,7 @@ export function sendError(id, code, message, output = process.stdout, data) {
  * @param {NodeJS.WritableStream} [output]
  */
 export function closeOutput(output = process.stdout) {
+  if (isMcpOutput(output)) return output.finish();
   closeJsonRpcWriter(output);
 }
 

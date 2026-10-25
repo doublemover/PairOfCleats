@@ -73,8 +73,10 @@ try {
   assert.equal(JSON.parse(messages.find(message => message.id === 1).result.content[0].text).code, 'TOOL_TIMEOUT');
   assert.deepEqual(events, ['start:1', 'abort:1'], 'timeout response must not release capacity before teardown');
   call(1, 3);
+  await waitFor(() => messages.at(-1)?.error?.code === -32600);
   assert.equal(messages.at(-1).error.code, -32600, 'timed-out request retains identity until settlement');
   call(3, 3);
+  await waitFor(() => messages.at(-1)?.error?.code === -32001);
   assert.equal(messages.at(-1).error.code, -32001, 'settling work remains in admission occupancy');
   release();
   await waitFor(() => messages.some(message => message.id === 2));
@@ -90,9 +92,11 @@ try {
   assert.equal(messages.some(message => message.id === 6), false, 'shutdown must await active teardown');
   assert.equal(JSON.parse(messages.find(message => message.id === 5).result.content[0].text).code, 'CANCELLED');
   call(7, 2);
-  assert.equal(JSON.parse(messages.find(message => message.id === 7).result.content[0].text).code, 'CANCELLED');
+  assert.equal(messages.some(message => message.id === 7), false, 'serialized admission retains late calls behind shutdown');
   release();
   await waitFor(() => messages.some(message => message.id === 6));
+  await waitFor(() => messages.some(message => message.id === 7));
+  assert.equal(JSON.parse(messages.find(message => message.id === 7).result.content[0].text).code, 'CANCELLED');
   assert.equal(active, 0);
   assert.equal(peak, 1);
   assert.ok(children.every(child => child.exitCode !== null || child.signalCode !== null), 'shutdown drains actual owned children');

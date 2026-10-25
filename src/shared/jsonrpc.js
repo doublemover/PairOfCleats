@@ -2,6 +2,22 @@ import { WriteableStreamMessageWriter } from 'vscode-jsonrpc/node';
 
 const writerCache = new WeakMap();
 const writeEvidence = new WeakMap();
+const preparedMessages = new WeakMap();
+
+/** Capture wire JSON once before bounded queue admission. The opaque token
+ * exposes extent only; the writer consumes its private bytes exactly once. */
+export const prepareJsonRpcMessage = (payload, { maxBytes = Infinity } = {}) => {
+  if (maxBytes !== Infinity && (!Number.isSafeInteger(maxBytes) || maxBytes < 1)) throw new TypeError('Invalid JSON-RPC message allowance.');
+  const json = JSON.stringify(payload);
+  if (typeof json !== 'string') throw new TypeError('JSON-RPC payload is not serializable.');
+  const byteLength = Buffer.byteLength(json, 'utf8');
+  if (byteLength > maxBytes) throw Object.assign(new Error('JSON-RPC response exceeds its output allowance.'), {
+    code: 'ERR_JSONRPC_MESSAGE_LIMIT', bytes: byteLength, limit: maxBytes
+  });
+  const token = Object.freeze({ byteLength });
+  preparedMessages.set(token, { bytes: Buffer.from(json, 'utf8'), claimed: false });
+  return token;
+};
 
 /** Original per-write observation only; it does not attest native disposal. */
 export const getJsonRpcWriteEvidence = promise => {
@@ -51,7 +67,13 @@ const getWriterState = (outputStream) => {
       else outputStream.write(data, callback);
     }),
     end: () => outputStream.end()
-  });
+  }, { contentTypeEncoder: { encode: payload => Promise.resolve().then(() => {
+    const prepared = preparedMessages.get(payload);
+    if (!prepared) return Buffer.from(JSON.stringify(payload), 'utf8');
+    if (!prepared.bytes) throw new Error('Prepared JSON-RPC bytes are no longer available.');
+    const bytes = prepared.bytes; prepared.bytes = null;
+    return bytes;
+  }) } });
   state = { writer, closed: false, pending: 0, disposed: false, framingFailed: false, activeWrite: null, queue: Promise.resolve() };
   state.release = () => {
     if (!state.closed || state.pending || state.disposed) return;
@@ -87,6 +109,9 @@ export function getJsonRpcWriter(outputStream) {
   const state = getWriterState(outputStream);
   const write = (payload) => {
     if (state.closed) return Promise.reject(new Error('JSON-RPC stream closed.'));
+    const prepared = preparedMessages.get(payload);
+    if (prepared?.claimed) return Promise.reject(Object.assign(new Error('Prepared JSON-RPC frame already consumed.'), { code: 'ERR_JSONRPC_FRAME_CONSUMED' }));
+    if (prepared) prepared.claimed = true;
     state.pending += 1;
     const observation = { state, frameStarted: false, settled: false };
     const run = async () => {
@@ -106,6 +131,7 @@ export function getJsonRpcWriter(outputStream) {
       throw err;
     }).finally(() => {
       observation.settled = true;
+      if (prepared) prepared.bytes = null;
       state.pending -= 1;
       state.release();
     });
@@ -142,8 +168,10 @@ export function writeFramedJsonRpc(outputStream, payload) {
 
 /**
  * Create a framed JSON-RPC parser for Content-Length-delimited payloads.
- * @param {{onMessage?:(msg:object)=>void,onError?:(err:Error)=>void,maxBufferBytes?:number,maxHeaderBytes?:number,maxMessageBytes?:number}} input
- * @returns {{push:(chunk:Buffer|string)=>void,dispose:()=>void}}
+ * A strict false from onMessage pauses admission until resume; existing void
+ * consumers retain synchronous parsing. Retained input still obeys its cap.
+ * @param {{onMessage?:(msg:object)=>void|boolean,onError?:(err:Error)=>void,maxBufferBytes?:number,maxHeaderBytes?:number,maxMessageBytes?:number}} input
+ * @returns {{push:(chunk:Buffer|string)=>void,dispose:()=>void,resume:()=>boolean,getState:()=>object}}
  */
 export function createFramedJsonRpcParser({
   onMessage,
@@ -169,6 +197,7 @@ export function createFramedJsonRpcParser({
   let bufferHead = 0;
   let bufferLength = 0;
   let closed = false;
+  let paused = false;
   let scanBuffer = 0;
   let scanOffset = 0;
   let scannedHeaderBytes = 0;
@@ -190,6 +219,7 @@ export function createFramedJsonRpcParser({
   const fail = (message) => {
     if (closed) return;
     closed = true;
+    paused = false;
     clearBuffers();
     handleError(new Error(message));
   };
@@ -293,7 +323,7 @@ export function createFramedJsonRpcParser({
     return contentLength;
   };
   const parseBuffer = () => {
-    while (!closed) {
+    while (!closed && !paused) {
       if (!pendingFrame) {
         const headerEnd = findHeaderEnd();
         if (headerEnd === -1) return;
@@ -322,7 +352,7 @@ export function createFramedJsonRpcParser({
       resetHeaderScan();
       try {
         const message = JSON.parse(payloadBuffer.toString('utf8'));
-        handleMessage(message);
+        if (handleMessage(message) === false && !closed) paused = true;
       } catch (err) {
         fail(`JSON-RPC payload parse error: ${err?.message || err}`);
         return;
@@ -344,7 +374,17 @@ export function createFramedJsonRpcParser({
     },
     dispose() {
       closed = true;
+      paused = false;
       clearBuffers();
+    },
+    resume() {
+      if (closed) return false;
+      paused = false;
+      parseBuffer();
+      return !closed && !paused;
+    },
+    getState() {
+      return { closed, paused, bufferedBytes: bufferLength };
     }
   };
 }

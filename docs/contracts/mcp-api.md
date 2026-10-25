@@ -108,7 +108,7 @@ Response:
 - Legacy request IDs preserve their JSON type across admission, queued/active
   cancellation, progress and settlement. Numeric `1` and string `"1"` (likewise
   `0`/`"0"`) are independent identities; exact same-type duplicates remain
-  rejected until the original started work settles. Responses retain the original
+  rejected until the original work and response delivery settle. Responses retain the original
   wire ID. The admitted ID domain matches the installed SDK: strings, including
   the empty string, and safe integers. Invalid request IDs reject; invalid or
   unknown cancellation targets cannot affect a different request.
@@ -120,6 +120,9 @@ Response:
   before its next checkpoint. Aborted transactions roll back and prior output
   remains authoritative. A completed atomic publication is not undone.
 - Tool errors return `isError: true` with a JSON payload in `content`.
+
+Legacy output admission, progress loss policy and execution/delivery/stream-close
+ownership are specified in [legacy output lifetime](mcp-output-lifetime.md).
 
 **Cutover policy:** legacy transport remains supported until SDK parity tests are green; there must be no silent fallback from `sdk` to `legacy` when SDK mode is explicitly requested.
 
