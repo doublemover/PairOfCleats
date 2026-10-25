@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "f3dbdaae0",
+  "sourceHead": "bdb040aba",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 380,
+    "implemented": 381,
     "partial": 150,
-    "pending": 198
+    "pending": 197
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -558,6 +558,7 @@
       1616,
       1617,
       1619,
+      1620,
       1635,
       1636,
       1637,
@@ -836,7 +837,6 @@
       1607,
       1615,
       1618,
-      1620,
       1622,
       1623,
       1624,
@@ -4898,7 +4898,7 @@
     },
     {
       "number": 1530,
-      "title": "Qualify adaptive retrieval and evidence policies with independent risk\u2013coverage receipts",
+      "title": "Qualify adaptive retrieval and evidence policies with independent risk–coverage receipts",
       "priority": "other",
       "status": "pending",
       "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
@@ -5582,8 +5582,10 @@
       "number": 1620,
       "title": "[P2] Bound and settle legacy MCP outbound responses under stdout backpressure",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "bdb040aba",
+      "validation": "deferred"
     },
     {
       "number": 1622,

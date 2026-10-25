@@ -593,3 +593,38 @@ A complete live GitHub metadata refresh at `173198cf9` matched all **763** open
 IDs, with no additions or closures. It corrected the `[Performance]` classification
 of #1394 and normalized #1530's Unicode title from GitHub. Current intake is P1
 31, P2 336, P3 46, Perf 116 and other 234; implementation status is unchanged.
+
+
+## Legacy MCP outbound ownership
+
+**#1620** (`bdb040aba`) gives the legacy connection a bounded outbound owner.
+Protocol helpers return delivery promises. A single control admission owner pauses
+stdin and bounded parser consumption while its response waits; fast/slow tool
+execution remains concurrent. The four reliable response reservations cover two
+lanes, one control and serial shutdown cancellation. Tool capacity and typed IDs
+join response settlement and actual handler/native teardown. Queued cancellation
+retains its identity and reuses one response during concurrent close.
+
+Frames capture UTF-8 once and retain exact Content-Length framing. Terminal bodies
+are capped at 32 MiB, with one bounded INTERNAL/output-limit replacement preserving
+the ID. Only progress is lossy: two latest pending typed keys, 64 KiB each, plus a
+started physical frame. Reliable replies take priority. Internal counters include
+retained/peak encoded wire bytes and distinguish delivered, known-unsent,
+unconfirmed and rejected terminals; these are not RSS or latency measurements.
+
+A five-second write deadline also covers pre-EOF stalls; a two-second active-flush
+deadline bounds output drain. Shutdown stops admission and aborts all active work
+before serial cancellation/join. EOF/exit await output receipt and choose failure
+status for failed delivery. Physical callback/framing ownership survives an
+unconfirmed timeout, independently of writer retirement and actual stream closure.
+Neither output failure nor timeout frees still-running native work. A settlement
+ordering repair releases the actual output reservation before waking its producer.
+
+Three new discoverable fixtures cover parser pause/caps, independent exact wire
+vectors/typed IDs, progress coalescing, terminal/byte headroom, a finite mixed
+control/tool flood, oversized-response fallback, EPIPE/EIO, actual stream EOF,
+shutdown/exit and delayed teardown under failed flush. Existing execution/typed-ID
+fixtures retain their assertions with explicit asynchronous admission waits.
+Format/ESLint, syntax, generated refreshes, discovery and diff checks passed.
+Functional execution, empirical performance and final-head acceptance remain
+deferred. Coverage is **35 fixed / 381 implemented / 150 partial / 197 pending**.
