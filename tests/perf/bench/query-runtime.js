@@ -6,6 +6,7 @@ import { killProcessTree } from '../../../src/shared/kill-tree.js';
 import { getIndexDir, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
 import { attachSilentLogging } from '../../helpers/test-env.js';
 import { resolveBenchQueryByteEstimate } from '../../../tools/bench/language/query-byte-estimate.js';
+import { isSqliteBackend } from '../../../tools/bench/language/query-backends.js';
 
 export const DEFAULT_QUERY_WORKER_HEARTBEAT_MS = 5000;
 export const DEFAULT_QUERY_WORKER_STALL_WARN_MS = 30000;
@@ -30,158 +31,69 @@ const statSizeSync = (filePath) => {
   }
 };
 
-const includesBackend = (backends, prefix) => (
-  Array.isArray(backends) && backends.some((backend) => String(backend || '').startsWith(prefix))
-);
+const hasPositiveTimestamp = value => Number.isFinite(Number(value)) && Number(value) > 0;
+export const classifyQueryBackend = backend => isSqliteBackend(backend) ? 'sqlite'
+  : String(backend || '').trim().toLowerCase() === 'memory' ? 'memory' : null;
 
-const hasPositiveTimestamp = (value) => Number.isFinite(Number(value)) && Number(value) > 0;
-
-const classifyQueryBackend = (backend) => (
-  String(backend || '').startsWith('sqlite') ? 'sqlite' : 'memory'
-);
-
-/**
- * Estimate a safe query-worker count for bench searches. Memory-backed queries
- * duplicate large index caches per worker, and SQLite searches benefit little
- * from wide parallelism against the same repo-local DBs.
- *
- * @param {{
- *   requestedConcurrency:number,
- *   backends:string[],
- *   runtimeRoot?:string,
- *   userConfig?:object,
- *   totalSystemMemoryBytes?:number,
- *   codeArtifactBytes?:number,
- *   proseArtifactBytes?:number,
- *   sqliteCodeBytes?:number,
- *   sqliteProseBytes?:number
- * }} input
- * @returns {Promise<{
- *   requestedConcurrency:number,
- *   effectiveConcurrency:number,
- *   reason:string,
- *   totalArtifactBytes:number,
- *   totalSqliteBytes:number,
- *   estimatedPerWorkerBytes:number,
- *   budgetBytes:number,
- *   backendConcurrency:Record<string, number>,
- *   backendMaxRunsPerWorker:Record<string, number>
- * }>}
- */
+/** One global allowance for all selected query pools. Backend spellings retain
+ * their workload identity while sharing a canonical process resource class.
+ * Stages close completely before the next stage allocates workers. Estimates
+ * constrain admission; they are not a guarantee about actual process RSS. */
 export const resolveAdaptiveQueryWorkerCount = async ({
-  requestedConcurrency,
-  backends,
-  runtimeRoot = '',
-  userConfig = null,
-  totalSystemMemoryBytes = os.totalmem(),
-  codeArtifactBytes = null,
-  proseArtifactBytes = null,
-  sqliteCodeBytes = null,
-  sqliteProseBytes = null
+  requestedConcurrency, backends = [], runtimeRoot = '', userConfig = null,
+  totalSystemMemoryBytes = os.totalmem(), codeArtifactBytes = null,
+  proseArtifactBytes = null, sqliteCodeBytes = null, sqliteProseBytes = null
 } = {}) => {
   const requested = Math.max(1, Math.floor(Number(requestedConcurrency) || 1));
-  const wantsMemory = Array.isArray(backends) && backends.includes('memory');
-  const wantsSqlite = includesBackend(backends, 'sqlite');
-  if (!wantsMemory && !wantsSqlite) {
-    return {
-      requestedConcurrency: requested,
-      effectiveConcurrency: requested,
-      reason: 'no_query_backends',
-      totalArtifactBytes: 0,
-      totalSqliteBytes: 0,
-      estimatedPerWorkerBytes: 0,
-      budgetBytes: 0,
-      backendConcurrency: {},
-      backendMaxRunsPerWorker: {}
-    };
-  }
-
-  const codeBytes = await resolveBenchQueryByteEstimate(codeArtifactBytes, () => (
-    runtimeRoot ? readIndexArtifactBytes(getIndexDir(runtimeRoot, 'code', userConfig) || '') : null
-  ));
-  const proseBytes = await resolveBenchQueryByteEstimate(proseArtifactBytes, () => (
-    runtimeRoot ? readIndexArtifactBytes(getIndexDir(runtimeRoot, 'prose', userConfig) || '') : null
-  ));
-  const sqlitePaths = runtimeRoot ? resolveSqlitePaths(runtimeRoot, userConfig) : null;
-  const sqliteCode = await resolveBenchQueryByteEstimate(sqliteCodeBytes, () => statSizeSync(sqlitePaths?.codePath));
-  const sqliteProse = await resolveBenchQueryByteEstimate(sqliteProseBytes, () => statSizeSync(sqlitePaths?.prosePath));
-
+  const selected = [...new Set(backends.map(backend => String(backend).trim().toLowerCase()))];
+  const classes = [...new Set(selected.map(classifyQueryBackend))];
+  if (classes.includes(null)) throw new RangeError('Unsupported benchmark query backend resource class.');
+  const wantsMemory = classes.includes('memory'), wantsSqlite = classes.includes('sqlite');
+  const codeBytes = wantsMemory ? await resolveBenchQueryByteEstimate(codeArtifactBytes,
+    () => runtimeRoot ? readIndexArtifactBytes(getIndexDir(runtimeRoot, 'code', userConfig) || '') : null) : 0;
+  const proseBytes = wantsMemory ? await resolveBenchQueryByteEstimate(proseArtifactBytes,
+    () => runtimeRoot ? readIndexArtifactBytes(getIndexDir(runtimeRoot, 'prose', userConfig) || '') : null) : 0;
+  const sqlitePaths = wantsSqlite && runtimeRoot ? resolveSqlitePaths(runtimeRoot, userConfig) : null;
+  const sqliteCode = wantsSqlite ? await resolveBenchQueryByteEstimate(sqliteCodeBytes, () => statSizeSync(sqlitePaths?.codePath)) : 0;
+  const sqliteProse = wantsSqlite ? await resolveBenchQueryByteEstimate(sqliteProseBytes, () => statSizeSync(sqlitePaths?.prosePath)) : 0;
   const totalArtifactBytes = toFiniteNonNegative(codeBytes) + toFiniteNonNegative(proseBytes);
   const totalSqliteBytes = toFiniteNonNegative(sqliteCode) + toFiniteNonNegative(sqliteProse);
-  const estimatedMemoryBytes = wantsMemory ? Math.max(256 * MiB, Math.ceil(totalArtifactBytes * 2.5)) : 0;
-  const estimatedSqliteBytes = wantsSqlite ? Math.max(256 * MiB, Math.ceil(totalSqliteBytes * 0.75)) : 0;
-  const estimatedPerWorkerBytes = estimatedMemoryBytes + estimatedSqliteBytes;
+  const estimates = { memory: Math.max(256 * MiB, Math.ceil(totalArtifactBytes * 2.5)),
+    sqlite: Math.max(256 * MiB, Math.ceil(totalSqliteBytes * 0.75)) };
   const budgetBytes = Math.max(512 * MiB, Math.floor(toFiniteNonNegative(totalSystemMemoryBytes) * 0.4));
-
-  let reason = 'requested';
-  const backendConcurrency = {};
-  const backendMaxRunsPerWorker = {};
-  let remainingBudget = budgetBytes;
-  let remainingRequested = requested;
-
-  if (wantsMemory) {
-    const memoryTarget = Math.max(1, requested - (wantsSqlite ? 1 : 0));
-    let memoryCap = memoryTarget;
-    if (totalArtifactBytes >= 2 * GiB) {
-      memoryCap = 1;
-      reason = 'memory_artifact_very_large';
-    } else if (totalArtifactBytes >= 512 * MiB) {
-      memoryCap = Math.min(memoryCap, 2);
-      reason = 'memory_artifact_large';
+  const caps = { memory: totalArtifactBytes >= 2 * GiB ? 1 : totalArtifactBytes >= 512 * MiB ? 2 : requested, sqlite: 1 };
+  const oversize = classes.filter(key => estimates[key] > budgetBytes);
+  const simultaneousMinimum = classes.reduce((sum, key) => sum + estimates[key], 0);
+  const staged = classes.length > requested || simultaneousMinimum > budgetBytes;
+  const stageClasses = oversize.length ? [] : staged ? classes.map(key => [key]) : classes.length ? [classes] : [];
+  const stages = stageClasses.map((members, index) => {
+    const sizeByBackend = Object.fromEntries(members.map(key => [key, 1]));
+    let bytes = members.reduce((sum, key) => sum + estimates[key], 0), count = members.length;
+    for (const key of members) {
+      const extra = Math.max(0, Math.min(caps[key] - 1, requested - count, Math.floor((budgetBytes - bytes) / estimates[key])));
+      sizeByBackend[key] += extra; count += extra; bytes += extra * estimates[key];
     }
-    const memoryBudgetCap = estimatedMemoryBytes > 0
-      ? Math.max(1, Math.floor(remainingBudget / estimatedMemoryBytes))
-      : memoryCap;
-    const memoryWorkers = Math.max(1, Math.min(memoryCap, remainingRequested, memoryBudgetCap));
-    backendConcurrency.memory = memoryWorkers;
-    backendMaxRunsPerWorker.memory = Number.POSITIVE_INFINITY;
-    remainingBudget = Math.max(0, remainingBudget - (memoryWorkers * estimatedMemoryBytes));
-    remainingRequested = Math.max(0, remainingRequested - memoryWorkers);
-    if (memoryWorkers < memoryTarget && reason === 'requested') {
-      reason = 'memory_budget';
-    }
-  }
-
-  if (wantsSqlite) {
-    const sqliteTarget = Math.max(1, wantsMemory ? 1 : Math.min(2, requested));
-    let sqliteCap = sqliteTarget;
-    if (wantsMemory) {
-      sqliteCap = 1;
-      if (reason === 'requested') reason = 'sqlite_mixed_serialized';
-    } else if (totalSqliteBytes >= GiB) {
-      sqliteCap = 1;
-      if (reason === 'requested') reason = 'sqlite_db_very_large';
-    }
-    const sqliteBudgetCap = estimatedSqliteBytes > 0
-      ? Math.max(1, Math.floor((remainingBudget || budgetBytes) / estimatedSqliteBytes))
-      : sqliteCap;
-    const sqliteWorkers = Math.max(1, Math.min(sqliteCap, Math.max(1, remainingRequested || sqliteCap), sqliteBudgetCap));
-    backendConcurrency.sqlite = sqliteWorkers;
-    backendMaxRunsPerWorker.sqlite = DEFAULT_SQLITE_QUERY_MAX_RUNS_PER_WORKER;
-    remainingBudget = Math.max(0, remainingBudget - (sqliteWorkers * estimatedSqliteBytes));
-    if (sqliteWorkers < sqliteTarget && reason === 'requested') {
-      reason = 'sqlite_budget';
-    }
-  }
-
-  const effectiveConcurrency = Math.max(
-    1,
-    Object.values(backendConcurrency).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0)
-  );
-  if (reason === 'requested' && estimatedPerWorkerBytes > 0) {
-    reason = 'within_budget';
-  }
-  return {
-    requestedConcurrency: requested,
-    effectiveConcurrency,
-    reason,
-    totalArtifactBytes,
-    totalSqliteBytes,
-    estimatedPerWorkerBytes,
-    budgetBytes,
-    backendConcurrency,
-    backendMaxRunsPerWorker
-  };
+    return { id: index + 1, backends: selected.filter(backend => members.includes(classifyQueryBackend(backend))),
+      sizeByBackend, effectiveConcurrency: count, estimatedConcurrentBytes: bytes };
+  });
+  const backendConcurrency = Object.assign({}, ...stages.map(stage => stage.sizeByBackend));
+  const reason = oversize.length ? 'required_worker_exceeds_memory_estimate_budget'
+    : !classes.length ? 'no_query_backends' : staged ? (classes.length > requested ? 'global_concurrency_staged' : 'shared_memory_budget_staged')
+      : wantsMemory && totalArtifactBytes >= 2 * GiB ? 'memory_artifact_very_large'
+        : wantsMemory && totalArtifactBytes >= 512 * MiB ? 'memory_artifact_large' : 'within_shared_budget';
+  return { schemaVersion: 1, kind: 'bench-query-resource-plan', status: oversize.length ? 'unsupported' : 'admitted',
+    concurrencyScope: 'global', requestedConcurrency: requested,
+    effectiveConcurrency: Math.max(0, ...stages.map(stage => stage.effectiveConcurrency)), reason,
+    totalArtifactBytes, totalSqliteBytes, estimatedPerWorkerBytes: Math.max(0, ...classes.map(key => estimates[key])),
+    estimatedPerWorkerBytesByClass: Object.fromEntries(classes.map(key => [key, estimates[key]])),
+    estimatedPeakConcurrentBytes: Math.max(0, ...stages.map(stage => stage.estimatedConcurrentBytes)), budgetBytes,
+    estimateKind: 'artifact-size-heuristic', observedRssGuarantee: false, oversizeClasses: oversize,
+    resourceClassByBackend: Object.fromEntries(selected.map(backend => [backend, classifyQueryBackend(backend)])),
+    isolation: 'one-process-per-worker; SQLite aliases share a serialized resource class',
+    stages, backendConcurrency,
+    backendMaxRunsPerWorker: Object.fromEntries(classes.map(key => [key, key === 'sqlite' ? DEFAULT_SQLITE_QUERY_MAX_RUNS_PER_WORKER : 0])),
+    retirementByClass: Object.fromEntries(classes.map(key => [key, key === 'sqlite'
+      ? { policy: 'retire-after-each-query', maxRunsPerProcess: 1 } : { policy: 'reuse-within-stage', maxRunsPerProcess: null }])) };
 };
 
 const createWorkerStallError = ({ label, workerLabel, id, elapsedMs }) => {
@@ -328,6 +240,7 @@ const createSearchWorker = ({
   let currentSession = null;
   let watchdog = null;
   let activeRequest = null;
+  let running = false;
   let completedRuns = 0;
   let closed = false;
 
@@ -409,6 +322,7 @@ const createSearchWorker = ({
           id,
           meta: activeRequest.meta,
           elapsedMs: 0,
+          rssBytes: Number.isFinite(message.rssBytes) ? message.rssBytes : null,
           pid: session.pid
         });
         return;
@@ -433,6 +347,8 @@ const createSearchWorker = ({
         emitEvent({
           type: 'run-complete',
           id,
+          meta: activeRequest.meta,
+          rssBytes: Number.isFinite(message.rssBytes) ? message.rssBytes : null,
           elapsedMs: toFiniteNonNegative(message.elapsedMs),
           pid: session.pid
         });
@@ -481,6 +397,8 @@ const createSearchWorker = ({
         completedRuns
       }));
     });
+    spawnedChild.once('close', () => emitEvent({ type: 'process-close', pid: session.pid }));
+    emitEvent({ type: 'process-start', pid: session.pid });
     return session;
   };
 
@@ -580,41 +498,44 @@ const createSearchWorker = ({
     if (closed) {
       throw createWorkerClosedError({ label, workerLabel: label, meta });
     }
-    if (activeRequest) {
+    if (running) {
       const err = new Error(`Query worker ${label} received concurrent work while busy.`);
       err.code = 'ERR_QUERY_WORKER_BUSY';
       throw err;
     }
-    const activeSession = ensureChild();
-    const id = nextMessageId;
-    nextMessageId += 1;
-    const payload = await new Promise((resolve, reject) => {
-      activeRequest = {
-        id,
-        resolve,
-        reject,
-        meta,
-        args,
-        sentAt: now(),
-        startedAt: null,
-        lastHeartbeatAt: now(),
-        lastWarnAt: 0,
-        lastRssBytes: null,
-        ownerGeneration: activeSession.generation,
-        ownerPid: activeSession.pid,
-        ownerSession: activeSession
-      };
-      try {
-        activeSession.child.send({ type: 'run', id, args, meta });
-      } catch (error) {
-        activeRequest = null;
-        reject(error instanceof Error ? error : new Error(String(error)));
+    running = true;
+    try {
+      const activeSession = ensureChild();
+      const id = nextMessageId;
+      nextMessageId += 1;
+      const payload = await new Promise((resolve, reject) => {
+        activeRequest = {
+          id,
+          resolve,
+          reject,
+          meta,
+          args,
+          sentAt: now(),
+          startedAt: null,
+          lastHeartbeatAt: now(),
+          lastWarnAt: 0,
+          lastRssBytes: null,
+          ownerGeneration: activeSession.generation,
+          ownerPid: activeSession.pid,
+          ownerSession: activeSession
+        };
+        try {
+          activeSession.child.send({ type: 'run', id, args, meta });
+        } catch (error) {
+          activeRequest = null;
+          reject(error instanceof Error ? error : new Error(String(error)));
+        }
+      });
+      if (activeSession.runsSinceStart >= normalizedMaxRunsPerProcess) {
+        await closeChild(activeSession);
       }
-    });
-    if (activeSession.runsSinceStart >= normalizedMaxRunsPerProcess) {
-      await closeChild(activeSession);
-    }
-    return payload;
+      return payload;
+    } finally { running = false; }
   };
 
   const close = async () => {
@@ -626,7 +547,7 @@ const createSearchWorker = ({
   return {
     run,
     close,
-    isBusy: () => Boolean(activeRequest),
+    isBusy: () => running,
     completedRuns: () => completedRuns
   };
 };

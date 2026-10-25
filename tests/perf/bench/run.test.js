@@ -12,7 +12,6 @@ import { buildSearchCliArgs } from '../../../tools/shared/search-cli-harness.js'
 import { readQueryInputPlan, resolveTopNAndLimit } from '../../../tools/shared/query-file-utils.js';
 import { getIndexDir, getRuntimeConfig, loadUserConfig, resolveRuntimeEnv, resolveSqlitePaths } from '../../../tools/shared/dict-utils.js';
 import { getEnvConfig } from '../../../src/shared/env/runtime.js';
-import { runWithConcurrency } from '../../../src/shared/concurrency/run-with-queue.js';
 import os from 'node:os';
 import { createSafeRegex, normalizeSafeRegexConfig } from '../../../src/shared/safe-regex.js';
 import { build as buildHistogram } from 'hdr-histogram-js';
@@ -24,7 +23,8 @@ import { resolveBenchQueryBackends } from '../../../tools/bench/language/query-b
 import { resolveBenchSqliteModeStatus } from '../../../tools/bench/language/sqlite-mode-status.js';
 import { createBenchQueryCapabilityCollector, formatBenchQueryCapabilityLines } from '../../../tools/bench/language/query-capabilities.js';
 import { applyToolchainDaemonPolicyEnv } from '../../../src/shared/toolchain-env.js';
-import { createSearchWorkerPool, resolveAdaptiveQueryWorkerCount } from './query-runtime.js';
+import { resolveAdaptiveQueryWorkerCount } from './query-runtime.js';
+import { executeBenchQueryPlan } from './query-execution.js';
 
 const root = process.cwd();
 const originalRawArgs = process.argv.slice(2);
@@ -269,24 +269,6 @@ function buildSearchArgs(query, backend) {
 function runSearch(pool, query, backend) {
   const args = buildSearchArgs(query, backend);
   return pool.run(args, { query, backend });
-}
-
-function applyBackendWorkerPlan(plan, backend) {
-  const normalizedBackend = String(backend || '').trim().toLowerCase();
-  const baseEffective = Math.max(1, Math.floor(Number(plan?.effectiveConcurrency) || 1));
-  if (normalizedBackend === 'sqlite') {
-    return {
-      ...plan,
-      effectiveConcurrency: 1,
-      reason: baseEffective === 1
-        ? (plan?.reason || 'sqlite_backend_serialized')
-        : 'sqlite_backend_serialized'
-    };
-  }
-  return {
-    ...plan,
-    effectiveConcurrency: baseEffective
-  };
 }
 
 function buildQueryWorkerEnv() {
@@ -551,74 +533,45 @@ const runQueries = async (requestedConcurrency) => {
   );
   logQueryProgress(true);
   const queryWorkerEnv = buildQueryWorkerEnv();
-  const workerPlans = Object.fromEntries(await Promise.all(backends.map(async (backend) => {
-    const basePlan = await resolveAdaptiveQueryWorkerCount({
-      requestedConcurrency,
-      backends: [backend],
-      runtimeRoot,
-      userConfig
-    });
-    return [backend, applyBackendWorkerPlan(basePlan, backend)];
-  })));
-  const requestedWorkerCount = Math.max(1, Math.min(requestedConcurrency, queryTasks.length || 1));
-  for (const backend of backends) {
-    const plan = workerPlans[backend];
-    const backendQueryCount = queryTasks.filter((task) => task.backend === backend).length;
-    const effectiveConcurrency = Math.max(
-      1,
-      Math.min(Number(plan?.effectiveConcurrency) || 1, backendQueryCount || 1)
-    );
-    plan.effectiveConcurrency = effectiveConcurrency;
-    logBench(
-      `[bench] Query worker pool backend=${backend} requested=${requestedWorkerCount} effective=${effectiveConcurrency} ` +
-      `reason=${plan.reason} artifacts=${formatGb(plan.totalArtifactBytes / (1024 * 1024))} ` +
-      `sqlite=${formatGb(plan.totalSqliteBytes / (1024 * 1024))} ` +
-      `budget=${formatGb(plan.budgetBytes / (1024 * 1024))} ` +
-      `per-worker=${formatGb(plan.estimatedPerWorkerBytes / (1024 * 1024))}`
-    );
-  }
-  const workerPools = new Map(backends.map((backend) => [
-    backend,
-    createSearchWorkerPool({
-      size: workerPlans[backend].effectiveConcurrency,
-      env: queryWorkerEnv,
-      workerScriptPath: queryWorkerPath,
-      maxRunsPerProcess: backend === 'sqlite' ? 1 : 0,
-      onEvent: (event) => {
-        if (event?.type === 'stall-warning') {
-          const queryPreview = typeof event?.meta?.query === 'string'
-            ? formatQueryPreview(event.meta.query)
-            : 'unknown query';
-          const rssText = Number.isFinite(Number(event?.rssBytes))
-            ? `${(Number(event.rssBytes) / (1024 * 1024)).toFixed(1)} MB`
-            : 'n/a';
-          logBench(
-            `[bench] query worker stall warning ${event.workerLabel} backend=${event?.meta?.backend || backend || 'unknown'} ` +
+  const executionPlan = await resolveAdaptiveQueryWorkerCount({ requestedConcurrency, backends, runtimeRoot, userConfig });
+  logBench(`[bench] Global query plan requested=${requestedConcurrency} planned=${executionPlan.effectiveConcurrency} ` +
+    `stages=${executionPlan.stages.length} reason=${executionPlan.reason} ` +
+    `estimatedPeak=${formatGb(executionPlan.estimatedPeakConcurrentBytes / (1024 * 1024))} ` +
+    `sharedBudget=${formatGb(executionPlan.budgetBytes / (1024 * 1024))}`);
+  for (const stage of executionPlan.stages) logBench(`[bench] Query stage ${stage.id}: ` +
+    `${JSON.stringify(stage.sizeByBackend)} for ${stage.backends.join(', ')}`);
+  const workerOptions = {
+    env: queryWorkerEnv, workerScriptPath: queryWorkerPath,
+    onEvent: (event) => {
+      if (event?.type === 'stall-warning') {
+        const queryPreview = typeof event?.meta?.query === 'string'
+          ? formatQueryPreview(event.meta.query)
+          : 'unknown query';
+        const rssText = Number.isFinite(Number(event?.rssBytes))
+          ? `${(Number(event.rssBytes) / (1024 * 1024)).toFixed(1)} MB`
+          : 'n/a';
+        logBench(
+          `[bench] query worker stall warning ${event.workerLabel} backend=${event?.meta?.backend || 'unknown'} ` +
             `elapsed=${formatDurationMs(Number(event?.elapsedMs) || 0)} ` +
             `sinceHeartbeat=${formatDurationMs(Number(event?.sinceHeartbeatMs) || 0)} ` +
             `rss=${rssText} | ${queryPreview}`
-          );
-          return;
-        }
-        if (event?.type === 'stalled') {
-          const queryPreview = typeof event?.meta?.query === 'string'
-            ? formatQueryPreview(event.meta.query)
-            : 'unknown query';
-          logBench(
-            `[bench] query worker stalled ${event.workerLabel} backend=${event?.meta?.backend || backend || 'unknown'} ` +
-            `elapsed=${formatDurationMs(Number(event?.elapsedMs) || 0)} | ${queryPreview}`
-          );
-        }
+        );
+        return;
       }
-    })
-  ]));
+      if (event?.type === 'stalled') {
+        const queryPreview = typeof event?.meta?.query === 'string'
+          ? formatQueryPreview(event.meta.query)
+          : 'unknown query';
+        logBench(
+          `[bench] query worker stalled ${event.workerLabel} backend=${event?.meta?.backend || 'unknown'} ` +
+            `elapsed=${formatDurationMs(Number(event?.elapsedMs) || 0)} | ${queryPreview}`
+        );
+      }
+    }
+  };
 
   const loggedQueries = new Set();
-  const runQueryTask = async (task) => {
-    const workerPool = workerPools.get(task.backend);
-    if (!workerPool) {
-      fatalExit(`[bench] Missing query worker pool for backend=${task.backend}`);
-    }
+  const runQueryTask = async (task, workerPool) => {
     if (!loggedQueries.has(task.queryIndex)) {
       loggedQueries.add(task.queryIndex);
       logBench(
@@ -650,21 +603,8 @@ const runQueries = async (requestedConcurrency) => {
     const rss = payload.stats?.memory?.rss;
     if (Number.isFinite(rss)) memoryRss[task.backend].push(rss);
   };
-  try {
-    if (queryTasks.length) {
-      await Promise.all(backends.map(async (backend) => {
-        const backendTasks = queryTasks.filter((task) => task.backend === backend);
-        if (!backendTasks.length) return;
-        await runWithConcurrency(
-          backendTasks,
-          Math.max(1, Number(workerPlans[backend]?.effectiveConcurrency) || 1),
-          runQueryTask
-        );
-      }));
-    }
-  } finally {
-    await Promise.all(Array.from(workerPools.values()).map((workerPool) => workerPool.close()));
-  }
+  const workerObservation = await executeBenchQueryPlan({ plan: executionPlan, tasks: queryTasks,
+    workerOptions, runTask: runQueryTask });
   logQueryProgress(true);
   const queryWallMs = Date.now() - queryProgress.startMs;
   const queryWallMsPerSearch = totalSearches ? queryWallMs / totalSearches : null;
@@ -687,18 +627,12 @@ const runQueries = async (requestedConcurrency) => {
     queryCoverage: { ...queryBackendDecision.coverage,
       executedSearchesByBackend: Object.fromEntries(backends.map((backend) => [backend, latency[backend].length])) },
     queryCapabilities: queryCapabilities.snapshot(),
-    queryConcurrency: backends.length ? Object.values(workerPlans).reduce(
-      (max, plan) => Math.max(max, Math.max(1, Number(plan?.effectiveConcurrency) || 1)),
-      1
-    ) : 0,
+    queryConcurrency: executionPlan.effectiveConcurrency,
     queryConcurrencyRequested: requestedConcurrency,
-    queryConcurrencyAutoReason: backends.length === 1
-      ? (workerPlans[backends[0]]?.reason || null)
-      : 'backend_specific',
-    queryConcurrencyAutoReasonByBackend: Object.fromEntries(backends.map((backend) => [
-      backend,
-      workerPlans[backend]?.reason || null
-    ])),
+    queryConcurrencyAutoReason: executionPlan.reason,
+    queryConcurrencyAutoReasonByBackend: Object.fromEntries(backends.map(backend => [backend, executionPlan.reason])),
+    queryWorkerPlan: executionPlan,
+    queryWorkerObservation: workerObservation,
     queryWallMs,
     queryWallMsPerSearch,
     queryWallMsPerQuery,
