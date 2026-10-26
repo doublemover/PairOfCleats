@@ -15,7 +15,7 @@ export const enrichFlowFixture = ({ text, chunk, lang, context = {}, options = {
   return returnResult ? result : result.docmeta;
 };
 
-export const assembleFlowFixture = ({ text, chunk, docmeta, lang = 'groovy', ext = '.groovy', codeRelations = {} }) => {
+export const assembleFlowFixture = ({ text, chunk, docmeta, lang = 'groovy', ext = '.groovy', codeRelations = {}, emitFieldTokens = false }) => {
   const tokenized = buildTokenSequence({ text: text.slice(chunk.start, chunk.end), mode: 'code', ext,
     dictWords: new Set(), dictConfig: {}, includeSeq: true });
   return buildChunkPayload({
@@ -24,7 +24,7 @@ export const assembleFlowFixture = ({ text, chunk, docmeta, lang = 'groovy', ext
     fileHash: null, fileHashAlgo: null, fileSize: Buffer.byteLength(text), tokens: tokenized.tokens, tokenIds: [],
     identifierTokens: [], keywordTokens: [], operatorTokens: [], literalTokens: [], seq: tokenized.seq,
     codeRelations, docmeta, stats: {}, complexity: null, lint: null, preContext: null, postContext: null, minhashSig: [],
-    commentFieldTokens: [], dictWords: new Set(), dictConfig: {}, postingsConfig: {}, emitFieldTokens: false, tokenMode: 'code',
+    commentFieldTokens: [], dictWords: new Set(), dictConfig: {}, postingsConfig: {}, emitFieldTokens, tokenMode: 'code',
     fileRelations: null, relationsEnabled: false, toolInfo: { tool: 'fixture', version: '1' }, gitMeta: {}, analysisPolicy: null
   });
 };

@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { buildLanguageContext } from '../../../src/index/language-registry.js';
 import { buildTreeSitterChunks } from '../../../src/lang/tree-sitter/chunking.js';
+import { treeSitterState } from '../../../src/lang/tree-sitter/state.js';
 import { RUST_ATTACHED_DOCUMENTATION_VERSION, RUST_PREFIX_RANGE_LIMIT } from '../../../src/lang/tree-sitter/rust-prefix.js';
 import { readCachedBundle, writeIncrementalBundle } from '../../../src/index/build/incremental.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
@@ -72,7 +73,8 @@ const expected = new Map([
 ]);
 let retained;
 for (const useQueries of [false, true]) {
-  const nativeOptions = { ...options, treeSitter: { ...options.treeSitter, useQueries } };
+  const nativeOptions = { ...options, treeSitterCacheKey: 'rust-documentation:' + sha1(text),
+    treeSitter: { ...options.treeSitter, useQueries } };
   const prepared = await buildLanguageContext({ text, ext: '.rs', relPath: 'fixture.rs', mode: 'code', options: nativeOptions });
   const chunks = prepared.context.rustChunks;
   assert.ok(chunks?.length, 'the actual native converter and registered Rust preparation must produce declarations');
@@ -107,8 +109,10 @@ for (const useQueries of [false, true]) {
   assert.ok(text.slice(second.start, second.end).startsWith('#[cfg(any('));
   assert.equal(first.meta.returns, 'i32'); assert.equal(chunks.find(row => row.name === 'callback').meta.returns, 'u8');
   assert.equal(chunks.find(row => row.name === 'Service.required').meta.bodyless, true);
+  const cacheHits = treeSitterState.metrics.chunkCacheHits;
   const warm = await buildLanguageContext({ text, ext: '.rs', relPath: 'fixture.rs', mode: 'code', options: nativeOptions });
   assert.deepEqual(warm.context.rustChunks, chunks, 'warm native chunk reuse retains attached source roles and semantic fields');
+  assert.ok(treeSitterState.metrics.chunkCacheHits > cacheHits, 'warm qualification requires observed cache reuse, not just an identical reparse');
   retained = payloads;
 }
 const oversized = Array.from({ length: RUST_PREFIX_RANGE_LIMIT + 3 }, (_, index) => `/// Documentation ${index}.`).join('\n') + '\nfn many() {}';

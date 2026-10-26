@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1124,
+    "hero": 1127,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -7705,6 +7705,24 @@
     {
       "id": "lang/contracts/python-parenthesized-prefix-coverage",
       "order": 1282,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/signatures/native-signature-projection",
+      "order": 1283,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/signatures/shared-declaration-boundaries",
+      "order": 1284,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/c-parenthesized-prototype-roles",
+      "order": 1285,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

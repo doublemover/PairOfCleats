@@ -1282,3 +1282,6 @@ indexing/tree-sitter/scheduler-crash-fallback
 lang/contracts/rust-attached-documentation
 indexing/tree-sitter/declaration-role-and-scope-contract
 lang/contracts/python-parenthesized-prefix-coverage
+indexing/signatures/native-signature-projection
+indexing/signatures/shared-declaration-boundaries
+lang/contracts/c-parenthesized-prototype-roles

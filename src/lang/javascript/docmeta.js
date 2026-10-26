@@ -48,19 +48,19 @@ export function extractDocMeta(text, chunk, astMeta = null, sourceView = null) {
     const returnTypeMatch = chunkText.match(/@returns?\s+{([^}]+)}/);
     returnType = returnTypeMatch ? returnTypeMatch[1].trim() : null;
   }
-  let signature = null;
-  const matchFn = chunkText.match(/function\s+([A-Za-z0-9_$]+)?\s*\(([^\)]*)\)/);
-  if (matchFn) {
-    signature = `function ${matchFn[1] || ''}(${matchFn[2]})`;
-  }
-
   const projection = projectJavaScriptDeclaration(text, chunk, astMeta, astMeta?.jsDeclarations?.analysis, sourceView);
   const nameMeta = projection.join.record ? projection.metadata : null;
   const metaParams = Array.isArray(nameMeta?.params) ? nameMeta.params : params;
   const metaParamNames = Array.isArray(nameMeta?.paramNames)
     ? nameMeta.paramNames
     : metaParams;
-  const mergedSignature = nameMeta?.signature || signature;
+  const chunkSignature = typeof chunk.meta?.signature === 'string' && chunk.meta.signature.trim()
+    ? chunk.meta.signature : null;
+  let mergedSignature = nameMeta?.signature || chunkSignature;
+  if (!mergedSignature) {
+    const matchFn = chunkText.match(/function\s+([A-Za-z0-9_$]+)?\s*\(([^\)]*)\)/);
+    if (matchFn) mergedSignature = `function ${matchFn[1] || ''}(${matchFn[2]})`;
+  }
   const mergedReturnType = nameMeta?.returnType || returnType || null;
 
   return {
