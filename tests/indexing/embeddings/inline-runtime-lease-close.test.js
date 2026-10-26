@@ -7,9 +7,11 @@ applyTestEnv();
 let disposed = 0, created = 0;
 let enter, release;
 let behavior = 'success';
+const initializationFailure = new Error('controlled adapter initialization failure');
 const gate = new Promise(resolve => { release = resolve; });
 const entered = new Promise(resolve => { enter = resolve; });
 __setAdapterFactoryForTests(() => {
+  if (behavior === 'initialization-failure') throw initializationFailure;
   created += 1;
   return {
     provider: 'xenova', embedderPromise: null,
@@ -50,6 +52,25 @@ try {
   await pending;
   await closing;
   assert.equal(disposed, before + 1);
+  behavior = 'success';
+  const siblingOne = await resolve(), siblingTwo = await resolve();
+  const createdBefore = created, disposedBefore = disposed;
+  await siblingOne.getChunkEmbedding('first runtime lease');
+  await siblingTwo.getChunkEmbedding('second runtime lease');
+  assert.equal(created, createdBefore + 1, 'compatible attempts share an actual adapter with independent leases');
+  await siblingOne.closeEmbeddingRuntime();
+  assert.equal(disposed, disposedBefore, 'closing one attempt cannot destroy its sibling adapter');
+  await siblingTwo.getChunkEmbedding('sibling still usable');
+  await siblingTwo.closeEmbeddingRuntime();
+  assert.equal(disposed, disposedBefore + 1);
+  behavior = 'initialization-failure';
+  const failed = await resolve();
+  const beforeFailure = { created, disposed };
+  await assert.rejects(failed.getChunkEmbedding('factory failure'), error => error === initializationFailure
+    || error.cause === initializationFailure || error.errors?.includes(initializationFailure));
+  await failed.closeEmbeddingRuntime();
+  await failed.closeEmbeddingRuntime();
+  assert.deepEqual({ created, disposed }, beforeFailure, 'failed acquisition cannot invent an adapter or leak a lease');
   await disposeEmbeddingAdapterCaches();
 } finally { release(); __setAdapterFactoryForTests(null); }
 console.log('inline runtime lease close test passed');

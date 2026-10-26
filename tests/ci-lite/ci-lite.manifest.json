@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1136,
+    "hero": 1144,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -7777,6 +7777,54 @@
     {
       "id": "lang/contracts/python-declaration-header-ownership",
       "order": 1294,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/runtime/daemon-prewarm-adapter-lease",
+      "order": 1295,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/inline-runtime-lease-close",
+      "order": 1296,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/embedding-adapter-prewarm-hooks",
+      "order": 1297,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/inline-runtime-close-reconciliation",
+      "order": 1298,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/inline-runtime-original-failure-drain",
+      "order": 1299,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/runtime/daemon-embedding-leases",
+      "order": 1300,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/runtime/daemon-embedding-retirement-reconciliation",
+      "order": 1301,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/runtime/initialization-resource-unwind",
+      "order": 1302,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

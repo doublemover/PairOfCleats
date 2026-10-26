@@ -1294,3 +1294,11 @@ lang/contracts/ruby-call-body-boundaries
 lang/contracts/native-call-owner-projection
 lang/contracts/python-local-class-scopes
 lang/contracts/python-declaration-header-ownership
+indexing/runtime/daemon-prewarm-adapter-lease
+indexing/embeddings/inline-runtime-lease-close
+indexing/embeddings/embedding-adapter-prewarm-hooks
+indexing/embeddings/inline-runtime-close-reconciliation
+indexing/embeddings/inline-runtime-original-failure-drain
+indexing/runtime/daemon-embedding-leases
+indexing/runtime/daemon-embedding-retirement-reconciliation
+indexing/runtime/initialization-resource-unwind
