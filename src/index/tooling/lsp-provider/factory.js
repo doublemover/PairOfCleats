@@ -1,6 +1,7 @@
 import { awaitToolingProviderPreflight } from '../preflight-manager.js';
 import { resolveRequestedAbortSignal } from '../preflight/manager-state.js';
 import { throwIfAborted } from '../../../shared/abort.js';
+import { admitProviderCatalog, createProviderCatalogError, setProviderCatalogOrigin } from '../provider-catalog.js';
 import { resolveProviderWorkspaceExecutionAuthority, isSourcekitProvider } from '../workspace-execution.js';
 import { ensureSourcekitPackageResolutionPreflight } from '../preflight/sourcekit-package-resolution.js';
 import { admitScriptLspInputs } from '../script-lsp-profiles.js';
@@ -21,7 +22,8 @@ import {
   buildConfiguredProviderConfigHash,
   collectAutoPresetServers,
   normalizeServerConfig,
-  normalizeServerId
+  normalizeServerId,
+  hasAnonymousServerIdentity
 } from './normalize.js';
 import {
   resolveLuaWorkspaceConfigPreflight,
@@ -394,21 +396,35 @@ export const createConfiguredLspProviders = (toolingConfig) => {
   const servers = Array.isArray(lsp.servers) ? lsp.servers : [];
   const providers = [];
   const normalizedServers = [];
+  const origins = new WeakMap();
   const configuredServerIds = new Set();
   for (let i = 0; i < servers.length; i += 1) {
     const normalized = normalizeServerConfig(servers[i], i);
     if (!normalized) continue;
-    configuredServerIds.add(normalized.id);
     normalizedServers.push(normalized);
+    origins.set(normalized, { kind: 'configured-lsp', source: `tooling.lsp.servers[${i}]`,
+      rawId: typeof servers[i]?.providerId === 'string' ? servers[i].providerId : servers[i]?.id });
   }
+  const anonymous = normalizedServers.find(hasAnonymousServerIdentity);
+  if (anonymous && normalizedServers.length > 1) {
+    const other = normalizedServers.find(server => server !== anonymous);
+    throw createProviderCatalogError('ERR_TOOLING_PROVIDER_INSTANCE_ID', null,
+      [origins.get(anonymous), origins.get(other)],
+      'Multiple configured LSP servers require explicit id or providerId; array position cannot identify a provider instance.');
+  }
+  // Preserve the legacy single anonymous provider while making its default
+  // independent of invalid entries before it in the configuration.
+  if (anonymous) anonymous.id = 'lsp-1';
+  for (const server of normalizedServers) configuredServerIds.add(server.id);
   const autoServers = collectAutoPresetServers(toolingConfig, configuredServerIds);
   for (let i = 0; i < autoServers.length; i += 1) {
     const normalized = normalizeServerConfig(autoServers[i], servers.length + i);
     if (!normalized) continue;
     normalizedServers.push(normalized);
+    origins.set(normalized, { kind: 'automatic-lsp-preset', source: `tooling.lsp.autoPresets:${normalized.id}`, rawId: normalized.id });
   }
   for (const server of normalizedServers) {
-    providers.push(createConfiguredLspProvider(server));
+    providers.push(setProviderCatalogOrigin(createConfiguredLspProvider(server), origins.get(server)));
   }
-  return providers;
+  return [...admitProviderCatalog(providers).values()];
 };

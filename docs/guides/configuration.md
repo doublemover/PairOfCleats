@@ -12,6 +12,13 @@ node bin/pairofcleats.js config validate --repo "path/to/your-project"
 Raw validation checks schema shape. An explicitly named missing `--config` is
 an error; an absent optional target config can use defaults.
 
+Provider catalogs also check identity after normalization and preset composition.
+Configured servers must not collide with each other or a registered provider ID.
+For multiple server instances, supply distinct existing `id` or `providerId`
+values (preset-supplied stable IDs also qualify). Ordering or disabling a duplicate
+does not resolve an ambiguous catalog. See [provider catalog identity](../contracts/provider-catalog-identity.md)
+for collision diagnostics, single-server compatibility and explicit replacement.
+
 <!-- poc:recipe config-effective shell=portable effects=read-only -->
 ```sh
 node bin/pairofcleats.js config validate --effective --repo "path/to/your-project" --json

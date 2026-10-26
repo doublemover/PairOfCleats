@@ -1360,3 +1360,5 @@ indexing/semantic/provider-merge-admission
 services/queue/build-progress-execution-identity
 services/queue/build-progress-bounded-state
 services/queue/build-progress-bound-read-work
+tooling/providers/provider-catalog-identity
+tooling/providers/provider-catalog-execution
