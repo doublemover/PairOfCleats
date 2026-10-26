@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "a5156c82330428c72241db366f57de2b6f336cd0",
+  "sourceHead": "743018c04768e3411e61809c775a186918a0374b",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 474,
+    "implemented": 475,
     "partial": 138,
-    "pending": 123
+    "pending": 122
   },
   "priorOpen": 1177,
   "currentOpen": 770,
@@ -569,6 +569,7 @@
       1591,
       1592,
       1595,
+      1597,
       1598,
       1599,
       1600,
@@ -907,7 +908,6 @@
       1593,
       1594,
       1596,
-      1597,
       1603,
       1604,
       1607,
@@ -5504,8 +5504,10 @@
       "number": 1597,
       "title": "[Perf] Prepare semantic provider merge inventories once per immutable batch",
       "priority": "Perf",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "743018c04768e3411e61809c775a186918a0374b",
+      "validation": "deferred"
     },
     {
       "number": 1598,

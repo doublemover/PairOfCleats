@@ -3921,3 +3921,53 @@ no added/changed/removed reports against the prior canonical intake, digest
 `2bb07a3db7340d2de732f0839b456c9547f60433c28c7b665e8fe3fcd71cac0c`.
 The author-workspace reconfirmation JSON is historical and not promised in clean
 checkouts. Source coverage remains distinct from accepted issue closure.
+
+## 2026-10-26 — immutable provider batch preparation and single row traversal
+
+`743018c04` repairs #1597. Source additions, context membership and reference groups
+are prepared once per completed operation. Each group is qualified by resolved
+root, exact generation and repository namespace. One artifact store and qualified
+reference-size inventory serve each changed group through the existing bounded
+read scope; every added partition still receives full generic count/range,
+qualified-reference, source and canonical-hash reconciliation. Host-only provider
+restrictions and coverage collection now run inside that same validated member
+traversal, eliminating the second records/sources/coverage decode. Observer work
+is joined by the existing bounded partition lifetime, including failure.
+
+Passive owned output/current descriptors and context snapshots are admitted
+before asynchronous reads. Source/context memberships use exact source-unit/hash
+indexes. Coverage remains private per partition and joins original source/addition
+order after parallel validation. Runtime roots, original selected references,
+canonical source content and compiler contexts are rechecked immediately before
+synchronous selection. Changed host state rejects without overwriting concurrent
+work. A late failing group cannot select an earlier successful one; caller output
+mutation cannot redefine captured input. No global proof/path cache is added.
+
+Private admission bounds aggregate input JSON at64MiB, prepared canonical keys/
+coverage plus logical index charges at32MiB, descriptor visits at262144 and work
+checkpoints at4000000. Remaining byte allowance reaches the existing passive
+encoder before expansion; coverage rows are charged before retention and keep the
+authoritative file-row cap. Resource failures remain explicit, with no truncated
+successful selection. These are logical JSON/index/visit allowances rather than
+actual object sizes or RSS. A nonenumerable internal receipt records actual root,
+generation, group/inventory preparation, membership and row work; the existing
+accepted/persisted/unchanged JSON envelope and accepted semantic identities remain
+unchanged. No producer version or public schema/configuration change is required.
+
+Two new unrun fixtures author actual durable multi-source output at N/2N/4N,
+shared and separate roots, actual store/reference/row traversal counts, complete
+selected descriptor/coverage parity, duplicate idempotence, late hash failure,
+conflicting context, changed selection, caller mutation, cancellation, forbidden
+syntax, cross-group reference and namespace negatives. A privately tightened
+actual admission owner checks exact Unicode bytes, logical shared-reference
+expansion before capture, prepared-index/descriptor/work limits, accessors and
+abort without large workloads. The original dispatch/detail/cancellation fixture
+is unchanged and joins both new fixtures in ordered ci-lite, now1,357 cases.
+No functional assertion has run against this batch.
+
+Full format/ESLint, five JS syntax checks, three related generated refresh/
+freshness surfaces, three fixture discoveries and staged diff checks passed.
+Functional/front-gate/native/platform/performance execution remains deferred.
+Coverage is **35 fixed / 475 implemented / 138 partial / 122 pending**, all770
+reports retained; no issue state or closing reference changed. Bookkeeping reuses
+the checked JS tree. Contract: `docs/contracts/provider-semantic-handoff.md`.
