@@ -1,3 +1,4 @@
+import { SQL_RELATION_EVIDENCE_SCHEMA } from '../sql-relations.js';
 import { crossFileCoverageSchema } from '../relation-coverage.js';
 import { API_CONTRACT_ENTRY_SCHEMA } from '../api-contracts.js';
 import { METADATA_V2_SCHEMA } from '../analysis.js';
@@ -487,7 +488,7 @@ export const CORE_POST_VFS_ARTIFACT_SCHEMA_DEFS = {
       required: ['file', 'relations'],
       properties: {
         file: { type: 'string' },
-        relations: { type: 'object' },
+        relations: { type: 'object', properties: { sqlRelationEvidence: SQL_RELATION_EVIDENCE_SCHEMA }, additionalProperties: true },
         importBindings: { type: 'object' }
       },
       additionalProperties: true

@@ -123,6 +123,7 @@ export const buildFileRelations = (relations, relKey = null) => {
     return output;
   };
   return {
+    ...(relations.sqlRelationEvidence ? { sqlRelationEvidence: relations.sqlRelationEvidence } : {}),
     imports: normalizeList(relations.imports),
     exports: normalizeList(relations.exports),
     usages: normalizeList(relations.usages),
@@ -142,6 +143,7 @@ export const buildFileRelations = (relations, relKey = null) => {
 export const stripFileRelations = (codeRelations) => {
   if (!codeRelations || typeof codeRelations !== 'object') return codeRelations;
   const {
+    sqlRelationEvidence,
     imports,
     exports,
     usages,

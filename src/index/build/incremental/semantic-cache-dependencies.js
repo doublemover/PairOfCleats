@@ -1,3 +1,4 @@
+import { sqlRelationParserVersion } from '../../../lang/sql/version.js';
 import { semanticPolicyIdentities } from '../../semantic/policy.js';
 import { createRequire } from 'node:module';
 import { loadTypeScriptModule } from '../../../lang/typescript/parser.js';
@@ -20,9 +21,9 @@ export const createSemanticCacheDependencySignatures = ({ dependencySignatures, 
   if (!dependencySignatures || !policy) throw new TypeError('Semantic cache runtime dependencies are required.');
   return { ...dependencySignatures, semantic: semanticHash('pairofcleats.semantic.cache-runtime.v1', {
     artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, semanticSchemaVersion: 1,
-    parsers: { ...parserVersions, typescript: loadTypeScriptModule(root)?.version || null,
+    parsers: { ...parserVersions, sql: sqlRelationParserVersion(), typescript: loadTypeScriptModule(root)?.version || null,
       ...Object.fromEntries(NATIVE_SEMANTIC_LANGUAGES.filter(language => policy.languages.includes(language)).map(language => [language, nativeSemanticParserVersions()[language]])) },
-    extractors: { javascript: JAVASCRIPT_ADAPTER_VERSION, typescript: TYPESCRIPT_ADAPTER_VERSION, wasm: SEMANTIC_ANALYSIS_VERSIONS.wasmStructure, wasmRuntime: WASM_VALIDATOR_RUNTIME },
+    extractors: { javascript: JAVASCRIPT_ADAPTER_VERSION, typescript: TYPESCRIPT_ADAPTER_VERSION, sqlRelations: SEMANTIC_ANALYSIS_VERSIONS.sqlRelations, wasm: SEMANTIC_ANALYSIS_VERSIONS.wasmStructure, wasmRuntime: WASM_VALIDATOR_RUNTIME },
     structuralPolicy: { structure: 'complete', adapterVersion: 2 },
     policy: { languages: policy.languages, baseFacts: policy.baseFacts },
     parserOptions: { javascript: languageOptions.javascript || {}, typescript: languageOptions.typescript || {} }

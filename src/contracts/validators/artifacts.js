@@ -1,3 +1,4 @@
+import { sqlRelationEvidenceErrors } from '../sql-relation-identities.js';
 import { callArgumentProjectionErrors } from '../call-arguments.js';
 import { literalEvidenceProjectionErrors } from '../literal-evidence.js';
 import { compileSchema, createAjv } from '../../shared/validation/ajv-factory.js';
@@ -31,6 +32,14 @@ export function validateArtifact(name, data) {
         ? !['typescript', 'ts', 'tsx'].includes(language) : !['javascript', 'js', 'jsx'].includes(language))) {
         result.errors.push(`/${index}/extensions/callableParameters: parameter language differs from the published symbol.`);
       }
+      if (result.errors.length >= 20) break;
+    }
+    result.ok = !result.errors.length;
+  }
+  if (result.ok && name === 'file_relations' && Array.isArray(data)) {
+    for (const [index, entry] of data.entries()) {
+      result.errors.push(...sqlRelationEvidenceErrors(entry.relations.sqlRelationEvidence)
+        .map(error => `/${index}/relations/sqlRelationEvidence: ${error}`));
       if (result.errors.length >= 20) break;
     }
     result.ok = !result.errors.length;

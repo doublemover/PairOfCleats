@@ -1,3 +1,4 @@
+import { SQL_RELATION_PRODUCER_VERSION } from '../../lang/sql/version.js';
 import { semanticHash } from './identity.js';
 import { MODULE_EXPORTS_VERSION } from '../../lang/js-ts-exports.js';
 
@@ -5,7 +6,7 @@ import { MODULE_EXPORTS_VERSION } from '../../lang/js-ts-exports.js';
  * semantics change; syntax extraction and physical layout remain independent.
  */
 export const SEMANTIC_ANALYSIS_VERSIONS = Object.freeze({
-  moduleExports: MODULE_EXPORTS_VERSION,
+  moduleExports: MODULE_EXPORTS_VERSION, sqlRelations: SQL_RELATION_PRODUCER_VERSION,
   lexicalAnalyzer: '3', importResolution: '17', pieceAssembly: '4',
   recordsProducer: '8', ignoreRules: '4', documentExtraction: '5', discoverySelection: '5',
   repoMapProducer: '2', graphRelations: '1',
