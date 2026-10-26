@@ -13,7 +13,7 @@ with tests deferred until the source batches are ready. The live intake has
 [current implementation receipt](archived/solo-issue-repairs-2026-10-25.md)
 records new source batches and unvalidated coverage. Historical inventories
 below describe their recorded sources, not the current open count.
-Current source coverage is **35 fixed / 470 implemented / 138 partial / 127
+Current source coverage is **35 fixed / 471 implemented / 138 partial / 126
 pending**, with exact issue-to-source ownership in the
 [complete inventory](archived/github-issue-coverage-2026-10-25.json). Implemented
 means source-complete with execution pending, not accepted closure.
@@ -36,7 +36,9 @@ source-qualified facts (#1713). Session/generation URI lifetime remains partial
 (#1643). Native include authority now shares lexical summaries, preserves argv
 root order and bounds snapshot-local context/probe work (#1692). SDK MCP now
 reserves bounded read-only diagnostic admission while retaining running cleanup
-leases and total capacity (#1615). The curated ci-lite lane contains 1,341 cases; all new and strengthened
+leases and total capacity (#1615). Native bridge manifests now admit bounded
+canonical bytes before expansion and hash the same owned representation (#1701).
+The curated ci-lite lane contains 1,343 cases; all new and strengthened
 regressions remain unrun. Completed batch detail, issue mappings and exact static-
 check receipts are in the linked implementation archive and complete inventory.
 

@@ -3728,3 +3728,38 @@ No added, changed or removed report was found against the complete intake. The
 canonical comparison fields and digest are retained in the coverage inventory;
 author-workspace reconfirmation JSON is historical and not promised in clean
 checkouts. No issue state or closing reference changed.
+
+## 2026-10-26 — native manifest byte admission before expansion
+
+`384c81b1f` repairs #1701 with maxBytes validation before descriptor traversal and
+actual aggregate allowance passed into the existing passive canonical encoder.
+Repeated caller array/string references are charged at every logical occurrence;
+oversize stops with the existing ERR_SEMANTIC_JSON_BUDGET resource classification
+before full expansion/capture. Accessors remain unevaluated and invalid passive
+input keeps ERR_NATIVE_BRIDGE_MANIFEST; pending original resource observations
+cannot become an ordinary diagnostic.
+
+One admitted canonical string supplies owned JSON containers before all manifest
+validation and the existing domain-separated content hash. There is no second
+full-manifest encoding or structuredClone for identity. Expected world/runtime
+comparisons are also bounded; artifact/layout authority remains separate. All
+binary, binding, observation, unknown-field/process-address and coverage contracts
+remain strict. Accepted manifest meaning/content identity is unchanged, so no
+semantic producer or artifact format is bumped. Iterative owned freezing avoids
+recursive stack growth. The cap describes logical UTF-8 JSON bytes rather than
+caller storage or absolute JavaScript heap/RSS.
+
+The original tiny fixture setup moved unchanged into a shared helper; every
+existing observability/reachability/world/runtime/artifact/layout assertion is
+retained. New source-authored controls instrument the real bounded encoder for
+small shared-array amplification, rejection before full expansion/clone,
+invalid-budget admission before any input inspection, exact/one-byte-over limits,
+Unicode/surrogate/escape bytes, independent canonical/hash parity, shared/copied
+logical identity, immutable caller separation and accessor rejection. The original
+fixture and new owner both join ordered ci-lite, now 1,343 cases. Neither has run
+against this source. Full format/ESLint, four JS syntax checks, affected generated
+refresh/freshness, both fixture discoveries and staged diff checks passed.
+Functional/front-gate/native/platform/performance execution remains deferred.
+Coverage is **35 fixed / 471 implemented / 138 partial / 126 pending**, all 770
+reports retained; no issue closed or closing reference added. Bookkeeping reuses
+the checked JS tree. Contract: `docs/contracts/native-bridge-manifest.md`.

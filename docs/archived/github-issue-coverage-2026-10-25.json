@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "8ea6a591dd302ca94d58ea3cff9fdcdfe5c55a2e",
+  "sourceHead": "384c81b1f1cb458be80452e7d73ee7444ea4a603",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 470,
+    "implemented": 471,
     "partial": 138,
-    "pending": 127
+    "pending": 126
   },
   "priorOpen": 1177,
   "currentOpen": 770,
@@ -633,6 +633,7 @@
       1696,
       1698,
       1700,
+      1701,
       1702,
       1711,
       1713,
@@ -927,7 +928,6 @@
       1694,
       1697,
       1699,
-      1701,
       1707,
       1708,
       1710,
@@ -6277,8 +6277,10 @@
       "number": 1701,
       "title": "[Perf] Enforce native bridge manifest byte admission before full canonical expansion",
       "priority": "Perf",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "384c81b1f1cb458be80452e7d73ee7444ea4a603",
+      "validation": "deferred"
     },
     {
       "number": 1702,
