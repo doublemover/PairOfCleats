@@ -13,7 +13,7 @@ with tests deferred until the source batches are ready. The live intake has
 [current implementation receipt](archived/solo-issue-repairs-2026-10-25.md)
 records new source batches and unvalidated coverage. Historical inventories
 below describe their recorded sources, not the current open count.
-Current source coverage is **35 fixed / 475 implemented / 138 partial / 122
+Current source coverage is **35 fixed / 475 implemented / 139 partial / 121
 pending**, with exact issue-to-source ownership in the
 [complete inventory](archived/github-issue-coverage-2026-10-25.json). Implemented
 means source-complete with execution pending, not accepted closure.
@@ -47,7 +47,9 @@ incomplete derived output and retains independent staging/tree cleanup failures
 (#1682; native producer version3).
 Provider merges now prepare source/group inventories once, combine provider and
 generic row checks, and fence changed host selections before committing (#1597).
-The curated ci-lite lane contains 1,357 cases; all new and strengthened
+Bound service progress now revalidates one attempt through bounded classified
+reads; executor binding/shared startup discovery remain partial (#1593).
+The curated ci-lite lane contains 1,360 cases; all new and strengthened
 regressions remain unrun. Completed batch detail, issue mappings and exact static-
 check receipts are in the linked implementation archive and complete inventory.
 

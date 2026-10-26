@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "743018c04768e3411e61809c775a186918a0374b",
+  "sourceHead": "3d04147fc3dadd7b26771ec30bd94d95e4872731",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
     "implemented": 475,
-    "partial": 138,
-    "pending": 122
+    "partial": 139,
+    "pending": 121
   },
   "priorOpen": 1177,
   "currentOpen": 770,
@@ -806,6 +806,7 @@
       1522,
       1523,
       1574,
+      1593,
       1643,
       1663,
       1675,
@@ -905,7 +906,6 @@
       1581,
       1584,
       1590,
-      1593,
       1594,
       1596,
       1603,
@@ -5476,8 +5476,11 @@
       "number": 1593,
       "title": "[Perf] Bind service progress reads once and bound retained-generation discovery",
       "priority": "Perf",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "partial",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "3d04147fc3dadd7b26771ec30bd94d95e4872731",
+      "validation": "deferred",
+      "remaining": "Executor-produced exact binding and repository-shared incremental discovery/backoff remain open; bound-poll reuse and bounded classified state reads are implemented. Initial/invalidated compatibility discovery still scans/stats/sorts retained roots per monitor."
     },
     {
       "number": 1594,

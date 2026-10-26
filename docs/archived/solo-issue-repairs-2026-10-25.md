@@ -3971,3 +3971,49 @@ Functional/front-gate/native/platform/performance execution remains deferred.
 Coverage is **35 fixed / 475 implemented / 138 partial / 122 pending**, all770
 reports retained; no issue state or closing reference changed. Bookkeeping reuses
 the checked JS tree. Contract: `docs/contracts/provider-semantic-handoff.md`.
+
+## 2026-10-26 — bounded progress reads and exact bound-attempt polling (partial)
+
+**#1593 remains partial.** `3d04147fc` repairs steady bound-poll work and metadata
+read admission. After initial ownership selection, the monitor retains only exact
+build root/build ID/runtime-attempt identity. Subsequent polls reread that state
+and repeat latest-attempt, claim correlation, stage and root/repository checks,
+without readdir/stat/sort or unrelated state reads while the binding stays valid.
+Missing, corrupt or changed ownership invalidates it before compatibility lookup;
+a sticky path is never a proof. Existing wrong-job attribution controls remain.
+
+One small observation owner uses the existing contained descriptor/verified-byte
+reader, admitting at most1MiB before allocation or decode. Fatal UTF8 and JSON
+object parsing distinguish corrupt input from missing, oversized, unsafe and
+transient acquisition outcomes. Known read bytes/JSON-decode attempts remain
+separate from unknown failed-read work. Original pending resources and unreadable
+failure diagnostics propagate through the existing storage observation owner;
+they cannot become harmless null. The legacy nullable snapshot wrapper remains
+available to embedding replay. Public CLI/configuration/artifact/log formats do
+not change, and no semantic producer version changes.
+
+The original lifecycle/timer owns one captured poll promise. Concurrent advances
+share it; stop drains actual I/O and suppresses late logging before dropping the
+small binding. Fixed-size internal diagnostics expose bound/candidate reads,
+discoveries, invalidations, status counts, known bytes and decode attempts, without
+retaining parsed state between polls or claiming total physical I/O/RSS/latency.
+
+Two unrun actual-file controls author retained inventories1/8/32 with two claims,
+constant own-state reads after binding, changed correlation, corrupt state and a
+real blocked descriptor read shared across poll/stop. Metadata controls cover
+valid nullable compatibility, missing/malformed/nonobject input, fatal UTF8,
+extent rejection before any payload read, ordinary EIO, abort and preserved
+original settlement after diagnostic replacement. No new symlink or privilege is
+required. The original execution-identity fixture is unchanged and joins both new
+owners in ordered ci-lite, now1,360 cases. All functional assertions are unrun.
+
+Full format/ESLint, five JS syntax checks, three related generated refresh/
+freshness surfaces, three discoveries and staged diff checks passed. Functional/
+front-gate/native/platform/performance execution remains deferred. Remaining source
+scope includes executor-produced exact binding, repository-shared incremental
+compatibility discovery/backoff, and a producer projection where oversized
+histories need it. Initial/invalidated compatibility discovery still scans/stats/
+sorts retained roots per monitor. This is not full startup-scaling acceptance.
+Coverage is **35 fixed / 475 implemented / 139 partial / 121 pending**, all770
+reports retained; no issue state or closing reference changed. Bookkeeping reuses
+the checked JS tree. Contract: `docs/contracts/service-progress-read-ownership.md`.
