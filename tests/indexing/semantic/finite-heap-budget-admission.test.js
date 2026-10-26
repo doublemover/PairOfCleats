@@ -18,7 +18,8 @@ const hooks = registerHooks({
       export * from ${JSON.stringify(budgetUrl)};
       export const FINITE_HEAP_LIMITS=Object.freeze({...owner.FINITE_HEAP_LIMITS,maxBytes:2048,
         maxValueReferences:64,maxWork:10000,maxReadCacheBytes:1024,maxReadCacheEntries:3});
-      export const createFiniteHeapBudget=phase=>owner.createFiniteHeapBudget(phase,FINITE_HEAP_LIMITS);` };
+      export const createFiniteHeapBudget=phase=>owner.createFiniteHeapBudget(phase,
+        {...FINITE_HEAP_LIMITS,maxWork:globalThis.finiteHeapBudgetWorkLimit??FINITE_HEAP_LIMITS.maxWork});` };
     return next(url, context);
   }
 });
@@ -28,6 +29,13 @@ try {
   const input = { worldId: 'world', regionId: 'region', contextId: 'context', allocationId: 'allocation', closedProperties: true,
     properties: [{ property: 'key', values: ['seed'], presence: 'knownPresent' }] };
   const seed = heap.createFiniteHeapVersion(input), before = heap.getFiniteHeapOperationDiagnostics();
+  globalThis.finiteHeapBudgetWorkLimit = 2;
+  try {
+    assert.throws(() => heap.createFiniteHeapVersion(input), error => error.code === 'ERR_FINITE_HEAP_BUDGET'
+      && error.allowance === 'structural-work' && error.finiteHeapPhase === 'create');
+    assert.equal(heap.getFiniteHeapOperationDiagnostics().payloadEncodes, before.payloadEncodes,
+      'structural exhaustion rejects the raw operation before projecting and sealing a payload');
+  } finally { delete globalThis.finiteHeapBudgetWorkLimit; }
   const repeated = Array.from({ length: 8 }, () => 'x'.repeat(128));
   const amplified = { ...input, properties: Array.from({ length: 16 }, (_, index) => ({ property: `p${index}`, values: repeated, presence: 'knownPresent' })) };
   const originalClone = globalThis.structuredClone; let clones = 0;
