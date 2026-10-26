@@ -2887,3 +2887,55 @@ output contents; larger workload profiles and repeated qualification remain open
 SQLite and deferred source reads, with explicit migration and byte authority.
 #1675 now uses one global query resource plan and retirement-aware pools; whole
 process-tree RSS measurement remains open, with known-worker samples labeled.
+
+
+### #1470 Rust outer documentation and declaration-owned prefix metadata
+
+`a7d8cc7e7` adds a Rust-specific combined declaration/prefix owner to the native
+converter. It walks actual preceding comment/attribute siblings once, preserving
+full source coverage while using the pinned grammar's outer/inner/doc fields to
+qualify attached documentation. Module/implementation inner docs and ordinary
+comments cannot become item doc facts; neighboring declarations stop ownership.
+Line/block content and doc-before/after stacked/multiline attributes survive
+Unicode and CRLF. Existing Python decorated and C++ template wrapper behavior is
+retained. The shared converter's existing generic extraction remains for other
+languages; a Rust empty doc result cannot fall back to borrowing prior text.
+
+Version 1 attachedDocumentation records exact UTF-16 declaration/prefix,
+comment/content and outer-attribute ranges/roles, with outer-prefix-syntax scope
+and explicit not-requested attribute evaluation. The existing 300-character
+preview stays bounded. Up to 512 metadata ranges are retained; overflow preserves
+the full source envelope and preview, counts exact omissions and reports partial
+syntax coverage. This does not evaluate conditional/computed doc attributes or
+claim compiler binding or configuration inclusion. The registered Rust projector
+carries the receipt through docmeta, assembled artifact rows and incremental
+replay. No native handles escape into metadata or worker products.
+
+Native declaration fields supply parameter source patterns, return annotation,
+visibility and actual function modifiers. Doc/attribute strings, a generic Fn
+constraint and unsafe callback types cannot manufacture function parameters or
+modifiers. The human preview remains separate. Existing heuristic helpers remain
+for their actual fallback callers. Prepared native metadata avoids the prior
+whole-file line split and unnecessary header slicing; no latency improvement is
+claimed without measurement. Native chunk version 12→13 and shared sourceChunking
+29→30 prevent old metadata from qualifying the new meaning.
+
+One authored real-native fixture covers query/traversal conversion, registered
+Rust enrichment, payload assembly, warm native reuse, immutable incremental
+read/write, precise roles/ranges, neighboring declarations, Unicode/CRLF,
+line/block/ordinary/inner docs, stacked/multiline attributes, bodyless methods,
+Fn constraints, parameter attributes, unsafe callback types and allowance
+conservation. The original cross-language declaration-role fixture and Python
+parenthesized-prefix fixture also join ordered ci-lite, now 1,282 cases. Their
+existing assertions are preserved. Functional execution remains deferred.
+
+Full format/ESLint passed; a later removal of unnecessary native Rust text work
+received scoped ESLint and final syntax checks on all six changed JavaScript
+files. Affected generated refresh/freshness, new fixture discovery and staged diff
+checks passed. No bootstrap, compiler, native parser/test execution, model,
+benchmark, WSL or platform campaign was run. The complete live GitHub intake
+remains 770 reports, unchanged in number/content since the preceding refresh.
+Bookkeeping changes do not alter the checked JS tree.
+Current coverage: **35 fixed / 441 implemented / 148 partial / 146 pending**.
+No issue was closed or new closing reference added.
+Contract: docs/contracts/rust-attached-documentation.md.

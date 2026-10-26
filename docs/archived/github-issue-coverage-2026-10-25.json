@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "c64a51d02",
+  "sourceHead": "a7d8cc7e7",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 440,
-    "partial": 149,
+    "implemented": 441,
+    "partial": 148,
     "pending": 146
   },
   "priorOpen": 1177,
@@ -487,6 +487,7 @@
       1466,
       1467,
       1468,
+      1470,
       1471,
       1472,
       1473,
@@ -755,7 +756,6 @@
       1395,
       1459,
       1469,
-      1470,
       1474,
       1482,
       1484,
@@ -4555,8 +4555,10 @@
       "number": 1470,
       "title": "[P2] Preserve declaration prefixes and wrappers in Python, Rust and C++ source coverage",
       "priority": "P2",
-      "status": "partial",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "a7d8cc7e7",
+      "validation": "deferred"
     },
     {
       "number": 1471,
@@ -6561,6 +6563,6 @@
       292
     ],
     "closed": [],
-    "reconfirmedAtSource": "c6275bd85"
+    "reconfirmedAtSource": "a7d8cc7e7"
   }
 }
