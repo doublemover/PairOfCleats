@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "9813aaa98066e258154dd811a4acef9f0d438640",
+  "sourceHead": "4d8116929f2af75276eb4b815e098406953d5899",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 464,
+    "implemented": 465,
     "partial": 138,
-    "pending": 133
+    "pending": 132
   },
   "priorOpen": 1177,
   "currentOpen": 770,
@@ -658,7 +658,8 @@
       1743,
       1744,
       1745,
-      1746
+      1746,
+      1747
     ],
     "partial": [
       630,
@@ -932,7 +933,6 @@
       1722,
       1723,
       1739,
-      1747,
       1748
     ]
   },
@@ -6588,8 +6588,10 @@
       "number": 1747,
       "title": "[P3] Separate cold materialization, persisted-cache admission and hot reuse in VFS benchmarks",
       "priority": "P3",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "4d8116929f2af75276eb4b815e098406953d5899",
+      "validation": "deferred"
     },
     {
       "number": 1748,

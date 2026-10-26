@@ -3490,3 +3490,47 @@ front-gate/native/platform/performance execution remains deferred. Coverage is
 **35 fixed / 464 implemented / 138 partial / 133 pending**, all 770 reports retained,
 no issue closed or closing reference added. Bookkeeping reuses the checked JS tree.
 Contract: `docs/contracts/vfs-cold-cache-bounds.md`.
+
+## 2026-10-26 — independent VFS benchmark phases and owned fixtures
+
+`4d8116929` repairs #1747 with independent fresh-root cold repetitions and separate
+fresh-process persisted admission and verified in-process hot access. Cache load,
+document access, equivalent cold/warm flush obligations, hot warmup, source-plan
+work and full child wall time retain separate scopes. Parent samples run serially
+with alternating warm/hot order after cold priming; OS filesystem cache state is
+uncontrolled. The fixed-byte ASCII generator records actual UTF-8 totals, unique
+content count, existing xxh64 backend and SHA-256 origin/content identity. Work is
+bounded by existing cache coordinates (50,000 docs, 64 MiB/doc, 128 MiB total), not
+new latency or memory acceptance thresholds. Existing public options remain.
+
+Real cache statistics and materialization evidence establish loaded rows/entries/
+bytes, actual created/regenerated/persisted/memory/independently verified counts,
+content-verification/document-write bytes and flush counts. Independent bounded,
+contained consumer reads outside timing require exact content. A missing, stale,
+rejected, reused-cold or incompletely persisted scenario retains raw observations
+but cannot acquire qualified summary/rate fields; top-level phase state remains
+unqualified. No representative performance gain or immutable reader lifetime is
+claimed. Sustained profiles and final-source Windows execution remain deferred.
+
+Every internal child needs a marked owned root, exactly one scenario sample,
+30-second deadline, no retry, bounded output and quiet/lossless diagnostics.
+Fixtures use the shared `.tmp/dev/benchmarks` owner; cleanup checks ownership,
+containment and original child settlement before removal. Unowned directories
+cannot be reset. Primary/cleanup and malformed-worker output context remain.
+The old private mixed-sample helper and duplicate payload generator had only the
+replaced harness callers and no external export; their assertions/claims move to
+explicit phase owners rather than being dropped.
+
+Authored deterministic adapter controls cover independent repetitions, persisted
+admission, hot access, missing/stale/rejected cache misses, same-root false-cold
+rejection, exact bytes, persistence parity and bad consumer content. A separate
+actual-process control checks two repetitions of all three phases, expected
+counts/parity, owned cleanup and an untouched unowned sentinel directory. Neither
+fixture has run. Full format/ESLint, four JS syntax checks, affected generated
+refresh/freshness, two discoveries and staged diff checks passed. Final affected
+syntax/ESLint checks cover lossless worker diagnostics/context and bounded consumer
+reads added after format. Ordered ci-lite contains 1,333 cases. Functional/front-
+gate/native/platform/performance execution remains deferred. Coverage is **35 fixed /
+465 implemented / 138 partial / 132 pending**, all 770 reports retained, no issue
+closed or closing reference added. Bookkeeping reuses the checked JS tree.
+Contract: `docs/contracts/vfs-benchmark-phases.md`.
