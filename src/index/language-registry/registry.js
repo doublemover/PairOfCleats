@@ -1,3 +1,5 @@
+import { throwIfAborted } from '../../shared/abort.js';
+import { admitImportExtraction, attachImportExtraction, createImportExtraction, getImportExtraction, projectImportExtraction } from '../../shared/import-extraction.js';
 import path from 'node:path';
 import { LINGUIST_LANGUAGES } from './linguist-data.js';
 import { buildLinguistRoutingMaps, normalizeLinguistName } from './linguist-routing.js';
@@ -85,6 +87,8 @@ const coerceImportEntry = (value) => {
 };
 
 const normalizeImportEntries = (entries) => {
+  const extraction = getImportExtraction(entries);
+  let admitted = 0;
   const deduped = new Map();
   for (const rawEntry of Array.isArray(entries) ? entries : []) {
     const normalized = coerceImportEntry(rawEntry);
@@ -93,6 +97,7 @@ const normalizeImportEntries = (entries) => {
       ? [sanitizeImportSpecifier(normalized.specifier,{literal:true})] : normalizeImportSpecifiers([normalized.specifier]);
     const specifier = normalizedSpecifierList[0];
     if (!specifier) continue;
+    admitted += 1;
     const existing = deduped.get(specifier);
     if (!existing) {
       deduped.set(specifier, {
@@ -118,6 +123,8 @@ const normalizeImportEntries = (entries) => {
   }
   const result = Array.from(deduped.values())
     .sort((a, b) => (a.specifier < b.specifier ? -1 : (a.specifier > b.specifier ? 1 : 0)));
+  if (extraction) attachImportExtraction(result, projectImportExtraction(extraction, entries, result, { owner: 'registry',
+    duplicates: admitted - result.length, invalid: entries.length - admitted }));
   if (entries?.coverage) Object.defineProperty(result, 'coverage', { value: entries.coverage });
   if (entries?.occurrences) Object.defineProperty(result, 'occurrences', { value: entries.occurrences });
   return result;
@@ -132,7 +139,9 @@ export function getLanguageForFile(ext, relPath) {
 
 export function collectLanguageImports(input = {}) {
   const entries = collectLanguageImportEntries(input);
-  return entries.map((entry) => entry.specifier);
+  const values = entries.map((entry) => entry.specifier);
+  attachImportExtraction(values, projectImportExtraction(getImportExtraction(entries), entries, values, { owner: 'string-array' }));
+  return values;
 }
 
 export function collectLanguageImportEntries(input = {}) {
@@ -148,7 +157,10 @@ export function collectLanguageImportEntries(input = {}) {
   } = input;
   const lang = getLanguageForFile(ext, relPath);
   if (!lang || (typeof lang.collectImports !== 'function' && typeof lang.collectImportEntries !== 'function')) {
-    return [];
+    const entries = [];
+    return attachImportExtraction(entries, createImportExtraction({ entries, text: typeof text === 'string' ? text : null,
+      producerId: lang?.id || 'unsupported-language', scope: 'unsupported-import-capability', state: 'unsupported',
+      reasons: ['import_capability_unsupported'] }));
   }
   const forwarded = {
     ...(options && typeof options === 'object' ? options : {}),
@@ -162,10 +174,27 @@ export function collectLanguageImportEntries(input = {}) {
   };
   if (root) merged.root = root;
   if (filePath) merged.filePath = filePath;
-  const imports = typeof lang.collectImportEntries === 'function'
+  throwIfAborted(merged.abortSignal || merged.signal);
+  const collected = typeof lang.collectImportEntries === 'function'
     ? lang.collectImportEntries(text, merged)
     : lang.collectImports(text, merged);
+  throwIfAborted(merged.abortSignal || merged.signal);
+  const imports = Array.isArray(collected) ? collected : Array.isArray(collected?.entries)
+    ? attachImportExtraction(collected.entries, collected.receipt) : null;
+  if (!imports) throw Object.assign(new Error('Import collector returned neither entries nor a typed result.'), { code: 'ERR_IMPORT_EXTRACTION_CONTRACT' });
+  const receipt = getImportExtraction(imports) || createImportExtraction({ entries: imports,
+    text: typeof text === 'string' ? text : null, producerId: lang.id, scope: 'legacy-import-array:' + lang.id,
+    reasons: ['legacy_array_producer'] });
+  admitImportExtraction(receipt, imports, { text: typeof text === 'string' ? text : null });
+  attachImportExtraction(imports, receipt);
   return normalizeImportEntries(imports);
+}
+
+/** Canonical typed handoff. Legacy array APIs retain this same receipt privately
+ * without parsing again or retaining source text alongside long-lived arrays. */
+export function collectLanguageImportResult(input = {}) {
+  const entries = collectLanguageImportEntries(input);
+  return Object.freeze({ entries, receipt: getImportExtraction(entries) });
 }
 
 export async function buildLanguageContext({ ext, relPath, mode, text, options }) {

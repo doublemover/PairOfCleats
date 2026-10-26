@@ -1,3 +1,4 @@
+import { attachImportExtraction, createImportExtraction, importExtractionRuntimeVersions } from '../../../shared/import-extraction.js';
 import { sanitizeImportSpecifier } from '../../shared/import-specifier.js';
 import {
   createCommentAwareLineStripper,
@@ -272,15 +273,31 @@ export const createCollectorBudgetContext = ({
     sourceBudget,
     scanBudget,
     budget,
-    finalize() {
+    finalize({ entries = null, structure = null, initialization = null, parserLimits = null, parserIdentityKnown = false, parserIdentity = null, scope = collectorId } = {}) {
       if (finalized) return;
       finalized = true;
       const reasons = [];
+      if ((options?.abortSignal || options?.signal)?.aborted) reasons.push('cancelled');
       if (sourceBudget.truncated) reasons.push('source_bytes');
       if (scanBudget.linesExhausted) reasons.push('scan_lines');
       if (scanBudget.matchesExhausted) reasons.push('scan_matches');
       if (scanBudget.tokensExhausted) reasons.push('scan_tokens');
       if (scanBudget.timedOut) reasons.push('scan_time');
+      if (Array.isArray(entries)) {
+        const packageName = collectorId === 'yaml' ? 'yaml' : collectorId === 'toml' ? 'smol-toml'
+          : collectorId === 'imports:proto' ? 'protobufjs' : null;
+        const version = parserIdentity?.version ?? (parserIdentityKnown ? packageName ? importExtractionRuntimeVersions()[packageName] : 'builtin-1' : null);
+        attachImportExtraction(entries, createImportExtraction({ entries, text: source,
+          producerId: collectorId, scope: 'static-reference-subset:' + scope,
+          parser: structure ? { id: parserIdentity?.id || (parserIdentityKnown ? packageName || 'builtin-xml-reference-parser' : 'injected-parser-unqualified'),
+            version, available: initialization?.available ?? (/^parser-(?:unavailable|load-failed|unsupported)$/u.test(structure.reason || '')
+              ? false : structure.coverage === 'unavailable' ? null : true) } : null,
+          parserCoverage: structure?.coverage || null, parserReason: structure?.reason || null,
+          reasons: [...reasons, ...(Array.isArray(entries.coverage?.reasons) ? entries.coverage.reasons : []),
+            ...(Array.isArray(structure?.warningCodes) ? structure.warningCodes.slice(0, 8) : [])],
+          limits: budget, parserLimits, admittedLength: sourceBudget.source.length,
+          observedEntries: Array.isArray(structure?.importEntries) ? structure.importEntries.length : null }));
+      }
       if (!reasons.length) return;
       emitCollectorBudgetDiagnostic(options, {
         type: 'collector-scan-budget',

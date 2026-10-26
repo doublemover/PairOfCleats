@@ -1,3 +1,5 @@
+import { admitImportMapExtraction } from './extraction-admission.js';
+import { summarizeImportExtraction } from '../../../shared/import-extraction.js';
 import { createBazelPackageIndex, isBazelSourceFile } from './bazel-label.js';
 import path from 'node:path';
 import { buildCacheKey } from '../../../shared/cache-key.js';
@@ -248,6 +250,7 @@ export function resolveImportLinks({
   entries,
   importsByFile,
   importHintsByFile = null,
+  importExtractionByFile = null,
   fileRelations,
   log,
   mode = null,
@@ -639,15 +642,19 @@ export function resolveImportLinks({
     return Boolean(importerInfo?.isClike && /^\/\/\.\//.test(rawNormalized));
   };
 
+  const extractedByFile = Object.create(null);
   const importsEntries = importsByFile instanceof Map
     ? Array.from(importsByFile.entries())
     : Object.entries(importsByFile || {});
   importsEntries.sort((a, b) => sortStrings(normalizeRelPath(a[0]), normalizeRelPath(b[0])));
   for (const [importerRel, rawImports] of importsEntries) {
-    if (!importerRel || !Array.isArray(rawImports) || !rawImports.length) continue;
+    if (!importerRel) continue;
+    const { relNormalized, rawSpecs, extraction } = admitImportMapExtraction({ importerRel, rawImports,
+      normalizeRelPath, importExtractionByFile, fileRelations });
+    extractedByFile[relNormalized] = extraction;
+    if (!rawSpecs.length) continue;
     const importLinks = new Set();
     const externalImports = new Set();
-    const relNormalized = normalizeRelPath(importerRel);
     const importerInfo = classifyImporter(relNormalized);
     const importerAbs = path.resolve(resolvedLookup.rootAbs, relNormalized);
     let tsconfig = null;
@@ -655,8 +662,6 @@ export function resolveImportLinks({
 
     if (enableGraph) addGraphNode(graphNodes, `file:${relNormalized}`, 'file', capStats);
 
-    const rawSpecs = Array.from(new Set(rawImports.filter((spec) => typeof spec === 'string' && spec)));
-    rawSpecs.sort(sortStrings);
     const importHintsForFile = importHintsByFile && typeof importHintsByFile === 'object'
       ? (importHintsByFile[relNormalized] || importHintsByFile[importerRel] || null)
       : null;
@@ -1294,13 +1299,16 @@ export function resolveImportLinks({
       fileRelations.set(relNormalized, {
         ...existing,
         imports,
+        ...(!Array.isArray(existing.imports) || !existing.imports.length ? { importExtraction: extraction } : {}),
         importLinks: Array.from(importLinks).sort(sortStrings),
         externalImports: Array.from(externalImports).sort(sortStrings)
       });
     }
   }
 
+  const extractionCoverage = summarizeImportExtraction(fileRelations);
   if (enableGraph) {
+    graph.extractionCoverage = extractionCoverage;
     graph.warnings = warningList;
     graph.nodes = Array.from(graphNodes.values()).sort((a, b) => sortStrings(a.id, b.id));
     if (Array.isArray(edges)) {
@@ -1350,6 +1358,8 @@ export function resolveImportLinks({
   }
 
   return {
+    importExtractionByFile: extractedByFile,
+    extractionCoverage,
     stats: {
       files: importsEntries.length,
       nodes: enableGraph ? graphNodes.size : null,

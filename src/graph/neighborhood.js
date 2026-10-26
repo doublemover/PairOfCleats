@@ -167,6 +167,14 @@ export const buildGraphNeighborhood = ({
       message: 'graph_relations artifact missing; graph expansion limited.'
     });
   }
+  const extractionCoverage = (graphIndexEffective?.graphRelations || graphRelations)?.extractionCoverage;
+  if (extractionCoverage && extractionCoverage.state !== 'complete'
+    && (!graphFilter || graphFilter.has('importGraph') || graphFilter.has('usageGraph') && extractionCoverage.sqlUsageFiles > 0)) {
+    warnings.push({ code: 'RELATION_EXTRACTION_INCOMPLETE',
+      message: 'Recorded relation traversal does not qualify omitted or unavailable producer input.',
+      data: { scope: extractionCoverage.scope, files: extractionCoverage.files, partialFiles: extractionCoverage.partialFiles,
+        states: extractionCoverage.states, relationStates: extractionCoverage.relationStates, sqlUsageStates: extractionCoverage.sqlUsageStates } });
+  }
   if (!hasSymbolEdges && graphFilter && graphFilter.has('symbolEdges')) {
     warnings.push({
       code: 'MISSING_SYMBOL_EDGES',

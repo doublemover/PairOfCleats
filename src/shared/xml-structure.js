@@ -26,7 +26,7 @@ class XmlBoundaryError extends Error {}
 export const createXmlStructureParser = ({ now = () => performance.now() } = {}) => {
   let previousText;
   let previousResult;
-  return (text, { maxMs = MAX_MS, remainingMs = null, abortSignal = null } = {}) => {
+  const parse = (text, { maxMs = MAX_MS, remainingMs = null, abortSignal = null } = {}) => {
     const source = String(text || '');
     let sourceLines;
     let metrics = {};
@@ -260,6 +260,8 @@ export const createXmlStructureParser = ({ now = () => performance.now() } = {})
       return fallback(error instanceof XmlBoundaryError ? error.message : 'parse-failed', elapsed());
     }
   };
+  parse.limits = Object.freeze({ maxChars: MAX_CHARS, maxLines: MAX_LINES, maxTokens: MAX_TOKENS, maxTokenChars: MAX_TOKEN_CHARS, maxNameChars: MAX_NAME_CHARS, maxNodes: MAX_NODES, maxDepth: MAX_DEPTH, maxMs: MAX_MS });
+  return parse;
 };
 
 export const parseXmlStructure = createXmlStructureParser();

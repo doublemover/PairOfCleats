@@ -1,3 +1,4 @@
+import { createImportExtraction, getImportExtraction, projectImportExtraction } from '../../shared/import-extraction.js';
 import { sanitizeImportSpecifier } from '../shared/import-specifier.js';
 
 export const normalizeImportToken = (raw) => {
@@ -24,8 +25,16 @@ export const buildSimpleRelations = (imports) => {
     .filter(Boolean);
   const unique = Array.from(new Set(normalized));
   unique.sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));
+  const retained = unique.slice(0, maxImports);
+  const extraction = getImportExtraction(list) || createImportExtraction({ entries: list,
+    text: typeof imports?.sourceText === 'string' ? imports.sourceText : null, producerId: 'simple-relations-legacy-array',
+    scope: 'unqualified-simple-relation-input', reasons: ['legacy_array_producer'] });
+  const importExtraction = projectImportExtraction(extraction, list, retained, { owner: 'simple-relations',
+    duplicates: normalized.length - unique.length, invalid: list.length - normalized.length,
+    omitted: unique.length - retained.length, limit: maxImports });
   return {
-    imports: unique.slice(0, maxImports),
+    importExtraction,
+    imports: retained,
     exports: [],
     calls: [],
     usages: []

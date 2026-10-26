@@ -1,3 +1,5 @@
+import { observeStorageResource } from '../../shared/storage/failure-observation.js';
+import { attachImportExtraction, canReuseImportExtraction, createImportExtraction, getImportExtraction, importExtractionRuntimeVersions, projectImportExtraction } from '../../shared/import-extraction.js';
 import path from 'node:path';
 import { init as initEsModuleLexer, parse as parseEsModuleLexer } from 'es-module-lexer';
 import { init as initCjsLexer, parse as parseCjsLexer } from 'cjs-module-lexer';
@@ -78,6 +80,7 @@ const sanitizeImportScanLanguageOptions = (value, pathSegments = []) => {
 
 const buildImportScanFingerprint = ({ languageOptions, mode }) => sha1(stableStringifyForSignature({
   producer: SEMANTIC_ANALYSIS_VERSIONS.importResolution,
+  extractionRuntime: importExtractionRuntimeVersions(), node: process.versions.node,
   mode: typeof mode === 'string' ? mode : 'code',
   languageOptions: canonicalizeForSignature(sanitizeImportScanLanguageOptions(languageOptions || null))
 }));
@@ -355,8 +358,12 @@ const normalizeImportEntriesWithHints = (entries) => {
   for (const specifier of normalizedImports) {
     if (hints[specifier]) filteredHints[specifier] = hints[specifier];
   }
+  const extraction = getImportExtraction(entries);
+  if (extraction) attachImportExtraction(normalizedImports, projectImportExtraction(extraction, entries, normalizedImports,
+    { owner: 'scan-normalization', duplicates: imports.length - normalizedImports.length, invalid: entries.length - imports.length }));
   return {
     imports: normalizedImports,
+    extraction: getImportExtraction(normalizedImports),
     hints: filteredHints
   };
 };
@@ -506,8 +513,9 @@ export async function scanImports({
   const importsByFile = new Map();
   const importHintsByFile = new Map();
   const importCoverageByFile = Object.create(null);
+  const importExtractionByFile = Object.create(null);
   const importScanFingerprint = buildImportScanFingerprint({ languageOptions, mode });
-  const moduleSet = new Set();
+  const moduleCounts = new Map();
   const start = Date.now();
   let processed = 0;
   let filesWithImports = 0;
@@ -573,7 +581,7 @@ export async function scanImports({
           expectedImportScanFingerprint: importScanFingerprint
         });
         const cachedEntries = coerceCachedImportEntries(cachedImports);
-        if (Array.isArray(cachedEntries)) {
+        if (Array.isArray(cachedEntries) && canReuseImportExtraction(getImportExtraction(cachedEntries), cachedEntries)) {
           const normalizedCached = normalizeImportEntriesWithHints(cachedEntries);
           if (normalizedCached.imports.length > 0) {
             cachedImportCounts.set(item.relKey, normalizedCached.imports.length);
@@ -613,10 +621,25 @@ export async function scanImports({
       };
       const recordImports = (imports) => {
         if (!Array.isArray(imports)) return;
-        if (imports.length > 0) filesWithImports += 1;
+        const extraction = getImportExtraction(imports);
+        if (extraction) importExtractionByFile[relKey] = extraction;
+        const previous = importsByFile.get(relKey) || [];
+        if (previous.length) filesWithImports -= 1;
+        edgeCount -= previous.length;
+        for (const mod of previous) {
+          const remaining = (moduleCounts.get(mod) || 0) - 1;
+          if (remaining > 0) moduleCounts.set(mod, remaining); else moduleCounts.delete(mod);
+        }
+        if (imports.length > 0) filesWithImports += 1; else importHintsByFile.delete(relKey);
         importsByFile.set(relKey, imports);
         edgeCount += imports.length;
-        for (const mod of imports) moduleSet.add(mod);
+        for (const mod of imports) moduleCounts.set(mod, (moduleCounts.get(mod) || 0) + 1);
+      };
+      const recordUnavailableSource = () => {
+        const empty = [];
+        attachImportExtraction(empty, createImportExtraction({ entries: empty, text: null, producerId: 'import-source-acquisition',
+          scope: 'source-read-admission', state: 'unavailable', reasons: ['source_text_unavailable'] }));
+        recordImports(empty);
       };
       const recordImportEntries = (entries) => {
         if (!Array.isArray(entries)) return false;
@@ -681,8 +704,16 @@ export async function scanImports({
                 : text);
             }
           }
+          if (typeof text !== 'string') { recordUnavailableSource(); return false; }
           return true;
-        } catch {
+        } catch (error) {
+          const observation = observeStorageResource(error, { phase: 'import-source-acquisition' });
+          observation.requireSettled();
+          let code;
+          try { code = observation.primary.code; }
+          catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+          if (!['ENOENT', 'EACCES', 'EPERM', 'EISDIR', 'ENOTDIR', 'EBUSY', 'EIO', 'EINVAL'].includes(code)) throw error;
+          recordUnavailableSource();
           return false;
         }
       };
@@ -706,7 +737,7 @@ export async function scanImports({
         const cachedImports = cachedImportsByFile.get(relKey);
         cachedImportsByFile.delete(relKey);
         const cachedEntries = coerceCachedImportEntries(cachedImports);
-        if (Array.isArray(cachedEntries)) {
+        if (Array.isArray(cachedEntries) && canReuseImportExtraction(getImportExtraction(cachedEntries), cachedEntries)) {
           const normalizedCached = normalizeImportEntriesWithHints(cachedEntries);
           recordImports(normalizedCached.imports);
           recordImportHints(normalizedCached.hints, normalizedCached.imports);
@@ -731,7 +762,7 @@ export async function scanImports({
           expectedImportScanFingerprint: importScanFingerprint
         });
         const cachedFallbackEntries = coerceCachedImportEntries(cachedImportsFallback);
-        if (Array.isArray(cachedFallbackEntries)) {
+        if (Array.isArray(cachedFallbackEntries) && canReuseImportExtraction(getImportExtraction(cachedFallbackEntries), cachedFallbackEntries)) {
           const normalizedCachedFallback = normalizeImportEntriesWithHints(cachedFallbackEntries);
           recordImports(normalizedCachedFallback.imports);
           recordImportHints(normalizedCachedFallback.hints, normalizedCachedFallback.imports);
@@ -749,6 +780,13 @@ export async function scanImports({
       const fastImports = await collectModuleImportsFast({ text, ext });
       if (Array.isArray(fastImports)) {
         const imports = normalizeImports(fastImports);
+        const sourceReceipt = createImportExtraction({ entries: fastImports, text, producerId: 'module-lexer-fast-path',
+          parser: { id: 'esm-cjs-static-module-lexers', version: [importExtractionRuntimeVersions()['es-module-lexer'], importExtractionRuntimeVersions()['cjs-module-lexer']].every(Boolean)
+            ? importExtractionRuntimeVersions()['es-module-lexer'] + '/' + importExtractionRuntimeVersions()['cjs-module-lexer'] : null, available: true },
+          parserCoverage: 'partial', scope: 'js-static-module-reference-literals-v1', observedEntries: fastImports.length });
+        const valid = fastImports.filter(entry => normalizeImports([entry]).length).length;
+        attachImportExtraction(imports, projectImportExtraction(sourceReceipt, fastImports, imports, { owner: 'scan-normalization',
+          duplicates: valid - imports.length, invalid: fastImports.length - valid }));
         recordImports(imports);
       } else {
         const importEntries = collectLanguageImportEntries({
@@ -792,11 +830,12 @@ export async function scanImports({
   return {
     importsByFile: dedupedImportsByFile,
     importCoverageByFile,
+    importExtractionByFile,
     importHintsByFile: dedupedImportHintsByFile,
     importScanFingerprint,
     durationMs: Date.now() - start,
     stats: {
-      modules: moduleSet.size,
+      modules: moduleCounts.size,
       edges: edgeCount,
       files: filesWithImports,
       scanned: processed

@@ -1,6 +1,7 @@
 export {
   getLanguageForFile,
   collectLanguageImportEntries,
+  collectLanguageImportResult,
   collectLanguageImports,
   buildLanguageContext,
   buildChunkRelations

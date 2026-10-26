@@ -1,3 +1,4 @@
+import { summarizeImportExtraction } from '../../../shared/import-extraction.js';
 import { withGeneratedArtifactMetadata } from '../../../shared/generated-artifact-core.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -221,6 +222,8 @@ export async function enqueueGraphRelationsArtifacts({
   const hasPayload = graphRelations && typeof graphRelations === 'object';
   const hasInputs = Array.isArray(chunks) && chunks.length;
   if (!hasPayload && !hasInputs) return;
+  const extractionCoverage = fileRelations == null && graphRelations?.extractionCoverage
+    ? JSON.parse(JSON.stringify(graphRelations.extractionCoverage)) : summarizeImportExtraction(fileRelations);
 
   if (!hasPayload) {
     const generatedAt = new Date().toISOString();
@@ -447,7 +450,7 @@ export async function enqueueGraphRelationsArtifacts({
     const retainedMetaPath = path.join(outDir, 'graph_relation_edges.meta.json');
     const retainedFields = buildShardedJsonlMetaFields({ artifact: 'graph_relation_edges', result: retained,
       parts: physical.pieces.map(piece => ({ path: piece.path, records: piece.count, bytes: piece.bytes })),
-      extensions: { upstreamCoverage, ordering: 'graph-from-to-v1',
+      extensions: { upstreamCoverage, extractionCoverage, ordering: 'graph-from-to-v1',
         scope: 'resolved-collected-adjacency', distinctEdges: retainedCounts,
         occurrenceMultiplicity: 'canonical-call-sites',
         offsets: createOffsetsMeta({ suffix: 'offsets.bin', parts: retained.offsets, compression: 'none' }) } });
@@ -628,7 +631,7 @@ export async function enqueueGraphRelationsArtifacts({
         targetMaxBytes: result.targetMaxBytes,
         parts,
         extensions: {
-          upstreamCoverage,
+          upstreamCoverage, extractionCoverage,
           retainedEdges: { artifact: 'graph_relation_edges', scope: 'resolved-collected-adjacency',
             status: 'complete', distinctEdges: retainedCounts },
           graphs: {
@@ -707,7 +710,7 @@ export async function enqueueGraphRelationsArtifacts({
     return { orderingHash, orderingCount };
   }
 
-  const graphMeasurement = measureGraphRelations({ ...graphRelations, upstreamCoverage }, { maxJsonBytes });
+  const graphMeasurement = measureGraphRelations({ ...graphRelations, upstreamCoverage, extractionCoverage }, { maxJsonBytes });
   if (!graphMeasurement) return;
   const orderingHash = graphMeasurement.orderingHash || null;
   const orderingCount = graphMeasurement.orderingCount || 0;
@@ -730,7 +733,7 @@ export async function enqueueGraphRelationsArtifacts({
     enqueueWrite(
       formatArtifactLabel(graphPath),
       async () => {
-        const payload = { ...materializeGraphRelationsPayload(graphRelations), upstreamCoverage };
+        const payload = { ...materializeGraphRelationsPayload(graphRelations), upstreamCoverage, extractionCoverage };
         const account = diskAccount || (await reopenSemanticDiskAccount({ roots: [outDir],
           limit: diskLimit ?? normalizeSemanticConfig().storage.maxDiskWorkingSetBytes, signal: abortSignal })).account;
         await writeGraphJsonWithDiskAdmission({ filename: graphPath, value: payload, diskAccount: account, signal: abortSignal });
@@ -786,7 +789,7 @@ export async function enqueueGraphRelationsArtifacts({
             targetMaxBytes: result.targetMaxBytes,
             parts,
             extensions: {
-              upstreamCoverage,
+              upstreamCoverage, extractionCoverage,
               graphs: graphMeasurement.graphs,
               caps: graphRelations.caps ?? null,
               version: graphMeasurement.version,

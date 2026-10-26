@@ -1,3 +1,4 @@
+import { admitImportExtraction, admitImportExtractionSummary } from '../../shared/import-extraction.js';
 import { sqlRelationEvidenceErrors } from '../sql-relation-identities.js';
 import { callArgumentProjectionErrors } from '../call-arguments.js';
 import { literalEvidenceProjectionErrors } from '../literal-evidence.js';
@@ -40,8 +41,20 @@ export function validateArtifact(name, data) {
     for (const [index, entry] of data.entries()) {
       result.errors.push(...sqlRelationEvidenceErrors(entry.relations.sqlRelationEvidence)
         .map(error => `/${index}/relations/sqlRelationEvidence: ${error}`));
+      for (const name of ['importExtraction', 'importScanExtraction']) if (entry.relations[name]) {
+        try {
+          if (name === 'importExtraction' && !Array.isArray(entry.relations.imports)) throw new Error('File extraction requires its retained imports array.');
+          admitImportExtraction(entry.relations[name], name === 'importExtraction' ? entry.relations.imports : null);
+        }
+        catch (error) { result.errors.push(`/${index}/relations/${name}: ${error.message}`); }
+      }
       if (result.errors.length >= 20) break;
     }
+    result.ok = !result.errors.length;
+  }
+  if (result.ok && ['graph_relations', 'import_resolution_graph'].includes(name) && data.extractionCoverage) {
+    try { admitImportExtractionSummary(data.extractionCoverage); }
+    catch (error) { result.errors.push(`/extractionCoverage: ${error.message}`); }
     result.ok = !result.errors.length;
   }
   if (result.ok && name === 'call_sites' && Array.isArray(data)) {

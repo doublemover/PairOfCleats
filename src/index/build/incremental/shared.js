@@ -1,3 +1,4 @@
+import { attachImportExtraction, canReuseImportExtraction } from '../../../shared/import-extraction.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
@@ -175,7 +176,9 @@ export const resolveBundleImports = (bundle, { expectedImportScanFingerprint = n
     }
   }
   const imports = bundle?.fileRelations?.imports;
-  return Array.isArray(imports) ? imports : null;
+  const extraction = bundle?.fileRelations?.importScanExtraction || bundle?.fileRelations?.importExtraction;
+  return Array.isArray(imports) && canReuseImportExtraction(extraction, imports)
+    ? attachImportExtraction(imports, extraction) : null;
 };
 
 /**

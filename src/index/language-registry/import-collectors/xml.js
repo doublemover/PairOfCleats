@@ -4,13 +4,14 @@ import { sanitizeImportSpecifier } from '../../shared/import-specifier.js';
 
 const XML_SCAN_BUDGET = Object.freeze({ maxChars: 786432, maxMatches: 4096, maxTokens: 2048, maxMs: 30 });
 
-export const createXmlImportCollector = ({ parseStructure = parseXmlStructure } = {}) => (text, options = {}) => {
+export const createXmlImportCollector = ({ parseStructure = parseXmlStructure, parserIdentity = null } = {}) => (text, options = {}) => {
   const context = createCollectorBudgetContext({ text, options, collectorId: 'xml', defaults: XML_SCAN_BUDGET });
-  const imports = new Set();
+  const imports = new Set(), result = [];
+  let structure = null;
   const occurrences = [];
   let lineLimited = false;
   try {
-    const structure = parseStructure(context.source, { remainingMs: () => context.budget.maxMs > 0
+    structure = parseStructure(context.source, { remainingMs: () => context.budget.maxMs > 0
       ? Math.max(0, context.budget.maxMs - context.scanBudget.elapsedMs) : Infinity, abortSignal: options.abortSignal || options.signal });
     const reasons = new Set(structure.importCoverage?.reasons || []);
     if (structure.reason) reasons.add(structure.reason);
@@ -31,13 +32,14 @@ export const createXmlImportCollector = ({ parseStructure = parseXmlStructure } 
       if (Array.isArray(options.collectorDiagnostics)) options.collectorDiagnostics.push(diagnostic);
       if (typeof options.onCollectorDiagnostic === 'function') { try { options.onCollectorDiagnostic(diagnostic); } catch {} }
     }
-    return Object.defineProperties([...imports], { coverage: { value: coverage },
+    result.push(...imports);
+    return Object.defineProperties(result, { coverage: { value: coverage },
       occurrences: { value: Object.freeze(occurrences) }, observations: { value: structure.referenceObservations || Object.freeze([]) } });
   } finally {
     if (lineLimited) for (let line = 0; line < context.budget.maxLines; line += 1) {
       if (!context.scanBudget.consumeLine()) break;
     }
-    context.finalize();
+    context.finalize({ entries: result, structure, parserLimits: parseStructure.limits || null, initialization: { available: true }, parserIdentityKnown: parseStructure === parseXmlStructure, parserIdentity, scope: 'xml-lexical-reference-subset' });
   }
 };
 

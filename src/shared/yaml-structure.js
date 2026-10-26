@@ -223,6 +223,7 @@ export const createYamlStructureParser = ({ loadParser = () => require('yaml'),
       return fallback(error instanceof YamlBoundaryError ? error.message : 'parse-failed', elapsed());
     }
   };
+  parse.limits = Object.freeze({ maxChars: MAX_CHARS, maxLines: MAX_LINES, maxTokens: MAX_TOKENS, maxTokenChars: MAX_TOKEN_CHARS, maxCstNodes: MAX_CST_NODES, maxNodes: MAX_NODES, maxDepth: MAX_DEPTH, maxDocuments: MAX_DOCUMENTS, maxMs: MAX_MS });
   parse.initialize = () => loader.initialize();
   return parse;
 };

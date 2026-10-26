@@ -7,9 +7,9 @@ import { MODULE_EXPORTS_VERSION } from '../../lang/js-ts-exports.js';
  */
 export const SEMANTIC_ANALYSIS_VERSIONS = Object.freeze({
   moduleExports: MODULE_EXPORTS_VERSION, sqlRelations: SQL_RELATION_PRODUCER_VERSION,
-  lexicalAnalyzer: '3', importResolution: '17', pieceAssembly: '4',
+  lexicalAnalyzer: '3', importResolution: '18', pieceAssembly: '4',
   recordsProducer: '8', ignoreRules: '4', documentExtraction: '5', discoverySelection: '5',
-  repoMapProducer: '2', graphRelations: '1',
+  repoMapProducer: '2', graphRelations: '2',
   sourceChunking: '29', typeNormalization: '11', vfsRouting: '2', complexityAnalysis: '2', lintProjection: '3',
   riskPropagation: '7', callSiteIdentity: '3',
   compilerBindings: '26', lspBindings: '48', cfgFlow: '31', callFlow: '48',

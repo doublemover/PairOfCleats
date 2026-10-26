@@ -1,3 +1,4 @@
+import { attachImportExtraction, getImportExtraction, projectImportExtraction } from '../../../shared/import-extraction.js';
 import { buildSimpleRelations } from '../simple-relations.js';
 import { collectIniImports } from '../import-collectors/ini.js';
 import { collectJsonImports } from '../import-collectors/json.js';
@@ -20,6 +21,8 @@ export const createConfigDataAdapter = ({ id, match, collectImports = () => [], 
   ...(literalImports ? { collectImportEntries: (text, options) => {
     const values = collectImports(text, options);
     const entries = values.map(specifier => ({ specifier, provenance: 'parsed-literal' }));
+    const extraction = getImportExtraction(values);
+    if (extraction) attachImportExtraction(entries, projectImportExtraction(extraction, values, entries, { owner: 'config-entry' }));
     if (values.coverage) Object.defineProperty(entries, 'coverage', { value: values.coverage });
     if (values.occurrences) Object.defineProperty(entries, 'occurrences', { value: values.occurrences });
     return entries;
@@ -27,7 +30,7 @@ export const createConfigDataAdapter = ({ id, match, collectImports = () => [], 
   prepare: async () => ({}),
   buildRelations: ({ text, options }) => {
     const values = collectImports(text, options);
-    return { ...buildSimpleRelations({ imports: values, literalImports }),
+    return { ...buildSimpleRelations({ imports: values, literalImports, sourceText: text }),
       ...(values.coverage ? { importScanCoverage: values.coverage } : {}),
       ...(id === 'xml' ? { xmlImportOccurrences: values.occurrences || [], xmlReferenceObservations: values.observations || [] } : {}) };
   },
@@ -39,7 +42,7 @@ export const createConfigDataAdapter = ({ id, match, collectImports = () => [], 
 export const createJsonConfigAdapter = () => {
   const adapter = createConfigDataAdapter({ id: 'json', match: createExtensionMatcher(JSON_EXTS), collectImports: collectJsonImports, literalImports: true });
   adapter.buildRelations = ({ text, ext, relPath, options }) => buildSimpleRelations({ imports: collectJsonImports(text,
-    { ...options, ext: ext ?? options?.ext, relPath: relPath ?? options?.relPath }), literalImports: true });
+    { ...options, ext: ext ?? options?.ext, relPath: relPath ?? options?.relPath }), literalImports: true, sourceText: text });
   return adapter;
 };
 

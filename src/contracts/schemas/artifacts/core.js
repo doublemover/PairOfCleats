@@ -1,3 +1,4 @@
+import { IMPORT_EXTRACTION_SCHEMA, IMPORT_EXTRACTION_SUMMARY_SCHEMA } from '../import-extraction.js';
 import { SQL_RELATION_EVIDENCE_SCHEMA } from '../sql-relations.js';
 import { crossFileCoverageSchema } from '../relation-coverage.js';
 import { API_CONTRACT_ENTRY_SCHEMA } from '../api-contracts.js';
@@ -205,6 +206,7 @@ const importResolutionGraphSchema = {
   required: ['generatedAt', 'nodes', 'edges', 'stats'],
   properties: {
     generatedAt: { type: 'string' },
+    extractionCoverage: IMPORT_EXTRACTION_SUMMARY_SCHEMA,
     toolVersion: nullableString,
     importScanMode: nullableString,
     stats: {
@@ -488,7 +490,7 @@ export const CORE_POST_VFS_ARTIFACT_SCHEMA_DEFS = {
       required: ['file', 'relations'],
       properties: {
         file: { type: 'string' },
-        relations: { type: 'object', properties: { sqlRelationEvidence: SQL_RELATION_EVIDENCE_SCHEMA }, additionalProperties: true },
+        relations: { type: 'object', properties: { sqlRelationEvidence: SQL_RELATION_EVIDENCE_SCHEMA, importExtraction: IMPORT_EXTRACTION_SCHEMA, importScanExtraction: IMPORT_EXTRACTION_SCHEMA }, additionalProperties: true },
         importBindings: { type: 'object' }
       },
       additionalProperties: true
@@ -636,6 +638,7 @@ export const CORE_POST_SNAPSHOT_ARTIFACT_SCHEMA_DEFS = {
       version: { type: 'integer', minimum: 1 },
       generatedAt: { type: 'string' },
       upstreamCoverage: crossFileCoverageSchema,
+      extractionCoverage: { anyOf: [IMPORT_EXTRACTION_SUMMARY_SCHEMA, { type: 'null' }] },
       callGraph: graphPayload,
       usageGraph: graphPayload,
       importGraph: graphPayload

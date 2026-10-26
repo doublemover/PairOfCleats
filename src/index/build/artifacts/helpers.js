@@ -558,6 +558,7 @@ export const measureGraphRelations = (relations, { maxJsonBytes } = {}) => {
   };
   if (relations.caps !== undefined) basePayload.caps = relations.caps;
   if (relations.upstreamCoverage !== undefined) basePayload.upstreamCoverage = relations.upstreamCoverage;
+  if (relations.extractionCoverage !== undefined) basePayload.extractionCoverage = relations.extractionCoverage;
   const baseBytes = Buffer.byteLength(JSON.stringify(basePayload), 'utf8');
   const totalJsonBytes = baseBytes
     + graphSizes.callGraph - 2
@@ -624,6 +625,7 @@ export const materializeGraphRelationsPayload = (relations) => {
   };
   if (relations.caps !== undefined) output.caps = relations.caps;
   if (relations.upstreamCoverage !== undefined) output.upstreamCoverage = relations.upstreamCoverage;
+  if (relations.extractionCoverage !== undefined) output.extractionCoverage = relations.extractionCoverage;
   return output;
 };
 

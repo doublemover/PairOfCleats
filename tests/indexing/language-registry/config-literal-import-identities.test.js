@@ -46,9 +46,16 @@ try {
     const manifest = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, bundleFormat: 'json', files: {} };
     manifest.files[relKey] = await writeIncrementalBundle({ enabled: true, bundleDir, manifest, relKey, fileStat: stat,
       fileHash: sha1(test.source), fileChunks: [], bundleFormat: 'json',
-      fileRelations: { imports: scan.importsByFile[relKey], importScanFingerprint: scan.importScanFingerprint } });
-    assert.deepEqual(await readCachedImports({ enabled: true, absPath, relKey, fileStat: stat, manifest, bundleDir,
-      bundleFormat: 'json', expectedImportScanFingerprint: scan.importScanFingerprint }), expected, `${test.ext} incremental identity`);
+      fileRelations: { imports: scan.importsByFile[relKey], importScanFingerprint: scan.importScanFingerprint,
+        importScanExtraction: scan.importExtractionByFile[relKey] } });
+    const cached = await readCachedImports({ enabled: true, absPath, relKey, fileStat: stat, manifest, bundleDir,
+      bundleFormat: 'json', expectedImportScanFingerprint: scan.importScanFingerprint });
+    if (scan.importExtractionByFile[relKey].state === 'unqualified') {
+      assert.equal(cached, null, `${test.ext} legacy arrays cannot manufacture replay qualification`);
+      const fresh = await scanImports({ files: [{ rel: relKey, abs: absPath, stat }], root, mode: 'code', languageOptions: {}, importConcurrency: 1,
+        incrementalState: { enabled: true, manifest, bundleDir, bundleFormat: 'json' } });
+      assert.deepEqual(fresh.importsByFile[relKey], expected, `${test.ext} incremental refresh preserves every literal identity`);
+    } else assert.deepEqual(cached, expected, `${test.ext} incremental identity`);
   }
   const invalid = collectLanguageImportEntries({ ext: '.json', relPath: 'invalid.json',
     text: JSON.stringify({ includes: ['good', 'bad\u0000value', 'x'.repeat(4097)] }) });

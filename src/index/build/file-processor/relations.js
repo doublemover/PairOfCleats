@@ -1,3 +1,4 @@
+import { createImportExtraction, getImportExtraction, projectImportExtraction } from '../../../shared/import-extraction.js';
 const normalizeLimit = (value) => {
   if (value == null || value === '' || typeof value === 'boolean'
     || (typeof value === 'string' && !value.trim())) return null;
@@ -122,9 +123,18 @@ export const buildFileRelations = (relations, relKey = null) => {
     output.sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));
     return output;
   };
+  const rawImports = Array.isArray(relations.imports) ? relations.imports : [];
+  const normalizedImports = normalizeList(rawImports);
+  const validImports = rawImports.filter(entry => typeof entry === 'string' && entry).length;
+  const extraction = relations.importExtraction || getImportExtraction(rawImports) || createImportExtraction({ entries: rawImports,
+    text: null, producerId: 'file-relations-legacy-array', scope: 'unqualified-file-relation-input', reasons: ['legacy_array_producer'] });
+  const importExtraction = projectImportExtraction(extraction, rawImports, normalizedImports, { owner: 'file-relations',
+    duplicates: validImports - normalizedImports.length, invalid: rawImports.length - validImports });
   return {
+    importExtraction,
+    ...(relations.importScanExtraction ? { importScanExtraction: relations.importScanExtraction } : {}),
     ...(relations.sqlRelationEvidence ? { sqlRelationEvidence: relations.sqlRelationEvidence } : {}),
-    imports: normalizeList(relations.imports),
+    imports: normalizedImports,
     exports: normalizeList(relations.exports),
     usages: normalizeList(relations.usages),
     importLinks: normalizeList(relations.importLinks, relKey),
@@ -144,6 +154,8 @@ export const stripFileRelations = (codeRelations) => {
   if (!codeRelations || typeof codeRelations !== 'object') return codeRelations;
   const {
     sqlRelationEvidence,
+    importExtraction,
+    importScanExtraction,
     imports,
     exports,
     usages,

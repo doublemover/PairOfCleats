@@ -1,3 +1,4 @@
+import { IMPORT_EXTRACTION_VERSION, importExtractionRuntimeVersions } from '../../../shared/import-extraction.js';
 import { sqlRelationParserVersion } from '../../../lang/sql/version.js';
 import { resolveCrossFileFidelity } from '../../cross-file-fidelity.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../contracts/versioning.js';
@@ -250,7 +251,8 @@ export const buildDependencySignatures = (runtime, mode, tokenizationKey) => {
     signatureVersion: SIGNATURE_VERSION, mode, cacheSchemaVersion: payload.cacheSchemaVersion, artifactSchemaHash: payload.artifactSchemaHash,
     parsers: payload.parsers, treeSitter: payload.treeSitter, yamlChunking: payload.yamlChunking,
     moduleExportsProducer: payload.moduleExportsProducer, nativeChunkProducer: payload.nativeChunkProducer,
-    sqlRelationsProducer: SEMANTIC_ANALYSIS_VERSIONS.sqlRelations, sqlRelationsParser: sqlRelationParserVersion(),
+    ...(mode === 'code' ? { importExtractionProducer: IMPORT_EXTRACTION_VERSION, importExtractionRuntime: importExtractionRuntimeVersions(),
+      sqlRelationsProducer: SEMANTIC_ANALYSIS_VERSIONS.sqlRelations, sqlRelationsParser: sqlRelationParserVersion() } : {}),
     kotlin: payload.kotlin, chunkIdAlgoVersion: payload.chunkIdAlgoVersion,
     ...(mode === 'extracted-prose' ? { docxStructuralExtractionVersion: DOCX_STRUCTURAL_EXTRACTION_VERSION,
       pdfTextExtractionVersion: PDF_TEXT_EXTRACTION_VERSION } : {}),
