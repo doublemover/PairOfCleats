@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "5383c067c",
+  "sourceHead": "088e7c8e1",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 450,
-    "partial": 139,
+    "implemented": 451,
+    "partial": 138,
     "pending": 146
   },
   "priorOpen": 1177,
@@ -631,6 +631,7 @@
       1711,
       1716,
       1718,
+      1719,
       1720,
       1721,
       1724,
@@ -784,7 +785,6 @@
       1574,
       1663,
       1675,
-      1719,
       1733
     ],
     "pending": [
@@ -4671,7 +4671,7 @@
       "priority": "P2",
       "status": "implemented",
       "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
-      "implementation": "5383c067c",
+      "implementation": "088e7c8e1",
       "validation": "deferred"
     },
     {
@@ -6339,7 +6339,7 @@
       "number": 1719,
       "title": "[P2] Project SQL usages by AST role without erasing decoded identifier identity",
       "priority": "P2",
-      "status": "partial",
+      "status": "implemented",
       "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
       "implementation": "8916a5e3c",
       "validation": "deferred",

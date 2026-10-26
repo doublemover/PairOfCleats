@@ -3145,3 +3145,37 @@ changed title/body/priority-label/update records. GraphQL pagination returned HT
 to GitHub. Bookkeeping retains the checked JS tree. Coverage: **35 fixed / 450
 implemented / 139 partial / 146 pending**. No issue closed or new closing reference
 added. Contract: docs/contracts/managed-reference-ownership.md.
+
+### Managed reference artifact contract and #1719 SQL scope reconciliation
+
+`088e7c8e1` adds the managed-reference envelope to the authoritative optional
+file_relations schema and semantic validator. Extra fields, unknown kinds,
+incorrect retained counts, out-of-source ranges and forged owner IDs fail the
+same canonical validation entry point as other artifact contracts. Shared kind,
+language and hard-bound constants prevent producer/schema drift. Artifact
+validation does not freeze caller-owned parsed inputs; retained runtime evidence
+still uses immutable admission and its source index. The extended authored
+fixture follows real ordinary/sharded file-relations writers, committed pieces
+manifest and strict loader, retaining exact content and each invalid-payload
+negative. This tightens the new field rather than relaxing generic formats.
+
+Source audit reconciles #1719 against existing `8916a5e3c`. Its declared AST-role
+projector excludes column qualifiers/query aliases from physical usages, keeps
+parser-decoded db/schema/table segments (including literal dots, brackets,
+backticks and edge spaces), and retains source-qualified typed occurrence IDs.
+CTE/derived/unsupported contexts keep explicit conservative coverage. The existing
+real registry/parser fixture covers alias-renaming invariance, CREATE/use names,
+qualified segments, CTE/derived aliases, empty/unavailable/source-budget cases,
+ordinary/sharded file-relations publication, semantic validation and the actual
+cross-file usage fingerprint consumer. Full lexical/case/catalog binding is not
+part of that repair and remains with #1188. No SQL source rewrite or assertion
+weakening is needed to credit the existing implementation.
+
+Full format/ESLint, five JS syntax checks, affected generated refresh/freshness,
+existing SQL fixture discovery and staged diff checks passed. The artifact schema
+index was regenerated through its owner and compared directly to the canonical
+builder. Its registered contract-matrix execution check remains deferred with
+other functional tests. The unchanged SQL fixture joins ci-lite, now 1,310 cases.
+No functional/parser/native/platform/performance execution ran. Bookkeeping
+retains the checked JS tree. Coverage: **35 fixed / 451 implemented / 138 partial /
+146 pending**; no issue closed or new closing reference added.
