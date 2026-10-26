@@ -297,7 +297,9 @@ export const assembleCompositeContextPackStreaming = async ({
   }
   const seedRef = resolveSeedRef(seed);
   const candidates = resolveChunkUidMapSeedRefs(seedRef);
-  const seedIndex = candidates.length
+  const hasSymbolSeed = candidates.some(candidate => candidate.type === 'symbol');
+  const needsCompactIndex = candidates.some(candidate => candidate.type === 'chunk' || candidate.type === 'file');
+  const seedIndex = needsCompactIndex
     ? await buildChunkUidMapSeedIndex({
       indexDir,
       manifest: resolvedManifest,
@@ -307,7 +309,6 @@ export const assembleCompositeContextPackStreaming = async ({
     : null;
   const resolvedChunks = [];
   const seenChunkUids = new Set();
-  const hasSymbolSeed = candidates.some(candidate => candidate.type === 'symbol');
   if (hasSymbolSeed) {
     // Compact UID maps carry no symbol lookup. Hydrate selected-generation
     // metadata explicitly rather than interpreting a symbol's path as a file seed.
@@ -341,22 +342,18 @@ export const assembleCompositeContextPackStreaming = async ({
     indexDir,
     ...rest
   });
-  if (!resolvedChunks.length && payload && payload.warnings) {
-    payload.warnings.push({
-      code: 'CHUNK_UID_MAP_MISS',
-      message: 'chunk_uid_map could not resolve seed to chunk metadata; excerpt may be incomplete.'
-    });
-  } else if (!resolvedChunks.length && payload) {
-    payload.warnings = [{
-      code: 'CHUNK_UID_MAP_MISS',
-      message: 'chunk_uid_map could not resolve seed to chunk metadata; excerpt may be incomplete.'
-    }];
+  if (!resolvedChunks.length && payload) {
+    const warning = seedIndex?.degradation ? { code: 'CHUNK_UID_MAP_UNAVAILABLE', ...seedIndex.degradation,
+      message: 'Optional chunk_uid_map is undeclared; compact seed resolution is unavailable.' }
+      : { code: 'CHUNK_UID_MAP_MISS', message: 'chunk_uid_map could not resolve seed to chunk metadata; excerpt may be incomplete.' };
+    payload.warnings = [...(payload.warnings || []), warning];
   }
   if (payload?.stats) {
     payload.stats.seedResolution = {
       strategy: hasSymbolSeed ? 'symbol_metadata_fallback' : 'chunk_uid_map_index',
       candidates: candidates.length,
       rowsIndexed: seedIndex?.rowsIndexed || 0,
+      readState: seedIndex?.readState || 'not-requested',
       hit: resolvedChunks.length > 0
     };
   }

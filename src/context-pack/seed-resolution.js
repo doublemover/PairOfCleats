@@ -1,5 +1,6 @@
 import { normalizePathForRepo } from '../shared/path-normalize.js';
 import { loadJsonArrayArtifactRows } from '../shared/artifact-io/loaders/core.js';
+import { describeStorageFailure } from '../shared/storage/failure-observation.js';
 
 export const resolveSeedRef = (seed) => {
   if (!seed || typeof seed !== 'object') return null;
@@ -195,7 +196,7 @@ export const normalizeChunkUidMapRowAsChunk = (row) => {
 export const buildChunkUidMapSeedIndex = async ({
   indexDir,
   manifest,
-  strict,
+  strict = true,
   repoRoot
 } = {}) => {
   if (!indexDir) return null;
@@ -220,13 +221,21 @@ export const buildChunkUidMapSeedIndex = async ({
         byFile.set(normalizedFile, list);
       }
     }
-  } catch {
-    return null;
+  } catch (error) {
+    byChunkUid.clear(); byFile.clear();
+    if (strict !== false) throw error;
+    const declared = Array.isArray(manifest?.pieces) && manifest.pieces.some(entry =>
+      ['chunk_uid_map', 'chunk_uid_map_meta'].includes(entry?.name));
+    const diagnostic = describeStorageFailure(error, { phase: 'context-pack-seed-map' });
+    if (rowsIndexed || declared || !Array.isArray(manifest?.pieces) || diagnostic.code !== 'ERR_MANIFEST_ENTRY_MISSING') throw error;
+    return { byChunkUid, byFile, rowsIndexed: 0, readState: 'optional-absent',
+      degradation: { artifact: 'chunk_uid_map', reason: 'optional-undeclared' } };
   }
   return {
     byChunkUid,
     byFile,
-    rowsIndexed
+    rowsIndexed,
+    readState: 'ready'
   };
 };
 
