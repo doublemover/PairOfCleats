@@ -45,6 +45,10 @@ const cases = [
       const { repoRoot, indexDir, tempRoot } = sharedFixture;
 
       const mapModel = await buildCodeMap({ repoRoot, indexDir, options: { mode: 'code' } });
+      assert.equal(mapModel.buildMetrics.memoryObservation.includesFinalModel, true);
+      assert.equal(mapModel.buildMetrics.memoryObservation.transientCoverage, 'unobserved');
+      assert.deepEqual(mapModel.buildMetrics.peak, mapModel.buildMetrics.observedBoundaryMax,
+        'legacy metric alias retains explicit boundary-only semantics');
       const outPath = path.join(tempRoot, 'map-stream.json');
       await writeMapJsonStream({
         filePath: outPath,

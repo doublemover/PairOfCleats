@@ -83,7 +83,7 @@ const finalizeJsonWrite = async ({
   };
 };
 
-const abortJsonWrite = async (stream, done, err) => {
+export const abortJsonWrite = async (stream, done, err) => {
   let primary = err;
   try { stream.destroy(err); } catch (error) {
     if (error !== err) primary = addStorageFailureContext(primary, {}, error, { secondaryPresent: true });

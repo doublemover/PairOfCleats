@@ -1,7 +1,6 @@
 import path from 'node:path';
 import fsPromises from 'node:fs/promises';
 import { createHash } from 'node:crypto';
-import { performance } from 'node:perf_hooks';
 import { MAX_JSON_BYTES } from '../shared/artifact-io/constants.js';
 import { loadChunkMeta } from '../shared/artifact-io/loaders.js';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
@@ -42,40 +41,9 @@ import {
 } from './build-map/edges.js';
 import { createCollapseTransform, createScopeFilters, normalizeIncludeList, resolveFocus } from './build-map/filters.js';
 import { buildFileNodesIterable } from './build-map/nodes.js';
+import { createMapBuildTimer } from './build-map/timing.js';
 
 const normalizeMemberId = (value) => (value === 0 || value ? String(value) : null);
-
-const createBuildTimer = () => {
-  const stages = [];
-  const peak = { heapUsed: 0, rss: 0, external: 0, arrayBuffers: 0 };
-  const updatePeak = (mem) => {
-    peak.heapUsed = Math.max(peak.heapUsed, mem.heapUsed || 0);
-    peak.rss = Math.max(peak.rss, mem.rss || 0);
-    peak.external = Math.max(peak.external, mem.external || 0);
-    peak.arrayBuffers = Math.max(peak.arrayBuffers, mem.arrayBuffers || 0);
-  };
-  const track = async (stage, fn) => {
-    const startMem = process.memoryUsage();
-    updatePeak(startMem);
-    const start = performance.now();
-    const result = await fn();
-    const end = performance.now();
-    const endMem = process.memoryUsage();
-    updatePeak(endMem);
-    stages.push({
-      stage,
-      elapsedMs: Math.round((end - start) * 100) / 100,
-      memory: {
-        heapUsed: endMem.heapUsed,
-        rss: endMem.rss,
-        external: endMem.external,
-        arrayBuffers: endMem.arrayBuffers
-      }
-    });
-    return result;
-  };
-  return { stages, peak, track };
-};
 
 const createSectionHasher = () => {
   const hash = createHash('sha1');
@@ -220,7 +188,7 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
     maxSymbolBytes: options.maxSymbolBytes ?? MAX_JSON_BYTES
   });
 
-  const timer = createBuildTimer();
+  const timer = createMapBuildTimer();
   const intern = createStringInterner();
 
   const {
@@ -546,10 +514,12 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
     generatedAt: new Date().toISOString(),
     stages: timer.stages,
     peak: timer.peak,
+    observedBoundaryMax: timer.observedBoundaryMax,
+    memoryObservation: timer.memoryObservation,
     counts: summary.counts
   };
 
-  return {
+  const model = {
     version: MAP_MODEL_VERSION,
     generatedAt: new Date().toISOString(),
     root: { path: repoRoot, id: null },
@@ -573,6 +543,8 @@ export async function buildCodeMap({ repoRoot, indexDir, options = {} }) {
     buildMetrics,
     warnings: unique(warnings)
   };
+  timer.complete();
+  return model;
 }
 
 export async function buildCodeMapStream({ repoRoot, indexDir, options = {}, outPath }) {

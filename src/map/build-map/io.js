@@ -6,7 +6,8 @@ import { loadFileMetaRows, loadGraphRelationsSync, loadJsonArrayArtifactSync } f
 import { MAX_JSON_BYTES } from '../../shared/artifact-io/constants.js';
 import { mergeSortedRuns } from '../../shared/merge.js';
 import { compareWithAntisymmetryInvariant } from '../../shared/invariants.js';
-import { createJsonWriteStream, writeChunk } from '../../shared/json-stream/streams.js';
+import { writeChunk } from '../../shared/json-stream/streams.js';
+import { withMapJsonPublication } from './publication.js';
 import { stringifyJsonValue, writeJsonValue } from '../../shared/json-stream/encode.js';
 import { writeJsonLinesFile } from '../../shared/json-stream/jsonl-write.js';
 import { removePathWithRetry } from '../../shared/io/remove-path-with-retry.js';
@@ -124,8 +125,7 @@ export const writeMapJsonStream = async ({
   edges,
   guards = {}
 }) => {
-  const { stream, done } = createJsonWriteStream(filePath, { atomic: true });
-  try {
+  return withMapJsonPublication(filePath, async stream => {
     await writeChunk(stream, '{');
     let first = true;
     const writeField = async (key, value, writer) => {
@@ -173,13 +173,7 @@ export const writeMapJsonStream = async ({
       await writeField(key, mapBase[key]);
     }
     await writeChunk(stream, '}');
-    stream.end();
-    await done;
-  } catch (err) {
-    try { stream.destroy(err); } catch {}
-    try { await done; } catch {}
-    throw err;
-  }
+  });
 };
 
 export const createSpillSorter = ({ label, compare, maxInMemory = 5000, tempDir }) => {

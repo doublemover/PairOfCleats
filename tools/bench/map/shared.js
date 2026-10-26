@@ -21,9 +21,11 @@ export const createMapBenchCli = ({ scriptName, options = {} }) => createCli({
   }
 }).parse();
 
-export const resolveRuns = (value, fallback = 3) => (
-  Number.isFinite(Number(value)) ? Math.max(1, Number(value)) : fallback
-);
+export const resolveRuns = (value, fallback = 3) => {
+  const runs = value == null ? fallback : Number(value);
+  if (!Number.isSafeInteger(runs) || runs < 1) throw new RangeError('Map benchmark runs must be a positive safe integer.');
+  return runs;
+};
 
 export const resolveMapBenchInputs = (argv) => {
   const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
