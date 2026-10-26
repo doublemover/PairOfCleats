@@ -2385,3 +2385,62 @@ contains 1,250 entries. Complete GitHub refresh reconfirmed 770 open issues with
 no additions or closures. Current coverage: **35 fixed / 429 implemented / 153
 partial / 153 pending**. Functional execution and final gate remain deferred;
 no issue closure or new closing reference was inferred.
+
+## Bounded throughput result-file admission, #1687 (2026-10-26)
+
+`cc70899b3` implements #1687. Inspection and explicit materialization now share
+one result-file admission owner. Supported current/unversioned/legacy measured
+and explicit empty/failed envelopes remain visible. Known non-run reports and
+manifests are distinguished from unsupported kind/version, malformed, oversized,
+missing and unreadable inputs. A date, filename or truthy parsed JSON cannot
+establish a benchmark run or displace a legitimate latest measurement.
+
+The existing directory/file owners provide contained UTF-8 reads and original
+settlement checks. Metadata is parsed sequentially and retains only source
+extent/hash, normalized repository/history identity, timestamp and selection
+facts. Existing repository filtering, timestamp ordering and stable filename ties
+remain. Selected bodies are re-read against captured bytes/hash/private file
+identity before expensive sections; changed or missing selected files fail
+admission. Descriptor authority is not serialized. Repository/history helpers
+move unchanged into a thin owner and remain reexported by analysis, avoiding an
+unnecessary metrics/analysis dependency in the input loader. The generic JSON
+helper remains for its separate risk/cache consumers; formatting caught and
+corrected its remaining import before publication.
+
+Fixed invocation allowances cover 32 MiB/file, 512 MiB read allowance, 128 MiB
+retained selected payload bytes, 8 MiB file metadata and 10,000 discovered JSON
+files. Private fixtures only lower limits. Inventory exhaustion has a bounded
+stop receipt. Failed native reads conservatively consume their admitted read
+allowance while observed successful bytes remain distinct. These encoded-byte
+banks do not claim heap/RSS measurement. Cancellation is checked between files
+and derivation phases through owned signal listeners; no competing supervisor
+or timeout policy is introduced.
+
+Report version 2 carries result-file scope, discovered/selected/admitted/processed,
+excluded/failed counts, source receipts, inventory/cancellation state and budgets.
+Useful healthy observations can remain visible with an explicit partial cohort
+and nonzero CLI status. Empty inspection yields an explicit typed empty report;
+zero readable/rejected inputs are not mislabeled no-files-found. Materialization
+uses the same admission and reports input failures separately from write failures;
+rejected/non-run files remain untouched. Default inspection still performs no
+writes. Optional derived analysis readers and workload/backend qualification
+retain their separate owners.
+
+Comparison version 2 checks both complete internally consistent report/input
+models before deltas. Wrong/partial/empty child reports, nonzero/signal execution
+and incomplete capture produce incomparable rows with a failing status. Capture
+uses the existing bounded subprocess owner. The selector's former arbitrary-{}
+fixture becomes a recognized zero-query envelope while preserving its ordering
+assertions; positive profile/comparison assertions remain and use the canonical
+version constant.
+
+New small controls cover healthy plus malformed/unrelated/legacy/failed/non-run
+inputs, latest admission, missing/changed selected files, byte/metadata/file
+allowances, cancellation, inspection byte preservation, explicit materialization
+refusal, real zero-exit wrong/partial child output and typed empty reports.
+Functional execution remains deferred. Final full format/ESLint, syntax on ten
+changed JavaScript files, parsing of two changed JSON files, affected generated
+refresh/freshness, ordered fixture discovery and diff checks passed. ci-lite now
+contains 1,251 entries. Current coverage: **35 fixed / 430 implemented / 153
+partial / 152 pending** across 770 open reports. No issue closure or new closing
+reference was inferred; the final gate and functional qualification remain open.
