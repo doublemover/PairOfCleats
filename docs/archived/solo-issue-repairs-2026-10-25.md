@@ -1847,3 +1847,11 @@ checks passed. All functional fixtures, the final front gate and runtime/release
 qualification remain deferred. The reconciled intake remains 766 open reports:
 **35 fixed / 419 implemented / 152 partial / 160 pending**. The three reopened
 reports remain open, with source implementation distinct from accepted closure.
+
+
+JavaScript indexing follow-up **`04f2b9c6b`** keeps a valid empty occurrence-index
+lookup empty instead of rescanning all file calls/details for each declaration
+without calls. The authored production-projection tripwire rejects either
+unnecessary file-array scan while retaining the stale/capped-index negatives.
+Full format/ESLint and syntax on both changed JavaScript files passed; execution
+remains deferred. This is an algorithmic work reduction, not a measured timing.
