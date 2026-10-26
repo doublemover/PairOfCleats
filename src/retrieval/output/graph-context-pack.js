@@ -17,7 +17,9 @@ const formatNode = (node) => {
 
 const formatEdge = (edge) => {
   const graph = edge?.graph ? `, ${edge.graph}` : '';
-  return `${formatRiskNodeRef(edge?.from)} -> ${formatRiskNodeRef(edge?.to)} (${edge?.edgeType || 'edge'}${graph})`;
+  const projection = edge?.importProjection;
+  const alias = projection ? ` [containing-file import: ${projection.fromFile} -> ${projection.toFile}; chunk:${projection.chunkUid} = ${projection.containingFile}]` : '';
+  return `${formatRiskNodeRef(edge?.from)} -> ${formatRiskNodeRef(edge?.to)} (${edge?.edgeType || 'edge'}${graph})${alias}`;
 };
 
 export const renderGraphContextPack = (pack) => {

@@ -81,14 +81,17 @@ export async function runImpactCli(rawArgs = process.argv.slice(2)) {
     const graphInputs = await prepareGraphInputs({
       repoRoot,
       indexDir,
-      strict: true
+      strict: true,
+      includeChunkMeta: seed?.type === 'chunk' && graphSelection?.includes('importGraph')
+        && !graphSelection.includes('callGraph') && !graphSelection.includes('usageGraph')
     });
     const { graphIndex } = await prepareGraphIndex({
       repoRoot,
       indexDir,
       selection: graphSelection,
       strict: true,
-      graphInputs
+      graphInputs,
+      chunkFileFact: graphInputs.chunkMeta?.find(row => row.chunkUid === seed?.chunkUid) || null
     });
 
     const payload = buildImpactAnalysis({

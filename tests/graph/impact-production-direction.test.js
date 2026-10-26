@@ -8,6 +8,7 @@ import { buildGraphIndex } from '../../src/graph/store.js';
 import { buildImpactAnalysis } from '../../src/graph/impact.js';
 import { buildSuggestTestsReport } from '../../src/graph/suggest-tests.js';
 import { prepareGraphInputs, prepareGraphIndex } from '../../src/integrations/tooling/graph-helpers.js';
+import { runGraphContextCli } from '../../src/integrations/tooling/graph-context.js';
 import { runImpactCli } from '../../src/integrations/tooling/impact.js';
 import { validateGraphImpact } from '../../src/contracts/validators/analysis.js';
 import { renderGraphImpact } from '../../src/retrieval/output/graph-impact.js';
@@ -31,6 +32,7 @@ try {
   const chunks = names.map((name, id) => ({ id, chunkUid: name, file: fileOf(name), name,
     kind: 'FunctionDeclaration', codeRelations: { callLinks: id < 2 ? [link(names[id + 1])] : [],
       usageLinks: id < 2 ? [link(names[id + 1])] : [], callDetails: [] } }));
+  await fs.writeFile(path.join(indexDir, 'chunk_meta.json'), JSON.stringify(chunks.map(row => ({ ...row, start: 0, end: 1 }))));
   const fileRelations = new Map(names.map((name, id) => [fileOf(name), { importLinks: id < 2 ? [fileOf(names[id + 1])] : [] }]));
   const original = JSON.parse(await fs.readFile(path.join(indexDir, 'pieces/manifest.json'), 'utf8'));
   const pieces = original.pieces;
@@ -106,6 +108,15 @@ try {
     const json = JSON.parse(output.at(-1));
     assert.deepEqual(observe(json), expected([['api', 1], ['consumer', 2]]));
     assert.equal(json.direction, 'downstream'); assert.equal(json.stats.directionPolicy.traversal, 'in');
+    const context = await runGraphContextCli(['--repo', repo, '--seed', 'chunk:helper', '--direction', 'in',
+      '--depth', '2', '--graphs', 'importGraph', '--includePaths', '--pathSemantics', 'graph-witness', '--json']);
+    assert.equal(context.pathCapability.selection.direction, 'in');
+    assert.equal(context.edges[0].importProjection.chunkUid, 'helper');
+    assert.equal(context.edges[0].importProjection.containingFile, fileOf('helper'));
+    const importImpact = await runImpactCli(['--repo', repo, '--seed', 'chunk:helper', '--direction', 'downstream',
+      '--depth', '2', '--graphs', 'importGraph', '--pathSemantics', 'graph-witness', '--json']);
+    assert.deepEqual(observe(importImpact), expected([[fileOf('api'), 1], [fileOf('consumer'), 2]]));
+
   } finally { console.log = previousLog; }
 } finally { await fs.rm(root, { recursive: true, force: true }); }
 console.log('Production graph orientation, prepared CSR/legacy, cache, impact and CLI contracts passed.');

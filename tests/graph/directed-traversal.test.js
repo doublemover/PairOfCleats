@@ -28,7 +28,7 @@ for (const includeCsr of [false, true]) {
   const graphIndex = buildGraphIndex({ graphRelations, callSites, symbolEdges, includeCsr, indexSignature: `directed-${includeCsr}` });
   for (const direction of ['out', 'in', 'both']) {
     const pack = buildGraphContextPack({ graphIndex, seed: { type: 'chunk', chunkUid: 'b' },
-      direction, depth: 1, includePaths: true, indexSignature: 'directed',
+      direction, depth: 1, includePaths: true, indexSignature: graphIndex.indexSignature, pathSemantics: 'graph-witness',
       edgeFilters: { graphs: ['callGraph', 'usageGraph', 'importGraph'] } });
     const validation = validateGraphContextPack(pack);
     assert.equal(validation.ok, true, validation.errors.join('; '));

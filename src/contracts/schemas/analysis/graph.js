@@ -181,6 +181,13 @@ const graphNodeSchema = {
   additionalProperties: true
 };
 
+export const IMPORT_PROJECTION_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['version', 'kind', 'chunkUid', 'containingFile', 'fromFile', 'toFile'],
+  properties: { version: { const: 1 }, kind: { const: 'chunk-containing-file-import' },
+    ...Object.fromEntries(['chunkUid', 'containingFile', 'fromFile', 'toFile'].map(key => [key, { type: 'string', minLength: 1 }])) }
+};
+
 export const graphEdgeSchema = {
   type: 'object',
   required: ['edgeType', 'from', 'to'],
@@ -190,6 +197,7 @@ export const graphEdgeSchema = {
     from: { anyOf: [nodeRefSchema, referenceEnvelopeSchema] },
     to: { anyOf: [nodeRefSchema, referenceEnvelopeSchema] },
     confidence: nullableNumber,
+    importProjection: IMPORT_PROJECTION_SCHEMA,
     evidence: { type: ['object', 'null'] }
   },
   additionalProperties: true
@@ -210,7 +218,8 @@ export const witnessPathSchema = {
         properties: {
           from: nodeRefSchema,
           to: nodeRefSchema,
-          edgeType: { type: 'string' }
+          edgeType: { type: 'string' },
+          importProjection: IMPORT_PROJECTION_SCHEMA
         },
         additionalProperties: true
       }

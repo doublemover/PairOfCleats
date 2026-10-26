@@ -93,6 +93,7 @@ export const prepareGraphInputs = async ({
  *  includeGraphIndex?:boolean,
  *  includeGraphRelations?:boolean,
  *  cacheEnabled?:boolean,
+ *  chunkFileFact?:{chunkUid:string,file:string}|null,
  *  signal?:AbortSignal
  * }} [options]
  * @returns {Promise<{
@@ -115,6 +116,7 @@ export const prepareGraphIndex = async ({
   includeGraphIndex = true,
   includeGraphRelations = false,
   cacheEnabled = true,
+  chunkFileFact = null,
   signal = null
 } = {}) => {
   throwIfAborted(signal);
@@ -124,6 +126,10 @@ export const prepareGraphIndex = async ({
   }
 
   const resolvedRepoRoot = repoRoot ?? graphInputs?.repoRoot ?? null;
+  const fileFact = chunkFileFact == null ? null : { chunkUid: chunkFileFact.chunkUid, file: chunkFileFact.file };
+  if (fileFact && (!fileFact.chunkUid || typeof fileFact.chunkUid !== 'string' || !fileFact.file || typeof fileFact.file !== 'string')) {
+    throw new TypeError('Selected chunk-file fact requires a chunk UID and indexed file.');
+  }
   const resolvedStrict = hasOwn(graphInputs, 'strict') ? graphInputs.strict : strict;
   const resolvedMaxBytes = hasOwn(graphInputs, 'maxBytes') ? graphInputs.maxBytes : maxBytes;
   const manifest = hasOwn(graphInputs, 'manifest')
@@ -152,7 +158,7 @@ export const prepareGraphIndex = async ({
     includeCsr
   }) : null;
 
-  const graphIndex = includeGraphIndex
+  let graphIndex = includeGraphIndex
     ? await graphStore.loadGraphIndex({
       repoRoot: resolvedRepoRoot,
       cacheKey: graphCacheKey,
@@ -162,6 +168,19 @@ export const prepareGraphIndex = async ({
     })
     : null;
   throwIfAborted(signal);
+  if (graphIndex && fileFact) {
+    const current = graphIndex.chunkInfo.get(fileFact.chunkUid);
+    if (current?.file && graphIndex.normalizeImportPath(current.file) !== graphIndex.normalizeImportPath(fileFact.file)) {
+      throw Object.assign(new Error('Selected chunk metadata conflicts with graph containing-file identity.'), { code: 'ERR_ARTIFACT_INVALID' });
+    }
+    if (!current?.file) {
+      // A graph-family filter must not lose a chunk seed's canonical containing
+      // file. Keep the cached selected-family index unchanged for other callers.
+      const chunkInfo = new Map(graphIndex.chunkInfo);
+      chunkInfo.set(fileFact.chunkUid, Object.freeze({ ...current, file: fileFact.file }));
+      graphIndex = { ...graphIndex, chunkInfo, _traversalCache: new Map(), _traversalTelemetry: { hits: 0, misses: 0, evictions: 0 } };
+    }
+  }
 
   const graphRelations = includeGraphRelations
     ? (graphStore.hasArtifact('graph_relations')

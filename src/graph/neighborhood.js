@@ -8,6 +8,7 @@ import {
   normalizeImportPath,
   projectSymbolRefTargets
 } from './indexes.js';
+import { createImportProjection } from './import-projection.js';
 import { normalizeDepth } from '../shared/limits.js';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
 import {
@@ -217,6 +218,7 @@ export const buildGraphNeighborhood = ({
   const cacheKeyInfo = traversalCacheEnabled
     ? buildLocalCacheKey({
       namespace: 'graph-neighborhood',
+      version: '2',
       payload: {
         indexSignature: graphIndexEffective.indexSignature || null,
         repoRoot: effectiveRepoRoot || null,
@@ -511,10 +513,11 @@ export const buildGraphNeighborhood = ({
               graph: 'importGraph',
               from: endpoint(fromId),
               to: toRef,
+              ...(currentRef.type === 'chunk' ? { importProjection: createImportProjection(currentRef.chunkUid, sourceId, fromId, toId) } : {}),
               confidence: null,
               evidence: null
             },
-            nextRef: { type: 'file', path: neighborId }
+            nextRef: endpoint(neighborId)
           });
         }
       }
@@ -616,7 +619,8 @@ export const buildGraphNeighborhood = ({
               edge: candidate.witnessEdge || {
                 from: edge.from,
                 to: edge.to,
-                edgeType: edge.edgeType
+                edgeType: edge.edgeType,
+                ...(edge.importProjection ? { importProjection: edge.importProjection } : {})
               }
             });
             pathTargets.push(nextKey);

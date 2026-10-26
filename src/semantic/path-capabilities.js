@@ -16,7 +16,7 @@ const semantic = (semantics, contextPolicy) => ({ ...common,
 const declarations = [semantic('balanced-call-value', 'prefix-balanced-call-site-and-context-key'),
   semantic('relation-neighborhood', 'unrestricted-relations'), {
     ...common, id: 'semantic-path:graph-witness:v1', semantics: 'graph-witness', operation: 'graph_context',
-    producer: { id: 'graph-context-pack', version: '1.0.0' }, referenceKind: 'graph-node-ref',
+    producer: { id: 'graph-context-pack', version: '1.1.0' }, referenceKind: 'graph-node-ref',
     scopeIdentity: 'index-signature', contextPolicy: 'graph-adjacency', directions: ['out', 'in', 'both'],
     edgeKindPolicy: 'graph-relation-kinds', edgeKinds: [...GRAPH_PATH_EDGE_KINDS], operandSlots: [], completeness: 'source-coverage-and-truncation'
   }];
@@ -30,7 +30,7 @@ export const graphWitnessPathDeclaration = (operation = 'graph_context') => {
   const declaration = structuredClone(declarations.find(value => value.semantics === 'graph-witness'));
   return { ...declaration, operation, producer: {
     id: operation === 'graph_context' ? 'graph-context-pack' : 'graph-impact',
-    version: operation === 'graph_impact' ? '1.1.0' : '1.0.0'
+    version: operation === 'graph_impact' ? '1.2.0' : '1.1.0'
   } };
 };
 export const semanticTracePathDeclaration = (semantics = 'balanced-call-value', operation = 'semantic_trace') => {

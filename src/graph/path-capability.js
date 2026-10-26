@@ -3,6 +3,8 @@ import { GRAPH_PATH_EDGE_KINDS } from '../contracts/schemas/semantic-path.js';
 import { graphWitnessPathDeclaration } from '../semantic/path-capabilities.js';
 import { normalizeCaps, normalizeDirection } from './neighborhood/caps.js';
 import { GRAPH_NAMES, normalizeEdgeFilter } from './neighborhood/filter.js';
+import { importProjectionError } from './import-projection.js';
+import { buildChunkInfo, buildGraphNodeIndex, normalizeImportPath } from './indexes.js';
 import { nodeKey } from './ordering.js';
 import { resolveSeedNodeRef } from './neighborhood/seed-meta.js';
 import { throwIfAborted } from '../shared/abort.js';
@@ -31,7 +33,8 @@ export const graphPathProjectionErrors = (payload, operation) => {
     const domain = edge.graph === 'importGraph' ? 'file' : ['callGraph', 'usageGraph'].includes(edge.graph) ? 'chunk' : null;
     if (!GRAPH_PATH_EDGE_KINDS.includes(edge.edgeType) || !cap.selection.edgeKinds.includes(edge.edgeType)
       || !cap.selection.graphs.includes(edge.graph) || !refKind(from) || to && !refKind(to)
-      || domain && (from.type !== domain || to?.type !== domain)) errors.push('Graph edge differs from its declared relation domain or selection.');
+      || (edge.importProjection !== undefined ? importProjectionError(edge) !== null
+        : domain && (from.type !== domain || to?.type !== domain))) errors.push('Graph edge differs from its declared relation domain or selection.');
   }
   const paths = operation === 'graph_context' ? payload.paths || [] : (payload.impacted || []).map(row => row.witnessPath).filter(Boolean);
   if (operation === 'graph_context' && !cap.selection.paths && paths.length
@@ -43,6 +46,8 @@ export const graphPathProjectionErrors = (payload, operation) => {
       || path.distance > cap.selection.depth || !same(path.to, path.nodes.at(-1))) { errors.push('Graph witness chain shape differs from its endpoint or distance.'); continue; }
     for (let i = 0; i < path.edges.length; i++) {
       const edge = path.edges[i], a = nodeKey(path.nodes[i]), b = nodeKey(path.nodes[i + 1]);
+      if (importProjectionError(edge) || edge.edgeType === 'import' && edge.importProjection === undefined
+        && (edge.from?.type !== 'file' || edge.to?.type !== 'file')) errors.push('Import witness lacks a valid canonical or typed projected file domain.');
       const out = nodeKey(edge.from) === a && nodeKey(edge.to) === b;
       const into = nodeKey(edge.to) === a && nodeKey(edge.from) === b;
       if (!a || !b || !cap.selection.edgeKinds.includes(edge.edgeType)
@@ -64,6 +69,21 @@ export const attachGraphPathCapability = (payload, { pathSemantics, operation, g
   if (!signature || graphIndex?.indexSignature && graphIndex.indexSignature !== signature) throw fail('Graph path declaration requires the exact selected index signature.');
   if (graphIndex?.graphRelations && graphRelations && graphIndex.graphRelations !== graphRelations) {
     throw fail('Graph witness cannot rebind a pinned index signature to different relation inputs.');
+  }
+  // Qualification verifies aliases against the same selected graph facts used
+  // during projection. Returned JSON validates their typed internal association;
+  // it does not independently certify source extraction or runtime feasibility.
+  const witnessEdges = operation === 'graph_context' ? payload.paths || []
+    : (payload.impacted || []).map(row => row.witnessPath).filter(Boolean);
+  let chunkInfo = null;
+  const containingFile = chunkUid => {
+    chunkInfo ||= graphIndex?.chunkInfo || buildChunkInfo(buildGraphNodeIndex(graphRelations?.callGraph), buildGraphNodeIndex(graphRelations?.usageGraph));
+    const file = chunkInfo.get(chunkUid)?.file;
+    return graphIndex?.normalizeImportPath ? graphIndex.normalizeImportPath(file) : normalizeImportPath(file, graphIndex?.repoRoot);
+  };
+  for (const edge of [...(payload.edges || []), ...witnessEdges.flatMap(path => path.edges || [])]) {
+    const error = importProjectionError(edge, containingFile);
+    if (error) throw fail(error);
   }
   const filter = normalizeEdgeFilter(edgeFilters);
   const frontier = [...new Set([...(payload.truncation || []).map(row => row.cap), ...(payload.warnings || []).map(row => row.code),

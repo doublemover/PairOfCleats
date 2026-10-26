@@ -396,3 +396,33 @@ size refusal uses `ERR_RETAINED_EVIDENCE_RESPONSE_BYTES`. Per-family errors reta
 inventory, unavailable positioned representation and an individually unfit row.
 All cursor continuations bind the exact manifest as well as build ID: matching a
 build label alone cannot authorize a changed family.
+
+
+## Containing-file import projection
+
+Canonical import adjacency remains importer-file → imported-file. When a chunk
+enters the import graph through its indexed containing file, a context edge may
+use that chunk as the current endpoint. Such an edge and its witness carry
+`importProjection`: version `1`, kind `chunk-containing-file-import`, `chunkUid`,
+`containingFile`, `fromFile` and `toFile`. The last two fields retain the actual
+canonical import orientation. Every canonical endpoint equal to the containing
+file projects to that exact chunk; all other endpoints remain file references.
+This is a containing-file alias, not evidence that a particular chunk imports a
+module. It adds no traversal hop, work allowance or synthetic inverse relation.
+A self-import retains its current chunk endpoint and cannot manufacture another
+file node with a disconnected witness.
+
+Ordinary output and graph-witness use the same projection. Qualification checks
+it against the selected graph's chunk/file facts. The returned schema and chain
+validator require the typed canonical association, including when paths are not
+requested; arbitrary chunk endpoints under importGraph remain invalid. Source
+extraction and runtime feasibility stay unqualified. Human output displays the
+canonical file import and chunk alias explicitly. The graph-context producer is
+1.1.0 and graph-impact producer is 1.2.0; the private neighborhood key is version
+2. These are response producers, not a change to indexed semantic meaning.
+
+For an imports-only CLI selection, preparation obtains the requested chunk's
+file from canonical chunk metadata in that same selected generation. It attaches
+only that fact to a private selected-index view. It neither rereads working-tree
+source nor alters the cached graph for other queries. Conflicting graph and
+chunk metadata file facts fail admission rather than silently choosing one.

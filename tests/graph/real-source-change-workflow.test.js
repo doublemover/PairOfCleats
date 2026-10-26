@@ -6,6 +6,8 @@ import { applyTestEnv } from '../helpers/test-env.js';
 import { buildIndex } from '../../src/integrations/core/build-index.js';
 import { getIndexDir } from '../../src/shared/repo-paths.js';
 import { prepareGraphIndex } from '../../src/integrations/tooling/graph-helpers.js';
+import { runGraphContextCli } from '../../src/integrations/tooling/graph-context.js';
+import { validateGraphContextPack } from '../../src/contracts/validators/analysis.js';
 import { buildImpactAnalysis } from '../../src/graph/impact.js';
 import { buildSuggestTestsReport } from '../../src/graph/suggest-tests.js';
 import { buildCompositeContextPackPayload } from '../../src/integrations/tooling/context-pack.js';
@@ -29,6 +31,18 @@ try {
     indexDir: getIndexDir(repo, 'code'), includeGraphRelations: true });
   const impact = buildImpactAnalysis({ graphIndex, indexSignature, changed: [changed], direction: 'downstream', depth: 2 });
   assert.match(JSON.stringify(impact.impacted), /tests\/graph\/contracts\/graph-artifact-ordering-contract.test.js/);
+  const selectedChunk = [...graphIndex.chunkInfo].find(([, info]) => info.file === changed)?.[0];
+  assert.ok(selectedChunk, 'actual indexed source supplies its retained chunk/file fact');
+  const output = [], originalLog = console.log;
+  console.log = value => output.push(value);
+  try {
+    const cli = await runGraphContextCli(['--repo', repo, '--seed', `chunk:${selectedChunk}`, '--direction', 'in',
+      '--depth', '1', '--graphs', 'importGraph', '--includePaths', '--pathSemantics', 'graph-witness', '--json']);
+    assert.equal(validateGraphContextPack(cli).ok, true);
+    assert.ok(cli.edges.some(edge => edge.from.path === relevantTest && edge.to.chunkUid === selectedChunk
+      && edge.importProjection.containingFile === changed), 'real source importer projects through its exact indexed containing file');
+    assert.deepEqual(JSON.parse(output.at(-1)), cli);
+  } finally { console.log = originalLog; }
   const report = buildSuggestTestsReport({ changed: [changed], graphRelations, indexSignature, repoRoot: repo,
     tests: [relevantTest, 'tests/graph/suggest-tests-name-boundaries.test.js'] });
   assert.equal(report.suggestions[0].testPath, relevantTest);
