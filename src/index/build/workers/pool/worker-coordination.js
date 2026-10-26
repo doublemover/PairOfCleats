@@ -1,4 +1,7 @@
-import util from 'node:util';
+import { createWorkerObservation, readWorkerObservation, projectWorkerError } from '../observation.js';
+
+const safeObserve = fn => (...args) => { try { return fn(...args); } catch { return undefined; } };
+const workerIdentity = worker => worker?.threadId ?? worker?.pid ?? worker?.id ?? worker?.worker?.threadId;
 
 export const WORKER_DIAGNOSTIC_LIMIT = 256;
 const validWorkerId = value => Number.isSafeInteger(value) && value > 0;
@@ -29,7 +32,6 @@ export const createWorkerProcessCoordinator = (input = {}) => {
     normalizedStage = 'unknown',
     crashLogger = null,
     log = () => {},
-    summarizeError = (err) => err?.message || String(err),
     withPooledPayloadMeta,
     workerTaskMetricPool,
     crashPayloadMetaPool,
@@ -39,7 +41,8 @@ export const createWorkerProcessCoordinator = (input = {}) => {
     readProcessPressureSample,
     updatePressureState,
     maybeReduceWorkersOnPressure,
-    onRuntimeObservation = () => {}
+    onRuntimeObservation = () => {},
+    onFatalWorker = () => {}
   } = input;
 
   const gcSampleIntervalMs = 25;
@@ -74,7 +77,7 @@ export const createWorkerProcessCoordinator = (input = {}) => {
   const pruneInactiveDiagnostics = () => {
     const threads = currentPool?.threads;
     if (!Array.isArray(threads)) return;
-    const live = new Set(threads.map(worker => worker.threadId).filter(validWorkerId));
+    const live = new Set(threads.map(workerIdentity).filter(validWorkerId));
     for (const key of gcByWorker.keys()) if (!live.has(Number(key))) gcByWorker.delete(key);
     for (const key of runtimeByWorker.keys()) if (!live.has(key)) runtimeByWorker.delete(key);
     for (const key of runningByWorker.keys()) if (!live.has(key)) runningByWorker.delete(key);
@@ -154,8 +157,10 @@ export const createWorkerProcessCoordinator = (input = {}) => {
     runtimeByWorker.clear();
     runningByWorker.clear();
     workerNumaNodeByThreadId.clear();
-    poolInstance.on('message', (message) => {
-      if (poolInstance !== currentPool || !message || typeof message !== 'object') return;
+    poolInstance.on('message', safeObserve((inputMessage) => {
+      if (poolInstance !== currentPool || !inputMessage || typeof inputMessage !== 'object') return;
+      const message = readWorkerObservation(createWorkerObservation(inputMessage, 1));
+      if (!message) return;
       if (message.type === 'worker-runtime') {
         if (!runtimeByWorker.has(message.threadId) && runtimeByWorker.size >= WORKER_DIAGNOSTIC_LIMIT) pruneInactiveDiagnostics();
         if (validWorkerId(message.threadId) && message.observation
@@ -197,7 +202,8 @@ export const createWorkerProcessCoordinator = (input = {}) => {
         return;
       }
       if (message.type === 'worker-crash') {
-        const detail = message.message || message.raw || 'unknown worker error';
+        const error = message.error || projectWorkerError(message);
+        const detail = error.message || 'unknown worker error';
         const cloneIssue = message.cloneIssue
           ? `non-cloneable ${message.cloneIssue.type}${message.cloneIssue.name ? ` (${message.cloneIssue.name})` : ''} at ${message.cloneIssue.path}`
           : null;
@@ -211,34 +217,31 @@ export const createWorkerProcessCoordinator = (input = {}) => {
           }, (payloadMeta) => {
             crashLogger?.enabled && crashLogger.logError({
               phase: 'worker-thread',
-              message: message.message || 'worker crash',
-              stack: message.stack || null,
-              name: message.name || null,
+              message: error.message || 'worker crash',
+              stack: error.stack || null,
+              name: error.name || null,
               code: null,
               task: message.label || null,
               cloneIssue: message.cloneIssue || null,
               cloneStage: message.stage || null,
               payloadMeta,
-              raw: message.raw || null,
-              cause: message.cause || null
+              raw: null,
+              cause: error.cause || null
             });
           });
         }
       }
-    });
-    const formatPoolError = (err) => ({
-      message: summarizeError(err, { fullDepth: true, maxLen: 0 }) || err?.message || String(err),
-      stack: err?.stack || null,
-      name: err?.name || null,
-      code: err?.code || null,
-      raw: util.inspect(err, { depth: 4, breakLength: 120, showHidden: true, getters: true })
-    });
-    poolInstance.on('error', (err) => {
+    }));
+    const formatPoolError = err => projectWorkerError(err);
+    poolInstance.on('fatal', safeObserve(error => {
+      if (poolInstance === currentPool) onFatalWorker(error);
+    }));
+    poolInstance.on('error', safeObserve((err) => {
       crashLogger?.enabled && crashLogger.logError({ phase: 'worker-pool', ...formatPoolError(err) });
-    });
-    poolInstance.on('workerCreate', (worker) => {
+    }));
+    poolInstance.on('workerCreate', safeObserve((worker) => {
       if (poolInstance !== currentPool || !worker) return;
-      const threadId = worker.threadId ?? worker.id ?? worker.worker?.threadId;
+      const threadId = workerIdentity(worker);
       if (numaPinningPlan.active && Number.isFinite(Number(threadId))) {
         const assignments = Array.isArray(numaPinningPlan.assignments)
           ? numaPinningPlan.assignments
@@ -258,16 +261,16 @@ export const createWorkerProcessCoordinator = (input = {}) => {
           ? worker.worker
           : null);
       if (!target) return;
-      target.on('error', (err) => {
-        const detail = summarizeError(err, { fullDepth: true, maxLen: 0 }) || err?.message || String(err);
+      target.on('error', safeObserve((err) => {
+        const detail = projectWorkerError(err).message;
         log(`Worker thread error: ${detail}`);
         crashLogger?.enabled && crashLogger.logError({
           phase: 'worker-thread',
-          threadId: worker.threadId ?? worker.id ?? worker.worker?.threadId,
+          threadId,
           ...formatPoolError(err)
         });
-      });
-      target.on('exit', (code) => {
+      }));
+      target.on('exit', safeObserve((code) => {
         // Retirement is independent of exit status and crash logging. An old
         // pool's later exit must not erase a replacement pool's same-number ID.
         if (poolInstance === currentPool && validWorkerId(Number(threadId))) forgetWorker(Number(threadId));
@@ -275,11 +278,11 @@ export const createWorkerProcessCoordinator = (input = {}) => {
         log(`Worker thread exited with code ${code}.`);
         crashLogger?.enabled && crashLogger.logError({
           phase: 'worker-exit',
-          threadId: worker.threadId ?? worker.id ?? worker.worker?.threadId,
+          threadId,
           message: `worker exited with code ${code}`
         });
-      });
-    });
+      }));
+    }));
   };
 
   const gcPressureStats = () => {
@@ -303,14 +306,14 @@ export const createWorkerProcessCoordinator = (input = {}) => {
     attachPoolListeners,
     gcPressureStats,
     busyStats: pool => ({ actuallyRunning: pool && pool === currentPool
-      ? (Array.isArray(pool.threads) ? pool.threads.filter(worker => runningByWorker.has(worker.threadId)).length
+      ? (Array.isArray(pool.threads) ? pool.threads.filter(worker => runningByWorker.has(workerIdentity(worker))).length
         : runningByWorker.size) : 0, completedTasks,
     workerWallMs, scope: 'worker-owned-task-wall-time', cpuTimeMs: null,
     method: 'worker-start-end-events; excludes throttle, startup and backend queue waits' }),
     runtimeObservationStats: (pool) => {
       if (!pool || pool !== currentPool) return [];
       pruneInactiveDiagnostics();
-      const threads = Array.isArray(pool.threads) ? new Set(pool.threads.map((worker) => worker.threadId)) : null;
+      const threads = Array.isArray(pool.threads) ? new Set(pool.threads.map(workerIdentity)) : null;
       return Array.from(runtimeByWorker.entries())
         .filter(([id]) => !threads || threads.has(id)).map(([, observation]) => observation);
     },

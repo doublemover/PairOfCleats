@@ -1362,3 +1362,11 @@ services/queue/build-progress-bounded-state
 services/queue/build-progress-bound-read-work
 tooling/providers/provider-catalog-identity
 tooling/providers/provider-catalog-execution
+indexing/workers/worker-observation-bounds
+indexing/workers/worker-fatal-ownership
+indexing/workers/process-fatal-retirement
+indexing/workers/worker-fatal-runtime
+indexing/workers/facade-fatal-no-fallback
+indexing/workers/worker-telemetry-retirement
+indexing/workers/process-pool-lifecycle
+indexing/workers/facade-original-process-settlement

@@ -1,9 +1,17 @@
 import { serialize, deserialize } from 'node:v8';
 import { observeRuntimeProcess, getNodeStartupInputs } from '../../../shared/runtime-envelope/observe.js';
 import { resolveNodeHeapSource } from '../../../shared/workers/node-argv.js';
+import { projectWorkerError } from './observation.js';
 
 let generation = null, tasks = null, maxMessageBytes = 0, busy = false;
-const send = message => process.send?.({ ...message, generation });
+const send = message => {
+  if (globalThis.__indexerWorkerPoisoned?.()) return;
+  process.send?.({ ...message, generation }, error => {
+    // A failed authoritative result/ready send retires the transport. It is
+    // separate from best-effort observation delivery in indexer-worker.
+    if (error) { process.exitCode = 1; if (process.connected) process.disconnect(); }
+  });
+};
 process.on('disconnect', () => process.exit(0));
 process.on('message', async message => {
   if (message?.type === 'initialize' && generation == null) {
@@ -25,10 +33,11 @@ process.on('message', async message => {
       globalThis.__indexerTaskProcessObservation = observation;
       tasks = await import('./indexer-worker.js');
       send({ type: 'ready', observation });
-    } catch (error) { send({ type: 'initialization-failed', message: error.message }); process.exitCode = 1; process.disconnect(); }
+    } catch (error) { send({ type: 'initialization-failed', message: projectWorkerError(error).message }); process.exitCode = 1; process.disconnect(); }
     return;
   }
-  if (message?.type !== 'task' || message.generation !== generation || !tasks || busy) return;
+  if (message?.type !== 'task' || message.generation !== generation || !tasks || busy
+    || globalThis.__indexerWorkerPoisoned?.()) return;
   busy = true;
   try {
     if (!['tokenizeChunk', 'tokenizeBatch', 'quantizeVectors', 'analyzeFile'].includes(message.name) || !Buffer.isBuffer(message.payload)
@@ -37,9 +46,11 @@ process.on('message', async message => {
     const payload = serialize(result);
     if (payload.length > Math.min(message.outputLimit, maxMessageBytes)) throw Object.assign(new Error('Task result exceeds reserved output bytes.'), { code: 'ERR_PROCESS_TASK_BUDGET' });
     send({ type: 'result', taskId: message.taskId, payload, rssBytes: process.memoryUsage().rss });
-  } catch (error) { send({ type: 'result', taskId: message.taskId,
-    error: { code: typeof error?.code === 'string' ? error.code.slice(0, 128) : 'ERR_PROCESS_TASK',
-      name: typeof error?.name === 'string' ? error.name.slice(0, 128) : 'Error',
-      message: String(error?.message ?? error).slice(0, 2048) }, rssBytes: process.memoryUsage().rss }); }
+  } catch (error) {
+    const detail = projectWorkerError(error);
+    send({ type: 'result', taskId: message.taskId,
+      error: { code: detail.code || 'ERR_PROCESS_TASK', name: detail.name || 'Error',
+        message: detail.message }, rssBytes: process.memoryUsage().rss });
+  }
   finally { busy = false; }
 });

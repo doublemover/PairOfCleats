@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1204,
+    "hero": 1212,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -8185,6 +8185,54 @@
     {
       "id": "tooling/providers/provider-catalog-execution",
       "order": 1362,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/workers/worker-observation-bounds",
+      "order": 1363,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/workers/worker-fatal-ownership",
+      "order": 1364,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/workers/process-fatal-retirement",
+      "order": 1365,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/workers/worker-fatal-runtime",
+      "order": 1366,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/workers/facade-fatal-no-fallback",
+      "order": 1367,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/workers/worker-telemetry-retirement",
+      "order": 1368,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/workers/process-pool-lifecycle",
+      "order": 1369,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/workers/facade-original-process-settlement",
+      "order": 1370,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

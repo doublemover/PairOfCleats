@@ -8,6 +8,8 @@ import { killChildProcessTree } from '../../../shared/kill-tree.js';
 import { estimateRetainedBytes, readEffectiveMemory } from '../../../shared/effective-memory.js';
 import { FILE_ANALYSIS_MAX_OUTPUT_BYTES } from './file-analysis-contract.js';
 import { currentSchedulerTaskLease } from '../../../shared/concurrency/scheduler-task-scope.js';
+import { createWorkerFatalError, isWorkerFatalControl } from './fatal-policy.js';
+import { createWorkerObservation, readWorkerObservation, WORKER_OBSERVATION_VERSION } from './observation.js';
 
 const MB = 1024 * 1024;
 const accounts = new WeakMap();
@@ -121,6 +123,7 @@ export class IndexerProcessPool extends EventEmitter {
 
   run(payload, { name, signal = null } = {}) {
     if (this.closed) return Promise.reject(createAbortError('Process pool is closed.'));
+    if (this.restartExhausted) return Promise.reject(createWorkerFatalError('process restart allowance exhausted'));
     if (signal?.aborted) return Promise.reject(createAbortError());
     const schedulerLease = currentSchedulerTaskLease();
     if (schedulerLease && (!schedulerLease.active || !(schedulerLease.used.cpu > 0))) return Promise.reject(Object.assign(
@@ -183,7 +186,10 @@ export class IndexerProcessPool extends EventEmitter {
     task.finishOwnership();
   }
 
-  reportError(error) { if (this.listenerCount('error')) this.emit('error', error); }
+  observe(event, value) {
+    for (const listener of this.rawListeners(event)) { try { listener.call(this, value); } catch { /* non-authoritative observation */ } }
+  }
+  reportError(error) { this.observe('error', error); }
 
   start() {
     const child = fork(this.filename, [], { execPath: process.execPath,
@@ -195,7 +201,7 @@ export class IndexerProcessPool extends EventEmitter {
       exited: new Promise(resolve => { resolveExit = resolve; }) };
     this.children.add(slot);
     this.metrics.peakChildren = Math.max(this.metrics.peakChildren, this.children.size);
-    this.emit('workerCreate', child);
+    this.observe('workerCreate', child);
     slot.initializing = setTimeout(() => {
       slot.stopping = true;
       this.reportError(new Error('Process task initialization timed out.'));
@@ -208,6 +214,12 @@ export class IndexerProcessPool extends EventEmitter {
       this.reportError(error);
       void this.stop(slot).catch(failure => this.reportError(failure));
     });
+    child.once('disconnect', () => {
+      if (slot.stopping) return;
+      slot.stopping = true; slot.ready = false;
+      if (slot.task) this.settle(slot.task, createWorkerFatalError('process transport disconnected'));
+      void this.stop(slot).catch(error => this.reportError(error));
+    });
     child.once('close', (code, signal) => {
       clearTimeout(slot.initializing);
       this.children.delete(slot);
@@ -218,10 +230,12 @@ export class IndexerProcessPool extends EventEmitter {
         this.releaseTask(task);
       }
       resolveExit();
-      if (!this.closed && this.pending.length) {
-        if (this.metrics.restarts++ >= this.maxRestartAttempts) {
-          for (const task of [...this.pending]) this.settle(task, new Error('Process restart allowance exhausted.'));
-        } else this.pump();
+      if (!this.closed) {
+        if (this.metrics.restarts >= this.maxRestartAttempts) this.restartExhausted = true;
+        else this.metrics.restarts++;
+        if (this.restartExhausted) {
+          for (const task of [...this.pending]) this.settle(task, createWorkerFatalError('process restart allowance exhausted'));
+        } else if (this.pending.length) this.pump();
       }
     });
     child.send({ type: 'initialize', generation: this.generation, oldSpaceMb: this.oldSpaceMb,
@@ -234,6 +248,22 @@ export class IndexerProcessPool extends EventEmitter {
   receive(slot, message) {
     if (!message || message.generation !== this.generation || slot.stopping) {
       this.metrics.staleResults++; return;
+    }
+    if (isWorkerFatalControl(message)) {
+      slot.stopping = true; slot.ready = false;
+      if (slot.task) this.settle(slot.task, createWorkerFatalError(message.reason));
+      this.observe('fatal', { threadId: slot.child.pid, reason: message.reason });
+      void this.stop(slot).catch(error => this.reportError(error));
+      return;
+    }
+    if (message.type === 'worker-observation') {
+      const event = readWorkerObservation(message);
+      if (event) {
+        try { slot.child.send({ type: 'worker-observation-ack', version: WORKER_OBSERVATION_VERSION,
+          generation: this.generation, sequence: event.sequence }, () => {}); } catch { /* observation only */ }
+        this.observe('message', { ...event, threadId: slot.child.pid });
+      }
+      return;
     }
     if (message.type === 'initialization-failed') {
       slot.stopping = true;
@@ -249,11 +279,15 @@ export class IndexerProcessPool extends EventEmitter {
         slot.stopping = true; void this.stop(slot).catch(error => this.reportError(error)); return;
       }
       slot.ready = true;
-      this.emit('message', { type: 'worker-runtime', threadId: slot.child.pid, observation });
+      this.observe('message', { type: 'worker-runtime', threadId: slot.child.pid, observation });
       this.pump(); return;
     }
     if (message.type === 'worker-task' || message.type === 'worker-task-start' || message.type === 'worker-crash') {
-      this.emit('message', { ...message, threadId: slot.child.pid }); return;
+      // Compatibility for internal controlled children, through the same
+      // passive receiver boundary rather than forwarding arbitrary raw fields.
+      const event = readWorkerObservation(createWorkerObservation({ ...message, threadId: slot.child.pid }, 1));
+      if (event) this.observe('message', event);
+      return;
     }
     if (message.type !== 'result' || !slot.task || message.taskId !== slot.task.id) {
       this.metrics.staleResults++; return;

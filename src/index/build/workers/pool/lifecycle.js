@@ -34,7 +34,7 @@ import { destroyPiscinaPool } from '../../../../shared/piscina-cleanup.js';
  */
 export const createWorkerPoolLifecycle = (input = {}) => {
   const {
-    log = () => {},
+    log: writeLog = () => {},
     poolLabel = 'tokenize',
     summarizeError = (err) => err?.message || String(err),
     maxRestartAttempts = 3,
@@ -56,12 +56,14 @@ export const createWorkerPoolLifecycle = (input = {}) => {
     createPool,
     attachPoolListeners = () => {}
   } = input;
+  const log = line => { try { writeLog(line); } catch { /* lifecycle logging is non-authoritative */ } };
   const resolvedCleanupTimeoutMs = resolveBuildCleanupTimeoutMs(cleanupTimeoutMs);
 
   let pool = null;
   let disabled = false;
   let permanentlyDisabled = false;
   let restartAttempts = 0;
+  let fatalRestartAttempts = 0;
   let restartAtMs = 0;
   let restarting = null;
   let shutdownWhenIdle = false;
@@ -149,19 +151,21 @@ export const createWorkerPoolLifecycle = (input = {}) => {
     await shutdownNowOrWhenIdle();
   };
 
-  const scheduleRestart = async (reason) => {
+  const scheduleRestart = async (reason, { terminateActive = false, fatal = false } = {}) => {
     if (permanentlyDisabled) return;
     if (!pool && disabled && restartAttempts > maxRestartAttempts) return;
     disabled = true;
     pressureReconfigurePending = false;
     restartAttempts += 1;
-    incWorkerRetries({ pool: poolLabel });
-    if (restartAttempts > maxRestartAttempts) {
+    if (fatal) fatalRestartAttempts += 1;
+    try { incWorkerRetries({ pool: poolLabel }); } catch { /* metric failure cannot block retirement */ }
+    if (restartAttempts > maxRestartAttempts || fatalRestartAttempts > maxRestartAttempts) {
       pendingRestart = false;
       permanentlyDisabled = true;
       disabled = true;
       if (reason) log(`Worker pool disabled: ${reason}`);
-      await shutdownNowOrWhenIdle();
+      if (terminateActive) await shutdownPool();
+      else await shutdownNowOrWhenIdle();
       return;
     }
     const delayMs = Math.min(
@@ -170,7 +174,8 @@ export const createWorkerPoolLifecycle = (input = {}) => {
     );
     restartAtMs = Date.now() + delayMs;
     pendingRestart = true;
-    await shutdownNowOrWhenIdle();
+    if (terminateActive) await shutdownPool();
+    else await shutdownNowOrWhenIdle();
     if (reason) log(`Worker pool disabled: ${reason} (retry in ${delayMs}ms).`);
   };
 
@@ -426,6 +431,7 @@ export const createWorkerPoolLifecycle = (input = {}) => {
     isPendingRestart: () => pendingRestart,
     isPressureReconfigurePending: () => pendingRestart && pressureReconfigurePending && !permanentlyDisabled,
     getRestartAttempts: () => restartAttempts,
+    getFatalRestartAttempts: () => fatalRestartAttempts,
     getEffectiveMaxWorkers: () => effectiveMaxWorkers,
     getConfiguredMaxWorkers: () => configuredMaxWorkers,
     pressureDownscaleStats

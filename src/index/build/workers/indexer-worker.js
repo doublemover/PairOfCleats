@@ -1,7 +1,8 @@
 import { parentPort as nativeParentPort, threadId as nativeThreadId, workerData as nativeWorkerData } from 'node:worker_threads';
 import { executeTokenizeBatch } from './tokenize-batch.js';
 import { observeWorkerHeap } from '../../../shared/workers/heap-contract.js';
-import util from 'node:util';
+import { createWorkerObserver, createWorkerTaskError, withWorkerTaskObservation } from './observation.js';
+import { installWorkerFatalPolicy } from './fatal-policy.js';
 import { quantizeVec } from '../../embedding.js';
 import { resolveEmbeddingQuantizationSpec } from '../../../shared/embedding-quantization-spec.js';
 import {
@@ -18,13 +19,21 @@ import {
 const workerData = nativeWorkerData || globalThis.__indexerTaskProcessData;
 const threadId = nativeParentPort ? nativeThreadId : process.pid;
 const parentPort = nativeParentPort || (globalThis.__indexerTaskProcessData ? {
-  postMessage: message => process.send?.({ ...message, generation: globalThis.__indexerTaskProcessGeneration })
+  postMessage: (message, onError = () => {}) => process.send?.({ ...message, generation: globalThis.__indexerTaskProcessGeneration }, onError)
 } : null);
 const runtimeObservation = nativeParentPort ? observeWorkerHeap() : globalThis.__indexerTaskProcessObservation;
 runtimeObservation.workerAttemptId = runtimeObservation.processInstanceId;
 runtimeObservation.parentAttemptId = workerData?.runtimeAttemptId || null;
 runtimeObservation.buildId = workerData?.buildId || null;
-parentPort?.postMessage({ type: 'worker-runtime', threadId, observation: runtimeObservation });
+const observer = createWorkerObserver({ send: (message, onError) => nativeParentPort
+  ? nativeParentPort.postMessage(message) : parentPort?.postMessage(message, onError) });
+const acknowledge = message => observer.acknowledge(message);
+if (nativeParentPort) nativeParentPort.on('message', acknowledge);
+else if (parentPort) process.on('message', acknowledge);
+const fatalPolicy = installWorkerFatalPolicy({ threadId, observer,
+  send: message => parentPort?.postMessage(message) });
+globalThis.__indexerWorkerPoisoned = fatalPolicy.isPoisoned;
+observer.emit({ type: 'worker-runtime', threadId, observation: runtimeObservation });
 if (!runtimeObservation.resourceLimitAcknowledged) {
   throw new Error('Worker V8 heap exceeds its reported resource limits; refusing work.');
 }
@@ -67,62 +76,12 @@ const tokenContext = createTokenizationContext({
 // Piscina runs one task at a time per worker thread, so this shared instance is safe.
 const tokenBuffers = createTokenizationBuffers();
 
-const normalizeEmptyMessage = (value) => {
-  if (typeof value !== 'string') return value;
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-  if (trimmed === '{}' || trimmed === '[object Object]') return null;
-  if (/^Error:?\s*\{\}$/i.test(trimmed)) return null;
-  if (/^Error:?\s*\[object Object\]$/i.test(trimmed)) return null;
-  return value;
-};
-
-const formatWorkerError = (err, label) => {
-  const name = err?.name || 'Error';
-  const rawMessage = err?.message || (typeof err === 'string' ? err : null) || String(err);
-  const message = normalizeEmptyMessage(rawMessage) || 'unhelpful worker error';
-  const stack = typeof err?.stack === 'string' ? err.stack : '';
-  let detail = '';
-  if (err?.cause) {
-    if (typeof err.cause === 'string') {
-      detail = err.cause;
-    } else if (typeof err.cause?.message === 'string') {
-      detail = err.cause.message;
-    } else {
-      try {
-        detail = JSON.stringify(err.cause);
-      } catch {
-        detail = String(err.cause);
-      }
-    }
-  }
-  if (!detail && err && typeof err === 'object') {
-    try {
-      detail = util.inspect(err, { depth: 3, breakLength: 120 });
-    } catch {
-      // ignore
-    }
-  }
-  const lines = [
-    `[${label}] ${name}: ${message}`,
-    stack ? `Stack: ${stack}` : '',
-    detail ? `Cause: ${detail}` : ''
-  ].filter(Boolean);
-  const wrapped = new Error(lines.join('\n'), { cause: err });
-  wrapped.name = name;
-  if (typeof err?.code === 'string') wrapped.code = err.code;
-  return wrapped;
-};
-
 const cloneScanDefaults = { maxDepth: 4, maxItems: 40, tailItems: 3 };
-const cloneScanCrash = { maxDepth: 6, maxItems: 80, tailItems: 6 };
 const isPrimitive = (value) => value == null
   || typeof value === 'string'
   || typeof value === 'number'
   || typeof value === 'boolean'
   || typeof value === 'bigint';
-const isCloneError = (err) => err?.name === 'DataCloneError'
-  || /could not be cloned|DataCloneError/i.test(err?.message || '');
 const isTypedArray = (value) => ArrayBuffer.isView(value);
 const findNonCloneable = (value, path = '$', depth = 0, limits = cloneScanDefaults, seen = new Set()) => {
   if (typeof value === 'function') {
@@ -273,110 +232,17 @@ const sanitizeTokenizeResult = (result) => {
   return output;
 };
 
-const reportTiming = (label, startedAt, status) => {
-  if (!parentPort) return;
-  const durationMs = Number(process.hrtime.bigint() - startedAt) / 1e6;
-  parentPort.postMessage({
-    type: 'worker-task',
-    task: label.startsWith('tokenize') ? 'tokenize' : label === 'quantizeVectors' ? 'quantize' : 'unknown',
-    threadId,
-    durationMs,
-    status
-  });
-};
-
-const reportWorkerCrash = (err, label, meta = null) => {
-  if (!parentPort) return;
-  const message = err?.message || (typeof err === 'string' ? err : null);
-  const stack = typeof err?.stack === 'string' ? err.stack : null;
-  const cause = err?.cause
-    ? (err.cause?.stack || err.cause?.message || util.inspect(err.cause, { depth: 4, breakLength: 120 }))
-    : null;
-  parentPort.postMessage({
-    type: 'worker-crash',
-    label,
-    threadId,
-    name: err?.name || 'Error',
-    message,
-    stack,
-    cause,
-    raw: util.inspect(err, { depth: 5, breakLength: 120, showHidden: true, getters: true }),
-    task: meta?.task || null,
-    stage: meta?.stage || null,
-    cloneIssue: meta?.cloneIssue || null
-  });
-};
-
-process.on('uncaughtException', (err) => {
-  const cloneIssue = isCloneError(err)
-    ? findNonCloneable(lastStage === 'result' ? lastResult : lastPayload, '$', 0, cloneScanCrash, new Set())
-    : null;
-  reportWorkerCrash(err, 'uncaughtException', {
-    task: lastTask,
-    stage: lastStage,
-    cloneIssue
-  });
-});
-
-process.on('unhandledRejection', (reason) => {
-  if (reason instanceof Error) {
-    const cloneIssue = isCloneError(reason)
-      ? findNonCloneable(lastStage === 'result' ? lastResult : lastPayload, '$', 0, cloneScanCrash, new Set())
-      : null;
-    reportWorkerCrash(reason, 'unhandledRejection', {
-      task: lastTask,
-      stage: lastStage,
-      cloneIssue
-    });
-  } else {
-    const wrapped = new Error(
-      typeof reason === 'string'
-        ? reason
-        : util.inspect(reason, { depth: 4, breakLength: 120, showHidden: true, getters: true })
-    );
-    const cloneIssue = isCloneError(wrapped)
-      ? findNonCloneable(lastStage === 'result' ? lastResult : lastPayload, '$', 0, cloneScanCrash, new Set())
-      : null;
-    reportWorkerCrash(wrapped, 'unhandledRejection', {
-      task: lastTask,
-      stage: lastStage,
-      cloneIssue
-    });
-  }
-});
-
-let lastTask = null;
-let lastStage = null;
-let lastPayload = null;
-let lastResult = null;
-
-const withWorkerError = (fn, label) => async (input) => {
-  const startedAt = process.hrtime.bigint();
-  parentPort?.postMessage({ type: 'worker-task-start', threadId,
-    task: label.startsWith('tokenize') ? 'tokenize' : label === 'quantizeVectors' ? 'quantize' : 'unknown' });
-  lastTask = label;
-  lastStage = 'payload';
-  lastPayload = input;
-  lastResult = null;
-
+const withWorkerError = (fn, label) => withWorkerTaskObservation(async input => {
+  if (fatalPolicy.isPoisoned()) throw new Error('Poisoned worker cannot execute another task.');
   try {
-    validateCloneable(input, `${label} payload`);
+    validateCloneable(input, label + ' payload');
     const result = await fn(input);
-    lastStage = 'result';
-    lastResult = result;
-    validateCloneable(result, `${label} result`);
-    reportTiming(label, startedAt, 'ok');
+    if (fatalPolicy.isPoisoned()) throw new Error('Poisoned worker cannot publish a result.');
+    validateCloneable(result, label + ' result');
     return result;
-  } catch (err) {
-    reportTiming(label, startedAt, 'error');
-    throw formatWorkerError(err, label);
-  } finally {
-    // Avoid retaining references to large payloads/results between tasks.
-    // These are only needed for crash diagnostics.
-    lastPayload = null;
-    lastResult = null;
-  }
-};
+  } catch (error) { throw createWorkerTaskError(error, label); }
+}, { observer, threadId,
+  task: label.startsWith('tokenize') ? 'tokenize' : label === 'quantizeVectors' ? 'quantize' : 'analyze' });
 
 const resolveTaskTokenContext = input => input && (input.dictConfig || input.postingsConfig)
   ? createTokenizationContext({ dictWords, dictConfig: input.dictConfig || dictConfig,

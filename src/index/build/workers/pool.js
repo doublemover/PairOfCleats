@@ -1,6 +1,8 @@
 import { decodeFileAnalysisInput, FILE_ANALYSIS_MAX_INPUT_BYTES } from './file-analysis-contract.js';
 import { validateTokenizeBatch } from './tokenize-batch.js';
 import { IndexerProcessPool, getProcessMemoryAccount } from './process-pool.js';
+import { IndexerThreadPool } from './thread-pool.js';
+import { projectWorkerError } from './observation.js';
 import { readEffectiveMemory } from '../../../shared/effective-memory.js';
 import { resolveWorkerHeapLaunchContract } from '../../../shared/workers/heap-contract.js';
 import { isAbortError, throwIfAborted } from '../../../shared/abort.js';
@@ -8,7 +10,6 @@ import { createLifecycleRegistry } from '../../../shared/lifecycle/registry.js';
 import { awaitWithKeepalive } from '../../../shared/promise-keepalive.js';
 import { isQueueRecoveryUnsafe } from '../../../shared/concurrency/queue-recovery.js';
 import os from 'node:os';
-import util from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { log as defaultLog } from '../../../shared/progress-runtime.js';
 import {
@@ -314,6 +315,11 @@ export async function createIndexerWorkerPool(input = {}) {
           void lifecycle.disablePermanently('worker heap acknowledgement rejected').catch(() => {});
         }
       },
+      onFatalWorker: () => {
+        if (lifecycle && !lifecycle.isDisabled()) {
+          void lifecycle.scheduleRestart('fatal worker generation retired', { terminateActive: true, fatal: true }).catch(() => {});
+        }
+      },
       maybeReduceWorkersOnPressure: async (sample) => {
         if (!lifecycle) return;
         await lifecycle.maybeReduceWorkersOnPressure(sample);
@@ -374,7 +380,7 @@ export async function createIndexerWorkerPool(input = {}) {
           budgetAccount: getProcessMemoryAccount(memoryPolicy),
           maxMessageBytes: Math.max(4096, Math.min(32 * 1024 * 1024, Math.floor(maxGlobalRssBytes * 0.025))) });
       }
-      return new Piscina({
+      return new IndexerThreadPool(new Piscina({
         filename: fileURLToPath(new URL('./indexer-worker.js', import.meta.url)),
         maxThreads: maxWorkers,
         idleTimeout: poolConfig.idleTimeoutMs,
@@ -383,7 +389,7 @@ export async function createIndexerWorkerPool(input = {}) {
         execArgv: workerExecArgv,
         ...(currentResourceLimits ? { resourceLimits: currentResourceLimits } : {}),
         workerData
-      });
+      }));
     };
 
     lifecycle = createWorkerPoolLifecycle({
@@ -454,14 +460,6 @@ export async function createIndexerWorkerPool(input = {}) {
       return { detail, opaqueFailure, isCloneError, reason };
     };
 
-    const formatWorkerNestedError = (err) => ({
-      message: err?.message || String(err),
-      stack: err?.stack || null,
-      name: err?.name || null,
-      code: err?.code || null,
-      raw: util.inspect(err, { depth: 3, breakLength: 120, showHidden: true, getters: true })
-    });
-
     const logWorkerPoolUnavailable = ({
       payload,
       payloadMetaPool,
@@ -470,7 +468,7 @@ export async function createIndexerWorkerPool(input = {}) {
       task
     }) => {
       if (!crashLogger?.enabled) return;
-      withPooledPayloadMeta(payloadMetaPool, (meta) => {
+      try { withPooledPayloadMeta(payloadMetaPool, (meta) => {
         assignPayloadMeta(meta, payload);
       }, (payloadMeta) => {
         crashLogger.logError({
@@ -482,7 +480,7 @@ export async function createIndexerWorkerPool(input = {}) {
           task,
           payloadMeta: payload ? payloadMeta : null
         });
-      });
+      }); } catch { /* diagnostics cannot change an unavailable outcome */ }
     };
 
     const logWorkerTaskError = ({
@@ -495,24 +493,24 @@ export async function createIndexerWorkerPool(input = {}) {
       err
     }) => {
       if (!crashLogger?.enabled) return;
-      withPooledPayloadMeta(payloadMetaPool, (meta) => {
+      const detail = projectWorkerError(err);
+      try { withPooledPayloadMeta(payloadMetaPool, (meta) => {
         assignPayloadMeta(meta, payload);
       }, (payloadMeta) => {
         crashLogger.logError({
           phase,
-          message,
-          stack: err?.stack || null,
-          name: err?.name || null,
-          code: err?.code || null,
+          message: detail.message || message,
+          stack: detail.stack || null,
+          name: detail.name || null,
+          code: detail.code || null,
           task,
           payloadMeta: payload ? payloadMeta : null,
-          raw: util.inspect(err, { depth: 4, breakLength: 120, showHidden: true, getters: true }),
-          errors: Array.isArray(err?.errors)
-            ? err.errors.map((inner) => formatWorkerNestedError(inner))
-            : null,
-          cause: err?.cause ? formatWorkerNestedError(err.cause) : null
+          raw: null,
+          cause: detail.cause || null,
+          diagnosticCapture: { retainedTextBytes: detail.retainedTextBytes,
+            truncatedFields: detail.truncatedFields, droppedFields: detail.droppedFields }
         });
-      });
+      }); } catch { /* diagnostics cannot replace a task failure */ }
     };
 
     const handleWorkerTaskError = async ({
@@ -525,12 +523,14 @@ export async function createIndexerWorkerPool(input = {}) {
       preferDetailMessage = false
     }) => {
       const { detail, opaqueFailure, isCloneError, reason } = classifyWorkerRunError(err);
-      if (isCloneError) {
-        await lifecycle.disablePermanently(reason || 'data-clone error');
-      } else if (opaqueFailure) {
-        await lifecycle.disablePermanently(reason || 'worker failure');
-      } else {
-        await lifecycle.scheduleRestart(reason);
+      if (!['ERR_WORKER_FATAL', 'ERR_PROCESS_TASK_EXIT'].includes(err?.code) || !lifecycle.isDisabled()) {
+        if (isCloneError) {
+          await lifecycle.disablePermanently(reason || 'data-clone error');
+        } else if (opaqueFailure) {
+          await lifecycle.disablePermanently(reason || 'worker failure');
+        } else {
+          await lifecycle.scheduleRestart(reason, { fatal: ['ERR_WORKER_FATAL', 'ERR_PROCESS_TASK_EXIT'].includes(err?.code) });
+        }
       }
       // Existing pressure waiters also belong to an unrecoverable pool. Let
       // them release active counters so its idle shutdown can finish.
@@ -547,6 +547,11 @@ export async function createIndexerWorkerPool(input = {}) {
         err
       });
       return null;
+    };
+    const rejectFatalTask = async error => {
+      if (!['ERR_WORKER_FATAL', 'ERR_PROCESS_TASK_EXIT'].includes(error?.code)) return;
+      if (!lifecycle.isDisabled()) await lifecycle.scheduleRestart('fatal execution owner retired', { fatal: true });
+      throw error;
     };
 
     return {
@@ -706,6 +711,7 @@ export async function createIndexerWorkerPool(input = {}) {
           if (!dispatched && queueController.isClosed() && isAbortError(err)) return null;
           if (isAbortError(err)) throw err;
           if (err?.code === 'ERR_PROCESS_TASK_BUDGET' || err?.code === 'ERR_TOKENIZER_RESOURCE_PRESSURE') throw err;
+          await rejectFatalTask(err);
           try {
             return await handleWorkerTaskError({
               err, payload, payloadMetaPool: tokenizePayloadMetaPool,
@@ -855,6 +861,7 @@ export async function createIndexerWorkerPool(input = {}) {
           hasPrimaryFailure = true;
           if (isQueueRecoveryUnsafe(err) || err instanceof AggregateError || isAbortError(err)
             || err?.code === 'ERR_EMBEDDING_QUANTIZATION') throw err;
+          await rejectFatalTask(err);
           try { throwIfAborted(signal); }
           catch (abortError) { primaryFailure = abortError; throw abortError; }
           try {
