@@ -3534,3 +3534,42 @@ gate/native/platform/performance execution remains deferred. Coverage is **35 fi
 465 implemented / 138 partial / 132 pending**, all 770 reports retained, no issue
 closed or closing reference added. Bookkeeping reuses the checked JS tree.
 Contract: `docs/contracts/vfs-benchmark-phases.md`.
+
+## 2026-10-26 — comparable map publication and scoped memory observations
+
+`3dc7fa74b` and `361a6bdfd` repair #1748. Both whole-JSON and incremental JSON
+encoding use the existing atomic stream owner, including retirement and all
+primary/destroy/close failure context. The builder now observes memory after
+sorting, hashing and model assembly. `observedBoundaryMax` and its sample policy
+state exactly what was observed; the existing model `peak` remains a documented
+compatibility alias. Model version 1.1.0 and its existing additive diagnostic
+schema remain unchanged; no authority, byte or public configuration cap relaxed.
+
+Each serial arm/sample runs in a fresh Node child with a 30-second deadline,
+zero retry, bounded output and quiet/lossless diagnostics. Arms alternate order.
+Input preparation, admission, warmup, measured atomic publication and full child
+wall time retain separate observations. Parsed parity is required before timing
+and after every publication; the real stream/in-memory contract fixture retains
+all previous assertions. Source signatures, actual node/member/edge counts,
+inventory, dropped/truncated state, effective limits/options, section hashes,
+serialized bytes and SHA-256 identity describe the admitted materialized map.
+
+Boundary samples are distinct from Node resourceUsage maxRSS, documented by Node
+in KiB and converted to bytes. The latter is scoped to the fresh child lifetime
+through completion, including startup/input/warmup and excluding consumer
+readback; missing/inconsistent counters cannot become zero or sampled substitutes.
+No transient heap maximum, uncapped streaming build or measured gain is claimed.
+Representative payload/profile sweeps and native Windows counter qualification
+remain execution work. Owned fixture subdirectories protect caller files and
+require original resource settlement, containment and marker authority to delete.
+
+Three authored regressions cover final model sampling, controlled endpoint versus
+high-water semantics, missing/inconsistent counters, actual stream failure
+ownership, and a tiny four-child paired experiment with untouched caller files.
+They remain unrun. Full format/ESLint, 15 JS syntax checks, three affected generated
+refresh/freshness checks, all three fixture discoveries and staged diff checks
+passed. Ordered ci-lite now contains 1,336 cases. Functional/front-gate/native/
+platform/performance execution remains deferred. Coverage is **35 fixed / 466
+implemented / 138 partial / 131 pending**, all 770 reports retained; no issue closed
+or closing reference added. Bookkeeping reuses the checked JS tree.
+Contract and Node API source: `docs/perf/map-pipeline.md`.
