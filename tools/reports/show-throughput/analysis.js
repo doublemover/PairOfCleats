@@ -1,3 +1,4 @@
+import { resolveRecordedMeasurementInputs, recordedLedgerProvenance, canReuseRecordedLedger, BENCH_MEASUREMENT_DERIVATION_VERSION } from '../../bench/language/metrics/recorded-evidence.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import {
@@ -16,7 +17,6 @@ import {
 } from './aggregate.js';
 import {
   loadJson,
-  loadFeatureMetricsCached,
   loadFeatureMetricsForPayload
 } from './load.js';
 import { readFileStamp, toCachePathKey } from './cache-identity.js';
@@ -207,8 +207,7 @@ const computeBenchAnalysis = (
   if (!buildRoot) return null;
   const buildState = loadBuildState(buildRoot);
   if (!buildState) return null;
-  const repoRoot = payload?.repo?.root || artifactReport?.repo?.root || null;
-  const resolvedFeatureMetrics = featureMetrics || (repoRoot ? loadFeatureMetricsCached(repoRoot) : null);
+  const resolvedFeatureMetrics = featureMetrics || loadFeatureMetricsForPayload(payload);
   const modes = {};
   const totals = createAstGraphTotals();
   for (const modeKey of ANALYSIS_MODE_KEYS) {
@@ -265,7 +264,8 @@ const upsertMaterializationSection = (payload, section, provenance) => {
   const nextEntry = {
     source: provenance?.source || 'unknown',
     category: provenance?.category || 'unknown',
-    reason: 'backfill-missing-or-invalid-benchmark-artifact'
+    reason: 'backfill-missing-or-invalid-benchmark-artifact',
+    ...(provenance?.derivation ? { derivation: provenance.derivation } : {})
   };
   const previous = artifacts.materialization
     && typeof artifacts.materialization === 'object'
@@ -284,63 +284,32 @@ const upsertMaterializationSection = (payload, section, provenance) => {
   return changed;
 };
 
-export const resolveIndexingSummary = ({
-  payload,
-  featureMetrics,
-  preferExisting = true
-}) => {
+export const resolveIndexingSummary = ({ payload, featureMetrics, preferExisting = true, measurementEvidence = null }) => {
   const existing = payload?.artifacts?.indexing;
   const scanProfile = payload?.artifacts?.scanProfile;
-  if (preferExisting && isValidIndexingSummary(existing)) {
-    return {
-      indexingSummary: existing,
-      changed: false,
-      featureMetrics,
-      provenance: createProvenance('indexing', 'native-indexing-summary', 'native')
-    };
-  }
-  const metrics = featureMetrics || loadFeatureMetricsForPayload(payload);
-  const fromScanProfile = buildIndexingSummaryFromScanProfile(scanProfile);
-  if (fromScanProfile) {
-    return {
-      indexingSummary: fromScanProfile,
-      changed: false,
-      featureMetrics: metrics,
-      provenance: createProvenance('indexing', 'native-scan-profile', 'native-derived')
-    };
-  }
-  const fromFeatureMetrics = buildIndexingSummaryFromFeatureMetrics(metrics);
-  if (fromFeatureMetrics) {
-    return {
-      indexingSummary: fromFeatureMetrics,
-      changed: false,
-      featureMetrics: metrics,
-      provenance: createProvenance('indexing', 'fallback-feature-metrics', 'fallback')
-    };
-  }
-  const fromThroughput = buildIndexingSummaryFromThroughput(payload?.artifacts?.throughput);
-  if (fromThroughput) {
-    return {
-      indexingSummary: fromThroughput,
-      changed: false,
-      featureMetrics: metrics,
-      provenance: createProvenance('indexing', 'fallback-throughput', 'fallback')
-    };
-  }
-  if (!preferExisting && isValidIndexingSummary(existing)) {
-    return {
-      indexingSummary: existing,
-      changed: false,
-      featureMetrics: metrics,
-      provenance: createProvenance('indexing', 'native-indexing-summary', 'native')
-    };
-  }
-  return {
-    indexingSummary: null,
-    changed: false,
-    featureMetrics: metrics,
-    provenance: createProvenance('indexing', 'missing', 'missing')
+  const previous = payload?.artifacts?.materialization?.sections?.indexing;
+  const existingResult = () => {
+    const derived = existing?.derivation || (previous?.category === 'fallback' ? { state: 'legacy-materialized-source-unqualified' } : null);
+    return { indexingSummary: derived ? { ...existing, derivation: derived } : existing, changed: false, featureMetrics,
+      provenance: derived || previous ? { section: 'indexing', source: previous?.source || 'fallback-indexing-derived',
+        category: previous?.category || 'fallback', derivation: derived } : createProvenance('indexing', 'native-indexing-summary', 'native') };
   };
+  if (isValidIndexingSummary(existing) && (preferExisting || existingResult().provenance.source === 'native-indexing-summary')) return existingResult();
+  const evidence = measurementEvidence || resolveRecordedMeasurementInputs({ payload });
+  const metrics = featureMetrics || evidence.featureMetrics;
+  const derivedResult = (indexingSummary, source, category) => {
+    if (!indexingSummary) return null;
+    indexingSummary.generatedAt = typeof payload?.generatedAt === 'string' ? payload.generatedAt : null;
+    indexingSummary.derivation = { derivationVersion: BENCH_MEASUREMENT_DERIVATION_VERSION, measurementReceipt: evidence.receipt,
+      source, scope: 'recorded-report-observations' };
+    return { indexingSummary, changed: false, featureMetrics: metrics,
+      provenance: { ...createProvenance('indexing', source, category), derivation: indexingSummary.derivation } };
+  };
+  return derivedResult(buildIndexingSummaryFromScanProfile(scanProfile), 'native-scan-profile', 'native-derived')
+    || derivedResult(buildIndexingSummaryFromFeatureMetrics(metrics), 'fallback-feature-metrics', 'fallback')
+    || derivedResult(buildIndexingSummaryFromThroughput(payload?.artifacts?.throughput), 'fallback-throughput', 'fallback')
+    || (isValidIndexingSummary(existing) ? existingResult() : { indexingSummary: null, changed: false, featureMetrics: metrics,
+      provenance: createProvenance('indexing', 'missing', 'missing') });
 };
 
 export const loadOrComputeBenchAnalysis = ({
@@ -505,18 +474,18 @@ export const resolveRepoHistoryKey = ({ payload, file }) => {
   return normalizeRepoHistoryKeyValue(candidate, fileFallback || 'unknown');
 };
 
-export const loadOrComputeThroughputLedger = ({ payload, indexingSummary }) => {
+export const loadOrComputeThroughputLedger = ({ payload, indexingSummary, measurementEvidence }) => {
   return materializeOrResolveThroughputLedger({
     payload,
-    indexingSummary,
+    indexingSummary, measurementEvidence,
     materialize: false
   });
 };
 
-export const resolveThroughputLedger = ({ payload, indexingSummary }) => {
+export const resolveThroughputLedger = ({ payload, indexingSummary, measurementEvidence }) => {
   return materializeOrResolveThroughputLedger({
     payload,
-    indexingSummary,
+    indexingSummary, measurementEvidence,
     materialize: false,
     preferExisting: true
   });
@@ -526,30 +495,27 @@ const materializeOrResolveThroughputLedger = ({
   payload,
   indexingSummary,
   materialize = false,
-  preferExisting = true
+  preferExisting = true, measurementEvidence = null
 }) => {
   const existing = payload?.artifacts?.throughputLedger;
-  if (preferExisting && isValidThroughputLedger(existing)) {
+  const previous = payload?.artifacts?.materialization?.sections?.throughputLedger;
+  const existingProvenance = recordedLedgerProvenance(existing, previous);
+  if (isValidThroughputLedger(existing) && canReuseRecordedLedger(existing, previous, { preferExisting })) {
     return {
       throughputLedger: existing,
       changed: false,
-      provenance: createProvenance('throughput-ledger', 'native-throughput-ledger', 'native')
+      provenance: existingProvenance
     };
   }
+  const evidence = measurementEvidence || resolveRecordedMeasurementInputs({ payload });
   const computed = buildThroughputLedgerForTask({
+    metricsByMode: evidence.metricsByMode, measurementReceipt: evidence.receipt,
     repoPath: payload?.repo?.root || payload?.artifacts?.repo?.root || null,
     summary: payload?.summary || payload?.runs?.[0] || null,
     throughput: payload?.artifacts?.throughput || null,
     indexingSummary: indexingSummary || payload?.artifacts?.indexing || null
   });
   if (!isValidThroughputLedger(computed)) {
-    if (!preferExisting && isValidThroughputLedger(existing)) {
-      return {
-        throughputLedger: existing,
-        changed: false,
-        provenance: createProvenance('throughput-ledger', 'native-throughput-ledger', 'native')
-      };
-    }
     return {
       throughputLedger: null,
       changed: false,
@@ -560,7 +526,7 @@ const materializeOrResolveThroughputLedger = ({
     return {
       throughputLedger: computed,
       changed: false,
-      provenance: createProvenance('throughput-ledger', 'fallback-throughput-derived', 'fallback')
+      provenance: recordedLedgerProvenance(computed)
     };
   }
   const artifacts = ensureArtifactsObject(payload);
@@ -569,22 +535,23 @@ const materializeOrResolveThroughputLedger = ({
   const metadataChanged = upsertMaterializationSection(
     payload,
     'throughputLedger',
-    createProvenance('throughput-ledger', 'fallback-throughput-derived', 'fallback')
+    recordedLedgerProvenance(computed)
   );
   return {
     throughputLedger: computed,
     changed: changed || metadataChanged,
-    provenance: createProvenance('throughput-ledger', 'fallback-throughput-derived', 'fallback')
+    provenance: recordedLedgerProvenance(computed)
   };
 };
 
 export const materializeIndexingSummary = ({
   payload,
-  featureMetrics
+  featureMetrics, measurementEvidence
 }) => {
-  const resolved = resolveIndexingSummary({ payload, featureMetrics, preferExisting: false });
+  const resolved = resolveIndexingSummary({ payload, featureMetrics, preferExisting: false, measurementEvidence });
   if (!resolved.indexingSummary) return resolved;
   if (resolved.provenance?.source === 'native-indexing-summary') return resolved;
+  resolved.indexingSummary.generatedAt = typeof payload?.generatedAt === 'string' ? payload.generatedAt : null;
   const artifacts = ensureArtifactsObject(payload);
   const changed = JSON.stringify(artifacts.indexing || null) !== JSON.stringify(resolved.indexingSummary);
   artifacts.indexing = resolved.indexingSummary;
@@ -622,10 +589,10 @@ export const materializeBenchAnalysis = ({
 
 export const materializeThroughputLedger = ({
   payload,
-  indexingSummary
+  indexingSummary, measurementEvidence
 }) => materializeOrResolveThroughputLedger({
   payload,
-  indexingSummary,
+  indexingSummary, measurementEvidence,
   materialize: true,
   preferExisting: false
 });

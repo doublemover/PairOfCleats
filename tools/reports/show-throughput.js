@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { resolveRecordedMeasurementInputs } from '../bench/language/metrics/recorded-evidence.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -26,8 +27,7 @@ import {
 } from './show-throughput/aggregate.js';
 import {
   listResultFolders,
-  loadJson,
-  loadFeatureMetricsForPayload
+  loadJson
 } from './show-throughput/load.js';
 import {
   resolveShowThroughputOptions,
@@ -607,14 +607,15 @@ for (const dir of folders) {
     const resultPath = path.join(folderPath, file);
     const summary = payload.summary || payload.runs?.[0] || null;
     const throughput = payload.artifacts?.throughput || {};
-    const featureMetrics = loadFeatureMetricsForPayload(payload);
+    const measurementEvidence = resolveRecordedMeasurementInputs({ payload, sourceRoot: folderPath });
+    const featureMetrics = measurementEvidence.featureMetrics;
     const {
       indexingSummary,
       featureMetrics: resolvedFeatureMetrics,
       provenance: indexingProvenance
     } = resolveIndexingSummary({
       payload,
-      featureMetrics
+      featureMetrics, measurementEvidence
     });
     const { analysis, provenance: analysisProvenance } = resolveBenchAnalysis({
       payload,
@@ -624,7 +625,7 @@ for (const dir of folders) {
     });
     const { throughputLedger, provenance: throughputLedgerProvenance } = resolveThroughputLedger({
       payload,
-      indexingSummary
+      indexingSummary, measurementEvidence
     });
     const repoIdentityForMetrics = payload.repo?.root
       || payload?.artifacts?.repo?.root
@@ -709,14 +710,14 @@ for (const dir of folders) {
         reposWithMetrics.add(repoIdentityForMetrics);
       }
     } else if (repoIdentityForMetrics && !folderReposWithMetrics.has(repoIdentityForMetrics)) {
-      const metrics = resolvedFeatureMetrics || loadFeatureMetricsForPayload(payload);
+      const metrics = resolvedFeatureMetrics || measurementEvidence.featureMetrics;
       if (metrics) {
         mergeModeTotalsFromFeatureMetrics(metrics, modeTotalsFolder);
         folderReposWithMetrics.add(repoIdentityForMetrics);
       }
     }
     if (repoIdentityForMetrics && !reposWithMetrics.has(repoIdentityForMetrics) && !isValidIndexingSummary(indexingSummary)) {
-      const metrics = resolvedFeatureMetrics || loadFeatureMetricsForPayload(payload);
+      const metrics = resolvedFeatureMetrics || measurementEvidence.featureMetrics;
       if (metrics) {
         collectLanguageLines(metrics, languageTotals);
         mergeModeTotalsFromFeatureMetrics(metrics, modeTotalsGlobal);

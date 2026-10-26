@@ -4,7 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-import { loadFeatureMetricsForPayload } from '../../../tools/reports/show-throughput/load.js';
+import { loadCurrentFeatureMetricsForPayload } from '../../../tools/reports/show-throughput/load.js';
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-show-throughput-metrics-resilience-'));
 const repoRoot = path.join(tempRoot, 'repo');
@@ -16,7 +16,7 @@ try {
   let threw = false;
   let metrics = null;
   try {
-    metrics = loadFeatureMetricsForPayload({
+    metrics = loadCurrentFeatureMetricsForPayload({
       repo: { root: repoRoot },
       artifacts: { repo: { root: repoRoot } }
     });

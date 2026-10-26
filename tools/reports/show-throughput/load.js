@@ -1,3 +1,4 @@
+import { resolveRecordedMeasurementInputs } from '../../bench/language/metrics/recorded-evidence.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { getMetricsDir, loadUserConfig } from '../../shared/dict-utils.js';
@@ -99,7 +100,7 @@ const loadFeatureMetricsByCacheRoot = (cacheRoot) => {
   return metrics;
 };
 
-export const loadFeatureMetricsForPayload = (payload) => {
+export const loadCurrentFeatureMetricsForPayload = (payload) => {
   const cacheRoot = payload?.artifacts?.repo?.cacheRoot;
   const cacheMetrics = loadFeatureMetricsByCacheRoot(cacheRoot);
   if (cacheMetrics) return cacheMetrics;
@@ -108,3 +109,8 @@ export const loadFeatureMetricsForPayload = (payload) => {
   if (repoMetrics) return repoMetrics;
   return null;
 };
+
+/** Historical reports never inherit the mutable repo/cache metrics loader. */
+export const loadFeatureMetricsForPayload = (payload, { sourceRoot = null } = {}) => (
+  resolveRecordedMeasurementInputs({ payload, sourceRoot }).featureMetrics
+);

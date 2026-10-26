@@ -1,3 +1,4 @@
+import { resolveRecordedMeasurementInputs, canReuseRecordedLedger } from './metrics/recorded-evidence.js';
 import fsPromises from 'node:fs/promises';
 import { createReportStreamContext, discoverReportStreams } from './report-streams.js';
 import path from 'node:path';
@@ -1659,12 +1660,13 @@ const resolveTaskRepoIdentity = (entry, payload) => (
   || `${entry?.language || 'unknown'}/${entry?.repo || 'unknown'}`
 );
 
-const resolveTaskThroughputLedger = ({ entry, payload }) => {
+const resolveTaskThroughputLedger = ({ entry, payload, evidence }) => {
   const existing = payload?.artifacts?.throughputLedger;
-  if (isValidThroughputLedger(existing)) return existing;
+  if (isValidThroughputLedger(existing) && canReuseRecordedLedger(existing, payload?.artifacts?.materialization?.sections?.throughputLedger)) return existing;
   return buildThroughputLedgerForTask({
     repoPath: entry?.repoPath || payload?.repo?.root || payload?.artifacts?.repo?.root || null,
-    summary: entry?.summary || payload?.summary || null,
+    summary: payload?.summary || entry?.summary || null,
+    metricsByMode: evidence.metricsByMode, measurementReceipt: evidence.receipt,
     throughput: payload?.artifacts?.throughput || null,
     indexingSummary: payload?.artifacts?.indexing || null
   });
@@ -1755,17 +1757,18 @@ export const buildReportOutput = async ({
   const taskInputs = Array.isArray(results) ? results : [];
   const tasksWithTelemetry = await mapWithConcurrency(taskInputs, async (entry) => {
     const payload = await resolveTaskPayload(entry);
-    const throughputLedger = resolveTaskThroughputLedger({ entry, payload });
-    const summary = entry?.summary || null;
+    const evidence = resolveRecordedMeasurementInputs({ payload, sourceRoot: entry?.outFile ? path.dirname(path.resolve(entry.outFile)) : null });
+    const throughputLedger = resolveTaskThroughputLedger({ entry, payload, evidence });
+    const summary = payload?.summary || entry?.summary || null;
     const stageTimingProfile = entry?.stageTimingProfile || (summary
       ? buildStageTimingProfileForTask({
-        repoPath: entry.repoPath,
-        summary
+        summary, metricsByMode: evidence.metricsByMode, measurementReceipt: evidence.receipt
       })
       : null);
     return {
       ...entry,
       payload,
+      summary,
       repoIdentity: resolveTaskRepoIdentity(entry, payload),
       stageTimingProfile,
       throughputLedger,

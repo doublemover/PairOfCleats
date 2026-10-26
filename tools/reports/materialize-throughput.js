@@ -1,12 +1,12 @@
 #!/usr/bin/env node
+import { resolveRecordedMeasurementInputs } from '../bench/language/metrics/recorded-evidence.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { writeJsonFileSyncResolved } from '../../src/shared/json-file.js';
 import { color } from '../../src/retrieval/cli/ansi.js';
 import {
   listResultFolders,
-  loadJson,
-  loadFeatureMetricsForPayload
+  loadJson
 } from './show-throughput/load.js';
 import {
   resolveThroughputMaterializeOptions,
@@ -62,10 +62,11 @@ for (const dir of folders) {
     const resultPath = path.join(folderPath, file);
     const payload = loadJson(resultPath);
     if (!payload) continue;
-    const featureMetrics = loadFeatureMetricsForPayload(payload);
+    const measurementEvidence = resolveRecordedMeasurementInputs({ payload, sourceRoot: folderPath });
+    const featureMetrics = measurementEvidence.featureMetrics;
     const indexingResult = materializeIndexingSummary({
       payload,
-      featureMetrics
+      featureMetrics, measurementEvidence
     });
     const analysisResult = materializeBenchAnalysis({
       payload,
@@ -75,7 +76,7 @@ for (const dir of folders) {
     });
     const throughputLedgerResult = materializeThroughputLedger({
       payload,
-      indexingSummary: indexingResult.indexingSummary
+      indexingSummary: indexingResult.indexingSummary, measurementEvidence
     });
 
     const dirty = Boolean(indexingResult.changed || analysisResult.changed || throughputLedgerResult.changed);
