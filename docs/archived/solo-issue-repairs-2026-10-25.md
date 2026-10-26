@@ -2939,3 +2939,52 @@ Bookkeeping changes do not alter the checked JS tree.
 Current coverage: **35 fixed / 441 implemented / 148 partial / 146 pending**.
 No issue was closed or new closing reference added.
 Contract: docs/contracts/rust-attached-documentation.md.
+
+
+### #740 native signature handoff and #1459/#1474 declarator controls
+
+`7a81f3c84` repairs a remaining JavaScript metadata handoff: the doc projector
+ignored a valid parsed chunk signature and rescanned the whole declaration with
+a regex that could stop inside a quoted parameter. It now prefers the existing
+source-qualified JavaScript declaration record, then the parsed chunk preview,
+using the old fallback only when neither owner provides a nonblank signature.
+The fallback's ordinary caller behavior remains. This avoids the redundant scan
+on the parsed path without promoting signature metadata into flow evidence.
+Shared sourceChunking advances 30→31 because retained signatures/field tokens
+change meaning. The native body-boundary and bounded lexical extraction repair
+is retained rather than replaced by a new independent parser.
+
+The new real-native fixture runs query/traversal input routes for JS/TS/C/C++.
+Independent source headers cover destructuring, quoted closing-parenthesis/
+semicolon/brace/arrow punctuation, comments, multiline and nested object-return
+syntax, plus the simple function control. It follows actual registered enrichment,
+canonical payload/metaV2 assembly, enabled signature-field tokenization, the
+retrieval metadata resolver and real map member construction. The last parameter
+remains a positive field-token witness while implementation tokens remain absent
+from that field. Bodyless C/C++ and template-wrapped functions retain complete
+headers and source roles. No source/metadata content assertion is relaxed.
+
+Existing C declarator/prototype owners already distinguish typed return names
+from nested declarators and pointer bindings. New consumer controls retain
+getCount/otherCount as separate function names with typedef returns, tagged
+pointer returns, prototypes and a function-pointer parameter. They deny callable
+rows named after return types, callback parameters, pointer variables and typedefs.
+The original C/C++ parenthesized/returned-pointer/prototype fixture is retained
+and added to ci-lite alongside the existing shared boundary fixture. Those two
+issues receive implementation credit with native execution pending.
+
+The new signature fixture and prior Rust documentation fixture now supply an
+explicit source-bound native chunk-cache key and assert the existing cache-hit
+metric. The earlier Rust warm assertion had only repeated equal output without
+an admitted cache key. This is corrected in the authored fixture before runtime
+validation; no cache-hit execution was claimed or fabricated. Cache persistence
+is not enabled and no user cache is selected. The shared payload helper gains an
+optional field-token selector whose default preserves all existing callers.
+
+Full format/ESLint, syntax on five JS files, affected generated refresh/freshness,
+new fixture discovery and staged diff checks passed. One new and two original
+fixtures join ordered ci-lite, now 1,285 entries. Functional/front-gate, native
+lifecycle, platform and performance execution remain deferred. Bookkeeping does
+not change the checked JS tree. Current coverage: **35 fixed / 444 implemented /
+145 partial / 146 pending** across 770 reports. No issue was closed or new closing
+reference added. Contract: docs/contracts/native-signature-projection.md.

@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "a7d8cc7e7",
+  "sourceHead": "7a81f3c84",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 441,
-    "partial": 148,
+    "implemented": 444,
+    "partial": 145,
     "pending": 146
   },
   "priorOpen": 1177,
@@ -207,6 +207,7 @@
       711,
       713,
       738,
+      740,
       743,
       748,
       762,
@@ -478,6 +479,7 @@
       1456,
       1457,
       1458,
+      1459,
       1460,
       1461,
       1462,
@@ -491,6 +493,7 @@
       1471,
       1472,
       1473,
+      1474,
       1475,
       1476,
       1477,
@@ -645,7 +648,6 @@
       639,
       640,
       670,
-      740,
       1029,
       1119,
       1120,
@@ -754,9 +756,7 @@
       1391,
       1392,
       1395,
-      1459,
       1469,
-      1474,
       1482,
       1484,
       1488,
@@ -1269,8 +1269,10 @@
       "number": 740,
       "title": "[P2] Derive native Tree-sitter signature previews past nested parameter punctuation",
       "priority": "P2",
-      "status": "partial",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "7a81f3c84",
+      "validation": "deferred"
     },
     {
       "number": 743,
@@ -4478,8 +4480,11 @@
       "number": 1459,
       "title": "[P2] Name native C functions from their declarators instead of typedef return types",
       "priority": "P2",
-      "status": "partial",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "7a81f3c84",
+      "validation": "deferred",
+      "implementationNote": "Existing native declarator/prototype production owners retained after source review; real native consumer coverage strengthened."
     },
     {
       "number": 1460,
@@ -4585,8 +4590,11 @@
       "number": 1474,
       "title": "[P2] Capture C and C++ function prototypes from the grammar's declaration nodes",
       "priority": "P2",
-      "status": "partial",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "7a81f3c84",
+      "validation": "deferred",
+      "implementationNote": "Existing native declarator/prototype production owners retained after source review; real native consumer coverage strengthened."
     },
     {
       "number": 1475,

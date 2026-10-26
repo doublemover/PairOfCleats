@@ -13,7 +13,7 @@ with tests deferred until the source batches are ready. The live intake has
 [current implementation receipt](archived/solo-issue-repairs-2026-10-25.md)
 records new source batches and unvalidated coverage. Historical inventories
 below describe their recorded sources, not the current open count.
-Current source coverage is **35 fixed / 441 implemented / 148 partial / 146
+Current source coverage is **35 fixed / 444 implemented / 145 partial / 146
 pending**, with exact issue-to-source ownership in the
 [complete inventory](archived/github-issue-coverage-2026-10-25.json). Implemented
 means source-complete with execution pending, not accepted closure.
@@ -28,7 +28,9 @@ preserve boxed/native type identities (#813), retain registry/cross-file cache
 controls (#985/#1058/#1059), and join crash-evidence and diagnostic ownership on
 every scheduler exit (#1054). Rust outer documentation now follows grammar-owned
 prefix roles, and parameter/return/modifier metadata uses declaration fields
-(#1470). The curated ci-lite lane contains 1,282 cases;
+(#1470). Native signature handoffs now reach JavaScript indexed fields and map/
+retrieval projections (#740), with C declarator/prototype controls retained
+(#1459/#1474). The curated ci-lite lane contains 1,285 cases;
 new and strengthened regressions remain unrun. Completed batch detail and exact
 source/static-check receipts are retained in the linked implementation archive.
 
