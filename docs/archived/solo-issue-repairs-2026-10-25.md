@@ -4126,7 +4126,7 @@ Contract: `docs/contracts/worker-fatal-observation-ownership.md`.
 permit, limits or incidental license/copyright/Apache discussion retains its doc
 role and extracted prose. The default safe matcher recognizes structured SPDX,
 copyright/symbol, license-title/identifier, licensed-under and permission-grant
-notices within the unchanged header boundary. Its final expression is500/512
+notices within the unchanged header boundary. Its final expression is506/512
 allowed pattern code units; runtime regex compilation/qualification remains unrun.
 Internal metadata retains originalType and reason/confidence/version/scope for
 qualified notices. Tokenization adds an explicit prose admission/exclusion receipt.
