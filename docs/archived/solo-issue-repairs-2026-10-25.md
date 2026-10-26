@@ -1368,3 +1368,29 @@ Full format, scoped ESLint, syntax, affected generated inventories, six-case
 discovery and staged diff checks passed. Functional execution and the final front
 gate remain deferred. Coverage is **35 fixed / 405 implemented / 151 partial /
 172 pending**.
+
+
+## Impact dependency direction
+
+**#1702** (`c66d7da8e`) maps downstream impact to incoming recorded
+caller/importer/user edges and upstream dependencies to outgoing edges. Both
+retains bidirectional traversal. One policy owner supplies ordinary/empty
+results and capability validation. Reports retain the requested product
+keyword and record effective traversal, selected relation orientations and
+policy version; human output displays both. The graph-impact path producer is
+1.1.0. Canonical adjacency, source-oriented witness edges, depth and cap owners
+remain unchanged. No indexed semantic producer or derived index meaning changes.
+
+The authored fixture uses the actual graph writer, pieces sealing, normal strict
+preparation and CLI against consumer → API → helper plus an isolated node. It
+compares prepared cold/warm CSR and legacy inputs for calls, usage and imports,
+depth 1/2, both, multi-seed, true empty, changed-set equivalence, node/path caps,
+canonical witness orientation and incoming suggest-tests control. Existing
+hand-authored fixtures had encoded the reversed impact policy; their assertions
+remain, with appropriate seeds/product direction. The real-source workflow now
+requests downstream to find importing tests. Capability negatives remain.
+
+Full format, scoped ESLint, fixture syntax, affected inventory refresh, fixture
+discovery and staged diff checks passed. These are static/discovery observations;
+functional execution and the final front gate remain deferred. Coverage is
+**35 fixed / 406 implemented / 151 partial / 171 pending**.

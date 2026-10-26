@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "f7eb8f489",
+  "sourceHead": "c66d7da8e",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 405,
+    "implemented": 406,
     "partial": 151,
-    "pending": 172
+    "pending": 171
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -588,6 +588,7 @@
       1688,
       1696,
       1698,
+      1702,
       1716,
       1718,
       1724,
@@ -900,7 +901,6 @@
       1699,
       1700,
       1701,
-      1702,
       1707,
       1708,
       1710,
@@ -6128,8 +6128,10 @@
       "number": 1702,
       "title": "[P2] Align change-impact direction with caller and importer dependency semantics",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "c66d7da8e",
+      "validation": "deferred"
     },
     {
       "number": 1707,
