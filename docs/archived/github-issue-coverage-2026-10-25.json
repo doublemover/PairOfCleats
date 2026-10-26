@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "8af65781cec0283fac54e6047730156b9873cb73",
+  "sourceHead": "cdaa69448b5e6ccd7cb5e1d97bc4caa678c9a7b5",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
     "implemented": 463,
-    "partial": 137,
-    "pending": 135
+    "partial": 138,
+    "pending": 134
   },
   "priorOpen": 1177,
   "currentOpen": 770,
@@ -794,6 +794,7 @@
       1522,
       1523,
       1574,
+      1643,
       1663,
       1675,
       1733
@@ -906,7 +907,6 @@
       1627,
       1634,
       1642,
-      1643,
       1644,
       1646,
       1647,
@@ -5842,8 +5842,10 @@
       "number": 1643,
       "title": "Bind VFS disk-cache hits to verified content and the current document root",
       "priority": "other",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "partial",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "cdaa69448b5e6ccd7cb5e1d97bc4caa678c9a7b5",
+      "validation": "deferred"
     },
     {
       "number": 1644,

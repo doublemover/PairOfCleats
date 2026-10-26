@@ -3401,3 +3401,48 @@ contains 1,326 fixtures. Functional/front-gate/native/platform/performance execu
 remains deferred. Coverage is **35 fixed / 463 implemented / 137 partial / 135
 pending**, all 770 reports retained, no issue closed and no new closing reference.
 Bookkeeping reuses the checked JS tree. Contract: `docs/perf/graph-context-pack.md`.
+
+## 2026-10-26 — VFS root/content admission and retained materialization work
+
+`cdaa69448` repairs the current-file/root portion of #1643. The actual disk owner
+resolves the requested root/origin before consulting persisted path metadata.
+Cold/unknown files qualify current contained-descriptor bytes against the supplied
+text's own SHA-256 and UTF-8 length; matching docHash labels alone cannot authorize
+bytes. Warm reuse requires the same verified content and exact device/inode/link/
+size/nanosecond time observation, avoiding another content read for unchanged files.
+Missing/changed data is atomically materialized and requalified. Returned evidence
+states the mutable current-descriptor policy, root, origin, actual digest/bytes,
+identity, verification work and observed reuse/create/regeneration source.
+
+Identical in-process requests join one publication owner. Conflicting active
+requests retain that original owner's settlement callback. Original close failures
+remain retained after JavaScript completion and fence later work until explicit
+native/session settlement. Queued prepublication last-write-wins behavior is kept;
+batched failure stops late claims and joins active siblings. Ordinary settled
+retry policy remains, but pending/conflicting owners cannot be bypassed by retry
+or failed diagnostic inspection. Independent failures/warnings retain context.
+VFS routing advances 2→3 and LSP binding meaning 49→50 for provider/replay admission.
+
+The old sentinel oracle demonstrably asserted the wrong materialized bytes: the
+old warm branch only called access, leaving overwritten content untouched. The
+replacement requires restored source bytes and separately retains no-rewrite
+proof for unchanged content. New authored controls cover cold reload, same-size
+mutation/truncation/missing files, root changes, joined/conflicting publication,
+failed atomic publication and explicit original-close recovery. Batched controls
+hold actual sibling writes, assert no C claim, preserve primary/secondary errors
+and warnings, and retain intentional queued coalescing. Fixture interception uses
+short roots and parent-directory identities, surviving Windows compact staging.
+These authored functional assertions remain unrun.
+
+#1643 remains **partial**: current-file verification does not grant an immutable
+URI lifetime to a later reader or fence independent cross-process publishers.
+Session/generation materialization ownership remains required for that scope; no
+permanent/lifetime authority is claimed by the new descriptor receipt.
+
+Full format/ESLint, six JS syntax checks, affected generated refresh/freshness,
+two new plus original fixture discovery and staged diff checks passed. Ordered
+ci-lite contains 1,328 cases. Functional/front-gate/native/platform/performance
+execution remains deferred. Coverage is **35 fixed / 463 implemented / 138 partial /
+134 pending**, all 770 reports retained, no issue closed or closing reference added.
+Bookkeeping reuses the checked JS tree. Contract:
+`docs/contracts/vfs-materialization-integrity.md`.
