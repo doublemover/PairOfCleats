@@ -1354,3 +1354,6 @@ indexing/semantic/native-language-flow
 indexing/semantic/native-flow-construction
 indexing/semantic/native-flow-pull-writer
 indexing/semantic/native-flow-abort-ownership
+indexing/semantic/provider-result-durable-sink
+indexing/semantic/provider-merge-batch-work
+indexing/semantic/provider-merge-admission

@@ -34,8 +34,14 @@ export const reconcileCompilerSummaryDemandSeed = async ({ store, request, signa
     sourceHash: source.sourceHash, path: source.path } };
 };
 
-/** Streaming reconciliation: counts/ranges and every qualified endpoint before publication. */
-export const validateSemanticPartitions = async ({ store, partitions, referencePartitions = partitions, signal = null }) => {
+/** Streaming reconciliation: counts/ranges and every qualified endpoint before
+ * publication. An optional host-owned observer runs during this same traversal;
+ * its conclusions remain provisional until all hashes/source checks succeed.
+ * It cannot supply a receipt or bypass validation. All admitted observer work
+ * joins the existing bounded partition/reader lifetime, including rejection.
+ */
+export const validateSemanticPartitions = async ({ store, partitions, referencePartitions = partitions, signal = null, onValidatedRow = null }) => {
+  if (onValidatedRow !== null && typeof onValidatedRow !== 'function') throw new TypeError('Host semantic row observer must be callable.');
   const sizes = new Map(referencePartitions.map((p) => [p.partitionId,
     p.members.semantic_records.reduce((sum, piece) => sum + piece.count, 0)]));
   // Partition hashes/references are independent once the closed inventory is
@@ -70,6 +76,10 @@ export const validateSemanticPartitions = async ({ store, partitions, referenceP
           checkRef(row.scope);
           for (const key of ['parent', 'owner', 'initializer', 'typeSyntax', 'expression', 'occurrence', 'site', 'storage', 'invocation']) checkRef(row.data[key]);
         } else for (const key of ['parent', 'child', 'from', 'to', 'callSite', 'condition', 'evidence', 'recordRef', 'scope']) checkRef(row[key]);
+        if (onValidatedRow) {
+          const observed = onValidatedRow({ partition, member, row });
+          if (observed !== undefined) await observed;
+        }
       }
       if (count !== partition.members[member].reduce((sum, piece) => sum + piece.count, 0)) throw new Error('Semantic count mismatch.');
       hashes[member] = hash.digest('hex');
