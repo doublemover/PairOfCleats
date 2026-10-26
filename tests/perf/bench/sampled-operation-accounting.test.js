@@ -2,12 +2,18 @@ import assert from 'node:assert/strict';
 import { runSampledBench, assertSampledBenchAccounting } from '../../../tools/bench/micro/utils.js';
 import { runHashBenchmark } from '../../../tools/bench/micro/hash-runner.js';
 import { runRegexBenchmark } from '../../../tools/bench/micro/regex-runner.js';
+import { runSampled as runVfsSampled } from '../../../tools/bench/vfs/shared.js';
 
 const sample = (operation, options) => {
   let time = 0n;
   return runSampledBench(operation, options, { nowNs: () => { const value = time; time += 1000000n; return value; } });
 };
 for (const [iterations, samples] of [[1, 10], [3, 10], [10, 10], [11, 10], [20, 4]]) {
+  const indexes = [], vfs = runVfsSampled({ iterations, samples, fn: index => indexes.push(index) });
+  assert.deepEqual(indexes, Array.from({ length: iterations }, (_, index) => index));
+  assert.equal(vfs.completedOperations, iterations); assert.equal(vfs.effectiveSamples, Math.min(iterations, samples));
+  assert.equal(vfs.bucketOperations.reduce((sum, value) => sum + value), iterations);
+  assert.equal(vfs.opsPerSec, vfs.totalMs > 0 ? iterations / (vfs.totalMs / 1000) : 0);
   for (const kind of ['sync', 'async', 'mixed']) {
     let calls = 0;
     const operation = () => { calls++; return kind === 'async' || kind === 'mixed' && calls % 2 ? Promise.resolve(calls) : calls; };
@@ -39,6 +45,13 @@ for (const field of ['iterations', 'samples', 'warmup']) for (const invalid of [
 }
 for (const field of ['iterations', 'samples']) await assert.rejects(runSampledBench(() => {}, { iterations: 2, samples: 1, [field]: 0 }), RangeError);
 const failure = new Error('measured operation failed'); let calls = 0;
+let asyncVfsFailure;
+assert.throws(() => runVfsSampled({ iterations: 1, samples: 10, fn: () => Promise.reject(failure) }), error => {
+  asyncVfsFailure = error; assert.ok(error instanceof TypeError);
+  assert.equal(error.cacheOwnershipPending, true); assert.equal(error.cacheOwnershipReleased(), false); return true;
+});
+await Promise.resolve(); assert.equal(asyncVfsFailure.cacheOwnershipReleased(), true);
+assert.throws(() => runVfsSampled({ iterations: 1.5, samples: 1, fn: () => {} }), RangeError);
 let mixedCalls = 0;
 const mixed = await sample(() => ++mixedCalls % 2 ? mixedCalls : Promise.resolve(mixedCalls), { iterations: 11, samples: 4, warmup: 0 });
 assert.equal(mixedCalls, 11); assert.equal(mixed.completedOperations, 11);

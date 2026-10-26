@@ -15,6 +15,11 @@ Regex operation rates use the same admitted completed-work receipt. Their human
 output explicitly labels bucket statistics. Backend/engine selection remains with
 the existing production wrappers, including unavailable optional engines.
 
+The synchronous VFS lookup sampler shares integral-work admission and effective
+bucket accounting, preserving ordinal callback indices and completed-operation
+rates. It rejects promise-returning callbacks and observes supplied rejections;
+it cannot qualify asynchronous operations by discarding their work.
+
 Compression payloads are prepared before codec arms from the recorded
 `lcg32-text-mixture-v1` generator, fixed seed, size and synthetic entropy setting.
 Each arm receives an isolated copy of identical bytes with SHA-256 identity.
