@@ -13,62 +13,33 @@ with tests deferred until the source batches are ready. The live intake has
 [current implementation receipt](archived/solo-issue-repairs-2026-10-25.md)
 records new source batches and unvalidated coverage. Historical inventories
 below describe their recorded sources, not the current open count.
-New solo batches cover #1746, #1742, #1741, #1740, #1737, #1736, #1734, #1730,
-#1729, #1724, #1719–#1721, #1716, #1711, #1702, #1700, #1696, #1698, #1683, #1565, #1598, #1599, #1684, #1688, #1610, #1611,
-#1397, #1561–#1564, #1568–#1569, #1573, #1575, #1580, #1586–#1589, #1591–#1592, #1600–#1602, #1605–#1606, #1608–#1609, #1612–#1614, #1616–#1617, #1619–#1620, #1622–#1623, #1632 and #1635–#1637, #1639–#1641, #1645, #1648–#1649, #1658, #1662, #1666–#1671 and #1673–#1674/#1676. Their authored regressions remain deferred; the
-source receipt records exact ownership, identity, capacity and lifecycle changes.
-#1719 now preserves SQL role/name occurrences and durable file qualification;
-#1662 now carries qualified import outcomes through graph metadata and replay;
-full SQL lexical quote/scope/catalog qualification remains explicit.
-#1666–#1667 qualify flow field presence/authority and consume owned native syntax;
-raw template output no longer becomes generic semantic flow.
-#1721 now preserves bounded RST/AsciiDoc block-qualified heading occurrences and
-full source coverage, with unsupported geometry/extensions explicit.
-#1673–#1674/#1676 now preserve source-owned JavaScript declarations, evaluation
-phases and generator/return syntax through chunks, metadata and replay.
-The reopened #320, #429 and #473 audits now have source repairs for immutable
-release revision evidence, complete scan accounting and machine-stdout QA.
-Their new regressions and the JavaScript ownership fixtures join the curated PR
-lane; execution remains deferred.
-#1633 now qualifies bounded directory-backed final outputs before recovery
-publication, retaining explicit Stage2 file-copy scope and post-commit errors.
-#1651 now binds canary probes to the actual immutable child launch context;
-private environment values remain outside reports and cross-invocation caches.
-#1665 now bounds canary diagnostics/results, retains unsettled attempt paths and
-atomically reports failed/interrupted lanes with every selected entry accounted.
-#1680 now reconstructs historical throughput/timing from recorded observations or
-exact attempt snapshots, preserving derivation provenance after materialization.
-#1660 now carries effective sampling/stub intent across bakeoff child phases,
-keeping requested model plans separate from generation-bound observed coverage.
-#1661 now keeps bakeoff waits asynchronous and phase terminal/checkpoint states
-truthful, with bounded diagnostic progress and independent success/settled counts.
-#1655 now admits only completed comparable A/B work with actual knob receipts;
-failed/unqualified variants retain their reports and cannot win.
-#1663 now binds immutable A/B raw reports to each invocation and fences bakeoff
-checkpoint publication; settled-owned evidence retention/cleanup remains open.
-#1681 now preserves unknown scan counts and matched-mode rate coverage through
-the version 2 artifact and recorded report adapters, including stale derivations.
-#1689 now separates diagnostic occurrence costs from fingerprint parity and
-transport copies, retaining repository identity and explicit legacy uncertainty.
-#1691 now gates progress confidence on actual samples, labels last-observed
-heuristic age and keeps unknown/stale scores out of replay numeric denominators.
-#1687 now admits bounded typed result inputs before selection/derivation and
-requires complete source-file cohorts before throughput comparisons.
-#1695 now preserves selected triage hits, repository/generation receipts and
-explicit empty/unavailable outcomes through saved packs and MCP references.
-#1677 now separates selected-mode query outcomes from nonempty frequency and
-service time from batch cost; remediation remains unaccepted inspection work.
-#1726–#1727 now distinguish retrieval from result-cache replay and qualify frozen
-query, generation, policy, cache, model and runtime controls before performance
-deltas; four new regression owners remain unrun.
-#813 now retains boxed/native type expression identity through LSP and replay;
-#985/#1058/#1059 retain existing ownership/cache fixes with strengthened controls.
-#1733 now uses admitted immutable SQLite benchmark snapshots and validates smoke
-output contents; larger workload profiles and repeated qualification remain open.
-#1638 now namespaces repository/triage record sources through UID, metadata,
-SQLite and deferred source reads, with explicit migration and byte authority.
-#1675 now uses one global query resource plan and retirement-aware pools; whole
-process-tree RSS measurement remains open, with known-worker samples labeled.
+Current source coverage is **35 fixed / 440 implemented / 149 partial / 146
+pending**, with exact issue-to-source ownership in the
+[complete inventory](archived/github-issue-coverage-2026-10-25.json). Implemented
+means source-complete with execution pending, not accepted closure.
+
+The solo batches repair publication/recovery and resource lifetime, immutable
+source/record identities, import and language extraction, declaration/flow
+ownership, provider replay, triage/MCP evidence and bounded operator tooling.
+Benchmark work now binds actual child context, admitted inputs, completed work,
+cache/model/backend observations and historical provenance before comparisons.
+Latest repairs distinguish retrieval from result-cache replay (#1726–#1727),
+preserve boxed/native type identities (#813), retain registry/cross-file cache
+controls (#985/#1058/#1059), and join crash-evidence and diagnostic ownership on
+every scheduler exit (#1054). The curated ci-lite lane contains 1,279 cases;
+new and strengthened regressions remain unrun. Completed batch detail and exact
+source/static-check receipts are retained in the linked implementation archive.
+
+Execution remains solo, Windows-only and implementation-first. Finish remaining
+P1/P2 source gaps before perf and lower-priority intake. Open shared owners include
+custom-backend cleanup authority (#1574), source-pinned Tantivy publication
+(#1627), remaining grammar/documentation and call-occurrence handoffs, benchmark
+settled-run retention (#1663), representative SQLite workload profiles and
+repeated trials (#1733), and whole-process-tree RSS measurement (#1675).
+SQL lexical quote/scope/catalog qualification and broader semantic dataflow
+remain explicit. Native/optional model and platform qualification are separate
+from these source repairs. The live inventory remains authoritative for every
+partial/pending report; earlier test greens are not final-head acceptance.
 
 Previous validation reconciliation, 2026-10-24: the user replaced the proposed full Windows
 rerun with **targeted re-checks** of failures and changed shared owners. Work is

@@ -2750,3 +2750,140 @@ fixtures join ci-lite, now 1,275 entries. Functional/front-gate execution remain
 deferred. Current coverage: **35 fixed / 439 implemented / 150 partial / 146
 pending** across 770 open reports. No issues were closed or new closing references
 added. Contract: docs/contracts/native-type-expression-identity.md.
+
+
+### #1054 crash-evidence failure ownership and scheduler closeout
+
+`261d715db` replaces fallible diagnostic projection inside the crash sink catch
+with a private persistence owner. Original and inspection failures retain their
+actual resource-settlement prerequisites; frozen errors, unreadable metadata,
+falsey values and throwing observations cannot suppress independent local,
+durable or external sinks. Public code/message text is bounded and copied.
+Warning batches have explicit omissions while the failure/resource inventory
+remains retained. Presentation and warning operations are separately tracked so
+held callbacks cannot block later events' serialized evidence writes. The final
+wait joins both work sets. Pending work or unresolved resources cannot report
+persistence.ok; settled failures remain explicit degraded telemetry.
+
+`c64a51d02` joins that owner across normal, preparation, execution, cancellation
+and lookup exits. Normal admission and finalization share one original cached
+wait and deadline; neither restarts failed work or extends the deadline. Original
+scheduler and independent persistence failures retain both causes/owners.
+Only the existing cleanup owner's actual minted timeout receives the persistence
+owner's live settlement observation. A timeout-shaped external exception cannot
+claim it. Pending persistence now propagates failure rather than continuing as
+completed telemetry. The returned scheduler exposes a defensively copied
+persistence receipt. No native crash retry, parser/backend disablement or larger
+deadline was introduced; the existing cleanup deadline remains 30 seconds.
+
+The new ownership fixture covers held original/inspection resources, forbidden
+pre-settlement diagnostic inspection, independent sink completion, held warnings
+and later evidence, actual timeout identity, no sink retry after release, falsey
+failures, real atomic tracker publishers, exceptional closeout, one cached wait
+and dual failures. Existing presentation controls now assert warning failures
+instead of discarding them; their original sink/error-class assertions remain.
+The existing native crash-fallback fixture asserts completed positive persistence
+and defensive copying. These fixtures are authored, not executed. One new and
+three existing coverage owners join ordered ci-lite, now 1,279 entries. No native
+crash, indexing or functional test campaign was run.
+
+Final source checks passed: full format/ESLint, syntax (five JS files for the
+initial owner and four for closeout), affected generated refresh/freshness,
+discovery and staged diff checks. Intermediate formatting also completed; a
+later ownership-ordering change received fresh final checks rather than using
+earlier observations as final acceptance. Shared semantic producer versions do
+not change: this batch changes telemetry/lifetime and diagnostic receipts, not
+retained language facts. Contract: docs/contracts/scheduler-crash-persistence.md.
+Current coverage: **35 fixed / 440 implemented / 149 partial / 146 pending**.
+No issue was closed and no new closing reference was added.
+
+The latest inspected hosted CI belongs to `05c0b9b3d`: gate, policy and rust-tui
+reported success; Windows, Windows authority and Windows native inspection were
+still in progress; Ubuntu/macOS jobs reported failure. This is historical source-
+bound status and does not qualify the later candidate. Work remains Windows-only.
+
+### Disk-full recovery and disposable fixture cleanup
+
+A source-file creation failed when C: reported zero free bytes. The attempted new
+file was verified empty and restored completely before source checks/commit;
+existing tracked sources were unchanged by that failed creation. Two disposable
+issue snapshots were deleted only after parsed JSON equality with the retained
+complete open-issues-20261026-micro-refresh.json snapshot (770 reports), reclaiming
+9,514,298 bytes without losing unique intake data. These .tmp paths are historical
+author-workspace receipts, not promised clean-checkout inputs.
+
+The shared test-cache helper identifies .tmp/dev/tests/cache as disposable test
+fixture storage. Process inventory found no active indexing, test, benchmark or
+formatter process using it. Cleanup verified the absolute target stayed inside
+the workspace .tmp owner and that all root ancestors were ordinary directories.
+A single PowerShell/.NET traversal deleted only that fixture root, handling each
+reparse point without following its target and removing directories only after
+their admitted children. It removed 121,582 ordinary files (1,885,940,353 bytes)
+and 12 fixture reparse points. The completed operation reported 2,007,941,120 free
+bytes; later free-space observations varied. No user cache/index, dependencies,
+Git data, test/crash receipts, WSL or security settings were changed. No elevated
+permissions or symlink creation were used. The initial broad read-only size scan
+was stopped; the scoped reclamation inventory excluded reparse targets.
+
+### Historical roadmap detail retained from 05c0b9b3d
+
+The active roadmap's completed-batch prose was condensed into a current status
+and execution-order summary; its original detail is retained below with its
+original source and qualification limits. It is historical, not current counts.
+
+New solo batches cover #1746, #1742, #1741, #1740, #1737, #1736, #1734, #1730,
+#1729, #1724, #1719–#1721, #1716, #1711, #1702, #1700, #1696, #1698, #1683, #1565, #1598, #1599, #1684, #1688, #1610, #1611,
+#1397, #1561–#1564, #1568–#1569, #1573, #1575, #1580, #1586–#1589, #1591–#1592, #1600–#1602, #1605–#1606, #1608–#1609, #1612–#1614, #1616–#1617, #1619–#1620, #1622–#1623, #1632 and #1635–#1637, #1639–#1641, #1645, #1648–#1649, #1658, #1662, #1666–#1671 and #1673–#1674/#1676. Their authored regressions remain deferred; the
+source receipt records exact ownership, identity, capacity and lifecycle changes.
+#1719 now preserves SQL role/name occurrences and durable file qualification;
+#1662 now carries qualified import outcomes through graph metadata and replay;
+full SQL lexical quote/scope/catalog qualification remains explicit.
+#1666–#1667 qualify flow field presence/authority and consume owned native syntax;
+raw template output no longer becomes generic semantic flow.
+#1721 now preserves bounded RST/AsciiDoc block-qualified heading occurrences and
+full source coverage, with unsupported geometry/extensions explicit.
+#1673–#1674/#1676 now preserve source-owned JavaScript declarations, evaluation
+phases and generator/return syntax through chunks, metadata and replay.
+The reopened #320, #429 and #473 audits now have source repairs for immutable
+release revision evidence, complete scan accounting and machine-stdout QA.
+Their new regressions and the JavaScript ownership fixtures join the curated PR
+lane; execution remains deferred.
+#1633 now qualifies bounded directory-backed final outputs before recovery
+publication, retaining explicit Stage2 file-copy scope and post-commit errors.
+#1651 now binds canary probes to the actual immutable child launch context;
+private environment values remain outside reports and cross-invocation caches.
+#1665 now bounds canary diagnostics/results, retains unsettled attempt paths and
+atomically reports failed/interrupted lanes with every selected entry accounted.
+#1680 now reconstructs historical throughput/timing from recorded observations or
+exact attempt snapshots, preserving derivation provenance after materialization.
+#1660 now carries effective sampling/stub intent across bakeoff child phases,
+keeping requested model plans separate from generation-bound observed coverage.
+#1661 now keeps bakeoff waits asynchronous and phase terminal/checkpoint states
+truthful, with bounded diagnostic progress and independent success/settled counts.
+#1655 now admits only completed comparable A/B work with actual knob receipts;
+failed/unqualified variants retain their reports and cannot win.
+#1663 now binds immutable A/B raw reports to each invocation and fences bakeoff
+checkpoint publication; settled-owned evidence retention/cleanup remains open.
+#1681 now preserves unknown scan counts and matched-mode rate coverage through
+the version 2 artifact and recorded report adapters, including stale derivations.
+#1689 now separates diagnostic occurrence costs from fingerprint parity and
+transport copies, retaining repository identity and explicit legacy uncertainty.
+#1691 now gates progress confidence on actual samples, labels last-observed
+heuristic age and keeps unknown/stale scores out of replay numeric denominators.
+#1687 now admits bounded typed result inputs before selection/derivation and
+requires complete source-file cohorts before throughput comparisons.
+#1695 now preserves selected triage hits, repository/generation receipts and
+explicit empty/unavailable outcomes through saved packs and MCP references.
+#1677 now separates selected-mode query outcomes from nonempty frequency and
+service time from batch cost; remediation remains unaccepted inspection work.
+#1726–#1727 now distinguish retrieval from result-cache replay and qualify frozen
+query, generation, policy, cache, model and runtime controls before performance
+deltas; four new regression owners remain unrun.
+#813 now retains boxed/native type expression identity through LSP and replay;
+#985/#1058/#1059 retain existing ownership/cache fixes with strengthened controls.
+#1733 now uses admitted immutable SQLite benchmark snapshots and validates smoke
+output contents; larger workload profiles and repeated qualification remain open.
+#1638 now namespaces repository/triage record sources through UID, metadata,
+SQLite and deferred source reads, with explicit migration and byte authority.
+#1675 now uses one global query resource plan and retirement-aware pools; whole
+process-tree RSS measurement remains open, with known-worker samples labeled.

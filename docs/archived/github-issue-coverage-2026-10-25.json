@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "8009ce69c",
+  "sourceHead": "c64a51d02",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 439,
-    "partial": 150,
+    "implemented": 440,
+    "partial": 149,
     "pending": 146
   },
   "priorOpen": 1177,
@@ -292,6 +292,7 @@
       1051,
       1052,
       1053,
+      1054,
       1055,
       1056,
       1057,
@@ -645,7 +646,6 @@
       670,
       740,
       1029,
-      1054,
       1119,
       1120,
       1121,
@@ -1949,8 +1949,10 @@
       "number": 1054,
       "title": "[P2] Scheduler crash-forensics persistence failures are silently swallowed",
       "priority": "P2",
-      "status": "partial",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "c64a51d02",
+      "validation": "deferred"
     },
     {
       "number": 1055,
