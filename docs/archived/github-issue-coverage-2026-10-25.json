@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "6501c431d",
+  "sourceHead": "c6275bd85",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 433,
+    "implemented": 435,
     "partial": 154,
-    "pending": 148
+    "pending": 146
   },
   "priorOpen": 1177,
   "currentOpen": 770,
@@ -619,6 +619,8 @@
       1720,
       1721,
       1724,
+      1726,
+      1727,
       1729,
       1730,
       1734,
@@ -921,8 +923,6 @@
       1722,
       1723,
       1725,
-      1726,
-      1727,
       1728,
       1731,
       1732,
@@ -6362,15 +6362,19 @@
       "number": 1726,
       "title": "[P2] Separate query-result cache replay from actual retrieval in search microbenchmarks",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "c6275bd85",
+      "validation": "deferred"
     },
     {
       "number": 1727,
       "title": "[P2] Qualify tinybench baseline workload identity before emitting performance deltas",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "c6275bd85",
+      "validation": "deferred"
     },
     {
       "number": 1728,
@@ -6544,6 +6548,6 @@
       292
     ],
     "closed": [],
-    "reconfirmedAtSource": "6501c431d"
+    "reconfirmedAtSource": "c6275bd85"
   }
 }

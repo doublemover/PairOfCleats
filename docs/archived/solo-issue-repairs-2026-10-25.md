@@ -2641,3 +2641,59 @@ records since the prior complete refresh.
 Current coverage: **35 fixed / 433 implemented / 154 partial / 148 pending**.
 #1733's representative harness/qualification remainder remains explicit. No issue
 closure, new closing reference or final-head functional acceptance is inferred.
+
+
+### #1726–#1727 observed search microbenchmark work and baseline admission
+
+`c6275bd85` introduces distinct retrieval and result-cache work modes for both
+search microbenchmark runners. Retrieval bypasses only query-result lookup and
+persistence through a private symbol; quality/ranking policy and existing cache
+entries remain intact. A frozen bounded query schedule records order and duplicate
+occurrences, with independent phase cursors. Initial/warmup/measured observations
+are separate. The first call after index-handle clearing is explicitly initial;
+process, model and filesystem coldness are not invented. The old coldMs alias
+retains compatibility without supporting a cold-result-cache claim.
+
+Stats-enabled searches now expose invocation-owned query-embedding requests,
+actual embedding API calls and process-cache reuse through the existing resolver.
+They do not claim native kernel counts. That owner supplies actual dimensions,
+provider/stub state, canonical verified artifact or immutable revision and hashed
+format/profile identity. Unknown model artifacts remain unqualified. Candidate
+and actual vector-provider stages, complete canonical execution, exact selected
+generation, score policy, cache strategy/hot path and ordered output identity
+bind the measured work. Disabled ANN stages and fallbacks are not vector work.
+All calls contribute to conserved counters; each phase retains 64 bounded sample
+receipts plus exact omissions and per-query drift controls. Tinybench reports up
+to 10,000 raw samples with exact omissions. Timing excludes receipt projection.
+Both executables dispose their existing SQLite cache owner before successful
+report publication, preserving primary and cleanup failures together.
+
+The version 2 Tinybench report separates source-code provenance from controlled
+workload identity. Its pure comparator requires matching observed source, query
+schedule, mode, policy, output, cache/model/backend and Node/ABI/CPU/platform
+controls, complete measured cycles and qualified work counts before any delta.
+An explicit storage-backend axis requires actual backend exercise and matching
+remaining controls. The ordinary runner's ANN-provider comparison uses the same
+admission owner; unexercised/unknown-model arms cannot produce speedup ratios.
+Legacy/missing/malformed reports yield structured incomparable reasons and no
+numeric deltas. Comparison never overwrites a baseline; the existing explicit
+write action remains. Statistical/representative qualification stays separate.
+
+Four new regression owners cover work receipts, bounded sample conservation,
+model unknowns, cleanup failure preservation, frozen input limits, comparator
+positive/negative controls, actual sparse search/Tinybench invocation, and actual
+resolver API-vs-cache work with a deterministic injected embedding entry point.
+The real runner fixture retains balanced-query miss/hit controls, verifies an
+indexed source before timing, preserves policy/output parity across cache work
+modes and distinguishes a pre-existing cache hit from a supposed cold miss.
+They join ordered ci-lite, now 1,268 entries. No test was executed in this batch.
+
+Full format/ESLint, syntax checks on 21 JavaScript files, affected generated
+refresh/freshness, discovery of all four fixtures and diff checks passed. The
+complete live intake remains 770 with no added, closed or changed reports since
+the preceding refresh. Bookkeeping changes do not alter the checked JS tree.
+The required functional/front gate and runtime/performance campaigns remain
+explicitly deferred under the user's implementation-first instruction.
+Current coverage: **35 fixed / 435 implemented / 154 partial / 146 pending**.
+Neither issue was closed; no new closing references or final-head acceptance
+were asserted. Contract: docs/contracts/search-microbenchmark-evidence.md.
