@@ -3721,3 +3721,10 @@ passed. Ordered ci-lite now contains 1,341 cases. Coverage is **35 fixed / 470
 implemented / 138 partial / 127 pending**, all 770 reports retained; no issue closed
 or closing reference added. Bookkeeping reuses the checked JS tree. Contract:
 `docs/api/mcp-server.md`.
+
+Live GitHub REST pagination reconfirmed all 770 issue numbers/titles/bodies/labels/
+update identities at 2026-10-26T21:04:30.737Z, source fe89d7ab8.
+No added, changed or removed report was found against the complete intake. The
+canonical comparison fields and digest are retained in the coverage inventory;
+author-workspace reconfirmation JSON is historical and not promised in clean
+checkouts. No issue state or closing reference changed.

@@ -6623,6 +6623,15 @@
       292
     ],
     "closed": [],
-    "reconfirmedAtSource": "15b408787ef9463757fe092f5fce739c909d24b3"
+    "reconfirmedAtSource": "fe89d7ab8f625a697b125fb6bfa2ed81d5798957",
+    "reconfirmation": {
+      "recordedAt": "2026-10-26T21:04:30.737Z",
+      "openCount": 770,
+      "added": [],
+      "changed": [],
+      "removed": [],
+      "canonicalFields": "number,title,body,sorted-label-names,updatedAt;number-order",
+      "canonicalSha256": "2bb07a3db7340d2de732f0839b456c9547f60433c28c7b665e8fe3fcd71cac0c"
+    }
   }
 }
