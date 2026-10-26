@@ -1,4 +1,5 @@
-import fs from 'node:fs';
+import { admitSuggestionWallClockMs, createSuggestionBudget } from './suggest-tests-budget.js';
+import { readSuggestionDirectory } from './suggest-tests-directory.js';
 import path from 'node:path';
 import picomatch from 'picomatch';
 import { normalizeCap } from '../shared/limits.js';
@@ -15,6 +16,8 @@ const DEFAULT_EXCLUDED_DIRS = new Set([
   'node_modules',
   '.git',
   '.testCache',
+  '.cache',
+  '.tmp',
   '.testLogs',
   '.diagnostics',
   '.venv',
@@ -31,9 +34,10 @@ const SUGGEST_TESTS_REASON_CODES = Object.freeze({
   GRAPH_MISSING: 'graph_missing',
   GRAPH_NO_MATCHES: 'graph_no_matches',
   TRAVERSAL_CAPPED: 'traversal_capped',
-  CANDIDATE_TRUNCATED: 'candidate_truncated'
+  CANDIDATE_TRUNCATED: 'candidate_truncated',
+  DEADLINE_EXHAUSTED: 'deadline_exhausted'
 });
-const TRAVERSAL_TRUNCATION_CAPS = new Set(['maxNodes', 'maxEdges', 'maxWorkUnits']);
+const TRAVERSAL_TRUNCATION_CAPS = new Set(['maxNodes', 'maxEdges', 'maxWorkUnits', 'maxWallClockMs']);
 const testMatcherCache = new Map();
 const testDiscoveryCache = new Map();
 
@@ -95,7 +99,7 @@ const matchesTestPatterns = (relPath, matchers) => {
   return matchers.some((matcher) => matcher(relPath));
 };
 
-const discoverCandidateTests = ({ repoRoot, testMatchers, maxCandidates }) => {
+const discoverCandidateTests = ({ repoRoot, testMatchers, maxCandidates, budget, runtime }) => {
   const tests = [];
   const stack = [{ dir: repoRoot, rel: '' }];
   // Candidate discovery is incidental work. Bound even candidate-free trees and
@@ -104,33 +108,18 @@ const discoverCandidateTests = ({ repoRoot, testMatchers, maxCandidates }) => {
   let scanned = 0;
   let observed = 0;
   let capped = false;
-  while (stack.length && !capped) {
+  while (stack.length && !capped && budget.check('discovery')) {
     if (scanned >= maxScanEntries) { capped = true; break; }
     const entry = stack.pop();
-    let directory;
-    const entries = [];
-    try {
-      directory = fs.opendirSync(entry.dir, { bufferSize: 1 });
-      scanned += 1;
-      while (scanned < maxScanEntries) {
-        const dirent = directory.readSync();
-        if (!dirent) break;
-        scanned += 1;
-        entries.push(dirent);
-      }
-      if (scanned >= maxScanEntries) capped = true;
-    } catch {
-      continue;
-    } finally {
-      directory?.closeSync();
-    }
-    // Filesystem enumeration order is unspecified. An incomplete directory
-    // cannot supply deterministic candidates or child directories, even after
-    // sorting its prefix. Keep only earlier, fully inventoried selections.
-    if (capped) break;
+    const inventory = readSuggestionDirectory({ directoryPath: entry.dir, maxEntries: maxScanEntries - scanned,
+      budget, openDirectory: runtime?.openDirectory });
+    scanned += inventory.scanned;
+    if (!inventory.complete) { capped = !budget.stopped(); break; }
+    const entries = inventory.entries;
     entries.sort((a, b) => compareStrings(a.name, b.name));
     const directories = [];
     for (const dirent of entries) {
+      if (!budget.check('discovery')) break;
       const relPath = entry.rel ? `${entry.rel}/${dirent.name}` : dirent.name;
       if (dirent.isDirectory()) {
         if (!DEFAULT_EXCLUDED_DIRS.has(dirent.name)) {
@@ -150,16 +139,18 @@ const discoverCandidateTests = ({ repoRoot, testMatchers, maxCandidates }) => {
     }
     for (let i = directories.length - 1; i >= 0; i -= 1) stack.push(directories[i]);
   }
+  if (!stack.length && !capped && !budget.stopped()) budget.complete('discovery');
   return {
     tests: tests.sort(compareStrings),
     truncation: capped ? { limit: maxCandidates, observed, omitted: null } : null
   };
 };
 
-const resolveCachedTests = ({ repoRoot, maxCandidates, recordTruncation, testMatchers, patternKey, indexSignature }) => {
+const resolveCachedTests = ({ repoRoot, maxCandidates, recordTruncation, testMatchers, patternKey, indexSignature, budget, runtime }) => {
   // Revisit the bounded live inventory on every request, including cache hits.
   // This observes additions/deletions without introducing another watcher.
-  const inventory = discoverCandidateTests({ repoRoot, testMatchers, maxCandidates });
+  const inventory = discoverCandidateTests({ repoRoot, testMatchers, maxCandidates, budget, runtime });
+  if (budget.stopped()) return inventory.tests;
   const cacheKeyInfo = buildLocalCacheKey({
     namespace: 'test-discovery',
     payload: { repoRoot, patternKey, maxCandidates: maxCandidates ?? 'all',
@@ -174,37 +165,38 @@ const resolveCachedTests = ({ repoRoot, maxCandidates, recordTruncation, testMat
   return envelope.tests;
 };
 
-const buildImportGraphIndex = (graphRelations, repoRoot) => {
-  const outgoing = new Map();
+const buildImportGraphIndex = (graphRelations, repoRoot, budget) => {
   const incoming = new Map();
   const importGraph = graphRelations?.importGraph || null;
   const nodes = Array.isArray(importGraph?.nodes) ? importGraph.nodes : [];
   const index = new Map();
   for (const node of nodes) {
+    if (!budget.check('import-preparation')) break;
+    budget.count('graphNodes');
     if (!node?.id) continue;
     index.set(node.id, node);
   }
   const addEdge = (fromPath, toPath) => {
     if (!fromPath || !toPath) return;
-    const out = outgoing.get(fromPath) || [];
-    out.push(toPath);
-    outgoing.set(fromPath, out);
     const inc = incoming.get(toPath) || [];
     inc.push(fromPath);
     incoming.set(toPath, inc);
   };
   for (const node of nodes) {
+    if (!budget.check('import-preparation')) break;
     const fromPath = normalizePathForRepo(node.file || node.id, repoRoot);
     const out = Array.isArray(node?.out) ? node.out : [];
     for (const toId of out) {
+      if (!budget.check('import-preparation')) break;
+      budget.count('graphEdges');
       const toNode = index.get(toId);
       const toPath = normalizePathForRepo(toNode?.file || toId, repoRoot);
       addEdge(fromPath, toPath);
     }
   }
-  for (const list of outgoing.values()) list.sort(compareStrings);
-  for (const list of incoming.values()) list.sort(compareStrings);
-  return { outgoing, incoming };
+  for (const list of incoming.values()) { if (!budget.check('import-preparation')) break; list.sort(compareStrings); }
+  if (budget.check('import-preparation')) budget.complete('import-preparation');
+  return { incoming };
 };
 
 const scoreFromDistance = (distance) => 1 / (distance + 1);
@@ -218,7 +210,7 @@ const buildWitnessPath = (trail) => {
   };
 };
 
-const buildFallbackSuggestions = (changed, tests) => {
+const buildFallbackSuggestions = (changed, tests, budget) => {
   const changedMeta = changed.map((entry) => {
     const ext = path.extname(entry);
     const base = ext ? entry.slice(0, -ext.length) : entry;
@@ -230,8 +222,11 @@ const buildFallbackSuggestions = (changed, tests) => {
   });
   const suggestions = [];
   for (const testPath of tests) {
+    if (!budget.check('fallback')) break;
     let best = null;
     for (const change of changedMeta) {
+      if (!budget.check('fallback')) break;
+      budget.count('fallbackChecks');
       if (change.base && testPath.split('/').some((segment) => (
         segment === change.base || ['.', '-', '_'].some((separator) => segment.startsWith(`${change.base}${separator}`))
         || segment === `test_${change.base}` || segment.startsWith(`test_${change.base}.`)
@@ -270,11 +265,12 @@ const buildSuggestTestsFidelity = ({
   edgesVisited = 0,
   workUnits = 0,
   traversalCapsHit = [],
-  candidateTruncated = false
+  candidateTruncated = false,
+  deadlineExhausted = false
 } = {}) => {
   const reasonCodes = [];
   if (!graphAvailable) reasonCodes.push(SUGGEST_TESTS_REASON_CODES.GRAPH_MISSING);
-  if (graphAvailable && graphUsed && graphSuggestions === 0) {
+  if (graphAvailable && graphUsed && graphSuggestions === 0 && !deadlineExhausted) {
     reasonCodes.push(SUGGEST_TESTS_REASON_CODES.GRAPH_NO_MATCHES);
   }
   if (Array.isArray(traversalCapsHit) && traversalCapsHit.length) {
@@ -283,12 +279,13 @@ const buildSuggestTestsFidelity = ({
   if (candidateTruncated) {
     reasonCodes.push(SUGGEST_TESTS_REASON_CODES.CANDIDATE_TRUNCATED);
   }
+  if (deadlineExhausted) reasonCodes.push(SUGGEST_TESTS_REASON_CODES.DEADLINE_EXHAUSTED);
   const source = heuristicUsed
     ? 'heuristic'
     : graphSuggestions > 0
       ? 'graph'
       : 'none';
-  const state = source === 'graph'
+  const state = deadlineExhausted ? 'partial' : source === 'graph'
     ? reasonCodes.some((code) => (
       code === SUGGEST_TESTS_REASON_CODES.TRAVERSAL_CAPPED
       || code === SUGGEST_TESTS_REASON_CODES.CANDIDATE_TRUNCATED
@@ -332,7 +329,8 @@ export const buildSuggestTestsReport = ({
   indexCompatKey = null,
   repo = null,
   indexDir = null,
-  now = () => new Date().toISOString()
+  now = () => new Date().toISOString(),
+  runtime = null
 } = {}) => {
   const truncation = createTruncationRecorder({ scope: 'suggestTests' });
   const warnings = [];
@@ -345,9 +343,18 @@ export const buildSuggestTestsReport = ({
     maxWorkUnits: normalizeCap(caps.maxWorkUnits),
     maxCandidates: normalizeCap(caps.maxCandidates),
     maxSuggestions: normalizeCap(caps.maxSuggestions),
-    maxSeeds: normalizeCap(caps.maxSeeds)
+    maxSeeds: normalizeCap(caps.maxSeeds),
+    maxWallClockMs: admitSuggestionWallClockMs(caps.maxWallClockMs)
   };
 
+  const budget = createSuggestionBudget({ limitMs: capsNormalized.maxWallClockMs, clock: runtime?.clock,
+    preparationElapsedMs: runtime?.preparationElapsedMs ?? null,
+    onStop: ({ phase, elapsedMs, limitMs }) => {
+      recordTruncation('maxWallClockMs', { limit: limitMs, observed: elapsedMs, omitted: null, note: `suggestion-computation:${phase}` });
+      warnings.push({ code: 'SUGGEST_TESTS_DEADLINE', message: 'Suggestion computation exhausted its cooperative time allowance; returned coverage is partial.',
+        data: { phase, elapsedMs, limitMs } });
+    } });
+  budget.check('admission');
   const capsUsed = {
     suggestTests: {
       maxDepth: capsNormalized.maxDepth,
@@ -356,13 +363,18 @@ export const buildSuggestTestsReport = ({
       maxWorkUnits: capsNormalized.maxWorkUnits,
       maxCandidates: capsNormalized.maxCandidates,
       maxSuggestions: capsNormalized.maxSuggestions,
-      maxSeeds: capsNormalized.maxSeeds
+      maxSeeds: capsNormalized.maxSeeds,
+      maxWallClockMs: capsNormalized.maxWallClockMs
     }
   };
 
-  const normalizedChanged = Array.from(new Set(
-    (Array.isArray(changed) ? changed : []).map((entry) => normalizePathForRepo(entry, repoRoot)).filter(Boolean)
-  ));
+  const changedSet = new Set();
+  for (const entry of Array.isArray(changed) ? changed : []) {
+    if (!budget.check('admission')) break;
+    const normalized = normalizePathForRepo(entry, repoRoot);
+    if (normalized) changedSet.add(normalized);
+  }
+  const normalizedChanged = [...changedSet];
   normalizedChanged.sort(compareStrings);
   let seeds = normalizedChanged;
   if (capsNormalized.maxSeeds != null && seeds.length > capsNormalized.maxSeeds) {
@@ -382,23 +394,28 @@ export const buildSuggestTestsReport = ({
     seeds = seeds.slice(0, capsNormalized.maxNodes);
   }
 
-  const { matchers: testMatchers, key: testMatcherKey } = compileTestMatchers(testPatterns);
+  if (budget.check('admission')) budget.complete('admission');
+  const { matchers: testMatchers, key: testMatcherKey } = budget.check('candidate-admission')
+    ? compileTestMatchers(testPatterns) : { matchers: null, key: '' };
   if (!Array.isArray(tests) && !repoRoot) {
     throw new Error('Suggest-tests requires repoRoot when tests are not provided.');
   }
-  const testList = Array.isArray(tests)
-    ? tests.map((entry) => normalizePathForRepo(entry, repoRoot)).filter(Boolean)
-    : resolveCachedTests({
-      repoRoot,
-      maxCandidates: capsNormalized.maxCandidates,
-      recordTruncation,
-      testMatchers,
-      patternKey: testMatcherKey,
-      indexSignature
-    });
+  let testList = [];
+  if (Array.isArray(tests)) {
+    for (const entry of tests) {
+      if (!budget.check('candidate-admission')) break;
+      budget.count('candidateChecks');
+      const normalized = normalizePathForRepo(entry, repoRoot);
+      if (normalized) testList.push(normalized);
+    }
+  } else {
+    testList = resolveCachedTests({ repoRoot, maxCandidates: capsNormalized.maxCandidates, recordTruncation,
+      testMatchers, patternKey: testMatcherKey, indexSignature, budget, runtime });
+  }
+  if (!budget.stopped()) budget.complete('candidate-admission');
   const changedEntries = seeds.map((entry) => ({ path: entry }));
 
-  if (!testList.length) {
+  if (!testList.length && !budget.stopped()) {
     warnings.push({
       code: 'NO_TESTS_FOUND',
       message: 'No tests were discovered for suggestion.',
@@ -418,9 +435,9 @@ export const buildSuggestTestsReport = ({
   let visitedNodeCount = 0;
   let predecessors = null;
 
-  if (graphAvailable && seeds.length && testList.length) {
+  if (graphAvailable && seeds.length && testList.length && budget.check('traversal')) {
     graphUsed = true;
-    const incoming = indexedImports ? null : buildImportGraphIndex(effectiveGraphRelations, repoRoot).incoming;
+    const incoming = indexedImports ? null : buildImportGraphIndex(effectiveGraphRelations, repoRoot, budget).incoming;
     const resolveNeighbors = indexedImports ? createGraphNeighborResolver({ graphIndex, iterableCsr: true }) : null;
     const normalizeNeighbor = graphIndex?.normalizeImportPath || (value => normalizePathForRepo(value, repoRoot));
     const indexedNodes = graphIndex?.importGraphIndex || new Map();
@@ -428,57 +445,70 @@ export const buildSuggestTestsReport = ({
     const visited = new Map();
     predecessors = visited;
     for (const seed of seeds) {
+      if (!budget.check('traversal')) break;
       visited.set(seed, { distance: 0, parent: null });
       queue.push({ path: seed, distance: 0 });
     }
     let queueIndex = 0;
     let stopTraversal = false;
-    while (queueIndex < queue.length && !stopTraversal) {
+    while (queueIndex < queue.length && !stopTraversal && budget.check('traversal')) {
       const current = queue[queueIndex];
       queueIndex += 1;
       const distance = current.distance;
       if (capsNormalized.maxDepth != null && distance >= capsNormalized.maxDepth) continue;
-      const neighbors = indexedImports
+      const getNeighbors = () => indexedImports
         ? resolveNeighbors(indexedNodes, current.path, 'in', normalizeNeighbor, graphIndex.importGraphAdjacency, 'importGraph')
         : incoming.get(current.path) || [];
-      for (const neighbor of neighbors) {
-        if (capsNormalized.maxEdges != null && edgesVisited >= capsNormalized.maxEdges) {
-          recordTruncation('maxEdges', {
-            limit: capsNormalized.maxEdges,
-            observed: edgesVisited,
-            omitted: null
-          });
-          stopTraversal = true;
-          break;
+      const neighbors = runtime?.neighbors ? runtime.neighbors({ path: current.path, getNeighbors }) : getNeighbors();
+      const iterator = neighbors[Symbol.iterator]();
+      try {
+        while (budget.check('traversal')) {
+          budget.count('neighborReads');
+          const next = iterator.next();
+          if (next.done) break;
+          if (!budget.check('traversal')) break;
+          const neighbor = next.value;
+          if (capsNormalized.maxEdges != null && edgesVisited >= capsNormalized.maxEdges) {
+            recordTruncation('maxEdges', {
+              limit: capsNormalized.maxEdges,
+              observed: edgesVisited,
+              omitted: null
+            });
+            stopTraversal = true;
+            break;
+          }
+          if (capsNormalized.maxWorkUnits != null && workUnits >= capsNormalized.maxWorkUnits) {
+            recordTruncation('maxWorkUnits', {
+              limit: capsNormalized.maxWorkUnits,
+              observed: workUnits,
+              omitted: null
+            });
+            stopTraversal = true;
+            break;
+          }
+          edgesVisited += 1;
+          workUnits += 1;
+          if (visited.has(neighbor)) continue;
+          if (capsNormalized.maxNodes != null && visited.size >= capsNormalized.maxNodes) {
+            recordTruncation('maxNodes', {
+              limit: capsNormalized.maxNodes,
+              observed: visited.size + 1,
+              omitted: null
+            });
+            stopTraversal = true;
+            break;
+          }
+          const nextDistance = distance + 1;
+          visited.set(neighbor, { distance: nextDistance, parent: current.path });
+          queue.push({ path: neighbor, distance: nextDistance });
         }
-        if (capsNormalized.maxWorkUnits != null && workUnits >= capsNormalized.maxWorkUnits) {
-          recordTruncation('maxWorkUnits', {
-            limit: capsNormalized.maxWorkUnits,
-            observed: workUnits,
-            omitted: null
-          });
-          stopTraversal = true;
-          break;
-        }
-        edgesVisited += 1;
-        workUnits += 1;
-        if (visited.has(neighbor)) continue;
-        if (capsNormalized.maxNodes != null && visited.size >= capsNormalized.maxNodes) {
-          recordTruncation('maxNodes', {
-            limit: capsNormalized.maxNodes,
-            observed: visited.size + 1,
-            omitted: null
-          });
-          stopTraversal = true;
-          break;
-        }
-        const nextDistance = distance + 1;
-        visited.set(neighbor, { distance: nextDistance, parent: current.path });
-        queue.push({ path: neighbor, distance: nextDistance });
-      }
+      } finally { iterator.return?.(); }
     }
+    if (budget.check('traversal')) budget.complete('traversal');
 
     for (const testPath of testList) {
+      if (!budget.check('selection')) break;
+      budget.count('candidateChecks');
       const entry = visited.get(testPath);
       if (!entry) continue;
       const score = scoreFromDistance(entry.distance);
@@ -496,10 +526,11 @@ export const buildSuggestTestsReport = ({
         }
       });
     }
+    if (budget.check('selection')) budget.complete('selection');
     visitedNodeCount = visited.size;
   }
 
-  if (!suggestions.length && testList.length) {
+  if (!suggestions.length && testList.length && budget.check('fallback')) {
     if (!graphAvailable) {
       warnings.push({
         code: 'GRAPH_RELATIONS_MISSING',
@@ -513,9 +544,43 @@ export const buildSuggestTestsReport = ({
         data: null
       });
     }
-    suggestions = buildFallbackSuggestions(seeds, testList);
+    suggestions = buildFallbackSuggestions(seeds, testList, budget);
+    if (budget.check('fallback')) budget.complete('fallback');
   }
 
+  // Sorting/admitting already retained results is bounded settlement work.
+  suggestions.sort((a, b) => {
+    const scoreCompare = b.score - a.score;
+    if (scoreCompare !== 0) return scoreCompare;
+    return compareStrings(a.testPath, b.testPath);
+  });
+
+  if (capsNormalized.maxSuggestions != null && suggestions.length > capsNormalized.maxSuggestions) {
+    recordTruncation('maxSuggestions', {
+      limit: capsNormalized.maxSuggestions,
+      observed: suggestions.length,
+      omitted: suggestions.length - capsNormalized.maxSuggestions
+    });
+    suggestions = suggestions.slice(0, capsNormalized.maxSuggestions);
+  }
+
+  for (const suggestion of suggestions) {
+    if (!budget.check('witnesses')) break;
+    if (suggestion.fidelity?.source !== 'graph') continue;
+    const trail = [];
+    let current = suggestion.testPath;
+    while (current != null && budget.check('witnesses')) {
+      budget.count('witnessLinks');
+      trail.push(current);
+      current = predecessors.get(current)?.parent ?? null;
+    }
+    if (budget.stopped()) break;
+    trail.reverse();
+    suggestion.witnessPath = buildWitnessPath(trail);
+  }
+
+  if (budget.check('witnesses')) budget.complete('witnesses');
+  const execution = budget.finish();
   const truncationCaps = new Set(truncation.list.map((entry) => entry.cap));
   const traversalCapsHit = Array.from(new Set(
     truncation.list
@@ -533,13 +598,15 @@ export const buildSuggestTestsReport = ({
     edgesVisited,
     workUnits,
     traversalCapsHit,
-    candidateTruncated
+    candidateTruncated,
+    deadlineExhausted: budget.stopped()
   });
 
   if (fidelity.source === 'graph' && fidelity.state === 'partial') {
     const graphReasonCodes = fidelity.reasonCodes.filter((code) => (
       code === SUGGEST_TESTS_REASON_CODES.TRAVERSAL_CAPPED
       || code === SUGGEST_TESTS_REASON_CODES.CANDIDATE_TRUNCATED
+      || code === SUGGEST_TESTS_REASON_CODES.DEADLINE_EXHAUSTED
     ));
     suggestions = suggestions.map((entry) => (
       entry?.fidelity?.source === 'graph'
@@ -560,38 +627,12 @@ export const buildSuggestTestsReport = ({
           ...entry,
           fidelity: {
             ...entry.fidelity,
+            state: budget.stopped() ? 'partial' : entry.fidelity.state,
             reasonCodes: fidelity.reasonCodes.slice()
           }
         }
         : entry
     ));
-  }
-
-  suggestions.sort((a, b) => {
-    const scoreCompare = b.score - a.score;
-    if (scoreCompare !== 0) return scoreCompare;
-    return compareStrings(a.testPath, b.testPath);
-  });
-
-  if (capsNormalized.maxSuggestions != null && suggestions.length > capsNormalized.maxSuggestions) {
-    recordTruncation('maxSuggestions', {
-      limit: capsNormalized.maxSuggestions,
-      observed: suggestions.length,
-      omitted: suggestions.length - capsNormalized.maxSuggestions
-    });
-    suggestions = suggestions.slice(0, capsNormalized.maxSuggestions);
-  }
-
-  for (const suggestion of suggestions) {
-    if (suggestion.fidelity?.source !== 'graph') continue;
-    const trail = [];
-    let current = suggestion.testPath;
-    while (current != null) {
-      trail.push(current);
-      current = predecessors.get(current)?.parent ?? null;
-    }
-    trail.reverse();
-    suggestion.witnessPath = buildWitnessPath(trail);
   }
 
   const resolvedProvenance = resolveProvenance({
@@ -607,6 +648,7 @@ export const buildSuggestTestsReport = ({
 
   return {
     version: '1.0.0',
+    ...(execution ? { execution } : {}),
     provenance: resolvedProvenance,
     changed: changedEntries,
     suggestions,

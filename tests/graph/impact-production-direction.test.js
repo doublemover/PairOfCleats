@@ -8,6 +8,7 @@ import { buildGraphIndex } from '../../src/graph/store.js';
 import { buildImpactAnalysis } from '../../src/graph/impact.js';
 import { buildSuggestTestsReport } from '../../src/graph/suggest-tests.js';
 import { prepareGraphInputs, prepareGraphIndex } from '../../src/integrations/tooling/graph-helpers.js';
+import { runSuggestTestsCli } from '../../src/integrations/tooling/suggest-tests.js';
 import { runGraphContextCli } from '../../src/integrations/tooling/graph-context.js';
 import { runImpactCli } from '../../src/integrations/tooling/impact.js';
 import { validateGraphImpact } from '../../src/contracts/validators/analysis.js';
@@ -116,6 +117,28 @@ try {
     const importImpact = await runImpactCli(['--repo', repo, '--seed', 'chunk:helper', '--direction', 'downstream',
       '--depth', '2', '--graphs', 'importGraph', '--pathSemantics', 'graph-witness', '--json']);
     assert.deepEqual(observe(importImpact), expected([[fileOf('api'), 1], [fileOf('consumer'), 2]]));
+    for (const limit of [0, 10]) {
+      let clockReads = 0, opens = 0;
+      const suggested = await runSuggestTestsCli(['--repo', repo, '--changed', fileOf('helper'), '--max', '5',
+        '--maxWallClockMs', String(limit), '--json'], {
+        clock: () => clockReads++ === 0 ? 0 : 25,
+        openDirectory: () => {
+          opens += 1;
+          let read = false;
+          return { readSync: () => read ? null : (read = true, { name: 'helper.test.js', isDirectory: () => false, isFile: () => true }),
+            closeSync() {} };
+        }
+      });
+      assert.equal(suggested.provenance.capsUsed.suggestTests.maxWallClockMs, limit);
+      assert.equal(suggested.execution.preparationElapsedMs, 25, 'one CLI clock records excluded preparation separately');
+      assert.equal(suggested.execution.state, limit === 0 ? 'deadline-limited' : 'complete');
+      assert.equal(opens, limit === 0 ? 0 : 1);
+      assert.equal(suggested.execution.observed.directoryOpens, opens);
+      assert.equal(suggested.fidelity.state, limit === 0 ? 'partial' : 'fallback');
+      assert.equal(suggested.suggestions.length, limit === 0 ? 0 : 1);
+      assert.deepEqual(JSON.parse(output.at(-1)), suggested);
+    }
+
 
   } finally { console.log = previousLog; }
 } finally { await fs.rm(root, { recursive: true, force: true }); }

@@ -426,3 +426,40 @@ file from canonical chunk metadata in that same selected generation. It attaches
 only that fact to a private selected-index view. It neither rereads working-tree
 source nor alters the cached graph for other queries. Conflicting graph and
 chunk metadata file facts fail admission rather than silently choosing one.
+## Suggestion computation time allowance
+
+`suggest-tests --maxWallClockMs` now governs suggestion computation with one
+monotonic cooperative allowance. Null/omitted means no time allowance; zero
+expires at computation admission before directory or graph traversal work.
+Finite non-negative numeric values are floored to milliseconds; negative,
+non-finite, non-numeric and unsafe integer values fail admission. Existing count
+caps remain independent and unchanged.
+
+The allowance starts after configuration, changed-input loading and graph
+artifact preparation. Those operations and output rendering/serialization are
+excluded; CLI reports record excluded preparation elapsed time separately. The
+accepted cap is retained in `provenance.capsUsed.suggestTests.maxWallClockMs`.
+Explicit time allowances also produce a strict `execution` receipt describing
+scope, monotonic elapsed time, exhausted phase, completed phases, observed work,
+settlement and observed overrun. This is not a hard wall-clock guarantee: one
+synchronous directory/neighbor operation or in-memory sort can overrun before
+the next checkpoint. Required cleanup can also exceed the allowance.
+
+Admission, every directory open/read and candidate, reverse-import preparation,
+each seed/neighbor, selection, heuristics and witness construction share the
+same owner. Expiry stops further admission and fallback, records
+`maxWallClockMs` truncation and `deadline_exhausted` fidelity, and returns partial
+coverage even when no suggestion was retained. It cannot become complete
+no-match/no-tests evidence. A directory prefix is discarded unless enumeration
+and closure finished before its admission checkpoint. Warm discovery still
+revisits the bounded live inventory; expired inventories are not cached.
+Development `.cache/` and `.tmp/` directories join existing discovery exclusions.
+
+Normal returns require confirmed directory closure. A pending read forbids
+close and retains its original resource observation plus the exact directory
+session; failed closure retains that same handle for explicit recovery. These
+failures propagate instead of falling back or claiming settlement. Recovery
+closes only after original prerequisites settle and never reruns discovery.
+Clock, directory and neighbor adapters are private fixture seams, not public
+CLI/configuration options. Existing graph/heuristic distinctions and count-cap
+coverage remain.
