@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1121,
+    "hero": 1124,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -7687,6 +7687,24 @@
     {
       "id": "indexing/tree-sitter/scheduler-crash-fallback",
       "order": 1279,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/rust-attached-documentation",
+      "order": 1280,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/tree-sitter/declaration-role-and-scope-contract",
+      "order": 1281,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/python-parenthesized-prefix-coverage",
+      "order": 1282,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

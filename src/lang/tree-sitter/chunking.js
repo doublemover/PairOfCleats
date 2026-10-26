@@ -521,7 +521,8 @@ function toChunk(node, text, config, lineIndex, lineAccessor) {
   if (typeof config.resolveKind === 'function') {
     kind = config.resolveKind(node, kind, text) || kind;
   }
-  const range = config.resolveRange?.(node, text) || resolveDeclarationPrefixRange(node);
+  const declaration = config.resolveDeclaration?.(node, text);
+  const range = declaration?.range || config.resolveRange?.(node, text) || resolveDeclarationPrefixRange(node);
   const start = range?.start ?? node.startIndex;
   const end = range?.end ?? node.endIndex;
   const scopes = findLexicalScopes(node, text, config);
@@ -545,7 +546,7 @@ function toChunk(node, text, config, lineIndex, lineAccessor) {
   const endOffset = end > start ? end - 1 : start;
   const endLine = offsetToLine(lineIndex, endOffset);
   const signature = extractSignature(text, start, end, node, config.signatureBoundaryOptions);
-  const docstring = extractDocComment(
+  const docstring = declaration?.docstring ?? extractDocComment(
     lineAccessor,
     startLine - 1,
     config.docComments || {}
@@ -561,6 +562,7 @@ function toChunk(node, text, config, lineIndex, lineAccessor) {
       definitionStartLine: offsetToLine(lineIndex, node.startIndex),
       ...callableGrammarMetadata(node,text),
       ...(config.resolveMetadata?.(node,text) || {}),
+      ...(declaration?.metadata || {}),
       ...(['function_declarator', 'operator_cast', 'function_signature_item'].includes(node.type) ? { bodyless: true } : {}),
       signature,
       docstring

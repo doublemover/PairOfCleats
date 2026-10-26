@@ -2,8 +2,9 @@ import { findDescendantByType } from './ast.js';
 import { includeCDeclaration, resolveCDeclarationRange, resolveCName, resolveCppName, resolveSwiftKind, resolveSwiftName, resolveKotlinKind,
   includeDartDeclaration, resolveDartName, resolveDartKind, resolveDartRange, resolveGoRange, resolveObjCName } from './declaration-roles.js';
 import { phpGrammarMetadata, rubyGrammarMetadata, resolveRubyQualifiedName, resolveScalaName, resolveRName, resolveRRange } from './declaration-metadata.js';
+import { resolveRustDeclaration } from './rust-prefix.js';
 // v4 binds declaration names, lexical scopes and attached source ranges to grammar roles.
-export const TREE_SITTER_CHUNK_VERSION = '12';
+export const TREE_SITTER_CHUNK_VERSION = '13';
 
 const LANGUAGE_GRAMMAR_KEYS = {
   javascript: 'native:javascript',
@@ -466,6 +467,7 @@ const LANG_CONFIG = {
     }
   },
   rust: {
+    resolveDeclaration: resolveRustDeclaration,
     typeNodes: new Set([
       'struct_item',
       'enum_item',

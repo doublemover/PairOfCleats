@@ -1279,3 +1279,6 @@ indexing/tree-sitter/crash-persistence-ownership
 indexing/tree-sitter/crash-persistence-degradation
 indexing/tree-sitter/crash-presentation-degradation
 indexing/tree-sitter/scheduler-crash-fallback
+lang/contracts/rust-attached-documentation
+indexing/tree-sitter/declaration-role-and-scope-contract
+lang/contracts/python-parenthesized-prefix-coverage

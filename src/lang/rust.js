@@ -311,20 +311,27 @@ export function collectRustImports(text) {
 export function buildRustChunks(text, options = {}) {
   const treeChunks = buildTreeSitterChunks({ text, languageId: 'rust', options });
   if (treeChunks && treeChunks.length) {
-    const lines = text.split('\n');
+    let lines = null;
     return treeChunks.map((chunk) => {
       const meta = chunk.meta || {};
       const signature = meta.signature || '';
+      const headerRange = meta.rustDeclarationHeaderRange;
+      const parameterRange = meta.rustParametersRange;
+      const needsHeader = !Array.isArray(meta.rustParameters) || !Object.hasOwn(meta, 'rustReturnType') || !Array.isArray(meta.rustModifiers);
+      const declarationHeader = needsHeader ? (headerRange ? text.slice(headerRange.start, headerRange.end) : signature) : '';
+      const parameters = !Array.isArray(meta.rustParameters) && parameterRange
+        ? text.slice(parameterRange.start, parameterRange.end) : declarationHeader;
       const startLine = Number.isFinite(meta.startLine) ? meta.startLine : 1;
       return {
         ...chunk,
         meta: {
           ...meta,
           signature,
-          params: extractRustParams(signature),
-          returns: extractRustReturns(signature),
-          modifiers: extractRustModifiers(signature),
-          attributes: collectRustAttributes(lines, startLine - 1, signature)
+          params: Array.isArray(meta.rustParameters) ? meta.rustParameters : extractRustParams(parameters),
+          returns: Object.hasOwn(meta, 'rustReturnType') ? meta.rustReturnType : extractRustReturns(declarationHeader),
+          modifiers: Array.isArray(meta.rustModifiers) ? meta.rustModifiers : extractRustModifiers(declarationHeader),
+          attributes: Array.isArray(meta.rustAttributes) ? meta.rustAttributes
+            : collectRustAttributes(lines || (lines = text.split('\n')), startLine - 1, signature)
         }
       };
     });
@@ -493,7 +500,9 @@ export function extractRustDocMeta(chunk) {
   return buildDefaultDocMeta(chunk, {
     decoratorsFrom: 'attributes',
     includeModifiers: true,
-    includeImplFor: true
+    includeImplFor: true,
+    extraFields: chunk?.meta?.attachedDocumentation
+      ? { attachedDocumentation: structuredClone(chunk.meta.attachedDocumentation) } : null
   });
 }
 
