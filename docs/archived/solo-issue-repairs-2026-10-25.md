@@ -1855,3 +1855,59 @@ without calls. The authored production-projection tripwire rejects either
 unnecessary file-array scan while retaining the stale/capped-index negatives.
 Full format/ESLint and syntax on both changed JavaScript files passed; execution
 remains deferred. This is an algorithmic work reduction, not a measured timing.
+
+
+## Directory-backed final recovery inventory (2026-10-26)
+
+**#1633** (`c791cc01b`) admits the existing LanceDB directory representation
+through a specific final-recovery contract. Canonical contained paths, unique
+family/metadata authority, model/variant/dimensions/count and embedding-generation
+identity must agree. The metadata member's extent and observed digest bind the
+receipt. Actual ordered directory member names, kinds, exact sizes and SHA-256
+digests bind its physical payload; recorded native inventory must agree when
+present. Required table/version/data shape is checked without importing LanceDB.
+Metadata is requalified after payload reads. Aggregate byte/count/digest output
+remains bounded and exact; null directory bytes never become a fabricated zero.
+
+The existing backend inventory implementation is factored into a shared owner,
+with its tooling export retained directly for existing callers and its copy
+owner unchanged. File/directory operations use the existing lifetime owners;
+physical stamps are captured and compared across hashing to reject membership,
+kind and same-size mutations. The previous 4,096-entry, 512 KiB and depth-32
+bounds remain. Exceeding them is an explicit pre-publication unsupported result,
+not verified empty or an increased corpus-wide metadata allowance. Private test
+bounds can only lower admission. No native dependency or public knob is added.
+
+Final output identities are established before recovery pointer commit and
+carried unchanged into durable completion. Confirmation requalifies the same
+outputs. Existing post-commit error/context handling remains for unexpected
+persistence/notification failures. Stage2 snapshots/copy/restore explicitly
+retain their regular-file scope; file-only/graph selections stay independent of
+optional final backend families. No generic existence-only directory allowance
+or alternate copy walker is introduced.
+
+The new real-filesystem fixture runs actual backend publication and manifest
+owners over explicitly synthetic closed-writer table bytes. It checks mixed
+ordinary/directory/metadata members, replay identity, payload mutation and
+membership/type changes, canonical paths, duplicate authority, bounded
+unavailability versus known empty, and rejection before Stage2 copy creation.
+A link-admission branch uses an explicit lstat observation without creating a
+symlink; real escape admission remains covered. This is not physical-link or
+native-decoding qualification.
+
+The existing retained-stage recovery fixture keeps all prior no-recomputation,
+publication, historical-failure, alreadyComplete and post-commit assertions. It
+now adds a directory family through the real publisher, rejects a mismatched
+generation before pointer creation, completes valid directory-backed publication
+and confirms its final output identity. Native query execution stays disabled
+in this named artifact/recovery fixture; standalone native qualification is not
+claimed. The new bounded fixture joins `ci-lite`, whose generated manifest now
+has 1,238 entries with prior ordering preserved.
+
+Full format/ESLint, syntax on ten changed JavaScript files, affected generated
+refresh/freshness, fixture discovery/ordered selection and diff checks passed.
+An EOF blank-line check failed once and was corrected before commit. Functional
+fixtures, the final front gate and native/runtime/performance qualification
+remain deferred. Current coverage: **35 fixed / 420 implemented / 152 partial /
+159 pending**, across all 766 current open reports. No new closing reference was
+added and no issue was closed on unrun regression evidence.

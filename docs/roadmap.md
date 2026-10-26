@@ -30,6 +30,8 @@ The reopened #320, #429 and #473 audits now have source repairs for immutable
 release revision evidence, complete scan accounting and machine-stdout QA.
 Their new regressions and the JavaScript ownership fixtures join the curated PR
 lane; execution remains deferred.
+#1633 now qualifies bounded directory-backed final outputs before recovery
+publication, retaining explicit Stage2 file-copy scope and post-commit errors.
 #1675 now uses one global query resource plan and retirement-aware pools; whole
 process-tree RSS measurement remains open, with known-worker samples labeled.
 

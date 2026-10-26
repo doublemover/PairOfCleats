@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "04f2b9c6b",
+  "sourceHead": "c791cc01b",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 419,
+    "implemented": 420,
     "partial": 152,
-    "pending": 160
+    "pending": 159
   },
   "priorOpen": 1177,
   "currentOpen": 766,
@@ -572,6 +572,7 @@
       1622,
       1623,
       1632,
+      1633,
       1635,
       1636,
       1637,
@@ -873,7 +874,6 @@
       1624,
       1625,
       1627,
-      1633,
       1634,
       1638,
       1642,
@@ -5683,8 +5683,10 @@
       "number": 1633,
       "title": "[P2] Admit directory-backed artifact families before recovery publication and completion",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "c791cc01b",
+      "validation": "deferred"
     },
     {
       "number": 1634,
