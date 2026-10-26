@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "cc70899b3",
+  "sourceHead": "58dd2d7b7",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
@@ -6126,7 +6126,7 @@
       "priority": "P2",
       "status": "implemented",
       "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
-      "implementation": "cc70899b3",
+      "implementation": "cc70899b3,58dd2d7b7",
       "validation": "deferred"
     },
     {

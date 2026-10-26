@@ -2444,3 +2444,19 @@ refresh/freshness, ordered fixture discovery and diff checks passed. ci-lite now
 contains 1,251 entries. Current coverage: **35 fixed / 430 implemented / 153
 partial / 152 pending** across 770 open reports. No issue closure or new closing
 reference was inferred; the final gate and functional qualification remain open.
+
+### #1687 envelope and companion follow-up
+
+`58dd2d7b7` closes two source-review edge cases before functional qualification.
+Malformed runs arrays, primitive summaries and unsupported empty summary objects
+cannot masquerade as a canonical run. Explicit failed-run summary entries remain
+supported. Canonical terminal receipts reuse the existing terminal parser; actual
+attempt-snapshot envelopes are recognized as non-run companions. Snapshot and
+derivation version constants move unchanged to a thin contract owner, preserving
+existing reexports without pulling file/metrics readers into selection.
+
+Additional negative controls cover those malformed shapes and supported failure/
+snapshot cases. Full format/ESLint, syntax on four changed JavaScript files,
+affected generated freshness and diff checks passed. Functional execution remains
+deferred. Inventory counts stay **35 fixed / 430 implemented / 153 partial / 152
+pending**; no accepted closure is inferred from this follow-up.
