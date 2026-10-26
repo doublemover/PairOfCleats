@@ -1357,3 +1357,6 @@ indexing/semantic/native-flow-abort-ownership
 indexing/semantic/provider-result-durable-sink
 indexing/semantic/provider-merge-batch-work
 indexing/semantic/provider-merge-admission
+services/queue/build-progress-execution-identity
+services/queue/build-progress-bounded-state
+services/queue/build-progress-bound-read-work

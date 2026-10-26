@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1199,
+    "hero": 1202,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -8155,6 +8155,24 @@
     {
       "id": "indexing/semantic/provider-merge-admission",
       "order": 1357,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "services/queue/build-progress-execution-identity",
+      "order": 1358,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "services/queue/build-progress-bounded-state",
+      "order": 1359,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "services/queue/build-progress-bound-read-work",
+      "order": 1360,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

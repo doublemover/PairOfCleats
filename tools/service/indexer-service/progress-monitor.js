@@ -5,8 +5,9 @@ import { createLifecycleRegistry } from '../../../src/shared/lifecycle/registry.
 import { getRepoCacheRoot } from '../../shared/dict-utils.js';
 import {
   readServiceBuildStateSnapshot,
-  resolveServiceBuildStatePath
-} from '../indexer-service-helpers.js';
+  resolveServiceBuildStatePath,
+  observeServiceBuildStateSnapshot
+} from './build-state-observation.js';
 
 const BUILD_STATE_POLL_MS = 5000;
 
@@ -136,16 +137,44 @@ export const startBuildProgressMonitor = ({ job, repoPath, stage, repoCacheRoot:
   log = (line) => console.error(line) }) => {
   if (!job || !repoPath) return async () => {};
   const repoCacheRoot = selectedCacheRoot || getRepoCacheRoot(repoPath);
-  let active = null;
+  let binding = null;
   let waitingLogged = false;
   let lastLine = '';
   let inFlight = null;
+  const work = { polls: 0, discoveries: 0, boundReads: 0, candidateReads: 0,
+    bindingInvalidations: 0, knownReadBytes: 0, jsonDecodes: 0, unknownReadAttempts: 0 };
+  const statuses = { ok: 0, missing: 0, oversized: 0, corrupt: 0, unsafe: 0, transient: 0 };
   const lifecycle = createLifecycleRegistry({
     name: `indexer-service-progress:${job.id}`
   });
+  const readSnapshot = async buildRoot => {
+    let observation;
+    try { observation = await observeServiceBuildStateSnapshot(buildRoot); }
+    catch (error) { work.unknownReadAttempts++; throw error; }
+    statuses[observation.status]++;
+    work.jsonDecodes += observation.jsonDecodes;
+    if (observation.bytes === null) work.unknownReadAttempts++;
+    else work.knownReadBytes += observation.bytes;
+    return observation.status === 'ok' ? { state: observation.state, path: observation.path } : null;
+  };
   const poll = async () => {
-    const candidates = await listBuildStateCandidates(repoCacheRoot);
-    active = await pickOwnedBuildState({ job, stage, repoPath, candidates });
+    work.polls++;
+    let active = null;
+    if (binding) {
+      work.boundReads++;
+      const loaded = await readSnapshot(binding.buildRoot);
+      if (loaded && loaded.state.buildId === binding.buildId
+        && loaded.state.runtime?.latestAttemptId === binding.attemptId
+        && ownsBuildProgress({ job, stage, state: loaded.state, buildRoot: binding.buildRoot, repoPath })) {
+        active = { buildRoot: binding.buildRoot, ...loaded };
+      } else { binding = null; work.bindingInvalidations++; }
+    }
+    if (!active) {
+      work.discoveries++;
+      const candidates = await listBuildStateCandidates(repoCacheRoot);
+      active = await pickOwnedBuildState({ job, stage, repoPath, candidates,
+        readSnapshot: buildRoot => { work.candidateReads++; return readSnapshot(buildRoot); } });
+    }
     if (lifecycle.isClosed()) return;
     if (!active) {
       if (!waitingLogged) {
@@ -155,6 +184,8 @@ export const startBuildProgressMonitor = ({ job, repoPath, stage, repoCacheRoot:
       lastLine = '';
       return;
     }
+    // Retain only exact binding identity between polls, not the parsed state.
+    binding = { buildRoot: active.buildRoot, buildId: active.state.buildId, attemptId: active.state.runtime.latestAttemptId };
     waitingLogged = false;
     const line = formatProgressLine({ jobId: job.id, stage, state: active.state });
     if (line && line !== lastLine) {
@@ -176,9 +207,12 @@ export const startBuildProgressMonitor = ({ job, repoPath, stage, repoCacheRoot:
   void runPoll().catch(error => log(`[indexer] progress monitor failed: ${error?.message || error}`));
   const stop = async () => {
     await lifecycle.close();
+    binding = null;
   };
   // Internal diagnostic hook also lets bounded fixtures advance the actual poll
   // without changing the production interval or introducing public controls.
   stop.poll = runPoll;
+  stop.getDiagnostics = () => Object.freeze({ ...work, statuses: Object.freeze({ ...statuses }),
+    binding: binding ? Object.freeze({ ...binding }) : null });
   return stop;
 };

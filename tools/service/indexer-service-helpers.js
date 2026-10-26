@@ -18,25 +18,8 @@ const INDEX_DIR_NAMES = new Set([
   'index-records'
 ]);
 
-export const SERVICE_BUILD_STATE_FILE = 'build_state.json';
-
-export const resolveServiceBuildStatePath = (buildRoot) => (
-  buildRoot ? path.join(buildRoot, SERVICE_BUILD_STATE_FILE) : null
-);
-
-export const readServiceBuildStateSnapshot = async (buildRoot) => {
-  const statePath = resolveServiceBuildStatePath(buildRoot);
-  if (!statePath) return null;
-  try {
-    const raw = await fs.promises.readFile(statePath, 'utf8');
-    const parsed = JSON.parse(raw);
-    return parsed && typeof parsed === 'object'
-      ? { state: parsed, path: statePath }
-      : null;
-  } catch {
-    return null;
-  }
-};
+export { SERVICE_BUILD_STATE_FILE, resolveServiceBuildStatePath, readServiceBuildStateSnapshot }
+  from './indexer-service/build-state-observation.js';
 
 export const looksLikeEmbeddingIndexDir = (value) => {
   const base = path.basename(String(value || '')).toLowerCase();
