@@ -47,7 +47,7 @@ export const BENCH_DIAGNOSTIC_MATERIAL_PARITY_EVENT_TYPES = Object.freeze([
   'provider_circuit_breaker',
   'provider_degraded_mode_entered'
 ]);
-export const BENCH_PROGRESS_CONFIDENCE_SCHEMA_VERSION = 1;
+export const BENCH_PROGRESS_CONFIDENCE_SCHEMA_VERSION = 2;
 export const BENCH_PROGRESS_CONFIDENCE_THRESHOLDS = Object.freeze({
   high: 0.75,
   medium: 0.5
@@ -815,40 +815,31 @@ export const normalizeBenchDiagnosticText = (value, { maxLength = 160 } = {}) =>
   return text.length <= limit ? text : text.slice(0, limit);
 };
 
+export const admitBenchProgressScore = value => typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : null;
+
 export const classifyBenchProgressConfidence = (value) => {
-  if (value == null || value === '') return 'unknown';
-  const score = Number(value);
-  if (!Number.isFinite(score)) return 'unknown';
+  const score = admitBenchProgressScore(value);
+  if (score === null) return 'unknown';
   if (score >= BENCH_PROGRESS_CONFIDENCE_THRESHOLDS.high) return 'high';
   if (score >= BENCH_PROGRESS_CONFIDENCE_THRESHOLDS.medium) return 'medium';
   return 'low';
 };
 
 export const formatBenchProgressConfidence = (value) => {
-  if (value == null || value === '') return 'unknown';
-  const score = Number(value);
-  if (!Number.isFinite(score)) return 'unknown';
+  const score = admitBenchProgressScore(value);
+  if (score === null) return 'unknown';
   const bucket = classifyBenchProgressConfidence(score);
   return `${bucket} ${(Math.max(0, Math.min(1, score)) * 100).toFixed(1)}%`;
 };
 
 const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0));
 
-const toSafeSampleCount = (value) => {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? Math.floor(parsed) : 0;
-};
-
-const resolveComponentScore = (value) => {
-  if (value == null || value === '') return null;
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return null;
-  return clamp01(parsed);
-};
+const toSafeSampleCount = value => Number.isSafeInteger(value) && value > 0 ? value : 0;
+const resolveComponentScore = admitBenchProgressScore;
 
 /**
  * Combine normalized UB-098 confidence components into one stable score.
- * Missing components are omitted from weighting so partial telemetry remains useful.
+ * Only components with enough actual samples enter weighting; partial telemetry remains explicit.
  */
 export const computeBenchProgressConfidence = ({
   heartbeatRegularityScore,
@@ -887,10 +878,15 @@ export const computeBenchProgressConfidence = ({
     }
   ];
 
+  const minimumSamples = { heartbeatRegularity: 1, queueAge: 2, inFlightSpread: 2, stallEvents: 1 };
+  for (const entry of componentInputs) {
+    entry.minimumSamples = minimumSamples[entry.key];
+    entry.eligible = entry.score !== null && entry.samples >= entry.minimumSamples;
+  }
   let weightedSum = 0;
   let weightSum = 0;
   for (const entry of componentInputs) {
-    if (!Number.isFinite(entry.score)) continue;
+    if (!entry.eligible) continue;
     weightedSum += entry.score * entry.weight;
     weightSum += entry.weight;
   }
@@ -901,13 +897,21 @@ export const computeBenchProgressConfidence = ({
     score,
     bucket,
     text: formatBenchProgressConfidence(score),
+    scope: 'observed-progress-heuristic',
+    calibratedProbability: false,
+    coverage: { state: weightSum > 0 ? 'observed' : 'insufficient',
+      eligibleComponents: componentInputs.filter(entry => entry.eligible).map(entry => entry.key),
+      activeWeight: weightSum, requiredComponents: componentInputs.length },
     components: Object.fromEntries(
       componentInputs.map((entry) => [
         entry.key,
         {
-          score: entry.score,
+          score: entry.eligible ? entry.score : null,
+          observedScore: entry.score,
           weight: entry.weight,
-          samples: entry.samples
+          samples: entry.samples,
+          minimumSamples: entry.minimumSamples,
+          eligible: entry.eligible
         }
       ])
     ),
@@ -918,6 +922,23 @@ export const computeBenchProgressConfidence = ({
       stallEvents: toSafeSampleCount(stallSamples)
     }
   };
+};
+
+/** Last-observed snapshot only. No timer or watchdog policy is created here. */
+export const qualifyBenchProgressObservation = (confidence, { nowMs = Date.now(), firstObservedAtMs = null,
+  lastObservedAtMs = null, phase = null, taskId = null, staleAfterMs = 30000 } = {}) => {
+  if (typeof staleAfterMs !== 'number' || !Number.isFinite(staleAfterMs) || staleAfterMs <= 0) throw new TypeError('Confidence freshness requires a positive finite snapshot allowance.');
+  const time = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+  const first = time(firstObservedAtMs), last = time(lastObservedAtMs), now = time(nowMs);
+  const ageMs = last !== null && now !== null && now >= last ? now - last : null;
+  const sampleScore = admitBenchProgressScore(confidence?.score);
+  const state = sampleScore === null ? 'insufficient' : ageMs === null ? 'unknown' : ageMs >= staleAfterMs ? 'stale' : 'observed';
+  const score = state === 'observed' ? sampleScore : null;
+  return { ...confidence, sampleScore, score, bucket: classifyBenchProgressConfidence(score), text: formatBenchProgressConfidence(score),
+    observation: { state, view: 'last-observed-snapshot', snapshotAtMs: now, firstObservedAtMs: first,
+      lastObservedAtMs: last, ageMs, staleAfterMs, window: 'process-observation-bounds-with-trailing-component-samples',
+      lastContext: { phase: typeof phase === 'string' ? phase.slice(0, 256) : null,
+        taskId: typeof taskId === 'string' ? taskId.slice(0, 256) : null } } };
 };
 
 export const buildBenchDiagnosticSignature = ({

@@ -27,6 +27,9 @@ import {
   BENCH_DIAGNOSTIC_SEVERITY_LEVELS,
   BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION,
   BENCH_PROGRESS_CONFIDENCE_SCHEMA_VERSION,
+  admitBenchProgressScore,
+  computeBenchProgressConfidence,
+  classifyBenchProgressConfidence,
   buildBenchDiagnosticEventId,
   buildBenchDiagnosticSignature,
   createBenchDiagnosticClassifier,
@@ -362,7 +365,7 @@ const buildProgressConfidenceEventKey = (scope, event) => {
     event.ts || null,
     event.bucket || null,
     Number.isFinite(event.score) ? Number(event.score) : null,
-    event.reason || null
+    event.reason || null, event.executionId || null, event.observationState || null
   ]);
 };
 
@@ -708,17 +711,31 @@ const parseProgressConfidenceLine = (line) => {
     return null;
   }
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null;
-  const scoreRaw = Number(parsed.score);
-  const score = Number.isFinite(scoreRaw) ? Math.max(0, Math.min(1, scoreRaw)) : null;
-  const bucket = typeof parsed.bucket === 'string' && parsed.bucket.trim()
-    ? parsed.bucket.trim().toLowerCase()
-    : 'unknown';
+  const observationState = typeof parsed.observation?.state === 'string' ? parsed.observation.state : 'legacy';
+  let score = admitBenchProgressScore(parsed.score);
+  if (parsed.schemaVersion != null && ![1, BENCH_PROGRESS_CONFIDENCE_SCHEMA_VERSION].includes(parsed.schemaVersion)) score = null;
+  if (parsed.schemaVersion === BENCH_PROGRESS_CONFIDENCE_SCHEMA_VERSION) {
+    const recomputed = computeBenchProgressConfidence({
+      heartbeatRegularityScore: parsed.components?.heartbeatRegularity?.score, queueAgeScore: parsed.components?.queueAge?.score,
+      inFlightSpreadScore: parsed.components?.inFlightSpread?.score, stallEventsScore: parsed.components?.stallEvents?.score,
+      heartbeatSamples: parsed.samples?.heartbeat, queueSamples: parsed.samples?.queueAge,
+      inFlightSamples: parsed.samples?.inFlight, stallSamples: parsed.samples?.stallEvents
+    });
+    if (observationState !== 'observed' || score === null || recomputed.score === null || Math.abs(score - recomputed.score) > 1e-12) score = null;
+  }
+  const bucket = classifyBenchProgressConfidence(score);
   const label = typeof parsed.label === 'string' && parsed.label.trim()
     ? parsed.label.trim()
     : 'run';
   return {
     score,
     bucket,
+    observationState,
+    observation: parsed.observation && typeof parsed.observation === 'object' ? { state: observationState,
+      view: 'last-observed-snapshot', ageMs: typeof parsed.observation.ageMs === 'number' && Number.isFinite(parsed.observation.ageMs)
+        ? parsed.observation.ageMs : null, lastObservedAtMs: typeof parsed.observation.lastObservedAtMs === 'number'
+        && Number.isFinite(parsed.observation.lastObservedAtMs) ? parsed.observation.lastObservedAtMs : null } : null,
+    executionId: typeof parsed.executionId === 'string' ? parsed.executionId : null,
     label,
     reason: typeof parsed.reason === 'string' ? parsed.reason.trim() : null,
     ts: typeof parsed.ts === 'string' ? parsed.ts : null
@@ -1040,6 +1057,7 @@ const buildProgressConfidenceSummary = async (context) => {
           path: filePath,
           label: parsed.label,
           score: parsed.score,
+          observation: parsed.observation,
           bucket: parsed.bucket,
           reason: parsed.reason || null,
           ts: parsed.ts || null
@@ -1055,6 +1073,7 @@ const buildProgressConfidenceSummary = async (context) => {
           latestByLabel.set(parsed.label, {
             label: parsed.label,
             score: parsed.score,
+            observation: parsed.observation,
             bucket: parsed.bucket,
             reason: parsed.reason || null,
             ts: parsed.ts || null
@@ -1087,6 +1106,7 @@ const buildProgressConfidenceSummary = async (context) => {
     rawEventCount,
     duplicateEventCount: Math.max(0, rawEventCount - uniqueEventKeys.size),
     avgScore,
+    scoreCoverage: { observed: totalScoreCount, unknown: uniqueEventKeys.size - totalScoreCount },
     minScore: Number.isFinite(minScoreGlobal) ? minScoreGlobal : null,
     maxScore: Number.isFinite(maxScoreGlobal) ? maxScoreGlobal : null,
     countsByBucket: Object.fromEntries(

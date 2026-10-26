@@ -60,7 +60,7 @@ assert.equal(
   'expected confidence schema version'
 );
 assert.equal(
-  Number.isFinite(Number(result.progressConfidence.score)),
+  typeof result.progressConfidence.score === 'number' && Number.isFinite(result.progressConfidence.score),
   true,
   'expected numeric confidence score'
 );
@@ -82,6 +82,34 @@ assert.equal(lines.length >= 1, true, 'expected at least one persisted confidenc
 const last = JSON.parse(lines[lines.length - 1]);
 assert.equal(last.schemaVersion, BENCH_PROGRESS_CONFIDENCE_SCHEMA_VERSION, 'expected schema version in persisted stream');
 assert.equal(typeof last.bucket, 'string', 'expected persisted confidence bucket');
+assert.equal(typeof last.score, 'number');
+assert.equal(Number.isFinite(last.score), true);
+assert.equal(last.coverage.state, 'observed');
+assert.equal(last.observation.state, 'observed');
+assert.equal(last.observation.view, 'last-observed-snapshot');
+
+for (const [name, source] of [
+  ['silent', ''], ['ordinary', "console.log('ordinary output');"],
+  ['null-fields', "for (let i = 0; i < 2; i++) console.log(JSON.stringify({ proto: 'poc.progress@2', event: 'log', ts: new Date().toISOString(), message: 'ordinary output', queueAgeMs: null, inFlight: null }));"],
+  ['start-only', "console.log(JSON.stringify({ proto: 'poc.progress@2', event: 'task:start', ts: new Date().toISOString(), taskId: 'one', stage: 'parse', current: 0, total: 1, inFlight: 1, meta: { queueAgeMs: 10 } }));"]
+]) {
+  const caseLog = path.join(tempRoot, `run-${name}-all.log`), messages = [];
+  const childRunner = createProcessRunner({ appendLog: message => messages.push(message), writeLog: () => {},
+    writeLogSync: () => {}, logHistory: [], logPath: caseLog, getLogPaths: () => [caseLog], onProgressEvent: () => {} });
+  const child = await childRunner.runProcess(name, process.execPath, ['-e', source], { continueOnError: true, timeoutMs: 3000 });
+  assert.equal(child.ok, true);
+  assert.equal(child.progressConfidence.heartbeat.count, name === 'start-only' ? 1 : 0, 'control must exercise the declared protocol route');
+  assert.equal(child.progressConfidence.queueAge.count, name === 'start-only' ? 1 : 0);
+  assert.equal(child.progressConfidence.inFlight.count, name === 'start-only' ? 1 : 0);
+  assert.equal(child.progressConfidence.score, null, name);
+  assert.equal(child.progressConfidence.bucket, 'unknown', name);
+  assert.equal(child.progressConfidence.coverage.state, 'insufficient', name);
+  assert.deepEqual(child.progressConfidence.coverage.eligibleComponents, [], name);
+  assert.equal(messages.some(message => /confidence high 100/u.test(message)), false);
+  const rows = (await fsPromises.readFile(caseLog.replace(/\.log$/u, '.progress-confidence.jsonl'), 'utf8')).trim().split(/\r?\n/u).map(JSON.parse);
+  assert.ok(rows.length >= 1);
+  assert.ok(rows.every(row => row.score === null && row.bucket === 'unknown'), name);
+}
 
 await fsPromises.rm(tempRoot, { recursive: true, force: true });
 
