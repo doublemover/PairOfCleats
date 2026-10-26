@@ -5,9 +5,11 @@ import { readJsonFileSyncSafe } from '../../../src/shared/file-read.js';
 import { resolveExtractionQuality } from '../../../src/shared/extraction-quality.js';
 import { buildExtractionQualityRecord } from '../../../src/index/build/artifacts/reporting.js';
 
-export const SCAN_PROFILE_SCHEMA_VERSION = 1;
+import { SCAN_PROFILE_SCHEMA_VERSION, SCAN_PROFILE_MODES } from '../../../src/contracts/scan-profile.js';
+import { observedScanNumber, observedScanCount, observedScanRate, summarizeScanObservations } from './scan-observations.js';
+export { SCAN_PROFILE_SCHEMA_VERSION } from '../../../src/contracts/scan-profile.js';
 
-const MODE_KEYS = ['code', 'prose', 'extracted-prose', 'records'];
+const MODE_KEYS = SCAN_PROFILE_MODES;
 const INDEX_METRICS_KEY_BY_MODE = {
   code: 'code',
   prose: 'prose',
@@ -21,16 +23,8 @@ const ARTIFACT_BYTES_KEY_BY_MODE = {
   records: 'indexRecords'
 };
 
-const toFiniteOrNull = (value) => {
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : null;
-};
-
-const toNonNegativeIntOrNull = (value) => {
-  const numeric = Number(value);
-  if (!Number.isFinite(numeric) || numeric < 0) return null;
-  return Math.trunc(numeric);
-};
+const toFiniteOrNull = observedScanNumber;
+const toNonNegativeIntOrNull = observedScanCount;
 
 const toNonNegativeCountMap = (value) => {
   if (!value || typeof value !== 'object') return {};
@@ -54,12 +48,7 @@ const toLanguageLines = (value) => {
   return result;
 };
 
-const computeRate = (count, elapsedMs) => {
-  const total = Number(count);
-  const elapsed = Number(elapsedMs);
-  if (!Number.isFinite(total) || !Number.isFinite(elapsed) || elapsed <= 0) return null;
-  return total / (elapsed / 1000);
-};
+const computeRate = observedScanRate;
 
 const readExtractionQuality = (metrics) => {
   const indexDir = metrics?.indexDir;
@@ -141,8 +130,8 @@ const buildModeScanProfile = ({
   const featureMode = featureMetrics?.modes?.[modeKey] || null;
   const featureTotals = featureMode?.totals || null;
   const languageLines = toLanguageLines(featureMode?.languages || null);
-  const totalMs = toFiniteOrNull(throughput?.totalMs ?? metrics?.timings?.totalMs);
-  const writeMs = toFiniteOrNull(throughput?.writeMs ?? metrics?.timings?.writeMs);
+  const totalMs = toFiniteOrNull(throughput?.totalMs) ?? toFiniteOrNull(metrics?.timings?.totalMs);
+  const writeMs = toFiniteOrNull(throughput?.writeMs) ?? toFiniteOrNull(metrics?.timings?.writeMs);
   const linesTotal = toNonNegativeIntOrNull(featureTotals?.lines);
   const filesScanned = toNonNegativeIntOrNull(metrics?.files?.scanned);
   const filesSkipped = toNonNegativeIntOrNull(metrics?.files?.skipped);
@@ -151,13 +140,14 @@ const buildModeScanProfile = ({
   const tokensTotal = toNonNegativeIntOrNull(metrics?.tokens?.total);
   const artifactTotalBytes = toNonNegativeIntOrNull(artifactBytes);
 
+  const cacheHitRate = toFiniteOrNull(metrics?.cache?.hitRate);
   return {
     ...empty,
     indexDir: typeof metrics?.indexDir === 'string' ? metrics.indexDir : null,
     cache: {
       hits: toNonNegativeIntOrNull(metrics?.cache?.hits),
       misses: toNonNegativeIntOrNull(metrics?.cache?.misses),
-      hitRate: toFiniteOrNull(metrics?.cache?.hitRate)
+      hitRate: cacheHitRate !== null && cacheHitRate <= 1 ? cacheHitRate : null
     },
     files: {
       candidates: filesCandidates,
@@ -190,12 +180,12 @@ const buildModeScanProfile = ({
     throughput: {
       totalMs,
       writeMs,
-      filesPerSec: toFiniteOrNull(throughput?.filesPerSec) ?? computeRate(filesCandidates, totalMs),
-      chunksPerSec: toFiniteOrNull(throughput?.chunksPerSec) ?? computeRate(chunksTotal, totalMs),
-      tokensPerSec: toFiniteOrNull(throughput?.tokensPerSec) ?? computeRate(tokensTotal, totalMs),
-      bytesPerSec: toFiniteOrNull(throughput?.bytesPerSec) ?? computeRate(artifactTotalBytes, totalMs),
+      filesPerSec: computeRate(filesCandidates, totalMs),
+      chunksPerSec: computeRate(chunksTotal, totalMs),
+      tokensPerSec: computeRate(tokensTotal, totalMs),
+      bytesPerSec: computeRate(artifactTotalBytes, totalMs),
       linesPerSec: computeRate(linesTotal, totalMs),
-      writeBytesPerSec: toFiniteOrNull(throughput?.writeBytesPerSec) ?? computeRate(artifactTotalBytes, writeMs)
+      writeBytesPerSec: computeRate(artifactTotalBytes, writeMs)
     },
     queues: {
       postings: metrics?.queues?.postings || null
@@ -216,73 +206,31 @@ export const buildScanProfile = ({
   const repo = artifactReport?.repo || {};
   const modes = {};
   const languageLines = {};
-  const totals = {
-    files: {
-      candidates: 0,
-      scanned: 0,
-      skipped: 0
-    },
-    chunks: 0,
-    tokens: 0,
-    lines: 0,
-    bytes: {
-      source: 0,
-      artifact: 0
-    },
-    durationMs: 0,
-    filesPerSec: null,
-    chunksPerSec: null,
-    tokensPerSec: null,
-    bytesPerSec: null,
-    linesPerSec: null
-  };
   let reuseSummary = null;
-  let observedLines = false;
-  let observedDuration = false;
-  let observedSourceBytes = false;
+  const requiredModes = [];
 
   for (const modeKey of MODE_KEYS) {
     const artifactBytesKey = ARTIFACT_BYTES_KEY_BY_MODE[modeKey];
+    const selected = artifactReport?.health?.modes?.[modeKey]?.selected;
+    const explicitlyUnselected = selected === false;
     const modeProfile = buildModeScanProfile({
       modeKey,
-      indexMetrics,
-      featureMetrics,
-      throughput: throughput?.[INDEX_METRICS_KEY_BY_MODE[modeKey]] || null,
-      artifactBytes: repo?.artifacts?.[artifactBytesKey]
+      indexMetrics: explicitlyUnselected ? null : indexMetrics,
+      featureMetrics: explicitlyUnselected ? null : featureMetrics,
+      throughput: explicitlyUnselected ? null : throughput?.[INDEX_METRICS_KEY_BY_MODE[modeKey]] || null,
+      artifactBytes: explicitlyUnselected ? null : repo?.artifacts?.[artifactBytesKey]
     });
     setOwn(modes,modeKey,modeProfile);
     reuseSummary = mergeReuseSummaries(reuseSummary, modeProfile.reuse);
-    if (Number.isFinite(modeProfile.files.candidates)) totals.files.candidates += modeProfile.files.candidates;
-    if (Number.isFinite(modeProfile.files.scanned)) totals.files.scanned += modeProfile.files.scanned;
-    if (Number.isFinite(modeProfile.files.skipped)) totals.files.skipped += modeProfile.files.skipped;
-    if (Number.isFinite(modeProfile.chunks.total)) totals.chunks += modeProfile.chunks.total;
-    if (Number.isFinite(modeProfile.tokens.total)) totals.tokens += modeProfile.tokens.total;
-    if (Number.isFinite(modeProfile.lines.total)) {
-      totals.lines += modeProfile.lines.total;
-      observedLines = true;
-    }
-    if (Number.isFinite(modeProfile.bytes.source)) {
-      totals.bytes.source += modeProfile.bytes.source;
-      observedSourceBytes = true;
-    }
-    if (Number.isFinite(modeProfile.bytes.artifact)) totals.bytes.artifact += modeProfile.bytes.artifact;
-    if (Number.isFinite(modeProfile.throughput.totalMs)) {
-      totals.durationMs += modeProfile.throughput.totalMs;
-      observedDuration = true;
-    }
+    const metricsKey = INDEX_METRICS_KEY_BY_MODE[modeKey];
+    if (!explicitlyUnselected && (selected === true || typeof repo.indexDirs?.[modeKey] === 'string' || indexMetrics?.[metricsKey] != null
+      || featureMetrics?.modes?.[modeKey] != null || throughput?.[metricsKey] != null || repo.artifacts?.[artifactBytesKey] != null)) requiredModes.push(modeKey);
     for (const [language, lines] of Object.entries(modeProfile.lines.byLanguage || {})) {
       setOwn(languageLines,language,(getOwn(languageLines,language) || 0) + lines);
     }
   }
 
-  totals.lines = observedLines ? totals.lines : null;
-  totals.bytes.source = observedSourceBytes ? totals.bytes.source : null;
-  totals.durationMs = observedDuration ? totals.durationMs : null;
-  totals.filesPerSec = computeRate(totals.files.candidates, totals.durationMs);
-  totals.chunksPerSec = computeRate(totals.chunks, totals.durationMs);
-  totals.tokensPerSec = computeRate(totals.tokens, totals.durationMs);
-  totals.bytesPerSec = computeRate(totals.bytes.artifact, totals.durationMs);
-  totals.linesPerSec = computeRate(totals.lines, totals.durationMs);
+  const { totals, coverage } = summarizeScanObservations(modes, requiredModes);
 
   return {
     schemaVersion: SCAN_PROFILE_SCHEMA_VERSION,
@@ -294,6 +242,7 @@ export const buildScanProfile = ({
     },
     modes,
     totals,
+    coverage,
     languageLines,
     reuse: reuseSummary
   };

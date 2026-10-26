@@ -1,3 +1,4 @@
+import { SCAN_PROFILE_SCHEMA_VERSION, SCAN_PROFILE_COVERAGE_VERSION, SCAN_PROFILE_MODES, SCAN_PROFILE_COUNTER_KEYS, SCAN_PROFILE_RATE_KEYS } from '../../scan-profile.js';
 import { PDF_PAGE_COVERAGE_SCHEMA } from '../document-extraction.js';
 
 const intId = { type: 'integer', minimum: 0 };
@@ -816,6 +817,34 @@ const scanProfileModeSchema = {
   additionalProperties: false
 };
 
+const scanModeList = { type: 'array', uniqueItems: true, maxItems: 4, items: modeName };
+const scanCoverageState = { enum: ['complete', 'partial', 'unknown'] };
+const scanCounterCoverage = {
+  type: 'object', required: ['state', 'observedModes', 'missingModes', 'observedTotal'],
+  properties: { state: scanCoverageState, observedModes: scanModeList, missingModes: scanModeList, observedTotal: nullableNumber },
+  additionalProperties: false
+};
+const scanRateCoverage = {
+  type: 'object', required: ['state', 'includedModes', 'excludedModes', 'numerator', 'durationMs', 'measuredSubsetPerSec'],
+  properties: { state: scanCoverageState, includedModes: scanModeList, excludedModes: scanModeList,
+    numerator: nullableInt, durationMs: nullableNumber, measuredSubsetPerSec: nullableNumber }, additionalProperties: false
+};
+const scanProfileCoverage = {
+  type: 'object', required: ['version', 'scope', 'durationScope', 'requiredModes', 'counters', 'rates'],
+  properties: { version: { const: SCAN_PROFILE_COVERAGE_VERSION }, scope: { const: 'sum-of-mode-work' },
+    durationScope: { const: 'sum-of-mode-total-ms' }, requiredModes: scanModeList,
+    counters: { type: 'object', required: SCAN_PROFILE_COUNTER_KEYS,
+      properties: Object.fromEntries(SCAN_PROFILE_COUNTER_KEYS.map(key => [key, scanCounterCoverage])), additionalProperties: false },
+    rates: { type: 'object', required: SCAN_PROFILE_RATE_KEYS,
+      properties: Object.fromEntries(SCAN_PROFILE_RATE_KEYS.map(key => [key, scanRateCoverage])), additionalProperties: false }
+  }, additionalProperties: false
+};
+const scanProfileModeSchemaV2 = { ...scanProfileModeSchema, properties: { ...scanProfileModeSchema.properties,
+  timings: { anyOf: [{ type: 'null' }, { type: 'object', additionalProperties: {
+    anyOf: [...scanProfileModeSchema.properties.timings.anyOf[1].additionalProperties.anyOf, { type: 'null' }]
+  } }] }
+} };
+
 const scanProfileSchema = {
   type: 'object',
   required: [
@@ -829,7 +858,7 @@ const scanProfileSchema = {
     'reuse'
   ],
   properties: {
-    schemaVersion: posInt,
+    schemaVersion: { type: 'integer', enum: [1, SCAN_PROFILE_SCHEMA_VERSION] },
     generatedAt: { type: 'string' },
     source: { type: 'string', const: 'report-artifacts' },
     repo: {
@@ -841,14 +870,15 @@ const scanProfileSchema = {
       },
       additionalProperties: false
     },
+    coverage: scanProfileCoverage,
     modes: {
       type: 'object',
       required: ['code', 'prose', 'extracted-prose', 'records'],
       properties: {
-        code: scanProfileModeSchema,
-        prose: scanProfileModeSchema,
-        'extracted-prose': scanProfileModeSchema,
-        records: scanProfileModeSchema
+        code: scanProfileModeSchemaV2,
+        prose: scanProfileModeSchemaV2,
+        'extracted-prose': scanProfileModeSchemaV2,
+        records: scanProfileModeSchemaV2
       },
       additionalProperties: false
     },
@@ -872,21 +902,21 @@ const scanProfileSchema = {
           type: 'object',
           required: ['candidates', 'scanned', 'skipped'],
           properties: {
-            candidates: intId,
-            scanned: intId,
-            skipped: intId
+            candidates: nullableInt,
+            scanned: nullableInt,
+            skipped: nullableInt
           },
           additionalProperties: false
         },
-        chunks: intId,
-        tokens: intId,
+        chunks: nullableInt,
+        tokens: nullableInt,
         lines: nullableInt,
         bytes: {
           type: 'object',
           required: ['source', 'artifact'],
           properties: {
             source: nullableInt,
-            artifact: intId
+            artifact: nullableInt
           },
           additionalProperties: false
         },
@@ -902,6 +932,17 @@ const scanProfileSchema = {
     languageLines: scanProfileLanguageLines,
     reuse: reuseSummarySchema
   },
+  allOf: [{
+    if: { properties: { schemaVersion: { const: 1 } } },
+    then: { properties: {
+      modes: { properties: Object.fromEntries(SCAN_PROFILE_MODES.map(mode => [mode, scanProfileModeSchema])) },
+      totals: { properties: {
+        files: { properties: { candidates: intId, scanned: intId, skipped: intId } },
+        chunks: intId, tokens: intId, bytes: { properties: { artifact: intId } }
+      } }
+    } },
+    else: { required: ['coverage'] }
+  }],
   additionalProperties: false
 };
 

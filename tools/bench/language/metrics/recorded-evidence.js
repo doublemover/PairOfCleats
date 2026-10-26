@@ -1,3 +1,4 @@
+import { isSupportedScanProfileVersion } from '../../../../src/contracts/scan-profile.js';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { TextDecoder } from 'node:util';
@@ -5,7 +6,7 @@ import { readVerifiedContainedFileSync } from '../../../../src/shared/contained-
 import { observeStorageResource } from '../../../../src/shared/storage/failure-observation.js';
 import { stableStringifyForSignature } from '../../../../src/shared/stable-json.js';
 
-export const BENCH_MEASUREMENT_DERIVATION_VERSION = 1;
+export const BENCH_MEASUREMENT_DERIVATION_VERSION = 2;
 export const BENCH_MEASUREMENT_SNAPSHOT_VERSION = 1;
 const MODES = ['code', 'prose', 'extracted-prose', 'records'];
 const object = value => value && typeof value === 'object' && !Array.isArray(value);
@@ -49,7 +50,7 @@ const readSnapshot = (reference, sourceRoot, attemptId) => {
 
 export const resolveRecordedMeasurementInputs = ({ payload, sourceRoot = null } = {}) => {
   const scanProfile = payload?.artifacts?.scanProfile;
-  const embeddedModes = scanProfile?.schemaVersion === 1 && object(scanProfile.modes) ? scanProfile.modes : null;
+  const embeddedModes = isSupportedScanProfileVersion(scanProfile?.schemaVersion) && object(scanProfile.modes) ? scanProfile.modes : null;
   const attemptId = typeof payload?.run?.attemptId === 'string' ? payload.run.attemptId : null;
   const snapshot = readSnapshot(payload?.artifacts?.measurementSnapshot, sourceRoot, attemptId);
   const metricsByMode = {}, modeSources = {};

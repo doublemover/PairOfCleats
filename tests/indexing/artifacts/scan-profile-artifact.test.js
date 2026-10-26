@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { validateArtifact } from '../../../src/contracts/artifact-schemas.js';
+import { SCAN_PROFILE_SCHEMA_VERSION } from '../../../src/contracts/scan-profile.js';
 import { buildScanProfile } from '../../../tools/index/report-artifacts/scan-profile.js';
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-scan-profile-artifact-'));
@@ -297,7 +298,7 @@ try {
 
   const validation = validateArtifact('scan_profile', payload);
   assert.equal(validation.ok, true, `scan_profile invalid: ${(validation.errors || []).join('; ')}`);
-  assert.equal(payload.schemaVersion, 1);
+  assert.equal(payload.schemaVersion, SCAN_PROFILE_SCHEMA_VERSION);
   assert.equal(payload.modes.code.lines.total, 42);
   assert.equal(payload.modes.code.lines.byLanguage.python, 40);
   assert.equal(payload.modes.code.reuse?.countsByCause?.cache_miss, 1);

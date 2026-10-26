@@ -1,5 +1,5 @@
 {
-  "schemaHash": "639c8ec955914bd46ba44c145f9653fb030d0488",
+  "schemaHash": "0596fda92c9bda261ab74823efa4fa98fd82c12e",
   "artifacts": [
     {
       "artifact": "api_contracts",
@@ -852,6 +852,7 @@
         "version"
       ],
       "optionalFields": [
+        "extractionCoverage",
         "upstreamCoverage"
       ]
     },
@@ -888,6 +889,7 @@
         "stats"
       ],
       "optionalFields": [
+        "extractionCoverage",
         "importScanMode",
         "toolVersion",
         "warnings"
@@ -1159,6 +1161,10 @@
     {
       "artifact": "scan_profile",
       "schemaVersion": {
+        "enum": [
+          1,
+          2
+        ],
         "type": "integer"
       },
       "requiredFields": [
@@ -1171,7 +1177,9 @@
         "source",
         "totals"
       ],
-      "optionalFields": []
+      "optionalFields": [
+        "coverage"
+      ]
     },
     {
       "artifact": "semantic_coverage",

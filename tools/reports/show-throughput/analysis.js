@@ -294,7 +294,8 @@ export const resolveIndexingSummary = ({ payload, featureMetrics, preferExisting
       provenance: derived || previous ? { section: 'indexing', source: previous?.source || 'fallback-indexing-derived',
         category: previous?.category || 'fallback', derivation: derived } : createProvenance('indexing', 'native-indexing-summary', 'native') };
   };
-  if (isValidIndexingSummary(existing) && (preferExisting || existingResult().provenance.source === 'native-indexing-summary')) return existingResult();
+  if (isValidIndexingSummary(existing) && (existingResult().provenance.source === 'native-indexing-summary'
+    || preferExisting && existing?.derivation?.derivationVersion === BENCH_MEASUREMENT_DERIVATION_VERSION)) return existingResult();
   const evidence = measurementEvidence || resolveRecordedMeasurementInputs({ payload });
   const metrics = featureMetrics || evidence.featureMetrics;
   const derivedResult = (indexingSummary, source, category) => {

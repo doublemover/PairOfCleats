@@ -12,6 +12,7 @@ import { loadJsonArrayArtifactRows } from '../../src/shared/artifact-io/loaders.
 import { readJsonFileSyncSafe } from '../../src/shared/file-read.js';
 import { getMetricsDir, resolveRepoConfig } from '../shared/dict-utils.js';
 import { buildScanProfile } from './report-artifacts/scan-profile.js';
+import { buildObservedThroughput } from './report-artifacts/scan-observations.js';
 import {
   buildIndexingSummaryFromFeatureMetrics,
   buildIndexingSummaryFromThroughput,
@@ -71,7 +72,7 @@ const indexMetrics = {
 };
 for (const [key, mode] of Object.entries({ code: 'code', prose: 'prose', extractedProse: 'extracted-prose', records: 'records' })) {
   const selected = status.repo?.indexDirs?.[mode];
-  if (!selected || typeof indexMetrics[key]?.indexDir !== 'string'
+  if (status.health?.modes?.[mode]?.selected === false || !selected || typeof indexMetrics[key]?.indexDir !== 'string'
     || path.resolve(indexMetrics[key].indexDir) !== path.resolve(selected)) indexMetrics[key] = null;
 }
 const lmdbMetrics = {
@@ -79,7 +80,7 @@ const lmdbMetrics = {
   prose: readJson(path.join(metricsDir, 'lmdb-prose.json'))
 };
 for (const mode of ['code', 'prose']) {
-  if (!status.repo?.indexDirs?.[mode] || typeof lmdbMetrics[mode]?.indexDir !== 'string'
+  if (status.health?.modes?.[mode]?.selected === false || !status.repo?.indexDirs?.[mode] || typeof lmdbMetrics[mode]?.indexDir !== 'string'
     || path.resolve(lmdbMetrics[mode].indexDir) !== path.resolve(status.repo.indexDirs[mode])) lmdbMetrics[mode] = null;
 }
 let featureMetrics = readJson(path.join(metricsDir, 'feature-metrics-run.json'))
@@ -222,36 +223,7 @@ const buildAnalysis = async ({ artifactReport, indexingSummary }) => {
   };
 };
 
-const computeRate = (count, ms) => {
-  const total = Number(count);
-  const elapsed = Number(ms);
-  if (!Number.isFinite(total) || !Number.isFinite(elapsed) || elapsed <= 0) return null;
-  return total / (elapsed / 1000);
-};
-
-const buildThroughput = (mode, metrics, bytes) => {
-  if (!metrics) return null;
-  const totalMs = Number(metrics?.timings?.totalMs);
-  const writeMs = Number(metrics?.timings?.writeMs);
-  const files = Number(metrics?.files?.candidates);
-  const chunks = Number(metrics?.chunks?.total);
-  const tokens = Number(metrics?.tokens?.total);
-  const payload = {
-    mode,
-    totalMs: Number.isFinite(totalMs) ? totalMs : null,
-    writeMs: Number.isFinite(writeMs) ? writeMs : null,
-    files: Number.isFinite(files) ? files : null,
-    chunks: Number.isFinite(chunks) ? chunks : null,
-    tokens: Number.isFinite(tokens) ? tokens : null,
-    bytes: Number.isFinite(Number(bytes)) ? Number(bytes) : null
-  };
-  payload.filesPerSec = computeRate(payload.files, payload.totalMs);
-  payload.chunksPerSec = computeRate(payload.chunks, payload.totalMs);
-  payload.tokensPerSec = computeRate(payload.tokens, payload.totalMs);
-  payload.bytesPerSec = computeRate(payload.bytes, payload.totalMs);
-  payload.writeBytesPerSec = computeRate(payload.bytes, payload.writeMs);
-  return payload;
-};
+const buildThroughput = buildObservedThroughput;
 
 const throughput = {
   code: buildThroughput('code', indexMetrics.code, status.repo?.artifacts?.indexCode),

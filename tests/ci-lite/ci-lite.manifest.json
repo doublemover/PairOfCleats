@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1089,
+    "hero": 1090,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -7495,6 +7495,12 @@
     {
       "id": "shared/subprocess/sync-capture-receipt",
       "order": 1247,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/artifacts/scan-profile-observation-scope",
+      "order": 1248,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
