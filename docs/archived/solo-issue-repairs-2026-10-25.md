@@ -1943,3 +1943,43 @@ check was corrected before commit. The generated ci-lite manifest has 1,239
 entries. Functional checks remain deferred. Current coverage: **35 fixed / 421
 implemented / 152 partial / 158 pending**, across 766 current open reports. No
 issue was closed and no closing reference was added from unrun evidence.
+
+## Bounded canary attempt ownership and reports (2026-10-26)
+
+**#1665** (`1580cdf87`) makes one attempt scope own setup, effective environment,
+shared child execution, payload admission, contract evaluation and cleanup. It
+removes unbounded callback arrays and uses the shared 256 KiB-per-stream capture
+and observed/retained/dropped/encoding receipts. A separately verified complete
+artifact remains authoritative when diagnostics truncate; stdout fallback requires
+complete capture. The existing contained reader admits at most 8 MiB before
+allocation and across reading, with complete UTF-8 JSON and an explicit metrics
+envelope. Typed read/parse/schema/process failures remain failed outcomes.
+
+Original child/read release observers survive reporting. Cleanup checks the
+original native directory identity and shared removal owner, retaining paths and
+termination receipts for pending close, failed tree cleanup, failed reads, changed
+roots or unconfirmed removal. Internal recovery is coalesced/idempotent and cannot
+be reconstructed from serialized diagnostics. There is no timer-based or
+post-restart deletion authority and no new supervisor or public configuration.
+
+Malformed individual results continue the lane; cancellation/pending ownership
+stops admission and records every selected-unrun entry and reason. The summary
+retains bounded diagnostics, failure phases, result receipts and explicit coverage
+counts. Failures without issue IDs no longer make the lane pass. Forbidden
+regressions cannot remain baseline-success outcomes. Graceful interruption reaches
+finalization and the existing atomic JSON/Markdown publication owners, with JSON
+the authoritative checkpoint. Abrupt host termination is outside that guarantee.
+
+The new curated fixture uses tiny real Node children for large/split-multibyte
+output, valid artifact/stdout, malformed/oversized/unreadable/schema/encoding and
+missing results, nonzero exit and normal timeout. Controlled original observers
+cover unknown close, delayed release, concurrent cleanup, unrelated/replaced
+directories, cancellation and lane accounting without real orphans or elevation.
+The prior child-context fixture's payload envelope was corrected by source review.
+
+Full format/ESLint, syntax on seven changed JavaScript files, affected generated
+refresh/freshness, fixture discovery/ordered selection and diff checks passed.
+ci-lite now contains 1,240 entries. These functional fixtures and final gate remain
+deferred. Current coverage: **35 fixed / 422 implemented / 152 partial / 157
+pending** across 766 current open reports. No issue closure or new closing
+reference was inferred from unrun fixtures.

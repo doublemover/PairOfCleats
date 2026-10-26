@@ -34,6 +34,8 @@ lane; execution remains deferred.
 publication, retaining explicit Stage2 file-copy scope and post-commit errors.
 #1651 now binds canary probes to the actual immutable child launch context;
 private environment values remain outside reports and cross-invocation caches.
+#1665 now bounds canary diagnostics/results, retains unsettled attempt paths and
+atomically reports failed/interrupted lanes with every selected entry accounted.
 #1675 now uses one global query resource plan and retirement-aware pools; whole
 process-tree RSS measurement remains open, with known-worker samples labeled.
 
