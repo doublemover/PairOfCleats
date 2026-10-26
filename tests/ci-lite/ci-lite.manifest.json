@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1090,
+    "hero": 1091,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -7501,6 +7501,12 @@
     {
       "id": "indexing/artifacts/scan-profile-observation-scope",
       "order": 1248,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/bench-language-diagnostic-occurrence-replay",
+      "order": 1249,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

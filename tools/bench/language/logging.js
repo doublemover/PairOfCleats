@@ -8,7 +8,7 @@ import {
   resolveScmFallbackCause
 } from '../../../src/shared/reuse-diagnostics.js';
 
-export const BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION = 2;
+export { BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION } from './diagnostic-contract.js';
 export const BENCH_DIAGNOSTIC_EVENT_TYPES = Object.freeze([
   'parser_crash',
   'scm_timeout',

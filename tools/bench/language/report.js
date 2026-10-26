@@ -1,3 +1,4 @@
+import { createDiagnosticReplay, observedDiagnosticCost } from './diagnostic-replay.js';
 import { resolveRecordedMeasurementInputs, canReuseRecordedLedger } from './metrics/recorded-evidence.js';
 import fsPromises from 'node:fs/promises';
 import { createReportStreamContext, discoverReportStreams } from './report-streams.js';
@@ -235,6 +236,12 @@ const parseDiagnosticEventLine = (line) => {
   return {
     eventType,
     eventId,
+    schemaVersion: Number.isSafeInteger(parsed.schemaVersion) ? parsed.schemaVersion : null,
+    costSemantics: typeof parsed.costSemantics === 'string' ? parsed.costSemantics : null,
+    executionId: typeof parsed.executionId === 'string' ? parsed.executionId : null,
+    occurrence: Number.isSafeInteger(parsed.occurrence) && parsed.occurrence > 0 ? parsed.occurrence : null,
+    ts: typeof parsed.ts === 'string' ? parsed.ts : null,
+    source: typeof parsed.source === 'string' ? parsed.source : null,
     signature,
     message,
     label,
@@ -269,21 +276,11 @@ const parseDiagnosticEventLine = (line) => {
     qualityImpact: typeof parsed.qualityImpact === 'string' && parsed.qualityImpact.trim()
       ? parsed.qualityImpact.trim()
       : null,
-    timeCostMs: Number.isFinite(Number(parsed.timeCostMs))
-      ? Math.max(0, Math.floor(Number(parsed.timeCostMs)))
-      : null,
-    requestedCount: Number.isFinite(Number(parsed.requestedCount))
-      ? Math.max(0, Math.floor(Number(parsed.requestedCount)))
-      : null,
-    reusedCount: Number.isFinite(Number(parsed.reusedCount))
-      ? Math.max(0, Math.floor(Number(parsed.reusedCount)))
-      : null,
-    fetchedCount: Number.isFinite(Number(parsed.fetchedCount))
-      ? Math.max(0, Math.floor(Number(parsed.fetchedCount)))
-      : null,
-    chunkCount: Number.isFinite(Number(parsed.chunkCount))
-      ? Math.max(0, Math.floor(Number(parsed.chunkCount)))
-      : null,
+    timeCostMs: observedDiagnosticCost(parsed.timeCostMs),
+    requestedCount: observedDiagnosticCost(parsed.requestedCount, { integer: true }),
+    reusedCount: observedDiagnosticCost(parsed.reusedCount, { integer: true }),
+    fetchedCount: observedDiagnosticCost(parsed.fetchedCount, { integer: true }),
+    chunkCount: observedDiagnosticCost(parsed.chunkCount, { integer: true }),
     timeoutKind: typeof parsed.timeoutKind === 'string' && parsed.timeoutKind.trim()
       ? parsed.timeoutKind.trim()
       : null,
@@ -381,18 +378,13 @@ const buildDiagnosticsStreamSummary = async (context) => {
   const countsByReuseSurface = new Map();
   const countsByReuseSource = new Map();
   const countsByQualityImpact = new Map();
-  const uniqueEventIds = new Set();
-  const repoEventIds = new Set();
+  const replay = createDiagnosticReplay();
+  const unknownRepoTypePresence = new Set();
   const repoTypePresence = new Set();
   const knownTypes = new Set(BENCH_DIAGNOSTIC_EVENT_TYPES);
   const perFile = [];
   let rawEventCount = 0;
   let malformedLines = 0;
-  let totalTimeCostMs = 0;
-  let totalRequestedCount = 0;
-  let totalReusedCount = 0;
-  let totalFetchedCount = 0;
-  let totalChunkCount = 0;
 
   for (const filePath of orderedFiles) {
     const fileCounts = new Map();
@@ -409,12 +401,11 @@ const buildDiagnosticsStreamSummary = async (context) => {
       fileEventCount += 1;
       const scope = parsed.label || resolveBenchStreamScope(filePath);
       const masterFile = isMasterBenchStreamFile(filePath);
-      const eventKey = buildSyntheticEventKey([masterFile ? 'master' : scope, parsed.eventId]);
-      if (masterFile && repoEventIds.has(parsed.eventId)) return;
-      if (uniqueEventIds.has(eventKey)) return;
-      uniqueEventIds.add(eventKey);
-      if (!masterFile) repoEventIds.add(parsed.eventId);
-      repoTypePresence.add(buildSyntheticEventKey([scope, parsed.eventType]));
+      const observation = replay.observe(parsed, { scope, filePath, masterFile });
+      if (!observation.newPresence) return;
+      const repoPresence = buildSyntheticEventKey([observation.repositoryScope, parsed.eventType]);
+      repoTypePresence.add(repoPresence);
+      if (!observation.repositoryKnown) unknownRepoTypePresence.add(repoPresence);
       countsByType.set(parsed.eventType, (countsByType.get(parsed.eventType) || 0) + 1);
       countsBySeverity.set(parsed.severity, (countsBySeverity.get(parsed.severity) || 0) + 1);
       if (parsed.failureClass) {
@@ -429,11 +420,6 @@ const buildDiagnosticsStreamSummary = async (context) => {
       if (parsed.qualityImpact) {
         countsByQualityImpact.set(parsed.qualityImpact, (countsByQualityImpact.get(parsed.qualityImpact) || 0) + 1);
       }
-      totalTimeCostMs += Number(parsed.timeCostMs) || 0;
-      totalRequestedCount += Number(parsed.requestedCount) || 0;
-      totalReusedCount += Number(parsed.reusedCount) || 0;
-      totalFetchedCount += Number(parsed.fetchedCount) || 0;
-      totalChunkCount += Number(parsed.chunkCount) || 0;
       fileCounts.set(parsed.eventType, (fileCounts.get(parsed.eventType) || 0) + 1);
       fileSeverityCounts.set(parsed.severity, (fileSeverityCounts.get(parsed.severity) || 0) + 1);
     });
@@ -465,17 +451,26 @@ const buildDiagnosticsStreamSummary = async (context) => {
     unknownTypeCount += count;
   }
 
+  const replaySummary = replay.summary();
+  const unknownRepoCountsByType = new Map();
+  for (const key of unknownRepoTypePresence) {
+    const [, type] = JSON.parse(key);
+    unknownRepoCountsByType.set(type, (unknownRepoCountsByType.get(type) || 0) + 1);
+  }
   return {
+    ...replaySummary,
     schemaVersion: BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION,
     fileCount: files.length,
     files: perFile,
-    eventCount: uniqueEventIds.size,
+    eventCount: replaySummary.presenceCount,
     rawEventCount,
-    duplicateEventCount: Math.max(0, rawEventCount - uniqueEventIds.size),
-    uniqueEventCount: uniqueEventIds.size,
+    uniqueEventCount: replaySummary.presenceCount,
     countScopes: {
       countsByType: 'event_presence',
-      repoCountsByType: 'repo_presence'
+      repoCountsByType: 'repo_presence',
+      occurrenceCount: 'execution-qualified-or-explicit-legacy-observations',
+      duplicateEventCount: 'transport-copies',
+      cost: 'observed-occurrence-deltas'
     },
     countsByType: Object.fromEntries(
       Array.from(countsByType.entries()).sort(([left], [right]) => left.localeCompare(right))
@@ -483,6 +478,7 @@ const buildDiagnosticsStreamSummary = async (context) => {
     repoCountsByType: Object.fromEntries(
       Array.from(repoCountsByType.entries()).sort(([left], [right]) => left.localeCompare(right))
     ),
+    unknownRepoCountsByType: sortMapObject(unknownRepoCountsByType),
     countsBySeverity: Object.fromEntries(
       BENCH_DIAGNOSTIC_SEVERITY_LEVELS.map((severity) => [severity, countsBySeverity.get(severity) || 0])
     ),
@@ -490,13 +486,6 @@ const buildDiagnosticsStreamSummary = async (context) => {
     countsByReuseSurface: sortMapObject(countsByReuseSurface),
     countsByReuseSource: sortMapObject(countsByReuseSource),
     countsByQualityImpact: sortMapObject(countsByQualityImpact),
-    cost: {
-      timeCostMs: totalTimeCostMs,
-      requestedCount: totalRequestedCount,
-      reusedCount: totalReusedCount,
-      fetchedCount: totalFetchedCount,
-      chunkCount: totalChunkCount
-    },
     required,
     unknownTypeCount,
     malformedLines
@@ -700,7 +689,7 @@ const buildReportStreamSummaries = async (tasks, resultsRoot, options) => {
   const observations = taskReuse ? [] : files.flatMap(file => observationsByFile.get(file) || []);
   const streamRead = context.summary();
   const diagnosticsParity = parity.finalize();
-  if (streamRead.incomplete) {
+  if (streamRead.incomplete || diagnosticsStream.incomplete) {
     diagnosticsParity.inputIncomplete = true;
     diagnosticsParity.status = 'error';
   }

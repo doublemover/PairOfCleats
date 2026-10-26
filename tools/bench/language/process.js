@@ -1,3 +1,5 @@
+import { randomUUID } from 'node:crypto';
+import { observedDiagnosticCost } from './diagnostic-replay.js';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
@@ -1358,6 +1360,7 @@ export const createProcessRunner = ({
     const schedulerEvents = [];
     const telemetryWriteQueues = new Map();
     const telemetryWriteFailures = new Map();
+    const diagnosticExecutionId = randomUUID();
     let diagnosticEventCount = 0;
     const diagnosticCountByType = new Map();
     const diagnosticCountBySeverity = new Map();
@@ -1413,6 +1416,8 @@ export const createProcessRunner = ({
 
     const buildDiagnosticsSummary = () => ({
       schemaVersion: BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION,
+      executionId: diagnosticExecutionId,
+      costScope: 'sum-observed-occurrence-deltas-not-wall-time',
       streamPaths: diagnosticStreams,
       eventCount: diagnosticEventCount,
       uniqueEventCount: diagnosticCountById.size,
@@ -1775,6 +1780,8 @@ export const createProcessRunner = ({
         ts: new Date().toISOString(),
         eventType,
         eventId,
+        executionId: diagnosticExecutionId,
+        costSemantics: 'occurrence-delta',
         occurrence,
         signature,
         label,
@@ -1795,11 +1802,11 @@ export const createProcessRunner = ({
         reuseSurface: toText(reuseSurface) || null,
         reuseSource: toText(reuseSource) || null,
         qualityImpact: toText(qualityImpact) || null,
-        timeCostMs: Number.isFinite(Number(timeCostMs)) ? Math.max(0, Math.floor(Number(timeCostMs))) : null,
-        requestedCount: Number.isFinite(Number(requestedCount)) ? Math.max(0, Math.floor(Number(requestedCount))) : null,
-        reusedCount: Number.isFinite(Number(reusedCount)) ? Math.max(0, Math.floor(Number(reusedCount))) : null,
-        fetchedCount: Number.isFinite(Number(fetchedCount)) ? Math.max(0, Math.floor(Number(fetchedCount))) : null,
-        chunkCount: Number.isFinite(Number(chunkCount)) ? Math.max(0, Math.floor(Number(chunkCount))) : null,
+        timeCostMs: observedDiagnosticCost(timeCostMs),
+        requestedCount: observedDiagnosticCost(requestedCount, { integer: true }),
+        reusedCount: observedDiagnosticCost(reusedCount, { integer: true }),
+        fetchedCount: observedDiagnosticCost(fetchedCount, { integer: true }),
+        chunkCount: observedDiagnosticCost(chunkCount, { integer: true }),
         timeoutKind: toText(timeoutKind) || null,
         phase: toText(phase) || null,
         resourceClass: toText(resourceClass) || null,

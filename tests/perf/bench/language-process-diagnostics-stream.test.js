@@ -158,6 +158,10 @@ assert.equal(artifactTailStallEvent?.phase, 'materialize:chunk-meta-binary-colum
 for (const entry of streamEvents) {
   assert.match(entry.eventId, /^ub050:v1:[a-z_]+:[a-f0-9]{12}$/);
   assert.equal(entry.schemaVersion, BENCH_DIAGNOSTIC_STREAM_SCHEMA_VERSION, 'expected schema version on stream entry');
+  assert.equal(entry.executionId, result.diagnostics.executionId, 'one invocation owns every occurrence receipt');
+  assert.match(entry.executionId, /^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/u);
+  assert.equal(entry.costSemantics, 'occurrence-delta');
+  assert.ok(Number.isSafeInteger(entry.occurrence) && entry.occurrence > 0);
 }
 
 const interactiveDiagnostics = captured

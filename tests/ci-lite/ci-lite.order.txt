@@ -1248,3 +1248,4 @@ perf/tooling/bench/ab-sweep-admission
 perf/tooling/bench/ab-sweep-artifact-owner
 shared/subprocess/sync-capture-receipt
 indexing/artifacts/scan-profile-observation-scope
+tooling/reports/bench-language-diagnostic-occurrence-replay
