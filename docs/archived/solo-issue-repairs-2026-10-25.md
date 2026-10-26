@@ -3681,3 +3681,43 @@ checks passed. Functional/front-gate/native/platform/performance execution remai
 deferred. Coverage is **35 fixed / 469 implemented / 138 partial / 128 pending**,
 all 770 reports retained; no issue closed or closing reference added. Bookkeeping
 reuses the checked JS tree. Contract: `docs/contracts/native-include-snapshot-work.md`.
+
+## 2026-10-26 — bounded SDK diagnostic admission
+
+`8ea6a591d` repairs #1615. SDK mode now separates explicitly read-only index_status
+and config_status from its single slow execution lane. Both retain the existing
+global queue capacity; positive capacities above one reserve admission headroom
+for each class. A diagnostic flood cannot monopolize slow admission. Capacity one
+uses one shared queue and cannot promise another slot. Explicit disabled bounds
+retain their existing meaning. All other SDK tools stay serial even with a short
+configured timeout; no mutating tool is promoted by deadline. Existing status
+handlers remain read-only configuration/artifact/durability/git-status readers;
+no generation read or unavailable-state contract is changed.
+
+A small shared lane classifier/admission owner replaces equivalent private legacy
+policy, retaining its existing status/short-timeout behavior and overload reasons.
+SDK framing, cancellation, observability and error/result envelopes remain on their
+owners. Running capacity survives cancellation/deadline until tool execution and
+owned cleanup settle. Shutdown waits for both queues before shared embedding
+teardown, including transport-close failures. An aborted queued PQueue admission
+remains counted until its actual turn/settlement; it never executes tool work.
+
+Internal detached snapshots expose per-class active/queued/admitted/rejected/
+settled/cancelled counts, reservation reasons and monotonic queue wait separate
+from combined execution/cleanup duration. At most 32 compact settlement records
+are retained, with bounded tool-name previews. These are internal observations,
+not new public knobs, response fields, successful-operation counts or a latency
+qualification. There are no retries or percent-progress claims.
+
+The authored real-SDK in-memory transport fixture holds slow work through cancel
+and delayed teardown, proves both statuses can complete first, checks slow and
+fast saturation/reciprocal headroom, queued cancellation without early lease
+release, capacity one, bounded diagnostics and shutdown waiting for both lanes.
+Existing real stdio/progress/descendant/transport-close and legacy fairness
+assertions remain. All functional assertions and mixed-load latency qualification
+remain unrun. Full format/ESLint, final affected ESLint, four JS syntax checks,
+affected generated refresh/freshness, fixture discovery and staged diff checks
+passed. Ordered ci-lite now contains 1,341 cases. Coverage is **35 fixed / 470
+implemented / 138 partial / 127 pending**, all 770 reports retained; no issue closed
+or closing reference added. Bookkeeping reuses the checked JS tree. Contract:
+`docs/api/mcp-server.md`.
