@@ -1318,3 +1318,6 @@ shared/artifact-io/jsonl-shard-failure-drain
 shared/concurrency/abort-reason-provenance
 shared/artifact-io/zstd-decoded-admission
 indexing/incremental/manifest-publication-capacity
+indexing/contracts/metadata-reserved-parameter-identities
+retrieval/graph/context-pack-streaming-artifact-failures
+retrieval/pipeline/count-aware-preflight-deadline
