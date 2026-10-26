@@ -3602,3 +3602,39 @@ fixture discovery and staged diff checks passed. Ordered ci-lite now contains
 deferred. Coverage is **35 fixed / 467 implemented / 138 partial / 130 pending**,
 all 770 reports retained, no issue closed or closing reference added. Bookkeeping
 reuses the checked JS tree. Contract: `docs/specs/artifact-io-pipeline.md`.
+
+## 2026-10-26 — one prepared HTML document for registry projections
+
+`9344d572e` repairs #1713 with a private branded source/profile-owned parse5
+handle. Canonical source-location/scripting/default-adapter/UTF-16 options are
+explicit; different bytes or internal profiles, forged and released handles cannot
+inherit a tree. The actual registry derives HTML chunks and metadata from one
+parse, retains Tree-sitter/embedded-parser roles and releases the full tree in
+finally. Parse failure is shared across projections with explicit fallback and
+invalid import evidence; cancellation and pending resource ownership propagate.
+
+Only compact metadata/import facts survive under a weak file-context owner.
+Exact-source/profile import and metadata consumers can reuse those facts through
+the existing internal context handoff, without retaining the AST. Returned arrays
+and occurrence coordinates are copied; exposed context mutation cannot rewrite
+private facts. Explicit context release invalidates reuse. Independent import
+attempts still prepare their own source, with no cross-file/path cache. Source
+SHA-256/length/UTF-8 bytes, parse calls, projection visits and final release state
+are diagnostic observations. Source-string byte accounting does not claim bounded
+parse-tree/heap/RSS overhead or a measured gain. Existing input admission remains;
+no new public knob or schema relaxation. Shared sourceChunking 32→33 and
+importResolution 19→20 fence replay across changed failure/admission behavior.
+
+The authored actual-registry fixture counts the real parse5 boundary, compares
+complete standalone chunks/metadata and independent title/import/template/embedded
+positives, and checks same-source reuse, changed bytes, profile/brand/lifetime
+negatives, caller mutation, disabled relations, parse/projection failure,
+cancellation and pending-resource propagation. Existing HTML collector, template,
+registry metadata and native fallback assertions remain unchanged. Functional and
+performance execution remains deferred. Full format/ESLint, five JS syntax checks,
+affected generated refresh/freshness, fixture discovery and staged diff checks
+passed. Ordered ci-lite now contains 1,338 cases. Coverage is **35 fixed / 468
+implemented / 138 partial / 129 pending**, all 770 reports retained; no issue closed
+or closing reference added. Roadmap completed detail was condensed into the linked
+archive, retaining its single active status owner and size budget. Bookkeeping
+reuses the checked JS tree. Contract: `docs/contracts/html-prepared-source.md`.

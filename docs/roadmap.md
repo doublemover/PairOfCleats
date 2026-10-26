@@ -13,52 +13,29 @@ with tests deferred until the source batches are ready. The live intake has
 [current implementation receipt](archived/solo-issue-repairs-2026-10-25.md)
 records new source batches and unvalidated coverage. Historical inventories
 below describe their recorded sources, not the current open count.
-Current source coverage is **35 fixed / 467 implemented / 138 partial / 130
+Current source coverage is **35 fixed / 468 implemented / 138 partial / 129
 pending**, with exact issue-to-source ownership in the
 [complete inventory](archived/github-issue-coverage-2026-10-25.json). Implemented
 means source-complete with execution pending, not accepted closure.
 
 The solo batches repair publication/recovery and resource lifetime, immutable
-source/record identities, import and language extraction, declaration/flow
-ownership, provider replay, triage/MCP evidence and bounded operator tooling.
-Benchmark work now binds actual child context, admitted inputs, completed work,
-cache/model/backend observations and historical provenance before comparisons.
-Latest repairs distinguish retrieval from result-cache replay (#1726–#1727),
-preserve boxed/native type identities (#813), retain registry/cross-file cache
-controls (#985/#1058/#1059), and join crash-evidence and diagnostic ownership on
-every scheduler exit (#1054). Rust outer documentation now follows grammar-owned
-prefix roles, and parameter/return/modifier metadata uses declaration fields
-(#1470). Native signature handoffs now reach JavaScript indexed fields and map/
-retrieval projections (#740), with C declarator/prototype controls retained
-(#1459/#1474). Parsed HTML/R imports preserve decoded identity through registry,
-scan and replay admission (#1488/#1497). Ruby body boundaries and Python lexical
-owner consumers retain independent call facts (#1482/#1469). Inline and daemon
-embedding lifetime controls retain actual leases and sibling ownership (#1349).
-Six custom DSL adapters now preserve typed references and source owners instead
-of fabricating ordinary call pairs (#1484), with strict artifact admission. SQL
-role/decoded-name projection is reconciled as implemented (#1719); catalog binding
-remains with #1188. Abort races, synchronous zstd capacity errors, incremental
-manifest observation and JSONL failed-shard ownership now retain their terminal
-boundaries (#1732/#1735/#1738/#1743). Streaming context seeds preserve strict read failures (#1566), and ANN preflight
-shares terminal request-budget admission (#1585). Reserved parameter names retain
-serialization controls on the existing safe writer (#1029). The curated ci-lite
-lane contains 1,337 cases;
-new and strengthened regressions remain unrun. Sampled work conserves completed
-operations, compression arms share reproducible bytes with round-trip admission,
-and graph render arms require canonical output parity (#1725/#1728/#1744).
-Persistent text-vector writes now admit bounded page-capacity turnover without
-reclassifying disk pressure as recoverable capacity (#1731). Graph lazy admission
-now compares distinct artifacts for one symbol task in fresh per-arm processes,
-with separate cold/build and warm-hit evidence (#1745). VFS root/content reuse now
-qualifies current descriptor identity and atomic publication; session/generation
-URI lifetimes remain explicit follow-up scope (#1643). Cold-cache loading, live
-payload/metadata/count ownership and concurrent flush revisions are bounded
-(#1644). VFS benchmark samples now distinguish fresh materialization, persisted
-admission and hot access with actual phase/byte/parity evidence (#1747). Map writers now share atomic publication with fresh-process samples,
-final-inclusive boundary memory and separately scoped RSS high-water evidence
-(#1748). JSONL framing searches each new fragment once and joins complete rows
-without repeated prefix scans (#1739). Completed batch detail and exact
-source/static-check receipts are retained in the linked implementation archive.
+source/record identities, language extraction and declaration/flow ownership,
+provider replay, triage/MCP evidence and bounded operator tooling. Rust/native
+signature and HTML/R/SQL/custom-DSL handoffs retain source and grammar authority;
+Python/Ruby ownership retains independent call facts. Embedding leases, ANN request
+budgets, strict context reads and native/storage failures retain terminal owners.
+
+Benchmark comparisons now bind admitted source/backend/input identity, completed
+work, paired content parity and fresh-process phase scopes. Text-vector writes
+admit bounded page-capacity turnover; VFS materialization and cold-cache reuse
+qualify current content/root, live byte/count/metadata bounds and flush revisions.
+Map writers share atomic publication and report final-inclusive boundary samples
+separately from process-lifetime RSS. JSONL framing scans each new fragment once
+(#1739); HTML chunks/metadata share one source-owned parse5 tree and retain compact
+source-qualified facts (#1713). Session/generation URI lifetime remains partial
+(#1643). The curated ci-lite lane contains 1,338 cases; all new and strengthened
+regressions remain unrun. Completed batch detail, issue mappings and exact static-
+check receipts are in the linked implementation archive and complete inventory.
 
 Execution remains solo, Windows-only and implementation-first. Finish remaining
 P1/P2 source gaps before perf and lower-priority intake. Open shared owners include
