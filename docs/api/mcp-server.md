@@ -26,6 +26,15 @@ Default mode is `legacy` unless `auto` is explicitly requested.
   before reading a successful tool result. `normalizeMcpToolResponse` from
   `src/integrations/mcp/result-envelope.js` accepts both forms. Its `retryable`
   field identifies queue rejection; it never retries or replays a request.
+- SDK mode gives `index_status` and `config_status` one diagnostic execution lane,
+  independent of the single lane for all other tools. A short configured timeout
+  cannot promote a mutating SDK tool. Both lanes share the existing queue limit;
+  with capacity greater than one, each class reserves one admission slot for the
+  other. Flooding either class cannot consume all of the other's headroom.
+  Capacity one uses a single shared execution queue and rejects a status request
+  while that sole slot is occupied. Explicitly disabled queue bounds retain their
+  existing behavior. Legacy mode retains its existing status/short-timeout fast
+  classification and diagnostic reservation.
 
 ## Tools
 - `index_status`
@@ -61,6 +70,11 @@ Default mode is `legacy` unless `auto` is explicitly requested.
 Service shutdown aborts queued and running SDK requests and awaits owned teardown.
 A transport close failure remains an error after the queue has drained; it cannot
 release running capacity or produce an apparently successful shutdown early.
+SDK shutdown waits for both execution lanes, including cancelled running tools
+still finishing owned cleanup. Internal bounded scheduler snapshots distinguish
+monotonic queue wait from combined tool execution/cleanup time; they retain at
+most 32 compact settlement observations and never imply successful tool work or
+a percentage/latency guarantee. Existing response/error envelopes are unchanged.
 - Legacy `$/cancelRequest` cancels queued/in-flight calls by id. SDK uses standard
   `notifications/cancelled`; transport closure or stdin EOF also cancels work.
 - SDK queue capacity is held until the actual tool and owned subprocess cleanup

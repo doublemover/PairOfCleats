@@ -10,6 +10,8 @@ import { incTimeout } from '../../src/shared/metrics/core.js';
 import { raceAbort } from '../../src/shared/abort.js';
 import { handleToolCall } from './tools.js';
 import { getMcpServerConfig } from './server-config.js';
+import { classifyMcpToolLane, resolveMcpLaneAdmission } from './lane-policy.js';
+import { performance } from 'node:perf_hooks';
 
 const importFirst = async (candidates) => {
   let lastError = null;
@@ -127,6 +129,18 @@ export async function startMcpSdkServer({
     InitializeRequestSchema
   } = await resolveSdkModules();
   const queue = new PQueue({ concurrency: 1 });
+  const fastQueue = queueMax === 1 ? queue : new PQueue({ concurrency: 1 });
+  const queues = Object.freeze({ fast: fastQueue, slow: queue });
+  const lanes = Object.fromEntries(['fast', 'slow'].map(lane => [lane, {
+    active: 0, queued: 0, admitted: 0, rejected: 0, settled: 0, cancelledBeforeStart: 0,
+    queueWaitTotalMs: 0, queueWaitMaxMs: 0, ownedExecutionAndCleanupTotalMs: 0
+  }]));
+  const recent = [], decisions = { 'fast-lane-reserved-capacity': 0, 'slow-lane-reserved-capacity': 0, 'queue-max-capacity': 0 };
+  const getQueueState = () => ({ queueMax, concurrency: { fast: 1, slow: 1, sharedAtCapacityOne: fastQueue === queue, totalExecutionLimit: fastQueue === queue ? 1 : 2 },
+    classification: 'SDK-explicit-read-only-status-tools', lanes: structuredClone(lanes),
+    rejectionReasons: { ...decisions }, recentSettlements: recent.map(value => ({ ...value })),
+    timingScope: 'monotonic-queue-wait;owned-tool-execution-and-cleanup-combined',
+    recentLimit: 32 });
   const lifetime = new AbortController();
   const attachToolResultObservability = (result, requestObservability) => (
     result && typeof result === 'object' && !Array.isArray(result) && result.observability
@@ -187,8 +201,11 @@ export async function startMcpSdkServer({
       content: [{ type: 'text', text: JSON.stringify(formatToolError(error), null, 2) }]
     });
     if (signal.aborted) return errorResult(cancelledError());
-    const totalQueued = queue.size + queue.pending;
-    if (Number.isFinite(queueMax) && queueMax > 0 && totalQueued >= queueMax) {
+    const lane = classifyMcpToolLane(name), state = lanes[lane];
+    const decision = resolveMcpLaneAdmission({ lane, queueMax, reserveSlowCapacity: true,
+      occupancy: { fast: lanes.fast.active + lanes.fast.queued, slow: lanes.slow.active + lanes.slow.queued } });
+    if (decision.overloaded) {
+      state.rejected++; decisions[decision.reason]++;
       return {
         isError: true,
         content: [{ type: 'text', text: JSON.stringify(formatToolError({ code: ERROR_CODES.QUEUE_OVERLOADED, message: 'Server overloaded.' }), null, 2) }]
@@ -197,59 +214,74 @@ export async function startMcpSdkServer({
     // PQueue's signal is admission-only: aborting a running queue task would
     // release its slot before the underlying tool/owned children have settled.
     const admission = new AbortController();
+    const admittedAt = performance.now(); let started = false;
+    state.admitted++; state.queued++;
     const cancelAdmission = () => admission.abort(cancelledError());
     signal.addEventListener('abort', cancelAdmission, { once: true });
-    try { return await queue.add(async () => {
-      signal.removeEventListener('abort', cancelAdmission);
-      if (signal.aborted) return errorResult(cancelledError());
-      const timeoutMs = resolveToolTimeoutMs(name, args);
-      const controller = new AbortController();
-      const workSignal = AbortSignal.any([signal, controller.signal]);
-      const progressToken = request?.params?._meta?.progressToken ?? context?.progressToken;
-      const requestObservability = normalizeObservability({
-        correlationId: request?.params?._meta?.correlationId || null,
-        parentCorrelationId: request?.params?._meta?.parentCorrelationId || null,
-        requestId: request?.params?._meta?.requestId || context?.requestId || null
-      }, {
-        surface: 'mcp',
-        operation: name,
-        context: {
-          tool: name,
-          toolCallId: context?.requestId || null
-        }
-      });
-      const sender = buildProgressSender(context, progressToken, workSignal);
-      const timer = Number.isFinite(timeoutMs) && timeoutMs > 0 ? setTimeout(() => {
-        incTimeout({ surface: 'mcp', operation: 'tool' });
-        controller.abort(Object.assign(new Error(`Tool timeout after ${timeoutMs}ms (${name}).`), {
-          code: ERROR_CODES.TOOL_TIMEOUT, timeoutMs
-        }));
-      }, timeoutMs) : null;
+    try { return await queues[lane].add(async () => {
+      started = true; state.queued--; state.active++;
+      const began = performance.now(), queueWaitMs = began - admittedAt;
+      state.queueWaitTotalMs += queueWaitMs; state.queueWaitMaxMs = Math.max(state.queueWaitMaxMs, queueWaitMs);
       try {
-        // Keep the capacity lease until execution and subprocess teardown
-        // finish. Cancellation/timeout signals never substitute for settlement.
-        const result = await executeTool(name, args, {
-          progress: sender.progress,
-          toolCallId: context?.requestId ?? null,
-          signal: workSignal,
-          observability: requestObservability
+        signal.removeEventListener('abort', cancelAdmission);
+        if (signal.aborted) return errorResult(cancelledError());
+        const timeoutMs = resolveToolTimeoutMs(name, args);
+        const controller = new AbortController();
+        const workSignal = AbortSignal.any([signal, controller.signal]);
+        const progressToken = request?.params?._meta?.progressToken ?? context?.progressToken;
+        const requestObservability = normalizeObservability({
+          correlationId: request?.params?._meta?.correlationId || null,
+          parentCorrelationId: request?.params?._meta?.parentCorrelationId || null,
+          requestId: request?.params?._meta?.requestId || context?.requestId || null
+        }, {
+          surface: 'mcp',
+          operation: name,
+          context: {
+            tool: name,
+            toolCallId: context?.requestId || null
+          }
         });
-        if (workSignal.aborted) throw workSignal.reason;
-        await sender.close();
-        if (workSignal.aborted) throw workSignal.reason;
-        return {
-          content: [{ type: 'text', text: JSON.stringify(attachToolResultObservability(result, requestObservability), null, 2) }]
-        };
-      } catch (error) {
-        return errorResult(workSignal.aborted
-          ? (workSignal.reason?.code === ERROR_CODES.TOOL_TIMEOUT ? workSignal.reason : cancelledError()) : error);
+        const sender = buildProgressSender(context, progressToken, workSignal);
+        const timer = Number.isFinite(timeoutMs) && timeoutMs > 0 ? setTimeout(() => {
+          incTimeout({ surface: 'mcp', operation: 'tool' });
+          controller.abort(Object.assign(new Error(`Tool timeout after ${timeoutMs}ms (${name}).`), {
+            code: ERROR_CODES.TOOL_TIMEOUT, timeoutMs
+          }));
+        }, timeoutMs) : null;
+        try {
+          // Keep the capacity lease until execution and subprocess teardown
+          // finish. Cancellation/timeout signals never substitute for settlement.
+          const result = await executeTool(name, args, {
+            progress: sender.progress,
+            toolCallId: context?.requestId ?? null,
+            signal: workSignal,
+            observability: requestObservability
+          });
+          if (workSignal.aborted) throw workSignal.reason;
+          await sender.close();
+          if (workSignal.aborted) throw workSignal.reason;
+          return {
+            content: [{ type: 'text', text: JSON.stringify(attachToolResultObservability(result, requestObservability), null, 2) }]
+          };
+        } catch (error) {
+          return errorResult(workSignal.aborted
+            ? (workSignal.reason?.code === ERROR_CODES.TOOL_TIMEOUT ? workSignal.reason : cancelledError()) : error);
+        } finally {
+          if (timer) clearTimeout(timer);
+          await sender.close();
+        }
       } finally {
-        if (timer) clearTimeout(timer);
-        await sender.close();
+        const ownedExecutionAndCleanupMs = performance.now() - began;
+        state.active--; state.settled++; state.ownedExecutionAndCleanupTotalMs += ownedExecutionAndCleanupMs;
+        recent.push({ lane, tool: String(name).slice(0, 128), toolNameTruncated: String(name).length > 128, queueWaitMs, ownedExecutionAndCleanupMs, callerAborted: signal.aborted });
+        if (recent.length > 32) recent.shift();
       }
     }, { signal: admission.signal }); }
     catch (error) { return errorResult(signal.aborted ? cancelledError() : error); }
-    finally { signal.removeEventListener('abort', cancelAdmission); }
+    finally {
+      signal.removeEventListener('abort', cancelAdmission);
+      if (!started) { state.queued--; state.cancelledBeforeStart++; }
+    }
   });
 
   if (!Number.isSafeInteger(maxBufferBytes) || maxBufferBytes < 0) throw new TypeError('MCP maxBufferBytes must be a nonnegative integer.');
@@ -262,12 +294,14 @@ export async function startMcpSdkServer({
   const service = {
     server,
     queue,
+    queues,
+    getQueueState,
     close() {
       if (!closing) closing = (async () => {
         lifetime.abort(cancelledError());
         let transportError;
         try { await server.close(); } catch (error) { transportError = error; }
-        try { await queue.onIdle(); }
+        try { await Promise.all([...new Set(Object.values(queues))].map(lane => lane.onIdle())); }
         finally {
           if (!suppliedTransport) {
             stdin.off('end', onInputEnd); stdin.off('close', onInputEnd);

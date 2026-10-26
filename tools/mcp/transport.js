@@ -11,6 +11,7 @@ import { ERROR_CODES } from '../../src/shared/error-codes.js';
 import { attachObservability, normalizeObservability } from '../../src/shared/observability.js';
 import { logError } from '../../src/shared/progress-runtime.js';
 import { withTimeout } from './runner.js';
+import { classifyMcpToolLane, resolveMcpLaneAdmission } from './lane-policy.js';
 
 // Match the SDK request-ID domain without importing its full schema graph into
 // the legacy transport. A key identifies the typed primitive, not its label.
@@ -70,7 +71,6 @@ export const createMcpTransport = ({
     fast: 0,
     slow: 0
   };
-  const FAST_TOOL_NAMES = new Set(['index_status', 'config_status']);
   const progressState = new Map();
   const PROGRESS_THROTTLE_MS = 250;
   const attachToolResultObservability = (result, requestObservability) => (
@@ -135,43 +135,15 @@ export const createMcpTransport = ({
     });
   };
 
-  const totalQueued = () => pendingById.size;
   const totalActive = () => laneActive.fast + laneActive.slow;
   const laneOccupancy = lane => {
     let count = laneActive[lane] || 0;
     for (const task of pendingById.values()) if (task.lane === lane) count++;
     return count;
   };
-  const reservedFastCapacity = Number.isFinite(queueMax) && queueMax > 1 ? 1 : 0;
-  const slowLaneAdmissionLimit = Number.isFinite(queueMax) && queueMax > 0
-    ? Math.max(1, queueMax - reservedFastCapacity)
-    : Infinity;
-  const classifyToolLane = (name, timeoutMs) => {
-    if (FAST_TOOL_NAMES.has(String(name || '').trim())) return 'fast';
-    if (Number.isFinite(Number(timeoutMs)) && Number(timeoutMs) > 0 && Number(timeoutMs) <= 5000) {
-      return 'fast';
-    }
-    return 'slow';
-  };
-  const resolveOverloadDecision = (lane) => {
-    if (!Number.isFinite(queueMax) || queueMax <= 0) {
-      return { overloaded: false, reason: null };
-    }
-    const activeAndQueued = totalQueued() + totalActive();
-    if (lane === 'slow' && reservedFastCapacity > 0 && laneOccupancy('slow') >= slowLaneAdmissionLimit) {
-      return {
-        overloaded: true,
-        reason: 'fast-lane-reserved-capacity'
-      };
-    }
-    if (activeAndQueued >= queueMax) {
-      return {
-        overloaded: true,
-        reason: 'queue-max-capacity'
-      };
-    }
-    return { overloaded: false, reason: null };
-  };
+  const classifyToolLane = (name, timeoutMs) => classifyMcpToolLane(name, timeoutMs, { allowShortTimeoutFast: true });
+  const resolveOverloadDecision = lane => resolveMcpLaneAdmission({ lane, queueMax,
+    occupancy: { fast: laneOccupancy('fast'), slow: laneOccupancy('slow') } });
 
   const removePendingTask = (idKey) => {
     if (!pendingById.has(idKey)) return null;

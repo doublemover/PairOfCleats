@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1182,
+    "hero": 1183,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -8053,6 +8053,12 @@
     {
       "id": "indexing/semantic/native-include-work-sharing",
       "order": 1340,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "services/mcp/sdk-diagnostic-lane",
+      "order": 1341,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
