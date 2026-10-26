@@ -2081,3 +2081,12 @@ trailing-space check was corrected before commit. ci-lite now contains 1,242
 entries. Functional execution and final gate remain deferred. Current coverage:
 **35 fixed / 424 implemented / 152 partial / 155 pending**, across 766 current
 open reports. No issue closure or new closing reference was claimed.
+
+## Complete intake refresh after the policy wave (2026-10-26)
+
+A fresh complete GitHub open-issue listing contains **770** unique reports,
+including newly observed #131, #216, #248 and #292; none of the prior 766 IDs
+closed. The four additional reports enter pending intake without borrowing
+historical closure or unrun source evidence. Priority totals are P1 31, P2 336,
+P3 46, Perf 116 and other 241. Coverage is now **35 fixed / 424 implemented /
+152 partial / 159 pending**. The prior 766-report counts remain dated history.
