@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1081,
+    "hero": 1082,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -7447,6 +7447,12 @@
     {
       "id": "tooling/bench/canary-effective-child-context",
       "order": 1239,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/bench/canary-attempt-lifecycle",
+      "order": 1240,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

@@ -1239,3 +1239,4 @@ tooling/docs/shared-module-ledger-scope
 tooling/testing/search-showcase-machine-stdout
 indexing/artifacts/stage-directory-inventory
 tooling/bench/canary-effective-child-context
+tooling/bench/canary-attempt-lifecycle

@@ -8,6 +8,6 @@ if (probe >= 0) process.stdout.write('fixture-version-' + marker + '\n');
 else {
   const payload = { resultClass: 'passed', productionCleanStatus: 'clean', taskCount: 1,
     crashCount: 0, countsByDiagnosticType: {}, countsByFailureClass: {}, timeoutClasses: [] };
-  if (out >= 0) fs.writeFileSync(args[out + 1], JSON.stringify(payload));
-  else process.stdout.write(JSON.stringify(payload));
+  if (out >= 0) fs.writeFileSync(args[out + 1], JSON.stringify({ canaryMetrics: payload }));
+  else process.stdout.write(JSON.stringify({ canaryMetrics: payload }));
 }
