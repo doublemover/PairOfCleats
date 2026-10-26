@@ -2988,3 +2988,40 @@ lifecycle, platform and performance execution remain deferred. Bookkeeping does
 not change the checked JS tree. Current coverage: **35 fixed / 444 implemented /
 145 partial / 146 pending** across 770 reports. No issue was closed or new closing
 reference added. Contract: docs/contracts/native-signature-projection.md.
+
+### #1488/#1497 parsed HTML and R dependency handoffs
+
+`5b3f3cd5a` repairs the remaining parsed-value/scanner boundary. HTML now exposes
+typed parse5-decoded entries to the registry. Its owned attribute observations
+retain raw spelling and UTF-16 source offsets separately from decoded identity;
+comments, raw script contents and unrelated attributes remain excluded. The
+existing registered metadata handoff remains intact. Scoped receipts identify
+the recovered-DOM attribute owner and installed parse5 version, which also joins
+the import-scan runtime fingerprint. This does not certify HTML validity or
+runtime dependencies. Invalid/control/overlength values still degrade admission.
+
+The R argument collector already has bounded argument binding, string decoding,
+named-option handling and lookalike/dynamic exclusions. Its adapter now marks
+those decoded values as literals, retaining whitespace/punctuation/quote identity
+through the outer registry. Collector finalization retains its original budget
+diagnostics and an unqualified receipt; literal provenance never manufactures
+full parser coverage or warm replay authority. Config and template adapters reuse
+one evidence-preserving literal projection. The shared import producer advances
+18→19 so old collapsed identities cannot qualify as current derived scans.
+
+The new regression uses actual registry, prepared adapters, production scans and
+canonical incremental bundle read/write. It retains distinct comma/semicolon/
+parenthesis/quote/space identities, entity decoding, duplicate source occurrences,
+raw attribute ranges, qualified HTML warm replay, required R refresh and legacy
+cache rejection. The original R case table gains exact outer-registry assertions
+and explicit original repro controls. Existing config/template/HTML-negative
+fixtures remain intact; all five affected owners join ordered ci-lite, now
+1,290 entries. No language statements, parser tests or functional assertions ran.
+
+Full format/ESLint, nine JS syntax checks, affected generated refresh/freshness,
+new fixture discovery and staged diff checks passed. Functional/front-gate,
+native, performance and platform validation remains deferred as requested.
+Bookkeeping changes retain the same checked JS tree. Current coverage is
+**35 fixed / 446 implemented / 143 partial / 146 pending** across 770 reports.
+No issue was closed or new closing reference added.
+Contract: docs/contracts/parsed-import-identity.md.

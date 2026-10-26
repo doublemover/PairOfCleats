@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "7a81f3c84",
+  "sourceHead": "5b3f3cd5a",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 444,
-    "partial": 145,
+    "implemented": 446,
+    "partial": 143,
     "pending": 146
   },
   "priorOpen": 1177,
@@ -505,6 +505,7 @@
       1485,
       1486,
       1487,
+      1488,
       1489,
       1490,
       1491,
@@ -513,6 +514,7 @@
       1494,
       1495,
       1496,
+      1497,
       1498,
       1499,
       1500,
@@ -759,8 +761,6 @@
       1469,
       1482,
       1484,
-      1488,
-      1497,
       1504,
       1505,
       1506,
@@ -4691,8 +4691,10 @@
       "number": 1488,
       "title": "[P2] Preserve parsed literal dependency identities through config and template import normalization",
       "priority": "P2",
-      "status": "partial",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "5b3f3cd5a",
+      "validation": "deferred"
     },
     {
       "number": 1489,
@@ -4754,8 +4756,10 @@
       "number": 1497,
       "title": "[P2] Parse R library and require arguments without corrupting dependency specifiers",
       "priority": "P2",
-      "status": "partial",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "5b3f3cd5a",
+      "validation": "deferred"
     },
     {
       "number": 1498,
@@ -4983,7 +4987,7 @@
     },
     {
       "number": 1530,
-      "title": "Qualify adaptive retrieval and evidence policies with independent risk\u2013coverage receipts",
+      "title": "Qualify adaptive retrieval and evidence policies with independent risk–coverage receipts",
       "priority": "other",
       "status": "pending",
       "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
