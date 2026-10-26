@@ -15,14 +15,20 @@ try {
   const hash = await checksumString(text);
   const docHash = `xxh64:${hash.value}`;
 
-  await ensureVfsDiskDocument({ baseDir: tempRoot, virtualPath, text, docHash });
+  const original = await ensureVfsDiskDocument({ baseDir: tempRoot, virtualPath, text, docHash });
   const absPath = resolveVfsDiskPath({ baseDir: tempRoot, virtualPath });
+  const before = await fs.stat(absPath, { bigint: true });
+  const unchanged = await ensureVfsDiskDocument({ baseDir: tempRoot, virtualPath, text, docHash });
+  const after = await fs.stat(absPath, { bigint: true });
+  assert.equal(unchanged.cacheHit, true); assert.equal(unchanged.materialization.verificationBytes, 0);
+  assert.equal(unchanged.materialization.sha256, original.materialization.sha256);
+  assert.equal(after.ino, before.ino); assert.equal(after.mtimeNs, before.mtimeNs, 'unchanged verified bytes are not rewritten');
 
   await fs.writeFile(absPath, 'SENTINEL', 'utf8');
   await ensureVfsDiskDocument({ baseDir: tempRoot, virtualPath, text, docHash });
 
   const content = await fs.readFile(absPath, 'utf8');
-  assert.equal(content, 'SENTINEL', 'expected docHash cache to skip rewrite');
+  assert.equal(content, text, 'a remembered docHash cannot authorize overwritten bytes');
 
   await fs.writeFile(absPath, 'STALE_WITHOUT_HASH', 'utf8');
   await ensureVfsDiskDocument({ baseDir: tempRoot, virtualPath, text, docHash: null });

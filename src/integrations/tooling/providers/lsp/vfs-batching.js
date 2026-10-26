@@ -2,6 +2,8 @@ import path from 'node:path';
 import { pathToFileUri } from '../../lsp/client.js';
 import { resolveVfsTokenUri } from '../../lsp/uris.js';
 import { ensureVfsDiskDocument, resolveVfsDiskPath } from '../../../../index/tooling/vfs.js';
+import { describeStorageFailure } from '../../../../shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../../../shared/storage/operation-error.js';
 
 /**
  * Ensure a VFS document exists on disk for file-based LSP servers.
@@ -67,23 +69,23 @@ const writeVfsEntryWithRetry = async ({ rootDir, entry, coldStartCache, warnings
   try {
     return await write();
   } catch (error) {
+    const diagnostic = describeStorageFailure(error, { phase: 'vfs-batched-write-retry' });
+    if (diagnostic.code === 'ERR_VFS_MATERIALIZATION_CONFLICT') throw error;
     warnings.push({
       code: 'VFS_WRITE_RETRY',
       virtualPath: entry.doc.virtualPath,
-      message: error?.message || String(error)
+      message: diagnostic.message
     });
     try {
       return await write();
     } catch (retryError) {
+      const diagnostic = describeStorageFailure(retryError, { phase: 'vfs-batched-write-final' });
       warnings.push({
         code: 'VFS_WRITE_FAILED',
         virtualPath: entry.doc.virtualPath,
-        message: retryError?.message || String(retryError)
+        message: diagnostic.message
       });
-      if (retryError && typeof retryError === 'object') {
-        retryError.warnings = warnings;
-      }
-      throw retryError;
+      throw addStorageFailureContext(retryError, { warnings });
     }
   }
 };
@@ -155,22 +157,21 @@ export const createVfsQueuedWriteBatcher = ({ rootDir, batching, coldStartCache 
     queuedBytes = 0;
     if (!entries.length) return results;
 
-    let index = 0;
+    let index = 0, failed = false, primary;
     const workerCount = Math.min(resolvedBatching.maxInflight, entries.length);
     const workers = Array.from({ length: workerCount }, async () => {
-      while (index < entries.length) {
+      while (!failed && index < entries.length) {
         const current = entries[index];
         index += 1;
-        const result = await writeVfsEntryWithRetry({
-          rootDir,
-          entry: current,
-          coldStartCache,
-          warnings
-        });
-        results.set(current.doc.virtualPath, result.path);
+        try {
+          const result = await writeVfsEntryWithRetry({ rootDir, entry: current, coldStartCache, warnings });
+          results.set(current.doc.virtualPath, result.path);
+        } catch (error) { if (!failed) { failed = true; primary = error; } throw error; }
       }
     });
-    await Promise.all(workers);
+    const outcomes = await Promise.allSettled(workers);
+    if (failed) throw outcomes.filter(row => row.status === 'rejected' && row.reason !== primary)
+      .reduce((error, row) => addStorageFailureContext(error, {}, row.reason, { secondaryPresent: true }), primary);
     return results;
   };
 

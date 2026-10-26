@@ -1326,3 +1326,5 @@ perf/bench/compression-paired-inputs
 perf/bench/graph-render-sort-equivalence
 indexing/embeddings/text-cache-capacity-turnover
 perf/bench/graph-lazy-admission-phases
+tooling/vfs/materialization-content-and-root
+tooling/vfs/batched-materialization-failure-drain

@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1168,
+    "hero": 1170,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -7969,6 +7969,18 @@
     {
       "id": "perf/bench/graph-lazy-admission-phases",
       "order": 1326,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/vfs/materialization-content-and-root",
+      "order": 1327,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/vfs/batched-materialization-failure-drain",
+      "order": 1328,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
