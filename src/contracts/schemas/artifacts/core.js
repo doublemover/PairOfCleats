@@ -1,4 +1,5 @@
 import { IMPORT_EXTRACTION_SCHEMA, IMPORT_EXTRACTION_SUMMARY_SCHEMA } from '../import-extraction.js';
+import { RECORD_SOURCE_SCHEMA } from '../../record-source.js';
 import { JAVASCRIPT_DECLARATION_CATALOG_SCHEMA } from '../javascript-declarations.js';
 import { SQL_RELATION_EVIDENCE_SCHEMA } from '../sql-relations.js';
 import { crossFileCoverageSchema } from '../relation-coverage.js';
@@ -58,6 +59,8 @@ const chunkMetaEntry = {
   properties: {
     id: intId,
     fileId: nullableInt,
+    recordSource: RECORD_SOURCE_SCHEMA,
+    displayPath: nullableString,
     start: intId,
     end: intId,
     startLine: nullableInt,
@@ -454,6 +457,8 @@ export const CORE_POST_VFS_ARTIFACT_SCHEMA_DEFS = {
             id: intId,
             file: { type: 'string' },
             ext: nullableString,
+            recordSource: RECORD_SOURCE_SCHEMA,
+            displayPath: nullableString,
             encoding: nullableString,
             encodingFallback: { type: ['boolean', 'null'] },
             encodingFallbackClass: nullableEnum(encodingFallbackClassEnum),

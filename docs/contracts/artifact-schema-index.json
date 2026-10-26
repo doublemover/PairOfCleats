@@ -1,5 +1,5 @@
 {
-  "schemaHash": "0596fda92c9bda261ab74823efa4fa98fd82c12e",
+  "schemaHash": "73b28087b84f8c97a30005b271e48657283fb7c3",
   "artifacts": [
     {
       "artifact": "api_contracts",
@@ -122,12 +122,14 @@
         "start"
       ],
       "optionalFields": [
+        "displayPath",
         "endLine",
         "ext",
         "fileId",
         "kind",
         "metaV2",
         "name",
+        "recordSource",
         "startLine"
       ]
     },
@@ -710,12 +712,14 @@
         "id"
       ],
       "optionalFields": [
+        "displayPath",
         "encoding",
         "encodingConfidence",
         "encodingFallback",
         "encodingFallbackClass",
         "encodingFallbackRisk",
-        "ext"
+        "ext",
+        "recordSource"
       ]
     },
     {

@@ -14,6 +14,7 @@ import { createPersistentEmbeddingTextKvStore } from './text-kv-cache.js';
 import { settleEmbeddingCacheConsumers } from './cache/settle-consumers.js';
 import { reconcileEmbeddingProfileBudget } from './cache/profile-retention.js';
 import { canonicalBundleSourceKey } from '../../../src/shared/bundle-source-key.js';
+import { readRecordEmbeddingSource } from '../../../src/integrations/triage/record-source.js';
 import { reusePriorChunkVectors } from './prior-chunk-reuse.js';
 import { reuseNativeBackend } from './backend-reuse.js';
 import { loadPiecesManifest } from '../../../src/shared/artifact-io/manifest.js';
@@ -3125,6 +3126,11 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
             const chunkSignature = buildChunkSignature(items);
             const manifestEntry = manifestFiles[normalizedRel] || null;
             const manifestHash = typeof manifestEntry?.hash === 'string' ? manifestEntry.hash : null;
+            // Records root/content authority is required before this file's
+            // cached vector replay or provider work, not only on a cache miss.
+            const recordTextInfo = mode === 'records'
+              ? await scheduleIo(() => readRecordEmbeddingSource({ repoRoot: root, recordsDir, file: normalizedRel, items }))
+              : null;
             let fileHash = cacheEligible ? manifestHash : null;
             let cacheKey = cacheEligible
               ? buildCacheKey({
@@ -3221,30 +3227,12 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
              *
              * @returns {string[]}
              */
-            const candidates = (() => {
-              if (mode !== 'records') {
-                return [path.resolve(root, fromPosix(normalizedRel))];
-              }
-              const resolvedRecordsDir = typeof recordsDir === 'string' && recordsDir
-                ? recordsDir
-                : root;
-              if (normalizedRel.startsWith('triage/records/')) {
-                const stripped = normalizedRel.slice('triage/records/'.length);
-                return [
-                  path.resolve(resolvedRecordsDir, fromPosix(stripped)),
-                  path.resolve(root, fromPosix(normalizedRel))
-                ];
-              }
-              return [
-                path.resolve(root, fromPosix(normalizedRel)),
-                path.resolve(resolvedRecordsDir, fromPosix(normalizedRel))
-              ];
-            })();
-            let absPath = candidates[0];
-            let textInfo = null;
+            const candidates = [path.resolve(root, fromPosix(normalizedRel))];
+            let absPath = recordTextInfo?.absPath || candidates[0];
+            let textInfo = recordTextInfo;
             let lastErr = null;
             try {
-              for (const candidate of candidates) {
+              for (const candidate of textInfo ? [] : candidates) {
                 absPath = candidate;
                 try {
                   const shouldReadWithHash = cacheEligible && !fileHash;
@@ -3261,9 +3249,6 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
                   break;
                 } catch (err) {
                   lastErr = err;
-                  if (mode === 'records' && err?.code === 'ENOENT') {
-                    continue;
-                  }
                   break;
                 }
               }

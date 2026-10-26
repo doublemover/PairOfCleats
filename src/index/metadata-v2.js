@@ -213,6 +213,7 @@ export function buildMetaV2({ chunk, docmeta, toolInfo, analysisPolicy }) {
     file: normalizeString(chunk.file),
     fileHash: normalizeString(chunk.fileHash),
     fileHashAlgo: normalizeString(chunk.fileHashAlgo),
+    ...(chunk.recordSource ? { recordSource: chunk.recordSource } : {}),
     segment: segment
       ? {
         segmentId: normalizeString(segment.segmentId),

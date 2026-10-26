@@ -142,7 +142,11 @@ export const buildChunkDisplayMetadata = ({
   const lineRange = Number.isFinite(chunk.startLine) && Number.isFinite(chunk.endLine)
     ? `[${chunk.startLine}-${chunk.endLine}]`
     : '';
-  const fileLabel = lineRange ? `${chunk.file}:${lineRange}` : chunk.file;
+  const recordSource = chunk.recordSource || chunk.metaV2?.recordSource;
+  const recordDisplay = recordSource?.storagePath === chunk.file && typeof recordSource.displayPath === 'string'
+    ? `${recordSource.kind}:${recordSource.displayPath}` : null;
+  const displayPath = recordDisplay || chunk.file;
+  const fileLabel = lineRange ? `${displayPath}:${lineRange}` : displayPath;
   const signature = chunk.docmeta?.signature || '';
   const isPlaceholderName = chunk.name === 'blob' || chunk.name === 'root';
   const isPlaceholderKind = chunk.kind === 'Blob' || (chunk.kind === 'Section' && !chunk.name) || (chunk.kind === 'Module' && !chunk.name);
@@ -159,8 +163,9 @@ export const buildChunkDisplayMetadata = ({
     Math.min(minFileWidth, Math.max(8, columns - pathWidthOffset)),
     columns - (pathWidthOffset + (lastModLabel ? lastModLabel.length + 2 : 0))
   );
-  const shortenedFilePath = truncatePathMiddle(chunk.file, Math.max(12, maxFileWidth - (lineRange ? lineRange.length + 1 : 0)));
-  const filePathStyled = hyperlinkFileLabel({
+  const shortenedFilePath = truncatePathMiddle(displayPath, Math.max(12, maxFileWidth - (lineRange ? lineRange.length + 1 : 0)));
+  // A root-qualified virtual reference is not a current repo-local file URL.
+  const filePathStyled = recordDisplay ? italicColor(shortenedFilePath, ANSI.fgLight) : hyperlinkFileLabel({
     label: italicColor(shortenedFilePath, ANSI.fgLight),
     filePath: chunk.file,
     line: chunk.startLine,

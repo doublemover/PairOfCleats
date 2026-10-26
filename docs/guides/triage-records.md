@@ -166,6 +166,31 @@ context-pack acceptance remain outstanding.
 
 ## MCP tools
 
+Records producer 9 uses canonical version 1 `recordSource` references. Each
+reference binds the selected repository, configured repository/triage root,
+source kind, relative path and original byte hash. The `.record-sources/v1/`
+storage key namespaces **both** kinds; `displayPath` retains the familiar human
+path. Two physical inputs named `triage/records/incident.md` remain distinct even
+when their Markdown text is equal. Sidecar identity remains part of logical
+content version 4 and producer-qualified replay. Chunk UIDs, hot/cold metadata,
+file metadata, incremental manifests and SQLite retain the same source reference.
+
+The inventory union prefers the configured triage authority for a file also
+discovered inside the repository, yielding one actual source with its paired
+sidecar. Conflicting duplicate source declarations fail explicitly. Source and
+sidecar reads remain contained under the selected roots. Deferred embedding reads
+select exactly one referenced root and verify original bytes before that file's
+cache/provider work; a path prefix no longer grants fallback authority.
+
+Rebuild existing records indexes to obtain the new identities. Existing published
+records remain readable; ambiguous legacy `triage/records/` keys cannot be used
+for deferred source rereads. Unprefixed legacy repository records remain eligible
+for a contained reread when their original byte hash matches. Missing identity,
+root changes and changed content require a rebuild. Row-budget trimming cannot
+drop or truncate a new record source reference into an ordinary path; insufficient
+allowance fails explicitly. No model or link creation is required for the new
+source, publication and deferred-reader regression fixtures; execution is deferred.
+
 Context packs carry `evidenceVersion` and a versioned `repoEvidence` projection.
 Each query records the repository root actually passed to search, its CLI mode,
 and `success`, `empty` or `unavailable` status. The shared retrieval selector maps
@@ -208,4 +233,4 @@ object aliases remain supported, including finite numeric score strings and
 partial vector/version data; invalid or missing scores are not invented zeroes.
 Reimport affected Inspector findings to restore their previously missing CVSS.
 
-Records incremental identity version 2 covers normalized source text, canonical JSON sidecar contents or explicit absence, discovery metadata and producer/promotion policies. JSON key reordering is a no-op; metadata-only reimports invalidate SQLite input identity. Malformed or unreadable sidecars fail before replacement rather than being treated as absence. Literal phrase evidence is produced from the ordered source with preserved case, independently of scoring tokenization.
+Records logical-content identity version 4 covers normalized source text, canonical JSON sidecar contents or explicit absence, discovery metadata and producer/promotion policies. JSON key reordering is a no-op; metadata-only reimports invalidate SQLite input identity. Malformed or unreadable sidecars fail before replacement rather than being treated as absence. Literal phrase evidence is produced from the ordered source with preserved case, independently of scoring tokenization.

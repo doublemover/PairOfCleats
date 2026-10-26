@@ -68,7 +68,7 @@ const recordsMeta = await loadChunkMeta(recordsDir);
 
 const loadFileMeta = async (dir) => {
   const entries = await readJsonFile(path.join(dir, 'file_meta.json'));
-  return new Map(entries.map((entry) => [entry.id, entry.file]));
+  return new Map(entries.map((entry) => [entry.id, entry.recordSource?.relativePath || entry.file]));
 };
 
 const codeFiles = await loadFileMeta(codeDir);

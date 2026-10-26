@@ -1,6 +1,7 @@
 import { FLOW_EVIDENCE_SCHEMA } from '../flow-evidence.js';
 import { SOURCE_OUTLINE_SCHEMA } from '../source-outline.js';
 import { JAVASCRIPT_CALLABLE_JOIN_SCHEMA } from '../javascript-declarations.js';
+import { RECORD_SOURCE_SCHEMA } from '../../record-source.js';
 import {
   metaTypes,
   nullableNumber,
@@ -40,6 +41,7 @@ export const METADATA_V2_SCHEMA = {
     file: { type: 'string' },
     fileHash: nullableString,
     fileHashAlgo: nullableString,
+    recordSource: RECORD_SOURCE_SCHEMA,
     segment: {
       type: ['object', 'null'],
       properties: {

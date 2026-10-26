@@ -27,16 +27,19 @@ export const recordsReusePolicy = ({ runtime, policy, stop, synonyms }) => {
   return { key: hash(complete), allowed: Boolean(inlineKnown), reason: inlineKnown ? 'complete-policy' : 'unknown-inline-embedding-identity', snapshot: JSON.parse(stableStringify(complete)) };
 };
 
-export const readReusableRecordChunk = async ({ incrementalState, repoRoot, file, logicalHash, policy, textLength, sourceHash = null, signal }) => {
+export const readReusableRecordChunk = async ({ incrementalState, repoRoot, file, logicalHash, policy, textLength, sourceHash = null, recordSource = null, signal }) => {
   throwIfAborted(signal);
   const entry = incrementalState?.manifest?.files?.[file];
   if (!incrementalState?.enabled || !policy.allowed || !entry || entry.hash !== logicalHash
     || entry.dependencySignatures?.recordsProducer !== policy.key) return { chunk: null, reason: policy.reason || 'source-or-policy-changed' };
+  if (recordSource && stableStringify(entry.recordSource) !== stableStringify(recordSource)) return { chunk: null, reason: 'record-source-changed' };
   const loaded = await readIncrementalBundleSnapshot({ repoRoot, bundleDir: incrementalState.bundleDir,
     relKey: file, entry, fallbackFormat: incrementalState.bundleFormat, signal });
   const chunks = loaded?.bundle?.chunks;
   if (!Array.isArray(chunks) || chunks.length !== 1) return { chunk: null, reason: 'missing-or-incomplete-bundle' };
   const chunk = chunks[0];
+  if (recordSource && (stableStringify(chunk.recordSource) !== stableStringify(recordSource)
+    || chunk.metaV2 && stableStringify(chunk.metaV2.recordSource) !== stableStringify(recordSource))) return { chunk: null, reason: 'record-source-changed' };
   if (chunk.file !== file || chunk.start !== 0 || chunk.end !== textLength || chunk.kind !== 'Record'
     || !chunk.chunkUid || !Array.isArray(chunk.tokens) || !chunk.tokens.length
     || !Array.isArray(chunk.phraseTokens) || chunk.phraseTokensCasePreserved !== true

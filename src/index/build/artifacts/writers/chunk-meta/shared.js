@@ -295,6 +295,7 @@ export const compactChunkMetaEntry = (entry, maxBytes, stats = null, preparedRow
   addTrimReason(stats, TRIM_REASONS.chunkMetaFallbackMinimal);
   recordTrimmedField(stats, 'fallback');
   const fallback = {
+    ...(trimmed.recordSource ? { recordSource: trimmed.recordSource } : {}),
     phraseTokens: null,
     id: toFiniteOrNull(trimmed.id),
     start: toFiniteOrNull(trimmed.start),
@@ -312,6 +313,8 @@ export const compactChunkMetaEntry = (entry, maxBytes, stats = null, preparedRow
     virtualPath: trimmed.virtualPath ?? null
   };
   if (fits(fallback)) return preparedFit?.row || fallback;
+
+  if (trimmed.recordSource) throw Object.assign(new Error('Record source identity exceeds the chunk metadata row allowance.'), { code: 'ERR_RECORD_SOURCE_LIMIT' });
 
   const textKeys = ['file', 'virtualPath', 'name', 'kind', 'ext', 'lang', 'chunkUid', 'chunkId'];
   const perFieldBudget = Math.max(24, Math.floor((resolvedMax * 0.6) / textKeys.length));

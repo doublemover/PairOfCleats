@@ -1,3 +1,5 @@
+import { createRecordSourceUnion } from './record-source.js';
+import { describeStorageFailure } from '../../shared/storage/failure-observation.js';
 import { recordsReusePolicy, readReusableRecordChunk } from './records-reuse.js';
 import { createRecordsMarkdownInventory } from './records-inventory.js';
 import { readVerifiedContainedFile } from '../../shared/contained-file.js';
@@ -26,18 +28,16 @@ import { buildMetaV2 } from '../../index/metadata-v2.js';
 import { assignChunkUids } from '../../index/identity/chunk-uid.js';
 import { getLanguageForFile } from '../../index/language-registry.js';
 import { buildIndexStateArtifactsBlock } from '../../index/build/index-state-profile.js';
-import { toPosix } from '../../shared/file-paths.js';
 import { sha1 } from '../../shared/hash.js';
 import { extractNgrams, splitId, splitWordsWithDict, stem } from '../../shared/tokenize.js';
 import { forEachRollingChargramHash } from '../../shared/chargram-hash.js';
 import { log, showProgress } from '../../shared/progress-runtime.js';
 import { throwIfAborted } from '../../shared/abort.js';
-import { isPathUnderDir } from '../../shared/path-normalize.js';
 import { setRecordsIncrementalCapability } from '../../storage/sqlite/build/index.js';
 import { promoteRecordFields } from './record-utils.js';
 
-export const recordsLogicalContentHash = ({ text, record, recordMeta, policy, sourceHash = null }) => sha1(stableStringify({
-  schema: 'records.logical-content.v3', text, sourceHash,
+export const recordsLogicalContentHash = ({ text, record, recordMeta, policy, sourceHash = null, recordSource = null }) => sha1(stableStringify({
+  schema: 'records.logical-content.v4', text, sourceHash, recordSource,
   sidecar: record === null ? { status: 'absent' } : { status: 'present', value: record }, recordMeta, policy
 }));
 
@@ -106,36 +106,21 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
     setRecordsIncrementalCapability(incrementalState.manifest, true);
   }
   const seenFiles = new Set();
-  const recordSources = [];
-  const seenAbs = new Set();
+  const sourceUnion = createRecordSourceUnion({ repoRoot: runtime.root, recordsDir });
   const discoveredEntries = Array.isArray(discovery?.entries) ? discovery.entries : [];
   for (const entry of discoveredEntries) {
     throwIfAborted(abortSignal);
     if (!entry?.abs || entry.skip || !entry.record) continue;
-    if (seenAbs.has(entry.abs)) continue;
-    seenAbs.add(entry.abs);
-    recordSources.push({
-      absPath: entry.abs,
-      relPath: entry.rel || toPosix(path.relative(runtime.root, entry.abs)),
-      recordMeta: entry.record,
-      source: entry.record?.source || 'repo'
-    });
+    sourceUnion.addRepository(entry);
   }
   const inventory = createRecordsMarkdownInventory(recordsDir, { signal: abortSignal });
   for await (const absPath of inventory.files) {
     throwIfAborted(abortSignal);
-    if (seenAbs.has(absPath)) continue;
-    seenAbs.add(absPath);
-    recordSources.push({
-      absPath,
-      relPath: toPosix(path.relative(recordsDir, absPath)),
-      recordMeta: { source: 'triage', recordType: 'record', reason: 'records-dir' },
-      source: 'triage'
-    });
+    sourceUnion.addTriage(absPath);
   }
+  const recordSources = sourceUnion.finish();
   const triageInputReceipt = inventory.receipt();
 
-  recordSources.sort((a, b) => (a.relPath < b.relPath ? -1 : a.relPath > b.relPath ? 1 : 0));
   log(`→ Found ${recordSources.length} record(s).`);
 
   const recordsPolicy = { promoteFields: triageConfig.promoteFields, postingsConfig, dictConfig: runtime.dictConfig,
@@ -149,30 +134,29 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
     const started = Date.now();
     const absPath = recordEntry.absPath;
     const relPath = recordEntry.relPath;
-    const source = await readVerifiedContainedFile(path.dirname(absPath), absPath, { maxBytes: 32 * 1024 * 1024, signal: abortSignal });
+    const source = await readVerifiedContainedFile(recordEntry.root, absPath, { maxBytes: 32 * 1024 * 1024, signal: abortSignal });
     const sourceHash = sha1(source.buffer), fileStat = source.stat;
     const sourceText = source.buffer.toString('utf8');
     if (!sourceText) continue;
 
-    const isTriage = recordEntry.source === 'triage'
-      && recordsDir
-      && isPathUnderDir(recordsDir, absPath);
-    const record = isTriage ? await loadRecordJson(recordsDir, absPath) : null;
+    const isTriage = recordEntry.recordSource.kind === 'triage';
+    const recordSource = { ...recordEntry.recordSource, contentHash: sourceHash };
+    const record = isTriage ? await loadRecordJson(recordsDir, absPath, abortSignal) : null;
     const docmeta = buildDocMeta(record, triageConfig, recordEntry.recordMeta);
     const recordName = record?.vuln?.vulnId
       || record?.recordId
       || path.basename(relPath, path.extname(relPath));
 
-    const recordFile = isTriage ? `triage/records/${relPath}` : relPath;
-    const logicalHash = recordsLogicalContentHash({ text: sourceText, record, recordMeta: recordEntry.recordMeta, policy: reusePolicy.snapshot, sourceHash });
+    const recordFile = recordSource.storagePath;
+    const logicalHash = recordsLogicalContentHash({ text: sourceText, record, recordMeta: recordEntry.recordMeta, policy: reusePolicy.snapshot, sourceHash, recordSource });
     const reused = await readReusableRecordChunk({ incrementalState, repoRoot: runtime.root, file: recordFile,
-      logicalHash, policy: reusePolicy, textLength: sourceText.length, sourceHash, signal: abortSignal });
+      logicalHash, policy: reusePolicy, textLength: sourceText.length, sourceHash, recordSource, signal: abortSignal });
     if (reused.chunk) {
       // Admission reads exact current inputs; recheck after asynchronous bundle I/O.
-      const again = await readVerifiedContainedFile(path.dirname(absPath), absPath, { maxBytes: 32 * 1024 * 1024, signal: abortSignal });
-      const currentRecord = isTriage ? await loadRecordJson(recordsDir, absPath) : null;
+      const again = await readVerifiedContainedFile(recordEntry.root, absPath, { maxBytes: 32 * 1024 * 1024, signal: abortSignal });
+      const currentRecord = isTriage ? await loadRecordJson(recordsDir, absPath, abortSignal) : null;
       if (recordsLogicalContentHash({ text: again.buffer.toString('utf8'), record: currentRecord,
-        recordMeta: recordEntry.recordMeta, policy: reusePolicy.snapshot, sourceHash: sha1(again.buffer) }) !== logicalHash) throw new Error(`Record changed during replay admission: ${recordFile}`);
+        recordMeta: recordEntry.recordMeta, policy: reusePolicy.snapshot, sourceHash: sha1(again.buffer), recordSource }) !== logicalHash) throw new Error(`Record changed during replay admission: ${recordFile}`);
       const chunk = reused.chunk;
       chunk.id = state.chunks.length; // IDs belong to this build's global ordering.
       appendChunk(state, chunk, postingsConfig, null, { sparsePostingsEnabled });
@@ -224,6 +208,8 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
     const effectiveLanguageId = recordLang?.id || 'unknown';
     const chunkPayload = {
       file: recordFile,
+      recordSource,
+      displayPath: recordSource.displayPath,
       ext: recordExt,
       lang: effectiveLanguageId,
       containerLanguageId: recordLang?.id || null,
@@ -264,7 +250,7 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
       chunks: [chunkPayload],
       fileText: sourceText,
       fileRelPath: recordFile,
-      namespaceKey: 'repo',
+      namespaceKey: `record-source-v1-${recordSource.rootKey}`,
       strict: true,
       log
     });
@@ -288,7 +274,7 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
       fileEncodingConfidence: 1
     });
     if (manifestEntry) {
-      incrementalState.manifest.files[recordFile] = manifestEntry;
+      incrementalState.manifest.files[recordFile] = { ...manifestEntry, recordSource };
     }
     seenFiles.add(recordFile);
 
@@ -404,18 +390,20 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
   });
 }
 
-async function loadRecordJson(recordsDir, mdPath) {
+async function loadRecordJson(recordsDir, mdPath, signal = null) {
   const base = path.basename(mdPath, '.md');
   const dir = path.dirname(mdPath);
   const jsonPath = path.join(dir, `${base}.json`);
   try {
-    const source = await readVerifiedContainedFile(dir, jsonPath, { maxBytes: 16 * 1024 * 1024 });
+    const source = await readVerifiedContainedFile(recordsDir, jsonPath, { maxBytes: 16 * 1024 * 1024, signal });
     const raw = source.buffer.toString('utf8');
     const record = JSON.parse(raw);
     if (!record || typeof record !== 'object' || Array.isArray(record)) throw new Error(`Invalid canonical record sidecar: ${jsonPath}`);
     return record;
   } catch (error) {
-    if (error.code === 'ENOENT') return null;
+    const diagnostic = describeStorageFailure(error, { phase: 'record-sidecar-source' });
+    if (diagnostic.code === 'ENOENT') return null;
+    if (error?.name === 'AbortError') throw error;
     throw new Error(`Cannot establish record sidecar identity: ${jsonPath}`, { cause: error });
   }
 }

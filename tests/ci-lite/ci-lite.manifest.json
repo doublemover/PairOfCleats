@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1104,
+    "hero": 1106,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -7585,6 +7585,18 @@
     {
       "id": "perf/tooling/bench/sqlite-benchmark-cli/update-compare",
       "order": 1262,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/triage/record-source-namespace",
+      "order": 1263,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/triage/records-namespace-publication",
+      "order": 1264,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
