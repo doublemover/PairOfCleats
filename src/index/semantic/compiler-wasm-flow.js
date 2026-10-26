@@ -93,13 +93,18 @@ export const createCompilerWasmFlow = ({ group, state, authority, ledgers, handl
       kind: isModule ? 'module' : compile ? 'promise-module' : isInstance ? 'instance' : (await resolve(doc, args[0], seen))?.kind === 'module' ? 'promise-instance' : 'promise-instantiated' };
     resolutions.set(input, result); return result;
   };
-  const project = async (doc, handle) => {
+  const project = (doc, handle) => {
     if (projections.has(handle.creation)) return projections.get(handle.creation);
-    const result = await projectWasmModule({ ledger: ledgers.get(doc), module: handle.decoded, bytes: handle.bytes,
-      invocation: doc.expressionFor(handle.creation), byteExpression: handle.byteExpression, source: doc.item.source,
-      stagingRoot: doc.item.root, binarySource: handle.source || null, state, contextKey: group.context.contextKey, signal });
-    if (result) { projections.set(handle.creation, result); if (handle.moduleRef) result.emit('evidenceInput', handle.moduleRef, result.invocation); }
-    return result;
+    const work = (async () => {
+      const result = await projectWasmModule({ ledger: ledgers.get(doc), module: handle.decoded, bytes: handle.bytes,
+        invocation: doc.expressionFor(handle.creation), byteExpression: handle.byteExpression, source: doc.item.source,
+        stagingRoot: doc.item.root, binarySource: handle.source || null, state, contextKey: group.context.contextKey, signal });
+      const admitted = result?.graph ? result : null;
+      if (admitted && handle.moduleRef) admitted.emit('evidenceInput', handle.moduleRef, admitted.invocation);
+      return admitted;
+    })();
+    projections.set(handle.creation, work);
+    return work;
   };
   const propertyName = (ts, name) => name && (ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNumericLiteral(name)) ? name.text : null;
   // Require entirely static own data properties: duplicate keys, spread, accessors
