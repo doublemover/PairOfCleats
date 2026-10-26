@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1083,
+    "hero": 1084,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -7459,6 +7459,12 @@
     {
       "id": "tooling/reports/throughput-recorded-attempt",
       "order": 1241,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/bench/embedding-bakeoff-effective-policy",
+      "order": 1242,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

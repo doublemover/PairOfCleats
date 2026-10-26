@@ -1,3 +1,4 @@
+import { coercePositiveIntMinOne } from '../../../src/shared/number-coerce.js';
 import { sha1 } from '../../../src/shared/hash.js';
 import { toPosix } from '../../../src/shared/file-paths.js';
 
@@ -93,4 +94,28 @@ export const createDeterministicFileStreamSampler = ({
     getSeenCount: () => seen.size,
     getSelectedCount: () => selected.size
   };
+};
+
+/**
+ * Resolve deterministic embeddings sampling config.
+ *
+ * Sampling is opt-in and intended for smoke/benchmark workflows where we need
+ * representative model behavior without embedding every file.
+ *
+ * @param {{embeddingsConfig?:object,env?:object}} [input]
+ * @returns {{maxFiles:number|null,seed:string}}
+ */
+export const resolveEmbeddingSamplingConfig = ({ embeddingsConfig, env } = {}) => {
+  const numeric = value => value === null || value === undefined || value === '' ? Number.NaN : Number(value);
+  const configRaw = numeric(embeddingsConfig?.sampleFiles);
+  const envRaw = numeric(env?.embeddingsSampleFiles);
+  const maxFiles = coercePositiveIntMinOne(Number.isFinite(envRaw) ? envRaw : configRaw);
+  const configSeed = typeof embeddingsConfig?.sampleSeed === 'string'
+    ? embeddingsConfig.sampleSeed.trim()
+    : '';
+  const envSeed = typeof env?.embeddingsSampleSeed === 'string'
+    ? env.embeddingsSampleSeed.trim()
+    : '';
+  const seed = envSeed || configSeed || 'default';
+  return { maxFiles, seed };
 };

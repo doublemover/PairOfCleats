@@ -89,3 +89,14 @@ These rules are implemented in `src/shared/embedding-input-format.js` and are fo
 - If `cache.root` is set in repo config, multi-model comparisons require `--build` so each model run refreshes artifacts deterministically.
 - Use `--full-run` for full-fidelity defaults, then override individual knobs as needed.
 - For full-fidelity embeddings (no sampling), pass `--embedding-sample-files 0`.
+- Sampling defaults and explicit limits, including zero, override inherited and
+  configured sample limits in every child. The resolved seed is passed with the
+  limit. Explicit stub mode reaches build, evaluation and compare; an inherited
+  stub/off policy remains selected when no conflicting choice is made.
+- `settings.executionPolicy` records requested/effective selection and resume
+  identity includes the canonical model-plan digests. Per-model requested plans
+  remain separate from generation-bound `observedSampling` counts and selection
+  identities. A full profile with `--no-build` does not qualify an old sampled
+  index as full coverage. Missing legacy receipts and requested-but-absent modes
+  are explicitly unknown. Stub observations qualify fixture selection, not real
+  model quality or performance.

@@ -125,9 +125,11 @@ import { createEmbeddingsScheduler } from './scheduler.js';
 import { createBoundedWriterQueue } from './writer-queue.js';
 import { runSqliteDenseWithBoundary } from './sqlite-dense-isolate.js';
 import {
+  resolveEmbeddingSamplingConfig,
   createDeterministicFileStreamSampler,
   selectDeterministicFileSample
 } from './sampling.js';
+import { createEmbeddingSamplingObservation } from './sampling-observation.js';
 import {
   normalizeEmbeddingsMaintenanceConfig,
   shouldQueueSqliteMaintenance
@@ -949,29 +951,6 @@ export const hydrateMissingChunkTextsFromBundle = ({
  * @returns {string}
  */
 export const buildNormalizedChunkPayloadHash = buildEmbeddingChunkInputHash;
-
-/**
- * Resolve deterministic embeddings sampling config.
- *
- * Sampling is opt-in and intended for smoke/benchmark workflows where we need
- * representative model behavior without embedding every file.
- *
- * @param {{embeddingsConfig?:object,env?:object}} [input]
- * @returns {{maxFiles:number|null,seed:string}}
- */
-const resolveEmbeddingSamplingConfig = ({ embeddingsConfig, env } = {}) => {
-  const configRaw = Number(embeddingsConfig?.sampleFiles);
-  const envRaw = Number(env?.embeddingsSampleFiles);
-  const maxFiles = coercePositiveIntMinOne(Number.isFinite(envRaw) ? envRaw : configRaw);
-  const configSeed = typeof embeddingsConfig?.sampleSeed === 'string'
-    ? embeddingsConfig.sampleSeed.trim()
-    : '';
-  const envSeed = typeof env?.embeddingsSampleSeed === 'string'
-    ? env.embeddingsSampleSeed.trim()
-    : '';
-  const seed = envSeed || configSeed || 'default';
-  return { maxFiles, seed };
-};
 
 /**
  * Rewrite incremental bundle files with updated `embedding_u8` vectors produced
@@ -2243,8 +2222,6 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
             `(${sampledChunkCount}/${totalChunks} chunks, seed=${embeddingSampling.seed}).`
           );
         }
-        const samplingActive = sampledChunkCount < totalChunks;
-
         stageCheckpoints = createStageCheckpointRecorder({
           buildRoot: modeIndexRoot,
           metricsDir,
@@ -3909,6 +3886,9 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
         indexState.mode = indexState.mode || mode;
         if (!indexState.extensions || typeof indexState.extensions !== 'object') indexState.extensions = {};
         indexState.extensions.annBuildWork = { schemaVersion: 1, ...nativeBackendWork };
+        indexState.extensions.embeddingSampling = createEmbeddingSamplingObservation({ mode, sampling: embeddingSampling,
+          selectedEntries: sampledFileEntries, eligibleFiles: totalFileCount, eligibleChunks: totalChunks,
+          completedFiles: processedFiles, completedChunks: processedChunks, embeddingGeneration, useStubEmbeddings });
         indexState.extensions.bundleEmbeddingSynchronization = {
           schemaVersion: 1, stage: 'stage3-bundle-synchronization',
           observation: refreshedBundles.coverage ? 'observed' : 'unknown',

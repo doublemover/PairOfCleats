@@ -2,7 +2,8 @@
 import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
 import crypto from 'node:crypto';
-import { evaluationFileIdentity, bakeoffGenerationIdentity } from './evaluation-identity.js';
+import { evaluationFileIdentity, bakeoffGenerationIdentity, bakeoffGenerationObservation } from './evaluation-identity.js';
+import { createBakeoffExecutionPolicy } from './bakeoff-execution-policy.js';
 import { assertCompatibleEvaluationDepthPlans } from '../../eval/depth-plan.js';
 import { assertQualifiedEvaluationComparison } from '../../shared/retrieval-execution-evidence.js';
 import { stableStringify } from '../../../src/shared/stable-json.js';
@@ -318,31 +319,11 @@ const runJsonNode = (args, env, label) => {
   }
 };
 
-/**
- * Build an isolated per-model process environment for bakeoff runs.
- *
- * Each model gets a dedicated cache root while optionally sharing model/dictionary
- * directories to avoid redownloading artifacts across runs.
- *
- * @param {string} modelId
- * @returns {Record<string, string|undefined>}
- */
-const toModelEnv = (modelId) => {
-  const env = {
-    ...baseEnv,
-    PAIROFCLEATS_MODEL: modelId,
-    PAIROFCLEATS_CACHE_ROOT: modelCacheRoot(modelId)
-  };
-  if (sharedModelsDir) env.PAIROFCLEATS_MODELS_DIR = sharedModelsDir;
-  if (sharedDictDir) env.PAIROFCLEATS_DICT_DIR = sharedDictDir;
-  if (useStubEmbeddings) env.PAIROFCLEATS_EMBEDDINGS = 'stub';
-  if (heapMb > 0) env.PAIROFCLEATS_MAX_OLD_SPACE_MB = String(heapMb);
-  if (embeddingSampleFiles > 0) {
-    env.PAIROFCLEATS_EMBEDDINGS_SAMPLE_FILES = String(embeddingSampleFiles);
-    env.PAIROFCLEATS_EMBEDDINGS_SAMPLE_SEED = embeddingSampleSeed;
-  }
-  return env;
-};
+const executionPolicy = createBakeoffExecutionPolicy({ root, userConfig, baseEnv, mode,
+  embeddingSampleFiles, embeddingSampleSeed, stubRequested: useStubEmbeddings });
+const modelExecutionPlans = new Map(models.map(modelId => [modelId, executionPolicy.forModel({
+  modelId, cacheRoot: modelCacheRoot(modelId), sharedModelsDir, sharedDictDir, heapMb })]));
+const toModelEnv = modelId => modelExecutionPlans.get(modelId).env;
 
 const directorySizeBytes = async (dirPath) => {
   if (!dirPath || !fs.existsSync(dirPath)) return 0;
@@ -539,7 +520,9 @@ const outputSettings = {
   buildIndex,
   buildSqlite,
   incremental,
-  stubEmbeddings: useStubEmbeddings,
+  stubEmbeddings: executionPolicy.receipt.effective.stubEmbeddings,
+  executionPolicy: executionPolicy.receipt,
+  requestedModelExecutionDigests: Object.fromEntries([...modelExecutionPlans].map(([modelId, plan]) => [modelId, plan.execution.digest])),
   runEval,
   runCompare,
   datasetPath,
@@ -855,9 +838,14 @@ for (const modelId of models) {
     }
 
     const cacheBytes = await directorySizeBytes(env.PAIROFCLEATS_CACHE_ROOT);
+    const observedGeneration = await bakeoffGenerationObservation(path.join(resolveVersionedCacheRoot(modelCacheRoot(modelId)), 'repos', repoId),
+      { requestedModes: modelExecutionPlans.get(modelId).execution.modes });
     modelReports.push({
       modelId,
-      resumeIdentity: { generation: await currentModelGeneration(modelId), input: stableStringify(evaluationInputIdentity) },
+      executionPolicy: modelExecutionPlans.get(modelId).receipt,
+      requestedEmbeddingExecutionPlan: modelExecutionPlans.get(modelId).execution,
+      observedSampling: observedGeneration.coverage,
+      resumeIdentity: { generation: observedGeneration.identity, input: stableStringify(evaluationInputIdentity) },
       cacheRoot: env.PAIROFCLEATS_CACHE_ROOT,
       inputFormatting: resolveEmbeddingInputFormatting(modelId),
       build: {
@@ -960,7 +948,7 @@ if (runCompare) {
     if (annOverride === false) compareArgs.push('--no-ann');
     if (queriesPath) compareArgs.push('--queries', queriesPath);
     if (limit > 0) compareArgs.push('--limit', String(limit));
-    compareReport = runJsonNode(compareArgs, baseEnv, 'compare-models');
+    compareReport = runJsonNode(executionPolicy.compareArgs(compareArgs), executionPolicy.env, 'compare-models');
     setActivePhase(null, null);
   } catch (err) {
     await writeOutputPayload({
