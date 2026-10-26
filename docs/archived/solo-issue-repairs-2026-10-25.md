@@ -1683,3 +1683,51 @@ staged diff checks passed. **Functional execution and the final front gate
 remain deferred.** No runtime/native/performance/CI acceptance is claimed.
 Coverage is **35 fixed / 412 implemented / 152 partial / 164 pending** across
 all 763 currently tracked open issue IDs.
+
+## Bounded source-qualified RST and AsciiDoc outlines
+
+**#1721** (`cdf5b0d40`) replaces the two context-free scanners with separate
+format owners over shared bounded original-source line admission. RST preserves
+indentation, directive/literal ownership, observed adornment style, exact title
+range and one overline/underline envelope. ASCII geometry is qualified; ambiguous
+Unicode/control widths remain explicit partial evidence rather than guessed
+UTF-16 widths. AsciiDoc tracks exact delimiters, content model and nested
+non-section/list contexts before admitting sections. Unsupported custom boundary
+behavior stops projection; includes/preprocessors/extensions are never executed.
+Primary rules are linked in the source-outline contract.
+
+Heading occurrence IDs are separate from display titles, source envelopes,
+parent context and authored anchors. Repeated titles remain distinct; intervening
+body content consumes anchors. Unsupported prior candidates leave ancestry
+unqualified. Source/line admission precedes bounded index allocation; incomplete
+lines cannot become syntax facts, and an oversized line stops later guesses.
+Heading/depth/work limits retain reasons and bounded samples. Unknown omitted
+headings remain null. Prefix and full-source identities remain distinct.
+
+Chunks retain the complete source, including preambles, ignored literal/comment
+content and unscanned suffixes. Conservative source-only fallback is distinct
+from admitted headings. Metadata v2 is the single persisted outline owner;
+assembly removes its temporary duplicate. Typed validation checks title/source
+extent, work admission and occurrence identity. Shared **sourceOutline 1** fences
+semantic and prose/extracted-prose parse reuse. Existing chunk guardrails and
+public surfaces remain; no parser dependency or renderer was added. The removed
+scanners were the replaced implementations, not independent legacy coverage;
+their shared helper functions remain available to other format owners.
+
+The authored independent exact occurrence/title-span/envelope/parent oracles
+exercise direct, smartChunk and actual segment paths. Cases include original
+counterexamples, transitions, alternate/short adornments, repeated titles,
+CRLF/UTF-16 prefixes, unsupported title width, quoted/directive literals,
+matching/mismatching adornments, exact/nested delimiters, list continuation,
+anchors, unsupported boundaries and tiny admission limits. Payload serialization
+retains metadata qualification. The existing format-fidelity fixture now checks
+persisted negative/alternate headings and exact title ranges in its same build;
+its prior positive assertions remain.
+
+Full format/ESLint, syntax on all 15 changed JavaScript files, affected generated
+refresh/freshness, fixture discovery and staged diff checks passed. Functional
+fixtures, format-fidelity indexing and the final front gate remain **unrun** at
+the user's request. No runtime/performance/CI acceptance is claimed. A fresh
+complete GitHub metadata query at `25bab8aec` again found **763 open reports**,
+zero additions/closures/title changes. Coverage is **35 fixed / 413 implemented /
+152 partial / 163 pending**, with all current issue IDs mapped once.
