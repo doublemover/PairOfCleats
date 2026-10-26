@@ -2582,3 +2582,62 @@ explicit cache conditions. The fixture admission repair is source-complete;
 these additional harness features and representative execution remain open.
 Current coverage: **35 fixed / 432 implemented / 154 partial / 149 pending** across
 770 open reports. No accepted issue closure is inferred.
+
+
+### #1638 repository and triage source namespaces
+
+`6501c431d` introduces canonical version 1 recordSource references binding the
+selected repository, configured root, source kind, relative path and original
+byte hash. Both repository and triage inputs receive disjoint .record-sources/v1
+storage keys; human display paths remain separate. Equal text and identical old
+human paths cannot merge physical inputs or sidecar metadata. The union derives
+paths from the actual admitted roots, diagnoses conflicting duplicate source
+declarations and deterministically chooses one triage authority when the same
+file is also discovered inside the repository. Root fingerprints retain local
+Windows path-case equivalence without inventing portable/global repository IDs.
+
+The same reference reaches chunk UID namespace, canonical metadata, hot/cold
+chunk projection, file metadata/columnar rows/fingerprint, incremental entries
+and SQLite metadata. Records producer 8 becomes 9; logical-content identity v3
+becomes v4 and includes the source reference. Existing producer-qualified replay
+now also checks the selected entry/chunk reference. Old unqualified products are
+recomputed rather than silently sharing the new meaning. Oversize chunk metadata
+cannot truncate/drop a new reference into a misleading ordinary file identity;
+its minimal exact representation either fits or fails ERR_RECORD_SOURCE_LIMIT.
+Human result labels retain source kind/path and do not create an unverified
+current-file hyperlink for a virtual source reference.
+
+Source and sidecar reads now use their selected repository/records authority
+roots rather than the immediate parent as a substitute authority. Sidecar error
+projection observes original settlement, retains missing-vs-invalid behavior and
+preserves cancellation. Deferred embedding reads select exactly one admitted
+root and verify original bytes before each file's cache replay/provider work.
+The old triage-prefix candidate fallback is removed. New references whose root,
+repository, shape or hash changed require a rebuild. Unprefixed legacy repository
+records remain readable with a matching original byte hash; ambiguous old
+triage/records keys and missing identities require rebuilding for deferred reads.
+Existing published records remain readable. No links, models, native installs,
+security settings, cache invalidation or indexing campaign were used here.
+
+New ordinary-file controls cover different/equal bytes, colliding human names,
+reversed union discovery, nested basenames, inside-repository deduplication,
+conflicting duplicates, changed roots/hashes, no root fallback and legacy
+unambiguous/ambiguous admission. A second fixture exercises the actual records
+builder with an injected publication boundary, real immutable incremental
+products, file/hot/cold metadata, real SQLite storage, fresh/replay identity,
+sidecar distinction and deferred-source selection. The existing records exclusion
+fixture retains its positive/negative assertions using the new source-relative
+identity rather than a stale storage-path literal. Both new fixtures join ci-lite,
+now 1,264 entries. Their execution remains deferred.
+
+Full format/ESLint, syntax on 17 changed JavaScript files, direct generated
+schema-index comparison, affected generated refresh/freshness, ordered discovery
+and diff checks passed. The artifact-schema index is refreshed from canonical
+schemas; its registered functional contract fixture remains deferred. Following
+bookkeeping edits do not change the checked JS tree. A complete live GitHub
+refresh still contains exactly 770 reports, with no added, closed or edited
+records since the prior complete refresh.
+
+Current coverage: **35 fixed / 433 implemented / 154 partial / 148 pending**.
+#1733's representative harness/qualification remainder remains explicit. No issue
+closure, new closing reference or final-head functional acceptance is inferred.

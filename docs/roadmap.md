@@ -60,6 +60,8 @@ explicit empty/unavailable outcomes through saved packs and MCP references.
 service time from batch cost; remediation remains unaccepted inspection work.
 #1733 now uses admitted immutable SQLite benchmark snapshots and validates smoke
 output contents; larger workload profiles and repeated qualification remain open.
+#1638 now namespaces repository/triage record sources through UID, metadata,
+SQLite and deferred source reads, with explicit migration and byte authority.
 #1675 now uses one global query resource plan and retirement-aware pools; whole
 process-tree RSS measurement remains open, with known-worker samples labeled.
 
