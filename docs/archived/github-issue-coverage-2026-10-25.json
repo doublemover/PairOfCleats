@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "98907e1d1",
+  "sourceHead": "8ce11779c60992fe058c2f7cb35863987e528183",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 455,
-    "partial": 138,
-    "pending": 142
+    "implemented": 458,
+    "partial": 137,
+    "pending": 140
   },
   "priorOpen": 1177,
   "currentOpen": 770,
@@ -272,6 +272,7 @@
       1026,
       1027,
       1028,
+      1029,
       1030,
       1031,
       1032,
@@ -544,6 +545,7 @@
       1563,
       1564,
       1565,
+      1566,
       1567,
       1568,
       1569,
@@ -559,6 +561,7 @@
       1580,
       1582,
       1583,
+      1585,
       1586,
       1587,
       1588,
@@ -659,7 +662,6 @@
       639,
       640,
       670,
-      1029,
       1119,
       1120,
       1121,
@@ -882,10 +884,8 @@
       1558,
       1559,
       1560,
-      1566,
       1581,
       1584,
-      1585,
       1590,
       1593,
       1594,
@@ -1776,8 +1776,10 @@
       "number": 1029,
       "title": "[P3] MetaV2 declared types silently omit a __proto__ parameter",
       "priority": "P3",
-      "status": "partial",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "8ce11779c60992fe058c2f7cb35863987e528183",
+      "validation": "deferred"
     },
     {
       "number": 1030,
@@ -5259,8 +5261,10 @@
       "number": 1566,
       "title": "[P3] Preserve strict artifact failures in streaming context-pack seed resolution",
       "priority": "P3",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "78084426e79e0bd2845cbf6eebaf12c4524862aa",
+      "validation": "deferred"
     },
     {
       "number": 1567,
@@ -5402,8 +5406,10 @@
       "number": 1585,
       "title": "[P3] Apply count-aware ANN deadlines to provider preflight and stop expired dispatch",
       "priority": "P3",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "25944ca4eae2866733a136fdcd076745baf69e9e",
+      "validation": "deferred"
     },
     {
       "number": 1586,

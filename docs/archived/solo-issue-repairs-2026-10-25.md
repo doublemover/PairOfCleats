@@ -3231,3 +3231,42 @@ checked JS tree; bookkeeping changes do not alter it. Current coverage is
 **35 fixed / 455 implemented / 138 partial / 142 pending**, all 770 reports retained.
 No issue closed or new closing reference added.
 Contract: docs/contracts/terminal-read-failure-boundaries.md.
+
+## 2026-10-26 — streaming seed errors, preflight deadlines and reserved metadata keys
+
+`78084426e` repairs #1566 at the streaming helper and exported assembler. Strict
+artifact failures survive unchanged. Tolerant reads admit only an undeclared
+optional compact map before any row is read and after original resource settlement;
+the payload distinguishes unavailable reads from valid semantic misses. Normal
+chunk/file hits retain compact reads; symbol-only requests retain the full metadata
+owner without requiring an unrelated map. Authored controls cover actual exported
+hits/misses, synchronous excerpt parity, missing declared parts, malformed and
+late-part errors, strict/tolerant optional absence and symbol-only metadata.
+
+`25944ca4e` repairs #1585 with one count-work deadline and terminal dispatch owner.
+Preflight and query share the request budget, and later availability/preflight/query
+calls stop after deadline or attempt exhaustion. Post-return clock checks reject
+late work even before the timer callback fires. Phase boundary cost is separate
+from requested-hit effort, with native/cache work explicitly unknown. Caller
+cancellation and real provider failures retain their existing classifications;
+internal expiry does not poison health, and pending original resources cannot
+be hidden as budget exhaustion. Policy/receipt version advances to 2. Authored
+deterministic controls use the actual pipeline and runtime to check cooperative
+preflight/query settlement, expiry before dispatch and after availability, late
+returns, exhausted attempts, cached/no-hook fast paths, caller abort, ordinary
+preflight failure and pending resource errors. Existing stored-scan controls remain.
+
+`8ce11779c` reconciles #1029 against the existing safe `setOwn` implementation
+introduced at `4c5b4032fa`; no redundant producer rewrite is needed. New declared,
+tooling and inferred parameter controls retain five reserved property names as own
+keys through actual MetaV2 production, JSON round trips and atomic metadata writing.
+Original dynamic-key regression assertions remain intact.
+
+Full format/ESLint, eight JS syntax checks, affected generated refresh/freshness,
+three fixture discoveries and staged diff checks passed. Ordered ci-lite now has
+1,321 fixtures. Functional/front-gate/native/platform/performance execution remains
+deferred by the implementation-first instruction. Current coverage is **35 fixed /
+458 implemented / 137 partial / 140 pending**, all 770 reports retained. No issue
+was closed and no closing reference added. Bookkeeping reuses the checked JS tree.
+Contracts: `docs/contracts/streaming-context-seeds.md` and
+`docs/contracts/count-aware-ann-planning.md`.
