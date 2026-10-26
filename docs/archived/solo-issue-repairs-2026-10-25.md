@@ -3025,3 +3025,41 @@ Bookkeeping changes retain the same checked JS tree. Current coverage is
 **35 fixed / 446 implemented / 143 partial / 146 pending** across 770 reports.
 No issue was closed or new closing reference added.
 Contract: docs/contracts/parsed-import-identity.md.
+
+### #1482 Ruby/PHP header exclusion and #1469 Python consumer ownership
+
+`bc8e61bba` retains the existing native syntax-call owner and repairs Ruby's
+lexical fallback. Dropping only the first line previously lost semicolon/endless
+body calls and could scan multiline defaults as body code. The fallback now
+prefers validated copied grammar body bounds; otherwise it finds an ordinary
+balanced header boundary with a 65,536-character allowance. Quotes/comments,
+multiline arguments, continuations, setters, singleton names, semicolon bodies
+and simple endless methods stay within this narrow scope. Ambiguous regexp,
+percent/heredoc or incomplete/over-budget headers remain partial rather than
+being scanned as invocation code. Ruby default expressions keep their existing
+native method-execution policy; the lexical fallback owns body evidence only.
+Shared callFlow advances 48→49 for changed fallback meaning.
+
+Native regression controls cover idle, recursion, command/no-parenthesis,
+singleton/operator/endless methods and defaults. Actual PHP interface/abstract
+and bodyful/recursive methods retain exact content through canonical call-site
+projection and the existing brace-delimited fallback. Sibling Java/C#/Go/Perl/
+Kotlin/Shell helpers remain unchanged. Existing overload, budget, split-window
+and independent JavaScript-owner assertions are preserved.
+
+The Python collector already uses interleaved lexical stacks and source-qualified
+scope IDs for calls/flow. Its existing local-class regression now follows actual
+registered relations, call indexing and public metadata for two local classes,
+async methods, a class inside a method, ordinary nested functions and same-named
+function redefinitions. Exact calls, reads and return totals stay distinct; the
+original decorated-factory boundary checks remain. This reconciles #1469's
+existing source repair without fabricating an execution result.
+
+Full format/ESLint, six JS syntax checks, affected generated refresh/freshness,
+new fixture discovery and staged diff checks passed. One new and three original
+fixtures join ordered ci-lite, now 1,294. All functional/front-gate, CPython/native,
+platform and performance execution remains deferred. Bookkeeping retains the
+checked JS tree. Coverage: **35 fixed / 448 implemented / 141 partial / 146
+pending**, all 770 reports retained, no issue closure or new closing reference.
+Contracts: docs/contracts/native-call-owner-projection.md and
+ docs/contracts/python-declaration-ownership.md.

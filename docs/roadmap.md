@@ -13,7 +13,7 @@ with tests deferred until the source batches are ready. The live intake has
 [current implementation receipt](archived/solo-issue-repairs-2026-10-25.md)
 records new source batches and unvalidated coverage. Historical inventories
 below describe their recorded sources, not the current open count.
-Current source coverage is **35 fixed / 446 implemented / 143 partial / 146
+Current source coverage is **35 fixed / 448 implemented / 141 partial / 146
 pending**, with exact issue-to-source ownership in the
 [complete inventory](archived/github-issue-coverage-2026-10-25.json). Implemented
 means source-complete with execution pending, not accepted closure.
@@ -31,7 +31,8 @@ prefix roles, and parameter/return/modifier metadata uses declaration fields
 (#1470). Native signature handoffs now reach JavaScript indexed fields and map/
 retrieval projections (#740), with C declarator/prototype controls retained
 (#1459/#1474). Parsed HTML/R imports preserve decoded identity through registry,
-scan and replay admission (#1488/#1497). The curated ci-lite lane contains 1,290 cases;
+scan and replay admission (#1488/#1497). Ruby body boundaries and Python lexical
+owner consumers retain independent call facts (#1482/#1469). The curated ci-lite lane contains 1,294 cases;
 new and strengthened regressions remain unrun. Completed batch detail and exact
 source/static-check receipts are retained in the linked implementation archive.
 

@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "5b3f3cd5a",
+  "sourceHead": "bc8e61bba",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 446,
-    "partial": 143,
+    "implemented": 448,
+    "partial": 141,
     "pending": 146
   },
   "priorOpen": 1177,
@@ -489,6 +489,7 @@
       1466,
       1467,
       1468,
+      1469,
       1470,
       1471,
       1472,
@@ -501,6 +502,7 @@
       1479,
       1480,
       1481,
+      1482,
       1483,
       1485,
       1486,
@@ -758,8 +760,6 @@
       1391,
       1392,
       1395,
-      1469,
-      1482,
       1484,
       1504,
       1505,
@@ -4553,8 +4553,10 @@
       "number": 1469,
       "title": "[P2] Preserve Python local-class scopes instead of merging distinct methods and their flow facts",
       "priority": "P2",
-      "status": "partial",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "bc8e61bba",
+      "validation": "deferred"
     },
     {
       "number": 1470,
@@ -4649,8 +4651,10 @@
       "number": 1482,
       "title": "[P2] Exclude Ruby and bodyless PHP declaration headers from call evidence",
       "priority": "P2",
-      "status": "partial",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "bc8e61bba",
+      "validation": "deferred"
     },
     {
       "number": 1483,
