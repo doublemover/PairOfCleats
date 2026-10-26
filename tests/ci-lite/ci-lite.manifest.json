@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1185,
+    "hero": 1188,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -8071,6 +8071,24 @@
     {
       "id": "indexing/semantic/native-manifest-byte-admission",
       "order": 1343,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/finite-heap-versions",
+      "order": 1344,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/finite-heap-owned-read-work",
+      "order": 1345,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/finite-heap-budget-admission",
+      "order": 1346,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

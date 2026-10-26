@@ -1343,3 +1343,6 @@ indexing/semantic/native-include-work-sharing
 services/mcp/sdk-diagnostic-lane
 indexing/semantic/native-bridge-manifest
 indexing/semantic/native-manifest-byte-admission
+indexing/semantic/finite-heap-versions
+indexing/semantic/finite-heap-owned-read-work
+indexing/semantic/finite-heap-budget-admission
