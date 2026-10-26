@@ -3638,3 +3638,46 @@ implemented / 138 partial / 129 pending**, all 770 reports retained; no issue cl
 or closing reference added. Roadmap completed detail was condensed into the linked
 archive, retaining its single active status owner and size budget. Bookkeeping
 reuses the checked JS tree. Contract: `docs/contracts/html-prepared-source.md`.
+
+## 2026-10-26 — shared native include preparation and ordered closure
+
+`2991d189f` repairs #1692. Each retained source produces one immutable lexical
+summary; continuation/comment preprocessing, sealed directive checks and literal
+include extraction no longer repeat for every compilation entry. Contexts preserve
+source-directory precedence, quote/angle form, original ordered include roots and
+admitted standard/define flags. Actual compilation-entry projection now preserves
+first-occurrence `-I` order instead of alphabetically sorting roots, retaining both
+wrong-header and missing-earlier-negative counterexamples as regressions.
+
+Snapshot-local memoization retains unique ordinary-file observations and every
+earlier negative dependency, with one final reobservation before completeness.
+Changed identity/existence/type fails conservatively. Containment surrounds
+asynchronous lstat; pending resource callbacks are observed before absent-file
+classification. Selected source/path sets and copied entry roots/argv cannot be
+rewritten during asynchronous probing. A new verification call starts afresh.
+No compiler, external process, symlink creation or Linux execution is involved in
+the portable controls; the sealed ELF/toolchain qualification owner is unchanged.
+
+Existing source/file/entry/unique-probe caps remain. Separate internal directive,
+resolution request/context and preparation/retention metadata bounds expose exact
+incomplete phase/exhausted reasons. Deterministic receipts distinguish lexical
+source bytes/calls from fixed regex/hash passes, context reuse/preparation, unique
+probes, actual asynchronous lstat/containment/reverification work and retained
+serialized bytes. This is work/metadata accounting, not an absolute heap/RSS or
+measured CPU gain. The receipt joins native inventory identity and lspBindings
+50→51 invalidates replay across the ordered closure/completeness change.
+
+The original private lexical/probe loop moves to the shared snapshot owner; its
+external collector re-export and original closure/ELF/read-ownership assertions
+remain. Authored controls cover equivalent expansion of 4,160 occurrences into
+one witness, unchanged source preparation at 1/4/16 entries, root-order/quoted
+precedence and fresh negative observations, actual argv projection using an inert
+locator file, real unique-probe/context frontiers, caller mutation, changed file
+identity, simulated linked metadata, cancellation and pending callbacks. All are
+unrun. The original dependency-free closure fixture also joins ordered ci-lite,
+now 1,340 cases. Full format/ESLint, four JS syntax checks, final affected ESLint,
+affected generated refresh/freshness, two fixture discoveries and staged diff
+checks passed. Functional/front-gate/native/platform/performance execution remains
+deferred. Coverage is **35 fixed / 469 implemented / 138 partial / 128 pending**,
+all 770 reports retained; no issue closed or closing reference added. Bookkeeping
+reuses the checked JS tree. Contract: `docs/contracts/native-include-snapshot-work.md`.

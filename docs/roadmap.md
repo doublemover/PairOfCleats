@@ -13,7 +13,7 @@ with tests deferred until the source batches are ready. The live intake has
 [current implementation receipt](archived/solo-issue-repairs-2026-10-25.md)
 records new source batches and unvalidated coverage. Historical inventories
 below describe their recorded sources, not the current open count.
-Current source coverage is **35 fixed / 468 implemented / 138 partial / 129
+Current source coverage is **35 fixed / 469 implemented / 138 partial / 128
 pending**, with exact issue-to-source ownership in the
 [complete inventory](archived/github-issue-coverage-2026-10-25.json). Implemented
 means source-complete with execution pending, not accepted closure.
@@ -33,7 +33,8 @@ Map writers share atomic publication and report final-inclusive boundary samples
 separately from process-lifetime RSS. JSONL framing scans each new fragment once
 (#1739); HTML chunks/metadata share one source-owned parse5 tree and retain compact
 source-qualified facts (#1713). Session/generation URI lifetime remains partial
-(#1643). The curated ci-lite lane contains 1,338 cases; all new and strengthened
+(#1643). Native include authority now shares lexical summaries, preserves argv
+root order and bounds snapshot-local context/probe work (#1692). The curated ci-lite lane contains 1,340 cases; all new and strengthened
 regressions remain unrun. Completed batch detail, issue mappings and exact static-
 check receipts are in the linked implementation archive and complete inventory.
 

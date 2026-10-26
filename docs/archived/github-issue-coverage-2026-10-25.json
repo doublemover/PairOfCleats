@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "9344d572e6ef6a1a53c109e745dc50168b2e5370",
+  "sourceHead": "2991d189f9c5d9a392780260a775b8d903f33668",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 468,
+    "implemented": 469,
     "partial": 138,
-    "pending": 129
+    "pending": 128
   },
   "priorOpen": 1177,
   "currentOpen": 770,
@@ -627,6 +627,7 @@
       1688,
       1689,
       1691,
+      1692,
       1695,
       1696,
       1698,
@@ -923,7 +924,6 @@
       1659,
       1664,
       1682,
-      1692,
       1694,
       1697,
       1699,
@@ -6209,8 +6209,10 @@
       "number": 1692,
       "title": "[Perf] Parse native include directives once per snapshot and deduplicate admitted probes",
       "priority": "Perf",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "2991d189f9c5d9a392780260a775b8d903f33668",
+      "validation": "deferred"
     },
     {
       "number": 1694,
