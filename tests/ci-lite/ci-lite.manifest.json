@@ -9,9 +9,9 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1075,
+    "hero": 1079,
     "matrix": 108,
-    "meta": 48,
+    "meta": 49,
     "soak": 1,
     "heavy-runtime": 0
   },
@@ -7407,6 +7407,36 @@
       "order": 1232,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
+    },
+    {
+      "id": "lang/javascript/declaration-occurrence-and-phase",
+      "order": 1233,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/javascript/declaration-projection-replay",
+      "order": 1234,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/release/source-revision-qualification",
+      "order": 1235,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/docs/shared-module-ledger-scope",
+      "order": 1236,
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
+    },
+    {
+      "id": "tooling/testing/search-showcase-machine-stdout",
+      "order": 1237,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
     }
   ]
 }
