@@ -22,7 +22,16 @@ const queries = [
   { filename: 'quoted.sql', text: 'SELECT "Name" FROM "Users";' },
   { filename: 'temporary.sql', text: 'SELECT id FROM session_temp;' },
   { filename: 'template.sql', text: 'SELECT {{ dynamic }} FROM users;' },
-  { filename: 'nested.sql', text: 'WITH a AS (SELECT id FROM users) SELECT id FROM a;' }
+  { filename: 'nested.sql', text: 'WITH a AS (SELECT id FROM users) SELECT id FROM a;' },
+  { filename: 'swap.sql', text: 'SELECT id FROM users AS u(name, id);' },
+  { filename: 'swap-qualified.sql', text: 'SELECT u.id FROM users AS u(name, id);' },
+  { filename: 'partial-list.sql', text: 'SELECT id, name FROM users AS u(name);' },
+  { filename: 'quoted-list.sql', text: 'SELECT u."ID" FROM users AS u("Name", "ID");' },
+  { filename: 'duplicate-list.sql', text: 'SELECT id FROM users AS u(id, id);' },
+  { filename: 'overlong-list.sql', text: 'SELECT id FROM users AS u(id, name, extra);' },
+  { filename: 'self-join-list.sql', text: 'SELECT a.id, b.id FROM users AS a(name, id) JOIN users AS b ON a.id = b.id;' },
+  { filename: 'quoted-table-list.sql', text: 'SELECT "U".id FROM users AS "U"(name, id);' },
+  { filename: 'literal-alias.sql', text: 'SELECT "u(name)".id FROM users AS "u(name)";' }
 ];
 const f = await createSourceLinkedEvidenceFixture([{ filename: 'schema.sql', language: 'sql', text: schema },
   ...queries.map(value => ({ ...value, language: 'sql' }))]);
@@ -65,6 +74,37 @@ try {
   assert.ok(report.results.find(value => value.path === 'temporary.sql').references.some(value => value.reason === 'temporary_object_context_unknown'));
   assert.equal(report.results.find(value => value.path === 'template.sql').reason, 'syntax_or_dialect_unsupported');
   assert.ok(report.results.find(value => value.path === 'nested.sql').diagnostics.some(value => value.code === 'query_scope_unsupported'));
+  const aliasCases = ['swap.sql', 'swap-qualified.sql', 'partial-list.sql', 'quoted-list.sql', 'duplicate-list.sql', 'overlong-list.sql'];
+  for (const filename of aliasCases) {
+    const result = report.results.find(row => row.path === filename);
+    const table = result.references.find(row => row.family === 'sqlTable');
+    assert.equal(table.state, 'resolved', 'independently qualified physical table evidence survives');
+    assert.equal(table.catalogObject.name, 'users');
+    assert.ok(table.queryBinding.columnAliases.columns.length > 0);
+    const columns = result.references.filter(row => row.family === 'sqlColumn');
+    assert.ok(columns.length > 0);
+    assert.ok(columns.every(row => row.target === null && row.state === 'unresolved'
+      && row.reason === 'table_column_alias_list_unsupported' && row.candidates.length === 0),
+    'an exposed alias cannot be falsely resolved to a same-named physical column');
+    assert.ok(result.diagnostics.some(row => row.code === 'table_column_alias_list_unsupported'));
+  }
+  const swappedTable = report.results.find(row => row.path === 'swap.sql').references.find(row => row.family === 'sqlTable');
+  assert.deepEqual(swappedTable.queryBinding.columnAliases.columns.map(row => row.name), ['name', 'id']);
+  const swappedText = queries.find(row => row.filename === 'swap.sql').text;
+  assert.equal(swappedText.slice(...swappedTable.queryBinding.span), 'users AS u(name, id)');
+  assert.deepEqual(swappedTable.queryBinding.columnAliases.columns.map(row => swappedText.slice(...row.span)), ['name', 'id']);
+  assert.equal(report.results.find(row => row.path === 'quoted-table-list.sql').reason, 'syntax_or_dialect_unsupported',
+    'the pinned grammar rejects a quoted table alias followed by a column list; it cannot acquire a physical column target');
+  const literalAlias = report.results.find(row => row.path === 'literal-alias.sql');
+  assert.equal(literalAlias.references.find(row => row.family === 'sqlColumn').state, 'resolved',
+    'parentheses inside one quoted alias name are not a column alias list');
+  const selfJoin = report.results.find(row => row.path === 'self-join-list.sql');
+  assert.equal(selfJoin.references.find(row => row.name === 'a.id').state, 'unresolved');
+  const physicalId = schema.indexOf('id integer', schema.indexOf('CREATE TABLE public.users'));
+  assert.deepEqual(selfJoin.references.find(row => row.name === 'b.id').target.span, [physicalId, physicalId + 2],
+    'a separately qualified ordinary binding retains its independently authored physical target');
+  assert.equal(report.adapterVersion, '3');
+  assert.equal(report.coverage.tableColumnAliases, false);
   const ranges = qualifySqlSelectRanges('SELECT id FROM users WHERE name = $$ FROM hidden JOIN bogus $$;');
   assert.deepEqual(ranges[0].tables.map(value => value.parts), [['users']], 'quoted strings cannot introduce table heads');
   const stale = structuredClone(catalog); stale.tables[0].source.sourceHash = 'f'.repeat(64);
@@ -80,5 +120,14 @@ try {
   assert.equal(detail.report.coverage.databaseConnected, false);
   assert.equal(detail.report.coverage.migrationsExecuted, false);
   assert.equal(detail.partial, true);
+  for (const filename of aliasCases) {
+    const result = report.results.find(row => row.path === filename);
+    const selected = written.output.partitions.find(row => row.sourceUnitId === result.sourceUnitId);
+    const persisted = await readSourceLinkedEvidenceDetail({ store, ref: { partitionId: selected.partitionId, localId: 0 }, targetStoreForSource: () => store });
+    assert.ok(persisted.navigationCandidates.some(row => row.family === 'sqlTable'));
+    assert.ok(!persisted.navigationCandidates.some(row => row.family === 'sqlColumn'), 'canonical detail cannot navigate an unsupported exposed column');
+    assert.deepEqual(persisted.result.references, result.references, 'typed query binding and unsupported evidence survive canonical persistence');
+  }
+
   console.log('offline PostgreSQL catalog/search_path/ambiguity/source witnesses through canonical evidence detail');
 } finally { await f.cleanup(); }

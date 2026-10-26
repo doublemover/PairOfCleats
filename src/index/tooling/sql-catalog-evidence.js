@@ -14,7 +14,7 @@ const safePath = value => typeof value === 'string' && value && !/[\\:\x00-\x1f]
   && !value.startsWith('/') && value.split('/').every(part => part && part !== '.' && part !== '..');
 
 export const SQL_CATALOG_PROVIDER_DECLARATION = Object.freeze({ schemaVersion: 1,
-  providerId: 'sql-offline-catalog', adapterVersion: '2', execution: 'trusted-inprocess', languages: [{ id: 'sql', dialect: 'postgresql' }],
+  providerId: 'sql-offline-catalog', adapterVersion: '3', execution: 'trusted-inprocess', languages: [{ id: 'sql', dialect: 'postgresql' }],
   facts: [{ family: 'references', evidence: 'source-qualified' }, { family: 'diagnostics', evidence: 'provider-observation' }],
   consumers: [{ id: 'navigation', families: ['references'], partialPolicy: 'qualified', fallback: 'parser' },
     { id: 'semanticDetail', families: ['references', 'diagnostics'], partialPolicy: 'qualified', fallback: 'parser' }],
@@ -103,11 +103,11 @@ export const collectOfflineSqlCatalogEvidence = ({ catalog, expectedCatalogIdent
     }
     return { table: null, reason: 'catalog_table_unavailable' };
   };
-  const append = (result, family, name, span, target, reason, candidates = [], catalogObject = null) => {
+  const append = (result, family, name, span, target, reason, candidates = [], catalogObject = null, queryBinding = null) => {
     if (++referenceCount > maxReferences) throw fail('SQL reference budget exhausted.');
     candidateCount += candidates.length;
     if (candidateCount > maxReferences) throw fail('SQL ambiguity candidate budget exhausted.');
-    const reference = { family, name, span, target, state: target ? 'resolved' : 'unresolved', reason: target ? null : reason, candidates, catalogObject };
+    const reference = { family, name, span, target, state: target ? 'resolved' : 'unresolved', reason: target ? null : reason, candidates, catalogObject, ...(queryBinding ? { queryBinding } : {}) };
     retainedReferenceBytes += Buffer.byteLength(canonicalSemanticJson(reference));
     if (retainedReferenceBytes > 512 * 1024) throw fail('SQL retained reference byte budget exhausted.');
     result.references.push(reference);
@@ -160,11 +160,18 @@ export const collectOfflineSqlCatalogEvidence = ({ catalog, expectedCatalogIdent
           if (result.diagnostics.length < 32) result.diagnostics.push({ code: 'table_ast_source_mismatch', span }); continue;
         }
         const selected = chooseTable(parsed.parts), alias = parsed.alias || parsed.parts.at(-1);
-        const binding = { alias, table: selected.table, reason: selected.reason };
+        const parserAlias = typeof from.as === 'string' ? (parsed.aliasQuoted ? from.as : from.as.toLowerCase()) : from.as ?? null;
+        const columnsUnsupported = parsed.columnAliases !== null ? 'table_column_alias_list_unsupported'
+          : parserAlias !== parsed.alias ? 'table_alias_ast_source_mismatch' : null;
+        if (columnsUnsupported && result.diagnostics.length < 32) result.diagnostics.push({ code: columnsUnsupported, span: parsed.referenceSpan });
+        const binding = { alias, table: selected.table, reason: selected.reason, columnsUnsupported };
         bindings.push(binding);
         const values = aliases.get(alias) || []; values.push(binding); aliases.set(alias, values);
         append(result, 'sqlTable', parsed.parts.join('.'), span, selected.table?.source || null, selected.reason, [],
-          selected.table ? { schema: selected.table.schema, name: selected.table.name, kind: 'table' } : null);
+          selected.table ? { schema: selected.table.schema, name: selected.table.name, kind: 'table' } : null,
+          { parts: parsed.parts, quoted: parsed.quoted, span: parsed.referenceSpan,
+            alias: parsed.alias === null ? null : { name: parsed.alias, quoted: parsed.aliasQuoted, span: parsed.aliasSpan },
+            columnAliases: parsed.columnAliases });
       }
       const projections = Array.isArray(statement.columns) ? statement.columns : [];
       if (qualifier.columns.length !== projections.length) {
@@ -180,22 +187,23 @@ export const collectOfflineSqlCatalogEvidence = ({ catalog, expectedCatalogIdent
           if (result.diagnostics.length < 32) result.diagnostics.push({ code: 'column_ast_source_mismatch', span }); continue;
         }
         const columnName = parsed.parts.at(-1), selected = parsed.parts.length === 2 ? aliases.get(parsed.parts[0]) || [] : bindings;
-        const candidates = selected.flatMap(binding => binding.table?.columns.has(columnName)
+        const unsupportedBinding = selected.find(binding => binding.columnsUnsupported);
+        const candidates = unsupportedBinding ? [] : selected.flatMap(binding => binding.table?.columns.has(columnName)
           ? [{ schema: binding.table.schema, table: binding.table.name, column: columnName, source: binding.table.columns.get(columnName).source }] : []);
-        const unique = scopeComplete && candidates.length === 1 && selected.every(binding => binding.table !== null);
+        const unique = !unsupportedBinding && scopeComplete && candidates.length === 1 && selected.every(binding => binding.table !== null);
         append(result, 'sqlColumn', parsed.parts.join('.'), span, unique ? candidates[0].source : null,
-          !scopeComplete ? 'from_scope_unmapped' : candidates.length > 1 ? 'ambiguous_column' : selected.some(binding => !binding.table) ? 'from_table_unresolved' : 'catalog_column_unavailable', candidates);
+          unsupportedBinding ? unsupportedBinding.columnsUnsupported : !scopeComplete ? 'from_scope_unmapped' : candidates.length > 1 ? 'ambiguous_column' : selected.some(binding => !binding.table) ? 'from_table_unresolved' : 'catalog_column_unavailable', candidates);
       }
       if (entries.filter(node => node.type === 'column_ref').length > projections.filter(projection => projection?.expr?.type === 'column_ref').length
         && result.diagnostics.length < 32) result.diagnostics.push({ code: 'non_projection_column_ranges_unavailable', span: null });
     }
   }
-  const report = { schemaVersion: 1, kind: 'source-linked-evidence', producerId: 'sql-offline-catalog', adapterVersion: '2',
+  const report = { schemaVersion: 1, kind: 'source-linked-evidence', producerId: 'sql-offline-catalog', adapterVersion: '3',
     method: 'sql/offline-catalog', evidenceKind: 'sql-catalog-references', generation: JSON.parse(canonicalSemanticJson(generation)),
     runtime: { family: 'node-sql-parser', version, profileHash, qualification: 'application-library-unqualified' },
     project: { configHash, dependencyHash, catalogIdentity: identity, catalogContext: catalog.context },
     results: [...results.values()], coverage: { selectTableColumnSubset: true, databaseConnected: false, migrationsExecuted: false,
-      functionOverloads: false, proceduralSql: false, temporaryObjects: false },
+      functionOverloads: false, proceduralSql: false, temporaryObjects: false, tableColumnAliases: false },
     metrics: { sourceBytes, nodeCount, referenceCount, columnCount, candidateCount, retainedReferenceBytes } };
   check();
   return finalizeSourceLinkedReport(report, { maxBytes: SQL_CATALOG_PROVIDER_DECLARATION.limits.maxBytes,

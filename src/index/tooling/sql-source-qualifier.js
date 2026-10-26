@@ -98,17 +98,17 @@ export const qualifySqlSelectRanges = (text, { check = () => {}, maxTokens = 163
       parts.push(tokens[cursor + 1]); cursor += 2;
     }
     const span = [tokens[first].span[0], tokens[cursor - 1].span[1]];
-    let alias = null;
+    let alias = null, aliasSpan = null, aliasQuoted = null;
     if (allowAlias) {
       if (keyword(tokens[cursor], 'as')) {
         if (tokens[cursor + 1]?.kind !== 'name') return null;
-        alias = tokens[cursor + 1].value; cursor += 2;
+        alias = tokens[cursor + 1].value; aliasSpan = tokens[cursor + 1].span.slice(); aliasQuoted = tokens[cursor + 1].quoted; cursor += 2;
       } else if (tokens[cursor]?.kind === 'name' && (tokens[cursor].quoted
         || !['join', 'left', 'right', 'inner', 'outer', 'full', 'cross', 'natural', 'on', 'using', 'where', 'group', 'order', 'having', 'limit', 'offset', 'fetch', 'for', 'union', 'intersect', 'except'].includes(tokens[cursor].value))) {
-        alias = tokens[cursor].value; cursor++;
+        alias = tokens[cursor].value; aliasSpan = tokens[cursor].span.slice(); aliasQuoted = tokens[cursor].quoted; cursor++;
       }
     }
-    return { parts: parts.map(token => token.value), quoted: parts.map(token => token.quoted), span, alias, end: cursor };
+    return { parts: parts.map(token => token.value), quoted: parts.map(token => token.quoted), span, alias, aliasSpan, aliasQuoted, end: cursor };
   };
   return statements.map(statement => {
     if (!keyword(statement[0], 'select')) return { supported: false, tables: [], columns: [] };
@@ -141,7 +141,27 @@ export const qualifySqlSelectRanges = (text, { check = () => {}, maxTokens = 163
       if (needTable) {
         const parsed = identifier(statement, cursor, true);
         if (!parsed) return { supported: false, tables: [], columns: [] };
-        tables.push(parsed); cursor = parsed.end; needTable = false; continue;
+        cursor = parsed.end;
+        parsed.columnAliases = null;
+        if (parsed.alias !== null && statement[cursor]?.kind === 'symbol' && statement[cursor].value === '(') {
+          const aliases = [], start = statement[cursor++].span[0];
+          let needName = true;
+          while (cursor < statement.length) {
+            check();
+            const aliasToken = statement[cursor];
+            if (aliasToken.kind === 'symbol' && aliasToken.value === ')' && !needName) break;
+            if (needName) {
+              if (aliasToken.kind !== 'name' || aliases.length >= 256) return { supported: false, tables, columns };
+              aliases.push({ name: aliasToken.value, quoted: aliasToken.quoted, span: aliasToken.span.slice() });
+            } else if (aliasToken.kind !== 'symbol' || aliasToken.value !== ',') return { supported: false, tables, columns };
+            needName = !needName; cursor++;
+          }
+          if (needName || statement[cursor]?.value !== ')') return { supported: false, tables, columns };
+          parsed.columnAliases = { span: [start, statement[cursor++].span[1]], columns: aliases };
+        }
+        parsed.referenceSpan = [parsed.span[0], statement[cursor - 1].span[1]];
+        parsed.end = cursor;
+        tables.push(parsed); needTable = false; continue;
       }
       if (token.kind === 'symbol' && token.value === '(') nesting++;
       else if (token.kind === 'symbol' && token.value === ')') nesting--;
