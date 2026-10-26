@@ -1516,3 +1516,52 @@ and staged diff checks passed. Functional execution and final front gate remain
 deferred. The intake receipt keeps its prior head/open field names while retaining
 the complete metadata-refresh witness. Coverage is **35 fixed / 409 implemented /
 151 partial / 168 pending**.
+
+
+## SQL relation-role and decoded occurrence evidence
+
+**#1719** (`8916a5e3c`, partial) replaces arbitrary table-property traversal with
+declared SQL AST roles. Only physical relation-head observations feed legacy
+usages display; column qualifiers, opaque aliases, possible CTE references and
+derived scopes remain distinct. CREATE TABLE/VIEW targets remain declarations;
+CREATE INDEX/ALTER TABLE inputs remain relation uses, without promoting an ALTER
+new-name action to another usage. Unsupported statement roles are explicit.
+Already-decoded characters are retained exactly. Ordered db/schema/table parts
+separate qualification from literal dots, brackets/backticks and edge spaces.
+No second delimiter-stripping pass remains. The replaced helpers were private
+and their sole call path is replaced by the new owner; no fixture/assertion or
+script coverage is deleted.
+
+Strict versioned sqlRelationEvidence binds a UTF-16LE text hash, dialect, parser
+version, statement scope, AST path and typed occurrence identity. Decoded-name
+IDs identify observations, not catalog bindings; lost lexical quote/case facts
+and conservative CTE scope remain unqualified. Source extents are retained only
+when supplied by the AST. Reasons, source admission, queues, nodes, depth,
+occurrences, identifiers and retained bytes are bounded. Unavailable/failed
+parser, source budget and partial empty cannot become recognized empty. Unknown
+omitted counts stay null. Artifact validation checks roles, counts, source extent
+bounds, unique/recomputed IDs and conservative display.
+
+The complete envelope survives buildFileRelations and JSON/sharded publication,
+but is stripped from per-chunk codeRelations to avoid duplication. The actual
+cross-file fingerprint owner already hashes full file relations, preserving
+qualification through reuse. Shared **sqlRelations 2**, actual parser
+availability/version, ordinary parse dependencies and semantic runtime
+dependencies fence historical output. The parser version reader activates no
+parser or native module. No cache is deleted or live database introduced.
+
+Authored registry/parser-route cases cover alias renaming, schema names, literal
+dots, decoded bracket/backtick/space characters, exact CREATE/use name identity,
+CTE shadowing, derived aliases, qualified columns, ALTER rename actions, valid
+empty, parser failure and source admission. They persist/reload both real JSON
+and sharded file relations, compare content and actual usage-cache fingerprints,
+and reject forged roles/identities. Native declaration/scanner and offline
+catalog assertions remain. Runtime execution is deferred.
+
+This deliberately remains **partial**: the wider shared extraction-coverage
+result/first durable handoff/graph summary in #1662 is not repaired by adding the
+SQL file receipt, and full lexical quote/scope/catalog qualification remains
+explicitly unavailable here. Full format, corrected scoped ESLint, syntax,
+affected generated refresh, fixture discovery and staged diff checks passed.
+Functional execution and final gate remain deferred. Coverage is **35 fixed /
+409 implemented / 152 partial / 167 pending**.
