@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "cdaa69448b5e6ccd7cb5e1d97bc4caa678c9a7b5",
+  "sourceHead": "9813aaa98066e258154dd811a4acef9f0d438640",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 463,
+    "implemented": 464,
     "partial": 138,
-    "pending": 134
+    "pending": 133
   },
   "priorOpen": 1177,
   "currentOpen": 770,
@@ -598,6 +598,7 @@
       1639,
       1640,
       1641,
+      1644,
       1645,
       1648,
       1649,
@@ -907,7 +908,6 @@
       1627,
       1634,
       1642,
-      1644,
       1646,
       1647,
       1650,
@@ -5851,8 +5851,10 @@
       "number": 1644,
       "title": "Enforce VFS cold-cache memory budgets during load and live admission, not only persistence",
       "priority": "other",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "9813aaa98066e258154dd811a4acef9f0d438640",
+      "validation": "deferred"
     },
     {
       "number": 1645,

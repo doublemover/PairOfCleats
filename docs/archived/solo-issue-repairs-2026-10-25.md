@@ -3446,3 +3446,47 @@ execution remains deferred. Coverage is **35 fixed / 463 implemented / 138 parti
 134 pending**, all 770 reports retained, no issue closed or closing reference added.
 Bookkeeping reuses the checked JS tree. Contract:
 `docs/contracts/vfs-materialization-integrity.md`.
+
+## 2026-10-26 — bounded live VFS metadata and revision-safe flushing
+
+`9813aaa98` repairs #1644 with one authoritative live cache owner. Existing
+payload-byte policy is separate from 50,000 entry, 8 MiB serialized-metadata and
+32 KiB row bounds. The shared min-heap supports recency/expiry with equal-time
+admission ordering, exact payload totals and bounded amortized tombstone rebuilds.
+Set/expiry/eviction updates running ownership; flush cannot leave the old larger
+map behind. Oversized/invalid candidates bypass caching. maxBytes zero explicitly
+disables all admission; maxAgeDays zero disables age expiry. No public knob added.
+
+Contained metadata is bounded before parsing. Data admission checks 8 MiB file
+size before allocating its fixed raw chunk/line; physical-line count and raw row
+length precede UTF-8/JSON parsing. Rows enter bounded admission directly. Original
+read/close settlement remains with the shared contained generator owner. Corrupt,
+stale, changed, invalid, over-budget or count/byte-inconsistent input cannot
+publish a partial live cache. Metadata candidates remain distinct from actual
+disk authority; an expected-path lookup rejects a different root before existence
+probing. Materialization receipts are bounded projections, not trusted file grants.
+
+Only one bounded immutable flush snapshot is live. Serialized publication and
+revision fences retain sets received during an awaited write; a concurrent caller
+waits through its captured revision. Original pending publication failures fence
+later flushes. Statistics retain payload/metadata/count bounds, heap/eviction/
+expiry/invalid counters, actual loaded input/rows and retained entries, miss state,
+flush/revision and bounded snapshot observations. No absolute V8 heap/RSS plateau
+or immutable/session URI lifetime is claimed; the latter stays with partial #1643.
+
+The old private whole-array compactor had only the replaced load/flush callers
+and no external export; its removal follows those owned replacements. The existing
+persisted/reload test and every assertion remain, with accurate scope labeling.
+New authored controls keep one live cache across 32 insertions and eight flushes,
+cover zero/tiny/oversize entries, updates, heap-history bounds, expiry, bounded
+file/line/count/late/shape failures, stale input and held concurrent snapshot
+publication. Original persisted/reload coverage joins ordered ci-lite alongside
+two new owners, now 1,331 cases. All functional assertions remain unrun.
+
+Full format/ESLint, seven JS syntax checks, affected generated refresh/freshness,
+three fixture discoveries and staged diff checks passed. Final affected syntax/
+ESLint/diff checks also cover the post-format raw string admission bound. Functional/
+front-gate/native/platform/performance execution remains deferred. Coverage is
+**35 fixed / 464 implemented / 138 partial / 133 pending**, all 770 reports retained,
+no issue closed or closing reference added. Bookkeeping reuses the checked JS tree.
+Contract: `docs/contracts/vfs-cold-cache-bounds.md`.
