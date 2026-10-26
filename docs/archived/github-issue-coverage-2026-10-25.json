@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "de184cb3429e4f798f18832e5ccf1d4f8cbe6448",
+  "sourceHead": "897ef89d75b466c108ff4958917637bebdf74522",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 472,
+    "implemented": 473,
     "partial": 138,
-    "pending": 125
+    "pending": 124
   },
   "priorOpen": 1177,
   "currentOpen": 770,
@@ -638,6 +638,7 @@
       1702,
       1711,
       1713,
+      1714,
       1716,
       1718,
       1719,
@@ -931,7 +932,6 @@
       1707,
       1708,
       1710,
-      1714,
       1722,
       1723
     ]
@@ -6336,8 +6336,10 @@
       "number": 1714,
       "title": "[Perf] Amortize retained graph evidence verification within owned page enumerations",
       "priority": "Perf",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "897ef89d75b466c108ff4958917637bebdf74522",
+      "validation": "deferred"
     },
     {
       "number": 1716,

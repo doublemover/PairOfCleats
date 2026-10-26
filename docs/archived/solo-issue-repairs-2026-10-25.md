@@ -3811,3 +3811,52 @@ front-gate/native/platform/performance execution remains deferred. Coverage is
 **35 fixed / 472 implemented / 138 partial / 125 pending**, all 770 reports retained;
 no issue closed or closing reference added. Bookkeeping reuses the checked JS tree.
 Contract: `docs/contracts/finite-heap-versions.md`.
+
+## 2026-10-26 — owned retained graph enumeration and physical work
+
+`897ef89d7` repairs #1714: a whole enumeration and CLI `--all` own one serial
+verified JSONL/offset pair at a time, reusing its exact captured snapshot or retained
+descriptors/block checks until the shard ends. Independent page/API/MCP requests
+still admit separate readers. Public cursors and strict result schemas are
+unchanged; every page checks the pinned manifest before and after reading.
+Retained descriptor reads recheck containment/path identity as well as original
+stat identity and freshly hashed blocks, including atomic pathname replacement.
+
+The existing multi-index reader receives windows of at most 32 rows and 1 MiB of
+encoded input, separately from scan/output bounds. Every decoded row is schema
+checked before filtering; byte-full overfetch is bounded, discarded and never
+advances the logical cursor. Each shard closes before the next opens. Terminal
+results are withheld until close, and return/abort drain the actual original owner
+(including abort while the consumer is paused). Earlier nonterminal output remains
+a prefix until enumeration and output settle. Failed close is never retried by
+the session. CLI output waits for the actual write callback and required drain;
+error or close rejects through the existing `consumeJsonRows` cleanup compositor.
+Original consumer and independent descriptor failures retain their capabilities.
+
+Internal reader/iterator diagnostics distinguish physical source opens/read bytes,
+file hash attempts/completions/bytes, offset entries validated, data/offset block
+verification and bytes, decoded rows/windows, maximum encoded window bytes,
+retained snapshot/proof bytes and conservative descriptor bounds. These exclude
+metadata I/O, JavaScript representation/RSS and measured latency. No public field,
+configuration, integrity or authority relaxation was added. Source enumeration
+meaning is unchanged; no semantic producer/version change is required.
+
+A new actual-reader fixture authors two >64 KiB canonical occurrence shards,
+1/small/default page output parity, selective/all-miss filters, bounded physical
+work independent of page count, return/abort, manifest change, same-size mutation,
+atomic replacement, independent-page revalidation and failed output plus original
+close recovery without read/output replay. The existing producer-to-CLI/API/MCP
+fixture retains all assertions and adds real Writable backpressure, one admission
+per source, callback failure and transport close-before-drain. Original canonical
+occurrence and falsey/frozen cleanup fixtures are unchanged and join ordered
+ci-lite with the new and strengthened owners, now 1,350 cases. All are unrun.
+
+`99a999a81` also adds explicit privately tightened structural-work exhaustion to
+#1694's existing fixture, rejecting before payload projection/sealing. Full
+format/ESLint, ten syntax checks, three affected generated refresh/freshness
+surfaces, five fixture discoveries and staged diff checks passed. Functional,
+front-gate, native, platform and performance execution remains deferred. Coverage
+is **35 fixed / 473 implemented / 138 partial / 124 pending**, all 770 reports
+retained; no issue state or closing reference changed. Bookkeeping reuses the
+checked JS tree. Contracts: `docs/contracts/graph-evidence-pages.md` and
+`docs/contracts/retained-evidence-page-cleanup.md`.
