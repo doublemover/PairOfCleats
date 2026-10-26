@@ -1731,3 +1731,60 @@ the user's request. No runtime/performance/CI acceptance is claimed. A fresh
 complete GitHub metadata query at `25bab8aec` again found **763 open reports**,
 zero additions/closures/title changes. Coverage is **35 fixed / 413 implemented /
 152 partial / 163 pending**, with all current issue IDs mapped once.
+
+## JavaScript declaration and evaluation ownership (2026-10-26)
+
+**#1673, #1674 and #1676** (`cfa33b5da`) replace display-name accumulation in
+the lightweight JavaScript path with a bounded per-source catalog. Occurrence
+identity binds source hash, actual Babel/Acorn/Esprima version, exact UTF-16
+range, declaration role and the shared **javascriptRelations 1** producer.
+Explicit AST wrapper associations and indexed range joins keep static/instance,
+getter/setter, nested/anonymous, class-expression and external/internal names
+separate. Ambiguous display aliases cannot lend metadata. The separate compiler
+CFG and semantic collectors retain their existing owners.
+
+One prepared AST/relation traversal supplies docmeta and flow. Bounded child
+descriptors retain conditional parameter initializers, computed keys, heritage,
+module evaluation and static/instance initializers under their actual owner and
+phase. Binding positions do not become expression reads. Declared async/generator
+kind stays independent of observed yield; bare return, return arguments and
+concise-arrow implicit values remain distinct. Missing, disabled, split or
+incomplete observations cannot become a verified false aggregate.
+
+The real registry and file processor preserve occurrence identity through capped
+pair/detail channels, native range aliases, fragments, supplemental missing
+declaration/evaluation chunks and segment-to-container mapping. Supplemental
+owners can overlap declaration envelopes by qualified identity; legacy geometric
+gaps still reject overlap. Replayed projections do not duplicate owners. Argument,
+literal/default and returned-call ranges are rebased; original source occurrence
+IDs remain local to their parsed snapshot. Canonical metadata and call sites keep
+typed evidence, and artifact admission checks source/range/alias identities.
+File catalogs persist once rather than duplicating per chunk. Ordinary parse and
+semantic reuse include the producer version.
+
+The removed JavaScript regex control-flow constant had one production consumer;
+that route now uses the prepared syntax owner. Repository search found no
+remaining references. The shared helper and Python configuration remain used.
+Existing caller assertions now explicitly project the raw occurrence protocol;
+the cross-file parameter fixture uses a real callable boundary and public chunk
+projection, retaining its destructuring/default/rest assertions.
+
+Authored fixtures exercise actual Babel/Acorn routes, an actual supported Esprima
+case, collisions, nested/anonymous owners, phases, declaration modifiers, return
+shapes, disabled analysis, stale source and capped indexes. Every call in the
+collision source must survive under exactly one output owner. A second fixture
+covers fragment/crossing calls, embedded offsets, canonical call sites and
+metadata, tampered source identities/aliases, JSON and sharded file relations,
+and real incremental bundle replay. Functional execution is **deferred**.
+
+Full format/ESLint, syntax on 33 changed JavaScript files, affected generated
+refresh/freshness, fixture discovery and staged diff checks passed. The final
+front gate, runtime/native/performance checks and hosted CI are not claimed.
+Generated local inventories remain author-workspace reports where the registry
+marks them uncommitted; tracked generated outputs did not drift.
+
+A complete fresh GitHub intake contains **766 open reports**, with #320, #429
+and #473 newly reopened against the previously published source. All remain
+pending under their new audit scope. Coverage is **35 fixed / 416 implemented /
+152 partial / 163 pending**; every open report appears once. Implemented means
+source work attempted with validation deferred, not accepted issue closure.

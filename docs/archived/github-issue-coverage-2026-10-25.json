@@ -1,17 +1,17 @@
 {
   "schemaVersion": 1,
-  "date": "2026-10-25",
-  "sourceHead": "cdf5b0d40",
+  "date": "2026-10-26",
+  "sourceHead": "cfa33b5da",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
+    "pending": 163,
     "fixed": 35,
-    "implemented": 413,
     "partial": 152,
-    "pending": 163
+    "implemented": 416
   },
   "priorOpen": 1177,
-  "currentOpen": 763,
+  "currentOpen": 766,
   "closedSincePriorSnapshot": 414,
   "existingClosingReferences": [
     584,
@@ -586,6 +586,9 @@
       1669,
       1670,
       1671,
+      1673,
+      1674,
+      1676,
       1683,
       1684,
       1688,
@@ -772,10 +775,13 @@
       279,
       284,
       289,
+      320,
       347,
       356,
       371,
       385,
+      429,
+      473,
       668,
       672,
       681,
@@ -889,9 +895,6 @@
       1663,
       1664,
       1665,
-      1673,
-      1674,
-      1676,
       1677,
       1680,
       1681,
@@ -987,6 +990,13 @@
       "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
     },
     {
+      "number": 320,
+      "title": "Release automation: add verified build, promotion, signing, attestation, and publish workflows for all shipped artifacts",
+      "priority": "other",
+      "status": "pending",
+      "reopenedAudit": "2026-10-26"
+    },
+    {
       "number": 347,
       "title": "Build-root ownership: introduce a canonical active-generation resolver for sqlite, validation, and reports",
       "priority": "other",
@@ -1013,6 +1023,20 @@
       "priority": "other",
       "status": "pending",
       "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+    },
+    {
+      "number": 429,
+      "title": "Build shared-module census, consumer map, duplicate-cluster seed list, and review ledger for H30/H31/H32",
+      "priority": "other",
+      "status": "pending",
+      "reopenedAudit": "2026-10-26"
+    },
+    {
+      "number": 473,
+      "title": "Search display QA: add automated review reports for overflow, blank lines, and surface regressions",
+      "priority": "other",
+      "status": "pending",
+      "reopenedAudit": "2026-10-26"
     },
     {
       "number": 586,
@@ -5960,15 +5984,19 @@
       "number": 1673,
       "title": "[P2] Join JavaScript callable metadata and flow by declaration occurrence, not display name",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "cfa33b5da",
+      "validation": "deferred"
     },
     {
       "number": 1674,
       "title": "[P2] Retain JavaScript declaration expressions under the correct evaluation owner",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "cfa33b5da",
+      "validation": "deferred"
     },
     {
       "number": 1675,
@@ -5984,8 +6012,10 @@
       "number": 1676,
       "title": "[P2] Preserve JavaScript generator kind and distinguish return statements from returned values",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "cfa33b5da",
+      "validation": "deferred"
     },
     {
       "number": 1677,
@@ -6431,13 +6461,18 @@
     }
   ],
   "githubRefresh": {
-    "date": "2026-10-25",
-    "added": 0,
+    "date": "2026-10-26",
+    "added": 3,
+    "addedIds": [
+      320,
+      429,
+      473
+    ],
     "closed": 0,
     "titleChanges": 0,
-    "source": "gh issue list --state open --limit 2000 --json number,title,labels",
+    "source": "gh issue list --state open --limit 2000 --json number,title,body,labels,updatedAt",
     "sourceComplete": true,
-    "head": "25bab8aec",
-    "open": 763
+    "head": "cfa33b5da",
+    "open": 766
   }
 }
