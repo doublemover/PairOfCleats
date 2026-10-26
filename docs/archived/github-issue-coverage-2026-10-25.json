@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "9488126c9",
+  "sourceHead": "c42fee0eb",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
     "implemented": 425,
-    "partial": 152,
-    "pending": 158
+    "partial": 153,
+    "pending": 157
   },
   "priorOpen": 1177,
   "currentOpen": 770,
@@ -772,6 +772,7 @@
       1522,
       1523,
       1574,
+      1663,
       1675,
       1719
     ],
@@ -898,7 +899,6 @@
       1656,
       1657,
       1659,
-      1663,
       1664,
       1677,
       1681,
@@ -5955,8 +5955,11 @@
       "number": 1663,
       "title": "[P2] Give benchmark reports run-owned paths and atomic checkpoint publication",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "partial",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "c42fee0eb",
+      "validation": "deferred",
+      "remaining": "A/B invocation/report binding and settled-run evidence retention; recommendation admission remains #1655."
     },
     {
       "number": 1664,

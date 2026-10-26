@@ -42,6 +42,8 @@ exact attempt snapshots, preserving derivation provenance after materialization.
 keeping requested model plans separate from generation-bound observed coverage.
 #1661 now keeps bakeoff waits asynchronous and phase terminal/checkpoint states
 truthful, with bounded diagnostic progress and independent success/settled counts.
+#1663 now fences bakeoff checkpoint publication and retains immutable final/input
+receipts; A/B report binding, admission and settled-run retention remain active.
 #1675 now uses one global query resource plan and retirement-aware pools; whole
 process-tree RSS measurement remains open, with known-worker samples labeled.
 

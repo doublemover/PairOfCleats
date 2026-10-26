@@ -2136,3 +2136,50 @@ owner. Existing fixtures/assertions remain. ci-lite now contains 1,243 entries.
 Functional execution and final gate remain deferred. Current coverage: **35 fixed
 / 425 implemented / 152 partial / 158 pending** across 770 current open reports.
 No issue closure or new closing reference was inferred from this source batch.
+
+## Bakeoff checkpoint publication owner, first #1663 slice (2026-10-26)
+
+**#1663 remains partial.** `c42fee0eb` repairs its bakeoff checkpoint branch;
+A/B invocation/report binding and settled-run evidence retention are still open,
+with comparable recommendation admission tracked independently by #1655.
+
+The existing file-lock owner now fences the complete invocation, including
+resume admission, all child phases and pending checkpoint writes. Competing
+writers get an explicit busy result. Closed/sealed capabilities cannot write
+into a later invocation, and concurrent local publications are rejected. Pending
+writes are drained before lock release; original child/persistence settlement
+observations remain with the existing lock owner. No force-reclaim or alternate
+supervisor is introduced.
+
+Publication uses the existing atomic persistence owner, retaining prior complete
+bytes on failure before commit. Every invocation has an exclusive compact run
+directory, owner marker, exact incoming checkpoint copy and separate create-only
+terminal receipt. Versioned metadata binds run/revision/settings and source
+identity. The old default latest path and explicit --checkpoint interface remain.
+A sealed final receipt cannot be selected as a mutable target; copying it to a
+chosen checkpoint path provides explicit compatible import without overwriting
+history. Startup-only failures can retain their terminal report independently
+while preserving an earlier usable latest checkpoint. Native/index/model work is
+not replayed by publication recovery.
+
+Contained bounded UTF-8 reads distinguish absent, incompatible settings, malformed
+or inconsistent checkpoint and active writer. Corrupt input is preserved and
+fails before work; it no longer becomes an empty resume through catch-all error
+handling. Valid model reuse retains the generation and evaluation-input checks,
+and exclusions are explicit in the resume receipt. A fixed 32 MiB report bound
+may only be lowered by private fixtures. Generic JSON writers outside this owner
+are unchanged.
+
+The new real-filesystem fixture covers valid unchanged resume, exact original
+bytes, immutable history, read-only sealed targets, corrupt input without work,
+two competing writers, expired A after B, actual atomic before-commit failure,
+prior-byte preservation, lock release after settled failure, startup-only
+publication, settings mutation and concurrent writes. It requires no models,
+corpus, native backend or elevated Windows permissions.
+
+Full format/ESLint, syntax on three changed JavaScript files, affected generated
+refresh/freshness, fixture discovery/ordered selection and diff checks passed.
+ci-lite now contains 1,244 entries. Functional execution and final gate remain
+deferred. Current coverage: **35 fixed / 425 implemented / 153 partial / 157
+pending** across 770 current open reports. No issue closure or new closing
+reference was inferred from this partial source batch.
