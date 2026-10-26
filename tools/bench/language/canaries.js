@@ -1,38 +1,18 @@
-import crypto from 'node:crypto';
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
-import { resolveWindowsCmdInvocation } from '../../../src/shared/subprocess/windows-cmd.js';
+import { createCanaryRunnerPlan, createCanaryEnvironmentOwner } from './canary-environment.js';
 import { classifyBenchTask } from './verdict.js';
 import {
-  buildBenchEnvironmentMetadata,
   createBenchDiagnosticClassifier
 } from './logging.js';
 import { sumDiagnosticCounts } from './diagnostics.js';
 
 const DEFAULT_CANARY_ROOT = path.join(process.cwd(), 'tests', 'fixtures', 'bench-runtime-canaries');
 const DEFAULT_LIVE_CANARY_TIMEOUT_MS = 5 * 60 * 1000;
-const VERSION_PROBE_TIMEOUT_MS = 1500;
-const BENCH_RUNTIME_ENVIRONMENT_PROBES = Object.freeze([
-  { id: 'node', command: process.execPath, args: ['--version'] },
-  { id: 'git', command: 'git', args: ['--version'] },
-  { id: 'npm', command: 'npm', args: ['--version'] },
-  { id: 'cargo', command: 'cargo', args: ['--version'] },
-  { id: 'rustc', command: 'rustc', args: ['--version'] },
-  { id: 'go', command: 'go', args: ['version'] },
-  { id: 'swift', command: 'swift', args: ['--version'] },
-  { id: 'python', command: 'python', args: ['--version'] },
-  { id: 'gopls', command: 'gopls', args: ['version'] },
-  { id: 'sourcekit-lsp', command: 'sourcekit-lsp', args: ['--version'] },
-  { id: 'rust-analyzer', command: 'rust-analyzer', args: ['--version'] }
-]);
-
-const environmentSnapshotCache = new Map();
-
 export const DEFAULT_BENCH_RUNTIME_CANARY_ROOT = DEFAULT_CANARY_ROOT;
 export const BENCH_RUNTIME_CANARY_MANIFEST_SCHEMA_VERSION = 2;
 export const BENCH_RUNTIME_LIVE_CANARY_RESULT_SCHEMA_VERSION = 1;
@@ -111,118 +91,6 @@ const normalizeTextList = (value) => Array.from(new Set(
     .map((entry) => String(entry || '').trim())
     .filter(Boolean)
 )).sort((left, right) => left.localeCompare(right));
-
-const inferExpectedPlatform = (value) => {
-  const text = String(value || '').trim().toLowerCase();
-  if (!text || text.includes('cross-platform')) return null;
-  if (text.includes('windows')) return 'win32';
-  if (text.includes('macos') || text.includes('darwin')) return 'darwin';
-  if (text.includes('linux')) return 'linux';
-  return null;
-};
-
-const collectExpectedProbeIds = (entry) => {
-  const corpus = [
-    entry?.environment?.toolchain,
-    entry?.environment?.providerAvailability,
-    entry?.repo,
-    entry?.profile
-  ].map((value) => String(value || '').toLowerCase()).join(' ');
-  const ids = new Set(['node', 'git', 'npm']);
-  if (corpus.includes('rust')) {
-    ids.add('cargo');
-    ids.add('rustc');
-    ids.add('rust-analyzer');
-  }
-  if (corpus.includes('go') || corpus.includes('gopls')) {
-    ids.add('go');
-    ids.add('gopls');
-  }
-  if (corpus.includes('swift') || corpus.includes('sourcekit')) {
-    ids.add('swift');
-    ids.add('sourcekit-lsp');
-  }
-  if (corpus.includes('python')) ids.add('python');
-  return Array.from(ids).sort((left, right) => left.localeCompare(right));
-};
-
-const runVersionProbe = ({ command, args }) => {
-  try {
-    const invocation = process.platform === 'win32'
-      ? resolveWindowsCmdInvocation(command, args, process.env)
-      : { command, args };
-    const result = spawnSync(invocation.command, invocation.args, {
-      windowsVerbatimArguments: invocation.windowsVerbatimArguments === true,
-      cwd: process.cwd(),
-      env: process.env,
-      encoding: 'utf8',
-      timeout: VERSION_PROBE_TIMEOUT_MS
-    });
-    const stdout = String(result.stdout || '').trim();
-    const stderr = String(result.stderr || '').trim();
-    const version = stdout || stderr || null;
-    return {
-      available: result.status === 0,
-      version,
-      exitCode: Number.isFinite(Number(result.status)) ? Number(result.status) : null
-    };
-  } catch (error) {
-    return {
-      available: false,
-      version: null,
-      exitCode: null,
-      error: error?.message || String(error)
-    };
-  }
-};
-
-const buildBenchRuntimeEnvironmentSnapshot = (entry) => {
-  const probeIds = collectExpectedProbeIds(entry);
-  const probes = Object.fromEntries(
-    BENCH_RUNTIME_ENVIRONMENT_PROBES
-      .filter((probe) => probeIds.includes(probe.id))
-      .map((probe) => [probe.id, runVersionProbe(probe)])
-  );
-  const metadata = buildBenchEnvironmentMetadata(process.env);
-  const mismatches = [];
-  const expectedPlatform = inferExpectedPlatform(entry?.environment?.os);
-  if (expectedPlatform && metadata.platform !== expectedPlatform) {
-    mismatches.push(`expected platform ${expectedPlatform}, got ${metadata.platform}`);
-  }
-  for (const probeId of probeIds) {
-    const probe = probes[probeId];
-    if (!probe) continue;
-    if (!probe.available && probeId !== 'git' && probeId !== 'npm') {
-      mismatches.push(`expected tool/provider ${probeId} to be available`);
-    }
-  }
-  const fingerprint = crypto
-    .createHash('sha1')
-    .update(JSON.stringify({
-      metadata,
-      probes
-    }))
-    .digest('hex');
-  return {
-    declaredContract: entry?.environment || null,
-    actual: metadata,
-    probes,
-    expectedProbeIds: probeIds,
-    mismatches,
-    fingerprint: `sha1:${fingerprint}`
-  };
-};
-
-const getBenchRuntimeEnvironmentSnapshot = (entry) => {
-  const cacheKey = JSON.stringify({
-    environment: entry?.environment || null,
-    probeIds: collectExpectedProbeIds(entry)
-  });
-  if (!environmentSnapshotCache.has(cacheKey)) {
-    environmentSnapshotCache.set(cacheKey, buildBenchRuntimeEnvironmentSnapshot(entry));
-  }
-  return environmentSnapshotCache.get(cacheKey);
-};
 
 const toNonEmptyLines = (content) => String(content || '')
   .split(/\r?\n/u)
@@ -571,26 +439,26 @@ const resolveRunnerConfig = (entry, root, workDir, outJsonPath) => {
       .map(([key, value]) => [key, substituteRunnerToken(value, tokens)])
   );
   if (runner.type === 'bench-language') {
-    return {
+    return createCanaryRunnerPlan({
       cmd: process.execPath,
       args: [path.resolve(root, 'tools', 'bench', 'language-repos.js'), ...args],
       cwd,
-      env
-    };
+      overrides: env, workDir, outJsonPath
+    });
   }
-  return {
+  return createCanaryRunnerPlan({
     cmd: process.execPath,
     args: [path.resolve(root, substituteRunnerToken(runner.script || '', tokens)), ...args],
-    cwd,
-    env
-  };
+    cwd, overrides: env, workDir, outJsonPath
+  });
 };
 
-export const runBenchRuntimeLiveCanary = async (entry, root = process.cwd()) => {
-  const environment = getBenchRuntimeEnvironmentSnapshot(entry);
+export const runBenchRuntimeLiveCanary = async (entry, root = process.cwd(), { probeRunner } = {}) => {
   const tempDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), 'poc-bench-canary-'));
   const outJsonPath = path.join(tempDir, `${String(entry?.id || 'canary').replace(/[^a-z0-9_-]/gi, '_')}.json`);
-  const { cmd, args, cwd, env } = resolveRunnerConfig(entry, root, tempDir, outJsonPath);
+  const plan = resolveRunnerConfig(entry, root, tempDir, outJsonPath);
+  const { cmd, args, cwd, env } = plan;
+  const environment = createCanaryEnvironmentOwner({ entry, plan, probeRunner })();
   const timeoutMs = Number.isFinite(Number(entry?.runner?.timeoutMs))
     ? Math.max(1, Math.floor(Number(entry.runner.timeoutMs)))
     : DEFAULT_LIVE_CANARY_TIMEOUT_MS;
@@ -601,10 +469,7 @@ export const runBenchRuntimeLiveCanary = async (entry, root = process.cwd()) => 
   try {
     result = await spawnSubprocess(cmd, args, {
       cwd,
-      env: {
-        ...process.env,
-        ...env
-      },
+      env,
       timeoutMs,
       onStdout: (chunk) => stdoutChunks.push(String(chunk || '')),
       onStderr: (chunk) => stderrChunks.push(String(chunk || ''))
@@ -619,7 +484,7 @@ export const runBenchRuntimeLiveCanary = async (entry, root = process.cwd()) => 
       status: BENCH_RUNTIME_LIVE_CANARY_STATUS.RUNNER_FAILED,
       ok: false,
       closureReady: false,
-      runner: { cmd, args, cwd, timeoutMs },
+      runner: { cmd, args, cwd, timeoutMs, environmentScope: environment.evidenceScope, overrideKeys: plan.overrideKeys },
       environment,
       stdout,
       stderr,
@@ -667,12 +532,15 @@ export const runBenchRuntimeLiveCanary = async (entry, root = process.cwd()) => 
       args,
       cwd,
       timeoutMs,
+      environmentScope: environment.evidenceScope,
+      overrideKeys: plan.overrideKeys,
+      operationalPaths: plan.operationalPaths,
       exitCode: Number(result?.exitCode),
       signal: result?.signal || null
     },
     status,
     ok: status !== BENCH_RUNTIME_LIVE_CANARY_STATUS.RUNNER_FAILED && current.ok,
-    closureReady: target.ok && regressionFailures.length === 0,
+    closureReady: target.ok && regressionFailures.length === 0 && environment.comparison.state === 'qualified',
     metrics,
     current,
     target,
