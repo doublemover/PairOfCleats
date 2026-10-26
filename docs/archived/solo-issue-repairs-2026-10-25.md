@@ -1788,3 +1788,62 @@ and #473 newly reopened against the previously published source. All remain
 pending under their new audit scope. Coverage is **35 fixed / 416 implemented /
 152 partial / 163 pending**; every open report appears once. Implemented means
 source work attempted with validation deferred, not accepted issue closure.
+
+## Reopened release, census and machine-stream audits (2026-10-26)
+
+**#320** (`4aeabfb4c`) pins every downstream release checkout to prepare's full
+immutable Git SHA and wires trust generation directly to prepare. Reports observe
+`HEAD^{commit}` themselves before and after work. Bundle assembly rejects
+cross-revision or simulated build/verification reports before publishing its
+manifest; the bundle retains its own observed checkout. Trust generation checks
+that observation against prepared metadata and bundle identity, records it in
+provenance/checksum/trust evidence, and binds CycloneDX source properties.
+Conflicting existing properties fail. Readiness qualifies every report role,
+trust record and actual SBOM document against the prepared revision. Original
+byte checks, attestation, build-once publication and final tag guard remain.
+No workflow was dispatched, tag moved or artifact released.
+
+Authored workflow mutations reject mutable downstream refs and missing direct
+prepare dependencies. Synthetic role, bundle, trust and SBOM mismatches reject
+mixed revisions before promotion. Existing valid fixtures now use the real
+observed checkout where they invoke generators; synthetic readiness evidence
+remains explicitly synthetic. Existing missing/invalid/report-role/authority
+negatives remain. Release execution and hosted promotion remain separate.
+
+**#429** (`1c82964c8`) adds tests to both directions of the consumer graph and
+removes the code-extension filter from declared file accounting. Python and
+opaque inputs remain visible without pretending they are JavaScript imports.
+The one existing scoped inventory remains shared; graph parsing still uses JS
+extensions. Full admitted scan sets survive truncated display samples. Policy
+recomputes missing admission from independent expected/scanned lists, and the
+report records justified generated/dependency/cache prefix exclusions. The
+removed extension predicate had no remaining consumer after this replacement.
+
+The small authored filesystem fixture checks real test-import backlinks,
+Sublime Python and opaque-file scope, explicit cache exclusion, and an unassigned
+expected file despite a falsely empty generated gaps list. The regenerated
+local census at `4d2c08f72` accounts for 8,229 scope files, including 88 Python
+files across the declared roots, and 1,541 test consumer nodes. These are static
+inventory observations, not completed adoption reviews or performance results.
+
+**#473** (`dc7e80c62`) enables full raw stdout JSON parsing for machine pipe
+captures. Stderr diagnostics cannot contaminate that input or count as stdout
+pollution. Empty, invalid and trailing-warning stdout retain parse errors and
+raw evidence paths in the case/size/mode review report. Human output remains
+unparsed; PTY remains a layout surface. Expected process exit and QA scoring
+stay independent. The CLI and bounded stream fixture share the actual capture
+owner; the CLI's index admission remains required. Authored real-child cases
+cover clean JSON, stderr diagnostics, trailing stdout warnings, empty output,
+expected nonzero JSON and human text without creating a search index.
+
+**`4d2c08f72`** adds the three new regressions and both JavaScript declaration
+fixtures to the existing ordered `ci-lite` lane and regenerates its manifest
+through the authoritative builder: 1,237 entries, five additions, no removed or
+reordered previous members. No observed duration or functional pass is claimed.
+
+Full format/ESLint, syntax on 19 changed JavaScript files, YAML parsing, affected
+generated refresh/freshness, discovery and ordered-lane selection, and diff
+checks passed. All functional fixtures, the final front gate and runtime/release
+qualification remain deferred. The reconciled intake remains 766 open reports:
+**35 fixed / 419 implemented / 152 partial / 160 pending**. The three reopened
+reports remain open, with source implementation distinct from accepted closure.

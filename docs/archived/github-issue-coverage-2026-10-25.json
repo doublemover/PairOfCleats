@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "cfa33b5da",
+  "sourceHead": "4d2c08f72",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
-    "pending": 163,
     "fixed": 35,
+    "implemented": 419,
     "partial": 152,
-    "implemented": 416
+    "pending": 160
   },
   "priorOpen": 1177,
   "currentOpen": 766,
@@ -195,6 +195,9 @@
       1357
     ],
     "implemented": [
+      320,
+      429,
+      473,
       631,
       674,
       676,
@@ -775,13 +778,10 @@
       279,
       284,
       289,
-      320,
       347,
       356,
       371,
       385,
-      429,
-      473,
       668,
       672,
       681,
@@ -993,8 +993,10 @@
       "number": 320,
       "title": "Release automation: add verified build, promotion, signing, attestation, and publish workflows for all shipped artifacts",
       "priority": "other",
-      "status": "pending",
-      "reopenedAudit": "2026-10-26"
+      "status": "implemented",
+      "reopenedAudit": "2026-10-26",
+      "implementation": "4aeabfb4c",
+      "validation": "deferred"
     },
     {
       "number": 347,
@@ -1028,15 +1030,19 @@
       "number": 429,
       "title": "Build shared-module census, consumer map, duplicate-cluster seed list, and review ledger for H30/H31/H32",
       "priority": "other",
-      "status": "pending",
-      "reopenedAudit": "2026-10-26"
+      "status": "implemented",
+      "reopenedAudit": "2026-10-26",
+      "implementation": "1c82964c8",
+      "validation": "deferred"
     },
     {
       "number": 473,
       "title": "Search display QA: add automated review reports for overflow, blank lines, and surface regressions",
       "priority": "other",
-      "status": "pending",
-      "reopenedAudit": "2026-10-26"
+      "status": "implemented",
+      "reopenedAudit": "2026-10-26",
+      "implementation": "dc7e80c62",
+      "validation": "deferred"
     },
     {
       "number": 586,

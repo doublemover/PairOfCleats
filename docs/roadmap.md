@@ -26,8 +26,10 @@ raw template output no longer becomes generic semantic flow.
 full source coverage, with unsupported geometry/extensions explicit.
 #1673–#1674/#1676 now preserve source-owned JavaScript declarations, evaluation
 phases and generator/return syntax through chunks, metadata and replay.
-The fresh intake also reopened #320, #429 and #473; their new audit gaps remain
-pending and do not inherit earlier closure claims.
+The reopened #320, #429 and #473 audits now have source repairs for immutable
+release revision evidence, complete scan accounting and machine-stdout QA.
+Their new regressions and the JavaScript ownership fixtures join the curated PR
+lane; execution remains deferred.
 #1675 now uses one global query resource plan and retirement-aware pools; whole
 process-tree RSS measurement remains open, with known-worker samples labeled.
 
