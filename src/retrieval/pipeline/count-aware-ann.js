@@ -4,7 +4,7 @@ import { stableStringify } from '../../shared/stable-json.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { decodeDenseVectorValidity } from '../../shared/dense-vector-validity.js';
 
-export const COUNT_AWARE_ANN_VERSION = 1;
+export const COUNT_AWARE_ANN_VERSION = 2;
 const bounds = Object.freeze({ exactRows: 512, coordinateWork: 8 * 1024 * 1024,
   maxAttempts: 4, requestedHitWork: 16384, maxTopN: 4096, maxMs: 2000 });
 const digest = value => createHash('sha256').update(stableStringify(value)).digest('hex');
@@ -94,27 +94,58 @@ export const planCountAwareAnn = ({ policy, eligibleIds = null, documentCount = 
  * internal work remains unknown unless separately measured; output fill is not
  * a recall certificate. Late native work is awaited by the normal provider path.
  */
-export const createCountAwareAnnWork = ({ policy, plan, signal = null }) => {
-  const deadline = performance.now() + policy.maxMs;
+export const createCountAwareAnnWork = ({ policy, plan, signal = null }, {
+  now = () => performance.now(), createDeadlineSignal = milliseconds => AbortSignal.timeout(milliseconds)
+} = {}) => {
+  throwIfAborted(signal);
+  const deadline = now() + policy.maxMs;
+  const timeout = createDeadlineSignal(policy.maxMs);
+  const workSignal = signal ? AbortSignal.any([signal, timeout]) : timeout;
+  const terminalReasons = new Set(['deadline', 'attempt-limit', 'requested-hit-work-limit']);
   const receipt = { ...plan, attempts: [], requestedHitWork: 0, coordinatesScored: 0,
     vectorsScored: 0, complete: false, exactness: 'unknown', reasonEnded: null,
-    actualProviderWork: null, recallCertified: false };
+    actualProviderWork: null, recallCertified: false, preflightChecks: [], deadlineScope: 'preflight-and-query' };
+  let finished = false;
+  const isBudgetEnded = () => terminalReasons.has(receipt.reasonEnded);
+  const admit = () => {
+    throwIfAborted(signal);
+    if (finished || isBudgetEnded()) return false;
+    if (timeout.aborted || now() >= deadline) { receipt.reasonEnded = 'deadline'; return false; }
+    return true;
+  };
+  const admitProvider = () => {
+    if (!admit()) return false;
+    const reason = receipt.attempts.length >= policy.maxAttempts ? 'attempt-limit'
+      : receipt.requestedHitWork >= policy.requestedHitWork ? 'requested-hit-work-limit' : null;
+    if (reason) { receipt.reasonEnded = reason; return false; }
+    return true;
+  };
   return { receipt,
+    admit, admitProvider, isBudgetEnded,
+    beginPreflight(provider) {
+      if (!admitProvider()) return null;
+      const started = now(), phase = { provider, status: 'running', elapsedMs: null, nativeWork: null, cache: 'unknown' };
+      receipt.preflightChecks.push(phase);
+      let ended = false;
+      return { timeout, signal: workSignal, finish(status) {
+        if (ended) return;
+        ended = true; phase.status = status; phase.elapsedMs = Math.max(0, now() - started);
+      } };
+    },
     reserve(provider, topN, { exact = false } = {}) {
       throwIfAborted(signal);
       if (!Number.isSafeInteger(topN) || topN < 1) throw fail('An attempt requires a positive finite requested-hit bound.');
-      if (receipt.reasonEnded === 'deadline') return null;
-      const remaining = Math.ceil(deadline - performance.now());
-      const reason = remaining <= 0 ? 'deadline' : receipt.attempts.length >= policy.maxAttempts ? 'attempt-limit'
+      if (!admit()) return null;
+      const reason = receipt.attempts.length >= policy.maxAttempts ? 'attempt-limit'
         : topN > policy.maxTopN || receipt.requestedHitWork + topN > policy.requestedHitWork ? 'requested-hit-work-limit' : null;
       if (reason) { receipt.reasonEnded = reason; return null; }
       receipt.requestedHitWork += topN;
-      const timeout = AbortSignal.timeout(remaining);
       const attempt = { provider, topN, route: exact ? 'stored-exhaustive' : 'ann', status: 'running', returned: null, nativeWork: null };
       receipt.attempts.push(attempt);
-      return { attempt, timeout, signal: signal ? AbortSignal.any([signal, timeout]) : timeout };
+      return { attempt, timeout, signal: workSignal };
     },
     finish({ hits = [], exact = false, empty = false, metrics = null } = {}) {
+      finished = true;
       if (metrics) { receipt.coordinatesScored = metrics.coordinatesScored || 0; receipt.vectorsScored = metrics.vectorsScored || 0; }
       receipt.returned = hits.length;
       receipt.complete = exact || empty;

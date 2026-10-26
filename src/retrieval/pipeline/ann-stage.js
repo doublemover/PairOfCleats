@@ -218,7 +218,7 @@ export const runAnnStage = async ({
         features: annAdaptiveStrategy?.features || null
       });
       throwIfAborted(signal);
-      if (reservation?.timeout.aborted) {
+      if (countWork && !countWork.admit()) {
         reservation.attempt.status = 'deadline'; countWork.receipt.reasonEnded = 'deadline';
         return { hits: [], succeeded: false, budgetEnded: true };
       }
@@ -315,11 +315,15 @@ export const runAnnStage = async ({
             // No full-corpus lazy load is authorized by a small eligible count.
             const exactHits = await rankDenseVectorsAsync(snapshot.index, Array.from(queryEmbedding),
               countPlan.target, null, { signal: reservation.signal, metrics });
-            annHits = exactHits.map(hit => { hit.idx = snapshot.sourceIds[hit.idx]; return hit; });
-            countWork.receipt.retainedVectorBytes = snapshot.retainedVectorBytes;
-            reservation.attempt.status = 'returned'; reservation.attempt.returned = annHits.length;
-            exactStored = true; countHandled = true; providerAvailable = true; annSource = ANN_PROVIDER_IDS.DENSE;
-            countWork.finish({ hits: annHits, exact: true, metrics });
+            countHandled = true; providerAvailable = true;
+            if (!countWork.admit()) {
+              reservation.attempt.status = 'deadline'; countWork.finish({ hits: [], metrics });
+            } else {
+              annHits = exactHits.map(hit => { hit.idx = snapshot.sourceIds[hit.idx]; return hit; });
+              reservation.attempt.status = 'returned'; reservation.attempt.returned = annHits.length;
+              exactStored = true; annSource = ANN_PROVIDER_IDS.DENSE;
+              countWork.finish({ hits: annHits, exact: true, metrics });
+            }
           } catch (error) {
             const failure = observeAnnAttemptFailure(error, { signal, timeout: reservation.timeout });
             if (failure.deadline) {
@@ -336,6 +340,7 @@ export const runAnnStage = async ({
         countWork.receipt.route = 'ann'; countWork.receipt.reason = 'query-vector-not-qualified-for-stored-metric';
       }
       for (const backend of vectorActive && !countHandled ? orderedBackends : []) {
+        if (countWork && !countWork.admitProvider()) break;
         const provider = providers.get(backend);
         if (!provider || typeof provider.query !== 'function') continue;
         if (typeof provider.preflight !== 'function' && providerRuntime.isProviderCoolingDown(provider, mode)) {
@@ -354,12 +359,28 @@ export const runAnnStage = async ({
           providerInitiallyAvailable = false;
         }
         if (!providerInitiallyAvailable) continue;
-        const preflightOk = await providerRuntime.ensureProviderPreflight(provider, {
-          idx,
-          mode,
-          embedding: queryEmbedding,
-          signal
-        });
+        if (countWork && !countWork.admit()) break;
+        const preflight = countWork && typeof provider.preflight === 'function' ? countWork.beginPreflight(provider.id) : null;
+        if (countWork && typeof provider.preflight === 'function' && !preflight) break;
+        let preflightOk, preflightStatus = 'failed';
+        try {
+          preflightOk = await providerRuntime.ensureProviderPreflight(provider, {
+            idx, mode, embedding: queryEmbedding, signal, deadline: preflight?.timeout
+          });
+          if (countWork && !countWork.admit()) {
+            preflightStatus = 'deadline'; providerAvailable = providerInitiallyAvailable;
+            break;
+          }
+          preflightStatus = preflightOk ? 'returned' : 'unavailable';
+        } catch (error) {
+          const failure = observeAnnAttemptFailure(error, { signal, timeout: preflight?.timeout });
+          if (failure.deadline) {
+            countWork.receipt.reasonEnded = 'deadline'; preflightStatus = 'deadline';
+            providerAvailable = providerInitiallyAvailable;
+            break;
+          }
+          throw error;
+        } finally { preflight?.finish(preflightStatus); }
         if (!preflightOk) { annMetrics.preflightFailures = (annMetrics.preflightFailures || 0) + 1; continue; }
         const resolveProviderAvailability = () => {
           try {
@@ -385,7 +406,8 @@ export const runAnnStage = async ({
             annHits = normalizeAnnHits([...merged.values()]).slice(0, countPlan.target); effort = nextEffort;
           }
         }
-        if ((primaryResult.succeeded || primaryResult.budgetEnded) && (annHits.length > 0 || resolveProviderAvailability())) {
+        if (primaryResult.budgetEnded) providerAvailable = providerInitiallyAvailable;
+        else if (primaryResult.succeeded && (annHits.length > 0 || resolveProviderAvailability())) {
           providerAvailable = true;
         }
         if (primaryResult.budgetEnded || countWork?.receipt.reasonEnded === 'deadline') break;
@@ -397,6 +419,7 @@ export const runAnnStage = async ({
             if (fallbackResult.succeeded && (annHits.length > 0 || resolveProviderAvailability())) {
               providerAvailable = true;
             }
+            if (fallbackResult.budgetEnded) break;
           }
         }
         if (annHits.length) {
@@ -407,7 +430,7 @@ export const runAnnStage = async ({
     } else {
       providerAvailable = providerCount > 0;
     }
-    if (!providerAvailable && !bypassToSparse && (independentDiscovery || annCandidateBase?.size > 0)) {
+    if (!providerAvailable && !countWork?.isBudgetEnded() && !bypassToSparse && (independentDiscovery || annCandidateBase?.size > 0)) {
       warnAnnFallback(`Vector ANN unavailable for ${mode}.`);
       warned = true;
     }
@@ -487,7 +510,7 @@ export const runAnnStage = async ({
     selectedGeneration: idx.generationTag?.buildGenerationKey || idx.generationTag?.buildId || idx.state?.buildId || null,
     embeddingGeneration: idx.state?.embeddings?.embeddingGeneration || null };
 
-  const annCapabilityUnavailable = countPlan?.route !== 'empty' && (!vectorActive || !providerAvailable);
+  const annCapabilityUnavailable = countPlan?.route !== 'empty' && !countWork?.isBudgetEnded() && (!vectorActive || !providerAvailable);
   const emptyIndex = !Array.isArray(meta) || meta.length === 0;
   if (vectorOnlyProfile && !emptyIndex && annCapabilityUnavailable) {
     const capabilityReason = !vectorActive ? 'ann_capability_unavailable' : 'ann_provider_unavailable';

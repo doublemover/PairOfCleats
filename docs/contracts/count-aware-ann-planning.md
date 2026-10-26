@@ -52,6 +52,24 @@ lifetime; the planner cannot preempt it or release its resources early. Caller
 cancellation propagates, and planner deadline expiration does not mark a healthy
 provider failed. Exact deadline interruption publishes no partial exact heap.
 
+Receipt/policy version 2 starts one cooperative deadline at count-work creation.
+Provider preflight and query admission share that signal and remaining wall time;
+neither phase nor a later provider renews the budget. Expired admission stops
+availability/preflight/query dispatch, and late returned work cannot regain a
+successful completion label. `preflightChecks` records boundary elapsed time and
+status separately from requested-hit effort; cache provenance and native work
+remain unknown unless measured by their own owners. Cached preflight reuse is
+still subject to current request admission. Internal expiry does not increment
+provider-health failures, while real caller cancellation still rejects. Original
+pending resource-bearing failures remain retained rather than converted to an
+incomplete successful result. No racing promise abandons an active hook.
+
+Upstream generation admission precedes this deadline. A lazy embedding acquisition
+inside the ANN stage consumes elapsed budget but retains its existing cancellation
+owner; this controller does not claim to preempt that operation. Provider creation
+and synchronous availability probes likewise cannot be preempted, and their elapsed
+time fences later dispatch. The deadline is cooperative, not a hard wall-time SLA.
+
 The actual LanceDB owner now receives the existing request signal, checks it
 between candidate-ID partitions and count/query calls, and cooperatively checks
 materialized source rows, including excluded rows. In-flight native calls remain

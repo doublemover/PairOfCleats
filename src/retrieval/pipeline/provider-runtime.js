@@ -24,7 +24,7 @@ export const getGenerationProviderRuntime = (index) => {
  *   recordProviderFailure:(provider:object|null,mode:string,reason?:string,options?:{fromPreflight?:boolean})=>void,
  *   recordProviderSuccess:(provider:object|null,mode:string,options?:{latencyMs?:number|null})=>void,
  *   resolveAnnBackends:(providers:Map<string,object>,mode:string,baseOrder:string[],adaptiveEnabled:boolean)=>string[],
- *   ensureProviderPreflight:(provider:object|null,input:{idx:object,mode:string,embedding:number[]|null,signal:AbortSignal|undefined})=>Promise<boolean>
+ *   ensureProviderPreflight:(provider:object|null,input:{idx:object,mode:string,embedding:number[]|null,signal:AbortSignal|undefined,deadline?:AbortSignal|null})=>Promise<boolean>
  * }}
  */
 export const createProviderRuntime = () => {
@@ -162,8 +162,9 @@ export const createProviderRuntime = () => {
     return scored.map((entry) => entry.backend);
   };
 
-  const ensureProviderPreflight = async (provider, { idx, mode, embedding, signal } = {}) => {
+  const ensureProviderPreflight = async (provider, { idx, mode, embedding, signal, deadline = null } = {}) => {
     throwIfAborted(signal);
+    throwIfAborted(deadline);
     if (!provider || typeof provider.preflight !== 'function') return true;
     const state = getProviderModeState(provider, mode);
     const now = Date.now();
@@ -199,14 +200,17 @@ export const createProviderRuntime = () => {
         state.preflightCheckedAt = 0;
       }
     }
+    const operationSignal = deadline ? signal ? AbortSignal.any([signal, deadline]) : deadline : signal;
     try {
+      throwIfAborted(signal); throwIfAborted(deadline);
       const result = await provider.preflight({
         idx,
         mode,
         embedding,
-        signal
+        signal: operationSignal
       });
       throwIfAborted(signal);
+      throwIfAborted(deadline);
       const ok = result !== false;
       const checkedAt = Date.now();
       if (state) {
@@ -221,6 +225,8 @@ export const createProviderRuntime = () => {
       return ok;
     } catch (err) {
       const failure = observeRetrievalProviderFailure(err);
+      throwIfAborted(signal);
+      if (deadline?.aborted) throw err;
       if (signal?.aborted || failure.abort) {
         throwIfAborted(signal);
         throw err;
