@@ -2183,3 +2183,61 @@ ci-lite now contains 1,244 entries. Functional execution and final gate remain
 deferred. Current coverage: **35 fixed / 425 implemented / 153 partial / 157
 pending** across 770 current open reports. No issue closure or new closing
 reference was inferred from this partial source batch.
+
+## Comparable A/B work and immutable reports, #1655/#1663 (2026-10-26)
+
+`1475e1658` implements #1655 and the A/B invocation binding branch of #1663.
+#1663 remains partial for settled-owned evidence retention/cleanup across the
+A/B and bakeoff report owners. No global history deletion is introduced.
+
+A/B version 2 separates hard admission from its versioned duration objective.
+Failed, timed-out, required-skipped, unknown, incomplete or mismatched work has
+no score. Completed workload and correctness witnesses, exact data/configuration
+identities, same host observations, unchanged entry bytes and clean matching Git
+boundaries are required. Otherwise eligible cohort mismatch suppresses the whole
+comparison. Declared optional work leaves the denominator only for an identical
+clean skip across every variant. Requested knob settings need actual applied
+receipts; unsupported and unverified settings remain distinct. Missing stall or
+utilization is never silently zero and token occupancy does not drive selection.
+No qualified candidate, cancellation or incomplete matrix means no recommendation
+and failing CLI status. Existing producers without measurement evidence retain
+raw reports with explicit exclusion reasons.
+
+Each invocation now owns an exclusive directory, experiment ID, owner marker,
+create-only raw reports and immutable final receipt. The existing observability
+context carries exact experiment/variant/request/workload identity to the runner.
+Parent admission reads the actual contained bounded UTF-8 report even after
+nonzero exit, retaining real failed rows, exit/signal facts, diagnostic tails,
+raw-file bytes and SHA-256. It does not prefer stdout or substitute synthetic
+empty results. Explicit JSON summaries use atomic replacement; later invocations
+cannot overwrite historical raw paths. The runner/sweep share exact suite,
+argument, token and optional-policy resolution. Sync capture now reuses the
+existing bounded collector and emits truncation/encoding receipts; the replaced
+private trim helper had no other consumers.
+
+A fixed 256-distinct-variant limit, 64 MiB per raw report and 512 MiB invocation
+allowance bound accumulation within one experiment. Incomplete oversized reports
+preserve terminal outcomes when the compact envelope fits; storage/cancellation
+or budget stops account for every remaining variant. Large diagnostics remain on
+disk rather than being duplicated into every summary. These bounds do not claim
+to complete historical retention policy or production latency qualification.
+
+The original successful plumbing assertions remain and now use a real tracked
+knob-aware fixture with equal checksum work and an explicitly synthetic known
+ranking. New independent controls cover slow-success versus fast-failure,
+all-failed/required-skipped/missing/invalid/zero measurements, correctness,
+coverage/config/invocation/source/host mismatch, truncation, unsupported/unverified
+knobs, common versus one-sided optional skips and incomplete matrices. Actual
+child/report fixtures cover nonzero details, interleaved child-write/parent-read
+barriers, later-run byte preservation, malformed/foreign files, immutable final
+receipts, bounded matrices and pre-launch cancellation. Sync capture controls
+cover exact output, failure facts, bounded tails, invalid UTF-8, disabled capture
+and line mode. They remain unrun under the implementation-first instruction.
+
+Full format/ESLint, syntax on 15 changed JavaScript files, affected generated
+refresh/freshness, ordered fixture discovery and diff checks passed. One combined
+list filter matched no IDs because the runner takes a literal selector; separate
+selectors discovered all three newly registered fixtures. ci-lite now contains
+1,247 entries. Functional execution and final gate remain deferred. Current
+coverage: **35 fixed / 426 implemented / 153 partial / 156 pending** across 770
+open reports. No GitHub closure or new closing reference was inferred.

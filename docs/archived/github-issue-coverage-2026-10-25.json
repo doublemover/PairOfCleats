@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "c42fee0eb",
+  "sourceHead": "1475e1658",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 425,
+    "implemented": 426,
     "partial": 153,
-    "pending": 157
+    "pending": 156
   },
   "priorOpen": 1177,
   "currentOpen": 770,
@@ -583,6 +583,7 @@
       1648,
       1649,
       1651,
+      1655,
       1658,
       1660,
       1661,
@@ -895,7 +896,6 @@
       1652,
       1653,
       1654,
-      1655,
       1656,
       1657,
       1659,
@@ -4960,7 +4960,7 @@
     },
     {
       "number": 1530,
-      "title": "Qualify adaptive retrieval and evidence policies with independent risk\u2013coverage receipts",
+      "title": "Qualify adaptive retrieval and evidence policies with independent risk–coverage receipts",
       "priority": "other",
       "status": "pending",
       "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
@@ -5891,8 +5891,10 @@
       "number": 1655,
       "title": "[P2] Require comparable completed workloads before A/B sweep recommendations",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "1475e1658",
+      "validation": "deferred"
     },
     {
       "number": 1656,
@@ -5957,9 +5959,9 @@
       "priority": "P2",
       "status": "partial",
       "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
-      "implementation": "c42fee0eb",
+      "implementation": "c42fee0eb,1475e1658",
       "validation": "deferred",
-      "remaining": "A/B invocation/report binding and settled-run evidence retention; recommendation admission remains #1655."
+      "remaining": "Settled-owned invocation evidence retention/cleanup across A/B and bakeoff remains open; A/B immutable namespace, request/workload admission and bakeoff checkpoint fencing are implemented."
     },
     {
       "number": 1664,
