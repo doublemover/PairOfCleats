@@ -3092,3 +3092,56 @@ assertions, real model/native inference, front gate or platform qualification ra
 Bookkeeping retains the checked JS tree. Coverage is **35 fixed / 449 implemented
 / 140 partial / 146 pending**; no issue closed or new closing reference added.
 Contract: docs/contracts/embedding-attempt-lifetime.md.
+
+### #1484 managed reference kinds, source owners and executable admission
+
+`5383c067c` removes the six remaining custom Dockerfile/GraphQL/Handlebars/Proto/
+Mustache/Jinja Cartesian call constructions. Source proof: those loops combined
+all exports with all file-wide references, consulting neither occurrence nor
+syntax kind. The original Mustache two-section input necessarily produced
+cross-section pairs. Their representation and the test helper's requirement for
+a call to every expected usage are replaced together, retaining positive import,
+export and usage assertions. No test is removed or skipped.
+
+A closed versioned reference envelope binds admitted source text, exact values,
+UTF-16 source intervals, optional semantic owners and partial counts. GraphQL
+retains type versus fragment roles and joins actual chunks by intervals while
+preserving display titles. Dockerfile retains dependency instruction ranges and
+stage owners. Mustache retains lookup/section/partial kinds. Handlebars retains
+explicit helper syntax independently of lookup and partial references; Jinja
+retains macro/block intervals and invocation syntax. Proto reflection remains
+file-scoped without invented positions. Unknown ownership stays unattributed.
+
+File normalization carries these facts through real incremental bundle replay;
+chunk projection retains typed details and partial coverage. Strict admission
+freezes parsed records; only immutable records receive memoized validation.
+One source index and binary search per chunk avoid a repeated whole-file scan.
+Fact-kind admission independently fences lexical-disabled, missing-lexicon and
+direct chunk consumers. Native/ordinary language invocation owners remain.
+Shared graphRelations advances 2→3, sourceChunking 31→32 and callFlow 49→50.
+
+Handlebars inline directives are declaration syntax rather than helper calls.
+The shared parser now excludes them from invocation observations, and the real
+source-linked template registry adapter advances 2→3. A same-named explicit
+helper registry control retains the declaration negative alongside genuine helper/
+partial, shadowing, cycle, authority and canonical sink/detail assertions. The
+allocation fixture gains an exact lookup-kind assertion while retaining original
+frame/source/immutability checks; the data-interface wrapper joins its async
+contract assertions explicitly.
+
+The new six-route regression follows actual parsers, registered adapters, lexical
+filtering, call indexing, production chunks, canonical call-site writing and
+incremental bundle read/write. It requires positive typed facts, original cross-
+section negatives, GraphQL title/identity handoff, helper/declaration separation,
+reflection limits, invalid kind/envelope rejection and the ordinary JS control.
+One new and six original fixtures join ordered ci-lite, now 1,309 entries.
+
+Full format/ESLint, 15 JS syntax checks, affected generated refresh/freshness,
+new fixture discovery and staged diff checks passed. Functional/front-gate,
+native/provider, performance and platform execution remains deferred. The live
+GitHub intake refresh again found 770 reports with no additions, closures or
+changed title/body/priority-label/update records. GraphQL pagination returned HTTP
+504; the complete REST pagination recovered the unchanged intake without writes
+to GitHub. Bookkeeping retains the checked JS tree. Coverage: **35 fixed / 450
+implemented / 139 partial / 146 pending**. No issue closed or new closing reference
+added. Contract: docs/contracts/managed-reference-ownership.md.

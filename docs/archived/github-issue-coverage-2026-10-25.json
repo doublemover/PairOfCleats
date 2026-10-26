@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "63f0cfade",
+  "sourceHead": "5383c067c",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 449,
-    "partial": 140,
+    "implemented": 450,
+    "partial": 139,
     "pending": 146
   },
   "priorOpen": 1177,
@@ -505,6 +505,7 @@
       1481,
       1482,
       1483,
+      1484,
       1485,
       1486,
       1487,
@@ -760,7 +761,6 @@
       1391,
       1392,
       1395,
-      1484,
       1504,
       1505,
       1506,
@@ -4669,8 +4669,10 @@
       "number": 1484,
       "title": "[P2] Scope managed heuristic calls to declarations instead of file-wide Cartesian pairs",
       "priority": "P2",
-      "status": "partial",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "5383c067c",
+      "validation": "deferred"
     },
     {
       "number": 1485,
@@ -6581,6 +6583,6 @@
       292
     ],
     "closed": [],
-    "reconfirmedAtSource": "a7d8cc7e7"
+    "reconfirmedAtSource": "5383c067c"
   }
 }
