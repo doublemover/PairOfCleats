@@ -306,12 +306,9 @@ export function buildDefaultDocMeta(chunk, options = {}) {
   if (options.includeVisibility) out.visibility = meta.visibility || null;
   if (options.includeImplFor) out.implFor = meta.implFor || null;
   appendDocMetaFields(out, options.extraFields);
-  out.dataflow = meta.dataflow || null;
-  out.throws = meta.throws || [];
-  out.awaits = meta.awaits || [];
-  out.yields = meta.yields || false;
-  out.returnsValue = meta.returnsValue || false;
-  out.controlFlow = meta.controlFlow || null;
+  for (const field of ['dataflow', 'throws', 'awaits', 'yields', 'returnsValue', 'controlFlow', 'flowEvidence']) {
+    if (Object.hasOwn(meta, field) && meta[field] != null) out[field] = meta[field];
+  }
   return out;
 }
 

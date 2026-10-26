@@ -242,9 +242,8 @@ export const buildChunkEnrichment = ({
         return { skip: failFile('relation-error', 'flow', err, diagnostics) };
       }
     }
-    if (flowMeta) {
-      docmeta = normalizeDocMeta(mergeFlowMeta(docmeta, flowMeta, { astDataflowEnabled, controlFlowEnabled }));
-    }
+    docmeta = normalizeDocMeta(mergeFlowMeta(docmeta, flowMeta, { astDataflowEnabled, controlFlowEnabled,
+      text, chunk, languageId: chunkLanguageId || activeLang?.id || null, context: activeContext, producerId: activeLang?.id || 'unavailable-flow' }));
     addEnrichDuration(Date.now() - relationStart);
     if (resolvedTypeInferenceEnabled) {
       const enrichStart = Date.now();

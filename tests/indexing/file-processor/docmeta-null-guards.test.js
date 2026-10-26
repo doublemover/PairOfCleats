@@ -61,7 +61,9 @@ const enrichment = buildChunkEnrichment({
 });
 
 assert.ok(!enrichment.skip, 'expected enrichment to succeed');
-assert.deepEqual(enrichment.docmeta, {}, 'null docmeta from adapter should normalize to object');
+assert.equal(enrichment.docmeta.doc, undefined, 'null docmeta does not create synthetic documentation');
+assert.ok(Object.values(enrichment.docmeta.flowEvidence.fields).every(field => field.state === 'disabled'),
+  'disabled flow is distinct from successful empty analysis');
 
 const payload = buildChunkPayload({
   chunk: {

@@ -275,6 +275,8 @@ export function buildMetaV2({ chunk, docmeta, toolInfo, analysisPolicy }) {
     returns: pickDeclaredReturnType(docmeta),
     controlFlow: docmeta?.controlFlow || null,
     dataflow: docmeta?.dataflow || null,
+    ...(docmeta?.flowEvidence ? { flowEvidence: docmeta.flowEvidence } : {}),
+    ...Object.fromEntries(['throws', 'awaits', 'yields', 'returnsValue'].filter(field => docmeta?.[field] != null).map(field => [field, docmeta[field]])),
     dependencies: docmeta?.dependencies || null,
     relations: relations
       ? {

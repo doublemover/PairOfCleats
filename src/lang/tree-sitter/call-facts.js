@@ -1,6 +1,7 @@
 import { projectNativeCallArguments } from './call-arguments.js';
 import { getNamedChild, getNamedChildCount } from './ast.js';
 import { buildLineIndex, offsetToLine } from '../../shared/lines.js';
+import { createOwnedNativeFlow, MANAGED_NATIVE_FLOW_LANGUAGES } from './flow-facts.js';
 
 export const SYNTAX_CALL_FACTS_VERSION = 8;
 const callTypes = new Set(['call_expression', 'function_call', 'call', 'method_invocation', 'invocation_expression', 'function_call_expression', 'juxt_function_call',
@@ -27,6 +28,7 @@ const dartCallTarget = (node, text) => {
  * A traversal interruption fails closed; it never labels a partial tail complete.
  */
 export const attachSyntaxCallFacts = (root, text, chunks, { maxNodes = 250000, declarations = null, languageId = null } = {}) => {
+  const flow = MANAGED_NATIVE_FLOW_LANGUAGES.has(languageId) ? createOwnedNativeFlow({ text, languageId, chunks }) : null;
   const owners = new Map();
   const omissions = new Map();
   for (const chunk of chunks) {
@@ -40,6 +42,7 @@ export const attachSyntaxCallFacts = (root, text, chunks, { maxNodes = 250000, d
     if (!omissions.has(chunk)) omissions.set(chunk, { anonymousScopeCalls: 0, declarationHeaderCalls: 0 });
   }
   const finish = truncated => {
+    flow?.finish({ truncated, parserRecovered: root.hasError !== false });
     for (const chunk of chunks) if (chunk.meta?.syntaxCalls) {
       const omitted = omissions.get(chunk);
       chunk.meta.syntaxCalls = Object.freeze(chunk.meta.syntaxCalls);
@@ -89,6 +92,7 @@ export const attachSyntaxCallFacts = (root, text, chunks, { maxNodes = 250000, d
       'noexcept', 'noexcept_specifier', 'decltype'].includes(node.type)) {
       blockedOwner = owner || blockedOwner; owner = null; exclusion = 'declarationHeaderCalls';
     }
+    if (owner) flow?.observe(owner, node);
     const dartTarget = languageId === 'dart' ? dartCallTarget(node, text) : null;
     const invocation = callTypes.has(node.type) || dartTarget !== null;
     if (!owner && blockedOwner && invocation) omissions.get(blockedOwner)[exclusion]++;

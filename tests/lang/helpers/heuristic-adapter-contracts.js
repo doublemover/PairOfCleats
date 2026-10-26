@@ -76,7 +76,10 @@ export const assertHeuristicAdapterCases = async (cases, { usageLabel = 'heurist
       chunk,
       options: { astDataflowEnabled: true, controlFlowEnabled: true }
     });
-    assert.ok(flow && flow.controlFlow, `${testCase.id} should emit control flow summary`);
-    assert.equal(typeof flow.controlFlow.branches, 'number', `${testCase.id} controlFlow.branches must be numeric`);
+    assert.ok(flow?.flowEvidence, `${testCase.id} exposes per-field flow qualification`);
+    assert.equal(flow.controlFlow, undefined, `${testCase.id} cannot infer control flow from an ownerless raw slice`);
+    assert.equal(flow.dataflow, undefined, `${testCase.id} cannot infer semantic dataflow from an ownerless raw slice`);
+    assert.ok(Object.values(flow.flowEvidence.fields).every(field => field.state === 'unavailable'),
+      `${testCase.id} retains unavailable coverage rather than successful zeroes`);
   }
 };

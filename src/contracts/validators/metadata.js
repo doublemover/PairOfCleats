@@ -1,7 +1,15 @@
+import { admitFlowEvidence } from '../../shared/flow-evidence.js';
 /** Validate relationships that JSON Schema field types cannot express. */
 export const validateMetadataV2Semantics = (metadata) => {
   const errors = [];
   if (!metadata || typeof metadata !== 'object') return errors;
+  if (metadata.flowEvidence) {
+    try {
+      admitFlowEvidence(metadata.flowEvidence, metadata);
+      const range = metadata.flowEvidence.source.range;
+      if (range && (range.start !== metadata.range?.start || range.end !== metadata.range?.end)) errors.push('/flowEvidence/source/range differs from chunk range');
+    } catch (error) { errors.push('/flowEvidence: ' + error.message); }
+  }
   const ordered = (value, start, end, label) => {
     if (Number.isFinite(value?.[start]) && Number.isFinite(value?.[end])
       && value[start] > value[end]) {

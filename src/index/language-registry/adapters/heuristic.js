@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { buildTreeSitterChunks } from '../../../lang/tree-sitter.js';
 import { syntaxRelationsForChunks } from '../../../lang/tree-sitter/call-facts.js';
+import { buildManagedFlow } from './managed-flow.js';
 
 import {
   CMAKE_EXTS,
@@ -16,7 +17,6 @@ import {
   JINJA_EXTS,
   RAZOR_EXTS
 } from '../../constants.js';
-import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from '../../../lang/flow.js';
 import { buildSimpleRelations } from '../simple-relations.js';
 import { buildDefaultDocMeta } from '../../../lang/shared.js';
 import { collectCmakeImports } from '../import-collectors/cmake.js';
@@ -108,11 +108,6 @@ const HEURISTIC_CALL_SKIP = new Set([
   'using',
   'import'
 ]);
-
-const HEURISTIC_CONTROL_FLOW_OPTIONS = Object.freeze({
-  branchKeywords: ['if', 'else', 'switch', 'case', 'match', 'when', 'catch', 'try'],
-  loopKeywords: ['for', 'while', 'do']
-});
 
 const DART_SYMBOL_PATTERNS = Object.freeze([
   /\b(?:class|mixin|enum|extension)\s+([A-Za-z_][A-Za-z0-9_]*)/g,
@@ -416,36 +411,6 @@ const extractHeuristicManagedDocMeta = (chunk) => {
   };
 };
 
-const buildHeuristicManagedFlow = (text, chunk, options = {}) => {
-  if (!chunk || !Number.isFinite(chunk.start) || !Number.isFinite(chunk.end)) return null;
-  const source = String(text || '');
-  const start = Math.max(0, chunk.start);
-  const end = Math.min(source.length, chunk.end);
-  if (end <= start) return null;
-  const scope = source.slice(start, end);
-  const dataflowEnabled = options.dataflow !== false;
-  const controlFlowEnabled = options.controlFlow !== false;
-  const out = {
-    dataflow: null,
-    controlFlow: null,
-    throws: [],
-    awaits: [],
-    yields: false,
-    returnsValue: false
-  };
-  if (dataflowEnabled) {
-    out.dataflow = buildHeuristicDataflow(scope, { skip: HEURISTIC_CALL_SKIP, memberOperators: ['.'] });
-    out.returnsValue = hasReturnValue(scope);
-    out.throws = /\bthrow\b/.test(scope) ? ['throw'] : [];
-    out.awaits = /\bawait\b/.test(scope) ? ['await'] : [];
-    out.yields = /\byield\b/.test(scope);
-  }
-  if (controlFlowEnabled) {
-    out.controlFlow = summarizeControlFlow(scope, HEURISTIC_CONTROL_FLOW_OPTIONS);
-  }
-  return out;
-};
-
 export const createHeuristicManagedAdapter = ({
   id,
   match,
@@ -476,7 +441,7 @@ export const createHeuristicManagedAdapter = ({
       chunks:context?.[`${id}Chunks`]
     }),
     extractDocMeta: ({ chunk }) => extractHeuristicManagedDocMeta(chunk),
-    flow: ({ text, chunk, options }) => buildHeuristicManagedFlow(text, chunk, flowOptions(options)),
+    flow: ({ text, chunk, options, context }) => buildManagedFlow({ text, chunk, languageId: id, context, options: flowOptions(options) }),
     attachName: true
   };
   if (typeof collectImportEntries === 'function') {

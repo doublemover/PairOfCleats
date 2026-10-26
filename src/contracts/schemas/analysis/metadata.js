@@ -1,3 +1,4 @@
+import { FLOW_EVIDENCE_SCHEMA } from '../flow-evidence.js';
 import {
   metaTypes,
   nullableNumber,
@@ -128,6 +129,9 @@ export const METADATA_V2_SCHEMA = {
     params: { type: ['array', 'null'], items: { type: 'string' } },
     tags: { type: ['array', 'null'], items: { type: 'string' } },
     types: metaTypes,
+    flowEvidence: FLOW_EVIDENCE_SCHEMA,
+    yields: { type: 'boolean' }, returnsValue: { type: 'boolean' },
+    throws: { type: 'array', items: { type: 'string' } }, awaits: { type: 'array', items: { type: 'string' } },
     risk: {
       type: ['object', 'null'],
       properties: {
