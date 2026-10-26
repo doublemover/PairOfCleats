@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "9ffb2af10",
+  "sourceHead": "5a8676921",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 407,
+    "implemented": 408,
     "partial": 151,
-    "pending": 170
+    "pending": 169
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -588,6 +588,7 @@
       1688,
       1696,
       1698,
+      1700,
       1702,
       1711,
       1716,
@@ -900,7 +901,6 @@
       1695,
       1697,
       1699,
-      1700,
       1701,
       1707,
       1708,
@@ -6114,8 +6114,10 @@
       "number": 1700,
       "title": "[P2] Honor the accepted test-suggestion wall-clock budget",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "5a8676921",
+      "validation": "deferred"
     },
     {
       "number": 1701,
@@ -6417,10 +6419,12 @@
   ],
   "githubRefresh": {
     "date": "2026-10-25",
-    "head": "242dc95e1",
-    "open": 763,
+    "sourceHead": "8a870ae45",
+    "openCount": 763,
     "added": 0,
     "closed": 0,
-    "source": "Complete gh issue list metadata"
+    "titleChanges": 0,
+    "source": "gh issue list --state open --limit 2000 --json number,title,labels",
+    "sourceComplete": true
   }
 }

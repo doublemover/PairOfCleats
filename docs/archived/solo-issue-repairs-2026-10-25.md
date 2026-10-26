@@ -1429,3 +1429,52 @@ Full format, scoped ESLint, syntax, affected generated refresh, fixture discover
 and staged diff checks passed. An EOF whitespace failure was corrected and its
 check rerun. Functional execution and the final front gate remain deferred.
 Coverage is **35 fixed / 407 implemented / 151 partial / 170 pending**.
+
+
+## Suggestion computation deadline and owned discovery
+
+**#1700** (`5a8676921`) consumes the accepted maxWallClockMs option through one
+monotonic computation owner shared by admission, live discovery, reverse-import
+preparation/traversal, every seed, selection, fallback and witnesses. Zero stops
+at computation admission; finite non-negative numeric values floor to integer
+milliseconds, and invalid/nonfinite/unsafe values fail admission. Existing count
+caps remain independent. Explicit allowances retain the effective provenance
+cap and a strict execution receipt with completed scope, observed work, stop
+phase, elapsed time, confirmed settlement and overrun. CLI preparation time is
+measured separately; configuration/input/artifact loading and rendering are
+explicitly excluded. Synchronous operations/sorts and required cleanup are
+cooperative units, not a promised hard wall-clock interrupt.
+
+Expiry admits no further fallback, records deadline truncation/fidelity and
+keeps empty results partial rather than inventing no-match/no-tests evidence.
+Only fully inventoried and closed directories admit candidates; incomplete
+prefixes are discarded. Fresh bounded inventory observation remains mandatory
+on warm cache hits, and expired inventories cannot publish cache entries.
+Development .cache/.tmp trees are excluded alongside existing generated roots.
+The private reverse-import preparation helper's sole caller reads only incoming
+adjacency; its unused outgoing map and sort have been removed. No retained
+relation, assertion or script coverage is removed.
+
+Directory ownership is now explicit. Normal read/open errors propagate rather
+than being swallowed. Pending reads prevent close and retain the original
+resource observation plus the exact directory session. Failed closes retain the
+same handle for explicit recovery after prerequisites settle; recovery never
+reruns discovery. Frozen failures, secondary close errors and falsey throws
+retain ownership. An unresolved resource cannot become a settled partial report.
+
+Authored virtual-clock cases independently advance time during directory I/O and
+BFS across raw/legacy/CSR inputs, prove multi-seed sharing and exact next-read
+admission, preserve under-budget graph/witness and heuristic results, check zero,
+invalid/fractional values, count caps, fresh warm observations, excluded trees,
+raw counters, bounded diagnostics and pending/failed-close recovery. The real
+writer/preparation fixture also exercises the canonical CLI option/report path
+with an independently measured 25 ms excluded preparation interval. These are
+authored controls, not runtime timing observations.
+
+Full format, corrected scoped ESLint, syntax, affected generated refresh,
+fixture discovery and staged diff checks passed. Functional execution and the
+final front gate remain deferred. GitHub search returned only 100 items despite
+a larger requested limit; a complete existing gh metadata query independently
+reconciled **763 open reports, zero additions/closures/title changes**. Its raw
+snapshot under .tmp is historical author-workspace evidence, not a clean-checkout
+requirement. Coverage is **35 fixed / 408 implemented / 151 partial / 169 pending**.
