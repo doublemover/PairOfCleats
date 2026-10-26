@@ -1478,3 +1478,41 @@ a larger requested limit; a complete existing gh metadata query independently
 reconciled **763 open reports, zero additions/closures/title changes**. Its raw
 snapshot under .tmp is historical author-workspace evidence, not a clean-checkout
 requirement. Coverage is **35 fixed / 408 implemented / 151 partial / 169 pending**.
+
+
+## Offline SQL table-column alias admission
+
+**#1720** (`d271e4902`) takes the issue's conservative repair: preserve
+independently valid physical table evidence, but never resolve exposed column
+names through a binding whose ordered column aliases are not modeled. The
+bounded source qualifier now consumes and retains the table-reference/alias/
+column-list structure, quote policy and exact spans. The catalog adapter marks
+those columns `table_column_alias_list_unsupported`, with no fabricated physical
+target or candidate. Qualified ordinary bindings in the same query remain
+usable; unqualified references that could belong to an unsupported binding do
+not resolve by ignoring it. Ordinary alias identity is cross-checked with the
+parser; parentheses inside one quoted alias name remain a name.
+
+Primary PostgreSQL documentation and pinned parser 5.4.0 grammar were inspected,
+without executing a parser or database. The grammar supports ordered quoted
+column names after an unquoted alias, but its quoted-table-alias branch does not
+accept a following list. That latter case retains syntax/dialect uncertainty.
+Adapter/report version **3** and shared **compilerBindings 26** prevent older
+resolved evidence from being silently replayed. The catalog's missing physical
+column-order contract is explicit: tableColumnAliases remains false. Broader
+#1188 SQL catalog integration stays partial.
+
+The existing actual-parser/canonical writer/detail fixture is extended with
+swapped and qualified lists, partial lists, quoted/case-sensitive exposed names,
+duplicate/overlong lists, self-joins, a literal-parenthesis alias and the pinned
+quoted-table-alias syntax exclusion. Physical expected offsets are independently
+authored. Unsupported columns never become detail navigation candidates, while
+table navigation and typed query witnesses survive persistence. Existing
+search_path, ambiguity, temporary objects, stale source/context and no-database
+assertions remain. These regressions are authored, not executed.
+
+Full format, scoped ESLint, syntax, affected generated refresh, fixture discovery
+and staged diff checks passed. Functional execution and final front gate remain
+deferred. The intake receipt keeps its prior head/open field names while retaining
+the complete metadata-refresh witness. Coverage is **35 fixed / 409 implemented /
+151 partial / 168 pending**.

@@ -14,7 +14,7 @@ with tests deferred until the source batches are ready. The live intake has
 records new source batches and unvalidated coverage. Historical inventories
 below describe their recorded sources, not the current open count.
 New solo batches cover #1746, #1742, #1741, #1740, #1737, #1736, #1734, #1730,
-#1729, #1724, #1716, #1711, #1702, #1700, #1696, #1698, #1683, #1565, #1598, #1599, #1684, #1688, #1610, #1611,
+#1729, #1724, #1720, #1716, #1711, #1702, #1700, #1696, #1698, #1683, #1565, #1598, #1599, #1684, #1688, #1610, #1611,
 #1397, #1561–#1564, #1568–#1569, #1573, #1575, #1580, #1586–#1589, #1591–#1592, #1600–#1602, #1605–#1606, #1608–#1609, #1612–#1614, #1616–#1617, #1619–#1620, #1622–#1623, #1632 and #1635–#1637, #1639–#1641, #1645, #1648–#1649, #1658, #1668–#1671. Their authored regressions remain deferred; the
 source receipt records exact ownership, identity, capacity and lifecycle changes.
 #1675 now uses one global query resource plan and retirement-aware pools; whole
