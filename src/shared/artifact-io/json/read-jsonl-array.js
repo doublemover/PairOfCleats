@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import { performance } from 'node:perf_hooks';
+import { addStorageFailureContext } from '../../storage/operation-error.js';
 import { MAX_JSON_BYTES } from '../constants.js';
 import { cleanupBak, getBakPath, readCache, writeCache } from '../cache.js';
 import {
@@ -48,36 +49,61 @@ export const readJsonLinesArray = async (
     recoveryFallback = false
   } = {}
 ) => {
-  const collectSingle = async (sourcePath) => {
+  const collectSingle = async (sourcePath, readSignal) => {
     const parsed = [];
     for await (const entry of readJsonLinesIterator(sourcePath, {
       maxBytes,
       requiredKeys,
       validationMode,
       recoveryFallback,
-      containedRoot
+      containedRoot,
+      signal: readSignal
     })) {
       parsed.push(entry);
     }
     return parsed;
   };
 
-  const paths = Array.isArray(filePath) ? filePath : [filePath];
+  const paths = Array.isArray(filePath) ? filePath.slice() : [filePath];
   if (paths.length === 1) {
-    return await collectSingle(paths[0]);
+    return await collectSingle(paths[0], null);
   }
-  const resolvedConcurrency = Math.max(1, Math.min(Number(concurrency) || 4, paths.length));
+  if (!paths.length) return [];
+  const resolvedConcurrency = Math.max(1, Math.floor(Math.min(Number(concurrency) || 4, paths.length)));
+  const controller = new AbortController();
+  const readSignal = controller.signal;
   const results = new Array(paths.length);
-  let cursor = 0;
+  let cursor = 0, stopped = false, primary;
   const worker = async () => {
     for (;;) {
+      if (stopped || readSignal.aborted) return;
       const index = cursor;
       cursor += 1;
       if (index >= paths.length) return;
-      results[index] = await collectSingle(paths[index]);
+      try {
+        const part = await collectSingle(paths[index], readSignal);
+        if (!stopped) results[index] = part;
+      } catch (error) {
+        if (!stopped) {
+          stopped = true; primary = error;
+          results.fill(undefined);
+          controller.abort(error);
+        }
+        throw error;
+      }
     }
   };
-  await Promise.all(new Array(resolvedConcurrency).fill(0).map(() => worker()));
+  const settled = await Promise.allSettled(new Array(resolvedConcurrency).fill(0).map(() => worker()));
+  if (stopped) {
+    let failure = primary;
+    const seen = new Set([primary]);
+    for (const result of settled) if (result.status === 'rejected' && !seen.has(result.reason)) {
+      seen.add(result.reason);
+      failure = addStorageFailureContext(failure, {}, result.reason, { secondaryPresent: true });
+    }
+    results.fill(undefined);
+    throw failure;
+  }
   return results.flatMap((part) => Array.isArray(part) ? part : []);
 };
 
