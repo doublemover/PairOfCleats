@@ -1243,3 +1243,4 @@ tooling/bench/canary-attempt-lifecycle
 tooling/reports/throughput-recorded-attempt
 perf/bench/embedding-bakeoff-effective-policy
 perf/bench/embedding-bakeoff-phase-lifecycle
+perf/bench/embedding-bakeoff-checkpoint-owner

@@ -70,6 +70,17 @@ Checkpoint file:
 
 - defaults to `.testLogs/embedding-bakeoff.latest.json`
 - override with `--checkpoint <path>`
+- the existing file-lock owner fences resume reads, all phases and publication;
+  a competing invocation receives an explicit busy result
+- checkpoints use the existing atomic persistence owner; malformed/oversized
+  input is preserved and reported instead of silently starting an empty resume
+- each invocation retains an owner marker, exact incoming checkpoint bytes and a
+  separate immutable terminal receipt beneath `.testLogs/embedding-bakeoff/`
+- `benchmarkCheckpoint.version` identifies publication metadata, including run,
+  revision, settings fingerprint and final receipt path; a closed writer cannot
+  publish into a later invocation
+- sealed final receipts stay read-only; to import a historical receipt, copy it
+  to the mutable path selected by `--checkpoint`
 
 Build, evaluation and comparison waits are asynchronous. The existing display
 shows elapsed waiting and a bounded last child diagnostic while work is pending;
@@ -78,8 +89,9 @@ stdout is admitted as one complete bounded document and stays separate from
 stderr status. Quiet and non-TTY presentation use the existing display policy.
 Phase timers are cleared on success, failure and cancellation. Failed child,
 checkpoint and display diagnostics remain together, and a failed phase never
-announces successful completion. Checkpoint namespace/atomicity hardening remains
-tracked separately from this phase-lifecycle contract.
+announces successful completion. A/B report namespaces, recommendation admission
+and broader evidence retention remain tracked separately from this checkpoint
+and phase-lifecycle contract.
 
 ## Model-aware formatting policy
 

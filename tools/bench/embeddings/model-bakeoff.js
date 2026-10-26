@@ -3,6 +3,7 @@ import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js'
 await guardBootstrapEntry(import.meta.url);
 import crypto from 'node:crypto';
 import { evaluationFileIdentity, bakeoffGenerationIdentity, bakeoffGenerationObservation } from './evaluation-identity.js';
+import { withBakeoffCheckpoint } from './bakeoff-checkpoint.js';
 import { createBakeoffExecutionPolicy } from './bakeoff-execution-policy.js';
 import { runBakeoffBuildChild, runBakeoffJsonChild, runBakeoffPhase, persistBakeoffFailure, bakeoffPhaseFailureReceipt, BAKEOFF_PHASE_STATE_VERSION } from './bakeoff-phase.js';
 import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
@@ -21,7 +22,6 @@ const { getEnvConfig } = await import('../../../src/shared/env/runtime.js');
 const { resolveEmbeddingInputFormatting } = await import('../../../src/shared/embedding-input-format.js');
 const { hasChunkMetaArtifactsSync } = await import('../../../src/shared/artifact-io/chunk-meta-presence.js');
 const { readJsonFileSyncSafe } = await import('../../../src/shared/file-read.js');
-const { writeJsonFileResolved } = await import('../../../src/shared/json-file.js');
 const {
   formatElapsed,
   resolveBakeoffFastPathDefaults,
@@ -491,7 +491,8 @@ const outputSettings = {
   evaluationInputIdentity,
   cacheRootBase
 };
-const settingsSignature = JSON.stringify(outputSettings);
+let checkpointOwner = null;
+let resumeObservation = { state: 'not-read', sourceHash: null, sourceRunId: null };
 const modelsTask = display.task('Models', {
   taskId: 'bakeoff:models',
   total: models.length,
@@ -539,6 +540,7 @@ const buildOutputPayload = ({
     currentModel,
     currentPhase,
     phaseStartedAt,
+    resume: resumeObservation,
     phaseStateVersion: BAKEOFF_PHASE_STATE_VERSION,
     phases: [...phaseStates.values()],
     settledPhases: [...phaseStates.values()].filter(phase => ['succeeded', 'failed', 'cancelled'].includes(phase.state)).length,
@@ -578,7 +580,7 @@ const writeOutputPayload = async ({
   resumedModels = 0,
   currentModel = null,
   currentPhase = null,
-  phaseStartedAt = null
+  phaseStartedAt = null, finalize = false, publishLatest = true
 }) => {
   const payload = buildOutputPayload({
     modelReports,
@@ -590,8 +592,8 @@ const writeOutputPayload = async ({
     currentPhase,
     phaseStartedAt
   });
-  await writeJsonFileResolved(checkpointOutPath, payload);
-  return payload;
+  if (!checkpointOwner) throw new Error('Bakeoff checkpoint owner was not admitted.');
+  return checkpointOwner.write(payload, { final: finalize, publishLatest });
 };
 
 const isModelReportComplete = (entry) => {
@@ -610,39 +612,30 @@ const isModelReportComplete = (entry) => {
  * @returns {Promise<object[]>}
  */
 const loadResumedModelReports = async () => {
-  if (!allowResume) return [];
-  if (!fs.existsSync(checkpointOutPath)) return [];
-  try {
-    const parsed = JSON.parse(await fsPromises.readFile(checkpointOutPath, 'utf8')) || {};
-    if (!parsed || typeof parsed !== 'object') return [];
-    const savedSignature = JSON.stringify(parsed.settings || {});
-    if (savedSignature !== settingsSignature) return [];
-    const savedModels = Array.isArray(parsed.models) ? parsed.models : [];
-    const byId = new Map(savedModels.map((entry) => [entry?.modelId, entry]));
-    const resumed = [];
-    for (const modelId of models) {
-      const entry = byId.get(modelId);
-      if (!isModelReportComplete(entry)) continue;
-      const generation = await currentModelGeneration(modelId);
-      if (!generation || entry.resumeIdentity?.generation !== generation
-        || entry.resumeIdentity?.input !== stableStringify(evaluationInputIdentity)) continue;
-      resumed.push(entry);
+  const admitted = checkpointOwner.existing;
+  resumeObservation = { state: !allowResume ? 'disabled' : admitted.state, sourceHash: admitted.sourceHash,
+    sourceRunId: admitted.sourceRunId || null, sourceReceiptPath: admitted.sourceReceiptPath || null };
+  if (!allowResume || admitted.state !== 'compatible') return [];
+  const byId = new Map(admitted.payload.models.map(entry => [entry.modelId, entry]));
+  const resumed = [], excluded = [];
+  for (const modelId of models) {
+    const entry = byId.get(modelId);
+    if (!isModelReportComplete(entry)) { excluded.push({ modelId, reason: 'missing-or-incomplete-model-report' }); continue; }
+    const generation = await currentModelGeneration(modelId);
+    if (!generation || entry.resumeIdentity?.generation !== generation
+      || entry.resumeIdentity?.input !== stableStringify(evaluationInputIdentity)) {
+      excluded.push({ modelId, reason: 'generation-or-evaluation-input-unqualified' }); continue;
     }
-    return resumed;
-  } catch {
-    return [];
+    resumed.push(entry);
   }
+  resumeObservation = { ...resumeObservation, state: excluded.length ? 'compatible-partial' : 'compatible',
+    admittedModels: resumed.length, excludedModels: excluded };
+  return resumed;
 };
 
-const modelReports = await loadResumedModelReports();
-const resumedModels = modelReports.length;
-const completedModelIds = new Set(modelReports.map((entry) => entry.modelId));
-completedModelsProgress = completedModelIds.size;
-modelsTask.set(completedModelsProgress, models.length, {
-  message: resumedModels > 0
-    ? `${resumedModels} resumed`
-    : 'starting'
-});
+const modelReports = [];
+let resumedModels = 0;
+const completedModelIds = new Set();
 
 const setActivePhase = (modelId, phase) => {
   activeModelId = modelId || null;
@@ -659,6 +652,11 @@ const campaignAbort = new AbortController();
 const interruptCampaign = () => campaignAbort.abort();
 process.on('SIGINT', interruptCampaign); process.on('SIGTERM', interruptCampaign);
 const runCampaign = async () => {
+  modelReports.push(...await loadResumedModelReports());
+  resumedModels = modelReports.length;
+  for (const report of modelReports) completedModelIds.add(report.modelId);
+  completedModelsProgress = completedModelIds.size;
+  modelsTask.set(completedModelsProgress, models.length, { message: resumedModels > 0 ? `${resumedModels} resumed` : 'starting' });
   let compareReport = null;
   for (const modelId of models) {
     if (completedModelIds.has(modelId)) {
@@ -880,7 +878,7 @@ const runCampaign = async () => {
   const output = await writeOutputPayload({
     modelReports,
     compareReport,
-    status: 'completed',
+    status: 'completed', finalize: true,
     resumedModels,
     currentModel: null,
     currentPhase: null,
@@ -918,15 +916,23 @@ const runCampaign = async () => {
   }
 };
 let campaignFailed = false, campaignFailure;
-try { await runCampaign(); }
-catch (error) {
-  campaignFailed = true; campaignFailure = error;
-  try {
-    await writeOutputPayload({ modelReports, compareReport: null, status: 'failed', resumedModels,
-      currentModel: activeModelId, currentPhase: activePhase, phaseStartedAt: activePhaseStartedAt,
-      error: bakeoffPhaseFailureReceipt(error) });
-  } catch (secondary) { campaignFailure = addStorageFailureContext(campaignFailure, {}, secondary, { secondaryPresent: true }); }
+try {
+  await withBakeoffCheckpoint({ root, checkpointPath: checkpointOutPath, settings: outputSettings, signal: campaignAbort.signal }, async owner => {
+    checkpointOwner = owner;
+    try { return await runCampaign(); }
+    catch (error) {
+      if (owner.isSealed()) throw error;
+      let failure = error;
+      try {
+        await writeOutputPayload({ modelReports, compareReport: null, status: 'failed', finalize: true,
+          publishLatest: owner.hasPublished(), resumedModels, currentModel: activeModelId,
+          currentPhase: activePhase, phaseStartedAt: activePhaseStartedAt, error: bakeoffPhaseFailureReceipt(error) });
+      } catch (secondary) { failure = addStorageFailureContext(error, {}, secondary, { secondaryPresent: true }); }
+      throw failure;
+    }
+  });
 }
+catch (error) { campaignFailed = true; campaignFailure = error; }
 finally {
   process.off('SIGINT', interruptCampaign); process.off('SIGTERM', interruptCampaign);
   for (const close of [() => display.flush(), () => display.close()]) {
@@ -937,4 +943,8 @@ finally {
     }
   }
 }
-if (campaignFailed) { console.error(`[bakeoff] ${JSON.stringify(bakeoffPhaseFailureReceipt(campaignFailure))}`); process.exitCode = 1; }
+if (campaignFailed) {
+  console.error(`[bakeoff] ${JSON.stringify(bakeoffPhaseFailureReceipt(campaignFailure))}`);
+  if (checkpointOwner?.isSealed()) console.error(`[bakeoff] Final receipt: ${checkpointOwner.finalPath}`);
+  process.exitCode = 1;
+}
