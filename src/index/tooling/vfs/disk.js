@@ -151,7 +151,7 @@ export const ensureVfsDiskDocument = async ({
       try {
         ensureToolingCacheDir(root);
         const cachedPath = resolvedDocHash && coldStartCache?.get
-          ? coldStartCache.get({ virtualPath, docHash: resolvedDocHash }) : null;
+          ? coldStartCache.get({ virtualPath, docHash: resolvedDocHash, expectedPath: absPath }) : null;
         const coldCandidate = typeof cachedPath === 'string' && canonicalPathKey(path.resolve(cachedPath)) === key;
         const cached = VFS_DISK_CACHE.get(cacheKey);
         const prior = cached?.docHash === resolvedDocHash ? cached : null;

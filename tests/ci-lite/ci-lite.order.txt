@@ -1328,3 +1328,6 @@ indexing/embeddings/text-cache-capacity-turnover
 perf/bench/graph-lazy-admission-phases
 tooling/vfs/materialization-content-and-root
 tooling/vfs/batched-materialization-failure-drain
+tooling/vfs/cold-start-live-bounds
+tooling/vfs/cold-start-flush-revision
+perf/vfs-memory-plateau
