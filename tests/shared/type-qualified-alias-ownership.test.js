@@ -39,18 +39,18 @@ for (const languageId of ['javascript', 'typescript', 'tsx', 'jsx']) {
     ['Number . Member', 'Number . Member'], ['ΔNumber', 'ΔNumber'],
     ['String世界', 'String世界'], ['Numberπ', 'Numberπ'], ['Boolean\u200cName', 'Boolean\u200cName'],
     ['$String', '$String'], ['_Boolean', '_Boolean'],
-    ['Number | String | Boolean | integer | float', 'number | string | boolean | number | number']
+    ['Number | String | Boolean | integer | float', 'Number | String | Boolean | integer | float']
   ]) {
     assert.equal(canonical(input, languageId), expected, `${languageId}: ${input}`);
   }
 }
 
 // Both the canonical merger and actual provider payload admission must retain
-// qualified facts beside supported aliases, regardless of arrival order.
+// qualified facts beside independent native types and supported Python aliases, regardless of arrival order.
 for (const [languageId, types, expected] of [
   ['python', ['custom.Optional[str]', 'typing.Optional[str]'], ['custom.Optional[str]', 'str | None']],
   ['python', ['custom.Union[int, str]', 'typing.Union[int, str]'], ['custom.Union[int, str]', 'int | str']],
-  ['typescript', ['custom.Number', 'Number'], ['custom.Number', 'number']]
+  ['typescript', ['custom.Number', 'Number'], ['custom.Number', 'Number']]
 ]) {
   const entries = types.map(type => ({ type, languageId, source: 'annotation', confidence: 0.9 }));
   for (const ordered of [entries, entries.toReversed()]) {

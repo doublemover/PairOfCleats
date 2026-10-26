@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1110,
+    "hero": 1117,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -7621,6 +7621,48 @@
     {
       "id": "retrieval/cache/embedding-work-observation",
       "order": 1268,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/lsp/type-identity-handoff",
+      "order": 1269,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/type-inference/crossfile/tooling-context-replay-admission",
+      "order": 1270,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/type-normalization",
+      "order": 1271,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/type-qualified-alias-ownership",
+      "order": 1272,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/type-identity-literals-and-nesting",
+      "order": 1273,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/registry-borrowed-lock-capability",
+      "order": 1274,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/type-inference/crossfile/cache-fingerprint-and-size-cap",
+      "order": 1275,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

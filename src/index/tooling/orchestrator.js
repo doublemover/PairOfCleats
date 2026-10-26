@@ -1,3 +1,4 @@
+import { SEMANTIC_ANALYSIS_VERSIONS } from '../semantic/analysis-versions.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../contracts/versioning.js';
 import { assertCurrentIndexFormat } from '../../contracts/index-format.js';
 import { assertSemanticEnvelope } from '../../contracts/validators/semantic-envelopes.js';
@@ -158,6 +159,8 @@ const computeCacheKey = ({ providerId, providerVersion, configHash, documents, t
       schemaVersion: TOOLING_PROVIDER_CACHE_SCHEMA_VERSION,
       providerId,
       providerVersion,
+      semanticProducers: { typeNormalization: SEMANTIC_ANALYSIS_VERSIONS.typeNormalization,
+        lspBindings: SEMANTIC_ANALYSIS_VERSIONS.lspBindings },
       configHash,
       profileHash,
       documents: docKey,

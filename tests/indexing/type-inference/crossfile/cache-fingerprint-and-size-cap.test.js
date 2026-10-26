@@ -71,6 +71,29 @@ assert.notEqual(
 const cacheDir = path.join(tempRoot, 'cache', 'cross-file');
 const cachePath = path.join(cacheDir, 'output-cache.json');
 
+// Replay replaces the complete per-chunk relation object, including fields
+// that are absent from fileRelations. Equal row counts are not input identity.
+const relationInput = [{ ...chunks[0], codeRelations: { ...chunks[0].codeRelations, imports: ['./before.js'] } }];
+const relationFingerprint = input => buildCrossFileFingerprint({ chunks: input,
+  enableTypeInference: true, enableRiskCorrelation: true, useTooling: false, fileRelations: null });
+const originalRelationFingerprint = relationFingerprint(relationInput);
+await writeCrossFileInferenceCache({ cacheDir, cachePath, chunks: relationInput,
+  crossFileFingerprint: originalRelationFingerprint, stats: { linkedCalls: 1 }, maxBytes: 1024 * 1024 });
+const unchangedRelations = structuredClone(relationInput);
+assert.ok(await readCrossFileInferenceCache({ cachePath, chunks: unchangedRelations,
+  crossFileFingerprint: relationFingerprint(unchangedRelations), requireComplete: true }));
+for (const [field, value] of [['imports', ['./after.js']], ['exports', ['NewExport']],
+  ['inheritance', ['DifferentBase']], ['producerExtension', { owned: 'different-input' }]]) {
+  const changedRelations = structuredClone(relationInput);
+  changedRelations[0].codeRelations[field] = value;
+  const before = structuredClone(changedRelations), changedFingerprint = relationFingerprint(changedRelations);
+  assert.notEqual(changedFingerprint, originalRelationFingerprint, field);
+  assert.equal(await readCrossFileInferenceCache({ cachePath, chunks: changedRelations,
+    crossFileFingerprint: changedFingerprint, requireComplete: true }), null, field);
+  assert.deepEqual(changedRelations, before, 'a stale hit cannot overwrite fresh ' + field);
+}
+await fs.rm(cachePath);
+
 const oversizedChunk = {
   chunkUid: 'uid:oversized',
   file: 'src/oversized.js',

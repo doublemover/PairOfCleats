@@ -151,17 +151,10 @@ const normalizeLanguageAliases = (text, languageId) => {
   let next = String(text);
   if (lang === 'python') {
     next = normalizePythonConstructors(next);
-  } else if (lang === 'javascript' || lang === 'typescript' || lang === 'tsx' || lang === 'jsx') {
-    next = next
-      .replace(/(?<![\p{ID_Continue}$\u200c\u200d.])(integer|float|String|Boolean|Number)(?![\p{ID_Continue}$\u200c\u200d]|\s*\.)/gu,
-        (name, _alias, offset, input) => {
-          // A separated dot still belongs to a qualified name.
-          let previous = offset - 1;
-          while (previous >= 0 && /\s/u.test(input[previous])) previous -= 1;
-          if (input[previous] === '.') return name;
-          return { integer: 'number', float: 'number', String: 'string', Boolean: 'boolean', Number: 'number' }[name];
-        });
+
   }
+  // JS/TS boxed primitives and user names are distinct semantic expressions.
+  // Language ID alone cannot establish that an identifier is a builtin alias.
   return next;
 };
 

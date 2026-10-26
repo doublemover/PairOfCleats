@@ -1268,3 +1268,10 @@ perf/tooling/bench/search-micro-evidence
 perf/tooling/bench/search-micro-baseline
 perf/tooling/bench/search-micro-runner
 retrieval/cache/embedding-work-observation
+tooling/lsp/type-identity-handoff
+indexing/type-inference/crossfile/tooling-context-replay-admission
+shared/type-normalization
+shared/type-qualified-alias-ownership
+shared/type-identity-literals-and-nesting
+indexing/registry-borrowed-lock-capability
+indexing/type-inference/crossfile/cache-fingerprint-and-size-cap

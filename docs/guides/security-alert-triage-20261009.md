@@ -26,6 +26,11 @@ No finding was dismissed merely because it remained visible on main.
 
 ## Verification and limits
 
+The table and checks below retain their original historical provenance. The
+later #813 repair supersedes alert 59's boxed-type expectation: native `Boolean`
+and primitive `boolean` remain distinct through provider normalization. See the
+[current type-expression contract](../contracts/native-type-expression-identity.md).
+
 Passed the individual `codeql-workflow-contract`, `workflow-contract` and
 `shared/type-normalization` scripts with existing Node 26.8.1, scoped ESLint
 formatting and `git diff --check`. No full suite, benchmark, indexing or GPU run.
