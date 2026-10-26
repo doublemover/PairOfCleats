@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "4439c4050ad1127cf1287278ab3ac3eb68d73281",
+  "sourceHead": "15b408787ef9463757fe092f5fce739c909d24b3",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
@@ -6398,7 +6398,7 @@
       "priority": "P3",
       "status": "implemented",
       "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
-      "implementation": "c020b3da112e631ce3050ad47a73ed53b76ade42",
+      "implementation": "15b408787ef9463757fe092f5fce739c909d24b3",
       "validation": "deferred"
     },
     {
@@ -6605,6 +6605,6 @@
       292
     ],
     "closed": [],
-    "reconfirmedAtSource": "5383c067c"
+    "reconfirmedAtSource": "15b408787ef9463757fe092f5fce739c909d24b3"
   }
 }

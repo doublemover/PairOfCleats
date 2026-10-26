@@ -3346,3 +3346,25 @@ qualification remain unrun under the implementation-first instruction. Coverage
 is **35 fixed / 462 implemented / 137 partial / 136 pending**, all 770 reports
 retained. No issue closed and no closing reference added. Bookkeeping retains the
 checked JS tree. Contract: `docs/contracts/embedding-text-cache-capacity.md`.
+
+## 2026-10-26 — synchronous VFS sampled-work follow-up and live intake
+
+`15b408787` extends #1725's completed-work conservation to the separate synchronous
+VFS sampler after inspecting every current caller. The synchronous operation and
+ordinal-index contract remain; the same finite integral admission reduces excess
+buckets without extra work. Rates use completed calls, and reports retain raw
+bucket sizes/times with explicit units. Promise-returning callbacks reject without
+publishing a denominator; their settlement observer stays on the failure and their
+rejection remains observed. The existing sampled-work fixture now checks five VFS
+count/index cases, rates, invalid settings and async-work ownership. VFS benchmark
+documentation no longer recommends calling endpoint memory observations peaks.
+
+Full format/ESLint, two affected final syntax/ESLint checks, affected generated
+refresh/freshness and staged diff checks passed; functional execution remains
+deferred. The final affected lint pass covers the retained promise-settlement
+observer added after the full-format pass. A complete live REST refresh again has
+770 open reports, with no added/removed/changed report relative to the prior full
+intake. Raw `.tmp/tasks/windows-failure-repairs-20261024/` intake files are historical
+author-workspace evidence, unavailable in a clean checkout. Coverage remains
+**35 fixed / 462 implemented / 137 partial / 136 pending**. No issue closed or
+new closing reference added; bookkeeping reuses the checked JS tree.
