@@ -1255,3 +1255,10 @@ tooling/triage/evidence-selected-mode
 services/mcp/triage-context-pack-handoff
 tooling/reports/bench-language-remediation-evidence
 tooling/reports/bench-language-low-hit-remediation-report
+perf/tooling/bench/sqlite-fixture-admission
+perf/tooling/bench/sqlite-benchmark-cli/build-baseline
+perf/tooling/bench/sqlite-benchmark-cli/build-current
+perf/tooling/bench/sqlite-benchmark-cli/build-compare
+perf/tooling/bench/sqlite-benchmark-cli/update-baseline
+perf/tooling/bench/sqlite-benchmark-cli/update-current
+perf/tooling/bench/sqlite-benchmark-cli/update-compare

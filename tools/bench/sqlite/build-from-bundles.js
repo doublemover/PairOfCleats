@@ -2,19 +2,22 @@
 import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
 import { performance } from 'node:perf_hooks';
+import assert from 'node:assert/strict';
+import { validateSqliteBenchDatabase } from './validate.js';
 const { buildDatabaseFromBundles } = await import('../../../src/storage/sqlite/build/from-bundles.js');
 const { parseSimpleBenchArgs, resolveCompareMode } = await import('../shared.js');
 const {
   createSqliteBenchBundleFixture,
   createSqliteBenchWorkspace,
   loadSqliteBenchDatabase,
-  requireSqliteDb
+  requireSqliteDb,
+  resolveSqliteBenchSize
 } = await import('./shared.js');
 
 const Database = await loadSqliteBenchDatabase();
 const args = parseSimpleBenchArgs();
-const fileCount = Number(args.files) || 20;
-const chunksPerFile = Number(args.chunks) || 6;
+const fileCount = resolveSqliteBenchSize(args.files, 20);
+const chunksPerFile = resolveSqliteBenchSize(args.chunks, 6);
 const benchMode = resolveCompareMode(args.mode);
 const sqliteMode = ['code', 'prose', 'extracted-prose', 'records'].includes(
   String(args['sqlite-mode'] || '').toLowerCase()
@@ -56,9 +59,12 @@ const runBuild = async ({ label, outPath, buildPragmas, optimize }) => {
   const durationMs = performance.now() - start;
 
   requireSqliteDb(outPath);
+  assert.equal(result.count, fileCount * chunksPerFile, 'Build must insert the complete requested fixture');
+  const observation = await validateSqliteBenchDatabase({ Database, dbPath: outPath, bundleDir, manifest,
+    mode: sqliteMode, expectedRows: fileCount * chunksPerFile });
 
   console.log(
-    `[bench] build-from-bundles ${label} mode=${sqliteMode} files=${fileCount} chunks=${result.count} ms=${durationMs.toFixed(1)}`
+    `[bench] build-from-bundles ${label} scope=smoke mode=${sqliteMode} files=${fileCount} chunks=${result.count} ms=${durationMs.toFixed(1)}`
   );
   if (stats.pragmas) {
     console.log(`[bench] ${label} pragmas`, stats.pragmas);
@@ -66,7 +72,8 @@ const runBuild = async ({ label, outPath, buildPragmas, optimize }) => {
   if (stats.tables) {
     console.log(`[bench] ${label} tables`, stats.tables);
   }
-  return { durationMs, count: result.count };
+  console.log(`[bench] ${label} observed-work ${JSON.stringify(observation)}`);
+  return { durationMs, count: result.count, observation };
 };
 
 let baselineResult = null;
@@ -88,9 +95,10 @@ if (benchMode !== 'baseline') {
   });
 }
 if (baselineResult && currentResult) {
+  assert.deepEqual(currentResult.observation, baselineResult.observation, 'Only equivalent successful builds may be compared');
   const deltaMs = currentResult.durationMs - baselineResult.durationMs;
   const deltaPct = baselineResult.durationMs > 0
     ? (deltaMs / baselineResult.durationMs) * 100
     : null;
-  console.log(`[bench] delta ms=${deltaMs.toFixed(1)} (${deltaPct?.toFixed(1)}%)`);
+  console.log(`[bench] smoke delta ms=${deltaMs.toFixed(1)} (${deltaPct?.toFixed(1)}%); sustained performance unqualified`);
 }

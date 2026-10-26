@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["build-baseline", "build-current", "build-compare", "update-baseline", "update-current", "update-compare"]
+}

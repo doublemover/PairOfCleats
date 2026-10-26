@@ -59,6 +59,9 @@ The [remediation evidence contract](../contracts/benchmark-remediation-evidence.
 distinguishes nonempty-result frequency from judged target outcomes, service
 elapsed time from batch wall cost, and inspection hypotheses from qualified
 production changes. Workload changes require independent holdout qualification.
+The [SQLite workload contract](../contracts/sqlite-benchmark-workloads.md) defines
+current snapshot admission and content validation for the build/update smoke
+benchmarks; larger repeated workload qualification remains separate.
 
 The complete previous guide, including original usage tables and dated repair
 narratives, remains in [the historical snapshot](../archived/benchmarks-overview-2026-10-22.md).

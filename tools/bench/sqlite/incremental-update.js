@@ -3,6 +3,8 @@ import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js'
 await guardBootstrapEntry(import.meta.url);
 import fsSync from 'node:fs';
 import { performance } from 'node:perf_hooks';
+import assert from 'node:assert/strict';
+import { validateSqliteBenchDatabase } from './validate.js';
 const { buildDatabaseFromBundles } = await import('../../../src/storage/sqlite/build/from-bundles.js');
 const { incrementalUpdateDatabase } = await import('../../../src/storage/sqlite/build/incremental-update.js');
 const { resolveSqliteIngestPlan } = await import('../../../src/storage/sqlite/utils.js');
@@ -12,13 +14,15 @@ const {
   createSqliteBenchWorkspace,
   loadSqliteBenchDatabase,
   requireSqliteDb,
-  writeSqliteBenchBundle
+  publishSqliteBenchSource,
+  resolveSqliteBenchSize
 } = await import('./shared.js');
 
 const Database = await loadSqliteBenchDatabase();
 const args = parseSimpleBenchArgs();
-const fileCount = Number(args.files) || 12;
-const chunksPerFile = Number(args.chunks) || 6;
+const fileCount = resolveSqliteBenchSize(args.files, 12);
+const chunksPerFile = resolveSqliteBenchSize(args.chunks, 6);
+if (fileCount < 3) throw new TypeError('Incremental smoke requires at least three files to remain inside the production change-ratio guard.');
 const mode = resolveCompareMode(args.mode);
 
 const { bundleDir, outPathBaseline, outPathCurrent } = await createSqliteBenchWorkspace({
@@ -33,20 +37,10 @@ const { manifest, buildChunks } = await createSqliteBenchBundleFixture({
 const envConfig = { bundleThreads: 1 };
 const threadLimits = { fileConcurrency: 1 };
 
-const updatedManifest = { files: { ...manifest.files } };
+const updatedManifest = { ...manifest, files: { ...manifest.files } };
 const changedFile = `src/file-${Math.min(2, fileCount - 1)}.js`;
-const changedBundleName = 'bundle-changed.json';
-await writeSqliteBenchBundle({
-  bundleDir,
-  bundleName: changedBundleName,
-  chunks: buildChunks(changedFile, 'v2')
-});
-updatedManifest.files[changedFile] = {
-  ...updatedManifest.files[changedFile],
-  hash: 'hash-changed',
-  mtimeMs: 9999,
-  bundle: changedBundleName
-};
+updatedManifest.files[changedFile] = await publishSqliteBenchSource({ bundleDir, file: changedFile,
+  chunks: buildChunks(changedFile, 'v2'), mtimeMs: 9999 });
 
 const probeSqliteRuntime = (dbPath) => {
   const runtime = {
@@ -118,6 +112,8 @@ const buildBaselineDatabase = async ({ outPath, buildPragmas, optimize }) => {
     buildPragmas,
     optimize
   });
+  await validateSqliteBenchDatabase({ Database, dbPath: outPath, bundleDir, manifest,
+    mode: 'code', expectedRows: fileCount * chunksPerFile });
 };
 
 const runUpdate = async ({ label, outPath, buildPragmas }) => {
@@ -150,8 +146,13 @@ const runUpdate = async ({ label, outPath, buildPragmas }) => {
     console.error(`Incremental update skipped: ${updateResult.reason || 'unknown reason'}`);
     process.exit(1);
   }
+  assert.equal(updateResult.changedFiles, 1);
+  assert.equal(updateResult.deletedFiles, 0);
+  assert.equal(updateResult.insertedChunks, chunksPerFile);
+  const observation = await validateSqliteBenchDatabase({ Database, dbPath: outPath, bundleDir, manifest: updatedManifest,
+    mode: 'code', expectedRows: fileCount * chunksPerFile });
 
-  console.log(`[bench] incremental-update ${label} files=${fileCount} chunks=${updateResult.insertedChunks} ms=${durationMs.toFixed(1)}`);
+  console.log(`[bench] incremental-update ${label} scope=smoke files=${fileCount} changedFiles=1 chunks=${updateResult.insertedChunks} ms=${durationMs.toFixed(1)}`);
   console.log(
     `[bench] ${label} ingest-plan ` +
     `batch=${adaptive.plan.batchSize} txRows=${adaptive.plan.transactionRows} ` +
@@ -164,7 +165,8 @@ const runUpdate = async ({ label, outPath, buildPragmas }) => {
   if (stats.transactionPhases) {
     console.log(`[bench] ${label} transaction-phases`, stats.transactionPhases);
   }
-  return { durationMs, insertedChunks: updateResult.insertedChunks };
+  console.log(`[bench] ${label} observed-work ${JSON.stringify(observation)}`);
+  return { durationMs, insertedChunks: updateResult.insertedChunks, observation };
 };
 
 let baselineResult = null;
@@ -194,9 +196,10 @@ if (mode !== 'baseline') {
   });
 }
 if (baselineResult && currentResult) {
+  assert.deepEqual(currentResult.observation, baselineResult.observation, 'Only equivalent successful updates may be compared');
   const deltaMs = currentResult.durationMs - baselineResult.durationMs;
   const deltaPct = baselineResult.durationMs > 0
     ? (deltaMs / baselineResult.durationMs) * 100
     : null;
-  console.log(`[bench] delta ms=${deltaMs.toFixed(1)} (${deltaPct?.toFixed(1)}%)`);
+  console.log(`[bench] smoke delta ms=${deltaMs.toFixed(1)} (${deltaPct?.toFixed(1)}%); sustained performance unqualified`);
 }
