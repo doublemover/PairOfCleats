@@ -1321,3 +1321,6 @@ indexing/incremental/manifest-publication-capacity
 indexing/contracts/metadata-reserved-parameter-identities
 retrieval/graph/context-pack-streaming-artifact-failures
 retrieval/pipeline/count-aware-preflight-deadline
+perf/bench/sampled-operation-accounting
+perf/bench/compression-paired-inputs
+perf/bench/graph-render-sort-equivalence

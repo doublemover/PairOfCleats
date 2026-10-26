@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1163,
+    "hero": 1166,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -7939,6 +7939,24 @@
     {
       "id": "retrieval/pipeline/count-aware-preflight-deadline",
       "order": 1321,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/bench/sampled-operation-accounting",
+      "order": 1322,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/bench/compression-paired-inputs",
+      "order": 1323,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/bench/graph-render-sort-equivalence",
+      "order": 1324,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

@@ -75,6 +75,13 @@ node tools/bench/graph/store-lazy-load.js --mode compare
 node tools/bench/graph/render-sort.js --size 2000 --mode compare
 ```
 
+The render-sort comparison measures redundant sort removal on the same canonical
+pack in both arms. Shared node/edge/witness-path comparators prepare shuffled
+synthetic input outside render timing; preparation cost is reported separately.
+Byte-identical rendered output is required before warmup/timing. Each arm reports
+raw render samples and completed operations. A bucket/render delta does not
+establish an end-to-end graph speedup or amortize upstream preparation cost.
+
 ## Validation
 Phase 10 adds deterministic output tests, cache reuse tests, and excerpt
 range/cache tests to ensure correctness and stability under caching.
