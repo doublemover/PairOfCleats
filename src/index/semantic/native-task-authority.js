@@ -10,36 +10,18 @@ import { resolveNativeExecutable, collectNativeToolchainFiles } from './native-t
 import { observeStorageResource } from '../../shared/storage/failure-observation.js';
 import { addStorageFailureContext } from '../../shared/storage/operation-error.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { collectNativeIncludeProbes } from './native-include-probes.js';
+export { collectNativeIncludeProbes } from './native-include-probes.js';
 
 export const NATIVE_DEPENDENCY_KEY = 'semantic.native.clangd-inventory.v1';
 const fail = message => Object.assign(new Error(message), { code: 'ERR_SEMANTIC_NATIVE_UNSEALED' });
 const envKeys = ['PATH', 'LANG', 'LC_ALL', 'LC_CTYPE', 'CPATH', 'C_INCLUDE_PATH', 'CPLUS_INCLUDE_PATH', 'OBJC_INCLUDE_PATH',
   'SDKROOT', 'LD_PRELOAD', 'LD_LIBRARY_PATH', 'DYLD_INSERT_LIBRARIES', 'DYLD_LIBRARY_PATH'];
 const environment = () => Object.fromEntries(envKeys.map(key => [key, process.env[key] || null]));
-const MAX_PROJECT_BYTES = 16 * 1024 * 1024, MAX_PROJECT_FILES = 512, MAX_PROBES = 4096;
-
-const preprocessingText = input => {
-  const text = input.replace(/\\\r?\n/g, '');
-  let result = '', quote = null, comment = null;
-  for (let index = 0; index < text.length; index += 1) {
-    const char = text[index], next = text[index + 1];
-    if (comment === 'line') { if (char === '\n') { comment = null; result += '\n'; } continue; }
-    if (comment === 'block') { if (char === '*' && next === '/') { comment = null; index += 1; } else if (char === '\n') result += '\n'; continue; }
-    if (quote) {
-      result += char;
-      if (char === '\\') { result += next || ''; index += 1; }
-      else if (char === quote) quote = null;
-      continue;
-    }
-    if (char === '"' || char === "'") { quote = char; result += char; }
-    else if (char === '/' && (next === '/' || next === '*')) { comment = next === '/' ? 'line' : 'block'; result += ' '; index += 1; }
-    else result += char;
-  }
-  return result;
-};
+const MAX_PROJECT_BYTES = 16 * 1024 * 1024, MAX_PROJECT_FILES = 512;
 
 /** Arguments are data for clangd. They never become a shell/driver invocation. */
-const compileEntry = async (row, repoRoot) => {
+export const projectNativeCompileEntry = async (row, repoRoot) => {
   if (!row || !Array.isArray(row.arguments) || row.arguments.length > 128 || row.command !== undefined
     || typeof row.directory !== 'string' || typeof row.file !== 'string') throw fail('Sealed C tasks require bounded arguments-only compilation entries.');
   const directory = path.resolve(repoRoot, row.directory), filename = path.resolve(directory, row.file);
@@ -65,39 +47,7 @@ const compileEntry = async (row, repoRoot) => {
     throw fail('Native compilation flag is outside the sealed subset: ' + value);
   }
   if (sourceArguments !== 1) throw fail('Native compilation arguments require one exact C source.');
-  return { file: filename, directory, arguments: [...args], driver, includeRoots: [...new Set(includeRoots)].sort() };
-};
-
-/** Source closure guard shared by sealed admission and dependency-free regressions. */
-export const collectNativeIncludeProbes = async ({ repoRoot, entries, textByPath, present, signal }) => {
-  const probes = [];
-  for (const entry of entries) {
-    if (!present.has(entry.file)) throw fail('Native compilation source was not inventoried.');
-    for (const [filename, rawText] of textByPath) {
-      throwIfAborted(signal);
-      const text = preprocessingText(rawText);
-      if (/\?\?|%:|__DATE__|__TIME__|__TIMESTAMP__|__has_include|__has_embed|_Pragma|__pragma|__builtin_(?:available|dump_struct)/.test(text)) throw fail('Native dynamic/trigraph/digraph preprocessing is outside sealed authority.');
-      for (const match of text.matchAll(/^\s*#\s*([A-Za-z_][A-Za-z0-9_]*)\b([^\n]*)/gm)) {
-        if (!['include', 'define', 'undef', 'if', 'ifdef', 'ifndef', 'elif', 'else', 'endif', 'error', 'warning'].includes(match[1])) throw fail('Native preprocessing directive is outside sealed authority.');
-        if (match[1] !== 'include') continue;
-        const target = /^\s*(["<])([^">]+)[">]\s*$/.exec(match[2]);
-        if (!target) throw fail('Native macro includes require a separately qualified closure.');
-        const roots = [...(target[1] === '"' ? [path.dirname(filename)] : []), ...entry.includeRoots];
-        for (const root of roots) {
-          const candidate = path.resolve(root, target[2]);
-          if (!isWithinRoot(candidate, repoRoot)) throw fail('Native include probe escapes its project.');
-          let exists = false;
-          try { await fs.lstat(candidate); exists = true; } catch (error) { if (error.code !== 'ENOENT' && error.code !== 'ENOTDIR') throw error; }
-          if (exists && !present.has(candidate)) throw fail('Native include candidate was not inventoried.');
-          if (exists && !textByPath.has(candidate)) throw fail('Native included file requires a supported scanned source extension.');
-          probes.push({ path: candidate, exists });
-          if (probes.length > MAX_PROBES) throw fail('Native include probe inventory exceeds its allowance.');
-          if (exists) break;
-        }
-      }
-    }
-  }
-  return probes;
+  return { file: filename, directory, arguments: [...args], driver, includeRoots: [...new Set(includeRoots)] };
 };
 
 export const nativeTaskInventoryHash = inventory => semanticHash(NATIVE_DEPENDENCY_KEY, inventory);
@@ -122,7 +72,7 @@ const collectInventory = async ({ repoRoot, toolingConfig, sources, signal = nul
   const rawEntries = JSON.parse(database.buffer.toString('utf8'));
   if (!Array.isArray(rawEntries) || !rawEntries.length || rawEntries.length > 64) throw fail('Native compilation inventory exceeds its allowance.');
   const entries = [];
-  for (const row of rawEntries) entries.push(await compileEntry(row, repoRoot));
+  for (const row of rawEntries) entries.push(await projectNativeCompileEntry(row, repoRoot));
   if (new Set(entries.map(row => row.file)).size !== entries.length) throw fail('Native compilation entries are ambiguous.');
   const files = [], directories = [], textByPath = new Map(), pending = [repoRoot]; let bytes = 0;
   while (pending.length) {
@@ -155,7 +105,7 @@ const collectInventory = async ({ repoRoot, toolingConfig, sources, signal = nul
     repoRoot, documentRouting: 'admitted-physical-c-file-uri-v1', toolingHash: semanticHash('semantic.native.tooling.v1', toolingConfig), environment: env, platform: process.platform, architecture: process.arch,
     sources: sources.map(source => ({ sourceUnitId: source.sourceUnitId, path: source.path, byteHash: source.byteHash })).sort((a, b) => a.sourceUnitId.localeCompare(b.sourceUnitId)),
     launch, entries, files: files.sort((a, b) => a.path.localeCompare(b.path)), directories: directories.sort((a, b) => a.path.localeCompare(b.path)),
-    probes: [...new Map(probes.map(row => [canonicalSemanticJson(row), row])).values()].sort((a, b) => a.path.localeCompare(b.path)), toolchain };
+    probes: probes.slice().sort((a, b) => a.path.localeCompare(b.path)), includeProbeWork: probes.work, toolchain };
   if (Buffer.byteLength(canonicalSemanticJson(inventory)) > 24 * 1024 * 1024) throw fail('Native authority descriptor exceeds its allowance.');
   return inventory;
 };

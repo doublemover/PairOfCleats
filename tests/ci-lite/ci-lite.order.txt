@@ -1338,3 +1338,5 @@ map/build-map/publication-failure-ownership
 perf/bench/map-publication-and-memory
 shared/json-stream/jsonl-fragment-framing
 lang/contracts/html-prepared-source
+indexing/semantic/native-include-closure
+indexing/semantic/native-include-work-sharing
