@@ -511,12 +511,14 @@ export const createGraphStore = ({
   });
   const readCallSitesPage = options => getCallSitePages().readPage(options);
   const iterateCallSites = options => getCallSitePages().iterateRows(options);
+  const iterateCallSitePages = options => getCallSitePages().iteratePages(options);
   let retainedEdgePages = null;
   const getRetainedEdgePages = () => retainedEdgePages ||= createRetainedEdgePages({
     indexDir, manifest: resolvedManifest, maxBytes
   });
   const readGraphEdgesPage = options => getRetainedEdgePages().readPage(options);
   const iterateGraphEdges = options => getRetainedEdgePages().iterateRows(options);
+  const iterateGraphEdgePages = options => getRetainedEdgePages().iteratePages(options);
 
   /**
    * Load or build cached graph index for selected graph artifacts.
@@ -682,8 +684,10 @@ export const createGraphStore = ({
     loadCallSites,
     readCallSitesPage,
     iterateCallSites,
+    iterateCallSitePages,
     readGraphEdgesPage,
     iterateGraphEdges,
+    iterateGraphEdgePages,
     loadGraphIndex,
     getArtifactsUsed: () => Array.from(artifactsUsed),
     stats: () => ({

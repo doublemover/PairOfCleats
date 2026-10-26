@@ -206,7 +206,7 @@ export const prepareGraphIndex = async ({
  * Whole graph indexes, neighborhood traversal and full occurrence arrays are
  * deliberately absent from this bounded evidence-only request.
  */
-export const prepareGraphEvidencePage = async ({ indexDir = null, graphInputs = null,
+export const prepareGraphEvidenceOperation = async ({ indexDir = null, graphInputs = null,
   family, filter = {}, cursor = null, limit = 128, scanRows = 1024,
   maxPageBytes = 1024 * 1024, expectedBuildId = null, signal = null } = {}) => {
   throwIfAborted(signal);
@@ -225,13 +225,22 @@ export const prepareGraphEvidencePage = async ({ indexDir = null, graphInputs = 
     throw Object.assign(new Error('Retained evidence requires the exact published build identity.'), { code: 'ERR_RETAINED_EVIDENCE_GENERATION' });
   }
   const store = createGraphStore({ indexDir: selectedRoot, manifest, maxBytes, strict: true });
-  const page = await (family === 'call_sites' ? store.readCallSitesPage : store.readGraphEdgesPage)({
+  const options = {
     filter, cursor, limit, scanRows, maxPageBytes: maxPageBytes - 2048, signal
-  });
-  const result = { family, generation: { buildId: manifest.buildId, artifactSurfaceVersion: manifest.artifactSurfaceVersion }, ...page };
-  if (Buffer.byteLength(JSON.stringify(result)) > maxPageBytes) {
-    throw Object.assign(new Error('Retained evidence response envelope exceeds its byte allowance.'), { code: 'ERR_RETAINED_EVIDENCE_RESPONSE_BYTES' });
-  }
-  throwIfAborted(signal);
-  return result;
+  };
+  const qualifyPage = page => {
+    const result = { family, generation: { buildId: manifest.buildId, artifactSurfaceVersion: manifest.artifactSurfaceVersion }, ...page };
+    if (Buffer.byteLength(JSON.stringify(result)) > maxPageBytes) {
+      throw Object.assign(new Error('Retained evidence response envelope exceeds its byte allowance.'), { code: 'ERR_RETAINED_EVIDENCE_RESPONSE_BYTES' });
+    }
+    throwIfAborted(signal);
+    return result;
+  };
+  return {
+    readPage: async () => qualifyPage(await (family === 'call_sites' ? store.readCallSitesPage : store.readGraphEdgesPage)(options)),
+    iteratePages: () => (family === 'call_sites' ? store.iterateCallSitePages : store.iterateGraphEdgePages)(options),
+    qualifyPage
+  };
 };
+
+export const prepareGraphEvidencePage = async options => (await prepareGraphEvidenceOperation(options)).readPage();

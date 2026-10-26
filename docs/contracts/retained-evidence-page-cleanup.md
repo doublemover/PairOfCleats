@@ -20,3 +20,11 @@ This repairs failure composition only. Existing page bounds, canonical validatio
 cursor scope and publication checks are unchanged. Abandoned pages, independently
 pending arbitrary selection callbacks, full outer service/continuation ownership,
 native close retry safety and platform/performance acceptance remain separate.
+
+The #1714 source repair adds a bounded whole-enumeration session using these same
+per-descriptor owners. Independent pages still close before returning. Enumerated
+terminal pages close before yielding; nonterminal pages retain a bounded pair
+until advance, return or abort. CLI output uses `consumeJsonRows` so output and
+independent iterator cleanup failures are both retained. New controls exercise
+the actual larger-than-snapshot readers and original failed-close capability,
+without replaying reads or output during explicit recovery. They remain unrun.

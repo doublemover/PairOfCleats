@@ -6,7 +6,7 @@ import { readJsonFile } from '../shared/artifact-io/json.js';
 import { assertPiecesManifestFormat } from '../shared/artifact-io/manifest-read.js';
 import { resolveManifestPath } from '../shared/artifact-io/manifest-paths.js';
 import { sortManifestEntries } from '../shared/artifact-io/manifest-entry-selection.js';
-import { openJsonlRowReader } from '../shared/artifact-io/offsets.js';
+import { createRetainedEvidenceSession } from './retained-evidence-session.js';
 import { semanticHash } from '../index/semantic/identity.js';
 import { throwIfAborted } from '../shared/abort.js';
 import { observeStorageResource } from '../shared/storage/failure-observation.js';
@@ -16,6 +16,7 @@ const MAX_ROWS = 512;
 const MAX_SCAN_ROWS = 4096;
 const MAX_PAGE_BYTES = 4 * 1024 * 1024;
 const MAX_ROW_BYTES = 32768;
+const MAX_WINDOW_ROWS = 32;
 const normalizeManifest = raw => raw?.fields && typeof raw.fields === 'object' ? raw.fields : raw;
 const manifestHash = manifest => semanticHash('graph.retained-evidence.publication.v1', manifest);
 const checksum = (piece, fail) => {
@@ -31,7 +32,9 @@ const bounded = (value, fallback, maximum) => {
 /** Generation-pinned enumeration of canonical, retained relationship evidence.
  * Offsets and data are verified on the same retained handles as positioned reads.
  * Query limits bound hydration/scan work, never the retained evidence inventory.
- * Verification still reads each touched immutable piece; no speedup is claimed.
+ * A single page owns an independent session. Whole enumerations retain at most
+ * one verified pair and one <=32-row (<=1 MiB encoded) decode window. Counters
+ * distinguish physical verification/reads from logical scanned/output bytes.
  */
 export const createRetainedEvidencePages = ({ indexDir, manifest, maxBytes = MAX_JSON_BYTES,
   family, ordering, normalizeFilter, matches, validateRow, errorPrefix, maxRowBytes = MAX_ROW_BYTES }) => {
@@ -40,6 +43,7 @@ export const createRetainedEvidencePages = ({ indexDir, manifest, maxBytes = MAX
   });
   const ORDER = ordering;
   if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) throw new TypeError('Retained-evidence piece read allowance must be positive and bounded.');
+  bounded(maxRowBytes, MAX_ROW_BYTES, MAX_ROW_BYTES);
   const pinned = structuredClone(manifest);
   assertPiecesManifestFormat(indexDir, pinned);
   const scope = semanticHash('graph.retained-evidence.cursor-scope.v2', {
@@ -82,7 +86,7 @@ export const createRetainedEvidencePages = ({ indexDir, manifest, maxBytes = MAX
       }
       const offsets = pinned.pieces.find(candidate => candidate.name === family + '_offsets'
       && candidate.path === piece.path + '.offsets.bin');
-      if (!offsets || !Number.isSafeInteger(piece.count) || piece.count < 0
+      if (!offsets || !Number.isSafeInteger(piece.count) || piece.count < 0 || piece.count > piece.bytes
       || offsets.count !== piece.count || !Number.isSafeInteger(piece.bytes) || piece.bytes < 0
       || !Number.isSafeInteger(offsets.bytes) || offsets.bytes !== piece.count * 8
       || piece.bytes > maxBytes) throw fail('Retained-evidence piece/offset inventory is incomplete or exceeds its read allowance.');
@@ -99,7 +103,7 @@ export const createRetainedEvidencePages = ({ indexDir, manifest, maxBytes = MAX
     }));
     if (manifestHash(current) !== pinnedHash) throw fail('Retained-evidence cursor publication changed.', 'ERR_CALL_SITE_CURSOR_SCOPE');
   };
-  const readPage = async ({ filter: inputFilter = {}, cursor = null, limit = 128,
+  const readOwnedPage = async (session, { filter: inputFilter = {}, cursor = null, limit = 128,
     scanRows = 1024, maxPageBytes = 1024 * 1024, signal = null } = {}) => {
     throwIfAborted(signal);
     await loadParts(signal);
@@ -130,39 +134,31 @@ export const createRetainedEvidencePages = ({ indexDir, manifest, maxBytes = MAX
     let scanned = 0, bytes = 0;
     while (position.part < parts.length && scanned < scanLimit && rows.length < rowsLimit) {
       throwIfAborted(signal);
-      const { piece, offsets, dataHash, offsetsHash } = parts[position.part];
+      const { piece } = parts[position.part];
       if (position.row === piece.count) { position = { part: position.part + 1, row: 0 }; continue; }
-      const reader = await openJsonlRowReader(resolveManifestPath(indexDir, piece.path, true),
-        resolveManifestPath(indexDir, offsets.path, true), { containedRoot: indexDir });
-      let primary, primaryPresent = false;
-      try {
-        await reader.verify({ jsonlBytes: piece.bytes, offsetsBytes: offsets.bytes,
-          jsonlHash: dataHash.value, offsetsHash: offsetsHash.value,
-          jsonlHashAlgorithm: dataHash.algorithm, offsetsHashAlgorithm: offsetsHash.algorithm, signal });
-        await reader.validateOffsets({ signal });
-        while (position.row < piece.count && scanned < scanLimit && rows.length < rowsLimit) {
-          const [row] = await reader.readRows([position.row], { maxBytes: maxRowBytes, signal });
-          if (!validateRow(row)) throw fail('Invalid canonical retained-evidence row.');
+      let pageFull = false;
+      while (position.row < piece.count && scanned < scanLimit && rows.length < rowsLimit && !pageFull) {
+        const count = Math.min(MAX_WINDOW_ROWS, piece.count - position.row, scanLimit - scanned, rowsLimit - rows.length);
+        const window = await session.readRows(parts[position.part], position.part,
+          Array.from({ length: count }, (_, offset) => position.row + offset), { maxBytes: maxRowBytes, signal });
+        // Every physically admitted row is checked, including filtered rows and
+        // bounded overfetch when output bytes fill before the decode window.
+        if (window.some(row => !validateRow(row))) throw fail('Invalid canonical retained-evidence row.');
+        for (const row of window) {
+          throwIfAborted(signal);
           const rowBytes = Buffer.byteLength(JSON.stringify(row)) + 1;
           if (matches(row, filter)) {
             if (rowBytes > bytesLimit && !rows.length) throw fail('Page byte allowance cannot contain the next occurrence.', 'ERR_CALL_SITE_PAGE_BYTES');
-            if (bytes + rowBytes > bytesLimit) break;
+            if (bytes + rowBytes > bytesLimit) { pageFull = true; break; }
             rows.push(row); bytes += rowBytes;
           }
           position.row += 1; scanned += 1;
         }
-      } catch (error) {
-        primary = observeStorageResource(error, { phase: 'retained-evidence-page' }).retain();
-        primaryPresent = true;
-        throw error;
       }
-      finally {
-        try { await reader.close(); }
-        catch (error) {
-          throw primaryPresent ? addStorageFailureContext(primary, {}, error, { secondaryPresent: true }) : error;
-        }
+      if (position.row === piece.count) {
+        await session.releasePiece();
+        position = { part: position.part + 1, row: 0 };
       }
-      if (position.row === piece.count) position = { part: position.part + 1, row: 0 };
       else break;
     }
     assertPublication();
@@ -171,13 +167,51 @@ export const createRetainedEvidencePages = ({ indexDir, manifest, maxBytes = MAX
     return { rows, scanned, bytes, done, scope, ordering: ORDER,
       cursor: done ? null : Buffer.from(JSON.stringify({ version: 1, scope, query, ...position })).toString('base64url') };
   };
-  return { readPage, scope, async *iterateRows(options = {}) {
+  const closeSession = async (session, primary, primaryPresent) => {
+    try { await session.close(); }
+    catch (error) { throw primaryPresent ? addStorageFailureContext(primary, {}, error, { secondaryPresent: true }) : error; }
+  };
+  const readPage = async options => {
+    const session = createRetainedEvidenceSession(indexDir);
+    let result, primary, primaryPresent = false;
+    try { result = await readOwnedPage(session, options); }
+    catch (error) { primary = observeStorageResource(error, { phase: 'retained-evidence-page' }).retain(); primaryPresent = true; }
+    await closeSession(session, primary, primaryPresent);
+    if (primaryPresent) throw primary;
+    throwIfAborted(options?.signal);
+    return result;
+  };
+  const iteratePages = (options = {}) => {
+    const session = createRetainedEvidenceSession(indexDir);
+    const iterator = (async function* () {
+      let primary, primaryPresent = false;
+      // Abort also drains while the consumer is paused between pages. The
+      // observed completion is awaited again in finally; no close is replayed.
+      const onAbort = () => { session.close().catch(() => {}); };
+      options.signal?.addEventListener('abort', onAbort, { once: true });
+      try {
+        let cursor = options.cursor ?? null;
+        do {
+          const page = await readOwnedPage(session, { ...options, cursor });
+          // Terminal publication is withheld until the actual owner closes.
+          if (page.done) await session.close();
+          yield page;
+          cursor = page.cursor;
+        } while (cursor !== null);
+      } catch (error) {
+        primary = observeStorageResource(error, { phase: 'retained-evidence-enumeration' }).retain();
+        primaryPresent = true;
+        throw primary;
+      } finally {
+        options.signal?.removeEventListener('abort', onAbort);
+        await closeSession(session, primary, primaryPresent);
+      }
+    })();
+    Object.defineProperty(iterator, 'getDiagnostics', { value: session.getDiagnostics });
+    return iterator;
+  };
+  return { readPage, iteratePages, scope, async *iterateRows(options = {}) {
     if (options.cursor != null) throw new TypeError('Whole occurrence enumeration starts at the pinned beginning.');
-    let cursor = null;
-    do {
-      const page = await readPage({ ...options, cursor });
-      yield* page.rows;
-      cursor = page.cursor;
-    } while (cursor !== null);
+    for await (const page of iteratePages(options)) yield* page.rows;
   } };
 };

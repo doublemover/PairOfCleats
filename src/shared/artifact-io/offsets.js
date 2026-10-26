@@ -31,7 +31,8 @@ const bufferReadSource = bytes => ({
   async close() {}
 });
 
-const hashReadSource = async (source, expectedBytes, signal, snapshot, algorithm) => {
+const hashReadSource = async (source, expectedBytes, signal, snapshot, algorithm, observation) => {
+  if (observation) observation.fileHashAttempts++;
   const before = await source.stat();
   if (before.size !== expectedBytes) throw contentChanged();
   const hash = algorithm === 'xxh64'
@@ -47,19 +48,21 @@ const hashReadSource = async (source, expectedBytes, signal, snapshot, algorithm
     if (bytesRead !== length) throw contentChanged();
     const block = scratch.subarray(0, length);
     hash.update(block);
+    if (observation) observation.bytesHashed += length;
     if (captured) scratch.copy(captured, bytes, 0, length);
     else blocks.push(createHash('sha256').update(block).digest());
     bytes += length;
   }
   const extra = await source.read(scratch, 0, 1, expectedBytes);
   if (extra.bytesRead || !sameReadIdentity(before, await source.stat())) throw contentChanged();
+  if (observation) observation.filesHashed++;
   return { hash: hash.digest('hex'), captured, blocks, stat: before };
 };
 
 // Metadata can remain equal after an in-place write. Decode only block bytes
 // freshly matched to the original full-file verification, using bounded scratch
 // storage rather than retaining a large piece or rereading it for every row.
-const verifiedBlockReadSource = (source, { stat, blocks }, signal) => ({
+const verifiedBlockReadSource = (source, { stat, blocks }, signal, observation, sourceIndex) => ({
   stat: (...args) => source.stat(...args),
   async read(target, offset, length, position) {
     throwIfAborted(signal);
@@ -73,6 +76,10 @@ const verifiedBlockReadSource = (source, { stat, blocks }, signal) => ({
       const read = await readExactAt(source, block, 0, block.length, blockStart, { signal });
       if (read.bytesRead !== block.length) throw contentChanged();
       if (!createHash('sha256').update(block).digest().equals(blocks[blockIndex])) throw contentChanged();
+      if (observation) {
+        observation[sourceIndex ? 'offsetBlocksVerified' : 'dataBlocksVerified']++;
+        observation.blockBytesVerified += block.length;
+      }
       const start = position + copied - blockStart;
       const count = Math.min(bytesRead - copied, block.length - start);
       block.copy(target, offset + copied, start, start + count);
@@ -317,7 +324,8 @@ const readJsonlRowsAtWithHandles = async (
     metrics = null,
     signal = null
   },
-  [jsonlHandle, offsetsHandle]
+  [jsonlHandle, offsetsHandle],
+  observation = null
 ) => {
   const resolvedMaxBytes = resolveValidatedMaxBytes(maxBytes, 'readJsonlRowsAt');
   throwIfAborted(signal);
@@ -370,6 +378,8 @@ const readJsonlRowsAtWithHandles = async (
     rowSpecs.push({ index, start, end });
   }
   const ranges = [];
+  if (observation) observation.peakDecodedWindowBytes = Math.max(observation.peakDecodedWindowBytes,
+    rowSpecs.reduce((sum, spec) => sum + spec.end - spec.start, 0));
   let currentRange = null;
   for (const spec of rowSpecs) {
     if (!currentRange) {
@@ -413,6 +423,7 @@ const readJsonlRowsAtWithHandles = async (
         spec.index,
         parseJsonlLine(line, jsonlPath, spec.index + 1, resolvedMaxBytes, requiredKeys)
       );
+      if (observation) observation.rowsDecoded++;
     }
   }
   if (metrics && typeof metrics === 'object') {
@@ -427,7 +438,22 @@ const readJsonlRowsAtWithHandles = async (
  */
 export const openJsonlRowReader = async (jsonlPath, offsetsPath, options = {}) => {
   const scope = await openFileReaderScope([jsonlPath, offsetsPath], options);
-  let handles = scope.descriptors;
+  const observation = { sourceOpens: 2, physicalReadCalls: 0, physicalReadBytes: 0,
+    fileHashAttempts: 0, filesHashed: 0, bytesHashed: 0, offsetEntriesValidated: 0,
+    dataBlocksVerified: 0, offsetBlocksVerified: 0, blockBytesVerified: 0,
+    rowReadWindows: 0, rowsDecoded: 0, peakDecodedWindowBytes: 0,
+    retainedProofBytes: 0, peakRetainedProofBytes: 0, retainedDescriptorUpperBound: 2,
+    peakDescriptorUpperBound: 2 };
+  let handles = scope.descriptors.map(handle => ({
+    stat: (...args) => handle.stat(...args),
+    verify: () => handle.verify?.(),
+    async read(...args) {
+      observation.physicalReadCalls++;
+      const result = await handle.read(...args);
+      observation.physicalReadBytes += result.bytesRead;
+      return result;
+    }
+  }));
   let closed = false;
   let verification = null, identity = null, contentVerification = null, closePromise = null;
   const pending = new Set();
@@ -439,11 +465,14 @@ export const openJsonlRowReader = async (jsonlPath, offsetsPath, options = {}) =
   };
   const checkIdentity = async () => {
     if (!identity) return;
+    // A retained descriptor must still belong to its admitted pathname. Stat
+    // equality on the old object cannot authorize an atomically replaced path.
+    for (const handle of handles) handle.verify?.();
     const current = await Promise.all(handles.map(handle => handle.stat()));
     if (current.some((stat, index) => !sameReadIdentity(identity[index], stat))) throw contentChanged();
   };
   const readSources = signal => contentVerification
-    ? handles.map((handle, index) => verifiedBlockReadSource(handle, contentVerification[index], signal))
+    ? handles.map((handle, index) => verifiedBlockReadSource(handle, contentVerification[index], signal, observation, index))
     : handles;
   return {
     verify({ jsonlBytes, offsetsBytes, jsonlHash, offsetsHash,
@@ -463,7 +492,7 @@ export const openJsonlRowReader = async (jsonlPath, offsetsPath, options = {}) =
         // Both reads settle before disposal, including cancellation or a failed peer.
         const hashes = await Promise.allSettled(handles.map((handle, index) =>
           hashReadSource(handle, index ? offsetsBytes : jsonlBytes, signal, snapshot,
-            index ? offsetsHashAlgorithm : jsonlHashAlgorithm)));
+            index ? offsetsHashAlgorithm : jsonlHashAlgorithm, observation)));
         const failures = hashes.filter(result => result.status === 'rejected');
         if (failures.length) {
           for (const failure of failures) scope.remember(failure.reason);
@@ -471,11 +500,15 @@ export const openJsonlRowReader = async (jsonlPath, offsetsPath, options = {}) =
         }
         const values = hashes.map(result => result.value);
         if (values[0].hash !== jsonlHash || values[1].hash !== offsetsHash) throw contentChanged();
+        observation.retainedProofBytes = values.reduce((sum, value) => sum
+          + (value.captured?.length ?? value.blocks.length * 32), 0);
+        observation.peakRetainedProofBytes = observation.retainedProofBytes;
         if (snapshot) {
           for (const handle of handles) handle.verify?.();
           const disposed = await scope.complete();
           if (disposed.failure) throw disposed.failure;
           if (!disposed.settled) throw new Error('JSONL snapshot descriptor closure remains unconfirmed.');
+          observation.retainedDescriptorUpperBound = 0;
           // These exact hashed bytes live only in this reader, never a global cache.
           handles = values.map(value => bufferReadSource(value.captured));
         } else {
@@ -493,7 +526,8 @@ export const openJsonlRowReader = async (jsonlPath, offsetsPath, options = {}) =
         scope.requireFailuresSettled();
         throwIfAborted(options.signal);
         await checkIdentity();
-        const rows = await readJsonlRowsAtWithHandles(jsonlPath, offsetsPath, indexes, options, readSources(options.signal));
+        observation.rowReadWindows++;
+        const rows = await readJsonlRowsAtWithHandles(jsonlPath, offsetsPath, indexes, options, readSources(options.signal), observation);
         await checkIdentity();
         throwIfAborted(options.signal);
         return rows;
@@ -505,11 +539,12 @@ export const openJsonlRowReader = async (jsonlPath, offsetsPath, options = {}) =
         if (verification) await verification;
         scope.requireFailuresSettled();
         await checkIdentity();
-        const result = await validateOffsetsAgainstSources(jsonlPath, offsetsPath, options, readSources(options.signal));
+        const result = await validateOffsetsAgainstSources(jsonlPath, offsetsPath, options, readSources(options.signal), observation);
         await checkIdentity();
         return result;
       })());
     },
+    getDiagnostics: () => Object.freeze({ ...observation }),
     async close() {
       if (closePromise) return closePromise;
       closed = true;
@@ -525,6 +560,8 @@ export const openJsonlRowReader = async (jsonlPath, offsetsPath, options = {}) =
         contentVerification = null;
         verification = null;
         pending.clear();
+        observation.retainedProofBytes = 0;
+        observation.retainedDescriptorUpperBound = 0;
       })();
       return closePromise;
     }
@@ -547,7 +584,7 @@ export const readJsonlRowsAt = async (jsonlPath, offsetsPath, indexes, options =
  * @param {{signal?:AbortSignal|null}} [options]
  * @returns {Promise<boolean>}
  */
-const validateOffsetsAgainstSources = async (jsonlPath, offsetsPath, { signal = null } = {}, [jsonlHandle, offsetsHandle]) => {
+const validateOffsetsAgainstSources = async (jsonlPath, offsetsPath, { signal = null } = {}, [jsonlHandle, offsetsHandle], observation = null) => {
   throwIfAborted(signal);
   const [jsonlStat, offsetsStat] = await Promise.all([jsonlHandle.stat(), offsetsHandle.stat()]);
   throwIfAborted(signal);
@@ -575,6 +612,7 @@ const validateOffsetsAgainstSources = async (jsonlPath, offsetsPath, { signal = 
       if (offset <= last) throw createOffsetsInvalidError('Offsets not monotonic for ' + offsetsPath);
       if (offset >= fileSize) throw createOffsetsInvalidError('Offset exceeds file size for ' + jsonlPath);
       last = offset;
+      if (observation) observation.offsetEntriesValidated++;
     }
     // Coalesce only boundaries within a 64 KiB span. Sparse/large records
     // still read one byte, instead of scanning their intervening payloads.

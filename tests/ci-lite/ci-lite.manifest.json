@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1188,
+    "hero": 1192,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -8089,6 +8089,30 @@
     {
       "id": "indexing/semantic/finite-heap-budget-admission",
       "order": 1346,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "graph/call-site-pages-retained-occurrences",
+      "order": 1347,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "graph/retained-evidence-cleanup-failures",
+      "order": 1348,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "graph/retained-evidence-enumeration-work",
+      "order": 1349,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "services/api/graph-evidence-pages",
+      "order": 1350,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

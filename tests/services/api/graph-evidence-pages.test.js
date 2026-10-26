@@ -5,6 +5,7 @@ import path from 'node:path';
 import http from 'node:http';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { Writable } from 'node:stream';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
@@ -96,6 +97,37 @@ try {
     ['bin/pairofcleats.js', 'graph-evidence', '--request', file, '--all'], { cwd: process.cwd(), timeout: 10000, maxBuffer: 1048576 });
   const pages = stdout.trim().split('\n').map(line => JSON.parse(line));
   assert.deepEqual(pages.flatMap(page => page.rows), all); assert.equal(pages.at(-1).cursor, null);
+  const { runGraphEvidenceCli } = await import('../../../tools/analysis/graph-evidence.js');
+  const originalOpen = fs.open, opened = new Map(), outputPages = [];
+  const firstWrite = Promise.withResolvers(); let releaseFirst;
+  const sink = new Writable({ highWaterMark: 1, write(chunk, _encoding, callback) {
+    outputPages.push(JSON.parse(chunk.toString('utf8')));
+    if (outputPages.length === 1) { releaseFirst = callback; firstWrite.resolve(); }
+    else queueMicrotask(callback);
+  } });
+  fs.open = async (location, ...values) => {
+    const normalized = path.resolve(String(location));
+    if (normalized.startsWith(outDir + path.sep) && (normalized.endsWith('.jsonl') || normalized.endsWith('.offsets.bin'))) {
+      opened.set(normalized, (opened.get(normalized) || 0) + 1);
+    }
+    return originalOpen(location, ...values);
+  };
+  try {
+    const streaming = runGraphEvidenceCli(['node', 'graph-evidence', '--request', file, '--all'], { output: sink });
+    await firstWrite.promise;
+    assert.equal(outputPages.length, 1, 'actual writable backpressure stops page production');
+    releaseFirst(); await streaming;
+    assert.deepEqual(outputPages.flatMap(page => page.rows), all);
+    assert.equal(outputPages.at(-1).done, true);
+    assert.ok(opened.size >= 2); assert.ok([...opened.values()].every(count => count === 1), 'CLI all owns one admission per exact piece');
+  } finally { fs.open = originalOpen; sink.destroy(); }
+  const outputError = Object.freeze(new Error('graph evidence output failed'));
+  const failingOutput = new Writable({ write(_chunk, _encoding, callback) { callback(outputError); } });
+  await assert.rejects(runGraphEvidenceCli(['node', 'graph-evidence', '--request', file, '--all'], { output: failingOutput }),
+    error => error === outputError || error.cause === outputError);
+  const closingOutput = new Writable({ highWaterMark: 1, write() { this.destroy(); } });
+  await assert.rejects(runGraphEvidenceCli(['node', 'graph-evidence', '--request', file, '--all'], { output: closingOutput }),
+    { code: 'ERR_STREAM_DESTROYED' }, 'transport closure cannot leave an enumeration waiting for drain');
   const manifestPath = path.join(outDir, 'pieces', 'manifest.json');
   const original = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
   const changed = original.fields ? { ...original, fields: { ...original.fields, buildId: 'replacement' } } : { ...original, buildId: 'replacement' };

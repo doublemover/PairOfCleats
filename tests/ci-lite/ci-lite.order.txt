@@ -1346,3 +1346,7 @@ indexing/semantic/native-manifest-byte-admission
 indexing/semantic/finite-heap-versions
 indexing/semantic/finite-heap-owned-read-work
 indexing/semantic/finite-heap-budget-admission
+graph/call-site-pages-retained-occurrences
+graph/retained-evidence-cleanup-failures
+graph/retained-evidence-enumeration-work
+services/api/graph-evidence-pages
