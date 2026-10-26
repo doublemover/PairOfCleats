@@ -1242,3 +1242,4 @@ tooling/bench/canary-effective-child-context
 tooling/bench/canary-attempt-lifecycle
 tooling/reports/throughput-recorded-attempt
 perf/bench/embedding-bakeoff-effective-policy
+perf/bench/embedding-bakeoff-phase-lifecycle

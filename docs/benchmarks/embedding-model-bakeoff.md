@@ -62,11 +62,24 @@ The report includes:
 - compare-model latency summary (`elapsedMsAvg`, `wallMsAvg`)
 - model-aware input formatting policy used (`inputFormatting`)
 - progress status/checkpoint metadata (`progress.status`, `progress.completedModels`, `progress.resumedModels`)
+- versioned phase states (`progress.phaseStateVersion`, `progress.phases`) and
+  separate settled/succeeded phase counts; failed or cancelled work never counts
+  as completed success
 
 Checkpoint file:
 
 - defaults to `.testLogs/embedding-bakeoff.latest.json`
 - override with `--checkpoint <path>`
+
+Build, evaluation and comparison waits are asynchronous. The existing display
+shows elapsed waiting and a bounded last child diagnostic while work is pending;
+neither a heartbeat nor stderr text implies completed productive work. JSON child
+stdout is admitted as one complete bounded document and stays separate from
+stderr status. Quiet and non-TTY presentation use the existing display policy.
+Phase timers are cleared on success, failure and cancellation. Failed child,
+checkpoint and display diagnostics remain together, and a failed phase never
+announces successful completion. Checkpoint namespace/atomicity hardening remains
+tracked separately from this phase-lifecycle contract.
 
 ## Model-aware formatting policy
 
