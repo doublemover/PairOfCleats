@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "879367406",
+  "sourceHead": "95e7411e6",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 428,
+    "implemented": 429,
     "partial": 153,
-    "pending": 154
+    "pending": 153
   },
   "priorOpen": 1177,
   "currentOpen": 770,
@@ -604,6 +604,7 @@
       1684,
       1688,
       1689,
+      1691,
       1696,
       1698,
       1700,
@@ -905,7 +906,6 @@
       1677,
       1682,
       1687,
-      1691,
       1692,
       1694,
       1695,
@@ -6149,8 +6149,10 @@
       "number": 1691,
       "title": "[P2] Keep benchmark progress confidence unknown until observations support it",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "95e7411e6",
+      "validation": "deferred"
     },
     {
       "number": 1692,
@@ -6530,6 +6532,7 @@
       248,
       292
     ],
-    "closed": []
+    "closed": [],
+    "reconfirmedAtSource": "95e7411e6"
   }
 }

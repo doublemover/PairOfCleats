@@ -50,6 +50,8 @@ checkpoint publication; settled-owned evidence retention/cleanup remains open.
 the version 2 artifact and recorded report adapters, including stale derivations.
 #1689 now separates diagnostic occurrence costs from fingerprint parity and
 transport copies, retaining repository identity and explicit legacy uncertainty.
+#1691 now gates progress confidence on actual samples, labels last-observed
+heuristic age and keeps unknown/stale scores out of replay numeric denominators.
 #1675 now uses one global query resource plan and retirement-aware pools; whole
 process-tree RSS measurement remains open, with known-worker samples labeled.
 

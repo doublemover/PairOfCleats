@@ -2337,3 +2337,51 @@ hosted status at `fd9e582fa` showed Ubuntu/macOS failures; those platform jobs a
 outside the current Windows-only execution scope and were not rerun locally.
 Current coverage: **35 fixed / 428 implemented / 153 partial / 154 pending**
 across 770 open reports. No closure or new closing reference was inferred.
+
+## Observed progress confidence and replay, #1691 (2026-10-26)
+
+`95e7411e6` implements #1691. Progress-confidence version 2 retains its component
+weights/thresholds while requiring actual component sample sufficiency. Completed
+positive heartbeat intervals and actual stall observations replace the previous
+zero-observation no-stall award; queue and in-flight components require two
+samples. Silent/ordinary children and a lone task-start remain unknown. Typed
+numeric admission prevents null/boolean/string telemetry from manufacturing
+samples or a zero score. Components retain observed scores, eligibility,
+minimums and sample counts; partial useful evidence remains explicit.
+
+Snapshots carry process observation bounds, current age, last phase/task context,
+the existing 30-second heartbeat threshold and retained historical component
+score. Insufficient, stale or unknown-age evidence has no current numeric score.
+Recovery can restore observed evidence. Interactive text explicitly says
+last-observed heuristic and displays age. Component retention remains bounded;
+process observation bounds do not invent a common exact retained interval for
+all components. No refresh timer or competing timeout/active-task owner is added,
+and existing watchdog admission, decisions and cleanup remain unchanged.
+
+Replay uses the same primitive finite-or-unknown admission and recomputes current
+row eligibility from its recorded component/sample receipt. Missing or stale
+current evidence cannot become measured via an authored score/bucket. Historical
+recorded rows remain readable. Unknown rows stay in bucket/event coverage while
+being excluded from numeric average/min/max and measured ranking. Real zero
+remains observed. Current rows participate in copy matching with their execution
+identity and retain freshness/age in latest details. Unsupported future versions
+cannot supply a numeric score.
+
+Existing pure high/low/partial weighted positives remain. New deterministic
+clock controls advance healthy evidence into silence and recovery, preserve
+historical score, expose age and reject reversed clocks. The actual process
+fixture now checks primitive finite positive-case scores and persisted evidence;
+small silent, ordinary, explicit-null and start-only children assert returned and
+persisted unknown results. Structured negative controls include valid protocol
+timestamps and assert actual heartbeat/queue/in-flight route counts, so malformed
+fixture input cannot fake coverage. New actual JSONL controls prove null beside
+0.8 yields numeric mean/min/max 0.8 with one unknown row; true zero participates;
+invalid types, stale/current unsupported evidence and exact mirrors remain visible.
+These authored functional checks are still unrun.
+
+Full format/ESLint, syntax on six changed JavaScript files, affected generated
+refresh/freshness, ordered fixture discovery and diff checks passed. ci-lite now
+contains 1,250 entries. Complete GitHub refresh reconfirmed 770 open issues with
+no additions or closures. Current coverage: **35 fixed / 429 implemented / 153
+partial / 153 pending**. Functional execution and final gate remain deferred;
+no issue closure or new closing reference was inferred.
