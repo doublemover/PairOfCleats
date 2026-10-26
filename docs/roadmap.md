@@ -13,7 +13,7 @@ with tests deferred until the source batches are ready. The live intake has
 [current implementation receipt](archived/solo-issue-repairs-2026-10-25.md)
 records new source batches and unvalidated coverage. Historical inventories
 below describe their recorded sources, not the current open count.
-Current source coverage is **35 fixed / 473 implemented / 138 partial / 124
+Current source coverage is **35 fixed / 474 implemented / 138 partial / 123
 pending**, with exact issue-to-source ownership in the
 [complete inventory](archived/github-issue-coverage-2026-10-25.json). Implemented
 means source-complete with execution pending, not accepted closure.
@@ -42,7 +42,10 @@ Finite heap operations now admit aggregate bytes/candidate work and reuse privat
 owned immutable identity/read projections across joins and pages (#1694).
 Retained graph enumeration now owns one verified pair per shard, bounded decode
 windows, physical-work receipts and CLI output/cleanup lifetime (#1714).
-The curated ci-lite lane contains 1,350 cases; all new and strengthened
+Native flow now streams bounded construction into the existing writer, aborts
+incomplete derived output and retains independent staging/tree cleanup failures
+(#1682; native producer version3).
+The curated ci-lite lane contains 1,354 cases; all new and strengthened
 regressions remain unrun. Completed batch detail, issue mappings and exact static-
 check receipts are in the linked implementation archive and complete inventory.
 

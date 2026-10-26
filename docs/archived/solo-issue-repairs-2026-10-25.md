@@ -3860,3 +3860,64 @@ is **35 fixed / 473 implemented / 138 partial / 124 pending**, all 770 reports
 retained; no issue state or closing reference changed. Bookkeeping reuses the
 checked JS tree. Contracts: `docs/contracts/graph-evidence-pages.md` and
 `docs/contracts/retained-evidence-page-cleanup.md`.
+
+## 2026-10-26 — bounded native control-flow construction and abort ownership
+
+`a5156c823` repairs #1682. Native structured flow is a deterministic pull generator
+consumed by the existing semantic analysis writer. It retains bounded traversal
+frames, bounded reason strings and one current prepared row, rather than a
+file-wide derived array. Indexed child/alternative walks preserve ordering without
+width-sized arrays. Unavoidable source/parser trees, syntax anchors and owners
+remain separate. IDs, forward references, branch/loop/abrupt destinations,
+evidence and modeled certainty retain their existing meaning.
+
+Construction capacity is at most128KiB per producer, lowered by the existing
+CFG/queue policy, with a16MiB account-shared construction phase through the
+existing FIFO byte owner. This lease is separate from writer credits, so a
+producer cannot hold the credits needed to drain itself. Frame charges are256
+logical bytes; distinct reason strings admit16KiB; one canonical prepared entry
+admits at most32768 encoded bytes, further lowered by batch/queue bounds and half
+the construction allowance. Traversal/encoding work has explicit checkpoints.
+The existing writer retains one bounded batch and one lookahead, awaits actual
+append, and owns its buffers independently. These are structural/logical scopes,
+not actual object sizes, total parser memory, RSS or measured latency.
+
+Only an exact private construction stop can degrade. The existing writer aborts
+derived staging before partial coverage returns: precise budget reason, unknown
+observed count/frontier, zero completed count and no derived partition. A sealed
+prefix cannot describe the whole source. Syntax publication remains independent.
+Native producer advances2→3, updating shared policy/replay identity for the new
+admitted incomplete outcome. No public schema/configuration relaxation is added.
+
+The shared abort helper now retains independent failed cleanup alongside frozen
+or falsey originals. The file owner captures actual abort failure before tree
+closure and composes independent close failure, preserving original settlement
+callbacks even if cleanup replaces diagnostic fields. Cancellation, pending
+original resources and append/finalize/abort/tree-close failures remain errors;
+they cannot become an ordinary incomplete-flow report.
+
+Three new unrun fixtures author independent tiny row IDs/edges, canonical prepared
+bytes, flat N/2N/4N/multiple-owner live bounds, branch/break/continue/return reach,
+private limit identity, low byte/work admission and cancellation. A hook around
+the actual durable sink pauses append and checks construction remains at the
+existing three-row batch plus one lookahead, reconciles output, and checks queued
+admission abort, low-budget staging rollback, append/finalize failure, active
+append cancellation and failed cleanup. A file-owner seam exercises falsey/frozen
+syntax failures, independent tree close and original pending work. These simulated
+syntax seams do not qualify native grammars. The original Python/C/Swift/Rust
+parser/storage/ownership fixture is unchanged; all four join ordered ci-lite,
+now1,354 cases. No functional assertion has run against this batch.
+
+Full format/ESLint, final affected ESLint, thirteen JS syntax checks, three
+related generated refresh/freshness surfaces, four fixture discoveries and staged
+diff checks passed. Functional/front-gate/native/platform/performance execution
+remains deferred. Coverage is **35 fixed / 474 implemented / 138 partial / 123
+pending**, all770 reports retained; no issue closed or closing reference added.
+Bookkeeping reuses the checked JS tree. Contract:
+`docs/contracts/native-flow-construction.md`.
+
+The complete live GitHub intake was reconfirmed at2026-10-26T22:05:28.112Z:770 open,
+no added/changed/removed reports against the prior canonical intake, digest
+`2bb07a3db7340d2de732f0839b456c9547f60433c28c7b665e8fe3fcd71cac0c`.
+The author-workspace reconfirmation JSON is historical and not promised in clean
+checkouts. Source coverage remains distinct from accepted issue closure.

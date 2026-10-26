@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "897ef89d75b466c108ff4958917637bebdf74522",
+  "sourceHead": "a5156c82330428c72241db366f57de2b6f336cd0",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 473,
+    "implemented": 474,
     "partial": 138,
-    "pending": 124
+    "pending": 123
   },
   "priorOpen": 1177,
   "currentOpen": 770,
@@ -622,6 +622,7 @@
       1677,
       1680,
       1681,
+      1682,
       1683,
       1684,
       1687,
@@ -926,7 +927,6 @@
       1657,
       1659,
       1664,
-      1682,
       1697,
       1699,
       1707,
@@ -6150,8 +6150,10 @@
       "number": 1682,
       "title": "[Perf] Backpressure native control-flow row construction before bounded analysis writes",
       "priority": "Perf",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "a5156c82330428c72241db366f57de2b6f336cd0",
+      "validation": "deferred"
     },
     {
       "number": 1683,
@@ -6629,9 +6631,9 @@
       292
     ],
     "closed": [],
-    "reconfirmedAtSource": "fe89d7ab8f625a697b125fb6bfa2ed81d5798957",
+    "reconfirmedAtSource": "a5156c82330428c72241db366f57de2b6f336cd0",
     "reconfirmation": {
-      "recordedAt": "2026-10-26T21:04:30.737Z",
+      "recordedAt": "2026-10-26T22:05:28.112Z",
       "openCount": 770,
       "added": [],
       "changed": [],
