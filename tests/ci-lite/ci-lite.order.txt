@@ -1309,3 +1309,4 @@ lang/contracts/build-dsl-heuristic-adapters
 lang/contracts/managed-heuristic-adapters
 lang/contracts/dynamic-heuristic-adapters
 indexing/semantic/template-local-registry-evidence
+lang/relations/sql-role-identities

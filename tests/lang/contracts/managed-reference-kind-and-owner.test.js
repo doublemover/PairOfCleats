@@ -6,6 +6,10 @@ import { smartChunk } from '../../../src/index/chunking/dispatch.js';
 import { buildCallIndex, buildFileRelations } from '../../../src/index/build/file-processor/relations.js';
 import { filterRawRelationsWithLexicon } from '../../../src/index/build/file-processor/lexicon-relations-filter.js';
 import { createCallSites } from '../../../src/index/build/artifacts/writers/call-sites.js';
+import { enqueueFileRelationsArtifacts } from '../../../src/index/build/artifacts/writers/file-relations.js';
+import { writePiecesManifest } from '../../../src/index/build/artifacts/checksums.js';
+import { loadJsonArrayArtifact } from '../../../src/shared/artifact-io/loaders/core.js';
+import { validateArtifact } from '../../../src/contracts/validators/artifacts.js';
 import { admitManagedReferenceFacts } from '../../../src/contracts/managed-reference-identities.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { readCachedBundle, writeIncrementalBundle } from '../../../src/index/build/incremental.js';
@@ -32,6 +36,7 @@ const cases = [
   witnesses: [['type-reference', 'Alpha', null], ['type-reference', 'Beta', null]] }
 ];
 const root = await createImportResolutionTempRoot('managed-reference-kind-and-owner');
+const records = new Map();
 try {
   for (const test of cases) {
     const ext = path.extname(test.file), lang = getLanguageForFile(ext, test.file);
@@ -48,6 +53,7 @@ try {
         `${lang.id}: ${kind} ${value} belongs to ${owner ?? 'explicitly unattributed file scope'}`);
     }
     const filtered = filterRawRelationsWithLexicon(raw, { languageId: lang.id, relKey: test.file });
+    records.set(test.file, buildFileRelations(filtered));
     const index = buildCallIndex(filtered);
     assert.equal(index.callsByCaller.size, 0);
     const chunks = smartChunk(input);
@@ -103,5 +109,32 @@ try {
   const control = { calls: [['real', 'actual']], callDetails: [] };
   assert.equal(filterRawRelationsWithLexicon(control, { languageId: 'javascript', config: { enabled: false } }), control,
     'reference policy does not erase ordinary language invocation evidence');
+  for (const maxJsonBytes of [1024 * 1024, 8192]) {
+    const outDir = path.join(root, `artifacts-${maxJsonBytes}`); await fs.mkdir(outDir);
+    const writes = [], pieces = [];
+    enqueueFileRelationsArtifacts({ state: { fileRelations: records }, outDir, maxJsonBytes,
+      enqueueWrite: (_label, write) => writes.push(write), formatArtifactLabel: value => value,
+      addPieceFile: (entry, file) => pieces.push({ ...entry, path: path.relative(outDir, file).replaceAll('\\', '/') }) });
+    for (const write of writes) await write();
+    await writePiecesManifest({ pieceEntries: pieces, outDir, mode: 'code',
+      indexState: { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, buildId: 'managed-reference-contract' } });
+    const loaded = await loadJsonArrayArtifact(outDir, 'file_relations', { strict: true });
+    const result = validateArtifact('file_relations', loaded);
+    assert.equal(result.ok, true, result.errors.join('; '));
+    assert.deepEqual(new Map(loaded.map(row => [row.file, row.relations])),
+      new Map([...records].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)), 'canonical file-relations publication retains exact typed facts');
+    const extra = structuredClone(loaded); extra[0].relations.managedReferenceFacts.injected = true;
+    assert.equal(validateArtifact('file_relations', extra).ok, false, 'canonical managed reference envelope rejects extra fields');
+    const counts = structuredClone(loaded); counts[0].relations.managedReferenceFacts.coverage.retained++;
+    assert.equal(validateArtifact('file_relations', counts).ok, false, 'canonical retained counts are exact');
+    const identity = structuredClone(loaded);
+    const owned = identity.flatMap(row => row.relations.managedReferenceFacts.references).find(row => row.owner);
+    assert.ok(owned); owned.owner.id = 'forged-owner';
+    assert.equal(validateArtifact('file_relations', identity).ok, false, 'canonical source owner identity is recomputed');
+    const span = structuredClone(loaded);
+    const envelope = span.find(row => row.relations.managedReferenceFacts.references.some(entry => entry.source)).relations.managedReferenceFacts;
+    envelope.references.find(entry => entry.source).source.end = envelope.source.length + 1;
+    assert.equal(validateArtifact('file_relations', span).ok, false, 'canonical occurrence extent is inside its admitted source');
+  }
 } finally { await fs.rm(root, { recursive: true, force: true }); }
 console.log('Managed DSL references retain exact kinds and source owners without fabricated invocation pairs');

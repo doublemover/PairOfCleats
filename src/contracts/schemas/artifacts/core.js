@@ -2,6 +2,7 @@ import { IMPORT_EXTRACTION_SCHEMA, IMPORT_EXTRACTION_SUMMARY_SCHEMA } from '../i
 import { RECORD_SOURCE_SCHEMA } from '../../record-source.js';
 import { JAVASCRIPT_DECLARATION_CATALOG_SCHEMA } from '../javascript-declarations.js';
 import { SQL_RELATION_EVIDENCE_SCHEMA } from '../sql-relations.js';
+import { MANAGED_REFERENCE_FACTS_SCHEMA } from '../managed-references.js';
 import { crossFileCoverageSchema } from '../relation-coverage.js';
 import { API_CONTRACT_ENTRY_SCHEMA } from '../api-contracts.js';
 import { METADATA_V2_SCHEMA } from '../analysis.js';
@@ -496,7 +497,9 @@ export const CORE_POST_VFS_ARTIFACT_SCHEMA_DEFS = {
       required: ['file', 'relations'],
       properties: {
         file: { type: 'string' },
-        relations: { type: 'object', properties: { jsDeclarations: JAVASCRIPT_DECLARATION_CATALOG_SCHEMA, sqlRelationEvidence: SQL_RELATION_EVIDENCE_SCHEMA, importExtraction: IMPORT_EXTRACTION_SCHEMA, importScanExtraction: IMPORT_EXTRACTION_SCHEMA }, additionalProperties: true },
+        relations: { type: 'object', properties: { jsDeclarations: JAVASCRIPT_DECLARATION_CATALOG_SCHEMA,
+          sqlRelationEvidence: SQL_RELATION_EVIDENCE_SCHEMA, managedReferenceFacts: MANAGED_REFERENCE_FACTS_SCHEMA,
+          importExtraction: IMPORT_EXTRACTION_SCHEMA, importScanExtraction: IMPORT_EXTRACTION_SCHEMA }, additionalProperties: true },
         importBindings: { type: 'object' }
       },
       additionalProperties: true

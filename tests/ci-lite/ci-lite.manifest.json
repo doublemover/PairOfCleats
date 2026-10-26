@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1151,
+    "hero": 1152,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -7867,6 +7867,12 @@
     {
       "id": "indexing/semantic/template-local-registry-evidence",
       "order": 1309,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/relations/sql-role-identities",
+      "order": 1310,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

@@ -1,9 +1,11 @@
 import { createHash } from 'node:crypto';
 
 export const MANAGED_REFERENCE_VERSION = 1;
-const languages = new Set(['dockerfile', 'graphql', 'handlebars', 'proto', 'mustache', 'jinja']);
-const kinds = new Set(['dependency', 'type-reference', 'fragment-reference', 'lookup', 'section-test', 'helper-invocation']);
-const MAX_REFERENCES = 65536;
+export const MANAGED_REFERENCE_LANGUAGES = Object.freeze(['dockerfile', 'graphql', 'handlebars', 'proto', 'mustache', 'jinja']);
+export const MANAGED_REFERENCE_KINDS = Object.freeze(['dependency', 'type-reference', 'fragment-reference', 'lookup', 'section-test', 'helper-invocation']);
+export const MANAGED_REFERENCE_MAX_OCCURRENCES = 65536;
+const languages = new Set(MANAGED_REFERENCE_LANGUAGES), kinds = new Set(MANAGED_REFERENCE_KINDS);
+const MAX_REFERENCES = MANAGED_REFERENCE_MAX_OCCURRENCES;
 const admittedFacts = new WeakSet();
 const referenceIndexes = new WeakMap();
 const digest = text => createHash('sha256').update(text, 'utf16le').digest('hex');
@@ -58,7 +60,7 @@ export const createManagedReferenceFacts = ({ languageId, text, references, owne
   return facts;
 };
 
-export const admitManagedReferenceFacts = (facts, languageId, { text = null } = {}) => {
+export const admitManagedReferenceFacts = (facts, languageId, { text = null, retain = true } = {}) => {
   if (facts && admittedFacts.has(facts) && facts.languageId === languageId) {
     return text === null || typeof text === 'string' && text.length === facts.source.length && digest(text) === facts.source.textHash ? facts : null;
   }
@@ -84,8 +86,7 @@ export const admitManagedReferenceFacts = (facts, languageId, { text = null } = 
       || entry.owner.id !== `${languageId}:${entry.owner.start}:${entry.owner.end}:${entry.owner.name}`
       || entry.source.start < entry.owner.start || entry.source.end > entry.owner.end)) return null;
   }
-  freeze(facts);
-  admittedFacts.add(facts);
+  if (retain) { freeze(facts); admittedFacts.add(facts); }
   return facts;
 };
 

@@ -1,6 +1,7 @@
 import { admitImportExtraction, admitImportExtractionSummary } from '../../shared/import-extraction.js';
 import { javascriptDeclarationErrors } from '../javascript-declaration-identities.js';
 import { sqlRelationEvidenceErrors } from '../sql-relation-identities.js';
+import { admitManagedReferenceFacts } from '../managed-reference-identities.js';
 import { callArgumentProjectionErrors } from '../call-arguments.js';
 import { literalEvidenceProjectionErrors } from '../literal-evidence.js';
 import { compileSchema, createAjv } from '../../shared/validation/ajv-factory.js';
@@ -43,6 +44,10 @@ export function validateArtifact(name, data) {
       result.errors.push(...javascriptDeclarationErrors(entry.relations.jsDeclarations).map(error => `/${index}/relations/jsDeclarations: ${error}`));
       result.errors.push(...sqlRelationEvidenceErrors(entry.relations.sqlRelationEvidence)
         .map(error => `/${index}/relations/sqlRelationEvidence: ${error}`));
+      const references = entry.relations.managedReferenceFacts;
+      if (references !== undefined && !admitManagedReferenceFacts(references, references.languageId, { retain: false })) {
+        result.errors.push(`/${index}/relations/managedReferenceFacts: reference counts, owner identity or source extent differs.`);
+      }
       for (const name of ['importExtraction', 'importScanExtraction']) if (entry.relations[name]) {
         try {
           if (name === 'importExtraction' && !Array.isArray(entry.relations.imports)) throw new Error('File extraction requires its retained imports array.');

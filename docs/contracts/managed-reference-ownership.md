@@ -33,6 +33,13 @@ Validation is memoized only for these immutable objects, and source-range lookup
 uses one retained index plus binary search per chunk. Unqualified or malformed
 envelopes report unavailable reference coverage.
 
+The canonical `file_relations` schema also validates this optional envelope
+strictly. Semantic validation checks exact counts, source extents and owner IDs;
+unknown fields and kinds cannot pass through generic relation extension fields.
+Artifact validation leaves the caller's mutable input mutable, while runtime
+admission freezes retained evidence. Ordinary and sharded publication controls
+retain complete content plus invalid-count/owner/range/extra-field negatives.
+
 Ordinary calls and canonical call-site output cannot be filled with these
 reference facts. This rule applies independently of lexicon preferences, missing
 lexicons and direct chunk consumers. A partial capability label alone is not
