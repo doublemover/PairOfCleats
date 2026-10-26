@@ -4061,3 +4061,61 @@ platform/performance execution remains deferred. Coverage is **35 fixed / 476
 implemented / 139 partial / 120 pending**, all770 reports retained; no issue state
 or closing reference changed. Bookkeeping reuses the checked JS tree. Contract:
 `docs/contracts/provider-catalog-identity.md`.
+
+## 2026-10-26 — fatal worker retirement and bounded observations
+
+`e460c9b09` implements #1646 and #1647. Indexer workers now observe uncaught
+exceptions through Node's monitor without suppressing default fatal exit.
+Unhandled rejections poison the owner and throw their original value on the next
+tick, including under rejection-warning launches. A small separate terminal
+control does not depend on verbose logs or diagnostic acknowledgement. Process
+slots become ineligible before task rejection and fence late results. Original
+IPC/input/scheduler reservations stay owned until actual child close; failed stop
+retains the original retryable owner. Sequential process fatalities consume the
+restart allowance even with no queued request at close.
+
+The thread adapter retains actual public Worker handles that Piscina may remove
+before exit. Fatality poisons its generation, rejects outstanding work once and
+starts destruction synchronously before Piscina can replace the owner. Existing
+lifecycle cleanup now handles fatal active work immediately instead of waiting on
+counters which themselves await exit. One existing bounded destructor/termination
+fallback remains authoritative; the adapter adds no second timeout or termination
+owner. Fatal accounting survives replacement construction, limiting storms across
+generations. Intentional vendor idle/abort retirement is distinguished from
+unexpected exits, including exit0. PID/thread identities are captured correctly.
+Confirmed ordinary destruction preserves Piscina's explicit subsequent-run reuse,
+completion counter and sizing surfaces. Fatal dispatched work on tokenization,
+file analysis and quantization never becomes a successful inline retry.
+
+One internal version1 observation owner bounds each serialized UTF-8 frame to
+16KiB, aggregate retained diagnostic text to2KiB, cause depth to two links and
+in-flight/pending ownership to eight events/64KiB per worker. It reads fixed own
+data properties, excludes proxies/getters/custom inspection, and scans bounded
+string prefixes before copying. Receiver admission removes unknown fields.
+Truncation/drop counters remain explicit. One unacknowledged frame bounds IPC
+backpressure independently of task input/output allowances. Asynchronous process
+send failure drops the bounded pending diagnostic queue and disables only that
+channel. Runtime correlations are omitted if they cannot be preserved exactly.
+Observation sends and metric/crash-log subscribers cannot replace original task
+success/failure, including falsey local throws. Transportable errors retain bounded
+first-cause context instead of cloning arbitrary diagnostic objects. Semantic
+meaning/public schemas do not change; no producer version bump is needed.
+
+Five new unrun regressions author passive/Unicode/cyclic error and queue limits,
+falsey/success preservation, failed termination, late result fencing, idle/active/
+shutdown retirement, lifecycle deadlock and storm controls, actual tiny default
+thread/process asynchronous fatality, warning-mode rejection policy, healthy
+ordinary errors and all facade no-fallback routes. Three unchanged original
+telemetry/process/settlement fixtures also join ci-lite, bringing it to1,370
+entries. Existing cloneability, real tokenizer/batch, cancellation and scheduler
+controls remain intact. No test/code was removed merely to hide failure.
+
+Full format/ESLint, final affected ESLint and fifteen JS syntax checks, three
+related generated refresh/freshness surfaces, eight fixture discoveries and staged
+diff checks passed. Source review corrected destructor ownership, vendor idle
+retirement, sequential restart accounting and confirmed-destroy compatibility
+before publication. No functional assertion has run. Functional/front-gate/native/
+platform/performance execution remains deferred. Coverage is **35 fixed / 478
+implemented / 139 partial / 118 pending**, all770 reports retained. Neither GitHub
+issue state nor closing references changed. Bookkeeping reuses the checked JS tree.
+Contract: `docs/contracts/worker-fatal-observation-ownership.md`.
