@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1093,
+    "hero": 1095,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -7519,6 +7519,18 @@
     {
       "id": "tooling/reports/throughput-input-admission",
       "order": 1251,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/triage/evidence-selected-mode",
+      "order": 1252,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "services/mcp/triage-context-pack-handoff",
+      "order": 1253,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

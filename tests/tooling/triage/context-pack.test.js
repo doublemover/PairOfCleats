@@ -2,10 +2,18 @@
 import fs from 'node:fs';
 import fsPromises from 'node:fs/promises';
 import path from 'node:path';
+import assert from 'node:assert/strict';
 import { getTriageContext, run, runJson } from '../../helpers/triage.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
+import { TRIAGE_EVIDENCE_VERSION } from '../../../src/contracts/triage-evidence.js';
 
 const buildTriageEvidenceRepo = async (repoRoot) => {
   await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
+  await fsPromises.writeFile(
+    path.join(repoRoot, 'comments.js'),
+    '/** CVE-2024-0001 extracted evidence sentinel */\nexport const unrelated = 1;\n'
+  );
+  await fsPromises.writeFile(path.join(repoRoot, 'README.md'), '# Guide\n\nUse add-helper for adding values.\n');
   await fsPromises.writeFile(
     path.join(repoRoot, '.pairofcleats.json'),
     `${JSON.stringify({
@@ -78,13 +86,13 @@ runJson('decision', [
 run('build-index', [
   path.join(root, 'build_index.js'),
   '--stage', 'stage2',
-  '--mode', 'code',
+  '--mode', 'all',
   '--stub-embeddings',
   '--repo', repoRoot
 ], { cwd: repoRoot, env });
 
 const contextOut = path.join(cacheRoot, 'context-pack.json');
-runJson('context-pack', [
+const artifact = runJson('context-pack', [
   path.join(root, 'tools', 'triage', 'context-pack.js'),
   '--record', findingId,
   '--repo', repoRoot,
@@ -129,5 +137,40 @@ if (totalEvidenceHits === 0) {
   console.error('Context pack contains no evidence hits.');
   process.exit(1);
 }
+
+assert.equal(pack.evidenceVersion, TRIAGE_EVIDENCE_VERSION);
+assert.equal(artifact.evidenceVersion, TRIAGE_EVIDENCE_VERSION);
+assert.equal(artifact.searchedRepository.root, repoRoot);
+assert.equal(artifact.outPath, contextOut);
+for (const [mode, query, file] of [
+  ['code', 'add-helper', 'src/util.js'],
+  ['prose', 'add-helper', 'README.md'],
+  ['extracted-prose', 'CVE-2024-0001', 'comments.js']
+]) {
+  const direct = runJson(`direct-${mode}`, [path.join(root, 'search.js'), '--repo', repoRoot,
+    '--mode', mode, '--json', '--no-ann', '-n', '5', query], { cwd: repoRoot, env });
+  const key = mode === 'extracted-prose' ? 'extractedProse' : mode;
+  const expected = direct[key].find(hit => hit.file === file);
+  assert.ok(expected, `${mode} independently expected ${file}`);
+  const evidence = pack.repoEvidence.queries.find(row => row.mode === mode && row.query === query);
+  assert.equal(evidence?.status, 'success');
+  assert.equal(evidence.repository.root, repoRoot);
+  const hit = evidence.hits.find(row => row.file === file);
+  assert.ok(hit, `actual persisted ${mode} evidence must retain ${file}`);
+  assert.equal(hit.source.chunkUid, expected.chunkUid || expected.metaV2?.chunkUid || null);
+  assert.ok(hit.source.chunkUid, 'built evidence must have stable chunk identity');
+  assert.equal(hit.source.offsets.start, expected.start ?? null);
+  assert.equal(hit.source.offsets.end, expected.end ?? null);
+  assert.equal(hit.source.lines.start, expected.startLine ?? null);
+  assert.equal(hit.source.lines.end, expected.endLine ?? null);
+  assert.equal(hit.source.navigation.status, 'unavailable');
+  assert.equal(hit.preview.exactSourceSupport, false);
+  assert.equal(evidence.retrieval.backend.selected, direct.retrieval.backend.selected);
+  assert.equal(evidence.retrieval.fidelity.status, direct.retrieval.fidelity.status);
+  assert.deepEqual(evidence.retrieval.freshness.mode, direct.retrieval.freshness.byMode[key]);
+  assert.equal(evidence.retrieval.freshness.mode.artifactSurfaceVersion, ARTIFACT_SURFACE_VERSION);
+}
+assert.ok(pack.repoEvidence.queries.some(row => row.status === 'empty' && row.hits.length === 0),
+  'the absent endpoint query must remain an explicit successful zero');
 
 console.log('Triage context pack ok.');

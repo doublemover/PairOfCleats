@@ -165,6 +165,22 @@ default-reader controls are unvalidated; broader resource/quality and end-to-end
 context-pack acceptance remain outstanding.
 
 ## MCP tools
+
+Context packs carry `evidenceVersion` and a versioned `repoEvidence` projection.
+Each query records the repository root actually passed to search, its CLI mode,
+and `success`, `empty` or `unavailable` status. The shared retrieval selector maps
+`extracted-prose` to `extractedProse`; missing/malformed selected arrays are
+unavailable, with a query/mode-bound diagnostic and outer warning.
+
+Evidence retains available canonical backend, fidelity, cache and selected-mode
+freshness receipts, plus hit chunk/source identity and known/unknown ranges.
+Absent upstream facts are explicit nulls. Root identity is a local search path,
+not a globally stable repository ID. Saved previews are bounded, lossy display
+text, not exact source support. Navigation remains `unavailable` until another
+owner verifies repository, generation and source identity; this tool never reads
+current same-path bytes as historical evidence. MCP returns the saved artifact
+path together with its evidence version and searched-repository receipt.
+
 - `triage_ingest` (wraps ingest)
 - `triage_decision` (writes decisions)
 - `triage_context_pack` (builds context packs)

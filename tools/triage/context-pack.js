@@ -10,6 +10,8 @@ import { resolveRecordPathSafe } from './context-pack-paths.js';
 import { buildTriageHistory } from './history.js';
 import { loadTriageRecordSnapshot } from './record-snapshot.js';
 import { describeStorageFailure } from '../../src/shared/storage/failure-observation.js';
+import { projectTriageEvidence } from './evidence.js';
+import { TRIAGE_EVIDENCE_VERSION } from '../../src/contracts/triage-evidence.js';
 
 const argv = createCli({
   scriptName: 'triage-context-pack',
@@ -72,6 +74,7 @@ const repoEvidence = await buildRepoEvidence({
 });
 
 const pack = {
+  evidenceVersion: TRIAGE_EVIDENCE_VERSION,
   recordId,
   generatedAt: new Date().toISOString(),
   finding,
@@ -84,6 +87,8 @@ await writeJsonFileResolved(outPath, pack);
 
 console.log(JSON.stringify({
   outPath,
+  evidenceVersion: TRIAGE_EVIDENCE_VERSION,
+  searchedRepository: repoEvidence.repository,
   historyCount: history.length,
   evidenceQueries: repoEvidence.queries.length,
   warnings: warnings.length ? warnings : undefined
@@ -107,18 +112,16 @@ async function buildRepoEvidence({ repoRoot, finding, maxEvidencePerQuery, warni
         metaFilters: [],
         top: maxEvidencePerQuery
       });
-      if (!result.ok) {
-        warnings.push({ step: 'evidence-search', mode, query, error: result.error });
-      }
-      const hits = Array.isArray(result.payload?.[mode]) ? result.payload[mode] : [];
-      results.push({
-        query,
-        mode,
-        hits: hits.slice(0, maxEvidencePerQuery).map(pickEvidenceHit)
+      const evidence = projectTriageEvidence({ repoRoot, query, mode, result, limit: maxEvidencePerQuery });
+      if (evidence.status === 'unavailable') warnings.push({
+        step: 'evidence-search', mode, query, repository: evidence.repository,
+        code: evidence.diagnostic.code, error: evidence.diagnostic.message
       });
+      results.push(evidence);
     }
   }
-  return { queries: results };
+  return { schemaVersion: TRIAGE_EVIDENCE_VERSION,
+    repository: { root: path.resolve(repoRoot), identityKind: 'search-root-path' }, queries: results };
 }
 
 function buildEvidenceQueries(finding) {
@@ -148,35 +151,6 @@ function pickImportName(finding) {
     finding?.module
   ];
   return candidates.find((value) => typeof value === 'string' && value.trim());
-}
-
-function pickEvidenceHit(hit) {
-  return {
-    file: hit.file,
-    kind: hit.kind,
-    name: hit.name,
-    headline: hit.headline,
-    score: hit.score,
-    scoreType: hit.scoreType,
-    scoreBreakdown: hit.scoreBreakdown || null,
-    snippet: buildSnippet(hit)
-  };
-}
-
-function buildSnippet(hit) {
-  const parts = [];
-  if (hit.headline) parts.push(hit.headline);
-  if (Array.isArray(hit.preContext)) parts.push(...hit.preContext);
-  if (Array.isArray(hit.postContext)) parts.push(...hit.postContext);
-  const raw = parts.join(' ').replace(/\s+/g, ' ').trim();
-  if (!raw) return '';
-  return raw.length > 240 ? `${raw.slice(0, 237)}...` : raw;
-}
-
-function extractRecordId(hit) {
-  if (hit?.docmeta?.record?.recordId) return hit.docmeta.record.recordId;
-  if (hit?.file) return path.basename(hit.file, path.extname(hit.file));
-  return null;
 }
 
 async function loadRecord(recordsDir, recordId) {
@@ -218,7 +192,9 @@ async function runSearchJson({ repoRoot, query, mode, metaFilters, top }) {
     }));
     return { ok: true, payload };
   } catch (err) {
-    return { ok: false, error: err?.message || 'search failed', payload: null };
+    const diagnostic = describeStorageFailure(err, { phase: 'triage-evidence-search',
+      defaultCode: 'ERR_TRIAGE_EVIDENCE_SEARCH', defaultMessage: 'Search unavailable.' });
+    return { ok: false, code: diagnostic.code, error: diagnostic.message, payload: null };
   }
 }
 

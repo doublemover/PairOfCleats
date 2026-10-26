@@ -1251,3 +1251,5 @@ indexing/artifacts/scan-profile-observation-scope
 tooling/reports/bench-language-diagnostic-occurrence-replay
 tooling/reports/bench-language-confidence-missingness
 tooling/reports/throughput-input-admission
+tooling/triage/evidence-selected-mode
+services/mcp/triage-context-pack-handoff
