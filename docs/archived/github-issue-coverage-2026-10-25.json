@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "3d04147fc3dadd7b26771ec30bd94d95e4872731",
+  "sourceHead": "d01b85f088e07f68453aade49da8fd11e0b2f79b",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 475,
+    "implemented": 476,
     "partial": 139,
-    "pending": 121
+    "pending": 120
   },
   "priorOpen": 1177,
   "currentOpen": 770,
@@ -607,6 +607,7 @@
       1651,
       1655,
       1658,
+      1659,
       1660,
       1661,
       1662,
@@ -925,7 +926,6 @@
       1654,
       1656,
       1657,
-      1659,
       1664,
       1697,
       1699,
@@ -5977,8 +5977,10 @@
       "number": 1659,
       "title": "Reject normalized provider ID collisions before ordering and execution",
       "priority": "other",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "d01b85f088e07f68453aade49da8fd11e0b2f79b",
+      "validation": "deferred"
     },
     {
       "number": 1660,

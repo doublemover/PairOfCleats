@@ -4017,3 +4017,47 @@ sorts retained roots per monitor. This is not full startup-scaling acceptance.
 Coverage is **35 fixed / 475 implemented / 139 partial / 121 pending**, all770
 reports retained; no issue state or closing reference changed. Bookkeeping reuses
 the checked JS tree. Contract: `docs/contracts/service-progress-read-ownership.md`.
+
+## 2026-10-26 — unique provider catalog before selection and execution
+
+`d01b85f08` repairs #1659 with one shared normalized-ID admission owner for
+configured factories and complete registered/configured/automatic catalogs.
+Default, ordered and explicit selection consume that admitted map. Duplicate
+definitions, including equivalent copies, fail before allow/deny, cache/profile
+work, preflight or launch; ordering cannot choose a hidden implementation or
+change accidental multiplicity. Structured collision errors identify the effective
+provider ID and both bounded configuration origins, excluding commands, arguments,
+environment and initialization payloads.
+
+Intentional registration still replaces its normalized registry slot and repeated
+registration remains idempotent. Configured IDs still suppress their automatic
+preset; explicit-only/exclusive-language/replacement behavior is retained.
+Multiple configured instances require existing explicit id/providerId values or a
+stable preset identity. A single anonymous provider retains lsp-lsp-1 independent
+of invalid entries before it. An explicit providerId now supplies a stable fallback
+server ID, removing server-array position from that profile. Affected normalized
+config hashes change with that existing field; accepted unique semantic fact
+meaning is unchanged, so no semantic producer bump is required. There is no new
+instance field/configuration knob or schema relaxation. The configuration guide
+now explains post-normalization uniqueness separately from structural raw validation.
+
+Two new unrun controls author exact/case/sanitization collisions under default,
+ordered/explicit/disabled selection, registered/configured and configured/automatic
+origins, deliberate registry replacement, preset suppression, distinct stable
+instances, anonymous compatibility and order-only cardinality/profile identity.
+Actual fake-provider orchestration checks zero config-hash/preflight/run/cache
+preparation on collision and one independently observed profile/diagnostic result
+per accepted instance, with order-only cache reuse. Ordinary owned fixture bytes
+supply profile receipts; no real executable/server is qualified or launched.
+The original registry selection/preflight/cache matrix remains unchanged and
+already belonged to ci-lite; the two new cases bring that lane to1,362 entries.
+
+Full format/ESLint, six JS syntax checks, final affected ESLint/syntax, three
+related generated refresh/freshness surfaces (rechecked after the final tiny
+fixture correction), three discoveries and staged diff checks passed. Source
+review corrected a missing required capabilities object in the new fixture before
+publication. No functional assertion has run. Functional/front-gate/native/
+platform/performance execution remains deferred. Coverage is **35 fixed / 476
+implemented / 139 partial / 120 pending**, all770 reports retained; no issue state
+or closing reference changed. Bookkeeping reuses the checked JS tree. Contract:
+`docs/contracts/provider-catalog-identity.md`.
