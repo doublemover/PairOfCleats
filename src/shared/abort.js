@@ -53,7 +53,12 @@ const createSignalAbortError = (signal, message) => {
 
 export const raceAbort = (signal, promise, message) => {
   if (!signal) return promise;
-  if (signal.aborted) return Promise.reject(createSignalAbortError(signal, message));
+  if (signal.aborted) {
+    // Work was supplied before cancellation admission. Keep observing its
+    // eventual rejection without waiting for, cancelling or claiming it settled.
+    Promise.resolve(promise).catch(() => {});
+    return Promise.reject(createSignalAbortError(signal, message));
+  }
   return new Promise((resolve, reject) => {
     const onAbort = () => {
       cleanup();
