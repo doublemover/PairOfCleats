@@ -241,11 +241,13 @@ export function buildChunkRelations({ lang, chunk, fileRelations, callIndex = nu
       }
       const indexMatchesDetails = callIndex?.callDetailsSource === fileRelations.callDetails && callIndex?.callDetailsLength === fileRelations.callDetails?.length;
       const indexMatchesCalls = callIndex?.callsSource === fileRelations.calls && callIndex?.callsLength === fileRelations.calls?.length;
-      const record = join.record, owned = (indexMatchesDetails ? callIndex?.callDetailsByOccurrenceId?.get(record.id) : null)
-        || (fileRelations.callDetails || []).filter(detail => detail.callerOccurrenceId === record.id);
+      const record = join.record, owned = indexMatchesDetails && callIndex?.callDetailsByOccurrenceId
+        ? callIndex.callDetailsByOccurrenceId.get(record.id) || []
+        : (fileRelations.callDetails || []).filter(detail => detail.callerOccurrenceId === record.id);
       const retained = owned.filter(detail => detail.callerOccurrenceId === record.id && detail.start >= chunk.start && detail.end <= chunk.end);
       const callees = new Set(retained.filter(detail => detail.role !== 'constructor').map(detail => detail.callee).filter(Boolean));
-      const pairs = (indexMatchesCalls ? callIndex?.callsByCaller?.get(record.id) : null) || (fileRelations.calls || []).filter(([owner]) => owner === record.id);
+      const pairs = indexMatchesCalls && callIndex?.callsByCaller
+        ? callIndex.callsByCaller.get(record.id) || [] : (fileRelations.calls || []).filter(([owner]) => owner === record.id);
       const seen = new Set();
       output.calls = pairs.filter(([, callee]) => callees.has(callee) && !seen.has(callee) && seen.add(callee)).map(([, callee]) => [chunk.name, callee]);
       if (retained.length) output.callDetails = retained;

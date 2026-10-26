@@ -116,6 +116,13 @@ for (const parser of ['babel', 'acorn']) {
   const rowCheck = validateArtifact('call_sites', rows); assert.equal(rowCheck.ok, true, rowCheck.errors.join('; '));
   assert.ok(rows.every(row => row.extensions.javascriptEvaluation.occurrenceId === (row.calleeNormalized === 'instanceOnly'
     ? instance.docmeta.javascriptDeclaration.occurrenceId : statik.docmeta.javascriptDeclaration.occurrenceId)));
+  const indexedEmpty = { ...collision.relations, calls: [...collision.relations.calls], callDetails: [...collision.relations.callDetails] };
+  const emptyIndex = buildCallIndex(indexedEmpty);
+  for (const list of [indexedEmpty.calls, indexedEmpty.callDetails]) Object.defineProperty(list, 'filter', {
+    value: () => { throw new Error('A valid empty owner index must not rescan the file.'); }
+  });
+  const host = collision.values.find(value => value.chunk.name === 'host');
+  assert.deepEqual(buildChunkRelations({ lang, chunk: host.chunk, fileRelations: indexedEmpty, callIndex: emptyIndex }).calls, []);
   const capped = { ...collision.relations, calls: [] };
   assert.deepEqual(buildChunkRelations({ lang, chunk: instance.chunk, fileRelations: capped, callIndex: collision.index }).calls, [],
     'a stale pre-cap index cannot reconstruct discarded pair evidence');
