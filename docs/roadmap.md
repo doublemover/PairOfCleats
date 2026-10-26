@@ -13,7 +13,7 @@ with tests deferred until the source batches are ready. The live intake has
 [current implementation receipt](archived/solo-issue-repairs-2026-10-25.md)
 records new source batches and unvalidated coverage. Historical inventories
 below describe their recorded sources, not the current open count.
-Current source coverage is **35 fixed / 466 implemented / 138 partial / 131
+Current source coverage is **35 fixed / 467 implemented / 138 partial / 130
 pending**, with exact issue-to-source ownership in the
 [complete inventory](archived/github-issue-coverage-2026-10-25.json). Implemented
 means source-complete with execution pending, not accepted closure.
@@ -42,7 +42,7 @@ manifest observation and JSONL failed-shard ownership now retain their terminal
 boundaries (#1732/#1735/#1738/#1743). Streaming context seeds preserve strict read failures (#1566), and ANN preflight
 shares terminal request-budget admission (#1585). Reserved parameter names retain
 serialization controls on the existing safe writer (#1029). The curated ci-lite
-lane contains 1,336 cases;
+lane contains 1,337 cases;
 new and strengthened regressions remain unrun. Sampled work conserves completed
 operations, compression arms share reproducible bytes with round-trip admission,
 and graph render arms require canonical output parity (#1725/#1728/#1744).
@@ -56,7 +56,8 @@ payload/metadata/count ownership and concurrent flush revisions are bounded
 (#1644). VFS benchmark samples now distinguish fresh materialization, persisted
 admission and hot access with actual phase/byte/parity evidence (#1747). Map writers now share atomic publication with fresh-process samples,
 final-inclusive boundary memory and separately scoped RSS high-water evidence
-(#1748). Completed batch detail and exact
+(#1748). JSONL framing searches each new fragment once and joins complete rows
+without repeated prefix scans (#1739). Completed batch detail and exact
 source/static-check receipts are retained in the linked implementation archive.
 
 Execution remains solo, Windows-only and implementation-first. Finish remaining

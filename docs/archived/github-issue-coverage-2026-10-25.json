@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "361a6bdfda864cba2c6dcde4c4db37576c0c83a3",
+  "sourceHead": "be44fe69dd7123cb165e5fe4a6d8b53ed1a176fb",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 466,
+    "implemented": 467,
     "partial": 138,
-    "pending": 131
+    "pending": 130
   },
   "priorOpen": 1177,
   "currentOpen": 770,
@@ -652,6 +652,7 @@
       1736,
       1737,
       1738,
+      1739,
       1740,
       1741,
       1742,
@@ -932,8 +933,7 @@
       1713,
       1714,
       1722,
-      1723,
-      1739
+      1723
     ]
   },
   "issues": [
@@ -6522,8 +6522,10 @@
       "number": 1739,
       "title": "[Perf] Scan only new JSONL fragments instead of rescanning each growing long-row prefix",
       "priority": "Perf",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "be44fe69dd7123cb165e5fe4a6d8b53ed1a176fb",
+      "validation": "deferred"
     },
     {
       "number": 1740,

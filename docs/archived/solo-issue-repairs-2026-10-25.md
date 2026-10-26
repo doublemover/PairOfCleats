@@ -3573,3 +3573,32 @@ platform/performance execution remains deferred. Coverage is **35 fixed / 466
 implemented / 138 partial / 131 pending**, all 770 reports retained; no issue closed
 or closing reference added. Bookkeeping reuses the checked JS tree.
 Contract and Node API source: `docs/perf/map-pipeline.md`.
+
+## 2026-10-26 — incremental JSONL delimiter framing
+
+`be44fe69d` repairs #1739 in both production streaming scanners. The shared private
+framer searches only newly decoded text, retains partial fragments and joins a
+completed/unterminated row once. Its logical search/join counters describe source
+work rather than engine character comparisons or measured CPU. Complete-row JSON
+allocation/validation and existing byte caps remain. StringDecoder UTF-8 behavior,
+CRLF, blank-line numbering, strict/trusted parsing and final-row semantics remain
+owned by the existing parser. Raw decoded-stream byte admission precedes framing;
+awaited callbacks retain row/chunk backpressure. Attempt-local fragments are
+released in finally on completion, errors and cancellation.
+
+The two removed private async full-prefix/final-line helpers had only the replaced
+streaming caller, no external exports, and now share the framer. The buffered
+single-pass walker and every existing long-line, codec, Unicode, cancellation and
+early-return assertion remain. A new actual-scanner wrapper observes the real
+framer for exact code-unit work at 200 KiB, 1 MiB, 8 MiB and 16 MiB, two explicit
+chunk sizes and terminated/unterminated rows. It also covers all splits of Unicode/
+CRLF/blank rows, exact malformed/required-key errors, byte admission, falsey callback
+failures, source finalization, cancellation, held callbacks and released fragments.
+These assertions are authored, not executed; no throughput or heap gain claimed.
+
+Full format/ESLint, three JS syntax checks, affected generated refresh/freshness,
+fixture discovery and staged diff checks passed. Ordered ci-lite now contains
+1,337 cases. Functional/front-gate/native/platform/performance execution remains
+deferred. Coverage is **35 fixed / 467 implemented / 138 partial / 130 pending**,
+all 770 reports retained, no issue closed or closing reference added. Bookkeeping
+reuses the checked JS tree. Contract: `docs/specs/artifact-io-pipeline.md`.
