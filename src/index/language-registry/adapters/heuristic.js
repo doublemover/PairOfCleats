@@ -39,6 +39,7 @@ import { createProtoImportCollector } from '../import-collectors/proto.js';
 import { parseProtoStructure } from '../../../shared/proto-structure.js';
 import { collectRazorImports } from '../import-collectors/razor.js';
 import { collectRImports } from '../import-collectors/r.js';
+import { toParsedLiteralImportEntries } from '../../../shared/import-extraction.js';
 import { collectScalaImports } from '../import-collectors/scala.js';
 import { collectStarlarkImportEntries, collectStarlarkImports } from '../import-collectors/starlark.js';
 import {
@@ -447,8 +448,8 @@ export const createHeuristicManagedAdapter = ({
   if (typeof collectImportEntries === 'function') {
     adapter.collectImportEntries = (text, options) => collectImportEntries(text, options);
   }
-  if (['handlebars','mustache','jinja'].includes(id)) adapter.collectImportEntries = (text,options) =>
-    normalizeImports(text,options).map(specifier=>({specifier,provenance:'parsed-literal'}));
+  if (['handlebars','mustache','jinja','r'].includes(id)) adapter.collectImportEntries = (text,options) =>
+    toParsedLiteralImportEntries(normalizeImports(text,options));
   if (capabilityProfile) adapter.capabilityProfile = capabilityProfile;
   return adapter;
 };

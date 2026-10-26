@@ -1285,3 +1285,8 @@ lang/contracts/python-parenthesized-prefix-coverage
 indexing/signatures/native-signature-projection
 indexing/signatures/shared-declaration-boundaries
 lang/contracts/c-parenthesized-prototype-roles
+indexing/imports/parsed-attribute-and-r-import-replay
+lang/contracts/r-static-argument-ownership
+indexing/language-registry/config-literal-import-identities
+lang/contracts/template-and-build-import-identities
+lang/contracts/html-import-collector

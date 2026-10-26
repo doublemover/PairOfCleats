@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1127,
+    "hero": 1132,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -7723,6 +7723,36 @@
     {
       "id": "lang/contracts/c-parenthesized-prototype-roles",
       "order": 1285,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/imports/parsed-attribute-and-r-import-replay",
+      "order": 1286,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/r-static-argument-ownership",
+      "order": 1287,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/language-registry/config-literal-import-identities",
+      "order": 1288,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/template-and-build-import-identities",
+      "order": 1289,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/html-import-collector",
+      "order": 1290,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

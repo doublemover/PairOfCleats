@@ -7,6 +7,7 @@ export const collectRImports = (text,options = {}) => {
   const imports = new Set();
   const context = createCollectorBudgetContext({text,options,collectorId:'imports:r',
     defaults:{maxChars:524288,maxMatches:1024,maxTokens:2048,maxMs:30}});
+  let entries = null;
   try {
     for (const call of scanStaticCalls(context.source,new Set(['library','require','requireNamespace','source']),
       { shouldContinue: () => context.scanBudget.consumeTime(), dialect: 'r', acceptCall: isSupportedRDependencyCall })) {
@@ -33,6 +34,7 @@ export const collectRImports = (text,options = {}) => {
       if (token.kind !== 'string' && !knownBarePackage) continue;
       addBudgetedCollectorImport(imports,token.value,context.scanBudget,{literal:true});
     }
-    return [...imports];
-  } finally { context.finalize(); }
+    entries = [...imports];
+    return entries;
+  } finally { context.finalize({ entries, scope: 'r-static-dependency-calls-v1' }); }
 };

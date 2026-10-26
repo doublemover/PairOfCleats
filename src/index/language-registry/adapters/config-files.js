@@ -1,4 +1,4 @@
-import { attachImportExtraction, getImportExtraction, projectImportExtraction } from '../../../shared/import-extraction.js';
+import { toParsedLiteralImportEntries } from '../../../shared/import-extraction.js';
 import { buildSimpleRelations } from '../simple-relations.js';
 import { collectIniImports } from '../import-collectors/ini.js';
 import { collectJsonImports } from '../import-collectors/json.js';
@@ -18,15 +18,8 @@ export const createConfigDataAdapter = ({ id, match, collectImports = () => [], 
   id,
   match,
   collectImports: (text, options) => collectImports(text, options),
-  ...(literalImports ? { collectImportEntries: (text, options) => {
-    const values = collectImports(text, options);
-    const entries = values.map(specifier => ({ specifier, provenance: 'parsed-literal' }));
-    const extraction = getImportExtraction(values);
-    if (extraction) attachImportExtraction(entries, projectImportExtraction(extraction, values, entries, { owner: 'config-entry' }));
-    if (values.coverage) Object.defineProperty(entries, 'coverage', { value: values.coverage });
-    if (values.occurrences) Object.defineProperty(entries, 'occurrences', { value: values.occurrences });
-    return entries;
-  } } : {}),
+  ...(literalImports ? { collectImportEntries: (text, options) =>
+    toParsedLiteralImportEntries(collectImports(text, options)) } : {}),
   prepare: async () => ({}),
   buildRelations: ({ text, options }) => {
     const values = collectImports(text, options);

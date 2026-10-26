@@ -28,7 +28,7 @@ import { buildCSharpChunks, buildCSharpRelations, collectCSharpImports, computeC
 import * as kotlinLang from '../../lang/kotlin.js';
 import { buildRubyChunks, buildRubyRelations, collectRubyImports, computeRubyFlow, extractRubyDocMeta } from '../../lang/ruby.js';
 import { buildPhpChunks, buildPhpRelations, collectPhpImports, computePhpFlow, extractPhpDocMeta } from '../../lang/php.js';
-import { buildHtmlChunks, buildHtmlRelations, collectHtmlImports, computeHtmlFlow, extractHtmlDocMeta, getHtmlMetadata } from '../../lang/html.js';
+import { buildHtmlChunks, buildHtmlRelations, collectHtmlImports, collectHtmlImportEntries, computeHtmlFlow, extractHtmlDocMeta, getHtmlMetadata } from '../../lang/html.js';
 import { prepareCssChunkContext, buildCssRelations, collectCssImports, collectCssImportEntries, computeCssFlow, extractCssDocMeta } from '../../lang/css.js';
 import { buildLuaChunks, buildLuaRelations, collectLuaImports, computeLuaFlow, extractLuaDocMeta } from '../../lang/lua.js';
 import { buildSqlChunks, buildSqlRelations, collectSqlImports, computeSqlFlow, extractSqlDocMeta } from '../../lang/sql.js';
@@ -208,6 +208,7 @@ const createHtmlAdapter = () => {
   });
   return {
     ...adapter,
+    collectImportEntries: collectHtmlImportEntries,
     prepare: async input => ({ ...await adapter.prepare(input), htmlMeta: getHtmlMetadata(input.text) }),
     buildRelations: ({ text, context }) => buildHtmlRelations(text, context.htmlChunks, context.htmlMeta),
     extractDocMeta: ({ chunk, context }) => extractHtmlDocMeta(chunk, context?.htmlMeta)

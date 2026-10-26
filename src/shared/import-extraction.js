@@ -23,7 +23,7 @@ const freeze = value => {
 const seal = input => freeze({ ...input, identity: 'ie1:' + hash(input) });
 
 /** Package metadata is an input/readiness identity, never activation evidence. */
-export const importExtractionRuntimeVersions = () => Object.fromEntries(['yaml', 'smol-toml', 'protobufjs', 'es-module-lexer', 'cjs-module-lexer']
+export const importExtractionRuntimeVersions = () => Object.fromEntries(['yaml', 'smol-toml', 'protobufjs', 'parse5', 'es-module-lexer', 'cjs-module-lexer']
   .map(name => [name, installedPackageVersion(name)]));
 
 export const createImportExtraction = ({ entries, text, producerId = 'legacy-array', parser = null,
@@ -143,6 +143,19 @@ export const projectImportExtraction = (receipt, inputEntries, outputEntries, {
   return seal({ ...base, state, reasonCounts, steps, counts: { ...receipt.counts, retained: outputEntries.length },
     recognition: outputEntries.length ? 'nonempty' : degraded ? 'unknown' : receipt.recognition,
     entriesHash: hash(entryTokens(outputEntries)), reusePolicy: degraded ? 'refresh-required' : receipt.reusePolicy });
+};
+
+/** Preserve an existing producer's evidence when marking decoded values. This
+ * projection never upgrades an unqualified scanner into a qualified parser. */
+export const toParsedLiteralImportEntries = (values) => {
+  const entries = values.map(specifier => ({ specifier, provenance: 'parsed-literal' }));
+  const extraction = getImportExtraction(values);
+  if (extraction) attachImportExtraction(entries, projectImportExtraction(extraction, values, entries,
+    { owner: 'parsed-literal-entry' }));
+  for (const key of ['coverage', 'occurrences']) {
+    if (values[key]) Object.defineProperty(entries, key, { value: values[key] });
+  }
+  return entries;
 };
 
 export const canReuseImportExtraction = (receipt, entries) => {

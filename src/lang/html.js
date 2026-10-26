@@ -1,4 +1,6 @@
 import { parse as parseHtml } from 'parse5';
+import { installedPackageVersion } from '../shared/installed-package-version.js';
+import { attachImportExtraction, createImportExtraction, getImportExtraction, toParsedLiteralImportEntries } from '../shared/import-extraction.js';
 import { buildLineIndex, offsetToLine } from '../shared/lines.js';
 import { buildTreeSitterChunks } from './tree-sitter.js';
 import { buildJsChunks } from './javascript.js';
@@ -260,18 +262,32 @@ function addKeywordEntries(content, keywords) {
 }
 
 function extractHtmlMetadata(text) {
+  const qualifyImports = (imports, occurrences, reason = null) => {
+    Object.defineProperty(imports, 'occurrences', { value: occurrences });
+    return attachImportExtraction(imports, createImportExtraction({ entries: imports, text: typeof text === 'string' ? text : null,
+      producerId: 'html-parsed-attributes', parser: { id: 'parse5', version: installedPackageVersion('parse5'), available: true },
+      parserCoverage: reason ? 'unavailable' : 'complete', parserReason: reason,
+      scope: 'parse5-recovered-dom-script-src-link-href', observedEntries: occurrences.length }));
+  };
   let document = null;
   try {
     document = parseHtml(text, { sourceCodeLocationInfo: true });
   } catch {
-    return { imports: [], title: null, description: null, keywords: [], scripts: [], links: [] };
+    return { imports: qualifyImports([], [], 'parse-failed'), title: null, description: null, keywords: [], scripts: [], links: [] };
   }
   const imports = new Set();
+  const occurrences = [];
   const scripts = [];
   const links = [];
   let title = null;
   let description = null;
   const keywords = new Set();
+  const recordImport = (node, attribute, specifier) => {
+    imports.add(specifier);
+    const location = node.sourceCodeLocation?.attrs?.[attribute];
+    occurrences.push({ specifier, attribute, rawAttribute: location ? text.slice(location.startOffset, location.endOffset) : null,
+      source: location ? { start: location.startOffset, end: location.endOffset, encoding: 'utf16le-js-string' } : null });
+  };
   walkHtml(document, (node) => {
     if (!node || typeof node.nodeName !== 'string') return;
     const tag = node.nodeName.toLowerCase();
@@ -306,20 +322,20 @@ function extractHtmlMetadata(text) {
     if (tag === 'script') {
       const src = attrSrc || '';
       if (src) {
-        imports.add(src);
+        recordImport(node, 'src', src);
         scripts.push(src);
       }
     }
     if (tag === 'link') {
       const href = attrHref || '';
       if (href) {
-        imports.add(href);
+        recordImport(node, 'href', href);
         links.push(href);
       }
     }
   });
   return {
-    imports: Array.from(imports),
+    imports: qualifyImports(Array.from(imports), occurrences),
     title,
     description,
     keywords: Array.from(keywords),
@@ -340,6 +356,8 @@ function collectHtmlImportsFast(text) {
 export function collectHtmlImports(text) {
   return collectHtmlImportsFast(text);
 }
+
+export const collectHtmlImportEntries = text => toParsedLiteralImportEntries(collectHtmlImports(text));
 
 function normalizeLang(raw) {
   if (!raw) return null;
@@ -543,7 +561,8 @@ export function buildHtmlChunks(text, options = {}) {
 
 export function buildHtmlRelations(text, htmlChunks, htmlMeta) {
   const imports = Array.isArray(htmlMeta?.imports) ? htmlMeta.imports : [];
-  return { imports, exports: [], calls: [], usages: [], importLinks: [], functionMeta: {}, classMeta: {} };
+  return { imports, ...(getImportExtraction(imports) ? { importExtraction: getImportExtraction(imports) } : {}),
+    exports: [], calls: [], usages: [], importLinks: [], functionMeta: {}, classMeta: {} };
 }
 
 export function extractHtmlDocMeta(chunk, htmlMeta) {

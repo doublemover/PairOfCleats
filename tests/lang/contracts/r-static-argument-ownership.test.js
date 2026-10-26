@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
-import { getLanguageForFile } from '../../../src/index/language-registry.js';
+import { collectLanguageImportEntries, getLanguageForFile } from '../../../src/index/language-registry.js';
 import { collectRImports } from '../../../src/index/language-registry/import-collectors/r.js';
 
 const cases = [
+  ['library(dplyr)\nlibrary(dplyr, quietly=TRUE)\nrequire(dplyr, quietly=FALSE)', ['dplyr']],
+  ['library("dplyr", quietly=TRUE)\nlibrary(package="dplyr")\nsource("real.R",local=TRUE)\nprint("library(fake)")', ['dplyr', 'real.R']],
   ['source(file="R/helpers.R", local=TRUE)', ['R/helpers.R']],
   ['source(local=TRUE, file="R/helpers.R")', ['R/helpers.R']],
   ['source(local=TRUE, "R/helpers.R")', ['R/helpers.R']],
@@ -57,6 +59,9 @@ const options = { collectorNow: () => 0 };
 for (const [source, expected] of cases) {
   assert.deepEqual(collectRImports(source, options), expected, source);
   assert.deepEqual(adapter.collectImports(source, options), expected, `registered collection: ${source}`);
+  const entries = collectLanguageImportEntries({ text: source, ext: '.r', relPath: 'input.r', mode: 'code', options });
+  assert.deepEqual(entries.map(entry => entry.specifier), expected.toSorted(), `registry admission: ${source}`);
+  assert.ok(entries.every(entry => entry.provenance === 'parsed-literal'));
   const relations = adapter.buildRelations({ text: source, options, context: {} });
   assert.deepEqual(relations.imports, expected.toSorted(), `registered relation projection: ${source}`);
 }
