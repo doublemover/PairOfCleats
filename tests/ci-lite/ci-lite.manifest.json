@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1086,
+    "hero": 1089,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -7477,6 +7477,24 @@
     {
       "id": "perf/bench/embedding-bakeoff-checkpoint-owner",
       "order": 1244,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/tooling/bench/ab-sweep-admission",
+      "order": 1245,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/tooling/bench/ab-sweep-artifact-owner",
+      "order": 1246,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/subprocess/sync-capture-receipt",
+      "order": 1247,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

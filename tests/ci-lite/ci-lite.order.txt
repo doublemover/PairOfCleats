@@ -1244,3 +1244,6 @@ tooling/reports/throughput-recorded-attempt
 perf/bench/embedding-bakeoff-effective-policy
 perf/bench/embedding-bakeoff-phase-lifecycle
 perf/bench/embedding-bakeoff-checkpoint-owner
+perf/tooling/bench/ab-sweep-admission
+perf/tooling/bench/ab-sweep-artifact-owner
+shared/subprocess/sync-capture-receipt

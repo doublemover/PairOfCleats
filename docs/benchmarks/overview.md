@@ -48,6 +48,10 @@ classes and [profiling](profiling.md) covers bounded diagnosis.
 The [benchmark runner report contract](../contracts/bench-runner-outcomes.md)
 defines version 2 utilization units/scopes and the process facts required for an
 allowed terminal skip. Missing utilization is unknown, not a measured zero.
+The [A/B sweep admission contract](../contracts/benchmark-sweep-admission.md)
+defines completed-work and knob-consumption evidence, the version 2 objective,
+immutable raw reports and bounded invocation storage. Unqualified variants remain
+visible and cannot produce a recommendation.
 
 The complete previous guide, including original usage tables and dated repair
 narratives, remains in [the historical snapshot](../archived/benchmarks-overview-2026-10-22.md).

@@ -7,6 +7,20 @@
   "properties": {
     "schemaVersion": { "type": "integer", "const": 2 },
     "generatedAt": { "type": "string" },
+    "experiment": { "type": ["object", "null"] },
+    "workload": { "type": "object" },
+    "sourceValidation": { "type": "array", "items": { "type": "object" } },
+    "reportAdmission": {
+      "type": "object",
+      "required": ["state", "maxBytes"],
+      "properties": {
+        "state": { "enum": ["complete", "report-too-large"] },
+        "maxBytes": { "type": "integer", "minimum": 65536, "maximum": 67108864 },
+        "observedBytes": { "type": "integer", "minimum": 0 },
+        "omittedRawDiagnostics": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
     "runner": {
       "type": "object",
       "required": ["cwd", "platform", "release", "arch", "node", "args"],
@@ -186,6 +200,8 @@
           "absScript": { "type": "string" },
           "args": { "type": "array", "items": { "type": "string" } },
           "expect": { "anyOf": [{ "type": "object" }, { "type": "null" }] },
+          "required": { "type": "boolean" },
+          "outputCapture": { "type": ["object", "null"] },
           "ok": { "type": "boolean" },
           "status": { "enum": ["ok", "error", "timeout", "skipped"] },
           "processOk": { "type": "boolean" },

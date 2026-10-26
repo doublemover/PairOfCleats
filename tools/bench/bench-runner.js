@@ -6,12 +6,13 @@ import os from 'node:os';
 import { createHash } from 'node:crypto';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { observeStorageResource } from '../../src/shared/storage/failure-observation.js';
+import { resolveBenchRunnerWorkload, reobserveBenchSources, substituteBenchTokens, readBenchmarkExperiment, BENCH_REPORT_MAX_BYTES } from './runner-workload.js';
+import { atomicWriteText } from '../../src/shared/io/atomic-write.js';
 import { BENCH_RUNNER_REPORT_VERSION } from './runner-contract.js';
 import { classifyBenchOutcome, summarizeBenchOutcomes } from './runner-outcome.js';
 import { collectUtilizationSamples, summarizeUtilization } from './runner-utilization.js';
 
 const { getEnvConfig } = await import('../../src/shared/env/runtime.js');
-const { writeJsonFileResolved } = await import('../../src/shared/json-file.js');
 const { spawnSubprocessSync } = await import('../../src/shared/subprocess/runner.js');
 const { parseTrailingJson } = await import('./output.js');
 const { resolveBenchSuite } = await import('./suites/sweet16.js');
@@ -100,14 +101,7 @@ const parseArgs = () => {
  * @param {Record<string, string>} tokens
  * @returns {string}
  */
-const substituteTokens = (value, tokens) => {
-  if (!tokens || typeof tokens !== 'object') return value;
-  let out = String(value);
-  for (const [key, replacement] of Object.entries(tokens)) {
-    out = out.split(`\${${key}}`).join(String(replacement ?? ''));
-  }
-  return out;
-};
+const substituteTokens = substituteBenchTokens;
 
 /**
  * Parse `key=value` metric pairs from a bench output line.
@@ -388,6 +382,7 @@ const runOne = ({ script, args, timeoutMs, tokens }) => {
     timedOut,
     signal: typeof result?.signal === 'string' ? result.signal : null,
     processFailure,
+    outputCapture: result?.outputCapture || null,
     ok: exitCode === 0 && !timedOut && !result?.signal && !processFailure,
     stdout,
     stderr,
@@ -419,21 +414,16 @@ export const runBenchRunner = async ({ argv = parseArgs(), resolveSuite = resolv
     return { report: null, exitCode: 0 };
   }
 
-  const suiteEntries = argv.suite ? resolveSuite(argv.suite) : null;
-  const tokens = {
-    repoRoot: argv.repoRoot ? path.resolve(argv.repoRoot) : '',
-    indexDir: argv.indexDir ? path.resolve(argv.indexDir) : ''
-  };
-  const entries = argv.scripts.length
-    ? argv.scripts.map((script) => ({ id: path.basename(script), script, args: [] }))
-    : (suiteEntries || []);
+  const prepared = resolveBenchRunnerWorkload({ argv, resolveSuite });
+  const { entries, tokens, suiteMode } = prepared;
+  const experiment = readBenchmarkExperiment();
+  if (experiment && experiment.workloadFingerprint !== prepared.receipt.fingerprint) throw new Error('Benchmark invocation resolved a different workload than its parent.');
   if (!entries.length) {
     console.error('bench-runner: no scripts selected (use --scripts or --suite).');
     return { report: null, exitCode: 2 };
   }
 
   const results = [];
-  const suiteMode = Boolean(suiteEntries);
   for (const entry of entries) {
     if (!argv.quiet) {
       process.stderr.write(`[bench-runner] ${entry.script}\n`);
@@ -448,6 +438,7 @@ export const runBenchRunner = async ({ argv = parseArgs(), resolveSuite = resolv
     result.args = Array.isArray(entry.args)
       ? entry.args.map((value) => substituteTokens(value, tokens))
       : [];
+    result.required = entry.allowSkip !== true;
     result.expect = entry.expect && typeof entry.expect === 'object'
       ? { ...entry.expect }
       : null;
@@ -583,8 +574,12 @@ export const runBenchRunner = async ({ argv = parseArgs(), resolveSuite = resolv
   };
   summary.triageHints = triageHints;
 
-  const report = {
+  let report = {
     schemaVersion: BENCH_RUNNER_REPORT_VERSION,
+    experiment,
+    workload: prepared.receipt,
+    sourceValidation: reobserveBenchSources(prepared.receipt),
+    reportAdmission: { state: 'complete', maxBytes: experiment?.maxReportBytes || BENCH_REPORT_MAX_BYTES },
     generatedAt: new Date().toISOString(),
     runner: {
       cwd: process.cwd(),
@@ -620,6 +615,8 @@ export const runBenchRunner = async ({ argv = parseArgs(), resolveSuite = resolv
       absScript: entry.absScript,
       args: entry.args || [],
       expect: entry.expect || null,
+      required: entry.required,
+      outputCapture: entry.outputCapture || null,
       ok: entry.ok,
       status: entry.status,
       processOk: entry.processOk,
@@ -639,16 +636,30 @@ export const runBenchRunner = async ({ argv = parseArgs(), resolveSuite = resolv
     }))
   };
 
+  const maxReportBytes = experiment?.maxReportBytes || BENCH_REPORT_MAX_BYTES;
+  let reportText = JSON.stringify(report, null, 2) + '\n';
+  if (Buffer.byteLength(reportText) > maxReportBytes) {
+    // Preserve actual per-script outcomes instead of substituting empty success
+    // or losing the failing report when diagnostic retention exceeds its bound.
+    report = { ...report, reportAdmission: { state: 'report-too-large', maxBytes: maxReportBytes,
+      observedBytes: Buffer.byteLength(reportText), omittedRawDiagnostics: true },
+    results: report.results.map(({ stdout, stderr, json, parsed, ...entry }) => ({ ...entry,
+      stdout: '', stderr: '', json: null, parsed: { baseline: null, current: null, delta: null },
+      stderrTail: typeof stderr === 'string' ? stderr.slice(-1024) : '',
+      stdoutTail: typeof stdout === 'string' ? stdout.slice(-512) : '' })) };
+    reportText = JSON.stringify(report, null, 2) + '\n';
+  }
+  if (Buffer.byteLength(reportText) > maxReportBytes) throw Object.assign(new Error('Benchmark terminal report exceeds its bounded allowance.'), { code: 'ERR_BENCH_REPORT_LIMIT' });
   if (argv.json) {
     const outPath = path.isAbsolute(argv.json) ? argv.json : path.join(process.cwd(), argv.json);
-    await writeJsonFileResolved(outPath, report, { trailingNewline: true });
+    await atomicWriteText(outPath, reportText, { createOnly: Boolean(experiment) });
   }
 
   if (!argv.quiet) {
-    process.stdout.write(`${JSON.stringify(report, null, 2)}\n`);
+    process.stdout.write(reportText);
   }
 
-  const hasFailures = (summary.error || 0) > 0 || (summary.timeout || 0) > 0;
+  const hasFailures = (summary.error || 0) > 0 || (summary.timeout || 0) > 0 || report.reportAdmission.state !== 'complete';
   return { report, exitCode: hasFailures ? 1 : 0 };
 };
 
