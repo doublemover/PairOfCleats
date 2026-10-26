@@ -1336,3 +1336,4 @@ perf/bench/vfs-cold-start-process-phases
 map/build-map/memory-observation-owner
 map/build-map/publication-failure-ownership
 perf/bench/map-publication-and-memory
+shared/json-stream/jsonl-fragment-framing

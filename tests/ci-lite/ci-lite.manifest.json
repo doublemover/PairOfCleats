@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1178,
+    "hero": 1179,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -8029,6 +8029,12 @@
     {
       "id": "perf/bench/map-publication-and-memory",
       "order": 1336,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/json-stream/jsonl-fragment-framing",
+      "order": 1337,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

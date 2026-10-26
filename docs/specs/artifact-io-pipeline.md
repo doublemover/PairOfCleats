@@ -42,6 +42,20 @@
 - Default reader path is streaming row iteration; materialized reads must be explicitly requested.
 - Streaming readers apply backpressure via async iteration (no unbounded buffering).
 - Readers enforce `MAX_JSON_BYTES` by default unless overridden.
+- Stream framing searches only newly decoded text, retaining unfinished row
+  fragments and joining them once when the delimiter or EOF arrives. It never
+  searches an already scanned row prefix after a new chunk. The same private
+  framing owner serves synchronous and awaited row callbacks; buffered parsing
+  retains its existing single-pass walker.
+- Raw bytes from the decoded/plain stream are admitted before accumulation.
+  `StringDecoder` retains UTF-8 boundary/replacement behavior; CRLF, blank-line
+  numbering, strict/trusted validation and unterminated final rows retain their
+  existing meaning. Awaited callbacks hold iteration before another row or chunk
+  is delivered. Failure/cancellation clears attempt-local fragments in `finally`.
+- Private framing counters distinguish logical delimiter-search code units and
+  joined code units from engine character comparisons or measured CPU. Linear
+  framing work does not remove the admitted complete-row allocation/JSON parse,
+  change row limits or establish a measured throughput/memory improvement.
 
 ## Atomic Writes
 - Write to temp dir: .tmp/<artifact>/
