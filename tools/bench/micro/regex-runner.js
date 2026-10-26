@@ -3,14 +3,10 @@ import { createRequire } from 'node:module';
 import { createHash } from 'node:crypto';
 import { createSafeRegex } from '../../../src/shared/safe-regex.js';
 import { tryRequire } from '../../../src/shared/optional-deps.js';
-import { runSampledBench } from './utils.js';
+import { assertSampledBenchAccounting, normalizeSampledBenchOptions, runSampledBench } from './utils.js';
 
 const require = createRequire(import.meta.url);
 const fail = (code, message) => { throw Object.assign(new Error(message), { code }); };
-const count = (value, minimum, name) => {
-  if (!Number.isFinite(value) || !Number.isSafeInteger(Math.floor(value))) throw new RangeError(`Invalid regex benchmark ${name}.`);
-  return Math.max(minimum, Math.floor(value));
-};
 const installedPackage = name => {
   try {
     let directory = path.dirname(require.resolve(name));
@@ -42,8 +38,8 @@ export const runRegexBenchmark = async ({ pattern, flags = '', input, iterations
   { compile = createSafeRegex, native = nativeAvailability, packageIdentity = installedPackage, sample = runSampledBench } = {}) => {
   if (typeof pattern !== 'string' || !pattern || typeof input !== 'string' || !input
     || typeof flags !== 'string' || /[^gims]/.test(flags)) throw new TypeError('Regex benchmark requires a pattern, nonempty input and supported g/i/m/s flags.');
-  iterations = count(iterations, 1, 'iterations'); samples = Math.min(iterations, count(samples, 1, 'samples')); warmup = count(warmup, 0, 'warmup');
-  if (!Number.isSafeInteger(iterations + warmup)) throw new RangeError('Regex operation count exceeds exact integer accounting.');
+  const options = normalizeSampledBenchOptions({ iterations, samples, warmup });
+  const requestedSamples = samples; samples = options.samples;
   const effectiveFlags = ['g', 'i', 'm', 's'].filter(flag => flags.includes(flag)).join('');
   const availability = native();
   const engines = {}, arms = [];
@@ -64,16 +60,19 @@ export const runRegexBenchmark = async ({ pattern, flags = '', input, iterations
   for (const arm of arms) {
     let calls = 0;
     const operation = () => { arm.regex.lastIndex = 0; calls++; return arm.regex.test(input); };
-    const { totalMs, stats, timings } = await sample(operation, { iterations, samples, warmup });
+    const measurement = assertSampledBenchAccounting(await sample(operation, { iterations, samples: requestedSamples, warmup }),
+      { iterations, samples: requestedSamples, warmup });
+    const { totalMs, stats, timings, completedOperations, bucketOperations, statsUnit, warmupMs } = measurement;
     if (calls !== iterations + warmup) fail('ERR_BENCH_REGEX_WORK', 'Measured regex operation count differs from the declared work.');
     engines[arm.name] = { available: true, requestedEngine: arm.name, effectiveEngine: arm.regex.engine,
-      package: arm.package, matching: arm.witness, measuredOperations: iterations, warmupOperations: warmup, samples,
-      totalMs, opsPerSec: totalMs > 0 ? iterations / (totalMs / 1000) : null, stats, rawSampleDurationsMs: timings };
+      package: arm.package, matching: arm.witness, measuredOperations: completedOperations, warmupOperations: warmup, samples,
+      requestedSamples, bucketOperations, statsUnit, warmupMs,
+      totalMs, opsPerSec: totalMs > 0 ? completedOperations / (totalMs / 1000) : null, stats, rawSampleDurationsMs: timings };
   }
   return { schemaVersion: 2, kind: 'regex-wrapper-benchmark', generatedAt: new Date().toISOString(),
     comparison: 'same-safe-regex-public-wrapper', operation: 'reset-lastIndex-to-zero-then-test',
     pattern, flags, effectiveFlags, inputBytes: Buffer.byteLength(input, 'utf8'),
     inputIdentity: { algorithm: 'sha256', encoding: 'utf16le-code-units',
-      hash: createHash('sha256').update('regex-input-v1\0').update(input, 'utf16le').digest('hex') }, iterations, samples, warmup,
+      hash: createHash('sha256').update('regex-input-v1\0').update(input, 'utf16le').digest('hex') }, iterations, samples, requestedSamples, warmup,
     runtime: { node: process.version, v8: process.versions.v8, abi: process.versions.modules, platform: process.platform, arch: process.arch }, engines };
 };

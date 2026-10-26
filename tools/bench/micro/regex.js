@@ -56,9 +56,7 @@ const argv = yargs(hideBin(process.argv))
 
 const pattern = String(argv.pattern || '');
 const flags = String(argv.flags || '');
-const iterations = Math.max(1, Math.floor(argv.iterations));
-const samples = Math.max(1, Math.floor(argv.samples));
-const warmup = Math.max(0, Math.floor(argv.warmup));
+const { iterations, samples, warmup } = argv;
 
 const input = resolveInput(argv);
 if (!input) {
@@ -105,5 +103,5 @@ function printEngine(name, payload) {
   const stats = payload.stats || null;
   const ops = Number.isFinite(payload.opsPerSec) ? payload.opsPerSec.toFixed(0) : 'n/a';
   const summary = stats ? formatStats(stats) : 'n/a';
-  console.error(`- ${name} (effective ${payload.effectiveEngine}; package ${payload.package?.version || 'unknown'}): ${summary} | ops/sec ${ops}`);
+  console.error(`- ${name} (effective ${payload.effectiveEngine}; package ${payload.package?.version || 'unknown'}): bucket ${summary} | ops/sec ${ops}`);
 }

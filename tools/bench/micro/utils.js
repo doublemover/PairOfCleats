@@ -49,8 +49,35 @@ export function hrtimeMs(start) {
 
 const isPromiseLike = (value) => value && typeof value.then === 'function';
 
-export async function runSampledBench(fn, { iterations, samples, warmup = 0 }) {
+export const normalizeSampledBenchOptions = ({ iterations, samples, warmup = 0 }) => {
+  for (const [name, value, minimum] of [['iterations', iterations, 1], ['samples', samples, 1], ['warmup', warmup, 0]]) {
+    if (!Number.isSafeInteger(value) || value < minimum) throw new RangeError(`Invalid sampled benchmark ${name}.`);
+  }
+  if (!Number.isSafeInteger(iterations + warmup)) throw new RangeError('Benchmark operation count exceeds exact integer accounting.');
+  return { iterations, requestedSamples: samples, samples: Math.min(iterations, samples), warmup };
+};
+
+export const assertSampledBenchAccounting = (result, input) => {
+  const options = normalizeSampledBenchOptions(input);
+  if (result?.requestedIterations !== options.iterations || result.completedOperations !== options.iterations || result.warmupOperations !== options.warmup
+    || result.requestedSamples !== options.requestedSamples || result.effectiveSamples !== options.samples
+    || !Array.isArray(result.bucketOperations) || result.bucketOperations.length !== options.samples
+    || result.bucketOperations.some(count => !Number.isSafeInteger(count) || count <= 0)
+    || result.bucketOperations.reduce((sum, value) => sum + value, 0) !== result.completedOperations
+    || !Array.isArray(result.timings) || result.timings.length !== options.samples
+    || result.timings.some(ms => !Number.isFinite(ms) || ms < 0) || !Number.isFinite(result.totalMs) || result.totalMs < 0
+    || !Number.isFinite(result.warmupMs) || result.warmupMs < 0 || result.statsUnit !== 'milliseconds-per-bucket'
+    || result.stats?.count !== options.samples) {
+    throw Object.assign(new Error('Sampled benchmark completed-work receipt is inconsistent.'), { code: 'ERR_BENCH_MEASURED_WORK' });
+  }
+  return result;
+};
+
+export async function runSampledBench(fn, input, { nowNs = () => process.hrtime.bigint() } = {}) {
+  const { iterations, samples, requestedSamples, warmup } = normalizeSampledBenchOptions(input);
+  if (typeof fn !== 'function') throw new TypeError('A benchmark operation is required.');
   let isAsync = false;
+  const warmupStart = warmup ? nowNs() : null;
   for (let i = 0; i < warmup; i += 1) {
     const result = fn();
     if (isPromiseLike(result)) {
@@ -58,17 +85,20 @@ export async function runSampledBench(fn, { iterations, samples, warmup = 0 }) {
       await result;
     }
   }
+  const warmupMs = warmup ? Number(nowNs() - warmupStart) / 1e6 : 0;
 
-  const timings = [];
-  const perSample = Math.max(1, Math.floor(iterations / samples));
+  const timings = [], bucketOperations = [];
+  let completedOperations = 0;
+  const perSample = Math.floor(iterations / samples);
   const remainder = iterations - (perSample * samples);
   let totalMs = 0;
   for (let i = 0; i < samples; i += 1) {
     const loops = perSample + (i < remainder ? 1 : 0);
-    const start = process.hrtime.bigint();
+    const start = nowNs();
     if (isAsync) {
       for (let j = 0; j < loops; j += 1) {
         await fn();
+        completedOperations++;
       }
     } else {
       for (let j = 0; j < loops; j += 1) {
@@ -76,18 +106,24 @@ export async function runSampledBench(fn, { iterations, samples, warmup = 0 }) {
         if (isPromiseLike(result)) {
           isAsync = true;
           await result;
+          completedOperations++;
           for (let k = j + 1; k < loops; k += 1) {
             await fn();
+            completedOperations++;
           }
           break;
         }
+        completedOperations++;
       }
     }
-    const elapsed = Number(process.hrtime.bigint() - start) / 1e6;
+    const elapsed = Number(nowNs() - start) / 1e6;
     timings.push(elapsed);
+    bucketOperations.push(loops);
     totalMs += elapsed;
   }
   return {
+    schemaVersion: 2, requestedIterations: iterations, requestedSamples, effectiveSamples: samples,
+    completedOperations, warmupOperations: warmup, warmupMs, bucketOperations, statsUnit: 'milliseconds-per-bucket',
     totalMs,
     timings,
     stats: summarizeDurations(timings)

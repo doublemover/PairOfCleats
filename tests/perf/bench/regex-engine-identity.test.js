@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
+import { runSampledBench } from '../../../tools/bench/micro/utils.js';
 
 const runner = new URL('../../../tools/bench/micro/regex-runner.js', import.meta.url).href;
 const safeRegex = new URL('../../../src/shared/safe-regex.js', import.meta.url).href;
@@ -29,8 +30,10 @@ const hooks = registerHooks({ resolve(specifier, context, next) {
   return next(url, context);
 } });
 const sample = async (operation, { iterations, samples, warmup }) => {
-  for (let i = 0; i < iterations + warmup; i++) operation();
-  return { totalMs: iterations, stats: { count: samples }, timings: Array(samples).fill(iterations / samples) };
+  let now = 0n;
+  return runSampledBench(operation, { iterations, samples, warmup }, { nowNs: () => {
+    const current = now; now += 1000000n; return current;
+  } });
 };
 const packageIdentity = name => ({ name, version: 'explicit-fixture' });
 const input = { pattern: '(hit)\\s+\\w+', flags: 'g', input: 'hit first hit second', iterations: 3, warmup: 2, samples: 99 };
