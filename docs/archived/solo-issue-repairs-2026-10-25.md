@@ -1565,3 +1565,57 @@ explicitly unavailable here. Full format, corrected scoped ESLint, syntax,
 affected generated refresh, fixture discovery and staged diff checks passed.
 Functional execution and final gate remain deferred. Coverage is **35 fixed /
 409 implemented / 152 partial / 167 pending**.
+
+## Import extraction outcomes through graph publication and replay
+
+**#1662** (`4425ddabd`) introduces a shared source-qualified extraction receipt
+without changing public CLI/configuration or evaluating config code. YAML, TOML,
+Proto and XML preserve parser identity/readiness, declared static scope, parser
+failure/rejection, collector budgets and parser-owned limits. Valid partial empty,
+unavailable, invalid, unsupported and cancelled outcomes remain distinct. Existing
+array consumers retain the receipt privately without a second parse or source
+retention; legacy arrays are explicitly unqualified. Parser metadata versions
+are identity inputs, not activation/native qualification.
+
+Normalization and the unchanged 512 distinct-import cap compose exact local
+duplicate/invalid/omitted accounting. Unknown producer omissions and visited
+source extent remain null. UTF-16LE source and retained-entry hashes bind each
+receipt, including literal provenance and collector hints. Idempotent projection
+retains prior loss. The file receipt binds stored imports; independent scan
+qualification can describe a larger vector without certifying a capped bundle.
+
+The actual registry, scan, post-scan, resolver and file-relation owners carry
+failures even with no candidate specifier. Empty failure never creates an edge
+or bypasses graph node admission. File summaries remain separate from resolver
+warnings/taxonomy, including deterministic bounded samples, file-state totals,
+SQL usage qualification and explicit sample/reason omissions. JSON, sharded
+graph/file publication, graph loading and byte measurement retain the metadata.
+Strict artifact admission checks binding and aggregate arithmetic. Existing
+graph fidelity warnings expose incomplete import/SQL usage extraction.
+
+Incremental reuse requires a matching array, source-bound receipt, identified
+available parser, existing fingerprint and explicit qualification policy.
+Successful static subsets can retain their partial qualification; degraded,
+failed, capped, cancelled, unknown-parser and legacy outcomes refresh. Actual
+parser package versions and Node join import fingerprints; code parse identities
+include extraction runtime identity. Shared **importResolution 18** and
+**graphRelations 2** fence historical meaning. Known filesystem read failures
+produce unavailable file evidence only after settlement; programming defects
+and pending/unreadable resource owners still throw. No cache is cleared.
+
+Two authored fixtures cover one-parse negative/empty production handoff,
+parser/budget/cancellation variants, fake-clock expiry, exact 513/512 projection,
+duplicate-only input, mutated source/entry/provenance, artifact rejection, real
+JSON/sharded round trips, zero-edge graph summaries, qualified empty replay,
+capability recovery and pending-resource/programming-error propagation. Existing
+literal-identity assertions remain, with fresh rescanning required for legacy
+unqualified cache rows. No assertion/script coverage was removed.
+
+Full format/ESLint, syntax on all 33 changed JavaScript files, affected generated
+refresh/freshness, discovery of both new fixtures and staged diff checks passed.
+The repeated-surface CLI invocation was rejected, then each freshness check
+passed individually. **Functional fixtures and the final front gate have not
+run**, per the implementation-first instruction. No current-head runtime, native,
+performance or CI acceptance is claimed. #1719 retains its separate lexical
+quote/scope/catalog remainder. Coverage is **35 fixed / 410 implemented / 152
+partial / 166 pending**; all 763 issue IDs remain mapped exactly once.

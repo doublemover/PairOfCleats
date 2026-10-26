@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "8916a5e3c",
+  "sourceHead": "4425ddabd",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 409,
+    "implemented": 410,
     "partial": 152,
-    "pending": 167
+    "pending": 166
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -579,6 +579,7 @@
       1648,
       1649,
       1658,
+      1662,
       1668,
       1669,
       1670,
@@ -882,7 +883,6 @@
       1659,
       1660,
       1661,
-      1662,
       1663,
       1664,
       1665,
@@ -5876,8 +5876,10 @@
       "number": 1662,
       "title": "[P2] Preserve import extraction coverage through graph admission and incremental reuse",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "4425ddabd",
+      "validation": "deferred"
     },
     {
       "number": 1663,
@@ -6203,7 +6205,7 @@
       "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
       "implementation": "8916a5e3c",
       "validation": "deferred",
-      "remaining": "Shared extraction-coverage handoff and graph summaries under #1662; full SQL lexical quote/scope/catalog qualification remains explicit."
+      "remaining": "Full SQL lexical quote/scope/catalog qualification remains explicit; shared extraction handoff/graph summaries are implemented by #1662 (4425ddabd), awaiting runtime validation."
     },
     {
       "number": 1720,
