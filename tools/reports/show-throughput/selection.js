@@ -1,3 +1,4 @@
+import { classifyThroughputInput } from './result-contract.js';
 const normalize = value => String(value || '').trim().toLowerCase();
 export const matchesRepoFilter = (run, value) => {
   const filter = normalize(value);
@@ -11,6 +12,6 @@ export const compareReportRunTime = (left, right) => {
 /** Latest N is per folder, after repository admission. Missing dates sort first;
  * equal/missing dates use the stable source filename as their tie breaker. */
 export const selectThroughputRunInputs = (rows, { repoFilter = null, latestCount = null } = {}) => {
-  const selected = rows.filter(row => row.payload && matchesRepoFilter(row, repoFilter)).sort(compareReportRunTime);
+  const selected = rows.filter(row => (row.inputKind === 'supported-run' || classifyThroughputInput(row.payload) === 'supported-run') && matchesRepoFilter(row, repoFilter)).sort(compareReportRunTime);
   return latestCount ? selected.slice(-latestCount) : selected;
 };

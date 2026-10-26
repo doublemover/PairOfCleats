@@ -2,10 +2,10 @@ import assert from 'node:assert/strict';
 import { selectThroughputRunInputs } from '../../../tools/reports/show-throughput/selection.js';
 import { compareLedgerRegressions } from '../../../tools/reports/show-throughput/analysis.js';
 const inputs = [
-  { file: 'a.json', repoIdentity: 'target', generatedAtMs: 300, payload: {} },
-  { file: 'z.json', repoIdentity: 'target', generatedAtMs: 100, payload: {} },
-  { file: 'other.json', repoIdentity: 'other', generatedAtMs: 500, payload: {} },
-  { file: 'unknown.json', repoIdentity: 'target', generatedAtMs: null, payload: {} }
+  { file: 'a.json', repoIdentity: 'target', generatedAtMs: 300, payload: { summary: { queries: 0 } } },
+  { file: 'z.json', repoIdentity: 'target', generatedAtMs: 100, payload: { summary: { queries: 0 } } },
+  { file: 'other.json', repoIdentity: 'other', generatedAtMs: 500, payload: { summary: { queries: 0 } } },
+  { file: 'unknown.json', repoIdentity: 'target', generatedAtMs: null, payload: { summary: { queries: 0 } } }
 ];
 assert.deepEqual(selectThroughputRunInputs(inputs, { repoFilter: 'target', latestCount: 1 }).map(row => row.file), ['a.json']);
 assert.deepEqual(selectThroughputRunInputs(inputs, { repoFilter: 'target' }).map(row => row.file), ['unknown.json', 'z.json', 'a.json']);

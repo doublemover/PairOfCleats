@@ -52,6 +52,9 @@ The [A/B sweep admission contract](../contracts/benchmark-sweep-admission.md)
 defines completed-work and knob-consumption evidence, the version 2 objective,
 immutable raw reports and bounded invocation storage. Unqualified variants remain
 visible and cannot produce a recommendation.
+The [throughput input contract](../contracts/throughput-result-admission.md)
+defines supported result envelopes, bounded selection, partial cohorts and the
+complete input receipts required before report comparisons.
 
 The complete previous guide, including original usage tables and dated repair
 narratives, remains in [the historical snapshot](../archived/benchmarks-overview-2026-10-22.md).

@@ -1250,3 +1250,4 @@ shared/subprocess/sync-capture-receipt
 indexing/artifacts/scan-profile-observation-scope
 tooling/reports/bench-language-diagnostic-occurrence-replay
 tooling/reports/bench-language-confidence-missingness
+tooling/reports/throughput-input-admission

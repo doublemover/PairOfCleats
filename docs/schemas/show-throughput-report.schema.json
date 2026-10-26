@@ -5,6 +5,7 @@
   "type": "object",
   "required": [
     "schemaVersion",
+    "inputAdmission",
     "generatedAt",
     "profile",
     "root",
@@ -13,21 +14,36 @@
     "distributions",
     "outcomes",
     "provenance",
+    "ciSummary",
     "topRegressions",
     "topVariability",
     "folders"
   ],
   "properties": {
-    "schemaVersion": { "type": "integer", "const": 1 },
+    "schemaVersion": { "type": "integer", "const": 2 },
+    "inputAdmission": {
+      "type": "object",
+      "required": ["version", "scope", "state", "complete", "cancelled", "inventoryComplete", "discovered", "selected", "admitted", "processed", "failures", "excluded", "budget", "folders"],
+      "properties": {
+        "version": { "const": 1 }, "scope": { "const": "selected-result-file-cohort" }, "state": { "enum": ["complete", "empty", "partial"] },
+        "complete": { "type": "boolean" }, "cancelled": { "type": "boolean" }, "inventoryComplete": { "type": "boolean" },
+        "discovered": { "type": "integer", "minimum": 0 }, "selected": { "type": "integer", "minimum": 0 },
+        "admitted": { "type": "integer", "minimum": 0 }, "processed": { "type": "integer", "minimum": 0 },
+        "failures": { "type": "integer", "minimum": 0 }, "excluded": { "type": "integer", "minimum": 0 },
+        "budget": { "type": "object" }, "folders": { "type": "array", "items": { "type": "object" } }
+      }, "additionalProperties": false
+    },
     "generatedAt": { "type": "string", "format": "date-time" },
     "profile": { "type": "string", "enum": ["overview", "compare", "repo", "family", "raw"] },
     "root": { "type": "string", "minLength": 1 },
     "compareRoot": { "type": ["string", "null"] },
     "comparison": {
       "type": "object",
-      "required": ["schemaVersion", "mode", "currentRoot", "baselineRoot", "rows"],
+      "required": ["schemaVersion", "state", "reason", "mode", "currentRoot", "baselineRoot", "rows"],
       "properties": {
-        "schemaVersion": { "const": 1 },
+        "schemaVersion": { "const": 2 },
+        "state": { "enum": ["comparable-inputs", "incomparable"] },
+        "reason": { "type": ["string", "null"] },
         "mode": { "enum": ["code", "prose", "extracted-prose", "records"] },
         "currentRoot": { "type": "string" },
         "baselineRoot": { "type": "string" },

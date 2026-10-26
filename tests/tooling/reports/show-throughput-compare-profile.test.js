@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { THROUGHPUT_COMPARISON_VERSION } from '../../../tools/reports/show-throughput/result-contract.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import {
@@ -40,7 +41,8 @@ try {
   const json = runShowThroughputReport([...compareArgs, '--json']);
   assert.equal(json.status, 0, json.stderr || json.stdout);
   const comparison = JSON.parse(json.stdout).comparison;
-  assert.equal(comparison.schemaVersion, 1);
+  assert.equal(comparison.schemaVersion, THROUGHPUT_COMPARISON_VERSION);
+  assert.equal(comparison.state, 'comparable-inputs');
   assert.equal(comparison.rows[0].currentChunks, 50);
   assert.equal(comparison.rows[0].baselineChunks, 25);
   assert.equal(comparison.rows[0].deltaChunksPct, 1);

@@ -1,8 +1,10 @@
 #!/usr/bin/env node
+import { observeStorageResource } from '../../src/shared/storage/failure-observation.js';
+import { createThroughputInputSession } from './show-throughput/result-input.js';
+import { THROUGHPUT_REPORT_VERSION, THROUGHPUT_COMPARISON_VERSION, admitThroughputReport, admitThroughputBaselineChild } from './show-throughput/result-contract.js';
+import { spawnSubprocessSync } from '../../src/shared/subprocess/runner.js';
 import { resolveRecordedMeasurementInputs } from '../bench/language/metrics/recorded-evidence.js';
-import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { color } from '../../src/retrieval/cli/ansi.js';
 import {
   THROUGHPUT_LEDGER_DIFF_SCHEMA_VERSION,
@@ -49,7 +51,7 @@ import {
   compareLedgerRegressions,
   collectRunLedgerRegressions
 } from './show-throughput/analysis.js';
-import { compareReportRunTime, matchesRepoFilter, selectThroughputRunInputs } from './show-throughput/selection.js';
+import { compareReportRunTime, matchesRepoFilter } from './show-throughput/selection.js';
 import {
   formatNumber,
   formatCount,
@@ -125,10 +127,6 @@ const folders = listResultFolders(resultsRoot, { includeUsrGuardrails })
   .filter((dir) => (
     !folderNameFilter || String(dir.name || '').toLowerCase().includes(folderNameFilter)
   ));
-if (!folders.length) {
-  console.error('No benchmark results folders found.');
-  process.exit(0);
-}
 
 /**
  * Cross-run throughput totals grouped by modality; each bucket stores raw
@@ -581,11 +579,9 @@ if (refreshJson && shouldRenderTextOverview) {
   console.log(color.gray(`Refresh mode: writing benchmark JSON summaries (${depthLabel}).`));
 }
 
+const inputSession = createThroughputInputSession({ listenForSignals: true });
 for (const dir of folders) {
   const folderPath = path.join(resultsRoot, dir.name);
-  const files = fs.readdirSync(folderPath)
-    .filter((name) => name.endsWith('.json'))
-    .sort((left, right) => left.localeCompare(right));
   /** @type {ThroughputRunRecord[]} */
   const runs = [];
   const throughputs = [];
@@ -597,13 +593,8 @@ for (const dir of folders) {
   const outcomeRepoKeysFolder = new Set();
   const riskScanTotalsFolder = createRiskScanAggregate();
 
-  const admitted = selectThroughputRunInputs(files.map(file => {
-    const payload = loadJson(path.join(folderPath, file));
-    return { file, payload, repoIdentity: resolveRepoIdentity({ payload, file }),
-      repoHistoryKey: resolveRepoHistoryKey({ payload, file }),
-      generatedAtMs: Date.parse(payload?.generatedAt || payload?.summary?.generatedAt || '') };
-  }), { repoFilter, latestCount });
-  for (const { file, payload } of admitted) {
+  for await (const { file, payload } of inputSession.folder(folderPath, { repoFilter, latestCount })) {
+    if (!await inputSession.checkpoint()) break;
     const resultPath = path.join(folderPath, file);
     const summary = payload.summary || payload.runs?.[0] || null;
     const throughput = payload.artifacts?.throughput || {};
@@ -617,12 +608,14 @@ for (const dir of folders) {
       payload,
       featureMetrics, measurementEvidence
     });
+    if (!await inputSession.checkpoint()) break;
     const { analysis, provenance: analysisProvenance } = resolveBenchAnalysis({
       payload,
       featureMetrics: resolvedFeatureMetrics,
       indexingSummary,
       deepAnalysis
     });
+    if (!await inputSession.checkpoint()) break;
     const { throughputLedger, provenance: throughputLedgerProvenance } = resolveThroughputLedger({
       payload,
       indexingSummary, measurementEvidence
@@ -651,6 +644,7 @@ for (const dir of folders) {
       generatedAtMs: Number.isFinite(generatedAtMs) ? generatedAtMs : null,
       riskScanSummary
     });
+    inputSession.processed(resultPath);
     addRiskScanAggregate(riskScanTotalsFolder, riskScanSummary);
     addRiskScanAggregate(riskScanTotalsGlobal, riskScanSummary);
     recordSectionProvenance(provenanceTotalsFolder, 'indexing', indexingProvenance);
@@ -742,7 +736,9 @@ for (const dir of folders) {
 
   if (!runs.length) {
     if (shouldRenderTextOverview) {
-      console.log(color.gray('  No benchmark JSON files found.'));
+      const inventory = inputSession.lastInventoryStatus();
+      console.log(color.gray(!inventory.complete ? '  JSON inventory incomplete; use --json for admission details.'
+        : inventory.discovered ? '  No selected benchmark runs admitted; use --json for admission details.' : '  No benchmark JSON files discovered.'));
     }
     continue;
   }
@@ -1499,8 +1495,13 @@ if (shouldRenderTextOverview) {
   );
 }
 
+const inputAdmission = inputSession.snapshot();
+inputSession.close();
+if (!inputAdmission.complete) process.exitCode = 1;
+if (shouldRenderTextOverview && !inputAdmission.complete) console.log(color.yellow(`Input cohort partial: ${inputAdmission.processed}/${inputAdmission.discovered} processed; ${inputAdmission.failures} failed inputs.`));
 const outputSummary = {
-  schemaVersion: 1,
+  schemaVersion: THROUGHPUT_REPORT_VERSION,
+  inputAdmission,
   generatedAt: new Date().toISOString(),
   profile,
   root: resultsRoot,
@@ -1646,7 +1647,12 @@ const buildComparison = () => {
   if (!compareRoot) {
     throw new Error('--compare is required when --profile compare is used');
   }
-  const compareResult = spawnSync(
+  const empty = reason => { process.exitCode = 1; return { schemaVersion: THROUGHPUT_COMPARISON_VERSION, state: 'incomparable', reason,
+    mode: modeFilter || 'code', currentRoot: resultsRoot, baselineRoot: compareRoot, rows: [] }; };
+  const currentAdmission = admitThroughputReport(outputSummary);
+  if (!currentAdmission.ok) return empty(currentAdmission.reason);
+  let compareResult;
+  try { compareResult = spawnSubprocessSync(
     process.execPath,
     [
       process.argv[1],
@@ -1661,14 +1667,17 @@ const buildComparison = () => {
     ],
     {
       cwd: process.cwd(),
-      encoding: 'utf8',
-      env: process.env
+      outputMode: 'string', maxOutputBytes: 32 * 1024 * 1024, captureStdout: true, captureStderr: true,
+      rejectOnNonZeroExit: false, env: process.env
     }
-  );
-  if (compareResult.status !== 0) {
-    throw new Error(compareResult.stderr || compareResult.stdout || 'compare profile failed');
+  ); } catch (error) {
+    observeStorageResource(error, { phase: 'throughput-baseline-child' }).requireSettled();
+    return empty('baseline-child-failed');
   }
-  const baseline = JSON.parse(String(compareResult.stdout || '{}'));
+  const baselineAdmission = admitThroughputBaselineChild(compareResult);
+  if (!baselineAdmission.ok) return empty(baselineAdmission.reason);
+  if (baselineAdmission.empty || currentAdmission.empty) return empty('no-selected-runs');
+  const baseline = baselineAdmission.report;
   const currentFolders = new Map(outputSummary.folders.map((entry) => [entry.folder, entry]));
   const baselineFolders = new Map((baseline.folders || []).map((entry) => [entry.folder, entry]));
   const rows = [];
@@ -1689,7 +1698,7 @@ const buildComparison = () => {
         : null
     });
   }
-  return { schemaVersion: 1, mode: modeFilter || 'code', currentRoot: resultsRoot, baselineRoot: compareRoot,
+  return { schemaVersion: THROUGHPUT_COMPARISON_VERSION, state: 'comparable-inputs', reason: null, mode: modeFilter || 'code', currentRoot: resultsRoot, baselineRoot: compareRoot,
     rows: sortRows(rows.map((entry) => ({
       ...entry,
       label: entry.folder,

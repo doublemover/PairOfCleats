@@ -1,12 +1,11 @@
 #!/usr/bin/env node
+import { createThroughputInputSession } from './show-throughput/result-input.js';
 import { resolveRecordedMeasurementInputs } from '../bench/language/metrics/recorded-evidence.js';
-import fs from 'node:fs';
 import path from 'node:path';
 import { writeJsonFileSyncResolved } from '../../src/shared/json-file.js';
 import { color } from '../../src/retrieval/cli/ansi.js';
 import {
-  listResultFolders,
-  loadJson
+  listResultFolders
 } from './show-throughput/load.js';
 import {
   resolveThroughputMaterializeOptions,
@@ -52,33 +51,32 @@ console.error(color.bold(color.cyan('Materialize Throughput Artifacts')));
 console.error(color.gray(`Root: ${resultsRoot}`));
 console.error(color.gray(`Deep analysis: ${deepAnalysis ? 'enabled' : 'disabled'}`));
 
+const inputSession = createThroughputInputSession({ listenForSignals: true });
 for (const dir of folders) {
   const folderPath = path.join(resultsRoot, dir.name);
-  const files = fs.readdirSync(folderPath)
-    .filter((name) => name.endsWith('.json'))
-    .sort((left, right) => left.localeCompare(right));
-
-  for (const file of files) {
+  for await (const { file, payload } of inputSession.folder(folderPath)) {
+    if (!await inputSession.checkpoint()) break;
     const resultPath = path.join(folderPath, file);
-    const payload = loadJson(resultPath);
-    if (!payload) continue;
     const measurementEvidence = resolveRecordedMeasurementInputs({ payload, sourceRoot: folderPath });
     const featureMetrics = measurementEvidence.featureMetrics;
     const indexingResult = materializeIndexingSummary({
       payload,
       featureMetrics, measurementEvidence
     });
+    if (!await inputSession.checkpoint()) break;
     const analysisResult = materializeBenchAnalysis({
       payload,
       featureMetrics: indexingResult.featureMetrics,
       indexingSummary: indexingResult.indexingSummary,
       deepAnalysis
     });
+    if (!await inputSession.checkpoint()) break;
     const throughputLedgerResult = materializeThroughputLedger({
       payload,
       indexingSummary: indexingResult.indexingSummary, measurementEvidence
     });
 
+    inputSession.processed(resultPath);
     const dirty = Boolean(indexingResult.changed || analysisResult.changed || throughputLedgerResult.changed);
     if (!dirty) continue;
 
@@ -106,7 +104,14 @@ for (const dir of folders) {
   }
 }
 
+const inputAdmission = inputSession.snapshot();
+inputSession.close();
+if (!inputAdmission.complete) process.exitCode = 1;
 console.error('');
+console.error(`Input admission: ${inputAdmission.state}; discovered=${inputAdmission.discovered}, selected=${inputAdmission.selected}, processed=${inputAdmission.processed}, failures=${inputAdmission.failures}.`);
+for (const folder of inputAdmission.folders) for (const file of folder.files) {
+  if (!['supported-run', 'recognized-non-run'].includes(file.state)) console.error(`  input ${file.state}: ${file.path} (${file.cause?.code || 'unknown'})`);
+}
 console.error(color.bold(color.green('Materialization Summary')));
 console.error(`  files written: ${changedFiles}`);
 console.error(`  indexing backfills: ${changedSections.indexing}`);
