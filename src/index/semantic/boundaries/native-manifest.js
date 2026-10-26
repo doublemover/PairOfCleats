@@ -1,26 +1,44 @@
-import { canonicalSemanticJson, semanticHash } from '../identity.js';
+import { canonicalSemanticJson } from '../identity.js';
 import { validateSemanticEnvelope } from '../../../contracts/validators/semantic-envelopes.js';
+import { createHash } from 'node:crypto';
+import { describeStorageFailure } from '../../../shared/storage/failure-observation.js';
 
 const text = value => typeof value === 'string' && value.length > 0 && value.length <= 4096;
 const hash = value => typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
-const invalid = message => { throw Object.assign(new TypeError(message), { code: 'ERR_NATIVE_BRIDGE_MANIFEST' }); };
-const same = (left, right) => canonicalSemanticJson(left) === canonicalSemanticJson(right);
+const invalid = (message, cause) => { throw Object.assign(new TypeError(message, { cause }), { code: 'ERR_NATIVE_BRIDGE_MANIFEST' }); };
+const same = (left, right, maxBytes) => canonicalSemanticJson(left, { maxBytes }) === canonicalSemanticJson(right, { maxBytes });
 const fields = (value, names) => value && typeof value === 'object' && !Array.isArray(value)
   && Object.keys(value).length === names.length && names.every(name => Object.hasOwn(value, name));
 const freeze = value => {
-  if (value && typeof value === 'object') { for (const child of Object.values(value)) freeze(child); Object.freeze(value); }
+  const pending = [value];
+  while (pending.length) {
+    const item = pending.pop();
+    if (!item || typeof item !== 'object' || Object.isFrozen(item)) continue;
+    for (const child of Object.values(item)) if (child && typeof child === 'object') pending.push(child);
+    Object.freeze(item);
+  }
   return value;
 };
 
 /** Strict data-only descriptor intake. No import, debugger, binary loading or producer execution. */
 export const admitNativeBridgeManifest = ({ manifest, expectedWorld, expectedRuntime, artifacts,
   supportedLayouts, maxBytes = 4 * 1024 * 1024 }) => {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1) invalid('Native manifest byte allowance must be a positive safe integer.');
+  let encoded;
+  try { encoded = canonicalSemanticJson(manifest, { maxBytes }); }
+  catch (error) {
+    if (describeStorageFailure(error, { phase: 'native-manifest-byte-admission' }).code === 'ERR_SEMANTIC_JSON_BUDGET') throw error;
+    invalid('Native bridge manifest requires passive bounded JSON.', error);
+  }
+  // One admitted representation owns containers before field validation. Shared
+  // caller arrays count at every logical occurrence; no unbounded clone follows.
+  manifest = JSON.parse(encoded);
   const names = ['schemaVersion', 'world', 'runtime', 'producer', 'observation', 'binaries', 'bindings', 'coverage'];
   if (!fields(manifest, names) || manifest.schemaVersion !== 1) invalid('Unsupported or extended native bridge manifest.');
   if (!manifest.world || !validateSemanticEnvelope('generation', manifest.world.generation).ok
-    || !same(manifest.world, expectedWorld)) invalid('Stale native bridge source/build identity.');
+    || !same(manifest.world, expectedWorld, maxBytes)) invalid('Stale native bridge source/build identity.');
   if (!fields(manifest.runtime, ['implementation', 'version', 'abi', 'layoutProfile', 'os', 'architecture'])
-    || Object.values(manifest.runtime).some(value => !text(value)) || !same(manifest.runtime, expectedRuntime)) {
+    || Object.values(manifest.runtime).some(value => !text(value)) || !same(manifest.runtime, expectedRuntime, maxBytes)) {
     invalid('Native bridge runtime/ABI/target mismatch.');
   }
   if (!fields(manifest.producer, ['id', 'version', 'optionsHash']) || !text(manifest.producer.id)
@@ -64,11 +82,9 @@ export const admitNativeBridgeManifest = ({ manifest, expectedWorld, expectedRun
     if (!Array.isArray(manifest.coverage[name]) || manifest.coverage[name].length > 4096
       || manifest.coverage[name].some(value => !text(value))) invalid('Invalid native coverage inventory.');
   }
-  if (!Number.isSafeInteger(maxBytes) || maxBytes < 1
-    || Buffer.byteLength(canonicalSemanticJson(manifest)) > maxBytes) invalid('Native manifest byte allowance exceeded.');
   const layoutSupported = supportedLayouts.includes(manifest.runtime.layoutProfile);
-  return freeze({ manifestId: semanticHash('pairofcleats.native-bridge-manifest.v1', manifest),
-    manifest: structuredClone(manifest), layoutSupported,
+  return freeze({ manifestId: createHash('sha256').update('pairofcleats.native-bridge-manifest.v1\0', 'utf8').update(encoded, 'utf8').digest('hex'),
+    manifest, layoutSupported,
     claim: manifest.observation.mode === 'static-registration' ? 'registered-binding' : 'observed-binding',
     invocationEvidence: 'not-supplied', effectSummary: 'not-supplied',
     globalClosure: 'not-established', unsupported: layoutSupported ? [] : ['runtime-layout'] });
