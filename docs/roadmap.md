@@ -58,6 +58,8 @@ requires complete source-file cohorts before throughput comparisons.
 explicit empty/unavailable outcomes through saved packs and MCP references.
 #1677 now separates selected-mode query outcomes from nonempty frequency and
 service time from batch cost; remediation remains unaccepted inspection work.
+#1733 now uses admitted immutable SQLite benchmark snapshots and validates smoke
+output contents; larger workload profiles and repeated qualification remain open.
 #1675 now uses one global query resource plan and retirement-aware pools; whole
 process-tree RSS measurement remains open, with known-worker samples labeled.
 

@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "edb099f1c",
+  "sourceHead": "66b2cffa0",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
     "implemented": 432,
-    "partial": 153,
-    "pending": 150
+    "partial": 154,
+    "pending": 149
   },
   "priorOpen": 1177,
   "currentOpen": 770,
@@ -781,7 +781,8 @@
       1574,
       1663,
       1675,
-      1719
+      1719,
+      1733
     ],
     "pending": [
       131,
@@ -925,7 +926,6 @@
       1728,
       1731,
       1732,
-      1733,
       1735,
       1738,
       1739,
@@ -6411,8 +6411,11 @@
       "number": 1733,
       "title": "[P2] Build current admitted SQLite benchmark fixtures before comparing bundle and incremental throughput",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "partial",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "66b2cffa0",
+      "validation": "deferred",
+      "remaining": "Qualification workload profiles, changed/new/deleted/shrink/grow/repeated cases, observed threshold/batch coverage and alternating repeated trials with lifecycle/cache scope."
     },
     {
       "number": 1734,

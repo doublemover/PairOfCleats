@@ -2539,3 +2539,46 @@ fixture, gate, native or performance campaign ran in this implementation wave.
 Current coverage: **35 fixed / 432 implemented / 153 partial / 150 pending**
 across 770 open reports. These are source implementations awaiting qualification;
 no issue closure or new closing reference is inferred.
+
+
+### #1733 SQLite fixture admission and smoke correctness
+
+`66b2cffa0` repairs both executable fixture boundaries. The shared factory uses
+the canonical artifact surface version and immutable snapshot writer, retaining
+complete selected inventories and exact generated-source hash/size/dependency
+metadata. Chunk offsets now correspond to their generated source lines. Updated
+manifests preserve top-level identity and publish a complete replacement snapshot;
+old selected snapshots remain immutable. The obsolete named-bundle helper had
+only the factory/update callers, both now replaced by the canonical publisher.
+No production format, checksum, source, path, capability or change-ratio gate is
+relaxed. Nonpositive/noninteger CLI sizes fail explicitly; the one-file update
+smoke requires at least three files to fit the existing production ratio.
+
+Each invocation uses a unique directory under the existing development artifact
+owner, removing the former shared-root recursive reset. Validation runs outside
+build/update timing and compares stored chunk contents, resolved posting tokens
+and frequencies, document lengths, file manifest, FTS retrieval and applicable
+sealed filter facts against admitted snapshots. Missing filter seals retain
+explicit unavailable/fallback scope rather than being rebuilt outside timing.
+The sparse-only workload checks absent dense/phrase/chargram work as zero.
+Expected row mutations and baseline/current content parity precede any smoke
+delta. Observed source/bundle bytes, files/chunks/postings, lane scope and stable
+content identity are printed. Single fixed-order trials are labeled smoke and
+sustained performance remains unqualified.
+
+A real production build/update fixture covers exact format/snapshot admission,
+independent synthetic source/hash/offset witnesses, original snapshot retention,
+expected mutations/unchanged content and deliberate posting corruption rejection.
+Six separately bounded CLI cases cover both entry points in baseline/current/
+compare modes. All seven cases join ci-lite, now 1,262 entries. Functional
+execution remains deferred. Full format/ESLint, six changed JavaScript syntax
+checks, cases JSON parsing, affected generated refresh/freshness, discovery and
+diff checks passed. The following bookkeeping edits do not change that JS tree.
+
+#1733 remains partial: qualification profiles still need independently varied
+changed/new/deleted/shrinking/growing/repeated work, observed threshold/batch
+coverage and repeated alternating independent trials with lifecycle timing and
+explicit cache conditions. The fixture admission repair is source-complete;
+these additional harness features and representative execution remain open.
+Current coverage: **35 fixed / 432 implemented / 154 partial / 149 pending** across
+770 open reports. No accepted issue closure is inferred.
