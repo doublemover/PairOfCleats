@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { observeReleaseSource } from '../../../tools/release/source-revision.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { runNode } from '../../helpers/run-node.js';
@@ -14,7 +15,7 @@ const metadataPath = path.join(fixtureDir, 'metadata.json');
 const nodeSbomInput = path.join(fixtureDir, 'node-input.cyclonedx.json');
 const cargoSbomInput = path.join(fixtureDir, 'cargo-input.cyclonedx.json');
 const outsideOutDir = path.resolve(root, '..', `outside-release-trust-${process.pid}`);
-const releaseGitSha = '0123456789abcdef0123456789abcdef01234567';
+const releaseGitSha = observeReleaseSource(root);
 
 fs.mkdirSync(bundleDir, { recursive: true });
 const artifacts = [
@@ -26,6 +27,7 @@ fs.writeFileSync(path.join(bundleDir, 'release-artifacts.json'), `${JSON.stringi
   releaseVersion: '0.3.0',
   releaseTag: 'v0.3.0',
   gitSha: releaseGitSha,
+  observedSourceCommit: releaseGitSha,
   artifacts
 }, null, 2)}\n`);
 fs.writeFileSync(
@@ -101,4 +103,12 @@ assert.match(
 );
 assert.equal(fs.existsSync(outsideOutDir), false, 'expected trust command not to create outside output directory');
 
+const originalManifest = JSON.parse(fs.readFileSync(path.join(bundleDir, 'release-artifacts.json'), 'utf8'));
+fs.writeFileSync(path.join(bundleDir, 'release-artifacts.json'), JSON.stringify({ ...originalManifest, observedSourceCommit: 'f'.repeat(40) }));
+const mismatched = runNode([scriptPath, '--bundle-dir', bundleDir, '--metadata', metadataPath,
+  '--out-dir', path.join(fixtureDir, 'mismatched'), '--node-sbom-input', nodeSbomInput, '--cargo-sbom-input', cargoSbomInput],
+'reject cross-revision bundle trust', root, process.env, { stdio: 'pipe', encoding: 'utf8', allowFailure: true });
+assert.notEqual(mismatched.status, 0);
+assert.match(mismatched.stderr, /observed source commit differs/);
+assert.equal(fs.existsSync(path.join(fixtureDir, 'mismatched', 'trust-manifest.json')), false);
 console.log('release trust materials test passed');

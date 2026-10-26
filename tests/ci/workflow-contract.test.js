@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { releaseWorkflowSourceErrors } from '../../tools/release/source-revision.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -131,11 +132,7 @@ const assertReleaseTagTriggerPresent = ({ workflowText, label }) => {
 
 const assertReleaseWorkflowStructure = ({ workflowText, label }) => {
   workflowText = normalizeEol(workflowText);
-  const checkoutRefs = workflowText.match(/uses:\s*actions\/checkout@[^\s]+[\s\S]*?ref:\s*\$\{\{\s*github\.event_name == 'workflow_dispatch' && inputs\.tag \|\| github\.ref\s*\}\}/g) || [];
-  if (checkoutRefs.length < 9) {
-    console.error(`${label} must pin manual release checkouts to the requested tag ref in every checkout-based job.`);
-    process.exit(1);
-  }
+  assert.deepEqual(releaseWorkflowSourceErrors(parse(workflowText)), [], `${label} must use the prepared immutable source revision in every downstream checkout.`);
   if (!/workflow_dispatch:\s*\n\s*inputs:\s*\n\s*tag:\s*\n\s*description:[\s\S]*?required:\s*true/.test(workflowText)) {
     console.error(`${label} must require a tag for workflow_dispatch release promotions.`);
     process.exit(1);

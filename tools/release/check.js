@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import crypto from 'node:crypto';
+import { assertReleaseSource } from './source-revision.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -315,6 +316,7 @@ const collectManifestArtifacts = (steps) => {
  * @returns {void}
  */
 const main = () => {
+  const observedSourceCommit = assertReleaseSource(root, process.env.RELEASE_GIT_SHA || null);
   const startedAtMs = Date.now();
   const startedAt = toIso(startedAtMs);
   const steps = [];
@@ -466,7 +468,9 @@ const main = () => {
   const failedCount = steps.filter((step) => step.status === 'failed').length;
   const passedCount = steps.filter((step) => step.status === 'passed').length;
 
+  assertReleaseSource(root, observedSourceCommit);
   const report = {
+    observedSourceCommit,
     schemaVersion: 1,
     generatedAt: finishedAt,
     executionMode: dryRun ? 'simulated' : 'executed',
@@ -514,6 +518,7 @@ const main = () => {
   };
 
   const manifest = {
+    observedSourceCommit,
     schemaVersion: 1,
     generatedAt: finishedAt,
     reportPath: normalizePath(path.relative(root, reportPath)),

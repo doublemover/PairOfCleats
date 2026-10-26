@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
+import { assertReleaseSource, bindSbomSource, releaseSourceErrors } from './source-revision.js';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
 import { writeJsonFileSyncResolved } from '../../src/shared/json-file.js';
@@ -182,6 +183,11 @@ const run = async () => {
     checksumLines
   });
 
+  const observedSourceCommit = assertReleaseSource(root, metadata.gitSha || bundleManifest.gitSha);
+  const sourceErrors = [...releaseSourceErrors(bundleManifest.gitSha, observedSourceCommit),
+    ...releaseSourceErrors(bundleManifest.observedSourceCommit, observedSourceCommit)];
+  if (metadata.gitSha) sourceErrors.push(...releaseSourceErrors(metadata.gitSha, observedSourceCommit));
+  if (sourceErrors.length) throw new Error('release trust materials: ' + sourceErrors.join('; '));
   const nodeSbomPath = path.join(outDir, 'node-root.cyclonedx.json');
   const cargoSbomPath = path.join(outDir, 'tui.cyclonedx.json');
   if (nodeSbomInput) {
@@ -195,12 +201,16 @@ const run = async () => {
     await runCargoSbom(cargoSbomPath);
   }
 
+  assertReleaseSource(root, observedSourceCommit);
+  for (const file of [nodeSbomPath, cargoSbomPath]) writeJson(file, bindSbomSource(readJson(file), observedSourceCommit));
+
   const checksumBundle = {
     schemaVersion: 1,
     generatedAt: toIso(),
     releaseVersion: metadata.releaseVersion || bundleManifest.releaseVersion || null,
     releaseTag: metadata.releaseTag || bundleManifest.releaseTag || null,
-    sourceCommit: metadata.gitSha || bundleManifest.gitSha || process.env.GITHUB_SHA || null,
+    sourceCommit: observedSourceCommit,
+    observedSourceCommit,
     artifacts: bundleManifest.artifacts
   };
   const provenanceSummary = {
@@ -212,7 +222,8 @@ const run = async () => {
     runAttempt: String(process.env.GITHUB_RUN_ATTEMPT || '').trim() || null,
     repository: String(process.env.GITHUB_REPOSITORY || '').trim() || null,
     ref: String(process.env.GITHUB_REF || '').trim() || null,
-    sha: metadata.gitSha || bundleManifest.gitSha || String(process.env.GITHUB_SHA || '').trim() || null,
+    sha: observedSourceCommit,
+    observedSourceCommit,
     releaseTag: metadata.releaseTag || bundleManifest.releaseTag || null,
     subjects: [
       toPosixRelative(manifestPath),
@@ -222,6 +233,7 @@ const run = async () => {
     ]
   };
   const trustManifest = {
+    observedSourceCommit,
     schemaVersion: 1,
     generatedAt: toIso(),
     releaseVersion: checksumBundle.releaseVersion,

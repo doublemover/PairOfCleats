@@ -14,6 +14,7 @@ import {
 } from './file-walk.js';
 import { toIso } from './metadata-support.js';
 import { readPackageVersion } from './metadata-support.js';
+import { releaseSourceErrors, SBOM_SOURCE_PROPERTY } from './source-revision.js';
 import { qualifyReleaseReport } from './report-contract.js';
 
 const argv = createCli({
@@ -427,6 +428,14 @@ const validateTrustSbomFiles = ({ trustManifest, trustManifestShapeErrors }) => 
       });
       continue;
     }
+    const document = readJsonIfExists(resolution.path, 'trust.sboms', label);
+    const properties = document?.metadata?.properties;
+    const identities = Array.isArray(properties) ? properties.filter(property => property?.name === SBOM_SOURCE_PROPERTY) : [];
+    const sourceErrors = identities.length === 1 ? releaseSourceErrors(identities[0].value, releaseGitSha) : ['SBOM must record exactly one observed source commit'];
+    if (document?.bomFormat !== 'CycloneDX' || sourceErrors.length) {
+      result.invalidFiles.push({ id, path: resolution.relative, error: `${label}: ${sourceErrors.join('; ') || 'invalid CycloneDX document'}` });
+      continue;
+    }
     result.files.push(resolution.relative);
   }
   result.status = result.missingFiles.length === 0 && result.invalidFiles.length === 0
@@ -687,7 +696,7 @@ const assertReleaseReport = (label, filePath, payload) => {
     return { ok: false, path: filePath ? toPosixRelative(filePath) : null };
   }
   const shapeErrors = [...validateReleaseReportShape(payload), ...qualifyReleaseReport(payload,
-    { root, role: label, releaseVersion: readPackageVersion(root).version })];
+    { root, role: label, releaseVersion: readPackageVersion(root).version, releaseGitSha })];
   if (shapeErrors.length > 0) {
     addBlocker(
       `${label}.invalid-shape`,
@@ -802,7 +811,7 @@ const run = async () => {
         invalidJson: entry.invalidJson,
         invalidShape: !entry.invalidJson && entry.payload
           ? [...validateReleaseReportShape(entry.payload), ...qualifyReleaseReport(entry.payload,
-            { root, role: 'tuiVerify', releaseVersion: readPackageVersion(root).version })].length > 0
+            { root, role: 'tuiVerify', releaseVersion: readPackageVersion(root).version, releaseGitSha })].length > 0
           : false,
         ok: entry.payload?.ok === true,
         targetMismatch: false
@@ -982,6 +991,9 @@ const run = async () => {
       );
     }
   };
+  for (const [label, payload] of [['trust manifest', trustManifest], ['provenance summary', provenanceSummary], ['checksum bundle', checksumBundle]]) {
+    if (payload) validateTrustSha({ label: label + ' observed checkout', value: payload.observedSourceCommit });
+  }
   if (!hasInvalidJson('trust.provenanceSummary') && provenanceSummary) {
     validateTrustSha({ label: 'provenance summary', value: provenanceSummary.sha });
   }

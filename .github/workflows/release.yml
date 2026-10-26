@@ -109,7 +109,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          ref: ${{ needs.prepare.outputs.release_git_sha }}
 
       - name: Setup Node
         uses: actions/setup-node@v7
@@ -148,7 +148,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          ref: ${{ needs.prepare.outputs.release_git_sha }}
 
       - name: Setup Node
         uses: actions/setup-node@v7
@@ -188,7 +188,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          ref: ${{ needs.prepare.outputs.release_git_sha }}
 
       - name: Setup Node
         uses: actions/setup-node@v7
@@ -242,7 +242,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          ref: ${{ needs.prepare.outputs.release_git_sha }}
 
       - name: Setup Node
         uses: actions/setup-node@v7
@@ -297,7 +297,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          ref: ${{ needs.prepare.outputs.release_git_sha }}
 
       - name: Setup Node
         uses: actions/setup-node@v7
@@ -347,7 +347,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          ref: ${{ needs.prepare.outputs.release_git_sha }}
 
       - name: Setup Node
         uses: actions/setup-node@v7
@@ -465,12 +465,12 @@ jobs:
   trust-materials:
     name: trust-materials
     runs-on: ubuntu-latest
-    needs: release-bundle
+    needs: [prepare, release-bundle]
     steps:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          ref: ${{ needs.prepare.outputs.release_git_sha }}
 
       - name: Setup Node
         uses: actions/setup-node@v7
@@ -608,7 +608,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          ref: ${{ needs.prepare.outputs.release_git_sha }}
 
       - name: Setup Node
         uses: actions/setup-node@v7

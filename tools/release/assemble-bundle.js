@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import crypto from 'node:crypto';
+import { assertReleaseSource, releaseSourceErrors } from './source-revision.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createCli } from '../../src/shared/cli.js';
@@ -60,6 +61,14 @@ const run = async () => {
     ? JSON.parse(fs.readFileSync(metadataPath, 'utf8'))
     : null;
 
+  const observedSourceCommit = assertReleaseSource(root, metadata?.gitSha || null);
+  for (const reportPath of releaseFiles.filter(file => path.basename(file) === 'release_check_report.json')) {
+    const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+    const errors = releaseSourceErrors(report.observedSourceCommit, observedSourceCommit);
+    if (report.executionMode !== 'executed' || report.dryRun === true) errors.push('report must contain executed release evidence');
+    if (errors.length) throw new Error(`release bundle: ${toPosixRelative(root, reportPath)}: ${errors.join('; ')}`);
+  }
+
   const artifacts = releaseFiles.map((filePath) => {
     const stat = fs.statSync(filePath);
     return {
@@ -69,7 +78,9 @@ const run = async () => {
     };
   });
 
+  assertReleaseSource(root, observedSourceCommit);
   const bundleManifest = {
+    observedSourceCommit,
     schemaVersion: 1,
     generatedAt: new Date().toISOString(),
     root: root.replace(/\\/g, '/'),

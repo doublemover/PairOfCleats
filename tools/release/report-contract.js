@@ -1,3 +1,4 @@
+import { releaseSourceErrors } from './source-revision.js';
 import { getReleaseCheckSurfaceSteps, loadShippedSurfaces } from './surfaces.js';
 
 export const RELEASE_REPORT_ROLES = Object.freeze({
@@ -17,8 +18,8 @@ export const expectedReleaseChecks = (root, role) => {
 
 /** Scope is supplied by the consuming gate, never inferred from self-declared
  * requiredChecks. Dry-run reports remain useful plans, never execution evidence. */
-export const qualifyReleaseReport = (payload, { root, role, releaseVersion = null } = {}) => {
-  const errors = [];
+export const qualifyReleaseReport = (payload, { root, role, releaseVersion = null, releaseGitSha = null } = {}) => {
+  const errors = releaseSourceErrors(payload?.observedSourceCommit, releaseGitSha);
   if (payload?.executionMode !== 'executed' || payload?.dryRun === true) errors.push('release evidence must be executed, not simulated');
   if (releaseVersion && payload?.releaseVersion !== releaseVersion) errors.push(`releaseVersion must match ${releaseVersion}`);
   const rows = Array.isArray(payload?.checks) ? payload.checks : [];

@@ -30,6 +30,7 @@ const createSingleReleaseReport = (root, {
   durationMs: 0,
   root: root.replace(/\\/g, '/'),
   releaseVersion: readPackageVersion(root).version,
+  observedSourceCommit: '0123456789abcdef0123456789abcdef01234567',
   executionMode: 'executed',
   scope: {
     surfaces: null,
@@ -97,6 +98,7 @@ const createTuiReleaseReport = (root, target, overrides = {}) => createReleaseRe
 });
 
 const createTrustManifest = () => ({
+  observedSourceCommit: '0123456789abcdef0123456789abcdef01234567',
   schemaVersion: 1,
   generatedAt: '2026-05-21T18:31:24Z',
   releaseVersion: '0.3.0',
@@ -115,6 +117,7 @@ const createChecksumBundle = (sourceCommit = '0123456789abcdef0123456789abcdef01
   releaseVersion: '0.3.0',
   releaseTag: 'v0.3.0',
   sourceCommit,
+  observedSourceCommit: sourceCommit,
   artifacts: [
     { path: 'dist/vscode/pairofcleats.vsix', sizeBytes: 10, sha256: 'a'.repeat(64) },
     { path: 'dist/sublime/PairOfCleats.sublime-package', sizeBytes: 20, sha256: 'b'.repeat(64) }
@@ -131,6 +134,7 @@ const createProvenanceSummary = (sha = '0123456789abcdef0123456789abcdef01234567
   repository: 'owner/repo',
   ref: 'refs/tags/v0.3.0',
   sha,
+  observedSourceCommit: sha,
   releaseTag: 'v0.3.0',
   subjects: [
     'dist/release/bundle/release-artifacts.json',
@@ -234,11 +238,13 @@ const writeTrustMaterials = (rootDir, {
     writeJson(path.join(rootDir, 'node-root.cyclonedx.json'), {
       bomFormat: 'CycloneDX',
       specVersion: '1.5',
+      metadata: { properties: [{ name: 'pairofcleats:observedSourceCommit', value: sourceCommit }] },
       components: []
     });
     writeJson(path.join(rootDir, 'tui.cyclonedx.json'), {
       bomFormat: 'CycloneDX',
       specVersion: '1.5',
+      metadata: { properties: [{ name: 'pairofcleats:observedSourceCommit', value: sourceCommit }] },
       components: []
     });
   }

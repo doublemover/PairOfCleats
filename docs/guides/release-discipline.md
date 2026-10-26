@@ -141,3 +141,26 @@ node tests/run.js tooling/release/readiness-gate ci/workflow-contract --lane=all
 The final publish-readiness decision is enforced by `.github/workflows/release.yml`, where the readiness gate consumes schema-shaped release reports for prepare, runtime, node package verification, and every expected TUI verification target, plus schema-shaped trust material, CI status provenance, and CI quality artifacts before producing `readiness-summary.*`. A minimal `{ "ok": true }` report is not sufficient release evidence. Expected TUI target IDs must be non-empty, unique, well formed, and free of blank comma-separated entries; TUI verification reports must declare `scope.runtimeTarget`, and the declared target must match the target inferred from the verification artifact path. Readiness input roots such as TUI verification downloads, trust material, and coverage outputs must stay in the repository and reject existing symlink or junction path segments before walking or reading files.
 
 Surface install verification must parse the sidecar archive manifest, verify its checksum against the archive, require manifest entries to match the archive entries before unpacking, reject duplicate paths, and compare manifest `sizeBytes` and `mode` against archive metadata.
+
+
+### Immutable source identity
+
+The release prepare job resolves the requested tag once. Every downstream
+checkout uses `needs.prepare.outputs.release_git_sha` and depends directly on
+prepare. Moving a tag between jobs cannot select another source revision;
+the final publication tag guard remains required.
+
+Build/verification reports record `observedSourceCommit` from their actual
+checkout, independently of event variables and copied release metadata. The
+revision must remain stable across each operation. Bundle assembly rejects
+mixed-revision or simulated reports before writing release manifests. Trust
+generation independently checks its checkout against both prepared metadata and
+bundle identity, then records the observed revision in trust evidence and the
+CycloneDX `pairofcleats:observedSourceCommit` property. Existing source properties
+that disagree are rejected. Readiness checks every role report, trust record
+and SBOM against the prepared SHA; checksums and build-once promotion still
+apply. Historical reports without this evidence do not qualify a new release.
+
+The source-qualification fixture uses synthetic reports and SBOMs to exercise
+rejection. It does not dispatch workflows, move tags, publish artifacts or
+qualify a production release.
