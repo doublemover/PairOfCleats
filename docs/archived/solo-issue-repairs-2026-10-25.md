@@ -3315,3 +3315,34 @@ Coverage is **35 fixed / 461 implemented / 137 partial / 137 pending**; all 770
 reports remain and none was closed or given a new closing reference. Bookkeeping
 reuses the checked JS tree. Contracts: `docs/contracts/sampled-microbench-work.md`
 and `docs/perf/graph-context-pack.md`.
+
+## 2026-10-26 — bounded persistent text-vector capacity turnover
+
+`4439c4050` repairs #1731 before the existing 64 MiB page capacity is exhausted.
+The shared capacity owner validates actual page geometry, reserves conservative
+incoming-batch headroom and uses at most 16 bounded indexed LRU deletion rounds.
+It never scans vector blobs, runs VACUUM or retries an ambiguous SQLITE_FULL.
+Coalesced hot touches, admission eviction and upserts share the original SQLite
+transaction and rollback. Only committed eviction invalidates remembered digests.
+Useful writes, capacity evictions/rounds, rejected writes and admission failures
+retain distinct counters; actual page size/limit accompanies the existing ceiling.
+The journal/profile reservation, queue bounds, exact row integrity/identity,
+float32/float16 conversion, database lifetime and advisory failures remain intact.
+
+The authored fixture supplies real SQLite and the actual persistent-store owner,
+with an internal module seam installing a stricter real 512 KiB database limit.
+It adds no public configuration, forges no native capacity receipt and never
+relaxes the production cap. Eighty incoming batches per encoding exercise turnover
+below maxEntries, coalesced hot touches and close/reopen exact-vector parity.
+Generic SQLITE_FULL and a copied capacity code retain one failed upsert, full
+transaction rollback and ordinary error counters; they cannot trigger recovery
+retry. An oversized batch gets explicit bounded admission rejection before native
+upserts. Original batching, digest, encoding, retention and lifetime controls remain.
+
+Full format/ESLint, three JS syntax checks, affected generated refresh/freshness,
+fixture discovery and diff checks passed. Ordered ci-lite now contains 1,325 cases.
+The authored SQLite fixture and sustained churn/inference/RSS/performance
+qualification remain unrun under the implementation-first instruction. Coverage
+is **35 fixed / 462 implemented / 137 partial / 136 pending**, all 770 reports
+retained. No issue closed and no closing reference added. Bookkeeping retains the
+checked JS tree. Contract: `docs/contracts/embedding-text-cache-capacity.md`.
