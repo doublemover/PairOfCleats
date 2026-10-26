@@ -55,6 +55,10 @@ visible and cannot produce a recommendation.
 The [throughput input contract](../contracts/throughput-result-admission.md)
 defines supported result envelopes, bounded selection, partial cohorts and the
 complete input receipts required before report comparisons.
+The [remediation evidence contract](../contracts/benchmark-remediation-evidence.md)
+distinguishes nonempty-result frequency from judged target outcomes, service
+elapsed time from batch wall cost, and inspection hypotheses from qualified
+production changes. Workload changes require independent holdout qualification.
 
 The complete previous guide, including original usage tables and dated repair
 narratives, remains in [the historical snapshot](../archived/benchmarks-overview-2026-10-22.md).

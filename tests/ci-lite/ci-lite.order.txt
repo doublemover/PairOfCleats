@@ -1253,3 +1253,5 @@ tooling/reports/bench-language-confidence-missingness
 tooling/reports/throughput-input-admission
 tooling/triage/evidence-selected-mode
 services/mcp/triage-context-pack-handoff
+tooling/reports/bench-language-remediation-evidence
+tooling/reports/bench-language-low-hit-remediation-report

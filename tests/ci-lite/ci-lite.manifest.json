@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1095,
+    "hero": 1097,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -7531,6 +7531,18 @@
     {
       "id": "services/mcp/triage-context-pack-handoff",
       "order": 1253,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/bench-language-remediation-evidence",
+      "order": 1254,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/bench-language-low-hit-remediation-report",
+      "order": 1255,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

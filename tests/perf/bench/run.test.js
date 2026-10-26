@@ -25,6 +25,7 @@ import { createBenchQueryCapabilityCollector, formatBenchQueryCapabilityLines } 
 import { applyToolchainDaemonPolicyEnv } from '../../../src/shared/toolchain-env.js';
 import { resolveAdaptiveQueryWorkerCount } from './query-runtime.js';
 import { executeBenchQueryPlan } from './query-execution.js';
+import { createBenchQueryOutcomeCollector } from '../../../tools/bench/language/query-outcomes.js';
 
 const root = process.cwd();
 const originalRawArgs = process.argv.slice(2);
@@ -534,6 +535,7 @@ const runQueries = async (requestedConcurrency) => {
   logQueryProgress(true);
   const queryWorkerEnv = buildQueryWorkerEnv();
   const executionPlan = await resolveAdaptiveQueryWorkerCount({ requestedConcurrency, backends, runtimeRoot, userConfig });
+  const queryOutcomes = createBenchQueryOutcomeCollector({ workloadKey: queryPlan.key, concurrency: executionPlan.effectiveConcurrency });
   logBench(`[bench] Global query plan requested=${requestedConcurrency} planned=${executionPlan.effectiveConcurrency} ` +
     `stages=${executionPlan.stages.length} reason=${executionPlan.reason} ` +
     `estimatedPeak=${formatGb(executionPlan.estimatedPeakConcurrentBytes / (1024 * 1024))} ` +
@@ -581,6 +583,9 @@ const runQueries = async (requestedConcurrency) => {
     }
     const payload = await runSearch(workerPool, task.query, task.backend);
     queryCapabilities.observe(task.backend, payload);
+    for (const mode of queryBackendDecision.coverage.selectedPrimaryModesByBackend[task.backend] || []) {
+      queryOutcomes.observe({ backend: task.backend, mode, payload });
+    }
     queryProgress.count += 1;
     logQueryProgress();
     const elapsedMs = Number(payload.stats?.elapsedMs);
@@ -627,6 +632,7 @@ const runQueries = async (requestedConcurrency) => {
     queryCoverage: { ...queryBackendDecision.coverage,
       executedSearchesByBackend: Object.fromEntries(backends.map((backend) => [backend, latency[backend].length])) },
     queryCapabilities: queryCapabilities.snapshot(),
+    queryOutcomeEvidence: queryOutcomes.snapshot(),
     queryConcurrency: executionPlan.effectiveConcurrency,
     queryConcurrencyRequested: requestedConcurrency,
     queryConcurrencyAutoReason: executionPlan.reason,
