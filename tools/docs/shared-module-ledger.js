@@ -13,8 +13,7 @@ const SHARED_ROOTS = ['src/shared', 'tools/shared'];
 const BENCHMARK_SCAN_ROOT = 'benchmarks/queries';
 const BENCHMARK_SCAN_FILES = ['benchmarks/repos.json'];
 const CODE_SCAN_ROOTS = ['src', 'tools', 'bin', 'tests', 'extensions', 'sublime', BENCHMARK_SCAN_ROOT];
-const CONSUMER_SCAN_ROOTS = ['src', 'tools', 'bin', 'extensions', 'sublime'];
-const CODE_SCAN_EXTENSIONS = new Set(['.js', '.mjs', '.cjs', '.json', '.md', '.ps1', '.txt']);
+const CONSUMER_SCAN_ROOTS = ['src', 'tools', 'bin', 'tests', 'extensions', 'sublime'];
 const MODULE_SCAN_EXTENSIONS = new Set(['.js', '.mjs', '.cjs']);
 const MODULE_EXTENSIONS = ['.js', '.mjs', '.cjs', '.json'];
 const DUPLICATE_STEM_STOP_WORDS = new Set(['index', 'readme', 'config', 'constants', 'types']);
@@ -255,7 +254,6 @@ const parseArgs = () => createCli({
 
 const matchesRoot = (relPath, root) => relPath === root || relPath.startsWith(`${root}/`);
 
-const isCodeLikeFile = (relPath) => CODE_SCAN_EXTENSIONS.has(path.extname(relPath).toLowerCase());
 
 const classifyH30Issue = (relPath) => {
   const normalized = toPosix(relPath);
@@ -406,12 +404,12 @@ const scanRootsForIssue = async (inventory, issueConfig) => {
   const files = [];
   for (const relativeDir of issueConfig.roots || []) {
     try {
-      files.push(...inventory.under(relativeDir).filter(isCodeLikeFile));
+      files.push(...inventory.under(relativeDir));
     } catch {}
   }
   for (const relativeFile of issueConfig.files || []) {
     try {
-      if (inventory.has(relativeFile) && isCodeLikeFile(relativeFile)) files.push(toPosix(relativeFile));
+      if (inventory.has(relativeFile)) files.push(toPosix(relativeFile));
     } catch {}
   }
   return uniqueSorted(files);
@@ -419,9 +417,10 @@ const scanRootsForIssue = async (inventory, issueConfig) => {
 
 const buildScanLedger = async (inventory, issueMap) => {
   const issues = [];
-  const scopeGaps = [];
+  const scopeGaps = [], coveredFiles = new Set();
   for (const [issueId, issueConfig] of Object.entries(issueMap)) {
     const files = await scanRootsForIssue(inventory, issueConfig);
+    for (const file of files) coveredFiles.add(file);
     const emptyRoots = [];
     for (const relativeDir of issueConfig.roots || []) {
       const matched = files.some((file) => matchesRoot(file, relativeDir));
@@ -444,7 +443,7 @@ const buildScanLedger = async (inventory, issueMap) => {
       fileCount: files.length
     });
   }
-  return { issues, scopeGaps };
+  return { issues, scopeGaps, coveredFiles: uniqueSorted([...coveredFiles]) };
 };
 
 const collectDuplicateSeeds = (codeFiles, sharedFiles, h31PrimaryByFile) => {
@@ -551,6 +550,15 @@ const renderMarkdown = (report) => {
   return `${lines.join('\n')}\n`;
 };
 
+/** Recompute coverage from independent expected/admitted lists, rather than
+ * trusting a generated empty gaps array or a truncated display sample. */
+export const sharedModuleScanCoverageErrors = report => {
+  const scope = report?.scanLedger?.h31?.repoCoverage;
+  if (!Array.isArray(scope?.expectedFiles) || !Array.isArray(scope?.scannedFiles)) return ['complete expected/scanned file inventories are required'];
+  const scanned = new Set(scope.scannedFiles);
+  return scope.expectedFiles.filter(file => !scanned.has(file)).map(file => `unscanned H31 file: ${file}`);
+};
+
 export const buildSharedModuleLedger = async (root) => {
   const resolvedRoot = path.resolve(root);
   for (const relative of SHARED_ROOTS) {
@@ -564,13 +572,9 @@ export const buildSharedModuleLedger = async (root) => {
       include: ({ relPath }) => !EXCLUDED_SCAN_PREFIXES.some(prefix => relPath === prefix || relPath.startsWith(prefix + '/'))
     });
   const sharedFiles = uniqueSorted(SHARED_ROOTS.flatMap(relativeDir => inventory.under(relativeDir)));
-  const coverageFiles = await collectFilesForExtensions(inventory, CODE_SCAN_EXTENSIONS);
-  for (const relativeFile of BENCHMARK_SCAN_FILES) {
-    if (!coverageFiles.includes(relativeFile)) {
-      coverageFiles.push(relativeFile);
-    }
-  }
-  coverageFiles.sort((a, b) => a.localeCompare(b));
+  // Complete file accounting is independent of import-parser applicability.
+  const coverageFiles = uniqueSorted([...CODE_SCAN_ROOTS.flatMap(scope => inventory.under(scope)),
+    ...BENCHMARK_SCAN_FILES.filter(file => inventory.has(file))]);
   const moduleFiles = await collectFilesForExtensions(inventory, MODULE_SCAN_EXTENSIONS, CONSUMER_SCAN_ROOTS);
   const consumerScanFiles = uniqueSorted([
     ...moduleFiles,
@@ -587,10 +591,7 @@ export const buildSharedModuleLedger = async (root) => {
   const consumerMap = await collectConsumerMap(resolvedRoot, sharedFiles, consumerScanFiles);
   const h31Ledger = await buildScanLedger(inventory, H31_ISSUES);
   const h32Ledger = await buildScanLedger(inventory, H32_ISSUES);
-  const h31CoverageIssue = h31Ledger.issues.find((issue) => issue.issueId === '421');
-  const scanCoverageFiles = h31CoverageIssue?.sampleFiles
-    ? coverageFiles
-    : (h31CoverageIssue?.matchedFiles || []);
+  const scanCoverageFiles = h31Ledger.coveredFiles;
   const scanCoverageSet = new Set(scanCoverageFiles);
   const unscannedH31Files = coverageFiles.filter((file) => !scanCoverageSet.has(file));
 
@@ -653,6 +654,8 @@ export const buildSharedModuleLedger = async (root) => {
       sharedFiles: censusEntries
     },
     consumerMap: {
+      scope: { roots: CONSUMER_SCAN_ROOTS, parsedExtensions: [...MODULE_SCAN_EXTENSIONS].sort(),
+        applicability: 'JavaScript imports only; other source files remain in scan accounting' },
       edgeCount: Object.values(consumerMap.bySharedFile).reduce((sum, importers) => sum + importers.length, 0),
       bySharedFile: Object.fromEntries(
         Object.entries(consumerMap.bySharedFile).map(([file, importers]) => [file, {
@@ -677,6 +680,8 @@ export const buildSharedModuleLedger = async (root) => {
         issues: h31Ledger.issues,
         repoCoverage: {
           roots: CODE_SCAN_ROOTS,
+          expectedFiles: coverageFiles,
+          exclusions: { prefixes: EXCLUDED_SCAN_PREFIXES, reason: 'Dependencies, generated results and runtime caches are outside source review.' },
           scannedFiles: scanCoverageFiles,
           unscannedFiles: unscannedH31Files
         }
