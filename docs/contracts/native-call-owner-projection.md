@@ -33,9 +33,25 @@ owner; this slice does not provide it. Constructor initializer expressions remai
 eligible ordinary execution facts. Ruby defaults retain their existing method
 execution policy. Anonymous callable barriers retain their explicit omissions.
 
-`SYNTAX_CALL_FACTS_VERSION` is 3. The shared source-chunking and call-flow
+`SYNTAX_CALL_FACTS_VERSION` is 8. The shared source-chunking and call-flow
 identities must retire the changed metadata, call handoff and owner projection.
 The authored native/registered adapter, lexicon, call index, chunk limits and
 canonical call-site controls are unrun for this source wave. This change does not
 qualify complete language syntax, parser recovery, dynamic target resolution,
 native lifecycle, cross-edit reuse or performance.
+
+Ruby's lexical fallback prefers valid copied grammar body bounds. Without those
+bounds it recognizes ordinary balanced headers up to 65,536 characters, including
+multiline parameters, quoted punctuation, comments, semicolon bodies and endless
+methods. It never scans the declared name as an invocation. Ambiguous regexp,
+percent or heredoc headers and incomplete/over-budget headers remain outside
+that fallback's scope. Default expressions belong to the native method-execution
+owner; the lexical fallback reports partial callable-body coverage. Shared
+call-flow advances 48→49 for the changed fallback evidence. Native recursion,
+command calls, singleton/operator/endless methods and default expressions retain
+their original call roles. PHP interface/abstract declarations remain bodyless
+in both syntax-fact and brace-delimited fallback consumers. Java, C#, Go, Perl,
+Kotlin and Shell continue using the existing shared brace helper unchanged.
+
+The native owner regression and bounded Ruby fallback regression retain exact
+call-content controls. Their execution remains deferred.

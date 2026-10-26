@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1132,
+    "hero": 1136,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -7753,6 +7753,30 @@
     {
       "id": "lang/contracts/html-import-collector",
       "order": 1290,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/ruby-call-body-boundaries",
+      "order": 1291,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/native-call-owner-projection",
+      "order": 1292,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/python-local-class-scopes",
+      "order": 1293,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/python-declaration-header-ownership",
+      "order": 1294,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

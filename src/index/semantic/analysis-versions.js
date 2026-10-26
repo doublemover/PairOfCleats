@@ -15,7 +15,7 @@ export const SEMANTIC_ANALYSIS_VERSIONS = Object.freeze({
   repoMapProducer: '2', graphRelations: '2',
   sourceChunking: '31', typeNormalization: '12', vfsRouting: '2', complexityAnalysis: '2', lintProjection: '3',
   riskPropagation: '7', callSiteIdentity: '3',
-  compilerBindings: '26', lspBindings: '49', cfgFlow: '31', callFlow: '48',
+  compilerBindings: '26', lspBindings: '49', cfgFlow: '31', callFlow: '49',
   valueSlice: '10', storageFlow: '2', workerFlow: '11', boundaryFlow: '12', wasmStructure: '1', wasmFlow: '7', nativeFlow: '2'
 });
 // Static WASM validation is supplied by this runtime, so derived replay must

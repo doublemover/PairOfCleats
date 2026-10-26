@@ -8,6 +8,7 @@ import {
 import { buildHeuristicDataflow, hasReturnValue, summarizeControlFlow } from './flow.js';
 import { buildTreeSitterChunks } from './tree-sitter.js';
 import { syntaxRelationsForChunks } from './tree-sitter/call-facts.js';
+import { rubyCallableBodyRange } from './ruby/body-boundary.js';
 
 /**
  * Ruby language chunking and relations.
@@ -304,11 +305,9 @@ export function buildRubyRelations(text, rubyChunks) {
         for (const detail of chunk.meta.syntaxCalls) if (detail.callee) { calls.push([chunk.name,detail.callee]); usages.add(detail.callee); }
         continue;
       }
-      // Fallback: discard the declaration header, including its optional
-      // parenthesized name. Real recursive calls in the body remain intact.
-      const start = text.indexOf('\n',chunk.start);
       heuristicCalls = true;
-      const slice = start >= 0 && start < chunk.end ? text.slice(start+1,chunk.end) : '';
+      const body = rubyCallableBodyRange(text, chunk);
+      const slice = body ? text.slice(body.start, body.end) : '';
       const { calls: chunkCalls, usages: chunkUsages } = collectRubyCallsAndUsages(slice);
       for (const callee of chunkCalls) calls.push([chunk.name, callee]);
       for (const usage of chunkUsages) usages.add(usage);

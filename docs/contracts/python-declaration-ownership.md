@@ -23,3 +23,12 @@ The authored regression follows the real Python transport, registered language
 adapter, call index and chunk relation projection. It is unvalidated. Anonymous
 callables, deferred execution, dynamic target resolution and complete runtime
 or source-language scope qualification remain separate work.
+
+The local-class consumer regression also retains same-named methods in separate
+function-local classes, a class inside a method, an ordinary nested function and
+same-named function redefinitions. Actual registered relation projection and
+public metadata must retain independent calls, reads and return counts. The
+source-qualified scope identity distinguishes redefinitions even when their
+display names match. The original decorated-factory source-boundary assertions
+remain. This reconciles the existing implementation for #1469; it does not add
+an execution receipt for the authored controls.

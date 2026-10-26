@@ -7,6 +7,7 @@ import { applyChunkingLimits } from '../../../src/index/chunking/limits.js';
 import { createCallSites } from '../../../src/index/build/artifacts/writers/call-sites.js';
 import { validateArtifact } from '../../../src/contracts/validators/artifacts.js';
 import { buildKotlinRelations } from '../../../src/lang/kotlin.js';
+import { buildPhpRelations } from '../../../src/lang/php.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 applyTestEnv();
@@ -135,10 +136,42 @@ assertOwner(ruby, redefinitions[0], ['default_call', 'first']);
 assertOwner(ruby, redefinitions[1], ['second']);
 assert.equal(canonicalRows(ruby).length, 3);
 
+const rubyControls = await prepare([
+  'def idle(); end',
+  'def recursive(value); recursive(value); end',
+  'def no_parentheses',
+  '  actual_command 1',
+  'end',
+  'def self.singleton(value = singleton_default()); singleton_body(); end',
+  'def +(other); operator_body(other); end',
+  'def endless(value) = endless_body(value)',
+  ''
+].join('\n'), '.rb', 'rubyChunks');
+for (const [name, expected] of [
+  ['idle', []], ['recursive', ['recursive']], ['no_parentheses', ['actual_command']],
+  ['self.singleton', ['singleton_default', 'singleton_body']], ['+', ['operator_body']],
+  ['endless', ['endless_body']]
+]) assertOwner(rubyControls, rubyControls.chunks.find(chunk => chunk.name === name), expected);
+const rubyRows = canonicalRows(rubyControls);
+assert.equal(rubyRows.filter(row => row.calleeRaw === 'recursive').length, 1, 'real recursion is retained');
+assert.ok(!rubyRows.some(row => row.calleeRaw === 'idle'), 'declaration spelling is not an invocation');
+
 const php = await prepare('<?php\ninterface Service { public function run(): int; }\nfunction other() { alpha(); }\n', '.php', 'phpChunks');
 assertOwner(php, php.chunks.find(chunk => chunk.name === 'Service.run'), []);
 assertOwner(php, php.chunks.find(chunk => chunk.name === 'other'), ['alpha']);
 assert.equal(canonicalRows(php).length, 1);
+
+const phpControls = await prepare('<?php\nabstract class Service { public abstract function idle(): int; '
+  + 'public function live() { actual(); } }\nfunction recursive() { recursive(); }\n', '.php', 'phpChunks');
+assertOwner(phpControls, phpControls.chunks.find(chunk => chunk.name === 'Service.idle'), []);
+assertOwner(phpControls, phpControls.chunks.find(chunk => chunk.name === 'Service.live'), ['actual']);
+assertOwner(phpControls, phpControls.chunks.find(chunk => chunk.name === 'recursive'), ['recursive']);
+assert.equal(canonicalRows(phpControls).length, 2);
+for (const fixture of [php, phpControls]) {
+  const fallbackChunks = fixture.chunks.map(chunk => ({ ...chunk, meta: { ...chunk.meta, syntaxCalls: undefined } }));
+  const fallback = buildPhpRelations(fixture.text, fallbackChunks);
+  assert.deepEqual(callees(fallback), callees(fixture.relations), 'bodyless declarations remain empty in the actual shared fallback');
+}
 
 // The shared detail handoff must obey an existing per-language admission gate.
 // Reuse actual native immutable facts here; no second parser is needed.

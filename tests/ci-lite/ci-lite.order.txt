@@ -1290,3 +1290,7 @@ lang/contracts/r-static-argument-ownership
 indexing/language-registry/config-literal-import-identities
 lang/contracts/template-and-build-import-identities
 lang/contracts/html-import-collector
+lang/contracts/ruby-call-body-boundaries
+lang/contracts/native-call-owner-projection
+lang/contracts/python-local-class-scopes
+lang/contracts/python-declaration-header-ownership
