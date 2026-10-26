@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "e460c9b09d9a58adac0dbae5250eddeb84a82944",
+  "sourceHead": "f9f1cfa05b7fbb3eb6aa358ec617d61cb58683ca",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 478,
+    "implemented": 479,
     "partial": 139,
-    "pending": 118
+    "pending": 117
   },
   "priorOpen": 1177,
   "currentOpen": 770,
@@ -608,6 +608,7 @@
       1649,
       1651,
       1655,
+      1657,
       1658,
       1659,
       1660,
@@ -925,7 +926,6 @@
       1653,
       1654,
       1656,
-      1657,
       1664,
       1697,
       1699,
@@ -5965,8 +5965,10 @@
       "number": 1657,
       "title": "Stop classifying ordinary documentation words as license comments",
       "priority": "other",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "f9f1cfa05b7fbb3eb6aa358ec617d61cb58683ca",
+      "validation": "deferred"
     },
     {
       "number": 1658,

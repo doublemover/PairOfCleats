@@ -4119,3 +4119,47 @@ platform/performance execution remains deferred. Coverage is **35 fixed / 478
 implemented / 139 partial / 118 pending**, all770 reports retained. Neither GitHub
 issue state nor closing references changed. Bookkeeping reuses the checked JS tree.
 Contract: `docs/contracts/worker-fatal-observation-ownership.md`.
+
+## 2026-10-26 — notice-qualified comments and policy-owned paired extraction
+
+`f9f1cfa05` implements #1657. Ordinary documentation containing submit, commit,
+permit, limits or incidental license/copyright/Apache discussion retains its doc
+role and extracted prose. The default safe matcher recognizes structured SPDX,
+copyright/symbol, license-title/identifier, licensed-under and permission-grant
+notices within the unchanged header boundary. Its final expression is500/512
+allowed pattern code units; runtime regex compilation/qualification remains unrun.
+Internal metadata retains originalType and reason/confidence/version/scope for
+qualified notices. Tokenization adds an explicit prose admission/exclusion receipt.
+Mixed documentation plus a notice remains one whole-occurrence exclusion under
+includeLicense=false; its original role/ranges/raw text remain available. Public
+artifact/schema contracts and custom raw-regex matching are not relaxed.
+
+Compiled safe-regex ownership now has a private brand. Comment re-normalization
+and worker-restored policies preserve actual source, flags, engine and limits,
+instead of silently replacing a compiled custom matcher with the default.
+Matcher cursors do not enter effective policy identity. The paired extras cache
+now owns immutable branded raw extraction, visible to its existing byte accountant,
+under source hash/algorithm, extension, language and versioned comment policy.
+Fresh consuming passes tokenize/admit against their own dictionary and settings;
+prose priming avoids tokenizing an unused product. Unbranded/stale author entries
+are misses, and consumer mutation cannot alter cached source facts. The old
+clone-failure-to-empty-array fallback is removed: supported Node structured-clone
+failures propagate through the existing file failure owner. Classification2 binds
+incremental parse/token identities; shared sourceChunking advances33→34 for changed
+derived meaning. No test assertion or wrapper was removed.
+
+Two new unrun fixtures author actual buildCommentMeta/tokenizeComments checks for
+named ordinary/Unicode prose, positive notices, header boundaries, mixed content,
+custom and worker-restored policy, exclusion receipts, effective-policy keys,
+stale/fresh/warm raw caches, immutable ownership and fresh dictionary/token
+admission. Three unchanged matcher/LRU/comment-join fixtures join ci-lite; existing
+boundary coverage remains selected. The lane now contains1,375 entries.
+
+Full format/ESLint, final affected ESLint and eleven JS syntax checks, the static
+pattern-length check, three affected generated refresh/freshness surfaces, six
+fixture discoveries and staged diff checks passed. Final source review retained
+common license suffixes and ownership of the private version field. No functional
+assertion ran. Functional/front-gate/native/platform/performance execution remains
+deferred. Coverage is **35 fixed / 479 implemented / 139 partial / 117 pending**,
+all770 reports retained; no issue state or closing reference changed. Bookkeeping
+reuses the checked JS tree. Contract: `docs/contracts/comment-license-admission.md`.
