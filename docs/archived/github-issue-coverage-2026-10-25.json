@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "c791cc01b",
+  "sourceHead": "264f260cd",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 420,
+    "implemented": 421,
     "partial": 152,
-    "pending": 159
+    "pending": 158
   },
   "priorOpen": 1177,
   "currentOpen": 766,
@@ -582,6 +582,7 @@
       1645,
       1648,
       1649,
+      1651,
       1658,
       1662,
       1666,
@@ -882,7 +883,6 @@
       1646,
       1647,
       1650,
-      1651,
       1652,
       1653,
       1654,
@@ -5829,8 +5829,10 @@
       "number": 1651,
       "title": "[P2] Bind canary environment probes and reuse to the effective child runner context",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "264f260cd",
+      "validation": "deferred"
     },
     {
       "number": 1652,

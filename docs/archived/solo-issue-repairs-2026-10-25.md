@@ -1911,3 +1911,35 @@ fixtures, the final front gate and native/runtime/performance qualification
 remain deferred. Current coverage: **35 fixed / 420 implemented / 152 partial /
 159 pending**, across all 766 current open reports. No new closing reference was
 added and no issue was closed on unrun regression evidence.
+
+## Effective canary child context (2026-10-26)
+
+**#1651** (`264f260cd`) resolves one immutable command/arguments/cwd/final
+environment plan before observing tool versions. The same plan reaches the real
+child; later parent edits cannot alter its environment. Existing binary discovery
+and Windows command invocation owners resolve tools against the selected cwd and
+PATH. Node version/platform/architecture are observed in that context. Windows
+case aliases merge once. Parent bootstrap facts remain separately labeled.
+
+The version-2 context receipt uses canonical SHA-256 over the existing safe
+environment projection, requested tool observations and explicit execution
+coordinates. Full environment values are immutable and non-enumerable, never
+serialized or used as a secret-derived cache key. Unrepresented overrides are
+partial evidence; unavailable versions stay unknown. Only owned operational path
+fields normalize, preserving raw provenance and unrelated paths. Injected probes
+are synthetic and cannot qualify blocker closure. Informational Git/npm absence
+does not change an unrelated workload result. Probe memoization is local to one
+invocation; each new invocation reobserves local configuration and tool selection.
+
+The new curated fixture checks key-order equivalence, allowed-setting/cwd/PATH
+changes, private values, immutable state, unknown versions, invocation reuse and
+refresh. Real Node fixture children and explicitly synthetic PATH commands record
+their actual cwd and allowed settings, including a parent mutation between probe
+and child launch. It makes no real-provider qualification claim.
+
+Full format/ESLint, changed-JavaScript syntax, affected generated freshness,
+fixture discovery/ordered selection and diff checks passed. One EOF blank-line
+check was corrected before commit. The generated ci-lite manifest has 1,239
+entries. Functional checks remain deferred. Current coverage: **35 fixed / 421
+implemented / 152 partial / 158 pending**, across 766 current open reports. No
+issue was closed and no closing reference was added from unrun evidence.
