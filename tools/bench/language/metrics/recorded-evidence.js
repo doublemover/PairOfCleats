@@ -6,8 +6,8 @@ import { readVerifiedContainedFileSync } from '../../../../src/shared/contained-
 import { observeStorageResource } from '../../../../src/shared/storage/failure-observation.js';
 import { stableStringifyForSignature } from '../../../../src/shared/stable-json.js';
 
-export const BENCH_MEASUREMENT_DERIVATION_VERSION = 2;
-export const BENCH_MEASUREMENT_SNAPSHOT_VERSION = 1;
+import { BENCH_MEASUREMENT_DERIVATION_VERSION, BENCH_MEASUREMENT_SNAPSHOT_VERSION } from './recorded-contract.js';
+export { BENCH_MEASUREMENT_DERIVATION_VERSION, BENCH_MEASUREMENT_SNAPSHOT_VERSION };
 const MODES = ['code', 'prose', 'extracted-prose', 'records'];
 const object = value => value && typeof value === 'object' && !Array.isArray(value);
 const digest = value => crypto.createHash('sha256').update(stableStringifyForSignature(value)).digest('hex');

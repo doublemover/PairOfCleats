@@ -3,6 +3,8 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createThroughputInputSession } from '../../../tools/reports/show-throughput/result-input.js';
 import { classifyThroughputInput, admitThroughputReport, admitThroughputBaselineChild, THROUGHPUT_REPORT_VERSION } from '../../../tools/reports/show-throughput/result-contract.js';
+import { BENCH_MEASUREMENT_SNAPSHOT_VERSION } from '../../../tools/bench/language/metrics/recorded-contract.js';
+import { BENCH_TERMINAL_RECEIPT_VERSION } from '../../../tools/bench/runner-contract.js';
 import { spawnSubprocessSync } from '../../../src/shared/subprocess/runner.js';
 import { createShowThroughputPayload } from './show-throughput-report-fixture.js';
 import { prepareTestCacheDir } from '../../helpers/test-cache.js';
@@ -19,7 +21,7 @@ const inputs = new Map([
   ['array.json', '[]'], ['string.json', '"not a run"'],
   ['legacy.json', JSON.stringify({ generatedAt: '2020-01-01T00:00:00Z', summary: { queries: 0 } })],
   ['failed.json', JSON.stringify({ generatedAt: '2020-01-01T00:00:01Z', repo: { root: 'C:/fixture/failed' }, summary: null, runs: [], status: 'failed' })],
-  ['manifest.json', JSON.stringify({ kind: 'bench-manifest', schemaVersion: 1 })],
+  ['manifest.json', JSON.stringify({ kind: 'bench-terminal', schemaVersion: BENCH_TERMINAL_RECEIPT_VERSION, status: 'skipped', benchmark: 'fixture', reason: 'optional-unavailable' })],
   ['future.json', JSON.stringify({ schemaVersion: 999, repo: { root: 'C:/fixture/future' }, summary: null, runs: [] })]
 ]);
 for (const [file, value] of inputs) await fs.writeFile(path.join(folder, file), value);
@@ -40,10 +42,16 @@ try {
   assert.ok(receipt.folders[0].files.every(row => !Object.hasOwn(row, 'payload') && !Object.hasOwn(row.source || {}, 'fileIdentity')));
 } finally { session.close(); }
 for (const value of [null, [], 'text', { generatedAt: '2099-01-01T00:00:00Z' }, { summary: { buildMs: { note: 'not timing' } } },
-  { summary: { topN: 10 } }, { artifacts: { throughput: {} } }, { artifacts: { scanProfile: { schemaVersion: 1, modes: {} } } }]) {
+  { summary: { topN: 10 } },
+  { repo: { root: '/fixture' }, runs: [1], summary: {} },
+  { repo: { root: '/fixture' }, runs: { some: 5 }, summary: null },
+  { repo: { root: '/fixture' }, runs: [], summary: 'wrong type' },
+  { repo: { root: '/fixture' }, runs: [], summary: {} }, { artifacts: { throughput: {} } }, { artifacts: { scanProfile: { schemaVersion: 1, modes: {} } } }]) {
   assert.equal(classifyThroughputInput(value), 'unsupported-envelope');
 }
 assert.equal(classifyThroughputInput({ repo: { root: '/fixture' }, runs: [], summary: null }), 'supported-run');
+assert.equal(classifyThroughputInput({ repo: { root: '/fixture' }, runs: [{ status: 'failed', error: 'fixture failure' }], summary: null }), 'supported-run');
+assert.equal(classifyThroughputInput({ schemaVersion: BENCH_MEASUREMENT_SNAPSHOT_VERSION, attemptId: 'fixture-attempt', metricsByMode: {} }), 'recognized-non-run');
 
 const reportScript = path.join(root, 'tools/reports/show-throughput.js');
 const cli = runNode([reportScript, '--root', results, '--profile', 'raw', '--json', '--latest', '1'], 'partial throughput input receipt', root, env,

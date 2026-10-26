@@ -5,8 +5,10 @@ aggregating it. Its completeness receipt does not qualify optional derived
 analysis readers, workload success or backend execution.
 Supported current/unversioned benchmark envelopes, legacy measured summaries and
 recognized artifact measurement wrappers are distinct from unrelated JSON.
-Canonical zero-work and failed-run envelopes remain visible. Supported legacy
-files do not need an invented new schema version. Known non-run reports/manifests
+Canonical zero-work and failed-run envelopes remain visible. Nonempty run arrays
+and summary fields must have supported shapes; malformed runs cannot masquerade
+as empty measurements. Supported legacy
+files do not need an invented new schema version. Known non-run reports, canonical terminal receipts and attempt snapshots
 are explicitly excluded; unsupported envelopes and versions fail input admission.
 Dates, filenames and truthy JSON alone cannot establish a benchmark run.
 
