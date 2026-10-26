@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1175,
+    "hero": 1178,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -8011,6 +8011,24 @@
     {
       "id": "perf/bench/vfs-cold-start-process-phases",
       "order": 1333,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "map/build-map/memory-observation-owner",
+      "order": 1334,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "map/build-map/publication-failure-ownership",
+      "order": 1335,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/bench/map-publication-and-memory",
+      "order": 1336,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

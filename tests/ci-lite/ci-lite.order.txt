@@ -1333,3 +1333,6 @@ tooling/vfs/cold-start-flush-revision
 perf/vfs-memory-plateau
 perf/bench/vfs-cold-start-phase-evidence
 perf/bench/vfs-cold-start-process-phases
+map/build-map/memory-observation-owner
+map/build-map/publication-failure-ownership
+perf/bench/map-publication-and-memory
