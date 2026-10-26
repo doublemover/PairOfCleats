@@ -29,7 +29,8 @@ export const graphWitnessPathDeclaration = (operation = 'graph_context') => {
   if (!['graph_context', 'graph_impact'].includes(operation)) throw new TypeError('Unsupported graph path operation.');
   const declaration = structuredClone(declarations.find(value => value.semantics === 'graph-witness'));
   return { ...declaration, operation, producer: {
-    id: operation === 'graph_context' ? 'graph-context-pack' : 'graph-impact', version: '1.0.0'
+    id: operation === 'graph_context' ? 'graph-context-pack' : 'graph-impact',
+    version: operation === 'graph_impact' ? '1.1.0' : '1.0.0'
   } };
 };
 export const semanticTracePathDeclaration = (semantics = 'balanced-call-value', operation = 'semantic_trace') => {

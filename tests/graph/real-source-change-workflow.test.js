@@ -27,7 +27,7 @@ try {
   await buildIndex(repo, { mode: 'code', stage: 'stage2', threads: 1, log: () => {} });
   const { graphIndex, graphRelations, indexSignature } = await prepareGraphIndex({ repoRoot: repo,
     indexDir: getIndexDir(repo, 'code'), includeGraphRelations: true });
-  const impact = buildImpactAnalysis({ graphIndex, indexSignature, changed: [changed], direction: 'upstream', depth: 2 });
+  const impact = buildImpactAnalysis({ graphIndex, indexSignature, changed: [changed], direction: 'downstream', depth: 2 });
   assert.match(JSON.stringify(impact.impacted), /tests\/graph\/contracts\/graph-artifact-ordering-contract.test.js/);
   const report = buildSuggestTestsReport({ changed: [changed], graphRelations, indexSignature, repoRoot: repo,
     tests: [relevantTest, 'tests/graph/suggest-tests-name-boundaries.test.js'] });

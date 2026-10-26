@@ -19,7 +19,7 @@ const cases = [
     name: 'downstream analysis reports impacted chunks with witness paths',
     run() {
       const impact = buildImpactAnalysis({
-        seed: { type: 'chunk', chunkUid: 'chunk-a' },
+        seed: { type: 'chunk', chunkUid: 'chunk-b' },
         graphRelations: loadFixture('basic.json'),
         direction: 'downstream',
         depth: 1,
@@ -28,16 +28,16 @@ const cases = [
       });
 
       const impacted = impact.impacted.map((entry) => entry.ref?.chunkUid).filter(Boolean);
-      assert.ok(impacted.includes('chunk-b'));
-      const entry = impact.impacted.find((item) => item.ref?.chunkUid === 'chunk-b');
+      assert.ok(impacted.includes('chunk-a'));
+      const entry = impact.impacted.find((item) => item.ref?.chunkUid === 'chunk-a');
       assert.ok((entry?.witnessPath?.nodes?.length || 0) >= 2);
     }
   },
   {
-    name: 'upstream analysis traces reverse dependencies',
+    name: 'upstream analysis traces recorded dependencies',
     run() {
       const impact = buildImpactAnalysis({
-        seed: { type: 'chunk', chunkUid: 'chunk-b' },
+        seed: { type: 'chunk', chunkUid: 'chunk-a' },
         graphRelations: loadFixture('basic.json'),
         direction: 'upstream',
         depth: 1,
@@ -46,7 +46,7 @@ const cases = [
       });
 
       const impacted = impact.impacted.map((entry) => entry.ref?.chunkUid).filter(Boolean);
-      assert.ok(impacted.includes('chunk-a'));
+      assert.ok(impacted.includes('chunk-b'));
     }
   },
   {
@@ -87,7 +87,7 @@ const cases = [
       const impact = buildImpactAnalysis({
         changed: ['src/changed.js'],
         graphRelations: loadFixture('changed.json'),
-        direction: 'downstream',
+        direction: 'upstream',
         depth: 1,
         caps: { maxWorkUnits: 100 },
         indexCompatKey: 'compat-impact-changed'
@@ -105,7 +105,7 @@ const cases = [
       const impact = buildImpactAnalysis({
         seed: { type: 'chunk', chunkUid: 'seed' },
         graphRelations: loadFixture('caps.json'),
-        direction: 'downstream',
+        direction: 'upstream',
         depth: 1,
         caps: { maxFanoutPerNode: 2, maxWorkUnits: 100 },
         indexCompatKey: 'compat-impact-caps'
@@ -119,7 +119,7 @@ const cases = [
     name: 'output remains deterministic across identical runs',
     run() {
       const buildOnce = () => buildImpactAnalysis({
-        seed: { type: 'chunk', chunkUid: 'chunk-a' },
+        seed: { type: 'chunk', chunkUid: 'chunk-b' },
         graphRelations: loadFixture('basic.json'),
         direction: 'downstream',
         depth: 1,

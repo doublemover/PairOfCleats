@@ -9,7 +9,7 @@ import { buildContextPackRequestInput } from '../../src/shared/context-pack-requ
 const graphRelations = graphRelationsFromEdges({ callEdges: [['A', 'B'], ['B', 'C'], ['C', 'A']] });
 const base = { graphRelations, seed: { type: 'chunk', chunkUid: 'A' }, indexSignature: 'pinned-graph-v1',
   repo: 'fixture', depth: 3, includePaths: true, pathSemantics: 'graph-witness' };
-for (const [direction, impactDirection] of [['out', 'downstream'], ['in', 'upstream'], ['both', 'both']]) {
+for (const [direction, impactDirection] of [['out', 'upstream'], ['in', 'downstream'], ['both', 'both']]) {
   const context = buildGraphContextPack({ ...base, direction });
   assert.equal(validateGraphContextPack(context).ok, true);
   assert.equal(context.pathCapability.declaration.operation, 'graph_context');
@@ -21,6 +21,7 @@ for (const [direction, impactDirection] of [['out', 'downstream'], ['in', 'upstr
   const impact = buildImpactAnalysis({ ...base, direction: impactDirection });
   assert.equal(validateGraphImpact(impact).ok, true);
   assert.equal(impact.pathCapability.declaration.operation, 'graph_impact');
+  assert.equal(impact.pathCapability.selection.direction, direction);
   assert.equal(impact.pathCapability.declaration.producer.id, 'graph-impact');
   const corrupt = structuredClone(context); corrupt.paths[0].edges[0].to = { type: 'chunk', chunkUid: 'foreign' };
   assert.equal(validateGraphContextPack(corrupt).ok, false);

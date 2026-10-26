@@ -6,6 +6,7 @@ import { GRAPH_NAMES, normalizeEdgeFilter } from './neighborhood/filter.js';
 import { nodeKey } from './ordering.js';
 import { resolveSeedNodeRef } from './neighborhood/seed-meta.js';
 import { throwIfAborted } from '../shared/abort.js';
+import { resolveImpactDirection } from './impact-direction.js';
 import { GRAPH_PATH_CAPABILITY_SCHEMA } from '../contracts/schemas/analysis/graph.js';
 import { compileSchema, createAjv } from '../shared/validation/ajv-factory.js';
 
@@ -34,7 +35,7 @@ export const graphPathProjectionErrors = (payload, operation) => {
   }
   const paths = operation === 'graph_context' ? payload.paths || [] : (payload.impacted || []).map(row => row.witnessPath).filter(Boolean);
   if (operation === 'graph_context' && !cap.selection.paths && paths.length
-    || operation === 'graph_impact' && cap.selection.direction !== (payload.direction === 'upstream' ? 'in' : payload.direction === 'both' ? 'both' : 'out')
+    || operation === 'graph_impact' && cap.selection.direction !== resolveImpactDirection(payload.direction, { graphs: cap.selection.graphs }).traversal
     || cap.limits.maxPaths != null && paths.length > cap.limits.maxPaths) errors.push('Graph witness selection or path allowance mismatch.');
   for (const path of paths) {
     if (!Array.isArray(path.nodes) || !path.nodes.length || !Array.isArray(path.edges)

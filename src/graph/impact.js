@@ -8,14 +8,9 @@ import { compareGraphNodes, compareWitnessPaths, nodeKey } from './ordering.js';
 import { buildGraphNeighborhood } from './neighborhood.js';
 import { attachGraphPathCapability } from './path-capability.js';
 import { throwIfAborted } from '../shared/abort.js';
+import { resolveImpactDirection } from './impact-direction.js';
 
 export const IMPACT_EMPTY_CHANGED_SET_CODE = 'ERR_EMPTY_CHANGED_SET';
-
-const normalizeDirection = (value) => {
-  const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
-  if (raw === 'upstream' || raw === 'downstream' || raw === 'both') return raw;
-  return 'downstream';
-};
 
 const normalizePaths = (paths) => {
   if (!paths) return [];
@@ -142,6 +137,8 @@ export const buildImpactAnalysis = ({
   now = () => new Date().toISOString()
 } = {}) => {
   throwIfAborted(signal);
+  const directionPolicy = resolveImpactDirection(direction, edgeFilters);
+  const directionMode = directionPolicy.requested, traversalDirection = directionPolicy.traversal;
   const declare = (payload, traversalDirection) => attachGraphPathCapability(payload, { pathSemantics,
     operation: 'graph_impact', graphIndex, graphRelations, edgeFilters, caps, direction: traversalDirection,
     depth: normalizeDepth(depth, 1), includePaths: true, signal });
@@ -163,7 +160,7 @@ export const buildImpactAnalysis = ({
       version: '1.0.0',
       upstreamCoverage,
       seed: seed && typeof seed === 'object' ? seed : { v: 1, status: 'unresolved', candidates: [], resolved: null },
-      direction: normalizeDirection(direction),
+      direction: directionMode,
       depth: normalizeDepth(depth, 1),
       impacted: [],
       truncation: truncation.list.length ? truncation.list : null,
@@ -179,20 +176,17 @@ export const buildImpactAnalysis = ({
         label: 'GraphImpact'
       }),
       stats: {
+        directionPolicy,
         counts: {
           impacted: 0,
           workUnitsUsed: 0
         }
       }
-    }, direction === 'upstream' ? 'in' : direction === 'both' ? 'both' : 'out');
+    }, traversalDirection);
   }
 
   const seedRef = resolvedSeeds.seedRef;
   const seeds = resolvedSeeds.seeds;
-  const directionMode = normalizeDirection(direction);
-  const traversalDirection = directionMode === 'upstream'
-    ? 'in'
-    : (directionMode === 'both' ? 'both' : 'out');
   const effectiveDepth = normalizeDepth(depth, 1);
 
   const neighborhood = buildGraphNeighborhood({
@@ -256,7 +250,7 @@ export const buildImpactAnalysis = ({
   const capsUsed = { graph: { ...caps } };
   if (!impacted.length) mergeWarnings(warnings, [{
     code: 'NO_RECORDED_IMPACT',
-    message: 'No dependent was found within the selected graph direction and depth. This does not prove the change has no impact; unresolved or unindexed dependencies are outside this result.'
+    message: 'No related node was found within the selected graph direction and depth. This does not prove the change has no impact; unresolved or unindexed dependencies are outside this result.'
   }]);
 
   return declare({
@@ -279,6 +273,7 @@ export const buildImpactAnalysis = ({
       label: 'GraphImpact'
     }),
     stats: {
+      directionPolicy,
       artifactsUsed: {
         graphRelations: artifactsUsed.graphRelations,
         symbolEdges: artifactsUsed.symbolEdges,
