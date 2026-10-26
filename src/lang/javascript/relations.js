@@ -1,3 +1,6 @@
+import { createJavaScriptDeclarationCatalog } from './callable-occurrences.js';
+import { callableEvaluationChildren } from './evaluation-children.js';
+import { throwIfAborted } from '../../shared/abort.js';
 import { projectJsTsCallArguments } from '../js-ts/call-arguments.js';
 import { projectBabelCallable } from '../js-ts/callable-metadata.js';
 import { projectJsTsLiteral, collectCallLiteralEvidence } from '../js-ts/literal.js';
@@ -52,12 +55,17 @@ export function buildCodeRelations(text, relPath, options = {}) {
   const usages = new Set();
   const functionMeta = Object.create(null);
   const classMeta = Object.create(null);
-  const flowByName = new Map();
-  const functionStack = [];
+  const flowByOwner = new Map();
+  let activeOwner = null, activeEvaluationPhase = 'invocation-body';
   const classStack = [];
 
   const ast = options.ast || parseJavaScriptAst(text, options);
   const sourceOwned = ownsJavaScriptSyntaxText(ast, text);
+  const declarationOwner = createJavaScriptDeclarationCatalog(ast, text);
+  const declarations = declarationOwner.catalog;
+  declarations.analysis = { dataflow: dataflowEnabled, controlFlow: controlFlowEnabled };
+  const moduleRecord = text.length ? declarationOwner.add({ type: 'ModuleEvaluation', start: 0, end: text.length }, null,
+    { displayName: '(module)', kind: 'module', metadata: {} }) : null;
   const returnEvidence = createReturnCallEvidence(ast, { sourceOwned });
   const constants = collectConstantReferences(ast);
   const getMemberName = (node) => resolveAstMemberName(node, { constantKeys: constants.keys });
@@ -75,11 +83,12 @@ export function buildCodeRelations(text, relPath, options = {}) {
     return null;
   };
 
-  const currentFunction = () => (functionStack.length ? functionStack[functionStack.length - 1] : null);
+  const currentFunction = () => activeOwner;
 
-  const ensureFlow = (name) => {
-    if (!flowByName.has(name)) {
-      flowByName.set(name, {
+  const ensureFlow = (ownerId, phase = activeEvaluationPhase) => {
+    const name = ownerId + '/' + phase;
+    if (!flowByOwner.has(name)) {
+      flowByOwner.set(name, { ownerId, phase,
         reads: new Set(),
         writes: new Set(),
         mutations: new Set(),
@@ -88,10 +97,10 @@ export function buildCodeRelations(text, relPath, options = {}) {
         awaits: new Set(),
         returns: false,
         yields: false,
-        controlFlow: null
+        controlFlow: controlFlowEnabled ? { branches: 0, loops: 0, returns: 0, implicitReturns: 0, throws: 0, awaits: 0, yields: 0, breaks: 0, continues: 0 } : null
       });
     }
-    return flowByName.get(name);
+    return flowByOwner.get(name);
   };
 
   const recordControl = (key, delta = 1) => {
@@ -158,12 +167,12 @@ export function buildCodeRelations(text, relPath, options = {}) {
     ensureFlow(scope).awaits.add(name);
   };
 
-  const recordReturn = () => {
+  const recordReturn = (hasValue) => {
     recordControl('returns');
     if (!dataflowEnabled) return;
     const scope = currentFunction();
     if (!scope) return;
-    ensureFlow(scope).returns = true;
+    if (hasValue) ensureFlow(scope).returns = true;
   };
 
   const recordYield = () => {
@@ -175,31 +184,32 @@ export function buildCodeRelations(text, relPath, options = {}) {
   };
 
   const inferFunctionName = (node, parent) => {
-    if (node.id && node.id.name) return node.id.name;
     if (parent && parent.type === 'VariableDeclarator' && parent.id?.name) return parent.id.name;
+    if (node.id && node.id.name) return node.id.name;
     if (parent && parent.type === 'AssignmentExpression') {
       const left = getMemberName(parent.left);
       if (left) return left;
     }
+    if (node.type === 'ObjectMethod' && node.key) return keyName(node.key) || '(anonymous)';
     if ((node.type === 'ClassMethod' || node.type === 'ClassPrivateMethod') && node.key) {
       const propName = keyName(node.key);
-      const className = classStack[classStack.length - 1];
+      const className = classStack.at(-1)?.displayName;
       return className ? `${className}.${propName}` : propName;
     }
     if (parent && (parent.type === 'Property' || parent.type === 'PropertyDefinition') && parent.key) {
       const propName = keyName(parent.key);
-      const className = classStack[classStack.length - 1];
+      const className = parent.type === 'PropertyDefinition' ? classStack.at(-1)?.displayName : null;
       return className ? `${className}.${propName}` : propName;
     }
     if (parent && (parent.type === 'ObjectProperty' || parent.type === 'ClassProperty'
       || parent.type === 'ClassPrivateProperty') && parent.key) {
       const propName = keyName(parent.key);
-      const className = classStack[classStack.length - 1];
+      const className = parent.type === 'ObjectProperty' ? null : classStack.at(-1)?.displayName;
       return className ? `${className}.${propName}` : propName;
     }
     if (parent && parent.type === 'MethodDefinition' && parent.key) {
       const propName = keyName(parent.key);
-      const className = classStack[classStack.length - 1];
+      const className = classStack.at(-1)?.displayName;
       return className ? `${className}.${propName}` : propName;
     }
     return '(anonymous)';
@@ -259,8 +269,7 @@ export function buildCodeRelations(text, relPath, options = {}) {
     };
   };
 
-  const buildSignature = (node, name) => {
-    const { params } = collectParamMeta(node);
+  const buildSignature = (node, name, params) => {
     const paramsStr = params.join(', ');
     if (node.type === 'ArrowFunctionExpression') {
       return `(${paramsStr}) =>`;
@@ -271,10 +280,8 @@ export function buildCodeRelations(text, relPath, options = {}) {
 
   const registerFunctionMeta = (node, parent) => {
     const name = inferFunctionName(node, parent);
-    const hasExisting = Object.prototype.hasOwnProperty.call(functionMeta, name);
-    const existing = hasExisting ? functionMeta[name] : null;
-    const { paramNames, stableParamNames, paramDefaults, paramDefaultLiterals } = collectParamMeta(node);
-    const signature = buildSignature(node, name);
+    const { params, paramNames, stableParamNames, paramDefaults, paramDefaultLiterals } = collectParamMeta(node);
+    const signature = buildSignature(node, name, params);
     const callableParameters = sourceOwned ? projectBabelCallable({ node, text, start: node.start, end: node.end,
       parseComplete: !ast.errors?.length, language: 'javascript', parser: `javascript-${getJavaScriptSyntaxIdentity(ast)?.family}` }).callableParameters : null;
     const modifiers = {
@@ -284,43 +291,30 @@ export function buildCodeRelations(text, relPath, options = {}) {
       visibility: visibilityFor(name.split('.').pop() || name)
     };
     let methodKind = null;
-    if (parent && parent.type === 'MethodDefinition') {
+    if (parent && (parent.type === 'MethodDefinition' || parent.type === 'Property' && (parent.method || ['get', 'set'].includes(parent.kind)))) {
       modifiers.static = !!parent.static;
-      methodKind = parent.kind || null;
+      methodKind = parent.kind === 'init' && parent.method ? 'method' : parent.kind || null;
       const key = keyName(parent.key);
       modifiers.visibility = visibilityFor(key);
     }
-    if (node.type === 'ClassMethod' || node.type === 'ClassPrivateMethod') {
+    if (node.type === 'ClassMethod' || node.type === 'ClassPrivateMethod' || node.type === 'ObjectMethod') {
       modifiers.static = !!node.static;
       methodKind = node.kind || null;
       const key = keyName(node.key);
       modifiers.visibility = visibilityFor(key);
     }
-    if (!hasExisting) {
-      functionMeta[name] = {
-        params: paramNames,
-        paramNames: stableParamNames,
-        paramDefaults, paramDefaultLiterals, callableParameters,
-        signature,
-        modifiers,
-        methodKind,
-        returnType: null,
-        returnsValue: false,
-        throws: [],
-        awaits: [],
-        yields: false,
-        dataflow: null
-      };
-    } else {
-      existing.params = existing.params?.length ? existing.params : paramNames;
-      existing.paramNames = existing.paramNames?.length ? existing.paramNames : stableParamNames;
-      existing.paramDefaults = Object.keys(existing.paramDefaults || {}).length ? existing.paramDefaults : paramDefaults;
-      existing.paramDefaultLiterals = Object.keys(existing.paramDefaultLiterals || {}).length ? existing.paramDefaultLiterals : paramDefaultLiterals;
-      existing.signature = existing.signature || signature;
-      existing.modifiers = existing.modifiers || modifiers;
-      existing.methodKind = existing.methodKind || methodKind;
-    }
-    return name;
+    if (['ClassProperty', 'ClassPrivateProperty', 'PropertyDefinition'].includes(parent?.type)) modifiers.static = parent.static === true;
+    if (['PrivateName', 'PrivateIdentifier'].includes(node.key?.type || parent?.key?.type)) modifiers.visibility = 'private';
+    const metadata = {
+      params: paramNames, paramNames: stableParamNames, paramDefaults, paramDefaultLiterals, callableParameters,
+      signature, modifiers, methodKind, returnType: null
+    };
+    if (node.key || parent?.key) metadata.memberBinding = { computed: Boolean(node.computed || parent?.computed),
+      private: ['PrivateName', 'PrivateIdentifier'].includes(node.key?.type || parent?.key?.type), static: modifiers.static };
+    const classMember = ['ClassMethod', 'ClassPrivateMethod'].includes(node.type) || parent?.type === 'MethodDefinition';
+    const record = declarationOwner.add(node, parent, { displayName: name, parentId: classMember ? classStack.at(-1)?.id || activeOwner : activeOwner, metadata });
+    if (record) { record.scopeState = 'pending'; record.scopeReasons = []; }
+    return record;
   };
 
   const getThrownName = (node) => {
@@ -385,19 +379,42 @@ export function buildCodeRelations(text, relPath, options = {}) {
   const MAX_CALL_ARGS = 5;
   const MAX_CALL_ARG_LEN = 80;
   const walk = (root) => {
-    const stack = [{ node: root, parent: null, phase: 0, exitType: null, returnOwner: null }];
+    const stack = [{ node: root, parent: null, phase: 0, exitType: null, returnOwner: null, ownerId: moduleRecord?.id || null, evaluationPhase: 'module-evaluation' }];
+    const pushFrame = frame => {
+      if (stack.length >= declarations.coverage.maxQueuedSteps) {
+        declarationOwner.partial('traversal_queue_limit');
+        const record = declarations.records[frame.ownerId];
+        if (record?.kind === 'callable' && !record.scopeReasons.includes('traversal_queue_limit')) record.scopeReasons.push('traversal_queue_limit');
+        return false;
+      }
+      stack.push(frame); return true;
+    };
     while (stack.length) {
+      if (declarations.coverage.visitedSteps >= declarations.coverage.maxTraversalSteps) { declarationOwner.partial('traversal_step_limit'); break; }
+      declarations.coverage.visitedSteps++;
+      if ((declarations.coverage.visitedSteps & 511) === 0) throwIfAborted(options.abortSignal || options.signal);
       const frame = stack.pop();
+      activeOwner = frame.ownerId ?? null;
+      activeEvaluationPhase = frame.evaluationPhase || 'invocation-body';
       const { node, parent, phase, exitType } = frame;
       if (!node) continue;
       if (phase === 1) {
-        if (exitType === 'function') functionStack.pop();
         if (exitType === 'class') classStack.pop();
+        if (exitType === 'function') {
+          const record = declarations.records[frame.ownerId];
+          if (record) record.scopeState = record.scopeReasons.length ? 'partial' : 'complete';
+        }
         continue;
       }
       if (Array.isArray(node)) {
-        for (let i = node.length - 1; i >= 0; i -= 1) {
-          stack.push({ node: node[i], parent, phase: 0, exitType: null, returnOwner: frame.returnOwner });
+        const admitted = Math.min(node.length, Math.max(0, declarations.coverage.maxQueuedSteps - stack.length));
+        if (admitted < node.length) {
+          declarationOwner.partial('traversal_queue_limit');
+          const record = declarations.records[activeOwner];
+          if (record?.kind === 'callable' && !record.scopeReasons.includes('traversal_queue_limit')) record.scopeReasons.push('traversal_queue_limit');
+        }
+        for (let i = admitted - 1; i >= 0; i -= 1) {
+          pushFrame({ node: node[i], parent, phase: 0, exitType: null, returnOwner: frame.returnOwner, ownerId: activeOwner, evaluationPhase: activeEvaluationPhase, conditional: frame.conditional });
         }
         continue;
       }
@@ -463,11 +480,11 @@ export function buildCodeRelations(text, relPath, options = {}) {
       }
 
       if (node.type === 'CallExpression' || node.type === 'OptionalCallExpression'
-        || node.type === 'NewExpression' && returnEvidence.get(node)) {
+        || node.type === 'NewExpression') {
         const calleeName = getCalleeName(node.callee);
-        const callerName = functionStack.length ? functionStack[functionStack.length - 1] : '(module)';
+        const callerName = declarations.records[activeOwner]?.displayName || '(module)';
         if (calleeName) {
-          if (node.type !== 'NewExpression') calls.push([callerName, calleeName]);
+          if (node.type !== 'NewExpression' && activeOwner) calls.push([activeOwner, calleeName]);
           const args = [];
           if (Array.isArray(node.arguments)) {
             for (let i = 0; i < node.arguments.length && args.length < MAX_CALL_ARGS; i += 1) {
@@ -480,6 +497,19 @@ export function buildCodeRelations(text, relPath, options = {}) {
           }
           const location = resolveCallLocation(node);
           const detail = buildCallDetail({ callerName, calleeName, args, location });
+          detail.callerOccurrenceId = activeOwner;
+          detail.evaluationPhase = activeEvaluationPhase;
+          detail.conditional = frame.conditional === true;
+          const declaration = declarations.records[activeOwner];
+          if (declaration) {
+            detail.callerDeclaration = { id: declaration.id, sourceHash: declaration.sourceHash, range: declaration.range,
+              role: declaration.role, associations: declaration.associations };
+            detail.evaluationOwner = { schemaVersion: 1, occurrenceId: declaration.id, sourceHash: declaration.sourceHash,
+              ownerRange: declaration.range, phase: activeEvaluationPhase, conditional: detail.conditional,
+              state: declarations.source.state, invocationKind: node.type === 'NewExpression' ? 'construct' : 'call',
+              sourceOffset: 0,
+              meaning: 'potential-source-syntax-within-owner-phase' };
+          }
           if (sourceOwned && !ast.errors?.length) {
             detail.argLiterals = collectCallLiteralEvidence(node.arguments, text);
             detail.arguments = projectJsTsCallArguments(node.arguments, text);
@@ -556,17 +586,17 @@ export function buildCodeRelations(text, relPath, options = {}) {
       }
 
       if (node.type === 'ReturnStatement') {
-        recordReturn();
+        recordReturn(Boolean(node.argument));
       }
 
       if (node.type === 'ThrowStatement') {
         const thrown = getThrownName(node.argument);
-        if (thrown) recordThrow(thrown);
+        recordThrow(thrown);
       }
 
       if (node.type === 'AwaitExpression') {
         const awaited = getAwaitName(node.argument);
-        if (awaited) recordAwait(awaited);
+        recordAwait(awaited);
       }
 
       if (node.type === 'YieldExpression') {
@@ -587,28 +617,56 @@ export function buildCodeRelations(text, relPath, options = {}) {
         }
       }
 
-      if (node.type === 'ClassDeclaration' && node.id?.name) {
-        const className = node.id.name;
+      if (node.type === 'ClassDeclaration' || node.type === 'ClassExpression') {
+        const className = node.id?.name || (parent?.type === 'VariableDeclarator' ? parent.id?.name : null) || '(anonymous-class)';
         const extendsName = getMemberName(node.superClass);
-        classMeta[className] = {
-          extends: extendsName ? [extendsName] : [],
-          modifiers: { visibility: visibilityFor(className) }
-        };
-        classStack.push(node.id.name);
-        stack.push({ node, parent, phase: 1, exitType: 'class' });
-        if (node.body?.body) {
-          stack.push({ node: node.body.body, parent: node, phase: 0, exitType: null, returnOwner });
-        }
+        const metadata = { extends: extendsName ? [extendsName] : [], modifiers: { visibility: visibilityFor(className) } };
+        const record = declarationOwner.add(node, parent, { displayName: className, parentId: activeOwner, metadata, kind: 'class' });
+        classStack.push(record || { displayName: className });
+        pushFrame({ node, parent, phase: 1, exitType: 'class' });
+        if (node.body?.body) pushFrame({ node: node.body.body, parent: node, phase: 0, returnOwner, ownerId: activeOwner, evaluationPhase: 'definition-evaluation', conditional: frame.conditional });
+        if (node.superClass) pushFrame({ node: node.superClass, parent: node, phase: 0, returnOwner, ownerId: activeOwner, evaluationPhase: 'definition-evaluation', conditional: frame.conditional });
+        if (node.decorators?.length) declarationOwner.partial('class_decorator_evaluation_unqualified');
+        continue;
+      }
+
+      if (['PropertyDefinition', 'ClassProperty', 'ClassPrivateProperty', 'ClassAccessorProperty', 'StaticBlock'].includes(node.type)) {
+        const phaseName = node.static || node.type === 'StaticBlock' ? 'class-static-initialization' : 'class-instance-initialization';
+        const record = declarationOwner.add(node, parent, { displayName: `${classStack.at(-1)?.displayName || '(class)'}.<${phaseName}@${node.start ?? node.range?.[0]}>`,
+          parentId: classStack.at(-1)?.id || activeOwner, kind: 'evaluation', metadata: { evaluationPhase: phaseName } });
+        if (record && (node.value || node.body)) pushFrame({ node: node.value || node.body, parent: node, phase: 0,
+          ownerId: record.id, evaluationPhase: phaseName, returnOwner: null });
+        if (node.computed && node.key) pushFrame({ node: node.key, parent: node, phase: 0, ownerId: activeOwner,
+          evaluationPhase: 'definition-evaluation', returnOwner: frame.returnOwner, conditional: frame.conditional });
+        if (node.decorators?.length) declarationOwner.partial('class_field_decorator_evaluation_unqualified');
+        continue;
+      }
+
+      if (node.type === 'MethodDefinition' || ['Property', 'ObjectProperty'].includes(node.type) && parent?.type === 'ObjectExpression') {
+        if (node.value) pushFrame({ node: node.value, parent: node, phase: 0, ownerId: activeOwner,
+          evaluationPhase: activeEvaluationPhase, returnOwner, conditional: frame.conditional });
+        if (node.computed && node.key) pushFrame({ node: node.key, parent: node, phase: 0, ownerId: activeOwner,
+          evaluationPhase: 'definition-evaluation', returnOwner, conditional: frame.conditional });
         continue;
       }
 
       if (isFunctionNode(node)) {
-        const fnName = registerFunctionMeta(node, parent);
-        functionStack.push(fnName);
-        stack.push({ node, parent, phase: 1, exitType: 'function' });
-        if (node.body) {
-          stack.push({ node: node.body, parent: node, phase: 0, exitType: null, returnOwner });
+        const record = registerFunctionMeta(node, parent), descriptor = callableEvaluationChildren(node, parent);
+        if (!record) continue;
+        if (descriptor.unsupported) declarationOwner.partial('decorator_evaluation_unqualified');
+        if (descriptor.partialParameters) { declarationOwner.partial('parameter_expression_coverage_incomplete'); record.scopeReasons.push('parameter_expression_coverage_incomplete'); }
+        pushFrame({ node, parent, phase: 1, exitType: 'function', ownerId: record.id });
+        if (dataflowEnabled || controlFlowEnabled) {
+          const flow = ensureFlow(record.id, 'invocation-body');
+          if (descriptor.implicitValueReturn) {
+            if (dataflowEnabled) flow.returns = true;
+            if (controlFlowEnabled) { flow.controlFlow ||= {}; flow.controlFlow.implicitReturns = 1; }
+          }
         }
+        const children = [...descriptor.definition.map(child => ({ ...child, ownerId: activeOwner, returnOwner: frame.returnOwner, conditional: frame.conditional === true || child.conditional })),
+          ...descriptor.parameters.map(child => ({ ...child, ownerId: record.id, returnOwner })),
+          ...(descriptor.body ? [{ ...descriptor.body, ownerId: record.id, returnOwner }] : [])];
+        for (let i = children.length - 1; i >= 0; i--) pushFrame({ ...children[i], phase: 0 });
         continue;
       }
 
@@ -617,13 +675,14 @@ export function buildCodeRelations(text, relPath, options = {}) {
         if (WALK_SKIP_KEYS.has(key)) continue;
         const child = node[key];
         if (child && typeof child === 'object') {
-          stack.push({ node: child, parent: node, phase: 0, exitType: null, returnOwner });
+          pushFrame({ node: child, parent: node, phase: 0, exitType: null, returnOwner, ownerId: activeOwner, evaluationPhase: activeEvaluationPhase, conditional: frame.conditional });
         }
       }
     }
   };
 
   if (ast) {
+    throwIfAborted(options.abortSignal || options.signal);
     walk(ast);
   }
   const astTokens = Array.isArray(ast?.tokens) ? ast.tokens : null;
@@ -644,31 +703,28 @@ export function buildCodeRelations(text, relPath, options = {}) {
     } catch {}
   }
 
-  if (dataflowEnabled || controlFlowEnabled) {
-    for (const [name, flow] of flowByName.entries()) {
-      const meta = Object.prototype.hasOwnProperty.call(functionMeta, name)
-        ? functionMeta[name]
-        : {};
-      if (dataflowEnabled) {
-        meta.dataflow = {
-          reads: Array.from(flow.reads),
-          writes: Array.from(flow.writes),
-          mutations: Array.from(flow.mutations),
-          aliases: Array.from(flow.aliases)
-        };
-        meta.throws = Array.from(flow.throws);
-        meta.awaits = Array.from(flow.awaits);
-        meta.returnsValue = !!flow.returns;
-        meta.yields = !!flow.yields;
-        meta.modifiers = meta.modifiers || {};
-        meta.modifiers.generator = !!flow.yields;
-      }
-      if (controlFlowEnabled && flow.controlFlow) {
-        meta.controlFlow = { ...flow.controlFlow };
-      }
-      functionMeta[name] = meta;
+  for (const flow of flowByOwner.values()) {
+    const record = declarations.records[flow.ownerId];
+    if (!record) continue;
+    const values = {};
+    if (dataflowEnabled) {
+      values.dataflow = { reads: [...flow.reads], writes: [...flow.writes], mutations: [...flow.mutations], aliases: [...flow.aliases] };
+      values.throws = [...flow.throws]; values.awaits = [...flow.awaits]; values.returnsValue = flow.returns; values.yields = flow.yields;
     }
+    if (controlFlowEnabled && flow.controlFlow) values.controlFlow = { ...flow.controlFlow };
+    if (flow.phase === 'invocation-body') Object.assign(record.metadata, values);
+    else (record.metadata.evaluationFlows ||= {})[flow.phase] = values;
   }
+  for (const record of Object.values(declarations.records)) if (record.scopeState === 'pending') {
+    record.scopeState = 'partial'; record.scopeReasons.push('callable_traversal_unfinished');
+  }
+  for (const [name, ids] of Object.entries(declarations.nameOwners)) {
+    if (ids.length !== 1) continue;
+    const record = declarations.records[ids[0]];
+    if (record.kind === 'callable') functionMeta[name] = record.metadata;
+    else if (record.kind === 'class') classMeta[name] = record.metadata;
+  }
+  callDetails.sort((a, b) => (a.start ?? 0) - (b.start ?? 0) || (a.end ?? 0) - (b.end ?? 0));
 
   return {
     imports: Array.from(imports),
@@ -678,6 +734,8 @@ export function buildCodeRelations(text, relPath, options = {}) {
     usages: Array.from(usages),
     functionMeta,
     classMeta,
+    jsDeclarations: declarations,
+    callOwnership: 'javascript-declaration-occurrences-v1',
     importBindings: Object.keys(importBindings).length ? importBindings : null
   };
 }

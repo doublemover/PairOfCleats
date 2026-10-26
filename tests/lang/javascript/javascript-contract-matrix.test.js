@@ -2,6 +2,7 @@
 import assert from 'node:assert/strict';
 
 import { buildJsChunks, buildCodeRelations, collectImports } from '../../../src/lang/javascript.js';
+import { buildChunkRelations, getLanguageForFile } from '../../../src/index/language-registry.js';
 import { extractDocMeta } from '../../../src/lang/javascript/docmeta.js';
 import { applyCrossFileInference } from '../../../src/index/type-inference-crossfile/pipeline.js';
 
@@ -78,7 +79,7 @@ const cases = [
       ].join('\n');
 
       const rel = buildCodeRelations(source, 'sample.js', { fs: ['fs.js'] }) || {};
-      const calls = Array.isArray(rel.calls) ? rel.calls : [];
+      const calls = (Array.isArray(rel.calls) ? rel.calls : []).map(([id, callee]) => [rel.jsDeclarations.records[id].displayName, callee]);
       const imports = Array.isArray(rel.imports) ? rel.imports : [];
       const exportsList = Array.isArray(rel.exports) ? rel.exports : [];
 
@@ -97,9 +98,7 @@ const cases = [
       const relPath = 'src/sample.js';
       const relations = buildCodeRelations(text, relPath, { dataflow: false, controlFlow: false });
 
-      const fnStart = text.indexOf('function f');
-      const fnEnd = text.indexOf('}', fnStart);
-      const fnChunk = { start: fnStart, end: fnEnd + 1, name: 'f' };
+      const fnChunk = buildJsChunks(text).find(chunk => chunk.name === 'f');
       const docmeta = extractDocMeta(text, fnChunk, relations);
       assert.deepEqual(docmeta.paramNames, ['arg0', 'x', 'rest']);
 
@@ -127,7 +126,7 @@ const cases = [
         kind: 'Module',
         chunkUid: 'uid-module',
         docmeta: {},
-        codeRelations: relations
+        codeRelations: buildChunkRelations({ lang: getLanguageForFile('.js', relPath), chunk: { name: '(module)', kind: 'Module', start: 0, end: text.length, meta: {} }, fileRelations: relations })
       };
 
       await applyCrossFileInference({

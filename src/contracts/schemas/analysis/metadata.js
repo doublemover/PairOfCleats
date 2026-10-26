@@ -1,5 +1,6 @@
 import { FLOW_EVIDENCE_SCHEMA } from '../flow-evidence.js';
 import { SOURCE_OUTLINE_SCHEMA } from '../source-outline.js';
+import { JAVASCRIPT_CALLABLE_JOIN_SCHEMA } from '../javascript-declarations.js';
 import {
   metaTypes,
   nullableNumber,
@@ -132,6 +133,7 @@ export const METADATA_V2_SCHEMA = {
     types: metaTypes,
     flowEvidence: FLOW_EVIDENCE_SCHEMA,
     sourceOutline: SOURCE_OUTLINE_SCHEMA,
+    javascriptDeclaration: JAVASCRIPT_CALLABLE_JOIN_SCHEMA,
     yields: { type: 'boolean' }, returnsValue: { type: 'boolean' },
     throws: { type: 'array', items: { type: 'string' } }, awaits: { type: 'array', items: { type: 'string' } },
     risk: {

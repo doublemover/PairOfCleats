@@ -1,4 +1,5 @@
 import { createTypeScriptSyntaxContext, prepareTypeScriptSyntax, prepareTypeScriptBabelSyntax } from '../../lang/typescript/syntax-context.js';
+import { preparedJavaScriptRelations, preparedJavaScriptFlow } from '../../lang/javascript/prepared-relations.js';
 import { resolveJsTsExports } from '../../lang/js-ts-exports.js';
 import path from 'node:path';
 import {
@@ -21,7 +22,7 @@ import {
 import { buildCLikeChunks, buildCLikeRelations, collectCLikeImports, computeCLikeFlow, extractCLikeDocMeta } from '../../lang/clike.js';
 import { buildGoChunks, buildGoRelations, collectGoImports, computeGoFlow, extractGoDocMeta } from '../../lang/go.js';
 import { buildJavaChunks, buildJavaRelations, collectJavaImports, computeJavaFlow, extractJavaDocMeta } from '../../lang/java.js';
-import { buildCodeRelations, collectImports, extractDocMeta, parseJavaScriptAst } from '../../lang/javascript.js';
+import { collectImports, extractDocMeta, parseJavaScriptAst } from '../../lang/javascript.js';
 import { buildTypeScriptChunks, buildTypeScriptRelations, collectTypeScriptImports, computeTypeScriptFlow, extractTypeScriptDocMeta } from '../../lang/typescript.js';
 import { buildCSharpChunks, buildCSharpRelations, collectCSharpImports, computeCSharpFlow, extractCSharpDocMeta } from '../../lang/csharp.js';
 import * as kotlinLang from '../../lang/kotlin.js';
@@ -44,7 +45,7 @@ import { buildRustChunks, buildRustRelations, collectRustImports, computeRustFlo
 import { buildSwiftChunks, buildSwiftRelations, collectSwiftImports, computeSwiftFlow, extractSwiftDocMeta } from '../../lang/swift.js';
 import { buildShellChunks, buildShellRelations, collectShellImports, computeShellFlow, extractShellDocMeta } from '../../lang/shell.js';
 import { buildTreeSitterChunksAsync } from '../../lang/tree-sitter.js';
-import { buildControlFlowOnly, JS_CONTROL_FLOW, PY_CONTROL_FLOW } from './control-flow.js';
+import { buildControlFlowOnly, PY_CONTROL_FLOW } from './control-flow.js';
 import {
   buildConfigFileAdapters,
   buildHeuristicAdapters,
@@ -390,18 +391,11 @@ const MANAGED_LANGUAGE_ADAPTERS = [
       context.jsAst = parseJavaScriptAst(text, { ...options, ext });
       return context;
     },
-    buildRelations: ({ text, relPath, context, options, ext }) =>
-      buildCodeRelations(text, relPath, {
-        ...options,
-        ext,
-        ast: context?.jsAst,
-        dataflow: options.astDataflowEnabled,
-        controlFlow: options.controlFlowEnabled
-      }),
-    extractDocMeta: ({ text, chunk, fileRelations, context }) => ({
-      ...extractDocMeta(text, chunk, fileRelations), ...resolveJsTsExports(context?.jsAst, chunk)
+    buildRelations: ({ text, relPath, context, options, ext }) => preparedJavaScriptRelations(text, relPath, context, { ...options, ext }),
+    extractDocMeta: ({ text, chunk, fileRelations, context, sourceView }) => ({
+      ...extractDocMeta(text, chunk, fileRelations, sourceView), ...resolveJsTsExports(context?.jsAst, chunk)
     }),
-    flow: ({ text, chunk, options }) => buildControlFlowOnly(text, chunk, options, JS_CONTROL_FLOW),
+    flow: preparedJavaScriptFlow,
     attachName: false
   },
   {

@@ -1,4 +1,5 @@
 import { IMPORT_EXTRACTION_SCHEMA, IMPORT_EXTRACTION_SUMMARY_SCHEMA } from '../import-extraction.js';
+import { JAVASCRIPT_DECLARATION_CATALOG_SCHEMA } from '../javascript-declarations.js';
 import { SQL_RELATION_EVIDENCE_SCHEMA } from '../sql-relations.js';
 import { crossFileCoverageSchema } from '../relation-coverage.js';
 import { API_CONTRACT_ENTRY_SCHEMA } from '../api-contracts.js';
@@ -490,7 +491,7 @@ export const CORE_POST_VFS_ARTIFACT_SCHEMA_DEFS = {
       required: ['file', 'relations'],
       properties: {
         file: { type: 'string' },
-        relations: { type: 'object', properties: { sqlRelationEvidence: SQL_RELATION_EVIDENCE_SCHEMA, importExtraction: IMPORT_EXTRACTION_SCHEMA, importScanExtraction: IMPORT_EXTRACTION_SCHEMA }, additionalProperties: true },
+        relations: { type: 'object', properties: { jsDeclarations: JAVASCRIPT_DECLARATION_CATALOG_SCHEMA, sqlRelationEvidence: SQL_RELATION_EVIDENCE_SCHEMA, importExtraction: IMPORT_EXTRACTION_SCHEMA, importScanExtraction: IMPORT_EXTRACTION_SCHEMA }, additionalProperties: true },
         importBindings: { type: 'object' }
       },
       additionalProperties: true

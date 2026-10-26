@@ -5,6 +5,16 @@ export const validateMetadataV2Semantics = (metadata) => {
   const errors = [];
   if (!metadata || typeof metadata !== 'object') return errors;
   if (metadata.sourceOutline) errors.push(...sourceOutlineErrors(metadata.sourceOutline).map(error => '/sourceOutline: ' + error));
+  if (metadata.javascriptDeclaration) {
+    const value = metadata.javascriptDeclaration, mapping = value.sourceMapping;
+    if (!mapping || value.projectionRange?.start !== metadata.range?.start || value.projectionRange?.end !== metadata.range?.end) errors.push('/javascriptDeclaration: projection range differs from chunk');
+    if (value.ownerRange && mapping && (value.ownerRange.start < 0 || value.ownerRange.end > mapping.length
+      || value.ownerRange.end <= value.ownerRange.start)) errors.push('/javascriptDeclaration: owner range exceeds its parsed snapshot');
+    const sourceLength = metadata.flowEvidence?.source?.length;
+    if (mapping && (value.projectionRange.start < mapping.offset || value.projectionRange.end > mapping.offset + mapping.length
+      || Number.isSafeInteger(sourceLength) && mapping.offset + mapping.length > sourceLength)) errors.push('/javascriptDeclaration: projection mapping exceeds its container source');
+    if (value.state === 'qualified' && (!value.occurrenceId || !value.sourceHash)) errors.push('/javascriptDeclaration: qualified join lacks source/occurrence identity');
+  }
   if (metadata.flowEvidence) {
     try {
       admitFlowEvidence(metadata.flowEvidence, metadata);

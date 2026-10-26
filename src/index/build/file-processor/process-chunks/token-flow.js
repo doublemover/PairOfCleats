@@ -592,7 +592,8 @@ export const processChunks = async (context) => {
       endLine,
       totalLines,
       fileFrameworkProfile,
-      segmentRelationsCache
+      segmentRelationsCache,
+      sourceLineIndex: lineIndex
     });
     if (enrichment?.skip) {
       return enrichment.skip;

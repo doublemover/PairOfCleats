@@ -1,4 +1,5 @@
 import { throwIfAborted } from '../../shared/abort.js';
+import { resolveJavaScriptDeclarationReference } from '../../lang/javascript/callable-occurrences.js';
 import { admitImportExtraction, attachImportExtraction, createImportExtraction, getImportExtraction, projectImportExtraction } from '../../shared/import-extraction.js';
 import path from 'node:path';
 import { LINGUIST_LANGUAGES } from './linguist-data.js';
@@ -232,6 +233,33 @@ export function buildChunkRelations({ lang, chunk, fileRelations, callIndex = nu
       && fileRelations.callOwnership === 'python-lexical-scope-v1';
     const nativeScopedCalls = Array.isArray(chunk.meta?.syntaxCalls)
       && fileRelations.callOwnership === 'native-syntax-occurrences-v1';
+    if (fileRelations.callOwnership === 'javascript-declaration-occurrences-v1') {
+      const join = resolveJavaScriptDeclarationReference(chunk, fileRelations.jsDeclarations);
+      if (!join.record) {
+        output.callCoverage = 'partial-javascript-declaration-association-unavailable';
+        return output;
+      }
+      const indexMatchesDetails = callIndex?.callDetailsSource === fileRelations.callDetails && callIndex?.callDetailsLength === fileRelations.callDetails?.length;
+      const indexMatchesCalls = callIndex?.callsSource === fileRelations.calls && callIndex?.callsLength === fileRelations.calls?.length;
+      const record = join.record, owned = (indexMatchesDetails ? callIndex?.callDetailsByOccurrenceId?.get(record.id) : null)
+        || (fileRelations.callDetails || []).filter(detail => detail.callerOccurrenceId === record.id);
+      const retained = owned.filter(detail => detail.callerOccurrenceId === record.id && detail.start >= chunk.start && detail.end <= chunk.end);
+      const callees = new Set(retained.filter(detail => detail.role !== 'constructor').map(detail => detail.callee).filter(Boolean));
+      const pairs = (indexMatchesCalls ? callIndex?.callsByCaller?.get(record.id) : null) || (fileRelations.calls || []).filter(([owner]) => owner === record.id);
+      const seen = new Set();
+      output.calls = pairs.filter(([, callee]) => callees.has(callee) && !seen.has(callee) && seen.add(callee)).map(([, callee]) => [chunk.name, callee]);
+      if (retained.length) output.callDetails = retained;
+      output.callCoverage = 'partial-javascript-owned-syntax-phases';
+      output.callCoverageReasons = [
+        ...(!join.exact ? ['source-fragment-projection'] : []),
+        ...(owned.some(detail => detail.start < chunk.end && detail.end > chunk.start
+          && !(detail.start >= chunk.start && detail.end <= chunk.end)) ? ['split-call-occurrence'] : []),
+        ...(fileRelations.jsDeclarations.coverage.state !== 'complete' ? fileRelations.jsDeclarations.coverage.reasons : [])
+      ].slice(0, 16);
+      output.callOwnership = 'javascript-projected-declaration-syntax-v1';
+      output.callOwnerOccurrenceId = record.id;
+      return output;
+    }
     const callsForChunk = callIndex?.callsByCaller
       ? (callIndex.callsByCaller.get(chunk.name) || [])
       : (Array.isArray(fileRelations.calls)

@@ -14,7 +14,7 @@ const source = [
 ].join('\n');
 
 const rel = buildCodeRelations(source, 'sample.js') || {};
-const calls = Array.isArray(rel.calls) ? rel.calls : [];
+const calls = (Array.isArray(rel.calls) ? rel.calls : []).map(([id, callee]) => [rel.jsDeclarations.records[id].displayName, callee]);
 const callDetails = Array.isArray(rel.callDetails) ? rel.callDetails : [];
 
 assert.equal(calls.some(([from, to]) => from === 'run' && to === 'client.fetch'), true);

@@ -1,10 +1,11 @@
+import { projectJavaScriptDeclaration } from './declaration-projection.js';
 /**
  * Extract lightweight doc metadata for JS chunks.
  * @param {string} text
  * @param {{start:number,end:number}} chunk
  * @returns {{doc:string,params:string[],returns:boolean,signature:(string|null)}}
  */
-export function extractDocMeta(text, chunk, astMeta = null) {
+export function extractDocMeta(text, chunk, astMeta = null, sourceView = null) {
   const chunkText = text.slice(chunk.start, chunk.end);
   const docLines = [];
   const params = [];
@@ -53,9 +54,10 @@ export function extractDocMeta(text, chunk, astMeta = null) {
     signature = `function ${matchFn[1] || ''}(${matchFn[2]})`;
   }
 
-  const nameMeta = astMeta?.functionMeta?.[chunk.name] || astMeta?.classMeta?.[chunk.name] || null;
-  const metaParams = Array.isArray(nameMeta?.params) && nameMeta.params.length ? nameMeta.params : params;
-  const metaParamNames = Array.isArray(nameMeta?.paramNames) && nameMeta.paramNames.length
+  const projection = projectJavaScriptDeclaration(text, chunk, astMeta, astMeta?.jsDeclarations?.analysis, sourceView);
+  const nameMeta = projection.join.record ? projection.metadata : null;
+  const metaParams = Array.isArray(nameMeta?.params) ? nameMeta.params : params;
+  const metaParamNames = Array.isArray(nameMeta?.paramNames)
     ? nameMeta.paramNames
     : metaParams;
   const mergedSignature = nameMeta?.signature || signature;
@@ -70,16 +72,13 @@ export function extractDocMeta(text, chunk, astMeta = null) {
     paramDefaultLiterals: nameMeta?.paramDefaultLiterals || {},
     ...(nameMeta?.callableParameters ? { callableParameters: nameMeta.callableParameters } : {}),
     returnType: mergedReturnType,
-    returnsValue: nameMeta?.returnsValue || false,
     returns: returnsDoc,
     signature: mergedSignature,
     modifiers: nameMeta?.modifiers || null,
     methodKind: nameMeta?.methodKind || null,
-    dataflow: nameMeta?.dataflow || null,
-    controlFlow: nameMeta?.controlFlow || null,
-    throws: nameMeta?.throws || [],
-    awaits: nameMeta?.awaits || [],
-    yields: nameMeta?.yields || false,
-    extends: nameMeta?.extends || astMeta?.classMeta?.[chunk.name]?.extends || []
+    ...Object.fromEntries(['dataflow', 'controlFlow', 'throws', 'awaits', 'yields', 'returnsValue'].filter(field => nameMeta?.[field] != null).map(field => [field, nameMeta[field]])),
+    flowEvidence: projection.flowEvidence,
+    javascriptDeclaration: projection.javascriptDeclaration,
+    extends: nameMeta?.extends || []
   };
 }

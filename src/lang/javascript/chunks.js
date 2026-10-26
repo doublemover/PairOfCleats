@@ -1,6 +1,7 @@
 import { buildTreeSitterChunks } from '../tree-sitter.js';
 import { collectPatternNames, keyName, locMeta, nodeEnd, nodeStart } from './ast-utils.js';
 import { parseJavaScriptAst } from './parse.js';
+import { javascriptDeclarationReference } from './callable-occurrences.js';
 
 /**
  * Build chunk metadata for JS declarations.
@@ -19,14 +20,14 @@ export function buildJsChunks(text, options = {}) {
     if (treeChunks && treeChunks.length) return treeChunks;
   }
   const chunks = [];
-  const addChunk = (node, name, kind) => {
+  const addChunk = (node, name, kind, declaration = node, parent = null) => {
     if (!node) return;
     chunks.push({
       start: nodeStart(node),
       end: nodeEnd(node),
       name: name || 'anonymous',
       kind,
-      meta: { ...locMeta(node) }
+      meta: { ...locMeta(node), jsDeclaration: javascriptDeclarationReference(ast, text, declaration, parent) }
     });
   };
 
@@ -36,7 +37,7 @@ export function buildJsChunks(text, options = {}) {
     if (init.type !== 'FunctionExpression' && init.type !== 'ArrowFunctionExpression') return;
     const name = decl.id && decl.id.name ? decl.id.name : 'anonymous';
     const derivedKind = init.type === 'FunctionExpression' ? 'FunctionExpression' : 'ArrowFunction';
-    addChunk(decl, name, kind || derivedKind);
+    addChunk(decl, name, kind || derivedKind, init, decl);
   };
 
   const addFunctionFromAssignment = (expr, kind) => {
@@ -49,7 +50,7 @@ export function buildJsChunks(text, options = {}) {
       const prop = keyName(expr.left.property);
       name = obj ? `${obj}.${prop}` : prop;
     }
-    addChunk(expr, name, kind);
+    addChunk(expr, name, kind, right, expr);
   };
   const addClassChunks = (node, name, kind) => {
     if (!node) return;
@@ -61,14 +62,14 @@ export function buildJsChunks(text, options = {}) {
         || method.type === 'ClassMethod'
         || method.type === 'ClassPrivateMethod') {
         const key = method.key || method.id;
-        addChunk(method, `${className}.${keyName(key)}`, 'MethodDefinition');
+        addChunk(method, `${className}.${keyName(key)}`, 'MethodDefinition', method.value || method, method.type === 'MethodDefinition' ? method : null);
       }
       if ((method.type === 'PropertyDefinition'
         || method.type === 'ClassProperty'
         || method.type === 'ClassPrivateProperty')
         && method.key && method.value
         && (method.value.type === 'FunctionExpression' || method.value.type === 'ArrowFunctionExpression')) {
-        addChunk(method, `${className}.${keyName(method.key)}`, 'ClassPropertyFunction');
+        addChunk(method, `${className}.${keyName(method.key)}`, 'ClassPropertyFunction', method.value, method);
       }
     }
   };
@@ -139,6 +140,7 @@ export function buildJsChunks(text, options = {}) {
     }
   }
 
-  if (!chunks.length) return [{ start: 0, end: text.length, name: 'root', kind: 'Module', meta: {} }];
+  if (!chunks.length) return [{ start: 0, end: text.length, name: 'root', kind: 'Module', meta: {
+    jsDeclaration: text.length ? javascriptDeclarationReference(ast, text, { type: 'ModuleEvaluation', start: 0, end: text.length }) : null } }];
   return chunks;
 }

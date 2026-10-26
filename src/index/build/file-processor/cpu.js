@@ -916,7 +916,7 @@ export const processFileCpu = async (context) => {
     }
     throw err;
   }
-  sc = retainModuleCallChunks({ chunks: sc, callIndex, languageId: fileLanguageId || lang?.id, textLength: text.length });
+  sc = retainModuleCallChunks({ chunks: sc, callIndex, languageId: fileLanguageId || lang?.id, textLength: text.length, jsDeclarations: fileRelations?.jsDeclarations });
   sanitizeChunkBounds(sc, text.length);
   const chunkIssue = validateChunkBounds(sc, text.length);
   if (chunkIssue) {

@@ -1,4 +1,5 @@
 import { admitImportExtraction, admitImportExtractionSummary } from '../../shared/import-extraction.js';
+import { javascriptDeclarationErrors } from '../javascript-declaration-identities.js';
 import { sqlRelationEvidenceErrors } from '../sql-relation-identities.js';
 import { callArgumentProjectionErrors } from '../call-arguments.js';
 import { literalEvidenceProjectionErrors } from '../literal-evidence.js';
@@ -39,6 +40,7 @@ export function validateArtifact(name, data) {
   }
   if (result.ok && name === 'file_relations' && Array.isArray(data)) {
     for (const [index, entry] of data.entries()) {
+      result.errors.push(...javascriptDeclarationErrors(entry.relations.jsDeclarations).map(error => `/${index}/relations/jsDeclarations: ${error}`));
       result.errors.push(...sqlRelationEvidenceErrors(entry.relations.sqlRelationEvidence)
         .map(error => `/${index}/relations/sqlRelationEvidence: ${error}`));
       for (const name of ['importExtraction', 'importScanExtraction']) if (entry.relations[name]) {
@@ -60,6 +62,10 @@ export function validateArtifact(name, data) {
   if (result.ok && name === 'call_sites' && Array.isArray(data)) {
     for (let index = 0; index < data.length; index++) {
       const argumentsEvidence = data[index]?.extensions?.arguments;
+      const evaluation = data[index]?.extensions?.javascriptEvaluation;
+      if (evaluation?.state === 'qualified' && (!evaluation.sourceHash
+        || data[index].start < evaluation.ownerRange.start + evaluation.sourceOffset
+        || data[index].end > evaluation.ownerRange.end + evaluation.sourceOffset)) result.errors.push(`/${index}/extensions/javascriptEvaluation: call differs from its source owner extent`);
       if (argumentsEvidence) result.errors.push(...callArgumentProjectionErrors(argumentsEvidence)
         .map(error => `/${index}/extensions/arguments: ${error}`));
       for (const literal of data[index]?.extensions?.argLiterals || []) {

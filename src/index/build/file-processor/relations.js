@@ -93,6 +93,7 @@ export const buildCallIndex = (relations) => {
     }
   }
   const callDetailsByCaller = new Map();
+  const callDetailsByOccurrenceId = new Map();
   const callDetailsWithRange = [];
   if (Array.isArray(relations.callDetails)) {
     for (const detail of relations.callDetails) {
@@ -104,9 +105,15 @@ export const buildCallIndex = (relations) => {
       const list = callDetailsByCaller.get(caller) || [];
       list.push(detail);
       callDetailsByCaller.set(caller, list);
+      if (typeof detail.callerOccurrenceId === 'string') {
+        const owned = callDetailsByOccurrenceId.get(detail.callerOccurrenceId) || [];
+        owned.push(detail); callDetailsByOccurrenceId.set(detail.callerOccurrenceId, owned);
+      }
     }
   }
-  return { callsByCaller, callDetailsByCaller, callDetailsWithRange };
+  return { callsByCaller, callDetailsByCaller, callDetailsByOccurrenceId, callDetailsWithRange,
+    callsSource: relations.calls, callsLength: relations.calls?.length || 0,
+    callDetailsSource: relations.callDetails, callDetailsLength: relations.callDetails?.length || 0 };
 };
 
 export const buildFileRelations = (relations, relKey = null) => {
@@ -134,6 +141,8 @@ export const buildFileRelations = (relations, relKey = null) => {
     importExtraction,
     ...(relations.importScanExtraction ? { importScanExtraction: relations.importScanExtraction } : {}),
     ...(relations.sqlRelationEvidence ? { sqlRelationEvidence: relations.sqlRelationEvidence } : {}),
+    ...(relations.jsDeclarations ? { jsDeclarations: relations.jsDeclarations } : {}),
+    ...(relations.jsDeclarations ? { callOwnership: relations.callOwnership } : {}),
     imports: normalizedImports,
     exports: normalizeList(relations.exports),
     usages: normalizeList(relations.usages),
@@ -156,6 +165,7 @@ export const stripFileRelations = (codeRelations) => {
     sqlRelationEvidence,
     importExtraction,
     importScanExtraction,
+    jsDeclarations,
     imports,
     exports,
     usages,
