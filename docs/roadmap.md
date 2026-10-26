@@ -46,6 +46,8 @@ truthful, with bounded diagnostic progress and independent success/settled count
 failed/unqualified variants retain their reports and cannot win.
 #1663 now binds immutable A/B raw reports to each invocation and fences bakeoff
 checkpoint publication; settled-owned evidence retention/cleanup remains open.
+#1681 now preserves unknown scan counts and matched-mode rate coverage through
+the version 2 artifact and recorded report adapters, including stale derivations.
 #1675 now uses one global query resource plan and retirement-aware pools; whole
 process-tree RSS measurement remains open, with known-worker samples labeled.
 

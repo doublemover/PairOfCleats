@@ -2241,3 +2241,51 @@ selectors discovered all three newly registered fixtures. ci-lite now contains
 1,247 entries. Functional execution and final gate remain deferred. Current
 coverage: **35 fixed / 426 implemented / 153 partial / 156 pending** across 770
 open reports. No GitHub closure or new closing reference was inferred.
+
+## Scan-profile missingness and matched scope, #1681 (2026-10-26)
+
+`6e87abdbf` implements #1681. The actual report-artifacts throughput precursor
+and scan-profile producer now share narrow strict numeric admission and rate
+calculation. Null/omitted/string/boolean/negative/nonfinite counters are unknown;
+counts require safe integers. Measured zero stays zero, and zero/missing duration
+cannot support a rate. Supplied rates cannot override matched observed counts
+and timing or invent missing work. Cache hit rates remain within 0–1.
+
+Scan-profile version 2 requires coverage for each counter and rate: selected,
+observed/missing and matched/excluded mode sets, observed subtotals, matched
+numerator/duration and explicitly named measured-subset rates. Whole totals and
+rates remain unavailable with incomplete required coverage. The concrete
+100-lines/1000ms plus unknown-lines/1000ms case retains whole-run unknown and an
+explicit 100-lines/s measured subset, never an unqualified 50. Sum-of-mode work
+and duration do not claim unique repository counts or end-to-end wall time.
+Known-empty work participates; unobserved work does not become zero.
+
+Existing status-health selection remains authoritative. Its fallback index
+paths and zero artifact sizes can exist for unbuilt modes; explicitly unselected
+modes cannot invent a denominator. Selected missing metrics remain missing.
+Current root checks, own-key maps, extraction quality, indexDir and reuse
+observations remain. Legacy version 1 retains its integer-total schema; version
+2 requires coverage and supports nullable raw timing observations. Unsupported
+versions fail admission. Existing populated positive assertions remain intact.
+
+The report adapter derives the same matched scope from recorded mode fields,
+preserves source schema version, and handles observed zero as real data. Recorded
+measurement readers recognize both artifact versions. Derivation version advances
+to 2, and older derived indexing/ledger materializations are recomputed when
+recorded sources are available. Read-only derivation does not rewrite historical
+inputs; native observations retain their owner. No mutable user cache is read
+as a historical measurement source.
+
+The new small fixture exercises the actual producer, artifact validator,
+throughput precursor, recorded-evidence reader and report consumer. Controls
+cover partial/unknown totals, matched subsets, known-empty work, malformed numeric
+types, supplied/contradictory rates, zero/missing time, unbuilt-mode exclusion,
+old materialization refresh and schema/version negatives. Execution remains
+deferred. Full format/ESLint, syntax on 10 changed JavaScript files, affected
+generated refresh/freshness, direct generated artifact-index comparison, ordered
+fixture discovery and diff checks passed. The generated artifact index also
+catches up existing extractionCoverage fields already present in source.
+ci-lite now contains 1,248 entries. No functional suite or final gate ran.
+
+Current coverage: **35 fixed / 427 implemented / 153 partial / 155 pending**
+across 770 current open reports. No closure or new closing reference was inferred.
