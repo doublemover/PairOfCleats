@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "384c81b1f1cb458be80452e7d73ee7444ea4a603",
+  "sourceHead": "de184cb3429e4f798f18832e5ccf1d4f8cbe6448",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 471,
+    "implemented": 472,
     "partial": 138,
-    "pending": 126
+    "pending": 125
   },
   "priorOpen": 1177,
   "currentOpen": 770,
@@ -629,6 +629,7 @@
       1689,
       1691,
       1692,
+      1694,
       1695,
       1696,
       1698,
@@ -925,7 +926,6 @@
       1659,
       1664,
       1682,
-      1694,
       1697,
       1699,
       1707,
@@ -6220,8 +6220,10 @@
       "number": 1694,
       "title": "[Perf] Bound aggregate finite-heap versions before hashing or cloning and reuse admitted read identity",
       "priority": "Perf",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "de184cb3429e4f798f18832e5ccf1d4f8cbe6448",
+      "validation": "deferred"
     },
     {
       "number": 1695,

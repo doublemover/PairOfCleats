@@ -3763,3 +3763,51 @@ Functional/front-gate/native/platform/performance execution remains deferred.
 Coverage is **35 fixed / 471 implemented / 138 partial / 126 pending**, all 770
 reports retained; no issue closed or closing reference added. Bookkeeping reuses
 the checked JS tree. Contract: `docs/contracts/native-bridge-manifest.md`.
+
+## 2026-10-26 — aggregate finite heap admission and owned identity reuse
+
+`de184cb34` repairs #1694 in the supplied finite plain-object pilot. Passive
+bounded canonical input capture precedes property maps, cloned writes and branch
+expansion, counting repeated logical references. Each operation admits 8 MiB of
+aggregate input JSON, 8 MiB of output JSON including identity, 65,536 candidate
+value references and 1,000,000 structural/encoding checkpoints. Write envelopes
+capture only passive declared fields and reserve the exact version-ID envelope
+before sealing. Remaining aggregate allowance reaches transferred-predecessor
+encoding before capture. Typed resource errors retain operation/work evidence
+and never publish a narrowed complete answer or no-flow proof.
+
+Owned immutable versions gain private weak identity receipts and property indexes;
+subsequent operations do not rehash them. Transferred mutable payloads are
+captured, structurally validated and hash-checked before an owned copy is returned.
+Neither a caller versionId, prior read nor frozen outer object grants private
+admission. Joins validate predecessors once and seal one replacement without
+cloning a whole predecessor per property. The unchanged canonical domain/content
+preserves accepted version identities; all strong/weak/wildcard/branch/world/
+context/historical semantics retain original assertions. This remains supplied
+model reasoning, with no compiler producer/version change or real-language heap
+qualification inferred from a checksum.
+
+Complete read projections use bounded content/demand indexing. The LRU retains
+at most 32 results and 8 MiB of serialized result/key bytes, with no version or
+reader/handle objects pinned by cache keys. Paged consumers borrow immutable
+complete projections and copy the requested values; full public reads return
+detached arrays. Cache misses still admit whole candidate/wildcard unions
+independently of output page size. Input/output, indexes, canonical temporaries
+and cached metadata retain separate scopes; no absolute heap/RSS claim is made.
+Internal counters distinguish actual payload encodes/bytes, external admission,
+owned identity hits, cache reuse and cell/wildcard/value visits.
+
+Two authored controls exercise the actual helper/consumer: N/2N/4N properties,
+four-predecessor joins, unchanged hash/answers and originals, multi-page reuse,
+transferred and frozen-outer tampering, detached returns, bounded cache pressure,
+and privately tightened byte/reference/work admission. Shared inputs fail before
+projection/sealing, oversized writes before cloning, aggregate predecessors before
+branch reads, and over-budget whole unions beneath one-item pages. Accessor/sparse
+negatives remain explicit. The original fixture is unchanged and joins ordered
+ci-lite with both new owners, now 1,346 cases. No functional assertion ran.
+Full format/ESLint, final affected ESLint, five JS syntax checks, affected generated
+refresh/freshness, three discoveries and staged diff checks passed. Functional/
+front-gate/native/platform/performance execution remains deferred. Coverage is
+**35 fixed / 472 implemented / 138 partial / 125 pending**, all 770 reports retained;
+no issue closed or closing reference added. Bookkeeping reuses the checked JS tree.
+Contract: `docs/contracts/finite-heap-versions.md`.
