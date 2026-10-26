@@ -13,7 +13,7 @@ with tests deferred until the source batches are ready. The live intake has
 [current implementation receipt](archived/solo-issue-repairs-2026-10-25.md)
 records new source batches and unvalidated coverage. Historical inventories
 below describe their recorded sources, not the current open count.
-Current source coverage is **35 fixed / 462 implemented / 137 partial / 136
+Current source coverage is **35 fixed / 463 implemented / 137 partial / 135
 pending**, with exact issue-to-source ownership in the
 [complete inventory](archived/github-issue-coverage-2026-10-25.json). Implemented
 means source-complete with execution pending, not accepted closure.
@@ -42,12 +42,14 @@ manifest observation and JSONL failed-shard ownership now retain their terminal
 boundaries (#1732/#1735/#1738/#1743). Streaming context seeds preserve strict read failures (#1566), and ANN preflight
 shares terminal request-budget admission (#1585). Reserved parameter names retain
 serialization controls on the existing safe writer (#1029). The curated ci-lite
-lane contains 1,325 cases;
+lane contains 1,326 cases;
 new and strengthened regressions remain unrun. Sampled work conserves completed
 operations, compression arms share reproducible bytes with round-trip admission,
 and graph render arms require canonical output parity (#1725/#1728/#1744).
 Persistent text-vector writes now admit bounded page-capacity turnover without
-reclassifying disk pressure as recoverable capacity (#1731). Completed batch detail and exact
+reclassifying disk pressure as recoverable capacity (#1731). Graph lazy admission
+now compares distinct artifacts for one symbol task in fresh per-arm processes,
+with separate cold/build and warm-hit evidence (#1745). Completed batch detail and exact
 source/static-check receipts are retained in the linked implementation archive.
 
 Execution remains solo, Windows-only and implementation-first. Finish remaining

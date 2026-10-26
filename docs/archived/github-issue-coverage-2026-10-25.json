@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "15b408787ef9463757fe092f5fce739c909d24b3",
+  "sourceHead": "8af65781cec0283fac54e6047730156b9873cb73",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 462,
+    "implemented": 463,
     "partial": 137,
-    "pending": 136
+    "pending": 135
   },
   "priorOpen": 1177,
   "currentOpen": 770,
@@ -656,6 +656,7 @@
       1742,
       1743,
       1744,
+      1745,
       1746
     ],
     "partial": [
@@ -931,7 +932,6 @@
       1722,
       1723,
       1739,
-      1745,
       1747,
       1748
     ]
@@ -6567,8 +6567,10 @@
       "number": 1745,
       "title": "[P3] Exercise distinct artifact admission and isolate cache phases in the graph lazy-load benchmark",
       "priority": "P3",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "8af65781cec0283fac54e6047730156b9873cb73",
+      "validation": "deferred"
     },
     {
       "number": 1746,

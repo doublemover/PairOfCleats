@@ -3368,3 +3368,36 @@ intake. Raw `.tmp/tasks/windows-failure-repairs-20261024/` intake files are hist
 author-workspace evidence, unavailable in a clean checkout. Coverage remains
 **35 fixed / 462 implemented / 137 partial / 136 pending**. No issue closed or
 new closing reference added; bookkeeping reuses the checked JS tree.
+
+## 2026-10-26 — actual graph lazy admission and isolated cache phases
+
+`8af65781c` repairs #1745 by comparing eager graph/call-site/symbol admission with
+symbol-edge-only admission for the same nonempty symbol-index task. Each arm/sample
+runs serially in a fresh Node child using the existing subprocess lifetime owner,
+a 30-second deadline, bounded output, zero retries and asserted quiet diagnostics.
+Arm order alternates. Every child separately measures manifest/signature setup,
+one cold artifact/index build and one warm index hit; full child wall time is
+retained without calling it cold graph time. Physical OS cache state is explicitly
+uncontrolled. Used artifact names, observed on-disk source bytes (not physical I/O),
+actual build/cache telemetry, graph shape and raw phases accompany the task digest.
+Source/manifest identity, symbol task and repeated baseline shape must agree.
+The existing generation/signature owner and captured manifest retain source scope;
+no new corpus-content or hardware-IO qualification is implied.
+
+A missing/empty symbol task or no meaningful omitted relation work makes the
+comparison unavailable and prevents a comparative throughput summary. Worker
+admission requires zero prior application hits, exactly one observed build and an
+identical warm index with no rebuild. Production graph selection and strict
+artifact readers retain their semantics. Graph CLI zero/fractional iteration
+values now reach the existing strict workload boundary instead of a fallback.
+The authored fixture exercises actual fresh-process graph samples with positive
+omission/task evidence and controlled source/manifest/task/cache/artifact negatives.
+It remains unrun; no speedup or actual runtime qualification is claimed.
+
+Full format/ESLint, four final affected syntax/ESLint checks, affected generated
+refresh/freshness, discovery and staged diff checks passed. Final affected lint
+covers the post-format source/manifest and raw-CLI tightening. Ordered ci-lite
+contains 1,326 fixtures. Functional/front-gate/native/platform/performance execution
+remains deferred. Coverage is **35 fixed / 463 implemented / 137 partial / 135
+pending**, all 770 reports retained, no issue closed and no new closing reference.
+Bookkeeping reuses the checked JS tree. Contract: `docs/perf/graph-context-pack.md`.
