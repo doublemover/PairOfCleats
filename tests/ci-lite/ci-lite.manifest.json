@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1144,
+    "hero": 1151,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -7825,6 +7825,48 @@
     {
       "id": "indexing/runtime/initialization-resource-unwind",
       "order": 1302,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/managed-reference-kind-and-owner",
+      "order": 1303,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/template-heuristic-adapters",
+      "order": 1304,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/data-interface-heuristic-adapters",
+      "order": 1305,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/build-dsl-heuristic-adapters",
+      "order": 1306,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/managed-heuristic-adapters",
+      "order": 1307,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/dynamic-heuristic-adapters",
+      "order": 1308,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/template-local-registry-evidence",
+      "order": 1309,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

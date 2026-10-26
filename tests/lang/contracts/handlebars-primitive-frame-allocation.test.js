@@ -26,7 +26,7 @@ console.log(`Handlebars queued frames: primitive${primitiveFrames}, object${obje
 assert.equal(result.parser, 'handlebars-parser');
 assert.equal(primitiveFrames, 0, 'scalar array entries never become traversal frames');
 assert.equal(objectFrames, 2);
-assert.deepEqual(result.referenceEntries, [{ value: original, start: 2, end: source.length - 2, line: 0 }]);
+assert.deepEqual(result.referenceEntries, [{ value: original, kind: 'lookup', start: 2, end: source.length - 2, line: 0 }]);
 assert.equal(parse(source), result, 'warm model reuse is unchanged');
 assert.ok(Object.isFrozen(result));
 const actual = parseHandlebarsStructure(source);

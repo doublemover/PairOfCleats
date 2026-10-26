@@ -59,6 +59,7 @@ export const createJinjaTemplateStructureParser = ({ now = () => performance.now
       const definitions = [];
       const importEntries = [];
       const referenceEntries = [];
+      const scopes = [];
       const blocks = [];
       let tagCount = 0;
       let tokenCount = 0;
@@ -185,10 +186,11 @@ export const createJinjaTemplateStructureParser = ({ now = () => performance.now
         }
         throw new TemplateBoundaryError('unterminated-opaque-block');
       };
-      const appendReferences = (tokens) => {
+      const appendReferences = (tokens, declaration = false) => {
         for (let index = 0; index < tokens.length; index += 1) {
           checkTime();
           const token = tokens[index];
+          if (declaration && index === 1) continue;
           if (token.kind !== 'identifier' || REFERENCE_SKIP.has(token.value)) continue;
           let value = token.value;
           let end = token.end;
@@ -198,7 +200,10 @@ export const createJinjaTemplateStructureParser = ({ now = () => performance.now
             end = tokens[index + 2].end;
             index += 2;
           }
-          referenceEntries.push(Object.freeze({ value, ...position(token.start, end) }));
+          referenceEntries.push(Object.freeze({ value,
+            kind: dialect === 'jinja' && tokens[index + 1]?.value === '(' && tokens[index - 1]?.value !== '|'
+              ? 'helper-invocation' : 'lookup',
+            ...position(token.start, end) }));
         }
       };
       let cursor = 0;
@@ -257,11 +262,14 @@ export const createJinjaTemplateStructureParser = ({ now = () => performance.now
           || (dialect === 'jinja' && keyword === 'set' && !assignment);
         if (block) {
           if (blocks.length >= MAX_DEPTH) throw new TemplateBoundaryError('depth-limit');
-          blocks.push({ keyword, name: tokens[1]?.value });
+          blocks.push({ keyword, name: tokens[1]?.value, start: tag.start });
         } else if (keyword.startsWith('end') && (COMMON_BLOCKS.has(keyword.slice(3)) || JINJA_BLOCKS.has(keyword.slice(3)) || keyword === 'endset')) {
           const parent = blocks.pop();
           if (!parent || parent.keyword !== keyword.slice(3) || (keyword === 'endblock' && tokens[1] && tokens[1].value !== parent.name)) {
             throw new TemplateBoundaryError('unbalanced-block');
+          }
+          if (['macro', 'block'].includes(parent.keyword) && typeof parent.name === 'string') {
+            scopes.push(Object.freeze({ name: parent.name, start: parent.start, end: tag.end }));
           }
           continue;
         }
@@ -280,7 +288,7 @@ export const createJinjaTemplateStructureParser = ({ now = () => performance.now
           && literal.value !== null && (!suffix || ({ include: ['ignore', 'with', 'without', 'only'],
           import: ['as'], from: ['import'], extends: [] }[keyword]).includes(suffix));
         if (literalImport) importEntries.push(Object.freeze({ value: literal.value, ...position(literal.start, literal.end) }));
-        appendReferences(tokens);
+        appendReferences(tokens, ['macro', 'block'].includes(keyword));
       }
       if (blocks.length) throw new TemplateBoundaryError('unclosed-block');
       checkTime();
@@ -289,7 +297,8 @@ export const createJinjaTemplateStructureParser = ({ now = () => performance.now
       previousResult = Object.freeze({ parser: 'heuristic-template-lexical', coverage: 'heuristic', dialect, reason: null,
         rangeSource: 'application-utf16-lexical', sourceLines: lineIndex.length,
         headings: Object.freeze(headings), definitions: Object.freeze(definitions), importEntries: Object.freeze(importEntries),
-        referenceEntries: Object.freeze(referenceEntries), metrics: Object.freeze({ ...metrics, elapsedMs: elapsed(), tagCount, tokenCount }) });
+        referenceEntries: Object.freeze(referenceEntries), scopes: Object.freeze(scopes),
+        metrics: Object.freeze({ ...metrics, elapsedMs: elapsed(), tagCount, tokenCount }) });
       return previousResult;
     } catch (error) {
       metrics.measuredOverrunMs = Math.max(0, elapsed() - metrics.effectiveLimitMsAtEntry);

@@ -16,8 +16,9 @@ const safePath = value => typeof value === 'string' && value && !value.includes(
 const fail = message => Object.assign(new Error(message), { code: 'ERR_TEMPLATE_REFERENCE_EVIDENCE' });
 const simpleName = value => typeof value === 'string' && value.length > 0 && value.length <= 256 && !/[\x00-\x1f]/u.test(value);
 
+export const TEMPLATE_REFERENCE_ADAPTER_VERSION = '3';
 export const TEMPLATE_REFERENCE_PROVIDER_DECLARATION = Object.freeze({ schemaVersion: 1,
-  providerId: 'template-local-registry', adapterVersion: '2', execution: 'trusted-inprocess',
+  providerId: 'template-local-registry', adapterVersion: TEMPLATE_REFERENCE_ADAPTER_VERSION, execution: 'trusted-inprocess',
   languages: [{ id: 'handlebars', dialect: null }, { id: 'mustache', dialect: null }],
   facts: [{ family: 'references', evidence: 'source-qualified' }, { family: 'diagnostics', evidence: 'provider-observation' }],
   consumers: [{ id: 'navigation', families: ['references'], partialPolicy: 'qualified', fallback: 'parser' },
@@ -146,7 +147,7 @@ export const collectTemplateReferenceEvidence = ({ documents, templates, helpers
       }
     }
   }
-  const report = { schemaVersion: 1, kind: 'source-linked-evidence', producerId: 'template-local-registry', adapterVersion: '2',
+  const report = { schemaVersion: 1, kind: 'source-linked-evidence', producerId: 'template-local-registry', adapterVersion: TEMPLATE_REFERENCE_ADAPTER_VERSION,
     method: 'template/local-registry', evidenceKind: 'template-local-references', generation: JSON.parse(canonicalSemanticJson(generation)),
     runtime: { family: 'template-parse-only', version: `handlebars-${handlebarsVersion}+mustache-${mustacheVersion}`,
       profileHash, qualification: 'application-library-unqualified' },

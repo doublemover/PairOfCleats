@@ -49,6 +49,6 @@ const CASES = [
   }
 ];
 
-assertHeuristicAdapterCases(CASES, { usageLabel: 'schema usage' });
+await assertHeuristicAdapterCases(CASES, { usageLabel: 'schema usage' });
 
 console.log('data-interface heuristic adapters contract test passed');

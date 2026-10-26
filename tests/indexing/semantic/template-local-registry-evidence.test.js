@@ -8,7 +8,7 @@ import { createSourceLinkedEvidenceFixture } from '../../helpers/source-linked-e
 
 const helper = 'export function format(value) { return value; }';
 const inputs = [
-  { filename: 'main.hbs', language: 'handlebars', text: '{{! 🧭 original }}\r\n{{format user}}\n{{> card}}\n{{> (lookup . "which")}}\n{{#each users as |format|}}{{format}}{{/each}}' },
+  { filename: 'main.hbs', language: 'handlebars', text: '{{! 🧭 original }}\r\n{{format user}}\n{{> card}}\n{{> (lookup . "which")}}\n{{#each users as |format|}}{{format}}{{/each}}\n{{#*inline "local"}}{{format user}}{{/inline}}' },
   { filename: 'card.hbs', language: 'handlebars', text: '{{> main}}\n{{title}}' },
   { filename: 'main.mustache', language: 'mustache', text: '{{=<% %>=}}\n<%> line %>\n<%#items%><%value%><%/items%>' },
   { filename: 'line.mustache', language: 'mustache', text: '{{> missing}} {{value}}' },
@@ -22,11 +22,16 @@ try {
     .map(value => ({ path: value.filename, dialect: value.language })), generation: f.generation,
   configHash: 'a'.repeat(64), dependencyHash: 'b'.repeat(64), helpers: new Map([['format', {
     path: 'format.js', span: [helper.indexOf('format'), helper.indexOf('format') + 'format'.length]
-  }]]), partials: new Map([['main', descriptor('main.hbs')], ['card', descriptor('card.hbs')], ['line', descriptor('line.mustache')]]) };
+  }], ['inline', { path: 'format.js', span: [helper.indexOf('format'), helper.indexOf('format') + 'format'.length] }]]),
+  partials: new Map([['main', descriptor('main.hbs')], ['card', descriptor('card.hbs')], ['line', descriptor('line.mustache')]]) };
   const report = collectTemplateReferenceEvidence(options);
   assert.equal(report.coverage.rendered, false);
   assert.equal(report.coverage.loaderExecuted, false);
   const main = report.results.find(value => value.path === 'main.hbs');
+  assert.equal(report.adapterVersion, '3');
+  assert.equal(report.adapterVersion, TEMPLATE_REFERENCE_PROVIDER_DECLARATION.adapterVersion);
+  assert.ok(!main.references.some(value => value.family === 'helper' && value.name === 'inline'),
+    'the real source-linked consumer cannot resolve a declaration directive through a same-named helper registry entry');
   assert.ok(main.references.some(value => value.family === 'helper' && value.name === 'format' && value.target?.path === 'format.js'));
   assert.ok(main.references.some(value => value.name === 'format' && value.reason === 'local_block_parameter' && value.target === null),
     'a local block parameter cannot silently bind to the global helper registry');

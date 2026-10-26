@@ -91,6 +91,7 @@ export const createHandlebarsStructureParser = ({ loadParser = () =>
         for (let current = scope; current; current = current.parent) if (current.values.has(name)) return true;
         return false;
       };
+      const referenceKinds = new WeakMap();
       const stack = [{ node: document, depth: 0, blockDepth: 0, scope: null }];
       const seen = new Set();
       while (stack.length) {
@@ -110,6 +111,7 @@ export const createHandlebarsStructureParser = ({ loadParser = () =>
           scope = { names, values: new Set(node.blockParams || []), parent: scope };
         }
         const localDefinition = inlineName(node);
+        if (localDefinition !== null && node.path) referenceKinds.set(node.path, 'declaration');
         if (typeof localDefinition === 'string') append(definitions, { name: localDefinition, ...rangeOf(node) });
         const isBlock = BLOCK_TYPES.has(node.type);
         if (isBlock && blockDepth === 0) {
@@ -126,16 +128,23 @@ export const createHandlebarsStructureParser = ({ loadParser = () =>
           const kind = internal ? 'internal' : typeof name === 'string' ? local ? 'inline' : 'static' : 'dynamic';
           append(partials, { name, kind, ...rangeOf(node) });
           if (kind === 'static') imports.add(name);
+          if (expression && typeof expression === 'object') referenceKinds.set(expression, 'dependency');
           if (typeof name === 'string' && expression.type === 'StringLiteral') {
-            append(referenceEntries, { value: name, ...rangeOf(expression) });
+            append(referenceEntries, { value: name, kind: 'dependency', ...rangeOf(expression) });
           }
         }
-        if (node.type === 'PathExpression' && typeof node.original === 'string' && node.parts?.length) {
-          append(referenceEntries, { value: node.original, ...rangeOf(node) });
+        if (node.type === 'PathExpression' && typeof node.original === 'string' && node.parts?.length
+          && referenceKinds.get(node) !== 'declaration') {
+          append(referenceEntries, { value: node.original, kind: referenceKinds.get(node) || 'lookup', ...rangeOf(node) });
         }
-        if (['MustacheStatement', 'BlockStatement', 'SubExpression', 'Decorator', 'DecoratorBlock'].includes(node.type)
+        if (localDefinition === null && ['MustacheStatement', 'BlockStatement', 'SubExpression', 'Decorator', 'DecoratorBlock'].includes(node.type)
           && node.path?.type === 'PathExpression' && typeof node.path.original === 'string') {
           const pathNode = node.path;
+          if (!pathNode.data && !pathNode.this && pathNode.depth === 0 && pathNode.parts?.length === 1
+            && !isLocalValue(pathNode.parts[0], scope)
+            && (node.type === 'SubExpression' || node.params?.length || node.hash?.pairs?.length)) {
+            referenceKinds.set(pathNode, 'helper-invocation');
+          }
           append(invocations, { name: pathNode.original, statementType: node.type, ...rangeOf(pathNode),
             simple: !pathNode.data && !pathNode.this && pathNode.depth === 0 && pathNode.parts?.length === 1,
             localValue: isLocalValue(pathNode.parts?.[0], scope),

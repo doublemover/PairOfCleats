@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { LANGUAGE_REGISTRY } from '../../../src/index/language-registry/registry-data.js';
+import { isManagedReferenceLanguage, admitManagedReferenceFacts } from '../../../src/contracts/managed-reference-identities.js';
 
 const resolveExpectedUsage = (testCase) => testCase.expectedUsage ?? testCase.expectedCall;
 
@@ -38,7 +39,12 @@ export const assertHeuristicAdapterCases = async (cases, { usageLabel = 'heurist
     assert.ok(Array.isArray(relations.usages), `${testCase.id} should emit usages array`);
     assert.ok(relations.usages.includes(expectedUsage), `${testCase.id} should emit ${usageLabel}`);
     assert.ok(Array.isArray(relations.calls), `${testCase.id} should emit calls array`);
-    if (relations.callCoverage === 'partial-no-syntax-owner') {
+    if (isManagedReferenceLanguage(entry.id)) {
+      assert.deepEqual(relations.calls, [], `${testCase.id} references cannot occupy ordinary calls`);
+      const facts = admitManagedReferenceFacts(relations.managedReferenceFacts, entry.id);
+      assert.ok(facts, `${testCase.id} retains typed reference evidence`);
+      assert.ok(facts.references.some(reference => reference.value === expectedUsage), `${testCase.id} retains the positive reference`);
+    } else if (relations.callCoverage === 'partial-no-syntax-owner') {
       assert.deepEqual(relations.calls, [], `${testCase.id} cannot attribute file-wide usage to a caller`);
     } else {
       assert.ok(relations.calls.some((edge) => edge[1] === expectedUsage),

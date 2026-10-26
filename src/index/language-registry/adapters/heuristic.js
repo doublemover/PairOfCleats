@@ -40,6 +40,7 @@ import { parseProtoStructure } from '../../../shared/proto-structure.js';
 import { collectRazorImports } from '../import-collectors/razor.js';
 import { collectRImports } from '../import-collectors/r.js';
 import { toParsedLiteralImportEntries } from '../../../shared/import-extraction.js';
+import { createManagedReferenceFacts } from '../../../contracts/managed-reference-identities.js';
 import { collectScalaImports } from '../import-collectors/scala.js';
 import { collectStarlarkImportEntries, collectStarlarkImports } from '../import-collectors/starlark.js';
 import {
@@ -236,6 +237,11 @@ const HEURISTIC_RELATION_SCAN_BUDGET = Object.freeze({
 });
 
 const sortUnique = (values) => Array.from(new Set(values.filter(Boolean))).sort((a, b) => (a < b ? -1 : (a > b ? 1 : 0)));
+
+const withManagedReferences = (relations, languageId, text, references, owners = []) => ({
+  ...relations, calls: [], callCoverage: 'partial-reference-language-no-invocation-owner',
+  managedReferenceFacts: createManagedReferenceFacts({ languageId, text, references, owners })
+});
 
 const collectPatternNames = (text, patterns, scanBudget = null) => {
   const names = [];
@@ -494,6 +500,7 @@ export const createDockerfileManagedAdapter = ({ parseStructure = parseDockerfil
       const imports = new Set();
       const exports = new Set();
       const usages = new Set();
+      const references = [];
       for (const instruction of structure.instructions) {
         if (budgetContext.scanBudget.exhausted || !budgetContext.scanBudget.consumeTime()
           || !budgetContext.scanBudget.consumeMatch()) break;
@@ -510,19 +517,16 @@ export const createDockerfileManagedAdapter = ({ parseStructure = parseDockerfil
           if (!budgetContext.scanBudget.consumeToken()) break;
           imports.add(value);
           usages.add(value);
+          references.push({ value, kind: 'dependency', start: instruction.start, end: instruction.end, range: 'instruction' });
         }
       }
       const symbols = sortUnique([...exports]);
       const callees = sortUnique([...usages]);
-      const calls = [];
-      for (const caller of symbols.length ? symbols : ['<module>']) {
-        for (const callee of callees) {
-          if (callee !== caller) calls.push([caller, callee]);
-          if (calls.length >= 96) break;
-        }
-        if (calls.length >= 96) break;
-      }
-      return { ...buildSimpleRelations({ imports: [...imports] }), exports: symbols, usages: callees, calls };
+      const stages = structure.instructions.filter(entry => entry.keyword === 'FROM');
+      const owners = stages.map((entry, index) => ({ name: entry.stage || entry.image || `stage@${entry.start}`,
+        start: entry.start, end: stages[index + 1]?.start ?? budgetContext.source.length }));
+      return withManagedReferences({ ...buildSimpleRelations({ imports: [...imports] }), exports: symbols, usages: callees },
+        'dockerfile', budgetContext.source, references, owners);
     } finally {
       budgetContext.finalize();
     }
@@ -558,20 +562,12 @@ export const createGraphqlManagedAdapter = ({ parseStructure = parseGraphqlStruc
         if (budgetContext.budget.maxLines > 0 && reference.line >= budgetContext.budget.maxLines) continue;
         if (budgetContext.scanBudget.exhausted || !budgetContext.scanBudget.consumeMatch()
           || !budgetContext.scanBudget.consumeToken()) break;
-        references.push(reference.value);
+        references.push(reference);
       }
       const exports = sortUnique(symbols);
-      const usages = sortUnique(references);
-      const calls = [];
-      for (const caller of exports.length ? exports : ['<module>']) {
-        for (const callee of usages) {
-          if (callee !== caller) calls.push([caller, callee]);
-          if (calls.length >= 96) break;
-        }
-        if (calls.length >= 96) break;
-      }
-      return { ...buildSimpleRelations({ imports: collectGraphqlImports(budgetContext.source, options) }),
-        exports, usages, calls };
+      const usages = sortUnique(references.map(entry => entry.value));
+      return withManagedReferences({ ...buildSimpleRelations({ imports: collectGraphqlImports(budgetContext.source, options) }),
+        exports, usages }, 'graphql', budgetContext.source, references, structure.definitions.map(entry => ({ ...entry, name: entry.name || entry.title })));
     } finally {
       if (lineLimited) {
         for (let line = 0; line < budgetContext.budget.maxLines; line += 1) {
@@ -616,20 +612,12 @@ export const createHandlebarsManagedAdapter = ({ parseStructure = parseHandlebar
         if (TEMPLATE_USAGE_SKIP.has(reference.value) || reference.value === '@partial-block') continue;
         if (budgetContext.scanBudget.exhausted || !budgetContext.scanBudget.consumeMatch()
           || !budgetContext.scanBudget.consumeToken()) break;
-        references.push(reference.value);
+        references.push(reference);
       }
       const exports = sortUnique(symbols);
-      const usages = sortUnique(references);
-      const calls = [];
-      for (const caller of exports.length ? exports : ['<module>']) {
-        for (const callee of usages) {
-          if (callee !== caller) calls.push([caller, callee]);
-          if (calls.length >= 96) break;
-        }
-        if (calls.length >= 96) break;
-      }
-      return { ...buildSimpleRelations({ imports: collectHandlebarsImports(budgetContext.source, options), literalImports:true }),
-        exports, usages, calls };
+      const usages = sortUnique(references.map(entry => entry.value));
+      return withManagedReferences({ ...buildSimpleRelations({ imports: collectHandlebarsImports(budgetContext.source, options), literalImports:true }),
+        exports, usages }, 'handlebars', budgetContext.source, references, structure.definitions);
     } finally {
       if (lineLimited) {
         for (let line = 0; line < budgetContext.budget.maxLines; line += 1) {
@@ -673,19 +661,11 @@ export const createProtoManagedAdapter = ({ parseStructure = parseProtoStructure
       if (!lineLimited) for (const value of structure.references) {
         if (budgetContext.scanBudget.exhausted || !budgetContext.scanBudget.consumeMatch()
           || !budgetContext.scanBudget.consumeToken()) break;
-        references.push(value);
+        references.push({ value, kind: 'type-reference' });
       }
       const exports = sortUnique(symbols);
-      const usages = sortUnique(references);
-      const calls = [];
-      for (const caller of exports.length ? exports : ['<module>']) {
-        for (const callee of usages) {
-          if (callee !== caller) calls.push([caller, callee]);
-          if (calls.length >= 96) break;
-        }
-        if (calls.length >= 96) break;
-      }
-      return { ...buildSimpleRelations({ imports: collectProtoImports(budgetContext.source, options) }), exports, usages, calls };
+      const usages = sortUnique(references.map(entry => entry.value));
+      return withManagedReferences({ ...buildSimpleRelations({ imports: collectProtoImports(budgetContext.source, options) }), exports, usages }, 'proto', budgetContext.source, references, []);
     } finally {
       if (lineLimited) for (let line = 0; line < budgetContext.budget.maxLines; line += 1) {
         if (!budgetContext.scanBudget.consumeLine()) break;
@@ -726,7 +706,8 @@ export const createMustacheManagedAdapter = ({ parseStructure = parseMustacheStr
       for (const entry of structure.referenceEntries) {
         if (!inWindow(entry)) continue;
         if (context.scanBudget.exhausted || !context.scanBudget.consumeMatch() || !context.scanBudget.consumeToken()) break;
-        references.push(entry.value);
+        references.push({ ...entry, kind: entry.type === '>' ? 'dependency'
+          : ['#', '^'].includes(entry.type) ? 'section-test' : 'lookup' });
       }
       for (const entry of structure.partials) {
         if (!inWindow(entry)) continue;
@@ -735,18 +716,8 @@ export const createMustacheManagedAdapter = ({ parseStructure = parseMustacheStr
           { literal:true });
       }
       const exports = sortUnique(symbols);
-      const usages = sortUnique(references);
-      const calls = [];
-      // Preserve the managed relation shape, but these are bounded lookup/section
-      // associations, not resolved template helpers or executable call edges.
-      for (const caller of exports.length ? exports : ['<module>']) {
-        for (const callee of usages) {
-          if (callee !== caller) calls.push([caller, callee]);
-          if (calls.length >= 96) break;
-        }
-        if (calls.length >= 96) break;
-      }
-      return { imports: [...imports], exports, usages, calls };
+      const usages = sortUnique(references.map(entry => entry.value));
+      return withManagedReferences({ imports: [...imports], exports, usages }, 'mustache', context.source, references, structure.sections.map(entry => ({ ...entry, end: entry.closeStart })));
     } finally {
       if (lineLimited) for (let line = 0; line < context.budget.maxLines; line += 1) {
         if (!context.scanBudget.consumeLine()) break;
@@ -792,19 +763,11 @@ export const createJinjaManagedAdapter = ({ parseStructure = parseJinjaTemplateS
       for (const entry of structure.referenceEntries) {
         if (!inWindow(entry)) continue;
         if (context.scanBudget.exhausted || !context.scanBudget.consumeMatch() || !context.scanBudget.consumeToken()) break;
-        references.push(entry.value);
+        references.push(entry);
       }
       const exports = sortUnique(symbols);
-      const usages = sortUnique(references);
-      const calls = [];
-      for (const caller of exports.length ? exports : ['<module>']) {
-        for (const callee of usages) {
-          if (callee !== caller) calls.push([caller, callee]);
-          if (calls.length >= 96) break;
-        }
-        if (calls.length >= 96) break;
-      }
-      return { imports: [...imports], exports, usages, calls };
+      const usages = sortUnique(references.map(entry => entry.value));
+      return withManagedReferences({ imports: [...imports], exports, usages }, 'jinja', context.source, references, structure.scopes || []);
     } finally {
       if (lineLimited) for (let line = 0; line < context.budget.maxLines; line += 1) {
         if (!context.scanBudget.consumeLine()) break;

@@ -1,4 +1,5 @@
 import { extractSymbolBaseName, getLanguageLexicon } from '../../../lang/lexicon/index.js';
+import { isManagedReferenceLanguage, enforceManagedReferenceCallKind } from '../../../contracts/managed-reference-identities.js';
 import { isPlainObject, normalizeBoolean } from '../../../shared/config.js';
 
 const DEFAULT_DROP_CONFIG = Object.freeze({
@@ -166,6 +167,9 @@ export const filterRawRelationsWithLexicon = (rawRelations, {
   relKey = null
 } = {}) => {
   if (!rawRelations || typeof rawRelations !== 'object') return rawRelations;
+  // Fact-kind admission is independent of lexical token filtering and cannot
+  // be disabled by a stopword/lexicon preference or a missing lexicon package.
+  rawRelations = enforceManagedReferenceCallKind(rawRelations, languageId || rawRelations.managedReferenceFacts?.languageId);
 
   const cfg = asPlainObject(config) || {};
   const lexiconEnabled = cfg.enabled !== false;
@@ -296,6 +300,15 @@ export const filterRawRelationsWithLexicon = (rawRelations, {
     filtered.callDetailsWithRange = callDetailsWithRange;
   }
 
+  if (isManagedReferenceLanguage(resolvedLanguageId)) {
+    stats.droppedCalls += filtered.calls?.length || 0;
+    stats.droppedCallDetails += filtered.callDetails?.length || 0;
+    stats.droppedCallDetailsWithRange += filtered.callDetailsWithRange?.length || 0;
+    filtered.calls = [];
+    filtered.callDetails = [];
+    filtered.callDetailsWithRange = [];
+    filtered.callCoverage = 'partial-reference-language-no-invocation-owner';
+  }
   maybeLogStats({ stats, languageId: resolvedLanguageId, relKey, log });
   return attachFilterStats(filtered, stats, resolvedLanguageId, relKey);
 };

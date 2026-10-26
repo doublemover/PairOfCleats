@@ -1302,3 +1302,10 @@ indexing/embeddings/inline-runtime-original-failure-drain
 indexing/runtime/daemon-embedding-leases
 indexing/runtime/daemon-embedding-retirement-reconciliation
 indexing/runtime/initialization-resource-unwind
+lang/contracts/managed-reference-kind-and-owner
+lang/contracts/template-heuristic-adapters
+lang/contracts/data-interface-heuristic-adapters
+lang/contracts/build-dsl-heuristic-adapters
+lang/contracts/managed-heuristic-adapters
+lang/contracts/dynamic-heuristic-adapters
+indexing/semantic/template-local-registry-evidence

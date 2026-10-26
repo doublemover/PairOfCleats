@@ -1,4 +1,5 @@
 import { createImportExtraction, getImportExtraction, projectImportExtraction } from '../../../shared/import-extraction.js';
+import { admitManagedReferenceFacts } from '../../../contracts/managed-reference-identities.js';
 const normalizeLimit = (value) => {
   if (value == null || value === '' || typeof value === 'boolean'
     || (typeof value === 'string' && !value.trim())) return null;
@@ -137,8 +138,10 @@ export const buildFileRelations = (relations, relKey = null) => {
     text: null, producerId: 'file-relations-legacy-array', scope: 'unqualified-file-relation-input', reasons: ['legacy_array_producer'] });
   const importExtraction = projectImportExtraction(extraction, rawImports, normalizedImports, { owner: 'file-relations',
     duplicates: validImports - normalizedImports.length, invalid: rawImports.length - validImports });
+  const managedReferenceFacts = admitManagedReferenceFacts(relations.managedReferenceFacts, relations.managedReferenceFacts?.languageId);
   return {
     importExtraction,
+    ...(managedReferenceFacts ? { managedReferenceFacts } : {}),
     ...(relations.importScanExtraction ? { importScanExtraction: relations.importScanExtraction } : {}),
     ...(relations.sqlRelationEvidence ? { sqlRelationEvidence: relations.sqlRelationEvidence } : {}),
     ...(relations.jsDeclarations ? { jsDeclarations: relations.jsDeclarations } : {}),
@@ -163,6 +166,7 @@ export const stripFileRelations = (codeRelations) => {
   if (!codeRelations || typeof codeRelations !== 'object') return codeRelations;
   const {
     sqlRelationEvidence,
+    managedReferenceFacts,
     importExtraction,
     importScanExtraction,
     jsDeclarations,

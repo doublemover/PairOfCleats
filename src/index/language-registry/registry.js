@@ -1,4 +1,5 @@
 import { throwIfAborted } from '../../shared/abort.js';
+import { isManagedReferenceLanguage, projectManagedReferences } from '../../contracts/managed-reference-identities.js';
 import { resolveJavaScriptDeclarationReference } from '../../lang/javascript/callable-occurrences.js';
 import { admitImportExtraction, attachImportExtraction, createImportExtraction, getImportExtraction, projectImportExtraction } from '../../shared/import-extraction.js';
 import path from 'node:path';
@@ -224,6 +225,16 @@ const syntaxOccurrenceKey = detail => {
 export function buildChunkRelations({ lang, chunk, fileRelations, callIndex = null, chunkIndex = null }) {
   if (!fileRelations) return {};
   const output = {};
+  if (isManagedReferenceLanguage(lang?.id)) {
+    const references = projectManagedReferences(fileRelations.managedReferenceFacts, lang.id, chunk);
+    output.calls = [];
+    output.callCoverage = 'partial-reference-language-no-invocation-owner';
+    output.referenceDetails = references.details;
+    output.referenceCoverage = { state: references.state, scope: 'static-reference-occurrences-not-call-edges',
+      ...(references.coverage ? { producer: references.coverage } : { reason: 'source-reference-owner-unavailable' }) };
+    if (lang.attachName && chunk?.name) output.name = chunk.name;
+    return output;
+  }
   const coverage = chunk?.meta?.syntaxCallCoverage || fileRelations.callCoverage;
   if (coverage) output.callCoverage = coverage;
   if (chunk?.meta?.syntaxCallOmissions) output.callOmissions = { ...chunk.meta.syntaxCallOmissions };
