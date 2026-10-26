@@ -116,6 +116,18 @@ if (!findChunk(proseMeta, { file: 'docs/guide.rst', nameIncludes: 'Guide' }, pro
 if (!findChunk(proseMeta, { file: 'docs/manual.adoc', nameIncludes: 'Manual' }, proseFileById)) {
   failures.push('Missing AsciiDoc chunk for Manual.');
 }
+for (const [file, expected] of [['docs/guide.rst', ['Guide', 'Section One', 'Section Two', 'Alternate']],
+  ['docs/manual.adoc', ['Manual', 'Usage', 'Troubleshooting', 'Final section']]]) {
+  const rows = proseMeta.filter(chunk => (chunk.file || proseFileById.get(chunk.fileId)) === file);
+  const actual = rows.filter(chunk => chunk.metaV2?.sourceOutline?.heading).map(chunk => chunk.name);
+  if (JSON.stringify(actual) !== JSON.stringify(expected)) failures.push(`Incorrect persisted heading outline for ${file}: ${actual.join(', ')}`);
+  const source = fs.readFileSync(path.join(fixtureRoot, file), 'utf8');
+  for (const row of rows) {
+    const heading = row.metaV2?.sourceOutline?.heading;
+    if (heading && source.slice(heading.titleRange.start, heading.titleRange.end) !== heading.title) failures.push(`Incorrect persisted title range for ${file}.`);
+    if (/Impostor/u.test(row.name || '')) failures.push(`Literal/comment text became a persisted heading in ${file}.`);
+  }
+}
 
 if (failures.length) {
   failures.forEach((msg) => console.error(msg));

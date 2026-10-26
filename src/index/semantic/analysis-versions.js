@@ -2,12 +2,13 @@ import { SQL_RELATION_PRODUCER_VERSION } from '../../lang/sql/version.js';
 import { semanticHash } from './identity.js';
 import { MODULE_EXPORTS_VERSION } from '../../lang/js-ts-exports.js';
 import { FLOW_METADATA_VERSION } from '../../shared/flow-evidence.js';
+import { SOURCE_OUTLINE_VERSION } from '../../shared/source-outline.js';
 
 /** Shared by producers and replay admission. Bump the affected producer when its
  * semantics change; syntax extraction and physical layout remain independent.
  */
 export const SEMANTIC_ANALYSIS_VERSIONS = Object.freeze({
-  moduleExports: MODULE_EXPORTS_VERSION, sqlRelations: SQL_RELATION_PRODUCER_VERSION, flowMetadata: FLOW_METADATA_VERSION,
+  moduleExports: MODULE_EXPORTS_VERSION, sqlRelations: SQL_RELATION_PRODUCER_VERSION, flowMetadata: FLOW_METADATA_VERSION, sourceOutline: SOURCE_OUTLINE_VERSION,
   lexicalAnalyzer: '3', importResolution: '18', pieceAssembly: '4',
   recordsProducer: '8', ignoreRules: '4', documentExtraction: '5', discoverySelection: '5',
   repoMapProducer: '2', graphRelations: '2',

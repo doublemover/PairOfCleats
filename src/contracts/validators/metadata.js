@@ -1,8 +1,10 @@
 import { admitFlowEvidence } from '../../shared/flow-evidence.js';
+import { sourceOutlineErrors } from '../../shared/source-outline.js';
 /** Validate relationships that JSON Schema field types cannot express. */
 export const validateMetadataV2Semantics = (metadata) => {
   const errors = [];
   if (!metadata || typeof metadata !== 'object') return errors;
+  if (metadata.sourceOutline) errors.push(...sourceOutlineErrors(metadata.sourceOutline).map(error => '/sourceOutline: ' + error));
   if (metadata.flowEvidence) {
     try {
       admitFlowEvidence(metadata.flowEvidence, metadata);
