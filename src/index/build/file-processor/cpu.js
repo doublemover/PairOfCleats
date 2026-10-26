@@ -19,6 +19,7 @@ import {
 } from './cpu/chunking.js';
 import { buildLanguageAnalysisContext } from './cpu/analyze.js';
 import { buildCommentMeta } from './cpu/meta.js';
+import { buildExtractedProseExtrasCacheKey, resolveExtractedProseCommentData } from './cpu/comment-data-cache.js';
 import { resolveFileParsePolicy } from './cpu/parse-policy.js';
 import { chunkWithScheduler } from './cpu/scheduler-chunking.js';
 import {
@@ -51,55 +52,6 @@ import { resolveChunkingFileRole } from '../../chunking/limits.js';
 import { isAbortError } from '../../../shared/abort.js';
 import { createTimeoutError, runWithTimeout } from '../../../shared/promise-timeout.js';
 import { createFileProcessorCrashStageUpdater } from './crash-stage.js';
-
-/**
- * Build deterministic key for extracted-prose extras cache entries.
- *
- * @param {{fileHash?:string|null,fileHashAlgo?:string|null,ext?:string|null,languageId?:string|null}} input
- * @returns {string|null}
- */
-const buildExtractedProseExtrasCacheKey = ({
-  fileHash,
-  fileHashAlgo,
-  ext,
-  languageId
-} = {}) => {
-  const normalizedHash = typeof fileHash === 'string' ? fileHash.trim() : '';
-  if (!normalizedHash) return null;
-  const normalizedAlgo = typeof fileHashAlgo === 'string' && fileHashAlgo.trim()
-    ? fileHashAlgo.trim().toLowerCase()
-    : 'unknown';
-  const normalizedExt = typeof ext === 'string' ? ext.trim().toLowerCase() : '';
-  const normalizedLanguage = typeof languageId === 'string' ? languageId.trim().toLowerCase() : '';
-  return `hash:${normalizedAlgo}:${normalizedHash}|ext:${normalizedExt}|lang:${normalizedLanguage}`;
-};
-
-/**
- * Clone cached extracted-prose extras entry to avoid accidental shared mutation.
- *
- * @param {object|null|undefined} entry
- * @returns {{commentEntries:object[],commentRanges:object[],extraSegments:object[]}}
- */
-const cloneCachedExtrasEntry = (entry) => {
-  const cloneValue = (value) => {
-    if (!Array.isArray(value) || value.length === 0) return [];
-    if (typeof globalThis.structuredClone === 'function') {
-      try {
-        return globalThis.structuredClone(value);
-      } catch {}
-    }
-    try {
-      return JSON.parse(JSON.stringify(value));
-    } catch {
-      return [];
-    }
-  };
-  return {
-    commentEntries: cloneValue(entry?.commentEntries),
-    commentRanges: cloneValue(entry?.commentRanges),
-    extraSegments: cloneValue(entry?.extraSegments)
-  };
-};
 
 /**
  * Execute CPU-phase analysis for a file, including parse policy resolution,
@@ -691,58 +643,25 @@ export const processFileCpu = async (context) => {
   let extraSegments = [];
   const shouldPrimeExtractedProseExtras = mode === 'prose' && primeExtractedProseExtrasCache === true;
   const shouldUseExtractedProseCommentMeta = mode === 'extracted-prose' || shouldPrimeExtractedProseExtras;
-  const supportsExtractedProseExtrasCache = Boolean(
-    extractedProseExtrasCache
-    && typeof extractedProseExtrasCache.get === 'function'
-    && typeof extractedProseExtrasCache.set === 'function'
-  );
   const extractedProseExtrasCacheKey = shouldUseExtractedProseCommentMeta
-    ? buildExtractedProseExtrasCacheKey({
-      fileHash,
-      fileHashAlgo,
-      ext,
-      languageId: lang?.id || null
-    })
+    ? buildExtractedProseExtrasCacheKey({ fileHash, fileHashAlgo, ext, languageId: lang?.id || null, normalizedCommentsConfig })
     : null;
-  const loadCachedExtractedProseCommentMeta = () => {
-    if (!supportsExtractedProseExtrasCache || !extractedProseExtrasCacheKey) return null;
-    const cached = extractedProseExtrasCache.get(extractedProseExtrasCacheKey);
-    if (!cached || typeof cached !== 'object') return null;
-    return cloneCachedExtrasEntry(cached);
-  };
-  const storeCachedExtractedProseCommentMeta = (entry) => {
-    if (!supportsExtractedProseExtrasCache || !extractedProseExtrasCacheKey || !entry) return;
-    extractedProseExtrasCache.set(extractedProseExtrasCacheKey, cloneCachedExtrasEntry(entry));
-  };
-  const buildExtractedProseCommentMeta = () => buildCommentMeta({
-    text,
-    ext,
-    mode: 'extracted-prose',
-    languageId: lang?.id || null,
-    lineIndex,
-    normalizedCommentsConfig,
-    tokenDictWords,
-    dictConfig
-  });
+  const rawExtractedCommentData = () => resolveExtractedProseCommentData({ cache: extractedProseExtrasCache,
+    key: extractedProseExtrasCacheKey, text, ext, languageId: lang?.id || null, lineIndex, normalizedCommentsConfig });
+  const buildExtractedProseCommentMeta = () => buildCommentMeta({ text, ext, mode: 'extracted-prose',
+    languageId: lang?.id || null, lineIndex, normalizedCommentsConfig, tokenDictWords, dictConfig,
+    commentData: rawExtractedCommentData() });
   updateCrashStage('comments');
   try {
     if (mode === 'extracted-prose') {
-      let extractedCommentMeta = loadCachedExtractedProseCommentMeta();
-      if (!extractedCommentMeta) {
-        extractedCommentMeta = buildExtractedProseCommentMeta();
-        storeCachedExtractedProseCommentMeta(extractedCommentMeta);
-      }
+      const extractedCommentMeta = buildExtractedProseCommentMeta();
       commentEntries = extractedCommentMeta.commentEntries;
       commentRanges = extractedCommentMeta.commentRanges;
       extraSegments = extractedCommentMeta.extraSegments;
     } else if (shouldPrimeExtractedProseExtras) {
-      let extractedCommentMeta = loadCachedExtractedProseCommentMeta();
-      if (!extractedCommentMeta) {
-        extractedCommentMeta = buildExtractedProseCommentMeta();
-        storeCachedExtractedProseCommentMeta(extractedCommentMeta);
-      }
+      rawExtractedCommentData();
       // Prose mode does not consume comment-derived segments directly, but we
-      // precompute extracted-prose comment metadata to avoid re-scanning text
+      // prepare raw extraction (without dictionary-dependent tokenization) to avoid re-scanning text
       // in the paired extracted-prose pass.
       commentEntries = [];
       commentRanges = [];

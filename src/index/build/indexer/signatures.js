@@ -22,6 +22,7 @@ import { DOCX_STRUCTURAL_EXTRACTION_VERSION, PDF_TEXT_EXTRACTION_VERSION } from 
 import { getRiskRulesPolicyReceipt } from '../../risk-rule-receipt.js';
 import { lintPolicyDependency } from '../../lint-policy.js';
 import { GENERATED_ARTIFACT_POLICY_VERSION } from '../../../shared/generated-artifact-observation.js';
+import { COMMENT_CLASSIFICATION_VERSION } from '../../comments-policy.js';
 
 export { ARTIFACT_SCHEMA_HASH };
 
@@ -221,6 +222,7 @@ export const buildTokenizationKey = (runtime, mode) => {
     segmentsConfig: runtime.segmentsConfig || {},
     commentsConfig: {
       ...commentsConfig,
+      classificationVersion: COMMENT_CLASSIFICATION_VERSION,
       licensePattern: normalizeRegex(commentsConfig.licensePattern),
       generatedPattern: normalizeRegex(commentsConfig.generatedPattern),
       linterPattern: normalizeRegex(commentsConfig.linterPattern)
@@ -259,7 +261,8 @@ export const buildDependencySignatures = (runtime, mode, tokenizationKey) => {
       pdfTextExtractionVersion: PDF_TEXT_EXTRACTION_VERSION } : {}),
     ...(mode === 'records' ? { recordsProducer: SEMANTIC_ANALYSIS_VERSIONS.recordsProducer } : {}),
     fileCaps: payload.fileCaps, fileScan: payload.fileScan,
-    segments: runtime.segmentsConfig || {}, comments: runtime.commentsConfig || {}
+    segments: runtime.segmentsConfig || {}, comments: { classificationVersion: COMMENT_CLASSIFICATION_VERSION,
+      config: runtime.commentsConfig || {} }
   };
   const lexical = { mode, tokenizationKey, literalAnalyzer: payload.literalAnalyzer, lexicon: payload.lexicon, profile: payload.profile };
   const enrichment = {

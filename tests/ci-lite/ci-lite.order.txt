@@ -1370,3 +1370,8 @@ indexing/workers/facade-fatal-no-fallback
 indexing/workers/worker-telemetry-retirement
 indexing/workers/process-pool-lifecycle
 indexing/workers/facade-original-process-settlement
+indexing/chunking/comment-license-admission
+indexing/stage1/comment-policy-extras-cache
+indexing/contracts/language-policy-matcher-projection
+indexing/stage1/extracted-prose-extras-cache-lru
+indexing/chunking/comment-join

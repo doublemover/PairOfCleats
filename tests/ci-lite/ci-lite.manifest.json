@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1212,
+    "hero": 1217,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -8233,6 +8233,36 @@
     {
       "id": "indexing/workers/facade-original-process-settlement",
       "order": 1370,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/chunking/comment-license-admission",
+      "order": 1371,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/stage1/comment-policy-extras-cache",
+      "order": 1372,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/contracts/language-policy-matcher-projection",
+      "order": 1373,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/stage1/extracted-prose-extras-cache-lru",
+      "order": 1374,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/chunking/comment-join",
+      "order": 1375,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

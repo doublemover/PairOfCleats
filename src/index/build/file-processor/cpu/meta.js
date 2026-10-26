@@ -10,13 +10,14 @@ export const buildCommentMeta = ({
   lineIndex,
   normalizedCommentsConfig,
   tokenDictWords,
-  dictConfig
+  dictConfig,
+  commentData: preparedCommentData = null
 }) => {
   const commentsEnabled = (mode === 'code' || mode === 'extracted-prose')
     && normalizedCommentsConfig.extract !== 'off';
   const commentSegmentsEnabled = mode === 'extracted-prose'
     || (mode === 'code' && normalizedCommentsConfig.includeInCode === true);
-  const commentData = commentsEnabled
+  const commentData = commentsEnabled && preparedCommentData ? preparedCommentData : commentsEnabled
     ? extractComments({
       text,
       ext,

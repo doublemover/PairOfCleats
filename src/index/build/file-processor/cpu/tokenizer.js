@@ -14,7 +14,6 @@ export const tokenizeComments = ({
   const commentSegments = [];
   if (Array.isArray(comments)) {
     for (const comment of comments) {
-      commentRanges.push(comment);
       const commentTokens = buildTokenSequence({
         text: comment.text,
         mode: 'prose',
@@ -23,13 +22,17 @@ export const tokenizeComments = ({
         dictConfig,
         includeSeq: false
       }).tokens;
-      if (commentTokens.length < normalizedCommentsConfig.minTokens) continue;
-      const entry = { ...comment, tokens: commentTokens };
+      const enoughTokens = commentTokens.length >= normalizedCommentsConfig.minTokens;
+      const includeLicense = comment.type !== 'license' || normalizedCommentsConfig.includeLicense;
+      const proseAdmission = { included: Boolean(enoughTokens && commentSegmentsEnabled && includeLicense),
+        reason: !includeLicense ? 'license-excluded' : !enoughTokens ? 'below-min-tokens'
+          : !commentSegmentsEnabled ? 'comment-segments-disabled' : 'included' };
+      const qualifiedComment = { ...comment, proseAdmission };
+      commentRanges.push(qualifiedComment);
+      if (!enoughTokens) continue;
+      const entry = { ...qualifiedComment, tokens: commentTokens };
       commentEntries.push(entry);
-      if (
-        commentSegmentsEnabled
-        && (comment.type !== 'license' || normalizedCommentsConfig.includeLicense)
-      ) {
+      if (proseAdmission.included) {
         commentSegments.push({
           type: 'comment',
           languageId: languageId || null,
