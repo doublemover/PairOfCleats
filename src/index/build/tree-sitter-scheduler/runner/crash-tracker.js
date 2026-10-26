@@ -6,6 +6,7 @@ import { toArray } from '../../../../shared/iterables.js';
 import { NATIVE_GRAMMAR_MODULES } from '../../../../lang/tree-sitter/native-runtime.js';
 import { parseSubprocessCrashEvents, tailLines } from './crash-utils.js';
 import { buildSchedulerDegradationReceipt } from '../degradation.js';
+import { createCrashPersistence } from './crash-persistence.js';
 
 const TREE_SITTER_RUNTIME_PACKAGE = 'tree-sitter';
 const CRASH_BUNDLE_SCHEMA_VERSION = '1.0.0';
@@ -272,26 +273,8 @@ export const createSchedulerCrashTracker = ({
   const failureClassCounts = new Map();
   const localBundlePath = path.join(paths.baseDir, CRASH_BUNDLE_FILE);
   const durableBundlePath = resolveDurableCrashBundlePath({ runtime, outDir });
-  let persistSerial = Promise.resolve();
-  const persistenceFailures = [];
-  const persistenceSinks = new Map();
-  const attemptSink = async (sink, targetPath, persist) => {
-    try {
-      await persist();
-      persistenceSinks.set(sink, { sink, path: targetPath, ok: true });
-    } catch (error) {
-      const failure = { sink, path: targetPath, ok: false, code: error?.code || 'ERR_CRASH_FORENSICS_PERSIST',
-        message: String(error?.message || error), timestamp: new Date().toISOString() };
-      persistenceFailures.push(failure);
-      persistenceSinks.set(sink, failure);
-      try {
-        // Warning presentation is best effort; a rejected async callback must
-        // not become an unhandled rejection or suppress another evidence sink.
-        Promise.resolve(log?.(`[tree-sitter:schedule] crash evidence ${sink} persistence failed: ${failure.message}`))
-          .catch(() => {});
-      } catch {}
-    }
-  };
+  const persistence = createCrashPersistence({ log });
+  const attemptSink = persistence.attempt;
 
   /**
    * Serialize crash bundle persistence to keep on-disk snapshots deterministic.
@@ -301,7 +284,7 @@ export const createSchedulerCrashTracker = ({
    * @returns {Promise<void>}
    */
   const enqueuePersist = (bundle, presentation = null) => {
-    persistSerial = persistSerial.then(async () => {
+    return persistence.enqueue(async () => {
       const serializedBundle = JSON.stringify(bundle);
       await attemptSink('local', localBundlePath, () => atomicWriteText(localBundlePath, serializedBundle, { newline: false }));
       if (durableBundlePath) {
@@ -326,14 +309,13 @@ export const createSchedulerCrashTracker = ({
       }
       // Optional presentation runs only after the original evidence sinks.
       // Neither a logger getter nor a callback can prevent bundle admission.
-      if (presentation) {
+      if (presentation) persistence.present(async () => {
         if (typeof log === 'function') await attemptSink('presentation', null, () => log(presentation.line));
         if (crashLogger) await attemptSink('error-log', null, () => {
           if (crashLogger.enabled) return crashLogger.logError(presentation.error);
         });
-      }
-    }).catch((error) => attemptSink('serialization', null, () => Promise.reject(error)));
-    return persistSerial;
+      });
+    });
   };
 
   /**
@@ -527,6 +509,7 @@ export const createSchedulerCrashTracker = ({
     getDegradedVirtualPaths: () => new Set(degradedVirtualPaths),
     getBundlePath: () => localBundlePath,
     getDurableBundlePath: () => durableBundlePath,
+    isPersistenceSettled: persistence.isSettled,
     summarize: () => ({
       parserCrashSignatures: eventsBySignature.size,
       parserCrashEvents: Array.from(eventsBySignature.values())
@@ -538,13 +521,8 @@ export const createSchedulerCrashTracker = ({
       failureClasses: Object.fromEntries(
         Array.from(failureClassCounts.entries()).sort((a, b) => String(a[0]).localeCompare(String(b[0])))
       ),
-      persistence: { ok: persistenceFailures.length === 0, failures: persistenceFailures.slice(),
-        sinks: Array.from(persistenceSinks.values()) }
+      persistence: persistence.snapshot()
     }),
-    waitForPersistence: async () => {
-      await persistSerial;
-      return { ok: persistenceFailures.length === 0, failures: persistenceFailures.slice(),
-        sinks: Array.from(persistenceSinks.values()) };
-    }
+    waitForPersistence: persistence.wait
   };
 };

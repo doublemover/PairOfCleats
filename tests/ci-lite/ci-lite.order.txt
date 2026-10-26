@@ -1275,3 +1275,6 @@ shared/type-qualified-alias-ownership
 shared/type-identity-literals-and-nesting
 indexing/registry-borrowed-lock-capability
 indexing/type-inference/crossfile/cache-fingerprint-and-size-cap
+indexing/tree-sitter/crash-persistence-ownership
+indexing/tree-sitter/crash-persistence-degradation
+indexing/tree-sitter/crash-presentation-degradation

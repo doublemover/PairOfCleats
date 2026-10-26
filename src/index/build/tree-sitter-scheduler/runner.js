@@ -2,10 +2,8 @@ import { fileURLToPath } from 'node:url';
 import { atomicWriteJson } from '../../../shared/io/atomic-write.js';
 import { coerceAbortSignal, throwIfAborted } from '../../../shared/abort.js';
 import { resolveRuntimeEnv } from '../../../shared/runtime-envelope/env-patch.js';
-import {
-  resolveBuildCleanupTimeoutMs,
-  runBuildCleanupWithTimeout
-} from '../cleanup-timeout.js';
+import { resolveBuildCleanupTimeoutMs } from '../cleanup-timeout.js';
+import { waitForSchedulerCrashPersistence } from './runner/crash-persistence.js';
 import { buildTreeSitterSchedulerPlan } from './plan.js';
 import { createTreeSitterSchedulerLookup } from './lookup.js';
 import { createSchedulerCrashTracker } from './runner/crash-tracker.js';
@@ -150,16 +148,7 @@ export const runTreeSitterScheduler = async ({
   });
   throwIfAborted(effectiveAbortSignal);
 
-  const crashPersistenceResult = await runBuildCleanupWithTimeout({
-    label: `tree-sitter-scheduler.${mode}.crash-persistence`,
-    cleanup: () => crashTracker.waitForPersistence(),
-    log
-  });
-  if (crashPersistenceResult?.timedOut && log) {
-    log(
-      `[tree-sitter:schedule] crash persistence timed out after ${crashPersistenceResult?.elapsedMs || 'unknown'}ms; continuing with degraded crash telemetry.`
-    );
-  }
+  await waitForSchedulerCrashPersistence(crashTracker, { mode });
   const crashSummary = crashTracker.summarize();
   const failedGrammarKeySet = new Set(crashSummary.failedGrammarKeys);
   const successfulGrammarKeys = grammarKeys.filter((grammarKey) => !failedGrammarKeySet.has(grammarKey));

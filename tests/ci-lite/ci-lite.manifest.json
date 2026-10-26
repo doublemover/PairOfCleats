@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1117,
+    "hero": 1120,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -7663,6 +7663,24 @@
     {
       "id": "indexing/type-inference/crossfile/cache-fingerprint-and-size-cap",
       "order": 1275,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/tree-sitter/crash-persistence-ownership",
+      "order": 1276,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/tree-sitter/crash-persistence-degradation",
+      "order": 1277,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/tree-sitter/crash-presentation-degradation",
+      "order": 1278,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

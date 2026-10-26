@@ -56,7 +56,7 @@ try {
     } else {
       assert.equal(receipt.ok, false);
       const expected = mode === 'external-getter' ? ['external']
-        : mode === 'enabled-getter' ? ['error-log'] : ['presentation', 'error-log'];
+        : mode === 'enabled-getter' ? ['error-log'] : ['presentation', 'error-log', 'warning', 'warning'];
       assert.deepEqual(receipt.failures.map(value => value.sink).sort(), expected.sort());
       assert.ok(receipt.failures.every(value => value.code === 'ELOG'));
       assert.equal(receipt.failures.some(value => value.sink === 'serialization'), false,
