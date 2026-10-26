@@ -1394,3 +1394,38 @@ Full format, scoped ESLint, fixture syntax, affected inventory refresh, fixture
 discovery and staged diff checks passed. These are static/discovery observations;
 functional execution and the final front gate remain deferred. Coverage is
 **35 fixed / 406 implemented / 151 partial / 171 pending**.
+
+
+## Chunk-seeded import witness projection
+
+**#1711** (`9ffb2af10`) retains canonical file import adjacency and emits a typed
+containing-file alias when traversal enters imports from a chunk. Context edges
+and witnesses carry the same versioned chunk/file/canonical-endpoint association.
+Qualification checks the association against selected-generation chunk facts;
+returned validation checks its typed endpoint mapping and chain connectivity.
+Arbitrary import endpoint domains remain invalid. Self-imports retain the
+current chunk endpoint rather than manufacturing a disconnected file witness.
+Ordinary and qualified output use the same projection; human context output
+shows the canonical file import and alias. Source extraction and runtime
+feasibility remain unqualified. Graph-context/impact response producers are
+1.1.0/1.2.0, and the private neighborhood cache key is version 2.
+
+Imports-only CLI selections now recover the requested chunk's file from
+canonical chunk metadata in the selected generation, attaching only that fact
+to a private prepared-index view. Cached graph metadata remains unchanged for
+other callers. Conflicting file identities fail admission. This also applies
+to chunk-seeded impact through the same preparation owner.
+
+The existing reciprocal/directed fixture now opts into graph-witness with an
+exact matching signature, preserving source/evidence/CSR assertions. New raw,
+legacy and CSR cases cover out/in/both, paths off/on, depth 1/2, ordinary/qualified
+content parity, source imports, mixed call/import chains, file/call-only controls,
+self-import and rejection of a self-consistent alias rebound to an unrelated
+file. The actual writer/preparation fixture now covers imports-only context and
+impact CLI requests; the existing small real-source workflow additionally checks
+a chunk-seeded imports-only CLI response against its actual indexed importer.
+
+Full format, scoped ESLint, syntax, affected generated refresh, fixture discovery
+and staged diff checks passed. An EOF whitespace failure was corrected and its
+check rerun. Functional execution and the final front gate remain deferred.
+Coverage is **35 fixed / 407 implemented / 151 partial / 170 pending**.
