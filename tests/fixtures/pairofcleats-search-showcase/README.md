@@ -101,3 +101,11 @@ Capture one search through a PTY directly:
 ```powershell
 node tools/testing/capture-search-debug.js --pty --label help-review -- --help
 ```
+
+
+Machine cases in pipe captures validate the complete raw stdout as JSON. Valid
+JSON with diagnostics on stderr remains clean; empty stdout, malformed JSON or
+trailing stdout warnings increment the machine-output failure/pollution metric.
+Reports retain parse errors, raw stdout paths, case identity and capture mode.
+Process status still follows the expected exit code, separately from QA scoring.
+Human pipe cases remain unparsed, and PTY captures remain layout observations.

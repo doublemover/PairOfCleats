@@ -389,6 +389,7 @@ export const captureCommandDebugRun = async ({
     files,
     stdout: {
       bytes: stdoutBuffer.length,
+      jsonParsingRequested: parseStdoutAsJson === true,
       parsedAsJson: stdoutJson.parsed,
       jsonParseError: stdoutJson.error
     },
