@@ -2289,3 +2289,51 @@ ci-lite now contains 1,248 entries. No functional suite or final gate ran.
 
 Current coverage: **35 fixed / 427 implemented / 153 partial / 155 pending**
 across 770 current open reports. No closure or new closing reference was inferred.
+
+## Diagnostic occurrence and repository replay, #1689 (2026-10-26)
+
+`879367406` implements #1689. New diagnostic stream version 3 retains the
+existing class fingerprint and occurrence counter while adding one UUID per
+runProcess invocation and explicit occurrence-delta cost semantics. Every mirror
+receives the exact same payload. A restarted command gets a distinct execution
+identity. Producer cost fields preserve unknown versus numeric zero; safe integer
+work counts remain distinct from duration. Existing per-occurrence process
+summary accumulation and concise interactive signatures remain.
+
+Replay now separates repository/source fingerprint presence, repository/type
+presence, logical occurrence identity and transport-copy identity. Parity keeps
+its presence denominator. Repeated observations contribute their own cost once;
+master copies suppress only the exact qualified observation. Master-only A/B
+and missing-repo-stream evidence survive even with the same class fingerprint.
+Unknown master labels stay in explicit unknown-source buckets, surfaced within
+legacy repository-presence counts rather than merged into a known repository.
+
+Version 3 duplicate counts mean actual repeated transport copies. Occurrence
+counts and repeated-fingerprint occurrence counts expose useful repeated work.
+Costs have observed/unknown counts, observed subtotals and scope explicitly
+separate from wall time. Historical v1/v2 and unversioned rows remain readable
+with conservative projected-field copy matching and explicit legacy execution
+uncertainty. They cannot acquire modern execution qualification from a class
+fingerprint. Unsupported/current non-delta semantics, conflicting same-occurrence
+copies, overflow and exhausted identity allowance remain incomplete and prevent
+a passing parity claim. The fixed invocation-local 100,000-identity bound can
+only be lowered by fixtures. No raw-log cache or extra stream pass is added.
+
+The existing summary fixture's old duplicate=1 expectation described its real
+fallback occurrence 2 as a transport duplicate. Its presence/parity assertions
+remain; the oracle now requires seven occurrences, six presences and no transport
+copy, with the unknown master repository explicitly counted. The process fixture
+checks every row's shared execution UUID, positive occurrence and delta receipt.
+New actual JSONL controls independently exercise two 10ms occurrences versus two
+mirrors, master A/B, partial master fallback, process restart/reset, repeat copies,
+reordered inventory, legacy matching, unknown labels, conflicting copies,
+bounded identities, unsupported semantics/version and primitive zero/unknown
+costs. All authored functional checks remain deferred.
+
+Full format/ESLint, syntax on eight changed JavaScript files, affected generated
+refresh/freshness, ordered fixture discovery and diff checks passed. ci-lite now
+contains 1,249 entries. No local functional suite or final gate ran. Read-only
+hosted status at `fd9e582fa` showed Ubuntu/macOS failures; those platform jobs are
+outside the current Windows-only execution scope and were not rerun locally.
+Current coverage: **35 fixed / 428 implemented / 153 partial / 154 pending**
+across 770 open reports. No closure or new closing reference was inferred.

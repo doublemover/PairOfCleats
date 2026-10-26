@@ -48,6 +48,8 @@ failed/unqualified variants retain their reports and cannot win.
 checkpoint publication; settled-owned evidence retention/cleanup remains open.
 #1681 now preserves unknown scan counts and matched-mode rate coverage through
 the version 2 artifact and recorded report adapters, including stale derivations.
+#1689 now separates diagnostic occurrence costs from fingerprint parity and
+transport copies, retaining repository identity and explicit legacy uncertainty.
 #1675 now uses one global query resource plan and retirement-aware pools; whole
 process-tree RSS measurement remains open, with known-worker samples labeled.
 
