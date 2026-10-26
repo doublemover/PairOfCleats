@@ -1983,3 +1983,52 @@ ci-lite now contains 1,240 entries. These functional fixtures and final gate rem
 deferred. Current coverage: **35 fixed / 422 implemented / 152 partial / 157
 pending** across 766 current open reports. No issue closure or new closing
 reference was inferred from unrun fixtures.
+
+## Historical measurement attempt qualification (2026-10-26)
+
+**#1680** (`5d3dd08c9`) removes implicit current-repository metric/config reads
+from historical throughput and stage-timing reconstruction. The language
+aggregate, throughput renderer and explicit materializer share recorded source
+resolution. Embedded scan-profile modes, throughput and indexing observations
+remain usable without the original repository. Each modality selects its own
+complete counter/clock family. Missing/null/string measurements stay unavailable;
+absent timing profiles remain null and partially observed profiles enumerate
+known/unavailable stages. An observed embedding stage is not added twice.
+
+Optional external facts require a versioned reference beneath the actually read
+report directory, matching its explicit run attempt, bounded exact bytes and
+SHA-256. The existing contained reader enforces path/link authority and read
+limits. Changed, missing, malformed or mismatched sources stay unavailable;
+original pending I/O ownership propagates. No current pointer, mtime stamp or
+repository path supplies historical measurement identity. No public knob or
+index format allowance is added.
+
+Versioned derivation receipts retain source digests, original timestamps, per-mode
+sources and attempt evidence. Materialized fallback stays fallback on readback;
+old unqualified fallback is reconstructed from recorded inputs rather than
+promoted to native. Genuine native ledgers retain priority. Derived indexing and
+ledger content is stable for unchanged recorded observations, and a saved summary
+remains paired with its own artifacts. Live structural build-state analysis is
+not claimed as an immutable attempt snapshot. Environment/performance baseline
+comparability remains its separate qualification owner.
+
+The removed private repo-metrics loader and its private read helper had only the
+two reconstruction consumers replaced here; their imports are also removed.
+The separately named current feature-metrics utility remains for explicit
+inspection. Existing cache-root/invalidation/resilience assertions are retained
+against that utility, with a new historical-admission negative. No legacy test
+file or meaningful assertion was removed.
+
+The new curated fixture uses actual aggregate and ledger callers with saved A
+measurements and deliberately different live B metrics. It changes/removes B and
+current config, counts forbidden live reads, checks embedded counter/clock pairing,
+matching/mismatched/missing snapshot identity and authority, native priority,
+unknown duration and stable materialization/provenance round trips. No benchmark,
+model or indexing process was executed.
+
+Full format/ESLint, syntax on ten changed JavaScript files, affected generated
+refresh/freshness, fixture discovery/ordered selection and diff checks passed.
+ci-lite now contains 1,241 entries. Functional fixtures and final gate remain
+deferred. Current coverage: **35 fixed / 423 implemented / 152 partial / 156
+pending** across 766 current open reports. No issue was closed or closing
+reference added on unrun evidence.

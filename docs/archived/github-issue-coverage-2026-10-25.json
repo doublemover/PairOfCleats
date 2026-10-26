@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "1580cdf87",
+  "sourceHead": "5d3dd08c9",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 422,
+    "implemented": 423,
     "partial": 152,
-    "pending": 157
+    "pending": 156
   },
   "priorOpen": 1177,
   "currentOpen": 766,
@@ -595,6 +595,7 @@
       1673,
       1674,
       1676,
+      1680,
       1683,
       1684,
       1688,
@@ -896,7 +897,6 @@
       1663,
       1664,
       1677,
-      1680,
       1681,
       1682,
       1687,
@@ -6040,8 +6040,10 @@
       "number": 1680,
       "title": "[P2] Bind reconstructed historical benchmark measurements to the recorded attempt",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "5d3dd08c9",
+      "validation": "deferred"
     },
     {
       "number": 1681,
