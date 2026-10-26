@@ -29,7 +29,7 @@ const samePath = (left, right) => path.relative(path.resolve(left), path.resolve
 const outputIdentities = async (plan, signal) => {
   const outputs = [];
   for (const mode of plan.modes) outputs.push({ mode, output: (await inventoryStageOutput({
-    buildRoot: plan.buildRoot, buildId: plan.buildId, mode, signal })).output });
+    buildRoot: plan.buildRoot, buildId: plan.buildId, mode, signal, scope: 'final-recovery' })).output });
   return outputs;
 };
 const validRoot = (root, selected, userConfig) => {
@@ -225,6 +225,7 @@ export const executeBuildRecovery = async ({ root, userConfig, plan, signal = nu
       sqliteEnabled: userConfig.sqlite?.use !== false && !(executeBuild && plan.resumeTarget === 'stage2'),
       strict: true, abortSignal: signal });
     if (!validation.ok) throw Object.assign(fail('ERR_RECOVERY_VALIDATION', 'Retained generation failed required validation; pointer preserved.'), { validation });
+    const qualifiedOutputs = graph ? null : await outputIdentities({ ...plan, buildRoot: executionRoot, buildId: executionId }, signal);
     throwIfAborted(signal);
     assertIndexCacheLease(lease, repoCacheRoot);
     if (plan.operation === 'publish' || executeBuild) {
@@ -256,7 +257,7 @@ export const executeBuildRecovery = async ({ root, userConfig, plan, signal = nu
     await persistRuntimeAttempt(plan.buildRoot, attempt, { lifecycle: 'succeeded', runtime: { recovery: result.work } });
     await updateBuildState(plan.buildRoot, { recoveryTransactions: { [plan.planId]: { status: 'completed', operation: plan.operation,
       buildId: plan.buildId, completedAt: new Date().toISOString(), currentPointerIdentity: await pointerIdentity(root, userConfig),
-      outputIdentities: graph ? null : await outputIdentities({ ...plan, buildRoot: executionRoot, buildId: executionId }, signal),
+      outputIdentities: qualifiedOutputs,
       result: durableRecoveryResult(result) } } });
     return result;
   } catch (error) {

@@ -1,3 +1,4 @@
+import { inventoryStageDirectory, isStageDirectoryFamily } from './stage-directory.js';
 import { runWithSettledConcurrency } from '../../shared/concurrency/run-with-queue.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -23,7 +24,7 @@ export const readBuildMetadata = async (root, filename, maxBytes = 1024 * 1024, 
 };
 
 /** Exact manifest inventory, independent of directory names and mtimes. */
-const inventoryStageOutputUsing = async ({ buildRoot, buildId, mode, signal, select = () => true }, copyWillVerifyHashes) => {
+const inventoryStageOutputUsing = async ({ buildRoot, buildId, mode, signal, select = () => true, scope = 'final-recovery' }, copyWillVerifyHashes) => {
   if (!['code', 'prose', 'extracted-prose', 'records'].includes(mode)) throw stageFailure('Unsupported completed-stage mode.');
   const outDir = path.join(buildRoot, `index-${mode}`);
   const manifestPath = path.join(outDir, 'pieces/manifest.json');
@@ -32,15 +33,40 @@ const inventoryStageOutputUsing = async ({ buildRoot, buildId, mode, signal, sel
     || manifest.buildId !== buildId || !Array.isArray(manifest.pieces) || manifest.pieces.length > 200000) {
     throw stageFailure('Completed-stage manifest has unknown identity or inventory.');
   }
-  const names = new Set(), inventory = [];
+  if (!['final-recovery', 'stage2'].includes(scope)) throw stageFailure('Unknown stage inventory representation scope.');
+  const names = new Set(), piecesByName = new Map(), ambiguousNames = new Set(), inventory = [];
+  const directoryPaths = [];
+  for (const piece of manifest.pieces) {
+    if (typeof piece?.path !== 'string') throw stageFailure('Invalid completed-stage piece path.');
+    const filename = resolveArtifactIdentityPath(outDir, piece.path);
+    const canonical = path.relative(outDir, filename).split(path.sep).join('/');
+    const identity = process.platform === 'win32' ? canonical.toLowerCase() : canonical;
+    if (canonical !== piece.path || names.has(identity)) throw stageFailure('Noncanonical or duplicate completed-stage piece path.');
+    names.add(identity);
+    if (piece.format === 'dir') {
+      if (!isStageDirectoryFamily(piece)) throw stageFailure('Unknown directory-backed stage family.');
+      directoryPaths.push(identity + '/');
+    }
+    if (typeof piece.name === 'string') {
+      if (piecesByName.has(piece.name)) ambiguousNames.add(piece.name);
+      piecesByName.set(piece.name, piece);
+    }
+  }
+  if (directoryPaths.length > 3) throw stageFailure('Duplicate directory-backed stage family.');
+  for (const identity of names) if (directoryPaths.some(prefix => identity.startsWith(prefix))) throw stageFailure('Directory members cannot duplicate manifest-owned descendant payloads.');
   let bytes = 0;
   await runWithSettledConcurrency(manifest.pieces, 4, async piece => {
     throwIfAborted(signal);
-    if (typeof piece?.path !== 'string' || names.has(piece.path)
-      || !Number.isSafeInteger(piece.bytes) || piece.bytes < 0) throw stageFailure('Invalid completed-stage piece.');
-    names.add(piece.path);
+    if (piece.format !== 'dir' && (!Number.isSafeInteger(piece.bytes) || piece.bytes < 0)) throw stageFailure('Invalid completed-stage file extent.');
     const filename = resolveArtifactIdentityPath(outDir, piece.path);
     if (!select(piece)) { resolveArtifactPath(outDir, piece.path); return; }
+    if (piece.format === 'dir') {
+      if (scope !== 'final-recovery' || copyWillVerifyHashes) throw stageFailure('Stage2 snapshots admit regular-file families; final backend directories require final-recovery inventory.');
+      const directory = await inventoryStageDirectory({ outDir, piece, piecesByName, ambiguousNames, signal });
+      bytes += directory.bytes;
+      if (!Number.isSafeInteger(bytes)) throw stageFailure('Completed-stage byte total exceeds safe integer range.');
+      inventory.push(directory); return;
+    }
     const pinned = copyWillVerifyHashes && typeof piece.checksum === 'string'
       ? /^sha256:([a-f0-9]{64})$/i.exec(piece.checksum) : null;
     // The unpublished copy checks this exact digest against its actual held
@@ -57,7 +83,7 @@ const inventoryStageOutputUsing = async ({ buildRoot, buildId, mode, signal, sel
 };
 
 export const inventoryStageOutput = options => inventoryStageOutputUsing(options, false);
-export const inventoryStageOutputForCopy = options => inventoryStageOutputUsing(options, true);
+export const inventoryStageOutputForCopy = options => inventoryStageOutputUsing({ ...options, scope: 'stage2' }, true);
 
 /** Copy one admitted mode member through the existing contained reader and
  * durable atomic writer. The target is an owned generation, never a hardlink.
@@ -100,8 +126,10 @@ export const copyStageMember = options => copyStageMemberUsing(options, atomicWr
  * batch exposes an error. The signal belongs to actual I/O, not a queue race
  * that could return while a source descriptor or atomic writer is still live.
  */
-export const copyStageMembers = async ({ inventory, ...options }) =>
-  runWithSettledConcurrency(inventory, 4, part => copyStageMember({ ...options, part }), { signal: options.signal });
+export const copyStageMembers = async ({ inventory, ...options }) => {
+  if (inventory.some(part => part.representation && part.representation !== 'file')) throw stageFailure('Stage2 copy does not admit final directory-backed families.');
+  return runWithSettledConcurrency(inventory, 4, part => copyStageMember({ ...options, part }), { signal: options.signal });
+};
 
 /** Only a freshly allocated, unpublished snapshot may use this writer. Its
  * completion descriptor is the publication boundary. Members are exclusive
@@ -111,6 +139,7 @@ export const copyStageMembers = async ({ inventory, ...options }) =>
  * Restore/replacement continues to use the atomic member writer above.
  */
 export const copyUnpublishedStageMembers = async ({ inventory, sourceRoot, targetRoot, signal, assertOwned }) => {
+  if (inventory.some(part => part.representation && part.representation !== 'file')) throw stageFailure('Unpublished Stage2 copy does not admit final directory-backed families.');
   const parents = new Map();
   for (const part of inventory) {
     throwIfAborted(signal);

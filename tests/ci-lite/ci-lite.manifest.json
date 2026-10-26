@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1079,
+    "hero": 1080,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -7435,6 +7435,12 @@
     {
       "id": "tooling/testing/search-showcase-machine-stdout",
       "order": 1237,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/artifacts/stage-directory-inventory",
+      "order": 1238,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

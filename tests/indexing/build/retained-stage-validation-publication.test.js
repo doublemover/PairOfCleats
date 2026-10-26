@@ -9,6 +9,9 @@ import { getRepoCacheRoot } from '../../../src/shared/dict-utils.js';
 import { verifyCompletedStage } from '../../../src/index/build/completed-stage.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { createFastIndexingTestConfig } from '../../helpers/fast-indexing-config.js';
+import { publishStageDirectoryFixture } from '../../helpers/stage-directory-fixture.js';
+import { updatePieceManifest } from '../../../tools/build/embeddings/manifest.js';
+import { writeArtifactPublicationValidationReport, writeArtifactPublicationRecord } from '../../../src/index/build/artifact-publication.js';
 import { setProgressHandlers } from '../../../src/shared/progress-runtime.js';
 
 const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-retained-validation-'));
@@ -20,7 +23,7 @@ try {
   applyTestEnv({ cacheRoot: path.join(directory, 'cache'), embeddings: 'off',
     extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null },
     testConfig: createFastIndexingTestConfig({ threads: 1, sqlite: { use: false },
-      indexing: { workerPool: { enabled: false }, embeddings: { enabled: false, mode: 'off' } } }) });
+      indexing: { workerPool: { enabled: false }, embeddings: { enabled: false, mode: 'off', lancedb: { enabled: false } } } }) });
   let retainedRoot = null, retainedId = null;
   const failure = Object.assign(new Error('injected after complete Stage2 and before publication'), { code: 'ERR_FIXTURE_BEFORE_PUBLISH' });
   const grant = createSemanticEnrichmentGrant({ attach: async runtime => {
@@ -34,6 +37,28 @@ try {
   assert.ok(seal.sourceSnapshot?.identity, 'normal preprocessing supplies the existing exact source identity');
   const pointer = path.join(getRepoCacheRoot(root), 'builds/current.json');
   await assert.rejects(fs.stat(pointer), { code: 'ENOENT' });
+  // Native decoding is a separate opt-in qualification. This named closed-writer
+  // fixture uses the real directory publication/manifest/recovery owners.
+  const outDir = path.join(retainedRoot, 'index-code'), manifestPath = path.join(outDir, 'pieces/manifest.json');
+  const backend = await publishStageDirectoryFixture({ outDir });
+  const priorValidation = JSON.parse(await fs.readFile(path.join(retainedRoot, 'artifact-publication.code.validation.json'), 'utf8'));
+  const refreshPublication = async () => {
+    await updatePieceManifest({ indexDir: outDir, mode: 'code', totalChunks: 1, dims: 2,
+      backendPieces: backend.pieces, embeddingGeneration: 'a'.repeat(64) });
+    const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
+    const publicationValidation = await writeArtifactPublicationValidationReport({ buildRoot: retainedRoot, outDir,
+      mode: 'code', buildId: retainedId, manifestPath, pieceEntries: manifest.pieces, familyDeclarations: priorValidation.families });
+    assert.equal(publicationValidation.payload.ok, true);
+    await writeArtifactPublicationRecord({ buildRoot: retainedRoot, outDir, mode: 'code', buildId: retainedId,
+      manifestPath, pieceEntries: manifest.pieces, publicationValidation });
+  };
+  const metadataBytes = await fs.readFile(backend.metadataPath), metadata = JSON.parse(metadataBytes);
+  await fs.writeFile(backend.metadataPath, JSON.stringify({ ...metadata, embeddingGeneration: 'b'.repeat(64) }));
+  await refreshPublication();
+  const invalidPlan = await buildIndex(root, { recovery: { action: 'inspect', indexRoot: retainedRoot, operation: 'publish' } });
+  await assert.rejects(buildIndex(root, { recovery: { action: 'execute', plan: invalidPlan } }), { code: 'ERR_COMPLETED_STAGE_INVALID' });
+  await assert.rejects(fs.stat(pointer), { code: 'ENOENT' }, 'directory receipt failure is discovered before pointer commit');
+  await fs.writeFile(backend.metadataPath, metadataBytes); await refreshPublication();
   const plan = await buildIndex(root, { recovery: { action: 'inspect', indexRoot: retainedRoot, operation: 'publish' } });
   assert.equal(plan.work.parseFiles, 0);
   assert.equal(plan.sourceScope, 'retained-historical-snapshot');
@@ -53,6 +78,8 @@ try {
   assert.equal(state.phases.promote.status, 'failed', 'original failed attempt is historical evidence');
   assert.equal(state.runtime.attempts.find(attempt => attempt.attemptId === seal.originatingAttemptId).lifecycle, 'failed');
   assert.equal(state.runtime.attempts.at(-1).lifecycle, 'succeeded');
+  assert.ok(state.recoveryTransactions[plan.planId].outputIdentities[0].output.pieces > seal.output.pieces,
+    'durable completion retains the pre-admitted final directory family as well as the original Stage2 output');
   const pointerAfterRecovery = await fs.readFile(pointer, 'utf8');
   const repeated = await buildIndex(root, { recovery: { action: 'execute', plan } });
   assert.equal(repeated.alreadyComplete, true);

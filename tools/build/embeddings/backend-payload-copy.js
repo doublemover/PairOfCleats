@@ -1,11 +1,13 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { assertNoSymlinkPath, openContainedFile, verifyContainedFileHandle } from '../../../src/shared/contained-file.js';
+import { openContainedFile, verifyContainedFileHandle } from '../../../src/shared/contained-file.js';
 import { createXxhash64Hasher } from '../../../src/shared/hash/xxhash-backend.js';
 import { throwIfAborted } from '../../../src/shared/abort.js';
+import { BACKEND_INVENTORY_LIMITS, listBackendPayloadEntries as listPayload } from '../../../src/shared/artifact-io/backend-payload-inventory.js';
+export { inventoryBackendPayload } from '../../../src/shared/artifact-io/backend-payload-inventory.js';
 
-const MAX_FILES = 4096, MAX_INVENTORY_BYTES = 512 * 1024, WINDOW_BYTES = 65536;
+const MAX_FILES = BACKEND_INVENTORY_LIMITS.entries, MAX_INVENTORY_BYTES = BACKEND_INVENTORY_LIMITS.bytes, WINDOW_BYTES = BACKEND_INVENTORY_LIMITS.windowBytes;
 const changed = () => Object.assign(new Error('Immutable native backend bytes changed during reuse.'), { code: 'ERR_ANN_REUSE_INTEGRITY' });
 const sameStat = (left, right) => ['dev', 'ino', 'size', 'mtimeNs', 'ctimeNs'].every(key => left[key] === right[key]);
 const digestFor = async checksum => {
@@ -55,61 +57,6 @@ export const copyBackendPayloadFile = async ({ sourceRoot, source, target, bytes
     if (errors.length) throw Object.assign(new AggregateError(primary ? [primary, ...errors] : errors,
       'Native backend copy failed to close its descriptors.', { cause: primary || errors[0] }), { backendCopyTargetCreated: output !== null });
   }
-};
-
-const listPayload = async (dir, signal) => {
-  const entries = [], pending = [{ dir, depth: 0 }];
-  let pathBytes = 0;
-  while (pending.length) {
-    throwIfAborted(signal);
-    const current = pending.pop();
-    if (current.depth > 32) return null;
-    assertNoSymlinkPath(dir, current.dir);
-    const handle = await fs.opendir(current.dir);
-    try {
-      for await (const entry of handle) {
-        const absolute = path.join(current.dir, entry.name), rel = path.relative(dir, absolute).split(path.sep).join('/');
-        pathBytes += Buffer.byteLength(rel) + 128;
-        if (entries.length >= MAX_FILES || pathBytes > MAX_INVENTORY_BYTES) return null;
-        const stat = await fs.lstat(absolute);
-        if (stat.isSymbolicLink() || !(stat.isDirectory() || stat.isFile())) throw changed();
-        if (stat.isFile() && (!Number.isSafeInteger(stat.size) || stat.size < 0)) throw changed();
-        entries.push({ path: rel, kind: stat.isDirectory() ? 'dir' : 'file', ...(stat.isFile() ? { bytes: stat.size } : {}) });
-        if (stat.isDirectory()) pending.push({ dir: absolute, depth: current.depth + 1 });
-      }
-    } finally { try { await handle.close(); } catch (error) { if (error.code !== 'ERR_DIR_CLOSED') throw error; } }
-  }
-  entries.sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
-  return entries;
-};
-
-/** Optional closed-writer inventory; large datasets retain the full rebuild
- * path rather than growing unbounded native metadata. */
-export const inventoryBackendPayload = async ({ dir, signal = null }) => {
-  const entries = await listPayload(dir, signal);
-  if (!entries) return null;
-  for (const entry of entries) {
-    if (entry.kind !== 'file') continue;
-    const filename = path.join(dir, entry.path), input = await openContainedFile(dir, filename);
-    try {
-      const before = await input.stat({ bigint: true }), hash = createHash('sha256');
-      if (before.size !== BigInt(entry.bytes)) throw changed();
-      const window = Buffer.alloc(Math.min(WINDOW_BYTES, Math.max(1, entry.bytes))); let position = 0;
-      while (position < entry.bytes) {
-        throwIfAborted(signal);
-        const remaining = Math.min(window.length, entry.bytes - position), result = await input.read(window, 0, remaining, position);
-        if (!Number.isSafeInteger(result.bytesRead) || result.bytesRead <= 0 || result.bytesRead > remaining) throw changed();
-        hash.update(window.subarray(0, result.bytesRead)); position += result.bytesRead;
-      }
-      verifyContainedFileHandle(input, dir, filename);
-      if (!sameStat(before, await input.stat({ bigint: true }))) throw changed();
-      entry.checksum = `sha256:${hash.digest('hex')}`;
-    } finally { await input.close(); }
-  }
-  const after = await listPayload(dir, signal);
-  if (!after || JSON.stringify(after) !== JSON.stringify(entries.map(({ checksum: unused, ...entry }) => { void unused; return entry; }))) throw changed();
-  const inventory = { version: 1, entries };
-  return Buffer.byteLength(JSON.stringify(inventory)) <= MAX_INVENTORY_BYTES ? inventory : null;
 };
 
 export const copyBackendPayloadInventory = async ({ sourceRoot, targetRoot, inventory, signal = null, metrics = null }) => {

@@ -99,7 +99,7 @@ export const verifyCompletedStage = async ({ buildRoot, buildId, repoRoot, mode,
     if (snapshot) return receipt;
   } else if (snapshot) throw stageFailure('Historical mutable receipt has no immutable snapshot.');
   await assertArtifactPublicationReady({ buildRoot, modes: [mode] });
-  const { output } = await inventoryStageOutput({ buildRoot, buildId, mode, signal });
+  const { output } = await inventoryStageOutput({ buildRoot, buildId, mode, signal, scope: 'stage2' });
   if (stageIdentityHash(output) !== stageIdentityHash(receipt.output)) throw stageFailure('Retained Stage2 content differs from its seal.');
   return receipt;
 };

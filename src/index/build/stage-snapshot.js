@@ -55,7 +55,7 @@ export const snapshotStageOutput = async ({ runtime, mode, manifest, inventory, 
   await writeArtifactPublicationRecord({ buildRoot: snapshotRoot, outDir: targetRoot, mode, stage: 'stage2',
     buildId: runtime.buildId, pieceEntries: selectedManifest.pieces, manifestPath, publicationValidation,
     identityReconciliation: identity, cleanup: { status: 'not-required', plannedActions: 0, completedActions: 0, failedActions: 0, failures: [] } });
-  const snapshotOutput = graphOnly ? (await inventoryStageOutput({ buildRoot: snapshotRoot, buildId: runtime.buildId, mode, signal })).output : output;
+  const snapshotOutput = graphOnly ? (await inventoryStageOutput({ buildRoot: snapshotRoot, buildId: runtime.buildId, mode, signal, scope: 'stage2' })).output : output;
   const descriptor = { schemaVersion: 1, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, mode,
     repoRoot: path.resolve(runtime.root), sourceBuildRoot: path.resolve(runtime.buildRoot), buildId: runtime.buildId,
     snapshotRoot: path.resolve(snapshotRoot), completion, output: snapshotOutput, inventory };
@@ -92,7 +92,7 @@ export const verifyStageSnapshot = async ({ buildRoot, buildId, repoRoot, mode, 
     || !sameStagePath(descriptor.snapshotRoot, snapshotRoot) || !Array.isArray(descriptor.inventory)) {
     throw stageFailure('Immutable stage descriptor belongs to another generation or policy.');
   }
-  const actual = await inventoryStageOutput({ buildRoot: snapshotRoot, buildId, mode, signal });
+  const actual = await inventoryStageOutput({ buildRoot: snapshotRoot, buildId, mode, signal, scope: 'stage2' });
   if (stageIdentityHash(actual.output) !== stageIdentityHash(descriptor.output)
     || stageIdentityHash(actual.inventory) !== stageIdentityHash(descriptor.inventory)) throw stageFailure('Immutable stage snapshot content changed.');
   await assertArtifactPublicationReady({ buildRoot: snapshotRoot, modes: [mode] });
