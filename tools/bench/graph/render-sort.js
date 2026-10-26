@@ -9,7 +9,6 @@ const { createHash } = await import('node:crypto');
 const {
   normalizeCompareMode,
   printBaselineCurrentSummary,
-  readNumberArg,
   runTimedIterations
 } = await import('./shared.js');
 
@@ -96,8 +95,8 @@ export async function runRenderSortBenchCli(rawArgs = process.argv.slice(2)) {
     }
   });
   const argv = cli.parse();
-  const size = readNumberArg(argv.size, 2000);
-  const iterations = readNumberArg(argv.iterations, 5);
+  const size = argv.size;
+  const iterations = argv.iterations;
   const mode = argv.mode || 'compare';
 
   const result = await runRenderSortBench({ size, iterations, mode });

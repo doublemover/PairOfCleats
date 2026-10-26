@@ -82,6 +82,21 @@ Byte-identical rendered output is required before warmup/timing. Each arm report
 raw render samples and completed operations. A bucket/render delta does not
 establish an end-to-end graph speedup or amortize upstream preparation cost.
 
+`store-lazy-load` compares eager all-family admission with symbol-edge-only
+admission for the same symbol-index task. Every arm/sample runs serially in a
+fresh Node process, with alternating arm order. One cold manifest/signature and
+artifact/build observation is separate from one warm index hit. Cold time excludes
+Node startup; complete child wall time is retained separately. OS filesystem cache
+state is uncontrolled. Native child deadlines are 30 seconds with no retry.
+
+Reports require matching selected-source and symbol-task witnesses, one observed
+build and a real subsequent index hit. Used artifact names, observed on-disk
+source bytes, cache/build telemetry and raw phase samples accompany each arm;
+source bytes do not claim physical I/O bytes. Missing/empty symbol tasks or no
+meaningful omitted relation work make the comparison unavailable. A selection
+that loads the same graph artifact under two cache keys cannot qualify as lazy
+omission. Relation-family semantics and strict artifact admission are unchanged.
+
 ## Validation
 Phase 10 adds deterministic output tests, cache reuse tests, and excerpt
 range/cache tests to ensure correctness and stability under caching.
