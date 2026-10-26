@@ -15,11 +15,13 @@ records new source batches and unvalidated coverage. Historical inventories
 below describe their recorded sources, not the current open count.
 New solo batches cover #1746, #1742, #1741, #1740, #1737, #1736, #1734, #1730,
 #1729, #1724, #1719–#1720, #1716, #1711, #1702, #1700, #1696, #1698, #1683, #1565, #1598, #1599, #1684, #1688, #1610, #1611,
-#1397, #1561–#1564, #1568–#1569, #1573, #1575, #1580, #1586–#1589, #1591–#1592, #1600–#1602, #1605–#1606, #1608–#1609, #1612–#1614, #1616–#1617, #1619–#1620, #1622–#1623, #1632 and #1635–#1637, #1639–#1641, #1645, #1648–#1649, #1658, #1662, #1668–#1671. Their authored regressions remain deferred; the
+#1397, #1561–#1564, #1568–#1569, #1573, #1575, #1580, #1586–#1589, #1591–#1592, #1600–#1602, #1605–#1606, #1608–#1609, #1612–#1614, #1616–#1617, #1619–#1620, #1622–#1623, #1632 and #1635–#1637, #1639–#1641, #1645, #1648–#1649, #1658, #1662, #1666–#1671. Their authored regressions remain deferred; the
 source receipt records exact ownership, identity, capacity and lifecycle changes.
 #1719 now preserves SQL role/name occurrences and durable file qualification;
 #1662 now carries qualified import outcomes through graph metadata and replay;
 full SQL lexical quote/scope/catalog qualification remains explicit.
+#1666–#1667 qualify flow field presence/authority and consume owned native syntax;
+raw template output no longer becomes generic semantic flow.
 #1675 now uses one global query resource plan and retirement-aware pools; whole
 process-tree RSS measurement remains open, with known-worker samples labeled.
 

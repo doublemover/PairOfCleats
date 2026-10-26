@@ -1619,3 +1619,67 @@ run**, per the implementation-first instruction. No current-head runtime, native
 performance or CI acceptance is claimed. #1719 retains its separate lexical
 quote/scope/catalog remainder. Coverage is **35 fixed / 410 implemented / 152
 partial / 166 pending**; all 763 issue IDs remain mapped exactly once.
+
+## Qualified flow presence and owned managed syntax
+
+**#1666–#1667** (`b72bcd9d4`) repair the shared default/docmeta/flow/enrichment
+boundary together. Absent/null facts stay absent; explicitly produced false and
+empty values stay values. The merge owns its output and mutable flow values,
+retaining frozen/shared inputs. It uses field kind, scope, source and authority
+instead of truthiness or a false-to-true override. Qualified negatives retain
+precedence over unqualified positives. Incomparable scopes/kinds stay separate;
+equal-authority disagreement keeps the first value with conflict state and
+bounded diagnostics. Disabled analysis removes ordinary fields and records
+disabled state; missing analysis remains unknown/unavailable, never a successful
+all-zero result.
+
+Versioned flowEvidence binds UTF-16LE source, range, declared owner, language,
+optional generation, producer, scope, fact kind and per-field value identities.
+It distinguishes unknown/disabled/unavailable/partial/produced-empty/
+produced-positive/conflict states. Legacy producers remain partial observations;
+registration/capability profiles alone cannot manufacture parser authority.
+Final docmeta, metadata v2, serialization and incremental bundles retain the
+receipt. Typed metadata admission checks value binding and chunk-range agreement.
+Shared **flowMetadata 1** fences ordinary code/semantic reuse.
+
+The managed raw-text dataflow/keyword/throw/await/yield/return callback is replaced.
+Its private helper and private keyword options had one caller, now served by the
+owned-product adapter; shared lexical helpers used by other routes remain.
+No test script or assertion coverage is removed. The shared heuristic fixture
+now rejects fabricated numeric summaries from ownerless slices, with separate
+positive native coverage authored below.
+
+During the existing declaration/call traversal, Dart/Scala/Groovy/Julia/R can copy
+a bounded subset of recognized native control/effect node counts within an
+admitted callable body. Existing declaration/body/scope barriers exclude header
+evaluation, other declarations and unowned nested callables. Comments/string
+contents do not create effect nodes. Counts/effects remain explicitly syntactic
+and partial, with traversal/recovery/body limitations retained. Semantic
+reads/writes/mutations/aliases remain unavailable. No tree/node handle is cloned
+or retained. Source hashing is shared per invocation. **nativeFlowFacts 1** joins
+only affected native chunk cache signatures.
+
+Templates and unsupported flow routes keep unavailable per-field qualification;
+literal output cannot become generic assignments/branches/returns. Existing
+template section/lookup evidence, native calls and complete source retention
+remain. This does not claim whole-language unsupported analysis, full semantic
+effects or a measured speedup.
+
+Authored pure tables cover absent/undefined/null/empty/false/positive fields,
+mixed enabled/disabled flags, precise-negative precedence, equal conflicts,
+incomparable scopes, different source/range/generation, frozen inputs and
+owned outputs. Registered-adapter injected facts exercise real enrichment,
+assembly, metadata serialization and incremental bundles, explicitly qualifying
+that handoff rather than parser correctness. A separate real Mustache
+chunker/adapter/enrichment/payload fixture retains lookup/section syntax and
+ordinary literal tokenization without fabricated flow. Actual native Groovy
+fixtures compare comment/string insertions, real statements, two declarations,
+an anonymous nested body, disabled/unavailable products, stale-source rejection
+and native-derived incremental replay.
+
+Full format/ESLint, syntax on 21 changed JavaScript files, affected generated
+refresh/freshness (including MCP schema), discovery of both new fixtures and
+staged diff checks passed. **Functional execution and the final front gate
+remain deferred.** No runtime/native/performance/CI acceptance is claimed.
+Coverage is **35 fixed / 412 implemented / 152 partial / 164 pending** across
+all 763 currently tracked open issue IDs.

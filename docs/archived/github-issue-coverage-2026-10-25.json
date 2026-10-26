@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "4425ddabd",
+  "sourceHead": "b72bcd9d4",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 410,
+    "implemented": 412,
     "partial": 152,
-    "pending": 166
+    "pending": 164
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -580,6 +580,8 @@
       1649,
       1658,
       1662,
+      1666,
+      1667,
       1668,
       1669,
       1670,
@@ -886,8 +888,6 @@
       1663,
       1664,
       1665,
-      1666,
-      1667,
       1673,
       1674,
       1676,
@@ -5906,15 +5906,19 @@
       "number": 1666,
       "title": "[P2] Distinguish unknown flow metadata from verified empty facts during enrichment",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "b72bcd9d4",
+      "validation": "deferred"
     },
     {
       "number": 1667,
       "title": "[P2] Keep literal and comment text out of managed semantic flow metadata",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "b72bcd9d4",
+      "validation": "deferred"
     },
     {
       "number": 1668,
