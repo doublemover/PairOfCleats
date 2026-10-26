@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "8ce11779c60992fe058c2f7cb35863987e528183",
+  "sourceHead": "5cd492bc0d8e0a4c84ca249c54de8cdb08908cdd",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 458,
+    "implemented": 461,
     "partial": 137,
-    "pending": 140
+    "pending": 137
   },
   "priorOpen": 1177,
   "currentOpen": 770,
@@ -638,8 +638,10 @@
       1720,
       1721,
       1724,
+      1725,
       1726,
       1727,
+      1728,
       1729,
       1730,
       1732,
@@ -652,6 +654,7 @@
       1741,
       1742,
       1743,
+      1744,
       1746
     ],
     "partial": [
@@ -926,11 +929,8 @@
       1714,
       1722,
       1723,
-      1725,
-      1728,
       1731,
       1739,
-      1744,
       1745,
       1747,
       1748
@@ -6396,8 +6396,10 @@
       "number": 1725,
       "title": "[P3] Conserve measured operation counts when microbenchmark samples exceed iterations",
       "priority": "P3",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "c020b3da112e631ce3050ad47a73ed53b76ade42",
+      "validation": "deferred"
     },
     {
       "number": 1726,
@@ -6421,8 +6423,10 @@
       "number": 1728,
       "title": "[P3] Compare compression backends on identical reproducible bytes and verify round trips",
       "priority": "P3",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "41d70ea01e7721788f2ee90ecd910298324216e4",
+      "validation": "deferred"
     },
     {
       "number": 1729,
@@ -6552,8 +6556,10 @@
       "number": 1744,
       "title": "[P3] Compare equivalent canonically ordered outputs in the graph render-sort benchmark",
       "priority": "P3",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "5cd492bc0d8e0a4c84ca249c54de8cdb08908cdd",
+      "validation": "deferred"
     },
     {
       "number": 1745,

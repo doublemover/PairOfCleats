@@ -3270,3 +3270,48 @@ deferred by the implementation-first instruction. Current coverage is **35 fixed
 was closed and no closing reference added. Bookkeeping reuses the checked JS tree.
 Contracts: `docs/contracts/streaming-context-seeds.md` and
 `docs/contracts/count-aware-ann-planning.md`.
+
+## 2026-10-26 — measured-work conservation and equivalent benchmark inputs
+
+`c020b3da1` repairs #1725 at the shared sampler. Finite integral settings are
+admitted before work; requested buckets above iterations reduce to an explicit
+effective count. Every measured operation is counted only after completion.
+Nonempty bucket sizes conserve exactly the requested work, and warmup counts/time
+stay separate. Hash UTF-8 byte rates and regex operation rates consume checked
+completed-work receipts. Human output labels bucket timing; histogram tails are
+not promoted to per-operation latency. Existing regex engine/parity assertions
+remain, with their controlled sampler now using the actual shared accounting owner.
+Authored controls include five exact-count pairs, sync/async/mixed callbacks,
+zero-warmup async transition, invalid inputs, failed callbacks, controlled clock
+rates and rejection of inconsistent receipts.
+
+`41d70ea01` repairs #1728 with deterministic versioned payload preparation before
+codec arms, per-arm isolated byte copies, shared SHA-256 identity and explicit
+implementation/settings provenance. Every arm passes byte-identical round-trip
+preflight before timing. Postflight checks final outputs and unchanged payload/
+compressed input outside measurement. Compression and decompression keep separate
+raw timing/completed-work receipts; optional zstd remains unavailable when absent.
+Backend order alternates between sizes. Authored controls cover real gzip plus an
+explicit identity fixture, entropy-zero/nonzero/full controls, repeated identities,
+missing optional arms, mutation, malformed/truncated/wrong output and late failure.
+Representative artifact corpora, sustained paired trials and native codec speed
+qualification remain deferred; no codec preference or throughput gain is claimed.
+
+`5cd492bc0` repairs #1744 by preparing canonical nodes/edges/witness paths with the
+shared production comparators, then giving both render arms the same arrays.
+The baseline re-sorts those arrays; current uses their valid sorted contract.
+Shuffled, baseline and current renderings must agree byte-for-byte before warmup
+or timing. The report retains preparation cost outside render measurements, output
+digest/bytes, workload shape, raw samples and actual completed render operations.
+Authored controls cover singleton and tied/multiple-edge/path shapes, identical
+array admission, exact calls/counts and parity rejection before timed work.
+
+One full format/ESLint pass, 13 JS syntax checks, affected generated refresh/
+freshness and discovery of three new plus the retained regex owner passed. A
+trailing blank line found by diff checking was removed; syntax and diff checks
+then passed. Ordered ci-lite now contains 1,324 fixtures. Functional/front-gate,
+provider/native/platform and measured performance execution remains deferred.
+Coverage is **35 fixed / 461 implemented / 137 partial / 137 pending**; all 770
+reports remain and none was closed or given a new closing reference. Bookkeeping
+reuses the checked JS tree. Contracts: `docs/contracts/sampled-microbench-work.md`
+and `docs/perf/graph-context-pack.md`.
