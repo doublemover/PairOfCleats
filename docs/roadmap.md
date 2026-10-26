@@ -13,7 +13,7 @@ with tests deferred until the source batches are ready. The live intake has
 [current implementation receipt](archived/solo-issue-repairs-2026-10-25.md)
 records new source batches and unvalidated coverage. Historical inventories
 below describe their recorded sources, not the current open count.
-Current source coverage is **35 fixed / 451 implemented / 138 partial / 146
+Current source coverage is **35 fixed / 455 implemented / 138 partial / 142
 pending**, with exact issue-to-source ownership in the
 [complete inventory](archived/github-issue-coverage-2026-10-25.json). Implemented
 means source-complete with execution pending, not accepted closure.
@@ -37,7 +37,9 @@ embedding lifetime controls retain actual leases and sibling ownership (#1349).
 Six custom DSL adapters now preserve typed references and source owners instead
 of fabricating ordinary call pairs (#1484), with strict artifact admission. SQL
 role/decoded-name projection is reconciled as implemented (#1719); catalog binding
-remains with #1188. The curated ci-lite lane contains 1,310 cases;
+remains with #1188. Abort races, synchronous zstd capacity errors, incremental
+manifest observation and JSONL failed-shard ownership now retain their terminal
+boundaries (#1732/#1735/#1738/#1743). The curated ci-lite lane contains 1,318 cases;
 new and strengthened regressions remain unrun. Completed batch detail and exact
 source/static-check receipts are retained in the linked implementation archive.
 

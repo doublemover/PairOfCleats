@@ -1310,3 +1310,11 @@ lang/contracts/managed-heuristic-adapters
 lang/contracts/dynamic-heuristic-adapters
 indexing/semantic/template-local-registry-evidence
 lang/relations/sql-role-identities
+shared/concurrency/abort-race-work-observation
+tooling/typescript-runtime-record-abort
+shared/artifact-io/zstd-sync-capacity-classification
+indexing/incremental/manifest-observation-preservation
+shared/artifact-io/jsonl-shard-failure-drain
+shared/concurrency/abort-reason-provenance
+shared/artifact-io/zstd-decoded-admission
+indexing/incremental/manifest-publication-capacity

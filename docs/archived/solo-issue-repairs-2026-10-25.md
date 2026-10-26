@@ -3179,3 +3179,55 @@ other functional tests. The unchanged SQL fixture joins ci-lite, now 1,310 cases
 No functional/parser/native/platform/performance execution ran. Bookkeeping
 retains the checked JS tree. Coverage: **35 fixed / 451 implemented / 138 partial /
 146 pending**; no issue closed or new closing reference added.
+
+### #1732/#1735/#1738/#1743 terminal wait and artifact-read owners
+
+`36f6ca9d8` keeps an observer on work supplied to an already-aborted race while
+preserving prompt, correctly caused AbortError behavior. It neither waits for
+nor cancels independent shared work. TypeScript output fences record/callback
+admission before and after assembler/log activity and immediately before the
+deferred invocation, retaining the selected callback/receiver and original
+cancellation reason. Authored controls isolate unhandled-rejection observation,
+settled/delayed outcomes, live waits/listeners and the real compiler/protocol
+checker-phase logger cancellation without admitting a later callback.
+
+`1865a8b9c` moves synchronous zstd post-decode byte/heap checks outside native
+codec-error translation. The original bounded native headroom remains. The
+wrapper's own ERR_JSON_TOO_LARGE therefore retains its classification rather
+than becoming generic decompression failure. Authored JSON/JSONL direct/sibling
+controls cover limit-1, limit, limit+1, limit+1024 and limit+1025, optional fallback,
+heap refusal, gzip/plain parity, allowOversize classification and corrupt-frame
+negatives. No optional decoder or backend is disabled to obtain acceptance.
+
+`d0e967a14` removes the manifest-specific existence preflight and propagates
+operational/cancellation/format/capacity failures. Only ENOENT establishes absence.
+Known syntax failures after a successful contained read and exact compact-content
+checks have private corruption classifications. Copied codes or a generic
+TypeError cannot authorize quarantine. Corruption paths requalify the observed
+bytes before UUID-named quarantine; healthy loads keep one contained read and
+shared compact dependency identities. Quarantine/diagnostic failure retains both
+the original content cause and accurate publication/child ownership. Authored
+controls inject stat/open/read/fstat EIO/EMFILE/ENOMEM/EACCES/EPERM, retain exact
+valid bytes and subsequent reuse, and cover forged codes, malformed/invalid
+content, changed snapshots, failed rename and pending diagnostic settlement.
+Original manifest capacity/format-cutover controls remain intact.
+
+`98907e1d1` gives concurrent JSONL materialization one terminal admission state.
+First failure stops later source claims, signals its own active iterators and
+joins all workers before rejecting. Partial row arrays are dropped, original and
+independent decoder/close errors survive together, and successful concurrency/
+input order remains. The authored tiny four-source/two-worker control uses real
+compressed source/decoder owners, a held original close and both direct and
+canonical artifact-loader paths. It checks no late C/D claim, pending outward
+settlement, original/secondary failures and successful/single/empty results.
+No public option, retry, skip or serialized-success workaround is introduced.
+
+One full format/ESLint pass covers the ready source batch; 11 JS syntax checks,
+affected generated refresh/freshness, discovery of all five new fixtures and
+staged diff checks passed. Five new plus three original owners join ordered
+ci-lite, now 1,318 cases. Functional/front-gate, native/provider, platform and
+performance execution remains deferred. Granular source commits retain the same
+checked JS tree; bookkeeping changes do not alter it. Current coverage is
+**35 fixed / 455 implemented / 138 partial / 142 pending**, all 770 reports retained.
+No issue closed or new closing reference added.
+Contract: docs/contracts/terminal-read-failure-boundaries.md.

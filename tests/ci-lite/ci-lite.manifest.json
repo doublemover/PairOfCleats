@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1152,
+    "hero": 1160,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -7873,6 +7873,54 @@
     {
       "id": "lang/relations/sql-role-identities",
       "order": 1310,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/concurrency/abort-race-work-observation",
+      "order": 1311,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/typescript-runtime-record-abort",
+      "order": 1312,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/artifact-io/zstd-sync-capacity-classification",
+      "order": 1313,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/incremental/manifest-observation-preservation",
+      "order": 1314,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/artifact-io/jsonl-shard-failure-drain",
+      "order": 1315,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/concurrency/abort-reason-provenance",
+      "order": 1316,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/artifact-io/zstd-decoded-admission",
+      "order": 1317,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/incremental/manifest-publication-capacity",
+      "order": 1318,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
