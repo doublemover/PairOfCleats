@@ -2697,3 +2697,56 @@ explicitly deferred under the user's implementation-first instruction.
 Current coverage: **35 fixed / 435 implemented / 154 partial / 146 pending**.
 Neither issue was closed; no new closing references or final-head acceptance
 were asserted. Contract: docs/contracts/search-microbenchmark-evidence.md.
+
+
+### #813 native type identity and #985/#1058/#1059 replay/lease controls
+
+`8009ce69c` removes JavaScript/TypeScript/JSX/TSX spelling-based rewrites of
+Boolean/String/Number and integer/float from the shared canonical normalizer.
+Boxed and primitive native expressions remain distinct, with quoted/template
+literal contents, identifier case and original spelling preserved. Existing
+Python and qualified-prefix contracts remain. Strict return filters keep exact
+expression matching and tooling precedence; they are not weakened into synonyms
+or assignability. Proven-stale boxed-type expectations in two existing fixtures
+are corrected while retaining their other language, literal and qualified-name
+assertions. The historical security-alert guide now explicitly labels its old
+boxed-type expectation superseded by this semantic repair.
+
+The actual tooling-application function moves intact into a small internal owner
+used by production and the deterministic handoff fixture. This avoids booting
+provider orchestration just to exercise fact application. The new fixture uses
+supported TypeScript parser-retained source annotations as an independent oracle,
+then actual signature parsing, LSP candidate merge, provider payload admission,
+tooling application, durable cross-file read/write and strict filter/index
+consumers. It checks boxed/primitive/union/custom/literal pairs, stale declaration
+precedence, source spelling, reversed inputs and stable repeated normalization.
+It does not claim a live language-server execution. Shared typeNormalization
+advances 11→12, lspBindings 48→49 and the local LSP request policy rq11→rq12.
+Provider-result cache keys now include the shared normalizer/LSP producer versions
+so already-normalized old facts cannot survive a semantic version change.
+
+Source review confirms the existing #985 registry capability owner checks its
+private minted handle, exact root/domain, active state and live on-disk lock ID;
+its regression now also denies wrong-root and replaced-disk-identity use. It uses
+an isolated project-owned test root rather than an unrelated OS temp directory.
+The existing #1058 fingerprint hashes the complete relation object before replay
+can replace it. Expanded real-cache controls cover imports/exports/inheritance
+and an extension field without fileRelations: unchanged input admits the cache;
+changed input misses and cannot overwrite fresh relations. The existing #1059
+pipeline refuses cross-file tooling replay/persistence while compiler/config/
+ambient identity remains incomplete. A new actual-pipeline fixture seeds a valid
+complete stale output, proves direct admission as a control, then requires both
+original and configuration-changed invocations to reach the selected in-memory
+fixture provider and retain fresh facts. No external command/server is selected.
+These three existing source repairs receive implementation credit with pending
+runtime qualification, rather than being rewritten or called accepted fixes.
+#1054 remains partial; persistence-error inspection/ownership needs further review.
+
+Full format/ESLint, syntax checks on 12 JavaScript files, affected generated
+refresh/freshness, two new fixture discoveries and diff checks passed. A trailing
+blank line on the newly extracted module was removed after staged diff review;
+its syntax was rechecked, with no behavior change. Two new and five original
+fixtures join ci-lite, now 1,275 entries. Functional/front-gate execution remains
+deferred. Current coverage: **35 fixed / 439 implemented / 150 partial / 146
+pending** across 770 open reports. No issues were closed or new closing references
+added. Contract: docs/contracts/native-type-expression-identity.md.

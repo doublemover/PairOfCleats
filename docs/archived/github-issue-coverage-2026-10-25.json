@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "c6275bd85",
+  "sourceHead": "8009ce69c",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 435,
-    "partial": 154,
+    "implemented": 439,
+    "partial": 150,
     "pending": 146
   },
   "priorOpen": 1177,
@@ -218,6 +218,7 @@
       798,
       803,
       807,
+      813,
       818,
       855,
       865,
@@ -231,6 +232,7 @@
       981,
       983,
       984,
+      985,
       986,
       987,
       988,
@@ -293,6 +295,8 @@
       1055,
       1056,
       1057,
+      1058,
+      1059,
       1061,
       1062,
       1063,
@@ -640,12 +644,8 @@
       640,
       670,
       740,
-      813,
-      985,
       1029,
       1054,
-      1058,
-      1059,
       1119,
       1120,
       1121,
@@ -1360,8 +1360,10 @@
       "number": 813,
       "title": "[P2] Preserve case-sensitive type identities and literal contents during normalization",
       "priority": "P2",
-      "status": "partial",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "8009ce69c",
+      "validation": "deferred"
     },
     {
       "number": 818,
@@ -1475,8 +1477,11 @@
       "number": 985,
       "title": "[P2] Borrowed registry lock accepts any release-shaped object without ownership check",
       "priority": "P2",
-      "status": "partial",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "8009ce69c",
+      "validation": "deferred",
+      "implementationNote": "Existing production owner retained after source review; strengthened consumer regression coverage in this batch."
     },
     {
       "number": 986,
@@ -1972,15 +1977,21 @@
       "number": 1058,
       "title": "[P2] Cross-file cache fingerprint ignores input import relations that it later overwrites",
       "priority": "P2",
-      "status": "partial",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "8009ce69c",
+      "validation": "deferred",
+      "implementationNote": "Existing production owner retained after source review; strengthened consumer regression coverage in this batch."
     },
     {
       "number": 1059,
       "title": "[P2] Non-symbolic tooling cache can reuse stale results after tooling configuration changes",
       "priority": "P2",
-      "status": "partial",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "8009ce69c",
+      "validation": "deferred",
+      "implementationNote": "Existing production owner retained after source review; strengthened consumer regression coverage in this batch."
     },
     {
       "number": 1060,

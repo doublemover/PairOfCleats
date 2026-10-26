@@ -61,6 +61,8 @@ service time from batch cost; remediation remains unaccepted inspection work.
 #1726–#1727 now distinguish retrieval from result-cache replay and qualify frozen
 query, generation, policy, cache, model and runtime controls before performance
 deltas; four new regression owners remain unrun.
+#813 now retains boxed/native type expression identity through LSP and replay;
+#985/#1058/#1059 retain existing ownership/cache fixes with strengthened controls.
 #1733 now uses admitted immutable SQLite benchmark snapshots and validates smoke
 output contents; larger workload profiles and repeated qualification remain open.
 #1638 now namespaces repository/triage record sources through UID, metadata,
