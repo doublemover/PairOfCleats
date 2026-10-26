@@ -109,3 +109,19 @@ export const waitForSchedulerCrashPersistence = async (tracker, { mode, timeoutM
     throw error;
   }
 };
+
+/** Every exit joins one original persistence wait. A normal-path admission
+ * failure is not retried by finalization, and dual errors retain both owners. */
+export const withSchedulerCrashPersistence = async (tracker, options, worker) => {
+  let waiting, primary, primaryPresent = false, result;
+  const wait = () => waiting || (waiting = waitForSchedulerCrashPersistence(tracker, options));
+  try { result = await worker(wait); }
+  catch (error) { primary = error; primaryPresent = true; }
+  try { await wait(); }
+  catch (cleanup) {
+    if (!primaryPresent || cleanup === primary && primary !== null && ['object', 'function'].includes(typeof primary)) throw cleanup;
+    throw addStorageFailureContext(primary, { treeSitterFailurePhase: 'crash-evidence-closeout' }, cleanup, { secondaryPresent: true });
+  }
+  if (primaryPresent) throw primary;
+  return result;
+};

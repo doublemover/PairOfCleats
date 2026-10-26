@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1120,
+    "hero": 1121,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -7681,6 +7681,12 @@
     {
       "id": "indexing/tree-sitter/crash-presentation-degradation",
       "order": 1278,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/tree-sitter/scheduler-crash-fallback",
+      "order": 1279,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { createCrashPersistence, waitForSchedulerCrashPersistence } from '../../../src/index/build/tree-sitter-scheduler/runner/crash-persistence.js';
+import { createCrashPersistence, waitForSchedulerCrashPersistence, withSchedulerCrashPersistence } from '../../../src/index/build/tree-sitter-scheduler/runner/crash-persistence.js';
 import { createSchedulerCrashTracker } from '../../../src/index/build/tree-sitter-scheduler/runner/crash-tracker.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 
@@ -104,4 +104,33 @@ assert.equal(tracker.summarize().persistence.pending, true);
 trackerReleased = true;
 const settled = await tracker.waitForPersistence(); assert.equal(settled.ok, false); assert.equal(settled.pending, false);
 assert.equal(tracker.isPersistenceSettled(), true);
+
+let closeoutWaits = 0;
+const ordinaryFailure = Object.freeze(new Error('scheduler execution failed after recording evidence'));
+const settledTracker = { isPersistenceSettled: tracker.isPersistenceSettled,
+  waitForPersistence() { closeoutWaits++; return tracker.waitForPersistence(); } };
+await assert.rejects(withSchedulerCrashPersistence(settledTracker, { mode: 'fixture' }, async () => {
+  throw ordinaryFailure;
+}), error => error === ordinaryFailure);
+assert.equal(closeoutWaits, 1, 'exceptional exit still joins the actual tracker once');
+assert.equal(await withSchedulerCrashPersistence(settledTracker, { mode: 'fixture' }, async wait => {
+  await wait(); await wait(); return 'qualified-lookup';
+}), 'qualified-lookup');
+assert.equal(closeoutWaits, 2, 'normal admission and finalization share one original wait');
+for (const value of [undefined, null, false, 0, '']) {
+  let caught = false;
+  try { await withSchedulerCrashPersistence(settledTracker, {}, () => { throw value; }); }
+  catch (error) { caught = true; assert.equal(error, value); }
+  assert.equal(caught, true, 'falsey scheduler failures cannot become success');
+}
+let dualReleased = false;
+const dualFailure = Object.freeze(Object.assign(new Error('separately owned closeout failure'), {
+  cacheOwnershipPending: true, cacheOwnershipReleased: () => dualReleased
+}));
+const dual = createCrashPersistence();
+await dual.enqueue(() => dual.attempt('external', null, () => { throw dualFailure; }));
+await assert.rejects(withSchedulerCrashPersistence({ waitForPersistence: dual.wait, isPersistenceSettled: dual.isSettled },
+  { mode: 'fixture' }, () => { throw ordinaryFailure; }),
+error => contains(error, ordinaryFailure) && contains(error, dualFailure) && error.cacheOwnershipReleased() === false);
+dualReleased = true; await dual.wait();
 console.log('Crash evidence preserves sink/inspection ownership and joins real warning work before deadline-qualified completion.');

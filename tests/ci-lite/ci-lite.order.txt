@@ -1278,3 +1278,4 @@ indexing/type-inference/crossfile/cache-fingerprint-and-size-cap
 indexing/tree-sitter/crash-persistence-ownership
 indexing/tree-sitter/crash-persistence-degradation
 indexing/tree-sitter/crash-presentation-degradation
+indexing/tree-sitter/scheduler-crash-fallback

@@ -91,6 +91,11 @@ try {
       'expected degraded virtual path checker'
     );
     const crashSummary = scheduler.getCrashSummary();
+    assert.equal(crashSummary.persistence.pending, false, 'the returned scheduler must have joined evidence persistence');
+    assert.equal(crashSummary.persistence.ok, true, 'successful fixture sinks remain an independent positive control');
+    assert.deepEqual(crashSummary.persistence.failures, []);
+    crashSummary.persistence.failures.push({ sink: 'caller-mutation' });
+    assert.deepEqual(scheduler.getCrashSummary().persistence.failures, [], 'the live diagnostic receipt is defensively copied');
     assert.equal(
       crashSummary.failureClasses?.parser_crash,
       1,

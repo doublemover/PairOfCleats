@@ -31,6 +31,12 @@ settlement observation. A timeout-shaped external error cannot acquire that
 authority. The deadline propagates failure while sink work remains owned rather
 than reporting a completed telemetry pass or publishing a successful planner
 continuation with unknown persistence lifetime.
+Preparation, execution, cancellation and later lookup failures pass through the
+same finalization owner. Normal admission and finalization join one cached wait,
+so cleanup does not restart a failed wait, extend its deadline or repeat writes.
+Independent scheduler and persistence failures retain both original causes.
+The returned scheduler's crash summary exposes a defensively copied persistence
+receipt so settled telemetry degradation remains auditable after closeout.
 
 The actual tracker and publisher fixtures cover local failure with successful
 durable/external evidence, throwing/rejected presentation, throwing error metadata,
