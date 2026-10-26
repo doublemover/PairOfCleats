@@ -8,6 +8,13 @@ export const INCREMENTAL_MANIFEST_VERSION = 6;
 export const INCREMENTAL_MANIFEST_MAX_BYTES = 8 * 1024 * 1024;
 const capacity = () => Object.assign(new Error('Incremental manifest exceeds its 8 MiB publication allowance; prior snapshot retained.'),
   { code: 'ERR_INCREMENTAL_MANIFEST_CAPACITY' });
+const corruptManifests = new WeakSet();
+const corruptManifest = (message, cause) => {
+  const error = Object.assign(new TypeError(message, { cause }), { code: 'ERR_INCREMENTAL_MANIFEST_CORRUPT' });
+  corruptManifests.add(error);
+  return error;
+};
+export const isIncrementalManifestContentError = error => corruptManifests.has(error);
 
 /** Compact repeated dependencies; construct at most one bounded serialized manifest. */
 export const encodeIncrementalManifest = (manifest, { repoRoot = process.cwd(), indexPath = null } = {}) => {
@@ -47,12 +54,15 @@ export const decodeIncrementalManifest = (raw, { repoRoot = process.cwd(), index
   assertCurrentIndexFormat({ operation: 'resume', component: 'incremental manifest schema',
     foundVersion: raw?.version, expectedVersion: INCREMENTAL_MANIFEST_VERSION, repoRoot, indexPath });
   if (!Array.isArray(raw.dependencyTable) || !raw.files || typeof raw.files !== 'object' || Array.isArray(raw.files)) {
-    throw new TypeError('Invalid compact incremental manifest.');
+    throw corruptManifest('Invalid compact incremental manifest.');
   }
   const files = {};
   for (const [key, value] of Object.entries(raw.files)) {
-    if (canonicalBundleSourceKey(key) !== key || !Number.isSafeInteger(value?.dependencyId)
-      || value.dependencyId < 0 || value.dependencyId >= raw.dependencyTable.length) throw new TypeError('Invalid manifest dependency reference.');
+    let canonical;
+    try { canonical = canonicalBundleSourceKey(key); }
+    catch (error) { throw corruptManifest('Invalid manifest source key.', error); }
+    if (canonical !== key || !Number.isSafeInteger(value?.dependencyId)
+      || value.dependencyId < 0 || value.dependencyId >= raw.dependencyTable.length) throw corruptManifest('Invalid manifest dependency reference.');
     const { dependencyId, ...entry } = value;
     Object.defineProperty(files, key, { value: { ...entry, dependencySignatures: raw.dependencyTable[dependencyId] }, enumerable: true, configurable: true, writable: true });
   }
