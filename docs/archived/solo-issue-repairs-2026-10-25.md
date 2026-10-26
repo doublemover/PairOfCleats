@@ -2032,3 +2032,52 @@ ci-lite now contains 1,241 entries. Functional fixtures and final gate remain
 deferred. Current coverage: **35 fixed / 423 implemented / 152 partial / 156
 pending** across 766 current open reports. No issue was closed or closing
 reference added on unrun evidence.
+
+## Bakeoff effective policy and observed sampling (2026-10-26)
+
+**#1660** (`b4e8576da`) resolves one immutable bakeoff policy for child launch,
+reporting and checkpoint compatibility. The resolved sample limit and seed are
+always set, including zero, so inherited or configured positive sampling cannot
+survive an explicit/profile-disabled decision. The production sampling resolver
+is shared with the parent policy. Its absent normalized environment value no
+longer acts as a disabling zero instead of allowing configured sampling. Existing
+quick/full defaults and the deterministic sample algorithm remain intact.
+
+Build/evaluation model environments and compare receive the same selected intent.
+Explicit stub reaches compare's supported flag; deliberate inherited stub/off
+policy remains visible when there is no conflicting choice. Raw execution values
+are private and immutable. Canonical requested model plans reuse the existing
+embedding execution-plan owner and stable digests enter settings/resume identity.
+Requested plans are labeled separately from actual generation/evaluation evidence;
+no real-provider or pinned-native-execution qualification is inferred from them.
+
+Stage3 publication now retains a versioned eligible/selected/completed file and
+chunk observation, compact selected-input identity and embedding-generation
+binding in index-state extensions. Projection requires ready/nonpending state,
+valid counts and the same embedding generation. Actual state/manifest bytes bind
+the bakeoff generation receipt. A retained sampled index stays sampled when a
+new full profile requests zero without rebuilding. Missing legacy receipts or
+requested-but-absent modes remain unknown. Diagnostic parsing/size unavailability
+does not replace the existing streamed generation identity with a fabricated
+empty result; pending I/O ownership still propagates.
+
+The former private resolver had one production call, now served by its shared
+sampling owner; all other numeric-coercion uses remain. The unused
+`samplingActive` local had no readers or side effects and is replaced by the
+persisted observed counts. No existing test/assertion was removed.
+
+The new curated fixture exercises pure defaults through actual policy/environment
+construction and the production resolver. Real tiny child processes read three
+owned files and call the existing test-gated stub path, independently asserting
+all-three versus one-file selection and completed-vector counts. Build/eval/compare
+share the selected policy; the fixture refuses real/off provider activation. Real
+published fixture generations demonstrate sampled and missing-mode/legacy
+coverage, stable generation identity and changed state identity without indexing,
+model downloads or native backend activation.
+
+Full format/ESLint, syntax on eight changed JavaScript files, affected generated
+refresh/freshness, fixture discovery/ordered selection and diff checks passed. A
+trailing-space check was corrected before commit. ci-lite now contains 1,242
+entries. Functional execution and final gate remain deferred. Current coverage:
+**35 fixed / 424 implemented / 152 partial / 155 pending**, across 766 current
+open reports. No issue closure or new closing reference was claimed.
