@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "52b9e6d65",
+  "sourceHead": "9488126c9",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 424,
+    "implemented": 425,
     "partial": 152,
-    "pending": 159
+    "pending": 158
   },
   "priorOpen": 1177,
   "currentOpen": 770,
@@ -585,6 +585,7 @@
       1651,
       1658,
       1660,
+      1661,
       1662,
       1665,
       1666,
@@ -897,7 +898,6 @@
       1656,
       1657,
       1659,
-      1661,
       1663,
       1664,
       1677,
@@ -5937,8 +5937,10 @@
       "number": 1661,
       "title": "[P2] Keep bakeoff phase progress live and terminal statuses truthful",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "9488126c9",
+      "validation": "deferred"
     },
     {
       "number": 1662,

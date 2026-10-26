@@ -40,6 +40,8 @@ atomically reports failed/interrupted lanes with every selected entry accounted.
 exact attempt snapshots, preserving derivation provenance after materialization.
 #1660 now carries effective sampling/stub intent across bakeoff child phases,
 keeping requested model plans separate from generation-bound observed coverage.
+#1661 now keeps bakeoff waits asynchronous and phase terminal/checkpoint states
+truthful, with bounded diagnostic progress and independent success/settled counts.
 #1675 now uses one global query resource plan and retirement-aware pools; whole
 process-tree RSS measurement remains open, with known-worker samples labeled.
 

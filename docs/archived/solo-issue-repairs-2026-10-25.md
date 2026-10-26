@@ -2090,3 +2090,49 @@ closed. The four additional reports enter pending intake without borrowing
 historical closure or unrun source evidence. Priority totals are P1 31, P2 336,
 P3 46, Perf 116 and other 241. Coverage is now **35 fixed / 424 implemented /
 152 partial / 159 pending**. The prior 766-report counts remain dated history.
+
+## Responsive bakeoff phase lifecycle (2026-10-26)
+
+**#1661** (`9488126c9`) replaces synchronous evaluation/compare waits with the
+existing asynchronous subprocess owner. JSON stdout remains a complete bounded
+result with truncation/encoding-loss admission; stderr supplies a bounded redacted
+last-diagnostic adapter. Build output retains its JSON-mode stderr routing and
+human stream placement, with existing quiet policy respected. Build nonzero
+failures now retain their original result/exit evidence alongside the diagnostic.
+No new general subprocess supervisor or public setting is introduced.
+
+One narrow phase owner serves build, eval and compare: started/running and
+succeeded/failed/cancelled states are versioned, timers are cleared on every
+terminal path, and elapsed waiting never advances productive success counts.
+Known planned phases remain visible. Settled and successful counts are separate.
+The original bar/display owner supplies rendering and quiet/non-TTY policy.
+Successful completion is announced only after its terminal checkpoint succeeds;
+a failed child, parse/admission or evaluation-qualification result has no
+completed-success finalizer. Evaluation contract checks remain inside the phase.
+
+Cancellation reaches the same child/backoff owner. Campaign signal listeners and
+display cleanup are finalized on failures as well as success. Child, checkpoint,
+display and frozen/falsey error authority remain together through the existing
+failure-context owner. Bounded failure receipts preserve exit/signal, capture,
+termination and related diagnostics without dumping a whole captured result on
+uncaught process exit. Projection reads own data fields, excludes unknown payload
+keys and does not invoke diagnostic getters. Pending child release is never
+manufactured by timer/display cleanup. Checkpoint namespace/atomicity remains
+tracked by #1663; this batch does not claim to complete that publication owner.
+
+The new curated fixture holds real inert child processes open until actual phase
+status/elapsed callbacks run. It covers the real build and JSON adapters for
+build/eval/compare, clean JSON plus stderr, invalid JSON, nonzero exit,
+cancellation, stopped timers, unchanged success counters on failure, terminal
+checkpoint failure, original pending/frozen error plus checkpoint/display
+failures, actual quiet display behavior and getter-free diagnostic projection.
+No real provider, corpus or benchmark was executed.
+
+Full format/ESLint, syntax on four changed JavaScript files, affected generated
+refresh/freshness, fixture discovery/ordered selection and diff checks passed.
+The source move also removed the superseded synchronous wrapper and duplicate
+compare heartbeat/finalizer; their production callers now use the shared phase
+owner. Existing fixtures/assertions remain. ci-lite now contains 1,243 entries.
+Functional execution and final gate remain deferred. Current coverage: **35 fixed
+/ 425 implemented / 152 partial / 158 pending** across 770 current open reports.
+No issue closure or new closing reference was inferred from this source batch.
