@@ -2460,3 +2460,82 @@ snapshot cases. Full format/ESLint, syntax on four changed JavaScript files,
 affected generated freshness and diff checks passed. Functional execution remains
 deferred. Inventory counts stay **35 fixed / 430 implemented / 153 partial / 152
 pending**; no accepted closure is inferred from this follow-up.
+
+
+### #1695 selected-mode triage evidence
+
+`0d3891702` replaces triage's direct payload[mode] access with the existing shared
+retrieval-cohort selector. Extracted-prose now selects extractedProse. Missing,
+malformed or unsuccessful selected output becomes an unavailable query with a
+query/mode/repository-bound diagnostic and outer warning; an explicit empty array
+remains a successful zero. Native pending-ownership failures propagate through
+the existing storage observation owner before ordinary error projection.
+
+The canonical version 1 evidence projection retains the actual local search-root
+identity, available backend/fidelity/cache and selected-mode generation receipts,
+score-space metadata, chunk/source identity and known/unknown line/offset ranges.
+Absent facts remain null; no hashes, global repository identity or source
+verification are invented. Bounded previews are explicitly lossy. Saved source
+navigation remains unavailable until revalidated; the projection never reads
+current same-path bytes as historical evidence. MCP preserves its artifact-path
+handoff and now carries the evidence version and searched-repository receipt.
+The old local display projection is replaced; the unreferenced, nonexported
+extractRecordId function had no caller and is removed.
+
+The existing real CLI fixture retains its finding, exposure, history, import and
+positive-hit assertions. Its tiny fixture now includes independent code/prose/
+comment controls and compares persisted identity/range/backend/generation facts
+with direct search. New boundary controls cover malformed/missing output,
+explicit zeroes/unknowns, two same-path repositories and changed generations;
+an actual MCP handler fixture covers arguments, cancellation and artifact return.
+Functional execution remains deferred. Full format/ESLint, six changed JavaScript
+syntax checks, affected generated freshness, ordered discovery and diff checks
+passed. The source commit was pushed and its exact remote SHA verified.
+
+### #1677 evidence-qualified language remediation
+
+`edb099f1c` replaces low-nonempty causal tuning advice with version 2 inspection
+hypotheses. The real benchmark now records version 1 selected-primary-mode query
+outcomes by invocation backend/mode/stratum, keeping effective backend and unknown
+backend observations separate. Throughput query-file inputs remain unjudged;
+no public input surface changes. An internal collector reuses canonical judgment
+admission and distinct-document matching for explicit positive/negative controls.
+Counts conserve successful, empty, unavailable, unknown, known-positive and
+expected-negative outcomes. Arbitrary irrelevant hits cannot improve judged
+positive-target success. Invalid receipts and legacy availability-only summaries
+remain explicit, with unknown mode/stratum/judgment coverage where absent.
+
+Decisions inspect each cohort; the best-backend rate remains only a legacy
+display metric. Expected-empty success, missing judged targets and unknown
+expectations receive different diagnoses. Suggestions retain applicability,
+observations, missing/contradicted evidence and abstention reasons; priorities
+are uncalibrated heuristics, production changes remain unqualified, and every
+loop retains false acceptance with null post-change/delta fields. Workload
+weight/generator changes are workload design and cannot establish a product
+quality gain without an independent frozen matched holdout.
+
+Actual per-query retrieval-service elapsed samples retain sample coverage,
+cache-state counts and effective concurrency. A combined search's service time
+is associated with its selected-mode cohorts, not apportioned mode latency or
+independent samples across modes. Batch wall-per-completion retains throughput
+cost meaning and cannot trigger query-latency or rerank-budget advice. Even
+observed slow service warrants inspection without a demonstrated rerank cause.
+Taxonomy totals and zero-hit subsets retain separate per-backend counts and
+backend-search occurrence scope: four total with three zero-hit remains 4 / 3.
+
+The existing report-shape/ordering fixture retains positive suggestion, sort,
+aggregation and loop checks with corrected diagnostic semantics. New controls
+exercise buildReportOutput for expected negatives, positive misses, irrelevant
+hits, unjudged workloads, changed workload identity, concurrency-only wall-cost
+changes, fixed service observations, conflicting unqualified cause flags,
+per-backend misses hidden by a high best rate, malformed receipt counts, typed
+unknowns and taxonomy subsets. Both report fixtures join the curated lane.
+Full format/ESLint, eight changed JavaScript syntax checks, affected generated
+freshness and diff checks passed. Discovery initially exposed that the old
+plumbing fixture was outside ci-lite; it is now explicitly selected there along
+with the new evidence fixture. ci-lite contains 1,255 entries. No functional
+fixture, gate, native or performance campaign ran in this implementation wave.
+
+Current coverage: **35 fixed / 432 implemented / 153 partial / 150 pending**
+across 770 open reports. These are source implementations awaiting qualification;
+no issue closure or new closing reference is inferred.

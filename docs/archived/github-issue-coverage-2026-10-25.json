@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "58dd2d7b7",
+  "sourceHead": "edb099f1c",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 430,
+    "implemented": 432,
     "partial": 153,
-    "pending": 152
+    "pending": 150
   },
   "priorOpen": 1177,
   "currentOpen": 770,
@@ -598,6 +598,7 @@
       1673,
       1674,
       1676,
+      1677,
       1680,
       1681,
       1683,
@@ -606,6 +607,7 @@
       1688,
       1689,
       1691,
+      1695,
       1696,
       1698,
       1700,
@@ -904,11 +906,9 @@
       1657,
       1659,
       1664,
-      1677,
       1682,
       1692,
       1694,
-      1695,
       1697,
       1699,
       1701,
@@ -4960,7 +4960,7 @@
     },
     {
       "number": 1530,
-      "title": "Qualify adaptive retrieval and evidence policies with independent risk–coverage receipts",
+      "title": "Qualify adaptive retrieval and evidence policies with independent risk\u2013coverage receipts",
       "priority": "other",
       "status": "pending",
       "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
@@ -6074,8 +6074,10 @@
       "number": 1677,
       "title": "[P2] Qualify low-hit remediation by judged outcomes and actual latency evidence",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "edb099f1c",
+      "validation": "deferred"
     },
     {
       "number": 1680,
@@ -6174,8 +6176,10 @@
       "number": 1695,
       "title": "[P2] Preserve selected-mode hits and source receipts in triage evidence packs",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "0d3891702",
+      "validation": "deferred"
     },
     {
       "number": 1696,

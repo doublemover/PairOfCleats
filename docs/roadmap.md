@@ -54,6 +54,10 @@ transport copies, retaining repository identity and explicit legacy uncertainty.
 heuristic age and keeps unknown/stale scores out of replay numeric denominators.
 #1687 now admits bounded typed result inputs before selection/derivation and
 requires complete source-file cohorts before throughput comparisons.
+#1695 now preserves selected triage hits, repository/generation receipts and
+explicit empty/unavailable outcomes through saved packs and MCP references.
+#1677 now separates selected-mode query outcomes from nonempty frequency and
+service time from batch cost; remediation remains unaccepted inspection work.
 #1675 now uses one global query resource plan and retirement-aware pools; whole
 process-tree RSS measurement remains open, with known-worker samples labeled.
 
