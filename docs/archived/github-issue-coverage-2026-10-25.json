@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-26",
-  "sourceHead": "bc8e61bba",
+  "sourceHead": "63f0cfade",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 448,
-    "partial": 141,
+    "implemented": 449,
+    "partial": 140,
     "pending": 146
   },
   "priorOpen": 1177,
@@ -427,6 +427,7 @@
       1345,
       1346,
       1347,
+      1349,
       1350,
       1351,
       1352,
@@ -749,7 +750,6 @@
       1324,
       1330,
       1348,
-      1349,
       1363,
       1364,
       1367,
@@ -4030,8 +4030,10 @@
       "number": 1349,
       "title": "[P2] Give inline and daemon-prewarm embedding leases an explicit runtime teardown owner",
       "priority": "P2",
-      "status": "partial",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "63f0cfade",
+      "validation": "deferred"
     },
     {
       "number": 1350,

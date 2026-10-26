@@ -3063,3 +3063,32 @@ checked JS tree. Coverage: **35 fixed / 448 implemented / 141 partial / 146
 pending**, all 770 reports retained, no issue closure or new closing reference.
 Contracts: docs/contracts/native-call-owner-projection.md and
  docs/contracts/python-declaration-ownership.md.
+
+### #1349 inline and daemon embedding lifetime reconciliation
+
+`63f0cfade` qualifies the source ownership of the existing inline/daemon repair
+with additional authored recording controls. Inline close is registered both
+immediately during runtime initialization and in normal build teardown. It stops
+admission, joins batcher/inference/observation work and returns only its own lease;
+retained unresolved child failures and explicit reconciliation remain intact.
+Daemon warm keys retain actual leases with bounded eviction/recycle/shutdown
+retirement. These owners were already implemented; this batch preserves them.
+
+The older prewarm-hook fixture discarded returned leases and selected an
+unqualified external model path. It now explicitly selects deterministic stub
+artifacts while still executing actual adapter lease/cache APIs and preserving
+all original normalized-hook/skipped-preload assertions. It joins every lease,
+asserts shared reuse/final disposal, and proves a failed prewarm preserves an
+independent query lease. Inline tests add compatible sibling attempts and
+factory acquisition failure without invented disposal. New daemon integration
+passes actual prewarm leases through replacement and shutdown, then exercises
+the still-live query before returning its final lease. Failed prewarm cannot
+publish a warm key or leave a hidden cache drain. No forced GC is involved.
+
+Full format/ESLint, three JS syntax checks, affected generated refresh/freshness,
+new fixture discovery and staged diff checks passed. One new and seven original
+cleanup/retirement/unwind fixtures join ci-lite, now 1,302 entries. No functional
+assertions, real model/native inference, front gate or platform qualification ran.
+Bookkeeping retains the checked JS tree. Coverage is **35 fixed / 449 implemented
+/ 140 partial / 146 pending**; no issue closed or new closing reference added.
+Contract: docs/contracts/embedding-attempt-lifetime.md.
