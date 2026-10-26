@@ -177,6 +177,10 @@ export const RISK_DELTA_OPTIONS = {
   , ...RISK_PARTIAL_FLOW_OPTIONS, ...RISK_FILTER_OPTIONS, ...REPORT_FORMAT_OPTIONS };
 
 export const createMicrobenchOptions = defaultRepo => ({
+  'work-mode': { type: 'string', choices: ['retrieval', 'result-cache'], default: 'retrieval',
+    describe: 'Measure actual retrieval or observed repeated result-cache hits' },
+  queries: { type: 'string', describe: 'Frozen ordered query file for search microbenchmarks' },
+  quality: { type: 'string', choices: ['auto', 'fast', 'balanced', 'max'], describe: 'Explicit search quality held fixed across cache work modes' },
   repo: {
     type: 'string',
     describe: 'Repo root to benchmark',

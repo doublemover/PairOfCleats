@@ -312,6 +312,7 @@ export async function executeSearchAndEmit(input) {
     embeddingProvider,
     embeddingOnnx,
     cacheInfo: searchResult.cache,
+    workInfo: searchResult.work,
     executionOutcomes: searchResult.executionOutcomes,
     profileInfo: searchResult.profile || null,
     intentInfo: queryPlan.intentInfo,

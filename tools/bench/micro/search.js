@@ -1,4 +1,6 @@
-import { search } from '../../../src/integrations/core/index.js';
+import { INTERNAL_QUERY_CACHE_BYPASS } from '../../../src/retrieval/query-cache-experiment.js';
+import { captureMicroQuerySchedule, createSearchMicroCollector } from './search-observation.js';
+import { search } from '../../../src/integrations/core/search.js';
 import { hrtimeMs, summarizeDurations } from './utils.js';
 
 export async function runSearchBenchmark({
@@ -12,12 +14,25 @@ export async function runSearchBenchmark({
   warmRuns,
   warmupRuns,
   indexCache,
-  sqliteCache
+  sqliteCache,
+  workMode = 'retrieval',
+  querySchedule = null,
+  quality = null
 }) {
+  if (![warmRuns, warmupRuns].every(value => Number.isSafeInteger(value) && value >= 0 && value <= 10000)) {
+    throw new TypeError('Search microbenchmark run counts must be safe integers between zero and 10000.');
+  }
+  if (!['retrieval', 'result-cache'].includes(workMode)) throw new TypeError('Unknown search microbenchmark work mode.');
+  const schedule = captureMicroQuerySchedule(query, querySchedule);
+  const collector = createSearchMicroCollector({ mode, scoreMode, workMode, requestedBackend: backend, annBackend });
+  const cursors = new Map();
+  const searchArgs = ['--stats', ...(quality ? ['--quality', quality] : [])];
   const validateScoreMode = async () => {
     if (!scoreMode) return;
     const payload = await search(repoRoot, {
-      query,
+      query: schedule.queries[0],
+      args: searchArgs,
+      [INTERNAL_QUERY_CACHE_BYPASS]: workMode === 'retrieval',
       mode,
       backend,
       ann,
@@ -59,22 +74,19 @@ export async function runSearchBenchmark({
     }
   };
 
-  const executeSearch = async () => {
+  const executeSearch = async phase => {
+    const cursor = cursors.get(phase) || 0;
+    cursors.set(phase, cursor + 1);
+    const queryIndex = cursor % schedule.count;
     const start = process.hrtime.bigint();
-    await search(repoRoot, {
-      query,
-      mode,
-      backend,
-      ann,
-      annBackend,
-      scoreMode,
-      json: true,
-      jsonCompact: true,
-      emitOutput: false,
-      indexCache,
-      sqliteCache
+    const payload = await search(repoRoot, {
+      query: schedule.queries[queryIndex], mode, backend, ann, annBackend, scoreMode,
+      args: searchArgs, [INTERNAL_QUERY_CACHE_BYPASS]: workMode === 'retrieval',
+      json: true, jsonCompact: true, emitOutput: false, indexCache, sqliteCache
     });
-    return hrtimeMs(start);
+    const durationMs = hrtimeMs(start);
+    collector.observe(payload, { phase, queryIndex, durationMs });
+    return durationMs;
   };
 
   if (indexCache?.clear) indexCache.clear();
@@ -85,20 +97,29 @@ export async function runSearchBenchmark({
   if (indexCache?.clear) indexCache.clear();
   if (sqliteCache?.closeAll) sqliteCache.closeAll();
 
-  const coldMs = await executeSearch();
+  const coldMs = await executeSearch('initial');
 
   for (let i = 0; i < warmupRuns; i += 1) {
-    await executeSearch();
+    await executeSearch('warmup');
   }
 
   const warmTimes = [];
   for (let i = 0; i < warmRuns; i += 1) {
-    warmTimes.push(await executeSearch());
+    warmTimes.push(await executeSearch('measured'));
   }
 
   return {
     repoRoot,
+    mode,
+    backend,
+    annBackend: annBackend || null,
     scoreMode: scoreMode || null,
+    workMode,
+    querySchedule: schedule,
+    coldness: { process: 'not-reset', indexHandles: 'cleared-before-initial', model: 'not-reset',
+      resultCache: workMode === 'retrieval' ? 'bypassed-without-quality-change' : 'observed-existing-cache-state', filesystem: 'uncontrolled' },
+    initialMs: coldMs,
+    work: collector.snapshot(),
     coldMs,
     warm: summarizeDurations(warmTimes)
   };

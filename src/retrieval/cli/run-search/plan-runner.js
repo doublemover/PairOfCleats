@@ -31,6 +31,7 @@ import { applyBranchFilter } from '../branch-filter.js';
 import { resolveBackendSelection } from '../policy.js';
 import { normalizeSearchOptions } from '../normalize-options.js';
 import { INTERNAL_EXACT_SEARCH_MODE } from '../../cli.js';
+import { INTERNAL_QUERY_CACHE_BYPASS } from '../../query-cache-experiment.js';
 import { buildQueryPlan } from '../query-plan.js';
 import { createRunnerHelpers } from '../runner.js';
 import { resolveRunConfig } from '../resolve-run-config.js';
@@ -219,6 +220,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     }
 
     const runConfig = resolveRunConfig({ normalized, scoreModeOverride });
+    if (options[INTERNAL_QUERY_CACHE_BYPASS] === true) runConfig.queryCacheEnabled = false;
 
     const {
       query,

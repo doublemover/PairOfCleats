@@ -26,6 +26,7 @@ import {
 import { normalizeDenseVectorMode } from '../../shared/dense-vector-mode.js';
 import { isDenseVectorPayloadAvailable } from '../../shared/dense-vector-artifacts.js';
 import { resolveChunkAuthorCacheEvidence } from './chunk-author-cache.js';
+import { createRetrievalWorkObservation } from '../../contracts/retrieval-work.js';
 
 const EMBEDDING_MODE_ORDER = Object.freeze([
   'code',
@@ -233,7 +234,8 @@ async function resolveQueryEmbeddingsByMode({
       state.embeddingNormalize,
       state.inputFormatting,
       state.embeddingModelProfile,
-      state.embeddingIdentity
+      state.embeddingIdentity,
+      mode
     );
   }
   return embeddingsByMode;
@@ -690,6 +692,7 @@ export async function runSearchSession({
     const state = modeState[mode];
     return state.run && state.hasAnn;
   });
+  const queryWork = stageTracker?.enabled ? createRetrievalWorkObservation() : null;
   const getEmbeddingForModel = createEmbeddingResolver({
     throwIfAborted,
     embeddingQueryText,
@@ -698,7 +701,8 @@ export async function runSearchSession({
     embeddingProvider,
     embeddingOnnx,
     rootDir,
-    generation: indexSignaturePayload || indexDirByMode
+    generation: indexSignaturePayload || indexDirByMode,
+    work: queryWork
   });
   const queryEmbeddingsByMode = await resolveQueryEmbeddingsByMode({
     modeState,
@@ -807,6 +811,7 @@ export async function runSearchSession({
     recordExpanded,
     contextExpansionStats,
     executionOutcomes,
+    work: queryWork,
     annBackend: annBackendUsed,
     profile: {
       byMode: profilePolicyByMode || null,

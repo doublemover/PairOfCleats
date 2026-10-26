@@ -1,9 +1,16 @@
 #!/usr/bin/env node
 import { guardBootstrapEntry } from '../../../src/shared/bootstrap-readiness.js';
 await guardBootstrapEntry(import.meta.url);
-import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { INTERNAL_QUERY_CACHE_BYPASS } from '../../../src/retrieval/query-cache-experiment.js';
+import { captureMicroQuerySchedule, createSearchMicroCollector, SEARCH_MICRO_REPORT_VERSION } from './search-observation.js';
+import { compareSearchMicroBaseline } from './baseline.js';
+import { readQueryInputPlan } from '../../shared/query-file-utils.js';
+import { readVerifiedContainedFile } from '../../../src/shared/contained-file.js';
+import { describeStorageFailure } from '../../../src/shared/storage/failure-observation.js';
+import { captureSweepSource } from '../ab-sweep-source.js';
+import { withMicrobenchCacheOwner } from './cache-owner.js';
 const { default: yargs } = await import('yargs/yargs');
 const { hideBin } = await import('yargs/helpers');
 const { Bench } = await import('tinybench');
@@ -38,6 +45,10 @@ const argv = yargs(hideBin(process.argv))
     describe: 'Query used for search benchmarks',
     default: 'function'
   })
+  .option('work-mode', { type: 'string', choices: ['retrieval', 'result-cache'], default: 'retrieval' })
+  .option('quality', { type: 'string', choices: ['auto', 'fast', 'balanced', 'max'] })
+  .option('queries', { type: 'string', describe: 'Frozen ordered query file' })
+  .option('comparison-axis', { type: 'string', choices: ['none', 'backend'], default: 'none' })
   .option('iterations', {
     type: 'number',
     describe: 'Iterations per task',
@@ -107,6 +118,11 @@ const baselinePath = path.resolve(
   argv.baseline || path.join(toolRoot, 'benchmarks', 'baselines', 'microbench.json')
 );
 
+const queryPlan = argv.queries ? await readQueryInputPlan(path.resolve(argv.queries), { explicit: true,
+  readFile: async file => (await readVerifiedContainedFile(path.dirname(file), file, { maxBytes: 4 * 1024 * 1024 })).buffer }) : null;
+const querySchedule = captureMicroQuerySchedule(argv.query, queryPlan?.cases.map(entry => entry.query));
+const codeProvenance = captureSweepSource(toolRoot);
+
 await maybeBuildIndexes();
 
 const bench = new Bench({
@@ -122,18 +138,24 @@ const bench = new Bench({
 const indexCache = new Map();
 const sqliteCache = createSqliteDbCache();
 const scoreModes = new Set();
+const observations = new Map();
 for (const component of components) {
   const normalized = component.toLowerCase();
-  if (normalized === 'search-sparse') {
-    scoreModes.add('sparse');
-    bench.add('search-sparse', () => runSearch('sparse'));
-  } else if (normalized === 'search-ann' || normalized === 'search-dense') {
-    scoreModes.add('dense');
-    bench.add(normalized, () => runSearch('dense'));
-  } else if (normalized === 'search-hybrid') {
-    scoreModes.add('hybrid');
-    bench.add('search-hybrid', () => runSearch('hybrid'));
-  }
+  const scoreMode = normalized === 'search-sparse' ? 'sparse'
+    : ['search-ann', 'search-dense'].includes(normalized) ? 'dense' : normalized === 'search-hybrid' ? 'hybrid' : null;
+  if (!scoreMode) continue;
+  scoreModes.add(scoreMode);
+  const collector = createSearchMicroCollector({ mode, scoreMode, workMode: argv['work-mode'], requestedBackend: backend });
+  observations.set(normalized, { collector, scoreMode });
+  let phase = 'unmeasured', cursor = 0;
+  bench.add(normalized, async () => {
+    const queryIndex = cursor++ % querySchedule.count;
+    const start = bench.now();
+    const payload = await runSearch(scoreMode, querySchedule.queries[queryIndex]);
+    const durationMs = bench.now() - start;
+    collector.observe(payload, { phase, queryIndex, durationMs });
+    return { overriddenDuration: durationMs };
+  }, { async: true, beforeAll: runMode => { phase = runMode === 'warmup' ? 'warmup' : 'measured'; cursor = 0; } });
 }
 
 if (!bench.tasks.length) {
@@ -141,22 +163,34 @@ if (!bench.tasks.length) {
   process.exit(1);
 }
 
-for (const modeToCheck of scoreModes) {
-  await validateScoreMode(modeToCheck);
-}
+const measured = await withMicrobenchCacheOwner(sqliteCache, async () => {
+  for (const modeToCheck of scoreModes) {
+    await validateScoreMode(modeToCheck);
+  }
 
-if (indexCache?.clear) indexCache.clear();
-if (sqliteCache?.closeAll) sqliteCache.closeAll();
+  if (indexCache?.clear) indexCache.clear();
+  if (sqliteCache?.closeAll) sqliteCache.closeAll();
 
-await bench.run();
+  await bench.run();
+
+  return { sqliteEntries: sqliteCache.size(), components: summarizeBenchTasks(bench.tasks) };
+});
 
 const results = {
+  schemaVersion: SEARCH_MICRO_REPORT_VERSION,
+  kind: 'search-microbenchmark',
+  querySchedule,
+  queryPlan,
+  workMode: argv['work-mode'],
+  codeProvenance,
+  coldness: { process: 'not-reset', indexHandles: 'cleared-before-task-loop', model: 'not-reset',
+    resultCache: argv['work-mode'] === 'retrieval' ? 'bypassed-without-quality-change' : 'observed-existing-cache-state', filesystem: 'uncontrolled' },
   generatedAt: new Date().toISOString(),
   repoRoot,
   mode,
   backend,
   cache: {
-    sqliteEntries: sqliteCache.size()
+    sqliteEntries: measured.sqliteEntries
   },
   bench: {
     iterations: bench.iterations,
@@ -165,10 +199,10 @@ const results = {
     warmupTimeMs: bench.warmupTime
   },
   env: buildEnvSnapshot(),
-  components: summarizeBenchTasks(bench.tasks)
+  components: measured.components
 };
 
-const comparison = argv.compare ? compareBaseline(results, baselinePath) : null;
+const comparison = argv.compare ? await compareBaseline(results, baselinePath) : null;
 if (comparison) {
   results.baseline = comparison;
 }
@@ -188,10 +222,11 @@ if (argv.json) {
   printSummary(results, comparison);
 }
 
-async function runSearch(scoreMode) {
+async function runSearch(scoreMode, query) {
   const ann = scoreMode !== 'sparse';
-  await search(repoRoot, {
-    query: argv.query,
+  return await search(repoRoot, {
+    query,
+    args: ['--stats', ...(argv.quality ? ['--quality', argv.quality] : [])], [INTERNAL_QUERY_CACHE_BYPASS]: argv['work-mode'] === 'retrieval',
     mode,
     backend,
     ann,
@@ -207,7 +242,8 @@ async function runSearch(scoreMode) {
 async function validateScoreMode(scoreMode) {
   const ann = scoreMode !== 'sparse';
   const payload = await search(repoRoot, {
-    query: argv.query,
+    query: querySchedule.queries[0],
+    args: ['--stats', ...(argv.quality ? ['--quality', argv.quality] : [])], [INTERNAL_QUERY_CACHE_BYPASS]: argv['work-mode'] === 'retrieval',
     mode,
     backend,
     ann,
@@ -300,6 +336,7 @@ function buildEnvSnapshot() {
   const cpu = os.cpus();
   return {
     node: process.version,
+    abi: process.versions.modules,
     platform: process.platform,
     arch: process.arch,
     cpuModel: cpu[0]?.model || 'unknown',
@@ -316,7 +353,9 @@ function buildEnvSnapshot() {
 function summarizeBenchTasks(tasks) {
   const entries = {};
   for (const task of tasks) {
-    entries[task.name] = summarizeTask(task);
+    const observation = observations.get(task.name);
+    entries[task.name] = { ...summarizeTask(task), scoreMode: observation.scoreMode, requestedBackend: backend,
+      work: observation.collector.snapshot() };
   }
   return entries;
 }
@@ -333,13 +372,15 @@ function summarizeTask(task) {
   const percentiles = summarizeSamples(samples);
   return {
     samples: latency.samplesCount || samples.length || 0,
-    meanMs: latency.mean || 0,
-    minMs: latency.min || 0,
-    maxMs: latency.max || 0,
+    meanMs: typeof latency.mean === 'number' && Number.isFinite(latency.mean) ? latency.mean : null,
+    minMs: typeof latency.min === 'number' && Number.isFinite(latency.min) ? latency.min : null,
+    maxMs: typeof latency.max === 'number' && Number.isFinite(latency.max) ? latency.max : null,
     p50Ms: percentiles.p50,
     p95Ms: percentiles.p95,
     p99Ms: percentiles.p99,
-    totalTimeMs: task.result?.totalTime || 0
+    rawSamplesMs: samples.slice(0, 10000),
+    omittedRawSamples: Math.max(0, samples.length - 10000),
+    totalTimeMs: typeof task.result?.totalTime === 'number' && Number.isFinite(task.result.totalTime) ? task.result.totalTime : null
   };
 }
 
@@ -350,9 +391,9 @@ function summarizeTask(task) {
  * @returns {{p50:number,p95:number,p99:number}}
  */
 function summarizeSamples(samples) {
-  if (!samples.length) return { p50: 0, p95: 0, p99: 0 };
+  if (!samples.length) return { p50: null, p95: null, p99: null };
   const scaled = samples.map((value) => Math.max(1, Math.round(value * 1000)));
-  const maxValue = Math.max(...scaled, 1);
+  const maxValue = scaled.reduce((maximum, value) => Math.max(maximum, value), 1);
   const histogram = buildHistogram({
     lowestDiscernibleValue: 1,
     highestTrackableValue: maxValue,
@@ -373,35 +414,18 @@ function summarizeSamples(samples) {
  * @param {string} baselineFile
  * @returns {{path:string,deltas:Record<string,any>}|null}
  */
-function compareBaseline(current, baselineFile) {
-  if (!fs.existsSync(baselineFile)) return null;
-  let baseline = null;
+async function compareBaseline(current, baselineFile) {
+  let baseline;
   try {
-    baseline = JSON.parse(fs.readFileSync(baselineFile, 'utf8'));
-  } catch {
-    return null;
+    const source = await readVerifiedContainedFile(path.dirname(baselineFile), baselineFile, { maxBytes: 32 * 1024 * 1024 });
+    baseline = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(source.buffer));
+  } catch (error) {
+    const diagnostic = describeStorageFailure(error, { phase: 'microbench-baseline-read' });
+    return { path: baselineFile, state: 'incomparable', differences: [{ axis: 'baseline',
+      reason: diagnostic.code === 'ENOENT' ? 'baseline-missing' : 'baseline-unreadable-or-malformed' }], deltas: {} };
   }
-  if (!baseline?.components) return null;
-  const deltas = {};
-  for (const [name, stats] of Object.entries(current.components || {})) {
-    const base = baseline.components?.[name];
-    if (!base) continue;
-    deltas[name] = {
-      meanPct: deltaPct(stats.meanMs, base.meanMs),
-      p50Pct: deltaPct(stats.p50Ms, base.p50Ms),
-      p95Pct: deltaPct(stats.p95Ms, base.p95Ms),
-      p99Pct: deltaPct(stats.p99Ms, base.p99Ms)
-    };
-  }
-  return {
-    path: baselineFile,
-    deltas
-  };
-}
-
-function deltaPct(current, baseline) {
-  if (!Number.isFinite(current) || !Number.isFinite(baseline) || baseline === 0) return null;
-  return ((current - baseline) / baseline) * 100;
+  return { path: baselineFile, ...compareSearchMicroBaseline(current, baseline,
+    { variedAxis: argv['comparison-axis'] === 'none' ? null : argv['comparison-axis'] }) };
 }
 
 function formatDelta(value) {
@@ -411,7 +435,8 @@ function formatDelta(value) {
 }
 
 function printSummary(results, comparison) {
-  console.error('[tinybench] Results');
+  console.error(`[tinybench] Results (${results.workMode}; filesystem cache uncontrolled)`);
+  if (comparison?.state === 'incomparable') console.error(`[tinybench] Baseline incomparable: ${comparison.differences.map(row => row.reason).join(', ')}`);
   for (const [name, stats] of Object.entries(results.components || {})) {
     console.error(`- ${name}: mean ${formatMs(stats.meanMs)} | p50 ${formatMs(stats.p50Ms)} | p95 ${formatMs(stats.p95Ms)} | p99 ${formatMs(stats.p99Ms)} | n=${stats.samples}`);
     if (comparison?.deltas?.[name]) {

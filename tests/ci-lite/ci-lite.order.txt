@@ -1264,3 +1264,7 @@ perf/tooling/bench/sqlite-benchmark-cli/update-current
 perf/tooling/bench/sqlite-benchmark-cli/update-compare
 integrations/triage/record-source-namespace
 integrations/triage/records-namespace-publication
+perf/tooling/bench/search-micro-evidence
+perf/tooling/bench/search-micro-baseline
+perf/tooling/bench/search-micro-runner
+retrieval/cache/embedding-work-observation

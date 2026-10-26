@@ -325,6 +325,7 @@ export function renderSearchOutput({
   embeddingProvider,
   embeddingOnnx,
   cacheInfo,
+  workInfo = null,
   executionOutcomes = null,
   effectivePlanIdentity = null,
   scorePolicyIdentity = null,
@@ -471,6 +472,7 @@ export function renderSearchOutput({
         space: hnswConfig.space,
         efSearch: hnswConfig.efSearch
       } : null,
+      work: workInfo,
       models: {
         code: modelIds.code,
         prose: modelIds.prose,

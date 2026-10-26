@@ -2,6 +2,7 @@ import { runSearchCli, INTERNAL_EXACT_SEARCH_MODE } from '../../retrieval/cli.js
 import { buildCoreSearchInvocation } from './search-invocation.js';
 import { INTERNAL_SEARCH_POLICY } from '../../retrieval/cli/effective-plan.js';
 import { attachObservability, normalizeObservability } from '../../shared/observability.js';
+import { INTERNAL_QUERY_CACHE_BYPASS } from '../../retrieval/query-cache-experiment.js';
 
 /**
  * Execute a search for a repo.
@@ -30,7 +31,8 @@ export async function search(repoRoot, params = {}) {
     scoreMode: params.scoreMode ?? null,
     generationContext: params.generationContext || null,
     [INTERNAL_EXACT_SEARCH_MODE]: params[INTERNAL_EXACT_SEARCH_MODE],
-    [INTERNAL_SEARCH_POLICY]: params[INTERNAL_SEARCH_POLICY]
+    [INTERNAL_SEARCH_POLICY]: params[INTERNAL_SEARCH_POLICY],
+    [INTERNAL_QUERY_CACHE_BYPASS]: params[INTERNAL_QUERY_CACHE_BYPASS]
   });
   return attachObservability(result, observability);
 }

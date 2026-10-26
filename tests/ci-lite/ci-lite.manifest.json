@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1106,
+    "hero": 1110,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -7597,6 +7597,30 @@
     {
       "id": "integrations/triage/records-namespace-publication",
       "order": 1264,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/tooling/bench/search-micro-evidence",
+      "order": 1265,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/tooling/bench/search-micro-baseline",
+      "order": 1266,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "perf/tooling/bench/search-micro-runner",
+      "order": 1267,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/cache/embedding-work-observation",
+      "order": 1268,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
