@@ -6,6 +6,7 @@ import { resolveCacheBase } from './cache.js';
 import { acquireEmbeddingProfileSession } from './cache/profile-access.js';
 import { withEmbeddingProfileMutation, reconcileEmbeddingProfileBudget } from './cache/profile-retention.js';
 import { createTextDatabaseLifetime } from './cache/text-database-lifetime.js';
+import { createTextCacheCapacityAdmission, isTextCacheCapacityRejection } from './cache/text-capacity.js';
 import { observeStorageResource } from '../../../src/shared/storage/failure-observation.js';
 
 const PROFILE_DB_FILE = 'text-vectors.sqlite';
@@ -232,6 +233,7 @@ const openPersistentTextStore = async ({
   }
 
   let db = null;
+  let pageSize, pageLimit;
   const session = acquireEmbeddingProfileSession(baseDir);
   let lifetime = null;
   try {
@@ -242,9 +244,9 @@ const openPersistentTextStore = async ({
     if (db.pragma('journal_mode = DELETE', { simple: true }) !== 'delete') throw new Error('Text cache rollback journal mode is unconfirmed.');
     db.pragma('synchronous = NORMAL');
     db.pragma('temp_store = MEMORY');
-    const pageSize = Number(db.pragma('page_size', { simple: true }));
+    pageSize = Number(db.pragma('page_size', { simple: true }));
     if (!Number.isSafeInteger(pageSize) || pageSize < 512 || pageSize > 65536 || (pageSize & (pageSize - 1))) throw new Error('Text cache page size is unknown.');
-    const pageLimit = Math.floor(DATABASE_CAPACITY_BYTES / pageSize);
+    pageLimit = Math.floor(DATABASE_CAPACITY_BYTES / pageSize);
     if (Number(db.pragma(`max_page_count = ${pageLimit}`, { simple: true })) !== pageLimit) {
       throw new Error('Text cache database exceeds its admitted page capacity.');
     }
@@ -328,7 +330,7 @@ const openPersistentTextStore = async ({
     WHERE cache_key IN (
       SELECT cache_key
       FROM text_vectors
-      ORDER BY last_access_at ASC
+      ORDER BY last_access_at ASC, hit_count ASC, cache_key ASC
       LIMIT ?
     )
   `);
@@ -337,6 +339,7 @@ const openPersistentTextStore = async ({
         pruneStmt.run(overflow);
       }
     });
+    const capacity = createTextCacheCapacityAdmission({ db, pageSize, pageLimit, countStmt, pruneStmt });
 
     let writesSincePrune = 0;
     const counters = {
@@ -345,7 +348,8 @@ const openPersistentTextStore = async ({
       writes: 0,
       prunes: 0,
       errors: 0,
-      transactions: 0, writesAvoided: 0, touchesCoalesced: 0, queueLatencyMs: 0
+      transactions: 0, writesAvoided: 0, touchesCoalesced: 0, queueLatencyMs: 0,
+      capacityEvictions: 0, capacityEvictionRounds: 0, capacityRejectedWrites: 0, capacityAdmissionFailures: 0
     };
 
     const maybePrune = () => {
@@ -374,10 +378,13 @@ const openPersistentTextStore = async ({
       while (persistedDigests.size > 4096) persistedDigests.delete(persistedDigests.keys().next().value);
     };
     const writeTx = db.transaction((writes, touches) => {
+      // Flush coalesced hot touches before choosing the oldest capacity victims.
+      for (const [key, entry] of touches) touchStmt.run(entry.now, entry.count, key);
+      const admission = capacity.admit(writes);
       for (const [key, entry] of writes) upsertStmt.run(key, entry.dims, entry.vectorBlob,
         VECTOR_ROW_VERSION, resolvedVectorEncoding, entry.vectorBlob.byteLength, entry.payloadSha256,
         entry.now, entry.now, entry.now);
-      for (const [key, entry] of touches) touchStmt.run(entry.now, entry.count, key);
+      return admission;
     });
     const flush = () => {
       clearTimeout(flushTimer); clearTimeout(touchTimer); flushTimer = null; touchTimer = null;
@@ -385,7 +392,9 @@ const openPersistentTextStore = async ({
       if (!pendingWrites.size && !pendingTouches.size) return true;
       const writes = Array.from(pendingWrites), touches = Array.from(pendingTouches);
       try {
-        writeTx(writes, touches); counters.transactions++;
+        const admission = writeTx(writes, touches); counters.transactions++;
+        counters.capacityEvictions += admission.evicted; counters.capacityEvictionRounds += admission.rounds;
+        if (admission.evicted) persistedDigests.clear();
         for (const [key, entry] of writes) {
           counters.writes++; counters.queueLatencyMs += Date.now() - entry.queuedAt;
           rememberDigest(key, entry.payloadSha256); maybePrune();
@@ -397,7 +406,10 @@ const openPersistentTextStore = async ({
         if (error instanceof AggregateError) throw error;
         // Cache persistence is advisory. A failed transaction must never advertise
         // a persisted digest, retain an unbounded queue, or fail the index build.
-        counters.errors++; pendingWrites.clear(); pendingTouches.clear(); pendingBytes = 0;
+        if (isTextCacheCapacityRejection(error)) {
+          counters.capacityAdmissionFailures++; counters.capacityRejectedWrites += writes.length;
+        } else counters.errors++;
+        pendingWrites.clear(); pendingTouches.clear(); pendingBytes = 0;
         return false;
       }
     };
@@ -487,6 +499,7 @@ const openPersistentTextStore = async ({
           maxEntries: maxRows,
           vectorEncoding: resolvedVectorEncoding,
           databaseCapacityBytes: DATABASE_CAPACITY_BYTES,
+          databasePageSize: capacity.pageSize, databasePageLimit: capacity.pageLimit,
           pendingWrites: pendingWrites.size, pendingTouches: pendingTouches.size, pendingBytes,
           size: this.size()
         };

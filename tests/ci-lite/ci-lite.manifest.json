@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1166,
+    "hero": 1167,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -7957,6 +7957,12 @@
     {
       "id": "perf/bench/graph-render-sort-equivalence",
       "order": 1324,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/text-cache-capacity-turnover",
+      "order": 1325,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

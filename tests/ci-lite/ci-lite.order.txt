@@ -1324,3 +1324,4 @@ retrieval/pipeline/count-aware-preflight-deadline
 perf/bench/sampled-operation-accounting
 perf/bench/compression-paired-inputs
 perf/bench/graph-render-sort-equivalence
+indexing/embeddings/text-cache-capacity-turnover
