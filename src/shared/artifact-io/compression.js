@@ -7,16 +7,13 @@ import { normalizeArtifactReadFailure, readArtifactFailureField, requireArtifact
 import { addStorageFailureContext } from '../storage/operation-error.js';
 
 const zstdDecompressSync = (buffer, maxBytes, sourcePath) => {
+  let outBuffer;
   try {
     const outputLimit = maxBytes > 0 ? maxBytes + 1024 : 0;
-    const outBuffer = zstdDecompressSyncNative(
+    outBuffer = zstdDecompressSyncNative(
       buffer,
       outputLimit > 0 ? { maxOutputLength: outputLimit } : undefined
     );
-    if (outBuffer.length > maxBytes || shouldAbortForHeap(outBuffer.length)) {
-      throw toJsonTooLargeError(sourcePath, outBuffer.length);
-    }
-    return outBuffer;
   } catch (value) {
     const err = normalizeArtifactReadFailure(value);
     if (shouldTreatAsTooLarge(err)) {
@@ -26,6 +23,12 @@ const zstdDecompressSync = (buffer, maxBytes, sourcePath) => {
     const message = typeof originalMessage === 'string' ? originalMessage : 'Unknown decompression failure';
     throw addStorageFailureContext(new Error(`zstd decompress failed: ${message}`), {}, retainArtifactReadFailure(err), { secondaryPresent: true });
   }
+  // Admission failures are ours, after native decoding settled. They must not
+  // enter codec-error translation and lose their typed capacity classification.
+  if (outBuffer.length > maxBytes || shouldAbortForHeap(outBuffer.length)) {
+    throw toJsonTooLargeError(sourcePath, outBuffer.length);
+  }
+  return outBuffer;
 };
 
 const gunzipWithLimit = (buffer, maxBytes, sourcePath) => {
