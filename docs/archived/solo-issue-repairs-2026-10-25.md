@@ -1323,3 +1323,48 @@ execution has been claimed.
 Full format, scoped ESLint, syntax, affected generated inventories, discovery and
 staged diff checks passed. Functional execution and the final front gate remain
 deferred. Coverage is **35 fixed / 404 implemented / 151 partial / 173 pending**.
+
+
+## WASM structural catalog and optional flow admission
+
+**#1683** (`f7eb8f489`) separates decoded functions/instructions/storage and byte
+ranges from optional stack/CFG construction. Standalone syntax owns a bounded
+immutable catalog and one retained binary/evidence sidecar. The solver consumes
+that exact catalog, adding only derived values/blocks/operands/edges in analysis.
+Off, ungranted deferred and ineligible targets never invoke it. A flow-budget
+failure preserves structural rows and source evidence, with partial local-flow
+coverage after an actual attempt. Structural-budget failures retain the module
+marker/original source and explicit partial syntax without inventing a flow
+attempt or overriding the requested off/deferred state.
+
+Decoder/native validation, source/generation/replay/publication owners and flow
+caps remain. Structural admission has its own bounded canonical snapshot and
+catalog. Byte ranges identify imports, function bodies, storage and instruction
+extents; initializer/offset instructions also remain visible. Source bytes are
+captured before asynchronous work/callbacks, and bare Uint8Array inputs encode
+correctly as base64. Flow and structure share the retained sidecar. Host
+projections reuse one pending result per creation, including failed results, so
+member lookups cannot repeat failed analysis or overlap duplicate projections.
+
+Shared identities now distinguish **wasmStructure 1 / wasmFlow 7**. Structural
+cache/parser identity uses the structural producer; analysis/host meaning binds
+the flow version. Binary task inventory/dependency version 2 binds both producers
+and the validator runtime. Existing WASM products need a normal rebuild; no user
+cache is deleted. Deferred publication preserves the original structural IDs,
+rows and hash while adding granted flow. No public CLI/configuration knob is added.
+
+Six authored bounded cases exercise the 256-local/128-block counterexample under
+off/deferred/ineligible/eager/granted admission and a small successful flow case.
+They spy on actual analyzer calls, compare syntax content/hash, check physical
+function/memory/instruction ranges, preserve original bytes through callback
+mutation, check cross-partition references and retain construction counters in
+runner output. Counts distinguish attempted, allocated and retained work; they
+are not heap/RSS or throughput measurements. The existing deferred production
+fixture now also checks exact structural rows and the initial absence of solver
+products. Existing host, proposal, flow, source, decoder, cancellation and replay
+assertions remain for their deferred rechecks.
+
+Full format, scoped ESLint, syntax, affected generated inventories, six-case
+discovery and staged diff checks passed. Functional execution and the final front
+gate remain deferred. Coverage is **35 fixed / 405 implemented / 151 partial /
+172 pending**.

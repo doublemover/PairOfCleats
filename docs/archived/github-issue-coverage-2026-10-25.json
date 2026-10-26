@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "date": "2026-10-25",
-  "sourceHead": "abba3b867",
+  "sourceHead": "f7eb8f489",
   "pullRequest": 572,
   "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
   "counts": {
     "fixed": 35,
-    "implemented": 404,
+    "implemented": 405,
     "partial": 151,
-    "pending": 173
+    "pending": 172
   },
   "priorOpen": 1177,
   "currentOpen": 763,
@@ -583,6 +583,7 @@
       1669,
       1670,
       1671,
+      1683,
       1684,
       1688,
       1696,
@@ -889,7 +890,6 @@
       1680,
       1681,
       1682,
-      1683,
       1687,
       1689,
       1691,
@@ -6013,8 +6013,10 @@
       "number": 1683,
       "title": "[P2] Skip WASM flow construction when disabled or deferred and preserve structural projection",
       "priority": "P2",
-      "status": "pending",
-      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24"
+      "status": "implemented",
+      "previousReceipt": "pr572-coverage-reconciliation-2026-10-24",
+      "implementation": "f7eb8f489",
+      "validation": "deferred"
     },
     {
       "number": 1684,
