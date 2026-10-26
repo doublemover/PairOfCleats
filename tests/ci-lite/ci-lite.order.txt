@@ -1331,3 +1331,5 @@ tooling/vfs/batched-materialization-failure-drain
 tooling/vfs/cold-start-live-bounds
 tooling/vfs/cold-start-flush-revision
 perf/vfs-memory-plateau
+perf/bench/vfs-cold-start-phase-evidence
+perf/bench/vfs-cold-start-process-phases
