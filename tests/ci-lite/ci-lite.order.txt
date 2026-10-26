@@ -1350,3 +1350,7 @@ graph/call-site-pages-retained-occurrences
 graph/retained-evidence-cleanup-failures
 graph/retained-evidence-enumeration-work
 services/api/graph-evidence-pages
+indexing/semantic/native-language-flow
+indexing/semantic/native-flow-construction
+indexing/semantic/native-flow-pull-writer
+indexing/semantic/native-flow-abort-ownership

@@ -1,7 +1,11 @@
 import { semanticByteAdmissionFor } from './planning.js';
 import { createSemanticPartitionSink, abortSemanticPartitionOnFailure } from '../build/artifacts/writers/semantic/partition.js';
 import { prepareSemanticBatchEntry, semanticBatchEntryBytes } from './prepared-batch.js';
-/** Shared bounded sink for derived rows; analysis never edits syntax partitions. */
+/** Shared pull sink for derived rows; analysis never edits syntax partitions.
+ * A producer must bound construction before each yield. This writer owns one
+ * prepared batch plus one lookahead entry, then awaits append before advancing.
+ * Its queue admission does not bound source/parser state or producer traversal.
+ */
 export const writeSemanticAnalysis = async ({ rows, policy, ...options }) => {
   const sink = await createSemanticPartitionSink({ ...options, byteAdmission: semanticByteAdmissionFor(options.diskAccount, policy.storage.maxQueuedBytes),
     batchRows: policy.storage.batchRows, batchBytes: policy.storage.batchBytes });

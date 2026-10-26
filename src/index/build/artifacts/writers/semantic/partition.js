@@ -10,6 +10,8 @@ import { canonicalSemanticJson, semanticHash } from '../../../../semantic/identi
 import { validateSemanticRecord } from '../../../../../contracts/validators/semantic.js';
 import { assertSemanticEnvelope } from '../../../../../contracts/validators/semantic-envelopes.js';
 import { SEMANTIC_MEMBER_NAMES } from '../../../../../contracts/schemas/semantic-envelopes.js';
+import { observeStorageResource } from '../../../../../shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../../../../shared/storage/operation-error.js';
 
 const MEMBERS = Object.freeze({
   lookup: 'semantic_lookup', node: 'semantic_records', operand: 'semantic_operands', edge: 'semantic_edges',
@@ -200,8 +202,11 @@ export const createSemanticPartitionSink = async ({
 
 /** Preserve the producer failure while still awaiting all owned cleanup. */
 export const abortSemanticPartitionOnFailure = async (sink, error) => {
+  const observation = observeStorageResource(error, { phase: 'semantic-partition-failure' });
+  const retained = observation.retain();
   try { await sink?.abort(); } catch (cleanupError) {
-    try { if (error && typeof error === 'object') error.cleanupError = cleanupError; } catch {}
+    throw addStorageFailureContext(retained, {}, cleanupError, { secondaryPresent: true });
   }
+  observation.requireSettled();
   throw error;
 };

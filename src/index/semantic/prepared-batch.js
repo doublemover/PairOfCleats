@@ -2,12 +2,19 @@ import { canonicalSemanticJson } from './identity.js';
 
 const preparedEntries = new WeakMap();
 /** Mint an immutable producer snapshot; caller-provided encoded bytes are never trusted. */
-export const prepareSemanticBatchEntry = (entry) => {
-  if (preparedEntries.has(entry)) return entry;
+export const prepareSemanticBatchEntry = (entry, { maxBytes = null, check = null } = {}) => {
+  if (maxBytes !== null && (!Number.isSafeInteger(maxBytes) || maxBytes < 2)) throw new TypeError('Prepared semantic entry allowance must contain a row and newline.');
+  if (preparedEntries.has(entry)) {
+    check?.();
+    if (maxBytes !== null && preparedEntries.get(entry).byteCount > maxBytes) throw Object.assign(
+      new RangeError('Prepared semantic entry exceeds its byte allowance.'), { code: 'ERR_SEMANTIC_JSON_BUDGET' });
+    return entry;
+  }
   const rowDescriptor = Object.getOwnPropertyDescriptor(entry, 'row');
   if (!rowDescriptor || !Object.hasOwn(rowDescriptor, 'value')) throw new TypeError('Semantic row getters are not JSON.');
   let rowJson = null;
   const envelope = canonicalSemanticJson(entry, {
+    maxBytes: maxBytes === null ? null : maxBytes - 1, check,
     onObjectEncoded: (value, encoded) => { if (value === rowDescriptor.value) rowJson = encoded; }
   });
   if (!rowJson) throw new TypeError('Expected an explicit semantic row object.');

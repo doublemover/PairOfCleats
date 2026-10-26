@@ -10,6 +10,8 @@ import { createSemanticPartitionSink, abortSemanticPartitionOnFailure } from '..
 import { NATIVE_SEMANTIC_LANGUAGES, NATIVE_SYNTAX_VERSION, semanticSourceLanguage,
   prepareNativeSemanticSyntax, createNativeSemanticCollector } from './native-syntax.js';
 import { collectNativeControlFlow } from './native-control-flow.js';
+import { observeStorageResource } from '../../shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../shared/storage/operation-error.js';
 
 /** Drain the already prepared parser once, awaiting durable writes at each yield. */
 export const collectFileSemanticFacts = async ({ bytes, text, ast, ts, language, relPath,
@@ -30,7 +32,7 @@ export const collectFileSemanticFacts = async ({ bytes, text, ast, ts, language,
     parser: parserIdentity, extractor: { schemaVersion: 1, version: native ? NATIVE_SYNTAX_VERSION : language === 'typescript' ? TYPESCRIPT_ADAPTER_VERSION : JAVASCRIPT_ADAPTER_VERSION }, structuralPolicy });
   const unavailable = !policy.languages.includes(language) ? { state: 'disabled', reason: 'language_policy_disabled' }
     : !native && !['javascript', 'typescript'].includes(language) ? { state: 'unsupported', reason: 'syntax_adapter_pending' } : null;
-  let sink; let primaryFailure = null;
+  let sink, primaryFailure, hasPrimaryFailure = false;
   try {
     const createCollector = native ? createNativeSemanticCollector : language === 'typescript' ? createTypeScriptSemanticCollector : createSemanticCollector;
     const collector = createCollector({ ts, syntax, ast: unavailable ? null : ast, unavailable, source: snapshot.manifest, partitionId, signal, analysisPolicy: policy.enrichment }, policy.storage);
@@ -54,11 +56,18 @@ export const collectFileSemanticFacts = async ({ bytes, text, ast, ts, language,
       coverage.splice(0, coverage.length, ...coverage.filter(row => row.phase !== 'localFlow'), flow.coverage);
     }
     return { source: snapshot.manifest, sourceCapability: snapshot.sourceCapability, root: stagingRoot, partition, analysisPartitions, summary: collector.summary, coverage };
-  } catch (error) { primaryFailure = error; await abortSemanticPartitionOnFailure(sink, error); }
+  } catch (error) {
+    try { await abortSemanticPartitionOnFailure(sink, error); }
+    catch (failure) {
+      primaryFailure = observeStorageResource(failure, { phase: 'semantic-file-failure' }).retain();
+      hasPrimaryFailure = true;
+      throw failure;
+    }
+  }
   finally {
     try { await syntax?.close?.(); } catch (closeError) {
-      if (!primaryFailure) throw closeError;
-      try { if (typeof primaryFailure === 'object') primaryFailure.closeError = closeError; } catch {}
+      if (!hasPrimaryFailure) throw closeError;
+      throw addStorageFailureContext(primaryFailure, {}, closeError, { secondaryPresent: true });
     }
   }
 };

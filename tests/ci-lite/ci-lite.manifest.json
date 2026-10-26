@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1192,
+    "hero": 1196,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -8113,6 +8113,30 @@
     {
       "id": "services/api/graph-evidence-pages",
       "order": 1350,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/native-language-flow",
+      "order": 1351,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/native-flow-construction",
+      "order": 1352,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/native-flow-pull-writer",
+      "order": 1353,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/native-flow-abort-ownership",
+      "order": 1354,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

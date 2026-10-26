@@ -37,6 +37,18 @@ export const createSemanticByteAdmission = limit => {
   } };
 };
 const sharedAdmissions = new WeakMap();
+const constructionAdmissions = new WeakMap();
+/** Construction leases reuse the FIFO byte owner in a separate phase. Holding
+ * a construction lease must never consume the writer credits needed to drain
+ * its own output. The fixed reservation bounds simultaneous producer capacity;
+ * it describes logical construction allowances, not process RSS.
+ */
+export const semanticConstructionAdmissionFor = (account, limit) => {
+  if (!account || typeof account !== 'object') return createSemanticByteAdmission(limit);
+  let admission = constructionAdmissions.get(account);
+  if (!admission) { admission = createSemanticByteAdmission(limit); constructionAdmissions.set(account, admission); }
+  return admission;
+};
 export const semanticByteAdmissionFor = (account, limit) => {
   if (!account || typeof account !== 'object') return createSemanticByteAdmission(limit);
   let admission = sharedAdmissions.get(account);
