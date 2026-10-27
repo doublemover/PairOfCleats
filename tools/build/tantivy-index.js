@@ -1,118 +1,61 @@
 #!/usr/bin/env node
-import fs from 'node:fs/promises';
-import fsSync from 'node:fs';
 import path from 'node:path';
-import { MAX_JSON_BYTES } from '../../src/shared/artifact-io/constants.js';
-import { loadChunkMeta, loadTokenPostings } from '../../src/shared/artifact-io/loaders.js';
-import { hasChunkMetaArtifactsSync } from '../../src/shared/artifact-io/chunk-meta-presence.js';
-import { writeJsonObjectFile } from '../../src/shared/json-stream/json-writers.js';
 import { tryRequire } from '../../src/shared/optional-deps.js';
-import { normalizeTantivyConfig, resolveTantivyPaths, TANTIVY_SCHEMA_VERSION } from '../../src/shared/tantivy.js';
-import {
-  getIndexDir,
-  resolveIndexRoot,
-  resolveRepoConfig
-} from '../shared/dict-utils.js';
+import { normalizeTantivyConfig } from '../../src/shared/tantivy.js';
+import { getIndexDir, resolveIndexRoot, resolveRepoConfig } from '../shared/dict-utils.js';
 import { createIndexBuildToolCli } from './index-tool-cli.js';
+import { buildTantivyGeneration } from './tantivy-generation.js';
+import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
+import { describeStorageFailure, observeStorageResource } from '../../src/shared/storage/failure-observation.js';
 
-const { argv, display, log, warn, fail } = createIndexBuildToolCli({
+const { argv, display, log, warn } = createIndexBuildToolCli({
   scriptName: 'build-tantivy-index',
   options: {
-    mode: { type: 'string', default: 'all' },
-    repo: { type: 'string' },
-    'index-root': { type: 'string' },
-    progress: { type: 'string', default: 'auto' },
-    verbose: { type: 'boolean', default: false },
-    quiet: { type: 'boolean', default: false }
+    mode: { type: 'string', default: 'all' }, repo: { type: 'string' },
+    'index-root': { type: 'string' }, progress: { type: 'string', default: 'auto' },
+    verbose: { type: 'boolean', default: false }, quiet: { type: 'boolean', default: false }
   }
 });
-/**
- * Coarse sparse-artifact readiness probe for Tantivy materialization.
- *
- * @param {string|null|undefined} indexDir
- * @returns {boolean}
- */
-const hasChunkMeta = (indexDir) => {
-  return hasChunkMetaArtifactsSync(indexDir);
-};
-const hasTokenPostings = (indexDir) => {
-  const jsonPath = path.join(indexDir, 'token_postings.json');
-  const metaPath = path.join(indexDir, 'token_postings.meta.json');
-  const shardsDir = path.join(indexDir, 'token_postings.shards');
-  return fsSync.existsSync(jsonPath)
-    || (fsSync.existsSync(metaPath) && fsSync.existsSync(shardsDir));
-};
-
-const tantivyResult = tryRequire('tantivy', { verbose: argv.verbose, logger: warn });
-if (!tantivyResult.ok) {
-  fail('tantivy is required. Install the optional "tantivy" dependency first.');
-}
-const tantivy = tantivyResult.mod?.default && Object.keys(tantivyResult.mod).length === 1
-  ? tantivyResult.mod.default
-  : tantivyResult.mod;
-const buildIndex = tantivy?.buildIndex || tantivy?.build;
-if (typeof buildIndex !== 'function') {
-  fail('tantivy module missing buildIndex/build entrypoint.');
-}
-
-const { repoRoot: root, userConfig } = resolveRepoConfig(argv.repo);
-const indexRoot = argv['index-root']
-  ? path.resolve(argv['index-root'])
-  : resolveIndexRoot(root, userConfig);
-const tantivyConfig = normalizeTantivyConfig(userConfig.tantivy || {});
-
-const modes = [];
-const modeArg = String(argv.mode || '').trim().toLowerCase();
-if (modeArg === 'all') {
-  modes.push('code', 'prose', 'extracted-prose', 'records');
-} else if (['code', 'prose', 'extracted-prose', 'records'].includes(modeArg)) {
-  modes.push(modeArg);
-} else {
-  fail('Invalid mode. Use --mode all|code|prose|extracted-prose|records');
-}
-
-for (const mode of modes) {
-  const indexDir = getIndexDir(root, mode, userConfig, { indexRoot });
-  if (!fsSync.existsSync(indexDir)) {
-    fail(`Index directory missing for mode=${mode} (${indexDir}).`);
+const controller = new AbortController();
+const cancel = () => controller.abort();
+process.once('SIGINT', cancel); process.once('SIGTERM', cancel);
+let failure, failed = false;
+try {
+  const result = tryRequire('tantivy', { verbose: argv.verbose, logger: warn });
+  if (!result.ok) throw new Error('tantivy is required. Install the optional "tantivy" dependency first.');
+  const api = result.mod?.default && Object.keys(result.mod).length === 1 ? result.mod.default : result.mod;
+  const build = api?.buildIndex || api?.build;
+  if (typeof build !== 'function') throw new Error('tantivy module missing buildIndex/build entrypoint.');
+  const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
+  const indexRoot = argv['index-root'] ? path.resolve(argv['index-root']) : resolveIndexRoot(repoRoot, userConfig);
+  const config = normalizeTantivyConfig(userConfig.tantivy || {});
+  const mode = String(argv.mode || '').trim().toLowerCase();
+  const modes = mode === 'all' ? ['code', 'prose', 'extracted-prose', 'records'] : [mode];
+  if (modes.some(value => !['code', 'prose', 'extracted-prose', 'records'].includes(value))) {
+    throw new Error('Invalid mode. Use --mode all|code|prose|extracted-prose|records');
   }
-  if (!hasChunkMeta(indexDir)) {
-    fail(`[tantivy] chunk_meta missing for mode=${mode} (${indexDir}). Run "pairofcleats index build --mode ${mode}" first.`);
+  for (const selected of modes) {
+    await buildTantivyGeneration({ repoRoot, userConfig, mode: selected, config,
+      indexDir: getIndexDir(repoRoot, selected, userConfig, { indexRoot }),
+      buildIndex: build.bind(api), signal: controller.signal, log });
   }
-  if (!hasTokenPostings(indexDir)) {
-    fail(`[tantivy] token_postings missing for mode=${mode} (${indexDir}). Run "pairofcleats index build --mode ${mode}" first.`);
+} catch (error) {
+  failure = error; failed = true;
+  process.exitCode = error?.name === 'AbortError' ? 130 : 1;
+} finally {
+  process.removeListener('SIGINT', cancel); process.removeListener('SIGTERM', cancel);
+  try { await display.close(); }
+  catch (cleanup) {
+    failure = failed ? addStorageFailureContext(failure, {}, cleanup, { secondaryPresent: true }) : cleanup;
+    failed = true; process.exitCode = 1;
   }
-  const { dir, metaPath } = resolveTantivyPaths(indexDir, mode, tantivyConfig);
-  await fs.mkdir(dir, { recursive: true });
-
-  log(`[tantivy] Building index for ${mode}...`);
-  const chunkMeta = await loadChunkMeta(indexDir, { maxBytes: MAX_JSON_BYTES });
-  const tokenPostings = loadTokenPostings(indexDir, { maxBytes: MAX_JSON_BYTES });
-  const totalDocs = Number.isFinite(Number(tokenPostings.totalDocs))
-    ? Number(tokenPostings.totalDocs)
-    : (Array.isArray(tokenPostings.docLengths) ? tokenPostings.docLengths.length : chunkMeta.length);
-
-  await Promise.resolve(buildIndex({
-    indexPath: dir,
-    mode,
-    vocab: tokenPostings.vocab,
-    postings: tokenPostings.postings,
-    docLengths: tokenPostings.docLengths,
-    avgDocLen: tokenPostings.avgDocLen,
-    totalDocs,
-    chunkMeta
-  }));
-
-  const meta = {
-    schemaVersion: TANTIVY_SCHEMA_VERSION,
-    mode,
-    createdAt: new Date().toISOString(),
-    chunkCount: chunkMeta.length,
-    docCount: totalDocs,
-    vocabCount: Array.isArray(tokenPostings.vocab) ? tokenPostings.vocab.length : 0
-  };
-  await writeJsonObjectFile(metaPath, { fields: meta, atomic: true });
-  log(`[tantivy] Wrote ${metaPath}`);
 }
-
-display.close();
+if (failed) {
+  const observation = observeStorageResource(failure, { phase: 'tantivy-build-tool' });
+  if (!observation.isSettled()) {
+    console.error('[tantivy] Build failed; original resource settlement remains unconfirmed. Storage protection is retained.');
+  } else {
+    const diagnostic = describeStorageFailure(failure, { phase: 'tantivy-build-tool', defaultCode: 'ERR_TANTIVY_BUILD' });
+    console.error(`[tantivy] ${diagnostic.code}: ${diagnostic.message || 'Build or finalization failed.'}`);
+  }
+}

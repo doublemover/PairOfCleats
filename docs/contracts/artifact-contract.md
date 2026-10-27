@@ -378,3 +378,36 @@ both validation and decoding. The bounded 64-KiB validation scratch algorithm
 remains unchanged. Zero offsets is valid only for a zero-byte JSONL payload.
 Boundary validation does not itself prove manifest row-count completeness; that
 remains the declaring artifact owner's responsibility.
+
+## Tantivy source and publication identity
+
+Tantivy metadata schema 2 selects one immutable `generations/<UUID>` payload.
+Its bounded atomic `tantivy.meta.json` receipt binds the absolute repository and
+selected mode directory, exact pieces-manifest SHA-256, document ordinal/mapping
+SHA-256, materialized postings SHA-256, counts, versioned input/adapter contracts
+and a bounded inventory of payload file paths, sizes and SHA-256 checksums.
+Hydrated display fields do not change stored document identity. Matching path,
+mtime or counts alone cannot admit a representation. Legacy schema 1 requires a
+normal optional-backend rebuild; an earlier `.bak` pointer is not admission.
+
+The producer holds existing canonical storage leases, serializes a destination's
+writers with the shared file-lock owner, and builds in a unique private UUID
+directory. Same-source writers recheck the completed receipt under that lock.
+Only a completed, bounded payload inventory can precede the atomic receipt switch.
+Failed or cancelled native work cannot activate partial output. Original pending
+resource observations retain source/publication protection. Unreferenced private
+and earlier generations remain retained; this owner grants no automatic deletion
+authority, especially for custom external paths.
+
+Readers validate source and payload identity before attachment and pin the
+immutable native path. The original physical handle/module close is captured
+before querying; its successful void/true completion releases canonical native
+storage leases. False/unknown close results, unclosable handles and outstanding
+native work remain failures with protection retained. Search-mode finalization
+joins all modes and disposes handles without replacing primary failures.
+
+These are application protocol requirements. Input-domain and payload-inventory
+validation do not prove a native package's stored schema, row/ID mapping, search
+parity or internal writer settlement. Those require supported optional-package
+readback and lifecycle qualification; the current implementation batch has not
+executed that qualification or its authored deterministic regressions.

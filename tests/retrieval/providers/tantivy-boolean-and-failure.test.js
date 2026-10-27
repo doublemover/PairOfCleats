@@ -14,7 +14,7 @@ const chunks = texts.map((text, id) => ({ id, file: `src/${id}.txt`, tokens: tex
 const sentinel = Object.assign(new Error('controlled native failure'), { code: 'ERR_CONTROLLED_NATIVE' });
 const api = { openIndex() {
   assert.equal(this, api, 'native API receiver survives adapter admission');
-  opens += 1; if (state === 'open-failure') throw sentinel; return {};
+  opens += 1; if (state === 'open-failure') throw sentinel; return { close() {} };
 }, search(_handle, query, limit) {
   assert.equal(this, api); searches += 1;
   if (state === 'query-failure') throw sentinel;

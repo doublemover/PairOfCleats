@@ -45,6 +45,14 @@ a compatible selected file-backed generation, then deliberately search with
 See [SQLite incremental behavior](../sqlite/incremental-updates.md) and the
 [artifact contract](../contracts/artifact-contract.md).
 
+Tantivy rebuilds publish an immutable payload with a schema-2 source receipt.
+An old receipt requires rebuilding against the selected source generation. The
+reader adapter requires synchronous open/search and a handle or module close
+whose completion confirms disposal; unsupported lifetime APIs fail explicitly.
+The optional module is absent from the current installation and lockfile. The
+new publication/lifetime implementation and its protocol regressions await
+execution, and supported native rebuild/readback remains separately unqualified.
+
 ## Vectors and ANN
 
 LanceDB is a declared root dependency whose use is optional; it is not listed as

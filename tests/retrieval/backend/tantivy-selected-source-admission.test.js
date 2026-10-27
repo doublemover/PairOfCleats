@@ -6,16 +6,21 @@ import { registerHooks } from 'node:module';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { resolveTantivyPaths, TANTIVY_SCHEMA_VERSION } from '../../../src/shared/tantivy.js';
+import { buildTantivyGeneration } from '../../../tools/build/tantivy-generation.js';
+import { writeTantivySourceFixture, writeTantivyPayloadFixture } from '../../helpers/tantivy-generation.js';
 
-applyTestEnv();
 const { dir } = await prepareIsolatedTestCacheDir('tantivy-selected-source');
+applyTestEnv({ cacheRoot: path.join(dir, 'cache'), extraEnv: {
+  PAIROFCLEATS_HOME: path.join(dir, 'home'), PAIROFCLEATS_TRUSTED_CONFIG: null
+} });
 const repo = path.join(dir, 'repo'), selected = path.join(dir, 'selected-generation');
 await fs.mkdir(repo, { recursive: true });
 const source = path.join(selected, 'index-code');
 const config = { enabled: true, autoBuild: true };
 const paths = resolveTantivyPaths(source, 'code', config);
-const valid = { schemaVersion: TANTIVY_SCHEMA_VERSION, mode: 'code',
-  chunkCount: 1, docCount: 1, vocabCount: 1 };
+const idx = await writeTantivySourceFixture(source);
+const valid = (await buildTantivyGeneration({ repoRoot: repo, indexDir: source, mode: 'code', config,
+  userConfig: { cache: { root: path.join(dir, 'cache') } }, buildIndex: writeTantivyPayloadFixture })).meta;
 const save = async metadata => {
   await fs.mkdir(paths.dir, { recursive: true });
   await fs.writeFile(paths.metaPath, JSON.stringify(metadata));
@@ -64,32 +69,32 @@ try {
   for (const change of [{ schemaVersion: TANTIVY_SCHEMA_VERSION + 1 }, { mode: 'prose' },
     { chunkCount: -1 }, { docCount: .5 }, { vocabCount: null }]) {
     await save({ ...valid, ...change });
-    const state = await passive.attachTantivy({}, 'code', source);
+    const state = await passive.attachTantivy(structuredClone(idx), 'code', source);
     assert.equal(state.available, false);
     assert.equal(state.reason, 'missing-or-incompatible-metadata');
   }
   assert.equal(calls.length, 0, 'passive admission never starts an implicit build');
   await save(valid);
-  assert.equal((await passive.attachTantivy({}, 'code', source)).available, true,
-    'valid legacy metadata remains the existing coarse readiness control, not full native qualification');
+  assert.equal((await passive.attachTantivy(structuredClone(idx), 'code', source)).available, true,
+    'the positive control binds the selected document mapping, postings, manifest and immutable payload');
   await save({ ...valid, mode: 'prose' });
-  const rebuilt = await loader().attachTantivy({}, 'code', source);
+  const rebuilt = await loader().attachTantivy(structuredClone(idx), 'code', source);
   assert.equal(rebuilt.available, true);
   assert.equal(calls.length, 1);
   assert.ok(calls[0].args.includes('--index-root'));
   assert.equal(calls[0].args[calls[0].args.indexOf('--repo') + 1], repo);
-  await assert.rejects(loader().attachTantivy({}, 'code', path.join(dir, 'unexpected-layout')),
+  await assert.rejects(loader().attachTantivy(structuredClone(idx), 'code', path.join(dir, 'unexpected-layout')),
     { code: 'ERR_TANTIVY_SOURCE_LAYOUT' });
   assert.equal(calls.length, 1);
   behavior = 'nonzero'; await save({ ...valid, mode: 'prose' });
-  await assert.rejects(loader().attachTantivy({}, 'code', source), /build failed/);
-  assert.equal((await passive.attachTantivy({}, 'code', source)).available, false,
+  await assert.rejects(loader().attachTantivy(structuredClone(idx), 'code', source), /build failed/);
+  assert.equal((await passive.attachTantivy(structuredClone(idx), 'code', source)).available, false,
     'failed auto-build cannot turn rejected metadata into availability');
   behavior = 'abort'; abort = new AbortController();
   let responsive = false;
   const timer = setTimeout(() => { responsive = !childSettled; }, 10);
   try {
-    await assert.rejects(loader({ signal: abort.signal }).attachTantivy({}, 'code', source),
+    await assert.rejects(loader({ signal: abort.signal }).attachTantivy(structuredClone(idx), 'code', source),
       error => ['ABORT_ERR', 'SUBPROCESS_ABORT'].includes(error.code));
   } finally { clearTimeout(timer); }
   assert.equal(responsive, true);

@@ -464,7 +464,7 @@ export function createSearchPipeline(context) {
    * @param {number[]|null} queryEmbedding
    * @returns {Promise<Array<object>>}
    */
-  return async function runSearch(idx, mode, queryEmbedding) {
+  const runSearch = async function runSearch(idx, mode, queryEmbedding) {
     throwIfAborted();
     const providerRuntime = getGenerationProviderRuntime(idx);
     const meta = idx.chunkMeta;
@@ -832,4 +832,6 @@ export function createSearchPipeline(context) {
       }
     }
   };
+  runSearch.dispose = () => tantivyProvider.dispose();
+  return runSearch;
 }

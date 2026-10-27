@@ -24,27 +24,37 @@ export async function runSearchByMode({
     error.cancelled = true;
     throw error;
   };
-  throwIfAborted();
   let primaryFailure, failed = false, primaryIndex = -1;
-  const modes = [
-    [runProse, idxProse, 'prose', queryEmbeddingProse],
-    [runExtractedProse, idxExtractedProse, 'extracted-prose', queryEmbeddingExtractedProse],
-    [runCode, idxCode, 'code', queryEmbeddingCode],
-    [runRecords, idxRecords, 'records', queryEmbeddingRecords]
-  ];
-  const settled = await Promise.allSettled(modes.map(([enabled, idx, mode, embedding], index) => (
-    Promise.resolve().then(() => enabled ? searchPipeline(idx, mode, embedding) : [])
-      .catch(error => { if (!failed) { failed = true; primaryFailure = error; primaryIndex = index; } throw error; })
-  )));
-  if (failed) {
-    const siblingErrors = settled.filter((result, index) => result.status === 'rejected' && index !== primaryIndex)
-      .map(result => result.reason);
-    if (siblingErrors.length) throw addStorageFailureContext(primaryFailure,
-      { siblingErrors: Object.freeze(siblingErrors) }, new AggregateError(siblingErrors, 'Sibling search modes failed.'),
-      { secondaryPresent: true });
-    throw primaryFailure;
+  try {
+    throwIfAborted();
+    const modes = [
+      [runProse, idxProse, 'prose', queryEmbeddingProse],
+      [runExtractedProse, idxExtractedProse, 'extracted-prose', queryEmbeddingExtractedProse],
+      [runCode, idxCode, 'code', queryEmbeddingCode],
+      [runRecords, idxRecords, 'records', queryEmbeddingRecords]
+    ];
+    const settled = await Promise.allSettled(modes.map(([enabled, idx, mode, embedding], index) => (
+      Promise.resolve().then(() => enabled ? searchPipeline(idx, mode, embedding) : [])
+        .catch(error => { if (!failed) { failed = true; primaryFailure = error; primaryIndex = index; } throw error; })
+    )));
+    if (failed) {
+      const siblingErrors = settled.filter((result, index) => result.status === 'rejected' && index !== primaryIndex)
+        .map(result => result.reason);
+      if (siblingErrors.length) throw addStorageFailureContext(primaryFailure,
+        { siblingErrors: Object.freeze(siblingErrors) }, new AggregateError(siblingErrors, 'Sibling search modes failed.'),
+        { secondaryPresent: true });
+      throw primaryFailure;
+    }
+    const [proseHits, extractedProseHits, codeHits, recordHits] = settled.map(result => result.value);
+    throwIfAborted();
+    return { proseHits, extractedProseHits, codeHits, recordHits };
+  } catch (error) {
+    primaryFailure = error; failed = true; throw error;
+  } finally {
+    try { await searchPipeline.dispose?.(); }
+    catch (cleanup) {
+      if (failed) throw addStorageFailureContext(primaryFailure, {}, cleanup, { secondaryPresent: true });
+      throw cleanup;
+    }
   }
-  const [proseHits, extractedProseHits, codeHits, recordHits] = settled.map(result => result.value);
-  throwIfAborted();
-  return { proseHits, extractedProseHits, codeHits, recordHits };
 }

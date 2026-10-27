@@ -5,7 +5,7 @@ const original = Module._load;
 const rows = Array.from({ length: 5001 }, (_, idx) => ({ idx, score: 6000 - idx }));
 const limits = [];
 Module._load = function (name, ...args) {
-  if (name === 'tantivy') return { openIndex: () => ({}), search: (_handle, _query, limit) => { limits.push(limit); return rows.slice(0, limit); } };
+  if (name === 'tantivy') return { openIndex: () => ({ close() {} }), search: (_handle, _query, limit) => { limits.push(limit); return rows.slice(0, limit); } };
   return original.call(this, name, ...args);
 };
 try {

@@ -1,11 +1,8 @@
 import path from 'node:path';
 import { spawnSubprocess } from '../../../shared/subprocess/runner.js';
-import { pathExists } from '../../../shared/file-read.js';
-import { MAX_JSON_BYTES } from '../../../shared/artifact-io/constants.js';
-import { readJsonFile } from '../../../shared/artifact-io/json.js';
 import { tryRequire } from '../../../shared/optional-deps.js';
 import { hasTantivyAdapter } from '../../sparse/providers/tantivy-adapter.js';
-import { normalizeTantivyConfig, resolveTantivyPaths, TANTIVY_SCHEMA_VERSION } from '../../../shared/tantivy.js';
+import { normalizeTantivyConfig } from '../../../shared/tantivy.js';
 import { getRuntimeConfig, resolveRuntimeEnv, resolveToolRoot } from '../../../shared/dict-utils.js';
 import { loadIndex } from '../../cli-index.js';
 import { loadIndexCached } from '../index-loader.js';
@@ -140,27 +137,38 @@ export function createIndexBackendLoader({
     loadIndexCachedLocal(dir, modeLoadOptions, mode)
   );
 
-  const resolveTantivyAvailability = async (mode, indexDir) => {
+  const resolveTantivyAvailability = async (mode, indexDir, idx) => {
     if (!tantivyEnabled || !indexDir) {
       return { dir: null, metaPath: null, meta: null, available: false };
     }
-    const paths = resolveTantivyPaths(indexDir, mode, resolvedTantivyConfig);
-    let meta = null;
-    if (paths.metaPath && await pathExists(paths.metaPath)) {
+    const [{ createTantivySource, readTantivyManifest }, { readTantivyReceipt },
+      { withTantivyStorage }, { observeStorageResource }] = await Promise.all([
+      import('../../../shared/tantivy-source.js'), import('../../../shared/tantivy-receipt.js'),
+      import('../../../shared/tantivy-storage.js'), import('../../../shared/storage/failure-observation.js')
+    ]);
+    return withTantivyStorage(indexDir, { repoRoot: rootDir, userConfig, env: runtimeEnv }, async () => {
+      let selected, source;
       try {
-        meta = readJsonFile(paths.metaPath, { maxBytes: MAX_JSON_BYTES });
-      } catch {}
-    }
-    const countsValid = ['chunkCount', 'docCount', 'vocabCount'].every(key => (
-      Number.isSafeInteger(meta?.[key]) && meta[key] >= 0
-    ));
-    const available = Boolean(meta && meta.schemaVersion === TANTIVY_SCHEMA_VERSION
-      && meta.mode === mode && countsValid && paths.dir && await pathExists(paths.dir));
-    return { ...paths, meta, available, reason: available ? null : 'missing-or-incompatible-metadata' };
+        selected = await readTantivyManifest(indexDir, { repoRoot: rootDir, signal });
+        source = await createTantivySource({ repoRoot: rootDir, indexDir, mode, signal,
+          manifestSha256: selected.sha256, chunkMeta: idx.chunkMeta, tokenPostings: idx.tokenIndex });
+        if ((await readTantivyManifest(indexDir, { repoRoot: rootDir, signal })).sha256 !== selected.sha256) {
+          throw Object.assign(new Error('Tantivy source changed during attachment.'), { code: 'ERR_TANTIVY_SOURCE' });
+        }
+      } catch (error) {
+        observeStorageResource(error, { phase: 'tantivy-source-admission' }).requireSettled();
+        if (!['ERR_TANTIVY_SOURCE', 'ENOENT'].includes(error?.code)) throw error;
+        return { dir: null, metaPath: null, meta: null, available: false, reason: 'source-identity-unavailable' };
+      }
+      return readTantivyReceipt({ indexDir, mode, config: resolvedTantivyConfig, source, signal });
+    });
   };
 
-  const ensureTantivyIndex = async (mode, indexDir) => {
-    const availability = await resolveTantivyAvailability(mode, indexDir);
+  const ensureTantivyIndex = async (mode, indexDir, idx) => {
+    if (tantivyRequired && resolvedTantivyConfig.autoBuild && path.basename(indexDir) !== `index-${mode}`) {
+      throw Object.assign(new Error(`Tantivy source layout is not canonical for mode=${mode}.`), { code: 'ERR_TANTIVY_SOURCE_LAYOUT' });
+    }
+    const availability = await resolveTantivyAvailability(mode, indexDir, idx);
     if (availability.available) return availability;
     if (!tantivyRequired || !resolvedTantivyConfig.autoBuild) return availability;
     const toolRoot = resolveToolRoot();
@@ -185,7 +193,7 @@ export function createIndexBackendLoader({
     if (result.exitCode !== 0) {
       throw new Error(`Tantivy index build failed for mode=${mode}.`);
     }
-    return resolveTantivyAvailability(mode, indexDir);
+    return resolveTantivyAvailability(mode, indexDir, idx);
   };
 
   return {
@@ -294,7 +302,7 @@ export function createIndexBackendLoader({
 
     async attachTantivy(idx, mode, dir) {
       if (!idx || !dir || !tantivyEnabled) return null;
-      const availability = await ensureTantivyIndex(mode, dir);
+      const availability = await ensureTantivyIndex(mode, dir, idx);
       idx.tantivy = {
         dir: availability.dir,
         metaPath: availability.metaPath,
@@ -302,6 +310,9 @@ export function createIndexBackendLoader({
         available: availability.available,
         reason: availability.reason
       };
+      Object.defineProperty(idx.tantivy, 'storageContext', {
+        value: { repoRoot: rootDir, userConfig, env: runtimeEnv }
+      });
       return idx.tantivy;
     },
 

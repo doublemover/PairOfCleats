@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["mapping", "manifest", "repository", "payload", "failed-build", "cancelled-build", "concurrent-builds", "mutated-input", "source-lease", "pending-build", "legacy-metadata", "activation-failure"]
+}

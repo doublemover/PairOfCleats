@@ -64,14 +64,14 @@ const cases = [
   },
   {
     name: 'Tantivy filters global overfetch without narrowing it to eligible cardinality',
-    run() {
+    async run() {
       const originalLoad = Module._load;
       const limits = [];
-      let opens = 0;
+      let opens = 0, closes = 0;
       const nativeRows = [{ id: 0, score: 9 }, { docId: 1, score: 8 }, { idx: 2, score: 7 }];
       Module._load = function (name, ...args) {
         if (name === 'tantivy') return {
-          openIndex: () => { opens += 1; return {}; },
+          openIndex: () => { opens += 1; return { close() { closes++; } }; },
           search: (_handle, _query, limit) => { limits.push(limit); return nativeRows.slice(0, limit); }
         };
         return originalLoad.call(this, name, ...args);
@@ -106,6 +106,7 @@ const cases = [
         assert.deepEqual(provider.search({ ...input, topN: 2, allowedIds: new Set([0, 1, 2]) }).hits, [{ idx: 0, score: 9 }, { idx: 1, score: 8 }], 'return at most requested top-k after filtering');
         nativeRows.splice(0, nativeRows.length, { idx: 2, score: 9 }, { idx: 1, score: 9 }, { idx: 0, score: 7 });
         assert.deepEqual(provider.search({ ...input, allowedIds: new Set([1, 2]) }).hits, [{ idx: 1, score: 9 }], 'equal scores retain deterministic id order');
+        await provider.dispose(); assert.equal(closes, 1, 'all queries share one physical native close');
       } finally {
         Module._load = originalLoad;
       }
