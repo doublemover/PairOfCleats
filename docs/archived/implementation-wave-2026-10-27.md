@@ -29,6 +29,7 @@ work. Their separate receipts preserve exact trees, limitations and checks.
 | [8e8088c44](render-source-implementation-2026-10-27.md) | One read/scan owner for previews and summaries, explicit partial state and corrected negative word limit | 13 authored cases and mandatory virtual reparse negatives; actual consumer/cache/encoding/performance checks remain |
 | [ee5e1cb13](demanded-line-tokens-implementation-2026-10-27.md) | Demanded, identity-qualified line-token blocks with bounded preparation/retention and exact fallback | 12 authored cases; actual chunk/postings, worker and serial dense/sparse qualification remain |
 | [5da4c2578](scene-render-observation-implementation-2026-10-27.md) | Original captured scene-render witness, invalidation, committed-model identity and final phase diagnostics | 7 authored controls; actual browser fault injection, raster/fidelity/hardware checks remain |
+| [bf475fe1a](tui-log-rows-implementation-2026-10-27.md) | Every wrapped log row reachable; paused source anchors, stored clamps and shared mouse/replay offsets | 5 native cases plus real frame captures authored; locked offline typecheck passed, native execution remains |
 
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero

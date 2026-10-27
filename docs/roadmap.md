@@ -7,12 +7,11 @@ Canonical for: initiative status, execution order, and remaining work
 
 ## Current GitHub repair program
 
-Current reconciliation, 2026-10-27: [the closeout review](archived/github-issue-closeout-2026-10-26.md)
-assessed **770 issues and 238 comments**, closing 27. Subsequent repair batches close
-twenty-five more: **718 remain open**—459 awaiting qualification, 146 partial/follow-up and
-113 with unresolved implementation status. The unresolved label is tracking
-evidence, not proof of absent code. Every remaining issue has a completion
-checklist; the linked owner queue records current execution status.
+The [closeout review](archived/github-issue-closeout-2026-10-26.md) assessed
+**770 issues/238 comments**, closing 27; later batches closed 25 more.
+The **718-open snapshot** records 459 qualification, 146 partial/follow-up and
+113 unresolved implementation entries. These labels track evidence, not proof
+of absent code. The owner queue retains completion checklists and current status.
 
 The [complete assessment](archived/github-issue-closeout-2026-10-26.json) retains
 source/test mappings and closure witnesses; [earlier receipts](archived/solo-issue-repairs-2026-10-25.md)
@@ -65,6 +64,7 @@ severity and shared dependencies, retaining qualification separately:
    [Demanded line tokens](archived/demanded-line-tokens-implementation-2026-10-27.md) replace whole-file preparation; 12 cases and dense/sparse qualification remain.
 4. Native TUI/editor workflows: [catalog/editor witnesses and stats admission](archived/native-workflow-preflight-implementation-2026-10-27.md)
    are repaired in source; all actual workflows remain unqualified (#635).
+   [Wrapped log rows](archived/tui-log-rows-implementation-2026-10-27.md) and paused anchors are implemented/typechecked; native qualification remains (#619).
    [Scene render witnesses](archived/scene-render-observation-implementation-2026-10-27.md) now observe captured operations; browser qualification remains (#1372).
 5. Performance/evaluation after correctness: retained comparisons (#1663),
    representative SQLite trials (#1733) and [Windows descendant RSS qualification](archived/query-process-tree-implementation-2026-10-27.md) (#1675).

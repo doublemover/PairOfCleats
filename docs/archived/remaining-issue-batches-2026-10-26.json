@@ -1183,7 +1183,11 @@
       "priority": "P2",
       "batch": "operator-and-editors",
       "phase": "source-review-and-implementation",
-      "status": "queued"
+      "status": "source-implemented-qualification-pending",
+      "currentDisposition": "qualification_pending",
+      "currentImplementation": "Row-based retained log history with arbitrary wrapped windows, paused source-byte anchors, arrival/reflow/eviction handling, stored row-offset clamping and shared mouse/replay offsets. Five native cases and real frame captures authored; offline locked test-source typecheck passed. Native rendering/ConPTY and complete follow-up qualification remain.",
+      "unvalidatedSourceHeads": ["b4cee1582557f4000f7cc4af9b838b6f1709b525", "bf475fe1a9669062f155e38bd1c0252b22f68adf"],
+      "unvalidatedReceipts": ["docs/archived/tui-log-rows-implementation-2026-10-27.md"]
     },
     {
       "number": 630,
