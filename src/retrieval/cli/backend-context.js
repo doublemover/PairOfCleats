@@ -4,6 +4,7 @@ import { resolveIndexDir } from '../cli-index.js';
 import { createLmdbHelpers } from '../lmdb-helpers.js';
 import { createSqliteHelpers } from '../sqlite-helpers.js';
 import { createBackendDisposer } from './backend-disposal.js';
+import { addStorageFailureContext } from '../../shared/storage/operation-error.js';
 
 /**
  * Build backend context for retrieval by wiring SQLite/LMDB handles, helper
@@ -166,7 +167,8 @@ export const createBackendContext = async ({
       dispose
     };
   } catch (error) {
-    try { await dispose(); } catch {}
+    try { await dispose(); }
+    catch (cleanupError) { throw addStorageFailureContext(error, {}, cleanupError, { secondaryPresent: true }); }
     throw error;
   }
 };

@@ -1,6 +1,7 @@
 import { createLifecycleRegistry } from '../../src/shared/lifecycle/registry.js';
 import { getDelegatedRepoCacheOwner, settleDelegatedRepoCacheOwner } from '../../src/shared/cache/repo-access-delegation.js';
 import { assertDelegatedNativeCommandIdentity, assertDelegatedNativeDatabaseScope } from './native-database-authority.js';
+import { closeLmdbDatabase } from '../../src/storage/lmdb/close.js';
 
 const commands = new Set(['sqlite.compact', 'lmdb.build']);
 const pendingOwners = new Set();
@@ -103,7 +104,10 @@ export const runNativeDatabaseCommand = async ({ commandIdentity, delegated = fa
             if (observation && !observation()) throw failure;
           }
           if (captureFailed) throw captureError;
-          if (await originalClose.call(handle) === false) throw new Error('Native database close was explicitly unconfirmed.');
+          const closed = commandIdentity === 'lmdb.build'
+            ? await closeLmdbDatabase(handle, originalClose)
+            : await originalClose.call(handle);
+          if (closed === false) throw new Error('Native database close was explicitly unconfirmed.');
           state.phase = 'closed';
         }).catch(error => { state.phase = 'unknown'; observe(error); throw error; });
         state.promise.catch(() => {});

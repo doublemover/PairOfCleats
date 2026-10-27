@@ -30,7 +30,7 @@ try {
   const closing = new Promise(resolve => { began = resolve; });
   const wait = new Promise(resolve => { release = resolve; });
   const operation = runNativeDatabaseCommand({ commandIdentity: 'lmdb.build' }, resources => {
-    resources.own({ close: async () => { began(); await wait; closed = true; } });
+    resources.own({ close: async callback => { began(); await wait; closed = true; callback(); } });
   }).then(() => { returned = true; });
   await closing;
   assert.equal(returned, false);

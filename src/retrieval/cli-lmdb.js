@@ -1,6 +1,8 @@
 import { retainCachePathAccess } from '../shared/cache/repo-access.js';
 import { LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../storage/lmdb/schema.js';
 import { createBackendDisposer } from './cli/backend-disposal.js';
+import { closeLmdbDatabase } from '../storage/lmdb/close.js';
+import { addStorageFailureContext } from '../shared/storage/operation-error.js';
 import {
   decodeLmdbValue,
   hasLmdbStore,
@@ -67,9 +69,19 @@ export async function createLmdbBackend(options) {
     if (!hasLmdbStore(storePath)) return null;
     const db = open({ path: storePath, readOnly: true });
     if (!closeByDb.has(db)) {
-      const close = createBackendDisposer(new Set([() => db.close()]));
+      let originalClose, captureFailure, captureFailed = false;
+      const close = createBackendDisposer(new Set([() => {
+        if (captureFailed) throw addStorageFailureContext(captureFailure, {
+          cacheOwnershipPending: true, cacheOwnershipReleased: () => false
+        }, null, { forceAggregate: true });
+        return closeLmdbDatabase(db, originalClose);
+      }]));
       closeByDb.set(db, close);
       disposers.add(close);
+      try {
+        originalClose = db.close;
+        if (typeof originalClose !== 'function') throw new TypeError('LMDB requires its original close method.');
+      } catch (error) { captureFailed = true; captureFailure = error; throw error; }
     }
     const validation = validateLmdbSchemaAndMode({
       db,
@@ -79,10 +91,12 @@ export async function createLmdbBackend(options) {
       schemaVersion: LMDB_SCHEMA_VERSION
     });
     if (!validation.ok) {
-      await closeByDb.get(db)();
       const reason = validation.issues.map((issue) => `lmdb ${issue}`).join('; ');
+      const invalid = new Error(`LMDB ${label} invalid: ${reason}`);
+      try { await closeByDb.get(db)(); }
+      catch (cleanupError) { throw addStorageFailureContext(invalid, {}, cleanupError, { secondaryPresent: true }); }
       if (backendForcedLmdb) {
-        throw new Error(`LMDB ${label} invalid: ${reason}`);
+        throw invalid;
       }
       console.warn(`LMDB ${label} invalid: ${reason}`);
       return null;
@@ -101,7 +115,8 @@ export async function createLmdbBackend(options) {
     }
     return { useLmdb, dbCode, dbProse, isAvailable: Boolean(dbCode || dbProse), dispose };
   } catch (error) {
-    try { await dispose(); } catch {}
+    try { await dispose(); }
+    catch (cleanupError) { throw addStorageFailureContext(error, {}, cleanupError, { secondaryPresent: true }); }
     throw error;
   }
 }
