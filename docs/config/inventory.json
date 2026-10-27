@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-27T06:04:51.422Z",
+  "generatedAt": "2026-10-27T06:51:00.072Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -3711,6 +3711,10 @@
         "tests/indexing/runtime/runtime-attempt-lifecycle.test.js",
         "tests/indexing/runtime/stage-closeout-delayed-child.test.js",
         "tests/indexing/runtime/teardown-original-failure-observations.test.js",
+        "tests/indexing/watch/attempts.test.js",
+        "tests/indexing/watch/pinned-attempt-retention.test.js",
+        "tests/indexing/watch/retained-reader-attempts.test.js",
+        "tests/indexing/watch/retention-native-close.test.js",
         "tests/perf/bench/language-no-ann-forwarding.test.js",
         "tests/perf/bench/language-resource-roots.test.js",
         "tests/services/mcp/sdk-mode.test.js",

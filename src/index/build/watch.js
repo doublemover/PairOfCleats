@@ -607,10 +607,11 @@ export async function watchIndex({
           status = 'aborted';
           return;
         }
-        attempt = await attemptManager.createAttempt();
+        const cacheWriterLease = createIndexCacheLease(lock, runtimeRef.repoCacheRoot);
+        attempt = await attemptManager.createAttempt({ lease: cacheWriterLease });
         attemptRuntime = {
           ...runtimeRef,
-          cacheWriterLease: createIndexCacheLease(lock, runtimeRef.repoCacheRoot),
+          cacheWriterLease,
           buildId: attempt.buildId,
           buildRoot: attempt.buildRoot
         };
@@ -785,7 +786,9 @@ export async function watchIndex({
         let outcomeError = null;
         if (attempt) {
           try {
-            await attemptManager.recordOutcome(attempt, status === 'ok', { committed: publicationCommitted });
+            await attemptManager.recordOutcome(attempt, status === 'ok', {
+              committed: publicationCommitted, writersSettled: Boolean(lock && !releaseError)
+            });
           } catch (err) {
             status = 'error';
             outcomeError = err;
