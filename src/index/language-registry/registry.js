@@ -1,11 +1,17 @@
 import { createLanguageRouteResolver } from './routing.js';
+import { createRequire } from 'node:module';
+import { deferLanguageFunctions } from '../deferred-language-functions.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { isManagedReferenceLanguage, projectManagedReferences } from '../../contracts/managed-reference-identities.js';
-import { resolveJavaScriptDeclarationReference } from '../../lang/javascript/callable-occurrences.js';
 import { admitImportExtraction, attachImportExtraction, createImportExtraction, getImportExtraction, projectImportExtraction } from '../../shared/import-extraction.js';
 import { normalizeImportSpecifiers, sanitizeImportSpecifier } from '../shared/import-specifier.js';
 import { LANGUAGE_REGISTRY } from './registry-data.js';
 import { normalizeCollectorHint } from './import-collectors/utils.js';
+const require = createRequire(import.meta.url);
+const { resolveJavaScriptDeclarationReference } = deferLanguageFunctions(
+  () => require('../../lang/javascript/callable-occurrences.js'),
+  ['resolveJavaScriptDeclarationReference']
+);
 const LANGUAGE_BY_ID = new Map(LANGUAGE_REGISTRY.map((lang) => [lang.id, lang]));
 const resolveRouteId = createLanguageRouteResolver(LANGUAGE_BY_ID);
 

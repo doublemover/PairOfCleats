@@ -1,6 +1,13 @@
+import { createRequire } from 'node:module';
+import { deferLanguageFunctions } from '../../deferred-language-functions.js';
 import { buildChunksFromLineHeadings, buildLineIndexFromLines } from '../helpers.js';
-import { buildTreeSitterChunks } from '../../../lang/tree-sitter.js';
 import { getTreeSitterOptions } from '../tree-sitter.js';
+const require = createRequire(import.meta.url);
+
+const { buildTreeSitterChunks } = deferLanguageFunctions(
+  () => require('../../../lang/tree-sitter.js'),
+  ['buildTreeSitterChunks']
+);
 
 export const MAX_REGEX_LINE = 8192;
 export const DEFAULT_PROSE_FALLBACK_MAX_CHARS = 120 * 1024;

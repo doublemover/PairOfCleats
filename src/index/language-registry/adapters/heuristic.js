@@ -1,8 +1,8 @@
+import { createRequire } from 'node:module';
+import { deferLanguageFunctions } from '../../deferred-language-functions.js';
 import path from 'node:path';
-import { buildTreeSitterChunks } from '../../../lang/tree-sitter.js';
 import { syntaxRelationsForChunks } from '../../../lang/tree-sitter/call-facts.js';
 import { buildManagedFlow } from './managed-flow.js';
-
 import {
   CMAKE_EXTS,
   STARLARK_EXTS,
@@ -49,6 +49,12 @@ import {
   addBudgetedCollectorImport
 } from '../import-collectors/utils.js';
 import { flowOptions, normalizeRelPath } from './managed.js';
+const require = createRequire(import.meta.url);
+
+const { buildTreeSitterChunks } = deferLanguageFunctions(
+  () => require('../../../lang/tree-sitter.js'),
+  ['buildTreeSitterChunks']
+);
 
 const createExtensionMatcher = (extensions) => (ext) => extensions.has(ext);
 
@@ -142,8 +148,6 @@ const R_SYMBOL_PATTERNS = Object.freeze([
 const HANDLEBARS_SYMBOL_PATTERNS = Object.freeze([
   /\{\{#\*inline\s+["']([^"']+)["']/g
 ]);
-
-
 
 const RAZOR_SYMBOL_PATTERNS = Object.freeze([
   /@section\s+([A-Za-z_][A-Za-z0-9_]*)/g,

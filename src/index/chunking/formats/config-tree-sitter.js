@@ -1,5 +1,11 @@
-import { buildTreeSitterChunks } from '../../../lang/tree-sitter.js';
+import { createRequire } from 'node:module';
+import { deferLanguageFunctions } from '../../deferred-language-functions.js';
 import { getTreeSitterOptions } from '../tree-sitter.js';
+const require = createRequire(import.meta.url);
+const { buildTreeSitterChunks } = deferLanguageFunctions(
+  () => require('../../../lang/tree-sitter.js'),
+  ['buildTreeSitterChunks']
+);
 
 export const normalizeConfigTreeSitterChunks = (chunks, format) => chunks.map((chunk) => {
   const rawName = typeof chunk?.name === 'string' ? chunk.name.trim() : '';

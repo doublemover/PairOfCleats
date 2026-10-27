@@ -1,3 +1,5 @@
+import { createRequire } from 'node:module';
+import { deferLanguageFunctions } from '../deferred-language-functions.js';
 import {
   isCLike,
   isGo,
@@ -28,32 +30,6 @@ import {
   JINJA_EXTS,
   RAZOR_EXTS
 } from '../constants.js';
-import { buildJsChunks } from '../../lang/javascript.js';
-import { buildTypeScriptChunks } from '../../lang/typescript.js';
-import { buildCSharpChunks } from '../../lang/csharp.js';
-import { buildKotlinChunks } from '../../lang/kotlin.js';
-import { buildRubyChunks } from '../../lang/ruby.js';
-import { buildPhpChunks } from '../../lang/php.js';
-import { buildHtmlChunks } from '../../lang/html.js';
-import { resolveCssPreparedChunks } from '../../lang/css.js';
-import { buildLuaChunks } from '../../lang/lua.js';
-import { buildSqlChunks } from '../../lang/sql.js';
-import { buildCLikeChunks } from '../../lang/clike.js';
-import { resolvePythonPreparedChunks } from '../../lang/python/prepared-chunks.js';
-import { buildRustChunks } from '../../lang/rust.js';
-import { buildSwiftChunks } from '../../lang/swift.js';
-import { buildGoChunks } from '../../lang/go.js';
-import { buildJavaChunks } from '../../lang/java.js';
-import { buildPerlChunks } from '../../lang/perl.js';
-import { buildShellChunks } from '../../lang/shell.js';
-import { chunkIniToml } from './formats/ini-toml.js';
-import { chunkJson } from './formats/json.js';
-import { chunkDocxDocument } from './formats/docx.js';
-import { chunkMarkdown } from './formats/markdown.js';
-import { chunkPdfDocument } from './formats/pdf.js';
-import { chunkRst, chunkAsciiDoc } from './formats/rst-asciidoc.js';
-import { chunkXml } from './formats/xml.js';
-import { chunkYaml } from './formats/yaml.js';
 import { applyChunkingLimits } from './limits.js';
 import { getTreeSitterOptions } from './tree-sitter.js';
 import {
@@ -62,7 +38,114 @@ import {
   resolveChunker,
   tryTreeSitterChunks
 } from './dispatch/shared.js';
-import {
+const require = createRequire(import.meta.url);
+
+const { buildJsChunks } = deferLanguageFunctions(
+  () => require('../../lang/javascript.js'),
+  ['buildJsChunks']
+);
+const { buildTypeScriptChunks } = deferLanguageFunctions(
+  () => require('../../lang/typescript.js'),
+  ['buildTypeScriptChunks']
+);
+const { buildCSharpChunks } = deferLanguageFunctions(
+  () => require('../../lang/csharp.js'),
+  ['buildCSharpChunks']
+);
+const { buildKotlinChunks } = deferLanguageFunctions(
+  () => require('../../lang/kotlin.js'),
+  ['buildKotlinChunks']
+);
+const { buildRubyChunks } = deferLanguageFunctions(
+  () => require('../../lang/ruby.js'),
+  ['buildRubyChunks']
+);
+const { buildPhpChunks } = deferLanguageFunctions(
+  () => require('../../lang/php.js'),
+  ['buildPhpChunks']
+);
+const { buildHtmlChunks } = deferLanguageFunctions(
+  () => require('../../lang/html.js'),
+  ['buildHtmlChunks']
+);
+const { resolveCssPreparedChunks } = deferLanguageFunctions(
+  () => require('../../lang/css.js'),
+  ['resolveCssPreparedChunks']
+);
+const { buildLuaChunks } = deferLanguageFunctions(
+  () => require('../../lang/lua.js'),
+  ['buildLuaChunks']
+);
+const { buildSqlChunks } = deferLanguageFunctions(
+  () => require('../../lang/sql.js'),
+  ['buildSqlChunks']
+);
+const { buildCLikeChunks } = deferLanguageFunctions(
+  () => require('../../lang/clike.js'),
+  ['buildCLikeChunks']
+);
+const { resolvePythonPreparedChunks } = deferLanguageFunctions(
+  () => require('../../lang/python/prepared-chunks.js'),
+  ['resolvePythonPreparedChunks']
+);
+const { buildRustChunks } = deferLanguageFunctions(
+  () => require('../../lang/rust.js'),
+  ['buildRustChunks']
+);
+const { buildSwiftChunks } = deferLanguageFunctions(
+  () => require('../../lang/swift.js'),
+  ['buildSwiftChunks']
+);
+const { buildGoChunks } = deferLanguageFunctions(
+  () => require('../../lang/go.js'),
+  ['buildGoChunks']
+);
+const { buildJavaChunks } = deferLanguageFunctions(
+  () => require('../../lang/java.js'),
+  ['buildJavaChunks']
+);
+const { buildPerlChunks } = deferLanguageFunctions(
+  () => require('../../lang/perl.js'),
+  ['buildPerlChunks']
+);
+const { buildShellChunks } = deferLanguageFunctions(
+  () => require('../../lang/shell.js'),
+  ['buildShellChunks']
+);
+const { chunkIniToml } = deferLanguageFunctions(
+  () => require('./formats/ini-toml.js'),
+  ['chunkIniToml']
+);
+const { chunkJson } = deferLanguageFunctions(
+  () => require('./formats/json.js'),
+  ['chunkJson']
+);
+const { chunkDocxDocument } = deferLanguageFunctions(
+  () => require('./formats/docx.js'),
+  ['chunkDocxDocument']
+);
+const { chunkMarkdown } = deferLanguageFunctions(
+  () => require('./formats/markdown.js'),
+  ['chunkMarkdown']
+);
+const { chunkPdfDocument } = deferLanguageFunctions(
+  () => require('./formats/pdf.js'),
+  ['chunkPdfDocument']
+);
+const { chunkRst, chunkAsciiDoc } = deferLanguageFunctions(
+  () => require('./formats/rst-asciidoc.js'),
+  ['chunkRst', 'chunkAsciiDoc']
+);
+const { chunkXml } = deferLanguageFunctions(
+  () => require('./formats/xml.js'),
+  ['chunkXml']
+);
+const { chunkYaml } = deferLanguageFunctions(
+  () => require('./formats/yaml.js'),
+  ['chunkYaml']
+);
+
+const {
   chunkCmake,
   chunkDart,
   chunkDockerfile,
@@ -77,8 +160,29 @@ import {
   chunkRazor,
   chunkScala,
   chunkStarlark
-} from './dispatch/heuristic-chunkers.js';
-import { chunkGraphql, chunkProto } from './dispatch/schema-chunkers.js';
+} = deferLanguageFunctions(
+  () => require('./dispatch/heuristic-chunkers.js'),
+  [
+    'chunkCmake',
+    'chunkDart',
+    'chunkDockerfile',
+    'chunkGroovy',
+    'chunkHandlebars',
+    'chunkJinja',
+    'chunkJulia',
+    'chunkMakefile',
+    'chunkMustache',
+    'chunkNix',
+    'chunkR',
+    'chunkRazor',
+    'chunkScala',
+    'chunkStarlark'
+  ]
+);
+const { chunkGraphql, chunkProto } = deferLanguageFunctions(
+  () => require('./dispatch/schema-chunkers.js'),
+  ['chunkGraphql', 'chunkProto']
+);
 
 const INI_LIKE_EXTS = new Set(['.toml', '.ini', '.cfg', '.conf']);
 
