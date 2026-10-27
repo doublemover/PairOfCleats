@@ -6,6 +6,11 @@ import { redactDiagnosticText } from '../../shared/diagnostic-text.js';
 
 const token = value => String(value || 'unscoped').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 128);
 const MAX_EVENT_BYTES = 64 * 1024;
+const describeWriteError = (error, fallbackCode) => ({
+  code: error?.code || fallbackCode,
+  ...(typeof error?.causeCode === 'string' ? { causeCode: error.causeCode } : {}),
+  message: redactDiagnosticText(error?.message || error)
+});
 const safeValue = (value, depth = 0, seen = new Set()) => {
   if (value == null || typeof value === 'boolean' || typeof value === 'number') return value;
   if (typeof value === 'string') return redactDiagnosticText(value, 8192);
@@ -16,7 +21,7 @@ const safeValue = (value, depth = 0, seen = new Set()) => {
     if (Array.isArray(value)) return value.slice(0, 64).map(item => safeValue(item, depth + 1, seen));
     const result = {};
     for (const key of Object.keys(value).slice(0, 64)) {
-      if (/password|secret|api[_-]?key|access[_-]?token|authorization/i.test(key)) result[key] = '[redacted]';
+      if (/password|secret|api[_-]?key|access[_-]?token|authorization|^token$/i.test(key)) result[key] = '[redacted]';
       else {
         try { result[key] = safeValue(value[key], depth + 1, seen); }
         catch { result[key] = '[unavailable]'; }
@@ -80,13 +85,13 @@ export const createCrashEvidenceOwner = ({ repoCacheRoot, buildId = null, attemp
         atomicWriteJsonSync(evidencePath, payload, { spaces: 2, newline: false });
       } catch (writeError) {
         return { written: false, evidencePath: null, ...identity,
-          writeError: { code: writeError?.code || 'ERR_CRASH_EVIDENCE_WRITE', message: redactDiagnosticText(writeError?.message || writeError) } };
+          writeError: describeWriteError(writeError, 'ERR_CRASH_EVIDENCE_WRITE') };
       }
       const result = { written: true, evidencePath, ...identity };
       // Latest paths are conveniences only; failures cannot invalidate history.
       for (const latest of [paths.terminalPath, path.join(repoCacheRoot, 'logs', 'index-crash-terminal.json')]) {
         try { atomicWriteJsonSync(latest, { ...payload, evidencePath }, { spaces: 2, newline: false }); }
-        catch (writeError) { result.latestWriteError = { code: writeError?.code || 'ERR_CRASH_LATEST_WRITE', message: redactDiagnosticText(writeError?.message || writeError) }; }
+        catch (writeError) { result.latestWriteError = describeWriteError(writeError, 'ERR_CRASH_LATEST_WRITE'); }
       }
       return result;
     }
