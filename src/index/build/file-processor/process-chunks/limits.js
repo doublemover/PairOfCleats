@@ -10,7 +10,8 @@ export const collectChunkComments = ({
   dictConfig,
   effectiveExt,
   chunkStart,
-  includeTokens = true
+  includeTokens = true,
+  onTokenization = null
 }) => {
   const commentFieldTokens = [];
   let docmetaPatch = null;
@@ -61,6 +62,8 @@ export const collectChunkComments = ({
         dictConfig,
         includeSeq: false
       }).tokens;
+      onTokenization?.({ phase: 'field', characters: clipped.text.length, bytes: clipped.bytes,
+        tokenCount: tokens.length, retainedTokens: tokens.length });
       if (tokens.length) {
         for (const token of tokens) commentFieldTokens.push(token);
       }

@@ -1,5 +1,5 @@
 // Private extraction policy identity, separate from artifact layout versions.
-export const COMMENT_CLASSIFICATION_VERSION = '3';
+export const COMMENT_CLASSIFICATION_VERSION = '4';
 // Match legal-notice structures at a comment line boundary. Bare license names
 // inside prose (including submit/commit/permit/limits) are deliberately ambiguous.
 const line = String.raw`(?:^|[\r\n])[\t ]*(?:(?:/\*+!?|//[!/]?|\*+|<!--|#+|;|--)[\t ]*)?`;

@@ -27,8 +27,9 @@ export const captureParserCommentOccurrences = (ast, text, { parser, language, d
   }
   ranges.sort((a, b) => a.start - b.start || a.end - b.end);
   if (!reason && ranges.some((range, index) => index > 0 && range.start < ranges[index - 1].end)) reason = 'overlapping-parser-comments';
+  let sourceHash;
   const source = Object.freeze({ coordinateUnit: 'utf16', length: text.length,
-    sha256: createHash('sha256').update(text, 'utf16le').digest('hex') });
+    get sha256() { return sourceHash ||= createHash('sha256').update(text, 'utf16le').digest('hex'); } });
   const parserIdentity = JSON.parse(JSON.stringify(parser));
   const product = Object.freeze({ schemaVersion: 1, policyVersion: COMMENT_OCCURRENCE_POLICY,
     source, parser: freeze(parserIdentity), language, dialect,

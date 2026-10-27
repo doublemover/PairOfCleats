@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["code-no-config", "extracted-config", "code-config", "block-boundary", "block-over", "aggregate", "candidate-count", "invalid", "tokens-clipped", "token-count-parity"]
+}

@@ -1,11 +1,9 @@
-import { parse as parseYaml } from 'yaml';
-import { parse as parseToml } from 'smol-toml';
-import { parse as parseJsonc } from 'jsonc-parser';
 import { offsetToLine } from '../shared/lines.js';
 import { createSafeRegex, isSafeRegex } from '../shared/safe-regex.js';
 import { normalizeLimit } from '../shared/limits.js';
 import { COMMENT_CLASSIFICATION_VERSION, DEFAULT_COMMENT_LICENSE_PATTERN } from './comments-policy.js';
 import { resolveCommentOccurrences } from './comment-occurrences.js';
+import { createCommentConfigAdmission } from './comment-config.js';
 
 const DEFAULT_COMMENT_CONFIG = {
   extract: 'doc',
@@ -347,28 +345,6 @@ const shouldSkipNoise = (text, config) => {
   return false;
 };
 
-const isConfigParsable = (lang, text) => {
-  if (!text) return false;
-  try {
-    if (lang === 'json') {
-      const errors = [];
-      parseJsonc(text, errors, { allowTrailingComma: true, allowEmptyContent: false });
-      return errors.length === 0;
-    }
-    if (lang === 'yaml') {
-      parseYaml(text);
-      return true;
-    }
-    if (lang === 'toml') {
-      parseToml(text);
-      return true;
-    }
-  } catch {
-    return false;
-  }
-  return false;
-};
-
 const scanComments = (text, style) => {
   const lineMarkers = style?.line || [];
   const blockMarkers = style?.block || [];
@@ -468,7 +444,8 @@ export function extractComments({
   config: rawConfig,
   context = null,
   commentOccurrences = null,
-  includeConfigSegments = true
+  includeConfigSegments = true,
+  onConfigParse = null
 }) {
   const config = normalizeCommentConfig(rawConfig || {});
   if (config.extract === 'off') {
@@ -483,6 +460,7 @@ export function extractComments({
   }
   const comments = [];
   const configSegments = [];
+  const configAdmission = createCommentConfigAdmission({ enabled: includeConfigSegments, onParse: onConfigParse });
   const resolved = resolveCommentOccurrences({ text, ext, languageId, context, commentOccurrences });
   if (['comment-count-budget', 'standalone-comment-parser-source-budget'].includes(resolved.reason)) {
     return { comments, configSegments, coverage: { state: 'unavailable', reason: resolved.reason, policyVersion: 1 } };
@@ -538,16 +516,19 @@ export function extractComments({
       raw: entry.raw,
       coverage
     });
-    if (!includeConfigSegments) continue;
-    for (let i = 0; i < contentLines.length; i += 1) {
+    if (!configAdmission.discover) continue;
+    for (let i = 0; i < contentLines.length && configAdmission.discover; i += 1) {
       const line = contentLines[i].content;
       const fenceMatch = line.match(/^\s*```+\s*([A-Za-z0-9_-]+)?/);
       if (!fenceMatch) continue;
       const fenceLang = fenceMatch[1] ? fenceMatch[1].toLowerCase() : '';
       const lang = ['json', 'yaml', 'yml', 'toml'].includes(fenceLang) ? fenceLang : null;
       if (!lang) continue;
+      const range = { start: contentLines[i].contentStartOffset, end: entry.end };
+      if (!configAdmission.candidate(range)) break;
       let endFence = -1;
       for (let j = i + 1; j < contentLines.length; j += 1) {
+        if (!configAdmission.scanLine(range)) break;
         if (/^\s*```/.test(contentLines[j].content)) {
           endFence = j;
           break;
@@ -563,12 +544,10 @@ export function extractComments({
       if (!Number.isFinite(startOffset) || !Number.isFinite(endOffset) || endOffset <= startOffset) {
         continue;
       }
-      const blockText = contentLines
-        .slice(i + 1, endFence)
-        .map((entryLine) => entryLine.content)
-        .join('\n');
       const normalizedLang = lang === 'yml' ? 'yaml' : lang;
-      if (!isConfigParsable(normalizedLang, blockText)) continue;
+      const admitted = configAdmission.parse(normalizedLang, contentLines, i + 1, endFence, { start: startOffset, end: endOffset });
+      i = endFence;
+      if (!admitted) continue;
       configSegments.push({
         type: 'embedded',
         languageId: normalizedLang,
@@ -583,5 +562,5 @@ export function extractComments({
       });
     }
   }
-  return { comments, configSegments, coverage };
+  return { comments, configSegments, coverage, configAdmission: configAdmission.snapshot() };
 }

@@ -13,7 +13,9 @@ export const buildCommentMeta = ({
   dictConfig,
   commentData: preparedCommentData = null,
   languageContext = null,
-  commentOccurrences = null
+  commentOccurrences = null,
+  onConfigParse = null,
+  onCommentTokenization = null
 }) => {
   const commentsEnabled = (mode === 'code' || mode === 'extracted-prose')
     && normalizedCommentsConfig.extract !== 'off';
@@ -28,7 +30,8 @@ export const buildCommentMeta = ({
       config: normalizedCommentsConfig,
       context: languageContext,
       commentOccurrences,
-      includeConfigSegments: commentSegmentsEnabled
+      includeConfigSegments: commentSegmentsEnabled,
+      onConfigParse
     })
     : { comments: [], configSegments: [] };
   const {
@@ -42,7 +45,8 @@ export const buildCommentMeta = ({
     dictConfig,
     normalizedCommentsConfig,
     languageId,
-    commentSegmentsEnabled
+    commentSegmentsEnabled,
+    onTokenization: onCommentTokenization
   });
   const extraSegments = [];
   if (commentSegmentsEnabled && commentSegments.length) {
@@ -75,6 +79,7 @@ export const buildCommentMeta = ({
     commentRanges,
     extraSegments,
     commentsEnabled,
-    commentSegmentsEnabled
+    commentSegmentsEnabled,
+    commentConfigAdmission: commentData.configAdmission || null
   };
 };

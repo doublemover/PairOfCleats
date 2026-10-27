@@ -5,6 +5,8 @@ import { commentPolicyReceipt, COMMENT_CLASSIFICATION_VERSION } from '../../../s
 import { buildExtractedProseExtrasCacheKey, resolveExtractedProseCommentData } from '../../../src/index/build/file-processor/cpu/comment-data-cache.js';
 import { buildCommentMeta } from '../../../src/index/build/file-processor/cpu/meta.js';
 import { buildLineIndex } from '../../../src/shared/lines.js';
+import { chunkSegments } from '../../../src/index/segments.js';
+import { tokenizeChunkText } from '../../../src/index/build/tokenization.js';
 import { buildTokenizationKey, buildDependencySignatures } from '../../../src/index/build/indexer/signatures.js';
 
 const text = '## Foobarbaz describes precise shared comment extraction semantics.\n';
@@ -13,7 +15,7 @@ const input = { text, ext: '.py', languageId: 'python', lineIndex: buildLineInde
   fileHash: crypto.createHash('sha256').update(text).digest('hex'), fileHashAlgo: 'sha256' };
 const key = buildExtractedProseExtrasCacheKey(input);
 assert.match(key, new RegExp(`^comments:${COMMENT_CLASSIFICATION_VERSION}\\|`));
-assert.equal(commentPolicyReceipt(config).version, '2');
+assert.equal(commentPolicyReceipt(config).version, '4');
 const legacy = `hash:sha256:${input.fileHash}|ext:.py|lang:python`;
 assert.notEqual(key, legacy);
 for (const changed of [{ includeLicense: true }, { minTokens: 99 }, { headerMaxLines: 1 }, { licensePattern: 'Foobarbaz' }]) {
@@ -47,11 +49,18 @@ assert.deepEqual(warm, fresh, 'stale author entries cannot determine cold/warm e
 const consume = (data, dictionary, selectedConfig = config) => buildCommentMeta({ ...input, mode: 'extracted-prose',
   normalizedCommentsConfig: selectedConfig, commentData: data, tokenDictWords: dictionary, dictConfig: { segmentation: 'greedy' } });
 const split = consume(warm, new Set(['foobar', 'baz']));
-assert.ok(split.commentEntries[0].tokens.includes('foobar')); assert.ok(split.commentEntries[0].tokens.includes('baz'));
+const tokensFor = (meta, dictionary) => chunkSegments({ text, ext: '.py', relPath: 'fixture.py', mode: 'extracted-prose',
+  segments: meta.extraSegments }).flatMap(chunk => tokenizeChunkText({ text: text.slice(chunk.start, chunk.end),
+  mode: 'prose', ext: '.py', context: { dictWords: dictionary, dictConfig: { segmentation: 'greedy' } } }).tokens);
+const splitTokens = tokensFor(split, new Set(['foobar', 'baz']));
+assert.ok(splitTokens.includes('foobar')); assert.ok(splitTokens.includes('baz'));
 const whole = consume(resolveExtractedProseCommentData({ ...input, cache, key }), new Set(['foobarbaz']));
-assert.ok(whole.commentEntries[0].tokens.includes('foobarbaz'));
-assert.equal(whole.commentEntries[0].tokens.includes('foobar'), false,
+const wholeTokens = tokensFor(whole, new Set(['foobarbaz']));
+assert.ok(wholeTokens.includes('foobarbaz'));
+assert.equal(wholeTokens.includes('foobar'), false,
   'paired raw-cache hit retokenizes using the consuming dictionary');
+assert.ok(whole.commentEntries[0].tokenCount > 0);
+assert.equal(Object.hasOwn(whole.commentEntries[0], 'tokens'), false, 'eligibility retains no unused full token array');
 assert.equal(consume(fresh, new Set(), normalizeCommentConfig({ minTokens: 99 })).extraSegments.length, 0,
   'prepared raw data cannot bypass current token admission');
 assert.equal(cache.get(key), stored, 'different tokenization consumers do not mutate the raw extraction owner');

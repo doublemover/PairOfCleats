@@ -5,6 +5,8 @@ import { buildCommentMeta } from '../../../src/index/build/file-processor/cpu/me
 import { buildLineIndex } from '../../../src/shared/lines.js';
 import { createSafeRegex } from '../../../src/shared/safe-regex.js';
 import { projectFileAnalysisComments, restoreFileAnalysisComments } from '../../../src/index/build/workers/file-analysis-risk.js';
+import { chunkSegments } from '../../../src/index/segments.js';
+import { tokenizeChunkText } from '../../../src/index/build/tokenization.js';
 
 const meta = (text, config = normalizeCommentConfig()) => buildCommentMeta({ text, ext: '.js',
   mode: 'extracted-prose', languageId: 'javascript', lineIndex: buildLineIndex(text),
@@ -18,11 +20,16 @@ for (const [text, token] of [
   ['Unicode 提交MIT许可 retains ordinary parser documentation and useful retrieval tokens.', 'unicode'],
   ['The Apache adapter handles copyright policy discussions and license configuration fields.', 'adapter']
 ]) {
-  const result = meta(`/** ${text} */`);
+  const source = `/** ${text} */`, result = meta(source);
   assert.equal(result.commentEntries.length, 1, text);
   assert.equal(result.commentEntries[0].type, 'doc'); assert.equal(result.commentEntries[0].originalType, 'doc');
   assert.equal(result.commentEntries[0].licenseClassification, null);
-  assert.ok(result.commentEntries[0].tokens.includes(token), `real tokenizer retains ${token}`);
+  const chunks = chunkSegments({ text: source, ext: '.js', relPath: 'fixture.js', mode: 'extracted-prose', segments: result.extraSegments });
+  const tokens = chunks.flatMap(chunk => tokenizeChunkText({ text: source.slice(chunk.start, chunk.end),
+    mode: 'prose', ext: '.js', context: { dictWords: new Set(), dictConfig: {} } }).tokens);
+  assert.ok(tokens.includes(token), `actual prose chunk tokenizer retains ${token}`);
+  assert.ok(result.commentEntries[0].tokenCount > 0);
+  assert.equal(Object.hasOwn(result.commentEntries[0], 'tokens'), false);
   assert.equal(result.extraSegments.filter(segment => segment.type === 'comment').length, 1);
   assert.equal(result.commentEntries[0].proseAdmission.reason, 'included');
 }

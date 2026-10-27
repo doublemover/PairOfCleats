@@ -37,10 +37,27 @@ Config-fence parsing is requested only for extracted-prose or code mode with
 `includeInCode=true`. Paired prose preparation deliberately requests the future
 extracted-prose product. Comment references and stripping remain available when
 config segments are not demanded. Standalone extraction retains its prior default
-of producing config segments. Classification/cache/signature policy version 3
+of producing config segments. Classification/cache/signature policy version 4
 invalidates prior extraction meaning; there is no new public configuration knob.
 
-Remaining work includes bounded config-parser admission, logical fence-content
-mapping, compact token eligibility/materialization, non-JS lexical adapters and
-functional consumer/replay/import/performance checks. The 12 authored
-`indexing/segments/parser-comment-occurrences/*` cases have not run.
+Config parsing admits at most 32 candidates, 64 KiB UTF-8 per candidate, 256 KiB
+aggregate parser input and 20,000 closing-fence search lines per file. Count and
+byte admission precede content assembly/vendor entry. Parser libraries load only
+after demand/admission. Required-library failures propagate; invalid syntax is
+distinct from partial budget omission. Internal construction receipts retain
+counts, bytes and bounded exclusion reasons; they do not describe later cache-hit
+cost. No synchronous elapsed-time deadline or full structural bound is claimed.
+
+Comment eligibility now retains exact emitted-token counts without full output
+arrays. It uses the existing normalization/dictionary/stopword path, counting both
+duplicate tokens and each stem contribution. Only actual field consumers produce
+tokens for their UTF-8-clipped input and effective extension/dictionary/policy.
+Clipped token results are deliberately not reused across mutable dictionaries or
+configurations. Raw paired extraction still reuses compatible source products.
+Existing positive tests consume actual prose chunks rather than unused arrays.
+
+Remaining work includes logical fence-content mapping/shared fence grammar,
+parser structural admission, non-JS lexical adapters and functional consumer/
+replay/import/performance checks. The 12 authored occurrence cases and 10 authored
+`indexing/segments/comment-work-admission/*` cases have not run. No measured
+speedup, parser-call result or consumer acceptance is claimed.

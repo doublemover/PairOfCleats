@@ -163,11 +163,12 @@ export function buildTokenSequence({
   dictConfig,
   buffers = null,
   includeCodePunctuation = true,
-  includeSeq = true
+  includeSeq = true,
+  countOnly = false
 }) {
-  const useBuffers = !!buffers;
-  const tokensOut = useBuffers ? buffers.tokens : [];
-  const seqOut = includeSeq ? (useBuffers ? buffers.seq : []) : null;
+  const useBuffers = !!buffers && !countOnly;
+  const tokensOut = countOnly ? null : useBuffers ? buffers.tokens : [];
+  const seqOut = includeSeq && !countOnly ? (useBuffers ? buffers.seq : []) : null;
   const scratch = useBuffers ? buffers.scratch : [];
   const scratch2 = useBuffers ? buffers.scratch2 : [];
   if (useBuffers) {
@@ -202,15 +203,18 @@ export function buildTokenSequence({
     working = scratch2;
   }
 
+  let tokenCount = 0;
   if (mode === 'prose') {
     for (const token of working) {
       if (STOP.has(token)) continue;
+      if (countOnly) { tokenCount += 2; continue; }
       tokensOut.push(token);
       tokensOut.push(stem(token));
     }
   } else {
-    for (const token of working) tokensOut.push(token);
+    for (const token of working) { if (countOnly) tokenCount++; else tokensOut.push(token); }
   }
+  if (countOnly) return { tokens: [], seq: [], tokenCount };
 
   // When buffers are supplied we still return cloned output arrays so callers
   // can retain per-chunk token lists without being mutated by the next chunk.
@@ -225,6 +229,9 @@ export function buildTokenSequence({
     ...(punctuation ? { punctuation } : {})
   };
 }
+
+/** Exact emitted-token cardinality, including duplicates/stems, without output arrays. */
+export const countTokenSequence = input => buildTokenSequence({ ...input, countOnly: true, includeSeq: false }).tokenCount;
 
 /**
  * Build hashed chargrams from tokens with configurable n-gram limits.
