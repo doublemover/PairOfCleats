@@ -4756,6 +4756,9 @@
     },
     {
       "number": 1325,
+      "unvalidatedSourceHeads": ["bba2c5c8dc039e2817602f4c38306c561597754c"],
+      "unvalidatedReceipts": ["embedding-selection-implementation-2026-10-27.md"],
+      "currentImplementation": "Ordinary full builds capture immutable model/provider/profile/environment/resources before Stage2; strict late binding changes only generated root/build identity and mode subsets. Named profile defaults are explicit, real profile/dimension errors validate early, and disabled/stub selections stay inactive. Six cases plus actual inline/queue handoff controls are authored, unexecuted. Asset/native/cache-only preflight, existing attempt persistence, other build routes and full qualification remain.",
       "title": "[Build] Preflight requested embedding assets and execution plan before expensive Stage2 work",
       "recordedDisposition": "implementation_needed",
       "priority": "unranked",

@@ -20,6 +20,7 @@ work. Their separate receipts preserve exact trees, limitations and checks.
 | [f6c82c945](native-workflow-preflight-implementation-2026-10-27.md) | Shared stats preflight and proven stale native catalog/editor witnesses | 3 new CLI and 1 new native case; all 19 native workflows remain unqualified |
 | [2fba78f6d / 481536c05 / 4437d9994 / 6f3dd060f / a72836541](comment-pipeline-implementation-2026-10-27.md) | Parser-owned JS/TS comments, bounded Rust lexing, demanded config parsing, compact counts and comment-only import leaves | 38 authored cases; other adapters, logical maps, general routing and qualification remain |
 | [08fe8b40b](frontmatter-content-implementation-2026-10-27.md) | Delimiter-free original frontmatter input, exact offsets and versioned source/cache identity | 8 authored cases; wrapped fence maps and complete functional qualification remain |
+| [bba2c5c8d](embedding-selection-implementation-2026-10-27.md) | Pre-Stage2 immutable model/resource selection and generation-only binding for inline/queued launches | 6 authored cases plus strengthened handoff; asset/runtime/cache-only preflight and other build routes remain |
 
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
