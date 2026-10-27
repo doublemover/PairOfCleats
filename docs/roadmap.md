@@ -32,7 +32,8 @@ The [current solo implementation wave](archived/implementation-wave-2026-10-27.m
 indexes exact source/tree receipts and deferred checks for complete SQLite
 operations, immutable Tantivy generations, compilation context, provider
 allocation/discovery, Clangd acquisition, managed inspection and invocation-bound
-profiles. These local checkpoints remain **functionally unvalidated**; package
+profiles, and [source-owned JavaScript documentation](archived/javascript-documentation-implementation-2026-10-27.md).
+These local checkpoints remain **functionally unvalidated**; package
 build allowances and built-in/native/custom ownership integration remain explicit.
 
 [Five proven dependency retirements](archived/dependency-ownership-implementation-2026-10-27.md)

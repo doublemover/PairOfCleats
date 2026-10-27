@@ -1285,6 +1285,9 @@
     },
     {
       "number": 668,
+      "unvalidatedSourceHeads": ["18a11375463acdf2ed74dfa6ab2451c8a8703972"],
+      "unvalidatedReceipts": ["javascript-documentation-implementation-2026-10-27.md"],
+      "currentImplementation": "Privately admitted parser comment ranges feed bounded declaration-associated JSDoc parsing using the locked libraries and documented dialect. AST metadata retains precedence, hints preserve structured names/types, and JavaScript relations are versioned. Twenty-one authored cases and existing consumer/replay/import checks remain unexecuted.",
       "title": "Reuse declared JSDoc parsers instead of regex-scanning JavaScript chunk text",
       "recordedDisposition": "implementation_needed",
       "priority": "unranked",

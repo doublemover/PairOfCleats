@@ -16,6 +16,7 @@ work. Their separate receipts preserve exact trees, limitations and checks.
 | [6154945a4](managed-selection-implementation-2026-10-27.md) | Protected first inspection and original file/Dir/metadata recovery | 16 authored cases; remaining backend/custom ownership adoption |
 | [d60d3cd10](provider-invocation-implementation-2026-10-27.md) | Captured execution owner for durable observed profiles and cache witnesses | 13 authored cases; built-in command/module/environment/project wiring |
 | [1515ad0a8](dependency-ownership-implementation-2026-10-27.md) / `506cd2acb` | Five proven dependency retirements, three permission removals and direct benchmark child window suppression | Inventory/feature regressions deferred; whole process-tree measurement remains |
+| [18a113754](javascript-documentation-implementation-2026-10-27.md) | Source-owned parser comments and bounded structured JSDoc hints | 21 authored cases; parser/consumer/replay/import qualification deferred |
 
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
