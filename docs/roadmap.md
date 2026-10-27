@@ -51,6 +51,10 @@ at **unvalidated** `773e6893e`; [implementation and 20 deferred cases](archived/
 cover nested-wrapper removal, original file lifetimes and retained cleanup.
 Package build bounds and actual Windows installation/consumer qualification remain.
 
+Shared managed selection and retained generation inspection are **unvalidated**
+at `6154945a4`; [implementation and 16 deferred cases](archived/managed-selection-implementation-2026-10-27.md)
+cover first-read protection, original file/Dir closure and metadata recovery.
+
 These are scoped observations, not a combined full-suite or platform/model/release
 pass. Task checks omit only an inherited missing trusted-config selector;
 user/global settings and trust rules remain intact. Common lifecycle policy

@@ -6768,13 +6768,15 @@
       ],
       "unvalidatedSourceHeads": [
         "47ca8bea98676b43aa86dfb53e23adbb94036bf3",
-        "773e6893e18e1e570562a41a280231109f6c61f8"
+        "773e6893e18e1e570562a41a280231109f6c61f8",
+        "6154945a4d1d6bb4cb4db6de673c0220134690c2"
       ],
       "unvalidatedReceipts": [
         "sqlite-operation-implementation-2026-10-27.md",
-        "clangd-acquisition-implementation-2026-10-27.md"
+        "clangd-acquisition-implementation-2026-10-27.md",
+        "managed-selection-implementation-2026-10-27.md"
       ],
-      "currentImplementation": "SQLite runner/helpers own source/native/temp planning through asynchronous teardown. Clangd acquisition retains download/archive/probe settlement and original file operations through shared storage ownership. Functional qualification is deferred; remaining legacy/custom adoption is not discharged."
+      "currentImplementation": "SQLite runner/helpers and Clangd acquisition retain original work through shared storage teardown. Managed Go/Lua/generic discovery propagates pending inspection; retained generation admission protects the first scan and owns file/Dir/metadata recovery. Functional qualification and remaining custom cleanup adoption are not discharged."
     },
     {
       "number": 1575,
