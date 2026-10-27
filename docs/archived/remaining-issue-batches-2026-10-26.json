@@ -7806,7 +7806,14 @@
       "priority": "P2",
       "batch": "performance-and-evaluation",
       "phase": "source-review-and-implementation",
-      "status": "queued"
+      "status": "queued",
+      "unvalidatedSourceHeads": [
+        "5b093bb96534213791e7633ac73105628e6123de"
+      ],
+      "unvalidatedReceipts": [
+        "query-process-tree-implementation-2026-10-27.md"
+      ],
+      "currentImplementation": "The aggregate query executor now uses the existing settled-concurrency owner, drains active queries before pool close, and retains primary/secondary failures. A bounded read-only hidden Windows CIM observer samples descendant incarnations and working-set bytes, excludes its own tree, retains orphan/gap/cap/lifetime evidence and labels sampled peaks as lower bounds. Thirteen cases are authored, unexecuted. Existing fake-worker composition explicitly omits the OS observer. Actual Windows process/native-descendant lifecycle, observer availability, output parity and serial resource/performance qualification remain."
     },
     {
       "number": 1676,

@@ -25,6 +25,7 @@ work. Their separate receipts preserve exact trees, limitations and checks.
 | [7394e4ba1](language-routing-implementation-2026-10-27.md) | Shared immutable routing metadata and eleven ID-only consumer migrations | 4 authored guards plus actual adapter parity; family/prose/worker loading and measurements remain |
 | [b8915d740 / 65f8f1c79](embedding-preflight-implementation-2026-10-27.md) | Read-only local graph selection/recheck and existing parent/child attempt evidence | 9 authored cases and strengthened actual owners; early failure persistence, other routes and qualification remain |
 | [154d7ba6b](language-operation-loading-implementation-2026-10-27.md) | Demanded language/format loading and independent prose fallback | 6 authored guards; static module graphs 221→11 and 263→76; runtime/worker/performance qualification remains |
+| [5b093bb96](query-process-tree-implementation-2026-10-27.md) | Settled query failure drain and bounded Windows descendant/lifetime memory observations | 13 authored cases; actual Windows census/lifecycle and serial resource/performance qualification remain |
 
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
