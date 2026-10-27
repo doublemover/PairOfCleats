@@ -174,6 +174,7 @@ export const validateSqliteRowLedgerPreImport = ({
 
 export const validateSqliteRowLedgerPostImport = ({
   repoRoot = process.cwd(),
+  userConfig = null,
   rowLedger,
   Database,
   dbPath,
@@ -196,18 +197,21 @@ export const validateSqliteRowLedgerPostImport = ({
 
   const observedChunks = normalizeCount(readModeCount({
     repoRoot,
+    userConfig,
     Database,
     dbPath,
     mode
   }));
   const observedDense = normalizeCount(readDenseCount({
     repoRoot,
+    userConfig,
     Database,
     dbPath,
     mode
   }));
   const observedAnn = normalizeCount(readTableCount({
     repoRoot,
+    userConfig,
     Database,
     dbPath,
     tableName: annTable

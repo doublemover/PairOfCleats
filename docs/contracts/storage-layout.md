@@ -25,6 +25,15 @@ accepts an internal launch context; the SQLite build runner supplies it. Legacy
 context-free calls and other builder/probe/sidecar lifetimes remain separate
 adoption boundaries; external targets receive no deletion authority.
 
+SQLite build count, table, vector and runtime probes use one synchronous read
+owner, capturing physical close before format or query access. The runner passes
+effective repository configuration through selection and row-ledger dispatch.
+Ordinary query unavailability keeps its null/default result only after confirmed
+closure. Native close, metadata and independent pending-owner errors propagate
+with their original capabilities and causes. Failed builds preserve staged
+databases/sidecars whenever the original resource observation is unconfirmed;
+failure classification cannot mutate away a frozen primary cause.
+
 `src/shared/storage/layout.js` resolves one application home and category
 descriptors without filesystem access. Launch home precedes `PAIROFCLEATS_HOME`,
 then the existing platform default: `%LOCALAPPDATA%/PairOfCleats` on Windows,

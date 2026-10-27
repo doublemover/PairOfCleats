@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["counts", "mode", "dense", "table", "vector", "runtime", "admission", "metadata", "pending"]
+}

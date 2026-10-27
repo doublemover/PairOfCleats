@@ -1,5 +1,7 @@
 import { normalizeFtsVariants } from '../../fts-variants.js';
 import { throwIfAborted } from '../../../../shared/abort.js';
+import { observeStorageResource } from '../../../../shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../../../shared/storage/operation-error.js';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
@@ -127,6 +129,7 @@ export const executeSqliteModeBuilds = async ({
       sqliteRuntime
     } = resolveModeSelectionPlan({
       repoRoot: root,
+      userConfig,
       mode,
       modeIndexDirs,
       modeOutputPaths,
@@ -167,6 +170,7 @@ export const executeSqliteModeBuilds = async ({
         const existingRows = outputExists
           ? readSqliteModeCount({
             repoRoot: root,
+            userConfig,
             Database,
             dbPath: outputPath,
             mode
@@ -441,6 +445,7 @@ export const executeSqliteModeBuilds = async ({
         if (updateResult?.used) {
           const counts = readSqliteCounts({
             repoRoot: root,
+            userConfig,
             Database,
             dbPath: outputPath
           });
@@ -603,6 +608,7 @@ export const executeSqliteModeBuilds = async ({
       }
       const postImportValidation = validateSqliteRowLedgerPostImport({
         repoRoot: root,
+        userConfig,
         rowLedger: activeRowLedger,
         Database,
         dbPath: tempOutputPath,
@@ -623,6 +629,7 @@ export const executeSqliteModeBuilds = async ({
       const hadVectorTable = resolvedVectorConfig?.enabled === true
         ? hasVectorTableAtPath({
           repoRoot: root,
+          userConfig,
           Database,
           dbPath: tempOutputPath,
           tableName: resolvedVectorConfig?.extension?.table || 'dense_vectors_ann',
@@ -644,6 +651,7 @@ export const executeSqliteModeBuilds = async ({
       tempOutputPath = null;
       const counts = readSqliteCounts({
         repoRoot: root,
+        userConfig,
         Database,
         dbPath: outputPath
       });
@@ -680,7 +688,10 @@ export const executeSqliteModeBuilds = async ({
       done += 1;
       buildModeTask.set(done, modeList.length, { message: `${mode} done` });
     } catch (err) {
-      if (tempOutputPath) {
+      let resourcesSettled = false;
+      try { observeStorageResource(err, { phase: 'sqlite-build-failure' }).requireSettled(); resourcesSettled = true; }
+      catch (pending) { err = pending; }
+      if (tempOutputPath && resourcesSettled) {
         try {
           await fs.rm(tempOutputPath, { force: true });
         } catch {}
@@ -689,14 +700,13 @@ export const executeSqliteModeBuilds = async ({
       const errorMessage = err?.message || String(err);
       await reporter.reportFailure({ errorMessage, err });
       if (err && typeof err === 'object') {
-        if (!err.code || !err.failureClass) {
-          const classifiedFailure = classifySqliteModeBuildFailure(err);
-          if (!err.code) err.code = classifiedFailure.code;
-          if (!err.failureClass) err.failureClass = classifiedFailure.failureClass;
-        }
-        if (!Number.isFinite(Number(err.exitCode))) err.exitCode = 1;
-        err.exitOnError = exitOnError === true;
-        throw err;
+        const classifiedFailure = classifySqliteModeBuildFailure(err);
+        throw addStorageFailureContext(err, {
+          code: err.code || classifiedFailure.code,
+          failureClass: err.failureClass || classifiedFailure.failureClass,
+          exitCode: Number.isFinite(Number(err.exitCode)) ? err.exitCode : 1,
+          exitOnError: exitOnError === true
+        });
       }
       const wrapped = new Error(errorMessage);
       const classifiedFailure = classifySqliteModeBuildFailure(wrapped);

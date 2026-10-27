@@ -1,4 +1,5 @@
-import { assertSqliteIndexFormat } from '../../index-format.js';
+import { probeSqlite } from './sqlite-probes.js';
+import { observeStorageResource } from '../../../../shared/storage/failure-observation.js';
 import fsSync from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -11,12 +12,13 @@ const readPragmaSimple = (db, name) => {
   if (!db || !name) return null;
   try {
     return db.pragma(name, { simple: true });
-  } catch {
+  } catch (error) {
+    observeStorageResource(error, { phase: 'sqlite-runtime-pragma' }).requireSettled();
     return null;
   }
 };
 
-export const probeSqliteTargetRuntime = ({ Database, dbPath, repoRoot = process.cwd() }) => {
+export const probeSqliteTargetRuntime = ({ Database, dbPath, repoRoot = process.cwd(), userConfig = null }) => {
   const runtime = {
     pageSize: SQLITE_DEFAULT_PAGE_SIZE,
     journalMode: null,
@@ -37,10 +39,9 @@ export const probeSqliteTargetRuntime = ({ Database, dbPath, repoRoot = process.
     runtime.source = runtime.walEnabled ? 'wal-sidecar' : 'missing-db';
     return runtime;
   }
-  let probeDb = null;
-  try {
-    probeDb = new Database(dbPath, { readonly: true, fileMustExist: true });
-    assertSqliteIndexFormat({ db: probeDb, repoRoot, indexPath: dbPath, operation: 'probe' });
+  runtime.walEnabled = runtime.walBytes > 0;
+  runtime.source = runtime.walEnabled ? 'wal-sidecar' : 'stat';
+  return probeSqlite({ Database, dbPath, repoRoot, userConfig }, probeDb => {
     const pageSize = Number(readPragmaSimple(probeDb, 'page_size'));
     if (Number.isFinite(pageSize) && pageSize > 0) {
       runtime.pageSize = Math.max(512, Math.floor(pageSize));
@@ -51,16 +52,8 @@ export const probeSqliteTargetRuntime = ({ Database, dbPath, repoRoot = process.
       : null;
     runtime.walEnabled = runtime.journalMode === 'wal' || runtime.walBytes > 0;
     runtime.source = 'pragma';
-  } catch (error) {
-    if (error?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw error;
-    runtime.walEnabled = runtime.walBytes > 0;
-    runtime.source = runtime.walEnabled ? 'wal-sidecar' : 'stat';
-  } finally {
-    try {
-      probeDb?.close();
-    } catch {}
-  }
-  return runtime;
+    return runtime;
+  }, runtime);
 };
 
 const normalizeAdaptiveBatchConfig = ({
