@@ -752,6 +752,7 @@ export function createFileProcessor(options) {
             stageRefresh: { parse: false, lexical: true } } : null),
       cachedLexicalCheckpoint: artifacts.cachedBundle?.stageRefresh?.lexical === false ? artifacts.cachedBundle.lexicalCheckpoint : null,
       lexicalCheckpointDependencies: incrementalState.enabled ? incrementalState.manifest.dependencySignatures : null,
+      fileLineDictionaryReceipt: incrementalState.manifest?.dependencySignatures?.lexical || null,
       documentExtraction: artifacts.documentExtraction,
       fileStat,
       fileHash: artifacts.fileHash,

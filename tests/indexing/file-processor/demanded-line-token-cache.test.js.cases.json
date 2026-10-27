@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["sparse-overlap", "parity", "profile-identity", "admission", "eviction-retirement", "cancellation", "producer-failure", "closed-reentry", "invalid-authority", "production-parity", "production-fallback", "production-cleanup"]
+}

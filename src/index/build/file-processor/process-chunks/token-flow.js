@@ -2,6 +2,7 @@ import { createOrderedTokenizeBatchWindow, TOKENIZE_BATCH_MAX_TEXT_BYTES, TOKENI
 import { canUseLineTokenStreamSlice, createChunkTokenBatchInput } from './token-input.js';
 export { canUseLineTokenStreamSlice } from './token-input.js';
 import { createLexicalCheckpointSession } from '../../incremental/lexical-checkpoint.js';
+import { createDemandedLineTokenCache } from '../../tokenization/demanded-line-cache.js';
 import { analyzeLiteralText } from '../../../../shared/text-analyzer.js';
 import { MINHASH_HASH_IDENTITY } from '../../../minhash.js';
 import util from 'node:util';
@@ -19,10 +20,8 @@ import {
 import {
   classifyTokenBuckets,
   createTokenClassificationRuntime,
-  createFileLineTokenStream,
   createTokenizationBuffers,
   resolveTokenDictWords,
-  sliceFileLineTokenStream,
   tokenizeChunkText
 } from '../../tokenization.js';
 import { assignCommentsToChunks } from '../chunk.js';
@@ -139,6 +138,13 @@ const resolveParserFallbackProfile = ({
  * @returns {Promise<{chunks:Array<object>,fileRelations:any}|object>}
  */
 export const processChunks = async (context) => {
+  let cache = null;
+  try {
+    return await processChunksRun(context, options => (cache ||= createDemandedLineTokenCache(options)));
+  } finally { cache?.close(); }
+};
+
+const processChunksRun = async (context, acquireLineCache) => {
   const {
     root,
     sc,
@@ -354,7 +360,9 @@ export const processChunks = async (context) => {
     || postingsConfig?.chargramSource === 'fields'
     || postingsConfig?.phraseSource === 'fields';
   const tokenizationFileStreamEnabled = languageOptions?.tokenization?.fileStream === true;
-  const fileTokenStreamCache = new Map();
+  let fileTokenStreamCache = null;
+  const sourceOrderedChunks = chunksForProcessing.every((chunk, index) => index === 0
+    || chunk.start >= chunksForProcessing[index - 1].start);
   const fileTokenContext = tokenContext && typeof tokenContext === 'object'
     ? { ...tokenContext }
     : { tokenClassification: { enabled: false } };
@@ -485,6 +493,7 @@ export const processChunks = async (context) => {
 
   for (let ci = 0; ci < chunksForProcessing.length; ++ci) {
     const c = chunksForProcessing[ci];
+    if (sourceOrderedChunks) fileTokenStreamCache?.retireBefore(c.start);
     const ctext = text.slice(c.start, c.end);
     let tokenText = ctext;
     const lineRange = chunkLineRanges[ci] || { startLine: 1, endLine: fileLineCount || 1 };
@@ -695,21 +704,12 @@ export const processChunks = async (context) => {
         fileLength: text.length
       });
     if (useLineTokenStream) {
-      let tokenStream = fileTokenStreamCache.get(dictCacheKey);
-      if (!tokenStream) {
-        tokenStream = createFileLineTokenStream({
-          text,
-          mode: chunkMode,
-          ext: effectiveExt,
-          dictWords: dictWordsForChunk,
-          dictConfig
-        });
-        fileTokenStreamCache.set(dictCacheKey, tokenStream);
-      }
-      pretokenized = sliceFileLineTokenStream({
-        stream: tokenStream,
-        startLine,
-        endLine
+      fileTokenStreamCache ||= acquireLineCache({ text, lineIndex,
+        sourceIdentity: { hash: fileHash, algorithm: fileHashAlgo }, signal,
+        metrics: tokenizationStats ? (tokenizationStats.fileLineReuse ||= {}) : {} });
+      pretokenized = fileTokenStreamCache.trySlice({ startLine, endLine,
+        mode: chunkMode, ext: effectiveExt, languageId: chunkLanguageId, dictWords: dictWordsForChunk, dictConfig,
+        dictionaryReceipt: context.fileLineDictionaryReceipt || context.lexicalCheckpointDependencies?.lexical || null
       });
     }
     let usedWorkerTokenize = false;

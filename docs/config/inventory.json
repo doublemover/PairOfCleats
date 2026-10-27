@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-27T22:02:41.674Z",
+  "generatedAt": "2026-10-27T22:49:34.240Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4649,6 +4649,7 @@
         "tests/indexing/embeddings/build/chunk-channel-cache-routes.test.js",
         "tests/indexing/file-processor/capped-read-compute-suspension.test.js",
         "tests/indexing/file-processor/coarse-worker-file-analysis.test.js",
+        "tests/indexing/file-processor/demanded-line-token-cache.test.js",
         "tests/indexing/file-processor/mixed-scm-token-waits-admission.test.js",
         "tests/indexing/file-processor/serial-compute-wait-ownership.test.js",
         "tests/indexing/file-processor/tokenizer-resource-fallback-authority.test.js",

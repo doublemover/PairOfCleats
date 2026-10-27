@@ -215,6 +215,7 @@ export const buildTokenizationKey = (runtime, mode) => {
   const payload = {
     signatureVersion: SIGNATURE_VERSION,
     scoringAnalyzer: SCORING_ANALYZER_VERSION,
+    lexicalAnalyzer: SEMANTIC_ANALYSIS_VERSIONS.lexicalAnalyzer,
     minhashHashIdentity: MINHASH_HASH_IDENTITY,
     mode,
     dictConfig: dictConfigPayload,

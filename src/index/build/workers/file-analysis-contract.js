@@ -118,7 +118,8 @@ const COPY_KEYS = ['abs', 'root', 'mode', 'fileIndex', 'ext', 'rel', 'relKey', '
   'fileCaps', 'fileStructural', 'normalizedSegmentsConfig', 'normalizedCommentsConfig', 'dictConfig', 'postingsConfig',
   'contextWin', 'relationsEnabled', 'lintEnabled', 'lintPolicy', 'complexityEnabled', 'typeInferenceEnabled', 'riskAnalysisEnabled',
   'riskConfig', 'gitBlameEnabled', 'analysisPolicy', 'tokenizeEnabled', 'astDataflowEnabled', 'controlFlowEnabled',
-  'toolInfo', 'vfsManifestConcurrency', 'buildStage', 'cachedLexicalCheckpoint', 'lexicalCheckpointDependencies'];
+  'toolInfo', 'vfsManifestConcurrency', 'buildStage', 'cachedLexicalCheckpoint', 'lexicalCheckpointDependencies',
+  'fileLineDictionaryReceipt'];
 const LANGUAGE_KEYS = ['rootDir', 'astDataflowEnabled', 'controlFlowEnabled', 'skipUnknownLanguages', 'skipOnParseError',
   'javascript', 'typescript', 'chunking', 'tokenization', 'lexicon', 'yamlChunking'];
 const COORDINATOR_LANGUAGE_KEYS = new Set(['treeSitter', 'abortSignal', 'log', 'resolveSqlDialect', 'pythonAst', 'kotlin',

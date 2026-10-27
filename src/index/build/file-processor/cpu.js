@@ -877,6 +877,7 @@ export const processFileCpu = async (context) => {
     sc,
     cachedLexicalCheckpoint: context.cachedLexicalCheckpoint || (cachedStageBundle?.stageRefresh?.lexical === false ? cachedStageBundle.lexicalCheckpoint : null),
     lexicalCheckpointDependencies: context.lexicalCheckpointDependencies,
+    fileLineDictionaryReceipt: context.fileLineDictionaryReceipt,
     text,
     ext,
     rel,
