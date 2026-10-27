@@ -1,5 +1,14 @@
 # PairOfCleats -- dependency reference bundle
 
+> DEPRECATED as an active dependency inventory — 2026-10-27, PR #572.
+> Replacement: [current dependency ownership](../../guides/dependency-ownership.md),
+> package.json and package-lock.json. This January 2026 research snapshot retains
+> proposed integrations and historical `critical-deps.json`/manifest entries;
+> they do not prove current consumers. In particular, bundled ripgrep never
+> supplied the claimed production text-search fallback. The active dictionary
+> owner uses PATH rg with a filesystem walk fallback. Historical sheets and
+> machine-readable snapshot data are retained for provenance.
+
 This bundle is a curated set of implementation-relevant deep links for dependencies used (or intended) in the PairOfCleats indexing/search pipeline. Each dependency has its own short reference sheet with practical notes plus the original deep links.
 
 ## How to use (recommended)
