@@ -2,7 +2,8 @@ import { sanitizeTerminalMetadata, sanitizeTerminalText, readSourcePreview, form
 import { highlightText } from '../../cli/highlight.js';
 import { collectDeclaredReturnTypes } from '../../../index/metadata/docmeta.js';
 import { formatScoreBreakdown } from '../explain.js';
-import { getBodySummary } from '../summary.js';
+import { getBodySummaryResult } from '../summary.js';
+import { createRenderSourceReader } from '../source-snapshot.js';
 import { getFormatFullCache } from '../cache.js';
 import {
   ANSI,
@@ -127,13 +128,16 @@ export function formatFullChunk({
   allowSummary = true,
   layout = null,
   sourcePreview: suppliedSourcePreview = undefined,
+  sourceReader: providedSourceReader = null,
   _skipCache = false
 }) {
   if (!chunk || !chunk.file) {
     return color.red(`   ${index + 1}. [Invalid result - missing chunk or file]`) + '\n';
   }
+  let sourceReader = providedSourceReader;
+  const resolveSourceReader = () => (sourceReader ||= createRenderSourceReader(rootDir));
   const sourcePreview = suppliedSourcePreview !== undefined ? suppliedSourcePreview
-    : (mode === 'code' ? readSourcePreview(rootDir, chunk, { queryTokens }) : null);
+    : (mode === 'code' ? readSourcePreview(rootDir, chunk, { queryTokens, sourceReader: resolveSourceReader() }) : null);
   chunk = sanitizeTerminalMetadata(chunk);
   const canCache = !sourcePreview && !_skipCache && !explain && (!summaryState || !allowSummary);
   const { formatCache, cacheKey, cached } = resolveFormatCache({
@@ -611,16 +615,18 @@ export function formatFullChunk({
   if (summaryState && rootDir && !chunk.docmeta?.record && allowSummary && (!excerptInfo?.text || mode === 'code')) {
     if (index === 0) summaryState.lastCount = 0;
     if (index < 5) {
-      let maxWords = 10;
-      const lessPer = 3;
-      maxWords -= (lessPer * index);
-      const bodySummary = sanitizeTerminalText(getBodySummary(rootDir, chunk, maxWords));
+      const maxWords = Math.max(0, 10 - (3 * index));
+      const summaryResult = maxWords === 0 ? { state: 'inactive', text: '' }
+        : suppliedSourcePreview !== undefined && !providedSourceReader
+          ? { state: 'unavailable', text: '(Could not load summary)' }
+          : getBodySummaryResult(rootDir, chunk, maxWords, { sourceReader: resolveSourceReader() });
+      const bodySummary = sanitizeTerminalText(summaryResult.text);
       const summaryWords = bodySummary.split(/\s+/).filter(Boolean).length;
-      if (summaryState.lastCount < maxWords) {
-        maxWords = summaryWords;
-      }
       summaryState.lastCount = summaryWords;
-      out += `${INDENT}${labelToken('Summary', ANSI.fgDarkGray)} ${normalizeSnippet(bodySummary, Math.max(36, wrapWidth - 14))}\n`;
+      if (summaryResult.state !== 'inactive') {
+        const label = summaryResult.state === 'truncated' ? 'Summary (partial)' : 'Summary';
+        out += `${INDENT}${labelToken(label, ANSI.fgDarkGray)} ${normalizeSnippet(bodySummary, Math.max(20, wrapWidth - label.length - 7))}\n`;
+      }
     }
   }
 

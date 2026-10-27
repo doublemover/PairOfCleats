@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-27T21:32:07.191Z",
+  "generatedAt": "2026-10-27T22:02:41.674Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -3675,6 +3675,7 @@
       "files": [
         "src/shared/env/runtime.js",
         "tests/retrieval/output/summary-cache-defaults.test.js",
+        "tests/retrieval/output/summary-source-admission.test.js",
         "tests/shared/cache/lru-dual-cap.test.js",
         "tools/config/inventory.js"
       ]
@@ -4459,6 +4460,7 @@
       "files": [
         "src/shared/env/runtime.js",
         "tests/retrieval/output/summary-cache-defaults.test.js",
+        "tests/retrieval/output/summary-source-admission.test.js",
         "tests/shared/cache/lru-dual-cap.test.js",
         "tools/config/inventory.js"
       ]
@@ -4678,6 +4680,7 @@
         "tests/retrieval/backend/boolean-complement-cli.test.js",
         "tests/retrieval/backend/lmdb-failure-propagation.test.js",
         "tests/retrieval/backend/sqlite-uncached-close-ownership.test.js",
+        "tests/retrieval/output/summary-source-admission.test.js",
         "tests/retrieval/providers/tantivy-reader-lifetime.test.js",
         "tests/runner/run-execution.js",
         "tests/security/download-redirect-deadline.test.js",

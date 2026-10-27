@@ -761,6 +761,7 @@ export function renderSearchOutput({
           matched: showMatched,
           layout,
           hyperlinkMode,
+          sourceReader: readPreview.sourceReader,
           sourcePreview: section.mode === 'code' ? readPreview(hit, {
             queryTokens, maxLines: index < section.fullCount ? 8 : 3,
             maxChars: index < section.fullCount ? 1600 : 600

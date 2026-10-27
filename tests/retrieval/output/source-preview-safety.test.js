@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { readSourcePreview, highlightSourceLine, formatSourcePreview, sanitizeTerminalText, sanitizeTerminalMetadata } from '../../../src/retrieval/output/format/source.js';
+import { readSourcePreview, createSourcePreviewReader, highlightSourceLine, formatSourcePreview, sanitizeTerminalText, sanitizeTerminalMetadata } from '../../../src/retrieval/output/format/source.js';
+import { withVirtualReparsePath } from '../../helpers/virtual-reparse-path.js';
 import { color } from '../../../src/retrieval/cli/ansi.js';
 import { renderSearchOutput } from '../../../src/retrieval/cli/render.js';
 import { createSearchOutputOptions, createSearchOutputHitState, captureSearchOutputStdout } from '../helpers/search-output-fixture.js';
@@ -30,12 +31,15 @@ try {
   const outsideDir = path.join(root, 'outside');
   await fs.mkdir(outsideDir);
   await fs.writeFile(path.join(outsideDir, 'source.ts'), source);
-  await fs.symlink(outsideDir, path.join(repo, 'escape'), process.platform === 'win32' ? 'junction' : 'dir');
-  assert.equal(readSourcePreview(repo, { ...hit, file: 'escape/source.ts' }), null);
-  if (process.platform !== 'win32') {
-    await fs.symlink(path.join(root, 'outside.ts'), path.join(repo, 'escape.ts'));
-    assert.equal(readSourcePreview(repo, { ...hit, file: 'escape.ts' }), null);
-  }
+  for (const [file, statSource, directory, selected] of [
+    [path.join(repo, 'escape'), outsideDir, true, 'escape/source.ts'],
+    [path.join(repo, 'escape.ts'), path.join(root, 'outside.ts'), false, 'escape.ts']
+  ]) withVirtualReparsePath({ file, statSource, directory }, observations => {
+    const reader = createSourcePreviewReader(repo), escapedHit = { ...hit, file: selected };
+    assert.equal(reader(escapedHit), null);
+    assert.equal(reader.sourceReader.read(escapedHit).errorCode, 'ERR_UNSAFE_FILE_PATH');
+    assert.ok(observations.inspected > 0); assert.equal(observations.opened, 0);
+  });
   await fs.writeFile(path.join(repo, 'large.ts'), 'x'.repeat(512 * 1024 + 1));
   assert.equal(readSourcePreview(repo, { ...hit, file: 'large.ts' }), null);
   assert.equal(readSourcePreview(repo, { ...hit, start: -1 }), null);

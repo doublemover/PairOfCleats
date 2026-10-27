@@ -1,9 +1,7 @@
-import fs from 'node:fs';
-import path from 'node:path';
+import { createRenderSourceReader, isRenderSourceReader, MAX_RENDER_SCAN_CHARS } from '../source-snapshot.js';
+
 import { stripVTControlCharacters } from 'node:util';
-import { toRealPathSync } from '../../../workspace/identity.js';
-import { openContainedFileSync } from '../../../shared/contained-file.js';
-import { decodeTextBuffer } from '../../../shared/encoding.js';
+
 import { ANSI } from './ansi.js';
 
 /** Never pass repository-controlled terminal escapes, controls or bidi overrides through. */
@@ -29,9 +27,6 @@ export function sanitizeTerminalMetadata(value, seen = new WeakMap(), depth = 0)
   }
   return result;
 }
-
-const MAX_SOURCE_BYTES = 512 * 1024;
-const MAX_SCAN_CHARS = 64 * 1024;
 
 const normalizePreviewTokens = (tokens) => Array.isArray(tokens)
   ? [...new Set(tokens.slice(0, 64).filter((token) => typeof token === 'string' && token.trim())
@@ -83,38 +78,11 @@ const clipSourceLine = (text, limit, tokens) => {
   return `${prefix}${parts.join('')}${truncated ? '…' : ''}`;
 };
 
-/** Read one confined file; charge bytes before I/O, including failed/racing reads. */
-const readPreviewSource = (rootDir, filePath, budget) => {
-  let fd = null;
-  try {
-    const root = toRealPathSync(path.resolve(rootDir));
-    const file = path.resolve(root, filePath);
-    fd = openContainedFileSync(root, file);
-    const stat = fs.fstatSync(fd);
-    if (!stat.isFile() || stat.size > MAX_SOURCE_BYTES || stat.size > budget.bytes) return null;
-    budget.bytes -= stat.size;
-    const buffer = Buffer.alloc(stat.size);
-    let offset = 0;
-    while (offset < buffer.length) {
-      const count = fs.readSync(fd, buffer, offset, buffer.length - offset, offset);
-      if (!count) break;
-      offset += count;
-    }
-    const after = fs.fstatSync(fd);
-    if (offset !== stat.size || after.size !== stat.size || after.mtimeMs !== stat.mtimeMs) return null;
-    const { text } = decodeTextBuffer(buffer.subarray(0, offset), { filePath: file });
-    return text;
-  } catch {
-    return null;
-  } finally {
-    if (fd != null) fs.closeSync(fd);
-  }
-};
-
-const selectSourcePreview = (text, chunk, { maxLines = 8, maxChars = 1600, queryTokens = [] } = {}) => {
+const selectSourcePreview = (text, chunk, { maxLines = 8, maxChars = 1600, queryTokens = [] } = {}, sourceReader) => {
   const lineLimit = Number.isSafeInteger(maxLines) ? Math.max(1, Math.min(8, maxLines)) : 8;
   const charLimit = Number.isSafeInteger(maxChars) ? Math.max(1, Math.min(1600, maxChars)) : 1600;
-  const scanEnd = Math.min(text.length, chunk.end, chunk.start + MAX_SCAN_CHARS);
+  const scanEnd = Math.min(text.length, chunk.end, chunk.start + MAX_RENDER_SCAN_CHARS);
+  if (!sourceReader.admitScan(Math.min(chunk.start, text.length) + Math.max(0, scanEnd - chunk.start))) return null;
   const raw = text.slice(chunk.start, scanEnd);
   if (!raw.trim()) return null;
   const rawLines = raw.replace(/\r\n?/g, '\n').split('\n');
@@ -137,7 +105,13 @@ const selectSourcePreview = (text, chunk, { maxLines = 8, maxChars = 1600, query
     remaining -= displayed.length;
   }
   // The offsets are indexed, but the line numbers must describe the bytes just read.
-  const startLine = text.slice(0, chunk.start).split(/\r\n|\r|\n/).length + first;
+  let startLine = 1 + first;
+  const prefixEnd = Math.min(chunk.start, text.length);
+  for (let i = 0; i < prefixEnd; i++) {
+    const char = text.charCodeAt(i);
+    if (char === 13) { startLine++; if (i + 1 < prefixEnd && text.charCodeAt(i + 1) === 10) i++; }
+    else if (char === 10) startLine++;
+  }
   const truncatedBefore = first > 0;
   const truncatedAfter = first + lines.length < rawLines.length || scanEnd < Math.min(text.length, chunk.end);
   return { lines, startLine, matchLines, queryTokens: tokens, truncatedBefore, truncatedAfter,
@@ -145,26 +119,20 @@ const selectSourcePreview = (text, chunk, { maxLines = 8, maxChars = 1600, query
 };
 
 /** One render owns this bounded cache; edits are read afresh on the next render. */
-export function createSourcePreviewReader(rootDir, { maxFiles = 32, maxBytes = 2 * 1024 * 1024 } = {}) {
-  const sources = new Map();
-  const budget = { bytes: Math.max(0, Math.floor(Math.min(2 * 1024 * 1024, Number(maxBytes) || 0))) };
-  const fileLimit = Math.max(0, Math.floor(Math.min(32, Number(maxFiles) || 0)));
-  return (chunk, options = {}) => {
-    if (!rootDir || typeof chunk?.file !== 'string' || !chunk.file
-      || !Number.isSafeInteger(chunk.start) || !Number.isSafeInteger(chunk.end)
-      || chunk.start < 0 || chunk.end <= chunk.start) return null;
-    if (!sources.has(chunk.file)) {
-      if (sources.size >= fileLimit || budget.bytes <= 0) return null;
-      sources.set(chunk.file, readPreviewSource(rootDir, chunk.file, budget));
-    }
-    const text = sources.get(chunk.file);
-    return typeof text === 'string' ? selectSourcePreview(text, chunk, options) : null;
+export function createSourcePreviewReader(rootDir, options = {}) {
+  const sourceReader = options.sourceReader || createRenderSourceReader(rootDir, options);
+  if (!isRenderSourceReader(sourceReader, rootDir)) throw new TypeError('Preview requires its actual render source owner.');
+  const read = (chunk, previewOptions = {}) => {
+    const source = sourceReader.read(chunk);
+    return source.state === 'available' ? selectSourcePreview(source.snapshot.text, chunk, previewOptions, sourceReader) : null;
   };
+  Object.defineProperty(read, 'sourceReader', { value: sourceReader });
+  return Object.freeze(read);
 }
 
 /** Bounded, root-confined working-tree preview; no external source references. */
 export function readSourcePreview(rootDir, chunk, options = {}) {
-  return createSourcePreviewReader(rootDir)(chunk, options);
+  return createSourcePreviewReader(rootDir, { sourceReader: options.sourceReader })(chunk, options);
 }
 
 const KEYWORDS = new Set(('async await break case catch class const continue default def do else enum export extends false finally fn for from function if implements import in interface let match new null private protected public raise return static struct super switch this throw true try type typeof undefined var void while yield').split(' '));
