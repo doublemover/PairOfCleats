@@ -1,0 +1,313 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-27",
+  "sourceHead": "45e216edcf2184d3d22ab58ec8feb0ad52aa6610",
+  "sourceTree": "71e3e6ff3d87eb6c83c56b98dfdd15262a261ba1",
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "platform": "win32",
+  "arch": "x64",
+  "node": "v26.12.1",
+  "issue": {
+    "number": 1397,
+    "sourceHead": "45e216edcf2184d3d22ab58ec8feb0ad52aa6610",
+    "state": "closed",
+    "stateReason": "completed",
+    "closedAt": "2026-10-27T06:07:48Z"
+  },
+  "currentCounts": {
+    "open": 729,
+    "qualificationPending": 468,
+    "partialFollowup": 147,
+    "implementationStatusUnresolved": 114
+  },
+  "liveCensus": {
+    "open": 729,
+    "checkedAt": "2026-10-27T06:08:32.763Z",
+    "newOrUnexpectedRemovedIssues": []
+  },
+  "dependencies": {
+    "changed": false,
+    "verification": "Previously clean required native/patch verification; current readiness and actual native fixtures pass."
+  },
+  "policy": {
+    "jobs": 1,
+    "indexingThreads": 1,
+    "timeoutMs": 30000,
+    "retries": 0,
+    "nativeStatusRedo": false,
+    "launch": "Task child omits inherited missing trusted-config selector; user/global settings unchanged."
+  },
+  "uniqueAffectedFixtures": 14,
+  "finalObservations": [
+    {
+      "id": "indexing/build-cleanup-pending-timeout",
+      "status": "passed",
+      "durationMs": 92,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "historicalAuthorWorkspaceReceipt": ".tmp/tasks/stage-closeout-20261027/focused.json"
+    },
+    {
+      "id": "indexing/build-cleanup-timeout-error-authority",
+      "status": "passed",
+      "durationMs": 76,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "historicalAuthorWorkspaceReceipt": ".tmp/tasks/stage-closeout-20261027/focused.json"
+    },
+    {
+      "id": "indexing/runtime/shared-resource-scope-isolation/cancelled-shared-workspace",
+      "status": "passed",
+      "durationMs": 1843,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "historicalAuthorWorkspaceReceipt": ".tmp/tasks/stage-closeout-20261027/focused.json"
+    },
+    {
+      "id": "indexing/runtime/shared-resource-scope-isolation/distinct-workspaces",
+      "status": "passed",
+      "durationMs": 2376,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "historicalAuthorWorkspaceReceipt": ".tmp/tasks/stage-closeout-20261027/focused.json"
+    },
+    {
+      "id": "indexing/runtime/shared-resource-scope-isolation/host-cache",
+      "status": "passed",
+      "durationMs": 1999,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "historicalAuthorWorkspaceReceipt": ".tmp/tasks/stage-closeout-20261027/focused.json"
+    },
+    {
+      "id": "indexing/runtime/shared-resource-scope-isolation/shared-workspace",
+      "status": "passed",
+      "durationMs": 1798,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "historicalAuthorWorkspaceReceipt": ".tmp/tasks/stage-closeout-20261027/focused.json"
+    },
+    {
+      "id": "indexing/runtime/stage-closeout-delayed-child/cancelled",
+      "status": "passed",
+      "durationMs": 7798,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "historicalAuthorWorkspaceReceipt": ".tmp/tasks/stage-closeout-20261027/final-stage.json"
+    },
+    {
+      "id": "indexing/runtime/stage-closeout-delayed-child/timeout",
+      "status": "passed",
+      "durationMs": 9318,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "historicalAuthorWorkspaceReceipt": ".tmp/tasks/stage-closeout-20261027/final-stage.json"
+    },
+    {
+      "id": "indexing/runtime/subprocess-cleanup-cache-barrier",
+      "status": "passed",
+      "durationMs": 204,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "historicalAuthorWorkspaceReceipt": ".tmp/tasks/stage-closeout-20261027/focused.json"
+    },
+    {
+      "id": "indexing/tree-sitter/scheduler-exec-concurrency-cap",
+      "status": "passed",
+      "durationMs": 97,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "historicalAuthorWorkspaceReceipt": ".tmp/tasks/stage-closeout-20261027/focused.json"
+    },
+    {
+      "id": "indexing/tree-sitter/scheduler-pending-failure-ownership",
+      "status": "passed",
+      "durationMs": 130,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "historicalAuthorWorkspaceReceipt": ".tmp/tasks/stage-closeout-20261027/focused.json"
+    },
+    {
+      "id": "shared/subprocess/termination-close-observation",
+      "status": "passed",
+      "durationMs": 665,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "historicalAuthorWorkspaceReceipt": ".tmp/tasks/stage-closeout-20261027/focused.json"
+    },
+    {
+      "id": "shared/subprocess/termination-failure-retention",
+      "status": "passed",
+      "durationMs": 678,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "historicalAuthorWorkspaceReceipt": ".tmp/tasks/stage-closeout-20261027/focused.json"
+    },
+    {
+      "id": "shared/subprocess/tracked-close-authority",
+      "status": "passed",
+      "durationMs": 580,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false,
+      "historicalAuthorWorkspaceReceipt": ".tmp/tasks/stage-closeout-20261027/focused.json"
+    }
+  ],
+  "gate": {
+    "total": 40,
+    "passed": 40,
+    "failed": 0,
+    "skipped": 0,
+    "durationMs": 24645
+  },
+  "frontGate": [
+    {
+      "executable": "npm.cmd",
+      "exitCode": 0,
+      "name": "config-budget",
+      "arguments": [
+        "run",
+        "config:budget"
+      ],
+      "durationMs": 2523
+    },
+    {
+      "executable": "npm.cmd",
+      "exitCode": 0,
+      "name": "environment",
+      "arguments": [
+        "run",
+        "env:check"
+      ],
+      "durationMs": 1511
+    },
+    {
+      "executable": "node",
+      "exitCode": 0,
+      "name": "generated",
+      "arguments": [
+        "tools/docs/generated-surfaces.js",
+        "--check-freshness"
+      ],
+      "durationMs": 12240
+    },
+    {
+      "executable": "node",
+      "exitCode": 0,
+      "name": "command-surface",
+      "arguments": [
+        "tools/ci/check-command-surface.js"
+      ],
+      "durationMs": 3104
+    },
+    {
+      "executable": "node",
+      "exitCode": 0,
+      "name": "workflow",
+      "arguments": [
+        "tests/ci/workflow-contract.test.js"
+      ],
+      "durationMs": 276
+    },
+    {
+      "executable": "node",
+      "exitCode": 0,
+      "name": "gate-lane",
+      "arguments": [
+        "tests/run.js",
+        "--lane",
+        "gate",
+        "--jobs",
+        "1",
+        "--timeout-ms",
+        "30000",
+        "--retries",
+        "0",
+        "--native-status-redo=false",
+        "--pairofcleats-threads",
+        "1",
+        "--json"
+      ],
+      "durationMs": 25566
+    },
+    {
+      "executable": "git",
+      "exitCode": 0,
+      "name": "diff",
+      "arguments": [
+        "diff",
+        "--check"
+      ],
+      "durationMs": 78
+    }
+  ],
+  "formatting": {
+    "command": "npm run format -- --cache --cache-location .tmp/tasks/p1-closeout-20261027/eslint.cache",
+    "exitCode": 0
+  },
+  "counterexample": {
+    "baselineHead": "729a1b58f4e45e99c45784098f2484f69e968174",
+    "baselineBlob": "22cd1621a0fdd9ede16b4c924ba17bc6911c4c98",
+    "replacedModuleOnly": "src/shared/subprocess/termination-receipt.js",
+    "observed": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "skipped": 0,
+      "durationMs": 6551
+    },
+    "expectedResult": "Actual delayed-child close occurs, but explicit original runtime reconciliation rejects ERR_INDEX_RUNTIME_STORAGE_PENDING.",
+    "historicalAuthorWorkspaceReceipt": ".tmp/tasks/stage-closeout-20261027/before.json"
+  },
+  "originalFailures": [
+    {
+      "receipt": ".tmp/tasks/p1-closeout-20261027/stage-closeout-timeout-02.json",
+      "defect": "Actual stage cannot reconcile its retained category after delayed original child close."
+    },
+    {
+      "receipt": ".tmp/tasks/p1-closeout-20261027/stage-closeout-03.json",
+      "defect": "Cancellation returns an ordinary abort before started subprocess cleanup finishes; close observer fixture also needed to await its captured native promise microtask."
+    }
+  ],
+  "resourceWitnesses": [
+    "Real runStage and scheduler, live scoped Node child, actual writer lock and cache lease.",
+    "Child heartbeat remains usable while termination is withheld; exact late close does not itself invalidate/release the lock.",
+    "Explicit original-owner reconciliation admits a new lock; repeated old teardown cannot release that newer lock.",
+    "Rejected async/sync tree attempts retain original frozen exceptions and never become confirmed from direct close or public audit edits.",
+    "Original receipt snapshot remains failed; copied reports carry no late-close observer; partial selected targets cannot settle foreign in-flight cleanup."
+  ],
+  "diagnostics": "Expected withheld runtime/lock-release diagnostics asserted; stage fixtures reject Node deprecation, experimental and syntax warnings.",
+  "remaining": [
+    "729 open issues remain in the owner queue.",
+    "1574 registered custom storage and 1627 Tantivy publication remain open.",
+    "Full Windows, representative performance, optional models/backends, non-Windows and release qualification remain separate."
+  ],
+  "evidenceScope": "Raw .tmp/ and .testLogs receipts are historical author-workspace evidence, absent in clean checkouts."
+}

@@ -239,10 +239,10 @@
         1730
       ],
       "sourceWork": 4,
-      "qualification": 35,
+      "qualification": 34,
       "baselineSourceWork": 4,
       "baselineQualification": 38,
-      "completed": 3
+      "completed": 4
     },
     {
       "order": 5,
@@ -5159,7 +5159,28 @@
       "priority": "P1",
       "batch": "runtime-ownership",
       "phase": "source-review-and-focused-qualification",
-      "status": "queued"
+      "status": "closed-completed",
+      "sourceHead": "45e216edcf2184d3d22ab58ec8feb0ad52aa6610",
+      "closedAt": "2026-10-27T06:07:48Z",
+      "qualifiedTests": [
+        "indexing/build-cleanup-pending-timeout",
+        "indexing/build-cleanup-timeout-error-authority",
+        "indexing/runtime/shared-resource-scope-isolation/cancelled-shared-workspace",
+        "indexing/runtime/shared-resource-scope-isolation/distinct-workspaces",
+        "indexing/runtime/shared-resource-scope-isolation/host-cache",
+        "indexing/runtime/shared-resource-scope-isolation/shared-workspace",
+        "indexing/runtime/stage-closeout-delayed-child/cancelled",
+        "indexing/runtime/stage-closeout-delayed-child/timeout",
+        "indexing/runtime/subprocess-cleanup-cache-barrier",
+        "indexing/tree-sitter/scheduler-exec-concurrency-cap",
+        "indexing/tree-sitter/scheduler-pending-failure-ownership",
+        "shared/subprocess/termination-close-observation",
+        "shared/subprocess/termination-failure-retention",
+        "shared/subprocess/tracked-close-authority"
+      ],
+      "completionReceipt": "stage-closeout-repairs-2026-10-27.json",
+      "qualificationOnly": false,
+      "reviewCorrection": "Existing capsule was insufficient: actual stage integration exposed lost late-close receipt authority and early cancellation return."
     },
     {
       "number": 1398,
@@ -8162,12 +8183,12 @@
     }
   ],
   "currentCounts": {
-    "open": 730,
-    "qualificationPending": 469,
+    "open": 729,
+    "qualificationPending": 468,
     "partialFollowup": 147,
     "implementationStatusUnresolved": 114
   },
-  "reconciledAt": "2026-10-27T05:48:07.500Z",
+  "reconciledAt": "2026-10-27T06:08:32.763Z",
   "completedSourceBatch": [
     586,
     670,
@@ -8178,6 +8199,7 @@
     1074,
     1106,
     1107,
+    1397,
     1591,
     1593,
     1642,

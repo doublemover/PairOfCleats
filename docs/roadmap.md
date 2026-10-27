@@ -9,7 +9,7 @@ Canonical for: initiative status, execution order, and remaining work
 
 Current reconciliation, 2026-10-27: [the closeout review](archived/github-issue-closeout-2026-10-26.md)
 assessed **770 issues and 238 comments**, closing 27. Subsequent repair batches close
-thirteen more: **730 remain open**—469 awaiting qualification, 147 partial/follow-up and
+fourteen more: **729 remain open**—468 awaiting qualification, 147 partial/follow-up and
 114 with unresolved implementation status. The unresolved label is tracking
 evidence, not proof of absent code. Every remaining issue has a completion
 checklist; the linked owner queue records current execution status.
@@ -51,14 +51,21 @@ The [P1 runtime receipt](archived/runtime-p1-closeout-2026-10-27.md) closes #105
 preflight scopes preserve overlapping builds and hosted caches; bounded cleanup
 retains original retirement evidence. Actual Piscina unwind and the existing
 UID/import/promotion/search authority repairs have 37 passing affected fixtures
-and the complete cheap front gate (40/40). #1397's actual stage-closeout child
-integration remains open; no full-suite qualification is claimed.
+and the complete cheap front gate (40/40). At that checkpoint, #1397 still needed
+actual stage-closeout integration; no full-suite qualification was claimed.
+
+The [stage-closeout receipt](archived/stage-closeout-repairs-2026-10-27.md) closes
+#1397 at `45e216edc`: original tracked-child settlement survives timeout and
+cancellation through real Stage1 closeout. Delayed close cannot release its lock;
+explicit reconciliation preserves a newer writer. Fourteen affected fixtures
+and the complete cheap front gate (40/40) pass, with a failing prior-validator
+control. Full Windows and other qualifications remain separate.
 
 Execution is solo, Windows-only and implementation-first. The [complete owner
 queue](archived/remaining-issue-batches-2026-10-26.json) orders source work by
 severity and shared dependencies, retaining qualification separately:
 
-1. P1 lifecycle/storage authority (#1397, #1574), then source-pinned publication (#1627).
+1. Remaining P1 lifecycle/storage authority (#1574), then source-pinned publication (#1627).
 2. Worker/child/service ownership, provider installation and compilation context
    (#631, #289), keeping live readers and original cleanup owners intact.
 3. Language/semantic/replay and retrieval/API evidence contracts.
