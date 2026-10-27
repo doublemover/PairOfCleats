@@ -61,6 +61,7 @@ severity and shared dependencies, retaining qualification separately:
    adds common caps, aggregate traversal and qualified omissions; 20 cases await execution.
    [Render source admission](archived/render-source-implementation-2026-10-27.md) bounds preview/summary work; 13 cases await execution.
    [Demanded line tokens](archived/demanded-line-tokens-implementation-2026-10-27.md) replace whole-file preparation; 12 cases and dense/sparse qualification remain.
+   [Persistent trace state](archived/trace-state-implementation-2026-10-27.md) shares frontiers/visits and bounds cross-service retention; 9 cases remain (#1581).
 4. Native TUI/editor workflows: [catalog/editor witnesses and stats admission](archived/native-workflow-preflight-implementation-2026-10-27.md)
    are repaired in source; all actual workflows remain unqualified (#635).
    [Wrapped log rows](archived/tui-log-rows-implementation-2026-10-27.md) and paused anchors are implemented/typechecked; native qualification remains (#619).
@@ -75,11 +76,9 @@ actual failures. Keep real-tool/model, non-Windows and release execution explici
 source receipts and small fixtures do not discharge those qualifications. Earlier
 completed detail remains in the linked repair archives.
 
-Previous validation reconciliation, 2026-10-24: the user replaced the proposed full Windows
-rerun with **targeted re-checks** of failures and changed shared owners. Work is
-solo; workers remain parked. The [current validation receipt](archived/windows-solo-validation-2026-10-23.md)
-separates current observations from older qualified sources. Prior source-bound checks are preserved in that receipt.
-Gate B1-B7 technical, compatibility, matrix, conformance, observability, quality, and security-risk controls remain subject to current validation.
+Validation uses **targeted Windows re-checks** under the user's 2026-10-24 scope.
+The [validation receipt](archived/windows-solo-validation-2026-10-23.md) preserves
+source-bound checks; B1-B7 controls still require current qualification.
 The [459-case re-check receipt](archived/windows-historical-rechecks-2026-10-24.md)
 records 32 baseline passes, 426 failures (10 timeouts) and one POSIX exclusion.
 Focused repairs through `f6c7812a4` move 73 failures to passing: latest scoped

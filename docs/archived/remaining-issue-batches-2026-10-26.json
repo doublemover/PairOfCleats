@@ -6909,7 +6909,11 @@
       "priority": "Perf",
       "batch": "performance-and-evaluation",
       "phase": "source-review-and-implementation",
-      "status": "queued"
+      "status": "source-implemented-qualification-pending",
+      "currentDisposition": "qualification_pending",
+      "currentImplementation": "Immutable persistent AVL visited state and FIFO frontier eliminate full history clones, with new-item byte admission, existing partial budget frontiers and service/runner logical-byte retention. Earlier cursor replay remains supported until count/TTL/byte eviction; trace/explain service retirement releases leases and publication remains after original reader cleanup. Nine authored controls; actual correctness/replay/cleanup/multi-service and serial CPU/heap qualification remain.",
+      "unvalidatedSourceHeads": ["a61b11efba3838f42520e9b0b4a4e75cbdddf732"],
+      "unvalidatedReceipts": ["docs/archived/trace-state-implementation-2026-10-27.md"]
     },
     {
       "number": 1582,
