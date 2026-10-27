@@ -19,7 +19,8 @@ export const createToolInstallPreview = ({ tools, scope = 'cache', allowFallback
     const admission = selection.plan ? resolveDeclaredInstallAdmission(selection.plan) : null;
     const blockers = [];
     if (!selection.plan) blockers.push({ code: 'selected-recipe-unavailable', reason: unsupported ? selection.reason : tool.provisioningBlocker || selection.reason || null });
-    if (selection.plan && selection.scope === 'cache' && admission?.state !== 'estimate-declared') blockers.push({ code: 'storage-estimate-unavailable' });
+    if (selection.plan && selection.scope === 'cache' && admission?.state !== 'estimate-declared') blockers.push({ code: 'storage-estimate-unavailable',
+      reason: admission?.state || 'unknown', action: admission?.nextAction || selection.plan.storageAllocationBlocker?.action || null });
     for (const step of provisioning.steps) if (['missing', 'incompatible', 'blocked'].includes(step.state)) blockers.push({ code: 'prerequisite-missing', requirement: step.id, reason: step.reason,
       ...(step.blockedBy ? { blockedBy: step.blockedBy } : {}) });
     return { id: tool.id, scope: selection.scope, fallback: selection.fallback === true,

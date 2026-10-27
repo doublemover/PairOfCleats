@@ -120,7 +120,7 @@ try {
       const presentCandidate = locateToolExecutable(tool);
       if (!verifiedPath && !presentCandidate.found && selection.plan && selection.scope === 'cache' && storageAdmission.state !== 'estimate-declared') {
         results.push({ id: tool.id, status: 'missing-requirement', reason: 'storage-estimate-unavailable', storageAdmission,
-          error: 'Selected managed recipe has no complete artifact/build allocation estimate; writes are deferred without cleanup.' });
+          error: storageAdmission.nextAction || 'Selected managed recipe has no complete artifact/build allocation estimate; writes are deferred without cleanup.' });
         continue;
       }
       // Launch requirements are checked even when server bytes already exist.
@@ -173,7 +173,7 @@ try {
       }
       if (selection.plan && selection.scope === 'cache' && storageAdmission.state !== 'estimate-declared') {
         results.push({ id: tool.id, status: 'missing-requirement', reason: 'storage-estimate-unavailable', storageAdmission, provisioning,
-          error: 'Selected package writes remain deferred because its recipe has no complete artifact/build allocation estimate.' });
+          error: storageAdmission.nextAction || 'Selected package writes remain deferred because its recipe has no complete artifact/build allocation estimate.' });
         continue;
       }
       if (!selection.plan) {

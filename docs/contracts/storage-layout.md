@@ -242,8 +242,9 @@ adopted as a global Hugging Face cache.
 The pinned gopls cache recipe declares cold-build forecasts for every routed
 output/cache/temp destination: 1 GiB for artifacts, 2 GiB each for module cache,
 build cache and scratch, plus 64 MiB for GOPATH. Receipts identify these as
-`canonical-build-forecast-v1`, explicitly unmeasured. They are cooperative
-admission estimates, not measured peaks or filesystem quotas. Optional SDK
+`canonical-build-forecast-v1`, explicitly unmeasured. They remain planning-only
+and cannot grant write admission, even with a self-declared complete/qualified
+flag. Apply needs qualified recipe-specific allowances or enforced bounds. Optional SDK
 acquisition separately reserves its shared enforced 512-MiB extraction and
 128-MiB download ceilings plus 32 MiB metadata. Unknown recipes remain deferred;
 an uncovered external override cannot borrow a canonical route's estimate.

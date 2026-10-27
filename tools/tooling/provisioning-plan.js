@@ -14,6 +14,7 @@ import { resolveManagedToolInstallation } from '../../src/shared/managed-install
 import { withManagedProvisioningRequirements } from './provisioning-lifetime.js';
 import { bindManagedDotnetEnvironment } from './dotnet-environment.js';
 import { runOperationalChildWithStorage } from './operational-storage.js';
+import { resolveDeclaredInstallAdmission } from './install-allocation-contract.js';
 
 const digest = value => createHash('sha256').update(value).digest('hex');
 export const identifyProvisioningExecutable = (command, { signal = null } = {}) => {
@@ -29,7 +30,15 @@ const sameExecutable = (actual, expected) => actual.path === expected.path && ac
 /** A single declaration is attached to the canonical tool registry, not another tool catalog. */
 export const normalizeToolProvisioningDeclaration = tool => {
   const install = Object.fromEntries(Object.entries(tool.install || {}).map(([scope, action]) => {
-    if (!action || typeof action !== 'object' || !action.cmd) return [scope, action];
+    if (!action || typeof action !== 'object') return [scope, action];
+    const allocation = scope === 'cache' ? resolveDeclaredInstallAdmission(action) : null;
+    const storageAllocationBlocker = allocation && allocation.state !== 'estimate-declared'
+      ? { code: 'recipe-storage-allocation-unqualified', state: allocation.state, owner: 'canonical-product-recipe',
+        action: allocation.nextAction, ...(allocation.basis ? { basis: allocation.basis } : {}) } : null;
+    const storageFields = storageAllocationBlocker ? { storageAllocationBlocker } : {};
+    const normalizedAction = { ...action };
+    delete normalizedAction.storageAllocationBlocker;
+    if (!action.cmd) return [scope, { ...normalizedAction, ...storageFields }];
     const requires = action.requires || (action.cmd === 'npm' ? 'npm' : null);
     const prerequisites = [...(action.prerequisites || [])];
     if (requires === 'npm') prerequisites.push({ id: 'node', command: process.execPath, family: 'node', kind: 'runtime', phase: 'install', dependsOn: [] });
@@ -38,7 +47,7 @@ export const normalizeToolProvisioningDeclaration = tool => {
       dependsOn: requires === 'npm' ? ['node'] : requires === 'gem' && tool.prerequisites?.some(entry => entry.id === 'ruby') ? ['ruby'] : [],
       minimumGoVersion: action.minimumGoVersion || null
     });
-    return [scope, { ...action, requires, prerequisites }];
+    return [scope, { ...normalizedAction, ...storageFields, requires, prerequisites }];
   }));
   const needsNode = Object.values(install).some(action => action?.requires === 'npm');
   return { ...tool, install, prerequisites: [...(tool.prerequisites || []), ...(needsNode

@@ -107,7 +107,8 @@ export const createFirstSearchPlan = async ({ repoRoot, profile = 'sparse', mode
     if (!selected.plan && !hasReuseCandidate(tool.id)) blockers.push({ code: 'selected-tool-recipe-unavailable', toolId: tool.id,
       nextAction: tool.provisioningBlocker || 'Select a qualified cache-scoped recipe for this tool/platform before applying.' });
     else if (selected.plan && !hasReuseCandidate(tool.id) && resolveDeclaredInstallAdmission(selected.plan).state !== 'estimate-declared') blockers.push({ code: 'selected-tool-storage-estimate-unavailable', toolId: tool.id,
-      nextAction: 'The canonical recipe must declare complete artifact/build peak allocation before managed writes can be admitted.' });
+      nextAction: selected.plan.storageAllocationBlocker?.action
+        || 'The canonical recipe must declare complete artifact/build peak allocation before managed writes can be admitted.' });
   }
   for (const prerequisite of prerequisitePlans) for (const step of prerequisite.steps) {
     if (step.state === 'missing' && !step.recipe) blockers.push({ code: 'selected-prerequisite-recipe-unavailable', toolId: prerequisite.toolId,
@@ -141,7 +142,8 @@ export const createFirstSearchPlan = async ({ repoRoot, profile = 'sparse', mode
     'src/workspace/child-runtime-env.js', 'bin/dispatch-runtime-env.js', 'tools/dict-utils/config.js', 'tools/tooling/install.js', 'tools/tooling/utils.js', 'tools/tooling/provisioning-plan.js',
     'src/shared/config-authority.js', 'src/shared/cli-option-sets.js', 'src/shared/cli-option-validators.js',
     'src/shared/runtime-envelope/resolve.js', 'src/shared/runtime-envelope/env-patch.js',
-    'tools/tooling/install-execution.js', 'tools/tooling/install-storage.js', 'tools/tooling/managed-install.js', 'tools/tooling/install-go-sdk.js',
+    'tools/tooling/install-execution.js', 'tools/tooling/install-allocation-contract.js', 'tools/tooling/gopls-recipe.js',
+    'tools/tooling/install-storage.js', 'tools/tooling/managed-install.js', 'tools/tooling/install-go-sdk.js',
     'tools/tooling/owned-detect.js', 'tools/tooling/install-preview.js', 'src/shared/managed-installation.js',
     'src/shared/managed-installation-retain.js', 'src/shared/managed-installation-contract.js', 'src/shared/toolchain-env.js',
     'src/shared/managed-go.js', 'tools/tooling/install-receipts.js', 'tools/tooling/install-requirements.js',

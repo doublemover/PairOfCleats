@@ -3,43 +3,12 @@ import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-inv
 import { runManagedChildWithStorage } from '../../src/shared/storage/managed-child-session.js';
 import { isPathWithinRoot } from '../../src/shared/file-paths.js';
 
-/** Canonical recipes declare the peak additional allocation, including expanded
- * artifacts, package/build caches and staging. Archive length alone is not that
- * estimate; unknown transitive package writes stay unknown rather than zero.
- */
-export const resolveDeclaredInstallAdmission = recipe => {
-  const estimate = recipe?.storageEstimate;
-  const budget = (write, key, fallback) => {
-    const value = write?.[key];
-    if (value === undefined || value === null) return fallback;
-    if (!Number.isSafeInteger(value) || value < 0) throw new TypeError('Declared install storage budget must be a nonnegative safe integer.');
-    return value;
-  };
-  if (estimate?.complete !== true || !Array.isArray(estimate.writes) || !estimate.writes.length || estimate.writes.length > 64) {
-    return { writes: null, state: 'deferred-unknown-allocation', source: 'unknown-artifact-build-allocation' };
-  }
-  const writes = estimate.writes.map(write => {
-    const selectors = [write.root, write.destination, write.environmentKey].filter(value => value !== undefined);
-    if (selectors.length !== 1 || selectors.some(value => typeof value !== 'string' || !value)
-      || (write.root && !path.isAbsolute(write.root))
-      || (write.destination && !['artifacts', 'scratch'].includes(write.destination))) throw new TypeError('Declared install allocation needs one exact root, artifact/scratch destination or environment-key owner.');
-    const requiredBytes = budget(write, 'requiredBytes', null);
-    if (requiredBytes === null) throw new TypeError('Declared install destination requires an exact byte estimate.');
-    return { ...(write.root ? { root: path.resolve(write.root) } : write.destination ? { destination: write.destination } : { environmentKey: write.environmentKey }),
-      requiredBytes, minimumFreeBytes: budget(write, 'minimumFreeBytes', 0), hardBytes: budget(write, 'hardBytes', null) };
-  });
-  if (estimate.basis !== undefined && !['canonical-build-forecast-v1', 'bounded-archive-owner-v1'].includes(estimate.basis)) {
-    throw new TypeError('Unknown canonical install allocation basis.');
-  }
-  return { writes, source: estimate.basis === 'canonical-build-forecast-v1'
-    ? 'canonical-recipe-build-forecast' : 'canonical-recipe-declared-destination-peaks', state: 'estimate-declared',
-  ...(estimate.basis ? { basis: estimate.basis, measured: false } : {}),
-  ...(typeof estimate.recipe === 'string' ? { recipe: estimate.recipe } : {}) };
-};
+export { resolveDeclaredInstallAdmission } from './install-allocation-contract.js';
 
-export const bindDeclaredInstallAdmission = (declared, { storagePlan, artifactRoot } = {}) => {
-  if (declared?.state !== 'estimate-declared' || !path.isAbsolute(artifactRoot || '')) return null;
-  const writes = declared.writes.map(write => {
+/** Pure destination projection. Forecast destinations grant no write admission. */
+export const resolveInstallEstimateDestinations = (estimates, { storagePlan, artifactRoot } = {}) => {
+  if (!Array.isArray(estimates) || !estimates.length || estimates.length > 64 || !path.isAbsolute(artifactRoot || '')) return null;
+  const writes = estimates.map(write => {
     if (write.root) return write;
     const location = write.environmentKey ? storagePlan.locations.find(value => value.environmentKey.toLowerCase() === write.environmentKey.toLowerCase()) : null;
     const root = write.destination === 'artifacts' ? artifactRoot : write.destination === 'scratch' ? storagePlan.scratch
@@ -57,6 +26,9 @@ export const bindDeclaredInstallAdmission = (declared, { storagePlan, artifactRo
   }
   return { writes: [...byRoot.values()] };
 };
+
+export const bindDeclaredInstallAdmission = (declared, options = {}) => declared?.state === 'estimate-declared'
+  ? resolveInstallEstimateDestinations(declared.writes, options) : null;
 
 /** Owned async child close/termination evidence controls storage-session release. */
 export const runToolInstallChild = async ({ command, args, options, storagePlan, layout, artifactRoot,
