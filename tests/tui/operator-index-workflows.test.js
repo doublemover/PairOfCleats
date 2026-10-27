@@ -73,6 +73,18 @@ await assert.rejects(actor.launch({ scopeId: scope.id, previewId: expired.previe
 const cancelled = await actor.preview({ scopeId: scope.id, commandId: 'index.stats', values: {} });
 assert.deepEqual(actor.discard({ scopeId: scope.id, previewId: cancelled.previewId }), { discarded: true });
 await assert.rejects(actor.launch({ scopeId: scope.id, previewId: cancelled.previewId, confirmed: true }), { code: 'ERR_TUI_WORKFLOW_STALE' });
+for (const [values, expected] of [[{ 'index-dir': dir }, /Use either --repo or --index-dir, not both/],
+  [{ mode: 'not-a-mode' }, /Invalid --mode not-a-mode/]]) {
+  const rejected = await actor.preview({ scopeId: scope.id, commandId: 'index.stats', values });
+  assert.equal(rejected.launchable, false); assert.equal(rejected.previewId, undefined);
+  assert.equal(rejected.canonicalArgv, undefined);
+  assert.match(rejected.errors.join('\n'), expected);
+  assert.equal(launches.length, 1, 'invalid stats input cannot admit an owned job');
+}
+const normalizedStats = await actor.preview({ scopeId: scope.id, commandId: 'index.stats', values: { mode: ' CODE ' } });
+assert.equal(normalizedStats.launchable, true, JSON.stringify(normalizedStats));
+assert.deepEqual(normalizedStats.canonicalArgv, ['index', 'stats', '--mode= CODE ', `--repo=${repo}`, '--json']);
+actor.discard({ scopeId: scope.id, previewId: normalizedStats.previewId });
 const old = await actor.preview({ scopeId: scope.id, commandId: 'index.stats', values: {} });
 await scopes.selectScope({ kind: 'repo', target: repo });
 await assert.rejects(actor.launch({ scopeId: scope.id, previewId: old.previewId, confirmed: true }), { code: 'ERR_TUI_SCOPE_CHANGED' });

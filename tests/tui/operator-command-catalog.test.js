@@ -24,6 +24,11 @@ for (const [id, options] of [['setup', SETUP_OPTIONS], ['tooling.doctor', TOOLIN
   for (const field of command.fields) assert.equal(field.schema.type, options[field.name].type);
 }
 const scope = { kind: 'repo', target: 'C:/selected repository', configRoot: 'C:/selected repository' };
+const stats = catalog.find(command => command.id === 'index.stats');
+assert.throws(() => buildIndexWorkflowArgv(stats, { 'index-dir': 'C:/another index' }, scope), /Use either --repo or --index-dir, not both/);
+assert.throws(() => buildIndexWorkflowArgv(stats, { mode: 'unrecognized' }, scope), /Invalid --mode unrecognized/);
+assert.deepEqual(buildIndexWorkflowArgv(stats, { mode: 'code', verify: true }, scope),
+  ['index', 'stats', '--mode=code', '--verify=true', '--repo=C:/selected repository', '--json']);
 const api = catalog.find(command => command.id === 'service.api');
 for (const name of ['host', 'auth-token', 'allow-unauthenticated', 'allowed-repo-roots']) {
   assert.equal(api.fields.some(field => field.name === name), false);

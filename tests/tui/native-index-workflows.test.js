@@ -18,7 +18,7 @@ import { freezeSnapshot } from '../../src/index/snapshots/freeze.js';
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tui/native-index-workflows/')[1];
 assert.ok(['build-search', 'validate-search', 'watch-cancel', 'build-cancel', 'preview-cancel', 'workspace', 'snapshot',
   'snapshot-create', 'snapshot-show', 'snapshot-freeze', 'snapshot-remove', 'snapshot-prune', 'snapshot-gc',
-  'report', 'stats', 'missing-model', 'invalid-provider', 'stale'].includes(mode));
+  'report', 'stats', 'stats-conflict', 'missing-model', 'invalid-provider', 'stale'].includes(mode));
 const root = process.cwd(), { dir } = await prepareIsolatedTestCacheDir(`native-index-${mode}`);
 const repo = path.join(dir, 'selected repository'); await fs.mkdir(repo); initGitRepo(repo);
 await fs.writeFile(path.join(repo, 'answer.js'), 'export function nativeWorkflowAnswer() { return 42; }\n');
@@ -139,7 +139,9 @@ try {
             && Number(row.jobId.split('-').at(-1)) > after && (row.result?.method === method || ['failed', 'cancelled'].includes(row.status)));
           return end;
         }, `${method} actual response`);
-        assert.equal(end.status, 'done', JSON.stringify(end)); return end.result.data;
+        assert.equal(end.status, 'done', JSON.stringify(end));
+        assert.equal(end.resultState, 'complete', JSON.stringify(end));
+        assert.equal(end.result.method, method); return end.result.data;
       };
       const operation = async (method, input) => { const after = await last('native-workflow-'); terminal.write(input); return settled('native-workflow-', method, after); };
       const currentStatus = async () => {
@@ -156,8 +158,9 @@ try {
       };
       const edit = async (command, name, value) => {
         const index = command.fields.findIndex(field => field.name === name); assert.ok(index >= 0);
-        terminal.write('\x1b[A'.repeat(command.fields.length) + '\x1b[B'.repeat(index) + '\r');
-        await rendered(`Edit ${name} as JSON`); terminal.write(`\x15${JSON.stringify(value)}\r`);
+        terminal.write('\x1b[A'.repeat(command.fields.length) + '\x1b[B'.repeat(index) + 'e');
+        await rendered('Edit advanced JSON'); await rendered(`Field: ${name}`);
+        terminal.write(`\x15${JSON.stringify(value)}\r`);
         await rendered(`Typed form: ${command.id}`);
       };
       const run = async (id, values = {}) => {
@@ -175,14 +178,17 @@ try {
       const finish = async jobId => {
         let end; await wait(async () => { end = (await events()).find(row => row.event === 'job:end' && row.jobId === jobId); return end; }, 'actual owned job end'); return end;
       };
-      const backToCatalog = async () => { terminal.write('\x1b'); await rendered('Arrows select | Enter opens typed form'); };
+      const backToCatalog = async () => { terminal.write('\x1b'); await rendered('Arrows select | Enter form/reason'); };
       const closeCatalog = async () => { terminal.write('\x1b'); await rendered('Tab pane'); };
       try {
         await rendered('Tab pane');
         terminal.write('b'); await rendered('Workflow scope: repository directory');
         const after = await last('native-workflow-');
         terminal.write(`${mode === 'workspace' ? '\t' : ''}\x15${mode === 'workspace' ? workspace : repo}\r`);
-        catalog = await settled('native-workflow-', 'describe', after); await rendered('Canonical index/workspace catalog loaded');
+        catalog = await settled('native-workflow-', 'describe', after); await rendered('Canonical command catalog loaded; no work started.');
+        assert.ok(catalog.commands.some(command => command.id === 'index.build' && !command.unsupportedReason));
+        assert.equal(new Set(catalog.commands.map(command => command.id)).size, catalog.commands.length);
+        assert.equal((await events()).some(row => row.event === 'job:start' && row.jobId?.startsWith('workflow-')), false);
         if (mode === 'validate-search') {
           const status = await currentStatus(); assert.equal(status.publications[0].ready, true);
           await backToCatalog(); const validation = await run('index.validate', { mode: 'code' });
@@ -194,6 +200,16 @@ try {
           const search = await settled('native-search-', 'query', searchAfter);
           assert.ok(search.hits.some(hit => hit.file === 'answer.js'), JSON.stringify(search));
           await rendered('answer.js'); terminal.write('\x1b'); await rendered('Tab pane'); terminal.write('q');
+        } else if (mode === 'stats-conflict') {
+          const command = await choose('index.stats');
+          await edit(command, 'index-dir', path.join(dir, 'not-a-selected-generation'));
+          const preview = await operation('preview', 'p');
+          assert.equal(preview.launchable, false); assert.equal(preview.previewId, undefined);
+          assert.match(preview.errors.join('\n'), /Use either --repo or --index-dir, not both/);
+          await rendered('Launch blocked'); terminal.write('\r');
+          assert.equal((await events()).some(row => row.event === 'job:start' && row.jobId?.startsWith('workflow-')), false);
+          terminal.write('\x1b'); await rendered('Typed form: index.stats');
+          await backToCatalog(); await closeCatalog(); terminal.write('q');
         } else if (['missing-model', 'invalid-provider'].includes(mode)) {
           await choose('index.build'); const preview = await operation('preview', 'p');
           assert.equal(preview.launchable, false); assert.equal(preview.previewId, undefined);

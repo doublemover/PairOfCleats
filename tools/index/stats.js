@@ -2,7 +2,7 @@
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
-import { INDEX_STATS_OPTIONS } from '../../src/shared/index-tool-options.js';
+import { INDEX_STATS_OPTIONS, INDEX_STATS_MODES, assertIndexStatsFlags } from '../../src/shared/index-tool-options.js';
 import { createCli } from '../../src/shared/cli.js';
 import { checksumFile, sha1File, sha256File } from '../../src/shared/hash.js';
 import { formatBytes } from '../../src/shared/disk-space.js';
@@ -15,19 +15,13 @@ import { fromPosix, isRelativePathEscape } from '../../src/shared/file-paths.js'
 import { captureSelectedModeRoots } from '../../src/shared/indexing/selected-mode-roots.js';
 import { getRepoId, loadUserConfig, resolveRepoRootArg } from '../shared/dict-utils.js';
 
-const MODE_ORDER = ['code', 'prose', 'extracted-prose', 'records'];
+const MODE_ORDER = INDEX_STATS_MODES;
 const SCHEMA_VERSION = 1;
 
 const argv = createCli({
   scriptName: 'index-stats',
   options: INDEX_STATS_OPTIONS
 }).parse();
-
-const normalizeMode = (value) => {
-  if (typeof value !== 'string') return null;
-  const mode = value.trim().toLowerCase();
-  return MODE_ORDER.includes(mode) ? mode : null;
-};
 
 const normalizeCount = (value) => {
   const parsed = Number(value);
@@ -66,16 +60,7 @@ const collectModeDirsFromRoot = (rootPath, modeFilter = null) => {
 };
 
 const selectModeDirs = () => {
-  const modeFilter = normalizeMode(argv.mode);
-  if (argv.mode && !modeFilter) {
-    throw new Error(`Invalid --mode ${argv.mode}. Use ${MODE_ORDER.join('|')}.`);
-  }
-  if (argv.repo && argv['index-dir']) {
-    throw new Error('Use either --repo or --index-dir, not both.');
-  }
-  if (!argv.repo && !argv['index-dir']) {
-    throw new Error('index stats requires --repo <path> or --index-dir <path>.');
-  }
+  const modeFilter = assertIndexStatsFlags(argv);
   if (argv['index-dir']) {
     const indexRoot = path.resolve(String(argv['index-dir']));
     const modes = collectModeDirsFromRoot(indexRoot, modeFilter);

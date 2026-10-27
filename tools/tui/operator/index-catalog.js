@@ -11,7 +11,7 @@ import { getIndexDir, loadUserConfig } from '../../../src/shared/dict-utils.js';
 import { PRIMARY_INDEX_MODES } from '../../../src/integrations/core/build-index/stages/modes.js';
 import { SNAPSHOT_ID_SCHEMA } from '../../../src/contracts/schemas/artifacts/snapshots-diffs.js';
 import { STORAGE_OPTIONS } from '../../storage/options.js';
-import { INDEX_VALIDATE_OPTIONS, INDEX_REPORT_OPTIONS, INDEX_STATS_OPTIONS,
+import { INDEX_VALIDATE_OPTIONS, INDEX_REPORT_OPTIONS, INDEX_STATS_OPTIONS, assertIndexStatsFlags,
   SNAPSHOT_COMMANDS, WORKSPACE_BUILD_OPTIONS } from '../../../src/shared/index-tool-options.js';
 
 const OWNED_FIELDS = new Set(['repo', 'workspace', 'root', 'json', 'progress', 'watch', 'config-dump', 'debug-crash', 'no-scm-annotate',
@@ -176,6 +176,7 @@ export const describeWorkflowCoverage = ({ backendDelegationEnabled = false } = 
     disposition: command.unsupportedReason ? 'unsupported' : 'typed-adapter', reason: command.unsupportedReason || null }));
 
 export const buildIndexWorkflowArgv = (command, values, scope, { env = process.env } = {}) => {
+  if (command.registryId === 'index.stats') assertIndexStatsFlags({ ...values, repo: scope.target });
   const argv = [...command.commandPath];
   for (const field of command.fields.filter(field => field.positional)) {
     const value = values[field.name];

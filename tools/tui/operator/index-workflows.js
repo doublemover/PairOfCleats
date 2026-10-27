@@ -9,7 +9,7 @@ import { mergeConfig } from '../../../src/shared/config.js';
 import { getEnvConfig } from '../../../src/shared/env/runtime.js';
 import { buildAutoPolicy } from '../../../src/shared/auto-policy/build.js';
 import { clampQuality } from '../../../src/shared/auto-policy/profile.js';
-import { assertIndexValidationFlags, resolveWorkspaceBuildConcurrency } from '../../../src/shared/index-tool-options.js';
+import { assertIndexValidationFlags, assertIndexStatsFlags, resolveWorkspaceBuildConcurrency } from '../../../src/shared/index-tool-options.js';
 import { resolveEmbeddingIntent } from '../../../src/shared/embedding-intent.js';
 import { normalizeEmbeddingProvider } from '../../../src/shared/onnx-embeddings/config.js';
 import { resolveEmbeddingModelProfile, validateEmbeddingModelProfile } from '../../../src/shared/embedding-model-profile.js';
@@ -131,6 +131,7 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.c
   const inspect = async (scope, command, values, signal) => {
     if (command.unsupportedReason) fail('ERR_TUI_WORKFLOW_UNSUPPORTED', command.unsupportedReason);
     if (command.registryId === 'index.validate') assertIndexValidationFlags(values);
+    if (command.registryId === 'index.stats') assertIndexStatsFlags({ ...values, repo: scope.target });
     if (command.registryId === 'workspace.build' && values.concurrency !== undefined) resolveWorkspaceBuildConcurrency(values.concurrency);
     if (BUILDERS.has(command.registryId)) {
       if (values.stage && !normalizeIndexBuildStage(values.stage)) fail('ERR_TUI_WORKFLOW_STAGE', 'Choose a canonical build stage.');
@@ -230,13 +231,16 @@ export const createTuiIndexWorkflows = ({ scopes, startJob, toolRoot = process.c
     const validation = validateConfig(command.schema, request.values);
     if (!validation.ok) return { launchable: false, errors: validation.errors };
     const values = structuredClone(request.values);
-    const argv = buildIndexWorkflowArgv(command, values, scope, { env });
-    if (argv.some(value => sanitizeRuntimeReceipt(value) !== value)) {
-      return { launchable: false, errors: ['Use private Settings for credentials; command forms do not accept values that require redaction.'] };
+    let argv, observations, storage = null, service = null, backend = null, graph = null;
+    try {
+      argv = buildIndexWorkflowArgv(command, values, scope, { env });
+      if (argv.some(value => sanitizeRuntimeReceipt(value) !== value)) {
+        return { launchable: false, errors: ['Use private Settings for credentials; command forms do not accept values that require redaction.'] };
+      }
+      observations = await inspect(scope, command, values, signal);
     }
-    let observations, storage = null, service = null, backend = null, graph = null;
-    try { observations = await inspect(scope, command, values, signal); }
     catch (error) {
+      if (ownedCleanupIsPending(error)) throw error;
       throwIfAborted(signal);
       return { launchable: false, errors: [sanitizeRuntimeReceipt(error.message)],
         errorCode: error.code || 'ERR_TUI_WORKFLOW_PREFLIGHT' };

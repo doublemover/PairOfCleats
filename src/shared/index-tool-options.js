@@ -16,6 +16,19 @@ export const INDEX_STATS_OPTIONS = {
   verify: { type: 'boolean', default: false }
 };
 
+export const INDEX_STATS_MODES = Object.freeze(['code', 'prose', 'extracted-prose', 'records']);
+
+/** Shared by the CLI consumer and native preflight, including its bound repo. */
+export const assertIndexStatsFlags = argv => {
+  const mode = typeof argv.mode === 'string' ? argv.mode.trim().toLowerCase() : null;
+  if (argv.mode && !INDEX_STATS_MODES.includes(mode)) {
+    throw new Error(`Invalid --mode ${argv.mode}. Use ${INDEX_STATS_MODES.join('|')}.`);
+  }
+  if (argv.repo && argv['index-dir']) throw new Error('Use either --repo or --index-dir, not both.');
+  if (!argv.repo && !argv['index-dir']) throw new Error('index stats requires --repo <path> or --index-dir <path>.');
+  return mode && INDEX_STATS_MODES.includes(mode) ? mode : null;
+};
+
 export const INDEX_REPORT_OPTIONS = {
   json: { type: 'boolean', default: false },
   all: { type: 'boolean', default: false },
