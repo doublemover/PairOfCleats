@@ -64,6 +64,7 @@ severity and shared dependencies, retaining qualification separately:
    are implemented. Failure persistence, other routes and full readiness/cache-only qualification remain.
    [Strict JSON admission](archived/json-import-admission-implementation-2026-10-27.md)
    adds common caps, aggregate traversal and qualified omissions; 20 cases await execution.
+   [Render source admission](archived/render-source-implementation-2026-10-27.md) now bounds preview/summary reads and scans; 13 new cases await execution.
 4. Native TUI/editor workflows: [catalog/editor witnesses and stats admission](archived/native-workflow-preflight-implementation-2026-10-27.md)
    are repaired in source; all actual workflows remain unqualified (#635).
 5. Performance/evaluation after correctness: retained comparisons (#1663),

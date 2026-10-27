@@ -8134,7 +8134,14 @@
       "priority": "Perf",
       "batch": "performance-and-evaluation",
       "phase": "source-review-and-implementation",
-      "status": "queued"
+      "status": "queued",
+      "unvalidatedSourceHeads": [
+        "8e8088c4481ae125d654adc43dd177b4e30fb3b4"
+      ],
+      "unvalidatedReceipts": [
+        "render-source-implementation-2026-10-27.md"
+      ],
+      "currentImplementation": "Previews and summaries now share one render-owned file/read/decode/scan admission and closed-descriptor snapshot. Source refusals and failed/racing read charges persist; private generation-qualified cache products cannot override admission. Summary scan/word/character bounds expose partial state; zero/negative limits skip work, fixing the fifth-result negative-slice defect. Thirteen cases are authored, unexecuted. Existing one-read/cache coverage remains; mandatory typed virtual file/directory reparse negatives replace physical links and privilege skips without claiming native platform qualification. Actual consumer, read-counter, freshness, cache, encoding and serial performance checks remain."
     },
     {
       "number": 1724,
