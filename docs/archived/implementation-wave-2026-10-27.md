@@ -28,6 +28,7 @@ work. Their separate receipts preserve exact trees, limitations and checks.
 | [5b093bb96](query-process-tree-implementation-2026-10-27.md) | Settled query failure drain and bounded Windows descendant/lifetime memory observations | 13 authored cases; actual Windows census/lifecycle and serial resource/performance qualification remain |
 | [8e8088c44](render-source-implementation-2026-10-27.md) | One read/scan owner for previews and summaries, explicit partial state and corrected negative word limit | 13 authored cases and mandatory virtual reparse negatives; actual consumer/cache/encoding/performance checks remain |
 | [ee5e1cb13](demanded-line-tokens-implementation-2026-10-27.md) | Demanded, identity-qualified line-token blocks with bounded preparation/retention and exact fallback | 12 authored cases; actual chunk/postings, worker and serial dense/sparse qualification remain |
+| [5da4c2578](scene-render-observation-implementation-2026-10-27.md) | Original captured scene-render witness, invalidation, committed-model identity and final phase diagnostics | 7 authored controls; actual browser fault injection, raster/fidelity/hardware checks remain |
 
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero

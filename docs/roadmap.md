@@ -40,10 +40,9 @@ changes. Fresh locked bootstrap passed: 37 required packages, 33 language routes
 8 patches/26 targets/61 hunks, exit 0 and no warning/error/failure matches.
 Functional regression execution and the publication gate remain deferred.
 
-These are scoped observations, not a combined full-suite or platform/model/release
-pass. Task checks omit only an inherited missing trusted-config selector;
-user/global settings and trust rules remain intact. Common lifecycle policy
-(#1267) and custom backend cleanup adoption (#1574) remain open.
+These scoped observations do not combine into suite/platform/model/release acceptance.
+Task checks omit an inherited missing trusted-config selector; global settings and
+trust rules remain intact. Lifecycle policy (#1267) and custom cleanup (#1574) remain.
 
 Execution is solo, Windows-only and implementation-first. The [complete owner
 queue](archived/remaining-issue-batches-2026-10-26.json) orders source work by
@@ -66,6 +65,7 @@ severity and shared dependencies, retaining qualification separately:
    [Demanded line tokens](archived/demanded-line-tokens-implementation-2026-10-27.md) replace whole-file preparation; 12 cases and dense/sparse qualification remain.
 4. Native TUI/editor workflows: [catalog/editor witnesses and stats admission](archived/native-workflow-preflight-implementation-2026-10-27.md)
    are repaired in source; all actual workflows remain unqualified (#635).
+   [Scene render witnesses](archived/scene-render-observation-implementation-2026-10-27.md) now observe captured operations; browser qualification remains (#1372).
 5. Performance/evaluation after correctness: retained comparisons (#1663),
    representative SQLite trials (#1733) and [Windows descendant RSS qualification](archived/query-process-tree-implementation-2026-10-27.md) (#1675).
 6. Research capabilities after their prerequisite source/retrieval/evidence owners.
