@@ -6756,7 +6756,14 @@
         "storage/sqlite/reader-schema-mismatch",
         "storage/sqlite/runner-no-process-exit",
         "storage/sqlite/zero-state-proof-admission"
-      ]
+      ],
+      "unvalidatedSourceHeads": [
+        "47ca8bea98676b43aa86dfb53e23adbb94036bf3"
+      ],
+      "unvalidatedReceipts": [
+        "sqlite-operation-implementation-2026-10-27.md"
+      ],
+      "currentImplementation": "Production SQLite runner and explicit-context artifact/bundle/incremental helpers now own source planning, exact native/sidecar paths, selected temporary category, accepted child work, publication and asynchronous teardown. Functional qualification is deferred; source is not acceptance."
     },
     {
       "number": 1575,
