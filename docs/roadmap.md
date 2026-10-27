@@ -37,6 +37,10 @@ Tantivy source identity, immutable publication and native reader disposal are
 **unvalidated** at `1cd9c62e6`; [implementation and deferred checks](archived/tantivy-generation-implementation-2026-10-27.md)
 retain optional-native readback and external cleanup as separate remaining work.
 
+Clangd per-document compilation admission/planning is **unvalidated** at `342c39c7b`;
+[implementation and deferred checks](archived/clangd-compilation-context-implementation-2026-10-27.md)
+record 26 authored cases, physical URI/hover policy and the semantic version bump.
+
 These are scoped observations, not a combined full-suite or platform/model/release
 pass. Task checks omit only an inherited missing trusted-config selector;
 user/global settings and trust rules remain intact. Common lifecycle policy
