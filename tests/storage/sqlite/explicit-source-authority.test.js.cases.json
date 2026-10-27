@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["no-current", "partial-current", "historical-conflict", "native-detached", "native-empty", "native-external-output", "native-known-output"]
+}

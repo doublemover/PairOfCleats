@@ -26,6 +26,9 @@ import { createAdaptiveBatchPlanner, probeSqliteTargetRuntime } from './build.js
 import { resolveChunkMetaTotalRecords, resolveChunkMetaTotalRecordsFromSources } from './chunk-meta.js';
 import { loadSqliteBundleWorkerProfile } from './config.js';
 import { resolveModeExecutionPlan } from './mode-plan.js';
+import { loadPiecesManifest } from '../../../../shared/artifact-io/manifest.js';
+import { loadJsonObjectArtifact } from '../../../../shared/artifact-io/loaders/core.js';
+import { addStorageFailureContext } from '../../../../shared/storage/operation-error.js';
 
 const resolveThreadLimits = (envelope) => ({
   cpuCount: envelope.concurrency.cpuCount,
@@ -46,16 +49,27 @@ const loadModeIndexPieces = async (modeList, modeIndexDirs) => {
   const pieceResults = await Promise.all(
     modeList.map(async (mode) => {
       try {
+        const manifest = loadPiecesManifest(modeIndexDirs[mode], { strict: true });
+        const hasState = manifest ? manifest.pieces.some(piece => piece.name === 'index_state')
+          : fsSync.existsSync(path.join(modeIndexDirs[mode], 'index_state.json'));
+        const state = hasState ? await loadJsonObjectArtifact(modeIndexDirs[mode], 'index_state', { manifest, strict: true }) : null;
+        for (const declared of [manifest?.mode, state?.fields?.mode, state?.mode].filter(Boolean)) {
+          if (declared !== mode) throw Object.assign(new Error(`SQLite ${mode} source declares mode ${declared}.`), { code: 'ERR_SQLITE_SOURCE_MODE' });
+        }
+        if (manifest?.buildId && state?.buildId && manifest.buildId !== state.buildId) {
+          throw Object.assign(new Error('SQLite source manifest and state generations differ.'), { code: 'ERR_SQLITE_SOURCE_GENERATION' });
+        }
         const pieces = await loadIndexPieces(modeIndexDirs[mode]);
-        return { mode, pieces, error: null };
+        if (!pieces) throw Object.assign(new Error(`SQLite ${mode} source has no chunk artifacts.`), { code: 'ERR_SQLITE_SOURCE_UNAVAILABLE' });
+        return { mode, pieces, error: null, failed: false };
       } catch (error) {
-        return { mode, pieces: null, error };
+        return { mode, pieces: null, error, failed: true };
       }
     })
   );
   for (const result of pieceResults) {
     if (result?.pieces) indexPieces[result.mode] = result.pieces;
-    if (result?.error) indexPieceErrors[result.mode] = result.error;
+    if (result?.failed) indexPieceErrors[result.mode] = result.error;
   }
   return { indexPieces, indexPieceErrors };
 };
@@ -129,14 +143,18 @@ export const resolveRunnerSelectionPlan = async ({
     indexRoot,
     modeIndexDirs,
     modeIndexRoots,
+    modeStateRoots,
     executionGroups
   } = modePlan;
-  const buildStateRoots = [...new Set(executionGroups.map(entry => entry.indexRoot))]
-    .filter(buildRoot => {
-      const buildStatePath = resolveBuildStatePath(buildRoot);
-      return buildStatePath && fsSync.existsSync(buildStatePath);
-    });
-  const hasBuildState = buildStateRoots.length > 0;
+  // Admit selected source metadata before state updates, target creation or
+  // backend work. A captured source error cannot be reduced to a late message.
+  const { indexPieces, indexPieceErrors } = await loadModeIndexPieces(modeList, modeIndexDirs);
+  const sourceErrors = Object.values(indexPieceErrors);
+  if (sourceErrors.length) {
+    let failure = sourceErrors[0];
+    for (const error of sourceErrors.slice(1)) failure = addStorageFailureContext(failure, {}, error, { secondaryPresent: true });
+    throw failure;
+  }
   const envelope = options.envelope || runtime?.envelope || resolveCurrentProcessRuntimeEnvelope({
     argv,
     rawArgv: parsedRawArgs,
@@ -193,10 +211,19 @@ export const resolveRunnerSelectionPlan = async ({
     records: recordsOutPath
   };
   if (modeArg !== 'all' && outPath) modeOutputPaths[modeArg] = outPath;
-  const {
-    indexPieces,
-    indexPieceErrors
-  } = await loadModeIndexPieces(modeList, modeIndexDirs);
+  for (const mode of modeList) {
+    if (!modeStateRoots[mode]) continue;
+    const expected = resolveSqlitePaths(root, userConfig, { indexRoot: modeStateRoots[mode] })[outputKeys[mode]];
+    const actual = modeOutputPaths[mode];
+    const identity = value => process.platform === 'win32' ? path.resolve(value).toLowerCase() : path.resolve(value);
+    if (!actual || identity(actual) !== identity(expected)) modeStateRoots[mode] = null;
+  }
+  const buildStateRoots = [...new Set(Object.values(modeStateRoots).filter(Boolean))]
+    .filter(buildRoot => {
+      const buildStatePath = resolveBuildStatePath(buildRoot);
+      return buildStatePath && fsSync.existsSync(buildStatePath);
+    });
+  const hasBuildState = buildStateRoots.length > 0;
   const modeChunkCountHints = resolveModeChunkCountHints({
     modeList,
     modeIndexDirs,
@@ -209,6 +236,7 @@ export const resolveRunnerSelectionPlan = async ({
     indexRoot,
     modeIndexDirs,
     modeIndexRoots,
+    modeStateRoots,
     executionGroups,
     outPath,
     modeOutputPaths,

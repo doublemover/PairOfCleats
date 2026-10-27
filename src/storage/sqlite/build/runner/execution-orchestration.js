@@ -70,6 +70,7 @@ export const executeSqliteModeBuilds = async ({
   modeList,
   indexRoot,
   modeIndexRoots = null,
+  modeStateRoots = null,
   modeIndexDirs,
   modeOutputPaths,
   modeChunkCountHints,
@@ -106,8 +107,9 @@ export const executeSqliteModeBuilds = async ({
   for (const mode of modeList) {
     throwIfAborted(signal);
     const modeIndexRoot = modeIndexRoots?.[mode] || indexRoot;
+    const stateRoot = modeStateRoots ? modeStateRoots[mode] : modeIndexRoot;
     const stageCheckpoints = createStageCheckpointRecorder({
-      buildRoot: modeIndexRoot,
+      buildRoot: stateRoot,
       metricsDir,
       mode,
       buildId: modeIndexRoot ? path.basename(modeIndexRoot) : null
@@ -143,6 +145,8 @@ export const executeSqliteModeBuilds = async ({
       root,
       userConfig,
       indexRoot: modeIndexRoot,
+      indexDir: modeIndexDir,
+      stateUpdates: Boolean(stateRoot),
       schemaVersion,
       threadLimits,
       stageCheckpoints,
@@ -158,7 +162,7 @@ export const executeSqliteModeBuilds = async ({
       await reporter.setRunningState();
       throwIfAborted(signal);
 
-      const modeIsZeroState = modeChunkCountHint === 0 && modeDenseCountHint === 0;
+      const modeIsZeroState = Boolean(stateRoot) && modeChunkCountHint === 0 && modeDenseCountHint === 0;
       if (modeIsZeroState) {
         const existingRows = outputExists
           ? readSqliteModeCount({
@@ -271,16 +275,18 @@ export const executeSqliteModeBuilds = async ({
       resolvedInput = { ...incrementalPlan.resolvedInput };
       const createModeRowLedger = ({
         source = resolvedInput?.source,
+        expectedChunkCount = modeChunkCountHint,
         inputRoot = source === 'incremental' ? incrementalBundleDir : modeIndexDir
       } = {}) => createSqliteModeRowLedger({
         mode,
         source,
-        expectedChunkCount: modeChunkCountHint,
+        expectedChunkCount,
         expectedDenseCount,
         expectedFileCount: repoFileCountHint,
         inputRoot
       });
       let activeRowLedger = createModeRowLedger();
+      let decodedArtifactChunks = null;
       const bundleWorkerAutotune = resolveBundleWorkerAutotune({
         mode,
         manifestFiles: incrementalFiles,
@@ -535,7 +541,7 @@ export const executeSqliteModeBuilds = async ({
             fileCountHint: artifactFileCountHint || repoFileCountHint,
             repoBytesHint: Math.max(sqliteRuntime.dbBytes || 0, inputBytes || 0)
           });
-          await buildDatabaseFromArtifacts({
+          decodedArtifactChunks = await buildDatabaseFromArtifacts({
             signal,
             repoRoot: root,
             ftsVariants: mode === 'code' ? requestedFtsVariants.filter(value => value !== 'porter') : requestedFtsVariants,
@@ -566,7 +572,7 @@ export const executeSqliteModeBuilds = async ({
           requiredBytes: Math.max(estimate.bytes * 2, 64 * 1024 * 1024),
           label: `${mode} sqlite artifacts`
         });
-        await buildDatabaseFromArtifacts({
+        decodedArtifactChunks = await buildDatabaseFromArtifacts({
           signal,
           ftsVariants: mode === 'code' ? requestedFtsVariants.filter(value => value !== 'porter') : requestedFtsVariants,
           Database,
@@ -584,6 +590,17 @@ export const executeSqliteModeBuilds = async ({
         });
       }
       throwIfAborted(signal);
+      if (modeChunkCountHint == null && decodedArtifactChunks !== null) {
+        if (!Number.isSafeInteger(decodedArtifactChunks) || decodedArtifactChunks < 0) {
+          throw Object.assign(new Error('SQLite source decoder did not confirm its input row count.'), { code: 'ERR_SQLITE_SOURCE_COUNT_UNAVAILABLE' });
+        }
+        // The artifact producer already counts decoded input rows independently
+        // of the database query below. Unknown metadata is never an empty index;
+        // reuse that count without another artifact pass or relaxing known claims.
+        activeRowLedger = createModeRowLedger({ expectedChunkCount: decodedArtifactChunks });
+        sqliteStats.rowLedger = activeRowLedger;
+        sqliteStats.rowLedgerInputCountSource = 'decoded-artifact-rows';
+      }
       const postImportValidation = validateSqliteRowLedgerPostImport({
         repoRoot: root,
         rowLedger: activeRowLedger,

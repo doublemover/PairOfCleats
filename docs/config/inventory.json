@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-27T11:44:45.661Z",
+  "generatedAt": "2026-10-27T12:45:28.694Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4632,6 +4632,7 @@
         "tests/indexing/runtime/stage-closeout-delayed-child.test.js",
         "tests/indexing/semantic/wasm-flow-policy-construction.test.js",
         "tests/indexing/tree-sitter/js-ts-export-bindings.test.js",
+        "tests/indexing/validate/operation-generation-selection.test.js",
         "tests/indexing/workers/coarse-file-analysis-facade.test.js",
         "tests/indexing/workers/coarse-file-analysis-transport.test.js",
         "tests/indexing/workers/process-task-scheduler-retirement.test.js",
@@ -4652,6 +4653,7 @@
         "tests/storage/lmdb/native-artifact-parity.test.js",
         "tests/storage/lmdb/prefetch-close-ownership.test.js",
         "tests/storage/semantic/published-manifest-cache-authority.test.js",
+        "tests/storage/sqlite/explicit-source-authority.test.js",
         "tests/tooling/api-contracts/export-identity-cli.test.js",
         "tests/tooling/api-contracts/qualified-target-joins-cli.test.js",
         "tests/tooling/api-contracts/typescript-parameter-cli.test.js",
@@ -5038,6 +5040,7 @@
         "tests/indexing/runtime/stage-closeout-delayed-child.test.js",
         "tests/indexing/semantic/drain-publication-authority.test.js",
         "tests/indexing/semantic/native-authority-read-ownership.test.js",
+        "tests/indexing/validate/mode-finding-verdicts.test.js",
         "tests/perf/bench/vfs-io-ownership.test.js",
         "tests/retrieval/parity/partial-ranks-report.test.js",
         "tests/retrieval/relation-boost-zero-config.test.js",
@@ -5545,7 +5548,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 494,
+    "totalFlags": 497,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -5680,6 +5683,7 @@
       "ci-test-summary",
       "clean",
       "code",
+      "codeDir",
       "collection",
       "collectorDiagnostics",
       "collectorNow",
@@ -5740,6 +5744,7 @@
       "expires",
       "ext",
       "extensions",
+      "extractedProseDir",
       "fail",
       "fail-fast",
       "failOnWarn",
@@ -5929,6 +5934,7 @@
       "receipt",
       "recipe",
       "record",
+      "recordsDir",
       "recursive",
       "refresh",
       "refresh-json",
@@ -6909,6 +6915,15 @@
           "require-dicts",
           "require-index",
           "require-sqlite"
+        ]
+      },
+      {
+        "file": "tests/storage/sqlite/explicit-source-authority.test.js",
+        "flags": [
+          "codeDir",
+          "extractedProseDir",
+          "out",
+          "recordsDir"
         ]
       },
       {
@@ -8321,10 +8336,11 @@
       },
       {
         "flag": "out",
-        "count": 48,
+        "count": 49,
         "files": [
           "tests/fixtures/medium/generate.js",
           "tests/retrieval/parity/equivalence.test.js",
+          "tests/storage/sqlite/explicit-source-authority.test.js",
           "tests/tooling/fixtures/fixture-eval.test.js",
           "tools/analysis/structural-search.js",
           "tools/bench/dict-seg.js",

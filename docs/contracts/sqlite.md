@@ -23,6 +23,20 @@ explicit `--index-root` selects one root for every requested mode. A missing
 mode authority fails planning before any database is changed; a later mode may
 not replace an earlier mode's configured shared output database.
 
+Per-mode `--code-dir`, `--prose-dir`, `--extracted-prose-dir` and `--records-dir`
+(or corresponding API options) select their inputs before current roots are
+required for other modes. A detached input requires explicit `--out`. Its
+manifest, declared mode and generation must agree before target creation.
+`--as-of`/`--snapshot` cannot be combined with explicit `--index-root` or per-mode
+input directories; conflicting source authorities fail planning with that reason.
+
+Source, output and generation-state ownership are separate. A detached input,
+historical selection or output outside the selected generation's configured
+SQLite target cannot update the input's readiness, heartbeat, phase, checkpoints
+or zero-state proof. An empty detached source creates an actual empty database.
+Unknown input counts use the artifact decoder's independent row count; declared
+counts, including zero, must still match the imported database before publication.
+
 An empty source can waive the database requirement only through a verified
 zero-state marker. The marker binds mode, output path, index directory, build
 identity, artifact surface version and checksums of the selected empty source
