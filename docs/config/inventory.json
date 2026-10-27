@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-27T06:51:00.072Z",
+  "generatedAt": "2026-10-27T07:04:57.808Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -3704,6 +3704,7 @@
         "src/shared/storage/layout.js",
         "tests/context-pack/risk-truncation-contract.test.js",
         "tests/helpers/mcp-client.js",
+        "tests/indexing/embeddings/build/chunk-channel-cache-routes.test.js",
         "tests/indexing/runtime/category-session-teardown.test.js",
         "tests/indexing/runtime/failure-receipt-category-settlement.test.js",
         "tests/indexing/runtime/initialization-resource-unwind.test.js",
@@ -4614,6 +4615,7 @@
         "tests/context-pack/risk-truncation-contract.test.js",
         "tests/helpers/test-env.js",
         "tests/indexing/embeddings/build/cache-only-provider-admission.test.js",
+        "tests/indexing/embeddings/build/chunk-channel-cache-routes.test.js",
         "tests/indexing/file-processor/capped-read-compute-suspension.test.js",
         "tests/indexing/file-processor/coarse-worker-file-analysis.test.js",
         "tests/indexing/file-processor/mixed-scm-token-waits-admission.test.js",
