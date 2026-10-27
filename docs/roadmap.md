@@ -55,6 +55,10 @@ Shared managed selection and retained generation inspection are **unvalidated**
 at `6154945a4`; [implementation and 16 deferred cases](archived/managed-selection-implementation-2026-10-27.md)
 cover first-read protection, original file/Dir closure and metadata recovery.
 
+Observed provider profiles require a captured execution owner at **unvalidated**
+`d60d3cd10`; [invocation join and 13 deferred cases](archived/provider-invocation-implementation-2026-10-27.md)
+preserve unqualified live execution while built-in launch integration remains.
+
 These are scoped observations, not a combined full-suite or platform/model/release
 pass. Task checks omit only an inherited missing trusted-config selector;
 user/global settings and trust rules remain intact. Common lifecycle policy
