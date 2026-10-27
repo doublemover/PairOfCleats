@@ -26,11 +26,7 @@ Full front gates include 40/40 gate cases:
 
 | Receipt / source | Issue scope | Passing affected checks |
 | --- | --- | --- |
-| [c4bec36c8](archived/remaining-issue-repairs-2026-10-26.md) | #586, #670, #811, #1642 | 29; gate repair receipt |
-| [8bf742ec6](archived/service-progress-repairs-2026-10-26.md) | #1593 | 20 + full front gate |
-| [9d1c90a5c](archived/cache-retirement-repairs-2026-10-27.md) | #1591, #1718 | 14 + full front gate |
-| [3a1d08813](archived/runtime-p1-closeout-2026-10-27.md) | #1050, #1072–#1074, #1106, #1107 | 37 + full front gate |
-| [45e216edc](archived/stage-closeout-repairs-2026-10-27.md) | #1397 | 14 + full front gate |
+| [Boundaries](archived/remaining-issue-repairs-2026-10-26.md), [services](archived/service-progress-repairs-2026-10-26.md), [retirement](archived/cache-retirement-repairs-2026-10-27.md), [runtime](archived/runtime-p1-closeout-2026-10-27.md), [stages](archived/stage-closeout-repairs-2026-10-27.md) | Request, service and runtime closures | Source-specific affected checks + full front gates |
 | [a73b37be1](archived/storage-artifact-p1-closeout-2026-10-27.md) | #1089, #1109, #1551 | 12 + full front gate |
 | [7c3683ad0](archived/watch-retention-repairs-2026-10-27.md) | #690 | 38 + full front gate |
 | [1f7579910](archived/cache-ownership-p1-closeout-2026-10-27.md) | #1582, #1746 | 12 + full front gate |
@@ -42,7 +38,7 @@ Full front gates include 40/40 gate cases:
 | [ee01bb7fc](archived/generation-selection-repairs-2026-10-27.md) | #347 closed; captured generation and SQLite state ownership | 34 + full front gate |
 | [294e971bb](archived/query-vector-admission-2026-10-27.md) | #1006 closed; #1544 actual models/perf pending | 27 prior cohort; 14 final rechecks + full front gate |
 
-| [Native commands](archived/native-command-sessions-2026-10-27.md), [SQLite probes](archived/sqlite-probe-sessions-2026-10-27.md) | #1574 lifetimes/staged evidence; registration remains | 24/28 + full front gates |
+| [Commands](archived/native-command-sessions-2026-10-27.md), [probes](archived/sqlite-probe-sessions-2026-10-27.md), [validators](archived/native-validator-sessions-2026-10-27.md) | #1574 native lifetimes; registration remains | 24/28/32 + full front gates |
 
 These are scoped observations, not a combined full-suite or platform/model/release
 pass. Task checks omit only an inherited missing trusted-config selector;

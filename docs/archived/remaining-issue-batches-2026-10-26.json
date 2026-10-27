@@ -6612,7 +6612,7 @@
       "partialReceipt": "repository-cleanup-admission-2026-10-27.json",
       "remainingWork": [
         "Custom/external backend registration with producer/publication identity and explicit launch authority.",
-        "Validator, complete SQLite builder, sidecar and unadopted legacy-adapter native lifetimes.",
+        "Complete SQLite builder, sidecar and unadopted legacy/other-backend native lifetimes.",
         "Category-specific eligible backend deletion/requalification and all/multi-repo CLI/MCP acceptance."
       ],
       "followupSourceHeads": [
@@ -6622,7 +6622,8 @@
         "eea652a771f5900a3389d997c80600f8b70b30a7",
         "b22a42ca52982fbee424f88a2a1491fb57f43cf5",
         "753c7f9a013346fdc3b6f0d3472bd31236b5c282",
-        "9285c466433548a5055b621adf299b1e16a95e9d"
+        "9285c466433548a5055b621adf299b1e16a95e9d",
+        "8e91fa316389f52a45f7bab6a597c737363dff1f"
       ],
       "followupReceipts": [
         "sqlite-uncached-close-ownership-2026-10-27.json",
@@ -6630,10 +6631,12 @@
         "generation-selection-repairs-2026-10-27.json",
         "native-reader-sessions-2026-10-27.json",
         "native-command-sessions-2026-10-27.json",
-        "sqlite-probe-sessions-2026-10-27.json"
+        "sqlite-probe-sessions-2026-10-27.json",
+        "native-validator-sessions-2026-10-27.json"
       ],
       "followupQualifiedTests": [
         "indexing/contracts/index-format-cutover",
+        "indexing/validate/index-sqlite-zero-state-db-required",
         "indexing/validate/manifest-shared-read-plan",
         "indexing/validate/operation-generation-selection/capture-authority",
         "indexing/validate/operation-generation-selection/captured-move",
@@ -6674,6 +6677,22 @@
         "shared/storage/native-reader-lifetime/open-failure",
         "shared/storage/native-reader-lifetime/original-cache-close",
         "shared/storage/native-reader-lifetime/uncached",
+        "shared/storage/native-validator-sessions/lmdb",
+        "shared/storage/native-validator-sessions/lmdb-admission",
+        "shared/storage/native-validator-sessions/lmdb-metadata",
+        "shared/storage/native-validator-sessions/lmdb-missing",
+        "shared/storage/native-validator-sessions/lmdb-native",
+        "shared/storage/native-validator-sessions/lmdb-pending",
+        "shared/storage/native-validator-sessions/parity",
+        "shared/storage/native-validator-sessions/parity-admission",
+        "shared/storage/native-validator-sessions/parity-metadata",
+        "shared/storage/native-validator-sessions/parity-native",
+        "shared/storage/native-validator-sessions/parity-pending",
+        "shared/storage/native-validator-sessions/sqlite",
+        "shared/storage/native-validator-sessions/sqlite-admission",
+        "shared/storage/native-validator-sessions/sqlite-metadata",
+        "shared/storage/native-validator-sessions/sqlite-native",
+        "shared/storage/native-validator-sessions/sqlite-pending",
         "shared/storage/repo-cleanup-exclusion/metadata-failure",
         "shared/storage/repo-cleanup-exclusion/original-close",
         "shared/storage/repo-cleanup-exclusion/readers-and-race",
@@ -6694,6 +6713,7 @@
         "storage/lmdb/prefetch-close-ownership/retrieval",
         "storage/lmdb/prefetch-close-ownership/retrieval-storage",
         "storage/lmdb/prefetch-close-ownership/validator",
+        "storage/lmdb/prefetch-close-ownership/validator-storage",
         "storage/lmdb/replacement-atomicity",
         "storage/sqlite/batch-size-adaptive",
         "storage/sqlite/build-root-active-generation-plan",
