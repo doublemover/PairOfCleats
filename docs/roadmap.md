@@ -56,7 +56,8 @@ severity and shared dependencies, retaining qualification separately:
    (#631, #289), keeping live readers and original cleanup owners intact.
 3. Language/semantic/replay and retrieval/API evidence contracts; [comment source/demand ownership](archived/comment-pipeline-implementation-2026-10-27.md)
    has 38 authored JS/TS/Rust/import cases. [Frontmatter interiors](archived/frontmatter-content-implementation-2026-10-27.md)
-   have 8 more; other adapters, wrapped maps, general routing and execution remain.
+   have 8 more. [Metadata routing](archived/language-routing-implementation-2026-10-27.md)
+   removes eleven direct adapter edges; other adapters, wrapped maps, family loading and execution remain.
    [Early embedding selection](archived/embedding-selection-implementation-2026-10-27.md)
    pins the full-build request before Stage2; complete readiness/cache-only preflight remains.
    [Strict JSON admission](archived/json-import-admission-implementation-2026-10-27.md)

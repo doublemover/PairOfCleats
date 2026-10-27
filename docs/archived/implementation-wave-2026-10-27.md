@@ -22,6 +22,7 @@ work. Their separate receipts preserve exact trees, limitations and checks.
 | [08fe8b40b](frontmatter-content-implementation-2026-10-27.md) | Delimiter-free original frontmatter input, exact offsets and versioned source/cache identity | 8 authored cases; wrapped fence maps and complete functional qualification remain |
 | [bba2c5c8d](embedding-selection-implementation-2026-10-27.md) | Pre-Stage2 immutable model/resource selection and generation-only binding for inline/queued launches | 6 authored cases plus strengthened handoff; asset/runtime/cache-only preflight and other build routes remain |
 | [6dda56194 / 1d72db1a7](json-import-admission-implementation-2026-10-27.md) | Strict JSON collector envelopes, one bounded reference cursor walk and qualified JSONC compatibility omissions | 20 authored cases; actual collector/graph/replay and measured resource qualification remain |
+| [7394e4ba1](language-routing-implementation-2026-10-27.md) | Shared immutable routing metadata and eleven ID-only consumer migrations | 4 authored guards plus actual adapter parity; family/prose/worker loading and measurements remain |
 
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero

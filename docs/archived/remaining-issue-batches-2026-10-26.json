@@ -7134,9 +7134,9 @@
     },
     {
       "number": 1607,
-      "unvalidatedSourceHeads": ["a7283654154da72e028ce58ff6790a8d75180701"],
-      "unvalidatedReceipts": ["comment-pipeline-implementation-2026-10-27.md"],
-      "currentImplementation": "Comment metadata now imports frontmatter and token sequence/count leaves without the full segment dispatcher or classifier parser graph. Moved sequence code is byte-identical and the main export contract remains. Three guarded fresh-process cases are authored, unexecuted; primary routing/adapters, prose dispatch and measured initialization/resource qualification remain.",
+      "unvalidatedSourceHeads": ["a7283654154da72e028ce58ff6790a8d75180701", "7394e4ba1d6fb6f258350d695609bf2ede8886a8"],
+      "unvalidatedReceipts": ["comment-pipeline-implementation-2026-10-27.md", "language-routing-implementation-2026-10-27.md"],
+      "currentImplementation": "Comment metadata uses byte-identical sequence/frontmatter leaves. A shared canonical metadata/Linguist chooser now serves eleven ID-only consumers; real adapter lookup uses the same precedence and retains concrete methods. Seven fresh-process guards plus actual adapter parity are authored, unexecuted. Selected family loading, prose dispatch, worker initialization and measured resource/performance qualification remain.",
       "title": "[Perf] Keep language routing and prose chunking outside the eager code-parser module graph",
       "recordedDisposition": "implementation_needed",
       "priority": "Perf",
