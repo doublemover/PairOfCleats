@@ -25,6 +25,7 @@ import { createBenchQueryCapabilityCollector, formatBenchQueryCapabilityLines } 
 import { applyToolchainDaemonPolicyEnv } from '../../../src/shared/toolchain-env.js';
 import { resolveAdaptiveQueryWorkerCount } from './query-runtime.js';
 import { executeBenchQueryPlan } from './query-execution.js';
+import { createBenchProcessTreeSampler } from '../../../tools/bench/language/process-tree-memory.js';
 import { createBenchQueryOutcomeCollector } from '../../../tools/bench/language/query-outcomes.js';
 
 const root = process.cwd();
@@ -610,7 +611,7 @@ const runQueries = async (requestedConcurrency) => {
     if (Number.isFinite(rss)) memoryRss[task.backend].push(rss);
   };
   const workerObservation = await executeBenchQueryPlan({ plan: executionPlan, tasks: queryTasks,
-    workerOptions, runTask: runQueryTask });
+    workerOptions, runTask: runQueryTask, processTreeSampler: createBenchProcessTreeSampler() });
   logQueryProgress(true);
   const queryWallMs = Date.now() - queryProgress.startMs;
   const queryWallMsPerSearch = totalSearches ? queryWallMs / totalSearches : null;

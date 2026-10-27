@@ -1,10 +1,12 @@
-import { runWithConcurrency } from '../../../src/shared/concurrency/run-with-queue.js';
+import { runWithSettledConcurrency } from '../../../src/shared/concurrency/run-with-queue.js';
+import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
 import { createSearchWorkerPool, classifyQueryBackend } from './query-runtime.js';
 
 /** Execute the admitted stages through the existing grouped pool and queue.
  * Closing a stage owns its workers before any sibling stage can be allocated. */
 export const executeBenchQueryPlan = async ({ plan, tasks, runTask, workerOptions = {},
-  createPool = createSearchWorkerPool, sampleParentRss = () => process.memoryUsage().rss } = {}) => {
+  createPool = createSearchWorkerPool, sampleParentRss = () => process.memoryUsage().rss,
+  processTreeSampler = null } = {}) => {
   if (plan?.status !== 'admitted') throw Object.assign(new Error(`Benchmark query resource plan is unsupported: ${plan?.reason}`),
     { code: 'ERR_BENCH_QUERY_PLAN_UNSUPPORTED', plan });
   const stagesByClass = new Map(plan.stages.flatMap(stage => Object.keys(stage.sizeByBackend).map(key => [key, stage])));
@@ -22,6 +24,7 @@ export const executeBenchQueryPlan = async ({ plan, tasks, runTask, workerOption
     if (Number.isFinite(value)) observed.peakKnownProcessRssBytes = Math.max(observed.peakKnownProcessRssBytes ?? 0, value);
   };
   const onEvent = event => {
+    processTreeSampler?.observeEvent(event);
     const pid = event?.pid;
     if (Number.isSafeInteger(pid) && pid > 0) {
       if (event.type === 'process-start') live.set(pid, null);
@@ -43,29 +46,53 @@ export const executeBenchQueryPlan = async ({ plan, tasks, runTask, workerOption
     workerOptions.onEvent?.(event);
   };
   sample();
-  for (const stage of plan.stages) {
-    const selected = tasks.filter(task => stagesByClass.get(classifyQueryBackend(task.backend)) === stage);
-    if (!selected.length) continue;
-    const pool = createPool({ ...workerOptions, size: stage.effectiveConcurrency, sizeByBackend: stage.sizeByBackend,
-      maxRunsPerWorkerByBackend: plan.backendMaxRunsPerWorker, onEvent });
-    try {
-      await runWithConcurrency(selected, stage.effectiveConcurrency, async task => {
-        const backend = task.backend;
-        observed.submitted++; observed.activeReservations++;
-        observed.submittedByBackend[backend] = (observed.submittedByBackend[backend] || 0) + 1;
-        observed.activeByBackend[backend] = (observed.activeByBackend[backend] || 0) + 1;
-        observed.peakActiveReservations = Math.max(observed.peakActiveReservations, observed.activeReservations);
-        observed.peakActiveByBackend[backend] = Math.max(observed.peakActiveByBackend[backend] || 0, observed.activeByBackend[backend]);
-        try {
-          await runTask(task, pool);
-          observed.completed++; observed.completedByBackend[backend] = (observed.completedByBackend[backend] || 0) + 1;
-        } catch (error) { observed.failed++; throw error; }
-        finally { observed.activeReservations--; observed.activeByBackend[backend]--; }
-      }, { retries: 0 });
-    } finally {
-      await pool.close();
+  let failure, failed = false;
+  const retainFailure = error => {
+    failure = failed ? addStorageFailureContext(failure, {}, error, { secondaryPresent: true }) : error;
+    failed = true;
+  };
+  try {
+    for (const [stageIndex, stage] of plan.stages.entries()) {
+      const selected = tasks.filter(task => stagesByClass.get(classifyQueryBackend(task.backend)) === stage);
+      if (!selected.length) continue;
+      let pool = null;
+      try {
+        await processTreeSampler?.beginPhase(`query-stage-${stageIndex}`);
+        pool = createPool({ ...workerOptions, size: stage.effectiveConcurrency, sizeByBackend: stage.sizeByBackend,
+          maxRunsPerWorkerByBackend: plan.backendMaxRunsPerWorker, onEvent });
+        await runWithSettledConcurrency(selected, stage.effectiveConcurrency, async task => {
+          const backend = task.backend;
+          observed.submitted++; observed.activeReservations++;
+          observed.submittedByBackend[backend] = (observed.submittedByBackend[backend] || 0) + 1;
+          observed.activeByBackend[backend] = (observed.activeByBackend[backend] || 0) + 1;
+          observed.peakActiveReservations = Math.max(observed.peakActiveReservations, observed.activeReservations);
+          observed.peakActiveByBackend[backend] = Math.max(observed.peakActiveByBackend[backend] || 0, observed.activeByBackend[backend]);
+          try {
+            await runTask(task, pool);
+            observed.completed++; observed.completedByBackend[backend] = (observed.completedByBackend[backend] || 0) + 1;
+          } catch (error) { observed.failed++; throw error; }
+          finally { observed.activeReservations--; observed.activeByBackend[backend]--; }
+        });
+      } catch (error) {
+        retainFailure(error);
+      } finally {
+        try { await pool?.close(); } catch (error) { retainFailure(error); }
+        try { await processTreeSampler?.endPhase(); } catch (error) { retainFailure(error); }
+      }
+      if (failed) break;
+      observed.stagesCompleted++;
     }
-    observed.stagesCompleted++;
-  }
+  } catch (error) { retainFailure(error); }
+  try {
+    const measurement = await processTreeSampler?.finish();
+    if (measurement) {
+      observed.processTreeMemory = measurement;
+      observed.processTreeRssPeakBytes = measurement.sampledPeakBytes;
+      observed.processTreeRssPeakIsLowerBound = measurement.peakIsLowerBound;
+      observed.processTreeRssScope = 'observed-owned-descendants-excluding-observer';
+      observed.descendantRssCoverage = measurement.status;
+    }
+  } catch (error) { retainFailure(error); }
+  if (failed) throw addStorageFailureContext(failure, { benchmarkQueryObservation: observed });
   return observed;
 };

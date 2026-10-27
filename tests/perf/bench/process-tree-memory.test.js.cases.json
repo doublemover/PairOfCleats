@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["descendants", "pid-reuse", "orphan", "partial", "malformed", "lifecycle", "bounds", "overlap", "unavailable", "unsettled-observer", "unsupported", "reader", "failure-drain"]
+}

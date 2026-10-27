@@ -52,7 +52,7 @@ try {
         totalSystemMemoryBytes:8*1024**3,codeArtifactBytes:0,proseArtifactBytes:0,sqliteCodeBytes:0,sqliteProseBytes:0});};`,
     './query-execution.js': `import {executeBenchQueryPlan as actual} from ${JSON.stringify(execution)};
       import PQueue from ${JSON.stringify(queue)};let pid=50000;
-      export const executeBenchQueryPlan=options=>actual({...options,createPool(config){
+      export const executeBenchQueryPlan=options=>actual({...options,processTreeSampler:null,createPool(config){
         globalThis.queryPoolCalls.push(config.sizeByBackend);
         const queues=Object.fromEntries(Object.entries(config.sizeByBackend).map(([key,size])=>[key,new PQueue({concurrency:size})]));
         return {run(args,meta){return queues[meta.backend==='memory'?'memory':'sqlite'].add(async()=>{
