@@ -6,6 +6,12 @@ Current execution evidence and unresolved failures belong to the
 [deep test audit](../archived/deep-test-audit-2026-10-18.md) and the
 [active roadmap](../roadmap.md).
 
+Current Clangd acquisition and managed-file lifetime source is **unvalidated**
+at `773e6893e`; [20 authored checks and remaining qualification](../archived/clangd-acquisition-implementation-2026-10-27.md)
+separate inert archive/format fixtures from actual Windows installation,
+allocation high-water and consumer/protocol acceptance. No native execution or
+other platform qualification is established by this implementation checkpoint.
+
 Windows TUI generation-install qualification uses an exact checksum-verified
 staged release through `tui/native-install-generation-conpty`. Pass its input
 explicitly after the runner separator: `-- --dist-dir <staged-distribution>`;

@@ -6463,9 +6463,9 @@
     },
     {
       "number": 1559,
-      "unvalidatedSourceHeads": ["723f39f1acb49c4e8b88e3335e5b829fdd220429"],
-      "unvalidatedReceipts": ["provider-allocation-contract-2026-10-27.md"],
-      "currentImplementation": "One pure allocation contract classifies canonical cache recipes and exposes non-installable blockers; unqualified forecasts cannot admit writes; first-search identity covers the new owners. Actual package closure, qualified allowances and nested archive single-owner adoption remain implementation work.",
+      "unvalidatedSourceHeads": ["723f39f1acb49c4e8b88e3335e5b829fdd220429", "773e6893e18e1e570562a41a280231109f6c61f8"],
+      "unvalidatedReceipts": ["provider-allocation-contract-2026-10-27.md", "clangd-acquisition-implementation-2026-10-27.md"],
+      "currentImplementation": "One pure allocation contract classifies canonical cache recipes and exposes non-installable blockers; unqualified forecasts cannot admit writes. Clangd now invokes one bounded archive acquisition directly, with allocation, async probe and exact cleanup ownership. Actual package closure and qualified build allowances remain implementation work; all new functional checks are deferred.",
       "title": "Make selected provider install recipes satisfy managed storage admission on clean machines",
       "recordedDisposition": "implementation_needed",
       "priority": "unranked",
@@ -6767,12 +6767,14 @@
         "storage/sqlite/zero-state-proof-admission"
       ],
       "unvalidatedSourceHeads": [
-        "47ca8bea98676b43aa86dfb53e23adbb94036bf3"
+        "47ca8bea98676b43aa86dfb53e23adbb94036bf3",
+        "773e6893e18e1e570562a41a280231109f6c61f8"
       ],
       "unvalidatedReceipts": [
-        "sqlite-operation-implementation-2026-10-27.md"
+        "sqlite-operation-implementation-2026-10-27.md",
+        "clangd-acquisition-implementation-2026-10-27.md"
       ],
-      "currentImplementation": "Production SQLite runner and explicit-context artifact/bundle/incremental helpers now own source planning, exact native/sidecar paths, selected temporary category, accepted child work, publication and asynchronous teardown. Functional qualification is deferred; source is not acceptance."
+      "currentImplementation": "SQLite runner/helpers own source/native/temp planning through asynchronous teardown. Clangd acquisition retains download/archive/probe settlement and original file operations through shared storage ownership. Functional qualification is deferred; remaining legacy/custom adoption is not discharged."
     },
     {
       "number": 1575,

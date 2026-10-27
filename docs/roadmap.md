@@ -46,6 +46,11 @@ Provider allocation classification is **unvalidated** at `723f39f1a`;
 keep forecasts planning-only, expose canonical recipe blockers and preserve the
 earlier gopls deferred-install evidence. Standalone managed-command lookup is also implemented.
 
+Clangd acquisition now has one admitted archive owner and an async bounded probe
+at **unvalidated** `773e6893e`; [implementation and 20 deferred cases](archived/clangd-acquisition-implementation-2026-10-27.md)
+cover nested-wrapper removal, original file lifetimes and retained cleanup.
+Package build bounds and actual Windows installation/consumer qualification remain.
+
 These are scoped observations, not a combined full-suite or platform/model/release
 pass. Task checks omit only an inherited missing trusted-config selector;
 user/global settings and trust rules remain intact. Common lifecycle policy
