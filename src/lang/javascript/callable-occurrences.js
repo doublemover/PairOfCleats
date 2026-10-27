@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { stableStringifyForSignature } from '../../shared/stable-json.js';
 import { getJavaScriptSyntaxIdentity, ownsJavaScriptSyntaxText } from './parse.js';
 import { JAVASCRIPT_RELATIONS_VERSION } from './version.js';
+import { createJavaScriptDocCommentOwner } from './doc-comments.js';
 
 export { JAVASCRIPT_RELATIONS_VERSION } from './version.js';
 const snapshots = new WeakMap(), admissions = new WeakMap();
@@ -54,6 +55,7 @@ export const javascriptDeclarationReference = (ast, text, node, parent = null) =
 
 export const createJavaScriptDeclarationCatalog = (ast, text) => {
   const source = javascriptDeclarationSource(ast, text);
+  const documentation = createJavaScriptDocCommentOwner(ast, text);
   let declarations = 0;
   const catalog = { schemaVersion: 1, producerVersion: JAVASCRIPT_RELATIONS_VERSION, source,
     records: Object.create(null), rangeOwners: Object.create(null), nameOwners: Object.create(null),
@@ -64,7 +66,8 @@ export const createJavaScriptDeclarationCatalog = (ast, text) => {
     if (!reference) { partial('declaration_range_unavailable'); return null; }
     if (Object.hasOwn(catalog.records, reference.id)) return catalog.records[reference.id];
     if (declarations >= catalog.coverage.maxDeclarations) { partial('declaration_admission_limit'); return null; }
-    const record = { ...reference, kind, displayName, internalName: node.id?.name || null, parentId, metadata };
+    const record = { ...reference, kind, displayName, internalName: node.id?.name || null, parentId, metadata,
+      documentation: documentation.forDeclaration(reference.associations) };
     catalog.records[record.id] = record;
     declarations++;
     for (const value of record.associations) (catalog.rangeOwners[key(value.range)] ||= []).push(record.id);

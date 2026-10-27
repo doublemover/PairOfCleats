@@ -66,6 +66,7 @@ export function parseBabelAst(text, options = {}) {
       plugins
     });
     if (ast && ast.type === 'File' && ast.program) {
+      if (Array.isArray(ast.comments) && !Array.isArray(ast.program.comments)) Object.defineProperty(ast.program, 'comments', { value: ast.comments });
       if (ast.errors?.length) Object.defineProperty(ast.program, 'errors', { value: ast.errors });
       if (includeTokens && ast.tokens && !ast.program.tokens) {
         ast.program.tokens = ast.tokens;

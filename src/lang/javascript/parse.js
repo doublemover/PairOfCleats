@@ -8,8 +8,11 @@ const parserVersions = { babel: require('@babel/parser/package.json').version,
   acorn: require('acorn/package.json').version, esprima: require('esprima/package.json').version };
 const syntaxOwners = new WeakMap();
 const syntaxSources = new WeakMap();
+const syntaxComments = new WeakMap();
+export const JAVASCRIPT_COMMENT_LIMIT = 20000;
 export const getJavaScriptSyntaxIdentity = (ast) => syntaxOwners.get(ast) || null;
 export const ownsJavaScriptSyntaxText = (ast, text) => syntaxSources.has(ast) && syntaxSources.get(ast) === text;
+export const getJavaScriptCommentRanges = (ast, text) => ownsJavaScriptSyntaxText(ast, text) ? syntaxComments.get(ast) || null : null;
 
 const JS_PARSERS = new Set(['auto', 'babel', 'acorn', 'esprima']);
 
@@ -28,18 +31,23 @@ function resolveFlowMode(options = {}) {
 }
 
 function parseWithAcorn(text) {
-  return acorn.parse(text, {
+  const comments = [];
+  const ast = acorn.parse(text, {
     ecmaVersion: 'latest',
     locations: true,
     ranges: true,
-    sourceType: 'module'
+    sourceType: 'module',
+    onComment: comments
   });
+  Object.defineProperty(ast, 'comments', { value: comments });
+  return ast;
 }
 
 function parseWithEsprima(text) {
   return esprima.parseModule(text, {
     jsx: true,
     tolerant: true,
+    comment: true,
     loc: true,
     range: true
   });
@@ -74,6 +82,18 @@ export function parseJavaScriptAst(text, options = {}) {
     if (ast) {
       syntaxOwners.set(ast, { family: kind, version: parserVersions[kind], options: { ext, flowMode } });
       syntaxSources.set(ast, text);
+      const comments = Array.isArray(ast.comments) ? ast.comments : [];
+      let complete = comments.length <= JAVASCRIPT_COMMENT_LIMIT;
+      const ranges = [];
+      if (complete) for (const comment of comments) {
+        const start = comment.start ?? comment.range?.[0], end = comment.end ?? comment.range?.[1];
+        if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || end <= start || end > text.length) {
+          complete = false; break;
+        }
+        ranges.push(Object.freeze({ start, end }));
+      }
+      syntaxComments.set(ast, Object.freeze({ complete,
+        ranges: Object.freeze(complete ? ranges.sort((a, b) => a.end - b.end) : []) }));
       return ast;
     }
   }

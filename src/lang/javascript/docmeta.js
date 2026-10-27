@@ -1,4 +1,5 @@
 import { projectJavaScriptDeclaration } from './declaration-projection.js';
+import { resolveStandaloneJavaScriptDocumentation } from './doc-comments.js';
 /**
  * Extract lightweight doc metadata for JS chunks.
  * @param {string} text
@@ -7,49 +8,12 @@ import { projectJavaScriptDeclaration } from './declaration-projection.js';
  */
 export function extractDocMeta(text, chunk, astMeta = null, sourceView = null) {
   const chunkText = text.slice(chunk.start, chunk.end);
-  const docLines = [];
-  const params = [];
-  const paramTypes = {};
-  let returnsDoc = false;
-  let returnType = null;
-
-  if (
-    chunkText.includes('//')
-    || chunkText.includes('/*')
-    || chunkText.includes('\n*')
-    || chunkText.includes('\n#')
-    || chunkText.trimStart().startsWith('*')
-    || chunkText.trimStart().startsWith('#')
-  ) {
-    const lines = chunkText.split('\n');
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed.startsWith('*') || trimmed.startsWith('//') || trimmed.startsWith('#')) {
-        docLines.push(line);
-      }
-    }
-  }
-
-  if (chunkText.includes('@param')) {
-    const paramRe = /@param\s+(?:{([^}]+)}\s+)?(\w+)/g;
-    let match;
-    while ((match = paramRe.exec(chunkText)) !== null) {
-      const type = match[1] ? match[1].trim() : '';
-      const name = match[2];
-      if (!name) continue;
-      params.push(name);
-      if (type) paramTypes[name] = type;
-      if (!match[0]) paramRe.lastIndex += 1;
-    }
-  }
-
-  if (chunkText.includes('@return')) {
-    returnsDoc = /@returns? /.test(chunkText);
-    const returnTypeMatch = chunkText.match(/@returns?\s+{([^}]+)}/);
-    returnType = returnTypeMatch ? returnTypeMatch[1].trim() : null;
-  }
   const projection = projectJavaScriptDeclaration(text, chunk, astMeta, astMeta?.jsDeclarations?.analysis, sourceView);
   const nameMeta = projection.join.record ? projection.metadata : null;
+  const documentation = projection.join.record?.documentation || resolveStandaloneJavaScriptDocumentation(text, chunk);
+  const params = documentation.parameters.map(parameter => parameter.name);
+  const paramTypes = { ...Object.fromEntries(documentation.parameters.filter(parameter => parameter.type)
+    .map(parameter => [parameter.name, parameter.type])), ...(nameMeta?.paramTypes || {}) };
   const metaParams = Array.isArray(nameMeta?.params) ? nameMeta.params : params;
   const metaParamNames = Array.isArray(nameMeta?.paramNames)
     ? nameMeta.paramNames
@@ -61,10 +25,14 @@ export function extractDocMeta(text, chunk, astMeta = null, sourceView = null) {
     const matchFn = chunkText.match(/function\s+([A-Za-z0-9_$]+)?\s*\(([^\)]*)\)/);
     if (matchFn) mergedSignature = `function ${matchFn[1] || ''}(${matchFn[2]})`;
   }
-  const mergedReturnType = nameMeta?.returnType || returnType || null;
+  const mergedReturnType = nameMeta?.returnType || documentation.returnType || null;
 
   return {
-    doc: docLines.join('\n').slice(0, 300),
+    doc: documentation.range ? text.slice(documentation.range.start, documentation.range.end).slice(0, 300) : '',
+    documentation: { ...documentation, authority: 'documentation', range: documentation.range ? {
+      start: documentation.range.start + (sourceView?.offset || 0),
+      end: documentation.range.end + (sourceView?.offset || 0)
+    } : null },
     params: metaParams,
     paramNames: metaParamNames,
     paramTypes,
@@ -72,7 +40,7 @@ export function extractDocMeta(text, chunk, astMeta = null, sourceView = null) {
     paramDefaultLiterals: nameMeta?.paramDefaultLiterals || {},
     ...(nameMeta?.callableParameters ? { callableParameters: nameMeta.callableParameters } : {}),
     returnType: mergedReturnType,
-    returns: returnsDoc,
+    returns: documentation.returns,
     signature: mergedSignature,
     modifiers: nameMeta?.modifiers || null,
     methodKind: nameMeta?.methodKind || null,

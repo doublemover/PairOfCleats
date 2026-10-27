@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["optional-default", "nested-records", "generic-union", "rest", "dotted", "string-template", "body-comment", "unrelated-leading", "leading-outside", "malformed", "empty", "source-unavailable", "byte-budget", "type-depth", "babel", "acorn", "esprima", "ast-precedence", "embedded-offset", "prototype-key", "comment-tamper"]
+}
