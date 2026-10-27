@@ -77,3 +77,23 @@ states. Actual metadata/stripping range consumers remain in the path. Static
 format/ESLint, syntax, config budget, inventory and whitespace checks pass; shared
 module analysis remains cycle-free. Other language adapters, fence/source maps,
 structural admission and all functional qualification remain open.
+
+## Comment-only import boundary
+
+Source `a7283654154da72e028ce58ff6790a8d75180701`, tree
+`22bf17b41517a67069e2b818507e42bf98a3661b`, moves the existing token-sequence
+implementation into a leaf module, preserving the main barrel's exports and
+callers. Direct comment metadata imports now select the frontmatter leaf and
+sequence/count owner rather than all segment dispatch and token classification.
+Normalized moved implementation text is byte-identical, SHA-256
+`8c62447553c6aa4e0773337ac779a5ac0cc042ba4bb98e7e83ccf58fc1266382`.
+No token semantics, parser fallback ordering or initialization success is changed.
+
+Three fresh-process import-guard cases are authored, unexecuted: module load,
+no-comment JS and actual Python doc eligibility. All repository imports occur
+after the guard; unrelated parser/dispatcher/classifier/vendor initialization
+fails the fixture. These are structural controls, not latency/RSS measurements.
+Static format/ESLint, syntax, config budget, inventory and whitespace checks pass;
+shared-module cycles remain zero. This wave now has 38 authored comment cases.
+#1607 stays open: main language routing/adapters and prose dispatch still require
+their separate initialization boundaries and measured resource qualification.

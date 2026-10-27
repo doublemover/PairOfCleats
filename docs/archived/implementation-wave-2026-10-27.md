@@ -18,7 +18,8 @@ work. Their separate receipts preserve exact trees, limitations and checks.
 | [1515ad0a8](dependency-ownership-implementation-2026-10-27.md) / `506cd2acb` | Five proven dependency retirements, three permission removals and direct benchmark child window suppression | Inventory/feature regressions deferred; whole process-tree measurement remains |
 | [18a113754](javascript-documentation-implementation-2026-10-27.md) | Source-owned parser comments and bounded structured JSDoc hints | 21 authored cases; parser/consumer/replay/import qualification deferred |
 | [f6c82c945](native-workflow-preflight-implementation-2026-10-27.md) | Shared stats preflight and proven stale native catalog/editor witnesses | 3 new CLI and 1 new native case; all 19 native workflows remain unqualified |
-| [2fba78f6d / 481536c05 / 4437d9994 / 6f3dd060f](comment-pipeline-implementation-2026-10-27.md) | Parser-owned JS/TS comments, bounded Rust lexing, demanded config parsing and compact token counts | 35 authored cases; other adapters, logical maps and functional qualification remain |
+| [2fba78f6d / 481536c05 / 4437d9994 / 6f3dd060f / a72836541](comment-pipeline-implementation-2026-10-27.md) | Parser-owned JS/TS comments, bounded Rust lexing, demanded config parsing, compact counts and comment-only import leaves | 38 authored cases; other adapters, logical maps, general routing and qualification remain |
+| [08fe8b40b](frontmatter-content-implementation-2026-10-27.md) | Delimiter-free original frontmatter input, exact offsets and versioned source/cache identity | 8 authored cases; wrapped fence maps and complete functional qualification remain |
 
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero

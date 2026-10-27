@@ -7131,6 +7131,9 @@
     },
     {
       "number": 1607,
+      "unvalidatedSourceHeads": ["a7283654154da72e028ce58ff6790a8d75180701"],
+      "unvalidatedReceipts": ["comment-pipeline-implementation-2026-10-27.md"],
+      "currentImplementation": "Comment metadata now imports frontmatter and token sequence/count leaves without the full segment dispatcher or classifier parser graph. Moved sequence code is byte-identical and the main export contract remains. Three guarded fresh-process cases are authored, unexecuted; primary routing/adapters, prose dispatch and measured initialization/resource qualification remain.",
       "title": "[Perf] Keep language routing and prose chunking outside the eager code-parser module graph",
       "recordedDisposition": "implementation_needed",
       "priority": "Perf",
@@ -7509,6 +7512,9 @@
     },
     {
       "number": 1652,
+      "unvalidatedSourceHeads": ["08fe8b40ba060e7ab0531111c62279f62b96cab8"],
+      "unvalidatedReceipts": ["frontmatter-content-implementation-2026-10-27.md"],
+      "currentImplementation": "Frontmatter config input is its exact original delimiter-free UTF-16 interior, preserving LF/CRLF and separate broad prose/container boundaries. Extraction policy enters segment identity; shared source chunking 35 enters file parse/replay identity. Eight actual chunk/VFS cases are authored, unexecuted. Wrapped/list/indented fence views and canonical piecewise map/semantic/VFS qualification remain.",
       "title": "Separate Markdown container extents from embedded parser content and source maps",
       "recordedDisposition": "implementation_needed",
       "priority": "unranked",

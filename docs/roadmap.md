@@ -55,7 +55,8 @@ severity and shared dependencies, retaining qualification separately:
 2. Worker/child/service ownership, provider installation and compilation context
    (#631, #289), keeping live readers and original cleanup owners intact.
 3. Language/semantic/replay and retrieval/API evidence contracts; [comment source/demand ownership](archived/comment-pipeline-implementation-2026-10-27.md)
-   has 35 authored JS/TS/Rust cases; other adapters, logical maps and execution remain.
+   has 38 authored JS/TS/Rust/import cases. [Frontmatter interiors](archived/frontmatter-content-implementation-2026-10-27.md)
+   have 8 more; other adapters, wrapped maps, general routing and execution remain.
 4. Native TUI/editor workflows: [catalog/editor witnesses and stats admission](archived/native-workflow-preflight-implementation-2026-10-27.md)
    are repaired in source; all actual workflows remain unqualified (#635).
 5. Performance/evaluation after correctness: retained comparisons (#1663),
