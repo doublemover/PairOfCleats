@@ -1,13 +1,28 @@
 # GitHub issue closeout review — 2026-10-26
 
-Status: Assessment prepared; GitHub publication pending.
+Status: Published and reconciled. 27 issues closed; all 743 remaining issues updated.
 
 Reviewed all 770 open issues and 238 comments against `accf98f64a560a5df9b1bdb175f7ca22331672af` on
 `codex/pr557-audit-repairs-20261012`. The live issue bodies match the prior complete
 intake; follow-up comments are part of acceptance. Original bodies/comments are
-preserved. This audit identifies 27 completed fixes, 150 partial/follow-up owners,
+preserved. This audit closed 27 completed fixes and retains 150 partial/follow-up owners,
 477 recorded implementations awaiting qualification and 116 implementation gaps.
 The old 35 “fixed” entries were closing references: eight still need acceptance.
+
+## Publication and live reconciliation
+
+Verified at `2026-10-27T00:52:58.178Z`: all 743 remaining open issues have a maintained
+status, concrete completion checklist, source/check pointers and pinned assessment.
+All 27 closures were independently read back as `closed` / `completed`. There were
+zero missing or unexpected open issues, changed descriptions/comments or altered
+labels, assignees and milestones. Original descriptions remain byte-identical
+beneath the review section. The review covered all 238 existing comments.
+
+PR #572 now lists all remaining issues and removes eight unfinished automatic-
+closing references. Two issues additionally retain current hosted evidence:
+#631 (installed gopls discovery) and #635 (native index catalog/workflow timeout).
+Generated config inventories were refreshed by the existing budget command; no
+allowlist, threshold, configuration or public contract was relaxed.
 
 ## Qualification
 
@@ -18,8 +33,8 @@ failures, timeouts, skips or native crashes; one attempt, 30-second limits, zero
 retries/native-status redo. The publication front gate also passed: 40/40 gate
 cases, config/environment budgets, generated freshness, command/workflow contracts
 and formatting. The command audit first rejected a nonexistent inherited trusted-
-config path; it passed after child-only removal of that invalid setting. This qualifies the listed issue owners, not the full
-suite, new implementation batches or separate platform/model/release programs.
+config path; it passed after child-only removal of that invalid setting.
+This qualifies the listed issue owners, not the full suite, new implementation batches or separate platform/model/release programs.
 
 The [machine-readable assessment](github-issue-closeout-2026-10-26.json) records
 every issue, original body/comment digests, source/test mappings, specific remaining
@@ -28,7 +43,7 @@ selection; only qualifiedTests are executed evidence. Author-workspace raw
 responses/logs under `.tmp/tasks/github-issue-closeout-20261026/` are historical
 local evidence, not files promised in clean checkouts.
 
-## Completed fixes proposed for closure
+## Completed fixes closed
 
 - [#627](https://github.com/doublemover/PairOfCleats/issues/627): Balanced Rust tooling parsing and declaration-owned native fields retain lifetime/nesting, ordered parameters, returns, modifiers, documentation and source coverage through registered metadata and replay.
 - [#982](https://github.com/doublemover/PairOfCleats/issues/982): Spill checkpoints bind ordered input content and comparator identity; changed inputs cannot reuse stale merged runs.
@@ -57,6 +72,20 @@ local evidence, not files promised in clean checkouts.
 - [#1340](https://github.com/doublemover/PairOfCleats/issues/1340): Text-vector rows bind explicit format, encoding, dimensions, exact length and digest; malformed/legacy/precision-mismatched rows miss safely.
 - [#1341](https://github.com/doublemover/PairOfCleats/issues/1341): Query vectors are checked against effective post-fallback provider/artifact identity before cache reuse or ANN admission.
 - [#1357](https://github.com/doublemover/PairOfCleats/issues/1357): One serialization owner fans identical bounded bytes to raw and compressed outputs, joining backpressure, sink faults and cancellation.
+
+## Hosted CI remains incomplete
+
+At `f8532f1d2`, gate, policy and Rust TUI passed; seven broader jobs failed.
+The current Windows evidence remains distinct from the 27 local issue witnesses:
+
+- [Windows](https://github.com/doublemover/PairOfCleats/actions/runs/40425503163/job/121930737805): installed-default gopls qualification cannot discover an eligible command. The bounded log is truncated; this is an observed blocker, not a claim that it is the only failure.
+- [Native inspection on Windows](https://github.com/doublemover/PairOfCleats/actions/runs/40425503163/job/121930737821): 12 passed, 7 failed and 11 timed out; failed index workflows do not reach the canonical catalog-loaded witness.
+- [Windows authority](https://github.com/doublemover/PairOfCleats/actions/runs/40425503163/job/121930737881): 4 passed, 1 failed and 42 skipped after `indexing/incremental/reuse` reported expected-reuse failure. Those skips provide no authority qualification.
+
+The remaining hosted Linux/macOS failure states are recorded without attribution.
+No Linux/macOS checks or hosted reruns were executed locally for this audit.
+Broader CI and the remaining issue acceptance stay open; no full-suite green is
+claimed.
 
 ## Remaining owners
 

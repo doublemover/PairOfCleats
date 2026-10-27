@@ -1,6 +1,6 @@
 # PairOfCleats Roadmap
 
-Status: Solo issue closeout review; targeted Windows evidence recorded
+Status: Issue review published; remaining implementation/qualification tracked
 Last audited: 2026-10-26
 Last reconciled: 2026-10-26
 Canonical for: initiative status, execution order, and remaining work
@@ -8,10 +8,9 @@ Canonical for: initiative status, execution order, and remaining work
 ## Current GitHub repair program
 
 Current reconciliation, 2026-10-26: [the closeout review](archived/github-issue-closeout-2026-10-26.md)
-assessed all **770 open issues and 238 comments**. It identifies **27 completed**
-fixes for closure, **477 recorded implementations awaiting qualification**, **150
-partial/follow-up owners** and **116 implementation gaps**. GitHub publication is
-pending. The old 35 “fixed” entries included eight incomplete follow-ups.
+assessed all **770 open issues and 238 comments**. It closed **27 completed issues**, **477 implementations awaiting qualification**, **150 partial/follow-up
+owners** and **116 implementation gaps**. All **743 remaining issues are updated**
+and live-reconciled. Eight older closing references retain unfinished acceptance.
 
 The [complete assessment](archived/github-issue-closeout-2026-10-26.json) records
 remaining work, current source/test mappings and exact closure witnesses.
@@ -19,8 +18,8 @@ At `accf98f64`, 27 focused Windows checks pass with zero failures/timeouts/skips
 crashes/retries; native/patch verification is clean. This does not qualify the
 full suite or other new batches. [Implementation receipts](archived/solo-issue-repairs-2026-10-25.md)
 retain source checkpoints and the [prior inventory](archived/github-issue-coverage-2026-10-25.json)
-remains historical. Work is solo and Windows-only; unrelated platform/model/
-release qualification remains separate.
+remains historical. Work is solo and Windows-only. Hosted gate/policy/Rust TUI
+passed at `f8532f1d2`; seven broader jobs failed (see the review).
 
 The solo batches repair publication/recovery and resource lifetime, immutable
 source/record identities, language extraction and declaration/flow ownership,
@@ -62,7 +61,7 @@ Comment classification now preserves ordinary prose, explicit notice/exclusion
 receipts and custom matcher policy; paired raw extraction is policy-versioned
 with fresh consumer tokenization (#1657; sourceChunking34).
 The curated ci-lite lane contains 1,375 cases. Most new/strengthened regressions
-remain unrun; the closeout review records its 27 named passing checks. Completed batch detail, issue mappings and exact static-
+remain unrun; the review records its 27 passing checks. Batch detail and static-
 check receipts are in the linked implementation archive and complete inventory.
 
 Execution remains solo, Windows-only and implementation-first. Finish remaining
