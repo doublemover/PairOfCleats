@@ -165,10 +165,10 @@ export const createQueueWorker = ({
     const logPath = job.logPath || path.join(queueDir, 'logs', `${job.id}.log`);
     if (claimControl.leaseLost) return { logPath };
     const stopProgress = monitorBuildProgress
-      ? startBuildProgressMonitor({ job, repoPath: job.repo, stage: job.stage })
+      ? startBuildProgressMonitor({ job, repoPath: job.repo, stage: job.stage, expectRuntimeBinding: true })
       : NOOP_ASYNC;
     jobLifecycle.registerCleanup(() => stopProgress(), { label: 'indexer-service-progress-stop' });
-    return { logPath };
+    return { logPath, onRuntimeBinding: stopProgress.bindRuntime };
   };
 
   const syncWorkerShutdownState = async (status = null) => {
@@ -313,7 +313,7 @@ export const createQueueWorker = ({
           ...execution.runResult, exitCode: 130, cancelled: true, shutdownMode: 'cancel'
         };
       } else {
-        const { logPath } = startJobLifecycle(executionJob, jobLifecycle, claimControl);
+        const { logPath, onRuntimeBinding } = startJobLifecycle(executionJob, jobLifecycle, claimControl);
         await syncWorkerShutdownState();
         claimControl.checkLeaseAuthority?.();
         if (batchState?.failed || claimControl.leaseLost) {
@@ -322,7 +322,8 @@ export const createQueueWorker = ({
             ...execution.runResult, exitCode: 130, cancelled: true, shutdownMode: 'cancel'
           };
         } else {
-          execution = await executeClaimedJob({ job: executionJob, jobLifecycle, logPath, abortSignal: abortController.signal });
+          execution = await executeClaimedJob({ job: executionJob, jobLifecycle, logPath,
+            abortSignal: abortController.signal, onRuntimeBinding });
         }
       }
     } catch (err) {

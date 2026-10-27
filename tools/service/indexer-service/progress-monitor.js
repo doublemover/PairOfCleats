@@ -1,53 +1,15 @@
-import fsPromises from 'node:fs/promises';
 import path from 'node:path';
 import { formatDurationMs } from '../../../src/shared/time-format.js';
 import { createLifecycleRegistry } from '../../../src/shared/lifecycle/registry.js';
 import { getRepoCacheRoot } from '../../shared/dict-utils.js';
+import { isRuntimeExecutionBinding } from '../../../src/shared/runtime-envelope/execution-binding.js';
+import { acquireBuildProgressDiscovery } from './progress-discovery.js';
 import {
   readServiceBuildStateSnapshot,
-  resolveServiceBuildStatePath,
   observeServiceBuildStateSnapshot
 } from './build-state-observation.js';
 
 const BUILD_STATE_POLL_MS = 5000;
-
-/**
- * Resolve the build artifacts root under one repo cache root.
- *
- * @param {string} repoCacheRoot
- * @returns {string}
- */
-const resolveBuildsRoot = (repoCacheRoot) => path.join(repoCacheRoot, 'builds');
-
-/**
- * Enumerate build directories that currently expose `build_state.json`.
- *
- * Mtime orders discovery only. A candidate still needs the current execution's
- * exact persisted runtime identity before any progress can be displayed.
- *
- * @param {string} repoCacheRoot
- * @returns {Promise<Array<{buildRoot:string,statePath:string,mtimeMs:number}>>}
- */
-const listBuildStateCandidates = async (repoCacheRoot) => {
-  const buildsRoot = resolveBuildsRoot(repoCacheRoot);
-  let entries;
-  try {
-    entries = await fsPromises.readdir(buildsRoot, { withFileTypes: true });
-  } catch {
-    return [];
-  }
-  const candidates = [];
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    const buildRoot = path.join(buildsRoot, entry.name);
-    const statePath = resolveServiceBuildStatePath(buildRoot);
-    try {
-      const stat = await fsPromises.stat(statePath);
-      candidates.push({ buildRoot, statePath, mtimeMs: stat.mtimeMs });
-    } catch {}
-  }
-  return candidates.sort((a, b) => b.mtimeMs - a.mtimeMs);
-};
 
 /**
  * Correlation comes from the executing claim, never timestamps or a previous
@@ -134,19 +96,24 @@ const formatProgressLine = ({ jobId, stage, state }) => {
  * @returns {() => Promise<void>}
  */
 export const startBuildProgressMonitor = ({ job, repoPath, stage, repoCacheRoot: selectedCacheRoot = null,
+  expectRuntimeBinding = false,
   log = (line) => console.error(line) }) => {
   if (!job || !repoPath) return async () => {};
   const repoCacheRoot = selectedCacheRoot || getRepoCacheRoot(repoPath);
   let binding = null;
+  let executorBinding = null;
+  let bindingEpoch = 0;
   let waitingLogged = false;
   let lastLine = '';
   let inFlight = null;
-  const work = { polls: 0, discoveries: 0, boundReads: 0, candidateReads: 0,
+  const work = { polls: 0, discoveries: 0, boundReads: 0, candidateReads: 0, executorBindings: 0,
     bindingInvalidations: 0, knownReadBytes: 0, jsonDecodes: 0, unknownReadAttempts: 0 };
   const statuses = { ok: 0, missing: 0, oversized: 0, corrupt: 0, unsafe: 0, transient: 0 };
   const lifecycle = createLifecycleRegistry({
     name: `indexer-service-progress:${job.id}`
   });
+  const discovery = expectRuntimeBinding ? null : acquireBuildProgressDiscovery({ repoCacheRoot });
+  if (discovery) lifecycle.registerCleanup(discovery.release, { label: 'indexer-service-progress-discovery' });
   const readSnapshot = async buildRoot => {
     let observation;
     try { observation = await observeServiceBuildStateSnapshot(buildRoot); }
@@ -159,23 +126,37 @@ export const startBuildProgressMonitor = ({ job, repoPath, stage, repoCacheRoot:
   };
   const poll = async () => {
     work.polls++;
+    const epoch = bindingEpoch;
     let active = null;
-    if (binding) {
+    const selected = binding || executorBinding;
+    let invalidatedRoot = null;
+    if (selected) {
       work.boundReads++;
-      const loaded = await readSnapshot(binding.buildRoot);
-      if (loaded && loaded.state.buildId === binding.buildId
-        && loaded.state.runtime?.latestAttemptId === binding.attemptId
-        && ownsBuildProgress({ job, stage, state: loaded.state, buildRoot: binding.buildRoot, repoPath })) {
-        active = { buildRoot: binding.buildRoot, ...loaded };
-      } else { binding = null; work.bindingInvalidations++; }
+      const loaded = await readSnapshot(selected.buildRoot);
+      if (epoch !== bindingEpoch) return;
+      if (loaded && loaded.state.buildId === selected.buildId
+        && loaded.state.runtime?.latestAttemptId === selected.attemptId
+        && ownsBuildProgress({ job, stage, state: loaded.state, buildRoot: selected.buildRoot, repoPath })) {
+        active = { buildRoot: selected.buildRoot, ...loaded };
+      } else {
+        invalidatedRoot = selected.buildRoot;
+        if (binding) work.bindingInvalidations++;
+        binding = null;
+      }
     }
-    if (!active) {
+    if (!active && discovery) {
       work.discoveries++;
-      const candidates = await listBuildStateCandidates(repoCacheRoot);
-      active = await pickOwnedBuildState({ job, stage, repoPath, candidates,
-        readSnapshot: buildRoot => { work.candidateReads++; return readSnapshot(buildRoot); } });
+      const hints = await discovery.discover();
+      for (const hint of hints) {
+        if (hint.buildRoot === invalidatedRoot
+          || !ownsBuildProgress({ job, stage, repoPath, ...hint })) continue;
+        work.candidateReads++;
+        // Cached discovery is only a hint. Re-read exact ownership before logging.
+        active = await pickOwnedBuildState({ job, stage, repoPath, candidates: [hint], readSnapshot });
+        if (active) break;
+      }
     }
-    if (lifecycle.isClosed()) return;
+    if (lifecycle.isClosed() || epoch !== bindingEpoch) return;
     if (!active) {
       if (!waitingLogged) {
         log(`[indexer] job ${job.id} ${stage || 'stage'} running; waiting for owned build state...`);
@@ -208,11 +189,25 @@ export const startBuildProgressMonitor = ({ job, repoPath, stage, repoCacheRoot:
   const stop = async () => {
     await lifecycle.close();
     binding = null;
+    executorBinding = null;
+  };
+  // This callback is handed directly to the executor, never read from job data.
+  stop.bindRuntime = value => {
+    if (lifecycle.isClosed() || !isRuntimeExecutionBinding(value)
+      || value.correlationId !== job.observability?.correlation?.correlationId
+      || path.relative(repoPath, value.repoRoot) !== '' || stage && stage !== value.stage
+      || job.buildId && job.buildId !== value.buildId) return false;
+    bindingEpoch++;
+    executorBinding = { buildRoot: value.buildRoot, buildId: value.buildId, attemptId: value.attemptId };
+    binding = null;
+    work.executorBindings++;
+    return true;
   };
   // Internal diagnostic hook also lets bounded fixtures advance the actual poll
   // without changing the production interval or introducing public controls.
   stop.poll = runPoll;
   stop.getDiagnostics = () => Object.freeze({ ...work, statuses: Object.freeze({ ...statuses }),
+    discovery: discovery?.getDiagnostics() || null,
     binding: binding ? Object.freeze({ ...binding }) : null });
   return stop;
 };

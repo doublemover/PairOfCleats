@@ -1,6 +1,7 @@
 import { updateBuildState } from '../build-state.js';
 import { patchRuntimeAttempt } from '../../../shared/runtime-envelope/receipt.js';
 import { assertRuntimeAttempt } from '../../../contracts/validators/runtime-receipt.js';
+import { announceRuntimeExecutionBinding } from '../../../shared/runtime-envelope/execution-binding.js';
 
 /** Critical provenance uses the existing required durability and lock owner. */
 export const persistRuntimeAttempt = async (buildRoot, attempt, patch = {}, { write = updateBuildState } = {}) => {
@@ -16,5 +17,6 @@ export const persistRuntimeAttempt = async (buildRoot, attempt, patch = {}, { wr
     throw Object.assign(new Error(`Runtime provenance incomplete: ${attempt.persistence.lastErrorCode}`, { cause: error }), { code: 'ERR_RUNTIME_RECEIPT_PERSIST', attemptId: attempt.attemptId });
   }
   Object.assign(attempt, next);
+  announceRuntimeExecutionBinding(buildRoot, attempt);
   return next;
 };

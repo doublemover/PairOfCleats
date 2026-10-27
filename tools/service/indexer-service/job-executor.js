@@ -13,6 +13,8 @@ import { collectEmbeddingReplayState, repairEmbeddingReplayState } from '../embe
 import { buildEmbeddingsArgs, normalizeEmbeddingJob } from '../indexer-service-helpers.js';
 import { runLoggedSubprocess } from '../subprocess-log.js';
 import { observeStorageResource } from '../../../src/shared/storage/failure-observation.js';
+import { getRuntimeBindingObserver, withRuntimeBindingObserver }
+  from '../../../src/shared/runtime-envelope/execution-binding.js';
 
 /**
  * Build the default run result shape used when execution fails unexpectedly.
@@ -110,13 +112,18 @@ export const createJobExecutor = ({
    * @returns {Promise<{exitCode:number,signal:string|null,cancelled:boolean,errorCode:string|null,errorMessage:string|null}>}
    */
   const spawnWithLog = async (args, extraEnv = {}, logPath = null, abortSignal = null) => {
+    const onRuntimeBinding = getRuntimeBindingObserver();
+    const preload = new URL('./runtime-binding-preload.js', import.meta.url);
+    preload.searchParams.set('executorPid', String(process.pid));
     const result = await runLoggedSubprocess({
       command: process.execPath,
-      args,
+      args: onRuntimeBinding
+        ? ['--import', preload.href, ...args] : args,
       env: process.env,
       signal: abortSignal,
       extraEnv,
       logPath,
+      onRuntimeBinding,
       onWriteError: (err) => {
         console.error(`[indexer] failed writing subprocess log (${logPath}): ${err?.message || err}`);
       }
@@ -746,9 +753,11 @@ export const createJobExecutor = ({
    * @param {{job:object,jobLifecycle:object,logPath:string,abortSignal?:AbortSignal|null}} input
    * @returns {Promise<{handled:boolean,runResult?:{exitCode:number,signal:string|null,executionMode:string,daemon:object|null,cancelled:boolean,shutdownMode:string|null}}>}
    */
-  const executeClaimedJob = ({ job, jobLifecycle, logPath, abortSignal = null }) => (isEmbeddingsQueue
-    ? executeEmbeddingJob({ job, jobLifecycle, logPath, abortSignal })
-    : executeIndexJob({ job, jobLifecycle, logPath, abortSignal }));
+  const executeClaimedJob = ({ job, jobLifecycle, logPath, abortSignal = null, onRuntimeBinding = null }) => (
+    withRuntimeBindingObserver(onRuntimeBinding, () => (isEmbeddingsQueue
+      ? executeEmbeddingJob({ job, jobLifecycle, logPath, abortSignal })
+      : executeIndexJob({ job, jobLifecycle, logPath, abortSignal })))
+  );
 
   return {
     buildDefaultRunResult,
