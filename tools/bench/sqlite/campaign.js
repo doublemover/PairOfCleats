@@ -86,6 +86,9 @@ export const runSqliteBenchmarkCampaign = async ({ Database, args, operation }) 
           const built = await buildDatabaseFromBundles({ ...baseOptions, buildPragmas: true, optimize: true });
           assert.equal(built.count, workload.initial.rows);
           const buildMs = performance.now() - setupBegan;
+          report.activeAttempt.phase = 'initial-validation';
+          report.activeAttempt.buildMs = buildMs;
+          await atomicWriteJson(checkpointPath, report);
           const validateStart = performance.now();
           const initial = await validateSqliteBenchDatabase({ Database, dbPath: outPath, bundleDir: workspace.bundleDir,
             manifest: workload.initial.manifest, mode: sqliteMode, expectedRows: workload.initial.rows });
