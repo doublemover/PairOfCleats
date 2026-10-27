@@ -429,6 +429,7 @@ export const validateToolingProvider = (provider) => {
   if (!provider.version) return 'provider.version missing';
   if (!provider.capabilities || typeof provider.capabilities !== 'object') return 'provider.capabilities missing';
   if (provider.profileContractVersion !== undefined && provider.profileContractVersion !== 1) return 'provider.profileContractVersion unsupported';
+  if (provider.prepareInvocation !== undefined && typeof provider.prepareInvocation !== 'function') return 'provider.prepareInvocation must be function';
   if (provider.declaration !== undefined) {
     const declaration = validateProviderDeclaration(provider.declaration);
     if (!declaration.ok) return `provider.declaration invalid: ${JSON.stringify(declaration.errors)}`;

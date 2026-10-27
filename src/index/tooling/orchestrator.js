@@ -21,6 +21,8 @@ import {
 import { selectToolingProviders } from './provider-registry.js';
 import { normalizeProviderId } from './provider-contract.js';
 import { providerProfileCacheIdentity, verifyProviderProfileReceipt } from './provider-profile.js';
+import { matchObservedProviderInvocation, matchesProviderInvocationWitness, runObservedProviderInvocation } from './provider-invocation.js';
+import { observeStorageResource } from '../../shared/storage/failure-observation.js';
 import { canonicalSemanticJson } from '../semantic/identity.js';
 import { ToolingRequiredComputationError, isRequiredToolingComputationError } from './required-computation.js';
 import { composeAbortSignals, isAbortError, throwIfAborted } from '../../shared/abort.js';
@@ -148,7 +150,7 @@ const resolveGenerationIdentity = (ctx) => ({
   buildId: normalizeIdentityString(ctx?.buildId)
 });
 
-const computeCacheKey = ({ providerId, providerVersion, configHash, documents, targets, generation, profileHash = null }) => {
+const computeCacheKey = ({ providerId, providerVersion, configHash, documents, targets, generation, profileHash = null, invocationHash = null }) => {
   const docKey = computeDocumentsKey(documents || []);
   const targetKey = computeTargetsKey(targets || []);
   return buildLocalCacheKey({
@@ -163,6 +165,7 @@ const computeCacheKey = ({ providerId, providerVersion, configHash, documents, t
         lspBindings: SEMANTIC_ANALYSIS_VERSIONS.lspBindings },
       configHash,
       profileHash,
+      invocationHash,
       documents: docKey,
       targets: targetKey,
       generation: {
@@ -192,6 +195,7 @@ const isOwnedProviderCache = (payload, fileName) => (
 
 const resolveProviderCachedExecution = async ({
   ctx,
+  inputs,
   plan,
   cacheDir,
   observations,
@@ -205,10 +209,22 @@ const resolveProviderCachedExecution = async ({
   const configHash = provider.getConfigHash(ctx);
   const generation = resolveGenerationIdentity(ctx);
   const suppliedProfile = ctx.providerProfiles instanceof Map ? ctx.providerProfiles.get(providerId) : ctx.providerProfiles?.[providerId];
-  const profile = suppliedProfile ? JSON.parse(canonicalSemanticJson(suppliedProfile)) : null;
-  const profileHash = profile ? providerProfileCacheIdentity(profile, { providerId,
+  const profile = suppliedProfile ? JSON.parse(canonicalSemanticJson(suppliedProfile,
+    { maxBytes: TOOLING_PROVIDER_CACHE_READ_MAX_BYTES, check: () => throwIfAborted(abortSignal) })) : null;
+  const observedProfileHash = profile ? providerProfileCacheIdentity(profile, { providerId,
     adapterVersion: provider.version, repoRoot: ctx.repoRoot }) : null;
-  if (profileHash) await verifyProviderProfileReceipt(profile, { signal: abortSignal });
+  let invocation = null;
+  if (observedProfileHash) {
+    await verifyProviderProfileReceipt(profile, { signal: abortSignal });
+    const invocationInputs = { ...inputs, documents: planDocuments, targets: planTargets, abortSignal };
+    const candidate = typeof provider.prepareInvocation === 'function' ? await provider.prepareInvocation(ctx, invocationInputs) : null;
+    if (matchObservedProviderInvocation(candidate, { ctx, inputs: invocationInputs, providerId,
+      adapterVersion: provider.version, profileHash: observedProfileHash })) invocation = candidate;
+    else observations.push({ level: 'info', code: 'tooling_profile_invocation_unbound',
+      message: `[tooling] ${providerId} observed profile is not bound to this execution owner; using an unqualified live run.`,
+      context: { providerId, observedProfileHash, reason: candidate ? 'invocation_identity_mismatch' : 'invocation_owner_unavailable' } });
+  }
+  const profileHash = invocation ? observedProfileHash : null;
   const cacheKey = computeCacheKey({
     providerId,
     providerVersion: provider.version,
@@ -216,14 +232,15 @@ const resolveProviderCachedExecution = async ({
     documents: planDocuments,
     targets: planTargets,
     generation,
-    profileHash
+    profileHash,
+    invocationHash: invocation?.invocationHash || null
   });
   // Symbolic meaning depends on the live compiler/resolution closure. The
   // legacy provider cache key does not seal every tsconfig/package/ambient
   // dependency, so it cannot authorize replay of this representation yet.
   const symbolicContextRequiresLiveRun = providerId === 'typescript'
     && ctx?.toolingConfig?.typescript?.typeRepresentation === 'symbolic';
-  const profileRequiresLiveRun = provider.profileContractVersion === 1 && !profileHash;
+  const profileRequiresLiveRun = (provider.profileContractVersion === 1 || profile) && !profileHash;
   const sourceIdentityRequiresLiveRun = planDocuments.some(doc => typeof doc.text !== 'string');
   if (profileRequiresLiveRun) observations.push({ level: 'info', code: 'tooling_profile_not_durable',
     message: `[tooling] ${providerId} profile has no complete observed dependency identity; using a live run.`,
@@ -263,7 +280,8 @@ const resolveProviderCachedExecution = async ({
           cachePath = null;
         } else if (cached?.provider?.id === providerId
           && cached?.provider?.version === provider.version
-          && cached?.provider?.configHash === configHash) {
+          && cached?.provider?.configHash === configHash
+          && (!invocation || matchesProviderInvocationWitness(cached?.invocation, invocation))) {
           output = normalizeCachedProviderOutput(cached);
           outputFromCache = Boolean(output);
           if (outputFromCache) outputSource = 'cache';
@@ -301,8 +319,9 @@ const resolveProviderCachedExecution = async ({
     outputFromCache,
     outputSource,
     generation,
-    profile: profile || null,
-    profileHash
+    profile: profileHash ? profile : null,
+    profileHash,
+    invocation
   };
 };
 
@@ -440,7 +459,8 @@ const buildDeterministicCachePayload = ({
   providerVersion,
   configHash,
   cacheKey,
-  generation
+  generation,
+  invocation = null
 }) => {
   if (!output || typeof output !== 'object') return null;
   return {
@@ -463,6 +483,7 @@ const buildDeterministicCachePayload = ({
     },
     semanticFacts: output.semanticFacts == null ? null : assertSemanticEnvelope('provider', output.semanticFacts),
     symbolicTypeGraphs: mergeSymbolicTypeGraphs([], output.symbolicTypeGraphs || []),
+    ...(invocation ? { invocation } : {}),
     byChunkUid: output.byChunkUid || {},
     byChunkId: output.byChunkId || {},
     diagnostics: buildCachedDiagnosticsEnvelope(output.diagnostics || null)
@@ -1141,6 +1162,7 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
     for (const plan of providerPlans) {
       providerExecutions.push(await resolveProviderCachedExecution({
         ctx,
+        inputs,
         plan,
         cacheDir,
         observations,
@@ -1219,6 +1241,16 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
         // Preflight/other providers may have awaited since cache admission.
         // Recheck saved provenance before consuming either cached or live work.
         if (execution.profileHash) await verifyProviderProfileReceipt(execution.profile, { signal: abortSignal });
+        const requireInvocationInputs = () => {
+          if (execution.invocation && !matchObservedProviderInvocation(execution.invocation, { ctx,
+            inputs: { ...inputs, documents: planDocuments, targets: planTargets, abortSignal }, providerId,
+            adapterVersion: provider.version, profileHash: execution.profileHash })) {
+            throw new ToolingRequiredComputationError(`Observed ${providerId} invocation inputs changed.`, {
+              operation: 'provider-invocation-freshness', reason: 'invocation_changed'
+            });
+          }
+        };
+        requireInvocationInputs();
         if (!output) {
           providerProgressPhase = 'live-run';
           const providerInputs = {
@@ -1229,7 +1261,9 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
             toolingPreflightWaveToken: providerPreflightWaveToken
           };
           try {
-            output = await provider.run(ctx, providerInputs);
+            output = execution.invocation
+              ? await runObservedProviderInvocation(execution.invocation, { signal: abortSignal })
+              : await provider.run(ctx, providerInputs);
             throwIfAborted(abortSignal);
             if (execution.profileHash) {
               try { await verifyProviderProfileReceipt(execution.profile, { signal: abortSignal }); } catch (cause) {
@@ -1258,7 +1292,8 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
                   providerVersion: provider.version,
                   configHash,
                   cacheKey: execution.cacheKey,
-                  generation: execution.generation
+                  generation: execution.generation,
+                  invocation: execution.invocation
                 });
                 if (deterministicPayload) {
                   // Never create an entry too large for bounded ownership
@@ -1287,6 +1322,7 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
                           });
                         }
                       }
+                      requireInvocationInputs();
                     } });
                   throwIfAborted(abortSignal);
                 }
@@ -1320,6 +1356,21 @@ export async function runToolingProviders(ctx, inputs, providerIds = null) {
             if (isAbortError(err)) {
               providerOutcome = 'aborted';
               throw err;
+            }
+            if (execution.invocation) {
+              providerOutcome = 'incomplete';
+              const observation = observeStorageResource(err, { phase: 'observed-provider-invocation' });
+              let cause = err;
+              try { observation.requireSettled(); } catch (pending) { cause = pending; }
+              const failure = new ToolingRequiredComputationError(`Observed ${providerId} invocation failed; qualified output is unavailable.`, {
+                operation: 'provider-invocation', reason: 'invocation_failed', cause
+              });
+              if (cause !== err) {
+                const original = observeStorageResource(cause, { phase: 'observed-provider-invocation-failure' });
+                Object.defineProperties(failure, { cacheOwnershipPending: { value: true },
+                  cacheOwnershipReleased: { value: () => { try { original.requireSettled(); return true; } catch { return false; } } } });
+              }
+              throw failure;
             }
             if (isRequiredToolingComputationError(err)) {
               providerOutcome = 'incomplete';

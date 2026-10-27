@@ -2,6 +2,7 @@ import { assertProviderDeclaration } from './provider-declaration.js';
 import { assertSemanticEnvelope } from '../../contracts/validators/semantic-envelopes.js';
 import { hashProviderConfig } from './provider-contract.js';
 import { createLspObservationCollector } from '../../integrations/tooling/providers/lsp/structured-observations.js';
+export { createObservedProviderInvocation } from './provider-invocation.js';
 
 /** Trusted in-process authors execute in the host process without an OS sandbox. */
 export const defineInProcessSemanticProvider = ({ declaration, produce }) => {

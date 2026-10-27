@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-27T18:48:51.059Z",
+  "generatedAt": "2026-10-27T19:04:32.279Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4704,6 +4704,7 @@
         "tests/tooling/lsp/compilation-database-admission.test.js",
         "tests/tooling/lsp/go-rust-signature-boundaries.test.js",
         "tests/tooling/lsp/signature-boundary-providers.test.js",
+        "tests/tooling/providers/provider-invocation-profile-join.test.js",
         "tests/tooling/reports/compare-models-partial-ranks.test.js",
         "tests/tooling/reports/parity-response-admission.test.js",
         "tests/tooling/script-coverage/group-runner.js",
@@ -5157,6 +5158,7 @@
         "tests/tooling/lsp/dedicated-providers-multifile-session-reuse-cases.js",
         "tests/tooling/lsp/document-context-hover-policy.test.js",
         "tests/tooling/lsp/go-workspace-managed-go-resolution.test.js",
+        "tests/tooling/providers/provider-invocation-profile-join.test.js",
         "tests/tooling/reports/bench-language-stage-timing-report.test.js",
         "tests/tooling/reports/compare-models-partial-ranks.test.js",
         "tests/tooling/reports/map-graph-capability-consumer.test.js",
