@@ -273,7 +273,7 @@ export const createCollectorBudgetContext = ({
     sourceBudget,
     scanBudget,
     budget,
-    finalize({ entries = null, structure = null, initialization = null, parserLimits = null, parserIdentityKnown = false, parserIdentity = null, scope = collectorId } = {}) {
+    finalize({ entries = null, structure = null, initialization = null, parserLimits = null, parserIdentityKnown = false, parserIdentity = null, scope = collectorId, observedEntries = null } = {}) {
       if (finalized) return;
       finalized = true;
       const reasons = [];
@@ -296,7 +296,7 @@ export const createCollectorBudgetContext = ({
           reasons: [...reasons, ...(Array.isArray(entries.coverage?.reasons) ? entries.coverage.reasons : []),
             ...(Array.isArray(structure?.warningCodes) ? structure.warningCodes.slice(0, 8) : [])],
           limits: budget, parserLimits, admittedLength: sourceBudget.source.length,
-          observedEntries: Array.isArray(structure?.importEntries) ? structure.importEntries.length : null }));
+          observedEntries: observedEntries ?? (Array.isArray(structure?.importEntries) ? structure.importEntries.length : null) }));
       }
       if (!reasons.length) return;
       emitCollectorBudgetDiagnostic(options, {

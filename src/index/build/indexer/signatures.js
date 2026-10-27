@@ -23,6 +23,7 @@ import { getRiskRulesPolicyReceipt } from '../../risk-rule-receipt.js';
 import { lintPolicyDependency } from '../../lint-policy.js';
 import { GENERATED_ARTIFACT_POLICY_VERSION } from '../../../shared/generated-artifact-observation.js';
 import { COMMENT_CLASSIFICATION_VERSION } from '../../comments-policy.js';
+import { JSON_REFERENCE_POLICY_VERSION } from '../../../shared/json-reference-policy.js';
 
 export { ARTIFACT_SCHEMA_HASH };
 
@@ -255,6 +256,7 @@ export const buildDependencySignatures = (runtime, mode, tokenizationKey) => {
     ...(mode === 'prose' || mode === 'extracted-prose' ? { sourceOutlineProducer: SEMANTIC_ANALYSIS_VERSIONS.sourceOutline } : {}),
     moduleExportsProducer: payload.moduleExportsProducer, nativeChunkProducer: payload.nativeChunkProducer,
     sourceChunkingProducer: SEMANTIC_ANALYSIS_VERSIONS.sourceChunking,
+    jsonReferencePolicyProducer: JSON_REFERENCE_POLICY_VERSION,
     ...(mode === 'code' ? { javascriptRelationsProducer: SEMANTIC_ANALYSIS_VERSIONS.javascriptRelations, flowMetadataProducer: SEMANTIC_ANALYSIS_VERSIONS.flowMetadata, importExtractionProducer: IMPORT_EXTRACTION_VERSION, importExtractionRuntime: importExtractionRuntimeVersions(),
       sqlRelationsProducer: SEMANTIC_ANALYSIS_VERSIONS.sqlRelations, sqlRelationsParser: sqlRelationParserVersion() } : {}),
     kotlin: payload.kotlin, chunkIdAlgoVersion: payload.chunkIdAlgoVersion,

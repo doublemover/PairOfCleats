@@ -10,7 +10,7 @@ import { JAVASCRIPT_RELATIONS_VERSION } from '../../lang/javascript/version.js';
  */
 export const SEMANTIC_ANALYSIS_VERSIONS = Object.freeze({
   moduleExports: MODULE_EXPORTS_VERSION, sqlRelations: SQL_RELATION_PRODUCER_VERSION, javascriptRelations: JAVASCRIPT_RELATIONS_VERSION, flowMetadata: FLOW_METADATA_VERSION, sourceOutline: SOURCE_OUTLINE_VERSION,
-  lexicalAnalyzer: '3', importResolution: '20', pieceAssembly: '4',
+  lexicalAnalyzer: '3', importResolution: '21', pieceAssembly: '4',
   recordsProducer: '9', ignoreRules: '4', documentExtraction: '5', discoverySelection: '5',
   repoMapProducer: '2', graphRelations: '3',
   sourceChunking: '35', typeNormalization: '12', vfsRouting: '4', complexityAnalysis: '2', lintProjection: '3',
