@@ -146,7 +146,7 @@ export async function loadIndex(dir, options) {
   }
   if (!fileMetaLoaded) fileMetaById = null;
   if (!fileMetaById) requireFileMetaForFileIdChunks(chunkMeta);
-  else hydrateChunksFromFileMeta(chunkMeta, fileMetaById, { churnAssignment: 'falsy-or-nullish' });
+  else hydrateChunksFromFileMeta(chunkMeta, fileMetaById, { churnAssignment: 'nullish' });
   const fileRelationsRows = includeFileRelations
     ? loadOptionalRows('file_relations', { materialize: true })
     : null;

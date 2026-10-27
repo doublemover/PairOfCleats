@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-27T09:29:58.884Z",
+  "generatedAt": "2026-10-27T11:44:45.661Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4638,6 +4638,7 @@
         "tests/perf/bench/query-resource-plan.test.js",
         "tests/perf/tooling/bench/sqlite-benchmark-cli.test.js",
         "tests/retrieval/backend/boolean-complement-cli.test.js",
+        "tests/retrieval/backend/lmdb-failure-propagation.test.js",
         "tests/retrieval/backend/sqlite-uncached-close-ownership.test.js",
         "tests/runner/run-execution.js",
         "tests/security/download-redirect-deadline.test.js",
@@ -4648,6 +4649,8 @@
         "tests/shared/subprocess/sync-timeout-detached-tree.test.js",
         "tests/smoke/baseline-negative.test.js",
         "tests/smoke/baseline.test.js",
+        "tests/storage/lmdb/native-artifact-parity.test.js",
+        "tests/storage/lmdb/prefetch-close-ownership.test.js",
         "tests/storage/semantic/published-manifest-cache-authority.test.js",
         "tests/tooling/api-contracts/export-identity-cli.test.js",
         "tests/tooling/api-contracts/qualified-target-joins-cli.test.js",
@@ -5043,6 +5046,7 @@
         "tests/security/tooling-cache-authority.test.js",
         "tests/shared/storage/cli-reviewed-context-and-selectors.test.js",
         "tests/shared/storage/repo-cleanup-exclusion.test.js",
+        "tests/storage/lmdb/native-artifact-parity.test.js",
         "tests/storage/vector-extension/trust-revalidation.test.js",
         "tests/tooling/api-contracts/export-identity-cli.test.js",
         "tests/tooling/api-contracts/qualified-target-joins-cli.test.js",
