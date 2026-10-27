@@ -100,6 +100,47 @@ Stage4 SQLite build throughput benchmarks live under `tools/bench/sqlite/`:
 Use these when changing statement strategies (multi-row vs per-row prepared) and transaction boundaries so throughput decisions remain measurable.
 `build-from-artifacts` supports `--index-dir <path>` for benchmarking real Stage2 output and `--statement-strategy` for forcing prepared vs multi-row behavior.
 
+Bundle build and incremental update keep `--profile smoke` as the cheap default.
+Explicit `--profile lexical` and `--profile wide` select serial candidate workloads:
+
+| Profile | Files × chunks | Tokens/chunk | Independent trials | Update rounds | Changed / added / deleted | Shrunk / grown within changed |
+| --- | --- | --- | --- | --- | --- | --- |
+| smoke | build 20×6; update 12×6 | 2 | 1 | 1 | 1 / 0 / 0 | 0 / 0 |
+| lexical | 128×64 | 24 | 6 | 3 | 16 / 4 / 4 | 4 / 4 |
+| wide | 256×128 | 48 | 6 | 3 | 32 / 8 / 8 | 8 / 8 |
+
+For a scoped qualification task, use, for example,
+`node tools/bench/sqlite/incremental-update.js --profile lexical --mode compare`.
+These explicit experiments are outside ordinary unit execution. They have not
+been executed as part of the current implementation wave.
+
+`--files`, `--chunks`, `--tokens`, `--vocabulary` and `--trials` override workload
+dimensions; vocabulary defaults to 4,096 with common repeated terms. Update-only
+`--rounds`, `--changed-files`, `--added-files`, `--deleted-files`, `--shrink-files`
+and `--grow-files` separate mutation sizes from total repository size. Shrink and
+grow counts are disjoint subsets of changed existing files. Smaller overrides
+lose preset-workload eligibility; fewer than six trials remain unqualified.
+Admission caps trials at 12, rounds at 6, projected rows at 262,144 and projected
+token occurrences at 4,194,304. Production change-ratio and transaction guards
+remain active; a refused update fails the experiment instead of becoming a build.
+
+Trials create independent databases and alternate arm order. Update arms begin
+from identically prepared/validated starting databases, then apply separately
+identified mutation rounds. Immutable source snapshots and exact output/posting/
+manifest/filter-fact checks stay outside operation timing. Per-file FTS hits are
+required during validation; this does not measure retrieval latency.
+
+The run-owned workspace retains atomic owner/checkpoint/final receipts with raw
+samples, paired deltas, per-round median/nearest-rank p95, source/runtime identity,
+manifest digests, observed rows/statements/batches and setup/validation timings.
+Partial failures preserve a failed receipt and completed samples. The printed
+receipt path identifies the exact run. Operation timing includes production
+checkpoint/close work; its own telemetry preserves phase detail. Filesystem cache
+state is uncontrolled and recorded; new database files do not imply cold OS caches.
+The synthetic lexical profiles do not qualify dense/phrase/chargram lanes,
+retrieval latency or sustained gains by themselves. Keep existing latency source-hit
+assertions, raw warm distributions and thresholds in their separate qualification.
+
 Stage4 notes:
 - `chunks_fts` is contentless (`content=''`, `contentless_delete=1`) and is used for MATCH + bm25 ranking only.
 - Full builds run an explicit FTS optimize step before `PRAGMA optimize`/`ANALYZE`.

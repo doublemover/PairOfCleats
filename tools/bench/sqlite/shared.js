@@ -36,11 +36,15 @@ export const resolveSqliteBenchChunkKind = (sqliteMode) => {
   return sqliteMode === 'code' ? 'code' : 'prose';
 };
 
-export const createSqliteBenchChunks = ({ file, suffix, chunksPerFile, kind }) => {
+export const createSqliteBenchChunks = ({ file, suffix, chunksPerFile, kind, tokensPerChunk = 2, vocabularySize = 4096 }) => {
   const chunks = [];
   let offset = 0;
   for (let i = 0; i < chunksPerFile; i += 1) {
     const name = `fn${suffix}-${i}`, tokens = [`tok-${suffix}`, `tok-${i}`];
+    const seed = createHash('sha256').update(`${suffix}:${i}`).digest().readUInt32LE(0);
+    for (let token = 2; token < tokensPerChunk; token++) {
+      tokens.push(token % 4 === 0 ? 'shared-term' : `vocab-${(seed + token * 31) % vocabularySize}`);
+    }
     const line = `${name} ${tokens.join(' ')}`;
     chunks.push({
       file,
@@ -72,18 +76,22 @@ export const createSqliteBenchBundleFixture = async ({
   bundleDir,
   fileCount,
   chunksPerFile,
-  sqliteMode = 'code'
+  sqliteMode = 'code',
+  tokensPerChunk = 2,
+  vocabularySize = 4096
 }) => {
   const manifest = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, files: {} };
   if (sqliteMode === 'records') {
     setRecordsIncrementalCapability(manifest, true);
   }
   const chunkKind = resolveSqliteBenchChunkKind(sqliteMode);
-  const buildChunks = (file, suffix) => createSqliteBenchChunks({
+  const buildChunks = (file, suffix, count = chunksPerFile) => createSqliteBenchChunks({
     file,
     suffix,
-    chunksPerFile,
-    kind: chunkKind
+    chunksPerFile: count,
+    kind: chunkKind,
+    tokensPerChunk,
+    vocabularySize
   });
 
   for (let i = 0; i < fileCount; i += 1) {

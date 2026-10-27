@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-27T22:55:33.229Z",
+  "generatedAt": "2026-10-27T23:13:13.724Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4678,6 +4678,7 @@
         "tests/perf/bench/process-tree-memory.test.js",
         "tests/perf/bench/query-resource-plan.test.js",
         "tests/perf/tooling/bench/sqlite-benchmark-cli.test.js",
+        "tests/perf/tooling/bench/sqlite-campaign.test.js",
         "tests/retrieval/ann/query-vector-admission.test.js",
         "tests/retrieval/backend/boolean-complement-cli.test.js",
         "tests/retrieval/backend/lmdb-failure-propagation.test.js",
