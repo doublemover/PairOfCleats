@@ -59,6 +59,21 @@ try {
     const replacement = resolveToolingCommandProfile(input);
     assert.equal(replacement.resolved.cmd, rejected); assert.equal(replacement.probe.ok, true);
     assert.equal(launches.at(-1).command, rejected, 'a fresh profile cannot reuse stale rejected-candidate eligibility');
+    const managedDir = path.join(input.toolingConfig.dir, 'bin'), managed = path.join(managedDir, filename);
+    await fs.mkdir(managedDir, { recursive: true }); await fs.writeFile(managed, 'inert managed fixture; launch is intercepted');
+    if (process.platform !== 'win32') await fs.chmod(managed, 0o755);
+    await withTemporaryEnv({ PATH: '', Path: '' }, async () => {
+      __resetToolingCommandProbeCacheForTests();
+      const managedProfile = resolveToolingCommandProfile(input);
+      assert.equal(managedProfile.probe.ok, true); assert.equal(managedProfile.resolved.cmd, managed);
+      const managedHandshake = await probeLspInitializeHandshake({ cmd: name, cwd: root,
+        providerId: input.providerId, toolingConfig: input.toolingConfig });
+      assert.equal(managedHandshake.ok, true, 'standalone handshake must use the same managed candidate owner as command profiling');
+      assert.equal(handshakes.at(-1), managed); assert.equal(kills, 2); assert.equal(releases, 2);
+      const denied = await probeLspInitializeHandshake({ cmd: path.join(root, 'missing-explicit'), cwd: root,
+        providerId: input.providerId, toolingConfig: input.toolingConfig });
+      assert.equal(denied.ok, false); assert.equal(handshakes.length, 2, 'managed discovery cannot replace an explicit missing selection');
+    });
   });
 } finally {
   hook.deregister(); restoreTrust(); delete globalThis.__binaryDiscoverySpawn; delete globalThis.__binaryDiscoveryClient;

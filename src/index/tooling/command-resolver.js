@@ -923,7 +923,8 @@ export const probeLspInitializeHandshake = async (input) => {
   throwIfAborted(signal);
   const requestedCmd = String(input?.cmd || '').trim();
   const discovery = createBinaryDiscovery({ cwd: input?.cwd || process.cwd() });
-  let cmd = requestedCmd ? discovery.findOnPath(requestedCmd) || requestedCmd : requestedCmd;
+  let cmd = requestedCmd ? resolveBaseCommand({ providerId: input?.providerId || requestedCmd, requestedCmd,
+    repoRoot: input?.cwd || process.cwd(), toolingConfig: input?.toolingConfig || {}, discovery }) : requestedCmd;
   const executionAuthority = resolveWorkspaceExecutionAuthority({
     repoRoot: input?.cwd || process.cwd(), providerId: input?.providerId, server: { cmd }
   });
