@@ -30,6 +30,7 @@ work. Their separate receipts preserve exact trees, limitations and checks.
 | [ee5e1cb13](demanded-line-tokens-implementation-2026-10-27.md) | Demanded, identity-qualified line-token blocks with bounded preparation/retention and exact fallback | 12 authored cases; actual chunk/postings, worker and serial dense/sparse qualification remain |
 | [5da4c2578](scene-render-observation-implementation-2026-10-27.md) | Original captured scene-render witness, invalidation, committed-model identity and final phase diagnostics | 7 authored controls; actual browser fault injection, raster/fidelity/hardware checks remain |
 | [bf475fe1a](tui-log-rows-implementation-2026-10-27.md) | Every wrapped log row reachable; paused source anchors, stored clamps and shared mouse/replay offsets | 5 native cases plus real frame captures authored; locked offline typecheck passed, native execution remains |
+| [5996ecd59](sqlite-trial-profiles-implementation-2026-10-27.md) | Independent alternated SQLite trials, mixed immutable mutation rounds and atomic raw receipts | 7 authored cases; actual native CLI/trial correctness and measured lexical/latency qualification remain |
 
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero

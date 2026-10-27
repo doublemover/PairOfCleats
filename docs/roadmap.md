@@ -33,11 +33,10 @@ profiles, and [source-owned JavaScript documentation](archived/javascript-docume
 These local checkpoints remain **functionally unvalidated**; package
 build allowances and built-in/native/custom ownership integration remain explicit.
 
-[Five proven dependency retirements](archived/dependency-ownership-implementation-2026-10-27.md)
-at `1515ad0a8` removed 110 lock records without retained-version/source/integrity
-changes. Fresh locked bootstrap passed: 37 required packages, 33 language routes,
-8 patches/26 targets/61 hunks, exit 0 and no warning/error/failure matches.
-Functional regression execution and the publication gate remain deferred.
+[Five dependency retirements](archived/dependency-ownership-implementation-2026-10-27.md)
+removed 110 lock records. Locked bootstrap passed without warnings/errors:
+37 packages, 33 routes, 8 patches/26 targets/61 hunks. Retained inputs and exact
+receipts remain in the archive; functional checks/publication gate are deferred.
 
 These scoped observations do not combine into suite/platform/model/release acceptance.
 Task checks omit an inherited missing trusted-config selector; global settings and
@@ -67,7 +66,8 @@ severity and shared dependencies, retaining qualification separately:
    [Wrapped log rows](archived/tui-log-rows-implementation-2026-10-27.md) and paused anchors are implemented/typechecked; native qualification remains (#619).
    [Scene render witnesses](archived/scene-render-observation-implementation-2026-10-27.md) now observe captured operations; browser qualification remains (#1372).
 5. Performance/evaluation after correctness: retained comparisons (#1663),
-   representative SQLite trials (#1733) and [Windows descendant RSS qualification](archived/query-process-tree-implementation-2026-10-27.md) (#1675).
+   [serial SQLite trial profiles](archived/sqlite-trial-profiles-implementation-2026-10-27.md) (#1733)
+   and [Windows descendant RSS qualification](archived/query-process-tree-implementation-2026-10-27.md) (#1675); actual measurements remain.
 6. Research capabilities after their prerequisite source/retrieval/evidence owners.
 
 Frontload related implementation, then run bounded affected checks and repair

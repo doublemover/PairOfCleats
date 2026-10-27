@@ -8243,7 +8243,11 @@
       "priority": "P2",
       "batch": "performance-and-evaluation",
       "phase": "source-review-and-implementation",
-      "status": "queued"
+      "status": "source-implemented-qualification-pending",
+      "currentDisposition": "qualification_pending",
+      "currentImplementation": "Bounded smoke/lexical/wide workloads, independent serial trials with alternated arm order, identical incremental starting preparation, repeated changed/new/deleted/shrinking/growing snapshots, realized row assertions and exact source/output validation. Atomic pending-operation checkpoints and raw final distributions retain failures and source/runtime/cache conditions. Seven authored controls; actual native CLI/trial execution, representative measurements and separate latency qualification remain.",
+      "unvalidatedSourceHeads": ["2948837ceef60c5a9d2bf5662fb7870f36f5caa9", "5996ecd59a5bad3805696413beb9a0b20afaac65"],
+      "unvalidatedReceipts": ["docs/archived/sqlite-trial-profiles-implementation-2026-10-27.md"]
     },
     {
       "number": 1734,
