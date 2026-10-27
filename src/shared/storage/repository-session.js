@@ -51,4 +51,3 @@ export const acquireRepoStorageSession = (repoCacheRoot, { repoRoot, userConfig,
     coordinationRoot: path.join(state, 'storage-access'), scope });
   return { session, revalidate };
 };
-
