@@ -7632,6 +7632,9 @@
     },
     {
       "number": 1664,
+      "unvalidatedSourceHeads": ["6dda561942e5a7472cb9e69d6eae68b6052f661f", "1d72db1a7c70b5c4e4dcd97bf985d7d1cdfaa04d"],
+      "unvalidatedReceipts": ["json-import-admission-implementation-2026-10-27.md"],
+      "currentImplementation": "Strict JSON now uses common source/line/token/match/time admission and one cursor traversal with aggregate value/frontier bounds, depth semantics and retained observations. JSONC keeps its syntax/deep compatibility, with strict rejection of deep JSONC-only syntax reported as a depth omission. Policy/file/replay identities advance. Twenty cases are authored, unexecuted; actual collector/graph/replay/import checks and measured resource qualification remain.",
       "title": "[Perf] Apply collector admission and aggregate traversal budgets to strict JSON imports",
       "recordedDisposition": "implementation_needed",
       "priority": "Perf",

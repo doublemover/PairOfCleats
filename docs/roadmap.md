@@ -59,6 +59,8 @@ severity and shared dependencies, retaining qualification separately:
    have 8 more; other adapters, wrapped maps, general routing and execution remain.
    [Early embedding selection](archived/embedding-selection-implementation-2026-10-27.md)
    pins the full-build request before Stage2; complete readiness/cache-only preflight remains.
+   [Strict JSON admission](archived/json-import-admission-implementation-2026-10-27.md)
+   adds common caps, aggregate traversal and qualified omissions; 20 cases await execution.
 4. Native TUI/editor workflows: [catalog/editor witnesses and stats admission](archived/native-workflow-preflight-implementation-2026-10-27.md)
    are repaired in source; all actual workflows remain unqualified (#635).
 5. Performance/evaluation after correctness: retained comparisons (#1663),
