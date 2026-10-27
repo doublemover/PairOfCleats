@@ -11,13 +11,16 @@ import {
   validateLmdbSchemaAndMode
 } from '../../storage/lmdb/utils.js';
 import { addIssue } from './issues.js';
+import { closeLmdbDatabase } from '../../storage/lmdb/close.js';
+import { addStorageFailureContext } from '../../shared/storage/operation-error.js';
 
-export const buildLmdbReport = async ({ root, userConfig, indexRoot, modes, report, lmdbEnabled }) => {
+export const buildLmdbReport = async ({ root, userConfig, indexRoot, modes, report, lmdbEnabled, selection = null }) => {
   const enabled = typeof lmdbEnabled === 'boolean'
     ? lmdbEnabled
     : userConfig.lmdb?.use !== false;
-  const lmdbPaths = resolveLmdbPaths(root, userConfig, indexRoot ? { indexRoot } : {});
-  const lmdbTargets = new Set(modes.filter((mode) => mode === 'code' || mode === 'prose'));
+  const lmdbPaths = selection ? { codePath: selection.lmdbPaths.code || null, prosePath: selection.lmdbPaths.prose || null }
+    : resolveLmdbPaths(root, userConfig, indexRoot ? { indexRoot } : {});
+  const lmdbTargets = new Set(modes.filter(mode => (mode === 'code' || mode === 'prose') && (!selection || selection.indexDirs[mode])));
   const lmdbReport = {
     enabled,
     ok: true,
@@ -44,7 +47,7 @@ export const buildLmdbReport = async ({ root, userConfig, indexRoot, modes, repo
       addIssue(report, ['code', 'prose'].includes(label) ? label : null, message, null, 'warnings',
         { capability: 'lmdb', displayScope: `lmdb/${label}`, state: 'unverified', code: 'WARN_INDEX_LMDB_UNVERIFIED' });
     };
-    const validateStore = (label, storePath) => {
+    const validateStore = async (label, storePath) => {
       if (!hasLmdbStore(storePath)) {
         addLmdbWarning(label, 'db missing');
         return;
@@ -54,7 +57,10 @@ export const buildLmdbReport = async ({ root, userConfig, indexRoot, modes, repo
         return;
       }
       const db = openLmdb({ path: storePath, readOnly: true });
+      let originalClose, primary, failed = false;
       try {
+        originalClose = db.close;
+        if (typeof originalClose !== 'function') throw new TypeError('LMDB validation requires its original close method.');
         const schemaValidation = validateLmdbSchemaAndMode({
           db,
           label,
@@ -113,12 +119,14 @@ export const buildLmdbReport = async ({ root, userConfig, indexRoot, modes, repo
             'Run `pairofcleats lmdb build` (or `node tools/build/lmdb-index.js`) to rebuild LMDB artifacts.'
           );
         }
-      } finally {
-        db.close();
+      } catch (error) { primary = error; failed = true; throw error; }
+      finally {
+        try { await closeLmdbDatabase(db, originalClose); }
+        catch (cleanupError) { throw failed ? addStorageFailureContext(primary, {}, cleanupError, { secondaryPresent: true }) : cleanupError; }
       }
     };
-    if (lmdbTargets.has('code')) validateStore('code', lmdbPaths.codePath);
-    if (lmdbTargets.has('prose')) validateStore('prose', lmdbPaths.prosePath);
+    if (lmdbTargets.has('code')) await validateStore('code', lmdbPaths.codePath);
+    if (lmdbTargets.has('prose')) await validateStore('prose', lmdbPaths.prosePath);
   }
 
   return lmdbReport;

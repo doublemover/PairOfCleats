@@ -86,7 +86,15 @@ export const validateOrderingLedger = ({
   graphRelations,
   vocabHashes
 }) => {
-  if (!orderingLedger) return;
+  if (!orderingLedger) {
+    const detail = 'ordering ledger unavailable for selected generation';
+    if (orderingStrict) {
+      modeReport.ok = false;
+      modeReport.missing.push(detail);
+      addIssue(report, mode, detail, null, 'issues', { state: 'missing', artifact: 'ordering_ledger', code: 'ERR_INDEX_ORDERING_LEDGER_MISSING' });
+    }
+    return;
+  }
   const stageKey = resolveLedgerStageKey(orderingLedger, indexState?.stage || 'stage2', mode);
   const ledgerStage = stageKey ? orderingLedger.stages?.[stageKey] : null;
   if (!ledgerStage || !ledgerStage.artifacts) {

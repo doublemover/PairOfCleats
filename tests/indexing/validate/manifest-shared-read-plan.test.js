@@ -14,6 +14,7 @@ import { loadChunkMetaRows } from '../../../src/shared/artifact-io.js';
 import { createXxhash64Hasher } from '../../../src/shared/hash/xxhash-backend.js';
 import { validateIndexArtifacts } from '../../../src/index/validate.js';
 import { getContainedFileSession } from '../../../src/shared/contained-file.js';
+import { addIssue } from '../../../src/index/validate/issues.js';
 
 ensureTestingEnv(process.env);
 const root = resolveTestCachePath(process.cwd(), 'manifest-shared-read-plan');
@@ -36,7 +37,7 @@ const seed = async (algorithm = 'sha256', { mismatch = false } = {}) => {
   const manifest = { version: 2, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, mode: 'code', stage: 'stage2', buildId: 'generation-a',
     pieces: [
       { name: 'chunk_meta', type: 'chunks', path: 'chunk_meta.jsonl', format: 'jsonl', checksum: `${algorithm}:${mismatch ? '0'.repeat(value.length) : value}` },
-      { name: 'chunk_uid_map', path: 'opaque.bin', format: 'binary', checksum: `sha256:${await digest('sha256', opaqueBytes)}` }
+      { name: 'chunk_uid_map', type: 'chunks', path: 'opaque.bin', format: 'binary', checksum: `sha256:${await digest('sha256', opaqueBytes)}` }
     ] };
   await fs.writeFile(manifestFile, JSON.stringify(manifest));
   return manifest;
@@ -51,7 +52,7 @@ const evaluate = async ({ algorithm = 'sha256', mismatch = false, mutate = null 
     let rows = 0;
     for await (const row of loadChunkMetaRows(dir, { manifest, strict: true })) { assert.equal(row.chunkUid, 'uid-a'); rows += 1; }
     assert.equal(rows, 1);
-    state.report.issues.push('semantic-tail');
+    addIssue(state.report, null, 'semantic-tail');
     if (mutate) await mutate();
     await finalizeManifest();
   });
@@ -110,6 +111,37 @@ try {
       assert.equal(reads, readsBeforeRecovery);
       assert.equal(metrics.verifiedReads || 0, 0, 'close-only recovery cannot publish a failed invocation');
     }
+    // Exercise the production deferred manifest owner, not just its checksum
+    // helper. Unknown descriptor closure must escape classification and remain
+    // a terminal invocation failure even after explicit close-only recovery.
+    let recoverManifestClose = false, manifestCloses = 0;
+    fs.open = async (target, ...args) => {
+      const handle = await originalOpen(target, ...args);
+      if (path.resolve(target) !== path.join(dir, 'opaque.bin')) return handle;
+      const close = handle.close.bind(handle);
+      disposal.set(handle, close);
+      handle.close = async () => {
+        manifestCloses++;
+        if (!recoverManifestClose) return false;
+        await close(); disposal.delete(handle);
+      };
+      return handle;
+    };
+    let loadedManifest, manifestFailure;
+    const manifestPlan = createValidationReadPlan({ root: dir });
+    await assert.rejects(withVerifiedArtifactReadScope(manifestPlan, async () => {
+      loadedManifest = await loadAndValidateManifest({ ...reports(), mode: 'code', dir, strict: true, readPlan: manifestPlan });
+      await loadedManifest.finalizeManifest();
+    }), error => { manifestFailure = error; return true; });
+    assert.equal(manifestCloses, 1);
+    const manifestSession = getContainedFileSession(manifestFailure);
+    assert.ok(manifestSession); assert.equal(manifestSession.isSettled(), false);
+    recoverManifestClose = true;
+    await manifestSession.releaseAfterClose();
+    assert.equal(manifestSession.isSettled(), true);
+    await assert.rejects(loadedManifest.finalizeManifest(), error => error === manifestFailure);
+    assert.equal(manifestCloses, 2, 'finalization never retries the original native close or resumes verification');
+
     let releaseClose, enteredClose;
     const closing = new Promise(resolve => { enteredClose = resolve; });
     const released = new Promise(resolve => { releaseClose = resolve; });
@@ -147,13 +179,13 @@ try {
     assert.equal(shared.metrics.reusedIntegrityReads, 1);
     const eager = reports();
     await loadAndValidateManifest({ ...eager, mode: 'code', dir, strict: true });
-    eager.report.issues.push('semantic-tail');
+    addIssue(eager.report, null, 'semantic-tail');
     assert.deepEqual(shared.report, eager.report, 'deferred diagnostics keep the eager order and verdict');
   }
   const late = await evaluate({ mismatch: true });
   assert.equal(late.modeReport.ok, false, 'successful parsing cannot admit a late checksum mismatch');
   const mismatchAt = late.report.issues.findIndex(issue => issue.includes('checksum mismatch'));
-  assert.ok(mismatchAt >= 0 && mismatchAt < late.report.issues.indexOf('semantic-tail'));
+  assert.ok(mismatchAt >= 0 && mismatchAt < late.report.issues.indexOf('semantic-tail'), JSON.stringify(late.report.issues));
   const sameSize = await evaluate({ mutate: async () => {
     const before = await fs.stat(chunkFile);
     await fs.writeFile(chunkFile, Buffer.from(chunkBytes.toString('utf8').replace('uid-a', 'uid-b')));

@@ -1,7 +1,9 @@
+import { describeStorageFailure } from '../../shared/storage/failure-observation.js';
+
 export const validationFindings = report => (report.findings ||= []);
 
 export const validationErrorMetadata = (error, artifact, fallbackCode = 'ERR_INDEX_ARTIFACT_READ') => {
-  const code = error?.code;
+  const { code } = describeStorageFailure(error, { phase: 'index-validation-error', defaultCode: fallbackCode });
   return { artifact, code: typeof code === 'string' && code ? code : fallbackCode,
     state: ['ENOENT', 'ENOTDIR', 'ERR_MANIFEST_MISSING'].includes(code) ? 'missing'
       : ['EIO', 'EACCES', 'EPERM', 'EMFILE', 'ENFILE', 'ERR_FILE_CHANGED'].includes(code) ? 'unverified' : 'invalid' };

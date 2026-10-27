@@ -2,16 +2,17 @@ import assert from 'node:assert/strict';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
-import { open } from 'lmdb';
+import { open, allDbs } from 'lmdb';
 import { Packr } from 'msgpackr';
 import { createLmdbBackend } from '../../../src/retrieval/cli-lmdb.js';
 import { runNativeDatabaseCommand } from '../../../tools/shared/native-database-lifetime.js';
-import { LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../../../src/storage/lmdb/schema.js';
+import { LMDB_META_KEYS, LMDB_ARTIFACT_KEYS, LMDB_SCHEMA_VERSION } from '../../../src/storage/lmdb/schema.js';
+import { buildLmdbReport } from '../../../src/index/validate/lmdb-report.js';
 import { decodeLmdbValue } from '../../../src/storage/lmdb/utils.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('prefetch-close-ownership/')[1];
-assert.ok(['retrieval', 'builder'].includes(selected));
+assert.ok(['retrieval', 'builder', 'validator'].includes(selected));
 const { dir } = await prepareIsolatedTestCacheDir(`lmdb-prefetch-close-${selected}`);
 const require = createRequire(import.meta.url);
 const native = await import(pathToFileURL(path.join(path.dirname(require.resolve('lmdb')), '..', 'native.js')).href);
@@ -29,11 +30,17 @@ Object.defineProperty(intercepted, 'prefetch', { value: (address, position, call
 native.setNativeFunctions(intercepted);
 const packr = new Packr(), store = path.join(dir, 'store');
 let database, disposal, returned = false;
+const originalSet = allDbs.set, setDescriptor = Object.getOwnPropertyDescriptor(allDbs, 'set');
 try {
   const writer = open({ path: store, mapSize: 1024 * 1024 });
   try {
     writer.putSync(LMDB_META_KEYS.schemaVersion, packr.pack(LMDB_SCHEMA_VERSION));
     writer.putSync(LMDB_META_KEYS.mode, packr.pack('code'));
+    for (const [key, value] of [[LMDB_META_KEYS.chunkCount, 0], [LMDB_META_KEYS.mapSizeBytes, 1024 * 1024],
+      [LMDB_META_KEYS.mapSizeEstimatedBytes, 1024], [LMDB_META_KEYS.artifacts, [LMDB_ARTIFACT_KEYS.chunkMeta, LMDB_ARTIFACT_KEYS.tokenPostings]],
+      [LMDB_ARTIFACT_KEYS.chunkMeta, []], [LMDB_ARTIFACT_KEYS.tokenPostings, { vocab: [], postings: [], docLengths: [] }]]) {
+      writer.putSync(key, packr.pack(value));
+    }
   } finally { await writer.close(); }
   if (selected === 'retrieval') {
     const backend = await createLmdbBackend({ useLmdb: true, needsCode: true, needsProse: false,
@@ -43,13 +50,30 @@ try {
     await prefetched;
     disposal = backend.dispose();
     assert.equal(backend.dispose(), disposal, 'concurrent disposal joins its original owner');
-  } else {
+  } else if (selected === 'builder') {
     disposal = runNativeDatabaseCommand({ commandIdentity: 'lmdb.build' }, async resources => {
       database = resources.open(() => open({ path: store, readOnly: true }));
       database.prefetch([LMDB_META_KEYS.mode], () => {});
       await prefetched;
     });
     await prefetched;
+  } else {
+    allDbs.set = function (key, db) {
+      const get = db.get;
+      let started = false;
+      db.get = function (name, ...args) {
+        if (!started && name === LMDB_META_KEYS.schemaVersion) {
+          started = true;
+          this.prefetch([LMDB_META_KEYS.mode], () => {});
+        }
+        return get.call(this, name, ...args);
+      };
+      return originalSet.call(this, key, db);
+    };
+    disposal = buildLmdbReport({ root: dir, indexRoot: dir, userConfig: { lmdb: { codeDbPath: store } }, modes: ['code'], lmdbEnabled: true,
+      report: { issues: [], warnings: [], hints: [] }, selection: { lmdbPaths: { code: store }, indexDirs: { code: dir } } });
+    await prefetched;
+    database = allDbs.get(path.basename(store));
   }
   disposal.then(() => { returned = true; }, () => {});
   await new Promise(resolve => setImmediate(resolve));
@@ -57,7 +81,8 @@ try {
   assert.equal(database.status, 'closing');
   assert.equal(returned, false, 'neither owner may report closed while the actual prefetch callback remains outstanding');
   release(); release = null;
-  await disposal;
+  const outcome = await disposal;
+  if (selected === 'validator') { assert.equal(outcome.ok, true); assert.deepEqual(outcome.warnings, []); }
   assert.equal(database.status, 'closed');
   const reopened = open({ path: store, readOnly: true });
   try { assert.equal(decodeLmdbValue(reopened.get(LMDB_META_KEYS.mode)), 'code'); }
@@ -73,5 +98,6 @@ try {
     assert.equal(database.status, 'closed', 'the original native close must finish before the fixture exits');
   }
   native.setNativeFunctions(addon);
+  if (setDescriptor) Object.defineProperty(allDbs, 'set', setDescriptor); else delete allDbs.set;
 }
 console.log(`Actual LMDB ${selected} disposal waits for its original native-prefetch completion.`);

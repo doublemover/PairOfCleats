@@ -1,21 +1,19 @@
 import { withVerifiedArtifactReadScope } from '../shared/artifact-io/verified-read-scope.js';
+import { describeStorageFailure } from '../shared/storage/failure-observation.js';
 import { createValidationReadPlan } from './validate/read-plan.js';
-import fs from 'node:fs';
+import { captureValidationSelection, readValidationSelection } from './validate/selection.js';
 import { throwIfAborted } from '../shared/abort.js';
 import path from 'node:path';
 import {
-  getBuildsRoot,
   getRepoRoot,
   loadUserConfig
 } from '../shared/dict-utils.js';
 import { normalizePostingsConfig } from '../shared/postings-config.js';
-import { readJsonFile } from '../shared/artifact-io/json.js';
 import { loadJsonArrayArtifact } from '../shared/artifact-io/loaders/core.js';
 import { loadGraphRelations } from '../shared/artifact-io/loaders/graph.js';
 import { isAbsolutePathNative } from '../shared/file-paths.js';
 import { ARTIFACT_SURFACE_VERSION, isSupportedVersion } from '../contracts/versioning.js';
 import { isWithinRoot, toRealPathSync } from '../workspace/identity.js';
-import { resolveIndexDir } from './validate/paths.js';
 import { buildArtifactLists } from './validate/artifacts.js';
 import { normalizeFilterIndex } from './validate/normalize.js';
 import { addIssue, finalizeValidationReport, validationErrorMetadata } from './validate/issues.js';
@@ -66,7 +64,6 @@ export async function validateIndexArtifacts(input = {}) {
     ? input.sqliteEnabled
     : userConfig.sqlite?.use !== false;
   const strict = input.strict !== false;
-
   const report = {
     ok: true,
     root: path.resolve(root),
@@ -79,8 +76,33 @@ export async function validateIndexArtifacts(input = {}) {
     hints: [],
     orderingDrift: []
   };
-  const orderingLedger = await loadOrderingLedger(indexRoot || root);
-  throwIfAborted(signal);
+  let selection = input.selection;
+  if (!selection) {
+    try { selection = captureValidationSelection({ root, userConfig, indexRoot, modes, strict }); }
+    catch (error) {
+      const metadata = validationErrorMetadata(error, 'generation-selection', 'ERR_INDEX_SELECTION_UNAVAILABLE');
+      const diagnostic = describeStorageFailure(error, { phase: 'index-validation-selection' });
+      for (const mode of modes) {
+        report.modes[mode] = { path: null, ok: false, missing: [], warnings: [] };
+        addIssue(report, mode, `generation selection failed (${diagnostic.message || metadata.code})`, null, 'issues', metadata);
+      }
+      for (const [capability, enabled] of [['sqlite', sqliteEnabled], ['lmdb', input.lmdbEnabled ?? userConfig.lmdb?.use !== false]]) {
+        report[capability] = { enabled, ok: !enabled, code: null, prose: null, issues: [] };
+        if (enabled) addIssue(report, null, 'backend selection unavailable', null, 'issues', {
+          capability, artifact: 'generation-selection', state: 'unverified', code: 'ERR_INDEX_BACKEND_SELECTION_UNAVAILABLE'
+        });
+      }
+      report.selection = null;
+      return finalizeValidationReport(report);
+    }
+  }
+  const { pointer: capturedPointer } = readValidationSelection(selection, { root, userConfig, indexRoot, modes, strict });
+  report.selection = selection;
+  const orderingLedgers = new Map();
+  const orderingFor = selectedRoot => {
+    if (!orderingLedgers.has(selectedRoot)) orderingLedgers.set(selectedRoot, loadOrderingLedger(selectedRoot));
+    return orderingLedgers.get(selectedRoot);
+  };
   const orderingStrict = input.validateOrdering === true;
 
   const {
@@ -95,7 +117,17 @@ export async function validateIndexArtifacts(input = {}) {
 
   for (const mode of modes) {
     throwIfAborted(signal);
-    const dir = resolveIndexDir(root, mode, userConfig, indexRoot, strict);
+    const dir = selection.indexDirs[mode];
+    if (!dir) {
+      report.modes[mode] = { path: null, ok: false, missing: ['mode is not declared by selected publication'], warnings: [] };
+      addIssue(report, mode, 'mode is not declared by selected publication', null, 'issues', {
+        state: 'missing', artifact: 'mode-root', code: 'ERR_INDEX_MODE_ROOT_UNAVAILABLE'
+      });
+      continue;
+    }
+    const modeIndexRoot = selection.roots[mode];
+    const orderingLedger = await orderingFor(modeIndexRoot);
+    throwIfAborted(signal);
     const modeReport = {
       path: path.resolve(dir),
       ok: true,
@@ -190,7 +222,8 @@ export async function validateIndexArtifacts(input = {}) {
             modeReport,
             root,
             userConfig,
-            indexRoot,
+            indexRoot: modeIndexRoot,
+            sqlitePath: selection.sqlitePaths[mode],
             sqliteEnabled,
             readJsonArtifact,
             shouldLoadOptional,
@@ -463,7 +496,8 @@ export async function validateIndexArtifacts(input = {}) {
             readJsonArtifact
           });
         } catch (err) {
-          const issue = `validation failed (${err?.code || err?.message || 'error'})`;
+          const diagnostic = describeStorageFailure(err, { phase: 'index-validation', defaultCode: 'ERR_INDEX_VALIDATION_EXCEPTION' });
+          const issue = `validation failed (${diagnostic.code || diagnostic.message || 'error'})`;
           modeReport.ok = false;
           modeReport.missing.push(issue);
           addIssue(report, mode, issue, null, 'issues', validationErrorMetadata(err, null, 'ERR_INDEX_VALIDATION_EXCEPTION'));
@@ -476,55 +510,52 @@ export async function validateIndexArtifacts(input = {}) {
     });
   }
 
-  if (!indexRoot) {
-    const buildsRoot = getBuildsRoot(root, userConfig);
-    const currentPath = path.join(buildsRoot, 'current.json');
-    if (fs.existsSync(currentPath)) {
-      try {
-        const current = readJsonFile(currentPath);
-        validateSchema(
+  if (!indexRoot && capturedPointer) {
+    const buildsRoot = path.dirname(selection.pointerReceipt.path);
+    try {
+      const current = capturedPointer;
+      validateSchema(
+        report,
+        null,
+        'builds_current',
+        current,
+        'Rebuild index artifacts for this repo.',
+        { strictSchema: strict }
+      );
+      if (strict && !isSupportedVersion(current?.artifactSurfaceVersion, ARTIFACT_SURFACE_VERSION)) {
+        addIssue(
           report,
           null,
-          'builds_current',
-          current,
-          'Rebuild index artifacts for this repo.',
-          { strictSchema: strict }
+          `current.json artifactSurfaceVersion unsupported: ${current?.artifactSurfaceVersion ?? 'missing'}`,
+          'Rebuild index artifacts for this repo.'
         );
-        if (strict && !isSupportedVersion(current?.artifactSurfaceVersion, ARTIFACT_SURFACE_VERSION)) {
-          addIssue(
-            report,
-            null,
-            `current.json artifactSurfaceVersion unsupported: ${current?.artifactSurfaceVersion ?? 'missing'}`,
-            'Rebuild index artifacts for this repo.'
-          );
-        }
-        if (strict) {
-          const repoCacheRoot = path.resolve(path.dirname(buildsRoot));
-          const canonicalRepoCacheRoot = toRealPathSync(repoCacheRoot);
-          const ensureSafeRoot = (value, label) => {
-            if (!value) return;
-            const resolved = isAbsolutePathNative(value) ? value : path.join(repoCacheRoot, value);
-            const normalized = path.resolve(resolved);
-            if (!isWithinRoot(normalized, repoCacheRoot)) {
-              addIssue(report, null, `current.json ${label} escapes repo cache root`);
-              return;
-            }
-            const canonicalResolved = toRealPathSync(normalized);
-            if (!isWithinRoot(canonicalResolved, canonicalRepoCacheRoot)) {
-              addIssue(report, null, `current.json ${label} escapes repo cache root`);
-            }
-          };
-          ensureSafeRoot(current?.buildRoot, 'buildRoot');
-          const rootsByMode = current?.buildRootsByMode || null;
-          if (rootsByMode && typeof rootsByMode === 'object' && !Array.isArray(rootsByMode)) {
-            for (const value of Object.values(rootsByMode)) {
-              ensureSafeRoot(value, 'buildRootsByMode');
-            }
+      }
+      if (strict) {
+        const repoCacheRoot = path.resolve(path.dirname(buildsRoot));
+        const canonicalRepoCacheRoot = toRealPathSync(repoCacheRoot);
+        const ensureSafeRoot = (value, label) => {
+          if (!value) return;
+          const resolved = isAbsolutePathNative(value) ? value : path.join(repoCacheRoot, value);
+          const normalized = path.resolve(resolved);
+          if (!isWithinRoot(normalized, repoCacheRoot)) {
+            addIssue(report, null, `current.json ${label} escapes repo cache root`);
+            return;
+          }
+          const canonicalResolved = toRealPathSync(normalized);
+          if (!isWithinRoot(canonicalResolved, canonicalRepoCacheRoot)) {
+            addIssue(report, null, `current.json ${label} escapes repo cache root`);
+          }
+        };
+        ensureSafeRoot(current?.buildRoot, 'buildRoot');
+        const rootsByMode = current?.buildRootsByMode || null;
+        if (rootsByMode && typeof rootsByMode === 'object' && !Array.isArray(rootsByMode)) {
+          for (const value of Object.values(rootsByMode)) {
+            ensureSafeRoot(value, 'buildRootsByMode');
           }
         }
-      } catch (err) {
-        addIssue(report, null, `current.json invalid (${err?.message || err})`);
       }
+    } catch (err) {
+      addIssue(report, null, `current.json invalid (${err?.message || err})`);
     }
   }
 
@@ -534,6 +565,7 @@ export async function validateIndexArtifacts(input = {}) {
     userConfig,
     indexRoot,
     modes,
+    selection,
     report,
     lmdbEnabled: input.lmdbEnabled
   });
@@ -544,6 +576,7 @@ export async function validateIndexArtifacts(input = {}) {
     userConfig,
     indexRoot,
     modes,
+    selection,
     report,
     sqliteEnabled: report.sqlite.enabled
   });

@@ -9,6 +9,7 @@ import { ARTIFACT_SURFACE_VERSION, isSupportedVersion } from '../../contracts/ve
 import { isManifestPathSafe, normalizeManifestPath } from './paths.js';
 import { addIssue, validationFindings, mergeValidationFindings } from './issues.js';
 import { validateManifestEntries, validateSchema } from './schema.js';
+import { observeStorageResource } from '../../shared/storage/failure-observation.js';
 
 const verifyManifestPiece = async ({ report, mode, dir, strict, modeReport, piece, readPlan = null, signal = null }) => {
   throwIfAborted(signal);
@@ -108,6 +109,7 @@ const insertDiagnostics = (target, index, values) => {
 };
 
 const reportManifestFailure = ({ report, mode, dir, strict, modeReport }, err) => {
+  observeStorageResource(err, { phase: 'index-manifest-validation' }).requireSettled();
   if (isAbortError(err)) throw err;
   // The exact-format gate also rejects absent manifests. Preserve the
   // actionable missing-vs-invalid diagnostic without admitting either.
@@ -161,10 +163,8 @@ export const loadAndValidateManifest = async ({ report, mode, dir, strict, modeR
       if (readPlan && await readPlan.prepare(manifest)) {
         const anchors = { findings: validationFindings(report).length, hints: report.hints.length,
           missing: modeReport.missing.length, modeWarnings: modeReport.warnings.length };
-        let finalized = false;
-        finalizeManifest = async () => {
-          if (finalized) return;
-          finalized = true;
+        let finalization = null;
+        finalizeManifest = () => finalization ||= (async () => {
           const pieceReport = { issues: [], warnings: [], hints: [] };
           const pieceModeReport = { ok: true, missing: [], warnings: [] };
           const pieceInput = { report: pieceReport, mode, dir, strict, modeReport: pieceModeReport, manifest, readPlan, signal };
@@ -178,7 +178,7 @@ export const loadAndValidateManifest = async ({ report, mode, dir, strict, modeR
           insertDiagnostics(modeReport.missing, anchors.missing, pieceModeReport.missing);
           insertDiagnostics(modeReport.warnings, anchors.modeWarnings, pieceModeReport.warnings);
           if (!pieceModeReport.ok) modeReport.ok = false;
-        };
+        })();
       } else {
         await verifyManifestPieces({ report, mode, dir, strict, modeReport, manifest, signal });
       }

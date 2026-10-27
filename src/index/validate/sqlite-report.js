@@ -4,15 +4,18 @@ import { getIndexDir, resolveSqlitePaths } from '../../shared/dict-utils.js';
 import { readJsonFile } from '../../shared/artifact-io/json.js';
 import { validateSqliteZeroStateManifest } from '../../storage/sqlite/zero-state.js';
 import { addIssue } from './issues.js';
+import { createSqliteCacheCloseOwner } from '../../retrieval/sqlite-cache-close-owner.js';
+import { addStorageFailureContext } from '../../shared/storage/operation-error.js';
 
-export const buildSqliteReport = async ({ root, userConfig, indexRoot, modes, report, sqliteEnabled }) => {
-  const sqlitePaths = resolveSqlitePaths(root, userConfig, indexRoot ? { indexRoot } : {});
+export const buildSqliteReport = async ({ root, userConfig, indexRoot, modes, report, sqliteEnabled, selection = null }) => {
+  const sqlitePaths = selection ? { codePath: selection.sqlitePaths.code || null, prosePath: selection.sqlitePaths.prose || null }
+    : resolveSqlitePaths(root, userConfig, indexRoot ? { indexRoot } : {});
   const sqliteMode = userConfig.sqlite?.scoreMode === 'fts' ? 'fts' : 'bm25';
-  const sqliteTargets = new Set(modes.filter((mode) => mode === 'code' || mode === 'prose'));
+  const sqliteTargets = new Set(modes.filter(mode => (mode === 'code' || mode === 'prose') && (!selection || selection.indexDirs[mode])));
   const zeroStateModes = new Set();
   const zeroStateIssues = [];
   for (const mode of sqliteTargets) {
-    const modeIndexDir = getIndexDir(root, mode, userConfig, indexRoot ? { indexRoot } : {});
+    const modeIndexDir = selection?.indexDirs[mode] || getIndexDir(root, mode, userConfig, indexRoot ? { indexRoot } : {});
     const zeroStateManifestPath = path.join(modeIndexDir, 'pieces', 'sqlite-zero-state.json');
     if (fs.existsSync(zeroStateManifestPath)) {
       try {
@@ -79,6 +82,8 @@ export const buildSqliteReport = async ({ root, userConfig, indexRoot, modes, re
       if (Database) {
         const checkTables = (dbPath, label) => {
           const db = new Database(dbPath, { readonly: true });
+          const close = createSqliteCacheCloseOwner(db, { canClose: () => true, onClosed: () => {} });
+          let primary, failed = false;
           try {
             const rows = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
             const tableNames = new Set(rows.map((row) => row.name));
@@ -90,8 +95,10 @@ export const buildSqliteReport = async ({ root, userConfig, indexRoot, modes, re
               addIssue(report, label, issue, null, 'issues', { capability: 'sqlite', displayScope: 'sqlite', artifact: 'sqlite', code: 'ERR_INDEX_SQLITE_TABLES' });
               report.hints.push('Run `pairofcleats index build --stage 4` (or `node build_index.js --stage 4`) to rebuild SQLite artifacts.');
             }
-          } finally {
-            db.close();
+          } catch (error) { primary = error; failed = true; throw error; }
+          finally {
+            try { close.retire(); }
+            catch (cleanupError) { throw failed ? addStorageFailureContext(primary, {}, cleanupError, { secondaryPresent: true }) : cleanupError; }
           }
         };
         if (requireCodeDb) checkTables(sqlitePaths.codePath, 'code');

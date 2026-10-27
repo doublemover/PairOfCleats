@@ -20,6 +20,23 @@ Human output distinguishes these states, and genuine errors still produce a
 nonzero aggregate CLI exit. A present corrupt identity cannot be summarized as a
 missing artifact or a healthy mode. No validation check or authority is relaxed.
 
+Validation captures the pointer bytes (SHA-256), selected per-mode build/index
+roots and backend paths before asynchronous reads. Artifact checks, SQLite
+metadata parity, backend reports and generation-local ordering ledgers share that
+operation selection. Publication changes cannot retarget it. The JSON selection
+is a receipt; copying or changing its display fields grants no input authority.
+Explicit roots retain precedence; local fallback is limited to a captured
+legacy/no-publication selection. Unpublished requested modes fail explicitly.
+An invalid selection produces failed/unverified findings without reading another
+generation. Native backend reports wait for their original close owners.
+An unconfirmed manifest descriptor close propagates its original resource owner;
+it cannot become an ordinary finding. Deferred finalization shares one promise
+and retains its original rejection, including after explicit close-only recovery.
+
+Ordering ledgers are read once per distinct selected generation. Requested strict
+ordering fails when its ledger or stage is missing; absence cannot count as proof.
+The default optional-ledger behavior remains available for legacy inputs.
+
 Authored two-mode capsules cover collisions, fractional posting IDs, invalid
 metadata schema, embedding identity mismatch, deferred checksum failure, missing
 pieces, read failure, optional warnings and human/JSON output. They assert both

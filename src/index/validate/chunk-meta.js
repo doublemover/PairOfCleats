@@ -1,3 +1,5 @@
+import { createSqliteCacheCloseOwner } from '../../retrieval/sqlite-cache-close-owner.js';
+import { addStorageFailureContext } from '../../shared/storage/operation-error.js';
 import path from 'node:path';
 import fs from 'node:fs';
 import { resolveSqlitePaths } from '../../shared/dict-utils.js';
@@ -121,6 +123,7 @@ export const loadAndValidateChunkMeta = async ({
   root,
   userConfig,
   indexRoot,
+  sqlitePath = null,
   sqliteEnabled,
   readJsonArtifact,
   shouldLoadOptional,
@@ -213,8 +216,8 @@ export const loadAndValidateChunkMeta = async ({
     validateMetaV2Types(report, mode, chunkMeta);
     validateMetaV2Equivalence(report, mode, chunkMeta, { maxSamples: 25, maxErrors: 10 });
     if (sqliteEnabled && (mode === 'code' || mode === 'prose')) {
-      const sqlitePaths = resolveSqlitePaths(root, userConfig, indexRoot ? { indexRoot } : {});
-      const dbPath = mode === 'code' ? sqlitePaths.codePath : sqlitePaths.prosePath;
+      const sqlitePaths = sqlitePath ? null : resolveSqlitePaths(root, userConfig, indexRoot ? { indexRoot } : {});
+      const dbPath = sqlitePath || (mode === 'code' ? sqlitePaths.codePath : sqlitePaths.prosePath);
       if (dbPath && fs.existsSync(dbPath)) {
         let Database = null;
         try {
@@ -224,13 +227,17 @@ export const loadAndValidateChunkMeta = async ({
         }
         if (Database) {
           const db = new Database(dbPath, { readonly: true });
+          const close = createSqliteCacheCloseOwner(db, { canClose: () => true, onClosed: () => {} });
+          let primary, failed = false;
           try {
             const rows = db.prepare(
               'SELECT id, chunk_id, metaV2_json FROM chunks WHERE mode = ? ORDER BY id LIMIT ?'
             ).all(mode, SQLITE_META_V2_PARITY_SAMPLE);
             validateSqliteMetaV2Parity(report, mode, chunkMeta, rows, { maxErrors: 10 });
-          } finally {
-            db.close();
+          } catch (error) { primary = error; failed = true; throw error; }
+          finally {
+            try { close.retire(); }
+            catch (cleanupError) { throw failed ? addStorageFailureContext(primary, {}, cleanupError, { secondaryPresent: true }) : cleanupError; }
           }
         }
       }

@@ -5,12 +5,16 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { runNode } from '../../helpers/run-node.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 import { createBaseIndex, defaultUserConfig } from './helpers.js';
 import { validateIndexArtifacts } from '../../../src/index/validate.js';
 import { addIssue, mergeValidationFindings, finalizeValidationReport, validationErrorMetadata } from '../../../src/index/validate/issues.js';
 
 const { dir } = await prepareIsolatedTestCacheDir('validation-mode-findings');
 const writeJson = (name, value) => fs.writeFile(name, JSON.stringify(value));
+const cliEnv = applyTestEnv({ syncProcess: false,
+  testConfig: { sqlite: defaultUserConfig.sqlite, lmdb: defaultUserConfig.lmdb },
+  extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null } });
 const mutateManifest = async (indexDir, update) => {
   const filename = path.join(indexDir, 'pieces', 'manifest.json');
   const value = JSON.parse(await fs.readFile(filename, 'utf8')); update(value); await writeJson(filename, value);
@@ -21,7 +25,9 @@ const capsule = async name => {
   await fs.cp(fixture.indexDir, prose, { recursive: true });
   const statePath = path.join(prose, 'index_state.json');
   await writeJson(statePath, { ...JSON.parse(await fs.readFile(statePath, 'utf8')), mode: 'prose' });
-  await writeJson(path.join(fixture.repoRoot, '.pairofcleats.json'), defaultUserConfig);
+  await writeJson(path.join(fixture.repoRoot, '.pairofcleats.json'), {
+    indexing: defaultUserConfig.indexing, search: defaultUserConfig.search
+  });
   return { ...fixture, prose };
 };
 const validate = fixture => validateIndexArtifacts({ root: fixture.repoRoot, indexRoot: fixture.indexRoot,
@@ -85,12 +91,12 @@ try {
       if (failure === 'collision') {
         const cli = fileURLToPath(new URL('../../../tools/index/validate.js', import.meta.url));
         const args = [cli, '--repo', fixture.repoRoot, '--index-root', fixture.indexRoot, '--mode', 'code,prose'];
-        const human = runNode(args, 'validation human verdict', process.cwd(), process.env,
+        const human = runNode(args, 'validation human verdict', process.cwd(), cliEnv,
           { timeoutMs: 10000, stdio: 'pipe', allowFailure: true });
         assert.equal(human.status, 1); assert.equal(human.error, undefined);
-        assert.ok(human.stderr.includes(`- ${bad}: invalid`));
+        assert.ok(human.stderr.includes(`- ${bad}: invalid`), human.stderr);
         assert.ok(human.stderr.includes(`- ${bad === 'code' ? 'prose' : 'code'}: ok`));
-        const json = runNode([...args, '--json'], 'validation JSON verdict', process.cwd(), process.env,
+        const json = runNode([...args, '--json'], 'validation JSON verdict', process.cwd(), cliEnv,
           { timeoutMs: 10000, stdio: 'pipe', allowFailure: true });
         assert.equal(json.status, 1); assert.equal(json.error, undefined);
         assertOwned(JSON.parse(json.stdout), bad, 'ERR_ID_COLLISION');
