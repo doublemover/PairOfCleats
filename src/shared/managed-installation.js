@@ -4,6 +4,7 @@ import { assertNoSymlinkPath } from './contained-file.js';
 import { hashManagedToolFile, readManagedToolText } from './managed-tool-file.js';
 import { stableStringify } from './stable-json.js';
 import { isKnownManagedInstallationReceipt } from './managed-installation-contract.js';
+import { observeStorageResource } from './storage/failure-observation.js';
 export { retainManagedToolInstallation, retainManagedToolInstallationSync, inspectManagedInstallationSync } from './managed-installation-retain.js';
 
 const identity = value => createHash('sha256').update(stableStringify(value)).digest('hex');
@@ -31,5 +32,8 @@ export const resolveManagedToolInstallation = (toolingRoot, toolId) => {
     if (!file || hashManagedToolFile(command, 128 * 1024 * 1024) !== file.sha256) return null;
     return { owner, root, command, args: descriptor.args || [], binDir: path.dirname(command),
       descriptorId: selector.descriptorId, installId: selector.installId, version: descriptor.version, verification: 'selected-receipt-and-consumer-bytes' };
-  } catch { return null; }
+  } catch (error) {
+    observeStorageResource(error, { phase: 'managed-installation-discovery' }).requireSettled();
+    return null;
+  }
 };

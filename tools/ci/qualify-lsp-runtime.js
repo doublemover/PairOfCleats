@@ -11,6 +11,7 @@ import { isTestingEnv } from '../../src/shared/env/testing.js';
 import { hashManagedToolFile } from '../../src/shared/managed-tool-file.js';
 import { PHPACTOR_APPROVED_RELEASE, PHPACTOR_POSIX_SHIM } from '../tooling/approved-artifacts.js';
 import { GOPLS_VERSION } from '../tooling/gopls-recipe.js';
+import { describeStorageFailure } from '../../src/shared/storage/failure-observation.js';
 
 // Internal qualification recipes: no public CLI, configuration or execution grant.
 const recipes = {
@@ -61,14 +62,16 @@ export const runLspQualificationWorker = async input => {
     receipt.launcher = { path: launcherPath,
       expectedSha256: createHash('sha256').update(PHPACTOR_POSIX_SHIM).digest('hex') };
     try { receipt.launcher.sha256 = hashManagedToolFile(launcherPath, 16 * 1024); }
-    catch (error) { receipt.launcher.error = redactDiagnosticText(error.message, 1024); }
+    catch (error) { receipt.launcher.error = redactDiagnosticText(describeStorageFailure(error,
+      { phase: 'qualification-launcher-bytes' }).message, 1024); }
     if (receipt.launcher.sha256 !== receipt.launcher.expectedSha256) {
       return { ...receipt, ok: false, reason: 'runtime_launcher_unproven' };
     }
     const artifactPath = path.join(input.toolingConfig.dir, 'bin', 'phpactor.phar');
     receipt.artifact = { path: artifactPath, expectedSha256: PHPACTOR_APPROVED_RELEASE.sha256 };
     try { receipt.artifact.sha256 = hashManagedToolFile(artifactPath, 32 * 1024 * 1024); }
-    catch (error) { receipt.artifact.error = redactDiagnosticText(error.message, 1024); }
+    catch (error) { receipt.artifact.error = redactDiagnosticText(describeStorageFailure(error,
+      { phase: 'qualification-artifact-bytes' }).message, 1024); }
     if (receipt.artifact.sha256 !== PHPACTOR_APPROVED_RELEASE.sha256) {
       return { ...receipt, ok: false, reason: 'runtime_artifact_unproven' };
     }

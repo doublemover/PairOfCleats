@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { hashManagedToolFile as hashManagedGoFile, readManagedToolText as readManagedGoText } from './managed-tool-file.js';
 import { normalizeEnvPathKeys, resolveEnvPath } from './env-path.js';
+import { observeStorageResource } from './storage/failure-observation.js';
 
 export const GO_RELEASE_INDEX_URL = 'https://go.dev/dl/?mode=json';
 export const GO_ARCHIVE_ORIGIN = 'https://dl.google.com/go/';
@@ -61,7 +62,8 @@ export const resolveManagedGoSdk = (toolingRoot, targetOptions = {}) => {
     const tools = fs.readdirSync(compilerTools, { withFileTypes: true });
     if (!fs.lstatSync(compilerTools).isDirectory() || !tools.length || tools.some((entry) => !entry.isFile())) return null;
     return { ...receipt, goRoot, binDir: path.join(goRoot, 'bin'), command };
-  } catch {
+  } catch (error) {
+    observeStorageResource(error, { phase: 'managed-go-discovery' }).requireSettled();
     return null;
   }
 };

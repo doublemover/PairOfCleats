@@ -79,6 +79,18 @@ does not repeat extraction, verification or publication. Read-only header/hash/
 receipt inspection captures original file operations and retains unresolved
 read/close failures; Clangd discovery cannot flatten these into a missing tool.
 
+Go, Lua and generic managed-tool discovery likewise propagate unresolved
+inspection ownership before projecting a missing/invalid selection. Ordinary
+missing, malformed or changed bytes still produce their existing failure states.
+Full immutable-generation inspection borrows original contained-file and
+synchronous directory owners. It publishes a byte witness only after those
+reads and closes settle. Retained consumer admission protects the category and
+exact tool owner before the first inspection, then repeats identity checks under
+the same lifetime. A failed pending inspection exposes
+`managedInspectionSession.releaseAfterClosure()`; it closes captured file/Dir
+owners before exact storage metadata release, without repeating the scan or
+launching a consumer. Direct read-only locators still grant no consumer lease.
+
 ## Actual resource settlement
 
 `runToolInstallChild` uses the shared async subprocess owner and

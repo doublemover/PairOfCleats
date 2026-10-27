@@ -2,12 +2,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { assertNoSymlinkPath } from './contained-file.js';
+import { assertNoSymlinkPath, withContainedFileSync, getContainedFileSession } from './contained-file.js';
 import { readManagedToolText } from './managed-tool-file.js';
 import { stableStringify } from './stable-json.js';
 import { acquireStorageSession, retainSessionFailure } from './storage/session.js';
 import { resolveStorageLayout } from './storage/layout.js';
 import { isKnownManagedInstallationReceipt } from './managed-installation-contract.js';
+import { withStorageDirectorySync, getStorageDirectorySession } from './storage/directory.js';
+import { describeStorageFailure, observeStorageResource } from './storage/failure-observation.js';
+import { addStorageFailureContext } from './storage/operation-error.js';
 
 const identity = value => createHash('sha256').update(stableStringify(value)).digest('hex');
 const safeRelative = value => typeof value === 'string' && value.length <= 4096
@@ -23,9 +26,8 @@ const inventory = root => {
     const relative = pending.pop();
     const directory = path.join(root, relative);
     assertNoSymlinkPath(root, directory);
-    const handle = fs.opendirSync(directory);
-    try {
-      for (let entry = handle.readSync(); entry; entry = handle.readSync()) {
+    withStorageDirectorySync(directory, reader => {
+      for (let entry = reader.read(); entry; entry = reader.read()) {
         if (++entries > 50000) throw new Error('Managed inventory exceeds its entry bound.');
         const child = relative ? `${relative}/${entry.name}` : entry.name;
         if (!safeRelative(child)) throw new Error('Invalid managed inventory path.');
@@ -36,25 +38,26 @@ const inventory = root => {
         if (!before.isFile() || before.nlink !== 1 || before.size > 128 * 1024 * 1024) throw new Error('Invalid managed inventory file.');
         bytes += before.size;
         if (bytes > 1024 * 1024 * 1024) throw new Error('Managed inventory exceeds its byte bound.');
-        const fd = fs.openSync(file, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0));
-        try {
-          const opened = fs.fstatSync(fd);
+        const sha256 = withContainedFileSync(root, file, descriptor => {
+          const opened = descriptor.stat();
           if (opened.dev !== before.dev || opened.ino !== before.ino || opened.size !== before.size) throw new Error('Managed file changed before reading.');
           const hash = createHash('sha256');
           const buffer = Buffer.allocUnsafe(65536);
           let offset = 0;
           while (offset < before.size) {
-            const count = fs.readSync(fd, buffer, 0, Math.min(buffer.length, before.size - offset), offset);
-            if (!count) throw new Error('Managed file was truncated.');
+            const wanted = Math.min(buffer.length, before.size - offset);
+            const count = descriptor.read(buffer, 0, wanted, offset);
+            if (!Number.isSafeInteger(count) || count <= 0 || count > wanted) throw new Error('Managed file made invalid read progress.');
             hash.update(buffer.subarray(0, count));
             offset += count;
           }
-          const after = fs.fstatSync(fd);
+          const after = descriptor.stat();
           if (after.size !== before.size || after.mtimeMs !== before.mtimeMs || after.ctimeMs !== before.ctimeMs) throw new Error('Managed file changed while reading.');
-          rows.push({ path: child, bytes: before.size, sha256: hash.digest('hex') });
-        } finally { fs.closeSync(fd); }
+          return hash.digest('hex');
+        });
+        rows.push({ path: child, bytes: before.size, sha256 });
       }
-    } finally { handle.closeSync(); }
+    });
   }
   return rows.sort((left, right) => left.path.localeCompare(right.path));
 };
@@ -87,7 +90,10 @@ export const inspectManagedInstallationSync = ({ toolingRoot, toolId, descriptor
     if (identity(inventory(root)) !== receipt.filesIdentity) return { ok: false, state: 'repair-required', reason: 'managed-file-bytes-drift', receipt };
     if (!receipt.files.some(file => file.path === descriptor.command)) throw new Error('Managed consumer is absent from its inventory.');
     return { ok: true, state: 'bytes-intact', owner, root, command: path.join(root, descriptor.command), args: descriptor.args || [], receipt, protocol: 'not-reprobed' };
-  } catch (error) { return { ok: false, state: error.code === 'ENOENT' ? 'missing' : 'repair-required', reason: error.code || error.message }; }
+  } catch (error) {
+    const diagnostic = describeStorageFailure(error, { phase: 'managed-generation-inspection', defaultCode: null });
+    return { ok: false, state: diagnostic.code === 'ENOENT' ? 'missing' : 'repair-required', reason: diagnostic.code || diagnostic.message };
+  }
 };
 
 /** Pin category and exact owner, then repeat full byte inspection under admission.
@@ -95,20 +101,43 @@ export const inspectManagedInstallationSync = ({ toolingRoot, toolId, descriptor
  * descendant and resource closure has been confirmed by its execution owner.
  */
 export const retainManagedToolInstallationSync = options => {
-  const selected = inspectManagedInstallationSync(options);
-  if (!selected.ok) throw new Error('Managed tool selection is unavailable: ' + selected.state);
+  if (!path.isAbsolute(options?.toolingRoot || '') || !/^[a-z0-9][a-z0-9.-]{0,100}$/.test(options?.toolId || '')) {
+    throw new Error('Managed tool selection is unavailable: invalid owner');
+  }
+  const owner = path.join(options.toolingRoot, 'installs', options.toolId);
   const stateRoot = resolveStorageLayout({ overrides: { tooling: options.toolingRoot } }).descriptors.state.path;
   const coordinationRoot = path.join(stateRoot, 'storage-access');
-  const session = acquireStorageSession({ roots: [selected.owner],
-    authorizedRoots: [options.toolingRoot, stateRoot], coordinationRoot, resourceId: selected.receipt.installId,
+  const session = acquireStorageSession({ roots: [owner],
+    authorizedRoots: [options.toolingRoot, stateRoot], coordinationRoot,
     scope: 'managed-physical-installation-resource' });
   const release = () => session.releaseAfterSettlement({ resourceId: session.resourceId, settled: true, pending: false });
   try {
+    const selected = inspectManagedInstallationSync(options);
+    if (!selected.ok) throw new Error('Managed tool selection is unavailable: ' + selected.state);
     const after = inspectManagedInstallationSync({ ...options, descriptorId: selected.receipt.descriptorId,
       installId: selected.receipt.installId });
     if (!after.ok) throw new Error('Managed tool selection changed before consumer lease admission; retry.');
     return Object.defineProperty({ ...after, release }, 'storageSession', { value: session });
   } catch (error) {
+    const observation = observeStorageResource(error, { phase: 'managed-retained-inspection' });
+    let pending = false, retained = error;
+    try { observation.requireSettled(); } catch (failure) { pending = true; retained = failure; }
+    if (pending) {
+      const file = getContainedFileSession(retained), directory = getStorageDirectorySession(retained);
+      let released = false;
+      const retain = secondary => retainSessionFailure(addStorageFailureContext(retained,
+        { managedInspectionSession: recovery }, secondary, { nonEnumerable: ['managedInspectionSession'], forceAggregate: true }),
+      null, session, { originalClosure: () => released && observation.isSettled() });
+      const recovery = Object.freeze({ resourceId: session.resourceId, releaseAfterClosure: () => {
+        try {
+          file?.releaseAfterCloseSync(); directory?.releaseAfterCloseSync();
+          observation.requireSettled();
+          if (release() !== true) throw new Error('Managed inspection storage metadata remains unconfirmed.');
+          released = true; return true;
+        } catch (cleanupError) { throw retain(cleanupError); }
+      } });
+      throw retain();
+    }
     try { release(); }
     catch (cleanupError) { throw retainSessionFailure(error, cleanupError, session); }
     throw error;

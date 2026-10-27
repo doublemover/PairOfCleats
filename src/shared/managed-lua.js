@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { assertNoSymlinkPath, readVerifiedContainedFileSync } from './contained-file.js';
+import { describeStorageFailure, observeStorageResource } from './storage/failure-observation.js';
 
 /** Existing Lua selection metadata only; present does not mean protocol ready. */
 export const readManagedLuaSelection = toolingRoot => {
@@ -16,9 +17,10 @@ export const readManagedLuaSelection = toolingRoot => {
       || !/^[a-f0-9]{64}$/u.test(value.sha256 || '')) throw new Error('Lua selection has invalid or unknown retained metadata.');
     return { status: 'present', target, owner, root: path.join(owner, value.generation), value, sha256: read.hash };
   } catch (error) {
-    if (!opened && error.code === 'ENOENT') return { status: 'missing', target, owner, value: null, sha256: null };
+    const diagnostic = describeStorageFailure(error, { phase: 'managed-lua-selection', defaultCode: 'ERR_LUA_SELECTION' });
+    if (!opened && diagnostic.code === 'ENOENT') return { status: 'missing', target, owner, value: null, sha256: null };
     return { status: 'invalid', target, owner, value: null, sha256: null,
-      error: { code: error.code || 'ERR_LUA_SELECTION', message: error.message } };
+      error: diagnostic };
   }
 };
 
@@ -37,5 +39,8 @@ export const resolveManagedLuaLanguageServer = toolingRoot => {
       if (process.platform !== 'win32' && file === command && (stat.mode & 0o111) === 0) return null;
     }
     return { root, command, mainLuaPath, binDir: path.dirname(command) };
-  } catch { return null; }
+  } catch (error) {
+    observeStorageResource(error, { phase: 'managed-lua-discovery' }).requireSettled();
+    return null;
+  }
 };

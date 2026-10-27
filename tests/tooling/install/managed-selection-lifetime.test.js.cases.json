@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["go-selection", "lua-selection", "lua-discovery", "managed-selection", "inspect-selection", "inspect-file", "inspect-directory-read", "inspect-directory-close", "retained-first-selection", "retained-second-selection", "retained-file", "retained-directory-read", "retained-directory-close", "retained-metadata", "original-directory-close", "positive"]
+}

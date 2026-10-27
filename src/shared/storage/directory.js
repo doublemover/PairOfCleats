@@ -1,6 +1,8 @@
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { addStorageFailureContext, readStorageFailureContext } from './operation-error.js';
+import { observeStorageResource } from './failure-observation.js';
 
 const sessions = new WeakSet();
 const failureOwners = new WeakMap();
@@ -151,4 +153,75 @@ export const withStorageDirectory = async (directory, action) => {
       throw combined.slice(1).reduce((error, secondary) => addStorageFailureContext(error, {}, secondary), combined[0]);
     }
   }
+};
+
+/** Synchronous counterpart for command selection before process launch. The
+ * exact Dir object, original methods and original resource observations survive
+ * failed inspection. Recovery closes only; it never resumes enumeration. */
+export const withStorageDirectorySync = (directory, action) => {
+  if (typeof action !== 'function') throw new TypeError('Storage directory requires its synchronous enumeration callback.');
+  const handle = fsSync.opendirSync(directory);
+  const resourceId = `storage-directory:${randomUUID()}`;
+  let accepting = true, closed = false, overflow = false, primary = null, closeMethod = null, readMethod = null;
+  let captureFailed = false, session;
+  const errors = [], guards = [], seen = new WeakSet();
+  const record = value => {
+    const error = asError(value);
+    if (failureOwners.get(error) === session || seen.has(error)) return error;
+    seen.add(error);
+    if (errors.length === 128) { overflow = true; return error; }
+    errors.push(error); primary ||= error;
+    const retained = observeStorageResource(error, { phase: 'storage-directory-sync' }).retain();
+    guards.push(Object.getOwnPropertyDescriptor(retained, 'cacheOwnershipReleased').value);
+    return error;
+  };
+  const resourcesSettled = () => !overflow && guards.every(observe => observe() === true);
+  const isSettled = () => closed && resourcesSettled();
+  const close = () => {
+    if (closed) return;
+    if (!resourcesSettled()) throw new Error('Original storage directory work prohibits native close.');
+    if (captureFailed) throw new Error('Storage directory original close method is unknown.');
+    const result = closeMethod.call(handle);
+    if (result !== undefined) throw new Error('Storage directory close did not confirm its standard void result.');
+    closed = true;
+  };
+  const retainFailure = () => {
+    const pending = sealOwnershipObservation(Object.assign(new AggregateError(errors, 'Storage directory closure remains unconfirmed.',
+      primary ? { cause: primary } : undefined), {
+      code: 'ERR_STORAGE_DIRECTORY_CLOSE_PENDING', cacheOwnershipPending: true, cacheOwnershipReleased: isSettled
+    }));
+    failureOwners.set(pending, session);
+    const failure = addStorageFailureContext(primary || pending, { storageDirectorySession: session }, pending,
+      { nonEnumerable: ['storageDirectorySession'], forceAggregate: true });
+    sealOwnershipObservation(failure); failureOwners.set(failure, session);
+    return failure;
+  };
+  const release = () => {
+    try { close(); } catch (error) { record(error); throw retainFailure(); }
+    if (!isSettled()) throw retainFailure();
+    return { resourceId, settled: true, pending: false };
+  };
+  session = Object.freeze({ resourceId, isSettled, releaseAfterCloseSync: release, releaseAfterClose: async () => release() });
+  sessions.add(session);
+  try {
+    closeMethod = handle.closeSync;
+    if (typeof closeMethod !== 'function') throw new TypeError('Storage directory has no original synchronous close owner.');
+  } catch (error) { captureFailed = true; record(error); }
+  const reader = Object.freeze({ read: () => {
+    if (!accepting) throw new Error('Storage directory read scope has closed.');
+    try { return readMethod.call(handle); } catch (error) { record(error); throw error; }
+  } });
+  let result;
+  try {
+    if (captureFailed) throw primary;
+    readMethod = handle.readSync;
+    if (typeof readMethod !== 'function') throw new TypeError('Storage directory has no original synchronous read owner.');
+    result = action(reader);
+  } catch (error) { record(error); }
+  accepting = false;
+  try { close(); } catch (error) { record(error); }
+  if (!isSettled()) throw retainFailure();
+  if (errors.length) throw errors.slice(1).reduce((failure, error) => addStorageFailureContext(failure, {}, error,
+    { forceAggregate: true }), errors[0]);
+  return result;
 };
