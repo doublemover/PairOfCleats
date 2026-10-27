@@ -16,9 +16,9 @@ import { inspectStorageAccess, withExclusiveStorageAccess } from '../../../src/s
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('prefetch-close-ownership/')[1];
-assert.ok(['retrieval', 'builder', 'validator', 'retrieval-storage', 'builder-storage'].includes(selected));
+assert.ok(['retrieval', 'builder', 'validator', 'retrieval-storage', 'builder-storage', 'validator-storage'].includes(selected));
 const { dir } = await prepareIsolatedTestCacheDir(`lmdb-prefetch-close-${selected}`);
-const storageCase = ['retrieval-storage', 'builder-storage'].includes(selected);
+const storageCase = ['retrieval-storage', 'builder-storage', 'validator-storage'].includes(selected);
 const home = path.join(dir, 'home'), cache = path.join(dir, 'cache'), repoRoot = path.join(dir, 'repo');
 let storageContext = null, repoCacheRoot = null;
 if (storageCase) {
@@ -97,7 +97,8 @@ try {
       };
       return originalSet.call(this, key, db);
     };
-    disposal = buildLmdbReport({ root: dir, indexRoot: dir, userConfig: { lmdb: { codeDbPath: store } }, modes: ['code'], lmdbEnabled: true,
+    disposal = buildLmdbReport({ root: storageCase ? repoRoot : dir, indexRoot: dir,
+      userConfig: storageCase ? storageContext.userConfig : { lmdb: { codeDbPath: store } }, modes: ['code'], lmdbEnabled: true,
       report: { issues: [], warnings: [], hints: [] }, selection: { lmdbPaths: { code: store }, indexDirs: { code: dir } } });
     await prefetched;
     database = allDbs.get(path.basename(store));
@@ -110,7 +111,7 @@ try {
   await assertStorage(true);
   release(); release = null;
   const outcome = await disposal;
-  if (selected === 'validator') { assert.equal(outcome.ok, true); assert.deepEqual(outcome.warnings, []); }
+  if (selected === 'validator' || selected === 'validator-storage') { assert.equal(outcome.ok, true); assert.deepEqual(outcome.warnings, []); }
   assert.equal(database.status, 'closed');
   await assertStorage(false);
   const reopened = open({ path: store, readOnly: true });

@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-27T14:27:02.381Z",
+  "generatedAt": "2026-10-27T14:34:47.899Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -3735,6 +3735,7 @@
         "tests/shared/storage/native-command-sessions.test.js",
         "tests/shared/storage/native-compaction-session.test.js",
         "tests/shared/storage/native-reader-lifetime.test.js",
+        "tests/shared/storage/native-validator-sessions.test.js",
         "tests/shared/storage/probe-policy-failure-observation.test.js",
         "tests/shared/storage/probe-policy-reviewed-lifecycle.test.js",
         "tests/shared/storage/repo-cleanup-exclusion.test.js",
@@ -4656,6 +4657,7 @@
         "tests/shared/storage/native-command-sessions.test.js",
         "tests/shared/storage/native-compaction-session.test.js",
         "tests/shared/storage/native-reader-lifetime.test.js",
+        "tests/shared/storage/native-validator-sessions.test.js",
         "tests/shared/storage/repo-cleanup-exclusion.test.js",
         "tests/shared/storage/sqlite-probe-lifetime.test.js",
         "tests/shared/subprocess/sync-timeout-detached-tree.test.js",
@@ -5063,6 +5065,7 @@
         "tests/shared/storage/native-command-sessions.test.js",
         "tests/shared/storage/native-compaction-session.test.js",
         "tests/shared/storage/native-reader-lifetime.test.js",
+        "tests/shared/storage/native-validator-sessions.test.js",
         "tests/shared/storage/repo-cleanup-exclusion.test.js",
         "tests/shared/storage/sqlite-probe-lifetime.test.js",
         "tests/storage/lmdb/native-artifact-parity.test.js",

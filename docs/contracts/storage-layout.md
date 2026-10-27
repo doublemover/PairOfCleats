@@ -34,6 +34,13 @@ with their original capabilities and causes. Failed builds preserve staged
 databases/sidecars whenever the original resource observation is unconfirmed;
 failure classification cannot mutate away a frozen primary cause.
 
+SQLite and LMDB native validation readers also admit their exact launch-selected
+repository/resource/category session before opening a database. Known physical
+closure and every original independent observation precede metadata release.
+LMDB includes its original completion callback, including outstanding prefetch;
+missing-store diagnostics release only an admission that opened no native handle.
+Metadata failure retains explicit recovery without repeating confirmed closure.
+
 `src/shared/storage/layout.js` resolves one application home and category
 descriptors without filesystem access. Launch home precedes `PAIROFCLEATS_HOME`,
 then the existing platform default: `%LOCALAPPDATA%/PairOfCleats` on Windows,

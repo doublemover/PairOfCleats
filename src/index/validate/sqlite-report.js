@@ -6,6 +6,7 @@ import { validateSqliteZeroStateManifest } from '../../storage/sqlite/zero-state
 import { addIssue } from './issues.js';
 import { createSqliteCacheCloseOwner } from '../../retrieval/sqlite-cache-close-owner.js';
 import { addStorageFailureContext } from '../../shared/storage/operation-error.js';
+import { acquireNativeReaderStorage } from '../../shared/storage/native-reader.js';
 
 export const buildSqliteReport = async ({ root, userConfig, indexRoot, modes, report, sqliteEnabled, selection = null }) => {
   const sqlitePaths = selection ? { codePath: selection.sqlitePaths.code || null, prosePath: selection.sqlitePaths.prose || null }
@@ -81,10 +82,15 @@ export const buildSqliteReport = async ({ root, userConfig, indexRoot, modes, re
       }
       if (Database) {
         const checkTables = (dbPath, label) => {
-          const db = new Database(dbPath, { readonly: true });
-          const close = createSqliteCacheCloseOwner(db, { canClose: () => true, onClosed: () => {} });
+          let db = null, close = null, nativeClosed = false;
+          const storage = acquireNativeReaderStorage(dbPath, { repoRoot: root, userConfig }, () => nativeClosed);
+          storage?.start();
           let primary, failed = false;
           try {
+            try { db = new Database(dbPath, { readonly: true }); }
+            catch (error) { storage?.failedOpen(error); throw error; }
+            close = createSqliteCacheCloseOwner(db, { canClose: () => true, onClosed: () => {},
+              onNativeClosed: () => { nativeClosed = true; storage?.releaseAfterClosure(); } });
             const rows = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
             const tableNames = new Set(rows.map((row) => row.name));
             const missing = sqliteRequiredTables.filter((name) => !tableNames.has(name));
@@ -95,9 +101,9 @@ export const buildSqliteReport = async ({ root, userConfig, indexRoot, modes, re
               addIssue(report, label, issue, null, 'issues', { capability: 'sqlite', displayScope: 'sqlite', artifact: 'sqlite', code: 'ERR_INDEX_SQLITE_TABLES' });
               report.hints.push('Run `pairofcleats index build --stage 4` (or `node build_index.js --stage 4`) to rebuild SQLite artifacts.');
             }
-          } catch (error) { primary = error; failed = true; throw error; }
+          } catch (error) { primary = db && storage ? storage.retainFailure(error) : error; failed = true; throw primary; }
           finally {
-            try { close.retire(); }
+            try { close?.retire(); }
             catch (cleanupError) { throw failed ? addStorageFailureContext(primary, {}, cleanupError, { secondaryPresent: true }) : cleanupError; }
           }
         };

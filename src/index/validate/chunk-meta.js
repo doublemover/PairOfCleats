@@ -1,5 +1,6 @@
 import { createSqliteCacheCloseOwner } from '../../retrieval/sqlite-cache-close-owner.js';
 import { addStorageFailureContext } from '../../shared/storage/operation-error.js';
+import { acquireNativeReaderStorage } from '../../shared/storage/native-reader.js';
 import path from 'node:path';
 import fs from 'node:fs';
 import { resolveSqlitePaths } from '../../shared/dict-utils.js';
@@ -226,17 +227,22 @@ export const loadAndValidateChunkMeta = async ({
           addIssue(report, mode, 'sqlite parity check skipped: better-sqlite3 unavailable');
         }
         if (Database) {
-          const db = new Database(dbPath, { readonly: true });
-          const close = createSqliteCacheCloseOwner(db, { canClose: () => true, onClosed: () => {} });
+          let db = null, close = null, nativeClosed = false;
+          const storage = acquireNativeReaderStorage(dbPath, { repoRoot: root, userConfig }, () => nativeClosed);
+          storage?.start();
           let primary, failed = false;
           try {
+            try { db = new Database(dbPath, { readonly: true }); }
+            catch (error) { storage?.failedOpen(error); throw error; }
+            close = createSqliteCacheCloseOwner(db, { canClose: () => true, onClosed: () => {},
+              onNativeClosed: () => { nativeClosed = true; storage?.releaseAfterClosure(); } });
             const rows = db.prepare(
               'SELECT id, chunk_id, metaV2_json FROM chunks WHERE mode = ? ORDER BY id LIMIT ?'
             ).all(mode, SQLITE_META_V2_PARITY_SAMPLE);
             validateSqliteMetaV2Parity(report, mode, chunkMeta, rows, { maxErrors: 10 });
-          } catch (error) { primary = error; failed = true; throw error; }
+          } catch (error) { primary = db && storage ? storage.retainFailure(error) : error; failed = true; throw primary; }
           finally {
-            try { close.retire(); }
+            try { close?.retire(); }
             catch (cleanupError) { throw failed ? addStorageFailureContext(primary, {}, cleanupError, { secondaryPresent: true }) : cleanupError; }
           }
         }

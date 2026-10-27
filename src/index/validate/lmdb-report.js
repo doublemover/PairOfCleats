@@ -13,6 +13,7 @@ import {
 import { addIssue } from './issues.js';
 import { closeLmdbDatabase } from '../../storage/lmdb/close.js';
 import { addStorageFailureContext } from '../../shared/storage/operation-error.js';
+import { acquireNativeReaderStorage } from '../../shared/storage/native-reader.js';
 
 export const buildLmdbReport = async ({ root, userConfig, indexRoot, modes, report, lmdbEnabled, selection = null }) => {
   const enabled = typeof lmdbEnabled === 'boolean'
@@ -48,17 +49,22 @@ export const buildLmdbReport = async ({ root, userConfig, indexRoot, modes, repo
         { capability: 'lmdb', displayScope: `lmdb/${label}`, state: 'unverified', code: 'WARN_INDEX_LMDB_UNVERIFIED' });
     };
     const validateStore = async (label, storePath) => {
-      if (!hasLmdbStore(storePath)) {
-        addLmdbWarning(label, 'db missing');
-        return;
-      }
-      if (!openLmdb) {
-        addLmdbWarning(label, 'lmdb dependency unavailable; integrity check skipped');
-        return;
-      }
-      const db = openLmdb({ path: storePath, readOnly: true });
+      let nativeClosed = false, db = null, attemptedOpen = false;
+      const storage = storePath ? acquireNativeReaderStorage(storePath, { repoRoot: root, userConfig }, () => nativeClosed) : null;
+      storage?.start();
       let originalClose, primary, failed = false;
       try {
+        if (!hasLmdbStore(storePath)) {
+          addLmdbWarning(label, 'db missing');
+          return;
+        }
+        if (!openLmdb) {
+          addLmdbWarning(label, 'lmdb dependency unavailable; integrity check skipped');
+          return;
+        }
+        attemptedOpen = true;
+        try { db = openLmdb({ path: storePath, readOnly: true }); }
+        catch (error) { storage?.failedOpen(error); throw error; }
         originalClose = db.close;
         if (typeof originalClose !== 'function') throw new TypeError('LMDB validation requires its original close method.');
         const schemaValidation = validateLmdbSchemaAndMode({
@@ -119,10 +125,15 @@ export const buildLmdbReport = async ({ root, userConfig, indexRoot, modes, repo
             'Run `pairofcleats lmdb build` (or `node tools/build/lmdb-index.js`) to rebuild LMDB artifacts.'
           );
         }
-      } catch (error) { primary = error; failed = true; throw error; }
+      } catch (error) { primary = db && storage ? storage.retainFailure(error) : error; failed = true; throw primary; }
       finally {
-        try { await closeLmdbDatabase(db, originalClose); }
-        catch (cleanupError) { throw failed ? addStorageFailureContext(primary, {}, cleanupError, { secondaryPresent: true }) : cleanupError; }
+        try {
+          if (db) {
+            try { await closeLmdbDatabase(db, originalClose); nativeClosed = true; }
+            catch (error) { throw storage ? storage.retainFailure(error) : error; }
+          } else if (!attemptedOpen) nativeClosed = true;
+          if (db || !attemptedOpen) storage?.releaseAfterClosure();
+        } catch (cleanupError) { throw failed ? addStorageFailureContext(primary, {}, cleanupError, { secondaryPresent: true }) : cleanupError; }
       }
     };
     if (lmdbTargets.has('code')) await validateStore('code', lmdbPaths.codePath);
