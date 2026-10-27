@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-27T09:07:31.495Z",
+  "generatedAt": "2026-10-27T09:29:58.884Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4638,6 +4638,7 @@
         "tests/perf/bench/query-resource-plan.test.js",
         "tests/perf/tooling/bench/sqlite-benchmark-cli.test.js",
         "tests/retrieval/backend/boolean-complement-cli.test.js",
+        "tests/retrieval/backend/sqlite-uncached-close-ownership.test.js",
         "tests/runner/run-execution.js",
         "tests/security/download-redirect-deadline.test.js",
         "tests/services/api/semantic-detail-format-compatibility.test.js",

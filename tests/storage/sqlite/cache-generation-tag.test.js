@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createSqliteBackend } from '../../../src/retrieval/cli-sqlite.js';
 import { createSqliteDbCache } from '../../../src/retrieval/sqlite-cache.js';
+import { getPendingSqliteCacheOwners } from '../../../src/retrieval/sqlite-cache-close-owner.js';
 import { CREATE_TABLES_SQL, SCHEMA_VERSION } from '../../../src/storage/sqlite/schema.js';
 import { ensureTestingEnv } from '../../helpers/test-env.js';
 
@@ -74,6 +75,7 @@ const limitedCache = createSqliteDbCache({ maxEntries: 1 });
 const disabledCache = createSqliteDbCache({ maxEntries: 0 });
 const backends = new Set();
 const externallyOwnedHandles = new Set();
+let releaseExpectedClose = () => {};
 
 try {
   // The reader only needs the canonical schema and a few rows; no index build.
@@ -304,22 +306,34 @@ try {
     oneEntryCache.dispose();
   }
 
-  const throwingCleanup = await openBackend({
-    dbCache: null,
-    sqliteProsePath: separatePath,
-    needsExtractedProse: false
-  });
-  const originalClose = throwingCleanup.dbCode.close.bind(throwingCleanup.dbCode);
-  let closeCalls = 0;
-  throwingCleanup.dbCode.close = () => {
-    closeCalls += 1;
-    originalClose();
-    throw new Error('injected first-handle close failure');
+  const originalClose = Database.prototype.close;
+  let closeCalls = 0, denyClose = true, throwingCleanup;
+  Database.prototype.close = function () {
+    const result = originalClose.call(this);
+    if (this.name === sharedPath) {
+      closeCalls += 1;
+      if (denyClose) throw new Error('injected first-handle close failure');
+    }
+    return result;
   };
-  assert.throws(() => throwingCleanup.dispose(), AggregateError);
+  try {
+    throwingCleanup = await openBackend({ dbCache: null, sqliteProsePath: separatePath, needsExtractedProse: false });
+  } finally { Database.prototype.close = originalClose; }
+  releaseExpectedClose = () => {
+    denyClose = false;
+    getPendingSqliteCacheOwners().find(owner => owner.db === throwingCleanup.dbCode)?.release();
+  };
+  let cleanupFailure;
+  assert.throws(() => throwingCleanup.dispose(), error => { cleanupFailure = error; return error instanceof AggregateError; });
   assert.equal(throwingCleanup.dbProse.open, false, 'dispose must attempt all physical handles');
-  await throwingCleanup.dispose();
+  assert.throws(() => throwingCleanup.dispose(), error => error === cleanupFailure, 'repeated dispose preserves its actual failure');
   assert.equal(closeCalls, 1, 'a failing disposer must still be idempotent');
+  assert.equal(cleanupFailure.cacheOwnershipReleased(), false, 'native side effects alone do not acknowledge a thrown close');
+  assert.ok(getPendingSqliteCacheOwners().some(owner => owner.db === throwingCleanup.dbCode));
+  releaseExpectedClose();
+  assert.equal(cleanupFailure.cacheOwnershipReleased(), true);
+  assert.equal(closeCalls, 2, 'only explicit reconciliation invokes the captured close again');
+  backends.delete(throwingCleanup);
 
   const fallbackWarm = await openBackend({
     sqliteExtractedProsePath: invalidPath,
@@ -345,6 +359,7 @@ try {
   assert.equal(fallbackClosed.length, 1, 'fallback must close the shared cache entry exactly once');
   assert.equal(fallbackClosed[0].open, false);
 } finally {
+  releaseExpectedClose();
   for (const backend of backends) await backend.dispose();
   cache.dispose();
   backendCache.dispose();

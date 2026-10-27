@@ -3,7 +3,7 @@ const objectLike = value => value !== null && ['object', 'function'].includes(ty
 export const getPendingSqliteCacheOwners = () => Object.freeze([...pending]);
 export const getSqliteCacheFailureOwner = error => objectLike(error) ? failureOwners.get(error) || null : null;
 
-/** Own only this cache's captured synchronous close. A failed invocation is not
+/** Own one cached or uncached handle's captured synchronous close. A failed invocation is not
  * repeated by eviction/dispose; explicit reconciliation still requires all
  * original observers and zero references. No numeric handle or field adoption.
  */

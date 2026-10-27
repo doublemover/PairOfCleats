@@ -6,7 +6,7 @@ import { getPendingSqliteCacheOwners, getSqliteCacheFailureOwner } from '../../.
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 
 // Actual cache/LRU/lease owner with inert original synchronous native boundaries.
-// Authored only; no database binding, child, IPC, executable or parser is used.
+// Component control; no database binding, child, IPC, executable or parser is used.
 const root = await makeTempDir('sqlite-cache-close-owner-');
 const baseline = new Set(getPendingSqliteCacheOwners()), caches = [], finish = [];
 const caught = action => { let failed = false, value; try { action(); } catch (error) { failed = true; value = error; }
