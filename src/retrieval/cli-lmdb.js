@@ -3,6 +3,7 @@ import { LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../storage/lmdb/schema.js';
 import { createBackendDisposer } from './cli/backend-disposal.js';
 import { closeLmdbDatabase } from '../storage/lmdb/close.js';
 import { addStorageFailureContext } from '../shared/storage/operation-error.js';
+import { acquireNativeReaderStorage } from '../shared/storage/native-reader.js';
 import {
   decodeLmdbValue,
   hasLmdbStore,
@@ -30,6 +31,7 @@ export async function createLmdbBackend(options) {
   const disposers = new Set();
   const dispose = createBackendDisposer(disposers);
   const closeByDb = new Map();
+  const nativeClosed = new WeakMap(), storageByDb = new WeakMap();
 
   if (!useLmdb) {
     return { useLmdb, dbCode, dbProse, isAvailable: false, dispose };
@@ -66,15 +68,41 @@ export async function createLmdbBackend(options) {
 
   const openStore = async (storePath, label) => {
     retainCachePathAccess(storePath);
-    if (!hasLmdbStore(storePath)) return null;
-    const db = open({ path: storePath, readOnly: true });
+    let db = null;
+    const storage = acquireNativeReaderStorage(storePath, options.storageContext, () => nativeClosed.get(db) === true);
+    try {
+      if (!hasLmdbStore(storePath)) { storage?.releaseAfterClosure(); return null; }
+      storage?.start();
+      db = open({ path: storePath, readOnly: true });
+    } catch (error) { storage?.failedOpen(error); throw error; }
+    if (storage) {
+      if (!storageByDb.has(db)) storageByDb.set(db, new Set());
+      storageByDb.get(db).add(storage);
+    }
     if (!closeByDb.has(db)) {
       let originalClose, captureFailure, captureFailed = false;
-      const close = createBackendDisposer(new Set([() => {
-        if (captureFailed) throw addStorageFailureContext(captureFailure, {
-          cacheOwnershipPending: true, cacheOwnershipReleased: () => false
-        }, null, { forceAggregate: true });
-        return closeLmdbDatabase(db, originalClose);
+      const close = createBackendDisposer(new Set([async () => {
+        const leases = storageByDb.get(db) || [];
+        try {
+          if (captureFailed) throw addStorageFailureContext(captureFailure, {
+            cacheOwnershipPending: true, cacheOwnershipReleased: () => false
+          }, null, { forceAggregate: true });
+          await closeLmdbDatabase(db, originalClose);
+          nativeClosed.set(db, true);
+        } catch (error) {
+          let failure = error;
+          for (const lease of leases) failure = lease.retainFailure(failure);
+          throw failure;
+        }
+        const errors = [];
+        for (const lease of leases) {
+          try { lease.releaseAfterClosure(); } catch (error) { errors.push(error); }
+        }
+        if (errors.length) {
+          let failure = errors[0];
+          for (const error of errors.slice(1)) failure = addStorageFailureContext(failure, {}, error, { secondaryPresent: true });
+          throw failure;
+        }
       }]));
       closeByDb.set(db, close);
       disposers.add(close);

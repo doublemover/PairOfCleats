@@ -51,6 +51,7 @@ export const createBackendContext = async ({
 }) => {
   const disposers = new Set();
   const dispose = createBackendDisposer(disposers);
+  const storageContext = root && userConfig ? { repoRoot: root, userConfig } : null;
   try {
     const lmdbBackend = await createLmdbBackend({
       useLmdb: useLmdbInput,
@@ -59,7 +60,8 @@ export const createBackendContext = async ({
       lmdbCodePath,
       lmdbProsePath,
       backendForcedLmdb,
-      lmdbStates
+      lmdbStates,
+      storageContext
     });
     disposers.add(() => lmdbBackend.dispose());
     let useLmdb = lmdbBackend.useLmdb;
@@ -80,7 +82,8 @@ export const createBackendContext = async ({
       sqliteReadPragmas,
       dbCache,
       sqliteStates,
-      generationContext
+      generationContext,
+      storageContext
     });
     disposers.add(() => sqliteBackend.dispose());
     let useSqlite = sqliteBackend.useSqlite;

@@ -1,7 +1,20 @@
 # SQLite cache close lifetime
 
-Status: **UNVALIDATED source and authored regressions**. No fixture, native
-database operation, syntax/format pass or benchmark ran for this change.
+Revision-specific Windows execution is recorded in the
+[uncached ownership receipt](../archived/sqlite-uncached-close-ownership-2026-10-27.md)
+and the current [roadmap](../roadmap.md). Broader release/performance qualification
+remains separate.
+
+Retrieval captures the physical close owner before schema or ANN initialization.
+The built-in cache takes over that exact owner and changes only its reference
+gate; a later handle method or copied receipt cannot supply another close.
+Canonical native readers pin their launch-selected repository and cache category
+through original native closure. Cached requests retain those leases until actual
+handle retirement, reusing one lease set per resource and launch namespace.
+Another namespace joins the same physical settlement; metadata-only recovery
+never calls native close again. Unknown original observations keep their leases.
+External/custom roots and unadopted legacy adapters remain protected pending their
+registered publication owners; this protocol grants no deletion authority.
 
 LRU eviction removes discoverability immediately but retains its actual entry
 through outstanding leases and original close. Closure is recorded only after

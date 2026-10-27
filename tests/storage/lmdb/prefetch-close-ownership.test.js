@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import fs from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { pathToFileURL } from 'node:url';
 import { open, allDbs } from 'lmdb';
@@ -10,10 +11,29 @@ import { LMDB_META_KEYS, LMDB_ARTIFACT_KEYS, LMDB_SCHEMA_VERSION } from '../../.
 import { buildLmdbReport } from '../../../src/index/validate/lmdb-report.js';
 import { decodeLmdbValue } from '../../../src/storage/lmdb/utils.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
+import { resolveRepoCacheRootPath } from '../../../src/shared/repo-paths.js';
+import { inspectStorageAccess, withExclusiveStorageAccess } from '../../../src/shared/storage/access.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
 
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('prefetch-close-ownership/')[1];
-assert.ok(['retrieval', 'builder', 'validator'].includes(selected));
+assert.ok(['retrieval', 'builder', 'validator', 'retrieval-storage'].includes(selected));
 const { dir } = await prepareIsolatedTestCacheDir(`lmdb-prefetch-close-${selected}`);
+const storageCase = selected === 'retrieval-storage';
+const home = path.join(dir, 'home'), cache = path.join(dir, 'cache'), repoRoot = path.join(dir, 'repo');
+let storageContext = null, repoCacheRoot = null;
+if (storageCase) {
+  await fs.mkdir(repoRoot);
+  applyTestEnv({ extraEnv: { PAIROFCLEATS_HOME: home, PAIROFCLEATS_TRUSTED_CONFIG: null } });
+  storageContext = { repoRoot, userConfig: { cache: { root: cache } } };
+  repoCacheRoot = resolveRepoCacheRootPath(repoRoot, storageContext.userConfig);
+}
+const assertStorage = async expected => {
+  if (!storageCase) return;
+  const coordinationRoot = path.join(home, 'state', 'storage-access');
+  for (const root of [cache, path.join(cache, 'repos'), repoCacheRoot, store]) {
+    assert.equal((await inspectStorageAccess(root, { coordinationRoot })).protected, expected);
+  }
+};
 const require = createRequire(import.meta.url);
 const native = await import(pathToFileURL(path.join(path.dirname(require.resolve('lmdb')), '..', 'native.js')).href);
 const addon = native.nativeAddon;
@@ -28,8 +48,9 @@ Object.defineProperty(intercepted, 'prefetch', { value: (address, position, call
   announce();
 }) });
 native.setNativeFunctions(intercepted);
-const packr = new Packr(), store = path.join(dir, 'store');
-let database, disposal, returned = false;
+const packr = new Packr(), store = storageCase
+  ? path.join(repoCacheRoot, 'builds', 'generation', 'index-lmdb', 'index-code') : path.join(dir, 'store');
+let database, disposal, returned = false, backendCleanup = null;
 const originalSet = allDbs.set, setDescriptor = Object.getOwnPropertyDescriptor(allDbs, 'set');
 try {
   const writer = open({ path: store, mapSize: 1024 * 1024 });
@@ -42,10 +63,15 @@ try {
       writer.putSync(key, packr.pack(value));
     }
   } finally { await writer.close(); }
-  if (selected === 'retrieval') {
+  if (selected === 'retrieval' || storageCase) {
     const backend = await createLmdbBackend({ useLmdb: true, needsCode: true, needsProse: false,
-      lmdbCodePath: store, backendForcedLmdb: true });
+      lmdbCodePath: store, backendForcedLmdb: true, storageContext });
+    backendCleanup = backend.dispose;
     database = backend.dbCode;
+    await assertStorage(true);
+    if (storageCase) assert.equal((await withExclusiveStorageAccess(cache,
+      () => assert.fail('active LMDB readers prevent category relocation'),
+      { coordinationRoot: path.join(home, 'state', 'storage-access') })).protected, true);
     database.prefetch([LMDB_META_KEYS.mode], () => {});
     await prefetched;
     disposal = backend.dispose();
@@ -80,15 +106,18 @@ try {
   assert.ifError(prefetchFailure);
   assert.equal(database.status, 'closing');
   assert.equal(returned, false, 'neither owner may report closed while the actual prefetch callback remains outstanding');
+  await assertStorage(true);
   release(); release = null;
   const outcome = await disposal;
   if (selected === 'validator') { assert.equal(outcome.ok, true); assert.deepEqual(outcome.warnings, []); }
   assert.equal(database.status, 'closed');
+  await assertStorage(false);
   const reopened = open({ path: store, readOnly: true });
   try { assert.equal(decodeLmdbValue(reopened.get(LMDB_META_KEYS.mode)), 'code'); }
   finally { await reopened.close(); }
 } finally {
   release?.();
+  if (!disposal && backendCleanup) await backendCleanup().catch(() => {});
   if (disposal) await disposal.catch(() => {});
   // A pre-repair owner can return while native close is still finishing. Never
   // issue another close against that same environment during failure cleanup.

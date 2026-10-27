@@ -11,8 +11,9 @@ import {
 
 import { applyReadPragmas } from '../storage/sqlite/build/pragmas.js';
 import { stableStringifyForSignature } from '../shared/stable-json.js';
-import { createSqliteCacheCloseOwner } from './sqlite-cache-close-owner.js';
+import { createSqliteCacheCloseOwner, getSqliteNativeSettlement, addSqliteNativeSettlementHook } from './sqlite-cache-close-owner.js';
 import { addStorageFailureContext } from '../shared/storage/operation-error.js';
+import { acquireNativeReaderStorage, findNativeReaderStorage, registerNativeReaderStorage } from '../shared/storage/native-reader.js';
 
 const backendCleanupFailure = (errors, message) => {
   let failure = new AggregateError(errors, message, { cause: errors[0] });
@@ -261,8 +262,20 @@ export async function createSqliteBackend(options) {
     const lease = usesCacheLeases ? dbCache.acquire(dbPath, { generationTag }) : null;
     const cached = usesCacheLeases ? lease?.db : dbCache?.get?.(dbPath, { generationTag });
     if (cached) {
-      try { assertSqliteIndexFormat({ db: cached, operation: 'search',
-        repoRoot: options.rootDir || options.repoRoot || process.cwd(), indexPath: dbPath });
+      let storage = null;
+      try {
+        const nativeSettled = getSqliteNativeSettlement(cached);
+        const existing = findNativeReaderStorage(cached, dbPath, options.storageContext);
+        if (nativeSettled && !existing) {
+          storage = acquireNativeReaderStorage(dbPath, options.storageContext, nativeSettled);
+          if (storage) {
+            addSqliteNativeSettlementHook(cached, () => storage.releaseAfterClosure());
+            storage.start();
+            registerNativeReaderStorage(cached, storage);
+          }
+        }
+        assertSqliteIndexFormat({ db: cached, operation: 'search',
+          repoRoot: options.rootDir || options.repoRoot || process.cwd(), indexPath: dbPath });
       } catch (error) { lease?.release(); throw error; }
       openedByPath.set(dbPath, {
         db: cached,
@@ -273,9 +286,11 @@ export async function createSqliteBackend(options) {
       });
       return cached;
     }
-    let db;
+    let db, nativeClosed = false;
+    const storage = acquireNativeReaderStorage(dbPath, options.storageContext, () => nativeClosed);
     let dbStat = null;
     try {
+      storage?.start();
       dbStat = fsSync.statSync(dbPath);
       db = new Database(dbPath, { readonly: true });
       // Own the handle before any operation that can fail, including schema
@@ -285,21 +300,26 @@ export async function createSqliteBackend(options) {
         generationTag,
         cached: false,
         validated: false,
-        cleanup: null
+        cleanup: null,
+        closeNative: null
       };
       openedByPath.set(dbPath, record);
-      if (!usesCacheLeases && typeof dbCache?.set !== 'function') {
-        try {
-          const owner = createSqliteCacheCloseOwner(db, { canClose: () => true, onClosed: () => {} });
-          record.cleanup = () => owner.retire();
-        } catch (error) {
-          // The physical close owner retains failed capture. No later cleanup
-          // may adopt another method or turn that failure into success.
-          record.cleanup = () => { throw error; };
-          throw error;
-        }
-      } else record.cleanup = () => db.close();
+      try {
+        const owner = createSqliteCacheCloseOwner(db, { canClose: () => true, onClosed: () => {},
+          allowCacheHandoff: usesCacheLeases,
+          onNativeClosed: () => { nativeClosed = true; storage?.releaseAfterClosure(); } });
+        record.cleanup = () => owner.retire();
+        record.closeNative = record.cleanup;
+        if (storage) registerNativeReaderStorage(db, storage);
+      } catch (error) {
+        // Cached and uncached handles capture the same physical owner before
+        // schema/ANN initialization. Failed capture cannot adopt a later method.
+        const failure = storage ? storage.retainFailure(error) : error;
+        record.cleanup = () => { throw failure; };
+        throw failure;
+      }
     } catch (err) {
+      if (!db) storage?.failedOpen(err);
       const message = err?.code === 'ENOENT'
         ? `SQLite ${label} database is missing (${dbPath}); the mode may be empty or not built. Build stage4 for this mode if SQLite is required.`
         : `SQLite ${label} database could not be opened (${dbPath}): ${err?.code || err?.message || 'unknown error'}.`;
@@ -395,7 +415,7 @@ export async function createSqliteBackend(options) {
               dbCache.close(dbPath, { generationTag: record.generationTag, expectedDb: record.db });
             }
           } else if (!usesCacheLeases) {
-            record.cleanup = () => record.db.close();
+            record.cleanup = record.closeNative || (() => record.db.close());
             if (dbCache?.get?.(dbPath) === record.db) dbCache.delete?.(dbPath);
           }
         } catch (error) {

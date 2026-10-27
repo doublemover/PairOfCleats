@@ -1,9 +1,18 @@
 # Whole-application storage ownership
 
-Implementation status: source authored, **UNVALIDATED**. Runtime, Windows/UNC,
-locked-file, disk-full, interruption and representative-tool acceptance remain
-deferred. This contract introduces foundations for issues #1264–#1268; it does
-not claim that every existing writer has adopted layout version 2.
+Implementation status: bounded Windows owner protocols have revision-specific
+receipts in the [roadmap](../roadmap.md). Full runtime/platform/UNC, disk-full,
+interruption and representative-tool acceptance remain separate. This contract
+introduces foundations for issues #1264–#1268; every existing writer has not yet
+adopted layout version 2.
+
+Canonical SQLite/LMDB retrieval readers use the same launch-selected repository
+session admission as index writers. Repository, resource and category leases
+precede native access and outlive request leases while a cached handle remains
+open. The original physical close precedes metadata release; explicit metadata
+recovery cannot repeat native close. Cached reuse is bounded by native resource
+and launch namespace. Custom/external backend roots still require registration
+and category-specific publication/deletion owners; no path grants deletion.
 
 `src/shared/storage/layout.js` resolves one application home and category
 descriptors without filesystem access. Launch home precedes `PAIROFCLEATS_HOME`,

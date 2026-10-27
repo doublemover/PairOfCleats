@@ -2,7 +2,7 @@ import fsSync from 'node:fs';
 import { createLruCache } from '../shared/cache/lru.js';
 import { incCacheEviction, setCacheSize } from '../shared/metrics/core.js';
 import { stableStringifyForSignature } from '../shared/stable-json.js';
-import { createSqliteCacheCloseOwner } from './sqlite-cache-close-owner.js';
+import { createSqliteCacheCloseOwner, takeSqliteCacheCloseOwner } from './sqlite-cache-close-owner.js';
 
 const DEFAULT_SQLITE_CACHE_MAX_ENTRIES = 4;
 const DEFAULT_SQLITE_CACHE_TTL_MS = 15 * 60 * 1000;
@@ -137,10 +137,11 @@ export function createSqliteDbCache({
   const makeEntry = (dbPath, db, options) => {
     const entry = { db, dbPath, generationTag: normalizeGenerationTag(options.generationTag),
       signature: fileSignature(dbPath), refs: 0, retired: disposed || !cacheHandle.cache, closed: false };
-    entry.owner = createSqliteCacheCloseOwner(db, {
+    const gate = {
       canClose: () => entry.retired && entry.refs === 0,
       onClosed: () => { entry.closed = true; retiredEntries.delete(entry); }
-    });
+    };
+    entry.owner = takeSqliteCacheCloseOwner(db, gate) || createSqliteCacheCloseOwner(db, gate);
     return entry;
   };
   const insertEntry = (entry) => {
