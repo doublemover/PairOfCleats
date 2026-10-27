@@ -1,8 +1,9 @@
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { assertSafeCacheDeletion } from '../cache-deletion.js';
-import { withExclusiveRepoCacheCleanup } from '../cache/repo-access.js';
 import { inspectStorageAccess } from './access.js';
+import { withRepoCleanupExclusion } from './repo-cleanup-exclusion.js';
+import { getApplicationHome } from '../cache-roots.js';
 import { withStorageDirectory } from './directory.js';
 import { describeStorageFailure } from './failure-observation.js';
 import { inspectRepoStorageProtection, removeDerivedRepoCache } from './repo-protection.js';
@@ -45,6 +46,9 @@ export const cleanupDerivedRepoArtifacts = async ({ repoCacheRoot, cacheRoot,
   assertSafeCacheDeletion(root, authorityRoots);
   const access = await inspectStorageAccess(root);
   if (access.protected) return retained(root, 'active-or-unknown-owner', { access });
+  const coordinationRoot = path.join(getApplicationHome(), 'state', 'storage-access');
+  const resources = await inspectStorageAccess(root, { coordinationRoot });
+  if (resources.protected) return retained(root, 'active-or-unknown-resource', { access: resources });
   const apply = async () => {
     assertSafeCacheDeletion(root, authorityRoots);
     const writers = await inspectWriters(root);
@@ -58,6 +62,6 @@ export const cleanupDerivedRepoArtifacts = async ({ repoCacheRoot, cacheRoot,
     return { ...result, status: result.ok ? 'removed' : 'failed', root, removed: result.ok === true };
   };
   if (dryRun) return apply();
-  const exclusion = await withExclusiveRepoCacheCleanup(root, apply);
+  const exclusion = await withRepoCleanupExclusion({ repoCacheRoot: root, cacheRoot, action: apply });
   return exclusion.protected ? retained(root, exclusion.reason, { owners: exclusion.owners }) : exclusion.result;
 };

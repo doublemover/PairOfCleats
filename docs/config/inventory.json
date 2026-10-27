@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-27T07:04:57.808Z",
+  "generatedAt": "2026-10-27T07:16:38.444Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -3732,6 +3732,7 @@
         "tests/shared/storage/locator-resource-failure-observation.test.js",
         "tests/shared/storage/probe-policy-failure-observation.test.js",
         "tests/shared/storage/probe-policy-reviewed-lifecycle.test.js",
+        "tests/shared/storage/repo-cleanup-exclusion.test.js",
         "tests/shared/storage/selected-environment-resolvers.test.js",
         "tests/shared/storage/transfer-descriptor-close-lifetime.test.js",
         "tests/shared/storage/write-reservation-creation-recovery.test.js",
@@ -4638,6 +4639,7 @@
         "tests/services/api/semantic-detail-format-compatibility.test.js",
         "tests/shared/concurrency/scheduler-exact-ready-replay.test.js",
         "tests/shared/dense-vector-binary-writes.test.js",
+        "tests/shared/storage/repo-cleanup-exclusion.test.js",
         "tests/shared/subprocess/sync-timeout-detached-tree.test.js",
         "tests/smoke/baseline-negative.test.js",
         "tests/smoke/baseline.test.js",
@@ -5032,6 +5034,7 @@
         "tests/security/repository-authority.test.js",
         "tests/security/tooling-cache-authority.test.js",
         "tests/shared/storage/cli-reviewed-context-and-selectors.test.js",
+        "tests/shared/storage/repo-cleanup-exclusion.test.js",
         "tests/storage/vector-extension/trust-revalidation.test.js",
         "tests/tooling/api-contracts/export-identity-cli.test.js",
         "tests/tooling/api-contracts/qualified-target-joins-cli.test.js",

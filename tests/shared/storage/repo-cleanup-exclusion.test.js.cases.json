@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["readers-and-race", "original-close", "metadata-failure"]
+}
