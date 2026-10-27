@@ -1,6 +1,9 @@
 # GitHub issue closeout review — 2026-10-26
 
-Status: Published and reconciled. 27 issues closed; all 743 remaining issues updated.
+Baseline status: Published and reconciled. 27 issues closed; 743 remaining issues updated.
+
+Subsequent [source repairs](remaining-issue-repairs-2026-10-26.md) close four more
+issues; 739 remain open. Use the roadmap and linked owner queue for current status.
 
 Reviewed all 770 open issues and 238 comments against `accf98f64a560a5df9b1bdb175f7ca22331672af` on
 `codex/pr557-audit-repairs-20261012`. The live issue bodies match the prior complete

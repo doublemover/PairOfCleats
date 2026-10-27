@@ -1,6 +1,6 @@
 # PairOfCleats Roadmap
 
-Status: Issue review published; remaining implementation/qualification tracked
+Status: Solo owner-batched repairs resumed; bounded Windows qualification
 Last audited: 2026-10-26
 Last reconciled: 2026-10-26
 Canonical for: initiative status, execution order, and remaining work
@@ -8,9 +8,11 @@ Canonical for: initiative status, execution order, and remaining work
 ## Current GitHub repair program
 
 Current reconciliation, 2026-10-26: [the closeout review](archived/github-issue-closeout-2026-10-26.md)
-assessed all **770 open issues and 238 comments**. It closed **27 completed issues**, **477 implementations awaiting qualification**, **150 partial/follow-up
-owners** and **116 implementation gaps**. All **743 remaining issues are updated**
-and live-reconciled. Eight older closing references retain unfinished acceptance.
+assessed **770 issues and 238 comments**, closing 27. The next batch closes four
+more: **739 remain open**—477 awaiting qualification, 147 partial/follow-up and
+115 with unresolved implementation status. The unresolved label is tracking
+evidence, not proof of absent code. Every remaining issue has a completion
+checklist; the linked owner queue records current execution status.
 
 The [complete assessment](archived/github-issue-closeout-2026-10-26.json) records
 remaining work, current source/test mappings and exact closure witnesses.
@@ -21,59 +23,31 @@ retain source checkpoints and the [prior inventory](archived/github-issue-covera
 remains historical. Work is solo and Windows-only. Hosted gate/policy/Rust TUI
 passed at `f8532f1d2`; seven broader jobs failed (see the review).
 
-The solo batches repair publication/recovery and resource lifetime, immutable
-source/record identities, language extraction and declaration/flow ownership,
-provider replay, triage/MCP evidence and bounded operator tooling. Rust/native
-signature and HTML/R/SQL/custom-DSL handoffs retain source and grammar authority;
-Python/Ruby ownership retains independent call facts. Embedding leases, ANN request
-budgets, strict context reads and native/storage failures retain terminal owners.
+The [next source receipt](archived/remaining-issue-repairs-2026-10-26.md) closes
+#586, #670, #811 and #1642 at `c4bec36c8`: cached MCP value admission before
+repository/cache work, cancellable triage children, truthful snapshot/CLI status
+and source-qualified UTF-16 VFS spans (routing producer 4). There are **29 passing
+focused fixtures**. The gate's stale fixture was corrected and its affected case
+passed; the other 39 gate cases and preceding static/document checks passed.
+This is scoped evidence, not a full-suite or platform/model/release qualification.
 
-Benchmark comparisons now bind admitted source/backend/input identity, completed
-work, paired content parity and fresh-process phase scopes. Text-vector writes
-admit bounded page-capacity turnover; VFS materialization and cold-cache reuse
-qualify current content/root, live byte/count/metadata bounds and flush revisions.
-Map writers share atomic publication and report final-inclusive boundary samples
-separately from process-lifetime RSS. JSONL framing scans each new fragment once
-(#1739); HTML chunks/metadata share one source-owned parse5 tree and retain compact
-source-qualified facts (#1713). Session/generation URI lifetime remains partial
-(#1643). Native include authority now shares lexical summaries, preserves argv
-root order and bounds snapshot-local context/probe work (#1692). SDK MCP now
-reserves bounded read-only diagnostic admission while retaining running cleanup
-leases and total capacity (#1615). Native bridge manifests now admit bounded
-canonical bytes before expansion and hash the same owned representation (#1701).
-Finite heap operations now admit aggregate bytes/candidate work and reuse privately
-owned immutable identity/read projections across joins and pages (#1694).
-Retained graph enumeration now owns one verified pair per shard, bounded decode
-windows, physical-work receipts and CLI output/cleanup lifetime (#1714).
-Native flow now streams bounded construction into the existing writer, aborts
-incomplete derived output and retains independent staging/tree cleanup failures
-(#1682; native producer version3).
-Provider merges now prepare source/group inventories once, combine provider and
-generic row checks, and fence changed host selections before committing (#1597).
-Bound service progress now revalidates one attempt through bounded classified
-reads; executor binding/shared startup discovery remain partial (#1593).
-Provider catalogs now reject normalized identity collisions before ordering,
-cache work or preflight, retaining stable explicit instances (#1659).
-Fatal worker owners now retain exit/close settlement, fence late results and bound
-restart storms; diagnostics have passive byte/queue admission and cannot change
-task outcomes (#1646, #1647).
-Comment classification now preserves ordinary prose, explicit notice/exclusion
-receipts and custom matcher policy; paired raw extraction is policy-versioned
-with fresh consumer tokenization (#1657; sourceChunking34).
-The curated ci-lite lane contains 1,375 cases. Most new/strengthened regressions
-remain unrun; the review records its 27 passing checks. Batch detail and static-
-check receipts are in the linked implementation archive and complete inventory.
+Execution is solo, Windows-only and implementation-first. The [complete owner
+queue](archived/remaining-issue-batches-2026-10-26.json) orders source work by
+severity and shared dependencies, retaining qualification separately:
 
-Execution remains solo, Windows-only and implementation-first. Finish remaining
-P1/P2 source gaps before perf and lower-priority intake. Open shared owners include
-custom-backend cleanup authority (#1574), source-pinned Tantivy publication
-(#1627), remaining grammar/documentation and call-occurrence handoffs, benchmark
-settled-run retention (#1663), representative SQLite workload profiles and
-repeated trials (#1733), and whole-process-tree RSS measurement (#1675).
-SQL lexical quote/scope/catalog qualification and broader semantic dataflow
-remain explicit. Native/optional model and platform qualification are separate
-from these source repairs. The live inventory remains authoritative for every
-partial/pending report; earlier test greens are not final-head acceptance.
+1. Cleanup/storage authority and source-pinned publication (#1574, #1627).
+2. Worker/child/service ownership, provider installation and compilation context
+   (#631, #1593, #289), keeping live readers and original cleanup owners intact.
+3. Language/semantic/replay and retrieval/API evidence contracts.
+4. Native TUI/editor workflows, including the catalog-loaded blocker (#635).
+5. Performance/evaluation after correctness: retained comparisons (#1663),
+   representative SQLite trials (#1733) and whole-process-tree RSS (#1675).
+6. Research capabilities after their prerequisite source/retrieval/evidence owners.
+
+Frontload related implementation, then run bounded affected checks and repair
+actual failures. Keep real-tool/model, non-Windows and release execution explicit;
+source receipts and small fixtures do not discharge those qualifications. Earlier
+completed detail remains in the linked repair archives.
 
 Previous validation reconciliation, 2026-10-24: the user replaced the proposed full Windows
 rerun with **targeted re-checks** of failures and changed shared owners. Work is
