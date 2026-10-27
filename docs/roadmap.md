@@ -1,15 +1,15 @@
 # PairOfCleats Roadmap
 
 Status: Solo owner-batched repairs resumed; bounded Windows qualification
-Last audited: 2026-10-26
-Last reconciled: 2026-10-26
+Last audited: 2026-10-27
+Last reconciled: 2026-10-27
 Canonical for: initiative status, execution order, and remaining work
 
 ## Current GitHub repair program
 
-Current reconciliation, 2026-10-26: [the closeout review](archived/github-issue-closeout-2026-10-26.md)
+Current reconciliation, 2026-10-27: [the closeout review](archived/github-issue-closeout-2026-10-26.md)
 assessed **770 issues and 238 comments**, closing 27. Subsequent repair batches close
-five more: **738 remain open**—477 awaiting qualification, 147 partial/follow-up and
+seven more: **736 remain open**—475 awaiting qualification, 147 partial/follow-up and
 114 with unresolved implementation status. The unresolved label is tracking
 evidence, not proof of absent code. Every remaining issue has a completion
 checklist; the linked owner queue records current execution status.
@@ -39,13 +39,20 @@ reader/mapping identity remain open. Twenty focused fixtures and the complete
 cheap front gate (40/40) pass. Command checks used a task-local launch omitting an
 inherited missing trusted-config selector; user settings and trust rules are intact.
 
+The [cache-retirement receipt](archived/cache-retirement-repairs-2026-10-27.md)
+closes #1718's federation follow-up and qualifies the existing #1591 daemon repair
+at `9d1c90a5c`. Request-owned caches share the existing retirement ledger; successful
+fanout surfaces cleanup failure and fail-fast errors retain late cleanup ownership.
+The regression fails against the prior coordinator and passes after repair.
+Fourteen affected fixtures and the complete cheap front gate (40/40) pass.
+
 Execution is solo, Windows-only and implementation-first. The [complete owner
 queue](archived/remaining-issue-batches-2026-10-26.json) orders source work by
 severity and shared dependencies, retaining qualification separately:
 
 1. Cleanup/storage authority and source-pinned publication (#1574, #1627).
 2. Worker/child/service ownership, provider installation and compilation context
-   (#631, #1593, #289), keeping live readers and original cleanup owners intact.
+   (#631, #289), keeping live readers and original cleanup owners intact.
 3. Language/semantic/replay and retrieval/API evidence contracts.
 4. Native TUI/editor workflows, including the catalog-loaded blocker (#635).
 5. Performance/evaluation after correctness: retained comparisons (#1663),

@@ -73,6 +73,28 @@ lease release or explicit original-owner reconciliation. MCP clear returns the
 same internal safe receipt and propagates classified failures.
 
 The manager/LRU/cache, generation, implicit eviction, lease, falsey/frozen cause,
-MCP parity and actual API close controls are authored and unrun. Scoped formatting
-and whitespace checks cover this propagation batch only; the original native
+MCP parity and actual API close controls pass on Windows/Node 26.12.1 at
+`9d1c90a5c`. The [qualification receipt](../archived/cache-retirement-repairs-2026-10-27.md)
+records the exact cases and complete cheap front gate. The original native
 qualification limits above remain open.
+
+## Federation retirement propagation
+
+Federation uses the same ledger for its request-created caches. It stops new
+admissions promptly and retires caches only after all started workers settle.
+Successful fanout awaits that retirement; failed or still-leased cleanup cannot
+produce a healthy terminal result. Borrowed host caches retain their host owner.
+
+Fail-fast errors carry a non-enumerable `federationCacheRetirement` capability.
+Its `drain()` retains the actual eventual cleanup result, `isSettled()` follows
+the original resources, and bounded receipts distinguish resource status from
+the failed operation outcome. Independent index and SQLite cleanup both run.
+Captured original predicates remain authoritative, and reconciliation never
+automatically retries native close. The capability stays out of serialized
+HTTP/MCP diagnostics.
+
+Executed real-cache controls cover success with failed cleanup, strict sibling
+failure before drain, active leases, independent index/native failures, original
+owner recovery and untouched borrowed caches. The same regression fails against
+the prior coordinator's swallowed-cleanup path. These inert boundaries qualify
+the owner protocol without asserting installed-native runtime or performance.

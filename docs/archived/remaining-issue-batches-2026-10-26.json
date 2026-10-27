@@ -184,10 +184,10 @@
         1743
       ],
       "sourceWork": 29,
-      "qualification": 89,
+      "qualification": 88,
       "baselineSourceWork": 29,
       "baselineQualification": 89,
-      "completed": 0
+      "completed": 1
     },
     {
       "order": 4,
@@ -239,10 +239,10 @@
         1730
       ],
       "sourceWork": 4,
-      "qualification": 38,
+      "qualification": 37,
       "baselineSourceWork": 4,
       "baselineQualification": 38,
-      "completed": 0
+      "completed": 1
     },
     {
       "order": 5,
@@ -6420,7 +6420,18 @@
       "priority": "P2",
       "batch": "runtime-ownership",
       "phase": "source-review-and-focused-qualification",
-      "status": "queued"
+      "status": "closed-completed",
+      "sourceHead": "9d1c90a5ce795d6ec0ced12b4058f2abc925c1c0",
+      "qualifiedTests": [
+        "indexing/runtime/subprocess-cleanup-cache-barrier",
+        "indexing/runtime/teardown-original-failure-observations",
+        "map/workspace/reader-close-failure",
+        "services/queue/cleanup-retirement",
+        "services/queue/daemon-cleanup-retirement"
+      ],
+      "closedAt": "2026-10-27T04:23:41Z",
+      "completionReceipt": "cache-retirement-repairs-2026-10-27.json",
+      "qualificationOnly": true
     },
     {
       "number": 1592,
@@ -7418,7 +7429,22 @@
       "priority": "P2",
       "batch": "storage-publication-and-cleanup",
       "phase": "source-review-and-focused-qualification",
-      "status": "queued"
+      "status": "closed-completed",
+      "sourceHead": "9d1c90a5ce795d6ec0ced12b4058f2abc925c1c0",
+      "qualifiedTests": [
+        "retrieval/federation/cache-failure-contract-matrix",
+        "retrieval/federation/cache-retirement-ownership",
+        "retrieval/federation/strict-failure-stops-admission",
+        "services/embedding-cache-shutdown",
+        "storage/sqlite/cache-failed-close-ownership",
+        "storage/sqlite/cache-generation-tag",
+        "tooling/api-mcp/repo-cache-config-parity",
+        "tooling/api-mcp/repo-cache-retirement",
+        "tooling/api-mcp/router-close-retirement"
+      ],
+      "closedAt": "2026-10-27T04:23:43Z",
+      "completionReceipt": "cache-retirement-repairs-2026-10-27.json",
+      "qualificationOnly": false
     },
     {
       "number": 1719,
@@ -8065,17 +8091,19 @@
     }
   ],
   "currentCounts": {
-    "open": 738,
-    "qualificationPending": 477,
+    "open": 736,
+    "qualificationPending": 475,
     "partialFollowup": 147,
     "implementationStatusUnresolved": 114
   },
-  "reconciledAt": "2026-10-27T02:35:24.630Z",
+  "reconciledAt": "2026-10-27T04:26:18.107Z",
   "completedSourceBatch": [
     586,
     670,
     811,
+    1591,
     1593,
-    1642
+    1642,
+    1718
   ]
 }
