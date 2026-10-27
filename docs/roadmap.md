@@ -9,7 +9,7 @@ Canonical for: initiative status, execution order, and remaining work
 
 Current reconciliation, 2026-10-27: [the closeout review](archived/github-issue-closeout-2026-10-26.md)
 assessed **770 issues and 238 comments**, closing 27. Subsequent repair batches close
-fourteen more: **729 remain open**—468 awaiting qualification, 147 partial/follow-up and
+seventeen more: **726 remain open**—464 awaiting qualification, 148 partial/follow-up and
 114 with unresolved implementation status. The unresolved label is tracking
 evidence, not proof of absent code. Every remaining issue has a completion
 checklist; the linked owner queue records current execution status.
@@ -23,49 +23,37 @@ retain source checkpoints and the [prior inventory](archived/github-issue-covera
 remains historical. Work is solo and Windows-only. Hosted gate/policy/Rust TUI
 passed at `f8532f1d2`; seven broader jobs failed (see the review).
 
-The [next source receipt](archived/remaining-issue-repairs-2026-10-26.md) closes
-#586, #670, #811 and #1642 at `c4bec36c8`: cached MCP value admission before
-repository/cache work, cancellable triage children, truthful snapshot/CLI status
-and source-qualified UTF-16 VFS spans (routing producer 4). There are **29 passing
-focused fixtures**. The gate's stale fixture was corrected and its affected case
-passed; the other 39 gate cases and preceding static/document checks passed.
-This is scoped evidence, not a full-suite or platform/model/release qualification.
+Completed source-bound Windows batches retain their detailed archives:
 
-The [service/storage milestone](archived/service-progress-repairs-2026-10-26.md)
-closes #1593 at `8bf742ec6`: durable executor bindings, constant bound-state reads
-and shared bounded discovery/cleanup. #1627 now pins auto-build source, validates
-metadata values and owns asynchronous cancellation; immutable publication and
-reader/mapping identity remain open. Twenty focused fixtures and the complete
-cheap front gate (40/40) pass. Command checks used a task-local launch omitting an
-inherited missing trusted-config selector; user settings and trust rules are intact.
+- [Request/source boundaries](archived/remaining-issue-repairs-2026-10-26.md),
+  `c4bec36c8`: #586, #670, #811, #1642; 29 passing affected fixtures. The gate's
+  stale fixture was repaired and its failed case rechecked after the other 39 passed.
+- [Service progress](archived/service-progress-repairs-2026-10-26.md), `8bf742ec6`:
+  #1593, durable bindings and bounded shared discovery; 20 affected fixtures and
+  the complete cheap front gate (40/40). #1627 publication/mapping work remains.
+- [Cache retirement](archived/cache-retirement-repairs-2026-10-27.md), `9d1c90a5c`:
+  #1591, #1718; original-owner federation/daemon cleanup, 14 affected fixtures and
+  the complete cheap front gate (40/40), with a failing prior-coordinator control.
+- [P1 runtime](archived/runtime-p1-closeout-2026-10-27.md), `3a1d08813`: #1050,
+  #1072–#1074, #1106, #1107; isolated parser/LSP/preflight lifetime, real Piscina
+  unwind and UID/import/pointer contracts; 37 affected fixtures and full front gate (40/40).
+- [Stage closeout](archived/stage-closeout-repairs-2026-10-27.md), `45e216edc`:
+  #1397, real delayed-child timeout/cancellation and exact lock reconciliation;
+  14 affected fixtures and full front gate (40/40), with a failing prior-validator control.
+- [Storage/artifact qualification](archived/storage-artifact-p1-closeout-2026-10-27.md),
+  `a73b37be1`: #1089, #1109, #1551; strict assembly, real mixed-generation SQLite
+  content and conserved micro-batches; 12 affected fixtures and full front gate (40/40).
 
-The [cache-retirement receipt](archived/cache-retirement-repairs-2026-10-27.md)
-closes #1718's federation follow-up and qualifies the existing #1591 daemon repair
-at `9d1c90a5c`. Request-owned caches share the existing retirement ledger; successful
-fanout surfaces cleanup failure and fail-fast errors retain late cleanup ownership.
-The regression fails against the prior coordinator and passes after repair.
-Fourteen affected fixtures and the complete cheap front gate (40/40) pass.
-
-The [P1 runtime receipt](archived/runtime-p1-closeout-2026-10-27.md) closes #1050,
-#1072–#1074, #1106 and #1107 at `3a1d08813`. Run-owned parser/LSP references and
-preflight scopes preserve overlapping builds and hosted caches; bounded cleanup
-retains original retirement evidence. Actual Piscina unwind and the existing
-UID/import/promotion/search authority repairs have 37 passing affected fixtures
-and the complete cheap front gate (40/40). At that checkpoint, #1397 still needed
-actual stage-closeout integration; no full-suite qualification was claimed.
-
-The [stage-closeout receipt](archived/stage-closeout-repairs-2026-10-27.md) closes
-#1397 at `45e216edc`: original tracked-child settlement survives timeout and
-cancellation through real Stage1 closeout. Delayed close cannot release its lock;
-explicit reconciliation preserves a newer writer. Fourteen affected fixtures
-and the complete cheap front gate (40/40) pass, with a failing prior-validator
-control. Full Windows and other qualifications remain separate.
+These are scoped observations, not a combined full-suite or platform/model/release
+pass. Task checks omit only an inherited missing trusted-config selector;
+user/global settings and trust rules remain intact. #690 is now correctly partial:
+its retained-reader/exclusion follow-up still needs source work.
 
 Execution is solo, Windows-only and implementation-first. The [complete owner
 queue](archived/remaining-issue-batches-2026-10-26.json) orders source work by
 severity and shared dependencies, retaining qualification separately:
 
-1. Remaining P1 lifecycle/storage authority (#1574), then source-pinned publication (#1627).
+1. P1 watch/cleanup reader authority (#690, #1574), then source-pinned publication (#1627).
 2. Worker/child/service ownership, provider installation and compilation context
    (#631, #289), keeping live readers and original cleanup owners intact.
 3. Language/semantic/replay and retrieval/API evidence contracts.

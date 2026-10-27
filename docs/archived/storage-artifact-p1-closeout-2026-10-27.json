@@ -1,0 +1,298 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-27",
+  "sourceHead": "a73b37be1d41c1f23854318695c90b27cdf36389",
+  "sourceTree": "58965e8f2bea43702e87fe32fa634cfeab26e6a2",
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "platform": "win32",
+  "arch": "x64",
+  "node": "v26.12.1",
+  "issues": [
+    {
+      "number": 1089,
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-10-27T06:15:23Z",
+      "sourceHead": "a73b37be1d41c1f23854318695c90b27cdf36389",
+      "qualifiedTests": [
+        "indexing/piece-assembly/strict-input-preservation",
+        "indexing/piece-assembly/core",
+        "indexing/piece-assembly/minhash-identity",
+        "indexing/contracts/index-compatibility-key-federation-block"
+      ],
+      "qualificationOnly": true
+    },
+    {
+      "number": 1109,
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-10-27T06:15:26Z",
+      "sourceHead": "a73b37be1d41c1f23854318695c90b27cdf36389",
+      "qualifiedTests": [
+        "storage/sqlite/all-mode-published-roots",
+        "indexing/build/stage4-mixed-mode-generations",
+        "indexing/build/sqlite-mode-plan",
+        "storage/sqlite/build-root-active-generation-plan"
+      ],
+      "qualificationOnly": true
+    },
+    {
+      "number": 1551,
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-10-27T06:15:29Z",
+      "sourceHead": "a73b37be1d41c1f23854318695c90b27cdf36389",
+      "qualifiedTests": [
+        "indexing/artifacts/artifact-micro-batch-conservation",
+        "indexing/artifacts/artifact-write-adaptive-concurrency-controller",
+        "indexing/artifacts/artifact-write-controller-contract-matrix",
+        "indexing/artifacts/artifact-write-dispatch-smoke"
+      ],
+      "qualificationOnly": true
+    }
+  ],
+  "currentCounts": {
+    "open": 726,
+    "qualificationPending": 464,
+    "partialFollowup": 148,
+    "implementationStatusUnresolved": 114
+  },
+  "reclassifiedOpenIssue": {
+    "number": 690,
+    "state": "open",
+    "currentDisposition": "partial_or_followup",
+    "reason": "Retained-reader/exclusion follow-up remains a source gap; original post-commit and current-pointer fixes are credited."
+  },
+  "liveCensus": {
+    "open": 726,
+    "checkedAt": "2026-10-27T06:17:56.214Z",
+    "newOrUnexpectedRemovedIssues": []
+  },
+  "dependencies": {
+    "changed": false,
+    "verification": "Earlier clean required native/patch verification; current readiness and native SQLite content checks pass."
+  },
+  "policy": {
+    "jobs": 1,
+    "indexingThreads": 1,
+    "timeoutMs": 30000,
+    "retries": 0,
+    "nativeStatusRedo": false,
+    "launch": "Task child omits only inherited missing trusted-config selector; user/global settings unchanged."
+  },
+  "uniqueAffectedFixtures": 12,
+  "finalObservations": [
+    {
+      "id": "indexing/artifacts/artifact-micro-batch-conservation",
+      "status": "passed",
+      "durationMs": 858,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/artifacts/artifact-write-adaptive-concurrency-controller",
+      "status": "passed",
+      "durationMs": 892,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/artifacts/artifact-write-controller-contract-matrix",
+      "status": "passed",
+      "durationMs": 975,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/artifacts/artifact-write-dispatch-smoke",
+      "status": "passed",
+      "durationMs": 101,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/build/sqlite-mode-plan",
+      "status": "passed",
+      "durationMs": 65,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/build/stage4-mixed-mode-generations",
+      "status": "passed",
+      "durationMs": 22035,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/contracts/index-compatibility-key-federation-block",
+      "status": "passed",
+      "durationMs": 1226,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/piece-assembly/core",
+      "status": "passed",
+      "durationMs": 12562,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/piece-assembly/minhash-identity",
+      "status": "passed",
+      "durationMs": 2421,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "indexing/piece-assembly/strict-input-preservation",
+      "status": "passed",
+      "durationMs": 1386,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "storage/sqlite/all-mode-published-roots",
+      "status": "passed",
+      "durationMs": 2109,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    },
+    {
+      "id": "storage/sqlite/build-root-active-generation-plan",
+      "status": "passed",
+      "durationMs": 250,
+      "attempts": 1,
+      "exitCode": 0,
+      "signal": null,
+      "timedOut": false
+    }
+  ],
+  "gate": {
+    "total": 40,
+    "passed": 40,
+    "failed": 0,
+    "skipped": 0,
+    "durationMs": 25881
+  },
+  "frontGate": [
+    {
+      "exitCode": 0,
+      "executable": "npm.cmd",
+      "durationMs": 2488,
+      "name": "config-budget",
+      "arguments": [
+        "run",
+        "config:budget"
+      ]
+    },
+    {
+      "exitCode": 0,
+      "executable": "npm.cmd",
+      "durationMs": 1544,
+      "name": "environment",
+      "arguments": [
+        "run",
+        "env:check"
+      ]
+    },
+    {
+      "exitCode": 0,
+      "executable": "node",
+      "durationMs": 13357,
+      "name": "generated",
+      "arguments": [
+        "tools/docs/generated-surfaces.js",
+        "--check-freshness"
+      ]
+    },
+    {
+      "exitCode": 0,
+      "executable": "node",
+      "durationMs": 2903,
+      "name": "command-surface",
+      "arguments": [
+        "tools/ci/check-command-surface.js"
+      ]
+    },
+    {
+      "exitCode": 0,
+      "executable": "node",
+      "durationMs": 249,
+      "name": "workflow",
+      "arguments": [
+        "tests/ci/workflow-contract.test.js"
+      ]
+    },
+    {
+      "exitCode": 0,
+      "executable": "node",
+      "durationMs": 26706,
+      "name": "gate-lane",
+      "arguments": [
+        "tests/run.js",
+        "--lane",
+        "gate",
+        "--jobs",
+        "1",
+        "--timeout-ms",
+        "30000",
+        "--retries",
+        "0",
+        "--native-status-redo=false",
+        "--pairofcleats-threads",
+        "1",
+        "--json"
+      ]
+    },
+    {
+      "exitCode": 0,
+      "executable": "git",
+      "durationMs": 135,
+      "name": "diff",
+      "arguments": [
+        "diff",
+        "--check"
+      ]
+    }
+  ],
+  "formatting": {
+    "command": "npm run format -- --cache --cache-location .tmp/tasks/p1-closeout-20261027/eslint.cache",
+    "exitCode": 0
+  },
+  "witnesses": [
+    "Default/all-mode standalone SQLite stores distinct selected code/prose chunks and vocabulary, excluding the code-root prose decoy.",
+    "Current pointer remains intact; warm mode plan and old zero-state files cannot hide nonempty current manifests; explicit index-root and empty controls remain.",
+    "Strict declared risk/source/relationship corruption rejects before output preparation and preserves prior sentinel; absent optional dense metadata stays optional.",
+    "Real dispatcher conserves temporarily/permanently deferred and prefetched entries, soft family preference, real concurrent telemetry and exact-once publication callbacks."
+  ],
+  "evidenceScope": "Raw .tmp/tasks/storage-p1-20261027 and .testLogs receipts are historical author-workspace material, absent in clean checkouts.",
+  "remaining": [
+    "726 open issues: 464 qualification pending, 148 partial/follow-up and 114 with unresolved implementation status.",
+    "690 watch retained-reader/exclusion and 1574 common cleanup authority are the next source owners.",
+    "1627 Tantivy publication and full Windows/non-Windows, optional model/backend, representative performance and release qualifications remain separate."
+  ]
+}

@@ -184,10 +184,10 @@
         1743
       ],
       "sourceWork": 29,
-      "qualification": 87,
+      "qualification": 84,
       "baselineSourceWork": 29,
       "baselineQualification": 89,
-      "completed": 2
+      "completed": 5
     },
     {
       "order": 4,
@@ -892,8 +892,8 @@
         1668,
         1728
       ],
-      "sourceWork": 22,
-      "qualification": 85,
+      "sourceWork": 23,
+      "qualification": 84,
       "baselineSourceWork": 22,
       "baselineQualification": 88,
       "completed": 3
@@ -1311,8 +1311,10 @@
       "recordedDisposition": "qualification_pending",
       "priority": "P1",
       "batch": "tooling-and-governance",
-      "phase": "source-review-and-focused-qualification",
-      "status": "queued"
+      "phase": "source-repair",
+      "status": "source-gap-confirmed",
+      "currentDisposition": "partial_or_followup",
+      "reviewCorrection": "Post-commit/current-pointer protection is present, but retained-reader and cleanup/promotion exclusion follow-up remains unimplemented."
     },
     {
       "number": 695,
@@ -2502,7 +2504,19 @@
       "priority": "P1",
       "batch": "storage-publication-and-cleanup",
       "phase": "source-review-and-focused-qualification",
-      "status": "queued"
+      "status": "closed-completed",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-10-27T06:15:23Z",
+      "sourceHead": "a73b37be1d41c1f23854318695c90b27cdf36389",
+      "qualifiedTests": [
+        "indexing/piece-assembly/strict-input-preservation",
+        "indexing/piece-assembly/core",
+        "indexing/piece-assembly/minhash-identity",
+        "indexing/contracts/index-compatibility-key-federation-block"
+      ],
+      "qualificationOnly": true,
+      "completionReceipt": "storage-artifact-p1-closeout-2026-10-27.json"
     },
     {
       "number": 1090,
@@ -2630,7 +2644,19 @@
       "priority": "P1",
       "batch": "storage-publication-and-cleanup",
       "phase": "source-review-and-focused-qualification",
-      "status": "queued"
+      "status": "closed-completed",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-10-27T06:15:26Z",
+      "sourceHead": "a73b37be1d41c1f23854318695c90b27cdf36389",
+      "qualifiedTests": [
+        "storage/sqlite/all-mode-published-roots",
+        "indexing/build/stage4-mixed-mode-generations",
+        "indexing/build/sqlite-mode-plan",
+        "storage/sqlite/build-root-active-generation-plan"
+      ],
+      "qualificationOnly": true,
+      "completionReceipt": "storage-artifact-p1-closeout-2026-10-27.json"
     },
     {
       "number": 1110,
@@ -6152,7 +6178,19 @@
       "priority": "P1",
       "batch": "storage-publication-and-cleanup",
       "phase": "source-review-and-focused-qualification",
-      "status": "queued"
+      "status": "closed-completed",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-10-27T06:15:29Z",
+      "sourceHead": "a73b37be1d41c1f23854318695c90b27cdf36389",
+      "qualifiedTests": [
+        "indexing/artifacts/artifact-micro-batch-conservation",
+        "indexing/artifacts/artifact-write-adaptive-concurrency-controller",
+        "indexing/artifacts/artifact-write-controller-contract-matrix",
+        "indexing/artifacts/artifact-write-dispatch-smoke"
+      ],
+      "qualificationOnly": true,
+      "completionReceipt": "storage-artifact-p1-closeout-2026-10-27.json"
     },
     {
       "number": 1552,
@@ -8183,12 +8221,12 @@
     }
   ],
   "currentCounts": {
-    "open": 729,
-    "qualificationPending": 468,
-    "partialFollowup": 147,
+    "open": 726,
+    "qualificationPending": 464,
+    "partialFollowup": 148,
     "implementationStatusUnresolved": 114
   },
-  "reconciledAt": "2026-10-27T06:08:32.763Z",
+  "reconciledAt": "2026-10-27T06:17:56.214Z",
   "completedSourceBatch": [
     586,
     670,
@@ -8197,9 +8235,12 @@
     1072,
     1073,
     1074,
+    1089,
     1106,
     1107,
+    1109,
     1397,
+    1551,
     1591,
     1593,
     1642,
