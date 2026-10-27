@@ -5,6 +5,7 @@ import { offsetToLine } from '../shared/lines.js';
 import { createSafeRegex, isSafeRegex } from '../shared/safe-regex.js';
 import { normalizeLimit } from '../shared/limits.js';
 import { COMMENT_CLASSIFICATION_VERSION, DEFAULT_COMMENT_LICENSE_PATTERN } from './comments-policy.js';
+import { resolveCommentOccurrences } from './comment-occurrences.js';
 
 const DEFAULT_COMMENT_CONFIG = {
   extract: 'doc',
@@ -130,8 +131,12 @@ const COMMENT_STYLES = [
 
 const EXT_OVERRIDES = new Map([
   ['.js', 'javascript'],
+  ['.mjs', 'javascript'],
+  ['.cjs', 'javascript'],
   ['.jsx', 'jsx'],
   ['.ts', 'typescript'],
+  ['.mts', 'typescript'],
+  ['.cts', 'typescript'],
   ['.tsx', 'tsx'],
   ['.c', 'c'],
   ['.h', 'c'],
@@ -460,7 +465,10 @@ export function extractComments({
   ext,
   languageId,
   lineIndex,
-  config: rawConfig
+  config: rawConfig,
+  context = null,
+  commentOccurrences = null,
+  includeConfigSegments = true
 }) {
   const config = normalizeCommentConfig(rawConfig || {});
   if (config.extract === 'off') {
@@ -475,7 +483,16 @@ export function extractComments({
   }
   const comments = [];
   const configSegments = [];
-  const rawComments = scanComments(text, style);
+  const resolved = resolveCommentOccurrences({ text, ext, languageId, context, commentOccurrences });
+  if (['comment-count-budget', 'standalone-comment-parser-source-budget'].includes(resolved.reason)) {
+    return { comments, configSegments, coverage: { state: 'unavailable', reason: resolved.reason, policyVersion: 1 } };
+  }
+  const coverage = resolved.product?.complete ? { state: 'complete', reason: null,
+    source: resolved.product.source, parser: resolved.product.parser, policyVersion: resolved.product.policyVersion }
+    : { state: 'heuristic', reason: resolved.reason, policyVersion: 1 };
+  const rawComments = resolved.product?.complete ? resolved.product.ranges.map(range => ({ ...range,
+    raw: text.slice(range.start, range.end), markerStart: range.kind === 'line' ? '//' : '/*',
+    markerEnd: range.kind === 'line' ? null : '*/', stripStar: range.kind === 'block' })) : scanComments(text, style);
   for (const entry of rawComments) {
     const startLine = offsetToLine(lineIndex, entry.start);
     const endLine = offsetToLine(lineIndex, Math.max(entry.start, entry.end - 1));
@@ -518,8 +535,10 @@ export function extractComments({
       startLine,
       endLine,
       text: contentText,
-      raw: entry.raw
+      raw: entry.raw,
+      coverage
     });
+    if (!includeConfigSegments) continue;
     for (let i = 0; i < contentLines.length; i += 1) {
       const line = contentLines[i].content;
       const fenceMatch = line.match(/^\s*```+\s*([A-Za-z0-9_-]+)?/);
@@ -564,5 +583,5 @@ export function extractComments({
       });
     }
   }
-  return { comments, configSegments };
+  return { comments, configSegments, coverage };
 }

@@ -11,7 +11,9 @@ export const buildCommentMeta = ({
   normalizedCommentsConfig,
   tokenDictWords,
   dictConfig,
-  commentData: preparedCommentData = null
+  commentData: preparedCommentData = null,
+  languageContext = null,
+  commentOccurrences = null
 }) => {
   const commentsEnabled = (mode === 'code' || mode === 'extracted-prose')
     && normalizedCommentsConfig.extract !== 'off';
@@ -23,7 +25,10 @@ export const buildCommentMeta = ({
       ext,
       languageId: languageId || null,
       lineIndex,
-      config: normalizedCommentsConfig
+      config: normalizedCommentsConfig,
+      context: languageContext,
+      commentOccurrences,
+      includeConfigSegments: commentSegmentsEnabled
     })
     : { comments: [], configSegments: [] };
   const {

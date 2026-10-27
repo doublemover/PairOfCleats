@@ -647,10 +647,10 @@ export const processFileCpu = async (context) => {
     ? buildExtractedProseExtrasCacheKey({ fileHash, fileHashAlgo, ext, languageId: lang?.id || null, normalizedCommentsConfig })
     : null;
   const rawExtractedCommentData = () => resolveExtractedProseCommentData({ cache: extractedProseExtrasCache,
-    key: extractedProseExtrasCacheKey, text, ext, languageId: lang?.id || null, lineIndex, normalizedCommentsConfig });
+    key: extractedProseExtrasCacheKey, text, ext, languageId: lang?.id || null, lineIndex, normalizedCommentsConfig, languageContext });
   const buildExtractedProseCommentMeta = () => buildCommentMeta({ text, ext, mode: 'extracted-prose',
     languageId: lang?.id || null, lineIndex, normalizedCommentsConfig, tokenDictWords, dictConfig,
-    commentData: rawExtractedCommentData() });
+    commentData: rawExtractedCommentData(), languageContext });
   updateCrashStage('comments');
   try {
     if (mode === 'extracted-prose') {
@@ -675,7 +675,8 @@ export const processFileCpu = async (context) => {
         lineIndex,
         normalizedCommentsConfig,
         tokenDictWords,
-        dictConfig
+        dictConfig,
+        languageContext
       });
       commentEntries = commentMeta.commentEntries;
       commentRanges = commentMeta.commentRanges;

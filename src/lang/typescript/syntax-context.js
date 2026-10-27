@@ -1,6 +1,7 @@
 import { parseBabelAst } from '../babel-parser.js';
 import { createRequire } from 'node:module';
 import { loadTypeScriptModule, isLikelyTsx, resolveTypeScriptFilename } from './parser.js';
+import { captureParserCommentOccurrences } from '../comment-occurrences.js';
 
 const owners = new WeakMap();
 const contexts = new WeakMap();
@@ -69,6 +70,8 @@ export const prepareTypeScriptBabelSyntax = (text, options = {}) => {
           'classStaticBlock', 'dynamicImport', 'importMeta', 'optionalChaining', 'nullishCoalescingOperator',
           'objectRestSpread', 'topLevelAwait', 'numericSeparator', 'logicalAssignment', 'privateIn',
           'exportDefaultFrom', 'exportNamespaceFrom', ...(ext.toLowerCase() === '.tsx' ? ['jsx'] : []), 'typescript'] } });
+    captureParserCommentOccurrences(ast, text, { parser: babelOwners.get(ast),
+      language: ext.toLowerCase() === '.tsx' ? 'tsx' : 'typescript', dialect: ext });
   }
   return ast;
 };

@@ -2,6 +2,7 @@ import { extractComments } from '../../../comments.js';
 import { COMMENT_CLASSIFICATION_VERSION, commentPolicyReceipt } from '../../../comments-policy.js';
 import { sha1 } from '../../../../shared/hash.js';
 import { stableStringifyForSignature } from '../../../../shared/stable-json.js';
+import { getParserCommentOccurrences } from '../../../../lang/comment-occurrences.js';
 
 const ownedEntries = new WeakSet();
 export const buildExtractedProseExtrasCacheKey = ({ fileHash, fileHashAlgo, ext, languageId, normalizedCommentsConfig } = {}) => {
@@ -22,13 +23,17 @@ const freezeData = value => {
  * pass's dictionary and config. Stored payload remains visible to byte accounting;
  * private branding prevents author-injected/stale entries from becoming proof.
  */
-export const resolveExtractedProseCommentData = ({ cache, key, text, ext, languageId, lineIndex, normalizedCommentsConfig }) => {
+export const resolveExtractedProseCommentData = ({ cache, key, text, ext, languageId, lineIndex, normalizedCommentsConfig, languageContext = null }) => {
   const enabled = key && typeof cache?.get === 'function' && typeof cache?.set === 'function';
   const cached = enabled ? cache.get(key) : null;
-  if (cached && ownedEntries.has(cached) && cached.key === key) return structuredClone(cached.data);
-  const data = extractComments({ text, ext, languageId, lineIndex, config: normalizedCommentsConfig });
+  const ast = languageContext?.jsAst || languageContext?.exportAst;
+  const product = ast ? getParserCommentOccurrences(ast, text) : null;
+  const compatible = !ast || product?.complete && cached?.data.coverage?.state === 'complete'
+    && stableStringifyForSignature(cached.data.coverage.parser) === stableStringifyForSignature(product.parser);
+  if (cached && ownedEntries.has(cached) && cached.key === key && cached.sourceText === text && compatible) return structuredClone(cached.data);
+  const data = extractComments({ text, ext, languageId, lineIndex, config: normalizedCommentsConfig, context: languageContext });
   if (enabled) {
-    const stored = Object.freeze({ key, data: freezeData(structuredClone(data)) });
+    const stored = Object.freeze({ key, sourceText: text, data: freezeData(structuredClone(data)) });
     ownedEntries.add(stored); cache.set(key, stored);
   }
   return data;
