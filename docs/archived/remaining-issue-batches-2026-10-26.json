@@ -4284,7 +4284,12 @@
       "priority": "P1",
       "batch": "operator-and-editors",
       "phase": "source-review-and-focused-qualification",
-      "status": "queued"
+      "status": "source-partially-qualified",
+      "partialReceipt": "docs/archived/sublime-native-registration-2026-10-27.json",
+      "implementationCommits": [
+        "e191d2402f8ebbb1f71bc50feaff58b698eaee2b"
+      ],
+      "remainingWork": "Native packed search, update/reload, uninstall, unpacked and shadowing acceptance. Further GUI launches stopped after visible-window feedback; native fixture is explicit and outside test discovery."
     },
     {
       "number": 1290,
