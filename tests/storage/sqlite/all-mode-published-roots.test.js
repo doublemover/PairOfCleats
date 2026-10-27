@@ -2,12 +2,15 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import Database from 'better-sqlite3';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { resolveModeExecutionPlan } from '../../../src/storage/sqlite/build/runner/mode-plan.js';
 import { buildSqliteIndex } from '../../../src/storage/sqlite/build/runner.js';
 import { getRepoCacheRoot, toRealPathSync } from '../../../src/shared/dict-utils.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { writeSqliteArtifactManifest } from '../../helpers/artifact-io-fixture.js';
+import { writeSqliteShardFixtureArtifacts } from './helpers/build-fixture.js';
 
 const temp = resolveTestCachePath(process.cwd(), `sqlite-published-roots-${crypto.randomUUID()}`);
 const repo = path.join(temp, 'repo');
@@ -61,6 +64,33 @@ try {
   await fs.writeFile(currentPath, JSON.stringify(pointer));
   assert.equal(toRealPathSync(resolveModeExecutionPlan(input).modeIndexRoots.prose), toRealPathSync(moved),
     'cached code root must not hide a changed prose pointer');
+  const populated = [
+    { mode: 'code', buildRoot: roots.code, file: 'code-source.js', token: 'codewitness' },
+    { mode: 'prose', buildRoot: moved, file: 'prose-source.md', token: 'prosewitness' },
+    { mode: 'prose', buildRoot: roots.code, file: 'wrong-code-root-prose.md', token: 'decoywitness' }
+  ];
+  for (const item of populated) {
+    const indexDir = path.join(item.buildRoot, `index-${item.mode}`);
+    const { pieceEntries } = await writeSqliteShardFixtureArtifacts({ indexDir, chunkCount: 1, fileCount: 1,
+      mode: item.mode, tokens: [item.token], decorateChunk: () => ({ file: item.file, name: item.token }) });
+    await writeSqliteArtifactManifest(indexDir, pieceEntries, { buildId: path.basename(item.buildRoot) });
+  }
+  // Reuse this process's mode plan and prior zero-state files. New manifest
+  // authority must select the current nonempty inputs rather than old emptiness.
+  const rebuilt = await buildSqliteIndex({ root: repo, userConfig, emitOutput: false, noCompact: true });
+  assert.equal(rebuilt.ok, true);
+  for (const item of populated.slice(0, 2)) {
+    const expected = path.join(item.buildRoot, 'index-sqlite', `index-${item.mode}.db`);
+    assert.equal(toRealPathSync(rebuilt.outputPaths[item.mode]), toRealPathSync(expected));
+    const db = new Database(expected, { readonly: true });
+    try {
+      assert.deepEqual(db.prepare('SELECT file, name FROM chunks').all(), [{ file: item.file, name: item.token }]);
+      assert.deepEqual(db.prepare('SELECT token FROM token_vocab ORDER BY token').all(), [{ token: item.token }]);
+    } finally { db.close(); }
+  }
+  await assert.rejects(fs.access(path.join(roots.code, 'index-sqlite', 'index-prose.db')),
+    'a valid but unselected code-root prose artifact cannot acquire a SQLite output');
+  assert.deepEqual(JSON.parse(await fs.readFile(currentPath, 'utf8')), pointer, 'standalone SQLite must not rewrite mode publication authority');
 } finally {
   await fs.rm(temp, { recursive: true, force: true });
 }
