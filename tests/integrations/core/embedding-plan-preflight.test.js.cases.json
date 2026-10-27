@@ -1,4 +1,4 @@
 {
   "schemaVersion": 1,
-  "cases": ["missing-selected", "missing-default", "present", "pinned-graph", "inactive", "deferred", "provider", "cancel"]
+  "cases": ["missing-selected", "missing-default", "present", "pinned-graph", "inactive", "deferred", "provider", "cancel", "evidence"]
 }

@@ -27,7 +27,7 @@ added. A plan is a selected request, not permission to delete assets or a runtim
 readiness receipt.
 
 This does not finish #1325. Broader selected-asset/native availability states,
-authorized fetch versus cache-only handling, preflight attempt persistence,
+authorized fetch versus cache-only handling, preflight failure persistence,
 watch/two-stage/recovery adoption and actual zero-parser/child qualification
 remain. No download, model load/probe/inference or functional fixture ran here.
 Six new late-binding/profile/inactive cases and the strengthened actual inline/
@@ -58,5 +58,25 @@ without its local graph that lane cannot qualify a cache-only hit. Graph presenc
 does not require a second native initialization, and missing native runtime is
 not rejected here because a qualified cache-only hit may avoid runtime loading.
 The small private preflight receipt adds no serialized plan fields. Its original
-attempt persistence, broader availability/fetch states and other build routes
-remain outstanding. Eight graph-admission cases are authored, unexecuted.
+attempt failure persistence, broader availability/fetch states and other build
+routes remain outstanding. Nine graph-admission/evidence cases are authored,
+unexecuted.
+
+When the ordinary selected request reaches Stage2 runtime initialization, the
+original runtime attempt now retains a bounded diagnostic selection summary and
+its preflight result. Model/provider/mode/dimensions and selected graph display
+are explicit; the full plan digest and separate profile/resource/environment
+digests preserve selection identity. This summary cannot reconstruct an execution
+plan. Existing receipt redaction, byte limits, durability and lifecycle owners
+still apply; raw environment/config containers are not stored. The preflight
+object must belong to that exact selected digest and timestamp in the local
+owner; a copied/serialized or mismatched object is not an observed preflight.
+
+Stage3 launch context carries the submitted selection digest, distinct from the
+final scope-bound child plan digest. Child runtime inputs retain both, and the
+existing `parentAttemptId` links the child result to the parent attempt. Malformed
+submitted digest metadata fails before child attempt writes. Actual runtime
+initialization and Stage3 receipt/queue fixtures now assert these links; they have
+not run. Known-fatal selection/asset errors that occur before a durable attempt
+root is selected still need original-attempt failure recording. Watch/two-stage
+adoption and complete read-only/fetch/cache-only qualification remain open.

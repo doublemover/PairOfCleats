@@ -3,6 +3,7 @@ import { readRuntimeReceipt } from '../../../shared/runtime-envelope/read-receip
 import { persistRuntimeAttempt } from '../build-state/runtime.js';
 import { initializeRuntimeReceipt, withRuntimeReceiptInitialization, refreshRuntimeReceipt, logRuntimeReceiptLocation } from './receipt.js';
 import { resolveEmbeddingIntent } from '../../../shared/embedding-intent.js';
+import { projectEmbeddingExecutionEvidence } from '../../../shared/embedding-execution-plan.js';
 import { normalizeSemanticConfig } from '../../semantic/config.js';
 import { validateSemanticEnrichmentAdmission } from '../../semantic/enrichment-context.js';
 import fsSync from 'node:fs';
@@ -138,8 +139,11 @@ async function createBuildRuntimeImpl({
   observability = null,
   onRuntimeAttempt,
   onStorageAdmission,
-  semanticEnrichmentDrain = null
+  semanticEnrichmentDrain = null,
+  embeddingSelection = null
 } = {}) {
+  const selectedEmbeddingEvidence = embeddingSelection
+    ? projectEmbeddingExecutionEvidence(embeddingSelection, { root }) : null;
   const initialization = createLifecycleRegistry({ name: 'build-runtime-initialization' });
   const resourceScope = createRunResourceScope();
   let indexRuntimeStorage = null;
@@ -567,7 +571,8 @@ async function createBuildRuntimeImpl({
         observability, envelope, executionClass: daemonSession ? 'daemon' : 'in-process',
         paths: { repo: root, cache: { selected: cacheRoot, source: cacheRootSource }, repoCache: repoCacheRoot, build: buildRoot, logs: logDestination },
         inputs: { configSources, quality: autoPolicy.quality, platformPreset: platformRuntimePreset, learnedAutoProfile, schedulerAutoTuneProfile },
-        embeddings: { observation: { state: 'not-started', provider: null, dims: null, observedAt: null } }
+        embeddings: { ...(selectedEmbeddingEvidence ? { selection: selectedEmbeddingEvidence } : {}),
+          observation: { state: 'not-started', provider: null, dims: null, observedAt: null } }
       });
       onRuntimeAttempt(runtimeAttempt, buildRoot);
       observability = { ...observability, context: { ...observability?.context, runtimeAttemptId: runtimeAttempt.attemptId } };

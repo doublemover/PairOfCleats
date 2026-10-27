@@ -262,7 +262,9 @@ async function buildIndexRun(repoRoot, options = {}) {
     sqliteLogger,
     explicitStage,
     twoStageEnabled,
-    reuseDecision
+    reuseDecision,
+    embeddingSelection: embeddingRuntime.executionPlan
+      ? { plan: embeddingRuntime.executionPlan, preflight: embeddingRuntime.preflight } : null
   };
 
   if (explicitStage === 'stage3') {

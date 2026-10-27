@@ -6,7 +6,7 @@ import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('integrations/core/embedding-plan-preflight/')[1];
-assert.ok(['missing-selected', 'missing-default', 'present', 'pinned-graph', 'inactive', 'deferred', 'provider', 'cancel'].includes(mode));
+assert.ok(['missing-selected', 'missing-default', 'present', 'pinned-graph', 'inactive', 'deferred', 'provider', 'cancel', 'evidence'].includes(mode));
 const hooks = registerHooks({ resolve(specifier, context, nextResolve) {
   assert.ok(!/^(?:onnxruntime-node|@huggingface\/transformers|@xenova\/transformers)(?:\/|$)/u.test(specifier),
     `Read-only preflight loaded an inference provider: ${specifier}`);
@@ -14,7 +14,7 @@ const hooks = registerHooks({ resolve(specifier, context, nextResolve) {
 } });
 try {
   const { createEmbeddingExecutionPlan, preflightEmbeddingExecutionPlan, bindEmbeddingExecutionPlan,
-    validateEmbeddingExecutionPlan } = await import('../../../src/shared/embedding-execution-plan.js');
+    validateEmbeddingExecutionPlan, projectEmbeddingExecutionEvidence } = await import('../../../src/shared/embedding-execution-plan.js');
   const { dir } = await prepareIsolatedTestCacheDir(`embedding-preflight-${mode}`);
   const modelsDir = path.join(dir, 'models');
   const modelRoot = path.join(modelsDir, 'fixture', 'model');
@@ -83,6 +83,21 @@ try {
     assert.equal(result.preflight.reason, 'provider-acquisition-at-execution');
     assert.equal(result.preflight.downloadAttempted, false);
     assert.equal(result.plan.digest, plan.digest);
+  } else if (mode === 'evidence') {
+    const admitted = preflightEmbeddingExecutionPlan(make({ provider: 'xenova' }));
+    const evidence = projectEmbeddingExecutionEvidence(admitted, { root: dir });
+    assert.equal(evidence.planDigest, admitted.plan.digest);
+    assert.equal(evidence.selectedAt, admitted.plan.selectedAt);
+    assert.equal(evidence.requested.modelId, 'fixture/model');
+    assert.equal(evidence.preflight.status, 'unverified');
+    assert.ok(Object.isFrozen(evidence.preflight));
+    assert.equal(evidence.environment, undefined);
+    for (const key of ['environmentSelectionDigest', 'resourceRequestDigest', 'profileDigest']) assert.match(evidence[key], /^[a-f0-9]{64}$/u);
+    assert.throws(() => projectEmbeddingExecutionEvidence({ ...admitted, preflight: { ...admitted.preflight } }),
+      /preflight evidence does not belong/);
+    assert.throws(() => projectEmbeddingExecutionEvidence({ ...admitted, plan: make({ provider: 'xenova', modelPath: 'different.onnx' }) }),
+      /preflight evidence does not belong/);
+    assert.throws(() => projectEmbeddingExecutionEvidence(admitted, { root: modelsDir }), /repository root mismatch/);
   } else {
     const controller = new AbortController();
     controller.abort('fixture cancellation');

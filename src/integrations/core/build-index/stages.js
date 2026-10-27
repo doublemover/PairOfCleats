@@ -206,6 +206,7 @@ export const runEmbeddingsStage = async ({
     });
     const selectedPlan = admitted.plan;
     embeddingRuntime.preflight = admitted.preflight;
+    launchObservability.context = { ...launchObservability.context, embeddingSelectionDigest: selectedPlan.digest };
     const explicitIndexRoot = argv['index-root'] ? path.resolve(argv['index-root']) : null;
     const providedIndexRoot = indexRoot ? path.resolve(indexRoot) : null;
     const buildInfo = explicitIndexRoot
@@ -805,6 +806,7 @@ export const runStage = async (
       policy,
       indexRoot: recovery?.buildRoot || null,
       semanticEnrichmentDrain: options.semanticEnrichmentDrain,
+      embeddingSelection: context.embeddingSelection || null,
       observability: context?.observability || null
     });
     await runtime.loggerScope.run(async () => {

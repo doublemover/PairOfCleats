@@ -61,13 +61,21 @@ const finish = (controller, mode, extras = {}) => controller.ready(mode, {
 
 try {
   const root = await initialize('durable', 'generation-durable');
-  const parent = await createRuntimeAttempt({ buildId: 'generation-durable', stage: 'stage2' });
+  const submittedSelectionDigest = 'a'.repeat(64);
+  const parent = await createRuntimeAttempt({ buildId: 'generation-durable', stage: 'stage2',
+    embeddings: { selection: { planDigest: submittedSelectionDigest } } });
   await persistRuntimeAttempt(root, parent, { lifecycle: 'succeeded' });
   const selectedAt = '2026-10-12T00:00:00.000Z';
   const context = createObservabilityEnvelope({
     surface: 'index', operation: 'stage3', correlation: { correlationId: 'stage3-controller-test' },
-    context: { runtimeAttemptId: parent.attemptId }
+    context: { runtimeAttemptId: parent.attemptId, embeddingSelectionDigest: submittedSelectionDigest }
   });
+  const beforeInvalidSubmission = await fs.readFile(path.join(root, 'build_state.json'), 'utf8');
+  await assert.rejects(create([['code', root]], {
+    rawEnv: applyObservabilityContextEnv(rawEnv, { ...context, context: { ...context.context, embeddingSelectionDigest: 'invalid' } })
+  }), { code: 'ERR_EMBEDDING_EXECUTION_PLAN' });
+  assert.equal(await fs.readFile(path.join(root, 'build_state.json'), 'utf8'), beforeInvalidSubmission,
+    'invalid selection metadata must not create or overwrite an attempt');
   const logs = [];
   const bindings = [];
   const controller = await withRuntimeBindingObserver(value => bindings.push(value), () => create([['code', root]], {
@@ -90,6 +98,7 @@ try {
   assert.equal(attempt.parentAttemptId, parent.attemptId);
   assert.equal(attempt.correlationId, 'stage3-controller-test');
   assert.equal(attempt.inputs.resolvedPlanDigest, 'selected-plan-digest');
+  assert.equal(attempt.inputs.submittedSelectionDigest, parent.embeddings.selection.planDigest);
   assert.equal(attempt.inputs.selectedAt, selectedAt);
   assert.equal(attempt.paths.build.selected, root);
   assert.equal(attempt.embeddings.observation.state, 'not-started');

@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createBuildRuntime } from '../../../src/index/build/runtime/runtime.js';
+import { createEmbeddingExecutionPlan, preflightEmbeddingExecutionPlan } from '../../../src/shared/embedding-execution-plan.js';
 import { teardownRuntime } from '../../../src/integrations/core/build-index/runtime.js';
 import { initBuildState } from '../../../src/index/build/build-state.js';
 import { initializeRuntimeReceipt, refreshRuntimeReceipt } from '../../../src/index/build/runtime/receipt.js';
@@ -23,7 +24,10 @@ try {
   const env = applyTestEnv({ syncProcess: false, cacheRoot: path.join(dir, 'cache'), embeddings: 'off',
     extraEnv: { PAIROFCLEATS_HOME: path.join(dir, 'home') } });
   await withTemporaryEnv(env, async () => {
-    const runtime = await createBuildRuntime({ root: repo, argv: { stage: 'stage1', threads: 1 }, rawArgv: [] });
+    const embeddingSelection = preflightEmbeddingExecutionPlan(createEmbeddingExecutionPlan({ root: repo, modes: ['code'],
+      argv: { model: 'fixture/future-stage3', dims: 8 }, rawEnv: env,
+      intent: { embeddingEnabled: true, useStubEmbeddings: true, resolvedEmbeddingMode: 'stub' } }));
+    const runtime = await createBuildRuntime({ root: repo, argv: { stage: 'stage1', threads: 1 }, rawArgv: [], embeddingSelection });
     const coordinationRoot = path.join(dir, 'home', 'state', 'storage-access');
     assert.equal((await inspectStorageAccess(path.join(dir, 'cache'), { coordinationRoot })).protected, true,
       'runtime initialization retains category ownership before any indexing lock exists');
@@ -32,6 +36,13 @@ try {
       const state = JSON.parse(await fs.readFile(statePath));
       const record = state.runtime.attempts[0];
       assert.equal(record.lifecycle, 'running');
+      assert.equal(record.embeddings.selection.planDigest, embeddingSelection.plan.digest);
+      assert.equal(record.embeddings.selection.selectedAt, embeddingSelection.plan.selectedAt);
+      assert.equal(record.embeddings.selection.requested.modelId, 'fixture/future-stage3');
+      assert.equal(record.embeddings.selection.requested.stub, true);
+      assert.equal(record.embeddings.selection.preflight.status, 'inactive');
+      assert.equal(record.embeddings.selection.preflight.runtime, 'unverified');
+      assert.equal(record.embeddings.selection.environment, undefined);
       assert.equal(record.inputs.configSources.files[0].source, 'repository');
       assert.equal(record.runtime.workers.tokenizationExecution, 'not-yet-observed',
         'initialization alone cannot claim an observed tokenization route');

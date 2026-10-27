@@ -59,6 +59,7 @@ const digest = plan => {
   const { digest: ignoredDigest, selectedAt: ignoredTime, ...semantic } = plan;
   return crypto.createHash('sha256').update(stableStringify(semantic)).digest('hex');
 };
+const preflightSelections = new WeakMap();
 
 /** Freeze existing resolver outputs; never serialize raw user config or environment. */
 export const createEmbeddingExecutionPlan = ({ root, indexRoot = null, buildId = null, modes, modelId = null, argv = {}, userConfig = {}, rawEnv = process.env, intent = null }) => {
@@ -223,8 +224,12 @@ export const preflightEmbeddingExecutionPlan = (plan, { executionHost = 'local',
   if (!['local', 'deferred'].includes(executionHost)) throw fail('invalid preflight execution host');
   throwIfAborted(signal);
   const selected = captureEmbeddingExecutionPlan(plan);
-  const receipt = (status, reason) => Object.freeze({ version: 1, status, reason,
-    executionHost, runtime: 'unverified', inference: 'unverified', downloadAttempted: false });
+  const receipt = (status, reason, observedPlan = selected) => {
+    const evidence = Object.freeze({ version: 1, status, reason,
+      executionHost, runtime: 'unverified', inference: 'unverified', downloadAttempted: false });
+    preflightSelections.set(evidence, { digest: observedPlan.digest, selectedAt: observedPlan.selectedAt });
+    return evidence;
+  };
   const result = (status, reason) => Object.freeze({ plan: selected, preflight: receipt(status, reason) });
   if (!selected.embeddings.enabled || selected.embeddings.mode === 'off') return result('inactive', 'embeddings-off');
   if (selected.options['stub-embeddings']) return result('inactive', 'stub-does-not-use-model-assets');
@@ -246,8 +251,36 @@ export const preflightEmbeddingExecutionPlan = (plan, { executionHost = 'local',
   const pinned = structuredClone(selected);
   pinned.embeddings.onnx.modelPath = path.resolve(graph);
   pinned.digest = digest(pinned);
-  return Object.freeze({ plan: captureEmbeddingExecutionPlan(pinned),
-    preflight: receipt('ready-to-attempt', 'selected-graph-readable') });
+  const pinnedPlan = captureEmbeddingExecutionPlan(pinned);
+  return Object.freeze({ plan: pinnedPlan,
+    preflight: receipt('ready-to-attempt', 'selected-graph-readable', pinnedPlan) });
+};
+
+/** Bounded diagnostic evidence for the existing attempt owner, never a launch
+ * plan or readiness grant. Hash selected environment/resources without storing
+ * their raw containers or bypassing runtime-receipt redaction.
+ */
+export const projectEmbeddingExecutionEvidence = ({ plan, preflight }, selection) => {
+  const selected = captureEmbeddingExecutionPlan(plan, selection);
+  const observed = preflightSelections.get(preflight);
+  if (!observed || observed.digest !== selected.digest || observed.selectedAt !== selected.selectedAt) {
+    throw fail('preflight evidence does not belong to the selected plan');
+  }
+  fields(preflight, { version: value => value === 1,
+    status: value => ['inactive', 'unverified', 'ready-to-attempt', 'unavailable'].includes(value),
+    reason: value => ['embeddings-off', 'stub-does-not-use-model-assets', 'execution-host-deferred',
+      'provider-acquisition-at-execution', 'selected-graph-readable', 'local-onnx-graph-unavailable'].includes(value),
+    executionHost: value => ['local', 'deferred'].includes(value), runtime: value => value === 'unverified',
+    inference: value => value === 'unverified', downloadAttempted: value => value === false }, 'preflight evidence');
+  const hash = value => crypto.createHash('sha256').update(stableStringify(value)).digest('hex');
+  return snapshotEmbeddingMetadata({ version: 1, projection: 'diagnostic-selection-summary',
+    planDigest: selected.digest, selectedAt: selected.selectedAt,
+    requested: { modelId: redactDiagnosticText(selected.embeddings.model, 512), provider: selected.embeddings.provider,
+      mode: selected.embeddings.mode, enabled: selected.embeddings.enabled,
+      stub: selected.options['stub-embeddings'], dims: selected.options.dims ?? null, normalize: selected.embeddings.normalize,
+      selectedGraph: redactDiagnosticText(selected.embeddings.onnx.modelPath, 1024) },
+    resourceRequestDigest: hash(selected.resources), environmentSelectionDigest: hash(selected.environment),
+    profileDigest: hash(selected.embeddings.embeddinggemma2), preflight });
 };
 
 /** Bind generated execution scope only. Never re-run model/config/env selection. */

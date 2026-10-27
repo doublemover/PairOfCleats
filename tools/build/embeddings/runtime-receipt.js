@@ -12,6 +12,11 @@ import { redactDiagnosticText } from '../../../src/shared/diagnostic-text.js';
 export const createStage3RuntimeReceipts = async ({ config, roots, identity, identityKey, log }) => {
   const entries = new Map();
   const observability = parseObservabilityContextEnv(config.rawEnv || process.env);
+  const submittedSelectionDigest = observability?.context?.embeddingSelectionDigest ?? null;
+  if (submittedSelectionDigest !== null && (typeof submittedSelectionDigest !== 'string'
+    || !/^[a-f0-9]{64}$/u.test(submittedSelectionDigest))) {
+    throw Object.assign(new Error('Invalid submitted embedding selection digest.'), { code: 'ERR_EMBEDDING_EXECUTION_PLAN' });
+  }
   const envelope = resolveCurrentProcessRuntimeEnvelope({ argv: config.argv, rawArgv: config.rawArgv, userConfig: config.userConfig, env: config.rawEnv || process.env });
   const validated = [];
   for (const [mode, buildRoot] of roots) {
@@ -31,7 +36,9 @@ export const createStage3RuntimeReceipts = async ({ config, roots, identity, ide
       const attempt = await createRuntimeAttempt({
         buildId, stage: 'stage3', mode, observability, envelope, executionClass: 'cli-child', toolVersion: getToolVersion(),
         paths: { repo: config.root, repoCache: config.repoCacheRoot, build: buildRoot, index: path.join(buildRoot, `index-${mode}`), models: config.modelsDir },
-        inputs: { configSources: config.configSources, resolvedPlanDigest: config.executionPlan?.digest || null, selectedAt: config.executionPlan?.selectedAt || null, resourcePolicy: config.executionPlan?.resourcePolicy || null },
+        inputs: { configSources: config.configSources, resolvedPlanDigest: config.executionPlan?.digest || null,
+          submittedSelectionDigest, selectedAt: config.executionPlan?.selectedAt || null,
+          resourcePolicy: config.executionPlan?.resourcePolicy || null },
         embeddings: { requested: { modelId: config.modelId, provider: config.embeddingProvider, stub: config.useStubEmbeddings }, resolvedIdentity: identity, identityKey,
           observation: { state: 'not-started', provider: null, dims: null, observedAt: null, method: null } }
       });

@@ -70,13 +70,17 @@ try {
   for (const key of ['threads', 'scheduler', 'scheduler-cpu', 'scheduler-io', 'scheduler-mem', 'scheduler-starvation', 'scheduler-low-resource']) {
     assert.equal(direct.argv[key], argv[key], key);
   }
-  await runEmbeddingsStage({ ...base, embeddingRuntime: { embeddingEnabled: true, embeddingService: true,
-    useStubEmbeddings: true, resolvedEmbeddingMode: 'service', queueDir } });
+  const queuedIntent = { embeddingEnabled: true, embeddingService: true,
+    useStubEmbeddings: true, resolvedEmbeddingMode: 'service', queueDir };
+  const queuedSelection = captureEmbeddingExecutionPlan(createEmbeddingExecutionPlan({ root: repo, argv, userConfig: config,
+    modes: ['code'], rawEnv: env, intent: queuedIntent }));
+  await runEmbeddingsStage({ ...base, embeddingRuntime: { ...queuedIntent, executionPlan: queuedSelection } });
   const queue = await loadQueue(queueDir, 'embeddings');
   assert.equal(queue.jobs.length, 1);
   const job = queue.jobs[0];
   assert.equal(job.embeddingPlan.options.model, 'parent-cli-model');
   assert.equal(job.embeddingPlan.sources.model, 'cli.model');
+  assert.equal(job.observability.context.embeddingSelectionDigest, queuedSelection.digest);
   await fs.writeFile(path.join(repo, '.pairofcleats.json'), JSON.stringify({
     models: { id: 'changed-after-submission' }, threads: 7,
     indexing: { embeddings: { provider: 'onnx', mode: 'off', normalize: true } }
