@@ -23,6 +23,8 @@ work. Their separate receipts preserve exact trees, limitations and checks.
 | [bba2c5c8d](embedding-selection-implementation-2026-10-27.md) | Pre-Stage2 immutable model/resource selection and generation-only binding for inline/queued launches | 6 authored cases plus strengthened handoff; asset/runtime/cache-only preflight and other build routes remain |
 | [6dda56194 / 1d72db1a7](json-import-admission-implementation-2026-10-27.md) | Strict JSON collector envelopes, one bounded reference cursor walk and qualified JSONC compatibility omissions | 20 authored cases; actual collector/graph/replay and measured resource qualification remain |
 | [7394e4ba1](language-routing-implementation-2026-10-27.md) | Shared immutable routing metadata and eleven ID-only consumer migrations | 4 authored guards plus actual adapter parity; family/prose/worker loading and measurements remain |
+| [b8915d740 / 65f8f1c79](embedding-preflight-implementation-2026-10-27.md) | Read-only local graph selection/recheck and existing parent/child attempt evidence | 9 authored cases and strengthened actual owners; early failure persistence, other routes and qualification remain |
+| [154d7ba6b](language-operation-loading-implementation-2026-10-27.md) | Demanded language/format loading and independent prose fallback | 6 authored guards; static module graphs 221→11 and 263→76; runtime/worker/performance qualification remains |
 
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero

@@ -57,9 +57,11 @@ severity and shared dependencies, retaining qualification separately:
 3. Language/semantic/replay and retrieval/API evidence contracts; [comment source/demand ownership](archived/comment-pipeline-implementation-2026-10-27.md)
    has 38 authored JS/TS/Rust/import cases. [Frontmatter interiors](archived/frontmatter-content-implementation-2026-10-27.md)
    have 8 more. [Metadata routing](archived/language-routing-implementation-2026-10-27.md)
-   removes eleven direct adapter edges; other adapters, wrapped maps, family loading and execution remain.
+   removes eleven direct adapter edges; [operation loading](archived/language-operation-loading-implementation-2026-10-27.md)
+   separates family/prose initialization. Other adapters, wrapped maps, worker initialization and execution remain.
    [Early embedding selection](archived/embedding-selection-implementation-2026-10-27.md)
-   pins the full-build request before Stage2; complete readiness/cache-only preflight remains.
+   pins the full-build request before Stage2; [graph preflight/attempt linkage](archived/embedding-preflight-implementation-2026-10-27.md)
+   are implemented. Failure persistence, other routes and full readiness/cache-only qualification remain.
    [Strict JSON admission](archived/json-import-admission-implementation-2026-10-27.md)
    adds common caps, aggregate traversal and qualified omissions; 20 cases await execution.
 4. Native TUI/editor workflows: [catalog/editor witnesses and stats admission](archived/native-workflow-preflight-implementation-2026-10-27.md)

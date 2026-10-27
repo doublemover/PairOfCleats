@@ -1036,8 +1036,12 @@
     },
     {
       "number": 289,
-      "unvalidatedSourceHeads": ["342c39c7b05ce17e8750c93b3a47b9b23e631703"],
-      "unvalidatedReceipts": ["clangd-compilation-context-implementation-2026-10-27.md"],
+      "unvalidatedSourceHeads": [
+        "342c39c7b05ce17e8750c93b3a47b9b23e631703"
+      ],
+      "unvalidatedReceipts": [
+        "clangd-compilation-context-implementation-2026-10-27.md"
+      ],
       "currentImplementation": "Bounded compilation database/response admission, captured per-document coverage and source/launch revalidation, healthy/weak planning, physical URI routing, per-file hover policy and LSP producer version 52 implemented; 26 authored cases await execution and real Windows qualification.",
       "title": "Clangd: contain documentSymbol timeout storms and make weak compile-context fallback deterministic",
       "recordedDisposition": "implementation_needed",
@@ -1192,8 +1196,15 @@
     },
     {
       "number": 631,
-      "unvalidatedSourceHeads": ["32b7fac5224acae49a85cb7fcaac01c0902bd0e1", "230b94dc4fb9c4b5c05e891f0cd836bd9ef7794d", "723f39f1acb49c4e8b88e3335e5b829fdd220429"],
-      "unvalidatedReceipts": ["gopls-allocation-implementation-2026-10-27.md", "provider-allocation-contract-2026-10-27.md"],
+      "unvalidatedSourceHeads": [
+        "32b7fac5224acae49a85cb7fcaac01c0902bd0e1",
+        "230b94dc4fb9c4b5c05e891f0cd836bd9ef7794d",
+        "723f39f1acb49c4e8b88e3335e5b829fdd220429"
+      ],
+      "unvalidatedReceipts": [
+        "gopls-allocation-implementation-2026-10-27.md",
+        "provider-allocation-contract-2026-10-27.md"
+      ],
       "currentImplementation": "Hosted gopls absence traced to deferred installation, not discovery. Canonical blockers, planning-only forecasts, shared SDK bounds, GOTMPDIR routing and standalone managed-command lookup implemented. Qualified package build allowances and actual Windows installation/protocol/consumer evidence remain required.",
       "title": "Resolve remaining real optional-tool installation and post-install verification blockers",
       "recordedDisposition": "partial_or_followup",
@@ -1231,8 +1242,12 @@
     },
     {
       "number": 635,
-      "unvalidatedSourceHeads": ["f6c82c945321492dcdbe5f12f09204cc5beee353"],
-      "unvalidatedReceipts": ["native-workflow-preflight-implementation-2026-10-27.md"],
+      "unvalidatedSourceHeads": [
+        "f6c82c945321492dcdbe5f12f09204cc5beee353"
+      ],
+      "unvalidatedReceipts": [
+        "native-workflow-preflight-implementation-2026-10-27.md"
+      ],
       "currentImplementation": "History proves catalog/navigation witnesses obsolete since 9add4524a; updated actual keyboard fixture uses current headings and explicit advanced JSON plus exact field identity. Shared CLI stats validation now blocks bound-repo/index-dir and invalid-mode conflicts before launch; argv errors return blocked previews while pending owners propagate. Three CLI and one native case are authored; all 19 actual native cases and original acceptance remain deferred.",
       "title": "TUI missing functionality: configure and operate index and embedding workflows",
       "recordedDisposition": "partial_or_followup",
@@ -1288,8 +1303,12 @@
     },
     {
       "number": 668,
-      "unvalidatedSourceHeads": ["18a11375463acdf2ed74dfa6ab2451c8a8703972"],
-      "unvalidatedReceipts": ["javascript-documentation-implementation-2026-10-27.md"],
+      "unvalidatedSourceHeads": [
+        "18a11375463acdf2ed74dfa6ab2451c8a8703972"
+      ],
+      "unvalidatedReceipts": [
+        "javascript-documentation-implementation-2026-10-27.md"
+      ],
       "currentImplementation": "Privately admitted parser comment ranges feed bounded declaration-associated JSDoc parsing using the locked libraries and documented dialect. AST metadata retains precedence, hints preserve structured names/types, and JavaScript relations are versioned. Twenty-one authored cases and existing consumer/replay/import checks remain unexecuted.",
       "title": "Reuse declared JSDoc parsers instead of regex-scanning JavaScript chunk text",
       "recordedDisposition": "implementation_needed",
@@ -1314,8 +1333,12 @@
     },
     {
       "number": 672,
-      "unvalidatedSourceHeads": ["1515ad0a8ebfb7c3125ffd5570f3e86e79133837"],
-      "unvalidatedReceipts": ["dependency-ownership-implementation-2026-10-27.md"],
+      "unvalidatedSourceHeads": [
+        "1515ad0a8ebfb7c3125ffd5570f3e86e79133837"
+      ],
+      "unvalidatedReceipts": [
+        "dependency-ownership-implementation-2026-10-27.md"
+      ],
       "currentImplementation": "Proved the scoped Lua native registry/bootstrap route is exclusive; removed the unscoped direct root and permission through npm lock regeneration. Fresh locked bootstrap verifies 37 required packages and 33 language routes without warning/error matches. Inventory and Lua consumer regression execution remains deferred.",
       "title": "Remove the superseded native tree-sitter-lua dependency after the scoped-grammar cutover",
       "recordedDisposition": "implementation_needed",
@@ -1344,8 +1367,12 @@
     },
     {
       "number": 681,
-      "unvalidatedSourceHeads": ["1515ad0a8ebfb7c3125ffd5570f3e86e79133837"],
-      "unvalidatedReceipts": ["dependency-ownership-implementation-2026-10-27.md"],
+      "unvalidatedSourceHeads": [
+        "1515ad0a8ebfb7c3125ffd5570f3e86e79133837"
+      ],
+      "unvalidatedReceipts": [
+        "dependency-ownership-implementation-2026-10-27.md"
+      ],
       "currentImplementation": "Audited imports, dynamic/native/CLI owners and complete incoming lock edges; removed four unused roots and two orphan permissions, preserving Arrow/esquery/NAN users. Combined with Lua retirement, npm removes 110 records without retained upgrades. Fresh setup passes; focused consumer/inventory tests are authored/deferred, with historical reference claims deprecated.",
       "title": "Remove four unconsumed dependency roots and orphan SWC/ripgrep install permissions",
       "recordedDisposition": "implementation_needed",
@@ -3127,8 +3154,12 @@
     },
     {
       "number": 1146,
-      "unvalidatedSourceHeads": ["d60d3cd10472a7dff0ab37764f5026d14107b970"],
-      "unvalidatedReceipts": ["provider-invocation-implementation-2026-10-27.md"],
+      "unvalidatedSourceHeads": [
+        "d60d3cd10472a7dff0ab37764f5026d14107b970"
+      ],
+      "unvalidatedReceipts": [
+        "provider-invocation-implementation-2026-10-27.md"
+      ],
       "currentImplementation": "Durable profiles require a privately registered captured execution owner matching actual source/target/configuration and observed profile identity. Mismatched/absent owners remain unqualified live; exact invocation witnesses gate caching. Thirteen cases are authored, unexecuted; built-in command/module/environment/project wiring and reporting reconciliation remain.",
       "title": "Bind provider tool profiles to observed executable and project identities",
       "recordedDisposition": "partial_or_followup",
@@ -4756,9 +4787,16 @@
     },
     {
       "number": 1325,
-      "unvalidatedSourceHeads": ["bba2c5c8dc039e2817602f4c38306c561597754c"],
-      "unvalidatedReceipts": ["embedding-selection-implementation-2026-10-27.md"],
-      "currentImplementation": "Ordinary full builds capture immutable model/provider/profile/environment/resources before Stage2; strict late binding changes only generated root/build identity and mode subsets. Named profile defaults are explicit, real profile/dimension errors validate early, and disabled/stub selections stay inactive. Six cases plus actual inline/queue handoff controls are authored, unexecuted. Asset/native/cache-only preflight, existing attempt persistence, other build routes and full qualification remain.",
+      "unvalidatedSourceHeads": [
+        "bba2c5c8dc039e2817602f4c38306c561597754c",
+        "b8915d74041262bd7539f0b189a2929e23f17f8a",
+        "65f8f1c79b4deeb23e409e03e6cd0ee5d4847f86"
+      ],
+      "unvalidatedReceipts": [
+        "embedding-selection-implementation-2026-10-27.md",
+        "embedding-preflight-implementation-2026-10-27.md"
+      ],
+      "currentImplementation": "Ordinary full builds capture immutable model/provider/profile/environment/resources before Stage2. Read-only local ONNX graph admission pins the exact graph and rechecks at Stage3; off/stub/deferred/fetch-capable states remain distinct without model load/download. Existing parent attempts retain bounded selected/preflight evidence and child attempts retain submitted/final plan digests with parent linkage. Nine preflight cases plus existing runtime/receipt/handoff controls are authored, unexecuted. Early fatal failure persistence, other build routes, broader native/fetch/cache-only states and full qualification remain.",
       "title": "[Build] Preflight requested embedding assets and execution plan before expensive Stage2 work",
       "recordedDisposition": "implementation_needed",
       "priority": "unranked",
@@ -6481,8 +6519,14 @@
     },
     {
       "number": 1559,
-      "unvalidatedSourceHeads": ["723f39f1acb49c4e8b88e3335e5b829fdd220429", "773e6893e18e1e570562a41a280231109f6c61f8"],
-      "unvalidatedReceipts": ["provider-allocation-contract-2026-10-27.md", "clangd-acquisition-implementation-2026-10-27.md"],
+      "unvalidatedSourceHeads": [
+        "723f39f1acb49c4e8b88e3335e5b829fdd220429",
+        "773e6893e18e1e570562a41a280231109f6c61f8"
+      ],
+      "unvalidatedReceipts": [
+        "provider-allocation-contract-2026-10-27.md",
+        "clangd-acquisition-implementation-2026-10-27.md"
+      ],
       "currentImplementation": "One pure allocation contract classifies canonical cache recipes and exposes non-installable blockers; unqualified forecasts cannot admit writes. Clangd now invokes one bounded archive acquisition directly, with allocation, async probe and exact cleanup ownership. Actual package closure and qualified build allowances remain implementation work; all new functional checks are deferred.",
       "title": "Make selected provider install recipes satisfy managed storage admission on clean machines",
       "recordedDisposition": "implementation_needed",
@@ -7134,9 +7178,17 @@
     },
     {
       "number": 1607,
-      "unvalidatedSourceHeads": ["a7283654154da72e028ce58ff6790a8d75180701", "7394e4ba1d6fb6f258350d695609bf2ede8886a8"],
-      "unvalidatedReceipts": ["comment-pipeline-implementation-2026-10-27.md", "language-routing-implementation-2026-10-27.md"],
-      "currentImplementation": "Comment metadata uses byte-identical sequence/frontmatter leaves. A shared canonical metadata/Linguist chooser now serves eleven ID-only consumers; real adapter lookup uses the same precedence and retains concrete methods. Seven fresh-process guards plus actual adapter parity are authored, unexecuted. Selected family loading, prose dispatch, worker initialization and measured resource/performance qualification remain.",
+      "unvalidatedSourceHeads": [
+        "a7283654154da72e028ce58ff6790a8d75180701",
+        "7394e4ba1d6fb6f258350d695609bf2ede8886a8",
+        "154d7ba6bae752fe6d5210fe7000bf725f4260aa"
+      ],
+      "unvalidatedReceipts": [
+        "comment-pipeline-implementation-2026-10-27.md",
+        "language-routing-implementation-2026-10-27.md",
+        "language-operation-loading-implementation-2026-10-27.md"
+      ],
+      "currentImplementation": "Canonical metadata routing serves eleven ID-only consumers. Concrete registry, code/format chunkers and conditional Tree-sitter owners defer module loading until the actual requested operation while retaining sync/async APIs and propagating failures. Static source import closures fall 221 to 11 and 263 to 76 repository modules, with zero family modules; seven operation bodies are AST-identical. Six new operation guards plus prior metadata/comment guards are authored, unexecuted. Complete worker/entry-point initialization, actual consumer/native/import-budget parity and performance qualification remain.",
       "title": "[Perf] Keep language routing and prose chunking outside the eager code-parser module graph",
       "recordedDisposition": "implementation_needed",
       "priority": "Perf",
@@ -7306,8 +7358,12 @@
       "phase": "source-review-and-implementation",
       "status": "partial-qualified",
       "currentDisposition": "partial_or_followup",
-      "unvalidatedSourceHeads": ["1cd9c62e6861003eb7f8175bcf00508cf817b259"],
-      "unvalidatedReceipts": ["tantivy-generation-implementation-2026-10-27.md"],
+      "unvalidatedSourceHeads": [
+        "1cd9c62e6861003eb7f8175bcf00508cf817b259"
+      ],
+      "unvalidatedReceipts": [
+        "tantivy-generation-implementation-2026-10-27.md"
+      ],
       "currentImplementation": "Schema-2 source/mapping/postings receipts, immutable UUID payload activation, bounded serialized writers and original reader disposal implemented; 21 protocol cases authored, functional and optional-native qualification deferred.",
       "sourceHead": "8bf742ec6689409b43d3d95a1a5ea98d1dff5117",
       "qualifiedTests": [
@@ -7515,8 +7571,12 @@
     },
     {
       "number": 1652,
-      "unvalidatedSourceHeads": ["08fe8b40ba060e7ab0531111c62279f62b96cab8"],
-      "unvalidatedReceipts": ["frontmatter-content-implementation-2026-10-27.md"],
+      "unvalidatedSourceHeads": [
+        "08fe8b40ba060e7ab0531111c62279f62b96cab8"
+      ],
+      "unvalidatedReceipts": [
+        "frontmatter-content-implementation-2026-10-27.md"
+      ],
       "currentImplementation": "Frontmatter config input is its exact original delimiter-free UTF-16 interior, preserving LF/CRLF and separate broad prose/container boundaries. Extraction policy enters segment identity; shared source chunking 35 enters file parse/replay identity. Eight actual chunk/VFS cases are authored, unexecuted. Wrapped/list/indented fence views and canonical piecewise map/semantic/VFS qualification remain.",
       "title": "Separate Markdown container extents from embedded parser content and source maps",
       "recordedDisposition": "implementation_needed",
@@ -7527,8 +7587,14 @@
     },
     {
       "number": 1653,
-      "unvalidatedSourceHeads": ["2fba78f6d494e21b2c32e364f39fd1810a9b54d0", "4437d9994f9553ec1f8aa6cf78e4a49248a26a80", "6f3dd060f16f038ea104c49bf70daa47790ba1e2"],
-      "unvalidatedReceipts": ["comment-pipeline-implementation-2026-10-27.md"],
+      "unvalidatedSourceHeads": [
+        "2fba78f6d494e21b2c32e364f39fd1810a9b54d0",
+        "4437d9994f9553ec1f8aa6cf78e4a49248a26a80",
+        "6f3dd060f16f038ea104c49bf70daa47790ba1e2"
+      ],
+      "unvalidatedReceipts": [
+        "comment-pipeline-implementation-2026-10-27.md"
+      ],
       "currentImplementation": "JS/JSX and TS/TSX consume private source/parser/dialect-owned immutable spans; a separate bounded Rust lexer handles nesting, literals, lifetimes, LF termination and doc roles. Paired caches verify source/parser before inspecting owned payloads. Twenty-five occurrence cases are authored, unexecuted; other dialect adapters, source-map integration and consumer/replay/import qualification remain.",
       "title": "Use language-owned comment ranges instead of the generic quote and marker scanner",
       "recordedDisposition": "implementation_needed",
@@ -7557,8 +7623,13 @@
     },
     {
       "number": 1656,
-      "unvalidatedSourceHeads": ["2fba78f6d494e21b2c32e364f39fd1810a9b54d0", "481536c0518316acff8e32f1f578de685797eb73"],
-      "unvalidatedReceipts": ["comment-pipeline-implementation-2026-10-27.md"],
+      "unvalidatedSourceHeads": [
+        "2fba78f6d494e21b2c32e364f39fd1810a9b54d0",
+        "481536c0518316acff8e32f1f578de685797eb73"
+      ],
+      "unvalidatedReceipts": [
+        "comment-pipeline-implementation-2026-10-27.md"
+      ],
       "currentImplementation": "Config parsing follows actual consuming demand and private candidate/byte/line admission; vendors load lazily and invalid input differs from budget exclusion. Proven-unused full comment token arrays are replaced by exact emitted counts; actual field tokens use bounded current UTF-8 prefixes. Ten cases are authored and positive prose/warm-cache consumers preserved. Structural/fence mapping and all functional/performance qualification remain deferred.",
       "title": "Gate comment config parsing by consumer demand and avoid unused token materialization",
       "recordedDisposition": "implementation_needed",
@@ -7632,8 +7703,13 @@
     },
     {
       "number": 1664,
-      "unvalidatedSourceHeads": ["6dda561942e5a7472cb9e69d6eae68b6052f661f", "1d72db1a7c70b5c4e4dcd97bf985d7d1cdfaa04d"],
-      "unvalidatedReceipts": ["json-import-admission-implementation-2026-10-27.md"],
+      "unvalidatedSourceHeads": [
+        "6dda561942e5a7472cb9e69d6eae68b6052f661f",
+        "1d72db1a7c70b5c4e4dcd97bf985d7d1cdfaa04d"
+      ],
+      "unvalidatedReceipts": [
+        "json-import-admission-implementation-2026-10-27.md"
+      ],
       "currentImplementation": "Strict JSON now uses common source/line/token/match/time admission and one cursor traversal with aggregate value/frontier bounds, depth semantics and retained observations. JSONC keeps its syntax/deep compatibility, with strict rejection of deep JSONC-only syntax reported as a depth omission. Policy/file/replay identities advance. Twenty cases are authored, unexecuted; actual collector/graph/replay/import checks and measured resource qualification remain.",
       "title": "[Perf] Apply collector admission and aggregate traversal budgets to strict JSON imports",
       "recordedDisposition": "implementation_needed",
