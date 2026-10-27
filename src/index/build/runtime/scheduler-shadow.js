@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { stableStringify } from '../../../shared/stable-json.js';
 import { SEMANTIC_ANALYSIS_VERSIONS } from '../../semantic/analysis-versions.js';
 import { estimateFileCost } from '../perf-profile.js';
-import { getLanguageForFile } from '../../language-registry.js';
+import { getLanguageRouteForFile } from '../../language-registry/routing.js';
 import path from 'node:path';
 import { currentSchedulerTaskLease } from '../../../shared/concurrency/scheduler-task-scope.js';
 
@@ -82,7 +82,7 @@ export const createFileSchedulerShadow = ({ learnedAutoProfile, perfProfile, ide
       } },
     metadata: enabled ? (entry, ctx) => {
       const bytes = Math.max(0, Math.floor(Number(entry?.stat?.size ?? entry?.bytes) || 0));
-      const language = getLanguageForFile(path.extname(entry?.abs || entry?.rel || '').toLowerCase(), entry?.rel || '')?.id;
+      const language = getLanguageRouteForFile(path.extname(entry?.abs || entry?.rel || '').toLowerCase(), entry?.rel || '')?.id;
       const predicted = qualified ? estimateFileCost({ perfProfile: profile, languageId: language,
         bytes, lines: Number(entry?.lines) || 0 }) : null;
       return { domain, orderIndex: resolveOrderIndex?.(entry, ctx?.index) ?? null, dependencyState: 'ready',

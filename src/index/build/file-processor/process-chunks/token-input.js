@@ -1,5 +1,5 @@
 import { TOKENIZE_BATCH_MAX_TEXT_BYTES } from '../../workers/tokenize-batch.js';
-import { getLanguageForFile } from '../../../language-registry.js';
+import { getLanguageRouteForFile } from '../../../language-registry/routing.js';
 import { resolveSegmentTokenMode } from '../../../segments/config.js';
 import { stripCommentText } from '../utils.js';
 
@@ -47,7 +47,7 @@ export const createChunkTokenBatchInput = ({ chunksForProcessing, text, lexicalC
   const chunkText = text.slice(chunk.start, chunk.end);
   const chunkMode = (chunk.segment ? resolveSegmentTokenMode(chunk.segment) : tokenMode) || tokenMode;
   const effectiveExt = chunk.segment?.ext || containerExt;
-  const effectiveLang = getLanguageForFile(effectiveExt, relKey) || null;
+  const effectiveLang = getLanguageRouteForFile(effectiveExt, relKey) || null;
   const languageId = effectiveLang?.id || chunk.segment?.languageId || containerLanguageId || 'unknown';
   const ranges = commentRangeAssignments.get(index) || [];
   const tokenText = chunkMode === 'code' && normalizedCommentsConfig.includeInCode !== true && ranges.length

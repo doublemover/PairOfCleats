@@ -1,6 +1,6 @@
 import { processFileCpu } from '../file-processor/cpu.js';
 import { createTokenizationContext } from '../tokenization.js';
-import { getLanguageForFile } from '../../language-registry.js';
+import { getLanguageRouteForFile } from '../../language-registry/routing.js';
 import { createTokenizationEvidence } from '../file-processor/tokenization-evidence.js';
 import { restoreFileAnalysisRisk, restoreFileAnalysisComments } from './file-analysis-risk.js';
 import { decodeFileAnalysisInput, encodeFileAnalysisResult, FILE_ANALYSIS_MAX_EVENTS,
@@ -34,7 +34,7 @@ export const executeFileAnalysis = async (payload, resources) => {
       workerPool: { shouldUseForFile: () => true, getRoutingReason: () => 'eligible',
         getExecutionBackend: () => resources.backend, tokenizeChunk: async row => localTokens(row) },
       complexityCache: new Map(), lintCache: new Map(),
-      languageHint: getLanguageForFile(input.ext, input.relKey),
+      languageHint: getLanguageRouteForFile(input.ext, input.relKey),
       runProc: operation => operation(), runIo: operation => operation(),
       runEmbedding: operation => operation(), runTreeSitterSerial: operation => operation(),
       log: (...args) => record('log', args), logLine: (...args) => record('logLine', args),

@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { getLanguageForFile } from '../language-registry.js';
+import { getLanguageRouteForFile } from '../language-registry/routing.js';
 import { countLinesForEntries } from '../../shared/file-stats.js';
 import { isRelativePathEscape, toPosix } from '../../shared/file-paths.js';
 import { runWithConcurrency } from '../../shared/concurrency/run-with-queue.js';
@@ -351,7 +351,7 @@ export async function preprocessFiles({
       }
       if (entry.skip) continue;
       const lang = (mode === 'code' || mode === 'extracted-prose')
-        ? getLanguageForFile(entry.ext, entry.rel)?.id || null
+        ? getLanguageRouteForFile(entry.ext, entry.rel)?.id || null
         : null;
       const { maxLines, maxBytes } = resolveFileCaps(fileCaps, entry.ext, lang, mode);
       if (maxBytes && entry.stat?.size > maxBytes) {

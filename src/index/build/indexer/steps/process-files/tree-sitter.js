@@ -1,7 +1,7 @@
 import { compareStrings } from '../../../../../shared/sort.js';
 import { fileExt } from '../../../../../shared/file-paths.js';
 import { log } from '../../../../../shared/progress-runtime.js';
-import { getLanguageForFile } from '../../../../language-registry.js';
+import { getLanguageRouteForFile } from '../../../../language-registry/routing.js';
 import { TREE_SITTER_LANGUAGE_IDS } from '../../../../../lang/tree-sitter.js';
 import { isDocsPath, shouldPreferInfraProse } from '../../../mode-routing.js';
 
@@ -60,7 +60,7 @@ const resolveTreeSitterLanguageForEntry = (entry) => {
   const ext = typeof extRaw === 'string' ? extRaw.toLowerCase() : '';
   const extLang = ext ? TREE_SITTER_EXT_MAP.get(ext) : null;
   if (extLang && TREE_SITTER_LANG_IDS.has(extLang)) return extLang;
-  const lang = getLanguageForFile(ext, entry?.rel || '');
+  const lang = getLanguageRouteForFile(ext, entry?.rel || '');
   const languageId = lang?.id || null;
   return languageId && TREE_SITTER_LANG_IDS.has(languageId) ? languageId : null;
 };

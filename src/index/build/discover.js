@@ -11,7 +11,7 @@ import {
   isSpecialCodeFile,
   resolveSpecialCodeExt
 } from '../constants.js';
-import { getLanguageForFile } from '../language-registry.js';
+import { getLanguageRouteForFile } from '../language-registry/routing.js';
 import { fileExt, isRelativePathEscape, toPosix } from '../../shared/file-paths.js';
 import { createRecordsClassifier } from './records.js';
 import { throwIfAborted, isAbortError } from '../../shared/abort.js';
@@ -339,12 +339,12 @@ export async function discoverEntries({
         return;
       }
     }
-    let language = getLanguageForFile(ext, relPosix);
+    let language = getLanguageRouteForFile(ext, relPosix);
     if (!ext && !language && stat.isFile()) {
       const shebang = await detectShebangLanguage(absPath);
       if (shebang?.languageId) {
         ext = shebang.ext || ext;
-        language = getLanguageForFile(ext, relPosix);
+        language = getLanguageRouteForFile(ext, relPosix);
       }
     }
     const isSpecialLanguage = !!language && !EXTS_CODE.has(ext) && !EXTS_PROSE.has(ext);
@@ -443,7 +443,7 @@ function filterEntriesByMode(entries, mode, skippedFiles, documentExtractionConf
   const allowDocumentExt = mode === 'extracted-prose' && documentExtractionEnabled;
   const output = [];
   for (const entry of entries) {
-    const maxBytes = resolveFileCaps(fileCaps, entry.ext, getLanguageForFile(entry.ext, entry.rel)?.id || null, mode).maxBytes;
+    const maxBytes = resolveFileCaps(fileCaps, entry.ext, getLanguageRouteForFile(entry.ext, entry.rel)?.id || null, mode).maxBytes;
     if (maxBytes && entry.stat?.size > maxBytes) {
       skippedFiles?.push({ file: entry.abs, reason: 'oversize', bytes: entry.stat.size, maxBytes });
       continue;

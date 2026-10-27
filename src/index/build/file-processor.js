@@ -30,7 +30,7 @@ import {
   writeArtifactsToFileTextCache
 } from './file-processor/pre-cpu-state.js';
 import { resolvePreCpuFileContent } from './file-processor/pre-cpu-content.js';
-import { getLanguageForFile } from '../language-registry.js';
+import { getLanguageRouteForFile } from '../language-registry/routing.js';
 import {
   EXTRACTION_NORMALIZATION_POLICY,
   buildDocumentExtractionFidelity,
@@ -439,7 +439,7 @@ export function createFileProcessor(options) {
     const documentSourceType = documentExtractionEnabled && isDocumentExt(ext)
       ? (ext === '.pdf' ? 'pdf' : 'docx')
       : null;
-    const languageHint = getLanguageForFile(ext, relKey);
+    const languageHint = getLanguageRouteForFile(ext, relKey);
     let fileLanguageId = languageHint?.id || null;
     let fileLineCount = 0;
     let fileStat;

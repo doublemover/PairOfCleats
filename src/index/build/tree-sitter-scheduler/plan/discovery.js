@@ -16,7 +16,7 @@ import {
   resolveNativeTreeSitterTarget
 } from '../../../../lang/tree-sitter/native-runtime.js';
 import { isTreeSitterEnabled } from '../../../../lang/tree-sitter/options.js';
-import { getLanguageForFile } from '../../../language-registry.js';
+import { getLanguageRouteForFile } from '../../../language-registry/routing.js';
 import { assignSegmentUids, discoverSegments } from '../../../segments.js';
 import {
   resolveSegmentExt,
@@ -153,7 +153,7 @@ export const discoverTreeSitterSchedulerGroups = async ({
       }
 
       const ext = typeof entry?.ext === 'string' && entry.ext ? entry.ext : path.extname(abs);
-      const langHint = getLanguageForFile(ext, relKey);
+      const langHint = getLanguageRouteForFile(ext, relKey);
       const primaryLanguageId = langHint?.id || null;
       if (shouldSkipTreeSitterPlanningForPath({ relKey, languageId: primaryLanguageId })) {
         recordSkip('policy', () => (

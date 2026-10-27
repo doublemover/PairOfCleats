@@ -1,74 +1,13 @@
+import { createLanguageRouteResolver } from './routing.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { isManagedReferenceLanguage, projectManagedReferences } from '../../contracts/managed-reference-identities.js';
 import { resolveJavaScriptDeclarationReference } from '../../lang/javascript/callable-occurrences.js';
 import { admitImportExtraction, attachImportExtraction, createImportExtraction, getImportExtraction, projectImportExtraction } from '../../shared/import-extraction.js';
-import path from 'node:path';
-import { LINGUIST_LANGUAGES } from './linguist-data.js';
-import { buildLinguistRoutingMaps, normalizeLinguistName } from './linguist-routing.js';
-import { toArray } from '../../shared/iterables.js';
 import { normalizeImportSpecifiers, sanitizeImportSpecifier } from '../shared/import-specifier.js';
 import { LANGUAGE_REGISTRY } from './registry-data.js';
-import { LANGUAGE_ROUTE_DESCRIPTORS } from './descriptors.js';
 import { normalizeCollectorHint } from './import-collectors/utils.js';
 const LANGUAGE_BY_ID = new Map(LANGUAGE_REGISTRY.map((lang) => [lang.id, lang]));
-const { extensions: LINGUIST_EXTENSION_MAP, filenames: LINGUIST_FILENAME_MAP }
-  = buildLinguistRoutingMaps(LINGUIST_LANGUAGES, LANGUAGE_BY_ID);
-const DESCRIPTOR_EXTENSION_MAP = new Map();
-const DESCRIPTOR_FILENAME_MAP = new Map();
-const DESCRIPTOR_PREFIX_MAP = [];
-
-for (const descriptor of LANGUAGE_ROUTE_DESCRIPTORS) {
-  const languageId = descriptor?.id;
-  if (!languageId || !LANGUAGE_BY_ID.has(languageId)) continue;
-  for (const ext of toArray(descriptor?.extensions)) {
-    const key = String(ext || '').toLowerCase();
-    if (key && !DESCRIPTOR_EXTENSION_MAP.has(key)) {
-      DESCRIPTOR_EXTENSION_MAP.set(key, languageId);
-    }
-  }
-  for (const filename of toArray(descriptor?.specialFilenames)) {
-    const key = String(filename || '').toLowerCase();
-    if (key && !DESCRIPTOR_FILENAME_MAP.has(key)) {
-      DESCRIPTOR_FILENAME_MAP.set(key, languageId);
-    }
-  }
-  for (const prefix of toArray(descriptor?.specialPrefixes)) {
-    const key = String(prefix || '').toLowerCase();
-    if (key) {
-      DESCRIPTOR_PREFIX_MAP.push({ prefix: key, languageId });
-    }
-  }
-}
-
-const resolveLinguistLanguage = (ext, relPath) => {
-  const baseName = normalizeLinguistName(path.basename(relPath || ''));
-  if (baseName && LINGUIST_FILENAME_MAP.has(baseName)) {
-    return LANGUAGE_BY_ID.get(LINGUIST_FILENAME_MAP.get(baseName)) || null;
-  }
-  const extKey = normalizeLinguistName(ext);
-  if (extKey && LINGUIST_EXTENSION_MAP.has(extKey)) {
-    return LANGUAGE_BY_ID.get(LINGUIST_EXTENSION_MAP.get(extKey)) || null;
-  }
-  return null;
-};
-
-const resolveDescriptorLanguage = (ext, relPath) => {
-  const baseName = normalizeLinguistName(path.basename(relPath || ''));
-  if (baseName && DESCRIPTOR_FILENAME_MAP.has(baseName)) {
-    return LANGUAGE_BY_ID.get(DESCRIPTOR_FILENAME_MAP.get(baseName)) || null;
-  }
-  const extKey = normalizeLinguistName(ext);
-  if (extKey && DESCRIPTOR_EXTENSION_MAP.has(extKey)) {
-    return LANGUAGE_BY_ID.get(DESCRIPTOR_EXTENSION_MAP.get(extKey)) || null;
-  }
-  if (baseName) {
-    for (const entry of DESCRIPTOR_PREFIX_MAP) {
-      if (!(baseName === entry.prefix || baseName.startsWith(`${entry.prefix}.`))) continue;
-      return LANGUAGE_BY_ID.get(entry.languageId) || null;
-    }
-  }
-  return null;
-};
+const resolveRouteId = createLanguageRouteResolver(LANGUAGE_BY_ID);
 
 const coerceImportEntry = (value) => {
   if (typeof value === 'string') return { specifier: value.trim(), collectorHint: null };
@@ -133,10 +72,7 @@ const normalizeImportEntries = (entries) => {
 };
 
 export function getLanguageForFile(ext, relPath) {
-  const normalized = relPath || '';
-  const descriptorMatch = resolveDescriptorLanguage(ext, normalized);
-  if (descriptorMatch) return descriptorMatch;
-  return resolveLinguistLanguage(ext, normalized);
+  return LANGUAGE_BY_ID.get(resolveRouteId(ext, relPath)) || null;
 }
 
 export function collectLanguageImports(input = {}) {

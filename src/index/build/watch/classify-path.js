@@ -5,7 +5,7 @@ import { toPosix, isRelativePathEscape, fileExt } from '../../../shared/file-pat
 import { watchObservationFailure } from './source-observations.js';
 import { inspectGeneratedArtifact, isGeneratedArtifactCandidatePath } from '../../../shared/generated-artifact.js';
 import { EXTS_CODE, EXTS_PROSE, resolveSpecialCodeExt, isSpecialCodeFile, isManifestFile, isLockFile } from '../../constants.js';
-import { getLanguageForFile } from '../../language-registry.js';
+import { getLanguageRouteForFile } from '../../language-registry/routing.js';
 import { detectShebangLanguage } from '../shebang.js';
 import { resolveGeneratedPolicyDecision, buildGeneratedPolicyDowngradePayload } from '../generated-policy.js';
 import { readRecordSample } from './records.js';
@@ -44,12 +44,12 @@ export const createWatchPathClassifier = ({ root, canonicalRoot, normalizedRecor
   if (stat.isSymbolicLink()) {
     return { skip: true, reason: 'symlink' };
   }
-  let language = getLanguageForFile(ext, relPosix);
+  let language = getLanguageRouteForFile(ext, relPosix);
   if (!ext && !language && stat.isFile()) {
     const shebang = await detectShebangLanguage(absPath);
     if (shebang?.languageId) {
       ext = shebang.ext || ext;
-      language = getLanguageForFile(ext, relPosix);
+      language = getLanguageRouteForFile(ext, relPosix);
     }
   }
   const maxBytesForFile = resolveMaxBytesForFile(ext, language?.id || null, maxFileBytes, fileCaps);

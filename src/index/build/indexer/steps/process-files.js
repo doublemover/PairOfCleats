@@ -42,7 +42,7 @@ import {
 import { snapshotTrackedSubprocesses } from '../../../../shared/subprocess/snapshot.js';
 import { createBuildCheckpoint } from '../../build-state.js';
 import { createFileProcessor } from '../../file-processor.js';
-import { getLanguageForFile } from '../../../language-registry.js';
+import { getLanguageRouteForFile } from '../../../language-registry/routing.js';
 import { runTreeSitterScheduler } from '../../tree-sitter-scheduler/runner.js';
 import { createHeavyFilePerfAggregator, createPerfEventLogger } from '../../perf-event-log.js';
 import { loadStructuralMatches } from '../../../structural.js';
@@ -2640,7 +2640,7 @@ const processFilesInTransformScope = async ({
                 if (fileMetrics && typeof fileMetrics === 'object') {
                   const bytes = Math.max(0, Math.floor(Number(fileMetrics.bytes) || 0));
                   const lines = Math.max(0, Math.floor(Number(fileMetrics.lines) || 0));
-                  const languageId = fileMetrics.languageId || getLanguageForFile(entry?.ext, entry?.rel)?.id || 'unknown';
+                  const languageId = fileMetrics.languageId || getLanguageRouteForFile(entry?.ext, entry?.rel)?.id || 'unknown';
                   recordStageTimingSample('parseChunk', {
                     languageId,
                     bytes,

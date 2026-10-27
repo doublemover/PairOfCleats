@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-27T20:32:56.165Z",
+  "generatedAt": "2026-10-27T20:42:03.189Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4652,6 +4652,7 @@
         "tests/indexing/fixtures/health-authority.test.js",
         "tests/indexing/imports/json-collector-admission.test.js",
         "tests/indexing/incremental/tokenization-cache.test.js",
+        "tests/indexing/language-registry/metadata-import-boundary.test.js",
         "tests/indexing/runtime/shared-resource-scope-isolation.test.js",
         "tests/indexing/runtime/stage-closeout-delayed-child.test.js",
         "tests/indexing/segments/comment-import-boundary.test.js",
