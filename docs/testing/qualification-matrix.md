@@ -372,3 +372,4 @@ call44 coordinate the latest producer migrations. All new consumer controls are
 UNRUN. Full activation/runtime, editor host, Windows .NET/tool prerequisites,
 LMDB/SQLite, final generated MCP contracts and real-model/performance acceptance
 remain separately required; no prior green receipt qualifies these changes.
+| Native build/compaction sessions (#1574 partial) | Actual SQLite compaction, LMDB build CLI/readback and outstanding native prefetch; original errors, admission and metadata recovery | 24 affected cases and full front gate/40 gate pass at 753c7f9a0; seven prior-owner/snippet controls fail. Frozen work errors retain native cleanup causes; no unknown close retry. Remaining registration/adapters/deletion stay open. [Receipt](../archived/native-command-sessions-2026-10-27.md). |
