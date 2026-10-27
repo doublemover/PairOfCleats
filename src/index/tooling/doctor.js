@@ -21,7 +21,7 @@ import { atomicWriteJson } from '../../shared/io/atomic-write.js';
 import { hasWorkspaceMarker, resolveWorkspaceModelCheckForCommand } from './workspace-model.js';
 import { listLspServerPresets } from './lsp-presets.js';
 import { getLspProviderDelta } from './lsp-provider-deltas.js';
-import { resolveCompileCommandsDir } from './compile-commands.js';
+import { admitCompilationDatabase } from './compile-commands.js';
 import {
   normalizeCommandToken,
   isProbeCommandDefinitelyMissing,
@@ -484,18 +484,18 @@ export const runToolingDoctor = async (ctx, providerIds = null, options = {}) =>
     } else if (providerId === 'clangd') {
       const clangdConfig = toolingConfig.clangd || {};
       if (clangdConfig.requireCompilationDatabase) {
-        const compileCommandsDir = resolveCompileCommandsDir(repoRoot, clangdConfig);
-        if (!compileCommandsDir) {
+        const compilationDatabase = await admitCompilationDatabase({ rootDir: repoRoot, config: clangdConfig });
+        if (!compilationDatabase.usableEntries) {
           addCheck({
             name: 'compile-commands',
             status: 'warn',
-            message: 'compile_commands.json not found; clangd will be skipped.'
+            message: `compile_commands.json is ${compilationDatabase.status}; clangd requires exact coverage of at least one selected document.`
           });
         } else {
           addCheck({
             name: 'compile-commands',
             status: 'ok',
-            message: `compile_commands.json found in ${compileCommandsDir}.`
+            message: `compile_commands.json has ${compilationDatabase.usableEntries} usable command entries in ${compilationDatabase.selection.dir}; selected-document coverage is checked before provider launch.`
           });
         }
       }

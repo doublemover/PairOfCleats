@@ -222,6 +222,8 @@ export async function collectLspTypes({
   hoverRequireMissingReturn = true,
   hoverSymbolKinds = null,
   hoverMaxPerFile = null,
+  documentRequestPolicies = null,
+  documentUris = null,
   hoverDisableAfterTimeouts = null,
   adaptiveDocScope = null,
   adaptiveDegradedHint = false,
@@ -918,9 +920,14 @@ export async function collectLspTypes({
       }
       throwIfAborted(toolingAbortSignal);
       const nativeUris = new Map();
-      if (semanticSession?.nativeDocumentUri) for (const doc of selectedDocsToOpen) {
-        const uri = await semanticSession.nativeDocumentUri(doc);
+      for (const doc of selectedDocsToOpen) {
+        const uri = semanticSession?.nativeDocumentUri ? await semanticSession.nativeDocumentUri(doc) : null;
+        const admitted = documentUris && Object.hasOwn(documentUris, doc.virtualPath) ? documentUris[doc.virtualPath] : null;
         if (uri) nativeUris.set(doc.virtualPath, uri);
+        else if (admitted) {
+          if (typeof admitted !== 'string' || new URL(admitted).protocol !== 'file:') throw new TypeError('Admitted physical LSP document URI must use file:.');
+          nativeUris.set(doc.virtualPath, admitted);
+        }
       }
       const diskPathMap = resolvedScheme === 'file'
         ? await ensureVirtualFilesBatch({
@@ -937,6 +944,9 @@ export async function collectLspTypes({
       }
       const processDoc = async (doc) => {
         throwIfAborted(toolingAbortSignal);
+        const documentPolicy = documentRequestPolicies?.[doc.virtualPath] || null;
+        const documentHoverMax = Number.isSafeInteger(documentPolicy?.hoverMaxPerFile)
+          && documentPolicy.hoverMaxPerFile >= 0 ? documentPolicy.hoverMaxPerFile : null;
         const languageId = doc.languageId || languageIdForFileExt(path.extname(doc.virtualPath));
         const uri = nativeUris.get(doc.virtualPath) || await resolveDocumentUri({
           rootDir: resolvedRoot,
@@ -971,7 +981,7 @@ export async function collectLspTypes({
           targetIndexesByPath,
           byChunkUid,
           signatureParseCache,
-          hoverEnabled: effectiveHoverEnabled,
+          hoverEnabled: effectiveHoverEnabled && documentPolicy?.hoverEnabled !== false && documentHoverMax !== 0,
           semanticTokensEnabled: effectiveSemanticTokensEnabled,
           signatureHelpEnabled: effectiveSignatureHelpEnabled,
           inlayHintsEnabled: effectiveInlayHintsEnabled,
@@ -982,7 +992,8 @@ export async function collectLspTypes({
           docPathPolicy: docPathPolicyByPath.get(String(doc?.virtualPath || '')) || null,
           hoverRequireMissingReturn,
           resolvedHoverKinds,
-          resolvedHoverMaxPerFile: effectiveHoverMaxPerFile,
+          resolvedHoverMaxPerFile: documentHoverMax === null ? effectiveHoverMaxPerFile
+            : effectiveHoverMaxPerFile === null ? documentHoverMax : Math.min(effectiveHoverMaxPerFile, documentHoverMax),
           resolvedHoverDisableAfterTimeouts,
           resolvedHoverTimeout,
           resolvedSignatureHelpTimeout,

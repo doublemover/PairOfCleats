@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { registerDefaultToolingProviders } from '../../../src/index/tooling/providers/index.js';
 import { getToolingProvider } from '../../../src/index/tooling/provider-registry.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
+import { grantFixtureRepositoryExecution } from '../../helpers/execution-authority.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const tempRoot = resolveTestCachePath(root, `clangd-weak-compile-context-planner-${process.pid}-${Date.now()}`);
@@ -13,6 +15,9 @@ await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(tempRoot, 'src'), { recursive: true });
 await fs.mkdir(path.join(tempRoot, 'include'), { recursive: true });
 await fs.mkdir(path.join(tempRoot, 'third_party'), { recursive: true });
+applyTestEnv({ cacheRoot: path.join(tempRoot, 'cache'), extraEnv: {
+  PAIROFCLEATS_HOME: path.join(tempRoot, 'home'), PAIROFCLEATS_TRUSTED_CONFIG: null
+} });
 
 registerDefaultToolingProviders();
 const provider = getToolingProvider('clangd');
@@ -96,14 +101,16 @@ const createTarget = (virtualPath, file, chunkUid, chunkId, symbolName, text) =>
   }
 });
 
-const output = await provider.run(ctx, {
+const restoreExecution = grantFixtureRepositoryExecution(tempRoot);
+let output;
+try { output = await provider.run(ctx, {
   documents: [headerDoc, vendorHeaderDoc, sourceDoc],
   targets: [
     createTarget(headerDoc.virtualPath, 'include/main.h', headerChunkUid, 'chunk_header', 'alpha', headerText),
     createTarget(vendorHeaderDoc.virtualPath, 'third_party/vendor.h', vendorChunkUid, 'chunk_vendor', 'vendor_only', vendorHeaderText),
     createTarget(sourceDoc.virtualPath, 'src/main.cc', sourceChunkUid, 'chunk_source', 'alpha', sourceText)
   ]
-});
+}); } finally { restoreExecution(); }
 
 assert.equal(Boolean(output?.byChunkUid?.[sourceChunkUid]), true, 'expected actionable source file to survive weak compile-context reduction');
 assert.equal(Boolean(output?.byChunkUid?.[headerChunkUid]), false, 'expected header-only target to be dropped under weak compile context');
