@@ -3,7 +3,7 @@ import { extractComments, normalizeCommentConfig } from '../../../src/index/comm
 import { COMMENT_CONFIG_LIMITS } from '../../../src/index/comment-config.js';
 import { buildCommentMeta } from '../../../src/index/build/file-processor/cpu/meta.js';
 import { collectChunkComments } from '../../../src/index/build/file-processor/process-chunks/limits.js';
-import { buildTokenSequence, countTokenSequence } from '../../../src/index/build/tokenization.js';
+import { buildTokenSequence, countTokenSequence } from '../../../src/index/build/tokenization/sequence.js';
 import { buildLineIndex } from '../../../src/shared/lines.js';
 
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('indexing/segments/comment-work-admission/')[1];

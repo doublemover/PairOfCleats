@@ -1,4 +1,4 @@
-import { countTokenSequence } from '../../tokenization.js';
+import { countTokenSequence } from '../../tokenization/sequence.js';
 
 export const tokenizeComments = ({
   comments,

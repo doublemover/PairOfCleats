@@ -1,4 +1,4 @@
-import { buildTokenSequence } from '../../tokenization.js';
+import { buildTokenSequence } from '../../tokenization/sequence.js';
 import { truncateByBytes } from '../read.js';
 
 export const collectChunkComments = ({

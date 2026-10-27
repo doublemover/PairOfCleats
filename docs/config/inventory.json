@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-27T20:08:44.978Z",
+  "generatedAt": "2026-10-27T20:11:41.450Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4652,6 +4652,7 @@
         "tests/indexing/incremental/tokenization-cache.test.js",
         "tests/indexing/runtime/shared-resource-scope-isolation.test.js",
         "tests/indexing/runtime/stage-closeout-delayed-child.test.js",
+        "tests/indexing/segments/comment-import-boundary.test.js",
         "tests/indexing/segments/comment-work-admission.test.js",
         "tests/indexing/segments/frontmatter-content-ownership.test.js",
         "tests/indexing/segments/parser-comment-occurrences.test.js",

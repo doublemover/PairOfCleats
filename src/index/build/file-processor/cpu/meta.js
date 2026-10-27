@@ -1,4 +1,4 @@
-import { detectFrontmatter } from '../../../segments.js';
+import { detectFrontmatter } from '../../../segments/frontmatter.js';
 import { extractComments } from '../../../comments.js';
 import { tokenizeComments } from './tokenizer.js';
 
