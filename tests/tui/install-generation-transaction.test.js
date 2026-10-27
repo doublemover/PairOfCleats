@@ -126,6 +126,16 @@ if (process.argv[2] === '--interrupt-staging') {
     assert.equal(final.generationId, secondDone.metadata.generationId);
     assert.equal(fs.existsSync(firstDone.binaryPath), true);
     assert.equal(fs.existsSync(path.join(input.layout.tripleDir, 'install.lock')), false);
+    const upgradedBytes = createTuiArtifactBytes(target, 'new-valid-generation');
+    await fsp.writeFile(artifact, upgradedBytes);
+    const upgraded = await installTuiGeneration({ ...input, resolveBuild: async () => ({ built: false,
+      buildArtifact: { ...buildArtifact, sha256: sha256(upgradedBytes) }, buildManifest }) });
+    assert.notEqual(upgraded.checksum, selected.checksum, 'a valid changed payload must publish its own checksum');
+    const selectedUpgrade = resolveSelectedTuiGeneration({ root, layout: input.layout, target,
+      metadata: JSON.parse(await fsp.readFile(input.layout.metadataPath, 'utf8')) });
+    assert.equal(selectedUpgrade.binaryPath, upgraded.binaryPath);
+    assert.deepEqual(await fsp.readFile(selectedUpgrade.binaryPath), upgradedBytes);
+    assert.deepEqual(await fsp.readFile(selected.binaryPath), bytes, 'the original usable payload survives a changed-byte upgrade');
   } finally { await rmDirRecursive(temporary); }
   console.log('TUI staging faults, interrupted recovery and concurrent generation selection preserve complete installs.');
 }

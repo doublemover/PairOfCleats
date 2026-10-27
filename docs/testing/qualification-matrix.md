@@ -1,10 +1,22 @@
 # Platform and performance qualification
 
-Audited: 2026-10-24. Source contracts and workflow definitions describe required
+Audited: 2026-10-27. Source contracts and workflow definitions describe required
 behavior; a configured job is not evidence that the current candidate passed it.
 Current execution evidence and unresolved failures belong to the
 [deep test audit](../archived/deep-test-audit-2026-10-18.md) and the
 [active roadmap](../roadmap.md).
+
+Windows TUI generation-install qualification uses an exact checksum-verified
+staged release through `tui/native-install-generation-conpty`. Pass its input
+explicitly after the runner separator: `-- --dist-dir <staged-distribution>`;
+ambient staging overrides are intentionally sanitized. It launches both old
+and newly selected generations through the real wrapper/supervisor, holds A
+open during actual Windows sharing refusal and B publication, and checks
+executed paths, terminal restoration, final states and process reaping. The
+ordinary generation-transaction fixture owns deterministic copy/hash/metadata/
+promotion/interruption/concurrency faults. Run native cases serially with the
+existing 30-second bound and zero retries. This does not qualify other targets,
+all historical releases or a full native campaign.
 
 The [360-case repair receipt](../archived/windows-failure-repairs-2026-10-24.md)
 records all initial attempts before the frozen 260-pass/100-failure batch. Later

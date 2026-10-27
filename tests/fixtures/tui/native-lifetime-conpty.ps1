@@ -1,4 +1,4 @@
-param([string]$Binary, [string]$FixtureRoot, [string]$Mode)
+param([string]$Binary, [string]$FixtureRoot, [string]$Mode, [string]$Wrapper = '')
 $ErrorActionPreference = 'Stop'
 Add-Type -TypeDefinition @'
 using System;
@@ -17,12 +17,32 @@ $beforeInput = [PocConsoleMode]::Read(-10)
 $beforeOutput = [PocConsoleMode]::Read(-11)
 $native = [System.Diagnostics.Process]::new()
 $native.StartInfo.FileName = $Binary
+if ($Wrapper) { $native.StartInfo.ArgumentList.Add($Wrapper) }
 $native.StartInfo.UseShellExecute = $false
 $native.StartInfo.RedirectStandardOutput = $Mode -eq 'terminal-error'
 $native.StartInfo.RedirectStandardError = $true
 try {
   if (!$native.Start()) { throw 'Native binary did not start' }
-  @{ native = $native.Id } | ConvertTo-Json -Compress | Add-Content -LiteralPath (Join-Path $FixtureRoot 'pids.jsonl')
+  if ($Wrapper) {
+    @{ wrapper = $native.Id } | ConvertTo-Json -Compress | Add-Content -LiteralPath (Join-Path $FixtureRoot 'pids.jsonl')
+    $childrenDeadline = [DateTime]::UtcNow.AddSeconds(5)
+    $nativeChild = $null
+    while (!$nativeChild) {
+      $nativeChild = Get-CimInstance Win32_Process -Filter "ParentProcessId = $($native.Id)" | Where-Object Name -Like 'pairofcleats-tui*.exe' | Select-Object -First 1
+      if ([DateTime]::UtcNow -gt $childrenDeadline -or $native.HasExited) { throw 'Wrapper did not start its native child' }
+      if (!$nativeChild) { Start-Sleep -Milliseconds 20 }
+    }
+    @{ native = [int]$nativeChild.ProcessId; executablePath = $nativeChild.ExecutablePath } | ConvertTo-Json -Compress | Add-Content -LiteralPath (Join-Path $FixtureRoot 'pids.jsonl')
+    $supervisor = $null
+    while (!$supervisor) {
+      $supervisor = Get-CimInstance Win32_Process -Filter "ParentProcessId = $($nativeChild.ProcessId)" | Select-Object -First 1
+      if ([DateTime]::UtcNow -gt $childrenDeadline -or $native.HasExited) { throw 'Native child did not start its supervisor' }
+      if (!$supervisor) { Start-Sleep -Milliseconds 20 }
+    }
+    @{ supervisor = [int]$supervisor.ProcessId } | ConvertTo-Json -Compress | Add-Content -LiteralPath (Join-Path $FixtureRoot 'pids.jsonl')
+  } else {
+    @{ native = $native.Id } | ConvertTo-Json -Compress | Add-Content -LiteralPath (Join-Path $FixtureRoot 'pids.jsonl')
+  }
   $stderr = $native.StandardError.ReadToEndAsync()
   if ($Mode -eq 'terminal-error') {
     $stdout = $native.StandardOutput.ReadToEndAsync()
