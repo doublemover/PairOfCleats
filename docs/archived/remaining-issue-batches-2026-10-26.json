@@ -6612,7 +6612,7 @@
       "partialReceipt": "repository-cleanup-admission-2026-10-27.json",
       "remainingWork": [
         "Custom/external backend registration with producer/publication identity and explicit launch authority.",
-        "Complete SQLite builder, sidecar and unadopted legacy/other-backend native lifetimes.",
+        "Complete SQLite writer storage-session/temporary-namespace adoption, sidecar and unadopted legacy/other-backend lifetimes.",
         "Category-specific eligible backend deletion/requalification and all/multi-repo CLI/MCP acceptance."
       ],
       "followupSourceHeads": [
@@ -6623,7 +6623,8 @@
         "b22a42ca52982fbee424f88a2a1491fb57f43cf5",
         "753c7f9a013346fdc3b6f0d3472bd31236b5c282",
         "9285c466433548a5055b621adf299b1e16a95e9d",
-        "8e91fa316389f52a45f7bab6a597c737363dff1f"
+        "8e91fa316389f52a45f7bab6a597c737363dff1f",
+        "acd8a79d9372dcec14b99ae6a46f082ac7f3d744"
       ],
       "followupReceipts": [
         "sqlite-uncached-close-ownership-2026-10-27.json",
@@ -6632,7 +6633,8 @@
         "native-reader-sessions-2026-10-27.json",
         "native-command-sessions-2026-10-27.json",
         "sqlite-probe-sessions-2026-10-27.json",
-        "native-validator-sessions-2026-10-27.json"
+        "native-validator-sessions-2026-10-27.json",
+        "sqlite-writer-owners-2026-10-27.json"
       ],
       "followupQualifiedTests": [
         "indexing/contracts/index-format-cutover",
@@ -6719,9 +6721,19 @@
         "storage/sqlite/build-root-active-generation-plan",
         "storage/sqlite/build/cancellation",
         "storage/sqlite/build/existing-output-staging",
+        "storage/sqlite/build/fallback-wal-publication",
         "storage/sqlite/build/finalization-diagnostics",
         "storage/sqlite/build/incremental-runner-imports-contract",
+        "storage/sqlite/build/multi-row-build-parity",
+        "storage/sqlite/build/original-close-owner/artifact-primary",
+        "storage/sqlite/build/original-close-owner/bundle-primary",
+        "storage/sqlite/build/original-close-owner/constructor-fatal",
+        "storage/sqlite/build/original-close-owner/constructor-pending",
+        "storage/sqlite/build/original-close-owner/initialization",
+        "storage/sqlite/build/original-close-owner/late-method",
+        "storage/sqlite/build/original-close-owner/unknown-close",
         "storage/sqlite/build/row-ledger",
+        "storage/sqlite/build/startup-lifecycle",
         "storage/sqlite/cache",
         "storage/sqlite/cache-failed-close-ownership",
         "storage/sqlite/cache-generation-tag",
@@ -6737,6 +6749,8 @@
         "storage/sqlite/explicit-source-authority/partial-current",
         "storage/sqlite/fts-optional-build-compaction",
         "storage/sqlite/incremental-no-change",
+        "storage/sqlite/incremental-transaction-boundary",
+        "storage/sqlite/incremental/handle-lifecycle",
         "storage/sqlite/native-command-resource-closure",
         "storage/sqlite/probe-failure-preserves-staging",
         "storage/sqlite/reader-schema-mismatch",
