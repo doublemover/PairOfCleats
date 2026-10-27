@@ -6,26 +6,50 @@ import { redactDiagnosticText } from '../../shared/diagnostic-text.js';
 
 const token = value => String(value || 'unscoped').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 128);
 const MAX_EVENT_BYTES = 64 * 1024;
+const MAX_EVENT_NODES = 512;
 const describeWriteError = (error, fallbackCode) => ({
   code: error?.code || fallbackCode,
   ...(typeof error?.causeCode === 'string' ? { causeCode: error.causeCode } : {}),
   message: redactDiagnosticText(error?.message || error)
 });
-const safeValue = (value, depth = 0, seen = new Set()) => {
-  if (value == null || typeof value === 'boolean' || typeof value === 'number') return value;
-  if (typeof value === 'string') return redactDiagnosticText(value, 8192);
-  if (typeof value !== 'object') return redactDiagnosticText(value, 256);
-  if (depth >= 6 || seen.has(value)) return '[truncated]';
+const safeValue = (value, depth, seen, budget) => {
+  if (--budget.nodes < 0 || budget.bytes < 16) { budget.truncated = true; return '[truncated]'; }
+  const admit = scalar => {
+    const bytes = Buffer.byteLength(JSON.stringify(scalar) ?? 'null', 'utf8');
+    if (bytes > budget.bytes) { budget.truncated = true; return '[truncated]'; }
+    budget.bytes -= bytes;
+    return scalar;
+  };
+  if (value == null || typeof value === 'boolean' || typeof value === 'number') return admit(value);
+  if (typeof value === 'string') return admit(redactDiagnosticText(value, 8192));
+  if (typeof value !== 'object') return admit(redactDiagnosticText(value, 256));
+  if (depth >= 6 || seen.has(value)) return admit('[truncated]');
   seen.add(value);
+  budget.bytes -= 2;
   try {
-    if (Array.isArray(value)) return value.slice(0, 64).map(item => safeValue(item, depth + 1, seen));
-    const result = {};
-    for (const key of Object.keys(value).slice(0, 64)) {
-      if (/password|secret|api[_-]?key|access[_-]?token|authorization|^token$/i.test(key)) result[key] = '[redacted]';
-      else {
-        try { result[key] = safeValue(value[key], depth + 1, seen); }
-        catch { result[key] = '[unavailable]'; }
+    if (Array.isArray(value)) {
+      const result = [];
+      for (let index = 0; index < Math.min(value.length, 64); index += 1) {
+        result.push(safeValue(value[index], depth + 1, seen, budget)); budget.bytes -= 1;
+        if (budget.truncated) break;
       }
+      return result;
+    }
+    const result = {};
+    const keys = Object.keys(value).slice(0, 64);
+    // Capture original root diagnostic fields before a large payload exhausts
+    // the shared traversal allowance. Fallback must never inspect them again.
+    const primary = depth === 0 ? ['message', 'code'].filter(key => Object.prototype.propertyIsEnumerable.call(value, key)) : [];
+    for (const key of [...primary, ...keys.filter(key => !primary.includes(key))].slice(0, 64)) {
+      if (key.length > 1024 || budget.nodes < 1 || budget.bytes < 16) { budget.truncated = true; break; }
+      admit(key); budget.bytes -= 2;
+      if (budget.truncated) break;
+      if (/password|secret|api[_-]?key|access[_-]?token|authorization|^token$/i.test(key)) result[key] = admit('[redacted]');
+      else {
+        try { result[key] = safeValue(value[key], depth + 1, seen, budget); }
+        catch { result[key] = admit('[unavailable]'); }
+      }
+      if (budget.truncated) break;
     }
     return result;
   } finally { seen.delete(value); }
@@ -33,11 +57,12 @@ const safeValue = (value, depth = 0, seen = new Set()) => {
 
 export const boundedCrashEvent = value => {
   let event;
-  try { event = safeValue(value) ?? {}; }
+  const budget = { nodes: MAX_EVENT_NODES, bytes: MAX_EVENT_BYTES - 1024, truncated: false };
+  try { event = safeValue(value, 0, new Set(), budget) ?? {}; }
   catch { return { message: 'Diagnostic value unavailable.', truncated: true }; }
-  if (Buffer.byteLength(JSON.stringify(event), 'utf8') <= MAX_EVENT_BYTES) return event;
-  return { message: redactDiagnosticText(value?.message || 'Diagnostic event exceeded its byte allowance.', 4096),
-    code: redactDiagnosticText(value?.code || '', 128), truncated: true };
+  if (!budget.truncated && Buffer.byteLength(JSON.stringify(event), 'utf8') <= MAX_EVENT_BYTES) return event;
+  return { message: redactDiagnosticText(typeof event?.message === 'string' ? event.message : 'Diagnostic event exceeded its byte allowance.', 4096),
+    code: redactDiagnosticText(typeof event?.code === 'string' ? event.code : '', 128), truncated: true };
 };
 
 export const resolveConfirmedCrashEvidencePath = reference => {
