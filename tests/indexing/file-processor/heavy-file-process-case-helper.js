@@ -22,7 +22,7 @@ const buildFixture = ({ languageId, lineCount, chunkCount, sourceLine }) => {
     chunks.push({
       start,
       end,
-      segment: { languageId, segmentUid: `seg-${i}` },
+      segment: { languageId, segmentUid: `seg-${i}`, start, end },
       kind: 'code',
       name: `chunk_${i}`
     });

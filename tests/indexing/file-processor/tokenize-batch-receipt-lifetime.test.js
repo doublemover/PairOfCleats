@@ -81,7 +81,7 @@ let offset = 0;
 const sc = rows.slice(0, 10).map((row, index) => {
   const start = offset; offset += row.text.length + 1;
   return { start, end: offset, kind: 'code', name: `chunk${index}`,
-    segment: { languageId: 'javascript', segmentUid: 'segment' } };
+    segment: { languageId: 'javascript', segmentUid: 'segment', start: 0, end: text.length } };
 });
 const tokenContext = createTokenizationContext({ dictWords: new Set(), dictConfig: {}, postingsConfig: {} });
 const buffers = createTokenizationBuffers();

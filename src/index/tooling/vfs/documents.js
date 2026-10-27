@@ -4,6 +4,7 @@ import { buildChunkRef } from '../../../shared/identity.js';
 import { runWithConcurrency } from '../../../shared/concurrency/run-with-queue.js';
 import { buildDocHashCacheKey, computeDocHash } from './doc-hash.js';
 import { VFS_MANIFEST_MAX_ROW_BYTES } from './constants.js';
+import { admitVfsSourceSpan, createVfsSourceAdmission } from './source-span.js';
 import {
   buildCoalescedSegmentMap,
   ensureCoalescedSegmentUid,
@@ -108,11 +109,10 @@ export const buildToolingVirtualDocuments = async ({
   const skippedSegments = new Set();
   const targets = [];
   const textSourceByPath = new Map();
-  const coalescedMap = coalesceSegments ? buildCoalescedSegmentMap(chunks) : null;
-
+  const sourceAdmission = createVfsSourceAdmission({ strict, inputChunks: chunks.length, log });
+  const admitted = [];
   for (const chunk of chunks) {
-    if (!chunk?.file) continue;
-    const containerPath = toPosix(chunk.file);
+    const containerPath = chunk?.file ? toPosix(chunk.file) : null;
     let fileText;
     if (textSourceByPath.has(containerPath)) {
       fileText = textSourceByPath.get(containerPath);
@@ -120,16 +120,23 @@ export const buildToolingVirtualDocuments = async ({
       fileText = resolveTextSource(fileTextByPath, containerPath);
       textSourceByPath.set(containerPath, fileText);
     }
-    if (typeof fileText !== 'string') {
-      if (strict) throw new Error(`Missing file text for ${containerPath}`);
-      if (log) log(`[tooling] missing file text for ${containerPath}; skipping.`);
-      continue;
-    }
+    try {
+      const span = admitVfsSourceSpan(chunk, fileText, containerPath);
+      if (chunk.segment && !chunk.segment.segmentUid && strict) throw new Error(`Missing segmentUid for ${containerPath}`);
+      const chunkRef = buildChunkRef(chunk);
+      if (!chunkRef?.chunkUid && strict) throw new Error(`Missing chunkUid for ${containerPath}`);
+      admitted.push({ chunk, span, chunkRef, fileText, containerPath });
+      sourceAdmission.accept();
+    } catch (error) { sourceAdmission.reject(error); }
+  }
+  sourceAdmission.report();
+  const coalescedMap = coalesceSegments ? buildCoalescedSegmentMap(admitted.map(entry => entry.chunk)) : null;
+  for (const { chunk, span, chunkRef, fileText, containerPath } of admitted) {
     const containerExt = chunk.ext || null;
     const containerLanguageId = chunk.containerLanguageId || null;
     const segment = chunk.segment || null;
-    const baseSegmentStart = segment ? segment.start : 0;
-    const baseSegmentEnd = segment ? segment.end : fileText.length;
+    const baseSegmentStart = span.segmentStart;
+    const baseSegmentEnd = span.segmentEnd;
     let languageId = resolveEffectiveLanguageId({ chunk, segment, containerLanguageId });
     let effectiveExt = segment?.ext || resolveEffectiveExt({ languageId, containerExt });
     let segmentStart = baseSegmentStart;
@@ -197,31 +204,8 @@ export const buildToolingVirtualDocuments = async ({
       docMap.set(segmentKey, doc); documentAuthority.set(segmentKey, authority);
     }
 
-    const resolveVirtualRange = () => {
-      const start = Number.isFinite(chunk.start) ? chunk.start : null;
-      const end = Number.isFinite(chunk.end) ? chunk.end : null;
-      if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return null;
-      if (!segment) return { start, end };
-      const relStart = start - segmentStart;
-      const relEnd = end - segmentStart;
-      const relInBounds = relStart >= 0 && relEnd >= relStart && relEnd <= doc.text.length;
-      if (relInBounds) return { start: relStart, end: relEnd };
-      const directInBounds = start >= 0 && end >= start && end <= doc.text.length;
-      if (directInBounds) {
-        if (log) {
-          log(`[tooling] virtualRange fallback for ${containerPath} (${start}-${end})`);
-        }
-        return { start, end };
-      }
-      return null;
-    };
-    const virtualRange = resolveVirtualRange();
-    if (!virtualRange) {
-      const message = `Invalid virtualRange for ${containerPath} (${chunk.start}-${chunk.end})`;
-      if (log) log(`[tooling] ${message}; skipping target.`);
-      continue;
-    }
-    const chunkRef = buildChunkRef(chunk);
+    const virtualRange = { start: span.start - segmentStart, end: span.end - segmentStart };
+    if (chunkRef && span.frame === 'segment') chunkRef.range = { start: span.start, end: span.end };
     if (!chunkRef?.chunkUid && strict) {
       throw new Error(`Missing chunkUid for ${containerPath}`);
     }
@@ -242,7 +226,7 @@ export const buildToolingVirtualDocuments = async ({
   targets.sort(sortTargets);
   for (const doc of documents) delete doc._sortKey;
   for (const target of targets) delete target._sortKey;
-  return { documents, targets };
+  return { documents, targets, sourceAdmission: sourceAdmission.receipt };
 };
 
 /**
@@ -275,19 +259,26 @@ export const buildVfsManifestRowsForFile = async ({
   concurrency = null
 }) => {
   if (!Array.isArray(chunks) || !chunks.length) return [];
+  const sourceAdmission = createVfsSourceAdmission({ strict, inputChunks: chunks.length, log });
   if (typeof fileText !== 'string') {
-    if (strict) throw new Error(`Missing file text for ${containerPath}`);
-    return [];
+    for (const chunk of chunks) {
+      try { admitVfsSourceSpan(chunk, fileText, containerPath, { requireTarget: false }); }
+      catch (error) { sourceAdmission.reject(error); }
+    }
+    sourceAdmission.report();
+    return Object.defineProperty([], 'sourceAdmission', { value: sourceAdmission.receipt });
   }
   const resolvedLineIndex = lineIndex || buildLineIndex(fileText);
   const safeContainerPath = toPosix(containerPath);
   const seen = new Set();
   const groups = [];
   for (const chunk of chunks) {
-    if (!chunk) continue;
+    let span;
+    try { span = admitVfsSourceSpan(chunk, fileText, safeContainerPath, { requireTarget: false }); sourceAdmission.accept(); }
+    catch (error) { sourceAdmission.reject(error); continue; }
     const segment = chunk.segment || null;
-    const segmentStart = segment ? segment.start : 0;
-    const segmentEnd = segment ? segment.end : fileText.length;
+    const segmentStart = span.segmentStart;
+    const segmentEnd = span.segmentEnd;
     const languageId = resolveEffectiveLanguageId({ chunk, segment, containerLanguageId });
     const effectiveExt = segment?.ext || resolveEffectiveExt({ languageId, containerExt });
     let segmentUid = segment?.segmentUid || null;
@@ -309,6 +300,7 @@ export const buildVfsManifestRowsForFile = async ({
     seen.add(key);
     groups.push(entry);
   }
+  sourceAdmission.report();
   const buildRow = async (entry) => {
     const segmentText = entry.segment
       ? fileText.slice(entry.segmentStart, entry.segmentEnd)
@@ -367,5 +359,6 @@ export const buildVfsManifestRowsForFile = async ({
     const trimmed = trimVfsManifestRow(row, { log });
     if (trimmed) filtered.push(trimmed);
   }
+  Object.defineProperty(filtered, 'sourceAdmission', { value: sourceAdmission.receipt });
   return filtered;
 };

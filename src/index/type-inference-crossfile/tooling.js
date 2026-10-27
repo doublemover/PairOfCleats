@@ -191,7 +191,7 @@ export const prepareToolingPassDocuments = async ({ chunks, fileTextByFile, tool
     : null;
   const hashRouting = vfsConfig.hashRouting === true;
   const coalesceSegments = vfsConfig.coalesceSegments === true;
-  let { documents, targets } = await buildToolingVirtualDocuments({
+  let { documents, targets, sourceAdmission } = await buildToolingVirtualDocuments({
     chunks,
     fileTextByPath: fileTextByFile,
     strict: vfsStrict,
@@ -202,7 +202,7 @@ export const prepareToolingPassDocuments = async ({ chunks, fileTextByFile, tool
   });
   if (semanticSession) documents = semanticSession.prepareDocuments(documents);
   if (semanticLspSession) documents = semanticLspSession.prepareDocuments(documents);
-  return { documents, targets };
+  return { documents, targets, sourceAdmission };
 };
 
 export const runToolingPass = async ({
@@ -236,8 +236,11 @@ export const runToolingPass = async ({
     }
     if (evt?.message) log(evt.message);
   };
-  const { documents, targets } = toolingDocuments || await prepareToolingPassDocuments({ chunks, fileTextByFile, toolingConfig, semanticSession, semanticLspSession, log });
-  if (!documents.length || (!targets.length && !semanticSession && !semanticLspSession)) return { ...EMPTY_TOOLING_PASS_STATS };
+  const { documents, targets, sourceAdmission } = toolingDocuments || await prepareToolingPassDocuments({ chunks, fileTextByFile, toolingConfig, semanticSession, semanticLspSession, log });
+  const sourceWarnings = sourceAdmission?.rejectedChunks || 0;
+  if (!documents.length || (!targets.length && !semanticSession && !semanticLspSession)) return {
+    ...EMPTY_TOOLING_PASS_STATS, toolingDegradedWarnings: sourceWarnings, toolingSourceAdmission: sourceAdmission
+  };
 
   const chunkByUid = new Map();
   for (const chunk of chunks) {
@@ -286,7 +289,7 @@ export const runToolingPass = async ({
   ));
   if (!providerIds.length) {
     log('[tooling] providers: none selected for current documents/targets; skipping provider runtime.');
-    return { ...EMPTY_TOOLING_PASS_STATS };
+    return { ...EMPTY_TOOLING_PASS_STATS, toolingDegradedWarnings: sourceWarnings, toolingSourceAdmission: sourceAdmission };
   }
   log(`[tooling] providers:selected count=${providerIds.length}.`);
 
@@ -362,6 +365,8 @@ export const runToolingPass = async ({
     providerConsumption: dispatched.receipt,
     providerProfiles: result.providerProfiles || {},
     ...degradedStats,
+    toolingDegradedWarnings: degradedStats.toolingDegradedWarnings + sourceWarnings,
+    toolingSourceAdmission: sourceAdmission,
     ...runtimeStats
   };
 };

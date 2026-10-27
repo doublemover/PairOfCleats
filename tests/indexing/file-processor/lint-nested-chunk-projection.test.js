@@ -35,7 +35,7 @@ const structural = buildJsChunks(text);
 assert.deepEqual(structural.map(chunk => chunk.name), ['Demo', 'Demo.early', 'Demo.later']);
 const { context } = createProcessChunksFixtureContext({ text, tokenizeEnabled: false,
   analysisPolicy: createDisabledAnalysisPolicy(), riskAnalysisEnabled: false, typeInferenceEnabled: false,
-  overrides: { sc: structural.map(chunk => ({ ...chunk, segment: { languageId: 'javascript', segmentUid: 'lint-fixture' } })),
+  overrides: { sc: structural.map(chunk => ({ ...chunk, segment: { languageId: 'javascript', segmentUid: 'lint-fixture', start: 0, end: text.length } })),
     lintEnabled: true, root: process.cwd() } });
 const policy = createLintPolicy(context.root), source = createLintSource(text, context.rel, policy);
 const completed = { receipt: { schemaVersion: 1, status: 'completed', reason: null, source, producer: policy.producer,

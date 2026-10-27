@@ -53,7 +53,7 @@ const text = lines.join('');
 let offset = 0;
 const sc = lines.map((line, index) => {
   const row = { start: offset, end: offset + line.length, kind: 'code', name: 'chunk' + index,
-    segment: { languageId: 'javascript', segmentUid: 'segment' } };
+    segment: { languageId: 'javascript', segmentUid: 'segment', start: 0, end: text.length } };
   offset += line.length; return row;
 });
 let batchCalls = 0;

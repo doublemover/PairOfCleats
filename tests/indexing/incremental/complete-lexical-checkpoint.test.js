@@ -62,8 +62,8 @@ assert.equal(fallbackReplay.resolve(0, key, before, { ...state }).classification
 
 const text = 'const Alpha = beta;\nconst second = 2;\n';
 const split = text.indexOf('\n') + 1;
-const chunks = [{ start: 0, end: split, kind: 'code', name: 'first', segment: { languageId: 'javascript', segmentUid: 'one' } },
-  { start: split, end: text.length, kind: 'code', name: 'second', segment: { languageId: 'javascript', segmentUid: 'one' } }];
+const chunks = [{ start: 0, end: split, kind: 'code', name: 'first', segment: { languageId: 'javascript', segmentUid: 'one', start: 0, end: text.length } },
+  { start: split, end: text.length, kind: 'code', name: 'second', segment: { languageId: 'javascript', segmentUid: 'one', start: 0, end: text.length } }];
 const fixture = extra => createProcessChunksFixtureContext({ text, analysisPolicy: createDisabledAnalysisPolicy(),
   riskAnalysisEnabled: false, typeInferenceEnabled: false, overrides: { sc: structuredClone(chunks),
     fileHash: options.fileHash, fileHashAlgo: 'sha1', lexicalCheckpointDependencies: dependencies, ...extra } }).context;
