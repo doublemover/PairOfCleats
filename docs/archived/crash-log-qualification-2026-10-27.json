@@ -1,0 +1,468 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-27",
+  "sourceHead": "afc52ef9d31f9afdf4b89947a21e8fe930c6a944",
+  "sourceTree": "40d311ee6cadf959754537d609cacb556c2efb3a",
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "platform": "win32",
+  "arch": "x64",
+  "node": "v26.12.1",
+  "issue": 1315,
+  "state": "open",
+  "qualificationComplete": false,
+  "repairs": [
+    "Plaintext token credential assignments and structured token fields are redacted.",
+    "URL public query parameters survive credential redaction.",
+    "Diagnostic atomic failure reports retain wrapper and underlying cause codes.",
+    "Shared node/byte budgets stop repeated diagnostic graph expansion; fallback uses already captured primary fields.",
+    "Semantic store registration is read fresh through the shared contained manifest owner."
+  ],
+  "qualifiedTests": [
+    {
+      "id": "indexing/artifacts/graph-edge-distinct-cap",
+      "status": "passed",
+      "durationMs": 497,
+      "attempts": 1
+    },
+    {
+      "id": "indexing/contracts/index-format-cutover",
+      "status": "passed",
+      "durationMs": 1377,
+      "attempts": 1
+    },
+    {
+      "id": "indexing/crash-event-redaction",
+      "status": "passed",
+      "durationMs": 123,
+      "attempts": 1
+    },
+    {
+      "id": "indexing/crash-log-announcement",
+      "status": "passed",
+      "durationMs": 249,
+      "attempts": 1
+    },
+    {
+      "id": "indexing/crash-log-boundary-controls/before-open",
+      "status": "passed",
+      "durationMs": 306,
+      "attempts": 1
+    },
+    {
+      "id": "indexing/crash-log-boundary-controls/bounded-existing-logs",
+      "status": "passed",
+      "durationMs": 278,
+      "attempts": 1
+    },
+    {
+      "id": "indexing/crash-log-boundary-controls/latest-pointer-failure",
+      "status": "passed",
+      "durationMs": 280,
+      "attempts": 1
+    },
+    {
+      "id": "indexing/crash-log-boundary-controls/pending-write-close",
+      "status": "passed",
+      "durationMs": 319,
+      "attempts": 1
+    },
+    {
+      "id": "indexing/crash-log-boundary-controls/terminal-disk-failure",
+      "status": "passed",
+      "durationMs": 283,
+      "attempts": 1
+    },
+    {
+      "id": "indexing/crash-log-independent-sinks",
+      "status": "passed",
+      "durationMs": 362,
+      "attempts": 1
+    },
+    {
+      "id": "indexing/crash-log-retention",
+      "status": "passed",
+      "durationMs": 349,
+      "attempts": 1
+    },
+    {
+      "id": "indexing/crash-log-retention-trace-policy",
+      "status": "passed",
+      "durationMs": 366,
+      "attempts": 1
+    },
+    {
+      "id": "indexing/crash-log-state-write-contention",
+      "status": "passed",
+      "durationMs": 1101,
+      "attempts": 1
+    },
+    {
+      "id": "indexing/crash-log-terminal-ownership",
+      "status": "passed",
+      "durationMs": 598,
+      "attempts": 1
+    },
+    {
+      "id": "indexing/crash-retention-bundle-budget",
+      "status": "passed",
+      "durationMs": 419,
+      "attempts": 1
+    },
+    {
+      "id": "indexing/tree-sitter/crash-persistence-degradation",
+      "status": "passed",
+      "durationMs": 167,
+      "attempts": 1
+    },
+    {
+      "id": "indexing/tree-sitter/crash-persistence-ownership",
+      "status": "passed",
+      "durationMs": 176,
+      "attempts": 1
+    },
+    {
+      "id": "indexing/tree-sitter/crash-presentation-degradation",
+      "status": "passed",
+      "durationMs": 198,
+      "attempts": 1
+    },
+    {
+      "id": "integrations/inference-history/redaction-idempotence",
+      "status": "passed",
+      "durationMs": 463,
+      "attempts": 1
+    },
+    {
+      "id": "shared/artifact-io/cache-read-profile-limits",
+      "status": "passed",
+      "durationMs": 169,
+      "attempts": 1
+    },
+    {
+      "id": "shared/diagnostic-text",
+      "status": "passed",
+      "durationMs": 56,
+      "attempts": 1
+    },
+    {
+      "id": "shared/logging/scoped-ring-redaction",
+      "status": "passed",
+      "durationMs": 90,
+      "attempts": 1
+    },
+    {
+      "id": "storage/semantic/published-manifest-cache-authority/unsupported-format",
+      "status": "passed",
+      "durationMs": 466,
+      "attempts": 1
+    },
+    {
+      "id": "storage/semantic/published-manifest-cache-authority/valid-generation",
+      "status": "passed",
+      "durationMs": 739,
+      "attempts": 1
+    },
+    {
+      "id": "storage/semantic/published-manifest-snapshot",
+      "status": "passed",
+      "durationMs": 1115,
+      "attempts": 1
+    },
+    {
+      "id": "storage/semantic/published-serving-consumers",
+      "status": "passed",
+      "durationMs": 1707,
+      "attempts": 1
+    }
+  ],
+  "checks": {
+    "finalCohort": {
+      "total": 26,
+      "passed": 26,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 12276
+    },
+    "uniqueAffectedTests": 26,
+    "crashAndRedaction": 20,
+    "semanticCacheAndFormat": 6,
+    "nativeSharing": {
+      "exitCode": 0,
+      "stderr": ""
+    },
+    "gate": {
+      "total": 40,
+      "passed": 40,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 22506
+    },
+    "frontGate": [
+      {
+        "exitCode": 0,
+        "arguments": [
+          "run",
+          "config:budget"
+        ],
+        "name": "config-budget",
+        "executable": "npm.cmd",
+        "durationMs": 2239
+      },
+      {
+        "exitCode": 0,
+        "arguments": [
+          "run",
+          "env:check"
+        ],
+        "name": "environment",
+        "executable": "npm.cmd",
+        "durationMs": 1305
+      },
+      {
+        "exitCode": 0,
+        "arguments": [
+          "tools/docs/generated-surfaces.js",
+          "--check-freshness"
+        ],
+        "name": "generated",
+        "executable": "node",
+        "durationMs": 11144
+      },
+      {
+        "exitCode": 0,
+        "arguments": [
+          "tools/ci/check-command-surface.js"
+        ],
+        "name": "command-surface",
+        "executable": "node",
+        "durationMs": 2728
+      },
+      {
+        "exitCode": 0,
+        "arguments": [
+          "tests/ci/workflow-contract.test.js"
+        ],
+        "name": "workflow",
+        "executable": "node",
+        "durationMs": 255
+      },
+      {
+        "exitCode": 0,
+        "arguments": [
+          "tests/run.js",
+          "--lane",
+          "gate",
+          "--jobs",
+          "1",
+          "--timeout-ms",
+          "30000",
+          "--retries",
+          "0",
+          "--native-status-redo=false",
+          "--pairofcleats-threads",
+          "1",
+          "--json"
+        ],
+        "name": "gate-lane",
+        "executable": "node",
+        "durationMs": 23312
+      },
+      {
+        "exitCode": 0,
+        "arguments": [
+          "diff",
+          "--check"
+        ],
+        "name": "diff",
+        "executable": "git",
+        "durationMs": 78
+      }
+    ],
+    "format": 0
+  },
+  "controls": {
+    "append": "Actual Windows append descriptors; held initial open and write, close admission, same native file identity and post-error records.",
+    "terminal": "Earlier async state barrier, repeated/during-close/after-close errors, two actual child writers.",
+    "largeLogs": {
+      "files": 2,
+      "bytesPerFile": 2097152,
+      "wholeLogReads": 0,
+      "replacements": 0,
+      "terminalByteAllowance": 131072
+    },
+    "failures": {
+      "terminal": {
+        "wrapper": "ERR_ATOMIC_WRITE",
+        "cause": "ENOSPC",
+        "written": false
+      },
+      "latest": {
+        "wrapper": "ERR_ATOMIC_WRITE",
+        "cause": "ENOSPC",
+        "immutableRecordConfirmed": true
+      }
+    },
+    "originalErrors": "Frozen and unchanged.",
+    "warnings": "Expected sink warnings asserted by existing fixtures; new cases require none.",
+    "editorWindowsLaunched": 0,
+    "sharedGraph": {
+      "beforeLeafInspections": 4096,
+      "afterLeafInspections": 236,
+      "originalMessageReads": 1,
+      "globalNodeBudget": 512,
+      "globalEncodedByteBudget": 64512,
+      "scope": "Projection traversal; not arbitrary user-defined getter execution or native own-key enumeration."
+    }
+  },
+  "remaining": [
+    "POSIX crash-log execution",
+    "Measured error-path latency",
+    "Issue 1547 remaining path/link authority acceptance; physical link fixtures were not launched"
+  ],
+  "historicalAuthorWorkspace": {
+    "task": ".tmp/tasks/crash-log-qualification-20261027/",
+    "cohortLogDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793090569716-w4kjud",
+    "boundaryLogDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793090676650-0eu52n",
+    "initialFailures": {
+      "total": 4,
+      "passed": 0,
+      "failed": 4,
+      "skipped": 0,
+      "durationMs": 1178
+    },
+    "redactorRevisionFailure": {
+      "total": 5,
+      "passed": 4,
+      "failed": 1,
+      "skipped": 0,
+      "durationMs": 1248
+    },
+    "availability": "Not present in clean checkouts.",
+    "finalCohortLogDir": "C:\\Users\\sneak\\Development\\PairOfCleats\\.testLogs\\run-1793092035912-ggecpv",
+    "nativeSharingReport": ".tmp/tasks/crash-log-qualification-20261027/candidate-native-sharing.json",
+    "sharedGraphBefore": {
+      "total": 1,
+      "passed": 0,
+      "failed": 1,
+      "skipped": 0,
+      "durationMs": 173
+    },
+    "gateFailure": {
+      "total": 40,
+      "passed": 39,
+      "failed": 1,
+      "logDir": ".testLogs/run-1793091383709-xbpz7l",
+      "test": "indexing/contracts/index-format-cutover"
+    }
+  },
+  "repairCommits": [
+    "c5ebd6e6420a88abecbb3b3783a383a0ee90029d",
+    "b98763dd4ece54c5023bcac9dbf313d8f28ba1d6",
+    "0bfb8b33e79dbde704b94898aa48384a967a26f1",
+    "afc52ef9d31f9afdf4b89947a21e8fe930c6a944"
+  ],
+  "nativeSharing": {
+    "platform": "win32",
+    "node": "v26.12.1",
+    "directory": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\crash-log-native-sharing-5344-1793092048566-q2awww",
+    "denial": {
+      "code": "ERR_ATOMIC_WRITE",
+      "causeCode": "EPERM",
+      "message": "[atomic-write] Failed to write file atomically \"C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\crash-log-native-sharing-5344-1793092048566-q2awww\\logs\\attempts\\sharing-build\\sharing-attempt\\5344-08b3fdfe-4948-404a-8b25-c87a1e78b305\\index-crash-terminal.json\": EPERM: operation not permitted, rename 'C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\crash-log-native-sharing-5344-1793092048566-q2awww\\logs\\attempts\\sharing-build\\sharing-attempt\\5344-08b3fdfe-4948-404a-8b25-c87a1e78b305\\.tmp-1ffc422a6eba7482a621177e1813ca379baf27fe509ed637ec25098bfb6a1698' -> 'C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\crash-log-native-sharing-5344-1793092048566-q2awww\\logs\\attempts\\sharing-build\\sharing-attempt\\5344-08b3fdfe-4948-404a-8"
+    },
+    "immutableRecord": "C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\crash-log-native-sharing-5344-1793092048566-q2awww\\logs\\attempts\\sharing-build\\sharing-attempt\\5344-08b3fdfe-4948-404a-8b25-c87a1e78b305\\000002-c00b5111-9edd-40b8-b54b-f622ba443629.terminal.json",
+    "originalPointerRetained": true,
+    "afterReleasePublished": true,
+    "helperPid": 24312,
+    "helperExitCode": 0,
+    "helperReaped": true
+  },
+  "semanticManifest": {
+    "issue": 1547,
+    "state": "open",
+    "qualified": [
+      "valid generation refresh under a deliberately stale parsed memo",
+      "unsupported-format rejection under the same memo control",
+      "family/query/operation snapshot checksum identity, bounded reads, cancellation and original close ownership",
+      "native SQLite serving consumers",
+      "ordinary cache read profile/identity reuse",
+      "format cutover"
+    ],
+    "nativeLinksCreated": 0
+  },
+  "commands": {
+    "focused": [
+      "node",
+      "tests/run.js",
+      "--lane",
+      "all",
+      "--match",
+      "indexing/artifacts/graph-edge-distinct-cap",
+      "--match",
+      "indexing/contracts/index-format-cutover",
+      "--match",
+      "indexing/crash-event-redaction",
+      "--match",
+      "indexing/crash-log-announcement",
+      "--match",
+      "indexing/crash-log-boundary-controls/before-open",
+      "--match",
+      "indexing/crash-log-boundary-controls/bounded-existing-logs",
+      "--match",
+      "indexing/crash-log-boundary-controls/latest-pointer-failure",
+      "--match",
+      "indexing/crash-log-boundary-controls/pending-write-close",
+      "--match",
+      "indexing/crash-log-boundary-controls/terminal-disk-failure",
+      "--match",
+      "indexing/crash-log-independent-sinks",
+      "--match",
+      "indexing/crash-log-retention",
+      "--match",
+      "indexing/crash-log-retention-trace-policy",
+      "--match",
+      "indexing/crash-log-state-write-contention",
+      "--match",
+      "indexing/crash-log-terminal-ownership",
+      "--match",
+      "indexing/crash-retention-bundle-budget",
+      "--match",
+      "indexing/tree-sitter/crash-persistence-degradation",
+      "--match",
+      "indexing/tree-sitter/crash-persistence-ownership",
+      "--match",
+      "indexing/tree-sitter/crash-presentation-degradation",
+      "--match",
+      "integrations/inference-history/redaction-idempotence",
+      "--match",
+      "shared/artifact-io/cache-read-profile-limits",
+      "--match",
+      "shared/diagnostic-text",
+      "--match",
+      "shared/logging/scoped-ring-redaction",
+      "--match",
+      "storage/semantic/published-manifest-cache-authority/unsupported-format",
+      "--match",
+      "storage/semantic/published-manifest-cache-authority/valid-generation",
+      "--match",
+      "storage/semantic/published-manifest-snapshot",
+      "--match",
+      "storage/semantic/published-serving-consumers",
+      "--jobs",
+      "1",
+      "--timeout-ms",
+      "30000",
+      "--retries",
+      "0",
+      "--native-status-redo=false",
+      "--pairofcleats-threads",
+      "1",
+      "--json"
+    ],
+    "nativeSharing": [
+      "node",
+      "tests/fixtures/indexing/crash-log-windows-sharing.js"
+    ],
+    "nativeOuterDeadlineMs": 30000
+  }
+}

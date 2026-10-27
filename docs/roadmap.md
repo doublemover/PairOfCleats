@@ -39,6 +39,7 @@ controls and scope. Full front gates include 40/40 gate cases:
 | [06c3324d0](archived/repository-cleanup-admission-2026-10-27.md) | Partial #1574; custom backend adoption remains | 8 + full front gate |
 | [957230b12](archived/tui-install-qualification-2026-10-27.md) | #1554; actual Windows upgrade/sharing | 7 + 3 native controls + full front gate |
 | [e191d2402](archived/sublime-native-registration-2026-10-27.md) | Partial #1289; native command registration repaired; search/reload pending | 30 headless + full front gate |
+| [afc52ef9d](archived/crash-log-qualification-2026-10-27.md) | Partial #1315/#1547; bounded crash projection, Windows sharing and fresh semantic authority | 26 + native control + full front gate |
 
 These are scoped observations, not a combined full-suite or platform/model/release
 pass. Task checks omit only an inherited missing trusted-config selector;

@@ -4523,7 +4523,13 @@
       "priority": "P1",
       "batch": "storage-publication-and-cleanup",
       "phase": "source-review-and-focused-qualification",
-      "status": "queued"
+      "status": "source-partially-qualified",
+      "partialReceipt": "docs/archived/crash-log-qualification-2026-10-27.json",
+      "implementationCommits": [
+        "c5ebd6e6420a88abecbb3b3783a383a0ee90029d",
+        "0bfb8b33e79dbde704b94898aa48384a967a26f1"
+      ],
+      "remainingWork": "POSIX execution and measured error-path latency. Windows native sharing refusal, controlled disk/rename failures, append/terminal lifetime and bounded projection are qualified."
     },
     {
       "number": 1316,
@@ -6191,7 +6197,12 @@
       "priority": "P2",
       "batch": "storage-publication-and-cleanup",
       "phase": "source-review-and-focused-qualification",
-      "status": "queued"
+      "status": "source-partially-qualified",
+      "partialReceipt": "docs/archived/crash-log-qualification-2026-10-27.json",
+      "implementationCommits": [
+        "afc52ef9d31f9afdf4b89947a21e8fe930c6a944"
+      ],
+      "remainingWork": "Complete remaining path/link authority acceptance without unapproved new physical symlinks; native SQLite and bounded metadata snapshot controls pass."
     },
     {
       "number": 1548,
