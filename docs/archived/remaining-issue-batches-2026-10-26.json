@@ -6484,9 +6484,29 @@
       ],
       "partialReceipt": "repository-cleanup-admission-2026-10-27.json",
       "remainingWork": [
-        "Register custom backend roots with producer/publication identity and explicit launch authority.",
-        "Adopt actual reader/probe/cache/builder/sidecar lifetimes through original native owners.",
-        "Qualify category-specific disposable outputs, all/multi-repo and every remaining backend adapter."
+        "Register custom backend roots with producer/publication identity and launch authority.",
+        "Adopt remaining reader/cache/builder/sidecar lifetimes through original owners.",
+        "Qualify category-specific outputs, multi-repository cleanup and remaining adapters."
+      ],
+      "followupSourceHeads": [
+        "55d0daa9f9d078e81205dcc8ef5cac5aaa404643"
+      ],
+      "followupReceipts": [
+        "sqlite-uncached-close-ownership-2026-10-27.json"
+      ],
+      "followupQualifiedTests": [
+        "indexing/contracts/index-format-cutover",
+        "retrieval/backend/retrieval-auto-sqlite-resolve-index-stats-compressed-jsonl",
+        "retrieval/backend/sqlite-open-error-provenance",
+        "retrieval/backend/sqlite-uncached-close-ownership/explicit-false",
+        "retrieval/backend/sqlite-uncached-close-ownership/initialization-failure",
+        "retrieval/backend/sqlite-uncached-close-ownership/native-observation",
+        "retrieval/backend/sqlite-uncached-close-ownership/sticky-failure",
+        "retrieval/cli/backend-lifecycle",
+        "storage/sqlite/cache",
+        "storage/sqlite/cache-failed-close-ownership",
+        "storage/sqlite/cache-generation-tag",
+        "storage/sqlite/reader-schema-mismatch"
       ]
     },
     {
