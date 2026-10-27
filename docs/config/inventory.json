@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-27T20:42:03.189Z",
+  "generatedAt": "2026-10-27T20:55:57.006Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -3609,6 +3609,7 @@
         "tests/indexing/embeddings/intent-boundary-parity.test.js",
         "tests/indexing/piece-assembly/core.test.js",
         "tests/integrations/core/embedding-plan-late-binding.test.js",
+        "tests/integrations/core/embedding-plan-preflight.test.js",
         "tests/perf/bench/embedding-bakeoff-effective-policy.test.js",
         "tests/perf/bench/language-default-cache-root.test.js",
         "tests/perf/bench/language-no-ann-forwarding.test.js",
@@ -4667,6 +4668,7 @@
         "tests/indexing/workers/coarse-file-analysis-transport.test.js",
         "tests/indexing/workers/process-task-scheduler-retirement.test.js",
         "tests/integrations/core/embedding-plan-late-binding.test.js",
+        "tests/integrations/core/embedding-plan-preflight.test.js",
         "tests/lang/javascript/jsdoc-comment-ownership.test.js",
         "tests/perf/bench/query-resource-plan.test.js",
         "tests/perf/tooling/bench/sqlite-benchmark-cli.test.js",

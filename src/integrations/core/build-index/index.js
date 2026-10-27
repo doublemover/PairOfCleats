@@ -18,7 +18,7 @@ import { resolveCurrentProcessRuntimeEnvelope } from '../../../shared/runtime-en
 import { coerceAbortSignal, isAbortError, throwIfAborted } from '../../../shared/abort.js';
 import { spawnSubprocess } from '../../../shared/subprocess/runner.js';
 import { resolveEmbeddingRuntime } from '../embeddings.js';
-import { createEmbeddingExecutionPlan, captureEmbeddingExecutionPlan } from '../../../shared/embedding-execution-plan.js';
+import { createEmbeddingExecutionPlan, preflightEmbeddingExecutionPlan } from '../../../shared/embedding-execution-plan.js';
 import { resolveBuildInvocationArgs, buildStage2Args, normalizeStage } from '../args.js';
 import { updateEnrichmentState } from '../enrichment-state.js';
 import { getRepoCacheRoot, getRepoRoot } from '../../../shared/repo-paths.js';
@@ -234,9 +234,11 @@ async function buildIndexRun(repoRoot, options = {}) {
   const includeEmbeddings = (embeddingRuntime.embeddingEnabled || embeddingRuntime.embeddingService)
     && embedModes.length > 0;
   if (includeEmbeddings && (explicitStage === 'stage3' || !explicitStage && !twoStageEnabled)) {
-    embeddingRuntime.executionPlan = captureEmbeddingExecutionPlan(createEmbeddingExecutionPlan({
+    const admitted = preflightEmbeddingExecutionPlan(createEmbeddingExecutionPlan({
       root, modes: embedModes, argv, userConfig, rawEnv: runtimeEnv, intent: embeddingRuntime
-    }));
+    }), { executionHost: embeddingRuntime.embeddingService ? 'deferred' : 'local', signal: abortSignal });
+    embeddingRuntime.executionPlan = admitted.plan;
+    embeddingRuntime.preflight = admitted.preflight;
   }
   const includeSqlite = shouldBuildSqlite && sqliteModes.length > 0;
   const overallProgressOptions = (!explicitStage && !twoStageEnabled)

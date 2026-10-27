@@ -3,7 +3,8 @@ import path from 'node:path';
 import { redactDiagnosticText } from './diagnostic-text.js';
 import { stableStringify } from './stable-json.js';
 import { getModelConfig } from './dict-utils.js';
-import { normalizeEmbeddingProvider, normalizeOnnxConfig, resolveOnnxConfig } from './onnx-embeddings.js';
+import { normalizeEmbeddingProvider, normalizeOnnxConfig, resolveOnnxConfig, resolveOnnxModelPath } from './onnx-embeddings/config.js';
+import { throwIfAborted } from './abort.js';
 import { projectSchedulerRequestConfig } from '../index/build/runtime/scheduler.js';
 import { resolveQuantizationParams } from '../storage/sqlite/quantization.js';
 import { getEnvConfig } from './env/runtime.js';
@@ -216,6 +217,38 @@ export const validateEmbeddingExecutionPlan = (plan, selection) => {
 /** A bounded immutable selection can outlive Stage2 without borrowing caller data. */
 export const captureEmbeddingExecutionPlan = (plan, selection) =>
   snapshotEmbeddingMetadata(validateEmbeddingExecutionPlan(plan, selection));
+
+/** Read-only admission of the selected local graph, without loading a provider. */
+export const preflightEmbeddingExecutionPlan = (plan, { executionHost = 'local', signal = null } = {}) => {
+  if (!['local', 'deferred'].includes(executionHost)) throw fail('invalid preflight execution host');
+  throwIfAborted(signal);
+  const selected = captureEmbeddingExecutionPlan(plan);
+  const receipt = (status, reason) => Object.freeze({ version: 1, status, reason,
+    executionHost, runtime: 'unverified', inference: 'unverified', downloadAttempted: false });
+  const result = (status, reason) => Object.freeze({ plan: selected, preflight: receipt(status, reason) });
+  if (!selected.embeddings.enabled || selected.embeddings.mode === 'off') return result('inactive', 'embeddings-off');
+  if (selected.options['stub-embeddings']) return result('inactive', 'stub-does-not-use-model-assets');
+  if (executionHost === 'deferred' || selected.embeddings.mode === 'service') return result('unverified', 'execution-host-deferred');
+  // Fetch-capable providers retain their existing acquisition/runtime owner. A
+  // parent-host file observation cannot qualify that owner or a cache-only hit.
+  if (selected.embeddings.provider !== 'onnx') return result('unverified', 'provider-acquisition-at-execution');
+  const graph = resolveOnnxModelPath({ rootDir: selected.repoRoot,
+    modelPath: selected.embeddings.onnx.modelPath, modelsDir: selected.modelsDir,
+    modelId: selected.embeddings.model });
+  throwIfAborted(signal);
+  if (!graph) {
+    throw Object.assign(new Error('The requested local ONNX graph is unavailable. Download/verify the selected model or run explicit Stage2 without embeddings.'), {
+      code: 'ERR_EMBEDDING_PREFLIGHT', preflight: receipt('unavailable', 'local-onnx-graph-unavailable')
+    });
+  }
+  // Complete graph selection before CPU work. A later default/selector change
+  // must not silently choose a different graph; runtime still verifies bytes.
+  const pinned = structuredClone(selected);
+  pinned.embeddings.onnx.modelPath = path.resolve(graph);
+  pinned.digest = digest(pinned);
+  return Object.freeze({ plan: captureEmbeddingExecutionPlan(pinned),
+    preflight: receipt('ready-to-attempt', 'selected-graph-readable') });
+};
 
 /** Bind generated execution scope only. Never re-run model/config/env selection. */
 export const bindEmbeddingExecutionPlan = (plan, binding = {}) => {

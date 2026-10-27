@@ -7,7 +7,7 @@ import { readBuildRecoveryGrant } from './recovery-context.js';
 import crypto from 'node:crypto';
 import { refreshRuntimeReceipt } from '../../../index/build/runtime/receipt.js';
 import { redactDiagnosticText } from '../../../shared/diagnostic-text.js';
-import { createEmbeddingExecutionPlan, captureEmbeddingExecutionPlan, bindEmbeddingExecutionPlan, buildEmbeddingLaunchArgs, attachEmbeddingExecutionPlan } from '../../../shared/embedding-execution-plan.js';
+import { createEmbeddingExecutionPlan, captureEmbeddingExecutionPlan, preflightEmbeddingExecutionPlan, bindEmbeddingExecutionPlan, buildEmbeddingLaunchArgs, attachEmbeddingExecutionPlan } from '../../../shared/embedding-execution-plan.js';
 import { parseObservabilityContextEnv } from '../../../shared/observability.js';
 import { attachSemanticEnrichmentRuntime } from '../../../index/semantic/enrichment-context.js';
 import path from 'node:path';
@@ -193,14 +193,19 @@ export const runEmbeddingsStage = async ({
       log('Embeddings disabled; skipping stage3.');
       return recordOk({ modes: embedModes, embeddings: { skipped: true }, repo: root, stage: 'stage3' });
     }
-    const selectedPlan = captureEmbeddingExecutionPlan(embeddingRuntime.executionPlan
+    const requestedPlan = captureEmbeddingExecutionPlan(embeddingRuntime.executionPlan
       || createEmbeddingExecutionPlan({ root, modes: embedModes, argv, userConfig, rawEnv: runtimeEnv, intent: embeddingRuntime }),
     { root, modes: embedModes });
-    if (selectedPlan.embeddings.enabled !== embeddingRuntime.embeddingEnabled
-      || selectedPlan.options['stub-embeddings'] !== (embeddingRuntime.useStubEmbeddings === true)
-      || selectedPlan.embeddings.mode !== (embeddingRuntime.resolvedEmbeddingMode || (embeddingRuntime.useStubEmbeddings ? 'stub' : 'inline'))) {
+    if (requestedPlan.embeddings.enabled !== embeddingRuntime.embeddingEnabled
+      || requestedPlan.options['stub-embeddings'] !== (embeddingRuntime.useStubEmbeddings === true)
+      || requestedPlan.embeddings.mode !== (embeddingRuntime.resolvedEmbeddingMode || (embeddingRuntime.useStubEmbeddings ? 'stub' : 'inline'))) {
       throw Object.assign(new Error('Embedding execution intent differs from its selected plan.'), { code: 'ERR_EMBEDDING_EXECUTION_PLAN' });
     }
+    const admitted = preflightEmbeddingExecutionPlan(requestedPlan, {
+      executionHost: embeddingRuntime.embeddingService ? 'deferred' : 'local', signal: effectiveAbortSignal
+    });
+    const selectedPlan = admitted.plan;
+    embeddingRuntime.preflight = admitted.preflight;
     const explicitIndexRoot = argv['index-root'] ? path.resolve(argv['index-root']) : null;
     const providedIndexRoot = indexRoot ? path.resolve(indexRoot) : null;
     const buildInfo = explicitIndexRoot
