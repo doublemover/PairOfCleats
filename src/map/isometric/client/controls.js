@@ -12,6 +12,7 @@ import { createViewportInputOwner } from './input-ownership.js';
 import { createControlsPickingOwner } from './rendering/picking-owner.js';
 import { createControlsLifetime, retirePreviousControls } from './controls-lifetime.js';
 import { captureControlsRuntimeCallbacks } from './controls-runtime-callbacks.js';
+import { createSceneRenderSubmissionOwner } from './rendering/scene-render-submission.js';
 
 export const initControls = () => {
   retirePreviousControls(state);
@@ -43,6 +44,9 @@ export const initControls = () => {
     const ownsControls = lifetime.owns;
     const rendererCallbacks = captureControlsRuntimeCallbacks(renderer, ['render', 'setPixelRatio', 'setSize'], lifetime.wrap, lifetime.current);
     if (!lifetime.current()) throw new Error('Controls runtime callback capture lost its original authority.');
+    const submissionOwner = createSceneRenderSubmissionOwner({ state, renderer, render: rendererCallbacks.render, isCurrent: lifetime.current });
+    lifetime.onDetach(submissionOwner.dispose);
+    const submissions = lifetime.adopt(submissionOwner, 'original controls render submission', ['submit']);
     const cameraCallbacks = captureControlsRuntimeCallbacks(camera, ['updateMatrixWorld', 'updateProjectionMatrix'], lifetime.wrap, lifetime.current);
     if (!lifetime.current()) throw new Error('Controls runtime callback capture lost its original authority.');
 
@@ -539,7 +543,7 @@ export const initControls = () => {
       if (lifetime.disposed || !ownsControls()) return false;
       hover.frame();
       if (lifetime.disposed || !ownsControls()) return false;
-      rendererCallbacks.render(state.scene, camera);
+      submissions.submit(state.scene, camera);
       if (lifetime.disposed || !ownsControls()) return false;
       const renderInfo=renderer.info;
       perfStats.renderer=renderInfo?{calls:renderInfo.render?.calls??null,triangles:renderInfo.render?.triangles??null,

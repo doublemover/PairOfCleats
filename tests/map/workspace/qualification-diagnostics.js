@@ -26,6 +26,9 @@ export const attachQualificationDiagnostics = (page, receipt, initialPhase, { li
   };
   begin(initialPhase);
   const emit = event => {
+    // A phase is provisional until its page closes. Late callbacks must revoke
+    // an earlier clean observation instead of leaving a passing receipt behind.
+    if (phase.status === 'passed') { phase.status = 'running'; phase.lateEvents = (phase.lateEvents || 0) + 1; }
     phase.total++; phase.counts[event.type] = (phase.counts[event.type] || 0) + 1;
     if (phase.events.length >= limit) { phase.overflow++; return; }
     let origin = null;

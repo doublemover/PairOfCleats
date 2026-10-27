@@ -33,6 +33,7 @@ const receipt = { schemaVersion: 1, head: execFileSync('git', ['rev-parse', 'HEA
   qualification: 'actual browser/service/Worker; saved synthetic capture; renderer receipt distinguishes software from hardware',
   hardwareQualification: 'not claimed by this headless run', perfetto: 'not requested; no adapter added' };
 let browser, context, server, router, runtime, isoController, isoResult, page, qualificationError;
+const diagnosticOwners = [];
 const started = performance.now(), deadline = new AbortController();
 const checkDeadline = () => {
   if (performance.now() - started >= receipt.limits.totalWorkMs && !deadline.signal.aborted) {
@@ -65,12 +66,14 @@ try {
   context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, acceptDownloads: true, ignoreHTTPSErrors: true });
   page = await context.newPage(); page.setDefaultTimeout(5000);
   const diagnostics = attachQualificationDiagnostics(page, receipt, 'workspace');
+  diagnosticOwners.push(diagnostics);
   await page.goto(base + '/map/workspace'); await page.locator('#query-toggle').click();
   await page.locator('#operation option[value="catalog"]').waitFor({ state: 'attached' });
   const query = async (operation, input, success = true) => {
     checkDeadline();
     if (!success) {
       const url = base + OPERATIONS[operation];
+      diagnostics.begin(`workspace-negative-${operation}-${receipt.requests.length}`);
       diagnostics.expect({ type: 'http', url, statuses: [400, 404, 409, 422], maxCount: 1 });
       diagnostics.expect({ type: 'console', url, messagePattern: '^Failed to load resource: the server responded with a status of (400|404|409|422)\\b', maxCount: 1 });
     }
@@ -85,7 +88,8 @@ try {
         && document.getElementById('notice').textContent.includes(operation + ' response'), { family: projectOutput(data).family, operation });
       return data;
     }
-    assert.ok(response.status() >= 400); await page.locator('#notice.error').waitFor(); return null;
+    assert.ok(response.status() >= 400); await page.locator('#notice.error').waitFor();
+    diagnostics.begin(`workspace-after-negative-${receipt.requests.length}`); return null;
   };
   const catalog = await query('catalog', { repoRoot: witness.repoRoot });
   assert.ok(catalog.artifacts.some(row => row.name === 'semantic_records' && row.available));
@@ -189,11 +193,12 @@ try {
     await route.fulfill({ response }).catch(() => {});
   });
   await page.locator('#operation').selectOption('search'); await page.locator('#request').fill(JSON.stringify({ repoPath: witness.repoRoot, query: 'render', mode: 'code', backend: 'memory', ann: false }));
-  diagnostics.expect({ type: 'requestfailed', url: base + '/search', message: 'net::ERR_ABORTED', maxCount: 1 });
+  diagnostics.begin('workspace-cancel-search', [{ type: 'requestfailed', url: base + '/search', message: 'net::ERR_ABORTED', maxCount: 1 }]);
   await page.locator('#run').click(); await dispatched; await page.locator('#cancel').click(); release(); await page.unroute('**/search');
   await page.waitForFunction(() => document.getElementById('notice').textContent.includes('Request cancelled'));
   assert.deepEqual(await page.locator('#tree button').evaluateAll(nodes => nodes.map(node => node.childNodes[0].textContent)), labels);
   record('cancel suppresses a delayed real-service reply and retains prior view');
+  diagnostics.begin('workspace-runtime-and-layout');
   const common = { schemaVersion: 1, repoRoot: witness.repoRoot, destination: 'runtime-import' };
   const generation = witness.manifest.generation, repositoryNamespace = runtime.source.repositoryNamespace;
   const families = await query('families', { ...common, limits: { maxFamilies: 8, maxScan: 32, maxBytes: 65536, maxMs: 1000 }, cursor: null });
@@ -261,16 +266,18 @@ try {
   });
   receipt.renderedFrames = [await captureRenderedViewerFrame(page)];
   assert.ok(renderer.width > 0 && renderer.height > 0); assert.equal(renderer.contextLost, false); receipt.renderer = renderer;
+  diagnostics.phase.renderer = { requested: 'ANGLE SwiftShader', effective: renderer.renderer, hardwareQualification: false };
   await page.locator('#stack-search').fill('build'); const member = page.locator('#stack-tree button').filter({ hasText: /^build/ }).first();
   await member.focus(); await member.press('Enter'); await page.waitForFunction(() => document.getElementById('stack-breadcrumb').textContent.includes('build'));
   assert.match(await page.locator('#selection-body').textContent(), /Directed relationships/);
   await page.locator('#stack-mode').selectOption('segments'); await page.locator('#stack-focus').click();
-  await page.screenshot({ path: path.join(destination, 'three-selection.png'), fullPage: true }); receipt.screenshots.push('three-selection.png');
   receipt.renderedFrames.push(await captureRenderedViewerFrame(page));
+  await page.screenshot({ path: path.join(destination, 'three-selection.png'), fullPage: true }); receipt.screenshots.push('three-selection.png');
   receipt.captures.push({ file: 'three-selection.png', phase: diagnostics.phase.name, viewport: page.viewportSize(), dpr: receipt.renderedFrames.at(-1).dpr });
   diagnostics.assertClean();
   record('independent actual Three.js server/submitted scene frame/keyboard source-member selection');
   diagnostics.begin('three-narrow');
+  diagnostics.phase.renderer = { requested: 'ANGLE SwiftShader', effective: renderer.renderer, hardwareQualification: false };
   await page.setViewportSize({ width: 390, height: 844 });
   receipt.renderedFrames.push(await captureRenderedViewerFrame(page));
   await page.screenshot({ path: path.join(destination, 'three-narrow.png'), fullPage: true });
@@ -279,6 +286,8 @@ try {
   diagnostics.assertClean();
   const fallback = await context.newPage(); fallback.setDefaultTimeout(5000);
   const fallbackDiagnostics = attachQualificationDiagnostics(fallback, receipt, 'three-injected-no-webgl');
+  diagnosticOwners.push(fallbackDiagnostics);
+  fallbackDiagnostics.phase.renderer = { requested: 'injected no WebGL', effective: 'source-only', hardwareQualification: false };
   fallbackDiagnostics.expect({ type: 'console', message: 'THREE.WebGLRenderer: Error creating WebGL context.', maxCount: 1 });
   await fallback.setViewportSize({ width: 1440, height: 1000 });
   await fallback.addInitScript(() => {
@@ -304,6 +313,10 @@ finally {
   };
   isoController?.abort(); if (isoResult) await finish('three-server', () => isoResult);
   await finish('browser-context', () => context?.close()); await finish('browser', () => browser?.close());
+  await finish('browser-phase-diagnostics', async () => {
+    for (const diagnostics of diagnosticOwners) diagnostics.assertClean();
+    assert.ok(receipt.phases.every(phase => phase.status === 'passed'));
+  });
   await finish('api-router', () => router?.close());
   if (server) await finish('http-server', () => new Promise((resolve, reject) => server.close(error => error ? reject(error) : resolve())));
   await finish('saved-capture-fixture', () => runtime?.cleanup());

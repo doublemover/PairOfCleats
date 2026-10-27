@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-27T22:49:34.240Z",
+  "generatedAt": "2026-10-27T22:55:33.229Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4674,6 +4674,7 @@
         "tests/integrations/core/embedding-plan-late-binding.test.js",
         "tests/integrations/core/embedding-plan-preflight.test.js",
         "tests/lang/javascript/jsdoc-comment-ownership.test.js",
+        "tests/map/scene-render-submission.test.js",
         "tests/perf/bench/process-tree-memory.test.js",
         "tests/perf/bench/query-resource-plan.test.js",
         "tests/perf/tooling/bench/sqlite-benchmark-cli.test.js",

@@ -18,3 +18,17 @@ const intentional = { events: [{ type: 'console', message: expected.message }], 
 assert.equal(classifyQualificationPhase(intentional).ok, true);
 assert.equal(classifyQualificationPhase({ ...intentional, events: [...intentional.events, { type: 'pageerror', message: 'unrelated fallback failure' }] }).ok, false);
 assert.equal(classifyQualificationPhase({ events: [], expected: [], overflow: 1 }).ok, false);
+const closingPage = new EventEmitter(); closingPage.url = () => 'https://localhost/fallback';
+const closingReceipt = {}, closing = attachQualificationDiagnostics(closingPage, closingReceipt, 'fallback');
+closing.assertClean(); assert.equal(closing.phase.status, 'passed');
+closingPage.emit('pageerror', new Error('failure after prior clean observation'));
+assert.equal(closing.phase.status, 'running', 'late callbacks revoke provisional success before final receipt publication');
+assert.throws(() => closing.assertClean(), /failure after prior clean observation/u);
+assert.equal(closing.phase.status, 'failed');
+const scopedPage = new EventEmitter(); scopedPage.url = () => 'https://localhost/viewer';
+const scoped = attachQualificationDiagnostics(scopedPage, {}, 'injected-no-webgl');
+scoped.expect(expected);
+scopedPage.emit('console', { type: () => 'error', location: () => ({}), text: () => expected.message });
+scoped.begin('ordinary-three-retry');
+scopedPage.emit('console', { type: () => 'error', location: () => ({}), text: () => expected.message });
+assert.throws(() => scoped.assertClean(), /unexpected errors/u, 'an injected-step exception is not a retry-page allowlist');
