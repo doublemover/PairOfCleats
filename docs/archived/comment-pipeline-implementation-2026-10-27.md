@@ -56,3 +56,24 @@ speedup, passing parser-call observations or consumer/replay qualification claim
 fence content/maps under #1652/#1654, structural admission and the existing focused
 consumer/replay/import checks remain required. See the
 [current contract](../contracts/comment-occurrences.md) for exact scope and limits.
+
+## Rust lexical follow-up
+
+Source `6f3dd060f16f038ea104c49bf70daa47790ba1e2`, tree
+`3e9f70dfed8a73339316fad14b5c078f0990de87`, adds a separate bounded Rust
+comment lexer. It handles nested block comments, raw UTF-8/byte/C strings,
+ordinary strings, escaped characters and lifetimes without extending the generic
+quote state machine. LF line termination, inner/outer doc candidates and ordinary
+four-slash/extra-star roles follow the linked Rust Reference in the contract.
+Original CRLF offsets remain. Unterminated contexts, bare CR in docs and exceeded
+source/nesting/hash/count bounds report unavailable rather than falling back to a
+complete-looking generic result. This is comment coverage, not compiler validity.
+Classification/cache/signature version advances to 5.
+
+Thirteen Rust cases are authored, unexecuted, bringing this comment wave to
+35 cases. Expected source slices include nested tails, lifetime-following docs,
+raw literal negatives, CRLF and LF-specific behavior, doc roles and budget/error
+states. Actual metadata/stripping range consumers remain in the path. Static
+format/ESLint, syntax, config budget, inventory and whitespace checks pass; shared
+module analysis remains cycle-free. Other language adapters, fence/source maps,
+structural admission and all functional qualification remain open.

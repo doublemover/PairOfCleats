@@ -7518,9 +7518,9 @@
     },
     {
       "number": 1653,
-      "unvalidatedSourceHeads": ["2fba78f6d494e21b2c32e364f39fd1810a9b54d0", "4437d9994f9553ec1f8aa6cf78e4a49248a26a80"],
+      "unvalidatedSourceHeads": ["2fba78f6d494e21b2c32e364f39fd1810a9b54d0", "4437d9994f9553ec1f8aa6cf78e4a49248a26a80", "6f3dd060f16f038ea104c49bf70daa47790ba1e2"],
       "unvalidatedReceipts": ["comment-pipeline-implementation-2026-10-27.md"],
-      "currentImplementation": "JS/JSX and TS/TSX consume private source/parser/dialect-owned immutable comment spans; standalone parsing is lazy and bounded. Paired caches verify actual source/parser and ignore unowned payloads before inspection. Twelve cases are authored; non-JS dialect adapters, source-map integration and consumer/replay/import qualification remain.",
+      "currentImplementation": "JS/JSX and TS/TSX consume private source/parser/dialect-owned immutable spans; a separate bounded Rust lexer handles nesting, literals, lifetimes, LF termination and doc roles. Paired caches verify source/parser before inspecting owned payloads. Twenty-five occurrence cases are authored, unexecuted; other dialect adapters, source-map integration and consumer/replay/import qualification remain.",
       "title": "Use language-owned comment ranges instead of the generic quote and marker scanner",
       "recordedDisposition": "implementation_needed",
       "priority": "unranked",
