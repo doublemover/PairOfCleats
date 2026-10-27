@@ -5,6 +5,8 @@ import { registerHooks } from 'node:module';
 import { Tensor } from 'onnxruntime-common';
 import { admitEmbeddingVector } from '../../../src/shared/embedding-output-admission.js';
 import { resolveQueryEmbeddingContract } from '../../../src/shared/embedding-model-profile.js';
+import { buildEmbeddingIdentity } from '../../../src/shared/embedding-identity.js';
+import { resolveEmbeddingArtifactIdentity } from '../../../src/shared/embedding-artifact-identity.js';
 import { createEmbeddingResolver } from '../../../src/retrieval/cli/run-search-session/embedding-cache.js';
 import { getQueryEmbedding } from '../../../src/retrieval/embedding.js';
 import { __setAdapterFactoryForTests, __setTransformersModuleLoaderForTests,
@@ -71,6 +73,15 @@ try {
       assert.equal(await make()('fixture', 3, true, null), null, 'a subsequently corrupted cache result is evicted before reuse');
       assert.deepEqual(await make()('fixture', 3, true, null), good); assert.equal(calls, 3);
     }
+    let identityCalls = 0;
+    const resolver = createEmbeddingResolver({ throwIfAborted() {}, embeddingQueryText: 'private query',
+      modelConfig: {}, rootDir: dir, useStubEmbeddings: true,
+      getQueryEmbeddingImpl: async () => { identityCalls++; return good; } });
+    const identity = dims => buildEmbeddingIdentity({ modelId: 'fixture', dims, stub: true,
+      modelArtifact: resolveEmbeddingArtifactIdentity({ stub: true }) });
+    await assert.rejects(resolver('fixture', 3, true, null, null, identity(2)), { code: 'ERR_EMBEDDING_OUTPUT' });
+    assert.equal(identityCalls, 0, 'conflicting persisted/requested widths reject before provider work');
+    assert.deepEqual(await resolver('fixture', 3, true, null, null, identity(3)), good);
     assert.deepEqual(warnings, ['[embeddings] Query vector rejected; skipping ANN (ERR_EMBEDDING_OUTPUT).']);
   } else if (selected === 'ann') {
     let nativeCalls = 0, providerCalls = 0;

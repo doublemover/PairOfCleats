@@ -8,7 +8,7 @@ import { getQueryEmbedding } from '../../embedding.js';
 import { incCacheEvent } from '../../../shared/metrics/core.js';
 import { resolveStubDims } from '../../../shared/embedding.js';
 import { buildLocalCacheKey } from '../../../shared/cache-key.js';
-import { admitEmbeddingVector } from '../../../shared/embedding-output-admission.js';
+import { admitEmbeddingVector, invalidEmbeddingOutput } from '../../../shared/embedding-output-admission.js';
 import { resolveEmbeddingModelProfile, resolveQueryEmbeddingContract } from '../../../shared/embedding-model-profile.js';
 import { createWarnOnce } from '../../../shared/logging/warn-once.js';
 
@@ -76,6 +76,11 @@ export function createEmbeddingResolver({
         throw Object.assign(new Error('Unsupported embedding identity. Rebuild the dense index.'), { code: 'ERR_EMBEDDING_IDENTITY_UNSUPPORTED' });
       }
       assertEmbeddingArtifactCompatibility(expectedIdentity.modelArtifact, modelArtifact);
+      if (expectedIdentity.dims != null && resolvedDims !== null && expectedIdentity.dims !== resolvedDims) {
+        throw invalidEmbeddingOutput('requested query width disagrees with the persisted embedding identity.', {
+          expectedDimensions: expectedIdentity.dims, observedDimensions: resolvedDims
+        });
+      }
     }
     const contract = resolveQueryEmbeddingContract({ modelId, modelProfile: selectedProfile,
       dims: expectedIdentity?.dims ?? resolvedDims, useStub: useStubEmbeddings });
