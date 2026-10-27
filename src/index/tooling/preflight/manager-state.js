@@ -8,6 +8,7 @@ import {
   isValidToolingPreflightTransition
 } from './contract.js';
 import { PREFLIGHT_CLASS } from './manager-config.js';
+import { currentRunResourceScope } from '../../../shared/lifecycle/run-scope.js';
 
 export const TOOLING_PREFLIGHT_STATE = Symbol.for('poc.tooling.preflight.state');
 
@@ -24,6 +25,8 @@ const normalizeOwnershipSegment = (value, fallback) => {
 };
 
 export const resolvePreflightOwnershipId = ({ providerId, preflightId, key }) => {
+  const owner = currentRunResourceScope();
+  owner?.assertAccepting();
   const providerSegment = normalizeOwnershipSegment(providerId, 'provider');
   const preflightSegment = normalizeOwnershipSegment(preflightId, 'preflight');
   const hash = crypto
@@ -31,7 +34,7 @@ export const resolvePreflightOwnershipId = ({ providerId, preflightId, key }) =>
     .update(String(key || `${providerSegment}:${preflightSegment}`))
     .digest('hex')
     .slice(0, 12);
-  return `tooling-preflight:${providerSegment}:${preflightSegment}:${hash}`;
+  return `tooling-preflight:${owner ? `${owner.id}:` : ''}${providerSegment}:${preflightSegment}:${hash}`;
 };
 
 const createSchedulerMetrics = () => ({

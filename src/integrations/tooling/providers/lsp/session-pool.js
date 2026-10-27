@@ -7,6 +7,8 @@ import { coercePositiveInt } from '../../../../shared/number-coerce.js';
 import { createTimeoutError, runWithTimeout } from '../../../../shared/promise-timeout.js';
 import { sleep } from '../../../../shared/sleep.js';
 import { stableStringify } from '../../../../shared/stable-json.js';
+import { currentRunResourceScope } from '../../../../shared/lifecycle/run-scope.js';
+import { retainRunSession } from './run-ownership.js';
 
 const DEFAULT_IDLE_TIMEOUT_MS = 1_500;
 const DEFAULT_MAX_LIFETIME_MS = 10 * 60_000;
@@ -46,6 +48,7 @@ let exitCleanupInstalled = false;
 let beforeExitCleanupPromise = null;
 let drainSessionPoolPromise = null;
 const activeDisposals = new Set();
+const disposalWorkBySession = new WeakMap(), nativeDisposalBySession = new WeakMap();
 const testHooks = {
   disposeDelayMs: 0,
   shortQuarantineMs: null,
@@ -399,6 +402,7 @@ const disposeSessionClient = async (session) => {
     return { exitObserved: true };
   };
   session.disposePromise = runDispose();
+  nativeDisposalBySession.set(session, session.disposePromise);
   try { return await session.disposePromise; }
   catch (error) { session.disposePromise = null; throw error; }
 };
@@ -484,6 +488,7 @@ const enqueueSessionDisposal = (session, {
     throw error;
   }));
   tracked.catch(() => {});
+  disposalWorkBySession.set(session, tracked);
   if (key) {
     disposalBarriers.set(key, tracked);
     tracked.then(() => {
@@ -641,6 +646,7 @@ const createSession = async (options) => {
     onStderrLine: typeof options.onStderrLine === 'function' ? options.onStderrLine : null
   };
   const client = await createRetainedLspClient({
+    subprocessOwnershipId: `tooling-lsp-session:${crypto.randomUUID()}`,
     cmd: options.cmd,
     toolingRoot: options.toolingRoot,
     managedRuntimeCommands: options.managedRuntimeCommands,
@@ -910,14 +916,29 @@ const getOrCreateSession = async (options) => {
 /** Cancellation withdraws a waiter, never the shared creation/disposal owner or
  * an active predecessor. The small skipped barrier remains linked to prev.
  */
-const acquireSessionTurn = async options => {
+const retainPooledRunSession = (session, owner) => retainRunSession(session, owner, () => {
+  const existing = disposalWorkBySession.get(session) || nativeDisposalBySession.get(session);
+  if (existing) return existing;
+  if (sessions.get(session.key) === session) sessions.delete(session.key);
+  return enqueueSessionDisposal(session);
+});
+
+const acquireSessionTurn = async (options, owner) => {
   const signal = options.abortSignal, startedAt = Date.now();
   sessionPoolMetrics.admissionWaiters += 1;
   sessionPoolMetrics.admissionHighWater = Math.max(sessionPoolMetrics.admissionHighWater, sessionPoolMetrics.admissionWaiters);
   try {
     throwIfAborted(signal);
     // Install the wait observer before a creation callback can cancel its caller.
-    const resolved = await raceAbort(signal, Promise.resolve().then(() => getOrCreateSession(options)));
+    const create = async () => {
+      const resolved = await getOrCreateSession(options);
+      // Pin waiting consumers before the exclusive turn. Abort withdraws only
+      // the caller's wait; the original creation still joins its run's drain.
+      retainPooledRunSession(resolved.session, owner);
+      return resolved;
+    };
+    const creation = owner ? owner.track(create) : Promise.resolve().then(create);
+    const resolved = await raceAbort(signal, creation);
     throwIfAborted(signal);
     const session = resolved.session, prev = session.queue, barrier = createPendingBarrier();
     session.queue = barrier.promise;
@@ -1052,7 +1073,7 @@ export const drainLspSessionPool = async (options = {}) => {
  * }) => Promise<T>} fn
  * @returns {Promise<T>}
  */
-export const withLspSession = async (options, fn) => {
+const withLspSessionRun = async (options, fn, owner) => {
   throwIfAborted(options?.abortSignal);
   const enabled = options?.enabled !== false;
   if (!enabled) {
@@ -1062,6 +1083,9 @@ export const withLspSession = async (options, fn) => {
       workspaceKey: options?.workspaceKey || options?.repoRoot || options?.cwd || ''
     });
     try {
+      retainRunSession(singleSession, owner, () => nativeDisposalBySession.get(singleSession)
+        || disposeSessionClient(singleSession));
+      owner?.assertAccepting();
       throwIfAborted(options?.abortSignal);
       return await fn({
         client: singleSession.client,
@@ -1084,9 +1108,12 @@ export const withLspSession = async (options, fn) => {
     workspaceKey: options?.workspaceKey || options?.repoRoot || options?.cwd || '',
     args: normalizeArgs(options?.args),
     sessionPoolMaxEntries: options?.sessionPoolMaxEntries
-  });
+  }, owner);
   const session = resolved.session;
-  try { throwIfAborted(options?.abortSignal); }
+  try {
+    owner?.assertAccepting();
+    throwIfAborted(options?.abortSignal);
+  }
   catch (error) { sessionPoolMetrics.admissionCancelled += 1; barrier.resolve(); throw error; }
   refreshSessionState(session);
   if (sessions.get(session.key) !== session || session.disposed || session.state === SESSION_STATE.RETIRED) {
@@ -1190,6 +1217,11 @@ export const withLspSession = async (options, fn) => {
 /**
  * Test-only hooks for deterministic session-pool assertions.
  */
+export const withLspSession = (options, fn) => {
+  const owner = currentRunResourceScope();
+  return owner ? owner.track(() => withLspSessionRun(options, fn, owner)) : withLspSessionRun(options, fn, null);
+};
+
 export const __testLspSessionPool = {
   killAllNow() {
     killAllSessionsNow();

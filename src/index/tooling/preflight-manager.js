@@ -4,6 +4,7 @@ import {
 } from '../../shared/promise-timeout.js';
 import { PREFLIGHT_POLICY } from './provider-contract.js';
 import { isAbortError, throwIfAborted } from '../../shared/abort.js';
+import { currentRunResourceScope } from '../../shared/lifecycle/run-scope.js';
 import {
   TOOLING_PREFLIGHT_REASON_CODES,
   TOOLING_PREFLIGHT_STATES,
@@ -69,6 +70,8 @@ const startProviderPreflight = ({
   if (!provider || typeof provider.preflight !== 'function') {
     return awaitResult ? Promise.resolve(null) : null;
   }
+  const resourceOwner = currentRunResourceScope();
+  resourceOwner?.assertAccepting();
   const state = resolveState(ctx);
   const log = resolveLogger(ctx);
   const providerId = describeProvider(provider);
@@ -229,7 +232,7 @@ const startProviderPreflight = ({
               ownershipId,
               () => {
                 throwIfAborted(effectiveSignal);
-                return provider.preflight(
+                const run = () => provider.preflight(
                   ctx,
                   {
                     ...preflightInputs,
@@ -237,6 +240,7 @@ const startProviderPreflight = ({
                     managerAbortSignal: effectiveSignal
                   }
                 );
+                return resourceOwner ? resourceOwner.track(run) : run();
               }
             );
             task.executionSettlement = operation.then(

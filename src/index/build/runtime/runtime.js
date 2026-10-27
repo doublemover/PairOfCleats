@@ -98,6 +98,7 @@ import {
 import { resolveRuntimeDictionaries } from './dictionaries.js';
 import { preloadTreeSitterWithDaemonCache } from './tree-sitter-preload.js';
 import { createLifecycleRegistry } from '../../../shared/lifecycle/registry.js';
+import { createRunResourceScope } from '../../../shared/lifecycle/run-scope.js';
 import { acquireBuildRuntimeStorage, closeBuildRuntimeInitialization, finalizeBuildRuntimeInitializationFailure } from './storage.js';
 
 export {
@@ -140,6 +141,7 @@ async function createBuildRuntimeImpl({
   semanticEnrichmentDrain = null
 } = {}) {
   const initialization = createLifecycleRegistry({ name: 'build-runtime-initialization' });
+  const resourceScope = createRunResourceScope();
   let indexRuntimeStorage = null;
   try {
     const pendingLogs = [];
@@ -191,7 +193,7 @@ async function createBuildRuntimeImpl({
       } catch {}
     }
     const loggingConfig = userConfig.logging || {};
-    const loggerScope = configureRuntimeLogger({
+    const baseLoggerScope = configureRuntimeLogger({
       envConfig,
       loggingConfig,
       buildId: null,
@@ -202,9 +204,12 @@ async function createBuildRuntimeImpl({
       logFormatOverride,
       observability
     });
+    const loggerScope = { ...baseLoggerScope,
+      run: operation => resourceScope.run(() => baseLoggerScope.run(operation)) };
     log = loggerScope.log;
     const { logLine, updateLogContext } = loggerScope;
     initialization.registerCleanup(() => loggerScope.close(), { label: 'runtime.logger.close' });
+    initialization.registerCleanup(() => resourceScope.close(), { label: 'runtime.resources.close' });
     for (const args of pendingLogs) log(...args);
     pendingLogs.length = 0;
     return await loggerScope.run(async () => {
@@ -1156,6 +1161,7 @@ async function createBuildRuntimeImpl({
         root,
         log,
         loggerScope,
+        resourceScope,
         closeLogger: () => loggerScope.close(),
         argv,
         rawArgv,
@@ -1275,7 +1281,8 @@ async function createBuildRuntimeImpl({
         telemetry,
         stage1Queues,
         subprocessOwnership: {
-          stage1FilePrefix: stage1SubprocessOwnershipPrefix
+          stage1FilePrefix: stage1SubprocessOwnershipPrefix,
+          preflightPrefix: `tooling-preflight:${resourceScope.id}:`
         },
         procConcurrency,
         incrementalEnabled,
@@ -1319,6 +1326,7 @@ async function createBuildRuntimeImpl({
       return runtime;
     });
   } catch (error) {
+    resourceScope.stopAdmission();
     throw await closeBuildRuntimeInitialization({ initialization, error, owner: indexRuntimeStorage });
   }
 }

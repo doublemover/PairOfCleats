@@ -17,6 +17,7 @@ import { attachNativeLeafProduct, NATIVE_LEAF_PRODUCT_LIMITS } from './leaf-prod
 import { getContainedFileSession } from '../../shared/contained-file-resource.js';
 import { resolveTreeSitterLanguageForExt } from './language-id.js';
 import { treeSitterState } from './state.js';
+import { currentRunResourceScope } from '../../shared/lifecycle/run-scope.js';
 import { getTreeSitterWorkerPool, sanitizeTreeSitterOptions } from './worker.js';
 import { recordNodeDensity, resolveTraversalBudget } from './chunking/budget.js';
 import {
@@ -582,6 +583,7 @@ function toChunk(node, text, config, lineIndex, lineAccessor) {
  * @returns {Array<object>|null}
  */
 export function buildTreeSitterChunks({ text, languageId, ext, options, captureNativeClassificationLeaves = true }) {
+  currentRunResourceScope()?.assertAccepting();
   const resolvedId = resolveTreeSitterLanguageForExt(languageId, ext);
   if (!resolvedId) return null;
   if (!isTreeSitterEnabled(options, resolvedId)) return null;
@@ -940,6 +942,7 @@ export function buildTreeSitterChunks({ text, languageId, ext, options, captureN
  * @returns {Promise<Array<object>|null>}
  */
 export async function buildTreeSitterChunksAsync({ text, languageId, ext, options }) {
+  currentRunResourceScope()?.assertAccepting();
   // If tree-sitter is disabled (or no config provided), keep the synchronous behavior.
   if (!options?.treeSitter || options.treeSitter.enabled === false) {
     return buildTreeSitterChunks({ text, languageId, ext, options });
@@ -990,7 +993,7 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
     : options;
 
   try {
-    const maxQueue = Number(treeSitterState.treeSitterWorkerMaxQueue);
+    const maxQueue = Number(pool.maxQueue ?? treeSitterState.treeSitterWorkerMaxQueue);
     const queueSize = Number(pool?.queueSize);
     if (Number.isFinite(maxQueue) && maxQueue > 0
       && Number.isFinite(queueSize) && queueSize >= maxQueue) {
@@ -1021,6 +1024,7 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
     bumpMetric('workerFallbacks', 1);
     return buildTreeSitterChunks({ text, languageId, ext, options: fallbackOptions });
   } catch (err) {
+    if (err?.name === 'AbortError' || err?.code === 'ABORT_ERR') throw err;
     if (getContainedFileSession(err)) throw err;
     if (options?.log && !treeSitterState.loggedWorkerFailures.has('run')) {
       options.log(`[tree-sitter] Worker parse failed; falling back to main thread (${err?.message || err}).`);

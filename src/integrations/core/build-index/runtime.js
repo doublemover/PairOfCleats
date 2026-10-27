@@ -1,13 +1,11 @@
-import { shutdownPythonAstPool } from '../../../lang/python.js';
-import { shutdownTreeSitterWorkerPool } from '../../../lang/tree-sitter.js';
 import { log as defaultLog } from '../../../shared/progress-runtime.js';
 import { terminateTrackedSubprocesses } from '../../../shared/subprocess/tracking-terminate.js';
 import { assertSubprocessTerminationReceipt } from '../../../shared/subprocess/termination-receipt.js';
 import {
+  isOwnedBuildCleanupTimeout,
   resolveBuildCleanupTimeoutMs,
   runBuildCleanupWithTimeout
 } from '../../../index/build/cleanup-timeout.js';
-import { drainLspSessionPool } from '../../tooling/providers/lsp/session-pool.js';
 import { releaseBuildRuntimeStorage, retainBuildRuntimeStorageFailure } from '../../../index/build/runtime/storage.js';
 import { captureRuntimeFailureObservation, composeRuntimeTeardownFailures } from '../../../index/build/runtime/failure.js';
 
@@ -32,46 +30,41 @@ export const teardownRuntime = async (runtime) => {
   };
   const teardownErrors = [];
   const teardownObservations = [];
-  const runTeardownStepWithTimeout = async (label, cleanup, timeoutMs = cleanupTimeoutMs) => {
+  const runTeardownStepWithTimeout = async (label, cleanup, timeoutMs = cleanupTimeoutMs, observeSettlement = null) => {
     const startedAtMs = Date.now();
+    const deadlineOwner = {};
     report(`[cleanup] ${label} start`);
     try {
       await runBuildCleanupWithTimeout({
         label,
         cleanup,
         timeoutMs,
+        deadlineOwner,
         log: report,
         swallowTimeout: false
       });
       report(`[cleanup] ${label} done (${Math.max(0, Date.now() - startedAtMs)}ms)`);
     } catch (error) {
+      // Only this exact deadline can be enriched by its actual resource owner.
+      // A code/label or a later fulfilled cleanup promise grants no authority.
+      if (observeSettlement && isOwnedBuildCleanupTimeout(error, deadlineOwner)) {
+        Object.defineProperty(error, 'cacheOwnershipReleased', { value: observeSettlement });
+      }
       const observation = captureRuntimeFailureObservation(error);
       teardownObservations.push(observation);
       teardownErrors.push(error);
       report(`[cleanup] ${label} failed after ${Math.max(0, Date.now() - startedAtMs)}ms: ${observation.context.message}`);
     }
   };
-  await runTeardownStepWithTimeout(
-    'runtime.tooling.lsp-session-pool.drain',
-    async () => {
-      const drainResult = await drainLspSessionPool({
-        timeoutMs: cleanupTimeoutMs,
-        log: report
-      });
-      if (drainResult?.timedOut) {
-        throw new Error(
-          `LSP session pool drain timed out after ${drainResult.timeoutMs}ms.`
-        );
-      }
-      if (Number(drainResult?.rejected || 0) > 0) {
-        throw new Error(
-          `LSP session pool drain reported ${drainResult.rejected} rejected cleanup operation(s).`
-        );
-      }
-      return drainResult;
-    },
-    cleanupTimeoutMs + 10_000
-  );
+  let resourceScope = null, closeResources = null, observeResources = null;
+  await runTeardownStepWithTimeout('runtime.resources.stop-admission', () => {
+    resourceScope = runtime.resourceScope || null;
+    if (!resourceScope) return;
+    resourceScope.stopAdmission();
+    closeResources = resourceScope.close;
+    const isSettled = resourceScope.isSettled;
+    if (typeof isSettled === 'function') observeResources = () => isSettled.call(resourceScope) === true;
+  });
   await runTeardownStepWithTimeout(
     'runtime.scheduler.shutdown',
     async () => {
@@ -116,23 +109,21 @@ export const teardownRuntime = async (runtime) => {
   await runTeardownStepWithTimeout('runtime.embeddings.close', () => runtime.closeEmbeddingRuntime?.());
   await runTeardownStepWithTimeout(
     'runtime.preflight-subprocesses.terminate',
-    async () => assertSubprocessTerminationReceipt(await terminateTrackedSubprocesses({
-      reason: 'runtime_teardown_preflight',
-      force: true,
-      ownershipPrefix: 'tooling-preflight:'
-    }), { ownershipPrefix: 'tooling-preflight:' })
+    async () => {
+      const ownershipPrefix = runtime?.subprocessOwnership?.preflightPrefix || null;
+      if (!ownershipPrefix) return null;
+      return assertSubprocessTerminationReceipt(await terminateTrackedSubprocesses({
+        reason: 'runtime_teardown_preflight',
+        force: true,
+        ownershipPrefix
+      }), { ownershipPrefix });
+    }
   );
   await runTeardownStepWithTimeout(
-    'runtime.tree-sitter-worker-pool.shutdown',
-    () => shutdownTreeSitterWorkerPool({
-      cleanupTimeoutMs: Math.max(1000, cleanupTimeoutMs - 5000),
-      log: report
-    }),
-    cleanupTimeoutMs + 10000
-  );
-  await runTeardownStepWithTimeout(
-    'runtime.python-ast-pool.shutdown',
-    () => Promise.resolve(shutdownPythonAstPool())
+    'runtime.resources.release',
+    () => observeResources?.() ? null : closeResources?.call(resourceScope),
+    cleanupTimeoutMs,
+    observeResources
   );
   await runTeardownStepWithTimeout('runtime.cache-writers.drain', () => runtime.cacheWriterDrain?.());
   await runTeardownStepWithTimeout('runtime.semantic-replay.clear', () => runtime.semanticReplayVerification?.clear());

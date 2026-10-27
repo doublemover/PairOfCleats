@@ -173,6 +173,7 @@ export function createLspClient(options) {
     onRequest,
     providerId,
     sessionKey,
+    subprocessOwnershipId,
     tracePath,
     onLifecycleEvent,
     onStderrLine,
@@ -718,7 +719,8 @@ export function createLspClient(options) {
     });
     const unregisterChildProcess = registerChildProcessForCleanup(child, {
       killTree: true,
-      detached: killTreeDetached
+      detached: killTreeDetached,
+      ...(subprocessOwnershipId ? { ownershipId: subprocessOwnershipId } : {})
     });
     unregisterChildProcessByChild.set(child, unregisterChildProcess);
     trackedChildProcess = child;

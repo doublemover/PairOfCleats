@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-27T00:15:29.513Z",
+  "generatedAt": "2026-10-27T05:44:38.647Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -3707,6 +3707,7 @@
         "tests/indexing/runtime/category-session-teardown.test.js",
         "tests/indexing/runtime/failure-receipt-category-settlement.test.js",
         "tests/indexing/runtime/initialization-resource-unwind.test.js",
+        "tests/indexing/runtime/run-resource-drain-timeout.test.js",
         "tests/indexing/runtime/runtime-attempt-lifecycle.test.js",
         "tests/indexing/runtime/teardown-original-failure-observations.test.js",
         "tests/perf/bench/language-no-ann-forwarding.test.js",
@@ -4615,6 +4616,7 @@
         "tests/indexing/file-processor/tokenizer-resource-fallback-authority.test.js",
         "tests/indexing/fixtures/health-authority.test.js",
         "tests/indexing/incremental/tokenization-cache.test.js",
+        "tests/indexing/runtime/shared-resource-scope-isolation.test.js",
         "tests/indexing/semantic/wasm-flow-policy-construction.test.js",
         "tests/indexing/tree-sitter/js-ts-export-bindings.test.js",
         "tests/indexing/workers/coarse-file-analysis-facade.test.js",
@@ -5011,6 +5013,7 @@
         "tests/indexing/extracted-prose/extraction-report.test.js",
         "tests/indexing/incremental/piece-output-producer-identity.test.js",
         "tests/indexing/runtime/initialization-resource-unwind.test.js",
+        "tests/indexing/runtime/shared-resource-scope-isolation.test.js",
         "tests/indexing/semantic/drain-publication-authority.test.js",
         "tests/indexing/semantic/native-authority-read-ownership.test.js",
         "tests/perf/bench/vfs-io-ownership.test.js",
@@ -5104,6 +5107,7 @@
         "src/shared/config-authority.js",
         "tests/helpers/execution-authority.js",
         "tests/helpers/sourcekit-preflight-fixture.js",
+        "tests/indexing/runtime/shared-resource-scope-isolation.test.js",
         "tests/indexing/semantic/request-local-binding-overlay.test.js",
         "tests/indexing/type-inference/providers/type-inference-lsp-enrichment.test.js",
         "tests/perf/bench/language-resource-roots.test.js",

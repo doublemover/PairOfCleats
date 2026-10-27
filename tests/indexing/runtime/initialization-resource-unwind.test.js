@@ -5,12 +5,16 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { createRequire } from 'node:module';
 
 const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-init-unwind-'));
 try {
   const shim = path.join(dir, 'record-resources.mjs');
   const runner = path.join(dir, 'run.mjs');
   const recordPath = path.join(dir, 'resources.json');
+  const workerPath = path.join(dir, 'held-worker.mjs');
+  const piscinaUrl = pathToFileURL(createRequire(import.meta.url).resolve('piscina')).href;
+  await fs.writeFile(workerPath, 'export default input => input.hold ? new Promise(() => {}) : input;');
   const runtimeUrl = pathToFileURL(path.resolve('src/index/build/runtime/runtime.js')).href;
   const accessUrl = pathToFileURL(path.resolve('src/shared/storage/access.js')).href;
   const rootsUrl = pathToFileURL(path.resolve('src/shared/cache-roots.js')).href;
@@ -21,11 +25,27 @@ try {
   }));
   await fs.writeFile(shim, `
     import { registerHooks } from 'node:module';
+    import Piscina from ${JSON.stringify(piscinaUrl)};
     globalThis.__resourceEvents = [];
+    globalThis.__createUnwindPools = async () => {
+      const pool = new Piscina({filename:process.env.POC_UNWIND_WORKER,minThreads:1,maxThreads:1});
+      globalThis.__unwindNativePool = pool;
+      try { await pool.run({ready:true}); }
+      catch(error){await pool.destroy();throw error;}
+      globalThis.__unwindWorkSettled = false;
+      const pending = pool.run({hold:true}).then(() => {globalThis.__unwindWorkSettled=true;},
+        () => {globalThis.__unwindWorkSettled=true;});
+      globalThis.__resourceEvents.push('pools:acquired');
+      return {workerPool:null,quantizePool:null,workerPools:{destroy:async()=>{
+        await pool.destroy(); await pending;
+        globalThis.__resourceEvents.push('pools:closed');
+        if(process.env.POC_UNWIND_CLEANUP_FAIL==='1')throw new Error('controlled pool cleanup failure');
+      }}};
+    };
     registerHooks({ load(url, context, next) {
       if (url.endsWith('/index/build/runtime/workers.js')) return { format: 'module', shortCircuit: true, source:
         'import * as actual from ' + JSON.stringify(url + '?actual') + '; export * from ' + JSON.stringify(url + '?actual') + ';' +
-        'export const createRuntimeWorkerPools = async () => { globalThis.__resourceEvents.push("pools:acquired"); return { workerPools: { destroy: async () => { globalThis.__resourceEvents.push("pools:closed"); if (process.env.POC_UNWIND_CLEANUP_FAIL === "1") throw new Error("controlled pool cleanup failure"); } }, workerPool: null, quantizePool: null }; };' +
+        'export const createRuntimeWorkerPools = globalThis.__createUnwindPools;' +
         'export const createRuntimeQueues = input => { const result = actual.createRuntimeQueues(input); for (const [name, queue] of Object.entries(result.queues)) { if(!queue) continue; const clear = queue.clear.bind(queue); queue.clear = () => { globalThis.__resourceEvents.push("queue:" + name); clear(); }; } return result; };'
       };
       if (url.endsWith('/concurrency/scheduler-core.js')) return { format: 'module', shortCircuit: true, source:
@@ -62,18 +82,22 @@ try {
     }
     const protectedAfter = (await inspectStorageAccess(getCacheRoot(), { coordinationRoot: path.join(getApplicationHome(), 'state', 'storage-access') })).protected;
     await fs.writeFile(process.env.POC_UNWIND_RECORD, JSON.stringify({ failure, events: globalThis.__resourceEvents,
-      protectedAfter, failureReceiptProtected: globalThis.__failureReceiptProtected }));
+      protectedAfter, failureReceiptProtected: globalThis.__failureReceiptProtected,
+      nativeWorkers:globalThis.__unwindNativePool.threads.length,nativeQueue:globalThis.__unwindNativePool.queueSize,
+      nativeWorkSettled:globalThis.__unwindWorkSettled }));
   `);
   for (const failCleanup of [true, false]) {
     const variant = failCleanup ? 'pending' : 'closed';
     const env = applyTestEnv({ syncProcess: false, cacheRoot: path.join(dir, variant, 'cache'), extraEnv: {
-      POC_UNWIND_ROOT: dir, POC_UNWIND_RECORD: recordPath, PAIROFCLEATS_TRUSTED_CONFIG: null,
+      POC_UNWIND_ROOT: dir, POC_UNWIND_RECORD: recordPath, POC_UNWIND_WORKER: workerPath, PAIROFCLEATS_TRUSTED_CONFIG: null,
       PAIROFCLEATS_HOME: path.join(dir, variant, 'home'), POC_UNWIND_CLEANUP_FAIL: failCleanup ? '1' : '0'
     } });
     runNode(['--import', pathToFileURL(shim).href, runner], 'final receipt failure resource unwind', process.cwd(), env, { stdio: 'pipe', timeoutMs: 9000 });
     const result = JSON.parse(await fs.readFile(recordPath, 'utf8'));
     assert.equal(result.failure.code, 'ENOSPC');
     assert.equal(result.failure.primaryRetained, true, 'frozen primary error survives cleanup and failure recording');
+    assert.equal(result.nativeWorkers, 0); assert.equal(result.nativeQueue, 0);
+    assert.equal(result.nativeWorkSettled, true, 'actual Piscina work and threads settle before the failed runtime returns');
     if (failCleanup) assert.match(result.failure.cleanupErrors.join(' '), /pool cleanup failure/);
     assert.equal(result.failure.pending, failCleanup);
     assert.equal(result.protectedAfter, failCleanup);
