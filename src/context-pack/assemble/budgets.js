@@ -5,6 +5,7 @@ import {
 } from './call-sites.js';
 import { createTruncationRecorder } from '../../shared/truncation.js';
 import { normalizeRiskPathNodes } from './risk-load.js';
+import { measureRiskBudgetValue } from './risk-budget-measure.js';
 
 export const CONTEXT_PACK_MAX_RISK_FLOWS = 5;
 export const CONTEXT_PACK_MAX_RISK_STEPS_PER_FLOW = 8;
@@ -208,8 +209,9 @@ export const selectRiskFlowsWithinBudget = ({
       notes: normalizeRiskBudgetNotes(flow?.notes)
     };
 
-    const candidateBytes = estimateRiskByteSize(candidate);
-    const candidateTokens = estimateRiskTokenCount(candidate);
+    const { bytes: candidateBytes, tokens: candidateTokens } = measureRiskBudgetValue(candidate, {
+      maxBytes: CONTEXT_PACK_MAX_RISK_BYTES - emittedBytes, maxTokens: CONTEXT_PACK_MAX_RISK_TOKENS - emittedTokens
+    });
     if (
       (emittedBytes + candidateBytes) > CONTEXT_PACK_MAX_RISK_BYTES
       || (emittedTokens + candidateTokens) > CONTEXT_PACK_MAX_RISK_TOKENS
@@ -341,8 +343,9 @@ export const selectRiskPartialFlowsWithinBudget = ({
       })
     };
 
-    const candidateBytes = estimateRiskByteSize(candidate);
-    const candidateTokens = estimateRiskTokenCount(candidate);
+    const { bytes: candidateBytes, tokens: candidateTokens } = measureRiskBudgetValue(candidate, {
+      maxBytes: CONTEXT_PACK_MAX_RISK_PARTIAL_BYTES - partialBytes, maxTokens: CONTEXT_PACK_MAX_RISK_PARTIAL_TOKENS - partialTokens
+    });
     if (
       (partialBytes + candidateBytes) > CONTEXT_PACK_MAX_RISK_PARTIAL_BYTES
       || (partialTokens + candidateTokens) > CONTEXT_PACK_MAX_RISK_PARTIAL_TOKENS
@@ -388,4 +391,39 @@ export const selectRiskPartialFlowsWithinBudget = ({
     partialTokens,
     omittedPartialFlows
   };
+};
+
+/** Re-admit complete ranked units after metadata and after excerpt hydration.
+ * Counts describe exactly the emitted compact JSON array, including separators. */
+export const admitRiskFlowEnvelope = ({ flows, partial = false, riskCapHits, recordRiskTruncation, stage, hydrate = null }) => {
+  const maxBytes = partial ? CONTEXT_PACK_MAX_RISK_PARTIAL_BYTES : CONTEXT_PACK_MAX_RISK_BYTES;
+  const maxTokens = partial ? CONTEXT_PACK_MAX_RISK_PARTIAL_TOKENS : CONTEXT_PACK_MAX_RISK_TOKENS;
+  const selected = []; let bytes = 2, tokens = 0, omittedFlows = 0;
+  const measure = (flow, phase) => {
+    const comma = selected.length ? 1 : 0;
+    const measured = measureRiskBudgetValue(flow, { maxBytes: Math.max(0, maxBytes - bytes - comma), maxTokens: maxTokens - tokens });
+    const nextBytes = bytes + comma + measured.bytes;
+    const nextTokens = measured.tokens === null ? null : tokens + measured.tokens;
+    if (!measured.exactBytes || nextBytes > maxBytes || nextTokens > maxTokens) {
+      for (const [cap, hit, limit, observed, omitted] of [
+        [partial ? 'maxPartialBytes' : 'maxRiskBytes', !measured.exactBytes || nextBytes > maxBytes, maxBytes, nextBytes, measured.bytes],
+        [partial ? 'maxPartialTokens' : 'maxRiskTokens', nextTokens !== null && nextTokens > maxTokens, maxTokens, nextTokens, measured.tokens]
+      ]) if (hit) {
+        riskCapHits.add(cap);
+        recordRiskTruncation(cap, { limit, observed, omitted,
+          note: `Rank ${flow.rank} ${partial ? 'partial ' : ''}risk flow omitted at ${phase} admission; projected ${cap.endsWith('Bytes') ? 'byte' : 'estimated-token'} count is ${!measured.exactBytes || !measured.exactTokens ? 'a lower bound' : 'exact'}.` });
+      }
+      return null;
+    }
+    return { bytes: nextBytes, tokens: nextTokens };
+  };
+  for (const flow of flows) {
+    const preliminary = measure(flow, hydrate ? 'call-site metadata' : stage);
+    if (!preliminary) { omittedFlows++; continue; }
+    const output = hydrate ? hydrate(flow) : flow;
+    const final = hydrate ? measure(output, stage) : preliminary;
+    if (!final) { omittedFlows++; continue; }
+    selected.push(output); bytes = final.bytes; tokens = final.tokens;
+  }
+  return { flows: selected, bytes, tokens, omittedFlows };
 };

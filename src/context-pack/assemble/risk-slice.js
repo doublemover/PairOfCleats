@@ -23,9 +23,10 @@ import {
   resolveRiskAnchor
 } from '../risk-ranking.js';
 import { buildRiskSupportEnvelope } from '../risk-support.js';
-import { hydrateRiskCallSiteDetails } from './call-sites.js';
+import { hydrateRiskCallSiteDetails, normalizeRiskCallSiteDetails } from './call-sites.js';
 import {
   buildRiskCaps,
+  admitRiskFlowEnvelope,
   selectRiskFlowsWithinBudget,
   selectRiskPartialFlowsWithinBudget
 } from './budgets.js';
@@ -555,41 +556,33 @@ export const buildRiskSlice = ({
 
   let truncatedCallSiteExcerptBytes = 0;
   let truncatedCallSiteExcerptTokens = 0;
-  const callSiteById = new Map();
+  const attachDetails = (flow, getDetails) => ({ ...flow, evidence: { ...flow.evidence,
+    callSitesByStep: flow.evidence.callSitesByStep.map(step => step.map(entry => ({ ...entry, details: getDetails(entry.callSiteId) || null })))
+  } });
+  const rowsById = new Map(), metadataById = new Map(), callSiteById = new Map();
+  const callSiteFailure = err => {
+    callSitesLoadFailed = true;
+    const failureClass = classifyRiskLoadFailure(err);
+    warnings.push({
+      code: failureClass === 'timed_out' ? 'RISK_CALL_SITES_TIMED_OUT'
+        : failureClass === 'schema_invalid' ? 'RISK_CALL_SITES_SCHEMA_INVALID' : 'RISK_CALL_SITES_LOAD_FAILED',
+      message: 'Call-site evidence artifact could not be loaded for risk flows.',
+      data: { error: err?.message || String(err) }
+    });
+    degraded = true;
+  };
   if (referencedCallSiteIds.size > 0 && !callSitesMissing) {
-    const sourceContext = createExcerptSourceContext();
     try {
       const callSiteRows = loadJsonArrayArtifactSync(indexDir, 'call_sites', {
         manifest,
         maxBytes: MAX_JSON_BYTES,
         strict: true
       });
-      const relevantRows = Array.isArray(callSiteRows)
-        ? callSiteRows.filter((row) => row?.callSiteId && referencedCallSiteIds.has(row.callSiteId))
-        : [];
-      for (const row of relevantRows) {
-        const hydrated = hydrateRiskCallSiteDetails({ row, repoRoot, indexSignature, sourceContext });
-        if (hydrated.details) {
-          callSiteById.set(row.callSiteId, hydrated.details);
-        }
-        if (hydrated.excerptTruncation?.bytes) truncatedCallSiteExcerptBytes += 1;
-        if (hydrated.excerptTruncation?.tokens) truncatedCallSiteExcerptTokens += 1;
+      for (const row of Array.isArray(callSiteRows) ? callSiteRows : []) {
+        if (row?.callSiteId && referencedCallSiteIds.has(row.callSiteId)) rowsById.set(row.callSiteId, row);
       }
     } catch (err) {
-      callSitesLoadFailed = true;
-      const failureClass = classifyRiskLoadFailure(err);
-      warnings.push({
-        code: failureClass === 'timed_out'
-          ? 'RISK_CALL_SITES_TIMED_OUT'
-          : failureClass === 'schema_invalid'
-            ? 'RISK_CALL_SITES_SCHEMA_INVALID'
-            : 'RISK_CALL_SITES_LOAD_FAILED',
-        message: 'Call-site evidence artifact could not be loaded for risk flows.',
-        data: { error: err?.message || String(err) }
-      });
-      degraded = true;
-    } finally {
-      sourceContext.clear();
+      callSiteFailure(err);
     }
   } else if (referencedCallSiteIds.size > 0 && callSitesMissing) {
     warnings.push({
@@ -598,6 +591,34 @@ export const buildRiskSlice = ({
     });
     degraded = true;
   }
+
+  const metadataDetails = id => {
+    if (!metadataById.has(id)) metadataById.set(id, normalizeRiskCallSiteDetails(rowsById.get(id)));
+    return metadataById.get(id);
+  };
+  const sourceContext = createExcerptSourceContext();
+  const hydratedDetails = id => {
+    if (callSiteById.has(id)) return callSiteById.get(id);
+    const row = rowsById.get(id);
+    if (!row || callSitesLoadFailed) return null;
+    try {
+      const hydrated = hydrateRiskCallSiteDetails({ row, repoRoot, indexSignature, sourceContext });
+      callSiteById.set(id, hydrated.details || null);
+      if (hydrated.excerptTruncation?.bytes) truncatedCallSiteExcerptBytes++;
+      if (hydrated.excerptTruncation?.tokens) truncatedCallSiteExcerptTokens++;
+      return hydrated.details;
+    } catch (err) { callSiteFailure(err); return null; }
+  };
+  let admitted, admittedPartial;
+  try {
+    // A metadata lower-bound check uses the remaining allowance after earlier
+    // fully hydrated units. Only then may this candidate request source text.
+    const hydrate = flow => attachDetails(flow, hydratedDetails);
+    admitted = admitRiskFlowEnvelope({ flows: flowSelection.selectedRawFlows.map(flow => attachDetails(flow, metadataDetails)),
+      riskCapHits, recordRiskTruncation, stage: 'hydrated evidence', hydrate });
+    admittedPartial = admitRiskFlowEnvelope({ flows: partialFlowSelection.selectedRawPartialFlows.map(flow => attachDetails(flow, metadataDetails)),
+      partial: true, riskCapHits, recordRiskTruncation, stage: 'hydrated evidence', hydrate });
+  } finally { sourceContext.clear(); }
 
   if (truncatedCallSiteExcerptBytes > 0) {
     riskCapHits.add('maxCallSiteExcerptBytes');
@@ -618,26 +639,12 @@ export const buildRiskSlice = ({
     });
   }
 
-  const normalizedFlows = flowSelection.selectedRawFlows.map((flow) => ({
-    ...flow,
-    evidence: {
-      ...flow.evidence,
-      callSitesByStep: flow.evidence.callSitesByStep.map((step) => step.map((entry) => ({
-        ...entry,
-        details: callSiteById.get(entry.callSiteId) || null
-      })))
-    }
-  }));
-  const normalizedPartialFlows = partialFlowSelection.selectedRawPartialFlows.map((flow) => ({
-    ...flow,
-    evidence: {
-      ...flow.evidence,
-      callSitesByStep: flow.evidence.callSitesByStep.map((step) => step.map((entry) => ({
-        ...entry,
-        details: callSiteById.get(entry.callSiteId) || null
-      })))
-    }
-  }));
+  const normalizedFlows = admitted.flows, normalizedPartialFlows = admittedPartial.flows;
+  flowSelection.omittedFlows += admitted.omittedFlows;
+  partialFlowSelection.omittedPartialFlows += admittedPartial.omittedFlows;
+  flowSelection.emittedBytes = admitted.bytes; flowSelection.emittedTokens = admitted.tokens;
+  flowSelection.emittedSteps = normalizedFlows.reduce((total, flow) => total + flow.path.callSiteIdsByStep.length, 0);
+  partialFlowSelection.partialBytes = admittedPartial.bytes; partialFlowSelection.partialTokens = admittedPartial.tokens;
 
   const guidance = buildRiskGuidance({
     flows: normalizedFlows,
