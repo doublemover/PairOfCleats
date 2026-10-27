@@ -551,6 +551,22 @@ fn paused_evicted_anchor_clamps_to_retained_history_without_losing_rows() {
 }
 
 #[test]
+fn paused_short_history_keeps_its_bottom_in_a_larger_viewport() {
+    let mut model = model();
+    model.logs.clear();
+    model.push_log("old-top\nold-bottom".into());
+    model.follow_updates = false;
+    let before = build_log_lines(&model, 60, 10);
+    model.push_log("incoming-one\nincoming-two\nincoming-three".into());
+    assert_eq!(build_log_lines(&model, 60, 10), before);
+    assert_eq!(model.log_scroll.get(), 3);
+    assert_eq!(build_log_lines(&model, 60, 20), before);
+    toggle_follow(&mut model);
+    assert!(build_log_lines(&model, 60, 20).contains("incoming-three"));
+    assert_eq!(model.log_scroll.get(), 0);
+}
+
+#[test]
 fn unicode_wrapping_never_uses_character_counts_as_byte_offsets() {
     // A long UTF-8 word must never be sliced using a character count as bytes.
     let lines = wrap_text_lines("ééééééééé", 3, 4);

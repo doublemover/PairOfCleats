@@ -2350,6 +2350,7 @@ fn build_log_lines(model: &AppModel, width: usize, height: usize) -> String {
     if expired_anchor {
         anchor = None;
     }
+    let preserve_bottom = anchor.is_some();
     let mut skipped: usize = 0;
     let mut bottom = None;
     let mut lines = Vec::new();
@@ -2395,7 +2396,7 @@ fn build_log_lines(model: &AppModel, width: usize, height: usize) -> String {
     // Clamp the stored row offset, including restored huge values and anchors
     // whose retained source entry was evicted. A second bounded selection fills
     // the oldest viewport; no hidden row strings are materialized.
-    if lines.len() < height && skipped > 0 {
+    if lines.len() < height && skipped > 0 && !preserve_bottom {
         model
             .log_scroll
             .set(skipped.saturating_add(lines.len()).saturating_sub(height));
