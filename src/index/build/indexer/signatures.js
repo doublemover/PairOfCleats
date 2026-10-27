@@ -254,6 +254,7 @@ export const buildDependencySignatures = (runtime, mode, tokenizationKey) => {
     parsers: payload.parsers, treeSitter: payload.treeSitter, yamlChunking: payload.yamlChunking,
     ...(mode === 'prose' || mode === 'extracted-prose' ? { sourceOutlineProducer: SEMANTIC_ANALYSIS_VERSIONS.sourceOutline } : {}),
     moduleExportsProducer: payload.moduleExportsProducer, nativeChunkProducer: payload.nativeChunkProducer,
+    sourceChunkingProducer: SEMANTIC_ANALYSIS_VERSIONS.sourceChunking,
     ...(mode === 'code' ? { javascriptRelationsProducer: SEMANTIC_ANALYSIS_VERSIONS.javascriptRelations, flowMetadataProducer: SEMANTIC_ANALYSIS_VERSIONS.flowMetadata, importExtractionProducer: IMPORT_EXTRACTION_VERSION, importExtractionRuntime: importExtractionRuntimeVersions(),
       sqlRelationsProducer: SEMANTIC_ANALYSIS_VERSIONS.sqlRelations, sqlRelationsParser: sqlRelationParserVersion() } : {}),
     kotlin: payload.kotlin, chunkIdAlgoVersion: payload.chunkIdAlgoVersion,

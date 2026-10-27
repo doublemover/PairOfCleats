@@ -90,7 +90,8 @@ export const assignSegmentUids = async ({
     const segmentUid = await computeSegmentUid({
       segmentText,
       segmentType: segment.type,
-      languageId: segment.languageId
+      languageId: segment.languageId,
+      extractionPolicy: segment.meta?.extractionPolicy || null
     });
     if (segmentUid) segment.segmentUid = segmentUid;
   }

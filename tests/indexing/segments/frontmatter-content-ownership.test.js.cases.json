@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["json-lf", "json-crlf", "toml-lf", "toml-crlf", "yaml-policy", "empty", "missing-close", "uid-policy"]
+}

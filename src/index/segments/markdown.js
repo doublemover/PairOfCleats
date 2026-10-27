@@ -69,15 +69,20 @@ export const segmentMarkdown = ({ text, ext, relPath, segmentsConfig }) => {
   const segments = [];
   const frontmatter = detectFrontmatter(text);
   if (frontmatter) {
-    segments.push({
-      type: 'config',
-      languageId: frontmatter.languageId,
-      start: frontmatter.start,
-      end: frontmatter.end,
-      parentSegmentId: null,
-      embeddingContext: 'config',
-      meta: { frontmatter: true }
-    });
+    // Parser input is the original contiguous interior, including its real EOLs.
+    // Prose presentation still owns the broad delimiter-inclusive container.
+    if (frontmatter.contentEnd > frontmatter.contentStart) {
+      segments.push({
+        type: 'config',
+        languageId: frontmatter.languageId,
+        start: frontmatter.contentStart,
+        end: frontmatter.contentEnd,
+        parentSegmentId: null,
+        embeddingContext: 'config',
+        meta: { frontmatter: true, containerStart: frontmatter.start, containerEnd: frontmatter.end,
+          extractionPolicy: 'markdown-frontmatter-content-v1' }
+      });
+    }
     if (config.frontmatterProse) {
       segments.push({
         type: 'prose',
