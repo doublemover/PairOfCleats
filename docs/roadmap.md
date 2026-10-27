@@ -41,6 +41,7 @@ controls and scope. Full front gates include 40/40 gate cases:
 | [e191d2402](archived/sublime-native-registration-2026-10-27.md) | Partial #1289; native command registration repaired; search/reload pending | 30 headless + full front gate |
 | [afc52ef9d](archived/crash-log-qualification-2026-10-27.md) | Partial #1315/#1547; bounded crash projection, Windows sharing and fresh semantic authority | 26 + native control + full front gate |
 | [55d0daa9f](archived/sqlite-uncached-close-ownership-2026-10-27.md) | Partial #1574; retain uncached SQLite failures; remove proven-unused probe | 12 + full front gate |
+| [bee92206e](archived/windows-child-window-repairs-2026-10-27.md) | Partial #1289; suppress child windows, repair UI lock cycle; native search pending | 38 + private desktop control + full front gate |
 
 These are scoped observations, not a combined full-suite or platform/model/release
 pass. Task checks omit only an inherited missing trusted-config selector;

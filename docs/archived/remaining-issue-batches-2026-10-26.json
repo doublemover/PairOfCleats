@@ -4287,9 +4287,13 @@
       "status": "source-partially-qualified",
       "partialReceipt": "docs/archived/sublime-native-registration-2026-10-27.json",
       "implementationCommits": [
-        "e191d2402f8ebbb1f71bc50feaff58b698eaee2b"
+        "e191d2402f8ebbb1f71bc50feaff58b698eaee2b",
+        "bee92206ee0a63020ed920b99bf5fa16fc2f9abc"
       ],
-      "remainingWork": "Native packed search, update/reload, uninstall, unpacked and shadowing acceptance. Further GUI launches stopped after visible-window feedback; native fixture is explicit and outside test discovery."
+      "remainingWork": "Attribute the revoked native packed-search epoch; complete packed search/update/reload/uninstall, unpacked and legacy/shadowing acceptance. Ordinary launchers now suppress console windows. Explicit GUI checks require proven private-desktop isolation and stay outside automatic discovery.",
+      "followupReceipts": [
+        "docs/archived/windows-child-window-repairs-2026-10-27.json"
+      ]
     },
     {
       "number": 1290,

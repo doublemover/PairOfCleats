@@ -1,0 +1,535 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-27",
+  "sourceHead": "bee92206ee0a63020ed920b99bf5fa16fc2f9abc",
+  "sourceTree": "507a57095b9c7f17e2bef68d332fa077adba0a95",
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "platform": "win32",
+  "arch": "x64",
+  "node": "v26.12.1",
+  "issue": 1289,
+  "qualificationComplete": false,
+  "repairs": [
+    "Shared Node async/sync, bounded sync and test launchers hide Windows console windows; raw caller override semantics remain in bounded/test helpers.",
+    "Sublime runner and its bounded taskkill helper request CREATE_NO_WINDOW, including the Win32 numeric fallback missing from Python 3.3 exports.",
+    "Sublime fixture Python/CLI launches request no console windows.",
+    "Operation context reads occur outside operation/render locks; pure coalescing admission and post-read epoch/generation checks retain publication authority.",
+    "Explicit native fixture assigns its GUI process to a private desktop with no input-desktop fallback; real project-load observation and immutable per-RPC files retain startup and Windows file-sharing ownership."
+  ],
+  "deadlock": {
+    "tracePath": ".tmp/dev/tests/cache/sublime-native-packed-468-1793096891890-pn7k8c/native-python-threads.log",
+    "traceSha256": "d6f62435c061bce8efaabcd3f219c15b6ca586fa44f9230eda99ed1c76767734",
+    "observedCycle": [
+      "reader: operations.is_current holds _LOCK while native Window.folders waits for UI",
+      "UI: tasks.publish waits for the same _LOCK",
+      "worker: joins the blocked reader"
+    ],
+    "beforeControls": {
+      "meaningfulDeadlockFailures": 3,
+      "authoringFailure": "Initial fourth control used nonexistent render helper names; corrected before counting its result."
+    },
+    "after": {
+      "innerTests": 5,
+      "fixture": "tooling/sublime/operation-context-lock"
+    },
+    "nativeAccessViolationAttribution": false
+  },
+  "checks": {
+    "format": {
+      "exitCode": 0,
+      "receipt": ".tmp/tasks/native-private-desktop-20261027/format-final.stdout.log"
+    },
+    "focused": {
+      "total": 38,
+      "passed": 38,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 87049,
+      "tests": [
+        {
+          "id": "runner/harness/contract-matrix",
+          "status": "passed",
+          "durationMs": 11202,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "shared/subprocess/command-invocation",
+          "status": "passed",
+          "durationMs": 441,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "shared/subprocess/sync-timeout-detached-tree/raw",
+          "status": "passed",
+          "durationMs": 2680,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "shared/subprocess/sync-timeout-detached-tree/raw-single",
+          "status": "passed",
+          "durationMs": 2298,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "shared/subprocess/sync-timeout-detached-tree/runner",
+          "status": "passed",
+          "durationMs": 2600,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "shared/subprocess/sync-timeout-detached-tree/runner-single",
+          "status": "passed",
+          "durationMs": 2285,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "shared/subprocess/sync-timeout-kills-child-tree",
+          "status": "passed",
+          "durationMs": 8280,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/sublime/api-authentication",
+          "status": "passed",
+          "durationMs": 13801,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/sublime/api-response-bytes",
+          "status": "passed",
+          "durationMs": 458,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/sublime/behavior-contract-matrix",
+          "status": "passed",
+          "durationMs": 5420,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/sublime/config-runtime-contract",
+          "status": "passed",
+          "durationMs": 1677,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/sublime/editor-source-lifetime",
+          "status": "passed",
+          "durationMs": 514,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/sublime/export-publication",
+          "status": "passed",
+          "durationMs": 534,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/sublime/extended-editor-workflows",
+          "status": "passed",
+          "durationMs": 523,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/sublime/filter-continuation",
+          "status": "passed",
+          "durationMs": 502,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/sublime/filter-continuation-progress",
+          "status": "passed",
+          "durationMs": 506,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/sublime/http-lifecycle-authority",
+          "status": "passed",
+          "durationMs": 521,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/sublime/minimum-runtime-compatibility",
+          "status": "passed",
+          "durationMs": 661,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/sublime/navigation-request-lifetime",
+          "status": "passed",
+          "durationMs": 570,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/sublime/operation-context-lock",
+          "status": "passed",
+          "durationMs": 473,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/sublime/operation-ownership",
+          "status": "passed",
+          "durationMs": 514,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/sublime/package-archive-metadata",
+          "status": "passed",
+          "durationMs": 280,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/sublime/package-determinism",
+          "status": "passed",
+          "durationMs": 457,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/sublime/package-harness",
+          "status": "passed",
+          "durationMs": 23483,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/sublime/package-release-sanity",
+          "status": "passed",
+          "durationMs": 263,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/sublime/package-structure",
+          "status": "passed",
+          "durationMs": 251,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/sublime/pycompile",
+          "status": "passed",
+          "durationMs": 413,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/sublime/python-toolchain-policy",
+          "status": "passed",
+          "durationMs": 256,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/sublime/repository-request-snapshots",
+          "status": "passed",
+          "durationMs": 500,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/sublime/reviewed-evidence-authority",
+          "status": "passed",
+          "durationMs": 471,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/sublime/risk-request-authority",
+          "status": "passed",
+          "durationMs": 503,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/sublime/root-command-registration",
+          "status": "passed",
+          "durationMs": 509,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/sublime/search-scope-completion",
+          "status": "passed",
+          "durationMs": 541,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/sublime/semantic-generation-discovery",
+          "status": "passed",
+          "durationMs": 526,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/sublime/semantic-request-snapshots",
+          "status": "passed",
+          "durationMs": 509,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/sublime/semantic-source-lifetime",
+          "status": "passed",
+          "durationMs": 619,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/sublime/task-progress-settlement",
+          "status": "passed",
+          "durationMs": 490,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/sublime/watch-lifecycle-progress",
+          "status": "passed",
+          "durationMs": 480,
+          "attempts": 1,
+          "exitCode": 0,
+          "timedOut": false
+        }
+      ],
+      "receipt": ".tmp/tasks/native-private-desktop-20261027/final-focused.json"
+    },
+    "frontGate": [
+      {
+        "name": "config-budget",
+        "arguments": [
+          "run",
+          "config:budget"
+        ],
+        "durationMs": 2495,
+        "exitCode": 0,
+        "executable": "npm.cmd"
+      },
+      {
+        "name": "environment",
+        "arguments": [
+          "run",
+          "env:check"
+        ],
+        "durationMs": 1318,
+        "exitCode": 0,
+        "executable": "npm.cmd"
+      },
+      {
+        "name": "generated",
+        "arguments": [
+          "tools/docs/generated-surfaces.js",
+          "--check-freshness"
+        ],
+        "durationMs": 10935,
+        "exitCode": 0,
+        "executable": "node"
+      },
+      {
+        "name": "command-surface",
+        "arguments": [
+          "tools/ci/check-command-surface.js"
+        ],
+        "durationMs": 2705,
+        "exitCode": 0,
+        "executable": "node"
+      },
+      {
+        "name": "workflow",
+        "arguments": [
+          "tests/ci/workflow-contract.test.js"
+        ],
+        "durationMs": 221,
+        "exitCode": 0,
+        "executable": "node"
+      },
+      {
+        "name": "gate-lane",
+        "arguments": [
+          "tests/run.js",
+          "--lane",
+          "gate",
+          "--jobs",
+          "1",
+          "--timeout-ms",
+          "30000",
+          "--retries",
+          "0",
+          "--native-status-redo=false",
+          "--pairofcleats-threads",
+          "1",
+          "--json"
+        ],
+        "durationMs": 23484,
+        "exitCode": 0,
+        "executable": "node"
+      },
+      {
+        "name": "diff",
+        "arguments": [
+          "diff",
+          "--check"
+        ],
+        "durationMs": 76,
+        "exitCode": 0,
+        "executable": "git"
+      }
+    ],
+    "gateLane": {
+      "total": 40,
+      "passed": 40,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 22675
+    },
+    "privateDesktop": {
+      "privateDesktop": "PoCNative-dfdaa58061c74c108e4b87c202a28a43",
+      "originalThreadRestored": true,
+      "originalDesktop": "Default",
+      "privateHandleClosed": true,
+      "station": "WinSta0",
+      "observations": [
+        {
+          "exitCode": 0,
+          "inputDesktop": "Default",
+          "reaped": true,
+          "pid": 28444,
+          "mode": "observe",
+          "actualVisibleFlag": false,
+          "desktop": "PoCNative-dfdaa58061c74c108e4b87c202a28a43"
+        },
+        {
+          "exitCode": 0,
+          "inputDesktop": "Default",
+          "reaped": true,
+          "pid": 14892,
+          "mode": "window",
+          "actualVisibleFlag": true,
+          "desktop": "PoCNative-dfdaa58061c74c108e4b87c202a28a43"
+        }
+      ]
+    }
+  },
+  "native": {
+    "hostBuild": "4192",
+    "python": "3.3.7",
+    "attempts": [
+      {
+        "receipt": ".tmp/tasks/native-private-desktop-20261027/sublime-packed-1.json",
+        "exitCode": 1,
+        "durationMs": 24809,
+        "fixture": "Actual Sublime fixture: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\sublime-native-packed-21352-1793096421448-79gwup",
+        "accepted": false
+      },
+      {
+        "receipt": ".tmp/tasks/native-private-desktop-20261027/sublime-packed-2.json",
+        "exitCode": 1,
+        "durationMs": 24255,
+        "fixture": "Actual Sublime fixture: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\sublime-native-packed-468-1793096891890-pn7k8c",
+        "accepted": false
+      },
+      {
+        "receipt": ".tmp/tasks/native-private-desktop-20261027/sublime-packed-after-lock.json",
+        "exitCode": 1,
+        "durationMs": 26551,
+        "fixture": "Actual Sublime fixture: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\sublime-native-packed-25696-1793097867414-2or7x1",
+        "accepted": false
+      },
+      {
+        "receipt": ".tmp/tasks/native-private-desktop-20261027/sublime-packed-project-event.json",
+        "exitCode": 1,
+        "durationMs": 19565,
+        "fixture": "Actual Sublime fixture: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\sublime-native-packed-21724-1793098617005-l5a65d",
+        "accepted": false
+      },
+      {
+        "receipt": ".tmp/tasks/native-private-desktop-20261027/sublime-packed-console-repair.json",
+        "exitCode": 1,
+        "durationMs": 25520,
+        "fixture": "Actual Sublime fixture: C:\\Users\\sneak\\Development\\PairOfCleats\\.tmp\\dev\\tests\\cache\\sublime-native-packed-18528-1793098931483-yd73by",
+        "accepted": false
+      }
+    ],
+    "latest": {
+      "registeredCommands": 61,
+      "windowReady": true,
+      "projectLoaded": true,
+      "searchEpoch": 1,
+      "results": null,
+      "inputDesktopWindowObserved": false,
+      "privateHandleClosed": true,
+      "forcedTermination": true,
+      "accepted": false
+    },
+    "remaining": [
+      "Attribute the search-epoch revocation; no native search pass is claimed.",
+      "Packed search/update/reload/uninstall, unpacked and legacy/shadowing native acceptance."
+    ]
+  },
+  "limitations": [
+    "Raw .tmp/.testLogs evidence is historical author-workspace material, absent from clean checkouts.",
+    "The earlier 39-pass/1-POSIX-skip shared subprocess run preceded later helper changes; it is supplementary, not final-tree suite acceptance.",
+    "The inherited missing trusted-config selector was removed only in task child environments. No dependencies/pins/patches or user trust/security settings changed.",
+    "Copied test-runtime deletion remains blocked: automatic approval review returned only \"blocked by policy\"; no alternate deletion route was attempted.",
+    "No Linux/macOS, optional backend, full-suite, hosted-CI, latency, release or native access-violation qualification is claimed."
+  ]
+}
