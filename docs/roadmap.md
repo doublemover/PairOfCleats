@@ -41,9 +41,10 @@ Clangd per-document compilation admission/planning is **unvalidated** at `342c39
 [implementation and deferred checks](archived/clangd-compilation-context-implementation-2026-10-27.md)
 record 26 authored cases, physical URI/hover policy and the semantic version bump.
 
-Gopls installation allocation/routing is **unvalidated** at `32b7fac52`;
-[root cause and deferred qualification](archived/gopls-allocation-implementation-2026-10-27.md)
-distinguish the earlier deferred install from discovery, and forecasts from measured peaks.
+Provider allocation classification is **unvalidated** at `723f39f1a`;
+[current contract and deferred qualification](archived/provider-allocation-contract-2026-10-27.md)
+keep forecasts planning-only, expose canonical recipe blockers and preserve the
+earlier gopls deferred-install evidence. Standalone managed-command lookup is also implemented.
 
 These are scoped observations, not a combined full-suite or platform/model/release
 pass. Task checks omit only an inherited missing trusted-config selector;

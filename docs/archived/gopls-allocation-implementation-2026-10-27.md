@@ -1,5 +1,12 @@
 # Gopls allocation admission implementation — 2026-10-27
 
+**DEPRECATED admission behavior — 2026-10-27, PR #572, commit `723f39f1a`:**
+the [allocation contract follow-up](provider-allocation-contract-2026-10-27.md)
+keeps unmeasured forecasts planning-only. This historical checkpoint's admitting
+forecast behavior was too permissive and was neither published nor executed.
+The hosted failure attribution, routing and enforced SDK bounds below retain
+their source-specific provenance.
+
 **UNVALIDATED implementation:** source `32b7fac5224acae49a85cb7fcaac01c0902bd0e1`,
 tree `e1f596e992ed8cb57cdfe16227e1745c2c152acf`, branch
 `codex/pr557-audit-repairs-20261012`; Windows x64, Node 26.12.1.
