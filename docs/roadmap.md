@@ -9,18 +9,16 @@ Canonical for: initiative status, execution order, and remaining work
 
 Current reconciliation, 2026-10-27: [the closeout review](archived/github-issue-closeout-2026-10-26.md)
 assessed **770 issues and 238 comments**, closing 27. Subsequent repair batches close
-twenty-four more: **719 remain open**—459 awaiting qualification, 147 partial/follow-up and
+twenty-five more: **718 remain open**—459 awaiting qualification, 146 partial/follow-up and
 113 with unresolved implementation status. The unresolved label is tracking
 evidence, not proof of absent code. Every remaining issue has a completion
 checklist; the linked owner queue records current execution status.
 
 The [complete assessment](archived/github-issue-closeout-2026-10-26.json) records
 remaining work, current source/test mappings and exact closure witnesses.
-At `accf98f64`, 27 focused Windows checks pass with zero failures/timeouts/skips/
-crashes/retries; native/patch verification is clean. This does not qualify the
-full suite or other new batches. [Implementation receipts](archived/solo-issue-repairs-2026-10-25.md)
-retain source checkpoints and the [prior inventory](archived/github-issue-coverage-2026-10-25.json)
-remains historical. Work is solo and Windows-only. Hosted gate/policy/Rust TUI
+[Earlier implementation receipts](archived/solo-issue-repairs-2026-10-25.md) and the
+[prior inventory](archived/github-issue-coverage-2026-10-25.json) retain historical
+revision-specific evidence. Work is solo and Windows-only. Hosted gate/policy/Rust TUI
 passed at `f8532f1d2`; seven broader jobs failed (see the review).
 
 Source-bound Windows repair and qualification receipts retain details, failing
@@ -44,6 +42,7 @@ controls and scope. Full front gates include 40/40 gate cases:
 | [bee92206e](archived/windows-child-window-repairs-2026-10-27.md) | Partial #1289; suppress child windows, repair UI lock cycle; native search pending | 38 + private desktop control + full front gate |
 | [40f3bc785](archived/lmdb-lifetime-and-parity-2026-10-27.md) | #1084/#1093 closed; partial #1574 native close/failure ownership | 21 + full front gate |
 | [ee01bb7fc](archived/generation-selection-repairs-2026-10-27.md) | #347 closed; captured generation and SQLite state ownership | 34 + full front gate |
+| [294e971bb](archived/query-vector-admission-2026-10-27.md) | #1006 closed; #1544 actual models/perf pending | 27 prior cohort; 14 final rechecks + full front gate |
 
 These are scoped observations, not a combined full-suite or platform/model/release
 pass. Task checks omit only an inherited missing trusted-config selector;

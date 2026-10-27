@@ -516,11 +516,11 @@
         1727,
         1734
       ],
-      "sourceWork": 19,
+      "sourceWork": 18,
       "qualification": 43,
       "baselineSourceWork": 19,
       "baselineQualification": 43,
-      "completed": 0
+      "completed": 1
     },
     {
       "order": 8,
@@ -1879,8 +1879,57 @@
       "recordedDisposition": "partial_or_followup",
       "priority": "P2",
       "batch": "retrieval-contracts",
-      "phase": "source-review-and-implementation",
-      "status": "queued"
+      "phase": "qualified-and-closed",
+      "status": "closed-completed",
+      "sourceHead": "294e971bb328feeb67c5049fb90f36935b895dc0",
+      "closedAt": "2026-10-27T13:07:53Z",
+      "completionReceipt": "query-vector-admission-2026-10-27.json",
+      "qualifiedTests": [
+        "indexing/embeddings/dense-model-encoding-contract",
+        "indexing/embeddings/embeddinggemma2-contract",
+        "indexing/embeddings/model-artifact-identity",
+        "indexing/embeddings/model-aware-input-formatting",
+        "indexing/embeddings/provider-output-admission",
+        "indexing/embeddings/query-warm-cache-lifetime",
+        "indexing/embeddings/warmup-query-cleanup-ownership",
+        "retrieval/ann/backend-contract-matrix",
+        "retrieval/ann/lancedb-close-ownership",
+        "retrieval/ann/lancedb-query-lifetime",
+        "retrieval/ann/lancedb-runtime-contract-matrix",
+        "retrieval/ann/provider-cancellation-health",
+        "retrieval/ann/query-vector-admission/admission",
+        "retrieval/ann/query-vector-admission/ann",
+        "retrieval/ann/query-vector-admission/cache",
+        "retrieval/ann/query-vector-admission/generic",
+        "retrieval/ann/query-vector-admission/onnx",
+        "retrieval/ann/query-vector-admission/prepared",
+        "retrieval/ann/query-vector-admission/query",
+        "retrieval/ann/utility-contract-matrix",
+        "retrieval/cache/embedding-flight-replacement",
+        "retrieval/cache/embedding-process-reuse",
+        "retrieval/cache/embedding-query-dims-lru",
+        "retrieval/cache/embedding-work-observation",
+        "retrieval/cache/query-effective-identity",
+        "retrieval/cache/query-signature-passthrough",
+        "retrieval/federation/query-cache-key-contract-matrix"
+      ],
+      "finalAffectedTests": [
+        "indexing/embeddings/embeddinggemma2-contract",
+        "indexing/embeddings/model-artifact-identity",
+        "retrieval/ann/query-vector-admission/admission",
+        "retrieval/ann/query-vector-admission/ann",
+        "retrieval/ann/query-vector-admission/cache",
+        "retrieval/ann/query-vector-admission/generic",
+        "retrieval/ann/query-vector-admission/onnx",
+        "retrieval/ann/query-vector-admission/prepared",
+        "retrieval/ann/query-vector-admission/query",
+        "retrieval/cache/embedding-flight-replacement",
+        "retrieval/cache/embedding-process-reuse",
+        "retrieval/cache/embedding-query-dims-lru",
+        "retrieval/cache/embedding-work-observation",
+        "retrieval/cache/query-effective-identity"
+      ],
+      "qualificationOnly": false
     },
     {
       "number": 1007,
@@ -6241,8 +6290,14 @@
       "recordedDisposition": "qualification_pending",
       "priority": "P2",
       "batch": "provider-admission",
-      "phase": "source-review-and-focused-qualification",
-      "status": "queued"
+      "phase": "actual-model-and-performance-qualification",
+      "status": "bounded-provider-fixtures-qualified",
+      "partialReceipt": "query-vector-admission-2026-10-27.json",
+      "sourceHead": "294e971bb328feeb67c5049fb90f36935b895dc0",
+      "remainingWork": [
+        "Execute actual supported model exports in the normal prepared integration lane.",
+        "Measure representative large-batch throughput, copies and memory; reconcile complete original acceptance."
+      ]
     },
     {
       "number": 1545,
@@ -8090,9 +8145,7 @@
         },
         {
           "batch": "retrieval-contracts",
-          "issues": [
-            1006
-          ]
+          "issues": []
         },
         {
           "batch": "operator-and-editors",
@@ -8440,18 +8493,19 @@
     }
   ],
   "currentCounts": {
-    "open": 719,
+    "open": 718,
     "qualificationPending": 459,
-    "partialFollowup": 147,
+    "partialFollowup": 146,
     "implementationStatusUnresolved": 113
   },
-  "reconciledAt": "2026-10-27T12:48:23.758Z",
+  "reconciledAt": "2026-10-27T13:09:48.143Z",
   "completedSourceBatch": [
     347,
     586,
     670,
     690,
     811,
+    1006,
     1050,
     1072,
     1073,
