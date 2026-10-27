@@ -62,6 +62,15 @@ or release a cache lock. Callers retain cache, installation, scheduler or capaci
 authority until their existing resource owner can prove settlement. A timeout
 rejection, dead parent PID or later unrelated run cannot authorize cleanup.
 
+Tracked termination receipts retain a private, identity-bound observation of
+their original registered close promises and tree attempts. An unconfirmed
+attempt can later acknowledge exact child close through that original observer;
+its public audit rows remain the failed attempt's snapshot. Copied/serialized
+reports carry no such observer. Rejected tree attempts retain their original
+exceptions and stay unconfirmed even after direct-child close. A partial target
+selection cannot settle another in-flight cleanup owner's work. The existing
+cache/runtime owner still performs explicit lease reconciliation.
+
 Capture defaults to piped output, independently capped at 1000000 retained tail
 bytes per stream. `outputCapture` reports observed/retained/dropped/backing/output
 bytes, truncation and encoding loss. `outputMode:'lines'` formats the retained
@@ -94,11 +103,12 @@ try {
 
 Existing coverage owners are
 [`termination-close-observation`](../../tests/shared/subprocess/termination-close-observation.test.js),
+[`tree-failure retention`](../../tests/shared/subprocess/termination-failure-retention.test.js),
 [`abort`](../../tests/shared/subprocess/abort-kills-child.test.js),
 [`timeout`](../../tests/shared/subprocess/timeout-kills-child.test.js),
 [`callback failures`](../../tests/shared/subprocess/output-callbacks-guarded.test.js),
 [`capture bounds`](../../tests/shared/subprocess/capture-bounds.test.js),
 [`scope inheritance`](../../tests/shared/subprocess/tracked-signal-scope-binding.test.js)
 and [`input/error settlement`](../../tests/shared/subprocess/input-and-error-settlement.test.js).
-This documentation/type update and the current source batch are unvalidated;
-these links identify coverage owners, not fresh execution results.
+Fresh observations and source identities are recorded in the repair archives;
+this contract's coverage links do not imply a full-suite qualification.

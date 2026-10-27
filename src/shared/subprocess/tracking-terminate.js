@@ -4,11 +4,14 @@ import {
   appendTrackedSubprocessEvent,
   clearEntryTerminating,
   collectTerminationEntries,
+  entryMatchesTrackedFilters,
   normalizeTrackedOwnershipId,
   normalizeTrackedOwnershipPrefix,
   normalizeTrackedScope,
   resolveEntryOwnershipId,
-  resolveTerminationState
+  resolveTerminationState,
+  retainTrackedTerminationObservation,
+  trackedSubprocesses
 } from './tracking-runtime.js';
 
 const normalizeTerminationOptions = ({
@@ -48,18 +51,38 @@ const createEmptyTerminationSummary = ({
   killAudit: []
 });
 
-const createKillTarget = ({ entryKey, entry }) => ({
-  entryKey,
-  entry,
-  pid: Number.isFinite(Number(entry?.child?.pid)) ? Number(entry.child.pid) : null,
-  scope: normalizeTrackedScope(entry?.scope),
-  ownershipId: resolveEntryOwnershipId(entry),
-  child: entry.child,
-  killTree: entry.killTree,
-  killSignal: entry.killSignal,
-  killGraceMs: entry.killGraceMs,
-  detached: entry.detached
-});
+const createKillTarget = ({ entryKey, entry }) => {
+  let closed = false;
+  // Capture the original native Promise before audit/diagnostic callbacks can
+  // rewrite fields. An arbitrary thenable cannot manufacture close evidence.
+  try { Promise.prototype.then.call(entry.closed, () => { closed = true; }, () => {}); } catch {}
+  return {
+    entryKey,
+    entry,
+    pid: Number.isFinite(Number(entry?.child?.pid)) ? Number(entry.child.pid) : null,
+    scope: normalizeTrackedScope(entry?.scope),
+    ownershipId: resolveEntryOwnershipId(entry),
+    child: entry.child,
+    killTree: entry.killTree,
+    killSignal: entry.killSignal,
+    killGraceMs: entry.killGraceMs,
+    detached: entry.detached,
+    isClosed: () => closed,
+    treeAttemptFailed: false
+  };
+};
+
+const selectedEntries = options => [...trackedSubprocesses.values()].filter(entry => entryMatchesTrackedFilters(entry, options));
+const retainTermination = (receipt, targets, options, selectedCount) => {
+  // Another in-flight attempt is not ours to settle. Its owner must provide
+  // the missing observation; an empty/partial target list cannot stand in.
+  if (selectedCount !== targets.length) return receipt;
+  return retainTrackedTerminationObservation(receipt, { ownershipId: options.ownershipId,
+    ownershipPrefix: options.ownershipPrefix,
+    errors: Object.freeze(targets.filter(target => target.treeAttemptFailed).map(target => target.treeAttemptError)),
+    isSettled: () => targets.every(target => target.isClosed() && !target.treeAttemptFailed)
+      && selectedEntries(options).length === 0 });
+};
 
 const createKillAuditEntry = ({
   target,
@@ -170,6 +193,7 @@ export const terminateTrackedSubprocesses = async ({
     ownershipPrefix
   });
 
+  const selectedCount = selectedEntries(normalizedOptions).length;
   const entries = collectTerminationEntries({
     ownershipId: normalizedOptions.ownershipId,
     ownershipPrefix: normalizedOptions.ownershipPrefix
@@ -213,6 +237,8 @@ export const terminateTrackedSubprocesses = async ({
     let forced = false;
     let error = null;
     if (result.status === 'rejected') {
+      target.treeAttemptFailed = true;
+      target.treeAttemptError = result.reason;
       error = result.reason?.message || String(result.reason || 'unknown_kill_error');
     } else {
       terminated = resolveTerminationState(target.child, target.pid, result.value?.terminated === true);
@@ -230,11 +256,11 @@ export const terminateTrackedSubprocesses = async ({
   });
   killAudit.push(...attemptedAudit);
   sortKillAudit(killAudit);
-  return createTerminationSummary({
+  return retainTermination(createTerminationSummary({
     ...normalizedOptions,
     tracked: entries.length,
     killAudit
-  });
+  }), killTargets, normalizedOptions, selectedCount);
 };
 
 export const terminateTrackedSubprocessesSync = ({
@@ -250,6 +276,7 @@ export const terminateTrackedSubprocessesSync = ({
     ownershipId,
     ownershipPrefix
   });
+  const selectedCount = selectedEntries(normalizedOptions).length;
   const entries = collectTerminationEntries({
     ownershipId: normalizedOptions.ownershipId,
     ownershipPrefix: normalizedOptions.ownershipPrefix
@@ -257,8 +284,8 @@ export const terminateTrackedSubprocessesSync = ({
   if (!entries.length) {
     return createEmptyTerminationSummary(normalizedOptions);
   }
-  const killAudit = entries.map((source) => {
-    const target = createKillTarget(source);
+  const killTargets = entries.map(createKillTarget);
+  const killAudit = killTargets.map((target) => {
     const alreadyTerminated = resolveTerminationState(target.child, target.pid);
     if (alreadyTerminated) {
       if (target.entry.closeObserved !== true) clearEntryTerminating(target.entry);
@@ -277,6 +304,8 @@ export const terminateTrackedSubprocessesSync = ({
       terminated = resolveTerminationState(target.child, target.pid, result?.terminated === true);
       forcedFlag = result?.forced === true;
     } catch (caughtError) {
+      target.treeAttemptFailed = true;
+      target.treeAttemptError = caughtError;
       terminated = resolveTerminationState(target.child, target.pid);
       error = caughtError?.message || String(caughtError || 'unknown_kill_error');
     }
@@ -291,9 +320,9 @@ export const terminateTrackedSubprocessesSync = ({
     });
   });
   sortKillAudit(killAudit);
-  return createTerminationSummary({
+  return retainTermination(createTerminationSummary({
     ...normalizedOptions,
     tracked: entries.length,
     killAudit
-  });
+  }), killTargets, normalizedOptions, selectedCount);
 };

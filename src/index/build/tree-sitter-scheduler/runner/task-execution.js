@@ -1,6 +1,6 @@
 import path from 'node:path';
-import { throwIfAborted } from '../../../../shared/abort.js';
-import { runWithConcurrency } from '../../../../shared/concurrency/run-with-queue.js';
+import { isAbortSignal, throwIfAborted } from '../../../../shared/abort.js';
+import { runWithSettledConcurrency } from '../../../../shared/concurrency/run-with-queue.js';
 import { spawnSubprocess } from '../../../../shared/subprocess/runner.js';
 import {
   inferFailedGrammarKeysFromSubprocessOutput,
@@ -38,9 +38,12 @@ export const executeTreeSitterSchedulerTasks = async ({
   if (!Array.isArray(plannedTasks) || !plannedTasks.length) {
     return { adaptiveSamples, idleGapStats, peakActiveChildren };
   }
+  if (!isAbortSignal(effectiveAbortSignal)) throw Object.assign(
+    new Error('build.tree-sitter.runner.runWithConcurrency requires an AbortSignal'),
+    { code: 'RUN_WITH_QUEUE_SIGNAL_REQUIRED', retryable: false });
   const streamLogs = typeof log === 'function'
     && (runtime?.argv?.verbose === true || runtime?.languageOptions?.treeSitter?.debugScheduler === true);
-  await runWithConcurrency(
+  await runWithSettledConcurrency(
     plannedTasks,
     execConcurrency,
     async (task, ctx) => {
@@ -213,9 +216,7 @@ export const executeTreeSitterSchedulerTasks = async ({
     {
       collectResults: false,
       retries: 0,
-      signal: effectiveAbortSignal,
-      requireSignal: true,
-      signalLabel: 'build.tree-sitter.runner.runWithConcurrency'
+      signal: effectiveAbortSignal
     }
   );
   return { adaptiveSamples, idleGapStats, peakActiveChildren };

@@ -51,13 +51,27 @@ try {
   assert.equal(receipt.killAudit[0].terminated, true, 'actual process exit remains an independent observation');
   assert.equal(receipt.killAudit[0].closeObserved, false);
   assert.equal(getTrackedSubprocessCount(ownershipId), 1, 'a later cleanup cannot erase the missing-close barrier using exit status');
-  assert.throws(() => assertSubprocessTerminationReceipt(receipt), { code: 'ERR_INDEX_CACHE_DRAIN_INCOMPLETE' });
+  let receiptFailure;
+  assert.throws(() => assertSubprocessTerminationReceipt(receipt), error => {
+    receiptFailure = error; return error.code === 'ERR_INDEX_CACHE_DRAIN_INCOMPLETE';
+  });
+  assert.equal(receiptFailure.cacheOwnershipReleased(), false);
+  receipt.killAudit[0].closeObserved = true;
+  assert.equal(receiptFailure.cacheOwnershipReleased(), false, 'rewriting a public audit row cannot confirm the original close');
+  receipt.killAudit[0].closeObserved = false;
+  const copy = structuredClone(receipt);
+  let copyFailure;
+  assert.throws(() => assertSubprocessTerminationReceipt(copy), error => { copyFailure = error; return true; });
+  assert.equal(copyFailure.cacheOwnershipReleased, undefined, 'serialized reports cannot transport native settlement authority');
   suppressClose = false;
   if (actualClose) nativeEmit.call(child, 'close', ...actualClose);
   else await once(child, 'close');
+  await Promise.resolve();
   assert.equal(getTrackedSubprocessCount(ownershipId), 0);
   assert.equal(error.cacheOwnershipReleased(), true,
     'only the delayed close of this exact spawned handle reconciles missing-close ownership');
+  assert.equal(receiptFailure.cacheOwnershipReleased(), true, 'the actual tracking receipt retains its original close observer');
+  assert.equal(receipt.killAudit[0].closeObserved, false, 'late closure cannot rewrite the original failed attempt');
   assert.equal(assertSubprocessTerminationReceipt(await terminateTrackedSubprocesses({ ownershipId })).tracked, 0);
 } finally {
   suppressClose = false;

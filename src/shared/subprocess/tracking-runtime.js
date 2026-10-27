@@ -12,6 +12,15 @@ export const trackedSubprocesses = new Map();
 export const trackedSubprocessEvents = [];
 export const trackedOwnershipIdByAbortSignal = new WeakMap();
 export const trackedSubprocessScopeContext = new AsyncLocalStorage();
+const terminationObservations = new WeakMap();
+
+// Receipt identity carries the producer's original handle observations. Public
+// audit rows and serialized copies are diagnostics, never late-close authority.
+export const retainTrackedTerminationObservation = (receipt, observation) => {
+  terminationObservations.set(receipt, Object.freeze(observation));
+  return receipt;
+};
+export const getTrackedTerminationObservation = receipt => terminationObservations.get(receipt) || null;
 
 export const normalizeTrackedOwnershipId = (value) => {
   if (typeof value !== 'string') return null;

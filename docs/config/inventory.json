@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-27T05:44:38.647Z",
+  "generatedAt": "2026-10-27T06:04:51.422Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -3709,6 +3709,7 @@
         "tests/indexing/runtime/initialization-resource-unwind.test.js",
         "tests/indexing/runtime/run-resource-drain-timeout.test.js",
         "tests/indexing/runtime/runtime-attempt-lifecycle.test.js",
+        "tests/indexing/runtime/stage-closeout-delayed-child.test.js",
         "tests/indexing/runtime/teardown-original-failure-observations.test.js",
         "tests/perf/bench/language-no-ann-forwarding.test.js",
         "tests/perf/bench/language-resource-roots.test.js",
@@ -4617,6 +4618,7 @@
         "tests/indexing/fixtures/health-authority.test.js",
         "tests/indexing/incremental/tokenization-cache.test.js",
         "tests/indexing/runtime/shared-resource-scope-isolation.test.js",
+        "tests/indexing/runtime/stage-closeout-delayed-child.test.js",
         "tests/indexing/semantic/wasm-flow-policy-construction.test.js",
         "tests/indexing/tree-sitter/js-ts-export-bindings.test.js",
         "tests/indexing/workers/coarse-file-analysis-facade.test.js",
@@ -5014,6 +5016,7 @@
         "tests/indexing/incremental/piece-output-producer-identity.test.js",
         "tests/indexing/runtime/initialization-resource-unwind.test.js",
         "tests/indexing/runtime/shared-resource-scope-isolation.test.js",
+        "tests/indexing/runtime/stage-closeout-delayed-child.test.js",
         "tests/indexing/semantic/drain-publication-authority.test.js",
         "tests/indexing/semantic/native-authority-read-ownership.test.js",
         "tests/perf/bench/vfs-io-ownership.test.js",
@@ -5515,7 +5518,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 493,
+    "totalFlags": 494,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -5696,6 +5699,7 @@
       "embedding-sample-files",
       "embedding-sample-seed",
       "emitArtifact",
+      "emitOutput",
       "encoding",
       "enforce",
       "enforce-fts",
@@ -6445,6 +6449,12 @@
         "file": "tests/indexing/registry-worker-cleanup-errors.test.js",
         "flags": [
           "lock"
+        ]
+      },
+      {
+        "file": "tests/indexing/runtime/stage-closeout-delayed-child.test.js",
+        "flags": [
+          "emitOutput"
         ]
       },
       {
