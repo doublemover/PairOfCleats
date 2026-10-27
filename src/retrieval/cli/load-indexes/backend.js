@@ -1,11 +1,11 @@
 import path from 'node:path';
-import { spawnSubprocessSync } from '../../../shared/subprocess/runner.js';
+import { spawnSubprocess } from '../../../shared/subprocess/runner.js';
 import { pathExists } from '../../../shared/file-read.js';
 import { MAX_JSON_BYTES } from '../../../shared/artifact-io/constants.js';
 import { readJsonFile } from '../../../shared/artifact-io/json.js';
 import { tryRequire } from '../../../shared/optional-deps.js';
 import { hasTantivyAdapter } from '../../sparse/providers/tantivy-adapter.js';
-import { normalizeTantivyConfig, resolveTantivyPaths } from '../../../shared/tantivy.js';
+import { normalizeTantivyConfig, resolveTantivyPaths, TANTIVY_SCHEMA_VERSION } from '../../../shared/tantivy.js';
 import { getRuntimeConfig, resolveRuntimeEnv, resolveToolRoot } from '../../../shared/dict-utils.js';
 import { loadIndex } from '../../cli-index.js';
 import { loadIndexCached } from '../index-loader.js';
@@ -151,8 +151,12 @@ export function createIndexBackendLoader({
         meta = readJsonFile(paths.metaPath, { maxBytes: MAX_JSON_BYTES });
       } catch {}
     }
-    const available = Boolean(meta && paths.dir && await pathExists(paths.dir));
-    return { ...paths, meta, available };
+    const countsValid = ['chunkCount', 'docCount', 'vocabCount'].every(key => (
+      Number.isSafeInteger(meta?.[key]) && meta[key] >= 0
+    ));
+    const available = Boolean(meta && meta.schemaVersion === TANTIVY_SCHEMA_VERSION
+      && meta.mode === mode && countsValid && paths.dir && await pathExists(paths.dir));
+    return { ...paths, meta, available, reason: available ? null : 'missing-or-incompatible-metadata' };
   };
 
   const ensureTantivyIndex = async (mode, indexDir) => {
@@ -161,13 +165,21 @@ export function createIndexBackendLoader({
     if (!tantivyRequired || !resolvedTantivyConfig.autoBuild) return availability;
     const toolRoot = resolveToolRoot();
     const scriptPath = path.join(toolRoot, 'tools', 'build/tantivy-index.js');
-    const result = spawnSubprocessSync(
+    // Preserve the immutable source already selected by this request. A child
+    // resolving latest again can build a different generation than its reader.
+    if (path.basename(indexDir) !== `index-${mode}`) {
+      throw Object.assign(new Error(`Tantivy source layout is not canonical for mode=${mode}.`), {
+        code: 'ERR_TANTIVY_SOURCE_LAYOUT'
+      });
+    }
+    const result = await spawnSubprocess(
       process.execPath,
-      [scriptPath, '--mode', mode, '--repo', rootDir],
+      [scriptPath, '--mode', mode, '--repo', rootDir, '--index-root', path.dirname(indexDir)],
       {
         stdio: emitOutput ? 'inherit' : 'ignore',
         rejectOnNonZeroExit: false,
-        env: runtimeEnv
+        env: runtimeEnv,
+        signal
       }
     );
     if (result.exitCode !== 0) {
@@ -287,7 +299,8 @@ export function createIndexBackendLoader({
         dir: availability.dir,
         metaPath: availability.metaPath,
         meta: availability.meta,
-        available: availability.available
+        available: availability.available,
+        reason: availability.reason
       };
       return idx.tantivy;
     },
