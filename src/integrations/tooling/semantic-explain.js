@@ -11,11 +11,13 @@ import { captureSemanticRequest } from '../../semantic/request-snapshot.js';
 import { SEMANTIC_EXPLAIN_REQUEST_SCHEMA } from '../../contracts/schemas/semantic-explain.js';
 import { withSemanticReaderCleanup } from '../../semantic/reader-lifetime.js';
 import { publishSemanticPage } from '../../semantic/page-publication.js';
+import { createTraceContinuationBudget } from '../../semantic/trace-continuation-state.js';
 
 /** One cursor service per repository/query policy; stores reopen the exact requested generation. */
 export const createSemanticExplainRunner = ({ openStore = openSemanticQueryStore, maxServices = 32 } = {}) => {
   if (!Number.isSafeInteger(maxServices) || maxServices < 1 || maxServices > 64) throw new TypeError('Invalid semantic service cache bound.');
   const services = new Map();
+  const retentionBudget = createTraceContinuationBudget();
   return async (request, { signal = null, userConfig = null } = {}) => {
     request = captureSemanticRequest(request, SEMANTIC_EXPLAIN_REQUEST_SCHEMA);
     assertSemanticExplain('request', request);
@@ -29,9 +31,11 @@ export const createSemanticExplainRunner = ({ openStore = openSemanticQueryStore
     const key = request.repoRoot + '\0' + canonicalSemanticJson(options);
     let service = services.get(key);
     if (!service) {
-      service = createSemanticExplainService(options);
+      service = createSemanticExplainService({ ...options, retentionBudget });
       services.set(key, service);
-      while (services.size > maxServices) services.delete(services.keys().next().value);
+      while (services.size > maxServices) {
+        const oldest = services.keys().next().value; services.get(oldest).dispose(); services.delete(oldest);
+      }
     }
     const indexDir = await resolveSemanticGenerationIndexDir({ repoRoot: request.repoRoot, generation: request.generation, userConfig: config, signal });
     const opened = await openStore({ indexDir, repoRoot: request.repoRoot, generation: request.generation,

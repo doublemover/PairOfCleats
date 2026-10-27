@@ -25,9 +25,10 @@ export const createSemanticExplainService = options => {
     }
     return assertSemanticExplain('result',result);
   }});
-  return async input => {
+  const service = async input => {
     input = { ...input, request: captureSemanticRequest(input.request, SEMANTIC_EXPLAIN_REQUEST_SCHEMA) };
     assertSemanticExplain('request',input.request);
     return trace(input);
   };
+  return Object.freeze(Object.assign(service, { dispose: trace.dispose, continuationStats: trace.continuationStats }));
 };
