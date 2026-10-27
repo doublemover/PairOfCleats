@@ -33,8 +33,9 @@ export const createSqliteCacheCloseOwner = (db, { canClose, onClosed, onNativeCl
   const captured = nativeSettlements.get(db);
   if (captured) {
     if (captured.owner.lastError) throw captured.owner.lastError;
-    throw Object.assign(new Error('SQLite handle already has its original native close owner.'), {
-      sqliteCacheOwner: captured.owner, cacheOwnershipPending: true, cacheOwnershipReleased: captured.owner.isSettled
+    throw Object.defineProperties(new Error('SQLite handle already has its original native close owner.'), {
+      sqliteCacheOwner: { value: captured.owner }, cacheOwnershipPending: { value: true },
+      cacheOwnershipReleased: { value: captured.owner.isSettled }
     });
   }
   const failures = [], seen = new Set(), observers = [];

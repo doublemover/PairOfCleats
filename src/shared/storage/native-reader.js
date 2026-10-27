@@ -82,7 +82,8 @@ export const acquireNativeReaderStorage = (target, storageContext, nativeSettled
     }
     const primary = failures.length ? failures[0] : error;
     let failure = addStorageFailureContext(primary, { nativeStorageOwner: owner,
-      cacheOwnershipPending: true, cacheOwnershipReleased: isSettled }, null, { forceAggregate: true });
+      cacheOwnershipPending: true, cacheOwnershipReleased: isSettled }, null,
+    { forceAggregate: true, nonEnumerable: ['nativeStorageOwner'] });
     for (const secondary of failures.slice(1)) failure = addStorageFailureContext(failure, {}, secondary,
       { secondaryPresent: true, forceAggregate: true });
     described.add(failure);

@@ -87,7 +87,12 @@ try {
   } else {
     backend = await createSqliteBackend(options); database = backend.dbCode;
     if (selected === 'original-cache-close') assert.throws(() => createSqliteCacheCloseOwner(database,
-      { canClose: () => true, onClosed() {} }), /already has its original native close owner/);
+      { canClose: () => true, onClosed() {} }), error => {
+      assert.match(error.message, /already has its original native close owner/);
+      assert.equal(Object.getOwnPropertyDescriptor(error, 'sqliteCacheOwner').enumerable, false);
+      assert.equal(JSON.stringify(error).includes('sqliteCacheOwner'), false);
+      return true;
+    });
     assert.equal(database.prepare('SELECT COUNT(*) AS count FROM chunks').get().count, 1);
     await assertRoots(true);
     if (selected !== 'original-cache-close') assert.equal((await withExclusiveStorageAccess(cache, () => assert.fail('live readers prevent category relocation'),
@@ -137,7 +142,22 @@ try {
           }
           return originalRm(target, ...args);
         };
-        assert.throws(() => dbCache.dispose());
+        let failedRelease;
+        assert.throws(() => dbCache.dispose(), error => { failedRelease = error; return true; });
+        const inspect = [failedRelease], seen = new Set();
+        let opaque = 0;
+        while (inspect.length) {
+          const error = inspect.pop();
+          if (!error || typeof error !== 'object' || seen.has(error)) continue;
+          seen.add(error);
+          if (Object.hasOwn(error, 'nativeStorageOwner')) {
+            assert.equal(Object.getOwnPropertyDescriptor(error, 'nativeStorageOwner').enumerable, false);
+            assert.equal(JSON.stringify(error).includes('nativeStorageOwner'), false);
+            opaque++;
+          }
+          inspect.push(error.cause, ...(error instanceof AggregateError ? error.errors : []));
+        }
+        assert.ok(opaque > 0, 'original recovery capabilities remain available internally');
         assert.equal(database.open, false); assert.equal(nativeCloses, 1);
         await assertRoots(true); await assertRoots(false, secondHome);
         const owner = getPendingNativeStorageReaders().find(owner => owner.target === dbPath && owner.session.coordinationRoot === coordination(home));
