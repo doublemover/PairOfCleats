@@ -21,8 +21,8 @@ remaining work, current source/test mappings and exact closure witnesses.
 revision-specific evidence. Work is solo and Windows-only. Hosted gate/policy/Rust TUI
 passed at `f8532f1d2`; seven broader jobs failed (see the review).
 
-Source-bound Windows repair and qualification receipts retain details, failing
-controls and scope. Full front gates include 40/40 gate cases:
+Windows repair receipts retain exact sources, failing controls and scope.
+Full front gates include 40/40 gate cases:
 
 | Receipt / source | Issue scope | Passing affected checks |
 | --- | --- | --- |
@@ -34,16 +34,13 @@ controls and scope. Full front gates include 40/40 gate cases:
 | [a73b37be1](archived/storage-artifact-p1-closeout-2026-10-27.md) | #1089, #1109, #1551 | 12 + full front gate |
 | [7c3683ad0](archived/watch-retention-repairs-2026-10-27.md) | #690 | 38 + full front gate |
 | [1f7579910](archived/cache-ownership-p1-closeout-2026-10-27.md) | #1582, #1746 | 12 + full front gate |
-| [06c3324d0](archived/repository-cleanup-admission-2026-10-27.md) | Partial #1574; custom backend adoption remains | 8 + full front gate |
+| [Cleanup](archived/repository-cleanup-admission-2026-10-27.md), [SQLite](archived/sqlite-uncached-close-ownership-2026-10-27.md), [LMDB](archived/lmdb-lifetime-and-parity-2026-10-27.md), [reader sessions](archived/native-reader-sessions-2026-10-27.md) | #1084/#1093 closed; #1574 partial | Source-specific checks and full front gates in receipts |
 | [957230b12](archived/tui-install-qualification-2026-10-27.md) | #1554; actual Windows upgrade/sharing | 7 + 3 native controls + full front gate |
 | [e191d2402](archived/sublime-native-registration-2026-10-27.md) | Partial #1289; native command registration repaired; search/reload pending | 30 headless + full front gate |
 | [afc52ef9d](archived/crash-log-qualification-2026-10-27.md) | Partial #1315/#1547; bounded crash projection, Windows sharing and fresh semantic authority | 26 + native control + full front gate |
-| [55d0daa9f](archived/sqlite-uncached-close-ownership-2026-10-27.md) | Partial #1574; retain uncached SQLite failures; remove proven-unused probe | 12 + full front gate |
 | [bee92206e](archived/windows-child-window-repairs-2026-10-27.md) | Partial #1289; suppress child windows, repair UI lock cycle; native search pending | 38 + private desktop control + full front gate |
-| [40f3bc785](archived/lmdb-lifetime-and-parity-2026-10-27.md) | #1084/#1093 closed; partial #1574 native close/failure ownership | 21 + full front gate |
 | [ee01bb7fc](archived/generation-selection-repairs-2026-10-27.md) | #347 closed; captured generation and SQLite state ownership | 34 + full front gate |
 | [294e971bb](archived/query-vector-admission-2026-10-27.md) | #1006 closed; #1544 actual models/perf pending | 27 prior cohort; 14 final rechecks + full front gate |
-| [b22a42ca5](archived/native-reader-sessions-2026-10-27.md) | #1574 canonical native readers/cache ownership; registration remains | 37 prior; 9 final + full front gate |
 
 These are scoped observations, not a combined full-suite or platform/model/release
 pass. Task checks omit only an inherited missing trusted-config selector;

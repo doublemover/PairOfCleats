@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { runNativeDatabaseCommand } from '../shared/native-database-lifetime.js';
+import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 import { rebuildSqliteFilterFacts } from '../../src/storage/sqlite/filter-facts.js';
 import { SQLITE_COMPACT_OPTIONS } from '../shared/operator-cli-options.js';
 import { assertSqliteIndexFormat } from '../../src/storage/sqlite/index-format.js';
@@ -117,8 +118,12 @@ function buildBackupPath(dbPath, keepBackup) {
  * @returns {Promise<{skipped:boolean}>}
  */
 export async function compactDatabase(input, resources = null) {
-  if (!resources) return runNativeDatabaseCommand({ commandIdentity: 'sqlite.compact' },
-    owned => compactDatabase(input, owned));
+  if (!resources) return runNativeDatabaseCommand({ commandIdentity: 'sqlite.compact' }, owned => {
+    if (input?.storageContext) owned.admitScope({ ...input.storageContext,
+      repoCacheRoot: resolveRepoCacheRootPath(input.storageContext.repoRoot, input.storageContext.userConfig),
+      targets: [input.dbPath] });
+    return compactDatabase(input, owned);
+  });
   const {
     dbPath,
     mode,
@@ -542,7 +547,10 @@ export async function compactDatabase(input, resources = null) {
     if (resources.isClosed(outDb)) {
       try { await fsPromises.rm(tempPath, { force: true }); } catch (cleanupError) { cleanupErrors.push(cleanupError); }
     }
-    if (cleanupErrors.length) error.nativeCleanupError = new AggregateError(cleanupErrors, 'SQLite compaction cleanup failed.');
+    if (cleanupErrors.length) {
+      const cleanup = new AggregateError(cleanupErrors, 'SQLite compaction cleanup failed.');
+      error = addStorageFailureContext(error, { nativeCleanupError: cleanup }, cleanup);
+    }
     throw error;
   }
   restoreBuildPragmas(outDb, pragmaState);
@@ -605,7 +613,7 @@ if (isDirectRun) {
         targets.push({ mode: 'prose', path: sqlitePaths.prosePath });
       }
 
-      resources.admitScope({ repoCacheRoot: resolveRepoCacheRootPath(root, userConfig), indexRoot,
+      resources.admitScope({ repoRoot: root, repoCacheRoot: resolveRepoCacheRootPath(root, userConfig), indexRoot,
         userConfig, targets: targets.map(target => target.path) });
 
       const modeTask = display.task('SQLite compact', { total: targets.length, stage: 'sqlite' });

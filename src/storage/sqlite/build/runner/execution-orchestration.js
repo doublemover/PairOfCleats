@@ -631,6 +631,7 @@ export const executeSqliteModeBuilds = async ({
         : false;
       if (compactMode) {
         const compacted = await compactDatabase({
+          storageContext: { repoRoot: root, userConfig },
           dbPath: tempOutputPath,
           mode,
           vectorExtension: resolvedVectorConfig.extension,

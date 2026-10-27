@@ -84,7 +84,7 @@ await runNativeDatabaseCommand({ commandIdentity: 'lmdb.build', delegated: true 
       ? path.resolve(argv['index-root'])
       : (asOfRootSelection.root ? path.resolve(asOfRootSelection.root) : resolveIndexRoot(root, userConfig));
     const lmdbPaths = resolveLmdbPaths(root, userConfig, { indexRoot });
-    resources.admitScope({ repoCacheRoot: resolveRepoCacheRootPath(root, userConfig),
+    resources.admitScope({ repoRoot: root, repoCacheRoot: resolveRepoCacheRootPath(root, userConfig),
       indexRoot: argv['index-root'] ? indexRoot : null, userConfig,
       targets: modes.map(mode => mode === 'code' ? lmdbPaths.codePath : lmdbPaths.prosePath) });
     const metricsDir = getMetricsDir(root, userConfig);

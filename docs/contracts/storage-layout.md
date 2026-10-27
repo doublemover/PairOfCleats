@@ -14,6 +14,17 @@ recovery cannot repeat native close. Cached reuse is bounded by native resource
 and launch namespace. Custom/external backend roots still require registration
 and category-specific publication/deletion owners; no path grants deletion.
 
+Canonical LMDB build and SQLite compaction commands also admit that session from
+the effective repository configuration before native access. Their registry
+awaits accepted work, every original native close and independent pending
+observations before releasing storage metadata or acknowledging delegation.
+Explicit metadata-only recovery uses the retained command owner and cannot
+retry an unknown native close or change the failed command result. Invalid or
+repeated scope admission cannot reopen native access. Standalone compaction
+accepts an internal launch context; the SQLite build runner supplies it. Legacy
+context-free calls and other builder/probe/sidecar lifetimes remain separate
+adoption boundaries; external targets receive no deletion authority.
+
 `src/shared/storage/layout.js` resolves one application home and category
 descriptors without filesystem access. Launch home precedes `PAIROFCLEATS_HOME`,
 then the existing platform default: `%LOCALAPPDATA%/PairOfCleats` on Windows,

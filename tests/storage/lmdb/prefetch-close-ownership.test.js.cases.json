@@ -1,4 +1,4 @@
 {
   "schemaVersion": 1,
-  "cases": ["retrieval", "builder", "validator", "retrieval-storage"]
+  "cases": ["retrieval", "builder", "validator", "retrieval-storage", "builder-storage"]
 }

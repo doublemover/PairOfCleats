@@ -16,9 +16,9 @@ import { inspectStorageAccess, withExclusiveStorageAccess } from '../../../src/s
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('prefetch-close-ownership/')[1];
-assert.ok(['retrieval', 'builder', 'validator', 'retrieval-storage'].includes(selected));
+assert.ok(['retrieval', 'builder', 'validator', 'retrieval-storage', 'builder-storage'].includes(selected));
 const { dir } = await prepareIsolatedTestCacheDir(`lmdb-prefetch-close-${selected}`);
-const storageCase = selected === 'retrieval-storage';
+const storageCase = ['retrieval-storage', 'builder-storage'].includes(selected);
 const home = path.join(dir, 'home'), cache = path.join(dir, 'cache'), repoRoot = path.join(dir, 'repo');
 let storageContext = null, repoCacheRoot = null;
 if (storageCase) {
@@ -63,7 +63,7 @@ try {
       writer.putSync(key, packr.pack(value));
     }
   } finally { await writer.close(); }
-  if (selected === 'retrieval' || storageCase) {
+  if (selected === 'retrieval' || selected === 'retrieval-storage') {
     const backend = await createLmdbBackend({ useLmdb: true, needsCode: true, needsProse: false,
       lmdbCodePath: store, backendForcedLmdb: true, storageContext });
     backendCleanup = backend.dispose;
@@ -76,8 +76,9 @@ try {
     await prefetched;
     disposal = backend.dispose();
     assert.equal(backend.dispose(), disposal, 'concurrent disposal joins its original owner');
-  } else if (selected === 'builder') {
+  } else if (selected === 'builder' || selected === 'builder-storage') {
     disposal = runNativeDatabaseCommand({ commandIdentity: 'lmdb.build' }, async resources => {
+      if (storageCase) resources.admitScope({ ...storageContext, repoCacheRoot, targets: [store] });
       database = resources.open(() => open({ path: store, readOnly: true }));
       database.prefetch([LMDB_META_KEYS.mode], () => {});
       await prefetched;

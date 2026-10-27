@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-27T13:45:42.863Z",
+  "generatedAt": "2026-10-27T14:16:21.583Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -3732,6 +3732,8 @@
         "tests/shared/storage/index-writer-metadata-release-timeout.test.js",
         "tests/shared/storage/layout-resolution.test.js",
         "tests/shared/storage/locator-resource-failure-observation.test.js",
+        "tests/shared/storage/native-command-sessions.test.js",
+        "tests/shared/storage/native-compaction-session.test.js",
         "tests/shared/storage/native-reader-lifetime.test.js",
         "tests/shared/storage/probe-policy-failure-observation.test.js",
         "tests/shared/storage/probe-policy-reviewed-lifecycle.test.js",
@@ -4649,6 +4651,8 @@
         "tests/services/api/semantic-detail-format-compatibility.test.js",
         "tests/shared/concurrency/scheduler-exact-ready-replay.test.js",
         "tests/shared/dense-vector-binary-writes.test.js",
+        "tests/shared/storage/native-command-sessions.test.js",
+        "tests/shared/storage/native-compaction-session.test.js",
         "tests/shared/storage/native-reader-lifetime.test.js",
         "tests/shared/storage/repo-cleanup-exclusion.test.js",
         "tests/shared/subprocess/sync-timeout-detached-tree.test.js",
@@ -5053,6 +5057,8 @@
         "tests/security/repository-authority.test.js",
         "tests/security/tooling-cache-authority.test.js",
         "tests/shared/storage/cli-reviewed-context-and-selectors.test.js",
+        "tests/shared/storage/native-command-sessions.test.js",
+        "tests/shared/storage/native-compaction-session.test.js",
         "tests/shared/storage/native-reader-lifetime.test.js",
         "tests/shared/storage/repo-cleanup-exclusion.test.js",
         "tests/storage/lmdb/native-artifact-parity.test.js",

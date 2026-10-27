@@ -2,6 +2,9 @@ import { createLifecycleRegistry } from '../../src/shared/lifecycle/registry.js'
 import { getDelegatedRepoCacheOwner, settleDelegatedRepoCacheOwner } from '../../src/shared/cache/repo-access-delegation.js';
 import { assertDelegatedNativeCommandIdentity, assertDelegatedNativeDatabaseScope } from './native-database-authority.js';
 import { closeLmdbDatabase } from '../../src/storage/lmdb/close.js';
+import { acquireRepoStorageSession } from '../../src/shared/storage/repository-session.js';
+import { isPathWithinRoot } from '../../src/shared/file-paths.js';
+import path from 'node:path';
 
 const commands = new Set(['sqlite.compact', 'lmdb.build']);
 const pendingOwners = new Set();
@@ -20,7 +23,9 @@ export const runNativeDatabaseCommand = async ({ commandIdentity, delegated = fa
   const lifecycle = createLifecycleRegistry({ name: commandIdentity });
   const handles = new WeakMap();
   const states = new Set(), observations = new Map(), described = new WeakSet(), acceptedUses = new Set();
+  const storageAdmissions = [];
   let operationSettled = false, registrySettled = false, delegationConfirmed = !owner, observerOverflow = false;
+  let acceptedWorkSettled = false, recoveringStorage = null, lastFailure = null;
   const observe = error => {
     if (!objectLike(error) || described.has(error) || observations.has(error)) return;
     let observation = null;
@@ -37,12 +42,30 @@ export const runNativeDatabaseCommand = async ({ commandIdentity, delegated = fa
   const resourcesClosed = () => !observerOverflow && [...states].every(state => state.phase === 'closed')
     && [...observations.values()].every(check => check());
   const isSettled = () => {
-    const settled = operationSettled && registrySettled && delegationConfirmed && resourcesClosed();
+    const settled = operationSettled && acceptedWorkSettled && registrySettled && delegationConfirmed && resourcesClosed()
+      && storageAdmissions.every(admission => admission.released);
     if (settled) pendingOwners.delete(lifetime);
     return settled;
   };
   const lifetime = Object.freeze({ commandIdentity, resourceId: owner?.resourceId ?? null, isSettled,
-    get handles() { return states.size; } });
+    get handles() { return states.size; },
+    recoverStorageMetadata: () => {
+      if (!recoveringStorage) recoveringStorage = Promise.resolve().then(async () => {
+        try {
+          releaseStorageMetadata();
+          if (owner && !delegationConfirmed) {
+            await settleDelegatedRepoCacheOwner({ resourceId: owner.resourceId,
+              handlesClosed: true, descendantsSettled: true, pending: false });
+            delegationConfirmed = true;
+          }
+          const settled = isSettled();
+          return Object.freeze({ settled, pending: !settled });
+        } catch (error) {
+          throw preserve(lastFailure, error, { hasPrimary: lastFailure !== null, hasCleanup: true, settlement: true });
+        }
+      }).finally(() => { recoveringStorage = null; });
+      return recoveringStorage;
+    } });
   const assertActive = () => {
     if (operationSettled) throw new Error('Native database command no longer admits resource work.');
   };
@@ -70,13 +93,29 @@ export const runNativeDatabaseCommand = async ({ commandIdentity, delegated = fa
       cacheOwnershipPending: { get: () => !isSettled() }, cacheOwnershipReleased: { value: isSettled }
     });
     described.add(failure);
+    lastFailure = failure;
     if (!isSettled()) pendingOwners.add(lifetime);
     return failure;
   };
   const resources = Object.freeze({
     admitScope(scope) {
       assertActive();
+      scopeAdmitted = false;
+      if (!scope?.repoRoot) throw new TypeError('Native storage scope requires its launch-selected repository context.');
       if (owner) assertDelegatedNativeDatabaseScope(owner, { ...scope, commandId: commandIdentity });
+      if (scope?.repoRoot) {
+        if (states.size || storageAdmissions.length) throw new Error('Native storage scope must be captured once before handle acquisition.');
+        if (!Array.isArray(scope.targets) || !scope.targets.length || scope.targets.length > 16
+          || scope.targets.some(target => typeof target !== 'string' || !path.isAbsolute(target))) {
+          throw new TypeError('Native storage scope requires bounded absolute selected targets.');
+        }
+        const admission = acquireRepoStorageSession(scope.repoCacheRoot,
+          { repoRoot: scope.repoRoot, userConfig: scope.userConfig, env: scope.env }, {
+            scope: 'native-database-command', resourceRoots: scope.targets.filter(target => isPathWithinRoot(target, scope.repoCacheRoot))
+          });
+        storageAdmissions.push({ session: admission.session, released: false });
+        admission.revalidate();
+      }
       scopeAdmitted = true;
     },
     open(factory) {
@@ -151,11 +190,28 @@ export const runNativeDatabaseCommand = async ({ commandIdentity, delegated = fa
     },
     isClosed: handle => handles.get(handle)?.state.phase === 'closed'
   });
+  const releaseStorageMetadata = () => {
+    if (!operationSettled || !acceptedWorkSettled || !registrySettled || !resourcesClosed()) {
+      throw new Error('Original native command resources remain unsettled; metadata-only recovery cannot close or acknowledge them.');
+    }
+    const errors = [];
+    for (const admission of storageAdmissions) {
+      if (admission.released) continue;
+      try {
+        if (admission.session.releaseAfterSettlement({ resourceId: admission.session.resourceId, settled: true, pending: false }) !== true) {
+          throw new Error('Native command storage metadata did not confirm original release.');
+        }
+        admission.released = true;
+      } catch (error) { errors.push(error); }
+    }
+    if (errors.length) throw new AggregateError(errors, 'Native command storage metadata release failed.', { cause: errors[0] });
+  };
   let result, primary, cleanup, hasPrimary = false, hasCleanup = false;
   try { result = await operation(resources); }
   catch (error) { hasPrimary = true; primary = error; observe(error); }
   finally { operationSettled = true; }
   const uses = await Promise.allSettled([...acceptedUses]);
+  acceptedWorkSettled = true;
   const useErrors = [...new Set(uses.filter(result => result.status === 'rejected').map(result => result.reason))];
   const additional = useErrors.filter(error => !hasPrimary || error !== primary);
   if (additional.length) {
@@ -169,6 +225,8 @@ export const runNativeDatabaseCommand = async ({ commandIdentity, delegated = fa
   if (hasCleanup || !resourcesClosed()) {
     throw preserve(primary, cleanup, { hasPrimary, hasCleanup });
   }
+  try { releaseStorageMetadata(); }
+  catch (error) { throw preserve(primary, error, { hasPrimary, hasCleanup: true, settlement: true }); }
   // A failed operation may still prove actual closure. Its failure status is
   // preserved while the parent can release exclusivity after real child close.
   if (owner) {
