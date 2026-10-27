@@ -77,7 +77,13 @@ export const createJsoncImportCollector = ({ parseStructure = parseJsoncStructur
       if (!context.scanBudget.consumeTime()) return result;
       let parsed;
       try { parsed = parseStrictJson(context.source); }
-      catch (error) { if (!(error instanceof SyntaxError)) throw error; structure = { coverage: 'unavailable', reason: 'parse-failed' }; return result; }
+      catch (error) {
+        if (!(error instanceof SyntaxError)) throw error;
+        // A valid deep JSONC document may not be strict JSON. Its original
+        // depth omission is not evidence that JSONC syntax is malformed.
+        structure = { ...structure, warningCodes: [...(structure.warningCodes || []), 'strict-depth-compat-unavailable'] };
+        return result;
+      }
       if (!context.scanBudget.consumeTime()) return result;
       const traversal = traverseJsonReferences(parsed, imports, context.scanBudget, JSON_TRAVERSAL_LIMITS, () => isCancelled(options));
       observedEntries = traversal.observedReferences;

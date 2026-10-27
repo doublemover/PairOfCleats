@@ -1,6 +1,6 @@
 # JSON import admission
 
-Current implementation and its 19 focused cases are unvalidated.
+Current implementation and its 20 focused cases are unvalidated.
 
 Strict `.json`, `.resolved` and anonymous input use one native `JSON.parse` under
 the common collector budget owner. `.jsonc` retains its own syntax parser and
@@ -35,6 +35,11 @@ Match/token admission precedes import Set growth; disabled caps still have the
 aggregate traversal bound. Native parser/object/engine allocations remain bounded
 by source admission, not by a claim to interrupt internal engine enumeration.
 
+A deep JSONC document that exceeds the syntax owner's depth admission may use
+the existing strict compatibility path. If that strict attempt rejects comments
+or other JSONC-only syntax, the result remains a qualified depth omission; it is
+not a diagnosis of malformed JSONC or an empty successful extraction.
+
 The existing import-extraction owner retains source identity, exact observed/
 retained counts where known, unknown dropped counts, policy/limits and reasons.
 Budget stops and invalid reference values cannot become a complete-looking empty
@@ -42,7 +47,7 @@ array. The config adapter's existing relation projection preserves this receipt.
 File parse signatures include the new reference policy; shared import-resolution
 producer advances 20→21. Receipt/artifact layouts and public controls stay intact.
 
-Nineteen authored `indexing/imports/json-collector-admission/*` cases cover route
+Twenty authored `indexing/imports/json-collector-admission/*` cases cover route
 parity, cap precedence/zero semantics, whole-source/line admission, strict syntax,
 duplicate/deep/prototype-like keys, wide and nested aggregate work, frontier
 bounds, fake-clock before/after parsing, cancellation, invalid references and the

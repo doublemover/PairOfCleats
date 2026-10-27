@@ -6,7 +6,7 @@ import { getImportExtraction } from '../../../src/shared/import-extraction.js';
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('indexing/imports/json-collector-admission/')[1];
 const cases = ['json-budget', 'jsonc-budget', 'resolved-budget', 'anonymous-budget', 'match-budget', 'namespace-budget',
   'zero-caps', 'source-admission', 'line-admission', 'strict-syntax', 'duplicate-depth', 'wide', 'nested-keys',
-  'frontier', 'time-before', 'time-after', 'cancelled', 'registry-handoff', 'invalid-reference'];
+  'frontier', 'time-before', 'time-after', 'cancelled', 'registry-handoff', 'invalid-reference', 'deep-jsonc-only'];
 assert.ok(cases.includes(mode), `Unknown case ${mode}`);
 const source = '{"includes":["first","second"]}';
 const unlimited = { collectorScanBudget: { maxMs: 0, maxTokens: 0, maxMatches: 0 } };
@@ -67,6 +67,14 @@ if (['json-budget', 'jsonc-budget', 'resolved-budget', 'anonymous-budget', 'matc
   const deep = '{"value":'.repeat(80) + '{"include":"deep.json"}' + '}'.repeat(80);
   assert.deepEqual(collectJsonImports(deep, unlimited), ['deep.json']);
   assert.deepEqual(collectJsonImports(deep, { ...unlimited, ext: '.jsonc' }), ['deep.json']);
+} else if (mode === 'deep-jsonc-only') {
+  const input = '{"value":'.repeat(80) + '{/* valid JSONC */"include":"deep.json"}' + '}'.repeat(80);
+  const result = collectJsonImports(input, { ...unlimited, ext: '.jsonc' }), extraction = receipt(result);
+  assert.deepEqual(result, []); assert.equal(extraction.state, 'partial');
+  assert.equal(extraction.reasonCounts['depth-limit'], 1);
+  assert.equal(extraction.reasonCounts['strict-depth-compat-unavailable'], 1);
+  assert.equal(extraction.reasonCounts['parse-failed'], undefined, 'a failed strict compatibility attempt cannot diagnose JSONC syntax');
+  assert.equal(extraction.recognition, 'unknown');
 } else if (mode === 'wide') {
   for (const value of [Array.from({ length: 40 }, (_, index) => `file-${index}`),
     Object.fromEntries(Array.from({ length: 40 }, (_, index) => [String(index), `file-${index}`]))]) {

@@ -1,4 +1,4 @@
 {
   "schemaVersion": 1,
-  "cases": ["json-budget", "jsonc-budget", "resolved-budget", "anonymous-budget", "match-budget", "namespace-budget", "zero-caps", "source-admission", "line-admission", "strict-syntax", "duplicate-depth", "wide", "nested-keys", "frontier", "time-before", "time-after", "cancelled", "registry-handoff", "invalid-reference"]
+  "cases": ["json-budget", "jsonc-budget", "resolved-budget", "anonymous-budget", "match-budget", "namespace-budget", "zero-caps", "source-admission", "line-admission", "strict-syntax", "duplicate-depth", "wide", "nested-keys", "frontier", "time-before", "time-after", "cancelled", "registry-handoff", "invalid-reference", "deep-jsonc-only"]
 }
