@@ -5,6 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import childProcess from 'node:child_process';
 import { syncBuiltinESMExports } from 'node:module';
+import { runNode } from '../../helpers/run-node.js';
+import { runSyncCommandWithTimeout } from '../../../src/shared/subprocess/sync-command.js';
 
 import {
   resolveCommandInvocation,
@@ -34,6 +36,11 @@ try {
   assert.deepEqual(spawnCalls.map((call) => [call.kind, call.options.windowsVerbatimArguments]), [
     ['sync', true], ['async', true], ['sync', false]
   ], 'resolved invocation and both runner variants must propagate verbatim mode without enabling it by default');
+  runNode(['--version'], 'console policy', process.cwd(), process.env, { stdio: 'pipe' });
+  const bounded = runSyncCommandWithTimeout(process.execPath, ['--version'], { stdio: 'pipe', timeoutMs: 5000 });
+  assert.equal(bounded.status, 0, bounded.error?.message);
+  assert.ok(spawnCalls.every(call => call.options.windowsHide === true),
+    'shared runners, command shims, bounded commands and test helpers must suppress console windows');
 } finally {
   childProcess.spawn = originalSpawn;
   childProcess.spawnSync = originalSpawnSync;

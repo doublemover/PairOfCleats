@@ -31,6 +31,7 @@ export const runNode = (args, label, cwd, env, options = {}) => {
     encoding,
     timeout: timeoutMs,
     killSignal: 'SIGTERM',
+    windowsHide: true,
     ...spawnOptions
   };
   // Keep raw spawnSync validation and results, including zero/undefined timeout

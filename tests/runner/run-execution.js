@@ -138,6 +138,7 @@ const runTestOnce = async ({
     cwd,
     env: testEnv,
     detached: process.platform !== 'win32',
+    windowsHide: true,
     stdio: captureOutput ? ['ignore', 'pipe', 'pipe'] : 'inherit'
   });
   let timedOut = false;

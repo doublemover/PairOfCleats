@@ -103,9 +103,11 @@ TRUNCATION_MARKER = '\n[output truncated]\n'
 def _build_spawn_kwargs():
     kwargs = {}
     if os.name == 'nt':
-        creationflags = getattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0)
-        if creationflags:
-            kwargs['creationflags'] = creationflags
+        # A GUI/plugin host has no console to inherit. A process group alone
+        # lets Windows allocate a visible console for node and taskkill.
+        # Python 3.3 accepts Win32 flags but does not export CREATE_NO_WINDOW.
+        kwargs['creationflags'] = (getattr(subprocess, 'CREATE_NEW_PROCESS_GROUP', 0)
+                                   | getattr(subprocess, 'CREATE_NO_WINDOW', 0x08000000))
     else:
         kwargs['start_new_session'] = True
     return kwargs
@@ -129,6 +131,7 @@ def _terminate_process_tree(process, force=False):
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
                     timeout=2,
+                    **_build_spawn_kwargs()
                 )
                 if status == 0:
                     return True

@@ -5,7 +5,7 @@ const root = process.cwd();
 const policy = runNode(['tools/tooling/python-check.js', '--json'], 'Sublime Python policy', root, process.env, { stdio: 'pipe' });
 const { python } = JSON.parse(policy.stdout);
 const result = spawnSync(python, ['tests/helpers/sublime/semantic_generation_discovery.py'],
-  { cwd: root, encoding: 'utf8', timeout: 8000 });
+  { cwd: root, windowsHide: true, encoding: 'utf8', timeout: 8000 });
 assert.equal(result.status, 0, result.stderr || result.error?.message);
 assert.match(result.stdout, /Sublime canonical generation discovery preserves scope/);
 console.log('Sublime canonical generation discovery fixture passed');

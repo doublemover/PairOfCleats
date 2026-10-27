@@ -47,7 +47,7 @@ for (const [label, scriptName] of cases) {
   const helper = path.join(root, 'tests', 'helpers', 'sublime', scriptName);
   const result = spawnSync(python, [helper], {
     cwd: root,
-    encoding: 'utf8'
+    windowsHide: true, encoding: 'utf8'
   });
 
   if (result.stdout) console.error(result.stdout);

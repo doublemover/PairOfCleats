@@ -205,6 +205,7 @@ export function spawnSubprocess(command, args, options = {}) {
       stdio,
       shell: false,
       detached,
+      windowsHide: true,
       windowsVerbatimArguments: options.windowsVerbatimArguments === true
     });
     let closeObserved = false, stdinErrorHandler = null;

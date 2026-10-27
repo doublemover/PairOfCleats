@@ -19,7 +19,7 @@ import { writeArtifactPublicationRecord, writeArtifactPublicationValidationRepor
 assert.equal(process.platform, 'win32', 'This owner qualifies an actual isolated Windows Sublime host.');
 const args = process.argv.slice(2);
 assert.ok(args.length === 4 && args[0] === '--case' && args[2] === '--host-dir',
-  'Explicit native UI qualification: --case packed|unpacked|legacy-and-shadow --host-dir <runtime>. This opens editor windows.');
+  'Explicit private-desktop qualification: --case packed|unpacked|legacy-and-shadow --host-dir <runtime>.');
 const selected = args[1];
 assert.ok(['packed', 'unpacked', 'legacy-and-shadow'].includes(selected));
 const originalHost = path.resolve(args[3]);
@@ -31,6 +31,8 @@ const user = path.join(packages, 'User'), installed = path.join(data, 'Installed
 const probe = path.join(packages, 'PoCNativeQualification');
 const repo = path.join(dir, 'fixture repository'), cache = path.join(dir, 'cache'), home = path.join(dir, 'home');
 await fs.mkdir(user, { recursive: true }); await fs.mkdir(probe); await fs.mkdir(installed); await fs.mkdir(repo);
+const requests = path.join(dir, 'requests'), responses = path.join(dir, 'responses');
+await fs.mkdir(requests); await fs.mkdir(responses);
 const env = applyTestEnv({ cacheRoot: cache, syncProcess: false, extraEnv: {
   PAIROFCLEATS_HOME: home, PAIROFCLEATS_TRUSTED_CONFIG: null,
   APPDATA: path.join(dir, 'appdata'), LOCALAPPDATA: path.join(dir, 'local-appdata') } });
@@ -41,8 +43,15 @@ const hash = bytes => createHash('sha256').update(bytes).digest('hex');
 const writeJson = (file, value) => fs.writeFile(file, JSON.stringify(value));
 const readJson = async file => JSON.parse(await fs.readFile(file, 'utf8'));
 const deadline = Date.now() + 27000;
+let hostOutcome = null, quitting = false;
 const wait = async (predicate, label) => {
-  while (!await predicate()) { assert.ok(Date.now() < deadline, `${selected}: ${label}`); await new Promise(resolve => setTimeout(resolve, 25)); }
+  while (!await predicate()) {
+    if (Date.now() >= deadline || !quitting && hostOutcome) {
+      const diagnostic = await fs.readFile(path.join(dir, 'native-diagnostics.log'), 'utf8').catch(() => '');
+      assert.fail(`${selected}: ${label}; host exit: ${JSON.stringify(hostOutcome)}\n${diagnostic.slice(-12000)}`);
+    }
+    await new Promise(resolve => setTimeout(resolve, 25));
+  }
 };
 let launching = null, finished = false;
 try {
@@ -106,25 +115,33 @@ try {
   await fs.copyFile(path.join(root, 'tests/helpers/sublime/native_host_probe.py'), path.join(probe, 'native_probe.py'));
   await writeJson(path.join(probe, 'native-qualification.json'), { fixture: dir, packages, project });
   const rpc = async (action, fields = {}) => {
-    const id = randomUUID(), target = path.join(dir, 'request.json'), temporary = target + '.tmp';
+    const id = randomUUID(), target = path.join(requests, `${id}.json`), temporary = target + '.tmp';
     await writeJson(temporary, { id, action, ...fields }); await fs.rename(temporary, target);
     let response;
     await wait(async () => {
-      try { const value = await readJson(path.join(dir, 'response.json')); if (value.id === id) { response = value; return true; } return false; }
+      try { response = await readJson(path.join(responses, `${id}.json`)); assert.equal(response.id, id); return true; }
       catch (error) { if (error.code === 'ENOENT') return false; throw error; }
     }, `native ${action} response`);
     assert.equal(response.ok, true, response.error); return response.result;
   };
   launching = run('pwsh.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File', path.join(root, 'tests/helpers/sublime/native-host.ps1'),
-    executable, project, dir], { timeoutMs: 28000 }); launching.catch(() => {});
+    executable, dir], { timeoutMs: 26000 });
+  launching.then(result => { hostOutcome = { exitCode: result.exitCode, stderr: result.stderr }; },
+    error => { hostOutcome = { error: error.message }; });
   const inspectUntil = async predicate => {
     let observation;
     await wait(async () => { observation = await rpc('inspect'); return predicate(observation); }, 'native package state');
     return observation;
   };
-  const initial = await inspectUntil(value => value.windowReady);
+  await inspectUntil(value => value.apiReady && value.commands.includes('pair_of_cleats_search'));
+  // Observe the real project-loaded event before issuing work. Folders can be
+  // visible earlier, while the production listener still needs to revoke the
+  // previous project's operation epoch.
+  await rpc('open-project');
+  const initial = await inspectUntil(value => value.windowReady && value.projectLoaded);
   await writeJson(path.join(dir, 'initial-host.json'), initial);
   assert.ok(initial.pluginFile, JSON.stringify(initial));
+  assert.equal(initial.diagnosticCaptureError, null);
   assert.equal(initial.contractSha256, contractHash);
   const expectedCommands = JSON.parse(zip.readAsText('Default.sublime-commands')).map(entry => entry.command);
   for (const command of expectedCommands) assert.ok(initial.commands.includes(command), `native command not registered: ${command}`);
@@ -160,8 +177,13 @@ try {
   if (selected === 'packed') await fs.unlink(installedArchive);
   else await fs.rm(loose, { recursive: true });
   const uninstalled = await rpc('inspect'); assert.deepEqual(uninstalled.commands, []);
+  quitting = true;
   await rpc('quit'); const exit = await launching; finished = true; assert.equal(exit.exitCode, 0, exit.stderr);
   const lifetime = await readJson(path.join(dir, 'host-exit.json'));
+  assert.equal(lifetime.privateWindowObserved, true);
+  assert.equal(lifetime.inputDesktopWindowObserved, false);
+  assert.equal(lifetime.privateHandleClosed, true);
+  assert.equal(lifetime.forcedTermination, false);
   await wait(() => !isProcessAlive(lifetime.pid) && lifetime.children.every(child => !isProcessAlive(child.pid)), 'native host process reaping');
   await writeJson(path.join(dir, 'qualification-receipt.json'), { selected, archiveSha256: packed.checksum,
     hostBuild: initial.hostBuild, python: initial.python, hostExecutableSha256: hash(await fs.readFile(executable)),
@@ -170,7 +192,9 @@ try {
     commandCount: initial.commands.length, receipt: path.join(dir, 'qualification-receipt.json') })}`);
 } finally {
   if (launching && !finished) {
-    await writeJson(path.join(dir, 'request.json'), { id: randomUUID(), action: 'quit' });
+    quitting = true;
+    const id = randomUUID(), target = path.join(requests, `${id}.json`);
+    await writeJson(target + '.tmp', { id, action: 'quit' }); await fs.rename(target + '.tmp', target);
     await launching.catch(() => {});
   }
 }

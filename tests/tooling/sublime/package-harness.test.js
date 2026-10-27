@@ -90,6 +90,7 @@ const scenarios = [
 const results = await Promise.all(scenarios.map((scenario) => new Promise((resolve, reject) => {
   const child = spawn(python, ['-W', 'error::DeprecationWarning', script, 'PackageHarnessTests.' + scenario], {
     env,
+    windowsHide: true,
     stdio: 'inherit'
   });
   child.once('error', reject);

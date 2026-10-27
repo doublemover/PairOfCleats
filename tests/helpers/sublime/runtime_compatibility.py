@@ -100,8 +100,17 @@ class RuntimeCompatibilityTests(unittest.TestCase):
                 self.runner._terminate_process_tree(proc, force=force)
                 command, kwargs = calls[-1]
                 self.assertEqual(command, ['taskkill', '/PID', str(proc.pid), '/T'] + (['/F'] if force else []))
-                self.assertEqual(kwargs, {'stdout': subprocess.DEVNULL, 'stderr': subprocess.DEVNULL, 'timeout': 2})
+                self.assertEqual(kwargs, {'stdout': subprocess.DEVNULL, 'stderr': subprocess.DEVNULL,
+                    'timeout': 2, 'creationflags': self.runner._build_spawn_kwargs()['creationflags']})
                 self.assertEqual((proc.terminated, proc.killed), (0, 0))
+
+    def test_windows_spawn_flags_cover_python_33_without_exported_constant(self):
+        minimum_subprocess = types.SimpleNamespace(CREATE_NEW_PROCESS_GROUP=0x200)
+        with patch.object(self.runner, 'os', types.SimpleNamespace(name='nt')), \
+                patch.object(self.runner, 'subprocess', minimum_subprocess):
+            self.assertEqual(self.runner._build_spawn_kwargs(), {'creationflags': 0x08000200})
+        with patch.object(self.runner, 'os', types.SimpleNamespace(name='posix')):
+            self.assertEqual(self.runner._build_spawn_kwargs(), {'start_new_session': True})
 
     def test_windows_helper_failure_preserves_unconfirmed_descendant_settlement(self):
         failures = [1, OSError('fixture taskkill missing'), subprocess.TimeoutExpired('taskkill', 2)]
@@ -156,11 +165,17 @@ class RuntimeCompatibilityTests(unittest.TestCase):
     def test_real_owned_child_termination(self):
         # On Windows this exercises actual taskkill; elsewhere it exercises the
         # existing process-group/direct fallback. Only this fixture's child dies.
-        proc = subprocess.Popen([sys.executable, '-E', '-S', '-c',
-            'import sys,time; print("ready"); sys.stdout.flush(); time.sleep(10)'],
+        code = 'import sys,time; print("ready"); sys.stdout.flush(); time.sleep(10)'
+        if os.name == 'nt':
+            # Query the actual child's console handle. Merely inspecting its
+            # parent's hidden-window flag would miss a newly allocated console.
+            code = ('import ctypes,sys,time; api=ctypes.WinDLL("kernel32"); '
+                    'api.GetConsoleWindow.restype=ctypes.c_void_p; '
+                    'print("ready:" + str(api.GetConsoleWindow())); sys.stdout.flush(); time.sleep(10)')
+        proc = subprocess.Popen([sys.executable, '-E', '-S', '-c', code],
             stdout=subprocess.PIPE, universal_newlines=True, **self.runner._build_spawn_kwargs())
         try:
-            self.assertEqual(proc.stdout.readline().strip(), 'ready')
+            self.assertEqual(proc.stdout.readline().strip(), 'ready:None' if os.name == 'nt' else 'ready')
             self.runner._terminate_process_tree(proc, force=True)
             proc.wait(timeout=3)
             self.assertIsNotNone(proc.poll())

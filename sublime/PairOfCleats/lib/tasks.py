@@ -272,7 +272,10 @@ def _render(window, show_panel=False, scope=None):
     window_id = _window_id(window)
     with _RENDER_LOCK:
         previous = _PENDING_RENDERS.get(window_id)
-        if previous and operations.is_current(previous['scope']):
+        admitted = operations.coalescing_scope(scope, previous['scope'] if previous else None)
+        if admitted is None:
+            return
+        if previous and admitted is previous['scope']:
             previous['showPanel'] = previous['showPanel'] or show_panel
             return
         pending = {'scope': dict(scope), 'showPanel': show_panel}

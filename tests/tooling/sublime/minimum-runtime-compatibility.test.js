@@ -13,6 +13,6 @@ const result = spawnSync(python, ['-E', '-S', path.join(root, 'tests/helpers/sub
   { cwd: root, encoding: 'utf8', timeout: 10000, windowsHide: true });
 assert.equal(result.error, undefined, String(result.error));
 assert.equal(result.status, 0, result.stderr);
-assert.match(result.stderr, /Ran 4 tests/);
+assert.match(result.stderr, /Ran 5 tests/);
 assert.match(result.stderr, /\bOK\b/);
 console.log('Minimum editor API compatibility preserves contained watch roots and bounded cancellation/timeout cleanup.');

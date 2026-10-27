@@ -46,6 +46,7 @@ class PackageHarnessTests(unittest.TestCase):
         cls.map_commands = importlib.import_module('PairOfCleats.commands.map')
         cls.analysis = importlib.import_module('PairOfCleats.commands.analysis')
         cls.operations = importlib.import_module('PairOfCleats.lib.operations')
+        cls.runner = importlib.import_module('PairOfCleats.lib.runner')
         cls.index_state = importlib.import_module('PairOfCleats.lib.index_state')
         cls.map_state = importlib.import_module('PairOfCleats.lib.map_state')
         cls.results_state = importlib.import_module('PairOfCleats.lib.results_state')
@@ -280,6 +281,7 @@ class PackageHarnessTests(unittest.TestCase):
             stderr=subprocess.PIPE,
             text=True,
             encoding='utf-8',
+            **self.runner._build_spawn_kwargs()
         )
         while True:
             try:

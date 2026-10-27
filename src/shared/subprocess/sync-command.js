@@ -109,6 +109,7 @@ export const runSyncCommandWithTimeout = (command, args = [], options = {}) => {
     : timeoutMs !== null && killTree !== false && process.platform !== 'win32';
   try {
     const result = spawnSync(command, Array.isArray(args) ? args : [], {
+      windowsHide: true,
       ...spawnOptions,
       detached,
       timeout: timeoutMs === null ? undefined : timeoutMs

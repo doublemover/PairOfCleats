@@ -51,6 +51,7 @@ export function spawnSubprocessSync(command, args, options = {}) {
     stdio,
     shell: false,
     detached,
+    windowsHide: true,
     windowsVerbatimArguments: options.windowsVerbatimArguments === true,
     input: options.input,
     timeout: hasTimeout

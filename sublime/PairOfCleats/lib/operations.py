@@ -49,21 +49,47 @@ def capture(window, key=None):
         else:
             older = []
         scope = {'windowId': window_id, 'window': window, 'state': state,
-                 'epoch': state['epoch'], 'context': _context(window), 'key': key,
+                 'epoch': state['epoch'], 'key': key,
                  'generation': state['keys'].get(key)}
+    # Editor APIs can synchronously wait for a UI callback. Preserve the issued
+    # epoch first, then sample context without blocking that callback's lock.
+    scope['context'] = _context(window)
     if _cancel_handles(older):
         raise RuntimeError('A previous PairOfCleats operation could not be cancelled. Inspect its task before retrying.')
     return scope
 
 
+def _matches_scope_locked(scope):
+    state = scope['state']
+    return (_ALIVE and not state['closed']
+            and _STATES.get(scope['windowId']) is state
+            and state['epoch'] == scope['epoch']
+            and (not scope.get('key') or state['keys'].get(scope['key']) == scope['generation']))
+
+
 def is_current(scope):
     with _LOCK:
-        state = scope['state']
-        return (_ALIVE and not state['closed']
-                and _STATES.get(scope['windowId']) is state
-                and state['epoch'] == scope['epoch']
-                and (not scope.get('key') or state['keys'].get(scope['key']) == scope['generation'])
-                and _context(scope['window']) == scope['context'])
+        if not _matches_scope_locked(scope):
+            return False
+    context = _context(scope['window'])
+    with _LOCK:
+        # An invalidation/reload while the editor call was outstanding cannot
+        # promote this invocation into a newer epoch or request generation.
+        return _matches_scope_locked(scope) and context == scope['context']
+
+
+def coalescing_scope(current, previous):
+    """Pure merge admission after current's editor context was checked outside
+    the caller's lock. This is not a standalone UI publication check.
+    """
+    with _LOCK:
+        if not _matches_scope_locked(current):
+            return None
+        if (previous and _matches_scope_locked(previous)
+                and previous['state'] is current['state']
+                and previous['context'] == current['context']):
+            return previous
+        return current
 
 
 def track(scope, handle):
