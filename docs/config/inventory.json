@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-27T19:57:16.193Z",
+  "generatedAt": "2026-10-27T20:04:34.576Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4654,6 +4654,7 @@
         "tests/indexing/runtime/stage-closeout-delayed-child.test.js",
         "tests/indexing/segments/comment-work-admission.test.js",
         "tests/indexing/segments/parser-comment-occurrences.test.js",
+        "tests/indexing/segments/rust-comment-occurrences.test.js",
         "tests/indexing/semantic/wasm-flow-policy-construction.test.js",
         "tests/indexing/tree-sitter/js-ts-export-bindings.test.js",
         "tests/indexing/validate/operation-generation-selection.test.js",
@@ -5616,7 +5617,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 497,
+    "totalFlags": 500,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -5892,6 +5893,7 @@
       "latest",
       "limit",
       "limits",
+      "lineTerminator",
       "list-groups",
       "list-packs",
       "live-summary",
@@ -5950,6 +5952,7 @@
       "models-dir",
       "modes",
       "module",
+      "nestedBlocks",
       "no-ann",
       "noLib",
       "node-sbom-input",
@@ -6069,6 +6072,7 @@
       "slo",
       "smoke",
       "sort",
+      "sourceNormalization",
       "sourceType",
       "specification",
       "sqlite",
@@ -6336,6 +6340,14 @@
         "flags": [
           "log",
           "treeSitter"
+        ]
+      },
+      {
+        "file": "src/lang/rust-comments.js",
+        "flags": [
+          "lineTerminator",
+          "nestedBlocks",
+          "sourceNormalization"
         ]
       },
       {

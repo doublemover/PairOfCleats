@@ -10,10 +10,10 @@ const freeze = value => {
 };
 
 /** Parser owners publish spans once. No AST, native handle or cleaned text escapes. */
-export const captureParserCommentOccurrences = (ast, text, { parser, language, dialect }) => {
+export const captureParserCommentOccurrences = (ast, text, { parser, language, dialect, unavailableReason = null }) => {
   const input = Array.isArray(ast?.comments) ? ast.comments : null;
-  let reason = !input ? 'parser-comments-unavailable' : input.length > COMMENT_OCCURRENCE_LIMIT
-    ? 'comment-count-budget' : ast.errors?.length ? 'parser-recovered-errors' : null;
+  let reason = unavailableReason || (!input ? 'parser-comments-unavailable' : input.length > COMMENT_OCCURRENCE_LIMIT
+    ? 'comment-count-budget' : ast.errors?.length ? 'parser-recovered-errors' : null);
   const ranges = [];
   if (!reason) for (const comment of input) {
     const start = comment.start ?? comment.range?.[0], end = comment.end ?? comment.range?.[1];
@@ -22,7 +22,8 @@ export const captureParserCommentOccurrences = (ast, text, { parser, language, d
       reason = 'invalid-parser-comment-range'; break;
     }
     ranges.push(Object.freeze({ start, end, kind,
-      documentationRole: kind === 'block' && text.startsWith('/**', start) ? 'candidate' : 'none',
+      documentationRole: language === 'rust' ? comment.documentationRole
+        : kind === 'block' && text.startsWith('/**', start) ? 'candidate' : 'none',
       attachment: 'unassociated' }));
   }
   ranges.sort((a, b) => a.start - b.start || a.end - b.end);

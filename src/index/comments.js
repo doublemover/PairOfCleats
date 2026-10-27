@@ -309,7 +309,11 @@ const stripBlockCommentLines = (lines, markerStart, markerEnd, stripStar) => {
   return trimmed;
 };
 
-const originalCommentType = (raw, kind) => {
+const originalCommentType = (raw, kind, languageId) => {
+  if (languageId === 'rust') {
+    if (kind === 'line') return raw.startsWith('//!') || raw.startsWith('///') && !raw.startsWith('////') ? 'doc' : 'inline';
+    return raw.startsWith('/*!') || raw.startsWith('/**') && !raw.startsWith('/***') && !raw.startsWith('/**/') ? 'doc' : 'block';
+  }
   if (kind === 'block') {
     if (raw.startsWith('/**') || raw.startsWith('/*!') || raw.startsWith('<!--')) return 'doc';
   } else if (kind === 'line') {
@@ -318,8 +322,8 @@ const originalCommentType = (raw, kind) => {
   return kind === 'line' ? 'inline' : 'block';
 };
 
-const classifyComment = (raw, kind, headerLine, config) => {
-  const originalType = originalCommentType(raw, kind);
+const classifyComment = (raw, kind, headerLine, config, languageId) => {
+  const originalType = originalCommentType(raw, kind, languageId);
   if (!headerLine || !config.licensePattern) return { type: originalType, originalType, licenseClassification: null };
   const match = config.licensePattern.exec(raw);
   if (!match) return { type: originalType, originalType, licenseClassification: null };
@@ -462,7 +466,7 @@ export function extractComments({
   const configSegments = [];
   const configAdmission = createCommentConfigAdmission({ enabled: includeConfigSegments, onParse: onConfigParse });
   const resolved = resolveCommentOccurrences({ text, ext, languageId, context, commentOccurrences });
-  if (['comment-count-budget', 'standalone-comment-parser-source-budget'].includes(resolved.reason)) {
+  if (['comment-count-budget', 'standalone-comment-parser-source-budget'].includes(resolved.reason) || resolved.reason?.startsWith('rust-comment-')) {
     return { comments, configSegments, coverage: { state: 'unavailable', reason: resolved.reason, policyVersion: 1 } };
   }
   const coverage = resolved.product?.complete ? { state: 'complete', reason: null,
@@ -494,7 +498,7 @@ export function extractComments({
       );
     }
     const contentText = contentLines.map((line) => line.content).join('\n').trim();
-    const classification = classifyComment(entry.raw, entry.kind, headerLine, config);
+    const classification = classifyComment(entry.raw, entry.kind, headerLine, config, languageId || EXT_OVERRIDES.get(ext));
     const commentType = classification.type;
     const minChars = commentType === 'doc' || commentType === 'license'
       ? config.minDocChars

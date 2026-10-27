@@ -1,8 +1,8 @@
 # Comment occurrence ownership
 
-Current JS/JSX and TS/TSX source implementation and fixtures are unvalidated.
-Other languages retain heuristic extraction; their language-owned adapters remain
-required. In particular this change does not repair Rust nested-comment lexing.
+Current JS/JSX, TS/TSX and Rust comment source implementations and fixtures are
+unvalidated. Other languages retain heuristic extraction; their language-owned
+adapters remain required. Rust uses a separate bounded lexical adapter.
 
 The language parser captures an immutable comment occurrence product at AST
 admission. It contains policy version 1, parser/options/version, language/dialect,
@@ -37,7 +37,7 @@ Config-fence parsing is requested only for extracted-prose or code mode with
 `includeInCode=true`. Paired prose preparation deliberately requests the future
 extracted-prose product. Comment references and stripping remain available when
 config segments are not demanded. Standalone extraction retains its prior default
-of producing config segments. Classification/cache/signature policy version 4
+of producing config segments. Classification/cache/signature policy version 5
 invalidates prior extraction meaning; there is no new public configuration knob.
 
 Config parsing admits at most 32 candidates, 64 KiB UTF-8 per candidate, 256 KiB
@@ -56,8 +56,19 @@ Clipped token results are deliberately not reused across mutable dictionaries or
 configurations. Raw paired extraction still reuses compatible source products.
 Existing positive tests consume actual prose chunks rather than unused arrays.
 
+Rust's adapter handles nested block comments, raw UTF-8/byte/C strings, ordinary
+strings, character literals and lifetimes. Its LF termination and inner/outer doc
+roles follow the [comment grammar](https://doc.rust-lang.org/reference/comments.html)
+and [literal grammar](https://doc.rust-lang.org/reference/tokens.html), independently
+of JavaScript's CR/LS/PS policy. Original CRLF offsets remain; bare CR in a doc
+comment is unavailable. Ordinary four-slash and extra-star comments stay ordinary.
+Bounds are 8 MiB source characters, 128 block nesting levels, 255 raw-string hashes
+and the shared 20,000 occurrences. Unfinished or unadmitted Rust lexical context
+is unavailable, with no generic fallback presented as a complete inventory.
+Complete comment coverage is not a Rust compiler/syntax validity qualification.
+
 Remaining work includes logical fence-content mapping/shared fence grammar,
-parser structural admission, non-JS lexical adapters and functional consumer/
-replay/import/performance checks. The 12 authored occurrence cases and 10 authored
-`indexing/segments/comment-work-admission/*` cases have not run. No measured
+parser structural admission, other language adapters and functional consumer/
+replay/import/performance checks. The 12 parser occurrence, 13 Rust occurrence and
+10 `indexing/segments/comment-work-admission/*` cases have not run. No measured
 speedup, parser-call result or consumer acceptance is claimed.
