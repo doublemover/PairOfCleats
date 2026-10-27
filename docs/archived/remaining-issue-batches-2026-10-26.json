@@ -183,11 +183,11 @@
         1741,
         1743
       ],
-      "sourceWork": 29,
-      "qualification": 84,
+      "sourceWork": 28,
+      "qualification": 82,
       "baselineSourceWork": 29,
       "baselineQualification": 89,
-      "completed": 5
+      "completed": 8
     },
     {
       "order": 4,
@@ -1067,8 +1067,48 @@
       "recordedDisposition": "implementation_needed",
       "priority": "unranked",
       "batch": "storage-publication-and-cleanup",
-      "phase": "source-review-and-implementation",
-      "status": "queued"
+      "phase": "qualified-and-closed",
+      "status": "closed-completed",
+      "sourceHead": "ee01bb7fce9c360d1c91e3e61b4979d1b26237d5",
+      "closedAt": "2026-10-27T12:46:58Z",
+      "completionReceipt": "generation-selection-repairs-2026-10-27.json",
+      "qualifiedTests": [
+        "indexing/build-state/build-truth-ledger-hash-alignment",
+        "indexing/build/sqlite-mode-plan",
+        "indexing/build/stage4-repo-root-pointer-prefers-active-root",
+        "indexing/validate/index-sqlite-zero-state-db-required",
+        "indexing/validate/index-unknown-mode",
+        "indexing/validate/ledger-validation",
+        "indexing/validate/manifest-shared-read-plan",
+        "indexing/validate/mode-finding-verdicts",
+        "indexing/validate/operation-generation-selection/capture-authority",
+        "indexing/validate/operation-generation-selection/captured-move",
+        "indexing/validate/operation-generation-selection/during-read",
+        "indexing/validate/operation-generation-selection/invalid-selection",
+        "indexing/validate/operation-generation-selection/legacy-move",
+        "indexing/validate/operation-generation-selection/mixed-roots",
+        "indexing/validate/operation-generation-selection/strict-ledger",
+        "indexing/validate/resource-failure-classification",
+        "indexing/validate/strict-validator-identities",
+        "storage/lmdb/prefetch-close-ownership/builder",
+        "storage/lmdb/prefetch-close-ownership/retrieval",
+        "storage/lmdb/prefetch-close-ownership/validator",
+        "storage/sqlite/all-mode-published-roots",
+        "storage/sqlite/build-root-active-generation-plan",
+        "storage/sqlite/build/row-ledger",
+        "storage/sqlite/explicit-source-authority/historical-conflict",
+        "storage/sqlite/explicit-source-authority/native-detached",
+        "storage/sqlite/explicit-source-authority/native-empty",
+        "storage/sqlite/explicit-source-authority/native-external-output",
+        "storage/sqlite/explicit-source-authority/native-known-output",
+        "storage/sqlite/explicit-source-authority/no-current",
+        "storage/sqlite/explicit-source-authority/partial-current",
+        "storage/sqlite/runner-no-process-exit",
+        "storage/sqlite/shared-output-path-refusal",
+        "storage/sqlite/zero-state-proof-admission",
+        "tooling/index/selected-mode-root-capture"
+      ],
+      "qualificationOnly": false
     },
     {
       "number": 356,
@@ -6522,11 +6562,13 @@
       ],
       "followupSourceHeads": [
         "55d0daa9f9d078e81205dcc8ef5cac5aaa404643",
-        "fff95d513ae4e0d83d8b1d27512d39d6f9358e4e"
+        "fff95d513ae4e0d83d8b1d27512d39d6f9358e4e",
+        "ee01bb7fce9c360d1c91e3e61b4979d1b26237d5"
       ],
       "followupReceipts": [
         "sqlite-uncached-close-ownership-2026-10-27.json",
-        "lmdb-lifetime-and-parity-2026-10-27.json"
+        "lmdb-lifetime-and-parity-2026-10-27.json",
+        "generation-selection-repairs-2026-10-27.json"
       ],
       "followupQualifiedTests": [
         "indexing/contracts/index-format-cutover",
@@ -6547,7 +6589,10 @@
         "retrieval/backend/lmdb-failure-propagation/lmdb-initialization",
         "retrieval/backend/lmdb-failure-propagation/tracking",
         "storage/lmdb/prefetch-close-ownership/builder",
-        "storage/lmdb/prefetch-close-ownership/retrieval"
+        "storage/lmdb/prefetch-close-ownership/retrieval",
+        "storage/lmdb/prefetch-close-ownership/validator",
+        "indexing/validate/manifest-shared-read-plan",
+        "indexing/validate/resource-failure-classification"
       ]
     },
     {
@@ -8143,7 +8188,6 @@
             173,
             248,
             284,
-            347,
             356,
             821,
             1119,
@@ -8396,13 +8440,14 @@
     }
   ],
   "currentCounts": {
-    "open": 720,
+    "open": 719,
     "qualificationPending": 459,
     "partialFollowup": 147,
-    "implementationStatusUnresolved": 114
+    "implementationStatusUnresolved": 113
   },
-  "reconciledAt": "2026-10-27T07:48:17.627Z",
+  "reconciledAt": "2026-10-27T12:48:23.758Z",
   "completedSourceBatch": [
+    347,
     586,
     670,
     690,
@@ -8411,7 +8456,9 @@
     1072,
     1073,
     1074,
+    1084,
     1089,
+    1093,
     1106,
     1107,
     1109,

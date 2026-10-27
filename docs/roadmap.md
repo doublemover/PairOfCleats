@@ -9,8 +9,8 @@ Canonical for: initiative status, execution order, and remaining work
 
 Current reconciliation, 2026-10-27: [the closeout review](archived/github-issue-closeout-2026-10-26.md)
 assessed **770 issues and 238 comments**, closing 27. Subsequent repair batches close
-twenty-three more: **720 remain open**—459 awaiting qualification, 147 partial/follow-up and
-114 with unresolved implementation status. The unresolved label is tracking
+twenty-four more: **719 remain open**—459 awaiting qualification, 147 partial/follow-up and
+113 with unresolved implementation status. The unresolved label is tracking
 evidence, not proof of absent code. Every remaining issue has a completion
 checklist; the linked owner queue records current execution status.
 
@@ -43,6 +43,7 @@ controls and scope. Full front gates include 40/40 gate cases:
 | [55d0daa9f](archived/sqlite-uncached-close-ownership-2026-10-27.md) | Partial #1574; retain uncached SQLite failures; remove proven-unused probe | 12 + full front gate |
 | [bee92206e](archived/windows-child-window-repairs-2026-10-27.md) | Partial #1289; suppress child windows, repair UI lock cycle; native search pending | 38 + private desktop control + full front gate |
 | [40f3bc785](archived/lmdb-lifetime-and-parity-2026-10-27.md) | #1084/#1093 closed; partial #1574 native close/failure ownership | 21 + full front gate |
+| [ee01bb7fc](archived/generation-selection-repairs-2026-10-27.md) | #347 closed; captured generation and SQLite state ownership | 34 + full front gate |
 
 These are scoped observations, not a combined full-suite or platform/model/release
 pass. Task checks omit only an inherited missing trusted-config selector;

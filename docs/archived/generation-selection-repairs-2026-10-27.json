@@ -1,0 +1,812 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-10-27",
+  "sourceHead": "ee01bb7fce9c360d1c91e3e61b4979d1b26237d5",
+  "sourceTree": "c40a260ae671014186e58df1dd4b2fbfe7caaf01",
+  "implementationCommits": [
+    "1934f2738827f6e94a1532f699ba689e98edfa6f",
+    "ee01bb7fce9c360d1c91e3e61b4979d1b26237d5"
+  ],
+  "branch": "codex/pr557-audit-repairs-20261012",
+  "platform": "win32",
+  "arch": "x64",
+  "node": "v26.12.1",
+  "issues": {
+    "closed": [
+      347
+    ],
+    "partial": [
+      1574
+    ]
+  },
+  "setup": {
+    "dependencyChanges": false,
+    "patchChanges": false,
+    "nativeBinaryChanges": false,
+    "bootstrapRerun": false,
+    "scope": "Existing prepared dependencies; actual native SQLite and LMDB operations exercised. No fresh setup or complete lifecycle qualification claimed."
+  },
+  "before": {
+    "scope": "Child-only synchronous Node load hooks substitute selected prior owner sources from 53604a58ba08f8aa37da3a41bbe8a8384ed51279. Checkout source was never reverted; fixture assertions remain unchanged between before/after.",
+    "cases": [
+      {
+        "name": "explicit-no-current",
+        "baselineHead": "53604a58ba08f8aa37da3a41bbe8a8384ed51279",
+        "substitutedOwners": [
+          "src/storage/sqlite/build/runner/mode-plan.js"
+        ],
+        "exitCode": 1,
+        "durationMs": 943,
+        "receipt": ".tmp/tasks/generation-selection-20261027/before-explicit-no-current.json",
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\r"
+        ]
+      },
+      {
+        "name": "generation-race",
+        "baselineHead": "53604a58ba08f8aa37da3a41bbe8a8384ed51279",
+        "substitutedOwners": [
+          "src/index/validate.js"
+        ],
+        "exitCode": 1,
+        "durationMs": 1058,
+        "receipt": ".tmp/tasks/generation-selection-20261027/before-generation-race.json",
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: [\"[code] sqlite metaV2 mismatch for chunk 0\",\"[code] ordering ledger unavailable for selected generation\",\"[prose] ordering ledger unavailable for selected generation\"]\r",
+          "false !== true\r"
+        ]
+      },
+      {
+        "name": "missing-requested-ledger",
+        "baselineHead": "53604a58ba08f8aa37da3a41bbe8a8384ed51279",
+        "substitutedOwners": [
+          "src/index/validate/ordering-ledger.js"
+        ],
+        "exitCode": 1,
+        "durationMs": 1047,
+        "receipt": ".tmp/tasks/generation-selection-20261027/before-missing-requested-ledger.json",
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\r",
+          "true !== false\r"
+        ]
+      },
+      {
+        "name": "unknown-input-count",
+        "baselineHead": "53604a58ba08f8aa37da3a41bbe8a8384ed51279",
+        "substitutedOwners": [
+          "src/storage/sqlite/build/runner/execution-orchestration.js"
+        ],
+        "exitCode": 1,
+        "durationMs": 1176,
+        "receipt": ".tmp/tasks/generation-selection-20261027/before-unknown-input-count.json",
+        "failure": [
+          "Error: post-import chunk count mismatch (1 !== 0)\r",
+          "  exitOnError: false\r"
+        ]
+      },
+      {
+        "name": "source-state-ownership",
+        "baselineHead": "53604a58ba08f8aa37da3a41bbe8a8384ed51279",
+        "substitutedOwners": [
+          "src/storage/sqlite/build/runner/execution-orchestration.js",
+          "src/storage/sqlite/build/runner/reporting-state-transitions.js",
+          "src/storage/sqlite/build/runner/state.js"
+        ],
+        "exitCode": 1,
+        "durationMs": 1389,
+        "receipt": ".tmp/tasks/generation-selection-20261027/before-source-state-ownership.json",
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: external output cannot advertise readiness in the selected input generation\r"
+        ]
+      },
+      {
+        "name": "validator-native-close",
+        "baselineHead": "53604a58ba08f8aa37da3a41bbe8a8384ed51279",
+        "substitutedOwners": [
+          "src/index/validate/lmdb-report.js"
+        ],
+        "exitCode": 1,
+        "durationMs": 312,
+        "receipt": ".tmp/tasks/generation-selection-20261027/before-validator-native-close.json",
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: neither owner may report closed while the actual prefetch callback remains outstanding\r",
+          "true !== false\r"
+        ]
+      },
+      {
+        "name": "manifest-native-close",
+        "baselineHead": "53604a58ba08f8aa37da3a41bbe8a8384ed51279",
+        "substitutedOwners": [
+          "src/index/validate/manifest.js"
+        ],
+        "exitCode": 1,
+        "durationMs": 584,
+        "receipt": ".tmp/tasks/generation-selection-20261027/before-manifest-native-close.json",
+        "failure": [
+          "AssertionError [ERR_ASSERTION]: Missing expected rejection.\r"
+        ]
+      }
+    ]
+  },
+  "checks": {
+    "format": {
+      "exitCode": 0,
+      "receipt": ".tmp/tasks/generation-selection-20261027/format-qualified.stdout.log"
+    },
+    "focused": {
+      "total": 34,
+      "passed": 34,
+      "failed": 0,
+      "skipped": 0,
+      "durationMs": 38640,
+      "tests": [
+        {
+          "id": "indexing/build-state/build-truth-ledger-hash-alignment",
+          "status": "passed",
+          "durationMs": 221,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/build/sqlite-mode-plan",
+          "status": "passed",
+          "durationMs": 71,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/build/stage4-repo-root-pointer-prefers-active-root",
+          "status": "passed",
+          "durationMs": 10034,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/validate/index-sqlite-zero-state-db-required",
+          "status": "passed",
+          "durationMs": 278,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/validate/index-unknown-mode",
+          "status": "passed",
+          "durationMs": 782,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/validate/ledger-validation",
+          "status": "passed",
+          "durationMs": 725,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/validate/manifest-shared-read-plan",
+          "status": "passed",
+          "durationMs": 813,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/validate/mode-finding-verdicts",
+          "status": "passed",
+          "durationMs": 4740,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/validate/operation-generation-selection/capture-authority",
+          "status": "passed",
+          "durationMs": 1030,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/validate/operation-generation-selection/captured-move",
+          "status": "passed",
+          "durationMs": 1019,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/validate/operation-generation-selection/during-read",
+          "status": "passed",
+          "durationMs": 1022,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/validate/operation-generation-selection/invalid-selection",
+          "status": "passed",
+          "durationMs": 854,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/validate/operation-generation-selection/legacy-move",
+          "status": "passed",
+          "durationMs": 1039,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/validate/operation-generation-selection/mixed-roots",
+          "status": "passed",
+          "durationMs": 1018,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/validate/operation-generation-selection/strict-ledger",
+          "status": "passed",
+          "durationMs": 1012,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/validate/resource-failure-classification",
+          "status": "passed",
+          "durationMs": 70,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/validate/strict-validator-identities",
+          "status": "passed",
+          "durationMs": 581,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "storage/lmdb/prefetch-close-ownership/builder",
+          "status": "passed",
+          "durationMs": 318,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "storage/lmdb/prefetch-close-ownership/retrieval",
+          "status": "passed",
+          "durationMs": 342,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "storage/lmdb/prefetch-close-ownership/validator",
+          "status": "passed",
+          "durationMs": 311,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "storage/sqlite/all-mode-published-roots",
+          "status": "passed",
+          "durationMs": 1784,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "storage/sqlite/build-root-active-generation-plan",
+          "status": "passed",
+          "durationMs": 254,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "storage/sqlite/build/row-ledger",
+          "status": "passed",
+          "durationMs": 74,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "storage/sqlite/explicit-source-authority/historical-conflict",
+          "status": "passed",
+          "durationMs": 980,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "storage/sqlite/explicit-source-authority/native-detached",
+          "status": "passed",
+          "durationMs": 1339,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "storage/sqlite/explicit-source-authority/native-empty",
+          "status": "passed",
+          "durationMs": 1175,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "storage/sqlite/explicit-source-authority/native-external-output",
+          "status": "passed",
+          "durationMs": 1339,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "storage/sqlite/explicit-source-authority/native-known-output",
+          "status": "passed",
+          "durationMs": 1332,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "storage/sqlite/explicit-source-authority/no-current",
+          "status": "passed",
+          "durationMs": 934,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "storage/sqlite/explicit-source-authority/partial-current",
+          "status": "passed",
+          "durationMs": 966,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "storage/sqlite/runner-no-process-exit",
+          "status": "passed",
+          "durationMs": 1095,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "storage/sqlite/shared-output-path-refusal",
+          "status": "passed",
+          "durationMs": 72,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "storage/sqlite/zero-state-proof-admission",
+          "status": "passed",
+          "durationMs": 375,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/index/selected-mode-root-capture",
+          "status": "passed",
+          "durationMs": 611,
+          "attempts": 1,
+          "exitCode": 0,
+          "signal": null,
+          "timedOut": false
+        }
+      ],
+      "receipt": ".tmp/tasks/generation-selection-20261027/focused-qualified.json"
+    },
+    "frontGate": {
+      "steps": [
+        {
+          "executable": "npm.cmd",
+          "exitCode": 0,
+          "name": "config-budget",
+          "arguments": [
+            "run",
+            "config:budget"
+          ],
+          "durationMs": 2349
+        },
+        {
+          "executable": "npm.cmd",
+          "exitCode": 0,
+          "name": "environment",
+          "arguments": [
+            "run",
+            "env:check"
+          ],
+          "durationMs": 1493
+        },
+        {
+          "executable": "node",
+          "exitCode": 0,
+          "name": "generated",
+          "arguments": [
+            "tools/docs/generated-surfaces.js",
+            "--check-freshness"
+          ],
+          "durationMs": 10541
+        },
+        {
+          "executable": "node",
+          "exitCode": 0,
+          "name": "command-surface",
+          "arguments": [
+            "tools/ci/check-command-surface.js"
+          ],
+          "durationMs": 2641
+        },
+        {
+          "executable": "node",
+          "exitCode": 0,
+          "name": "workflow",
+          "arguments": [
+            "tests/ci/workflow-contract.test.js"
+          ],
+          "durationMs": 224
+        },
+        {
+          "executable": "node",
+          "exitCode": 0,
+          "name": "gate-lane",
+          "arguments": [
+            "tests/run.js",
+            "--lane",
+            "gate",
+            "--jobs",
+            "1",
+            "--timeout-ms",
+            "30000",
+            "--retries",
+            "0",
+            "--native-status-redo=false",
+            "--pairofcleats-threads",
+            "1",
+            "--json"
+          ],
+          "durationMs": 22315
+        },
+        {
+          "executable": "git",
+          "exitCode": 0,
+          "name": "diff",
+          "arguments": [
+            "diff",
+            "--check"
+          ],
+          "durationMs": 78
+        }
+      ],
+      "gateSummary": {
+        "total": 40,
+        "passed": 40,
+        "failed": 0,
+        "skipped": 0,
+        "durationMs": 21582
+      },
+      "gateTests": [
+        {
+          "id": "indexing/policy/hotpath-membership-guard",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/policy/module-cache-boundedness-contract",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/policy/generated-matrix",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/artifact-surface-version",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/n-minus-one-adapter",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/public-artifact-surface-doc",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-generation",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/semver-policy-enforced",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/index-state-dense-sidecars-present",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "contracts/manifest-max-bytes-validation",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/policy/repo-inventory",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/policy/shared-module-cycle-guard",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/loader-matrix-parity",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/policy/analysis-schema",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/snapshots",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/builds-current-repo-head-schema",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/call-sites-schema",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/diffs",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/additional-properties-policy",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-enforced-on-load",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/schema-registry-single-source",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/api-contracts/caps",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/api-contracts/schema-validate",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/api-contracts/fail-on-warn",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/api-contracts/optional-params",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/api-contracts/large-call-sites",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/embedding-identity-gating-on-load",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "ci/capability-gate.smoke",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/index-compatibility-key-federation-block",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/policy/stable-entrypoints",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/policy/optional-deps",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/policy/analysis-gating",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "ci/tooling-doctor-gate.smoke",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "tooling/api-contracts/basic",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "contracts/module-export-surface-compat",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/semantic-foundations",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/semantic-handoff-contracts",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/runtime-evidence",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "indexing/contracts/index-format-cutover",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        },
+        {
+          "id": "ci/windows-authority-cohort",
+          "status": "passed",
+          "attempts": 1,
+          "timedOut": false
+        }
+      ],
+      "receipt": ".tmp/tasks/generation-selection-20261027/front-gate.json"
+    },
+    "policy": {
+      "jobs": 1,
+      "threads": 1,
+      "timeoutMs": 30000,
+      "retries": 0,
+      "nativeStatusRedo": false
+    }
+  },
+  "coverage": {
+    "generation": "Captured pointer SHA-256 and per-mode paths bind artifacts, actual SQLite metaV2 parity, actual LMDB reports and generation-local ordering ledgers; A/B publication movement, mixed roots, private receipt authority, legacy selection and invalid pointer controls.",
+    "sqlite": "Explicit inputs bypass unrelated current modes; source mode/generation contradictions reject before output mutation. Detached/external outputs preserve source index state, manifest and build-state bytes; empty detached inputs create a database. Unknown row counts use the existing independently decoded input count; declared zero contradictions retain the mismatch error and previous output.",
+    "lifetime": "Actual native prefetch callback remains pending until its original LMDB completion handoff; validation cannot complete prematurely. Actual checksum descriptor close refusal propagates its original owner; deferred finalization retains the same failure after explicit close-only recovery.",
+    "existing": "Published per-mode roots, active generation, same-run stage4 pointer, shared-output refusal, build-truth ledger, SQLite row ledger/zero-state and validation findings remain covered."
+  },
+  "fixtureRepairs": [
+    "Generation fixtures now carry canonical pointer/index-state timestamps and metadata schema version, exact SQLite IDs/metaV2, and enumerate every deliberately missing optional-family warning.",
+    "SQLite executable fixtures include the required semantic family. Undeclared missing index_state remains a legitimate input; declared/malformed state is not silently accepted.",
+    "Shared-read fixture uses canonical finding publication for its synthetic semantic-tail and supplies the required manifest piece type; ordering/content assertions remain.",
+    "Human/JSON verdict fixtures use the existing test-only environment overlay for internal backend selection; repository/trusted schemas are unchanged."
+  ],
+  "rawEvidence": "Author-workspace .tmp/.testLogs paths are historical execution receipts, not files promised in a clean checkout.",
+  "remaining": [
+    "#1574 custom backend launch/root registration, modern cache/builder/sidecar/session and category/multi-repository cleanup adoption.",
+    "Full deep-suite, representative latency, optional sqlite-vec, real-model and release acceptance remain separate.",
+    "No Linux/macOS execution, GUI launch, elevation, WSL, new physical symlink/junction, debugger registration or dependency rebuild.",
+    "Two existing aggregate fixtures that create physical links were outside this bounded cohort: indexing/validate/index-contract-matrix and indexing/validate/index-current-build-pointer-case-insensitive. This receipt does not count them as passes."
+  ]
+}
