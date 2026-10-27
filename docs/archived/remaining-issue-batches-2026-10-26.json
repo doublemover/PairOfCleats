@@ -7272,6 +7272,9 @@
       "phase": "source-review-and-implementation",
       "status": "partial-qualified",
       "currentDisposition": "partial_or_followup",
+      "unvalidatedSourceHeads": ["1cd9c62e6861003eb7f8175bcf00508cf817b259"],
+      "unvalidatedReceipts": ["tantivy-generation-implementation-2026-10-27.md"],
+      "currentImplementation": "Schema-2 source/mapping/postings receipts, immutable UUID payload activation, bounded serialized writers and original reader disposal implemented; 21 protocol cases authored, functional and optional-native qualification deferred.",
       "sourceHead": "8bf742ec6689409b43d3d95a1a5ea98d1dff5117",
       "qualifiedTests": [
         "retrieval/backend/cli-sparse-preflight-tantivy-bypass",

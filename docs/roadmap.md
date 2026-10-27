@@ -33,6 +33,10 @@ Current SQLite operation/session implementation is **unvalidated** at `47ca8bea9
 cover source/native/temp ownership, runner finalization and WAL/sidecar cleanup.
 Functional execution is deferred during the implementation wave.
 
+Tantivy source identity, immutable publication and native reader disposal are
+**unvalidated** at `1cd9c62e6`; [implementation and deferred checks](archived/tantivy-generation-implementation-2026-10-27.md)
+retain optional-native readback and external cleanup as separate remaining work.
+
 These are scoped observations, not a combined full-suite or platform/model/release
 pass. Task checks omit only an inherited missing trusted-config selector;
 user/global settings and trust rules remain intact. Common lifecycle policy
