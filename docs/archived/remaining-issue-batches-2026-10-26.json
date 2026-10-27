@@ -6596,7 +6596,7 @@
       "recordedDisposition": "partial_or_followup",
       "priority": "P1",
       "batch": "storage-publication-and-cleanup",
-      "phase": "source-repair",
+      "phase": "remaining-backend-registration-and-lifetime-adoption",
       "status": "source-partially-qualified",
       "sourceHead": "06c3324d00392da08fca6025e55c3ecb8aff9458",
       "qualifiedTests": [
@@ -6611,19 +6611,22 @@
       ],
       "partialReceipt": "repository-cleanup-admission-2026-10-27.json",
       "remainingWork": [
-        "Register custom backend roots with producer/publication identity and launch authority.",
-        "Adopt remaining reader/cache/builder/sidecar lifetimes through original owners.",
-        "Qualify category-specific outputs, multi-repository cleanup and remaining adapters."
+        "#1574 custom/external root registration with producer/publication identity and explicit launch authority.",
+        "Validator/probe/builder/sidecar and unadopted legacy-adapter lifetime adoption.",
+        "Category-specific eligible backend deletion/requalification and all/multi-repo CLI/MCP acceptance."
       ],
       "followupSourceHeads": [
         "55d0daa9f9d078e81205dcc8ef5cac5aaa404643",
         "fff95d513ae4e0d83d8b1d27512d39d6f9358e4e",
-        "ee01bb7fce9c360d1c91e3e61b4979d1b26237d5"
+        "ee01bb7fce9c360d1c91e3e61b4979d1b26237d5",
+        "eea652a771f5900a3389d997c80600f8b70b30a7",
+        "b22a42ca52982fbee424f88a2a1491fb57f43cf5"
       ],
       "followupReceipts": [
         "sqlite-uncached-close-ownership-2026-10-27.json",
         "lmdb-lifetime-and-parity-2026-10-27.json",
-        "generation-selection-repairs-2026-10-27.json"
+        "generation-selection-repairs-2026-10-27.json",
+        "native-reader-sessions-2026-10-27.json"
       ],
       "followupQualifiedTests": [
         "indexing/contracts/index-format-cutover",
@@ -6647,7 +6650,27 @@
         "storage/lmdb/prefetch-close-ownership/retrieval",
         "storage/lmdb/prefetch-close-ownership/validator",
         "indexing/validate/manifest-shared-read-plan",
-        "indexing/validate/resource-failure-classification"
+        "indexing/validate/resource-failure-classification",
+        "indexing/validate/operation-generation-selection/capture-authority",
+        "indexing/validate/operation-generation-selection/captured-move",
+        "indexing/validate/operation-generation-selection/during-read",
+        "indexing/validate/operation-generation-selection/invalid-selection",
+        "indexing/validate/operation-generation-selection/legacy-move",
+        "indexing/validate/operation-generation-selection/mixed-roots",
+        "indexing/validate/operation-generation-selection/strict-ledger",
+        "shared/storage/index-writer-category-session",
+        "shared/storage/native-reader-lifetime/admission-race",
+        "shared/storage/native-reader-lifetime/cache",
+        "shared/storage/native-reader-lifetime/launch-homes",
+        "shared/storage/native-reader-lifetime/metadata-failure",
+        "shared/storage/native-reader-lifetime/native-failure",
+        "shared/storage/native-reader-lifetime/open-failure",
+        "shared/storage/native-reader-lifetime/original-cache-close",
+        "shared/storage/native-reader-lifetime/uncached",
+        "shared/storage/repo-cleanup-exclusion/metadata-failure",
+        "shared/storage/repo-cleanup-exclusion/original-close",
+        "shared/storage/repo-cleanup-exclusion/readers-and-race",
+        "storage/lmdb/prefetch-close-ownership/retrieval-storage"
       ]
     },
     {
@@ -8498,7 +8521,7 @@
     "partialFollowup": 146,
     "implementationStatusUnresolved": 113
   },
-  "reconciledAt": "2026-10-27T13:09:48.143Z",
+  "reconciledAt": "2026-10-27T13:54:12.302Z",
   "completedSourceBatch": [
     347,
     586,

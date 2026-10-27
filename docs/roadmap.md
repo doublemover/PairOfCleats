@@ -43,6 +43,7 @@ controls and scope. Full front gates include 40/40 gate cases:
 | [40f3bc785](archived/lmdb-lifetime-and-parity-2026-10-27.md) | #1084/#1093 closed; partial #1574 native close/failure ownership | 21 + full front gate |
 | [ee01bb7fc](archived/generation-selection-repairs-2026-10-27.md) | #347 closed; captured generation and SQLite state ownership | 34 + full front gate |
 | [294e971bb](archived/query-vector-admission-2026-10-27.md) | #1006 closed; #1544 actual models/perf pending | 27 prior cohort; 14 final rechecks + full front gate |
+| [b22a42ca5](archived/native-reader-sessions-2026-10-27.md) | #1574 canonical native readers/cache ownership; registration remains | 37 prior; 9 final + full front gate |
 
 These are scoped observations, not a combined full-suite or platform/model/release
 pass. Task checks omit only an inherited missing trusted-config selector;
