@@ -2503,7 +2503,21 @@
       "priority": "P2",
       "batch": "storage-publication-and-cleanup",
       "phase": "source-review-and-focused-qualification",
-      "status": "queued"
+      "status": "closed-completed",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-10-27T11:47:21Z",
+      "sourceHead": "40f3bc7854f9a9575a52fda1524083a132d89283",
+      "qualificationOnly": false,
+      "completionReceipt": "lmdb-lifetime-and-parity-2026-10-27.json",
+      "qualifiedTests": [
+        "retrieval/index-hydration-contract",
+        "storage/lmdb/manifest-array-inputs",
+        "storage/lmdb/native-artifact-parity/columnar",
+        "storage/lmdb/native-artifact-parity/json",
+        "storage/lmdb/native-artifact-parity/jsonl",
+        "storage/lmdb/selected-generation-inputs"
+      ]
     },
     {
       "number": 1085,
@@ -2578,7 +2592,21 @@
       "priority": "P2",
       "batch": "storage-publication-and-cleanup",
       "phase": "source-review-and-focused-qualification",
-      "status": "queued"
+      "status": "closed-completed",
+      "state": "closed",
+      "stateReason": "completed",
+      "closedAt": "2026-10-27T11:47:21Z",
+      "sourceHead": "40f3bc7854f9a9575a52fda1524083a132d89283",
+      "qualificationOnly": true,
+      "completionReceipt": "lmdb-lifetime-and-parity-2026-10-27.json",
+      "qualifiedTests": [
+        "retrieval/index-hydration-contract",
+        "storage/lmdb/manifest-array-inputs",
+        "storage/lmdb/native-artifact-parity/columnar",
+        "storage/lmdb/native-artifact-parity/json",
+        "storage/lmdb/native-artifact-parity/jsonl",
+        "storage/lmdb/selected-generation-inputs"
+      ]
     },
     {
       "number": 1097,
@@ -6493,10 +6521,12 @@
         "Qualify category-specific outputs, multi-repository cleanup and remaining adapters."
       ],
       "followupSourceHeads": [
-        "55d0daa9f9d078e81205dcc8ef5cac5aaa404643"
+        "55d0daa9f9d078e81205dcc8ef5cac5aaa404643",
+        "fff95d513ae4e0d83d8b1d27512d39d6f9358e4e"
       ],
       "followupReceipts": [
-        "sqlite-uncached-close-ownership-2026-10-27.json"
+        "sqlite-uncached-close-ownership-2026-10-27.json",
+        "lmdb-lifetime-and-parity-2026-10-27.json"
       ],
       "followupQualifiedTests": [
         "indexing/contracts/index-format-cutover",
@@ -6510,7 +6540,14 @@
         "storage/sqlite/cache",
         "storage/sqlite/cache-failed-close-ownership",
         "storage/sqlite/cache-generation-tag",
-        "storage/sqlite/reader-schema-mismatch"
+        "storage/sqlite/reader-schema-mismatch",
+        "retrieval/backend/disposal-failure-authority",
+        "retrieval/backend/lmdb-failure-propagation/context-initialization",
+        "retrieval/backend/lmdb-failure-propagation/dispose-siblings",
+        "retrieval/backend/lmdb-failure-propagation/lmdb-initialization",
+        "retrieval/backend/lmdb-failure-propagation/tracking",
+        "storage/lmdb/prefetch-close-ownership/builder",
+        "storage/lmdb/prefetch-close-ownership/retrieval"
       ]
     },
     {
@@ -8359,8 +8396,8 @@
     }
   ],
   "currentCounts": {
-    "open": 722,
-    "qualificationPending": 461,
+    "open": 720,
+    "qualificationPending": 459,
     "partialFollowup": 147,
     "implementationStatusUnresolved": 114
   },
