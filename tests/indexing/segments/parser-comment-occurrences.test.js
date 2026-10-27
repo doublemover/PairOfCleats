@@ -62,6 +62,7 @@ if (fixture.expected.length && !['malformed', 'source-mismatch'].includes(mode))
 if (mode === 'cache-profile') {
   const base = { text, ext, languageId, lineIndex: input.lineIndex, normalizedCommentsConfig: config, fileHash: 'same-caller-key' };
   const key = buildExtractedProseExtrasCacheKey(base), cache = new Map();
+  cache.set(key, Object.defineProperty({}, 'data', { get() { throw new Error('Unqualified cache payload must not be inspected'); } }));
   const first = resolveExtractedProseCommentData({ ...base, cache, key, languageContext: context });
   const entry = cache.get(key);
   assert.deepEqual(resolveExtractedProseCommentData({ ...base, cache, key, languageContext: context }), first);

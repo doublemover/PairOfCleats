@@ -26,11 +26,12 @@ const freezeData = value => {
 export const resolveExtractedProseCommentData = ({ cache, key, text, ext, languageId, lineIndex, normalizedCommentsConfig, languageContext = null }) => {
   const enabled = key && typeof cache?.get === 'function' && typeof cache?.set === 'function';
   const cached = enabled ? cache.get(key) : null;
+  const owned = cached && ownedEntries.has(cached);
   const ast = languageContext?.jsAst || languageContext?.exportAst;
   const product = ast ? getParserCommentOccurrences(ast, text) : null;
-  const compatible = !ast || product?.complete && cached?.data.coverage?.state === 'complete'
+  const compatible = !ast || owned && product?.complete && cached.data.coverage?.state === 'complete'
     && stableStringifyForSignature(cached.data.coverage.parser) === stableStringifyForSignature(product.parser);
-  if (cached && ownedEntries.has(cached) && cached.key === key && cached.sourceText === text && compatible) return structuredClone(cached.data);
+  if (owned && cached.key === key && cached.sourceText === text && compatible) return structuredClone(cached.data);
   const data = extractComments({ text, ext, languageId, lineIndex, config: normalizedCommentsConfig, context: languageContext });
   if (enabled) {
     const stored = Object.freeze({ key, sourceText: text, data: freezeData(structuredClone(data)) });
