@@ -248,7 +248,10 @@ export const freezeSnapshot = async ({
         snapshotId,
         alreadyFrozen: true,
         frozenAt: existingFrozen.frozenAt || null,
-        method: existingFrozen.method || normalizedMethod
+        method: existingFrozen.method || normalizedMethod,
+        verificationOk: existingFrozen.verification?.ok === true,
+        filesChecked: existingFrozen.verification?.filesChecked ?? null,
+        bytesChecked: existingFrozen.verification?.bytesChecked ?? null
       };
     }
 
@@ -396,7 +399,7 @@ export const freezeSnapshot = async ({
         bytesCopied,
         filesChecked: verifyEnabled ? filesChecked : null,
         bytesChecked: verifyEnabled ? bytesChecked : null,
-        verificationOk: true,
+        verificationOk: verifyEnabled,
         retention: manifest.snapshots[snapshotId].retention
       };
     } catch (err) {
