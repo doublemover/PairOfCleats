@@ -9,7 +9,7 @@ Canonical for: initiative status, execution order, and remaining work
 
 Current reconciliation, 2026-10-27: [the closeout review](archived/github-issue-closeout-2026-10-26.md)
 assessed **770 issues and 238 comments**, closing 27. Subsequent repair batches close
-seventeen more: **726 remain open**—464 awaiting qualification, 148 partial/follow-up and
+eighteen more: **725 remain open**—464 awaiting qualification, 147 partial/follow-up and
 114 with unresolved implementation status. The unresolved label is tracking
 evidence, not proof of absent code. Every remaining issue has a completion
 checklist; the linked owner queue records current execution status.
@@ -43,17 +43,20 @@ Completed source-bound Windows batches retain their detailed archives:
 - [Storage/artifact qualification](archived/storage-artifact-p1-closeout-2026-10-27.md),
   `a73b37be1`: #1089, #1109, #1551; strict assembly, real mixed-generation SQLite
   content and conserved micro-batches; 12 affected fixtures and full front gate (40/40).
+- [Watch retention](archived/watch-retention-repairs-2026-10-27.md), `7c3683ad0`:
+  #690; both reader protocols, promotion exclusion and original native-close
+  recovery; 38 affected fixtures and full front gate (40/40), with a failing prior-manager control.
 
 These are scoped observations, not a combined full-suite or platform/model/release
 pass. Task checks omit only an inherited missing trusted-config selector;
-user/global settings and trust rules remain intact. #690 is now correctly partial:
-its retained-reader/exclusion follow-up still needs source work.
+user/global settings and trust rules remain intact. Common lifecycle policy
+(#1267) and custom backend cleanup adoption (#1574) remain open.
 
 Execution is solo, Windows-only and implementation-first. The [complete owner
 queue](archived/remaining-issue-batches-2026-10-26.json) orders source work by
 severity and shared dependencies, retaining qualification separately:
 
-1. P1 watch/cleanup reader authority (#690, #1574), then source-pinned publication (#1627).
+1. Remaining P1 cache/cleanup ownership (#1582, #1746, #1574), then source-pinned publication (#1627).
 2. Worker/child/service ownership, provider installation and compilation context
    (#631, #289), keeping live readers and original cleanup owners intact.
 3. Language/semantic/replay and retrieval/API evidence contracts.
