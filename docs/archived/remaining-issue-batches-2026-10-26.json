@@ -593,10 +593,10 @@
         1619
       ],
       "sourceWork": 33,
-      "qualification": 21,
+      "qualification": 20,
       "baselineSourceWork": 33,
       "baselineQualification": 21,
-      "completed": 0
+      "completed": 1
     },
     {
       "order": 9,
@@ -6261,7 +6261,20 @@
       "priority": "P1",
       "batch": "operator-and-editors",
       "phase": "source-review-and-focused-qualification",
-      "status": "queued"
+      "status": "closed-completed",
+      "sourceHead": "957230b1239a322489a63e8d77fe53057bab77ab",
+      "closedAt": "2026-10-27T07:45:23Z",
+      "qualifiedTests": [
+        "tui/cargo-invocation-policy",
+        "tui/install-generation-transaction",
+        "tui/install-layout-default-root",
+        "tui/installer-unit",
+        "tui/wrapper-behavior",
+        "tui/wrapper-exit-status",
+        "tui/native-install-generation-conpty"
+      ],
+      "completionReceipt": "tui-install-qualification-2026-10-27.json",
+      "qualificationOnly": true
     },
     {
       "number": 1555,
@@ -8306,12 +8319,12 @@
     }
   ],
   "currentCounts": {
-    "open": 723,
-    "qualificationPending": 462,
+    "open": 722,
+    "qualificationPending": 461,
     "partialFollowup": 147,
     "implementationStatusUnresolved": 114
   },
-  "reconciledAt": "2026-10-27T07:07:43.188Z",
+  "reconciledAt": "2026-10-27T07:48:17.627Z",
   "completedSourceBatch": [
     586,
     670,
@@ -8327,6 +8340,7 @@
     1109,
     1397,
     1551,
+    1554,
     1582,
     1591,
     1593,

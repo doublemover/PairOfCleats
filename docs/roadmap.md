@@ -9,7 +9,7 @@ Canonical for: initiative status, execution order, and remaining work
 
 Current reconciliation, 2026-10-27: [the closeout review](archived/github-issue-closeout-2026-10-26.md)
 assessed **770 issues and 238 comments**, closing 27. Subsequent repair batches close
-twenty more: **723 remain open**—462 awaiting qualification, 147 partial/follow-up and
+twenty-one more: **722 remain open**—461 awaiting qualification, 147 partial/follow-up and
 114 with unresolved implementation status. The unresolved label is tracking
 evidence, not proof of absent code. Every remaining issue has a completion
 checklist; the linked owner queue records current execution status.
@@ -23,35 +23,21 @@ retain source checkpoints and the [prior inventory](archived/github-issue-covera
 remains historical. Work is solo and Windows-only. Hosted gate/policy/Rust TUI
 passed at `f8532f1d2`; seven broader jobs failed (see the review).
 
-Completed source-bound Windows batches retain their detailed archives:
+Source-bound Windows repair and qualification receipts retain details, failing
+controls and scope. Full front gates include 40/40 gate cases:
 
-- [Request/source boundaries](archived/remaining-issue-repairs-2026-10-26.md),
-  `c4bec36c8`: #586, #670, #811, #1642; 29 passing affected fixtures. The gate's
-  stale fixture was repaired and its failed case rechecked after the other 39 passed.
-- [Service progress](archived/service-progress-repairs-2026-10-26.md), `8bf742ec6`:
-  #1593, durable bindings and bounded shared discovery; 20 affected fixtures and
-  the complete cheap front gate (40/40). #1627 publication/mapping work remains.
-- [Cache retirement](archived/cache-retirement-repairs-2026-10-27.md), `9d1c90a5c`:
-  #1591, #1718; original-owner federation/daemon cleanup, 14 affected fixtures and
-  the complete cheap front gate (40/40), with a failing prior-coordinator control.
-- [P1 runtime](archived/runtime-p1-closeout-2026-10-27.md), `3a1d08813`: #1050,
-  #1072–#1074, #1106, #1107; isolated parser/LSP/preflight lifetime, real Piscina
-  unwind and UID/import/pointer contracts; 37 affected fixtures and full front gate (40/40).
-- [Stage closeout](archived/stage-closeout-repairs-2026-10-27.md), `45e216edc`:
-  #1397, real delayed-child timeout/cancellation and exact lock reconciliation;
-  14 affected fixtures and full front gate (40/40), with a failing prior-validator control.
-- [Storage/artifact qualification](archived/storage-artifact-p1-closeout-2026-10-27.md),
-  `a73b37be1`: #1089, #1109, #1551; strict assembly, real mixed-generation SQLite
-  content and conserved micro-batches; 12 affected fixtures and full front gate (40/40).
-- [Watch retention](archived/watch-retention-repairs-2026-10-27.md), `7c3683ad0`:
-  #690; both reader protocols, promotion exclusion and original native-close
-  recovery; 38 affected fixtures and full front gate (40/40), with a failing prior-manager control.
-- [Cache/benchmark ownership](archived/cache-ownership-p1-closeout-2026-10-27.md),
-  `1f7579910`: #1582, #1746; actual framed-channel reuse routes and CLI cleanup;
-  12 affected cases and full front gate (40/40), with a failing original-delimiter control.
-- [Cleanup admission](archived/repository-cleanup-admission-2026-10-27.md),
-  `06c3324d0`: partial #1574; both lease namespaces and original-resource recovery,
-  eight affected cases and full front gate (40/40). Custom backend adoption remains.
+| Receipt / source | Issue scope | Passing affected checks |
+| --- | --- | --- |
+| [c4bec36c8](archived/remaining-issue-repairs-2026-10-26.md) | #586, #670, #811, #1642 | 29; gate repair receipt |
+| [8bf742ec6](archived/service-progress-repairs-2026-10-26.md) | #1593 | 20 + full front gate |
+| [9d1c90a5c](archived/cache-retirement-repairs-2026-10-27.md) | #1591, #1718 | 14 + full front gate |
+| [3a1d08813](archived/runtime-p1-closeout-2026-10-27.md) | #1050, #1072–#1074, #1106, #1107 | 37 + full front gate |
+| [45e216edc](archived/stage-closeout-repairs-2026-10-27.md) | #1397 | 14 + full front gate |
+| [a73b37be1](archived/storage-artifact-p1-closeout-2026-10-27.md) | #1089, #1109, #1551 | 12 + full front gate |
+| [7c3683ad0](archived/watch-retention-repairs-2026-10-27.md) | #690 | 38 + full front gate |
+| [1f7579910](archived/cache-ownership-p1-closeout-2026-10-27.md) | #1582, #1746 | 12 + full front gate |
+| [06c3324d0](archived/repository-cleanup-admission-2026-10-27.md) | Partial #1574; custom backend adoption remains | 8 + full front gate |
+| [957230b12](archived/tui-install-qualification-2026-10-27.md) | #1554; actual Windows upgrade/sharing | 7 + 3 native controls + full front gate |
 
 These are scoped observations, not a combined full-suite or platform/model/release
 pass. Task checks omit only an inherited missing trusted-config selector;
