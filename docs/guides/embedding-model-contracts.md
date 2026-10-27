@@ -1,5 +1,18 @@
 # Qualified dense embedding contracts
 
+Query vectors are admitted before query-cache fulfillment and ANN work. Values
+must be numeric, finite and representable as Float32, with the exact selected
+model/index width. Generic unknown widths may use the provider's observed width;
+known widths cannot be repaired through clipping or padding. Named model
+projections remain in their qualified decoders. Models requiring L2 normalization
+also require a nonzero unit norm (squared-norm tolerance `1e-4`); generic L2 inputs
+retain their existing zero-vector policy. Invalid output yields the typed
+`ERR_EMBEDDING_OUTPUT` diagnostic and sparse fallback, is evicted from the query
+cache, and can be attempted afresh by the next request. Resource/identity failures
+retain their existing ownership and rejection contracts.
+Local result signatures and federated result keys include the shared query-vector
+admission version, preventing earlier cached results from bypassing this policy.
+
 `Xenova/bge-m3` uses unmodified query and document text, CLS pooling, 1024
 dimensions, L2 normalization and an 8192-token limit. This follows the export
 author's [Transformers.js recipe](https://huggingface.co/Xenova/bge-m3#usage-transformersjs).

@@ -300,7 +300,7 @@ export const runAnnStage = async ({
     effectiveRoute = bypassToSparse ? ANN_ADAPTIVE_ROUTE.SPARSE : ANN_ADAPTIVE_ROUTE.VECTOR;
     if (!bypassToSparse) {
       if (typeof queryEmbedding === 'function') queryEmbedding = await queryEmbedding();
-      vectorActive = isEmbeddingReady(queryEmbedding);
+      vectorActive = isEmbeddingReady(queryEmbedding, idx?.denseVec?.dims ?? null);
       if (vectorActive && countPlan?.route === 'stored-exhaustive'
         && queryEmbedding.length === idx.denseVec.dims && Array.from(queryEmbedding).every(Number.isFinite)) {
         const snapshot = snapshotCountAwareStoredDense({ dense: idx.denseVec, eligibleIds: eligibilityActive ? annCandidates : null,

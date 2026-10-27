@@ -62,16 +62,16 @@ const cases = [
       assert.equal(resolveIntentVectorMode('code', { vectorMode: 'doc' }), 'code');
 
       const clipped = normalizeEmbeddingDims([1, 2, 3, 4], 2);
-      assert.equal(clipped.adjusted, true);
+      assert.equal(clipped.adjusted, false);
       assert.equal(clipped.queryDims, 4);
       assert.equal(clipped.expectedDims, 2);
-      assert.deepEqual(clipped.embedding, [1, 2]);
+      assert.equal(clipped.embedding, null, 'an over-wide query cannot be incidentally projected into another space');
 
       const padded = normalizeEmbeddingDims(new Float32Array([3, 4]), 4);
-      assert.equal(padded.adjusted, true);
+      assert.equal(padded.adjusted, false);
       assert.equal(padded.queryDims, 2);
       assert.equal(padded.expectedDims, 4);
-      assert.deepEqual(padded.embedding, [3, 4, 0, 0]);
+      assert.equal(padded.embedding, null, 'a short query cannot be zero-padded into an apparently valid embedding');
 
       const unchanged = normalizeEmbeddingDims([7, 8, 9], 3);
       assert.equal(unchanged.adjusted, false);

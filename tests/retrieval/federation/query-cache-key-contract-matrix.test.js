@@ -16,6 +16,7 @@ import {
   upsertFederatedQueryCacheEntry
 } from '../../../src/retrieval/federation/query-cache.js';
 import { writeFederationRepoFixture } from './repo-fixture.js';
+import { QUERY_EMBEDDING_ADMISSION_VERSION } from '../../../src/shared/embedding-output-admission.js';
 
 const withTempWorkspace = async (prefix, build) => {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), prefix));
@@ -27,6 +28,15 @@ const withTempWorkspace = async (prefix, build) => {
 };
 
 const cases = [
+  {
+    name: 'Query-vector admission separates prior federated result keys',
+    async run() {
+      const payload = buildFederatedQueryCacheKeyPayload({ query: 'alpha' });
+      assert.equal(payload.queryEmbeddingAdmissionVersion, QUERY_EMBEDDING_ADMISSION_VERSION);
+      const prior = { ...payload }; delete prior.queryEmbeddingAdmissionVersion;
+      assert.notEqual(buildFederatedQueryCacheKey(payload).keyHash, buildFederatedQueryCacheKey(prior).keyHash);
+    }
+  },
   {
     name: 'Boolean complement results invalidate the earlier federated result namespace',
     async run() {

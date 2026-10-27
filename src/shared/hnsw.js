@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { distanceToSimilarity, withAnnScoreSpace } from './ann-similarity.js';
+import { isEmbeddingVectorReady } from './embedding-output-admission.js';
 
 const require = createRequire(import.meta.url);
 
@@ -171,11 +172,9 @@ export function loadHnswIndex({ indexPath, dims, config, meta, expectedModel = n
   return null;
 }
 
-export function rankHnswIndex({ index, space }, queryEmbedding, topN, candidateSet) {
+export function rankHnswIndex({ index, space, meta }, queryEmbedding, topN, candidateSet) {
   if (candidateSet && candidateSet.size === 0) return [];
-  const isVectorLike = Array.isArray(queryEmbedding)
-    || (ArrayBuffer.isView(queryEmbedding) && !(queryEmbedding instanceof DataView));
-  if (!index || !isVectorLike || !queryEmbedding.length) return [];
+  if (!index || !isEmbeddingVectorReady(queryEmbedding, meta?.dims ?? null)) return [];
   const requested = Math.max(1, Number(topN) || 1);
   const maxElements = typeof index.getCurrentCount === 'function'
     ? index.getCurrentCount()

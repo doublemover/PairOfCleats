@@ -257,13 +257,6 @@ export async function rankLanceDb({
   const normalized = normalizeEmbeddingDims(queryEmbedding, dims);
   if (!normalized.embedding) return [];
   const embeddingArray = normalized.embedding;
-  if (normalized.adjusted && normalized.expectedDims) {
-    warnOnce(
-      'lancedb-query-dims',
-      `[ann] LanceDB query dims mismatch (query=${normalized.queryDims}, index=${normalized.expectedDims}); ` +
-      'clipping/padding query vector to index dims.'
-    );
-  }
 
   const dir = lancedbInfo.dir;
   if (!dir || !fs.existsSync(dir)) return [];

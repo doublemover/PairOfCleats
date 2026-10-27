@@ -1,4 +1,5 @@
 import fsPromises from 'node:fs/promises';
+import { QUERY_EMBEDDING_ADMISSION_VERSION } from '../../shared/embedding-output-admission.js';
 import path from 'node:path';
 import { sha1 } from '../../shared/hash.js';
 import { atomicWriteText } from '../../shared/io/atomic-write.js';
@@ -168,6 +169,7 @@ export const buildFederatedQueryCacheKeyPayload = ({
 } = {}) => ({
   // Child authority, ranking and captured effective query policy per repo/mode.
   v: 10,
+  queryEmbeddingAdmissionVersion: QUERY_EMBEDDING_ADMISSION_VERSION,
   repoSetId: repoSetId || null,
   manifestHash: manifestHash || null,
   workspace: normalizeWorkspace(workspace),

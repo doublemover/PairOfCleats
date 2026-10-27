@@ -5,7 +5,8 @@ import {
 } from '../shared/embedding-input-format.js';
 import { getEnvConfig } from '../shared/env/runtime.js';
 import { createWarnOnce } from '../shared/logging/warn-once.js';
-import { resolveEmbeddingModelProfile } from '../shared/embedding-model-profile.js';
+import { resolveEmbeddingModelProfile, resolveQueryEmbeddingContract } from '../shared/embedding-model-profile.js';
+import { admitEmbeddingVector } from '../shared/embedding-output-admission.js';
 import { assertEmbeddingArtifactCompatibility } from '../shared/embedding-artifact-identity.js';
 import { observeEmbeddingOwnership, preserveEmbeddingCleanupFailure } from '../shared/embedding-cache-lifetime.js';
 
@@ -78,7 +79,8 @@ export async function getQueryEmbedding({
     let primaryError, primaryCaught = false;
     try {
       const embedding = await adapter.embedOne(formattedText);
-      if (!embedding || !embedding.length) return null;
+      const contract = resolveQueryEmbeddingContract({ modelId, modelProfile: profile, dims, useStub: resolvedUseStub });
+      admitEmbeddingVector(embedding, { ...contract, provider });
       const execution = adapter.executionInfo();
       const requestedProvider = execution.requestedProvider || provider;
       if (execution.provider !== requestedProvider && !resolvedUseStub) {
@@ -96,7 +98,7 @@ export async function getQueryEmbedding({
   } catch (err) {
     const observe = observeEmbeddingOwnership(err);
     if (observe && !observe()) throw err;
-    warnOnce(`[embeddings] Query embedder unavailable; skipping ANN. ${err?.message || err}`);
+    warnOnce(`[embeddings] Query embedder unavailable; skipping ANN. ${err?.code === 'ERR_EMBEDDING_OUTPUT' ? 'ERR_EMBEDDING_OUTPUT: invalid query vector.' : err?.message || err}`);
     return null;
   }
 }

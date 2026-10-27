@@ -366,15 +366,6 @@ const createDenseVectorRanker = (idx, queryEmbedding, topN, metrics = null) => {
   const queryDims = normalized.queryDims;
   let dims = normalized.expectedDims || queryDims;
   const queryVector = normalized.embedding;
-  if (normalized.adjusted && queryDims && normalized.expectedDims) {
-    if (!idx.denseVec?._dimMismatchWarned) {
-      idx.denseVec._dimMismatchWarned = true;
-      console.warn(
-        `[search] dense embeddings dimension mismatch (query=${queryDims}, index=${reportedDims}); ` +
-        'clipping/padding query vector to index dims.'
-      );
-    }
-  }
   if (!dims || dims <= 0) return [];
   const minVal = Number.isFinite(idx.denseVec?.minVal) ? Number(idx.denseVec.minVal) : -1;
   const maxVal = Number.isFinite(idx.denseVec?.maxVal) ? Number(idx.denseVec.maxVal) : 1;

@@ -1,4 +1,5 @@
 import { buildQueryCacheKey, getIndexSignature } from '../../cli-index.js';
+import { QUERY_EMBEDDING_ADMISSION_VERSION } from '../../../shared/embedding-output-admission.js';
 import { stableStringifyForSignature } from '../../../shared/stable-json.js';
 import {
   findQueryCacheEntry,
@@ -191,6 +192,7 @@ export async function resolveQueryCacheLookup({
       asOfContext
     });
   cacheSignature = stableStringifyForSignature({index:signature,queryParserVersion:QUERY_PARSER_VERSION,metadataPredicateVersion:2,
+    queryEmbeddingAdmissionVersion: QUERY_EMBEDDING_ADMISSION_VERSION,
     effectivePlanIdentity,
     ...(chunkAuthorEvidence ? { chunkAuthorEvidence } : {})});
   const cacheKeyInfo = buildQueryCacheKey({

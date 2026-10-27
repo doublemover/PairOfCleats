@@ -55,6 +55,20 @@ export const validateEmbeddingModelProfile = (profile, { provider, normalize } =
   }
 };
 
+/** Generic queries must match the persisted/requested width. The named model
+ * decoder has already applied any qualified projection before returning here.
+ */
+export const resolveQueryEmbeddingContract = ({ modelId, modelProfile = null, dims = null, useStub = false }) => {
+  const profile = resolveEmbeddingModelProfile(modelId, modelProfile);
+  const dense = resolveEmbeddingDenseContract(modelId);
+  const selected = profile?.dimensions ?? (!useStub ? dense?.dimensions : null) ?? null;
+  if (selected !== null && dims != null && dims !== selected) {
+    throw invalidEmbeddingOutput('query dimensions conflict with the selected model profile.', { expectedDimensions: selected, observedDimensions: dims });
+  }
+  return { dimensions: selected ?? dims, requireNonzero: Boolean(profile || dense) && !useStub,
+    unitNorm: Boolean(profile || dense) && !useStub };
+};
+
 /** Consume projected sentence embeddings, never unprojected token hidden states. */
 export const normalizeEmbeddingGemma2Output = (output, count, dimensions) => {
   const tensor = output?.sentence_embedding;
@@ -75,7 +89,7 @@ export const normalizeEmbeddingGemma2Output = (output, count, dimensions) => {
       }
     }
     if (!(norm > 0) || !Number.isFinite(norm)) {
-      throw new Error('EmbeddingGemma 2 returned a zero or invalid embedding norm.');
+      throw invalidEmbeddingOutput('EmbeddingGemma 2 returned a zero or invalid embedding norm.');
     }
     norm = Math.sqrt(norm);
     for (let column = 0; column < dimensions; column += 1) vector[column] /= norm;

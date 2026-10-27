@@ -1,4 +1,5 @@
 const FLOAT_TYPES = new Set(['float32', 'float64']);
+export const QUERY_EMBEDDING_ADMISSION_VERSION = 1;
 
 /** Diagnostics contain only layout evidence, never submitted text. */
 export const invalidEmbeddingOutput = (message, details = {}) => Object.assign(
@@ -8,6 +9,36 @@ export const invalidEmbeddingOutput = (message, details = {}) => Object.assign(
 
 const numericStorage = data => Array.isArray(data)
   || data instanceof Float32Array || data instanceof Float64Array;
+
+const finiteComponent = value => typeof value === 'number'
+  && Number.isFinite(value) && Number.isFinite(Math.fround(value));
+
+const inspectVector = (data, dimensions, requireNonzero, unitNorm = false) => {
+  if (!numericStorage(data) || !data.length) return 'empty or nonnumeric vector storage.';
+  if (dimensions !== null && (!Number.isSafeInteger(dimensions) || dimensions <= 0 || data.length !== dimensions)) {
+    return 'query width disagrees with the selected model/index contract.';
+  }
+  let norm = 0;
+  for (let column = 0; column < data.length; column++) {
+    const value = data[column];
+    if (!finiteComponent(value)) return 'embedding component is not a finite Float32 number.';
+    if (requireNonzero || unitNorm) norm += Math.fround(value) ** 2;
+  }
+  if ((requireNonzero || unitNorm) && (!(norm > 0) || !Number.isFinite(norm))) return 'embedding has a zero or invalid norm.';
+  return unitNorm && Math.abs(norm - 1) > 1e-4 ? 'embedding norm disagrees with the normalized model contract.' : null;
+};
+
+/** Query admission preserves valid owned vectors without allocating or changing
+ * values. Width changes belong to named model decoders, before this boundary.
+ */
+export const admitEmbeddingVector = (data, { dimensions = null, requireNonzero = false, unitNorm = false, ...details } = {}) => {
+  const reason = inspectVector(data, dimensions, requireNonzero, unitNorm);
+  if (reason) throw invalidEmbeddingOutput(reason, { ...details, expectedDimensions: dimensions,
+    observedDimensions: numericStorage(data) ? data.length : null });
+  return data;
+};
+
+export const isEmbeddingVectorReady = (data, dimensions = null) => inspectVector(data, dimensions, false) === null;
 
 /** Admit tensor metadata before any slicing, pooling or numeric conversion.
  * A tensor's own view length is authoritative, not its backing buffer length.
@@ -45,7 +76,7 @@ export const copyEmbeddingValues = (data, start, width, details = {}, target = n
   let norm = 0;
   for (let column = 0; column < width; column++) {
     const value = data[start + column];
-    if (typeof value !== 'number' || !Number.isFinite(value) || !Number.isFinite(Math.fround(value))) {
+    if (!finiteComponent(value)) {
       throw invalidEmbeddingOutput('embedding component is not a finite Float32 number.', { ...details, column });
     }
     vector[column] = value;

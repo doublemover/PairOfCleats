@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-27T12:45:28.694Z",
+  "generatedAt": "2026-10-27T13:03:57.095Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4638,6 +4638,7 @@
         "tests/indexing/workers/process-task-scheduler-retirement.test.js",
         "tests/perf/bench/query-resource-plan.test.js",
         "tests/perf/tooling/bench/sqlite-benchmark-cli.test.js",
+        "tests/retrieval/ann/query-vector-admission.test.js",
         "tests/retrieval/backend/boolean-complement-cli.test.js",
         "tests/retrieval/backend/lmdb-failure-propagation.test.js",
         "tests/retrieval/backend/sqlite-uncached-close-ownership.test.js",
@@ -5042,6 +5043,7 @@
         "tests/indexing/semantic/native-authority-read-ownership.test.js",
         "tests/indexing/validate/mode-finding-verdicts.test.js",
         "tests/perf/bench/vfs-io-ownership.test.js",
+        "tests/retrieval/ann/query-vector-admission.test.js",
         "tests/retrieval/parity/partial-ranks-report.test.js",
         "tests/retrieval/relation-boost-zero-config.test.js",
         "tests/run.js",

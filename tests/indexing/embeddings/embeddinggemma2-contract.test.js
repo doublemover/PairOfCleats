@@ -135,7 +135,11 @@ try {
   const resolve = createEmbeddingResolver({
     throwIfAborted: () => {}, embeddingQueryText: 'alpha', modelConfig: { dir: options.modelsDir },
     embeddingProvider: 'xenova', rootDir: process.cwd(),
-    getQueryEmbeddingImpl: async (request) => { cacheCalls.push(request); return [1]; }
+    getQueryEmbeddingImpl: async (request) => {
+      cacheCalls.push(request);
+      const vector = new Float32Array(request.dims); vector[0] = 1;
+      return vector;
+    }
   });
   await resolve(modelId, 128, true, null, profile);
   await resolve(modelId, 128, true, null, profile);

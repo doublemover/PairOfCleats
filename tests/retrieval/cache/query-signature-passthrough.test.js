@@ -5,6 +5,7 @@ import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { stableStringifyForSignature } from '../../../src/shared/stable-json.js';
 import { resolveQueryCacheLookup } from '../../../src/retrieval/cli/run-search-session/cache-policy.js';
 import { QUERY_PARSER_VERSION } from '../../../src/retrieval/query-plan-schema.js';
+import { QUERY_EMBEDDING_ADMISSION_VERSION } from '../../../src/shared/embedding-output-admission.js';
 
 applyTestEnv();
 
@@ -94,7 +95,10 @@ const lookup = await resolveQueryCacheLookup({
 
 assert.equal(lookup.cacheHit, false);
 assert.equal(lookup.cacheSignature, stableStringifyForSignature({ index: indexSignaturePayload,
-  queryParserVersion: QUERY_PARSER_VERSION, metadataPredicateVersion: 2 }));
+  queryParserVersion: QUERY_PARSER_VERSION, metadataPredicateVersion: 2, effectivePlanIdentity: null,
+  queryEmbeddingAdmissionVersion: QUERY_EMBEDDING_ADMISSION_VERSION }));
+assert.notEqual(lookup.cacheSignature, stableStringifyForSignature({ index: indexSignaturePayload,
+  queryParserVersion: QUERY_PARSER_VERSION, metadataPredicateVersion: 2, effectivePlanIdentity: null }), 'prior query results cannot bypass vector admission');
 assert.equal(typeof lookup.cacheKey, 'string');
 assert.ok(lookup.queryCachePath.endsWith('queryCache.json'));
 
