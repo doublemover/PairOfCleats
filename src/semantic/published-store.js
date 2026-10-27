@@ -2,7 +2,7 @@ import { assertSemanticOperationIndex } from '../contracts/validators/semantic-o
 import { assertSemanticQueryIndex } from '../contracts/validators/semantic-query-index.js';
 import { validateArtifact } from '../contracts/artifact-schemas.js';
 import path from 'node:path';
-import { loadPiecesManifest } from '../shared/artifact-io/manifest-read.js';
+import { readFreshPiecesManifest } from '../shared/artifact-io/manifest-read.js';
 import { assertCurrentIndexFormat } from '../contracts/index-format.js';
 import { assertSemanticEnvelope } from '../contracts/validators/semantic-envelopes.js';
 import { SEMANTIC_MEMBER_NAMES } from '../contracts/schemas/semantic-envelopes.js';
@@ -23,9 +23,9 @@ export const openPublishedSemanticStore = async ({ indexDir, repoRoot, generatio
   requireQueryIndex = false, signal = null }) => {
   throwIfAborted(signal);
   if (generation) { generation = structuredClone(generation); assertSemanticEnvelope('generation', generation); }
-  const pieces = loadPiecesManifest(indexDir, { repoRoot });
-  // The shared loader may return a cached object. Capture the registration
-  // authority before any await without retaining or changing its mutable cache.
+  const pieces = readFreshPiecesManifest(indexDir, { repoRoot });
+  // Capture fresh registration authority before any await without retaining or
+  // changing the ordinary mutable parsed cache.
   const registrations = structuredClone(pieces.pieces);
   const buildId = pieces.buildId;
   const byPath = new Map();

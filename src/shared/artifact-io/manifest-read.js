@@ -63,14 +63,14 @@ export const assertPiecesManifestFormat = (dir, manifest, repoRoot = process.cwd
   return manifest;
 };
 
-export const loadPiecesManifest = (dir, { maxBytes = MAX_JSON_BYTES, strict = true, repoRoot = process.cwd() } = {}) => {
+const readPiecesManifest = (dir, { maxBytes = MAX_JSON_BYTES, strict = true, repoRoot = process.cwd() } = {}, fresh = false) => {
   retainCachePathAccess(dir);
   const manifestPath = path.join(dir, 'pieces', 'manifest.json');
   if (!existsOrBak(manifestPath)) return assertPiecesManifestFormat(dir, null, repoRoot);
   if (strict) assertNoSymlinkPath(dir, manifestPath, { allowMissing: true });
   const resolvedMaxBytes = resolveManifestMaxBytes(maxBytes, { strict });
   const cachePolicy = { maxBytes: resolvedMaxBytes, view: 'manifest', strict: Boolean(strict) };
-  const cached = readCache(manifestPath, cachePolicy);
+  const cached = fresh ? null : readCache(manifestPath, cachePolicy);
   if (cached) return assertPiecesManifestFormat(dir, cached, repoRoot);
   const raw = readJsonFile(manifestPath, { maxBytes: resolvedMaxBytes, containedRoot: strict ? dir : null });
   const manifest = normalizeManifest(raw);
@@ -80,11 +80,18 @@ export const loadPiecesManifest = (dir, { maxBytes = MAX_JSON_BYTES, strict = tr
     err.code = 'ERR_MANIFEST_INVALID';
     throw err;
   }
-  if (manifest) {
+  if (manifest && !fresh) {
     writeCache(manifestPath, manifest, cachePolicy);
   }
   return manifest;
 };
+
+export const loadPiecesManifest = (dir, options) => readPiecesManifest(dir, options);
+
+// A registration authority must come from this invocation's contained bytes.
+// Ordinary parsed memos retain their existing reuse; stat equality cannot certify
+// a current registration against a separately verified semantic payload.
+export const readFreshPiecesManifest = (dir, options) => readPiecesManifest(dir, options, true);
 
 export const resolvePiecesManifestReadPlan = ({
   manifest = null,

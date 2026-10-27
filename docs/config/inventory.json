@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-27T08:43:45.856Z",
+  "generatedAt": "2026-10-27T09:07:31.495Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4647,6 +4647,7 @@
         "tests/shared/subprocess/sync-timeout-detached-tree.test.js",
         "tests/smoke/baseline-negative.test.js",
         "tests/smoke/baseline.test.js",
+        "tests/storage/semantic/published-manifest-cache-authority.test.js",
         "tests/tooling/api-contracts/export-identity-cli.test.js",
         "tests/tooling/api-contracts/qualified-target-joins-cli.test.js",
         "tests/tooling/api-contracts/typescript-parameter-cli.test.js",
