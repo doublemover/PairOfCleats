@@ -1231,6 +1231,9 @@
     },
     {
       "number": 635,
+      "unvalidatedSourceHeads": ["f6c82c945321492dcdbe5f12f09204cc5beee353"],
+      "unvalidatedReceipts": ["native-workflow-preflight-implementation-2026-10-27.md"],
+      "currentImplementation": "History proves catalog/navigation witnesses obsolete since 9add4524a; updated actual keyboard fixture uses current headings and explicit advanced JSON plus exact field identity. Shared CLI stats validation now blocks bound-repo/index-dir and invalid-mode conflicts before launch; argv errors return blocked previews while pending owners propagate. Three CLI and one native case are authored; all 19 actual native cases and original acceptance remain deferred.",
       "title": "TUI missing functionality: configure and operate index and embedding workflows",
       "recordedDisposition": "partial_or_followup",
       "priority": "unranked",

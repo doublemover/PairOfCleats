@@ -55,7 +55,8 @@ severity and shared dependencies, retaining qualification separately:
 2. Worker/child/service ownership, provider installation and compilation context
    (#631, #289), keeping live readers and original cleanup owners intact.
 3. Language/semantic/replay and retrieval/API evidence contracts.
-4. Native TUI/editor workflows, including the catalog-loaded blocker (#635).
+4. Native TUI/editor workflows: [catalog/editor witnesses and stats admission](archived/native-workflow-preflight-implementation-2026-10-27.md)
+   are repaired in source; all actual workflows remain unqualified (#635).
 5. Performance/evaluation after correctness: retained comparisons (#1663),
    representative SQLite trials (#1733) and whole-process-tree RSS (#1675).
 6. Research capabilities after their prerequisite source/retrieval/evidence owners.
