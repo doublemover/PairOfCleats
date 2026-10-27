@@ -1,3 +1,5 @@
+import path from 'node:path';
+import { withSqliteStorageOperation } from './storage-operation.js';
 import { readEffectiveMemory } from '../../../shared/effective-memory.js';
 import { performance } from 'node:perf_hooks';
 import { assertMinhashHashIdentity } from '../../../index/minhash.js';
@@ -68,7 +70,12 @@ const MAX_VOCAB_LOOKUP_CACHE_ENTRIES = 250000;
  * @param {object} [params.stats]
  * @returns {Promise<{count:number,denseCount:number,reason?:string,embedStats?:object,vectorAnn?:object}>}
  */
-export async function buildDatabaseFromBundles({
+export const buildDatabaseFromBundles = input => withSqliteStorageOperation(input?.storageContext,
+  [input?.outputPath || input?.outPath, input?.indexDir, input?.incrementalData?.bundleDir]
+    .filter(value => typeof value === 'string' && value).map(value => path.resolve(value)),
+  () => buildDatabaseFromBundlesOwned(input));
+
+async function buildDatabaseFromBundlesOwned({
   Database,
   outPath,
   mode,

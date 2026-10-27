@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { runNativeDatabaseCommand } from '../shared/native-database-lifetime.js';
 import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
+import { getSqliteStorageOperation } from '../../src/storage/sqlite/build/storage-operation.js';
 import { rebuildSqliteFilterFacts } from '../../src/storage/sqlite/filter-facts.js';
 import { SQLITE_COMPACT_OPTIONS } from '../shared/operator-cli-options.js';
 import { assertSqliteIndexFormat } from '../../src/storage/sqlite/index-format.js';
@@ -205,6 +206,7 @@ export async function compactDatabase(input, resources = null) {
 
   // Reserve a fresh sibling; an old crash artifact is never deletion authority.
   const tempPath = `${dbPath}.compact-${randomUUID()}`;
+  getSqliteStorageOperation()?.admitTargets([tempPath, `${tempPath}-wal`, `${tempPath}-shm`]);
   const reservation = await fsPromises.open(tempPath, 'wx');
   await reservation.close();
 

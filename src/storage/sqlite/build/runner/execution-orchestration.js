@@ -48,6 +48,7 @@ import {
 } from './logging.js';
 import { createModeReporter } from './reporting-state-transitions.js';
 import { resolveModeSelectionPlan } from './selection-planning.js';
+import { withSqliteStorageOperation, getSqliteStorageOperation } from '../storage-operation.js';
 
 /**
  * Execute sqlite build orchestration for all selected modes.
@@ -58,7 +59,11 @@ import { resolveModeSelectionPlan } from './selection-planning.js';
  * @param {object} input
  * @returns {Promise<void>}
  */
-export const executeSqliteModeBuilds = async ({
+export const executeSqliteModeBuilds = input => withSqliteStorageOperation({ repoRoot: input.root, userConfig: input.userConfig },
+  Object.values(input.modeOutputPaths || {}).filter(Boolean).map(value => path.resolve(value)),
+  () => executeSqliteModeBuildsOwned(input));
+
+const executeSqliteModeBuildsOwned = async ({
   Database,
   argv,
   validateMode,
@@ -157,6 +162,7 @@ export const executeSqliteModeBuilds = async ({
       logger: { log, error }
     });
     let tempOutputPath = null;
+    let modeFailure, modeFailed = false;
     try {
       throwIfAborted(signal);
       const logDetails = [];
@@ -688,25 +694,39 @@ export const executeSqliteModeBuilds = async ({
       done += 1;
       buildModeTask.set(done, modeList.length, { message: `${mode} done` });
     } catch (err) {
+      modeFailed = true; modeFailure = err;
+      getSqliteStorageOperation()?.retainFailure(err);
       let resourcesSettled = false;
       try { observeStorageResource(err, { phase: 'sqlite-build-failure' }).requireSettled(); resourcesSettled = true; }
       catch (pending) { err = pending; }
       if (tempOutputPath && resourcesSettled) {
+        let mainRemoved = true;
         try {
           await fs.rm(tempOutputPath, { force: true });
-        } catch {}
-        await removeSqliteSidecars(tempOutputPath);
+        } catch (cleanup) {
+          if (!['ENOENT', 'ENOTDIR'].includes(cleanup?.code)) {
+            mainRemoved = false;
+            err = addStorageFailureContext(err, {}, cleanup, { secondaryPresent: true });
+          }
+        }
+        if (mainRemoved) {
+          try { await removeSqliteSidecars(tempOutputPath); }
+          catch (cleanup) { err = addStorageFailureContext(err, {}, cleanup, { secondaryPresent: true }); }
+        }
       }
+      modeFailure = err;
       const errorMessage = err?.message || String(err);
-      await reporter.reportFailure({ errorMessage, err });
+      try { await reporter.reportFailure({ errorMessage, err }); }
+      catch (reporting) { err = addStorageFailureContext(err, {}, reporting, { secondaryPresent: true }); }
       if (err && typeof err === 'object') {
         const classifiedFailure = classifySqliteModeBuildFailure(err);
-        throw addStorageFailureContext(err, {
+        modeFailure = addStorageFailureContext(err, {
           code: err.code || classifiedFailure.code,
           failureClass: err.failureClass || classifiedFailure.failureClass,
           exitCode: Number.isFinite(Number(err.exitCode)) ? err.exitCode : 1,
           exitOnError: exitOnError === true
         });
+        throw modeFailure;
       }
       const wrapped = new Error(errorMessage);
       const classifiedFailure = classifySqliteModeBuildFailure(wrapped);
@@ -714,9 +734,11 @@ export const executeSqliteModeBuilds = async ({
       wrapped.failureClass = classifiedFailure.failureClass;
       wrapped.exitCode = 1;
       wrapped.exitOnError = exitOnError === true;
+      modeFailure = wrapped;
       throw wrapped;
     } finally {
-      await stageCheckpoints.flush();
+      try { await stageCheckpoints.flush(); }
+      catch (cleanup) { throw modeFailed ? addStorageFailureContext(modeFailure, {}, cleanup, { secondaryPresent: true }) : cleanup; }
       // buildDatabaseFromArtifacts/buildDatabaseFromBundles close their DB handles internally.
     }
   }

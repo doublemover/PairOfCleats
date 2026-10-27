@@ -134,11 +134,16 @@ export function getCacheRoot({ env = process.env } = {}) {
  * @returns {string}
  */
 export function getCacheTempRoot(...segments) {
-  const base = getStorageCategorySelection('tmp') || path.join(getCacheRoot(), 'tmp');
+  const base = resolveCacheTempRoot();
   const suffix = segments
     .map((segment) => String(segment || '').trim())
     .filter(Boolean);
   return suffix.length ? path.join(base, ...suffix) : base;
+}
+
+/** Capture the actual temporary category from one launch environment. */
+export function resolveCacheTempRoot({ env = process.env } = {}) {
+  return path.resolve(getStorageCategorySelection('tmp', { env }) || path.join(getCacheRoot({ env }), 'tmp'));
 }
 
 export function resolveVersionedCacheRoot(baseRoot) {

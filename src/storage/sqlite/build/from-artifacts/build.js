@@ -1,3 +1,5 @@
+import path from 'node:path';
+import { withSqliteStorageOperation } from '../storage-operation.js';
 import { loadPiecesManifest } from '../../../../shared/artifact-io/manifest-read.js';
 import { throwIfAborted } from '../../../../shared/abort.js';
 import { rebuildSqliteFilterFacts } from '../../filter-facts.js';
@@ -50,7 +52,12 @@ const ARTIFACT_BUILD_PRAGMA_MIN_BYTES = 128 * 1024 * 1024;
  * @param {object} [params.stats]
  * @returns {Promise<number>}
  */
-export async function buildDatabaseFromArtifacts({
+export const buildDatabaseFromArtifacts = input => withSqliteStorageOperation(input?.storageContext,
+  [input?.outputPath || input?.outPath, input?.indexDir, input?.incrementalData?.bundleDir]
+    .filter(value => typeof value === 'string' && value).map(value => path.resolve(value)),
+  () => buildDatabaseFromArtifactsOwned(input));
+
+async function buildDatabaseFromArtifactsOwned({
   repoRoot = process.cwd(),
   Database,
   outPath,

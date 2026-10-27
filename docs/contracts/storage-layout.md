@@ -51,6 +51,19 @@ fatal errors and independent pending ownership; ordinary confirmed CANTOPEN
 fallback retains its existing paths and bounds. These physical writer owners
 do not complete storage-session/temporary-namespace adoption for every builder.
 
+Current SQLite follow-up implementation (functional qualification pending) wraps
+the full production runner and explicit-context artifact, bundle and incremental
+helpers in one operation session. It captures launch-selected cache and temporary
+categories before source planning, admits exact native/sidecar targets before
+access, and joins accepted child work and asynchronous finalization before lease
+release. Resource metadata settles before enclosing categories; explicit recovery
+cannot acknowledge an original unsettled native/child owner. WAL publication
+captures physical close before checkpointing, and sidecar cleanup drains both
+removals while preserving original operation/reporting failures. Context-free
+benchmark helpers and custom/external registration remain separate adoption scope.
+Formatting, syntax, config budget and static cycle analysis do not qualify runtime
+behavior; the new operation, dispatch, runner and sidecar fixtures are unexecuted.
+
 `src/shared/storage/layout.js` resolves one application home and category
 descriptors without filesystem access. Launch home precedes `PAIROFCLEATS_HOME`,
 then the existing platform default: `%LOCALAPPDATA%/PairOfCleats` on Windows,

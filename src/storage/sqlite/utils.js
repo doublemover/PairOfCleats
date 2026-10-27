@@ -26,6 +26,10 @@ import { getEnvConfig } from '../../shared/env/runtime.js';
 import { throwIfAborted, isAbortError } from '../../shared/abort.js';
 import { iterateDenseVectorBinaryRows, normalizeDenseVectorStreamMeta } from '../../shared/dense-vector-stream.js';
 import { observeStorageResource } from '../../shared/storage/failure-observation.js';
+import { describeStorageFailure } from '../../shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../shared/storage/operation-error.js';
+import { createSqliteCacheCloseOwner } from '../../retrieval/sqlite-cache-close-owner.js';
+import { getSqliteStorageOperation } from './build/storage-operation.js';
 
 /**
  * Split an array into fixed-size chunks.
@@ -932,6 +936,7 @@ const SQLITE_SIDECARS = ['-wal', '-shm'];
 // A committed WAL belongs to its main database. Fold it through SQLite before
 // any rename so rollback and retained backups are independently queryable.
 const settleSqliteForPublication = async (dbPath, nativeResources = null) => {
+  getSqliteStorageOperation()?.admitTargets([path.resolve(dbPath), ...SQLITE_SIDECARS.map(suffix => `${path.resolve(dbPath)}${suffix}`)]);
   if (!SQLITE_SIDECARS.some(suffix => fs.existsSync(`${dbPath}${suffix}`))) return;
   if (!fs.existsSync(dbPath)) {
     throw Object.assign(new Error(`[sqlite] Orphaned WAL recovery requires its original database: ${dbPath}`),
@@ -940,7 +945,8 @@ const settleSqliteForPublication = async (dbPath, nativeResources = null) => {
   const { default: Database } = await import('better-sqlite3');
   const open = () => new Database(dbPath, { fileMustExist: true, timeout: 0 });
   const db = nativeResources ? nativeResources.open(open) : open();
-  let primary = null;
+  const physical = nativeResources ? null : createSqliteCacheCloseOwner(db, { canClose: () => true, onClosed() {} });
+  let primary, failed = false;
   try {
     checkpointSqliteWithTelemetry(db, { dbPath, mode: 'TRUNCATE' });
     const mode = db.pragma('journal_mode = DELETE', { simple: true });
@@ -948,14 +954,16 @@ const settleSqliteForPublication = async (dbPath, nativeResources = null) => {
       throw Object.assign(new Error(`[sqlite] Could not coordinate WAL publication: ${dbPath}`),
         { code: 'ERR_SQLITE_PUBLICATION_BUSY' });
     }
-  } catch (error) { primary = error; throw error; }
+  } catch (error) {
+    primary = error; failed = true; physical?.retainFailure(error);
+    getSqliteStorageOperation()?.retainFailure(error); throw error;
+  }
   finally {
     try {
       if (nativeResources) await nativeResources.close(db);
-      else db.close();
+      else physical.retire();
     } catch (error) {
-      if (primary) { primary.nativeCleanupError = error; throw primary; }
-      throw error;
+      throw failed ? addStorageFailureContext(primary, { nativeCleanupError: error }, error, { secondaryPresent: true }) : error;
     }
   }
 };
@@ -966,7 +974,8 @@ const settleSqliteForPublication = async (dbPath, nativeResources = null) => {
  * @returns {Promise<void>}
  */
 export async function removeSqliteSidecars(basePath, { swallowNonBenign = false, logger = null } = {}) {
-  await Promise.all(SQLITE_SIDECARS.map(async (suffix) => {
+  getSqliteStorageOperation()?.admitTargets(SQLITE_SIDECARS.map(suffix => `${path.resolve(basePath)}${suffix}`));
+  const results = await Promise.allSettled(SQLITE_SIDECARS.map(async (suffix) => {
     try {
       const targetPath = `${basePath}${suffix}`;
       if (fs.existsSync(targetPath)) {
@@ -974,15 +983,23 @@ export async function removeSqliteSidecars(basePath, { swallowNonBenign = false,
       }
       await fsPromises.rm(targetPath, { force: true });
     } catch (err) {
-      if (isBenignSqliteCleanupError(err)) return;
-      emitSqliteCleanupWarning(
+      getSqliteStorageOperation()?.retainFailure(err);
+      const diagnostic = describeStorageFailure(err, { phase: 'sqlite-sidecar-removal' });
+      if (isBenignSqliteCleanupError(diagnostic)) return;
+      try { emitSqliteCleanupWarning(
         logger,
-        `[sqlite-cleanup] failed to remove sidecar ${basePath}${suffix}: ${err?.message || err}`
-      );
+        `[sqlite-cleanup] failed to remove sidecar ${basePath}${suffix}: ${diagnostic.message}`
+      ); } catch (reporting) { throw addStorageFailureContext(err, {}, reporting, { secondaryPresent: true }); }
       if (swallowNonBenign) return;
       throw err;
     }
   }));
+  const errors = results.filter(result => result.status === 'rejected').map(result => result.reason);
+  if (errors.length) {
+    let failure = errors[0];
+    for (const error of errors.slice(1)) failure = addStorageFailureContext(failure, {}, error, { secondaryPresent: true });
+    throw failure;
+  }
 }
 
 /**
@@ -995,6 +1012,7 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
   throwIfAborted(options.signal);
   const keepBackup = options.keepBackup === true;
   const backupPath = options.backupPath || `${finalDbPath}.bak`;
+  getSqliteStorageOperation()?.admitTargets([tempDbPath, finalDbPath, backupPath].map(value => path.resolve(value)));
   const finalExists = fs.existsSync(finalDbPath);
   if (!fs.existsSync(tempDbPath)) {
     const err = new Error(`Temp sqlite db missing before replace: ${tempDbPath}`);
@@ -1016,11 +1034,13 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
       await fsPromises.rm(targetPath, { force: true });
       return true;
     } catch (err) {
-      if (isBenignSqliteCleanupError(err)) return false;
-      emitSqliteCleanupWarning(
+      getSqliteStorageOperation()?.retainFailure(err);
+      const diagnostic = describeStorageFailure(err, { phase: 'sqlite-replacement-removal' });
+      if (isBenignSqliteCleanupError(diagnostic)) return false;
+      try { emitSqliteCleanupWarning(
         options.logger,
-        `[sqlite-cleanup] failed to remove ${context || 'path'} ${targetPath}: ${err?.message || err}`
-      );
+        `[sqlite-cleanup] failed to remove ${context || 'path'} ${targetPath}: ${diagnostic.message}`
+      ); } catch (reporting) { throw addStorageFailureContext(err, {}, reporting, { secondaryPresent: true }); }
       if (!swallow) throw err;
       return false;
     }

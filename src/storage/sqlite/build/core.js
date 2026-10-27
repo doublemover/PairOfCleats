@@ -27,6 +27,7 @@ import { throwIfAborted } from '../../../shared/abort.js';
 import { createSqliteCacheCloseOwner } from '../../../retrieval/sqlite-cache-close-owner.js';
 import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
 import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
+import { getSqliteStorageOperation, isSqliteDiagnosticSettled } from './storage-operation.js';
 
 const nativeOwners = new WeakMap();
 const captureNativeOwner = db => {
@@ -59,7 +60,8 @@ const toComparablePath = (value) => path.resolve(stripLongPathPrefix(value));
 const buildShortTempDbPath = (outPath) => {
   const hash = crypto.createHash('sha1').update(String(outPath || '')).digest('hex').slice(0, 20);
   const nonce = crypto.randomBytes(4).toString('hex');
-  return path.join(getCacheTempRoot('sqlite-build'), `${hash}-${process.pid}-${nonce}.db`);
+  const root = getSqliteStorageOperation()?.tmpRoot;
+  return path.join(root ? path.join(root, 'sqlite-build') : getCacheTempRoot('sqlite-build'), `${hash}-${process.pid}-${nonce}.db`);
 };
 
 const isSqliteCantOpen = (err) => (
@@ -111,6 +113,8 @@ const openDatabaseWithFallback = (Database, outPath) => {
           })()
           : candidate);
       try {
+        getSqliteStorageOperation()?.admitTargets([path.resolve(resolvedCandidate.dbPath),
+          `${path.resolve(resolvedCandidate.dbPath)}-wal`, `${path.resolve(resolvedCandidate.dbPath)}-shm`]);
         fsSync.mkdirSync(path.dirname(resolvedCandidate.dbPath || resolvedCandidate.openPath), { recursive: true });
         const db = new Database(resolvedCandidate.openPath);
         return {
@@ -234,10 +238,10 @@ export const openSqliteBuildDatabase = ({
     return { db, pragmaState, dbPath, promotePath };
   } catch (error) {
     native.retainFailure(error);
-    if (pragmaState) {
+    if (pragmaState && isSqliteDiagnosticSettled(error, native)) {
       try {
         restoreBuildPragmas(db, pragmaState);
-      } catch {}
+      } catch (restore) { isSqliteDiagnosticSettled(restore, native); }
     }
     try { native.retire(); }
     catch (cleanup) { throw addStorageFailureContext(error, {}, cleanup, { secondaryPresent: true }); }
@@ -450,6 +454,7 @@ export const closeSqliteBuildDatabase = ({
       && resolvedPromotePath
       && resolvedDbPath !== resolvedPromotePath
     );
+    let checkpointSettled = true;
     if (succeeded && !record.physical.isSettled()) {
       try {
         const plan = batchStats?.runtimeTelemetry?.plan || null;
@@ -464,16 +469,17 @@ export const closeSqliteBuildDatabase = ({
           source: plan?.source || null
         });
       } catch (err) {
+        checkpointSettled = isSqliteDiagnosticSettled(err, record.physical);
         if (typeof warn === 'function') {
           // Diagnostic callbacks cannot take ownership of the database or stop
           // the finalizer before its close/promotion steps.
-          try { warn(err); } catch {}
+          try { warn(err); } catch (reporting) { checkpointSettled = isSqliteDiagnosticSettled(reporting, record.physical) && checkpointSettled; }
         }
       }
     }
     let restoreError, restoreFailed = false;
     try {
-      if (pragmaState && !record.physical.isSettled()) {
+      if (pragmaState && checkpointSettled && !record.physical.isSettled()) {
         restoreBuildPragmas(db, pragmaState);
       }
     } catch (error) { restoreFailed = true; restoreError = error; record.physical.retainFailure(error); }

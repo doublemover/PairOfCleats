@@ -1,3 +1,5 @@
+import path from 'node:path';
+import { withSqliteStorageOperation, getSqliteStorageOperation, isSqliteDiagnosticSettled } from './storage-operation.js';
 import { assertSqliteIndexFormat } from '../index-format.js';
 import { createSqliteCacheCloseOwner } from '../../../retrieval/sqlite-cache-close-owner.js';
 import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
@@ -104,7 +106,12 @@ const evaluateIncrementalChangeGuard = ({ mode, totalFiles, changedCount, delete
  * @param {object} [params.stats]
  * @returns {Promise<{used:boolean,reason?:string,insertedChunks?:number,totalFiles?:number,changedFiles?:number,deletedFiles?:number,manifestUpdates?:number}>}
  */
-export async function incrementalUpdateDatabase({
+export const incrementalUpdateDatabase = input => withSqliteStorageOperation(input?.storageContext,
+  [input?.outputPath || input?.outPath, input?.indexDir, input?.incrementalData?.bundleDir]
+    .filter(value => typeof value === 'string' && value).map(value => path.resolve(value)),
+  () => incrementalUpdateDatabaseOwned(input));
+
+async function incrementalUpdateDatabaseOwned({
   Database,
   outPath,
   mode,
@@ -169,6 +176,7 @@ export async function incrementalUpdateDatabase({
   const expectedDims = expectedDenseRequired && Number.isFinite(expectedDense?.dims) ? expectedDense.dims : null;
 
   const useBuildPragmas = buildPragmas !== false;
+  getSqliteStorageOperation()?.admitTargets([path.resolve(outPath), `${path.resolve(outPath)}-wal`, `${path.resolve(outPath)}-shm`]);
   const db = new Database(outPath);
   const native = createSqliteCacheCloseOwner(db, { canClose: () => true, onClosed() {} });
   try {
@@ -197,6 +205,7 @@ export async function incrementalUpdateDatabase({
     if (finalization) return finalization;
     if (operationFailed) native.retainFailure(operationError);
     finalization = Promise.resolve().then(() => {
+      let checkpointSettled = true;
       try {
         checkpointSqliteWithTelemetry(db, {
           stats: batchStats,
@@ -208,11 +217,11 @@ export async function incrementalUpdateDatabase({
           walPressure: ingestPlan.walPressure,
           source: 'incremental'
         });
-      } catch {}
-      if (pragmaState) {
+      } catch (error) { checkpointSettled = isSqliteDiagnosticSettled(error, native); }
+      if (pragmaState && checkpointSettled) {
         try {
           restoreBuildPragmas(db, pragmaState);
-        } catch {}
+        } catch (error) { isSqliteDiagnosticSettled(error, native); }
       }
       native.retire();
     }).catch(cleanup => {
@@ -483,6 +492,7 @@ export async function incrementalUpdateDatabase({
         source: 'incremental'
       });
     } catch (err) {
+      if (!isSqliteDiagnosticSettled(err, native)) throw err;
       if (emitOutput) {
         warn(`[sqlite] WAL checkpoint failed for ${mode}: ${err?.message || err}`);
       }
