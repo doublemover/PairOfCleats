@@ -111,16 +111,50 @@ struct Layout {
     rows: Vec<Row>,
 }
 
+#[derive(Default)]
+pub(crate) struct RowWindow {
+    pub lines: Vec<String>,
+    pub total_rows: usize,
+    pub skipped_rows: usize,
+    pub bottom_end: Option<usize>,
+}
+
+#[derive(Clone)]
+pub(crate) struct ViewportAnchor {
+    pub id: u64,
+    pub end: usize,
+    pub scroll: usize,
+    pub filter: String,
+}
+
 impl Layout {
     fn bytes(&self) -> usize {
         self.text.capacity() + self.rows.capacity() * size_of::<Row>()
     }
-    fn tail(&self, count: usize) -> Vec<String> {
-        self.rows
+    fn window(&self, count: usize, skip: usize, anchor_end: Option<usize>) -> RowWindow {
+        let end = anchor_end
+            .map(|offset| {
+                (self.rows.partition_point(|row| row.end < offset) + 1).min(self.rows.len())
+            })
+            .unwrap_or_else(|| self.rows.len().saturating_sub(skip));
+        let start = end.saturating_sub(count);
+        let lines = self
+            .rows
             .iter()
-            .skip(self.rows.len().saturating_sub(count))
+            .take(end)
+            .skip(start)
             .map(|row| row.owned(&self.text))
-            .collect()
+            .collect();
+        RowWindow {
+            lines,
+            total_rows: self.rows.len(),
+            skipped_rows: self.rows.len() - end,
+            bottom_end: if count > 0 && start < end {
+                self.rows.get(end - 1).map(|row| row.end)
+            } else {
+                None
+            },
+        }
     }
 }
 
@@ -130,6 +164,7 @@ pub(crate) struct LogLayoutCache {
     entries: VecDeque<Layout>,
     retained: usize,
     limit: usize,
+    pub viewport: Option<ViewportAnchor>,
     #[cfg(test)]
     pub scans: usize,
     #[cfg(test)]
@@ -144,6 +179,7 @@ impl Default for LogLayoutCache {
             entries: VecDeque::with_capacity(CACHE_ENTRIES),
             retained: 0,
             limit: CACHE_BYTES,
+            viewport: None,
             #[cfg(test)]
             scans: 0,
             #[cfg(test)]
@@ -158,6 +194,7 @@ impl LogLayoutCache {
     pub fn clear(&mut self) {
         self.entries.clear();
         self.retained = 0;
+        self.viewport = None;
     }
     pub fn remove(&mut self, id: u64) {
         if let Some(position) = self.entries.iter().position(|entry| entry.id == id) {
@@ -167,9 +204,28 @@ impl LogLayoutCache {
         }
     }
     pub fn bytes(&self) -> usize {
-        self.retained + self.entries.capacity() * size_of::<Layout>()
+        self.retained
+            + self.entries.capacity() * size_of::<Layout>()
+            + self
+                .viewport
+                .as_ref()
+                .map(|anchor| anchor.filter.capacity())
+                .unwrap_or(0)
     }
 
+    pub fn set_viewport(&mut self, anchor: Option<ViewportAnchor>) {
+        self.viewport = anchor;
+        while self.bytes() > self.limit {
+            if let Some(old) = self.entries.pop_front() {
+                self.retained -= old.bytes();
+            } else {
+                self.viewport = None;
+                break;
+            }
+        }
+    }
+
+    #[cfg(test)]
     pub fn tail(
         &mut self,
         id: u64,
@@ -177,8 +233,23 @@ impl LogLayoutCache {
         height: usize,
         render: impl FnOnce() -> String,
     ) -> Vec<String> {
-        if width == 0 || height == 0 {
+        if height == 0 {
             return Vec::new();
+        }
+        self.window(id, width, height, 0, None, render).lines
+    }
+
+    pub fn window(
+        &mut self,
+        id: u64,
+        width: usize,
+        height: usize,
+        skip: usize,
+        anchor_end: Option<usize>,
+        render: impl FnOnce() -> String,
+    ) -> RowWindow {
+        if width == 0 {
+            return RowWindow::default();
         }
         if let Some(position) = self
             .entries
@@ -186,12 +257,12 @@ impl LogLayoutCache {
             .position(|entry| entry.id == id && entry.width == width)
         {
             let entry = self.entries.remove(position).expect("observed layout");
-            let output = entry.tail(height);
+            let output = entry.window(height, skip, anchor_end);
             self.entries.push_back(entry);
             #[cfg(test)]
             {
                 self.hits += 1;
-                self.owned_rows += output.len();
+                self.owned_rows += output.lines.len();
             }
             return output;
         }
@@ -203,15 +274,22 @@ impl LogLayoutCache {
         }
         let available = self
             .limit
-            .saturating_sub(self.entries.capacity() * size_of::<Layout>());
+            .saturating_sub(self.entries.capacity() * size_of::<Layout>())
+            .saturating_sub(
+                self.viewport
+                    .as_ref()
+                    .map(|anchor| anchor.filter.capacity())
+                    .unwrap_or(0),
+            );
         let mut retain = text.capacity() <= available;
         let mut layout_rows = Vec::new();
-        let mut tail = VecDeque::new();
+        let mut total_rows: usize = 0;
+        let mut anchored_end = None;
         rows(&text, width, |row| {
-            if tail.len() == height {
-                tail.pop_front();
+            total_rows += 1;
+            if anchored_end.is_none() && anchor_end.is_some_and(|offset| row.end >= offset) {
+                anchored_end = Some(total_rows);
             }
-            tail.push_back(row);
             if retain {
                 let next = layout_rows.len() + 1;
                 if text
@@ -242,21 +320,14 @@ impl LogLayoutCache {
                 }
             }
         });
-        let output = tail
-            .into_iter()
-            .map(|row| row.owned(&text))
-            .collect::<Vec<_>>();
-        #[cfg(test)]
-        {
-            self.owned_rows += output.len();
-        }
-        if retain {
+        let output = if retain {
             let entry = Layout {
                 id,
                 width,
                 text,
                 rows: layout_rows,
             };
+            let output = entry.window(height, skip, anchor_end);
             while self.entries.len() >= CACHE_ENTRIES || self.bytes() + entry.bytes() > self.limit {
                 if let Some(old) = self.entries.pop_front() {
                     self.retained -= old.bytes();
@@ -268,6 +339,41 @@ impl LogLayoutCache {
                 self.retained += entry.bytes();
                 self.entries.push_back(entry);
             }
+            output
+        } else {
+            // An oversized message still exposes every row. Count first, then
+            // materialize only this viewport; skip is never a buffer size.
+            let end = if anchor_end.is_some() {
+                anchored_end.unwrap_or(total_rows)
+            } else {
+                total_rows.saturating_sub(skip)
+            };
+            let start = end.saturating_sub(height);
+            let mut output = RowWindow {
+                lines: Vec::new(),
+                total_rows,
+                skipped_rows: total_rows - end,
+                bottom_end: None,
+            };
+            let mut index = 0;
+            if start < end {
+                #[cfg(test)]
+                {
+                    self.scans += 1;
+                }
+                rows(&text, width, |row| {
+                    if index >= start && index < end {
+                        output.lines.push(row.owned(&text));
+                        output.bottom_end = Some(row.end);
+                    }
+                    index += 1;
+                });
+            }
+            output
+        };
+        #[cfg(test)]
+        {
+            self.owned_rows += output.lines.len();
         }
         output
     }
@@ -341,5 +447,31 @@ mod tests {
             cache.tail(1001, 0, 10, || panic!("zero pane")),
             Vec::<String>::new()
         );
+    }
+
+    #[test]
+    fn row_windows_cover_oversized_uncached_messages_and_anchor_reflow() {
+        let text = "界e\u{301} words next\n".repeat(500);
+        for width in [2, 7, 30] {
+            let all = crate::wrap_text_lines(&text, width, usize::MAX);
+            let mut cache = LogLayoutCache::default();
+            cache.limit = cache.entries.capacity() * size_of::<Layout>() + 128;
+            for skip in [0, 1, 10, all.len() / 2, all.len(), usize::MAX] {
+                let end = all.len().saturating_sub(skip);
+                let window = cache.window(1, width, 4, skip, None, || text.clone());
+                assert_eq!(window.lines, all[end.saturating_sub(4)..end]);
+                assert_eq!(window.total_rows, all.len());
+                assert_eq!(window.skipped_rows, all.len() - end);
+                assert!(cache.entries.is_empty());
+                assert!(cache.bytes() <= cache.limit);
+            }
+        }
+        let mut cache = LogLayoutCache::default();
+        let before = cache.window(1, 30, 2, 3, None, || text.clone());
+        let anchored = cache.window(1, 7, 2, 0, before.bottom_end, || text.clone());
+        assert!(anchored.bottom_end >= before.bottom_end);
+        let counts = cache.window(1, 7, 0, 0, None, || panic!("metadata hit must not format"));
+        assert!(counts.lines.is_empty());
+        assert_eq!(counts.total_rows, anchored.total_rows);
     }
 }

@@ -94,6 +94,11 @@ pub(super) fn record_palette(model: &AppModel, rows: Vec<(Rect, PaletteAction)>)
     model.hit_map.borrow_mut().palette = rows;
 }
 
+pub(super) fn finish_geometry(model: &AppModel) {
+    let signature = frame_signature(model);
+    model.hit_map.borrow_mut().signature = signature;
+}
+
 pub(super) fn record_jobs(model: &AppModel, area: Rect) {
     let height = area.height.saturating_sub(2) as usize;
     if height == 0 || area.width <= 2 {
@@ -280,14 +285,15 @@ pub(super) fn apply_mouse(model: &mut AppModel, input: MouseInput) -> Option<Rec
                     .min(visible_task_keys(model).len().saturating_sub(input.rows))
             }
             FocusPanel::Logs => {
-                model.log_scroll = model.log_scroll.min(
-                    model
-                        .logs
-                        .iter()
-                        .filter(|entry| matches_log_entry(model, entry))
-                        .count()
-                        .saturating_sub(1),
-                )
+                let width = model
+                    .hit_map
+                    .borrow()
+                    .panes
+                    .iter()
+                    .find(|(panel, _)| *panel == FocusPanel::Logs)
+                    .map(|(_, rect)| rect.width.saturating_sub(2) as usize)
+                    .unwrap_or(0);
+                let _ = build_log_lines(model, width, input.rows);
             }
         }
     }
@@ -853,7 +859,7 @@ mod tests {
             panic!("hovered wheel");
         };
         apply_mouse(&mut model, input);
-        assert_eq!(model.log_scroll, 0);
+        assert_eq!(model.log_scroll.get(), 0);
         assert_eq!(model.job_scroll, 0);
         assert_eq!(model.task_scroll, 0);
     }

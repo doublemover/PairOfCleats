@@ -446,6 +446,111 @@ fn wrapped_log_window_preserves_newest_lines_and_zero_dimensions() {
 }
 
 #[test]
+fn every_wrapped_row_is_reachable_and_stored_overscroll_is_clamped() {
+    let mut model = model();
+    model.logs.clear();
+    model.push_log(
+        (0..24)
+            .map(|index| format!("ROW{index:02}"))
+            .collect::<Vec<_>>()
+            .join("\n"),
+    );
+    let all = wrap_text_lines(
+        &render_log_entry(model.logs.back().unwrap()),
+        60,
+        usize::MAX,
+    );
+    let height = 4;
+    for offset in 0..=all.len() - height {
+        model.log_scroll.set(offset);
+        let end = all.len() - offset;
+        assert_eq!(
+            build_log_lines(&model, 60, height),
+            all[end - height..end].join("\n")
+        );
+        assert_eq!(model.log_scroll.get(), offset);
+    }
+    model.log_scroll.set(usize::MAX);
+    assert_eq!(
+        build_log_lines(&model, 60, height),
+        all[..height].join("\n")
+    );
+    assert_eq!(model.log_scroll.get(), all.len() - height);
+    assert_eq!(snapshot_from_model(&model).log_scroll, all.len() - height);
+    model.focus_panel = FocusPanel::Logs;
+    assert!(screen(&model, 90, 18).contains("ROW00"));
+    apply_local_input(&mut model, "logs_down");
+    assert!(screen(&model, 90, 18).contains("ROW04"));
+}
+
+#[test]
+fn paused_row_anchor_survives_multiline_arrivals_resize_and_filter_changes() {
+    let mut model = model();
+    model.logs.clear();
+    for index in 0..8 {
+        model.push_log_entry(
+            format!("KEEP{index:02}\ninside{index:02}\nend{index:02}"),
+            "warn",
+            "events",
+        );
+    }
+    model.log_level_filter = LogLevelFilter::WarnError;
+    model.log_source_filter = LogSourceFilter::Events;
+    model.search_logs = "KEEP".into();
+    model.log_scroll.set(2);
+    model.follow_updates = false;
+    let before = build_log_lines(&model, 60, 4);
+    let offset = model.log_scroll.get();
+    model.push_log_entry("unmatched\nsecond\nthird".into(), "info", "supervisor");
+    assert_eq!(build_log_lines(&model, 60, 4), before);
+    model.push_log_entry(
+        "KEEP-new\nnew-two\nnew-three\nnew-four".into(),
+        "warn",
+        "events",
+    );
+    assert_eq!(build_log_lines(&model, 60, 4), before);
+    assert_eq!(
+        model.log_scroll.get(),
+        offset + 4,
+        "arrival charge uses displayed rows, not one entry"
+    );
+    let narrowed = build_log_lines(&model, 24, 4);
+    assert!(
+        narrowed.ends_with("KEEP07"),
+        "reflow preserves the source row at the paused bottom"
+    );
+    model.search_logs = "KEEP-new".into();
+    assert!(build_log_lines(&model, 24, 4).contains("new-four"));
+    assert_eq!(model.log_scroll.get(), 0);
+    toggle_follow(&mut model);
+    assert!(model.follow_updates);
+    assert!(build_log_lines(&model, 60, 2).contains("new-four"));
+}
+
+#[test]
+fn paused_evicted_anchor_clamps_to_retained_history_without_losing_rows() {
+    let mut model = model();
+    model.logs.clear();
+    model.push_log("old-first\nold-second\nold-third\nold-fourth".into());
+    model.follow_updates = false;
+    build_log_lines(&model, 60, 2);
+    let original = model.logs.back().unwrap().id;
+    for index in 0..LOG_RING_LIMIT {
+        model.push_log(format!("new-{index:04}\ncontinuation-{index:04}"));
+    }
+    assert!(!model.logs.iter().any(|entry| entry.id == original));
+    let oldest = build_log_lines(&model, 60, 3);
+    assert!(oldest.contains("new-0000"));
+    assert!(oldest.contains("continuation-0000"));
+    assert!(oldest.contains("new-0001"));
+    assert_eq!(model.log_scroll.get(), LOG_RING_LIMIT * 2 - 3);
+    assert!(model.log_layout_cache.borrow().bytes() <= 2 * 1024 * 1024);
+    model.search_logs = "does not exist".into();
+    assert!(build_log_lines(&model, 60, 3).contains("no logs"));
+    assert_eq!(model.log_scroll.get(), 0);
+}
+
+#[test]
 fn unicode_wrapping_never_uses_character_counts_as_byte_offsets() {
     // A long UTF-8 word must never be sliced using a character count as bytes.
     let lines = wrap_text_lines("ééééééééé", 3, 4);
@@ -528,12 +633,12 @@ fn log_presentation_cache_reuses_immutable_tail_and_tracks_entry_eviction() {
     for index in 0..LOG_RING_LIMIT {
         model.push_log(format!("replacement-{index}"));
     }
-    model.log_scroll = usize::MAX;
+    model.log_scroll.set(usize::MAX);
     assert!(build_log_lines(&model, 80, 1).contains("replacement-0"));
     assert!(!model.logs.iter().any(|entry| entry.id == old_id));
     assert!(model.log_layout_cache.borrow().bytes() <= 2 * 1024 * 1024);
     model.search_logs = "REPLACEMENT-19".into();
-    model.log_scroll = 0;
+    model.log_scroll.set(0);
     assert!(build_log_lines(&model, 80, 10).contains("replacement-19"));
 }
 

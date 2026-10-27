@@ -565,7 +565,7 @@ impl RecordingUi {
         }
         let selected = model.selected_job.clone();
         let pinned = model.selected_job_pinned;
-        let view_scroll = (model.job_scroll, model.task_scroll, model.log_scroll);
+        let view_scroll = (model.job_scroll, model.task_scroll, model.log_scroll.get());
         if selected.is_some() {
             model.selected_job_pinned = true;
         }
@@ -613,7 +613,8 @@ impl RecordingUi {
         }
         // Historical reducer work is not a live arrival at a paused viewport.
         // Keep user scroll offsets across every bounded seek batch/checkpoint.
-        (model.job_scroll, model.task_scroll, model.log_scroll) = view_scroll;
+        (model.job_scroll, model.task_scroll) = (view_scroll.0, view_scroll.1);
+        model.log_scroll.set(view_scroll.2);
         if recording.seek_target == Some(recording.position) {
             recording.seek_target = None;
         }

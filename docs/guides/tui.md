@@ -92,7 +92,7 @@ Runtime controls:
 - `[F1]` open contextual help from any form/overlay; Esc or F1 returns to it
 - `[z]` maximize the focused pane / restore automatic density; narrow or short
   terminals automatically show one focused work pane, with Tab/1/2/3 access to all panes
-- `[j]/[k]` log viewport scroll
+- `[j]/[k]` log viewport scroll by displayed row, including inside wrapped entries
 - `[n]/[m]` job viewport scroll
 - `[u]/[i]` task viewport scroll
 
@@ -535,3 +535,12 @@ formatted/styled rows. The job selection marker shares the same filtered sequenc
 Empty searches avoid candidate row-text construction; nonempty searches normalize
 the query once and still inspect eligible text. This bounds presentation work by
 visible rows without claiming arbitrary uncached search is viewport-only work.
+
+Log offsets count wrapped display rows, so every retained line of a long entry is
+reachable. Pausing keeps the bottom source position stable across matching and
+unmatched arrivals; resize reflows that position rather than skipping whole
+entries. Filtering and eviction clamp the stored offset to the retained matching
+history. Follow resumes at the newest row. Wrapped byte spans share the existing
+2 MiB presentation cache; an uncached oversized entry still exposes its full
+history while materializing only the requested viewport. These source changes
+still await native rendered-frame and terminal-lifetime qualification.

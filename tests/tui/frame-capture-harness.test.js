@@ -114,6 +114,13 @@ assert.equal(navigationBefore.job_scroll, 0);
 assert.equal(navigationAfter.job_scroll, 1);
 assert.equal(navigationAfter.log_scroll, 1);
 assert.equal(navigationAfter.selected_job, 'job-b');
+const logTail = readText(getCapturePaths(navigationManifest, 'log-tail', 'medium-color').frame_path);
+const logRowUp = readText(getCapturePaths(navigationManifest, 'log-row-up', 'medium-color').frame_path);
+assert.match(logTail, /VIEW19/u, 'the live viewport exposes the final row of one oversized entry');
+assert.doesNotMatch(logRowUp, /VIEW19/u, 'one scroll moves inside that entry rather than dropping the whole entry');
+assert.match(logRowUp, /VIEW18/u);
+const logRowMeta = readJson(getCapturePaths(navigationManifest, 'log-row-up', 'medium-color').metadata_path);
+assert.equal(logRowMeta.log_scroll, 1);
 
 const operatorManifest = readFixtureManifest('operator-workflows');
 const operatorBaseline = readText(

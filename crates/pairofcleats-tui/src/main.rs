@@ -629,7 +629,7 @@ struct AppModel {
     service_summary: ServiceSummary,
     job_scroll: usize,
     task_scroll: usize,
-    log_scroll: usize,
+    log_scroll: std::cell::Cell<usize>,
     dirty: bool,
     last_render_signature: String,
     content_revision: u64,
@@ -724,7 +724,7 @@ impl AppModel {
             service_summary: ServiceSummary::default(),
             job_scroll: 0,
             task_scroll: 0,
-            log_scroll: 0,
+            log_scroll: std::cell::Cell::new(0),
             dirty: true,
             last_render_signature: String::new(),
             content_revision: 0,
@@ -771,9 +771,6 @@ impl AppModel {
             source: source.to_string(),
             job_id: job_id.map(str::to_owned),
         };
-        if !self.follow_updates && !self.logs.is_empty() && matches_log_entry(self, &entry) {
-            self.log_scroll = self.log_scroll.saturating_add(1);
-        }
         if self.logs.len() >= LOG_RING_LIMIT {
             if let Some(old) = self.logs.pop_front() {
                 self.log_layout_cache.borrow_mut().remove(old.id);
@@ -1148,7 +1145,7 @@ fn snapshot_from_model(model: &AppModel) -> SessionSnapshot {
         selected_job_expired: model.selected_job_expired,
         job_scroll: model.job_scroll,
         task_scroll: model.task_scroll,
-        log_scroll: model.log_scroll,
+        log_scroll: model.log_scroll.get(),
         final_job_statuses: model.job_status.clone(),
         focus_panel: Some(model.focus_panel),
         job_filter: Some(model.job_filter),
@@ -1170,7 +1167,7 @@ fn restore_snapshot(model: &mut AppModel, snapshot: SessionSnapshot) {
     model.selected_job_expired = snapshot.selected_job_expired && model.selected_job.is_some();
     model.job_scroll = snapshot.job_scroll;
     model.task_scroll = snapshot.task_scroll;
-    model.log_scroll = snapshot.log_scroll;
+    model.log_scroll.set(snapshot.log_scroll);
     model.search_jobs = snapshot.search_jobs;
     model.search_tasks = snapshot.search_tasks;
     model.search_logs = snapshot.search_logs;
@@ -1299,7 +1296,7 @@ fn frame_signature(model: &AppModel) -> String {
         "follow": model.follow_updates,
         "filters": [model.job_filter.label(), model.task_filter.label(),
             model.log_level_filter.label(), model.log_source_filter.label()],
-        "scroll": [model.job_scroll, model.task_scroll, model.log_scroll],
+        "scroll": [model.job_scroll, model.task_scroll, model.log_scroll.get()],
         "search": [&model.search_jobs, &model.search_tasks, &model.search_logs],
         "searchTarget": model.search_target.label(),
         "searchDraft": model.search_draft,
@@ -2070,7 +2067,7 @@ fn pin_visible_job(model: &mut AppModel, id: &str) {
     model.selected_job_pinned = true;
     model.selected_job_expired = false;
     model.task_scroll = 0;
-    model.log_scroll = 0;
+    model.log_scroll.set(0);
     model.dirty = true;
 }
 
@@ -2083,7 +2080,7 @@ fn follow_latest_job(model: &mut AppModel) {
     model.selected_job_pinned = false;
     model.selected_job_expired = false;
     model.task_scroll = 0;
-    model.log_scroll = 0;
+    model.log_scroll.set(0);
     model.dirty = true;
 }
 
@@ -2321,50 +2318,102 @@ fn logs_empty_reason(model: &AppModel) -> String {
     "(no logs yet)".to_string()
 }
 
-fn cached_log_tail(model: &AppModel, entry: &LogEntry, width: usize, height: usize) -> Vec<String> {
-    model
-        .log_layout_cache
-        .borrow_mut()
-        .tail(entry.id, width, height, || render_log_entry(entry))
-}
-
 fn build_log_lines(model: &AppModel, width: usize, height: usize) -> String {
     if width == 0 || height == 0 {
         return String::new();
     }
     let query = model.search_logs.trim().to_lowercase();
-    let mut oldest_match = None;
+    let filter = format!(
+        "{}|{}|{:?}|{}|{query}",
+        model.log_level_filter.label(),
+        model.log_source_filter.label(),
+        model.selected_job,
+        model.selected_job_expired
+    );
+    let requested = model.log_scroll.get();
+    let mut anchor = model
+        .log_layout_cache
+        .borrow()
+        .viewport
+        .clone()
+        .filter(|anchor| {
+            !model.follow_updates && anchor.scroll == requested && anchor.filter == filter
+        });
+    let expired_anchor = anchor
+        .as_ref()
+        .is_some_and(|anchor| !model.logs.iter().any(|entry| entry.id == anchor.id));
+    let mut remaining = if expired_anchor {
+        usize::MAX
+    } else {
+        requested
+    };
+    if expired_anchor {
+        anchor = None;
+    }
+    let mut skipped: usize = 0;
+    let mut bottom = None;
     let mut lines = Vec::new();
-    for (matched, entry) in model
+    for entry in model
         .logs
         .iter()
         .rev()
         .filter(|entry| matches_log_entry_with_query(model, entry, &query))
-        .enumerate()
     {
-        oldest_match = Some(entry);
-        if matched >= model.log_scroll {
-            lines.extend(
-                cached_log_tail(model, entry, width, height - lines.len())
-                    .into_iter()
-                    .rev(),
-            );
-            if lines.len() >= height {
-                break;
+        if anchor.as_ref().is_some_and(|anchor| entry.id != anchor.id) {
+            let window =
+                model
+                    .log_layout_cache
+                    .borrow_mut()
+                    .window(entry.id, width, 0, 0, None, || render_log_entry(entry));
+            skipped = skipped.saturating_add(window.total_rows);
+            continue;
+        }
+        let anchor_end = anchor.take().map(|anchor| anchor.end);
+        if anchor_end.is_some() {
+            remaining = 0;
+        }
+        let window = model.log_layout_cache.borrow_mut().window(
+            entry.id,
+            width,
+            height - lines.len(),
+            remaining,
+            anchor_end,
+            || render_log_entry(entry),
+        );
+        skipped = skipped.saturating_add(window.skipped_rows);
+        remaining = remaining.saturating_sub(window.total_rows);
+        if bottom.is_none() {
+            if let Some(end) = window.bottom_end {
+                bottom = Some((entry.id, end));
             }
         }
-    }
-    // Retain the original entry-based clamp when scroll exceeds all matches.
-    if lines.is_empty() {
-        if let Some(entry) = oldest_match {
-            lines.extend(
-                cached_log_tail(model, entry, width, height)
-                    .into_iter()
-                    .rev(),
-            );
-        } else {
-            lines.push(logs_empty_reason(model));
+        lines.extend(window.lines.into_iter().rev());
+        if lines.len() >= height {
+            break;
         }
+    }
+    // Clamp the stored row offset, including restored huge values and anchors
+    // whose retained source entry was evicted. A second bounded selection fills
+    // the oldest viewport; no hidden row strings are materialized.
+    if lines.len() < height && skipped > 0 {
+        model
+            .log_scroll
+            .set(skipped.saturating_add(lines.len()).saturating_sub(height));
+        model.log_layout_cache.borrow_mut().set_viewport(None);
+        return build_log_lines(model, width, height);
+    }
+    model.log_scroll.set(skipped);
+    model
+        .log_layout_cache
+        .borrow_mut()
+        .set_viewport(bottom.map(|(id, end)| log_layout::ViewportAnchor {
+            id,
+            end,
+            scroll: skipped,
+            filter,
+        }));
+    if lines.is_empty() {
+        lines.push(logs_empty_reason(model));
     }
     lines.reverse();
     lines.join("\n")
@@ -2379,14 +2428,10 @@ fn matches_log_entry_with_query(model: &AppModel, entry: &LogEntry, query: &str)
         && (query.is_empty() || render_log_entry(entry).to_lowercase().contains(query))
 }
 
-fn matches_log_entry(model: &AppModel, entry: &LogEntry) -> bool {
-    matches_log_entry_with_query(model, entry, &model.search_logs.trim().to_lowercase())
-}
-
 fn toggle_follow(model: &mut AppModel) {
     model.follow_updates = !model.follow_updates;
     if model.follow_updates {
-        model.log_scroll = 0;
+        model.log_scroll.set(0);
     }
     model.dirty = true;
 }
@@ -2900,6 +2945,7 @@ fn render_ui(frame: &mut ratatui::Frame<'_>, model: &AppModel) {
         }
         OverlayMode::None => {}
     }
+    interaction::finish_geometry(model);
 }
 
 fn draw_ui(
@@ -3020,11 +3066,15 @@ fn apply_local_input(model: &mut AppModel, input: &str) {
         }
         "clear_search" => clear_search(model, model.focus_panel),
         "logs_up" => {
-            model.log_scroll = model.log_scroll.saturating_add(1);
+            model
+                .log_scroll
+                .set(model.log_scroll.get().saturating_add(1));
             model.dirty = true;
         }
         "logs_down" => {
-            model.log_scroll = model.log_scroll.saturating_sub(1);
+            model
+                .log_scroll
+                .set(model.log_scroll.get().saturating_sub(1));
             model.dirty = true;
         }
         "jobs_up" => {
@@ -3154,7 +3204,7 @@ fn capture_frame(
         selected_job: model.selected_job.clone(),
         job_scroll: model.job_scroll,
         task_scroll: model.task_scroll,
-        log_scroll: model.log_scroll,
+        log_scroll: model.log_scroll.get(),
         job_count: model.job_status.len(),
         task_count: model.task_status.len(),
         log_count: model.logs.len(),
@@ -3235,7 +3285,7 @@ fn run_capture_fixture_mode(fixture_path: &Path, output_root: &Path) -> anyhow::
             model.dirty = true;
         }
         if let Some(log_scroll) = step.log_scroll {
-            model.log_scroll = log_scroll;
+            model.log_scroll.set(log_scroll);
             model.dirty = true;
         }
         if step.capture_id.trim().is_empty() {
@@ -4389,11 +4439,15 @@ fn dispatch_input_with_recordings_at(
             send_selected_job_cancel(model, supervisor)?;
         }
         InputCommand::LogsUp => {
-            model.log_scroll = model.log_scroll.saturating_add(1);
+            model
+                .log_scroll
+                .set(model.log_scroll.get().saturating_add(1));
             model.dirty = true;
         }
         InputCommand::LogsDown => {
-            model.log_scroll = model.log_scroll.saturating_sub(1);
+            model
+                .log_scroll
+                .set(model.log_scroll.get().saturating_sub(1));
             model.dirty = true;
         }
         InputCommand::JobsUp => {
@@ -5010,7 +5064,7 @@ mod redraw_tests {
         original.focus_panel = FocusPanel::Logs;
         original.log_level_filter = LogLevelFilter::Error;
         original.follow_updates = false;
-        original.log_scroll = 12;
+        original.log_scroll.set(12);
         let encoded = serde_json::to_string(&snapshot_from_model(&original)).unwrap();
         let mut restored = model();
         restore_snapshot(&mut restored, serde_json::from_str(&encoded).unwrap());
@@ -5024,7 +5078,7 @@ mod redraw_tests {
         assert!(restored.focus_panel == FocusPanel::Logs);
         assert!(restored.log_level_filter == LogLevelFilter::Error);
         assert!(!restored.follow_updates);
-        assert_eq!(restored.log_scroll, 12);
+        assert_eq!(restored.log_scroll.get(), 12);
         let mut known_jobs = model();
         known_jobs.update_job_status("job-7", "running", None);
         restore_snapshot(&mut known_jobs, snapshot_from_model(&original));
@@ -5086,7 +5140,7 @@ mod redraw_tests {
         let changes: &[fn(&mut AppModel)] = &[
             |m| m.job_scroll += 1,
             |m| m.task_scroll += 1,
-            |m| m.log_scroll += 1,
+            |m| m.log_scroll.set(m.log_scroll.get() + 1),
             |m| m.job_filter = m.job_filter.next(),
             |m| m.task_filter = m.task_filter.next(),
             |m| m.log_level_filter = m.log_level_filter.next(),

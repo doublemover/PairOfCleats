@@ -251,7 +251,7 @@ fn maximum_recording_seeks_use_bounded_checkpoints_and_preserve_view_identity() 
     model.selected_job_pinned = true;
     model.job_scroll = 7;
     model.task_scroll = 5;
-    model.log_scroll = 9;
+    model.log_scroll.set(9);
     model.search_jobs = "Pinned".into();
     model.follow_updates = false;
     seek_until_settled(&mut ui, &mut model, maximum);
@@ -266,7 +266,7 @@ fn maximum_recording_seeks_use_bounded_checkpoints_and_preserve_view_identity() 
         assert_eq!(model.selected_job.as_deref(), Some("pinned-job"));
         assert!(!model.selected_job_expired);
         assert_eq!(
-            (model.job_scroll, model.task_scroll, model.log_scroll),
+            (model.job_scroll, model.task_scroll, model.log_scroll.get()),
             (7, 5, 9)
         );
         assert_eq!(model.search_jobs, "Pinned");
