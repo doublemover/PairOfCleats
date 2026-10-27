@@ -1308,6 +1308,9 @@
     },
     {
       "number": 672,
+      "unvalidatedSourceHeads": ["1515ad0a8ebfb7c3125ffd5570f3e86e79133837"],
+      "unvalidatedReceipts": ["dependency-ownership-implementation-2026-10-27.md"],
+      "currentImplementation": "Proved the scoped Lua native registry/bootstrap route is exclusive; removed the unscoped direct root and permission through npm lock regeneration. Fresh locked bootstrap verifies 37 required packages and 33 language routes without warning/error matches. Inventory and Lua consumer regression execution remains deferred.",
       "title": "Remove the superseded native tree-sitter-lua dependency after the scoped-grammar cutover",
       "recordedDisposition": "implementation_needed",
       "priority": "unranked",
@@ -1335,6 +1338,9 @@
     },
     {
       "number": 681,
+      "unvalidatedSourceHeads": ["1515ad0a8ebfb7c3125ffd5570f3e86e79133837"],
+      "unvalidatedReceipts": ["dependency-ownership-implementation-2026-10-27.md"],
+      "currentImplementation": "Audited imports, dynamic/native/CLI owners and complete incoming lock edges; removed four unused roots and two orphan permissions, preserving Arrow/esquery/NAN users. Combined with Lua retirement, npm removes 110 records without retained upgrades. Fresh setup passes; focused consumer/inventory tests are authored/deferred, with historical reference claims deprecated.",
       "title": "Remove four unconsumed dependency roots and orphan SWC/ripgrep install permissions",
       "recordedDisposition": "implementation_needed",
       "priority": "unranked",

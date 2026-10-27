@@ -28,36 +28,18 @@ Completed source-bound checks are indexed in the
 [qualification archive](archived/native-runtime-qualification-index-2026-10-27.md)
 and [qualification matrix](testing/qualification-matrix.md).
 
-Current SQLite operation/session implementation is **unvalidated** at `47ca8bea9`;
-[implementation and deferred checks](archived/sqlite-operation-implementation-2026-10-27.md)
-cover source/native/temp ownership, runner finalization and WAL/sidecar cleanup.
-Functional execution is deferred during the implementation wave.
+The [current solo implementation wave](archived/implementation-wave-2026-10-27.md)
+indexes exact source/tree receipts and deferred checks for complete SQLite
+operations, immutable Tantivy generations, compilation context, provider
+allocation/discovery, Clangd acquisition, managed inspection and invocation-bound
+profiles. These local checkpoints remain **functionally unvalidated**; package
+build allowances and built-in/native/custom ownership integration remain explicit.
 
-Tantivy source identity, immutable publication and native reader disposal are
-**unvalidated** at `1cd9c62e6`; [implementation and deferred checks](archived/tantivy-generation-implementation-2026-10-27.md)
-retain optional-native readback and external cleanup as separate remaining work.
-
-Clangd per-document compilation admission/planning is **unvalidated** at `342c39c7b`;
-[implementation and deferred checks](archived/clangd-compilation-context-implementation-2026-10-27.md)
-record 26 authored cases, physical URI/hover policy and the semantic version bump.
-
-Provider allocation classification is **unvalidated** at `723f39f1a`;
-[current contract and deferred qualification](archived/provider-allocation-contract-2026-10-27.md)
-keep forecasts planning-only, expose canonical recipe blockers and preserve the
-earlier gopls deferred-install evidence. Standalone managed-command lookup is also implemented.
-
-Clangd acquisition now has one admitted archive owner and an async bounded probe
-at **unvalidated** `773e6893e`; [implementation and 20 deferred cases](archived/clangd-acquisition-implementation-2026-10-27.md)
-cover nested-wrapper removal, original file lifetimes and retained cleanup.
-Package build bounds and actual Windows installation/consumer qualification remain.
-
-Shared managed selection and retained generation inspection are **unvalidated**
-at `6154945a4`; [implementation and 16 deferred cases](archived/managed-selection-implementation-2026-10-27.md)
-cover first-read protection, original file/Dir closure and metadata recovery.
-
-Observed provider profiles require a captured execution owner at **unvalidated**
-`d60d3cd10`; [invocation join and 13 deferred cases](archived/provider-invocation-implementation-2026-10-27.md)
-preserve unqualified live execution while built-in launch integration remains.
+[Five proven dependency retirements](archived/dependency-ownership-implementation-2026-10-27.md)
+at `1515ad0a8` removed 110 lock records without retained-version/source/integrity
+changes. Fresh locked bootstrap passed: 37 required packages, 33 language routes,
+8 patches/26 targets/61 hunks, exit 0 and no warning/error/failure matches.
+Functional regression execution and the publication gate remain deferred.
 
 These are scoped observations, not a combined full-suite or platform/model/release
 pass. Task checks omit only an inherited missing trusted-config selector;

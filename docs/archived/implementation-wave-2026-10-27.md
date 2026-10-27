@@ -1,0 +1,33 @@
+# Solo implementation wave — 2026-10-27
+
+Branch: `codex/pr557-audit-repairs-20261012`. Windows x64, Node 26.12.1.
+Last published source: `adbcaf777ce91642bb0a60de892171d8c3a529f7`.
+The following local implementation checkpoints have not been functionally
+qualified or pushed; the publication front gate remains deferred during source
+work. Their separate receipts preserve exact trees, limitations and checks.
+
+| Source | Deliverable | Deferred coverage / remaining work |
+| --- | --- | --- |
+| [47ca8bea9](sqlite-operation-implementation-2026-10-27.md) | Complete SQLite operation/native/temp/finalization owner | 21 authored cases; remaining custom backend adoption |
+| [1cd9c62e6](tantivy-generation-implementation-2026-10-27.md) | Source-pinned immutable Tantivy publication and reader disposal | 21 authored cases; optional native readback and cleanup |
+| [342c39c7b](clangd-compilation-context-implementation-2026-10-27.md) | Per-document compilation admission, physical URI and hover policy | 26 authored cases; actual compiler/build-variant qualification |
+| [723f39f1a](provider-allocation-contract-2026-10-27.md) / `230b94dc4` | Planning-only forecasts, precise recipe blockers, Go temp routing and managed handshake lookup | Registry/route/discovery controls; qualified package build bounds remain |
+| [773e6893e](clangd-acquisition-implementation-2026-10-27.md) | One admitted Clangd archive owner, bounded async probe and original file ownership | 20 authored cases; actual Windows installation/consumer evidence |
+| [6154945a4](managed-selection-implementation-2026-10-27.md) | Protected first inspection and original file/Dir/metadata recovery | 16 authored cases; remaining backend/custom ownership adoption |
+| [d60d3cd10](provider-invocation-implementation-2026-10-27.md) | Captured execution owner for durable observed profiles and cache witnesses | 13 authored cases; built-in command/module/environment/project wiring |
+| [1515ad0a8](dependency-ownership-implementation-2026-10-27.md) / `506cd2acb` | Five proven dependency retirements, three permission removals and direct benchmark child window suppression | Inventory/feature regressions deferred; whole process-tree measurement remains |
+
+Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
+checks passed at the recorded checkpoints; shared-module analysis found zero
+cycles where source imports changed. These are not functional suite acceptance.
+
+The dependency retirement triggered one fresh locked bootstrap: exit 0,
+37 required packages, 33 language routes, 8 patches / 26 targets / 61 hunks,
+zero warning/error/failure matches. Setup readiness does not qualify all runtime
+lifecycles. No project functional fixture ran during this implementation wave.
+Earlier published runtime receipts remain revision-specific observations.
+
+GitHub issues remain open until their original and follow-up acceptance is
+demonstrated. Unpublished source is tracked in the active owner queue without
+pretending old hosted results qualify it. No Linux/WSL, subagents, worktrees,
+elevation/security changes or symlink creation were used in this wave.
