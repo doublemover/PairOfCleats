@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
+import { registerHooks } from 'node:module';
 import { buildSearchParams } from '../../../tools/api/router/search.js';
 import { buildMcpSearchArgs } from '../../../tools/mcp/tools/search-args.js';
 import { getSearchRequestSchema, createSearchValidator } from '../../../tools/api/validation.js';
@@ -70,7 +71,7 @@ assert.equal(containsSequence(apiPathAliasResult.args, ['--path', 'src/a.js']), 
 assert.equal(containsSequence(apiPathAliasResult.args, ['--path', 'src/b.js']), true);
 assert.equal(containsSequence(apiPathAliasResult.args, ['--filter', 'risk:high']), true);
 
-// UNVALIDATED extension: actual advertised schemas and shared argv producers.
+// Independently authored value domains exercise advertisements and actual admission.
 const mcpSchema = getToolDefs('fixture-model').find(tool => tool.name === 'search').inputSchema;
 const httpSchema = getSearchRequestSchema(), validateHttp = createSearchValidator();
 const validateMcp = compileSchema(createAjv({ strict: false }), mcpSchema);
@@ -98,6 +99,7 @@ const corpus = [
   ...[null, 1, -1, .5, '0'].map(value => ({ field: 'context', value, valid: false })),
   ...[true, false].map(value => ({ field: 'ann', value, valid: true })),
   ...[null, 0, 'false'].map(value => ({ field: 'ann', value, valid: false })),
+  ...[null, 1, false, [], {}].map(value => ({ field: 'query', value, valid: false })),
   { field: 'unknown', value: 'value', valid: false }
 ];
 for (const { field, value, valid } of corpus) {
@@ -108,6 +110,9 @@ for (const { field, value, valid } of corpus) {
     const api = buildSearchParams('/repo', input, 'compact'); assert.equal(api.ok, true);
     assert.deepEqual(normalizeMcpArgs(buildMcpSearchArgs({ ...input, repoPath: '/repo' })), api.args,
       `transport argv parity ${label}`);
+  } else {
+    assert.throws(() => buildMcpSearchArgs(input), { code: 'INVALID_REQUEST' },
+      `actual MCP value admission ${label}`);
   }
 }
 for (const input of [{ ext: ['.js', '.ts'] }, { meta: ['team=infra', 'env=prod'] }, { top: 0 },
@@ -126,5 +131,49 @@ for (const [field, property] of Object.entries(mcpSchema.properties)) {
 }
 const isolated = buildSearchRequestProperties(); isolated.backend.enum.push('foreign');
 assert.equal(buildSearchRequestProperties().backend.enum.includes('foreign'), false);
+
+const dispatches = { resolve: 0, cache: 0, refresh: 0, search: [] };
+globalThis.__searchAdmissionDispatches = dispatches;
+const hooks = registerHooks({
+  resolve(specifier, context, next) {
+    if (context.parentURL?.endsWith('/tools/mcp/tools/handlers/search.js')) {
+      if (specifier.endsWith('/core/search.js')) return { url: 'search-admission:core', shortCircuit: true };
+      if (specifier.endsWith('/repo.js')) return { url: 'search-admission:repo', shortCircuit: true };
+    }
+    return next(specifier, context);
+  },
+  load(url, context, next) {
+    if (url === 'search-admission:core') return { format: 'module', shortCircuit: true, source: `
+      export const search = async (root, options) => {
+        globalThis.__searchAdmissionDispatches.search.push({root, options});
+        return {code:[{id:'admitted-fixture'}]};
+      };` };
+    if (url === 'search-admission:repo') return { format: 'module', shortCircuit: true, source: `
+      export const resolveRepoPath = () => { globalThis.__searchAdmissionDispatches.resolve++; return '/resolved-repo'; };
+      export const getRepoCaches = () => { globalThis.__searchAdmissionDispatches.cache++; return {}; };
+      export const refreshRepoCaches = async () => { globalThis.__searchAdmissionDispatches.refresh++; };` };
+    return next(url, context);
+  }
+});
+try {
+  const { runSearch } = await import('../../../tools/mcp/tools/handlers/search.js');
+  for (const { field, value } of corpus.filter(entry => !entry.valid)) {
+    await assert.rejects(runSearch({ ...base, [field]: value }), { code: 'INVALID_REQUEST' });
+  }
+  for (const invalid of [null, [], false, 42]) {
+    assert.throws(() => buildMcpSearchArgs(invalid), { code: 'INVALID_REQUEST' });
+    await assert.rejects(runSearch(invalid), { code: 'INVALID_REQUEST' });
+  }
+  assert.deepEqual(dispatches, { resolve: 0, cache: 0, refresh: 0, search: [] },
+    'invalid inputs cannot resolve authority, acquire/refresh caches or dispatch core search');
+  const admitted = await runSearch({ query: 'needle', repoPath: '/requested', ann: false, top: 0, ext: ['.js', '.ts'] });
+  assert.equal(admitted.code[0].id, 'admitted-fixture');
+  assert.equal(dispatches.resolve, 1); assert.equal(dispatches.cache, 1); assert.equal(dispatches.refresh, 1);
+  assert.equal(dispatches.search.length, 1);
+  assert.equal(dispatches.search[0].root, '/resolved-repo');
+  assert.equal(containsSequence(dispatches.search[0].options.args, ['--repo', '/resolved-repo']), true);
+  assert.equal(containsSequence(dispatches.search[0].options.args, ['-n', '0']), true);
+  assert.ok(dispatches.search[0].options.args.includes('--no-ann'));
+} finally { hooks.deregister(); delete globalThis.__searchAdmissionDispatches; }
 
 console.log('search request parity test passed');

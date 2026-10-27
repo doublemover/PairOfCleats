@@ -2,7 +2,7 @@ import path from 'node:path';
 import { isAbsolutePathNative } from '../../../../src/shared/file-paths.js';
 import { createProgressReporter, createStreamLineProgressForwarder } from '../../../../src/shared/progress-events.js';
 import { normalizeMetaFilters } from '../../../../src/shared/search-request.js';
-import { runNodeAsync, runNodeSync } from '../../runner.js';
+import { runNodeAsync } from '../../runner.js';
 import { resolveMcpRepoContext, toolRoot } from '../helpers.js';
 import { buildIndex } from './indexing.js';
 
@@ -57,9 +57,9 @@ export async function triageIngest(args = {}, context = {}) {
 /**
  * Handle the MCP triage_decision tool call.
  * @param {object} [args]
- * @returns {object}
+ * @returns {Promise<object>}
  */
-export function triageDecision(args = {}) {
+export async function triageDecision(args = {}, context = {}) {
   const { repoPath, runtimeEnv } = resolveMcpRepoContext(args.repoPath);
   const finding = String(args.finding || '').trim();
   const status = String(args.status || '').trim();
@@ -79,7 +79,10 @@ export function triageDecision(args = {}) {
   const evidence = Array.isArray(args.evidence) ? args.evidence : (args.evidence ? [args.evidence] : []);
   codes.filter(Boolean).forEach((code) => decisionArgs.push('--code', String(code)));
   evidence.filter(Boolean).forEach((item) => decisionArgs.push('--evidence', String(item)));
-  const stdout = runNodeSync(repoPath, decisionArgs, { env: runtimeEnv });
+  const { stdout } = await runNodeAsync(repoPath, decisionArgs, {
+    env: runtimeEnv,
+    signal: context.signal
+  });
   return JSON.parse(stdout || '{}');
 }
 

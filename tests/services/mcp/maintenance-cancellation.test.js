@@ -11,15 +11,20 @@ applyTestEnv({ cacheRoot: path.join(root, 'cache') });
 const originalRunner = new URL('../../../src/shared/subprocess/runner.js', import.meta.url).href;
 const originalProtocol = new URL('../../../src/integrations/mcp/protocol.js', import.meta.url).href;
 let settled = false, syncCalls = 0;
+let settlementGate = null;
 const calls = [], failures = [];
 const messages = [];
 globalThis.__maintenanceMessages = messages;
 const fixtureArgs = ['-e', 'setTimeout(() => console.log(JSON.stringify({ok:true})), 500)'];
 globalThis.__maintenanceCancellation = {
   async spawn(run, command, args, options) {
-    calls.push({ args, signal: options.signal });
+    const previous = calls.at(-1);
+    assert.notEqual(previous?.settled, false, 'the execution lane retains capacity until its original child settles');
+    const call = { args, signal: options.signal, settled: false };
+    const gate = settlementGate;
+    calls.push(call);
     try { return await run(command, fixtureArgs, options); }
-    finally { settled = true; }
+    finally { if (gate) await gate; settled = true; call.settled = true; }
   },
   spawnSync(run, command, args, options) {
     syncCalls++;
@@ -55,14 +60,16 @@ const hook = registerHooks({
 try {
   const { cacheGc } = await import('../../../tools/mcp/tools/handlers/artifacts.js');
   const { verifyExtensions } = await import('../../../tools/mcp/tools/handlers/downloads.js');
-  for (const [name, handler] of [['cache_gc', cacheGc], ['verify_extensions', verifyExtensions]]) {
+  const { triageDecision } = await import('../../../tools/mcp/tools/handlers/triage.js');
+  for (const [name, handler] of [['cache_gc', cacheGc], ['verify_extensions', verifyExtensions], ['triage_decision', triageDecision]]) {
     settled = false;
     const controller = new AbortController();
     let responsive = false;
     const control = setTimeout(() => { responsive = !settled; }, 10);
     const cancel = setTimeout(() => controller.abort(), 30);
     try {
-      const work = Promise.resolve().then(() => handler({ repoPath: root, maxBytes: 1 }, { signal: controller.signal }));
+      const work = Promise.resolve().then(() => handler({ repoPath: root, maxBytes: 1,
+        finding: 'fixture-finding', status: 'accept' }, { signal: controller.signal }));
       await assert.rejects(work, error => ['ABORT_ERR', 'SUBPROCESS_ABORT'].includes(error.code));
       assert.equal(responsive, true, `${name} must leave the protocol event loop responsive while its child runs`);
       assert.equal(settled, true, `${name} cancellation awaits actual child settlement`);
@@ -72,11 +79,18 @@ try {
     finally { clearTimeout(control); clearTimeout(cancel); }
   }
   assert.deepEqual(failures, []);
+  const decision = await triageDecision({ repoPath: root, finding: 'fixture-finding', status: 'accept' });
+  assert.deepEqual(decision, { ok: true }, 'successful decision JSON remains available after asynchronous completion');
+  assert.ok(calls.at(-1).args.includes('--finding'));
+  assert.ok(calls.at(-1).args.includes('fixture-finding'));
+  assert.equal(syncCalls, 0);
   const { createMcpTransport } = await import('../../../tools/mcp/transport.js');
+  const { handleToolCall } = await import('../../../tools/mcp/tools.js');
   const listeners = Object.fromEntries(['data', 'end', 'error'].map(event => [event, process.stdin.listeners(event)]));
+  let toolTimeoutMs = 10000;
   const transport = createMcpTransport({ toolDefs: [], serverInfo: { name: 'maintenance', version: '1' }, queueMax: 3,
-    resolveToolTimeoutMs: () => 10000,
-    handleToolCall: (name, args, context) => name === 'index_status' ? { ok: true } : cacheGc(args, context) });
+    resolveToolTimeoutMs: () => toolTimeoutMs,
+    handleToolCall: (name, args, context) => name === 'index_status' ? { ok: true } : handleToolCall(name, args, context) });
   const parser = transport.start();
   for (const [event, previous] of Object.entries(listeners)) {
     for (const listener of process.stdin.listeners(event)) if (!previous.includes(listener)) process.stdin.off(event, listener);
@@ -102,7 +116,42 @@ try {
     send({ method: '$/cancelRequest', params: { id: 1 } });
     assert.equal(JSON.parse((await response(1)).result.content[0].text).code, 'CANCELLED');
     assert.equal(settled, true);
-  } finally { await transport.close(); parser.dispose(); }
+    settled = false;
+    send({ id: 3, method: 'tools/call', params: { name: 'triage_decision', arguments: {
+      repoPath: root, finding: 'fixture-finding', status: 'accept'
+    } } });
+    send({ id: 4, method: 'tools/call', params: { name: 'index_status', arguments: {} } });
+    assert.equal((await response(4)).result.isError, undefined);
+    assert.equal(settled, false, 'live triage dispatch leaves the status lane responsive');
+    send({ method: '$/cancelRequest', params: { id: 3 } });
+    assert.equal(JSON.parse((await response(3)).result.content[0].text).code, 'CANCELLED');
+    assert.equal(settled, true, 'triage cancellation observes child settlement');
+    for (const [index, name] of ['cache_gc', 'verify_extensions', 'triage_decision'].entries()) {
+      settled = false; toolTimeoutMs = 30;
+      const timeoutId = 5 + index * 2, nextId = timeoutId + 1, before = calls.length;
+      let release;
+      settlementGate = new Promise(resolve => { release = resolve; });
+      try {
+        send({ id: timeoutId, method: 'tools/call', params: { name, arguments: {
+          repoPath: root, finding: 'fixture-finding', status: 'accept', maxBytes: 1
+        } } });
+        assert.equal(JSON.parse((await response(timeoutId)).result.content[0].text).code, 'TOOL_TIMEOUT');
+        // Legacy short-deadline requests share the fast lane. Queue a probe
+        // under that same policy so independent lanes remain independent.
+        send({ id: nextId, method: 'tools/call', params: { name: 'triage_decision', arguments: {
+          repoPath: root, finding: 'fixture-finding', status: 'accept'
+        } } });
+        await new Promise(resolve => setTimeout(resolve, 10));
+        assert.equal(calls.length, before + 1, `${name} deadline cannot release its lane early`);
+        assert.equal(calls[before].settled, false);
+      } finally { settlementGate = null; release(); }
+      assert.equal(JSON.parse((await response(nextId)).result.content[0].text).code, 'TOOL_TIMEOUT');
+      assert.equal(calls[before].settled, true);
+    }
+  } finally {
+    await transport.close(); parser.dispose();
+    assert.equal(settled, true, 'deadline shutdown joins the original triage child');
+  }
 } finally {
   hook.deregister(); delete globalThis.__maintenanceCancellation;
   delete globalThis.__maintenanceMessages;

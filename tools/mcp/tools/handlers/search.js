@@ -4,7 +4,7 @@ import { createError, ERROR_CODES } from '../../../../src/shared/error-codes.js'
 import { attachObservability, buildChildObservability } from '../../../../src/shared/observability.js';
 import { getRepoCacheGenerationContext } from '../../../../src/shared/repo-cache-config.js';
 import { getRepoCaches, refreshRepoCaches, resolveRepoPath } from '../../repo.js';
-import { buildMcpSearchArgs } from '../search-args.js';
+import { buildMcpSearchRequest } from '../search-args.js';
 
 /**
  * Handle the MCP search tool call.
@@ -12,12 +12,11 @@ import { buildMcpSearchArgs } from '../search-args.js';
  * @returns {object}
  */
 export async function runSearch(args = {}, context = {}) {
-  const repoPath = resolveRepoPath(args.repoPath);
   if (context.signal?.aborted) {
     throw createError(ERROR_CODES.CANCELLED, 'Request cancelled.');
   }
+  const { args: searchArgs, repoPath } = buildMcpSearchRequest(args, { resolveRepoPath });
   const query = String(args.query || '').trim();
-  const searchArgs = buildMcpSearchArgs({ ...args, repoPath });
   const caches = getRepoCaches(repoPath);
   await refreshRepoCaches(repoPath);
   const observability = buildChildObservability(context.observability, {

@@ -2,6 +2,7 @@ import { getToolDefs } from '../../../src/integrations/mcp/defs.js';
 import { createError, ERROR_CODES } from '../../../src/shared/error-codes.js';
 import { DEFAULT_MODEL_ID } from '../../shared/dict-utils.js';
 import { buildSearchRequestArgs } from '../../../src/shared/search-request.js';
+import { compileSchema, createAjv } from '../../../src/shared/validation/ajv-factory.js';
 
 const SEARCH_DEF = getToolDefs(DEFAULT_MODEL_ID).find((tool) => tool.name === 'search');
 if (!SEARCH_DEF) {
@@ -9,6 +10,11 @@ if (!SEARCH_DEF) {
 }
 
 const SCHEMA_FIELDS = new Set(Object.keys(SEARCH_DEF.inputSchema?.properties || {}));
+const validateSearchArgs = compileSchema(
+  createAjv({ strict: false, allErrors: false, coerceTypes: false }),
+  SEARCH_DEF.inputSchema,
+  { lazy: true }
+);
 const RESERVED_FIELDS = new Set([]);
 const HANDLED_FIELDS = new Set([
   'repoPath',
@@ -85,8 +91,11 @@ if (missing.length) {
 export const getMcpSearchSchemaFields = () => [...SCHEMA_FIELDS];
 export const getMcpSearchReservedFields = () => [...RESERVED_FIELDS];
 
-export function buildMcpSearchArgs(args = {}) {
-  if (!args || typeof args !== 'object') return ['--json', '--compact'];
+/** Admit the advertised value domain before resolving repository authority or caches. */
+export function buildMcpSearchRequest(args = {}, { resolveRepoPath = value => value } = {}) {
+  if (!args || typeof args !== 'object' || Array.isArray(args)) {
+    throw createError(ERROR_CODES.INVALID_REQUEST, 'MCP search args must be an object.');
+  }
   const unknown = Object.keys(args).filter((key) => !SCHEMA_FIELDS.has(key));
   if (unknown.length) {
     throw createError(ERROR_CODES.INVALID_REQUEST, `Unknown MCP search args: ${unknown.join(', ')}`);
@@ -97,11 +106,20 @@ export function buildMcpSearchArgs(args = {}) {
     }
   }
 
+  if (!validateSearchArgs(args)) {
+    const detail = (validateSearchArgs.errors || []).map(error => (
+      `${error.instancePath || '#'} ${error.message}`
+    )).join('; ');
+    throw createError(ERROR_CODES.INVALID_REQUEST, `Invalid MCP search args: ${detail}`);
+  }
+
+  const repoPath = resolveRepoPath(args.repoPath);
+
   const result = buildSearchRequestArgs(args, {
     defaultOutput: 'compact',
     allowedOutputs: ['compact', 'full'],
     includeRepo: true,
-    repoPath: args.repoPath,
+    repoPath,
     topFlag: '-n',
     topMin: 0,
     omitModeBoth: true
@@ -111,5 +129,7 @@ export function buildMcpSearchArgs(args = {}) {
     throw createError(ERROR_CODES.INVALID_REQUEST, result.message || 'Invalid MCP search args.');
   }
 
-  return result.args;
+  return { args: result.args, repoPath };
 }
+
+export const buildMcpSearchArgs = (args = {}) => buildMcpSearchRequest(args).args;
