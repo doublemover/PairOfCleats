@@ -1192,6 +1192,9 @@
     },
     {
       "number": 631,
+      "unvalidatedSourceHeads": ["32b7fac5224acae49a85cb7fcaac01c0902bd0e1"],
+      "unvalidatedReceipts": ["gopls-allocation-implementation-2026-10-27.md"],
+      "currentImplementation": "Hosted Windows gopls absence traced to missing canonical allocation declarations before installation; pinned build forecasts, shared SDK bounds and actual GOTMPDIR routing implemented. Native cold-build disk peaks, secondary writes and installed command/protocol qualification remain unrun.",
       "title": "Resolve remaining real optional-tool installation and post-install verification blockers",
       "recordedDisposition": "partial_or_followup",
       "priority": "unranked",
