@@ -8,9 +8,9 @@ Canonical for: initiative status, execution order, and remaining work
 ## Current GitHub repair program
 
 Current reconciliation, 2026-10-26: [the closeout review](archived/github-issue-closeout-2026-10-26.md)
-assessed **770 issues and 238 comments**, closing 27. The next batch closes four
-more: **739 remain open**—477 awaiting qualification, 147 partial/follow-up and
-115 with unresolved implementation status. The unresolved label is tracking
+assessed **770 issues and 238 comments**, closing 27. Subsequent repair batches close
+five more: **738 remain open**—477 awaiting qualification, 147 partial/follow-up and
+114 with unresolved implementation status. The unresolved label is tracking
 evidence, not proof of absent code. Every remaining issue has a completion
 checklist; the linked owner queue records current execution status.
 
@@ -30,6 +30,14 @@ and source-qualified UTF-16 VFS spans (routing producer 4). There are **29 passi
 focused fixtures**. The gate's stale fixture was corrected and its affected case
 passed; the other 39 gate cases and preceding static/document checks passed.
 This is scoped evidence, not a full-suite or platform/model/release qualification.
+
+The [service/storage milestone](archived/service-progress-repairs-2026-10-26.md)
+closes #1593 at `8bf742ec6`: durable executor bindings, constant bound-state reads
+and shared bounded discovery/cleanup. #1627 now pins auto-build source, validates
+metadata values and owns asynchronous cancellation; immutable publication and
+reader/mapping identity remain open. Twenty focused fixtures and the complete
+cheap front gate (40/40) pass. Command checks used a task-local launch omitting an
+inherited missing trusted-config selector; user settings and trust rules are intact.
 
 Execution is solo, Windows-only and implementation-first. The [complete owner
 queue](archived/remaining-issue-batches-2026-10-26.json) orders source work by

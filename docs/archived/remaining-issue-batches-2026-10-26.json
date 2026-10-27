@@ -333,11 +333,11 @@
         1722,
         1732
       ],
-      "sourceWork": 59,
+      "sourceWork": 58,
       "qualification": 20,
       "baselineSourceWork": 59,
       "baselineQualification": 20,
-      "completed": 0
+      "completed": 1
     },
     {
       "order": 6,
@@ -6438,7 +6438,27 @@
       "priority": "Perf",
       "batch": "provider-admission",
       "phase": "source-review-and-implementation",
-      "status": "queued"
+      "status": "closed-completed",
+      "sourceHead": "8bf742ec6689409b43d3d95a1a5ea98d1dff5117",
+      "qualifiedTests": [
+        "indexing/build-state/runtime-receipt",
+        "indexing/embeddings/runtime-stage3-receipt",
+        "services/queue/build-progress-bound-read-work",
+        "services/queue/build-progress-bounded-state",
+        "services/queue/build-progress-execution-identity",
+        "services/queue/build-progress-executor-binding",
+        "services/queue/build-progress-shared-discovery",
+        "services/queue/cleanup-retirement",
+        "services/queue/daemon-cleanup-retirement",
+        "tooling/logging/output-byte-accounting",
+        "tooling/logging/output-byte-accounting-buffer-chunks",
+        "tooling/service/indexer-job-executor-daemon-governance",
+        "tooling/service/indexer-job-executor-daemon-session-budget",
+        "tooling/service/indexer-job-executor-embedding-guards",
+        "tooling/service/subprocess-contract-matrix"
+      ],
+      "closedAt": "2026-10-27T02:32:47Z",
+      "completionReceipt": "service-progress-repairs-2026-10-26.json"
     },
     {
       "number": 1594,
@@ -6726,7 +6746,23 @@
       "priority": "P2",
       "batch": "storage-publication-and-cleanup",
       "phase": "source-review-and-implementation",
-      "status": "queued"
+      "status": "partial-qualified",
+      "currentDisposition": "partial_or_followup",
+      "sourceHead": "8bf742ec6689409b43d3d95a1a5ea98d1dff5117",
+      "qualifiedTests": [
+        "retrieval/backend/cli-sparse-preflight-tantivy-bypass",
+        "retrieval/backend/tantivy-selected-source-admission",
+        "retrieval/providers/tantivy-boolean-and-failure",
+        "retrieval/providers/tantivy-deep-filter-recall"
+      ],
+      "remaining": [
+        "Source manifest/mapping receipt and reader lease",
+        "Immutable staged publication/recovery and native completion validation",
+        "Writer coalescing and reader handle lifetime/cleanup",
+        "Source/activation failure and swapped-ID regressions",
+        "Supported optional-package native rebuild/readback qualification"
+      ],
+      "completionReceipt": "service-progress-repairs-2026-10-26.json"
     },
     {
       "number": 1632,
@@ -7708,12 +7744,6 @@
       "priority": "Perf",
       "batches": [
         {
-          "batch": "provider-admission",
-          "issues": [
-            1593
-          ]
-        },
-        {
           "batch": "performance-and-evaluation",
           "issues": [
             1180,
@@ -8035,16 +8065,17 @@
     }
   ],
   "currentCounts": {
-    "open": 739,
+    "open": 738,
     "qualificationPending": 477,
     "partialFollowup": 147,
-    "implementationStatusUnresolved": 115
+    "implementationStatusUnresolved": 114
   },
-  "reconciledAt": "2026-10-27T01:42:41.126Z",
+  "reconciledAt": "2026-10-27T02:35:24.630Z",
   "completedSourceBatch": [
     586,
     670,
     811,
+    1593,
     1642
   ]
 }
