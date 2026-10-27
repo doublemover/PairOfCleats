@@ -951,7 +951,11 @@
       "priority": "unranked",
       "batch": "storage-publication-and-cleanup",
       "phase": "source-review-and-implementation",
-      "status": "queued"
+      "status": "source-implemented-qualification-pending",
+      "currentDisposition": "qualification_pending",
+      "currentImplementation": "Retains existing ranking/caps and now admits normalized call-site metadata before source reads against remaining hydrated allowance, then re-admits whole hydrated units. Bounded compact JSON measurement counts repeated evidence and exact emitted full/partial array bytes plus the existing token estimator; discarded skeleton/frontier-only candidates cannot regain hydration. Seven authored controls; actual complete assembly/ranking/truncation/strict/federated acceptance remains.",
+      "unvalidatedSourceHeads": ["9d5f6c8bea42d81b8af5bf73b90ba8fc46cda669"],
+      "unvalidatedReceipts": ["docs/archived/hydrated-risk-budget-implementation-2026-10-27.md"]
     },
     {
       "number": 147,

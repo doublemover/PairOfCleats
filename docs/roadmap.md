@@ -62,6 +62,7 @@ severity and shared dependencies, retaining qualification separately:
    [Render source admission](archived/render-source-implementation-2026-10-27.md) bounds preview/summary work; 13 cases await execution.
    [Demanded line tokens](archived/demanded-line-tokens-implementation-2026-10-27.md) replace whole-file preparation; 12 cases and dense/sparse qualification remain.
    [Persistent trace state](archived/trace-state-implementation-2026-10-27.md) shares frontiers/visits and bounds cross-service retention; 9 cases remain (#1581).
+   [Hydrated risk admission](archived/hydrated-risk-budget-implementation-2026-10-27.md) repairs final flow caps/accounting; 7 cases remain (#131).
 4. Native TUI/editor workflows: [catalog/editor witnesses and stats admission](archived/native-workflow-preflight-implementation-2026-10-27.md)
    are repaired in source; all actual workflows remain unqualified (#635).
    [Wrapped log rows](archived/tui-log-rows-implementation-2026-10-27.md) and paused anchors are implemented/typechecked; native qualification remains (#619).
