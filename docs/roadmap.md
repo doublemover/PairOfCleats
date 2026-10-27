@@ -9,7 +9,7 @@ Canonical for: initiative status, execution order, and remaining work
 
 Current reconciliation, 2026-10-27: [the closeout review](archived/github-issue-closeout-2026-10-26.md)
 assessed **770 issues and 238 comments**, closing 27. Subsequent repair batches close
-seven more: **736 remain open**—475 awaiting qualification, 147 partial/follow-up and
+thirteen more: **730 remain open**—469 awaiting qualification, 147 partial/follow-up and
 114 with unresolved implementation status. The unresolved label is tracking
 evidence, not proof of absent code. Every remaining issue has a completion
 checklist; the linked owner queue records current execution status.
@@ -46,11 +46,19 @@ fanout surfaces cleanup failure and fail-fast errors retain late cleanup ownersh
 The regression fails against the prior coordinator and passes after repair.
 Fourteen affected fixtures and the complete cheap front gate (40/40) pass.
 
+The [P1 runtime receipt](archived/runtime-p1-closeout-2026-10-27.md) closes #1050,
+#1072–#1074, #1106 and #1107 at `3a1d08813`. Run-owned parser/LSP references and
+preflight scopes preserve overlapping builds and hosted caches; bounded cleanup
+retains original retirement evidence. Actual Piscina unwind and the existing
+UID/import/promotion/search authority repairs have 37 passing affected fixtures
+and the complete cheap front gate (40/40). #1397's actual stage-closeout child
+integration remains open; no full-suite qualification is claimed.
+
 Execution is solo, Windows-only and implementation-first. The [complete owner
 queue](archived/remaining-issue-batches-2026-10-26.json) orders source work by
 severity and shared dependencies, retaining qualification separately:
 
-1. Cleanup/storage authority and source-pinned publication (#1574, #1627).
+1. P1 lifecycle/storage authority (#1397, #1574), then source-pinned publication (#1627).
 2. Worker/child/service ownership, provider installation and compilation context
    (#631, #289), keeping live readers and original cleanup owners intact.
 3. Language/semantic/replay and retrieval/API evidence contracts.

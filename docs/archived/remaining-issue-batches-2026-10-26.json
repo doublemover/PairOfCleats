@@ -184,10 +184,10 @@
         1743
       ],
       "sourceWork": 29,
-      "qualification": 88,
+      "qualification": 87,
       "baselineSourceWork": 29,
       "baselineQualification": 89,
-      "completed": 1
+      "completed": 2
     },
     {
       "order": 4,
@@ -239,10 +239,10 @@
         1730
       ],
       "sourceWork": 4,
-      "qualification": 37,
+      "qualification": 35,
       "baselineSourceWork": 4,
       "baselineQualification": 38,
-      "completed": 1
+      "completed": 3
     },
     {
       "order": 5,
@@ -893,10 +893,10 @@
         1728
       ],
       "sourceWork": 22,
-      "qualification": 88,
+      "qualification": 85,
       "baselineSourceWork": 22,
       "baselineQualification": 88,
-      "completed": 0
+      "completed": 3
     },
     {
       "order": 11,
@@ -2145,7 +2145,17 @@
       "priority": "P1",
       "batch": "tooling-and-governance",
       "phase": "source-review-and-focused-qualification",
-      "status": "queued"
+      "status": "closed-completed",
+      "sourceHead": "3a1d088135d5a1abff87945fe6641773a8953090",
+      "qualifiedTests": [
+        "indexing/piece-assembly/complete-uid-remapping",
+        "indexing/piece-assembly/core",
+        "indexing/piece-assembly/minhash-identity",
+        "indexing/piece-assembly/strict-input-preservation"
+      ],
+      "closedAt": "2026-10-27T05:46:45Z",
+      "completionReceipt": "runtime-p1-closeout-2026-10-27.json",
+      "qualificationOnly": true
     },
     {
       "number": 1051,
@@ -2316,7 +2326,17 @@
       "priority": "P1",
       "batch": "tooling-and-governance",
       "phase": "source-review-and-focused-qualification",
-      "status": "queued"
+      "status": "closed-completed",
+      "sourceHead": "3a1d088135d5a1abff87945fe6641773a8953090",
+      "qualifiedTests": [
+        "indexing/imports/unresolved-cache-budget-correctness",
+        "indexing/imports/cache-file-set-diff-preserves-cache-key",
+        "indexing/imports/import-cache-contract-matrix",
+        "indexing/imports/import-cache-neighborhood-invalidation"
+      ],
+      "closedAt": "2026-10-27T05:46:49Z",
+      "completionReceipt": "runtime-p1-closeout-2026-10-27.json",
+      "qualificationOnly": false
     },
     {
       "number": 1073,
@@ -2325,7 +2345,17 @@
       "priority": "P1",
       "batch": "runtime-ownership",
       "phase": "source-review-and-focused-qualification",
-      "status": "queued"
+      "status": "closed-completed",
+      "sourceHead": "3a1d088135d5a1abff87945fe6641773a8953090",
+      "qualifiedTests": [
+        "indexing/runtime/initialization-resource-unwind",
+        "indexing/runtime/failure-receipt-category-settlement",
+        "indexing/runtime/runtime-attempt-lifecycle",
+        "indexing/runtime/category-session-teardown"
+      ],
+      "closedAt": "2026-10-27T05:46:51Z",
+      "completionReceipt": "runtime-p1-closeout-2026-10-27.json",
+      "qualificationOnly": false
     },
     {
       "number": 1074,
@@ -2334,7 +2364,28 @@
       "priority": "P1",
       "batch": "runtime-ownership",
       "phase": "source-review-and-focused-qualification",
-      "status": "queued"
+      "status": "closed-completed",
+      "sourceHead": "3a1d088135d5a1abff87945fe6641773a8953090",
+      "qualifiedTests": [
+        "indexing/guardrails/stage1-timeout-ownership",
+        "indexing/stage1/process-files-cleanup-timeout",
+        "indexing/stage1/file-watchdog-hard-timeout",
+        "indexing/runtime/shared-resource-scope-isolation/cancelled-shared-workspace",
+        "indexing/runtime/shared-resource-scope-isolation/distinct-workspaces",
+        "indexing/runtime/shared-resource-scope-isolation/shared-workspace",
+        "indexing/runtime/shared-resource-scope-isolation/host-cache",
+        "indexing/runtime/run-resource-drain-timeout",
+        "shared/lifecycle/run-resource-scope",
+        "lang/python/pool-retirement-ownership",
+        "tooling/lsp/session-pool-lifecycle-matrix",
+        "tooling/lsp/preflight-cancellation-ownership",
+        "tooling/lsp/provider-preflight-signal-handoff",
+        "tooling/lsp/runtime-cleanup-reaps-tracked-subprocesses"
+      ],
+      "closedAt": "2026-10-27T05:46:54Z",
+      "completionReceipt": "runtime-p1-closeout-2026-10-27.json",
+      "qualificationOnly": false,
+      "reviewCorrection": "Recorded qualification-pending, but follow-up #6329711631 still required source repair."
     },
     {
       "number": 1075,
@@ -2541,7 +2592,17 @@
       "priority": "P1",
       "batch": "tooling-and-governance",
       "phase": "source-review-and-focused-qualification",
-      "status": "queued"
+      "status": "closed-completed",
+      "sourceHead": "3a1d088135d5a1abff87945fe6641773a8953090",
+      "qualifiedTests": [
+        "indexing/build/promotion-unreadable-pointer",
+        "indexing/build/stage4-mixed-mode-generations",
+        "indexing/watch/promotion/safety",
+        "indexing/artifacts/completed-stage-recovery"
+      ],
+      "closedAt": "2026-10-27T05:46:57Z",
+      "completionReceipt": "runtime-p1-closeout-2026-10-27.json",
+      "qualificationOnly": true
     },
     {
       "number": 1107,
@@ -2550,7 +2611,17 @@
       "priority": "P1",
       "batch": "storage-publication-and-cleanup",
       "phase": "source-review-and-focused-qualification",
-      "status": "queued"
+      "status": "closed-completed",
+      "sourceHead": "3a1d088135d5a1abff87945fe6641773a8953090",
+      "qualifiedTests": [
+        "shared/indexing/build-pointer",
+        "indexing/build/stage4-repo-root-pointer-prefers-active-root",
+        "retrieval/cli/published-root-fallback-authority",
+        "tooling/dict-utils/paths-builds-root"
+      ],
+      "closedAt": "2026-10-27T05:47:00Z",
+      "completionReceipt": "runtime-p1-closeout-2026-10-27.json",
+      "qualificationOnly": true
     },
     {
       "number": 1109,
@@ -8091,16 +8162,22 @@
     }
   ],
   "currentCounts": {
-    "open": 736,
-    "qualificationPending": 475,
+    "open": 730,
+    "qualificationPending": 469,
     "partialFollowup": 147,
     "implementationStatusUnresolved": 114
   },
-  "reconciledAt": "2026-10-27T04:26:18.107Z",
+  "reconciledAt": "2026-10-27T05:48:07.500Z",
   "completedSourceBatch": [
     586,
     670,
     811,
+    1050,
+    1072,
+    1073,
+    1074,
+    1106,
+    1107,
     1591,
     1593,
     1642,
