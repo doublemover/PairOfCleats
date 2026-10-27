@@ -178,7 +178,7 @@ export async function buildDatabaseFromArtifacts({
   });
 
   let count = 0;
-  let succeeded = false;
+  let succeeded = false, operationFailed = false, operationError;
   try {
     const vectorAnn = prepareVectorAnnTable({ db, indexData: index, mode, vectorConfig });
     const {
@@ -555,7 +555,8 @@ export async function buildDatabaseFromArtifacts({
       telemetry: { source: 'artifacts' }
     });
     succeeded = true;
-  } finally {
+  } catch (error) { operationFailed = true; operationError = error; throw error; }
+  finally {
     if (denseClampStats.totalValues > 0) {
       try {
         warn(
@@ -566,6 +567,8 @@ export async function buildDatabaseFromArtifacts({
     }
     await closeSqliteBuildDatabase({
       db,
+      operationFailed,
+      operationError,
       succeeded,
       pragmaState,
       batchStats,

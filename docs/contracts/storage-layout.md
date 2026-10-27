@@ -41,6 +41,16 @@ LMDB includes its original completion callback, including outstanding prefetch;
 missing-store diagnostics release only an admission that opened no native handle.
 Metadata failure retains explicit recovery without repeating confirmed closure.
 
+SQLite artifact/bundle writer construction captures its existing synchronous
+physical close owner before initialization. Initialization and finalization
+preserve original operation and native cleanup causes, including frozen errors.
+Finalization coalesces once and never adopts a later close method or retries an
+unknown native close. Incremental updates follow the same original-close rule;
+failed closure cannot report successful update. Constructor fallback stops on
+fatal errors and independent pending ownership; ordinary confirmed CANTOPEN
+fallback retains its existing paths and bounds. These physical writer owners
+do not complete storage-session/temporary-namespace adoption for every builder.
+
 `src/shared/storage/layout.js` resolves one application home and category
 descriptors without filesystem access. Launch home precedes `PAIROFCLEATS_HOME`,
 then the existing platform default: `%LOCALAPPDATA%/PairOfCleats` on Windows,

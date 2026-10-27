@@ -11,6 +11,8 @@ import { prepareIsolatedTestCacheDir } from '../../../helpers/test-cache.js';
 
 const { dir: tempRoot } = await prepareIsolatedTestCacheDir('sqlite-incremental-handle-lifecycle');
 const manifestEntry = { bundles: ['unused.json'], hash: 'current', mtimeMs: 123, size: 10 };
+const contains = (value, expected) => value === expected || Boolean(value && typeof value === 'object'
+  && (contains(value.cause, expected) || value instanceof AggregateError && value.errors.some(error => contains(error, expected))));
 
 const runCase = async ({ name, failureAt = null, baselineHash = null, schemaVersion = SCHEMA_VERSION,
   missingTable = false, closeFailure = false, checkpointFailure = false, buildPragmas = false, cancelAfterManifest = false }) => {
@@ -29,7 +31,8 @@ const runCase = async ({ name, failureAt = null, baselineHash = null, schemaVers
     writer.close();
   }
 
-  const failure = new Error(`injected ${failureAt} failure`);
+  const failure = Object.freeze(new Error(`injected ${failureAt} failure`));
+  const cleanupFailure = Object.freeze(new Error('injected close failure'));
   const handles = [];
   const closeCounts = new Map();
   let failureInjected = false;
@@ -90,7 +93,7 @@ const runCase = async ({ name, failureAt = null, baselineHash = null, schemaVers
     db.close = () => {
       closeCounts.set(db, (closeCounts.get(db) || 0) + 1);
       close();
-      if (closeFailure) throw new Error('injected close failure');
+      if (closeFailure) throw cleanupFailure;
     };
     return db;
   }
@@ -111,7 +114,9 @@ const runCase = async ({ name, failureAt = null, baselineHash = null, schemaVers
       signal: cancelAfterManifest ? controller.signal : null
     });
     if (failureAt) {
-      await assert.rejects(update, (error) => error === failure, `${name}: preserve the original failure`);
+      await assert.rejects(update, (error) => closeFailure
+        ? contains(error, failure) && contains(error, cleanupFailure) && error.cacheOwnershipReleased() === false
+        : error === failure, `${name}: preserve the original failure and exact native cleanup cause`);
       assert.equal(failureInjected, true, `${name}: failure injection must be reached`);
     } else if (cancelAfterManifest) {
       await assert.rejects(update, { code: 'ABORT_ERR' });

@@ -181,7 +181,7 @@ export async function buildDatabaseFromBundles({
     useBuildPragmas,
     ftsVariants
   });
-  let succeeded = false;
+  let succeeded = false, operationFailed = false, operationError;
   try {
     const {
       insertChunk,
@@ -920,10 +920,13 @@ export async function buildDatabaseFromBundles({
     succeeded = true;
     emitDenseClampSummary();
     return { count, denseCount: validationStats.dense, embedStats, vectorAnn: vectorAnnState };
-  } finally {
+  } catch (error) { operationFailed = true; operationError = error; throw error; }
+  finally {
     rollbackSqliteBuildTransaction(db, batchStats);
     await closeSqliteBuildDatabase({
       db,
+      operationFailed,
+      operationError,
       succeeded,
       pragmaState,
       batchStats,

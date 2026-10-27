@@ -46,9 +46,12 @@ const { dir: tempRoot } = await prepareIsolatedTestCacheDir('sqlite-build-startu
 const bundlePath = path.join(tempRoot, 'bundle.json');
 await fs.writeFile(bundlePath, JSON.stringify(bundle));
 const failures = [];
+const contains = (value, expected) => value === expected || Boolean(value && typeof value === 'object'
+  && (contains(value.cause, expected) || value instanceof AggregateError && value.errors.some(error => contains(error, expected))));
 
 const runCase = async ({ name, direct = false, failureAt = null, closeFailure = false, buildPragmas = false }) => {
-  const failure = new Error(`injected ${name} failure`);
+  const failure = Object.freeze(new Error(`injected ${name} failure`));
+  const cleanupFailure = Object.freeze(new Error('injected secondary close failure'));
   const handles = [];
   const closeCounts = new Map();
   const pragmaCalls = [];
@@ -85,7 +88,7 @@ const runCase = async ({ name, direct = false, failureAt = null, closeFailure = 
     db.close = () => {
       closeCounts.set(db, (closeCounts.get(db) || 0) + 1);
       close();
-      if (closeFailure) throw new Error('injected secondary close failure');
+      if (closeFailure) throw cleanupFailure;
     };
     return db;
   }
@@ -115,7 +118,9 @@ const runCase = async ({ name, direct = false, failureAt = null, closeFailure = 
   try {
     let result;
     if (failureAt) {
-      await assert.rejects(run, (error) => error === failure, `${name}: preserve startup error`);
+      await assert.rejects(run, (error) => closeFailure
+        ? contains(error, failure) && contains(error, cleanupFailure) && error.cacheOwnershipReleased() === false
+        : error === failure, `${name}: preserve exact startup and any independent native cleanup error`);
       assert.equal(injected || failureAt === 'pool', true, `${name}: reach the failure injection`);
     } else {
       result = await run();

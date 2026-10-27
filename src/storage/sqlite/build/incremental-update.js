@@ -1,4 +1,6 @@
 import { assertSqliteIndexFormat } from '../index-format.js';
+import { createSqliteCacheCloseOwner } from '../../../retrieval/sqlite-cache-close-owner.js';
+import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
 import { assertSqliteMinhashReceiver } from '../minhash.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { listOptionalFtsTables, normalizeFtsVariants } from '../fts-variants.js';
@@ -168,10 +170,13 @@ export async function incrementalUpdateDatabase({
 
   const useBuildPragmas = buildPragmas !== false;
   const db = new Database(outPath);
+  const native = createSqliteCacheCloseOwner(db, { canClose: () => true, onClosed() {} });
   try {
     assertSqliteIndexFormat({ db, operation: 'incremental-update', repoRoot, indexPath: outPath });
   } catch (error) {
-    db.close();
+    native.retainFailure(error);
+    try { native.retire(); }
+    catch (cleanup) { throw addStorageFailureContext(error, {}, cleanup, { secondaryPresent: true }); }
     throw error;
   }
   // Establish cleanup ownership before any fallible initialization runs.
@@ -179,7 +184,7 @@ export async function incrementalUpdateDatabase({
   let pageSize = ingestPlan.pageSize;
   let journalMode = ingestPlan.journalMode;
   let walEnabled = ingestPlan.walEnabled === true;
-  let dbClosed = false;
+  let operationError, operationFailed = false, finalization = null;
 
   /**
    * Ensure sqlite resources are cleaned up for every exit path.
@@ -188,29 +193,32 @@ export async function incrementalUpdateDatabase({
    *
    * @returns {Promise<void>}
    */
-  const finalize = async () => {
-    if (dbClosed) return;
-    dbClosed = true;
-    try {
-      checkpointSqliteWithTelemetry(db, {
-        stats: batchStats,
-        dbPath: outPath,
-        stage: 'close',
-        pageSize,
-        journalMode,
-        walEnabled,
-        walPressure: ingestPlan.walPressure,
-        source: 'incremental'
-      });
-    } catch {}
-    if (pragmaState) {
+  const finalize = () => {
+    if (finalization) return finalization;
+    if (operationFailed) native.retainFailure(operationError);
+    finalization = Promise.resolve().then(() => {
       try {
-        restoreBuildPragmas(db, pragmaState);
+        checkpointSqliteWithTelemetry(db, {
+          stats: batchStats,
+          dbPath: outPath,
+          stage: 'close',
+          pageSize,
+          journalMode,
+          walEnabled,
+          walPressure: ingestPlan.walPressure,
+          source: 'incremental'
+        });
       } catch {}
-    }
-    try {
-      db.close();
-    } catch {}
+      if (pragmaState) {
+        try {
+          restoreBuildPragmas(db, pragmaState);
+        } catch {}
+      }
+      native.retire();
+    }).catch(cleanup => {
+      throw operationFailed ? addStorageFailureContext(operationError, {}, cleanup, { secondaryPresent: true }) : cleanup;
+    });
+    return finalization;
   };
   try {
     pragmaState = useBuildPragmas ? applyBuildPragmas(db, { inputBytes, stats: batchStats }) : null;
@@ -484,7 +492,8 @@ export async function incrementalUpdateDatabase({
       insertedChunks,
       ...changeSummary
     };
-  } finally {
+  } catch (error) { operationFailed = true; operationError = error; throw error; }
+  finally {
     await finalize();
   }
 }

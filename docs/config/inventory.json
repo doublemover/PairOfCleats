@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-27T14:34:47.899Z",
+  "generatedAt": "2026-10-27T14:51:08.393Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4666,6 +4666,7 @@
         "tests/storage/lmdb/native-artifact-parity.test.js",
         "tests/storage/lmdb/prefetch-close-ownership.test.js",
         "tests/storage/semantic/published-manifest-cache-authority.test.js",
+        "tests/storage/sqlite/build/original-close-owner.test.js",
         "tests/storage/sqlite/explicit-source-authority.test.js",
         "tests/tooling/api-contracts/export-identity-cli.test.js",
         "tests/tooling/api-contracts/qualified-target-joins-cli.test.js",
