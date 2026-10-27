@@ -94,7 +94,7 @@ try {
       assert.equal(closes, 1, 'outer cleanup must not retry known failed native close');
       assert.equal(failure.cacheOwnershipReleased(), false);
       const readsBeforeRecovery = nativeReads;
-      if (kind !== 'clangd') assert.equal((await inspectStorageAccess(toolingRoot, { coordinationRoot })).protected, true);
+      assert.equal((await inspectStorageAccess(toolingRoot, { coordinationRoot })).protected, true);
       allowed = true;
       if (kind === 'managed') {
         const held = failure.managedInstallSession;
@@ -102,13 +102,13 @@ try {
       } else if (kind === 'go') {
         assert.equal(await failure.goSdkInstallSession.releaseAfterClosure(), true);
       } else {
-        const held = getArchiveExtractionSession(failure);
-        assert.deepEqual(await held.releaseAfterClose(), { resourceId: held.resourceId, settled: true, pending: false });
+        assert.equal(await failure.installArchiveSession.releaseAfterClosure(), true);
       }
       assert.equal(closes, 2);
       assert.equal(nativeReads, readsBeforeRecovery, 'exact recovery never replays extraction');
       assert.equal(failure.cacheOwnershipReleased(), true);
-      if (kind !== 'clangd') assert.equal((await inspectStorageAccess(toolingRoot, { coordinationRoot })).protected, false);
+      assert.equal((await inspectStorageAccess(toolingRoot, { coordinationRoot })).protected, false);
+      assert.equal((await fs.readdir(path.join(coordinationRoot, 'write-reservations'))).length, 0);
       fs.open = open;
     });
   }

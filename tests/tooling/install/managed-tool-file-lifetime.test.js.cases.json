@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["header-close", "hash-close", "text-close", "header-read", "hash-read", "text-read", "discovery-read"]
+}

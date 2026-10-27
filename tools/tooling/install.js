@@ -13,6 +13,7 @@ import { invalidateToolingCommandProbeCache, resolveNoProvisionToolingEnvironmen
 import { findBinaryOnPath } from '../../src/index/tooling/binary-utils.js';
 import { isGoSdkVersionAtLeast, resolveInstallerRequirementProbeArgs, verifyInstallerRequirementProbe } from './install-requirements.js';
 import { ensureManagedGoSdk } from './install-go-sdk.js';
+import { ensureManagedClangd } from './install-clangd.js';
 import { applyManagedGoEnvironment, resolveManagedGoSdk } from '../../src/shared/managed-go.js';
 import { isApplicationOwnedCommand, isRepoTrusted } from '../../src/shared/config-authority.js';
 import { isPathWithinRoot } from '../../src/shared/file-paths.js';
@@ -184,6 +185,24 @@ try {
           docs: tool.docs || null,
           probe: status.probe || null
         });
+        continue;
+      }
+      if (selection.plan.ownedAcquisition) {
+        if (selection.plan.ownedAcquisition !== 'official-clangd-archive' || tool.id !== 'clangd' || selection.scope !== 'cache') {
+          throw new Error('Unknown canonical owned tool acquisition.');
+        }
+        try {
+          const installed = await withManagedProvisioningRequirements(provisioning, () => ensureManagedClangd({
+            toolingRoot: path.resolve(toolingConfig.dir), cwd: installationCwd,
+            baseEnv: bindProvisioningCommand({ cmd: process.execPath, args: [] }, provisioning).env,
+            signal: cancellation.signal }), { signal: cancellation.signal });
+          results.push({ id: tool.id, status: installed.reused ? 'already-installed' : 'installed',
+            path: installed.command, provisioning, managedInstallation: installed,
+            probe: { ok: true, verificationLevel: installed.verificationLevel } });
+        } catch (error) {
+          if (error.cacheOwnershipPending || cancellation.signal.aborted) throw error;
+          results.push({ id: tool.id, status: 'failed', error: error.message, code: error.code || error.reason || null, provisioning });
+        }
         continue;
       }
       if (selection.plan.managedDescriptor) {

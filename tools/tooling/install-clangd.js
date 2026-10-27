@@ -1,8 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import {
+  CLANGD_ARCHIVE_LIMITS, CLANGD_MAX_DOWNLOAD_BYTES, CLANGD_STORAGE_ESTIMATE,
   CLANGD_MAX_BINARY_BYTES, CLANGD_RELEASE_INDEX_URL, hasClangdTargetHeader,
   resolveClangdArchiveTarget, resolveManagedClangd
 } from '../../src/shared/managed-clangd.js';
@@ -11,11 +11,14 @@ import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { extractArchive, runArchiveTransaction } from '../shared/archive-extraction.js';
 import { computeSha256, createInstallError } from './install-shared.js';
 import { downloadOfficialGitHubRelease } from './official-release-download.js';
+import { runInstallWithStorageAdmission } from './install-storage.js';
+import { probeProvisioningCommand } from './provisioning-plan.js';
+import { verifyOwnedResource } from './managed-verification.js';
+import { assertNoSymlinkPath } from '../../src/shared/contained-file.js';
+import { observeStorageResource } from '../../src/shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 
-export const CLANGD_ARCHIVE_LIMITS = Object.freeze({
-  maxBytes: 768 * 1024 * 1024, maxEntryBytes: CLANGD_MAX_BINARY_BYTES, maxEntries: 20_000
-});
-const MAX_DOWNLOAD_BYTES = 128 * 1024 * 1024;
+export { CLANGD_ARCHIVE_LIMITS };
 
 export const selectOfficialClangdArchive = (release, target) => {
   const version = release?.tag_name;
@@ -27,7 +30,7 @@ export const selectOfficialClangdArchive = (release, target) => {
   const sourceUrl = `https://github.com/clangd/clangd/releases/download/${version}/${filename}`;
   const asset = (Array.isArray(release.assets) ? release.assets : []).find((entry) => entry?.name === filename);
   if (!asset || asset.browser_download_url !== sourceUrl || !/^sha256:[a-f0-9]{64}$/.test(asset.digest)
-    || !Number.isSafeInteger(asset.size) || asset.size <= 0 || asset.size > MAX_DOWNLOAD_BYTES) {
+    || !Number.isSafeInteger(asset.size) || asset.size <= 0 || asset.size > CLANGD_MAX_DOWNLOAD_BYTES) {
     throw createInstallError('clangd_asset_unverified', 'Official clangd archive is missing a usable published digest/size/source.');
   }
   return { ...target, version, filename, sourceUrl, sha256: asset.digest.slice(7), size: asset.size };
@@ -42,20 +45,29 @@ const ensureChild = async (parent, name) => {
   return child;
 };
 
-const defaultProbe = (command, { cwd }) => {
-  const result = spawnSync(command, ['--version'], { cwd, shell: false, encoding: 'utf8',
-    timeout: 10_000, maxBuffer: 64 * 1024, stdio: ['ignore', 'pipe', 'pipe'] });
-  return { ok: result.status === 0 && !result.signal && !result.error, stdout: result.stdout || '' };
+export const probeInstalledClangd = async (command, { cwd, env, signal, resourceId }, dependencies = {}) => {
+  try {
+    const result = await probeProvisioningCommand(command, ['--version'], { cwd, env, signal,
+      timeoutMs: 10_000, maxOutputBytes: 64 * 1024, stdio: 'pipe', ...dependencies });
+    return { ...result, settlement: { resourceId, settled: true, pending: false } };
+  } catch (error) {
+    // The shared probe owns child/tree settlement on both result and error.
+    // Cancellation after a confirmed close must not invent a pending child.
+    observeStorageResource(error, { phase: 'clangd-version-probe' }).requireSettled();
+    throw addStorageFailureContext(error, { settlement: { resourceId, settled: true, pending: false } });
+  }
 };
 
 /** Preserve the whole vendor package, including its builtin C/C++ headers. */
-export const ensureManagedClangd = async ({ toolingRoot, cwd,
+const ensureManagedClangdOwned = async ({ toolingRoot, cwd, baseEnv = process.env, signal = null,
   platform = process.platform, arch = process.arch, timeoutMs = 120_000, dependencies = {} } = {}) => {
+  signal?.throwIfAborted();
   const target = resolveClangdArchiveTarget({ platform, arch });
   if (!target) throw createInstallError('clangd_unsupported_target', 'No standalone clangd recipe for this platform/architecture.');
   if (!toolingRoot || !path.isAbsolute(toolingRoot)) throw createInstallError('clangd_cache_path_invalid', 'clangd needs an absolute tooling root.');
   const cached = resolveManagedClangd(toolingRoot, { platform, arch });
   if (cached) return { ...cached, reused: true };
+  assertNoSymlinkPath(path.parse(toolingRoot).root, toolingRoot, { allowMissing: true });
   await fs.mkdir(toolingRoot, { recursive: true });
   const servers = await ensureChild(toolingRoot, 'servers');
   const cache = await ensureChild(servers, 'clangd');
@@ -64,7 +76,8 @@ export const ensureManagedClangd = async ({ toolingRoot, cwd,
     throw createInstallError('clangd_cache_unverified', 'Unverified clangd cache was preserved instead of overwritten.');
   }
   const download = dependencies.download || downloadOfficialGitHubRelease;
-  const metadata = await download({ url: CLANGD_RELEASE_INDEX_URL, maxBytes: 2 * 1024 * 1024, timeoutMs });
+  const metadata = await download({ url: CLANGD_RELEASE_INDEX_URL, maxBytes: 2 * 1024 * 1024, timeoutMs, signal });
+  signal?.throwIfAborted();
   if (metadata.sourceUrl !== CLANGD_RELEASE_INDEX_URL) throw createInstallError('clangd_source_mismatch', 'clangd metadata changed source.');
   const archive = selectOfficialClangdArchive(JSON.parse(metadata.body.toString('utf8')), target);
   const packageKey = `${archive.version}-${platform}-${arch}`;
@@ -76,7 +89,8 @@ export const ensureManagedClangd = async ({ toolingRoot, cwd,
   const identity = await fs.lstat(transaction, { bigint: true });
   let pointerTemp = null, pointerTempIdentity = null;
   return runArchiveTransaction(transaction, identity, async () => {
-    const fetched = await download({ url: archive.sourceUrl, maxBytes: MAX_DOWNLOAD_BYTES, timeoutMs });
+    const fetched = await download({ url: archive.sourceUrl, maxBytes: CLANGD_MAX_DOWNLOAD_BYTES, timeoutMs, signal });
+    signal?.throwIfAborted();
     if (fetched.sourceUrl !== archive.sourceUrl || fetched.body.length !== archive.size || computeSha256(fetched.body) !== archive.sha256) {
       throw createInstallError('clangd_checksum_mismatch', 'clangd archive bytes disagree with the official digest/size/source.');
     }
@@ -84,6 +98,7 @@ export const ensureManagedClangd = async ({ toolingRoot, cwd,
     await fs.writeFile(archivePath, fetched.body, { flag: 'wx' });
     const extracted = path.join(transaction, 'extracted');
     await (dependencies.extract || extractArchive)(archivePath, extracted, 'zip', CLANGD_ARCHIVE_LIMITS);
+    signal?.throwIfAborted();
     const packageRoot = path.join(extracted, `clangd_${archive.version}`);
     if (!(await fs.lstat(packageRoot)).isDirectory() || await fs.realpath(packageRoot) !== path.join(await fs.realpath(extracted), `clangd_${archive.version}`)) {
       throw createInstallError('clangd_layout_invalid', 'clangd package root is missing or unsupported.');
@@ -97,7 +112,11 @@ export const ensureManagedClangd = async ({ toolingRoot, cwd,
       throw createInstallError('clangd_resources_missing', 'clangd builtin header resources are missing.');
     }
     if (platform !== 'win32') await fs.chmod(command, 0o755);
-    const probe = await (dependencies.probe || defaultProbe)(command, { cwd: cwd || transaction });
+    const temporary = await ensureChild(transaction, 'probe-temp');
+    const env = { ...baseEnv, TMP: temporary, TEMP: temporary, TMPDIR: temporary };
+    const probe = await verifyOwnedResource(input => (dependencies.probe || probeInstalledClangd)(command, input),
+      { cwd: cwd || transaction, env, signal }, randomUUID());
+    signal?.throwIfAborted();
     const matched = /^clangd version (\d+\.\d+\.\d+)(?:\s|$)/m.exec(String(probe?.stdout || ''));
     if (probe?.ok !== true || matched?.[1] !== archive.version) {
       throw createInstallError('clangd_probe_failed', 'clangd did not report the expected release version.');
@@ -107,6 +126,7 @@ export const ensureManagedClangd = async ({ toolingRoot, cwd,
       archiveSha256: archive.sha256, archiveBytes: archive.size, binarySha256: hashManagedToolFile(command, CLANGD_MAX_BINARY_BYTES),
       verificationLevel: 'official-release-sha256-binary-target-and-executable-version', installedAt: new Date().toISOString() };
     await fs.writeFile(path.join(extracted, 'installation.json'), `${JSON.stringify(receipt, null, 2)}\n`, { flag: 'wx' });
+    signal?.throwIfAborted();
     await fs.rename(extracted, destination);
     pointerTemp = path.join(cache, `.current-${randomUUID()}.json`);
     await fs.writeFile(pointerTemp, `${JSON.stringify(receipt, null, 2)}\n`, { flag: 'wx' });
@@ -131,17 +151,40 @@ export const ensureManagedClangd = async ({ toolingRoot, cwd,
   });
 };
 
+/** One canonical acquisition owner: callers do not wrap this in a package-child
+ * reservation. A verified cache reuse performs no acquisition or reservation. */
+export const ensureManagedClangd = async (options = {}) => {
+  options.signal?.throwIfAborted();
+  const target = { platform: options.platform || process.platform, arch: options.arch || process.arch };
+  if (!resolveClangdArchiveTarget(target)) throw createInstallError('clangd_unsupported_target', 'No standalone clangd recipe for this platform/architecture.');
+  if (!options.toolingRoot || !path.isAbsolute(options.toolingRoot)) throw createInstallError('clangd_cache_path_invalid', 'clangd needs an absolute tooling root.');
+  const cached = resolveManagedClangd(options.toolingRoot, target);
+  if (cached) return { ...cached, reused: true };
+  const baseEnv = Object.freeze({ ...(options.baseEnv || process.env) });
+  const publication = await runInstallWithStorageAdmission({ toolingRoot: options.toolingRoot,
+    storageEstimate: CLANGD_STORAGE_ESTIMATE, scope: 'managed-clangd-publication' },
+  () => ensureManagedClangdOwned({ ...options, ...target, baseEnv }));
+  return publication.value;
+};
+
 if (isDirectExecution(import.meta.url)) {
   const { createCli } = await import('../../src/shared/cli.js');
   const argv = createCli({ scriptName: 'install-clangd', options: {
     'tooling-root': { type: 'string', required: true }, scope: { type: 'string', default: 'cache' }
   } }).strictOptions().parse();
+  const controller = new AbortController();
+  let interrupted = null;
+  const interrupt = () => { interrupted = 130; controller.abort(new Error('clangd installation interrupted.')); };
+  const terminate = () => { interrupted = 143; controller.abort(new Error('clangd installation terminated.')); };
+  process.once('SIGINT', interrupt); process.once('SIGTERM', terminate);
   try {
     if (argv.scope !== 'cache') throw createInstallError('clangd_scope_unsupported', 'Only the managed cache scope is supported.');
-    const installed = await ensureManagedClangd({ toolingRoot: path.resolve(argv['tooling-root']), cwd: process.cwd() });
+    const installed = await ensureManagedClangd({ toolingRoot: path.resolve(argv['tooling-root']), cwd: process.cwd(), signal: controller.signal });
     console.error(`[clangd-install] ${installed.version} ${installed.platform}/${installed.arch} ${installed.reused ? 'reused' : 'installed'}.`);
   } catch (error) {
     console.error(`[clangd-install] ${error.reason || 'failed'}: ${error.message}`);
-    process.exitCode = 1;
+    process.exitCode = interrupted || 1;
+  } finally {
+    process.removeListener('SIGINT', interrupt); process.removeListener('SIGTERM', terminate);
   }
 }

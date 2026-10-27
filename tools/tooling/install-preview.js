@@ -26,9 +26,12 @@ export const createToolInstallPreview = ({ tools, scope = 'cache', allowFallback
     return { id: tool.id, scope: selection.scope, fallback: selection.fallback === true,
       location: { path: located.path, state: located.source === 'blocked' ? 'authority-blocked' : located.path ? 'located-not-probed' : 'not-found',
         managedInstallId: tool.managedInstallation?.installId || null, protocol: 'not-probed' },
-      action: selection.plan ? { kind: selection.plan.managedDescriptor ? 'immutable-managed-archive' : 'canonical-recipe-child',
+      action: selection.plan ? { kind: selection.plan.ownedAcquisition || (selection.plan.managedDescriptor ? 'immutable-managed-archive' : 'canonical-recipe-child'),
         command: selection.plan.cmd || null, args: selection.plan.args || [],
-        descriptor: selection.plan.managedDescriptor || null, environment: { keys: Object.keys(selection.plan.env || {}).sort(), values: 'not-exposed' } } : null,
+        descriptor: selection.plan.managedDescriptor || null,
+        ...(selection.plan.ownedAcquisition ? { releaseSelection: selection.plan.releaseSelection,
+          maximumDownloadBytes: selection.plan.maximumDownloadBytes } : {}),
+        environment: { keys: Object.keys(selection.plan.env || {}).sort(), values: 'not-exposed' } } : null,
       provisioning, prerequisiteSetup, admission, blockers, state: blockers.length ? 'blocked-or-unqualified' : 'planned-not-probed' };
   });
   const body = sanitizeRuntimeReceipt({ schemaVersion: 1, kind: 'tool-install-preview', scope, allowFallback, entries,

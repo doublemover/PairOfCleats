@@ -5,6 +5,7 @@ import { addStorageFailureContext } from '../../src/shared/storage/operation-err
 import { acquireStorageWriteReservation } from '../../src/shared/storage/admission.js';
 import { bindDeclaredInstallAdmission, resolveDeclaredInstallAdmission } from './install-execution.js';
 import { settleInstallDownload } from './install-shared.js';
+import { getArchiveExtractionSession } from '../shared/archive-resource-owner.js';
 
 const captureActionObservation = error => {
   try {
@@ -116,6 +117,17 @@ export const runInstallWithStorageAdmission = async ({ toolingRoot, storageEstim
           if (await goOwned.releaseAfterClosure() !== true) throw new Error('Go SDK owner did not confirm exact release.');
           return settleOuter();
         }) };
+    }
+    const archiveOwned = getArchiveExtractionSession(error);
+    if (!owned && !goOwned && archiveOwned && storage) {
+      fields.installArchiveSession = Object.freeze({ resourceId: storage.resourceId,
+        releaseAfterClosure: () => reconcile(async () => {
+          if (error.downloadSession) await settleInstallDownload(error);
+          const receipt = await archiveOwned.releaseAfterClose();
+          if (receipt?.resourceId !== archiveOwned.resourceId || receipt?.settled !== true || receipt?.pending !== false
+            || !archiveOwned.isSettled()) throw new Error('Actual archive acquisition remains unsettled.');
+          return settleOuter();
+        }) });
     }
     // The Go release-index request can fail before an inner transaction exists.
     // Its outer storage reservations still belong to this actual response.

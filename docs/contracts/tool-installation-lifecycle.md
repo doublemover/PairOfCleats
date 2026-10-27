@@ -58,6 +58,27 @@ compatible selections can be reused without reacquiring an archive. The generic
 archive and Go SDK publication boundaries also require admission before writing.
 Current recipes without qualified complete bounds remain deferred.
 
+Clangd's canonical cache recipe selects the internal `official-clangd-archive`
+acquisition operation directly. The installer calls that operation without an
+outer package-child reservation or another Node process. The same owner protects
+release metadata, retained ZIP, bounded extraction, version probe and publication
+under `toolingRoot/servers/clangd`; existing cache discovery/layout is preserved.
+Its inclusive logical-byte allowance derives from the 128 MiB archive ceiling,
+768 MiB extracted ceiling and 32 MiB metadata margin. This envelope is not an
+observed native storage peak. The read-only preview reports the official release
+selector and maximum download size; the exact latest stable version/digest is
+unknown until its bounded official metadata request completes.
+
+The Clangd probe uses the shared asynchronous child owner with hidden Windows
+windows, bounded output and a ten-second deadline. Its temporary environment
+routes into the private transaction. Native/external secondary writes still
+need real-tool qualification. A failed archive transaction exposes
+`installArchiveSession.releaseAfterClosure()`, joining actual response/archive
+cleanup before releasing its separate allocation and storage lifetime. Recovery
+does not repeat extraction, verification or publication. Read-only header/hash/
+receipt inspection captures original file operations and retains unresolved
+read/close failures; Clangd discovery cannot flatten these into a missing tool.
+
 ## Actual resource settlement
 
 `runToolInstallChild` uses the shared async subprocess owner and

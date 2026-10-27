@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import path from 'node:path';
 import assert from 'node:assert/strict';
-import { resolveClangdArchiveTarget } from '../../../src/shared/managed-clangd.js';
+import { CLANGD_STORAGE_ESTIMATE, CLANGD_RELEASE_INDEX_URL, resolveClangdArchiveTarget } from '../../../src/shared/managed-clangd.js';
 import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
@@ -37,10 +37,15 @@ if (clangdResult?.status === 'already-installed') {
   assert.equal(clangdAction, undefined);
 } else if (resolveClangdArchiveTarget()) {
   assert.ok(clangdAction, 'supported targets plan the managed standalone recipe');
-  assert.equal(clangdAction.command, process.execPath);
-  assert.ok(clangdAction.args[0].endsWith(path.join('tools', 'tooling', 'install-clangd.js')));
-  const rootIndex = clangdAction.args.indexOf('--tooling-root');
-  assert.ok(rootIndex >= 0 && path.isAbsolute(clangdAction.args[rootIndex + 1]));
+  assert.equal(clangdAction.kind, 'official-clangd-archive');
+  assert.equal(clangdAction.command, null);
+  assert.deepEqual(clangdAction.args, []);
+  assert.equal(clangdAction.releaseSelection.indexUrl, CLANGD_RELEASE_INDEX_URL);
+  const admission = payload.preview.entries.find(entry => entry.id === 'clangd').admission;
+  assert.equal(admission.state, 'estimate-declared');
+  assert.deepEqual(admission.writes, CLANGD_STORAGE_ESTIMATE.writes.map(write => ({
+    ...write, minimumFreeBytes: 0, hardBytes: null
+  })));
 } else {
   assert.ok(payload.preview.entries[0].blockers.some(blocker => blocker.code === 'selected-recipe-unavailable'));
   assert.equal(clangdAction, undefined);

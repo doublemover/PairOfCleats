@@ -144,6 +144,7 @@ export const createFirstSearchPlan = async ({ repoRoot, profile = 'sparse', mode
     'src/shared/runtime-envelope/resolve.js', 'src/shared/runtime-envelope/env-patch.js',
     'tools/tooling/install-execution.js', 'tools/tooling/install-allocation-contract.js', 'tools/tooling/gopls-recipe.js',
     'tools/tooling/install-storage.js', 'tools/tooling/managed-install.js', 'tools/tooling/install-go-sdk.js',
+    'tools/tooling/install-clangd.js', 'src/shared/managed-clangd.js', 'src/shared/managed-tool-file.js',
     'tools/tooling/owned-detect.js', 'tools/tooling/install-preview.js', 'src/shared/managed-installation.js',
     'src/shared/managed-installation-retain.js', 'src/shared/managed-installation-contract.js', 'src/shared/toolchain-env.js',
     'src/shared/managed-go.js', 'tools/tooling/install-receipts.js', 'tools/tooling/install-requirements.js',

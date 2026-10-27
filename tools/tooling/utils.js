@@ -21,7 +21,8 @@ import {
   resolvePathEnvKey as resolveSharedPathEnvKey
 } from '../../src/shared/env-path.js';
 import { getToolingConfig, resolveToolRoot } from '../shared/dict-utils.js';
-import { resolveClangdArchiveTarget, resolveManagedClangd } from '../../src/shared/managed-clangd.js';
+import { CLANGD_STORAGE_ESTIMATE, CLANGD_RELEASE_INDEX_URL, CLANGD_MAX_DOWNLOAD_BYTES,
+  resolveClangdArchiveTarget, resolveManagedClangd } from '../../src/shared/managed-clangd.js';
 import { PHPACTOR_APPROVED_RELEASE } from './approved-artifacts.js';
 import { resolveManagedLuaLanguageServer } from '../../src/shared/managed-lua.js';
 import { createToolProvisioningPlan, normalizeToolProvisioningDeclaration, verifyToolProvisioningPlan } from './provisioning-plan.js';
@@ -475,8 +476,10 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       label: 'clangd',
       languages: ['c', 'cpp', 'objc'],
       detect: { cmd: 'clangd', args: ['--version'], binDirs: [resolveManagedClangd(absoluteToolingRoot)?.binDir].filter(Boolean) },
-      install: resolveClangdArchiveTarget() ? { cache: { cmd: process.execPath,
-        args: [path.join(implementationRoot, 'tools/tooling/install-clangd.js'), '--scope', 'cache', '--tooling-root', absoluteToolingRoot] } }
+      install: resolveClangdArchiveTarget() ? { cache: { ownedAcquisition: 'official-clangd-archive',
+        storageEstimate: CLANGD_STORAGE_ESTIMATE,
+        releaseSelection: { indexUrl: CLANGD_RELEASE_INDEX_URL, channel: 'latest-stable', version: null },
+        maximumDownloadBytes: CLANGD_MAX_DOWNLOAD_BYTES } }
         : { manual: true },
       docs: TOOL_DOCS.clangd
     },
