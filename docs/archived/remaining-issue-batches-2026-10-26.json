@@ -6611,8 +6611,8 @@
       ],
       "partialReceipt": "repository-cleanup-admission-2026-10-27.json",
       "remainingWork": [
-        "Custom/external backend root registration with producer/publication identity and explicit launch authority.",
-        "Validator/probe, complete SQLite builder, sidecar and unadopted legacy-adapter lifetimes.",
+        "Custom/external backend registration with producer/publication identity and explicit launch authority.",
+        "Validator, complete SQLite builder, sidecar and unadopted legacy-adapter native lifetimes.",
         "Category-specific eligible backend deletion/requalification and all/multi-repo CLI/MCP acceptance."
       ],
       "followupSourceHeads": [
@@ -6621,14 +6621,16 @@
         "ee01bb7fce9c360d1c91e3e61b4979d1b26237d5",
         "eea652a771f5900a3389d997c80600f8b70b30a7",
         "b22a42ca52982fbee424f88a2a1491fb57f43cf5",
-        "753c7f9a013346fdc3b6f0d3472bd31236b5c282"
+        "753c7f9a013346fdc3b6f0d3472bd31236b5c282",
+        "9285c466433548a5055b621adf299b1e16a95e9d"
       ],
       "followupReceipts": [
         "sqlite-uncached-close-ownership-2026-10-27.json",
         "lmdb-lifetime-and-parity-2026-10-27.json",
         "generation-selection-repairs-2026-10-27.json",
         "native-reader-sessions-2026-10-27.json",
-        "native-command-sessions-2026-10-27.json"
+        "native-command-sessions-2026-10-27.json",
+        "sqlite-probe-sessions-2026-10-27.json"
       ],
       "followupQualifiedTests": [
         "indexing/contracts/index-format-cutover",
@@ -6675,6 +6677,15 @@
         "shared/storage/repo-cleanup-exclusion/metadata-failure",
         "shared/storage/repo-cleanup-exclusion/original-close",
         "shared/storage/repo-cleanup-exclusion/readers-and-race",
+        "shared/storage/sqlite-probe-lifetime/admission",
+        "shared/storage/sqlite-probe-lifetime/counts",
+        "shared/storage/sqlite-probe-lifetime/dense",
+        "shared/storage/sqlite-probe-lifetime/metadata",
+        "shared/storage/sqlite-probe-lifetime/mode",
+        "shared/storage/sqlite-probe-lifetime/pending",
+        "shared/storage/sqlite-probe-lifetime/runtime",
+        "shared/storage/sqlite-probe-lifetime/table",
+        "shared/storage/sqlite-probe-lifetime/vector",
         "storage/lmdb/native-artifact-parity/columnar",
         "storage/lmdb/native-artifact-parity/json",
         "storage/lmdb/native-artifact-parity/jsonl",
@@ -6684,15 +6695,33 @@
         "storage/lmdb/prefetch-close-ownership/retrieval-storage",
         "storage/lmdb/prefetch-close-ownership/validator",
         "storage/lmdb/replacement-atomicity",
+        "storage/sqlite/batch-size-adaptive",
+        "storage/sqlite/build-root-active-generation-plan",
+        "storage/sqlite/build/cancellation",
+        "storage/sqlite/build/existing-output-staging",
+        "storage/sqlite/build/finalization-diagnostics",
+        "storage/sqlite/build/incremental-runner-imports-contract",
+        "storage/sqlite/build/row-ledger",
         "storage/sqlite/cache",
         "storage/sqlite/cache-failed-close-ownership",
         "storage/sqlite/cache-generation-tag",
         "storage/sqlite/compact-metadata-roundtrip",
         "storage/sqlite/compact-minhash-identity",
         "storage/sqlite/delegated-native-scope-authority",
+        "storage/sqlite/explicit-source-authority/historical-conflict",
+        "storage/sqlite/explicit-source-authority/native-detached",
+        "storage/sqlite/explicit-source-authority/native-empty",
+        "storage/sqlite/explicit-source-authority/native-external-output",
+        "storage/sqlite/explicit-source-authority/native-known-output",
+        "storage/sqlite/explicit-source-authority/no-current",
+        "storage/sqlite/explicit-source-authority/partial-current",
         "storage/sqlite/fts-optional-build-compaction",
+        "storage/sqlite/incremental-no-change",
         "storage/sqlite/native-command-resource-closure",
-        "storage/sqlite/reader-schema-mismatch"
+        "storage/sqlite/probe-failure-preserves-staging",
+        "storage/sqlite/reader-schema-mismatch",
+        "storage/sqlite/runner-no-process-exit",
+        "storage/sqlite/zero-state-proof-admission"
       ]
     },
     {

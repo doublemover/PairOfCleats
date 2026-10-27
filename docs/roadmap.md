@@ -42,7 +42,7 @@ Full front gates include 40/40 gate cases:
 | [ee01bb7fc](archived/generation-selection-repairs-2026-10-27.md) | #347 closed; captured generation and SQLite state ownership | 34 + full front gate |
 | [294e971bb](archived/query-vector-admission-2026-10-27.md) | #1006 closed; #1544 actual models/perf pending | 27 prior cohort; 14 final rechecks + full front gate |
 
-| [753c7f9a0](archived/native-command-sessions-2026-10-27.md) | #1574 native build/compaction lifetimes; frozen compaction errors | 24 + full front gate |
+| [Native commands](archived/native-command-sessions-2026-10-27.md), [SQLite probes](archived/sqlite-probe-sessions-2026-10-27.md) | #1574 lifetimes/staged evidence; registration remains | 24/28 + full front gates |
 
 These are scoped observations, not a combined full-suite or platform/model/release
 pass. Task checks omit only an inherited missing trusted-config selector;
