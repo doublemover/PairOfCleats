@@ -296,6 +296,7 @@ const createSearchWorker = ({
   const createWorkerSession = () => {
     const spawnedChild = fork(workerScriptPath, [], {
       env,
+      windowsHide: true,
       detached: process.platform !== 'win32',
       stdio: ['ignore', 'pipe', 'pipe', 'ipc']
     });

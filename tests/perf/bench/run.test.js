@@ -338,6 +338,7 @@ function runBenchChildProcess(args, env, failureLabel) {
   const start = Date.now();
   const result = spawnSync(process.execPath, args, {
     env,
+    windowsHide: true,
     encoding: 'utf8',
     stdio: jsonOutput ? ['ignore', 'pipe', 'pipe'] : 'inherit'
   });
@@ -670,7 +671,7 @@ for (const concurrency of queryConcurrencyList) {
 
 const reportArgs = [reportPath, '--json'];
 if (repoArg) reportArgs.push('--repo', repoArg);
-const reportResult = spawnSync(process.execPath, reportArgs, { encoding: 'utf8' });
+const reportResult = spawnSync(process.execPath, reportArgs, { encoding: 'utf8', windowsHide: true });
 const artifactReport = reportResult.status === 0 ? JSON.parse(reportResult.stdout || '{}') : {};
 const corruption = artifactReport?.corruption || null;
 const shouldCheckArtifactCorruption = !testingDefaultsEnabled || needsSqlite;
