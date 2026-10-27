@@ -288,6 +288,10 @@ class FakeWindow:
             view.set_window(self)
 
 
+class FakeApplicationCommand:
+    pass
+
+
 class FakeWindowCommand:
     def __init__(self, window=None):
         self.window = window
@@ -360,6 +364,7 @@ def install_fake_modules():
             FakeSublimeModule._active_window = None
 
     class FakeSublimePluginModule:
+        ApplicationCommand = FakeApplicationCommand
         WindowCommand = FakeWindowCommand
         TextCommand = FakeTextCommand
         EventListener = FakeEventListener

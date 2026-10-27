@@ -18,6 +18,31 @@ from .commands import semantic as _semantic_commands
 from .commands import settings as _settings_commands
 from .commands import validate as _validate_commands
 
+
+def _expose_command_classes():
+    # Sublime discovers command classes on root plugin modules. Keep their
+    # implementations in the existing modules, and let the native loader own
+    # registration/unloading of these exact aliases.
+    command_types = (sublime_plugin.ApplicationCommand, sublime_plugin.WindowCommand, sublime_plugin.TextCommand)
+    exported = {}
+    for module in (_analysis_commands, _evidence_commands, _index_commands, _map_commands,
+                   _operator_commands, _runtime_commands, _search_commands, _semantic_commands,
+                   _settings_commands, _validate_commands):
+        for name, command in vars(module).items():
+            if not name.startswith('PairOfCleats') or not isinstance(command, type) or not issubclass(command, command_types):
+                continue
+            if name in exported and exported[name] is not command:
+                raise RuntimeError('Conflicting PairOfCleats command classes: ' + name)
+            exported[name] = command
+    for name, command in globals().get('_EXPORTED_COMMAND_CLASSES', {}).items():
+        if globals().get(name) is command:
+            globals().pop(name)
+    globals().update(exported)
+    return exported
+
+
+_EXPORTED_COMMAND_CLASSES = _expose_command_classes()
+
 PLUGIN_NAME = 'PairOfCleats'
 
 
