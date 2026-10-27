@@ -7147,7 +7147,11 @@
       "priority": "Perf",
       "batch": "performance-and-evaluation",
       "phase": "source-review-and-implementation",
-      "status": "queued"
+      "status": "source-implemented-qualification-pending",
+      "currentDisposition": "qualification_pending",
+      "currentImplementation": "Demanded source-offset line blocks, source/analyzer/dictionary identity, pre-preparation input/output admission, bounded active/retained bytes, overlap/LRU retirement, exact chunk fallback and close/cancel/failure ownership. Twelve authored controls; actual consumer/worker correctness and serial dense/sparse resource/performance qualification remain.",
+      "unvalidatedSourceHeads": ["ee5e1cb13091cb510ab6028313d72b1e251abe57"],
+      "unvalidatedReceipts": ["docs/archived/demanded-line-tokens-implementation-2026-10-27.md"]
     },
     {
       "number": 1604,

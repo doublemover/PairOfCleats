@@ -14,12 +14,10 @@ twenty-five more: **718 remain open**—459 awaiting qualification, 146 partial/
 evidence, not proof of absent code. Every remaining issue has a completion
 checklist; the linked owner queue records current execution status.
 
-The [complete assessment](archived/github-issue-closeout-2026-10-26.json) records
-remaining work, current source/test mappings and exact closure witnesses.
-[Earlier implementation receipts](archived/solo-issue-repairs-2026-10-25.md) and the
-[prior inventory](archived/github-issue-coverage-2026-10-25.json) retain historical
-revision-specific evidence. Work is solo and Windows-only. Hosted gate/policy/Rust TUI
-passed at `f8532f1d2`; seven broader jobs failed (see the review).
+The [complete assessment](archived/github-issue-closeout-2026-10-26.json) retains
+source/test mappings and closure witnesses; [earlier receipts](archived/solo-issue-repairs-2026-10-25.md)
+retain historical evidence. Work is solo and Windows-only. Hosted gate/policy/Rust
+TUI passed at `f8532f1d2`; seven broader jobs failed (see the review).
 
 Windows repair receipts retain exact sources, failing controls and scope.
 Full front gates include 40/40 gate cases:
@@ -64,7 +62,8 @@ severity and shared dependencies, retaining qualification separately:
    are implemented. Failure persistence, other routes and full readiness/cache-only qualification remain.
    [Strict JSON admission](archived/json-import-admission-implementation-2026-10-27.md)
    adds common caps, aggregate traversal and qualified omissions; 20 cases await execution.
-   [Render source admission](archived/render-source-implementation-2026-10-27.md) now bounds preview/summary reads and scans; 13 new cases await execution.
+   [Render source admission](archived/render-source-implementation-2026-10-27.md) bounds preview/summary work; 13 cases await execution.
+   [Demanded line tokens](archived/demanded-line-tokens-implementation-2026-10-27.md) replace whole-file preparation; 12 cases and dense/sparse qualification remain.
 4. Native TUI/editor workflows: [catalog/editor witnesses and stats admission](archived/native-workflow-preflight-implementation-2026-10-27.md)
    are repaired in source; all actual workflows remain unqualified (#635).
 5. Performance/evaluation after correctness: retained comparisons (#1663),
