@@ -50,6 +50,7 @@ try {
       const hostSqlite = createSqliteDbCache();
       let indexCache;
       let sqliteCache;
+      let retirement;
       const observeCaches = params => {
         if (indexCache) return;
         indexCache = params.indexCache;
@@ -85,6 +86,8 @@ try {
       });
       // Attach rejection observation before either gate can trigger it.
       const rejected = assert.rejects(pending, error => {
+        retirement = error.federationCacheRetirement;
+        assert.ok(retirement, 'fail-fast rejection retains the late cleanup observation');
         assert.equal(error.code, original.code);
         assert.equal(error.cause, original, 'the originating error survives secondary rejection and cleanup');
         assert.match(error.message, new RegExp(`${boundary} primary`));
@@ -104,6 +107,10 @@ try {
       assert.deepEqual(searched, boundary === 'resolver' ? [] : [first, sibling],
         'a claimed repository may not start searching after its resolver drains');
       assert.deepEqual(clears, indexCache && ownership === 'local' ? { index: 1, sqlite: 1 } : { index: 0, sqlite: 0 });
+      if (indexCache && ownership === 'local') {
+        await assert.rejects(retirement.drain(), /secondary index cleanup/);
+        assert.equal(retirement.getReceipt().status, 'failed');
+      } else await retirement.drain();
       // The host owns retirement even when request cleanup would fail.
       if (ownership === 'host' && indexCache) {
         assert.equal(hostIndex.size, 1);

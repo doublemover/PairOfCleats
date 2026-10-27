@@ -38,6 +38,7 @@ import { INTERNAL_EXACT_SEARCH_MODE } from '../cli.js';
 import { validateFederatedModeResult, isReusableFederatedCacheResult } from './results.js';
 import { observeStorageResource } from '../../shared/storage/failure-observation.js';
 import { INTERNAL_SEARCH_POLICY } from '../cli/effective-plan.js';
+import { createFederatedCacheRetirement } from './retirement.js';
 
 export const resolveFederatedUnavailableModes = ({repos,requestedModes,eligibleModesByRepo,cohortExcluded={}}) =>
   (repos || []).flatMap(repo=>(requestedModes || [])
@@ -786,22 +787,17 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
     ? context.resolveRepoCaches
     : null;
   let sharedCaches = null;
+  const retirement = createFederatedCacheRetirement();
   const getSharedCaches = () => {
     if (sharedCaches) return sharedCaches;
     sharedCaches = {
       indexCache: context.indexCache || createIndexCache(),
       sqliteCache: context.sqliteCache || createSqliteDbCache()
     };
+    retirement.register({ repoRoot: workspaceConfig.repoSetId,
+      indexCache: context.indexCache ? null : sharedCaches.indexCache,
+      sqliteCache: context.sqliteCache ? null : sharedCaches.sqliteCache });
     return sharedCaches;
-  };
-  const disposeOwnedCaches = () => {
-    if (!sharedCaches) return;
-    if (!context.indexCache) {
-      try { sharedCaches.indexCache.clear(); } catch {}
-    }
-    if (!context.sqliteCache) {
-      try { sharedCaches.sqliteCache.dispose(); } catch {}
-    }
   };
   const searchFn = typeof context.searchFn === 'function' ? context.searchFn : coreSearch;
   const perRepoResults = [];
@@ -1060,24 +1056,31 @@ export const runFederatedSearch = async (request = {}, context = {}) => {
   // Strict failure remains fail-fast, but sibling workers may still be running.
   // Keep request-local caches alive until every worker settles, then retire
   // only caches created here. Host-provided caches keep their host ownership.
-  void Promise.allSettled(workers).then(() => {
-    admission.dispose();
-    disposeOwnedCaches();
-  }).catch(() => {});
+  retirement.start(workers, admission.dispose);
   try {
     await Promise.race([Promise.all(workers), admission.whenStopped]);
   } catch (error) {
-    if (isFederatedAbortError(error)) {
-      throw error;
+    const original = observeStorageResource(error, { phase: 'federation-request' });
+    let aborted, message, code;
+    try {
+      aborted = isFederatedAbortError(error);
+      message = typeof error?.message === 'string' ? error.message : typeof error === 'string' ? error : 'Unknown execution failure';
+      code = typeof error?.code === 'string' ? error.code : ERROR_CODES.INTERNAL;
+    } catch (inspection) {
+      throw retirement.attach(original.retain(inspection, { inspectionPresent: true }), original);
+    }
+    if (aborted) {
+      throw retirement.attach(error, original);
     }
     const strictError = createError(
       ERROR_CODES.INTERNAL,
-      `Federated search failed in strict mode: ${error?.message || error}`
+      `Federated search failed in strict mode: ${message.slice(0, 4096)}`
     );
-    strictError.code = error?.code || ERROR_CODES.INTERNAL;
+    strictError.code = code;
     strictError.cause = error;
-    throw strictError;
+    throw retirement.attach(strictError, original, { ownedError: true });
   }
+  await retirement.drain();
 
   if (!perRepoResults.length) {
     const firstNonNoIndex = perRepoErrors.find((entry) => entry?.error?.code !== ERROR_CODES.NO_INDEX);

@@ -3,6 +3,15 @@ import { addStorageFailureContext } from './storage/operation-error.js';
 
 const MAX_FAILURES = 128;
 
+export const closeRepoCacheEntry = entry => {
+  let failed = false, primary;
+  for (const close of [() => entry?.indexCache?.clear?.(), () => entry?.sqliteCache?.closeAll?.()]) {
+    try { close(); }
+    catch (error) { primary = failed ? addStorageFailureContext(primary, {}, error, { secondaryPresent: true }) : error; failed = true; }
+  }
+  if (failed) throw primary;
+};
+
 /** Service-scoped retirement receipts refer to existing cache/close owners;
  * they neither own another native handle registry nor retry a native close.
  */
@@ -17,7 +26,8 @@ export const createRepoCacheRetirementLedger = () => {
   const register = entry => {
     const cache = entry.sqliteCache;
     const record = { key: entry.repoRoot, failures: new Map(), owners: new Map(), overflow: false,
-      readOwners: cache.pendingOwners.bind(cache), dispose: cache.dispose.bind(cache) };
+      readOwners: cache ? cache.pendingOwners.bind(cache) : () => [],
+      dispose: cache ? cache.dispose.bind(cache) : () => {} };
     entries.set(entry, record);
     pruneSettled();
   };

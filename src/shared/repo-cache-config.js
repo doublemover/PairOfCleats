@@ -7,17 +7,9 @@ import { defineCachePolicy, resolveCachePolicy } from './cache/policy.js';
 import { loadUserConfig, getRepoCacheRoot, resolveRepoRoot, toRealPathSync } from './dict-utils.js';
 import { readCurrentBuildGeneration } from './indexing/build-pointer.js';
 import { incCacheEviction, setCacheSize } from './metrics/core.js';
-import { createRepoCacheRetirementLedger } from './repo-cache-retirement.js';
-import { addStorageFailureContext } from './storage/operation-error.js';
+import { createRepoCacheRetirementLedger, closeRepoCacheEntry } from './repo-cache-retirement.js';
 
-export const closeRepoCacheEntry = (entry) => {
-  let failed = false, primary;
-  for (const close of [() => entry?.indexCache?.clear?.(), () => entry?.sqliteCache?.closeAll?.()]) {
-    try { close(); }
-    catch (error) { primary = failed ? addStorageFailureContext(primary, {}, error, { secondaryPresent: true }) : error; failed = true; }
-  }
-  if (failed) throw primary;
-};
+export { closeRepoCacheEntry } from './repo-cache-retirement.js';
 
 export const REPO_CACHE_POLICY_DEFAULTS = Object.freeze({
   maxEntries: 5,
