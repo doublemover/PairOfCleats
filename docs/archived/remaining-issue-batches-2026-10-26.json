@@ -6440,8 +6440,25 @@
       "recordedDisposition": "partial_or_followup",
       "priority": "P1",
       "batch": "storage-publication-and-cleanup",
-      "phase": "source-review-and-implementation",
-      "status": "queued"
+      "phase": "source-repair",
+      "status": "source-partially-qualified",
+      "sourceHead": "06c3324d00392da08fca6025e55c3ecb8aff9458",
+      "qualifiedTests": [
+        "indexing/artifacts/clean",
+        "shared/cache/repo-access",
+        "shared/storage/access-unknown-owner-authority",
+        "shared/storage/index-writer-category-session",
+        "tooling/index/clean-artifacts-reader-exclusion",
+        "shared/storage/repo-cleanup-exclusion/metadata-failure",
+        "shared/storage/repo-cleanup-exclusion/original-close",
+        "shared/storage/repo-cleanup-exclusion/readers-and-race"
+      ],
+      "partialReceipt": "repository-cleanup-admission-2026-10-27.json",
+      "remainingWork": [
+        "Register custom backend roots with producer/publication identity and explicit launch authority.",
+        "Adopt actual reader/probe/cache/builder/sidecar lifetimes through original native owners.",
+        "Qualify category-specific disposable outputs, all/multi-repo and every remaining backend adapter."
+      ]
     },
     {
       "number": 1575,

@@ -49,6 +49,9 @@ Completed source-bound Windows batches retain their detailed archives:
 - [Cache/benchmark ownership](archived/cache-ownership-p1-closeout-2026-10-27.md),
   `1f7579910`: #1582, #1746; actual framed-channel reuse routes and CLI cleanup;
   12 affected cases and full front gate (40/40), with a failing original-delimiter control.
+- [Cleanup admission](archived/repository-cleanup-admission-2026-10-27.md),
+  `06c3324d0`: partial #1574; both lease namespaces and original-resource recovery,
+  eight affected cases and full front gate (40/40). Custom backend adoption remains.
 
 These are scoped observations, not a combined full-suite or platform/model/release
 pass. Task checks omit only an inherited missing trusted-config selector;
