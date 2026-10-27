@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { runEmbeddingsStage } from '../../../src/integrations/core/build-index/stages.js';
@@ -9,11 +8,13 @@ import { resolveBuildInvocationArgs } from '../../../src/integrations/core/args.
 import { loadQueue } from '../../../tools/service/queue.js';
 import { createJobExecutor } from '../../../tools/service/indexer-service/job-executor.js';
 import { parseBuildEmbeddingsArgs } from '../../../tools/build/embeddings/cli.js';
-import { attachEmbeddingExecutionPlan, validateEmbeddingExecutionPlan } from '../../../src/shared/embedding-execution-plan.js';
+import { attachEmbeddingExecutionPlan, validateEmbeddingExecutionPlan, createEmbeddingExecutionPlan,
+  captureEmbeddingExecutionPlan } from '../../../src/shared/embedding-execution-plan.js';
 import { applyTestEnv, withTemporaryEnv } from '../../helpers/test-env.js';
 import { toRealPathSync } from '../../../src/workspace/identity.js';
+import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 
-const temp = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-plan-handoff-'));
+const { dir: temp } = await prepareIsolatedTestCacheDir('embedding-plan-handoff');
 const repo = path.join(temp, 'repo');
 const build = path.join(temp, 'build');
 const queueDir = path.join(temp, 'queue');
@@ -51,13 +52,21 @@ const base = { root: repo, argv, embedModes: ['code'], userConfig: config, index
   includeEmbeddings: true, overallProgressRef: {}, log: () => {}, repoCacheRoot: path.join(temp, 'repo-cache'),
   runtimeEnv: env, recordIndexMetric: () => {}, buildEmbeddingsPath: script };
 try {
-  await runEmbeddingsStage({ ...base, embeddingRuntime: { embeddingEnabled: true, embeddingService: false,
-    useStubEmbeddings: true, resolvedEmbeddingMode: 'stub' } });
+  const inlineIntent = { embeddingEnabled: true, embeddingService: false, useStubEmbeddings: true, resolvedEmbeddingMode: 'stub' };
+  const selected = captureEmbeddingExecutionPlan(createEmbeddingExecutionPlan({ root: repo, argv, userConfig: config,
+    modes: ['code'], rawEnv: env, intent: inlineIntent }));
+  const changedConfig = { ...config, models: { ...config.models, id: 'later-parent-config' },
+    indexing: { ...config.indexing, embeddings: { ...config.indexing.embeddings, normalize: true, provider: 'onnx' } } };
+  await runEmbeddingsStage({ ...base, userConfig: changedConfig,
+    runtimeEnv: { ...env, PAIROFCLEATS_THREADS: '9' }, embeddingRuntime: { ...inlineIntent, executionPlan: selected } });
   const direct = JSON.parse(await fs.readFile(output, 'utf8'));
   assert.equal(direct.plan.repoRoot, toRealPathSync(repo));
   assert.equal(direct.plan.indexRoot, toRealPathSync(build));
   assert.equal(direct.model, 'parent-cli-model');
   assert.equal(direct.dims, 16);
+  assert.equal(direct.normalize, false); assert.equal(direct.provider, selected.embeddings.provider);
+  assert.equal(direct.plan.selectedAt, selected.selectedAt);
+  assert.deepEqual(direct.plan.environment, selected.environment);
   for (const key of ['threads', 'scheduler', 'scheduler-cpu', 'scheduler-io', 'scheduler-mem', 'scheduler-starvation', 'scheduler-low-resource']) {
     assert.equal(direct.argv[key], argv[key], key);
   }
@@ -93,8 +102,9 @@ try {
   assert.throws(() => validateEmbeddingExecutionPlan({ ...job.embeddingPlan, indexRoot: temp }), /digest mismatch/);
   assert.throws(() => validateEmbeddingExecutionPlan(job.embeddingPlan, { root: repo, indexRoot: temp }), /root mismatch/);
   assert.throws(() => validateEmbeddingExecutionPlan(job.embeddingPlan, { root: temp, indexRoot: build }), /repository root mismatch/);
-  const repoAlias = path.join(temp, 'repo-alias');
-  await fs.symlink(repo, repoAlias, process.platform === 'win32' ? 'junction' : 'dir');
+  // Portable canonical spelling, without creating links or requiring privileges.
+  // Physical symlink equivalence belongs to workspace identity qualification.
+  const repoAlias = repo + path.sep + '.';
   assert.equal(validateEmbeddingExecutionPlan(job.embeddingPlan, { root: repoAlias, indexRoot: build }).digest, job.embeddingPlan.digest);
   const missing = attachEmbeddingExecutionPlan(env, job.embeddingPlan);
   const context = JSON.parse(missing.PAIROFCLEATS_OBSERVABILITY_CONTEXT);

@@ -10,6 +10,8 @@ import { getEnvConfig } from './env/runtime.js';
 import { resolveEmbeddingIntent } from './embedding-intent.js';
 import { applyObservabilityContextEnv, buildChildObservability, parseObservabilityContextEnv } from './observability.js';
 import { toRealPathSync } from '../workspace/identity.js';
+import { snapshotEmbeddingMetadata } from './embedding-selection-snapshot.js';
+import { resolveEmbeddingModelProfile, validateEmbeddingModelProfile, resolveQueryEmbeddingContract } from './embedding-model-profile.js';
 
 export const EMBEDDING_LAUNCH_OPTION_KEYS = Object.freeze([
   'model', 'dims', 'threads', 'scheduler', 'scheduler-cpu', 'scheduler-io',
@@ -77,6 +79,13 @@ export const createEmbeddingExecutionPlan = ({ root, indexRoot = null, buildId =
     onnx,
     embeddinggemma2: pick(configured.embeddinggemma2, ['revision', 'dtype', 'dimensions'])
   };
+  if (selected.embeddingEnabled && !selected.useStubEmbeddings) {
+    const profile = resolveEmbeddingModelProfile(embeddings.model, embeddings.embeddinggemma2);
+    validateEmbeddingModelProfile(profile, { provider: embeddings.provider, normalize: embeddings.normalize });
+    if (profile) embeddings.embeddinggemma2 = pick(profile, ['revision', 'dtype', 'dimensions']);
+    resolveQueryEmbeddingContract({ modelId: embeddings.model, modelProfile: embeddings.embeddinggemma2,
+      dims: argv.dims ?? null, useStub: false });
+  }
   const plan = {
     version: 2,
     selectedAt: new Date().toISOString(),
@@ -202,6 +211,27 @@ export const validateEmbeddingExecutionPlan = (plan, selection) => {
     if (error?.code === 'ERR_EMBEDDING_EXECUTION_PLAN') throw error;
     throw fail('malformed handoff value');
   }
+};
+
+/** A bounded immutable selection can outlive Stage2 without borrowing caller data. */
+export const captureEmbeddingExecutionPlan = (plan, selection) =>
+  snapshotEmbeddingMetadata(validateEmbeddingExecutionPlan(plan, selection));
+
+/** Bind generated execution scope only. Never re-run model/config/env selection. */
+export const bindEmbeddingExecutionPlan = (plan, binding = {}) => {
+  record(binding, ['root', 'indexRoot', 'buildId', 'modes'], 'binding');
+  for (const key of ['root', 'indexRoot']) if (binding[key] != null
+    && (typeof binding[key] !== 'string' || !path.isAbsolute(binding[key]))) throw fail(`binding ${key} must be absolute`);
+  validateEmbeddingExecutionPlan(plan, { root: binding.root });
+  const indexRoot = binding.indexRoot ? toRealPathSync(binding.indexRoot) : plan.indexRoot;
+  const buildId = binding.buildId ?? plan.buildId;
+  if (plan.indexRoot && indexRoot !== toRealPathSync(plan.indexRoot)) throw fail('cannot rebind selected index root');
+  if (plan.buildId && buildId !== plan.buildId) throw fail('cannot rebind selected build identity');
+  const modes = binding.modes == null ? plan.modes : binding.modes;
+  if (!Array.isArray(modes) || !modes.length || modes.some(mode => !plan.modes.includes(mode))) throw fail('binding cannot widen selected modes');
+  const bound = { ...structuredClone(plan), indexRoot, buildId, modes: [...new Set(modes)].sort() };
+  bound.digest = digest(bound);
+  return captureEmbeddingExecutionPlan(bound, { root: binding.root, indexRoot, modes });
 };
 
 export const buildEmbeddingLaunchArgs = (options = {}) => {

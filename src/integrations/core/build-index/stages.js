@@ -7,7 +7,7 @@ import { readBuildRecoveryGrant } from './recovery-context.js';
 import crypto from 'node:crypto';
 import { refreshRuntimeReceipt } from '../../../index/build/runtime/receipt.js';
 import { redactDiagnosticText } from '../../../shared/diagnostic-text.js';
-import { createEmbeddingExecutionPlan, buildEmbeddingLaunchArgs, attachEmbeddingExecutionPlan } from '../../../shared/embedding-execution-plan.js';
+import { createEmbeddingExecutionPlan, captureEmbeddingExecutionPlan, bindEmbeddingExecutionPlan, buildEmbeddingLaunchArgs, attachEmbeddingExecutionPlan } from '../../../shared/embedding-execution-plan.js';
 import { parseObservabilityContextEnv } from '../../../shared/observability.js';
 import { attachSemanticEnrichmentRuntime } from '../../../index/semantic/enrichment-context.js';
 import path from 'node:path';
@@ -193,6 +193,14 @@ export const runEmbeddingsStage = async ({
       log('Embeddings disabled; skipping stage3.');
       return recordOk({ modes: embedModes, embeddings: { skipped: true }, repo: root, stage: 'stage3' });
     }
+    const selectedPlan = captureEmbeddingExecutionPlan(embeddingRuntime.executionPlan
+      || createEmbeddingExecutionPlan({ root, modes: embedModes, argv, userConfig, rawEnv: runtimeEnv, intent: embeddingRuntime }),
+    { root, modes: embedModes });
+    if (selectedPlan.embeddings.enabled !== embeddingRuntime.embeddingEnabled
+      || selectedPlan.options['stub-embeddings'] !== (embeddingRuntime.useStubEmbeddings === true)
+      || selectedPlan.embeddings.mode !== (embeddingRuntime.resolvedEmbeddingMode || (embeddingRuntime.useStubEmbeddings ? 'stub' : 'inline'))) {
+      throw Object.assign(new Error('Embedding execution intent differs from its selected plan.'), { code: 'ERR_EMBEDDING_EXECUTION_PLAN' });
+    }
     const explicitIndexRoot = argv['index-root'] ? path.resolve(argv['index-root']) : null;
     const providedIndexRoot = indexRoot ? path.resolve(indexRoot) : null;
     const buildInfo = explicitIndexRoot
@@ -255,8 +263,7 @@ export const runEmbeddingsStage = async ({
             ? getIndexDir(root, modeItem, userConfig, { indexRoot: modeIndexRoot })
             : null;
           const jobId = crypto.randomUUID();
-          const embeddingPlan = createEmbeddingExecutionPlan({ root, buildId, indexRoot: modeIndexRoot, modes: [modeItem],
-            argv, userConfig, rawEnv: runtimeEnv, intent: embeddingRuntime });
+          const embeddingPlan = bindEmbeddingExecutionPlan(selectedPlan, { root, buildId, indexRoot: modeIndexRoot, modes: [modeItem] });
           const result = await enqueueJob(
             queueDir,
             {
@@ -303,8 +310,7 @@ export const runEmbeddingsStage = async ({
         });
       }
       const runInlineEmbeddings = async ({ modeArg, indexRootArg, progressModes }) => {
-        const embeddingPlan = createEmbeddingExecutionPlan({ root, buildId, indexRoot: indexRootArg, modes: progressModes,
-          argv, userConfig, rawEnv: runtimeEnv, intent: embeddingRuntime });
+        const embeddingPlan = bindEmbeddingExecutionPlan(selectedPlan, { root, buildId, indexRoot: indexRootArg, modes: progressModes });
         const args = [buildEmbeddingsPath, '--repo', root, '--mode', modeArg];
         if (indexRootArg) {
           args.push('--index-root', indexRootArg);

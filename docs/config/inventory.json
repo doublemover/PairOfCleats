@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-27T20:11:41.450Z",
+  "generatedAt": "2026-10-27T20:20:24.651Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -3608,6 +3608,7 @@
         "tests/indexing/embeddings/build/runtime-defaults.test.js",
         "tests/indexing/embeddings/intent-boundary-parity.test.js",
         "tests/indexing/piece-assembly/core.test.js",
+        "tests/integrations/core/embedding-plan-late-binding.test.js",
         "tests/perf/bench/embedding-bakeoff-effective-policy.test.js",
         "tests/perf/bench/language-default-cache-root.test.js",
         "tests/perf/bench/language-no-ann-forwarding.test.js",
@@ -4663,6 +4664,7 @@
         "tests/indexing/workers/coarse-file-analysis-facade.test.js",
         "tests/indexing/workers/coarse-file-analysis-transport.test.js",
         "tests/indexing/workers/process-task-scheduler-retirement.test.js",
+        "tests/integrations/core/embedding-plan-late-binding.test.js",
         "tests/lang/javascript/jsdoc-comment-ownership.test.js",
         "tests/perf/bench/query-resource-plan.test.js",
         "tests/perf/tooling/bench/sqlite-benchmark-cli.test.js",
@@ -4984,6 +4986,7 @@
         "tests/helpers/test-env.js",
         "tests/indexing/scm/no-build-id.test.js",
         "tests/integrations/core/embedding-plan-handoff.test.js",
+        "tests/integrations/core/embedding-plan-late-binding.test.js",
         "tests/perf/baseline-artifacts.test.js",
         "tests/perf/bench/language-default-cache-root.test.js",
         "tests/perf/bench/language-report-environment-metadata.test.js",
