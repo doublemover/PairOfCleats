@@ -7518,6 +7518,9 @@
     },
     {
       "number": 1653,
+      "unvalidatedSourceHeads": ["2fba78f6d494e21b2c32e364f39fd1810a9b54d0", "4437d9994f9553ec1f8aa6cf78e4a49248a26a80"],
+      "unvalidatedReceipts": ["comment-pipeline-implementation-2026-10-27.md"],
+      "currentImplementation": "JS/JSX and TS/TSX consume private source/parser/dialect-owned immutable comment spans; standalone parsing is lazy and bounded. Paired caches verify actual source/parser and ignore unowned payloads before inspection. Twelve cases are authored; non-JS dialect adapters, source-map integration and consumer/replay/import qualification remain.",
       "title": "Use language-owned comment ranges instead of the generic quote and marker scanner",
       "recordedDisposition": "implementation_needed",
       "priority": "unranked",
@@ -7545,6 +7548,9 @@
     },
     {
       "number": 1656,
+      "unvalidatedSourceHeads": ["2fba78f6d494e21b2c32e364f39fd1810a9b54d0", "481536c0518316acff8e32f1f578de685797eb73"],
+      "unvalidatedReceipts": ["comment-pipeline-implementation-2026-10-27.md"],
+      "currentImplementation": "Config parsing follows actual consuming demand and private candidate/byte/line admission; vendors load lazily and invalid input differs from budget exclusion. Proven-unused full comment token arrays are replaced by exact emitted counts; actual field tokens use bounded current UTF-8 prefixes. Ten cases are authored and positive prose/warm-cache consumers preserved. Structural/fence mapping and all functional/performance qualification remain deferred.",
       "title": "Gate comment config parsing by consumer demand and avoid unused token materialization",
       "recordedDisposition": "implementation_needed",
       "priority": "unranked",
