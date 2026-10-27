@@ -30,6 +30,7 @@ import { AST_GREP_VERSION, identifyAstGrepVersion, resolveAstGrepManagedRecipe, 
 import { resolveOperationalManagedRecipe } from './operational-recipes.js';
 import { identifyOperationalTool, OPERATIONAL_TOOL_IDS, verifyManagedOperationalTool } from './operational-probes.js';
 import { resolveManagedDotnetSdkRecipe, verifyManagedDotnetSdk } from './managed-dotnet-sdk.js';
+import { createGoplsCacheRecipe, GOPLS_PACKAGE } from './gopls-recipe.js';
 
 const packageMetadata = JSON.parse(fs.readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
 
@@ -516,8 +517,8 @@ export function getToolingRegistry(toolingRoot, repoRoot) {
       languages: ['go'],
       detect: { cmd: 'gopls', args: ['version'], binDirs: [binDir] },
       install: {
-        cache: { cmd: 'go', args: ['install', 'golang.org/x/tools/gopls@v0.24.0'], env: { GOBIN: binDir }, requires: 'go', minimumGoVersion: 'go1.27.0' },
-        user: { cmd: 'go', args: ['install', 'golang.org/x/tools/gopls@v0.24.0'], requires: 'go', minimumGoVersion: 'go1.27.0' }
+        cache: createGoplsCacheRecipe(binDir),
+        user: { cmd: 'go', args: ['install', GOPLS_PACKAGE], requires: 'go', minimumGoVersion: 'go1.27.0' }
       },
       docs: TOOL_DOCS.gopls
     },

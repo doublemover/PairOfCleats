@@ -229,7 +229,7 @@ acceptance matrix. Those runtime receipts remain required.
 
 `child-environment.js` plans child-local secondary writes by exact tool/profile,
 platform, architecture, project and run identity. Managed npm download caches
-are separate from `--prefix`; Go module/build caches, NuGet/dotnet state, Ruby
+are separate from `--prefix`; Go module/build caches and `GOTMPDIR`, NuGet/dotnet state, Ruby
 spec/bundler caches, Composer, Gradle and selected Cargo/rustup routes are
 declared explicitly. Global/user executables and inherited nondefault cache/temp
 overrides remain external read-only inventory. The helper does not change HOME,
@@ -238,6 +238,17 @@ or build outputs. Pip, arbitrary LSP workspace arguments and SDK-specific model
 cacheDir routing require actual owner adapters; no unused family is represented
 as a contained observed write. Transformers.js/ONNX explicit assets are not
 adopted as a global Hugging Face cache.
+
+The pinned gopls cache recipe declares cold-build forecasts for every routed
+output/cache/temp destination: 1 GiB for artifacts, 2 GiB each for module cache,
+build cache and scratch, plus 64 MiB for GOPATH. Receipts identify these as
+`canonical-build-forecast-v1`, explicitly unmeasured. They are cooperative
+admission estimates, not measured peaks or filesystem quotas. Optional SDK
+acquisition separately reserves its shared enforced 512-MiB extraction and
+128-MiB download ceilings plus 32 MiB metadata. Unknown recipes remain deferred;
+an uncovered external override cannot borrow a canonical route's estimate.
+Actual cold installation, secondary vendor writes and disk peaks still require
+qualification before claiming supported runtime readiness.
 
 Explicit `prepareManagedChildStorage()` creates only launch-authorized declared
 locations and a run-owned scratch receipt; planning never creates them. It

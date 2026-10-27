@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-27T17:55:27.506Z",
+  "generatedAt": "2026-10-27T18:11:27.722Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -3765,6 +3765,7 @@
         "tests/tooling/install/download-model-selection.test.js",
         "tests/tooling/install/download-selected-closure.test.js",
         "tests/tooling/install/go-sdk-frozen-recovery.test.js",
+        "tests/tooling/install/gopls-allocation-recipe.test.js",
         "tests/tooling/install/install-allocation-admission.test.js",
         "tests/tooling/install/install-download-resource-lifetime.test.js",
         "tests/tooling/install/install-dry-run-cli-no-probe.test.js",
@@ -5123,6 +5124,7 @@
         "tests/tooling/install/download-selected-closure.test.js",
         "tests/tooling/install/first-search-outcome-contract.test.js",
         "tests/tooling/install/first-search-plan-readonly.test.js",
+        "tests/tooling/install/gopls-allocation-recipe.test.js",
         "tests/tooling/install/install-dry-run-cli-no-probe.test.js",
         "tests/tooling/install/lifecycle-prerequisite-preflight.test.js",
         "tests/tooling/install/managed-prerequisite-consumer-lifetime.test.js",
@@ -6994,6 +6996,12 @@
           "fixture",
           "fixtures",
           "timeout-ms"
+        ]
+      },
+      {
+        "file": "tests/tooling/install/gopls-allocation-recipe.test.js",
+        "flags": [
+          "cwd"
         ]
       },
       {
@@ -9148,6 +9156,15 @@
         ]
       },
       {
+        "flag": "cwd",
+        "count": 3,
+        "files": [
+          "tests/tooling/install/gopls-allocation-recipe.test.js",
+          "tests/tooling/install/managed-child-storage-settlement.test.js",
+          "tools/dicts/generate-repo-dict.js"
+        ]
+      },
+      {
         "flag": "depth",
         "count": 3,
         "files": [
@@ -9406,14 +9423,6 @@
         "files": [
           "tests/fixtures/medium/generate.js",
           "tools/bench/query-generator.js"
-        ]
-      },
-      {
-        "flag": "cwd",
-        "count": 2,
-        "files": [
-          "tests/tooling/install/managed-child-storage-settlement.test.js",
-          "tools/dicts/generate-repo-dict.js"
         ]
       },
       {

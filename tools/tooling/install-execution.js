@@ -28,7 +28,13 @@ export const resolveDeclaredInstallAdmission = recipe => {
     return { ...(write.root ? { root: path.resolve(write.root) } : write.destination ? { destination: write.destination } : { environmentKey: write.environmentKey }),
       requiredBytes, minimumFreeBytes: budget(write, 'minimumFreeBytes', 0), hardBytes: budget(write, 'hardBytes', null) };
   });
-  return { writes, source: 'canonical-recipe-declared-destination-peaks', state: 'estimate-declared' };
+  if (estimate.basis !== undefined && !['canonical-build-forecast-v1', 'bounded-archive-owner-v1'].includes(estimate.basis)) {
+    throw new TypeError('Unknown canonical install allocation basis.');
+  }
+  return { writes, source: estimate.basis === 'canonical-build-forecast-v1'
+    ? 'canonical-recipe-build-forecast' : 'canonical-recipe-declared-destination-peaks', state: 'estimate-declared',
+  ...(estimate.basis ? { basis: estimate.basis, measured: false } : {}),
+  ...(typeof estimate.recipe === 'string' ? { recipe: estimate.recipe } : {}) };
 };
 
 export const bindDeclaredInstallAdmission = (declared, { storagePlan, artifactRoot } = {}) => {

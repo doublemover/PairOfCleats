@@ -10,10 +10,11 @@ import { probeCommand } from '../shared/cli-utils.js';
 import { isTestingEnv } from '../../src/shared/env/testing.js';
 import { hashManagedToolFile } from '../../src/shared/managed-tool-file.js';
 import { PHPACTOR_APPROVED_RELEASE, PHPACTOR_POSIX_SHIM } from '../tooling/approved-artifacts.js';
+import { GOPLS_VERSION } from '../tooling/gopls-recipe.js';
 
 // Internal qualification recipes: no public CLI, configuration or execution grant.
 const recipes = {
-  gopls: { command: 'gopls', args: ['serve'], versionArgs: ['version'], versionPrefix: 'golang.org/x/tools/gopls v0.24.0',
+  gopls: { command: 'gopls', args: ['serve'], versionArgs: ['version'], versionPrefix: `golang.org/x/tools/gopls v${GOPLS_VERSION}`,
     files: { 'go.mod': 'module example.com/poc-qualification\n\ngo 1.26.0\n',
       'answer.go': 'package qualification\n\nfunc Answer() int { return 42 }\n' } },
   'csharp-ls': { command: 'csharp-ls', args: [], versionArgs: ['--version'], versionPrefix: 'csharp-ls, 0.28.0 ',

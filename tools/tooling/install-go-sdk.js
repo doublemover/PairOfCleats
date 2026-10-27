@@ -4,7 +4,8 @@ import { randomUUID } from 'node:crypto';
 import { spawnResolvedSubprocess } from '../../src/shared/subprocess/command-invocation.js';
 import {
   GO_ARCHIVE_ORIGIN, GO_RELEASE_INDEX_URL, applyManagedGoEnvironment,
-  hashManagedGoFile, readManagedGoText, resolveGoSdkTarget, resolveManagedGoSdk
+  hashManagedGoFile, readManagedGoText, resolveGoSdkTarget, resolveManagedGoSdk,
+  GO_SDK_ARCHIVE_LIMITS, GO_SDK_MAX_DOWNLOAD_BYTES
 } from '../../src/shared/managed-go.js';
 import { extractArchive, getArchiveExtractionSession } from '../shared/archive-extraction.js';
 import { computeSha256, createInstallError, downloadToBuffer, settleInstallDownload } from './install-shared.js';
@@ -14,10 +15,7 @@ import { addStorageFailureContext } from '../../src/shared/storage/operation-err
 import { assertNoSymlinkPath } from '../../src/shared/contained-file.js';
 import { verifyOwnedResource, captureManagedVerificationFailure, retainManagedResourceFailure } from './managed-verification.js';
 
-export const GO_SDK_ARCHIVE_LIMITS = Object.freeze({
-  maxBytes: 512 * 1024 * 1024, maxEntryBytes: 64 * 1024 * 1024, maxEntries: 50_000
-});
-const MAX_DOWNLOAD_BYTES = 128 * 1024 * 1024;
+export { GO_SDK_ARCHIVE_LIMITS };
 const asError = value => value && typeof value === 'object' ? value : new Error(String(value), { cause: value });
 
 export const selectOfficialGoSdkArchive = (releases, target, version = '') => {
@@ -29,7 +27,7 @@ export const selectOfficialGoSdkArchive = (releases, target, version = '') => {
   const file = (Array.isArray(release.files) ? release.files : []).find((entry) => entry?.filename === filename && entry.kind === 'archive'
     && entry.os === target.os && entry.arch === target.arch && entry.version === release.version);
   if (!file || !/^[a-f0-9]{64}$/.test(file.sha256) || !Number.isSafeInteger(file.size)
-    || file.size <= 0 || file.size > MAX_DOWNLOAD_BYTES) {
+    || file.size <= 0 || file.size > GO_SDK_MAX_DOWNLOAD_BYTES) {
     throw createInstallError('go_sdk_archive_unavailable', 'The official Go SDK archive metadata is missing or outside the supported limits.');
   }
   return { version: release.version, ...target, filename, sha256: file.sha256, size: file.size,
@@ -207,7 +205,7 @@ const ensureManagedGoSdkOwned = async ({ toolingRoot, cwd, baseEnv = process.env
   } });
   try {
     const fetched = await download({ url: archive.sourceUrl, label: 'official Go SDK archive',
-      timeoutMs, maxBytes: MAX_DOWNLOAD_BYTES, redirect: 'error', signal });
+      timeoutMs, maxBytes: GO_SDK_MAX_DOWNLOAD_BYTES, redirect: 'error', signal });
     if (fetched.sourceUrl !== archive.sourceUrl || fetched.body.length !== archive.size
       || computeSha256(fetched.body) !== archive.sha256) {
       throw createInstallError('go_sdk_checksum_mismatch', 'Go SDK bytes disagree with official size/source/SHA256 metadata.');

@@ -5,6 +5,10 @@ import { normalizeEnvPathKeys, resolveEnvPath } from './env-path.js';
 
 export const GO_RELEASE_INDEX_URL = 'https://go.dev/dl/?mode=json';
 export const GO_ARCHIVE_ORIGIN = 'https://dl.google.com/go/';
+export const GO_SDK_ARCHIVE_LIMITS = Object.freeze({
+  maxBytes: 512 * 1024 * 1024, maxEntryBytes: 64 * 1024 * 1024, maxEntries: 50_000
+});
+export const GO_SDK_MAX_DOWNLOAD_BYTES = 128 * 1024 * 1024;
 const RELEASE_VERSION = /^go\d+\.\d+\.\d+$/;
 const SHA256 = /^[a-f0-9]{64}$/;
 

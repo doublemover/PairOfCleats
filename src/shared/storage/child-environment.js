@@ -20,7 +20,7 @@ export const MANAGED_CHILD_CACHE_FAMILIES = Object.freeze(Object.fromEntries(Obj
   python: [['PIP_CACHE_DIR', 'pip-downloads', 'downloadable'], ['PYTHONPYCACHEPREFIX', 'python-bytecode', 'derived']],
   graphviz: [['XDG_CACHE_HOME', 'xdg-cache', 'derived']],
   fontconfig: [['XDG_CACHE_HOME', 'xdg-cache', 'derived']],
-  go: [['GOPATH', 'go-path', 'downloadable'], ['GOMODCACHE', 'go-modules', 'downloadable'], ['GOCACHE', 'go-build', 'derived']],
+  go: [['GOPATH', 'go-path', 'downloadable'], ['GOMODCACHE', 'go-modules', 'downloadable'], ['GOCACHE', 'go-build', 'derived'], ['GOTMPDIR', 'go-work', 'temporary']],
   dotnet: [['DOTNET_CLI_HOME', 'dotnet-state', 'durable'], ['NUGET_PACKAGES', 'nuget-packages', 'downloadable'], ['NUGET_HTTP_CACHE_PATH', 'nuget-http', 'derived']],
   ruby: [['GEM_SPEC_CACHE', 'gem-specs', 'derived'], ['BUNDLE_USER_CACHE', 'bundle-user', 'downloadable']],
   composer: [['COMPOSER_CACHE_DIR', 'composer', 'downloadable']],
@@ -97,7 +97,9 @@ export const planManagedChildStorage = ({ baseEnv = process.env, layout, command
       throw new Error('Managed child storage cannot qualify a drive-relative environment override; select an absolute path.');
     }
     const inheritedPath = inherited ? path.resolve(childCwd, inherited) : null;
-    const platformDefault = temp && inheritedPath && inheritedPath === path.resolve(platformTemp);
+    const platformDefault = temp && inheritedPath && (layout.platform === 'win32'
+      ? inheritedPath.toLowerCase() === path.resolve(platformTemp).toLowerCase()
+      : inheritedPath === path.resolve(platformTemp));
     const explicit = inherited && (preserve.has(key.toLowerCase()) || !platformDefault);
     const selected = explicit ? inheritedPath : defaultPath;
     const external = ![cache, state, assets, scratch].some(root => isPathWithinRoot(selected, root));
@@ -109,8 +111,8 @@ export const planManagedChildStorage = ({ baseEnv = process.env, layout, command
   };
   const registered = Object.hasOwn(MANAGED_CHILD_CACHE_FAMILIES, selectedFamily);
   for (const [key, child, retention] of registered ? MANAGED_CHILD_CACHE_FAMILIES[selectedFamily] : []) {
-    const base = retention === 'durable' ? state : retention === 'downloadable' ? assets : cache;
-    setLocation(key, path.join(base, child), retention);
+    const base = retention === 'temporary' ? scratch : retention === 'durable' ? state : retention === 'downloadable' ? assets : cache;
+    setLocation(key, path.join(base, child), retention, { temp: retention === 'temporary' });
   }
   for (const key of ['TMPDIR', 'TMP', 'TEMP']) setLocation(key, scratch, 'temporary', { temp: true });
   if (selectedFamily === 'beam') setLocation('ERL_CRASH_DUMP', path.join(scratch, 'erl_crash.dump'), 'evidence', { file: true });
