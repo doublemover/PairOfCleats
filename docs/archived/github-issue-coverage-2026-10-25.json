@@ -3,7 +3,7 @@
   "date": "2026-10-26",
   "sourceHead": "f9f1cfa05b7fbb3eb6aa358ec617d61cb58683ca",
   "pullRequest": 572,
-  "scope": "Current open issues; implementation status is separate from accepted closure and source-bound qualification.",
+  "scope": "Historical pre-closeout implementation inventory; closing references do not establish accepted completion. Superseded by the October26 closeout assessment.",
   "counts": {
     "fixed": 35,
     "implemented": 479,
@@ -6654,5 +6654,6 @@
       "canonicalFields": "number,title,body,sorted-label-names,updatedAt;number-order",
       "canonicalSha256": "2bb07a3db7340d2de732f0839b456c9547f60433c28c7b665e8fe3fcd71cac0c"
     }
-  }
+  },
+  "supersededBy": "github-issue-closeout-2026-10-26.json"
 }
