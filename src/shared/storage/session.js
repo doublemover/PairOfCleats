@@ -91,6 +91,11 @@ export const acquireStorageSession = ({ roots, coordinationRoot, authorizedRoots
   const protectedRoots = [...new Set([...selected, ...authorizedRoots.map(root => path.resolve(root))
     .filter(approved => selected.some(root => isPathWithinRoot(root, approved)))])].sort();
   const leases = [];
+  const adoptLease = (root, lease) => {
+    const originalRelease = lease.release;
+    leases.push({ root, leaseId: lease.leaseId, released: false, observation: null,
+      release: () => originalRelease.call(lease) });
+  };
   let released = false;
   const session = Object.freeze({ schemaVersion: 1, resourceId, roots: selected, coordinationRoot: metadataRoot,
     get leaseIds() { return leases.map(lease => lease.leaseId); },
@@ -101,11 +106,22 @@ export const acquireStorageSession = ({ roots, coordinationRoot, authorizedRoots
       }
       if (released) return true;
       const errors = [];
-      for (const lease of leases) {
+      const blockedRoots = [];
+      // Retire descendants before their explicitly admitted category ancestors.
+      // Independent siblings still get their own release attempt. Successful
+      // original releases are never replayed during metadata reconciliation.
+      for (const lease of [...leases].sort((left, right) => right.root.length - left.root.length)) {
+        if (lease.released || blockedRoots.some(root => isPathWithinRoot(root, lease.root))) continue;
         try {
-          if (!lease.release()) errors.push(Object.assign(new Error('A storage session lease changed before release.'),
-            { leaseId: lease.leaseId }));
-        } catch (error) { errors.push(asError(error)); }
+          lease.observation?.requireSettled();
+          if (lease.release() !== true) throw Object.assign(new Error('A storage session lease changed before release.'),
+            { leaseId: lease.leaseId });
+          lease.released = true;
+        } catch (error) {
+          lease.observation = observeStorageResource(observeStorageResource(error,
+            { phase: 'storage-session-metadata-release' }).retain(), { phase: 'storage-session-metadata-release' });
+          errors.push(lease.observation.retain()); blockedRoots.push(lease.root);
+        }
       }
       if (errors.length) {
         const error = Object.assign(new AggregateError(errors, 'Storage session leases did not all release.', { cause: errors[0] }), {
@@ -118,14 +134,18 @@ export const acquireStorageSession = ({ roots, coordinationRoot, authorizedRoots
       released = true;
       return true;
     } });
+  let admittingRoot = null;
   try {
-    for (const root of protectedRoots) leases.push(acquireRepoCacheAccessLease(root,
-      { coordinationRoot: metadataRoot, scope, resourceId, requireSettlement: true }));
+    for (const root of protectedRoots) {
+      admittingRoot = root;
+      adoptLease(root, acquireRepoCacheAccessLease(root,
+        { coordinationRoot: metadataRoot, scope, resourceId, requireSettlement: true }));
+    }
   } catch (error) {
     // No asset work has started, but each admitted metadata lease still needs
     // exact removal. Attempt all and retain the partial owner if any fail.
     const refusedLease = getFailedRepoCacheAccessLease(error);
-    if (refusedLease) leases.push(refusedLease);
+    if (refusedLease) adoptLease(admittingRoot, refusedLease);
     try { session.releaseAfterSettlement({ resourceId, settled: true, pending: false }); }
     catch (cleanupError) { throw retainSessionFailure(asError(error), cleanupError, session); }
     throw error;
