@@ -68,6 +68,8 @@ PR #572 metadata was refreshed and read back at checkpoint `138d9d9e5` (120 loca
 
 - [Original vector spool lifetime](vector-spool-ownership-implementation-2026-10-28.md): original FileHandle ownership, exact scratch retirement, explicit recovery and deferred settlement; fifteen actual-file controls authored, unexecuted.
 
+- [Operator reports and opt-in shortcuts](operator-report-and-shortcut-implementation-2026-10-28.md): #173 selection/risk/recovery identity and #216 packaged keyboard opt-in; 13 new cases and original producer/queue/archive controls authored, unexecuted.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.

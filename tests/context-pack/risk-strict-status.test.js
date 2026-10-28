@@ -172,6 +172,10 @@ const assertOperatorReport = async (pack, expectedCode, expectedStatus, expected
 
 assert.equal(classifyRiskLoadFailure({ code: 'ETIMEDOUT' }), 'timed_out');
 
+const healthyPack = await buildPack({ name: 'healthy', stats: baseStats, summaries: [summaryRow], flows: [normalFlow] });
+assert.equal(healthyPack.risk?.analysisStatus?.code, 'ok');
+await assertOperatorReport(healthyPack, 'ok', 'ok');
+
 const disabledPack = await buildPack({
   name: 'disabled',
   stats: { ...baseStats, status: 'disabled', reason: 'risk-disabled' },

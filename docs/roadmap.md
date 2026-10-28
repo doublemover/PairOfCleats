@@ -9,8 +9,8 @@ Canonical for: initiative status, execution order, and remaining work
 
 The [closeout review](archived/github-issue-closeout-2026-10-26.md) assessed
 **770 issues/238 comments**, closing 27; later batches closed 25 more.
-The latest **718-open source snapshot** records 476 qualification-pending,
-144 partial and 98 unresolved entries, including unpublished implementations.
+The latest **718-open source snapshot** records 478 qualification-pending,
+144 partial and 96 unresolved entries, including unpublished implementations.
 
 The [complete assessment](archived/github-issue-closeout-2026-10-26.json) retains
 source/test mappings and closure witnesses; [earlier receipts](archived/solo-issue-repairs-2026-10-25.md)
@@ -61,8 +61,8 @@ severity and shared dependencies, retaining qualification separately:
    [Demanded line tokens](archived/demanded-line-tokens-implementation-2026-10-27.md) replace whole-file preparation; 12 cases and dense/sparse qualification remain.
    [Persistent trace state](archived/trace-state-implementation-2026-10-27.md) shares frontiers/visits and bounds cross-service retention; 11 cases remain (#1581).
    [Hydrated risk admission](archived/hydrated-risk-budget-implementation-2026-10-27.md) repairs final flow caps/accounting; 7 cases remain (#131).
-4. Native TUI/editor workflows: [catalog/editor witnesses and stats admission](archived/native-workflow-preflight-implementation-2026-10-27.md)
-   are repaired in source; all actual workflows remain unqualified (#635).
+4. [Native workflow witnesses](archived/native-workflow-preflight-implementation-2026-10-27.md),
+   [reports and opt-in shortcuts](archived/operator-report-and-shortcut-implementation-2026-10-28.md) await execution (#635, #173, #216).
    [Wrapped log rows](archived/tui-log-rows-implementation-2026-10-27.md) and paused anchors are implemented/typechecked; native qualification remains (#619).
    [Scene render witnesses](archived/scene-render-observation-implementation-2026-10-27.md) now observe captured operations; browser qualification remains (#1372).
 5. Performance/evaluation after correctness: retained comparisons (#1663),

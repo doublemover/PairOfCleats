@@ -978,9 +978,16 @@
       "recordedDisposition": "implementation_needed",
       "priority": "unranked",
       "batch": "storage-publication-and-cleanup",
-      "phase": "source-review-and-implementation",
-      "status": "queued",
-      "currentDisposition": "implementation_needed"
+      "phase": "qualification-pending",
+      "status": "source-implemented-qualification-pending",
+      "currentDisposition": "qualification_pending",
+      "unvalidatedSourceHeads": [
+        "228e6ce38aba4eee617557fa8a1f4ba2d1465091"
+      ],
+      "unvalidatedReceipts": [
+        "operator-report-and-shortcut-implementation-2026-10-28.md"
+      ],
+      "currentImplementation": "Strict report selection, actual risk availability/code/reason parity, exact service/config/queue/job/cwd recovery actions and complete human remediation are implemented. Thirteen new selection/CLI cases plus strengthened actual producer and queue controls remain unexecuted."
     },
     {
       "number": 216,
@@ -988,9 +995,16 @@
       "recordedDisposition": "implementation_needed",
       "priority": "unranked",
       "batch": "operator-and-editors",
-      "phase": "source-review-and-implementation",
-      "status": "queued",
-      "currentDisposition": "implementation_needed"
+      "phase": "qualification-pending",
+      "status": "source-implemented-qualification-pending",
+      "currentDisposition": "qualification_pending",
+      "unvalidatedSourceHeads": [
+        "20cc6cb92aebe7f1641934827c07780369239109"
+      ],
+      "unvalidatedReceipts": [
+        "operator-report-and-shortcut-implementation-2026-10-28.md"
+      ],
+      "currentImplementation": "Automatic keymaps are empty; all five original platform chord suggestions ship as explicit user-copy examples. Actual archive contract coverage preserves command/menu access and checks opt-in. Packaging/editor qualification remains unexecuted."
     },
     {
       "number": 229,
@@ -9719,11 +9733,11 @@
   ],
   "currentCounts": {
     "open": 718,
-    "qualificationPending": 476,
+    "qualificationPending": 478,
     "partialFollowup": 144,
-    "implementationStatusUnresolved": 98
+    "implementationStatusUnresolved": 96
   },
-  "reconciledAt": "2026-10-28T07:57:44.041Z",
+  "reconciledAt": "2026-10-28T09:22:01.064Z",
   "completedSourceBatch": [
     347,
     586,
@@ -9773,12 +9787,23 @@
         "implementationStatusUnresolved": 101
       },
       "meaning": "Verified live/source PR snapshot at the 120-commit checkpoint; three later stale classifications reconciled separately."
+    },
+    {
+      "reconciledAt": "2026-10-28T09:22:01.063Z",
+      "sourceHead": "138d9d9e560963506d6fc0991e5df6ec39de9f28",
+      "counts": {
+        "open": 718,
+        "qualificationPending": 476,
+        "partialFollowup": 144,
+        "implementationStatusUnresolved": 98
+      },
+      "meaning": "Prior source reconciliation; subsequent operator/report/shortcut implementation is recorded separately."
     }
   ],
   "currentCountsBasis": {
     "meaning": "Complete live GitHub inventory plus recorded local source implementation; not functional acceptance.",
     "publishedHead": "adbcaf777ce91642bb0a60de892171d8c3a529f7",
-    "sourceHead": "138d9d9e560963506d6fc0991e5df6ec39de9f28",
-    "receipt": "source-classification-reconciliation-2026-10-28.md"
+    "sourceHead": "228e6ce38aba4eee617557fa8a1f4ba2d1465091",
+    "receipt": "operator-report-and-shortcut-implementation-2026-10-28.md"
   }
 }
