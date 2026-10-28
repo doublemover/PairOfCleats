@@ -22,7 +22,7 @@ assert.ok(['cross-process', 'source-change', 'config-change', 'runtime-change', 
   'method-independence', 'cooldown-probe', 'concurrent-probe', 'transport', 'malformed', 'corrupt-preserved',
   'unknown-identity', 'pending-owner', 'settled-failure', 'ordinary-retry', 'healthy-reset', 'variant-bound',
   'negative-config', 'cancelled', 'write-failure', 'collector-processes', 'collector-same-process', 'code-only-timeout',
-  'protocol-malformed', 'spoofed-decision'].includes(selected));
+  'protocol-malformed', 'spoofed-decision', 'foreign-preserved', 'future-state-preserved', 'clock-bound'].includes(selected));
 const { dir: root } = await prepareIsolatedTestCacheDir(`workspace-method-health-${selected}`);
 const tool = path.join(root, 'inert-runtime.exe'); await fs.writeFile(tool, 'inert runtime bytes, never launched');
 const text = 'function greet(name) return name end\n'; await fs.writeFile(path.join(root, 'source.lua'), text);
@@ -50,7 +50,9 @@ const child = phase => spawnSubprocess(process.execPath, [fileURLToPath(new URL(
 }, error => { childObservations.push(observeStorageResource(error, { phase: 'workspace-health-fixture-child-failure' })); throw error; });
 const open = fs.open;
 try {
-  if (selected === 'collector-same-process') {
+  if (selected === 'clock-bound') {
+    await assert.rejects(createWorkspaceMethodHealth({ ...options, now: () => Number.MAX_SAFE_INTEGER }), TypeError);
+  } else if (selected === 'collector-same-process') {
     const output = await child('collector-same-process'); assert.equal(output.requests['textDocument/hover'], 1);
     assert.equal(output.requests['textDocument/documentSymbol'], 2);
   } else if (selected === 'collector-processes') {
@@ -110,11 +112,20 @@ try {
       const read = JSON.parse(await fs.readFile(filename(owner), 'utf8'));
       const state = read.variants[owner.identity.fingerprint].methods.hover;
       assert.equal(state.failureClass, selected); assert.equal(state.cooldownUntil, clock + LSP_EXTENDED_QUARANTINE_MS);
-    } else if (selected === 'corrupt-preserved') {
-      await record(owner); const file = filename(owner); await fs.writeFile(file, '{not valid health');
+    } else if (['corrupt-preserved', 'foreign-preserved', 'future-state-preserved'].includes(selected)) {
+      await record(owner); const file = filename(owner);
+      let preserved = '{not valid health';
+      if (selected !== 'corrupt-preserved') {
+        const value = JSON.parse(await fs.readFile(file, 'utf8'));
+        if (selected === 'foreign-preserved') value.variants[owner.identity.fingerprint].methods.hover.unknownField = 'foreign state';
+        else { const state = value.variants[owner.identity.fingerprint].methods.hover;
+          state.updatedAt = clock + 86400000; state.cooldownUntil = state.updatedAt + LSP_SHORT_QUARANTINE_MS; }
+        preserved = JSON.stringify(value);
+      }
+      await fs.writeFile(file, preserved);
       owner = await createWorkspaceMethodHealth(options); assert.equal(owner.metrics().persistedState, 'unavailable');
       assert.equal(owner.suppressBeforeAdmission('hover'), false); await record(owner);
-      assert.equal(await fs.readFile(file, 'utf8'), '{not valid health'); assert.equal(owner.metrics().publishedWrites, 0);
+      assert.equal(await fs.readFile(file, 'utf8'), preserved); assert.equal(owner.metrics().publishedWrites, 0);
     } else if (selected === 'unknown-identity') {
       owner = await createWorkspaceMethodHealth({ ...options, documents: [{ virtualPath: 'source.lua' }] });
       assert.equal(owner.identity.fingerprint, null); await record(owner);

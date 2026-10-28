@@ -20,6 +20,7 @@ const COOLDOWN = Object.freeze({ timeout: LSP_SHORT_QUARANTINE_MS, transport: LS
 const exactTime = value => Number.isSafeInteger(value) && value >= 0;
 const digest = value => createHash('sha256').update(value).digest('hex');
 const object = value => value && typeof value === 'object' && !Array.isArray(value);
+const keys = (value, expected) => object(value) && Object.keys(value).sort().join(',') === expected.slice().sort().join(',');
 const fail = (code, message) => Object.assign(new Error(message), { code });
 
 const failureClass = error => {
@@ -48,20 +49,26 @@ const validResponse = (method, result) => {
   if (['definition', 'typeDefinition'].includes(method)) return Array.isArray(result) || Boolean(object(result) && typeof result.uri === 'string');
   return Array.isArray(result);
 };
-const validStore = (value, scopeKey) => object(value) && value.schemaVersion === VERSION
+const validStore = (value, scopeKey) => keys(value, ['schemaVersion', 'kind', 'scopeKey', 'variants']) && value.schemaVersion === VERSION
   && value.kind === 'lsp-workspace-method-health' && value.scopeKey === scopeKey && object(value.variants)
   && Object.keys(value.variants).length <= MAX_VARIANTS && Object.entries(value.variants).every(([fingerprint, variant]) =>
-  /^[a-f0-9]{64}$/u.test(fingerprint) && object(variant) && exactTime(variant.updatedAt) && object(variant.methods)
+  /^[a-f0-9]{64}$/u.test(fingerprint) && keys(variant, ['updatedAt', 'methods']) && exactTime(variant.updatedAt) && object(variant.methods)
     && Object.keys(variant.methods).length <= METHODS.size && Object.entries(variant.methods).every(([method, state]) =>
-    METHODS.has(method) && object(state) && CLASSES.has(state.failureClass) && exactTime(state.updatedAt)
+    METHODS.has(method) && keys(state, ['failureClass', 'updatedAt', 'failures', 'cooldownUntil'])
+      && CLASSES.has(state.failureClass) && exactTime(state.updatedAt) && state.updatedAt <= variant.updatedAt
       && Number.isSafeInteger(state.failures) && state.failures > 0 && exactTime(state.cooldownUntil)
+      && Number.isSafeInteger(state.updatedAt + COOLDOWN[state.failureClass])
+      && (state.cooldownUntil === 0 || state.cooldownUntil >= state.updatedAt)
       && state.cooldownUntil <= state.updatedAt + COOLDOWN[state.failureClass]));
 
 /** Shared bounded advisory health. It neither reuses provider/request output
  * nor grants installation, native-close or cache-deletion authority. */
 export const createWorkspaceMethodHealth = async ({ cacheRoot, now = Date.now, timeoutThreshold = 3, ...identityInputs }) => {
   if (typeof now !== 'function' || ![1, 3].includes(timeoutThreshold)) throw new TypeError('Invalid internal method-health policy.');
-  const clock = () => { const value = now(); if (!exactTime(value)) throw new TypeError('Method health needs a finite observed clock.'); return value; };
+  const clock = () => { const value = now();
+    if (!exactTime(value) || !Number.isSafeInteger(value + LSP_EXTENDED_QUARANTINE_MS)) throw new TypeError('Method health needs a finite observed clock and exact cooldown.');
+    return value; };
+  clock();
   const identity = typeof cacheRoot === 'string' && cacheRoot ? await observeWorkspaceHealthIdentity({ ...identityInputs,
     policy: { ...identityInputs.policy, workspaceMethodHealth: { version: VERSION, timeoutThreshold, cooldown: COOLDOWN } } })
     : { fingerprint: null, reason: 'health-cache-unselected' };
@@ -121,8 +128,8 @@ export const createWorkspaceMethodHealth = async ({ cacheRoot, now = Date.now, t
       entered = true; const latest = await read();
       if (!latest.value) { stored = latest; const value = empty(); value.variants[identity.fingerprint] = { updatedAt: clock(), methods: { ...methods } }; methods = mutate(value); return; }
       const next = mutate(latest.value);
-      if (Buffer.byteLength(JSON.stringify(latest.value)) > MAX_BYTES) throw fail('ERR_LSP_HEALTH_BYTES', 'Method-health receipt exceeds its fixed allowance.');
-      await writeToolingCacheJson(filename, latest.value); methods = next; stored = { state: 'loaded', value: latest.value };
+      if (Buffer.byteLength(JSON.stringify(latest.value, null, 2) + '\n') > MAX_BYTES) throw fail('ERR_LSP_HEALTH_BYTES', 'Method-health receipt exceeds its fixed allowance.');
+      await writeToolingCacheJson(filename, latest.value, { spaces: 2, newline: true }); methods = next; stored = { state: 'loaded', value: latest.value };
       metric.publishedWrites++; metric.persistedState = 'loaded';
     });
     if (!entered) throw fail('ERR_LSP_HEALTH_BUSY', 'Method-health persistence ownership is unavailable.');

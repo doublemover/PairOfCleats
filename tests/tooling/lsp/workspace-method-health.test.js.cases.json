@@ -1,4 +1,4 @@
 {
   "schemaVersion": 1,
-  "cases": ["cross-process", "source-change", "config-change", "runtime-change", "policy-change", "root-independence", "method-independence", "cooldown-probe", "concurrent-probe", "transport", "malformed", "corrupt-preserved", "unknown-identity", "pending-owner", "settled-failure", "ordinary-retry", "healthy-reset", "variant-bound", "negative-config", "cancelled", "write-failure", "collector-processes", "collector-same-process", "code-only-timeout", "protocol-malformed", "spoofed-decision"]
+  "cases": ["cross-process", "source-change", "config-change", "runtime-change", "policy-change", "root-independence", "method-independence", "cooldown-probe", "concurrent-probe", "transport", "malformed", "corrupt-preserved", "unknown-identity", "pending-owner", "settled-failure", "ordinary-retry", "healthy-reset", "variant-bound", "negative-config", "cancelled", "write-failure", "collector-processes", "collector-same-process", "code-only-timeout", "protocol-malformed", "spoofed-decision", "foreign-preserved", "future-state-preserved", "clock-bound"]
 }
