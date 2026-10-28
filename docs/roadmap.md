@@ -17,8 +17,7 @@ source/test mappings and closure witnesses; [earlier receipts](archived/solo-iss
 retain historical evidence. Work is solo and Windows-only. Hosted gate/policy/Rust
 TUI passed at `f8532f1d2`; seven broader jobs failed (see the review).
 
-Windows repair receipts retain exact sources, failing controls and scope.
-Full front gates include 40/40 gate cases:
+Historical Windows front gates passed 40/40 cases at their recorded sources:
 
 Completed source-bound checks are indexed in the
 [qualification archive](archived/native-runtime-qualification-index-2026-10-27.md)

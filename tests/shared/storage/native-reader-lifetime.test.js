@@ -14,7 +14,9 @@ import { writeSqliteIndexFormat } from '../../../src/storage/sqlite/index-format
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
-const selected = process.env.PAIROFCLEATS_TEST_ID?.split('native-reader-lifetime/')[1];
+const caseId = process.env.PAIROFCLEATS_TEST_ID?.split('native-reader-lifetime/')[1];
+const configured = caseId?.startsWith('configured-');
+const selected = configured ? caseId.slice('configured-'.length) : caseId;
 assert.ok(['cache', 'uncached', 'metadata-failure', 'admission-race', 'launch-homes', 'open-failure', 'native-failure', 'original-cache-close'].includes(selected));
 const { dir } = await prepareIsolatedTestCacheDir(`native-reader-${selected}`);
 const repoRoot = path.join(dir, 'repo'), cache = path.join(dir, 'cache'), home = path.join(dir, 'home');
@@ -22,7 +24,10 @@ await fsp.mkdir(repoRoot);
 applyTestEnv({ extraEnv: { PAIROFCLEATS_HOME: home, PAIROFCLEATS_TRUSTED_CONFIG: null } });
 const userConfig = { cache: { root: cache } }, storageContext = { repoRoot, userConfig };
 const repoCacheRoot = resolveRepoCacheRootPath(repoRoot, userConfig);
-const dbPath = path.join(repoCacheRoot, 'builds', 'generation', 'index-sqlite', 'index-code.db');
+const dbPath = configured ? path.join(dir, 'configured-sqlite', 'index-code.db')
+  : path.join(repoCacheRoot, 'builds', 'generation', 'index-sqlite', 'index-code.db');
+if (configured) userConfig.sqlite = { codeDbPath: dbPath };
+const protectedCategory = configured ? path.dirname(dbPath) : cache;
 await fsp.mkdir(path.dirname(dbPath), { recursive: true });
 const originalClose = Database.prototype.close, originalPrepare = Database.prototype.prepare;
 const writer = new Database(dbPath);
@@ -34,10 +39,13 @@ const coordination = launchHome => path.join(launchHome, 'state', 'storage-acces
 const protectedAt = async (root, launchHome = home) => (await inspectStorageAccess(root, { coordinationRoot: coordination(launchHome) })).protected;
 const assertRoots = async (protectedValue, launchHome = home) => {
   if (selected === 'original-cache-close') protectedValue = false;
-  for (const root of [cache, path.join(cache, 'repos'), repoCacheRoot, dbPath]) {
+  const roots = configured ? [protectedCategory, dbPath, `${dbPath}-wal`, `${dbPath}-shm`, `${dbPath}-journal`]
+    : [cache, path.join(cache, 'repos'), repoCacheRoot, dbPath];
+  for (const root of roots) {
     assert.equal(await protectedAt(root, launchHome), protectedValue, `${root} must retain its original resource/category lifetime`);
   }
   assert.equal(await protectedAt(dir, launchHome), false, 'shared filesystem parents gain no authority');
+  if (configured) assert.equal(await protectedAt(cache, launchHome), false, 'configured backend readers pin their own native namespace');
 };
 const usesCache = !['uncached', 'native-failure', 'open-failure', 'admission-race'].includes(selected);
 const dbCache = usesCache ? createSqliteDbCache() : null;
@@ -67,7 +75,7 @@ const originalRm = fs.rmSync;
 let denyMetadata = false;
 try {
   if (selected === 'admission-race') {
-    const exclusive = await withExclusiveStorageAccess(cache, async () => {
+    const exclusive = await withExclusiveStorageAccess(protectedCategory, async () => {
       await assert.rejects(createSqliteBackend(options).then(value => { backend = value; return value; }),
         { code: 'ERR_REPO_CACHE_CLEANUP_BUSY' });
       assert.equal(prepares, 0, 'category exclusion rejects before any native initialization');
@@ -95,7 +103,7 @@ try {
     });
     assert.equal(database.prepare('SELECT COUNT(*) AS count FROM chunks').get().count, 1);
     await assertRoots(true);
-    if (selected !== 'original-cache-close') assert.equal((await withExclusiveStorageAccess(cache, () => assert.fail('live readers prevent category relocation'),
+    if (selected !== 'original-cache-close') assert.equal((await withExclusiveStorageAccess(protectedCategory, () => assert.fail('live readers prevent category relocation'),
       { coordinationRoot: coordination(home) })).protected, true);
     if (selected === 'cache') {
       for (let request = 0; request < 32; request++) {
