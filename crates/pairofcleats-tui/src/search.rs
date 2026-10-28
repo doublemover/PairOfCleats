@@ -1,8 +1,16 @@
 use std::collections::{HashSet, VecDeque};
 
+use crate::search_failure::{SearchFailure, SearchOutcome};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{style::Style, text::Span};
 use serde_json::{json, Value};
+
+#[derive(Clone)]
+struct RequestContext {
+    method: String,
+    params: Value,
+    repo: String,
+}
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Page {
@@ -42,6 +50,11 @@ pub(crate) struct SearchUi {
     diagnostics_scroll: usize,
     diagnostics_column: usize,
     pending: Option<(String, String)>,
+    pending_context: Option<RequestContext>,
+    failed_request: Option<RequestContext>,
+    failure: Option<SearchFailure>,
+    outcome: SearchOutcome,
+    cleanup_ready: bool,
     next_id: u64,
     status: String,
 }
@@ -79,6 +92,11 @@ impl Default for SearchUi {
             diagnostics_scroll: 0,
             diagnostics_column: 0,
             pending: None,
+            pending_context: None,
+            failed_request: None,
+            failure: None,
+            outcome: SearchOutcome::Idle,
+            cleanup_ready: false,
             next_id: 1,
             status: String::new(),
         }
@@ -114,12 +132,17 @@ impl SearchUi {
         self.result = None;
         self.source = None;
         self.source_hit = None;
+        self.failure = None;
+        self.failed_request = None;
+        self.outcome = SearchOutcome::Idle;
+        self.cleanup_ready = false;
         self.page = Page::Composer;
         self.status = "Scope changed; submit a new query".into();
         self.revision += 1;
     }
 
     fn cancel_pending(&mut self) {
+        self.pending_context = None;
         if let Some((id, _)) = self.pending.take() {
             self.outbox
                 .push_back(json!({"proto":"poc.tui@1", "op":"job:cancel",
@@ -162,6 +185,16 @@ impl SearchUi {
             return;
         }
         self.cancel_pending();
+        self.pending_context = Some(RequestContext {
+            method: method.into(),
+            params: params.clone(),
+            repo: self.fields[0].trim().into(),
+        });
+        if method != "status" {
+            self.failure = None;
+            self.cleanup_ready = false;
+            self.outcome = SearchOutcome::Running;
+        }
         let id = format!("native-search-{}", self.next_id);
         self.next_id += 1;
         self.outbox
@@ -173,6 +206,11 @@ impl SearchUi {
     }
 
     fn submit(&mut self) {
+        if self.outcome == SearchOutcome::ResourcePending && !self.cleanup_ready {
+            self.page = Page::Results;
+            self.status = "Cleanup remains pending; t checks the original resources".into();
+            return;
+        }
         if self.schema.is_none() {
             self.status = "Wait for the canonical search description; reopen to retry".into();
             return;
@@ -232,6 +270,12 @@ impl SearchUi {
             return key.code == KeyCode::Esc;
         }
         if key.code == KeyCode::Esc {
+            if self.pending.is_some() && self.page == Page::Results {
+                let id = self.pending.as_ref().unwrap().0.clone();
+                self.outbox.push_back(json!({"proto":"poc.tui@1","op":"job:cancel","jobId":id,"reason":"native_search_cancelled"}));
+                self.status = "Cancellation requested; waiting for resource settlement".into();
+                return false;
+            }
             let cancelling = self.pending.is_some();
             self.cancel_pending();
             if self.page == Page::OpenConfirm {
@@ -253,6 +297,41 @@ impl SearchUi {
                 return false;
             }
             return true;
+        }
+        if self.page != Page::Composer && self.pending.is_none() && self.failure.is_some() {
+            let failure = self.failure.as_ref().unwrap();
+            match key.code {
+                KeyCode::Char('r') if failure.allows("retry") || self.cleanup_ready => {
+                    if let Some(request) = self.failed_request.clone() {
+                        if request.repo == self.fields[0].trim()
+                            && ["query", "continue", "source", "describe"]
+                                .contains(&request.method.as_str())
+                        {
+                            if request.method == "query" {
+                                self.rows.clear();
+                                self.result = None;
+                                self.source = None;
+                                self.source_hit = None;
+                            }
+                            self.request(&request.method, request.params);
+                        }
+                    }
+                    return false;
+                }
+                KeyCode::Char('t') if failure.allows("refresh-status") => {
+                    self.request("status", json!({}));
+                    return false;
+                }
+                KeyCode::Char('e') => {
+                    self.page = Page::Composer;
+                    return false;
+                }
+                KeyCode::Char('d') => {
+                    self.page = Page::Diagnostics;
+                    return false;
+                }
+                _ => {}
+            }
         }
         if self.page == Page::Composer && self.cursor.key(&mut self.fields[self.field], key, 8192) {
             return false;
@@ -466,23 +545,37 @@ impl SearchUi {
             return true;
         }
         let method = method.clone();
+        let context = self.pending_context.take();
         self.pending = None;
         self.revision += 1;
         if event["status"] != "done"
             || event["resultState"] != "complete"
             || event["result"]["method"] != method
         {
+            let failure = SearchFailure::from_event(event);
+            self.outcome = failure.outcome();
             self.status = format!(
                 "{}: {}",
-                event["status"].as_str().unwrap_or("failed"),
-                event["error"]["code"]
-                    .as_str()
-                    .unwrap_or("ERR_TUI_SEARCH_RESPONSE")
+                failure.definition.outcome, failure.definition.reason
             );
+            self.failure = Some(failure);
+            self.cleanup_ready = false;
+            if method != "status" {
+                self.failed_request = context;
+            }
             return true;
         }
         let data = &event["result"]["data"];
         match method.as_str() {
+            "status" => {
+                self.cleanup_ready = data["resourcePending"] == false && data["closed"] == false;
+                self.status = if self.cleanup_ready {
+                    "Cleanup confirmed; r explicitly retries the original request"
+                } else {
+                    "Resource settlement remains pending; t checks again"
+                }
+                .into();
+            }
             "describe" => {
                 self.schema = Some(data["schema"].clone());
                 self.modes = data["resultModes"]
@@ -517,10 +610,16 @@ impl SearchUi {
                         ))
                 {
                     self.status = "ERR_TUI_SEARCH_STALE: page identity changed".into();
+                    self.failure = Some(SearchFailure::reason("stale-request"));
+                    self.outcome = SearchOutcome::QueryFailed;
+                    self.failed_request = context;
                     return true;
                 }
                 let Some(hits) = data["hits"].as_array() else {
                     self.status = "ERR_TUI_SEARCH_RESPONSE: missing hits".into();
+                    self.failure = Some(SearchFailure::reason("incomplete-response"));
+                    self.outcome = SearchOutcome::QueryFailed;
+                    self.failed_request = context;
                     return true;
                 };
                 let mut combined = self.rows.clone();
@@ -537,6 +636,9 @@ impl SearchUi {
                     })
                 {
                     self.status = "ERR_TUI_SEARCH_RESPONSE: invalid or repeated hit".into();
+                    self.failure = Some(SearchFailure::reason("incomplete-response"));
+                    self.outcome = SearchOutcome::QueryFailed;
+                    self.failed_request = context;
                     return true;
                 }
                 combined.sort_by_key(|hit| {
@@ -562,6 +664,13 @@ impl SearchUi {
                     })
                     .unwrap_or_else(|| self.selected.min(self.rows.len().saturating_sub(1)));
                 self.result = Some(data.clone());
+                self.outcome = if self.rows.is_empty() {
+                    SearchOutcome::SuccessfulEmpty
+                } else {
+                    SearchOutcome::SuccessfulResults
+                };
+                self.failure = None;
+                self.failed_request = None;
                 self.page = Page::Results;
                 self.status = self.results_status();
             }
@@ -608,6 +717,16 @@ impl SearchUi {
             lines.push("Read only: repository search requires a controllable local supervisor. Esc closes.".into());
             return lines;
         }
+        if let Some(failure) = &self.failure {
+            for line in failure.lines() {
+                for chunk in line.as_bytes().chunks(width.max(1)) {
+                    lines.push(String::from_utf8_lossy(chunk).into_owned());
+                }
+            }
+            if self.result.is_some() {
+                lines.push("Any visible hits belong to the previous admitted response.".into());
+            }
+        }
         match self.page {
             Page::Composer => {
                 lines.push(
@@ -652,7 +771,11 @@ impl SearchUi {
                             .into(),
                     );
                 }
-                if self.rows.is_empty() && self.pending.is_none() {
+                if self.rows.is_empty()
+                    && self.pending.is_none()
+                    && self.result.is_some()
+                    && self.failure.is_none()
+                {
                     lines.push(self.result.as_ref().and_then(|result| result["searchDiagnostics"]["reasons"][0]["message"].as_str())
                         .unwrap_or("This response page contains no hits; diagnostics were not recorded.").into());
                 }
@@ -679,43 +802,50 @@ impl SearchUi {
                 }
             }
             Page::Diagnostics => {
-                lines.push("Recorded search diagnostics; Up/Down scroll; Left/Right pan; Home reset; Esc results".into());
-                lines.push("Use Index Health or Tooling Doctor deliberately; viewing diagnostics runs no command.".into());
-                let details = self
-                    .result
-                    .as_ref()
-                    .and_then(|result| result["searchDiagnostics"]["details"].as_array());
-                if let Some(details) = details {
-                    let count = details.len().min(24);
-                    let offset = self.diagnostics_scroll.min(count.saturating_sub(1));
-                    for value in details
-                        .iter()
-                        .take(24)
-                        .skip(offset)
-                        .take(height.saturating_sub(lines.len()))
-                    {
-                        if let Some(text) = value.as_str() {
-                            lines.push(
-                                Span::raw(text)
-                                    .styled_graphemes(Style::default())
-                                    .skip(self.diagnostics_column)
-                                    .map(|grapheme| grapheme.symbol)
-                                    .collect(),
-                            );
-                        }
-                    }
-                    if self
+                if self.failure.is_some() {
+                    lines.push(
+                        "Failure details above; Esc returns. Viewing this runs no command.".into(),
+                    );
+                } else {
+                    lines.push("Recorded search diagnostics; Up/Down scroll; Left/Right pan; Home reset; Esc results".into());
+                    lines.push("Use Index Health or Tooling Doctor deliberately; viewing diagnostics runs no command.".into());
+                    let details = self
                         .result
                         .as_ref()
-                        .map(|result| result["searchDiagnostics"]["truncated"] == true)
-                        .unwrap_or(false)
-                    {
-                        lines.push(
-                            "Diagnostic projection was truncated by its display bound.".into(),
-                        );
+                        .and_then(|result| result["searchDiagnostics"]["details"].as_array());
+                    if let Some(details) = details {
+                        let count = details.len().min(24);
+                        let offset = self.diagnostics_scroll.min(count.saturating_sub(1));
+                        for value in details
+                            .iter()
+                            .take(24)
+                            .skip(offset)
+                            .take(height.saturating_sub(lines.len()))
+                        {
+                            if let Some(text) = value.as_str() {
+                                lines.push(
+                                    Span::raw(text)
+                                        .styled_graphemes(Style::default())
+                                        .skip(self.diagnostics_column)
+                                        .map(|grapheme| grapheme.symbol)
+                                        .collect(),
+                                );
+                            }
+                        }
+                        if self
+                            .result
+                            .as_ref()
+                            .map(|result| result["searchDiagnostics"]["truncated"] == true)
+                            .unwrap_or(false)
+                        {
+                            lines.push(
+                                "Diagnostic projection was truncated by its display bound.".into(),
+                            );
+                        }
+                    } else {
+                        lines
+                            .push("Search diagnostics were not recorded for this response.".into());
                     }
-                } else {
-                    lines.push("Search diagnostics were not recorded for this response.".into());
                 }
             }
             Page::OpenConfirm => {
@@ -783,348 +913,5 @@ impl SearchUi {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn pasted_middle_query_and_rendered_result_click_never_submit_or_open_implicitly() {
-        let mut ui = ready();
-        ui.outbox.clear();
-        ui.fields[1] = "ab界e\u{301}😀".into();
-        ui.key(KeyCode::Left.into());
-        ui.key(KeyCode::Backspace.into());
-        ui.paste("echo q\n\u{1b}\u{3}");
-        assert_eq!(ui.fields[1], "ab界echo q 😀");
-        assert!(ui.outbox.is_empty());
-        ui.page = Page::Results;
-        ui.rows = vec![hit("code", 1, "first"), hit("code", 2, "second")];
-        ui.result = Some(page(ui.rows.clone()));
-        ui.selected = 0;
-        let rows = ui.lines(20, 76);
-        let second = rows.iter().position(|row| row.contains("#2")).unwrap();
-        ui.click(second);
-        assert_eq!(ui.rows[ui.selected]["hitId"], "second");
-        assert!(
-            ui.outbox.is_empty(),
-            "click selects; Enter alone requests source"
-        );
-        ui.key(KeyCode::Enter.into());
-        assert_eq!(ui.outbox.back().unwrap()["params"]["hitId"], "second");
-        assert_eq!(ui.outbox.back().unwrap()["method"], "source");
-    }
-
-    #[test]
-    fn diagnostics_are_recorded_read_only_and_bound_to_the_current_response() {
-        let mut ui = ready();
-        key(&mut ui, KeyCode::Enter);
-        ui.outbox.clear();
-        let mut data = page(vec![hit("code", 1, "one"), hit("code", 2, "two")]);
-        data["searchDiagnostics"] = json!({"schemaVersion":1,"state":"recorded",
-            "summary":"Backend: memory; fidelity: fallback-derived; requested: sqlite",
-            "backend":{"selected":"memory","requested":"sqlite","fidelity":"fallback-derived"},
-            "reasons":[],"details":["Backend: memory; fidelity: fallback-derived",
-            "Recorded index identity does not verify the current worktree.",
-            "Recorded code generation: old-generation", "coverage-check: inspect indexed coverage"],"truncated":false});
-        reply(&mut ui, "query", data);
-        key(&mut ui, KeyCode::Down);
-        assert_eq!(ui.selected, 1);
-        assert!(ui.status.contains("fallback results"));
-        key(&mut ui, KeyCode::Char('d'));
-        assert!(ui.page == Page::Diagnostics);
-        let text = ui.lines(20, 100).join("\n");
-        for expected in [
-            "old-generation",
-            "coverage-check",
-            "does not verify",
-            "runs no command",
-        ] {
-            assert!(text.contains(expected), "{expected}");
-        }
-        for _ in 0..40 {
-            key(&mut ui, KeyCode::PageDown);
-        }
-        assert!(ui
-            .lines(8, 20)
-            .iter()
-            .all(|line| line.chars().count() <= 20));
-        key(&mut ui, KeyCode::Home);
-        assert!(ui.lines(20, 100).join("\n").contains("old-generation"));
-        assert!(ui.outbox.is_empty());
-        assert!(!key(&mut ui, KeyCode::Esc));
-        assert_eq!(ui.selected, 1);
-        assert!(ui.page == Page::Results);
-        ui.scope_changed("/new repository");
-        assert!(ui.result.is_none());
-        key(&mut ui, KeyCode::Enter);
-        ui.outbox.clear();
-        reply(&mut ui, "query", page(vec![]));
-        assert!(ui
-            .lines(20, 100)
-            .join("\n")
-            .contains("diagnostics were not recorded"));
-        key(&mut ui, KeyCode::Char('d'));
-        assert!(!ui.lines(20, 100).join("\n").contains("old-generation"));
-        assert!(ui.outbox.is_empty());
-    }
-
-    fn key(ui: &mut SearchUi, code: KeyCode) -> bool {
-        ui.key(KeyEvent::new(code, KeyModifiers::NONE))
-    }
-
-    fn reply(ui: &mut SearchUi, method: &str, data: Value) {
-        let id = ui.pending.as_ref().unwrap().0.clone();
-        assert!(
-            ui.event(&json!({"jobId":id,"event":"job:end","status":"done",
-            "resultState":"complete","result":{"method":method,"data":data}}))
-        );
-    }
-
-    fn ready() -> SearchUi {
-        let mut ui = SearchUi {
-            available: true,
-            ..SearchUi::default()
-        };
-        ui.open("/selected repository");
-        let describe = ui.outbox.pop_front().unwrap();
-        assert_eq!(describe["method"], "describe");
-        reply(
-            &mut ui,
-            "describe",
-            json!({"schema":{"properties":{"mode":{"enum":["all","code"]},
-            "backend":{"enum":["auto","memory"]}}},"resultModes":["code","prose","extracted-prose","records"],
-            "defaults":{"mode":"all","backend":"auto","top":10}}),
-        );
-        ui
-    }
-
-    fn hit(mode: &str, rank: u64, id: &str) -> Value {
-        json!({"hitId":id,"mode":mode,"rank":rank,"score":7,"file":"src/answer.js",
-            "startLine":1,"endLine":2,"name":"answer"})
-    }
-
-    fn page(hits: Vec<Value>) -> Value {
-        json!({"resultId":"result-1","scopeId":"scope-1","queryGeneration":1,"repoPath":"/selected repository",
-            "hits":hits,"pagination":{"nextCursor":"canonical-cursor"},"freshness":{"generationKey":"index-1"}})
-    }
-
-    #[test]
-    fn composer_uses_described_defaults_and_preserves_shared_filters() {
-        let mut ui = ready();
-        key(&mut ui, KeyCode::Char('a'));
-        ui.fields[7] = "{\"lang\":\"javascript\",\"riskTag\":\"user-input\"}".into();
-        key(&mut ui, KeyCode::Enter);
-        let query = ui.outbox.pop_front().unwrap();
-        assert_eq!(query["op"], "search:run");
-        assert_eq!(query["method"], "query");
-        assert_eq!(query["params"]["repoPath"], "/selected repository");
-        assert_eq!(
-            query["params"]["search"],
-            json!({"query":"a","mode":"all","backend":"auto", "top":10,
-            "lang":"javascript","riskTag":"user-input"})
-        );
-    }
-
-    #[test]
-    fn conflicts_and_invalid_filters_cannot_submit() {
-        let mut ui = ready();
-        ui.fields[5] = "snapshot-id".into();
-        ui.fields[6] = "commit:other".into();
-        key(&mut ui, KeyCode::Enter);
-        assert!(ui.outbox.is_empty());
-        assert!(ui.status.contains("Snapshot or As of"));
-        ui.fields[5].clear();
-        ui.fields[6].clear();
-        ui.fields[7] = "[]".into();
-        key(&mut ui, KeyCode::Enter);
-        assert!(ui.outbox.is_empty());
-        ui.fields[7] = "{\"mode\":\"code\"}".into();
-        key(&mut ui, KeyCode::Enter);
-        assert!(ui.status.contains("set in both"));
-    }
-
-    #[test]
-    fn edited_query_cancels_and_discards_old_responses() {
-        let mut ui = ready();
-        key(&mut ui, KeyCode::Char('a'));
-        key(&mut ui, KeyCode::Enter);
-        let old = ui.outbox.pop_front().unwrap();
-        key(&mut ui, KeyCode::Char('e'));
-        let cancel = ui.outbox.pop_front().unwrap();
-        assert_eq!(cancel["op"], "job:cancel");
-        assert_eq!(cancel["jobId"], old["jobId"]);
-        key(&mut ui, KeyCode::Char('b'));
-        key(&mut ui, KeyCode::Enter);
-        let replacement = ui.outbox.pop_front().unwrap();
-        assert!(ui.event(&json!({"jobId":old["jobId"],"event":"job:end","status":"done",
-            "resultState":"complete","result":{"method":"query","data":page(vec![hit("code",1,"old")])}})));
-        assert!(ui.rows.is_empty());
-        assert_eq!(
-            ui.pending.as_ref().unwrap().0,
-            replacement["jobId"].as_str().unwrap()
-        );
-        reply(&mut ui, "query", page(vec![hit("code", 1, "new")]));
-        assert_eq!(ui.rows[0]["hitId"], "new");
-    }
-
-    #[test]
-    fn continuation_preserves_per_mode_rank_and_rejects_duplicate_hits() {
-        let mut ui = ready();
-        key(&mut ui, KeyCode::Enter);
-        ui.outbox.clear();
-        reply(
-            &mut ui,
-            "query",
-            page(vec![hit("code", 1, "c1"), hit("prose", 1, "p1")]),
-        );
-        key(&mut ui, KeyCode::Char('n'));
-        let request = ui.outbox.pop_front().unwrap();
-        assert_eq!(request["params"], json!({"resultId":"result-1"}));
-        ui.selected = 1; // User navigation while continuation is pending owns response-time selection.
-        reply(
-            &mut ui,
-            "continue",
-            page(vec![hit("code", 2, "c2"), hit("prose", 2, "p2")]),
-        );
-        assert_eq!(
-            ui.rows
-                .iter()
-                .map(|row| row["hitId"].as_str().unwrap())
-                .collect::<Vec<_>>(),
-            vec!["c1", "c2", "p1", "p2"]
-        );
-        assert_eq!(ui.rows[ui.selected]["hitId"], "p1");
-        key(&mut ui, KeyCode::Char('n'));
-        ui.outbox.clear();
-        reply(&mut ui, "continue", page(vec![hit("code", 2, "c2")]));
-        assert_eq!(ui.rows.len(), 4);
-        assert!(ui.status.contains("invalid or repeated"));
-    }
-
-    #[test]
-    fn source_is_bound_to_the_current_hit_and_scope_changes_clear_it() {
-        let mut ui = ready();
-        key(&mut ui, KeyCode::Enter);
-        ui.outbox.clear();
-        reply(&mut ui, "query", page(vec![hit("code", 1, "selected")]));
-        key(&mut ui, KeyCode::Enter);
-        let source_request = ui.outbox.pop_front().unwrap();
-        assert_eq!(
-            source_request["params"],
-            json!({"resultId":"result-1","hitId":"selected"})
-        );
-        reply(
-            &mut ui,
-            "source",
-            json!({"resultId":"result-1","hitId":"other","available":true,"excerpt":"wrong"}),
-        );
-        assert!(ui.source.is_none());
-        assert!(ui.status.contains("STALE"));
-        ui.scope_changed("/different repository");
-        assert!(ui.result.is_none());
-        assert!(ui.rows.is_empty());
-        assert!(ui.source.is_none());
-    }
-
-    #[test]
-    fn passive_sessions_cannot_dispatch_search_or_source() {
-        let mut ui = SearchUi::default();
-        ui.open("/repository");
-        key(&mut ui, KeyCode::Enter);
-        assert!(ui.outbox.is_empty());
-        assert!(ui.lines(20, 100).join("\n").contains("Read only"));
-        assert!(key(&mut ui, KeyCode::Esc));
-    }
-
-    #[test]
-    fn returning_from_source_restores_the_results_status() {
-        let mut ui = ready();
-        key(&mut ui, KeyCode::Enter);
-        ui.outbox.clear();
-        reply(&mut ui, "query", page(vec![hit("code", 1, "selected")]));
-        key(&mut ui, KeyCode::Enter);
-        ui.outbox.clear();
-        reply(
-            &mut ui,
-            "source",
-            json!({"resultId":"result-1","hitId":"selected","available":true,"excerpt":"return 42"}),
-        );
-        assert!(ui.status.contains("source preview"));
-        assert!(!key(&mut ui, KeyCode::Esc));
-        assert!(ui.status.contains("1 indexed hits"));
-        assert!(key(&mut ui, KeyCode::Esc));
-    }
-
-    #[test]
-    fn selected_results_remain_visible_below_long_headers() {
-        use ratatui::{
-            backend::TestBackend,
-            widgets::{Paragraph, Wrap},
-            Terminal,
-        };
-        let mut ui = ready();
-        ui.fields[4] = "50".into();
-        key(&mut ui, KeyCode::Char('a'));
-        key(&mut ui, KeyCode::Enter);
-        ui.outbox.clear();
-        let mut data = page(
-            (1..=50)
-                .map(|rank| hit("code", rank, &format!("hit-{rank}")))
-                .collect(),
-        );
-        data["repoPath"] = json!(format!("/{}", "long-repository/".repeat(20)));
-        reply(&mut ui, "query", data);
-        for _ in 0..49 {
-            key(&mut ui, KeyCode::Down);
-        }
-        let mut terminal = Terminal::new(TestBackend::new(40, 8)).unwrap();
-        terminal
-            .draw(|frame| {
-                frame.render_widget(
-                    Paragraph::new(ui.lines(8, 40).join("\n")).wrap(Wrap { trim: false }),
-                    frame.area(),
-                )
-            })
-            .unwrap();
-        let screen = terminal
-            .backend()
-            .buffer()
-            .content
-            .iter()
-            .map(|cell| cell.symbol())
-            .collect::<String>();
-        assert!(
-            screen.contains("> code #50"),
-            "selected result must survive the real paragraph renderer: {screen}"
-        );
-    }
-
-    #[test]
-    fn editor_navigation_requires_confirmation_and_the_preview_identity() {
-        let mut ui = ready();
-        key(&mut ui, KeyCode::Enter);
-        ui.outbox.clear();
-        reply(&mut ui, "query", page(vec![hit("code", 1, "selected")]));
-        key(&mut ui, KeyCode::Enter);
-        ui.outbox.clear();
-        reply(
-            &mut ui,
-            "source",
-            json!({"resultId":"result-1","hitId":"selected","available":true,
-            "excerpt":"return 42", "sourceIdentity":{"currentHash":format!("sha1:{}", "a".repeat(40))}}),
-        );
-        key(&mut ui, KeyCode::Char('o'));
-        assert!(ui.lines(20, 100).join("\n").contains("Enter confirms"));
-        assert!(ui.outbox.is_empty());
-        assert!(!key(&mut ui, KeyCode::Esc));
-        assert!(ui.outbox.is_empty());
-        key(&mut ui, KeyCode::Char('o'));
-        key(&mut ui, KeyCode::Enter);
-        let request = ui.outbox.pop_front().unwrap();
-        assert_eq!(request["method"], "open");
-        assert_eq!(
-            request["params"],
-            json!({"resultId":"result-1","hitId":"selected", "editor":"code",
-            "confirmed":true,"sourceHash":format!("sha1:{}", "a".repeat(40))})
-        );
-    }
-}
+#[path = "search_tests.rs"]
+mod tests;
