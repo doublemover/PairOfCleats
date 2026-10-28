@@ -36,3 +36,16 @@ and SQLite correctness follow-up #284. It does not qualify all row counts or
 build modes, implement custom/external producer cleanup, or introduce an atomic
 two-file transaction/concurrent state-writer protocol. Those owner requirements
 remain active. No issue closes or changes its overall classification here.
+
+Compaction follow-up source `f92c53623fe170b7eeba025bb1c20b86832ff573`, tree
+`f974d380d1cf05070f870bdc49bd7f2985738451`, removes the analogous failed-query-to-zero
+path. Both `chunks` and `dense_vectors` are required by the authoritative SQLite
+schema. Failed table metadata/count operations and invalid negative/unsafe counts
+now fail through the original command owner. Zero requires an actual successful
+query. Eight actual native fixtures are authored, unexecuted: metadata failure,
+ordinary/pending query failure, invalid count, missing required chunk/dense table,
+real empty dense data and nonempty dense preservation. They retain unchanged
+pre-staging source bytes and once-only original close/metadata recovery controls.
+Format/ESLint, two changed JavaScript syntax checks and whitespace passed. No
+functional or native execution occurred. Nineteen state/compaction controls are
+now authored; full row-ledger/build-mode and owner qualification still remain.

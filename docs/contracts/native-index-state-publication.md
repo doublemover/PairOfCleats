@@ -28,3 +28,11 @@ manifest parse/write/checksum failures, frozen original observations and healthy
 byte/checksum/extension preservation. Existing artifact/bundle/incremental,
 embedding manifest, native-command and original/follow-up acceptance still need
 execution on the resulting candidate.
+
+SQLite compaction also requires successful table metadata and nonnegative safe
+integer counts. Required `chunks` or `dense_vectors` query failure cannot stand
+in for zero rows. Native/observer failures propagate through the existing command
+owner and original physical closure; metadata recovery cannot repeat that close.
+Eight authored `storage/sqlite/compact-count-failure-ownership/*` cases cover
+metadata/query/pending/invalid/missing-table failures, real empty dense data and
+nonempty dense preservation. These cases remain unexecuted.
