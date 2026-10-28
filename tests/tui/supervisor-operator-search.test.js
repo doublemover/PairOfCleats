@@ -14,7 +14,7 @@ const { dir } = await prepareIsolatedTestCacheDir(`operator-search-${selected}`)
 const repo = path.join(dir, 'selected repository');
 await fs.mkdir(path.join(repo, 'src'), { recursive: true });
 applyTestEnv({ cacheRoot: path.join(dir, 'cache'), embeddings: 'off', syncProcess: true,
-  extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: selected === 'launch-authority' ? path.join(dir, 'missing-trusted.json') : null,
+  extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null,
     PAIROFCLEATS_TRUSTED_REPOS: JSON.stringify(selected === 'navigation-untrusted' ? [] : [repo]) } });
 const index = await createCompatibilityIndex(repo, { compatibilityKey: 'native-operator-search', profileId: 'default', published: true });
 const body = 'export function alpha() { return 42; }\n';
@@ -46,6 +46,7 @@ ${selected === 'navigation-cancel' ? 'setInterval(()=>{},1000);' : ''}\n`);
   }
   process.env.PATH = `${bin}${path.delimiter}${process.env.PATH || ''}`;
 }
+if (selected === 'launch-authority') process.env.PAIROFCLEATS_TRUSTED_CONFIG = path.join(dir, 'missing-trusted.json');
 const session = createSupervisorSession({ timeoutMs: 10000, reassembleEvents: true });
 let sequence = 0;
 const request = async (method, params) => {

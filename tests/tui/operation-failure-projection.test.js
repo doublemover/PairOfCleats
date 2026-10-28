@@ -7,6 +7,12 @@ import { projectTuiOperationFailure, readTuiSearchChildFailure, tuiFailureCode,
 
 const validate = compileSchema(createAjv({ strict: true }), TUI_OPERATION_FAILURE_SCHEMA);
 const secret = '\x1b[31msecret C:\\private\\config ' + 'x'.repeat(1024 * 1024);
+for (const [code, reason] of [['ERR_TUI_EDITOR_UNTRUSTED', 'permission-denied'],
+  ['ERR_UNSAFE_FILE_PATH', 'permission-denied'], ['ERR_FILE_INTEGRITY', 'stale-request']]) {
+  const error = Object.assign(Error(secret), { code });
+  assert.equal(tuiFailureCode(error).code, code, 'known native authority failures retain their typed code');
+  assert.equal(projectTuiOperationFailure(error).reason, reason);
+}
 for (const [code, reason] of Object.entries(catalog.codes)) {
   const projection = projectTuiOperationFailure(Object.assign(Error(secret), { code }));
   assert.equal(projection.reason, reason);
