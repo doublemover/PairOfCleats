@@ -1030,14 +1030,16 @@
         "71ed56edf9e84ea11fb6587b4b2c63b8c49e8c9e",
         "3639069ca9bed027dc8065cb369a9b38351df69a",
         "c4700800c55f03527f844b778a0a266a1a6cc055",
-        "aceea960a5376eddd610e928f0f0dfe5c0b06ea1"
+        "aceea960a5376eddd610e928f0f0dfe5c0b06ea1",
+        "af7586dead04bcaaec726264e9a99e798ab32ffc"
       ],
       "unvalidatedReceipts": [
         "sqlite-boundary-diagnostics-implementation-2026-10-28.md",
         "windows-cdb-collector-implementation-2026-10-28.md",
         "forensic-publication-ordering-implementation-2026-10-28.md",
         "windows-cdb-child-progress-implementation-2026-10-28.md",
-        "sqlite-dense-schema-lifetime-implementation-2026-10-28.md"
+        "sqlite-dense-schema-lifetime-implementation-2026-10-28.md",
+        "sqlite-close-results-implementation-2026-10-28.md"
       ],
       "unvalidatedFollowups": [
         {
@@ -1064,6 +1066,11 @@
           "sourceHead": "aceea960a5376eddd610e928f0f0dfe5c0b06ea1",
           "receipt": "sqlite-dense-schema-lifetime-implementation-2026-10-28.md",
           "implementation": "Actual synchronous dense update propagates schema/required pragma failures, restricts width evidence before destructive ANN rebuild and composes original SQLite/contained-source cleanup with pending-work, independent/falsey failure and close-only recovery. Thirty-three controls including eight actual-native paths are authored, unexecuted. Custom writer/publication registration, common close-result/callback ownership and full native/source qualification remain."
+        },
+        {
+          "sourceHead": "af7586dead04bcaaec726264e9a99e798ab32ffc",
+          "receipt": "sqlite-close-results-implementation-2026-10-28.md",
+          "implementation": "Shared SQLite close retains successful native/bookkeeping/settlement results, skips confirmed native calls/completed callbacks on recovery, separates physical and metadata predicates, and observes bookkeeping before namespace release. Actual cache retirement follows full owner settlement and keeps pending ownership discoverable. Seventeen controls including two real SQLite cases and cache integration are authored, unexecuted; adapter forwarding/admission and current-candidate qualification remain."
         }
       ],
       "remainingWork": [
@@ -1151,7 +1158,8 @@
         "1173c6ec774d9b6df11cb078851724ca34a28a6f",
         "bc1e38284608b1c015c892cdf4893cdd42aa8e5e",
         "b6652070b27a485fe7ee3180ff449f41539949e8",
-        "aceea960a5376eddd610e928f0f0dfe5c0b06ea1"
+        "aceea960a5376eddd610e928f0f0dfe5c0b06ea1",
+        "af7586dead04bcaaec726264e9a99e798ab32ffc"
       ],
       "unvalidatedReceipts": [
         "native-state-publication-implementation-2026-10-28.md",
@@ -1166,7 +1174,8 @@
         "sqlite-native-correspondence-implementation-2026-10-28.md",
         "sqlite-compaction-identity-implementation-2026-10-28.md",
         "sqlite-compaction-vectors-implementation-2026-10-28.md",
-        "sqlite-dense-schema-lifetime-implementation-2026-10-28.md"
+        "sqlite-dense-schema-lifetime-implementation-2026-10-28.md",
+        "sqlite-close-results-implementation-2026-10-28.md"
       ],
       "nativeStatePublicationFollowup": "Required SQLite/LMDB state and shared manifest read/write/checksum failures now propagate instead of acknowledging in-memory ready state after failed publication. Malformed existing state cannot silently become an empty replacement. Optional LMDB metrics suppress only confirmed-settled resource observations. Eleven actual-producer controls are authored and unexecuted; paired/concurrent publication, row/build-mode, custom registration/cleanup and original/follow-up acceptance remain separate.",
       "compactionCountFollowup": "Actual compaction now refuses failed table metadata/query and invalid row counts instead of substituting zero. Required chunks and dense_vectors absence fails; zero needs a successful query. Eight actual native controls are authored, unexecuted, preserving unchanged source/once-only close/metadata recovery plus empty/nonempty dense positives. Existing compaction/row/build-mode and full original acceptance remain.",
@@ -1236,6 +1245,11 @@
           "sourceHead": "aceea960a5376eddd610e928f0f0dfe5c0b06ea1",
           "receipt": "sqlite-dense-schema-lifetime-implementation-2026-10-28.md",
           "implementation": "Actual synchronous dense update propagates schema/required pragma failures, restricts width evidence before destructive ANN rebuild and composes original SQLite/contained-source cleanup with pending-work, independent/falsey failure and close-only recovery. Thirty-three controls including eight actual-native paths are authored, unexecuted. Custom writer/publication registration, common close-result/callback ownership and full native/source qualification remain."
+        },
+        {
+          "sourceHead": "af7586dead04bcaaec726264e9a99e798ab32ffc",
+          "receipt": "sqlite-close-results-implementation-2026-10-28.md",
+          "implementation": "Shared SQLite close retains successful native/bookkeeping/settlement results, skips confirmed native calls/completed callbacks on recovery, separates physical and metadata predicates, and observes bookkeeping before namespace release. Actual cache retirement follows full owner settlement and keeps pending ownership discoverable. Seventeen controls including two real SQLite cases and cache integration are authored, unexecuted; adapter forwarding/admission and current-candidate qualification remain."
         }
       ],
       "remainingWork": [
@@ -4911,7 +4925,8 @@
         "417a4479dbd750b61d95e6de555ece174d004c56",
         "1173c6ec774d9b6df11cb078851724ca34a28a6f",
         "03c44b27843fb6096695e3e80849ebc8383449ca",
-        "aceea960a5376eddd610e928f0f0dfe5c0b06ea1"
+        "aceea960a5376eddd610e928f0f0dfe5c0b06ea1",
+        "af7586dead04bcaaec726264e9a99e798ab32ffc"
       ],
       "unvalidatedReceipts": [
         "storage-space-implementation-2026-10-27.md",
@@ -4947,7 +4962,8 @@
         "sqlite-artifact-identity-implementation-2026-10-28.md",
         "sqlite-native-correspondence-implementation-2026-10-28.md",
         "sqlite-boundary-diagnostics-implementation-2026-10-28.md",
-        "sqlite-dense-schema-lifetime-implementation-2026-10-28.md"
+        "sqlite-dense-schema-lifetime-implementation-2026-10-28.md",
+        "sqlite-close-results-implementation-2026-10-28.md"
       ],
       "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
       "sessionObservationFollowup": "Shared session admission now captures successful action and settlement receipt observers, freezes projected receipt fields and retains independent inspection/observer errors through original handles. Eleven authored cases await execution; native-reader observation, remaining adapters/custom backend registration and full qualification remain.",
@@ -5075,6 +5091,11 @@
           "sourceHead": "aceea960a5376eddd610e928f0f0dfe5c0b06ea1",
           "receipt": "sqlite-dense-schema-lifetime-implementation-2026-10-28.md",
           "implementation": "Actual synchronous dense update propagates schema/required pragma failures, restricts width evidence before destructive ANN rebuild and composes original SQLite/contained-source cleanup with pending-work, independent/falsey failure and close-only recovery. Thirty-three controls including eight actual-native paths are authored, unexecuted. Custom writer/publication registration, common close-result/callback ownership and full native/source qualification remain."
+        },
+        {
+          "sourceHead": "af7586dead04bcaaec726264e9a99e798ab32ffc",
+          "receipt": "sqlite-close-results-implementation-2026-10-28.md",
+          "implementation": "Shared SQLite close retains successful native/bookkeeping/settlement results, skips confirmed native calls/completed callbacks on recovery, separates physical and metadata predicates, and observes bookkeeping before namespace release. Actual cache retirement follows full owner settlement and keeps pending ownership discoverable. Seventeen controls including two real SQLite cases and cache integration are authored, unexecuted; adapter forwarding/admission and current-candidate qualification remain."
         }
       ]
     },
@@ -7968,7 +7989,8 @@
         "26aba2371ff227384caa579602fe4899b612b0a1",
         "417a4479dbd750b61d95e6de555ece174d004c56",
         "1173c6ec774d9b6df11cb078851724ca34a28a6f",
-        "aceea960a5376eddd610e928f0f0dfe5c0b06ea1"
+        "aceea960a5376eddd610e928f0f0dfe5c0b06ea1",
+        "af7586dead04bcaaec726264e9a99e798ab32ffc"
       ],
       "unvalidatedReceipts": [
         "sqlite-operation-implementation-2026-10-27.md",
@@ -8007,7 +8029,8 @@
         "sqlite-ledger-counts-implementation-2026-10-28.md",
         "sqlite-artifact-identity-implementation-2026-10-28.md",
         "sqlite-native-correspondence-implementation-2026-10-28.md",
-        "sqlite-dense-schema-lifetime-implementation-2026-10-28.md"
+        "sqlite-dense-schema-lifetime-implementation-2026-10-28.md",
+        "sqlite-close-results-implementation-2026-10-28.md"
       ],
       "currentImplementation": "SQLite runner/helpers and Clangd acquisition retain original work through shared storage teardown. Managed Go/Lua/generic discovery propagates pending inspection; retained generation admission protects the first scan and owns file/Dir/metadata recovery. Functional qualification and remaining custom cleanup adoption are not discharged.",
       "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
@@ -8132,6 +8155,11 @@
           "sourceHead": "aceea960a5376eddd610e928f0f0dfe5c0b06ea1",
           "receipt": "sqlite-dense-schema-lifetime-implementation-2026-10-28.md",
           "implementation": "Actual synchronous dense update propagates schema/required pragma failures, restricts width evidence before destructive ANN rebuild and composes original SQLite/contained-source cleanup with pending-work, independent/falsey failure and close-only recovery. Thirty-three controls including eight actual-native paths are authored, unexecuted. Custom writer/publication registration, common close-result/callback ownership and full native/source qualification remain."
+        },
+        {
+          "sourceHead": "af7586dead04bcaaec726264e9a99e798ab32ffc",
+          "receipt": "sqlite-close-results-implementation-2026-10-28.md",
+          "implementation": "Shared SQLite close retains successful native/bookkeeping/settlement results, skips confirmed native calls/completed callbacks on recovery, separates physical and metadata predicates, and observes bookkeeping before namespace release. Actual cache retirement follows full owner settlement and keeps pending ownership discoverable. Seventeen controls including two real SQLite cases and cache integration are authored, unexecuted; adapter forwarding/admission and current-candidate qualification remain."
         }
       ]
     },
@@ -10287,7 +10315,7 @@
     "partialFollowup": 146,
     "implementationStatusUnresolved": 90
   },
-  "reconciledAt": "2026-10-28T18:23:43.548Z",
+  "reconciledAt": "2026-10-28T18:45:11.020Z",
   "completedSourceBatch": [
     347,
     586,
@@ -10430,7 +10458,7 @@
   "currentCountsBasis": {
     "meaning": "718-open GitHub snapshot freshly refreshed at checkpoint 220 plus recorded local source work; not functional acceptance.",
     "publishedHead": "adbcaf777ce91642bb0a60de892171d8c3a529f7",
-    "sourceHead": "aceea960a5376eddd610e928f0f0dfe5c0b06ea1",
-    "receipt": "sqlite-dense-schema-lifetime-implementation-2026-10-28.md"
+    "sourceHead": "af7586dead04bcaaec726264e9a99e798ab32ffc",
+    "receipt": "sqlite-close-results-implementation-2026-10-28.md"
   }
 }

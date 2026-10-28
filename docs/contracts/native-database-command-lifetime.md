@@ -53,3 +53,22 @@ admission refusal and independent original observations. It is **UNVALIDATED**.
 Actual SQLite/LMDB, IPC/child receipt failure, Windows native retry safety,
 platform resource bounds and the original canonical command fixtures still
 require qualification. Other lifecycle unregister/worker policies remain separate.
+
+The shared synchronous SQLite close owner also captures original successful
+native return observations and settlement/bookkeeping results. A known successful
+physical return is recorded before its independent observation is required, so
+reconciliation cannot repeat that confirmed native close. Completed callbacks
+are not repeated. A callback Promise is unknown synchronous evidence. Metadata
+retries remain with the existing original owner.
+
+Bookkeeping results precede namespace-release hooks. Physical native settlement
+has its own original-result predicate, separate from metadata completion, avoiding
+a self-gate. Cache entries retire only after the full original owner settles;
+bookkeeping cannot erase a pending namespace owner. Handoff methods retain their
+original function and receiver. Late revocation stays visible and reconciliation
+removes the actual pending-registry entry without another close. Primitive
+void/boolean outcomes need no synthetic Error allocation.
+
+Seventeen new controls, including two real SQLite closes and the actual cache
+integration, are authored and unexecuted. Original cache/retrieval/probe/build/
+validation/native fixtures require the checkpoint-240 qualification pass.
