@@ -1659,11 +1659,14 @@
       "currentDisposition": "qualification_pending",
       "currentImplementation": "Per-ID original cross-process lock, atomic canonical selector and immutable paired JSON/Markdown generations replace independently mutable pair publication. Exact reimports reuse a verified generation; conflict decisions are owned. Inventory carries compact witnesses and actual index/replay consumption rechecks both payload hashes/lengths. Original generation source reads survive later publication; finding/history return public fields without internal bookkeeping. Sixteen authored unexecuted cases include real separate-process and actual builder interleavings, cancellation, failure, unknown roots and resource recovery. Full original/follow-up execution remains.",
       "unvalidatedSourceHeads": [
-        "2c05a6a0dfcc95f93c39d682e680aecb9ed0a55c"
+        "2c05a6a0dfcc95f93c39d682e680aecb9ed0a55c",
+        "a97ec9600a6707e8b0620562842a797e75a10ea4"
       ],
       "unvalidatedReceipts": [
-        "docs/archived/triage-publication-implementation-2026-10-27.md"
-      ]
+        "docs/archived/triage-publication-implementation-2026-10-27.md",
+        "triage-history-implementation-2026-10-27.md"
+      ],
+      "historyRendererFollowup": "Renderer 2 adds explicit original finding/history interpretation. Existing renderer-1 generations retain exact readback; reimport selects a fresh renderer-2 generation without deleting old evidence. Records producer 11; new/old compatibility controls await execution."
     },
     {
       "number": 855,
@@ -8055,8 +8058,15 @@
       "recordedDisposition": "implementation_needed",
       "priority": "unranked",
       "batch": "retrieval-contracts",
-      "phase": "source-review-and-implementation",
-      "status": "queued"
+      "phase": "lineage-selection-and-continuation-implemented-qualification-pending",
+      "status": "source-implemented-qualification-pending",
+      "unvalidatedSourceHeads": [
+        "a97ec9600a6707e8b0620562842a797e75a10ea4"
+      ],
+      "unvalidatedReceipts": [
+        "triage-history-implementation-2026-10-27.md"
+      ],
+      "currentImplementation": "One shared four-read scan, bounded exact/related allocation, typed selection and historical validity, original/current observation drift and scope-qualified finding links. Count/compact-byte/retained-lane bounds and source/policy/finding-bound exact continuation are implemented; pending success/error ownership propagates. Fifteen authored cases and actual context CLI assertions are unexecuted. Renderer 2 exposes finding links while valid immutable renderer-1 evidence remains readable. Original/follow-up functional and resource/consumer acceptance remain."
     },
     {
       "number": 1700,

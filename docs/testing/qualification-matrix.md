@@ -6,6 +6,13 @@ Current execution evidence and unresolved failures belong to the
 [deep test audit](../archived/deep-test-audit-2026-10-18.md) and the
 [active roadmap](../roadmap.md).
 
+The [current solo implementation wave](../archived/implementation-wave-2026-10-27.md)
+retains exact unvalidated source/tree checkpoints and affected checks. New storage
+observation/admission, JSX/TSX syntax ownership and triage publication/history
+repairs have authored controls and static checks only. Their local source does
+not inherit earlier runtime qualification; functional acceptance and publication
+gates remain deferred during implementation.
+
 Current Clangd acquisition and managed-file lifetime source is **unvalidated**
 at `773e6893e`; [20 authored checks and remaining qualification](../archived/clangd-acquisition-implementation-2026-10-27.md)
 separate inert archive/format fixtures from actual Windows installation,
