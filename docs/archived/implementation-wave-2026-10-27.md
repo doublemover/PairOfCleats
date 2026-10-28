@@ -49,6 +49,7 @@ references were preserved. Published head/base remained `adbcaf777` / `main`.
 | [5cae80c13](runtime-receipt-observation-implementation-2026-10-27.md) | Original write/result observations through typed runtime-receipt failures and admitted-attempt acknowledgements | 12 authored cases; functional qualification remains |
 | [1aa491181](build-state-ownership-implementation-2026-10-27.md) | Original state/append/coordinator ownership, complete sibling failure retention, retired-root refusal and explicit required queue recovery | 20 authored cases; actual state/runtime/category qualification and remaining backend adoption remain |
 | [99d84d2c5](storage-session-observation-implementation-2026-10-27.md) | Original successful action and settlement receipt observations, captured receipt fields and independently retained observer failures | 11 authored cases; actual session/native/category qualification and broader adoption remain |
+| [cd2583658](native-reader-observation-implementation-2026-10-27.md) | First failed-open callback and independent native/error observer retention through canonical reader admission | 5 authored cases; actual native/category qualification and custom backend adoption remain |
 
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
