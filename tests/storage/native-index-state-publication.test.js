@@ -5,6 +5,7 @@ import { registerHooks } from 'node:module';
 import { checksumFile } from '../../src/shared/hash.js';
 import { applyTestEnv } from '../helpers/test-env.js';
 import { errorGraphIncludes } from '../helpers/error-graph.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 
 // UNVALIDATED: actual state/manifest producers and real healthy writes. The
 // original writer boundary injects one frozen failure, without a database/model.
@@ -17,8 +18,9 @@ const root = await fs.mkdtemp(path.join(parent, 'native-state-'));
 const statePath = path.join(root, 'index_state.json'), manifestPath = path.join(root, 'pieces', 'manifest.json');
 const initial = { mode: 'code', generatedAt: '2026-10-28T00:00:00.000Z', extensions: { caller: { keep: true } },
   lmdb: { preserved: 'lmdb' }, sqlite: { preserved: 'sqlite' } };
-const manifest = { version: 1, pieces: [{ name: 'index_state', path: 'index_state.json', bytes: 0, checksum: 'stale' },
-  { name: 'other', path: 'other.json', bytes: 2, checksum: 'unrelated' }], extensions: { caller: { keep: true } } };
+const manifest = { version: 1, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
+  pieces: [{ name: 'index_state', path: 'index_state.json', bytes: 0, checksum: 'stale' },
+    { name: 'other', path: 'other.json', bytes: 2, checksum: 'unrelated' }], extensions: { caller: { keep: true } } };
 let settled = false;
 const original = Object.freeze(Object.assign(new Error('Original required publication remains outstanding.'), {
   cacheOwnershipPending: true, cacheOwnershipReleased() { assert.equal(this, original); return settled; }

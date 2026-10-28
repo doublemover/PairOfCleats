@@ -118,7 +118,7 @@ import {
 } from './embed.js';
 import { writeHnswBackends, writeLanceDbBackends } from './backends.js';
 import { updatePieceManifest } from './manifest.js';
-import { publishEmbeddingGeneration } from './publication.js';
+import { publishEmbeddingGeneration, publishEmbeddingFailure } from './publication.js';
 import { publishBackendGeneration } from './backend-publication.js';
 import { buildEmbeddingGenerationAsync } from '../../../src/shared/embedding-generation.js';
 import { createFileEmbeddingsProcessor } from './pipeline.js';
@@ -1972,7 +1972,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
       }
       let stageCheckpoints = null;
       let modeWriterQueue = null;
-      let modeVectorSpool = null, modePrimaryFailure = null;
+      let modeVectorSpool = null, modePrimaryFailure = null, modeFailed = false;
       modeTask.set(completedModes, modes.length, { message: `building ${mode}` });
       /**
        * Mark one mode complete in top-level progress task.
@@ -4106,71 +4106,86 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
         backendTask.done({ message: 'backend outputs ready' });
         await finishMode(`built ${mode}`);
       } catch (err) {
-        modePrimaryFailure = err;
-        cacheTask?.fail?.(err);
-        embedTask?.fail?.(err);
-        writerTask?.fail?.(err);
-        bundleTask?.fail?.(err);
-        backendTask?.fail?.(err);
-        logExpectedArtifacts(mode, indexDir, 'failure');
-        const now = new Date().toISOString();
-        const failureState = loadIndexState(statePath);
-        failureState.generatedAt = failureState.generatedAt || now;
-        failureState.updatedAt = now;
-        failureState.mode = failureState.mode || mode;
-        failureState.embeddings = {
-          ...(failureState.embeddings || {}),
-          enabled: true,
-          ready: false,
-          pending: false,
-          mode: failureState.embeddings?.mode || resolvedEmbeddingMode,
-          service: failureState.embeddings?.service ?? (normalizedEmbeddingMode === 'service'),
-          embeddingIdentity: cacheIdentity || failureState.embeddings?.embeddingIdentity || null,
-          embeddingIdentityKey: cacheIdentityKey || failureState.embeddings?.embeddingIdentityKey || null,
-          lastError: err?.message || String(err),
-          updatedAt: now
-        };
-        if (failureState.enrichment && failureState.enrichment.enabled) {
-          failureState.enrichment = {
-            ...failureState.enrichment,
-            pending: false,
-            stage: failureState.enrichment.stage || failureState.stage || 'stage2'
-          };
+        modeFailed = true; modePrimaryFailure = err;
+        for (const task of [cacheTask, embedTask, writerTask, bundleTask, backendTask]) {
+          try { await task?.fail?.(err); }
+          catch (diagnosticError) { err = addStorageFailureContext(err, { phase: 'stage3-failure-progress' }, diagnosticError,
+            { secondaryPresent: true }); modePrimaryFailure = err; }
         }
+        try { logExpectedArtifacts(mode, indexDir, 'failure'); }
+        catch (diagnosticError) { err = addStorageFailureContext(err, { phase: 'stage3-failure-artifacts' }, diagnosticError,
+          { secondaryPresent: true }); modePrimaryFailure = err; }
+        const prepareFailureState = failure => {
+          const now = new Date().toISOString();
+          const failureState = loadIndexState(statePath);
+          failureState.generatedAt = failureState.generatedAt || now;
+          failureState.updatedAt = now;
+          failureState.mode = failureState.mode || mode;
+          failureState.embeddings = {
+            ...(failureState.embeddings || {}),
+            enabled: true,
+            ready: false,
+            pending: false,
+            mode: failureState.embeddings?.mode || resolvedEmbeddingMode,
+            service: failureState.embeddings?.service ?? (normalizedEmbeddingMode === 'service'),
+            embeddingIdentity: cacheIdentity || failureState.embeddings?.embeddingIdentity || null,
+            embeddingIdentityKey: cacheIdentityKey || failureState.embeddings?.embeddingIdentityKey || null,
+            lastError: failure?.message || String(failure),
+            updatedAt: now
+          };
+          if (failureState.enrichment && failureState.enrichment.enabled) {
+            failureState.enrichment = {
+              ...failureState.enrichment,
+              pending: false,
+              stage: failureState.enrichment.stage || failureState.stage || 'stage2'
+            };
+          }
+          return failureState;
+        };
         if (modeWriterQueue) {
           try { await modeWriterQueue.onIdle(); }
           catch (drainError) {
-            if (drainError !== err && !(isAbortError(err) && isAbortError(drainError))) {
+            if (drainError !== err) {
               err = addStorageFailureContext(err, { phase: 'stage3-writer-drain' }, drainError,
                 { secondaryPresent: true });
               modePrimaryFailure = err;
             }
-          } finally { writerStatsByMode[mode] = modeWriterQueue.stats(); }
+          } finally {
+            try { writerStatsByMode[mode] = modeWriterQueue.stats(); }
+            catch (diagnosticError) { err = addStorageFailureContext(err, { phase: 'stage3-writer-stats' }, diagnosticError,
+              { secondaryPresent: true }); modePrimaryFailure = err; }
+          }
         }
-        try {
-          await runtimeReceipts.fail(err, mode, { writer: writerStatsByMode[mode] });
-        } catch { /* Preserve the original failure when a best-effort snapshot fails. */ }
-        failureState.extensions = { ...failureState.extensions,
-          runtimeAttemptId: runtimeReceipts.reference(mode),
-          runtimeEmbeddingObservation: runtimeReceipts.observation(mode) };
         // Terminal cleanup must persist after the run's signal has cancelled normal admission.
-        try { await writeIndexState(statePath, failureState); } catch { /* Preserve the original failure. */ }
-        throw err;
+        modePrimaryFailure = await publishEmbeddingFailure({ primary: err, statePath, prepareState: prepareFailureState,
+          runtimeReceipts, mode, writer: writerStatsByMode[mode] });
+        throw modePrimaryFailure;
       } finally {
         const cleanupFailures = [];
         try { await stageCheckpoints?.flush(); } catch (error) { cleanupFailures.push(error); }
         if (modeVectorSpool) {
-          if (modePrimaryFailure?.cacheOwnershipPending) {
-            modePrimaryFailure.vectorSpoolPath = modeVectorSpool.directory;
-            modePrimaryFailure.vectorSpool = modeVectorSpool;
-          } else try { await modeVectorSpool.close(); } catch (error) { cleanupFailures.push(error); }
+          let workSettled = true;
+          if (modeFailed) try { observeStorageResource(modePrimaryFailure, { phase: 'stage3-original-failure' }).requireSettled(); }
+          catch (error) {
+            workSettled = false;
+            modePrimaryFailure = addStorageFailureContext(modePrimaryFailure, {
+              vectorSpool: modeVectorSpool, get vectorSpoolPath() { return modeVectorSpool.directory; }
+            }, error, { secondaryPresent: true, nonEnumerable: ['vectorSpool'] });
+          }
+          if (workSettled) try {
+            const result = await modeVectorSpool.close();
+            if (result !== undefined) observeStorageResource(result, { phase: 'stage3-spool-close-result' }).requireSettled();
+          } catch (error) { cleanupFailures.push(error); }
         }
         if (cleanupFailures.length) {
-          if (modePrimaryFailure) {
-            modePrimaryFailure.spoolCleanupErrors = cleanupFailures;
-            if (cleanupFailures.some(error => error.cacheOwnershipPending)) modePrimaryFailure.cacheOwnershipPending = true;
-          } else throw new AggregateError(cleanupFailures, 'Stage3 mode cleanup failed.');
+          let failure = modeFailed ? modePrimaryFailure : cleanupFailures[0];
+          for (const error of modeFailed ? cleanupFailures : cleanupFailures.slice(1)) {
+            failure = addStorageFailureContext(failure, { phase: 'stage3-mode-cleanup' }, error, { secondaryPresent: true });
+          }
+          throw addStorageFailureContext(failure, { spoolCleanupErrors: Object.freeze(cleanupFailures.slice()) }, undefined,
+            { forceAggregate: true });
         }
+        if (modeFailed) throw modePrimaryFailure;
       }
     }
 
