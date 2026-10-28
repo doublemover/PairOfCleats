@@ -5,6 +5,15 @@ Source `a61b11efba3838f42520e9b0b4a4e75cbdddf732`, tree
 `codex/pr557-audit-repairs-20261012`. Windows x64, Node 26.12.1.
 Unpublished; functional/resource/performance qualification remains deferred.
 
+Follow-up source `9d2986b3f2a39cb5f3a2554ae7044b1ae5715b98`, tree
+`33155c37d6ef62059a646bea47f03413c4bf2ce7`, classifies seed admission refusal
+through the existing `ERR_SEMANTIC_OUTPUT_LIMIT` contract. A failed reset restores
+the exact previous persistent roots; invalid producer input keeps its original
+cause. Two additional authored, unexecuted controls cover direct state refusal
+and the actual trace service at its admitted 1024-byte limit. Total authored
+continuation cases are now eleven. Static format/syntax/whitespace checks passed;
+no functional qualification or publication gate ran for this follow-up.
+
 Trace no longer structured-clones accumulated queue/seen arrays on every resume
 and publication. An immutable persistent AVL tree preserves context-sensitive
 visited membership, while a persistent two-list FIFO shares pending refs/contexts

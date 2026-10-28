@@ -6929,9 +6929,10 @@
       "phase": "source-review-and-implementation",
       "status": "source-implemented-qualification-pending",
       "currentDisposition": "qualification_pending",
-      "currentImplementation": "Immutable persistent AVL visited state and FIFO frontier eliminate full history clones, with new-item byte admission, existing partial budget frontiers and service/runner logical-byte retention. Earlier cursor replay remains supported until count/TTL/byte eviction; trace/explain service retirement releases leases and publication remains after original reader cleanup. Nine authored controls; actual correctness/replay/cleanup/multi-service and serial CPU/heap qualification remain.",
+      "currentImplementation": "Immutable persistent AVL visited state and FIFO frontier eliminate full history clones, with new-item byte admission, existing partial budget frontiers and service/runner logical-byte retention. Earlier cursor replay remains supported until count/TTL/byte eviction; trace/explain service retirement releases leases and publication remains after original reader cleanup. Atomic seed refusal uses the existing output-limit contract and preserves prior persistent roots. Eleven authored controls; actual correctness/replay/cleanup/multi-service and serial CPU/heap qualification remain.",
       "unvalidatedSourceHeads": [
-        "a61b11efba3838f42520e9b0b4a4e75cbdddf732"
+        "a61b11efba3838f42520e9b0b4a4e75cbdddf732",
+        "9d2986b3f2a39cb5f3a2554ae7044b1ae5715b98"
       ],
       "unvalidatedReceipts": [
         "docs/archived/trace-state-implementation-2026-10-27.md"
