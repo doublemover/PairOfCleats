@@ -146,6 +146,8 @@ PR #572 metadata was refreshed and read back at checkpoint `c070f3095` (180 loca
 
 - [Native search failure/recovery](tui-search-failure-implementation-2026-10-28.md): closed private projections, separate native outcomes and scope-bound recovery preserve successful diagnostics. JSON missing-index exits now yield to runner cleanup. Actual supervisor/ConPTY controls authored, unexecuted; #1558 remains partial pending discriminating coverage and qualification at 240.
 
+- [Search publication settlement](search-publication-settlement-implementation-2026-10-28.md): returned disposal observations and primary/cleanup failures remain required; ordinary and branch output wait for one settlement. Six actual SQLite controls and generic/output/branch checks authored, unexecuted. Full-suite discovery lists 6,153 cases before the checkpoint-240 freeze.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.

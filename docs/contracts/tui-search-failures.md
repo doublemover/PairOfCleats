@@ -12,6 +12,11 @@ exceptions, inspection failures and cleanup observations remain private and
 authoritative. Unexpected native exit classification is diagnostic information,
 not crash attribution.
 
+The canonical search runner prepares successful output before closing its
+backends and emits it only after request settlement. A cleanup failure keeps the
+request failed; original work and cleanup remain independently observable.
+See the [search publication owner](../archived/search-publication-settlement-implementation-2026-10-28.md).
+
 Search failures and fresh admission rejections carry `error.failure` on the
 existing terminal event. Rejection never replaces an accepted job ID.
 `search:run` methods `status` and `readiness` accept empty records: status observes

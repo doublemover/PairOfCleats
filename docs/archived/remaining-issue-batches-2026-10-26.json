@@ -4926,7 +4926,12 @@
         "1173c6ec774d9b6df11cb078851724ca34a28a6f",
         "03c44b27843fb6096695e3e80849ebc8383449ca",
         "aceea960a5376eddd610e928f0f0dfe5c0b06ea1",
-        "af7586dead04bcaaec726264e9a99e798ab32ffc"
+        "af7586dead04bcaaec726264e9a99e798ab32ffc",
+        "5bc6a13e22bc4d81c7a43b47cab0e4119b3ee876",
+        "d21bf2bbbdb3aeea34ed1a1ae69a8455d3f17bc2",
+        "cff2c40b9be56d6094376d360c739cae0edff453",
+        "032d00a6ed180b140bd0a476803c9e9ae26b7189",
+        "bf0bfffafca79758b0df9422045420b4a7aec276"
       ],
       "unvalidatedReceipts": [
         "storage-space-implementation-2026-10-27.md",
@@ -4963,7 +4968,8 @@
         "sqlite-native-correspondence-implementation-2026-10-28.md",
         "sqlite-boundary-diagnostics-implementation-2026-10-28.md",
         "sqlite-dense-schema-lifetime-implementation-2026-10-28.md",
-        "sqlite-close-results-implementation-2026-10-28.md"
+        "sqlite-close-results-implementation-2026-10-28.md",
+        "search-publication-settlement-implementation-2026-10-28.md"
       ],
       "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
       "sessionObservationFollowup": "Shared session admission now captures successful action and settlement receipt observers, freezes projected receipt fields and retains independent inspection/observer errors through original handles. Eleven authored cases await execution; native-reader observation, remaining adapters/custom backend registration and full qualification remain.",
@@ -5097,7 +5103,8 @@
           "receipt": "sqlite-close-results-implementation-2026-10-28.md",
           "implementation": "Shared SQLite close retains successful native/bookkeeping/settlement results, skips confirmed native calls/completed callbacks on recovery, separates physical and metadata predicates, and observes bookkeeping before namespace release. Actual cache retirement follows full owner settlement and keeps pending ownership discoverable. Seventeen controls including two real SQLite cases and cache integration are authored, unexecuted; adapter forwarding/admission and current-candidate qualification remain."
         }
-      ]
+      ],
+      "currentImplementation": " Canonical search now retains returned disposal observations and original work/cleanup failures, and gates successful ordinary/branch output on one request settlement. New generic and actual SQLite controls are authored, unexecuted; custom-root deletion and remaining lifecycle qualification stay open."
     },
     {
       "number": 1268,
@@ -8003,7 +8010,12 @@
         "417a4479dbd750b61d95e6de555ece174d004c56",
         "1173c6ec774d9b6df11cb078851724ca34a28a6f",
         "aceea960a5376eddd610e928f0f0dfe5c0b06ea1",
-        "af7586dead04bcaaec726264e9a99e798ab32ffc"
+        "af7586dead04bcaaec726264e9a99e798ab32ffc",
+        "5bc6a13e22bc4d81c7a43b47cab0e4119b3ee876",
+        "d21bf2bbbdb3aeea34ed1a1ae69a8455d3f17bc2",
+        "cff2c40b9be56d6094376d360c739cae0edff453",
+        "032d00a6ed180b140bd0a476803c9e9ae26b7189",
+        "bf0bfffafca79758b0df9422045420b4a7aec276"
       ],
       "unvalidatedReceipts": [
         "sqlite-operation-implementation-2026-10-27.md",
@@ -8043,9 +8055,10 @@
         "sqlite-artifact-identity-implementation-2026-10-28.md",
         "sqlite-native-correspondence-implementation-2026-10-28.md",
         "sqlite-dense-schema-lifetime-implementation-2026-10-28.md",
-        "sqlite-close-results-implementation-2026-10-28.md"
+        "sqlite-close-results-implementation-2026-10-28.md",
+        "search-publication-settlement-implementation-2026-10-28.md"
       ],
-      "currentImplementation": "SQLite runner/helpers and Clangd acquisition retain original work through shared storage teardown. Managed Go/Lua/generic discovery propagates pending inspection; retained generation admission protects the first scan and owns file/Dir/metadata recovery. Functional qualification and remaining custom cleanup adoption are not discharged.",
+      "currentImplementation": "SQLite runner/helpers and Clangd acquisition retain original work through shared storage teardown. Managed Go/Lua/generic discovery propagates pending inspection; retained generation admission protects the first scan and owns file/Dir/metadata recovery. Functional qualification and remaining custom cleanup adoption are not discharged. Canonical search now retains returned disposal observations and original work/cleanup failures, and gates successful ordinary/branch output on one request settlement. New generic and actual SQLite controls are authored, unexecuted; custom-root deletion and remaining lifecycle qualification stay open.",
       "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
       "receiptObservationFollowup": "Runtime receipt observations and admitted acknowledgements now compose with lower build-state original descriptor/coordinator ownership, complete sibling failure retention, retired-root refusal and explicit required queue recovery. Twelve receipt and twenty lower-store cases are authored, unexecuted. Actual state/runtime/category qualification and remaining backend/route adoption are not discharged.",
       "sessionObservationFollowup": "Shared session admission now captures successful action and settlement receipt observers, freezes projected receipt fields and retains independent inspection/observer errors through original handles. Eleven authored cases await execution; native-reader observation, remaining adapters/custom backend registration and full qualification remain.",
@@ -10471,7 +10484,7 @@
   "currentCountsBasis": {
     "meaning": "718-open GitHub snapshot freshly refreshed at checkpoint 220 plus recorded local source work; not functional acceptance.",
     "publishedHead": "adbcaf777ce91642bb0a60de892171d8c3a529f7",
-    "sourceHead": "2abf062b44c413406ba8cff17fc09033e89c8f99",
-    "receipt": "tui-search-failure-implementation-2026-10-28.md"
+    "sourceHead": "bf0bfffafca79758b0df9422045420b4a7aec276",
+    "receipt": "search-publication-settlement-implementation-2026-10-28.md"
   }
 }
