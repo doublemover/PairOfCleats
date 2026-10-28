@@ -40,7 +40,7 @@ invocation produces required-computation failure and no cache publication. Origi
 pending ownership remains independently required. Existing TypeScript and native
 execution authority is unchanged; this hook cannot grant repository trust.
 
-LSP semantic producer version 61 invalidates prior derived replay after this
+LSP semantic producer version 62 invalidates prior derived replay after this
 provenance change. Built-in Clangd and other adapters lacking the hook currently
 use the unqualified live path even when a host supplies a complete observation.
 The invocation framework is not a claim that every built-in launch is integrated.

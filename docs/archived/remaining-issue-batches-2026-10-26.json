@@ -1176,8 +1176,21 @@
       "priority": "unranked",
       "batch": "performance-and-evaluation",
       "phase": "source-review-and-implementation",
-      "status": "queued",
-      "currentDisposition": "implementation_needed"
+      "status": "source-partially-implemented-qualification-pending",
+      "currentDisposition": "partial_or_followup",
+      "currentImplementation": "Existing serial Lua request/cutoff and same-process quarantine remain. The actual shared request guard now blocks retries, later dispatch, ordinary breaker admission and LSP fallback while original resource observations are pending; cancellation is not retried. Independent diagnostic/logging failures and concurrent originals remain captured within a bounded observation inventory. Sixteen controls authored and unexecuted; durable workspace/method health remains.",
+      "remainingWork": [
+        "Implement shared durable provider/workspace/method health with observed runtime, workspace/source/config and policy fingerprints; do not reuse output/request caches as fresh health.",
+        "Admit persisted health before method dispatch, distinguish timeout/transport/malformed classes, retain healthy-method/root independence, finite cooldowns and one controlled recovery probe.",
+        "Author and execute two separate fixture processes using the same owned cache; qualify identity changes, cooldown/recovery, avoided-request diagnostics, existing Lua partial/quarantine controls and serial meaningful benchmark acceptance."
+      ],
+      "unvalidatedSourceHeads": [
+        "59b66d5661176e793d75261039cd4d4c6b6ed069",
+        "37248f67645c8e26fce855e2cbb4cd99cabca525"
+      ],
+      "unvalidatedReceipts": [
+        "tooling-guard-lifetime-implementation-2026-10-28.md"
+      ]
     },
     {
       "number": 320,
@@ -4789,7 +4802,9 @@
         "cdc6ab2c44b37a2b87c39b23b9ae49cfc19b4049",
         "bf602f71a2b9b202bddbb0380404272b9f7a0c78",
         "4e723e3f88cd0bdf4999ea79bbbfd004c9e7c915",
-        "9995cd60e65dc6087b4a0910e6beeeeba0b3796a"
+        "9995cd60e65dc6087b4a0910e6beeeeba0b3796a",
+        "59b66d5661176e793d75261039cd4d4c6b6ed069",
+        "37248f67645c8e26fce855e2cbb4cd99cabca525"
       ],
       "unvalidatedReceipts": [
         "storage-space-implementation-2026-10-27.md",
@@ -4814,7 +4829,8 @@
         "initial-state-publication-implementation-2026-10-28.md",
         "cleanup-original-results-implementation-2026-10-28.md",
         "handoff-drain-ownership-implementation-2026-10-28.md",
-        "exact-checksum-observation-implementation-2026-10-28.md"
+        "exact-checksum-observation-implementation-2026-10-28.md",
+        "tooling-guard-lifetime-implementation-2026-10-28.md"
       ],
       "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
       "sessionObservationFollowup": "Shared session admission now captures successful action and settlement receipt observers, freezes projected receipt fields and retains independent inspection/observer errors through original handles. Eleven authored cases await execution; native-reader observation, remaining adapters/custom backend registration and full qualification remain.",
@@ -10038,8 +10054,8 @@
   "currentCounts": {
     "open": 718,
     "qualificationPending": 481,
-    "partialFollowup": 144,
-    "implementationStatusUnresolved": 93
+    "partialFollowup": 145,
+    "implementationStatusUnresolved": 92
   },
   "reconciledAt": "2026-10-28T10:45:26.168Z",
   "completedSourceBatch": [
@@ -10135,12 +10151,23 @@
         "implementationStatusUnresolved": 93
       },
       "meaning": "Prior source classification; settled benchmark retention and capacity move #1663 to pending qualification."
+    },
+    {
+      "reconciledAt": "2026-10-28T14:07:11.892Z",
+      "sourceHead": "37248f67645c8e26fce855e2cbb4cd99cabca525",
+      "counts": {
+        "open": 718,
+        "qualificationPending": 481,
+        "partialFollowup": 144,
+        "implementationStatusUnresolved": 93
+      },
+      "meaning": "Prior source classification; shared Lua/tooling request guard now has partial original-resource and cancellation admission, while durable health remains implementation work."
     }
   ],
   "currentCountsBasis": {
-    "meaning": "Complete 718-open GitHub snapshot plus recorded local source implementation; not functional acceptance.",
+    "meaning": "718-open GitHub snapshot plus recorded local source work; not functional acceptance.",
     "publishedHead": "adbcaf777ce91642bb0a60de892171d8c3a529f7",
-    "sourceHead": "a073483b9668e58e5c52f9bc62d917814ca0c6e3",
-    "receipt": "benchmark-evidence-retention-implementation-2026-10-28.md"
+    "sourceHead": "37248f67645c8e26fce855e2cbb4cd99cabca525",
+    "receipt": "tooling-guard-lifetime-implementation-2026-10-28.md"
   }
 }

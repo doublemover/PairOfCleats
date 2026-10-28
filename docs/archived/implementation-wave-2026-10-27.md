@@ -108,6 +108,8 @@ PR #572 metadata was refreshed and read back at checkpoint `c070f3095` (180 loca
 
 - [Provider declaration observation](provider-profile-declaration-implementation-2026-10-28.md): immutable bounded declarations precede I/O; negative/executable resolution retains original resource prerequisites before diagnostics. Nine controls authored, unexecuted; built-in binding remains.
 
+- [Tooling request guard lifetime](tooling-guard-lifetime-implementation-2026-10-28.md): original pending work blocks retry and actual LSP degraded fallback; cancellation is immediate, independent diagnostics/concurrent originals stay captured. Sixteen controls authored, unexecuted. #292 is partial; durable workspace/method health remains. Latest counts: **481 pending / 145 partial / 92 unresolved**.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.
