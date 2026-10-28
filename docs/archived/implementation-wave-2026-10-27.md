@@ -94,6 +94,8 @@ PR #572 metadata was refreshed and read back at checkpoint `1ce60bb59` (160 loca
 
 - [Local handoff drain admission](handoff-drain-ownership-implementation-2026-10-28.md): a scoped resource fence precedes drain dispatch; original observations gate matching receipts, token admission and explicit reader recovery. Thirteen controls authored, unexecuted.
 
+- [Bakeoff worker lifetime](bakeoff-worker-lifetime-implementation-2026-10-28.md): original worker observations survive accepted-write drain and actual checkpoint unlock; eight controls authored, unexecuted. Settled evidence retirement/reference protection and capacity admission remain source work.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.

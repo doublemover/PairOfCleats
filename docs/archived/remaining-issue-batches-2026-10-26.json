@@ -8829,7 +8829,19 @@
       "batch": "performance-and-evaluation",
       "phase": "source-review-and-implementation",
       "status": "queued",
-      "currentDisposition": "partial_or_followup"
+      "currentDisposition": "partial_or_followup",
+      "currentImplementation": "Existing immutable A/B/bakeoff run-owned paths and atomic checkpoint ownership remain. The actual bakeoff wrapper now retains original successful worker observations through accepted-write drain and checkpoint release, preserving independent failures and explicit metadata recovery. Eight additional controls are authored and unexecuted; evidence retention/reference/capacity implementation remains.",
+      "remainingWork": [
+        "Implement settled-run evidence retirement with explicit saved/export/resume reference protection and bounded capacity admission. Unknown or still-referenced evidence must remain protected.",
+        "Qualify immutable paths, checkpoint interruption/concurrency, capacity and retained-reference behavior through actual owners.",
+        "Execute original/follow-up functional qualification and measured checks serially on the resulting candidate."
+      ],
+      "unvalidatedSourceHeads": [
+        "ff403a9273fac40d955c43e77ff830198744831a"
+      ],
+      "unvalidatedReceipts": [
+        "bakeoff-worker-lifetime-implementation-2026-10-28.md"
+      ]
     },
     {
       "number": 1664,
