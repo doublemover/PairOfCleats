@@ -1,13 +1,16 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import os from 'node:os';
 import { TextDecoder } from 'node:util';
 import { withFileLock } from '../../../src/shared/locks/file-lock.js';
-import { atomicWriteJson, atomicWriteText } from '../../../src/shared/io/atomic-write.js';
+import { atomicWriteText } from '../../../src/shared/io/atomic-write.js';
 import { assertNoSymlinkPath, readVerifiedContainedFile } from '../../../src/shared/contained-file.js';
 import { observeStorageResource } from '../../../src/shared/storage/failure-observation.js';
 import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
 import { stableStringify } from '../../../src/shared/stable-json.js';
+import { createBenchmarkEvidenceRun } from '../evidence-store.js';
+import { BENCH_EVIDENCE_RECORD_BYTES } from '../evidence-contract.js';
 
 export const BAKEOFF_CHECKPOINT_VERSION = 1;
 export const BAKEOFF_CHECKPOINT_MAX_BYTES = 32 * 1024 * 1024;
@@ -57,63 +60,67 @@ export const withBakeoffCheckpoint = async ({ root, checkpointPath, settings, si
   assertNoSymlinkPath(root, path.resolve(receiptRoot), { allowMissing: true });
   await fs.mkdir(path.dirname(checkpointPath), { recursive: true });
   const owned = await withFileLock({ lockPath: checkpointPath + '.writer.lock', waitMs: 0,
-    timeoutBehavior: 'null', signal, metadata: { scope: 'embedding-bakeoff-checkpoint' } }, async () => {
+    timeoutBehavior: 'null', signal, metadata: { scope: 'embedding-bakeoff-checkpoint',
+      hostname: os.hostname(), resourceSettlementVersion: 1 } }, async () => {
     const { buffer, ...existing } = await readExisting(checkpointPath, settingsFingerprint, maxBytes);
-    await fs.mkdir(receiptRoot, { recursive: true });
-    assertNoSymlinkPath(root, path.resolve(receiptRoot));
-    const runDir = await fs.mkdtemp(path.join(receiptRoot, 'run-')), runId = crypto.randomUUID();
+    const evidence = await createBenchmarkEvidenceRun({ root, familyRoot: path.resolve(receiptRoot),
+      family: 'embedding-model-bakeoff', signal, requiredBytes: 4 * maxBytes + BENCH_EVIDENCE_RECORD_BYTES + 65536 });
+    const { runDir, runId } = evidence;
     const finalPath = path.join(runDir, 'final.json');
-    if (buffer) {
-      existing.sourceReceiptPath = path.join(runDir, 'resume-source.json');
-      await atomicWriteText(existing.sourceReceiptPath, buffer, { createOnly: true });
-    }
-    Object.freeze(existing);
-    await atomicWriteJson(path.join(runDir, 'owner.json'), { version: BAKEOFF_CHECKPOINT_VERSION,
-      kind: 'embedding-model-bakeoff', runId, startedAt: new Date().toISOString(), checkpointPath }, { createOnly: true, newline: true });
     let active = true, writing = null, revision = 0, sealed = false, latestPublished = false, primary, failed = false;
+    let result, prerequisite = null;
     const pending = new Set(), writeFailures = [];
     const remember = error => { primary = failed && primary !== error
       ? addStorageFailureContext(primary, {}, error, { secondaryPresent: true }) : failed ? primary : error; failed = true; };
-    const owner = Object.freeze({ runId, runDir, finalPath, existing,
-      isSealed: () => sealed, hasPublished: () => latestPublished,
-      write(payload, { final = false, publishLatest = true } = {}) {
-        if (!active || sealed) return Promise.reject(problem('ERR_BAKEOFF_CHECKPOINT_OWNER_CLOSED', 'This checkpoint invocation no longer admits writes.'));
-        if (writing) return Promise.reject(problem('ERR_BAKEOFF_CHECKPOINT_CONCURRENT_WRITE', 'A checkpoint publication is already pending.'));
-        const operation = (async () => {
-          if (!validPayload(payload) || hash(payload.settings) !== settingsFingerprint) throw problem('ERR_BAKEOFF_CHECKPOINT_IDENTITY', 'Checkpoint payload disagrees with its admitted settings or envelope.');
-          if (final && !['completed', 'failed'].includes(payload.progress?.status) || !final && !publishLatest) {
-            throw problem('ERR_BAKEOFF_CHECKPOINT_TERMINAL', 'Only a terminal report may be sealed without updating the latest checkpoint.');
-          }
-          const value = { ...payload, benchmarkCheckpoint: { version: BAKEOFF_CHECKPOINT_VERSION,
-            kind: 'embedding-model-bakeoff', runId, revision: revision + 1, settingsFingerprint,
-            previousRunId: existing.sourceRunId || null, checkpointPath,
-            resumeSource: existing.sourceReceiptPath ? { path: existing.sourceReceiptPath, sha256: existing.sourceHash.slice(7) } : null,
-            latestPublication: publishLatest ? 'requested' : 'not-requested', finalReceiptPath: final ? finalPath : null } };
-          const text = JSON.stringify(value, null, 2) + '\n';
-          if (Buffer.byteLength(text) > maxBytes) throw problem('ERR_BAKEOFF_CHECKPOINT_TOO_LARGE', 'Checkpoint exceeds its bounded report allowance.');
-          if (final) {
-            await atomicWriteText(finalPath, text, { ...writeOptions, createOnly: true });
-            sealed = true;
-          }
-          try {
-            if (publishLatest) { await atomicWriteText(checkpointPath, text, writeOptions); latestPublished = true; }
-          }
-          catch (error) {
-            if (!sealed) throw error;
-            throw addStorageFailureContext(problem('ERR_BAKEOFF_LATEST_PUBLICATION', `Final receipt is preserved at ${finalPath}; latest checkpoint publication failed.`), {}, error, { secondaryPresent: true });
-          }
-          revision++;
-          return value;
-        })();
-        writing = operation; pending.add(operation);
-        operation.then(() => { writing = null; pending.delete(operation); }, error => {
-          writing = null; pending.delete(operation); writeFailures.push(error);
-        });
-        return operation;
-      }
-    });
-    let result, prerequisite = null;
     try {
+      if (buffer) {
+        existing.sourceReceiptPath = path.join(runDir, 'resume-source.json');
+        await evidence.writeText('resume-source.json', buffer);
+      }
+      Object.freeze(existing);
+      await evidence.writeJson('owner.json', { version: BAKEOFF_CHECKPOINT_VERSION,
+        kind: 'embedding-model-bakeoff', runId, startedAt: new Date().toISOString(), checkpointPath });
+      const owner = Object.freeze({ runId, runDir, finalPath, existing,
+        isSealed: () => sealed, hasPublished: () => latestPublished,
+        write(payload, { final = false, publishLatest = true } = {}) {
+          if (!active || sealed) return Promise.reject(problem('ERR_BAKEOFF_CHECKPOINT_OWNER_CLOSED', 'This checkpoint invocation no longer admits writes.'));
+          if (writing) return Promise.reject(problem('ERR_BAKEOFF_CHECKPOINT_CONCURRENT_WRITE', 'A checkpoint publication is already pending.'));
+          const operation = (async () => {
+            if (!validPayload(payload) || hash(payload.settings) !== settingsFingerprint) throw problem('ERR_BAKEOFF_CHECKPOINT_IDENTITY', 'Checkpoint payload disagrees with its admitted settings or envelope.');
+            if (final && !['completed', 'failed'].includes(payload.progress?.status) || !final && !publishLatest) {
+              throw problem('ERR_BAKEOFF_CHECKPOINT_TERMINAL', 'Only a terminal report may be sealed without updating the latest checkpoint.');
+            }
+            const value = { ...payload, benchmarkCheckpoint: { version: BAKEOFF_CHECKPOINT_VERSION,
+              kind: 'embedding-model-bakeoff', runId, revision: revision + 1, settingsFingerprint,
+              previousRunId: existing.sourceRunId || null, checkpointPath,
+              resumeSource: existing.sourceReceiptPath ? { path: existing.sourceReceiptPath, sha256: existing.sourceHash.slice(7) } : null,
+              latestPublication: publishLatest ? 'requested' : 'not-requested', finalReceiptPath: final ? finalPath : null } };
+            const text = JSON.stringify(value, null, 2) + '\n';
+            if (Buffer.byteLength(text) > maxBytes) throw problem('ERR_BAKEOFF_CHECKPOINT_TOO_LARGE', 'Checkpoint exceeds its bounded report allowance.');
+            // Either publication can issue paths retained outside this directory.
+            // Pin before dispatch, including possibly completed failed writes.
+            evidence.markReferenced();
+            if (final) {
+              await evidence.writeText('final.json', text, writeOptions);
+              sealed = true;
+            }
+            try {
+              if (publishLatest) { await evidence.trackExternal(() => atomicWriteText(checkpointPath, text, writeOptions)); latestPublished = true; }
+            }
+            catch (error) {
+              if (!sealed) throw error;
+              throw addStorageFailureContext(problem('ERR_BAKEOFF_LATEST_PUBLICATION', `Final receipt is preserved at ${finalPath}; latest checkpoint publication failed.`), {}, error, { secondaryPresent: true });
+            }
+            revision++;
+            return value;
+          })();
+          writing = operation; pending.add(operation);
+          operation.then(() => { writing = null; pending.delete(operation); }, error => {
+            writing = null; pending.delete(operation); writeFailures.push(error);
+          });
+          return operation;
+        }
+      });
       result = await worker(owner);
       const original = observeStorageResource(result, { phase: 'bakeoff-checkpoint-worker-result' });
       if (original.hasResourceObservation) prerequisite = original.retain();
@@ -122,6 +129,8 @@ export const withBakeoffCheckpoint = async ({ root, checkpointPath, settings, si
     active = false;
     await Promise.allSettled([...pending]);
     for (const error of writeFailures) remember(error);
+    try { await evidence.finish(prerequisite || (failed ? primary : result), { failed }); }
+    catch (error) { remember(error); }
     if (failed) throw prerequisite ? addStorageFailureContext(primary, {}, prerequisite, { secondaryPresent: true }) : primary;
     // A successful worker can still own resources. Keep its captured original
     // prerequisite through accepted-write drain and actual checkpoint unlock.

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { checksumFileObservation, sha256File, setXxhashBackend } from '../../../src/shared/hash.js';
+import { checksumFileObservation, sha256File, sha256FileObservation, setXxhashBackend } from '../../../src/shared/hash.js';
 import { getContainedFileSession } from '../../../src/shared/contained-file-resource.js';
 import { errorGraphIncludes, errorGraphSome } from '../../helpers/error-graph.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
@@ -12,7 +12,7 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 applyTestEnv();
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('/').at(-1);
 assert.ok(['plain', 'contained', 'high-identity', 'numeric-collision', 'coarse-time', 'digest-change',
-  'digest-cancel', 'exact-stat-failure', 'exact-stat-untyped', 'sha256-noexact', 'frozen'].includes(selected));
+  'digest-cancel', 'exact-stat-failure', 'exact-stat-untyped', 'sha256-noexact', 'sha256-exact', 'frozen'].includes(selected));
 const parent = path.resolve('.tmp/tasks'); await fs.mkdir(parent, { recursive: true });
 const root = await fs.mkdtemp(path.join(parent, 'exact-hash-observation-')), file = path.join(root, 'payload');
 const bytes = Buffer.from('original descriptor payload\n'.repeat(5000)); await fs.writeFile(file, bytes);
@@ -74,6 +74,13 @@ try {
     const value = await sha256File(file);
     assert.equal(value, createHash('sha256').update(bytes).digest('hex'));
     assert.equal(exactStats, 0); assert.equal(numberStats, 2); assert.equal(closes, 1);
+  } else if (selected === 'sha256-exact') {
+    const value = await sha256FileObservation(file, { containedRoot: root });
+    const stat = await fs.stat(file, { bigint: true });
+    assert.equal(value.algo, 'sha256'); assert.equal(value.value, createHash('sha256').update(bytes).digest('hex'));
+    assert.equal(value.bytes, bytes.length); assert.equal(exactStats, 2); assert.equal(closes, 1);
+    assert.deepEqual(value.fileIdentity, { dev: String(stat.dev), ino: String(stat.ino) });
+    assert.ok(Object.isFrozen(value)); assert.ok(Object.isFrozen(value.fileIdentity));
   } else if (['numeric-collision', 'coarse-time', 'exact-stat-untyped'].includes(selected)) {
     if (selected === 'numeric-collision') assert.equal(Number(huge), Number(huge + 1n), 'fixture must actually collide in Number space');
     await assert.rejects(checksumFileObservation(file), error => errorGraphSome(error, value => value?.code === 'ERR_FILE_CHANGED'));

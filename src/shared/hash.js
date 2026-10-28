@@ -81,14 +81,20 @@ export function sha1File(filePath, options = {}) {
   return digestFile(filePath, 'sha1', options);
 }
 
-const digestFile = (filePath, algorithm, options) => withFileHasher(filePath, () => {
+const digestFile = (filePath, algorithm, options, includeObservation = false) => withFileHasher(filePath, () => {
   const hash = crypto.createHash(algorithm), update = hash.update, digest = hash.digest;
   return { update: bytes => update.call(hash, bytes), digest: () => digest.call(hash, 'hex') };
-}, options);
+}, options, includeObservation);
 
 /** Compute SHA256 and settle only after the owned descriptor has closed. */
 export function sha256File(filePath, options = {}) {
   return digestFile(filePath, 'sha256', options);
+}
+
+/** Internal integrity admission: exact descriptor identity, extent and SHA256
+ * are captured together and returned only after the original file closes. */
+export async function sha256FileObservation(filePath, options = {}) {
+  return Object.freeze({ algo: 'sha256', ...await digestFile(filePath, 'sha256', options, true) });
 }
 
 export async function checksumString(input) {

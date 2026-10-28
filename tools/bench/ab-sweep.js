@@ -8,15 +8,16 @@ import { spawnSubprocess } from '../../src/shared/subprocess/runner.js';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { atomicWriteText } from '../../src/shared/io/atomic-write.js';
 import { observeStorageResource } from '../../src/shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 import { resolveBenchRunnerWorkload, attachBenchmarkExperiment, benchmarkFingerprint, BENCH_EXPERIMENT_VERSION, BENCH_REPORT_MAX_BYTES } from './runner-workload.js';
 import { AB_SWEEP_REPORT_VERSION, qualifySweepRuns } from './ab-sweep-admission.js';
-import { createSweepArtifacts, readSweepVariantReport } from './ab-sweep-artifacts.js';
+import { createSweepArtifacts, readSweepVariantReport, AB_SWEEP_MAX_ARTIFACT_BYTES } from './ab-sweep-artifacts.js';
 import { captureSweepSource } from './ab-sweep-source.js';
 
 const ROOT = process.cwd();
 const BENCH_RUNNER = fileURLToPath(new URL('./bench-runner.js', import.meta.url));
 export const AB_SWEEP_MAX_VARIANTS = 256;
-export const AB_SWEEP_MAX_ARTIFACT_BYTES = 512 * 1024 * 1024;
+export { AB_SWEEP_MAX_ARTIFACT_BYTES };
 
 const parseArgs = () => {
   const out = {
@@ -163,7 +164,7 @@ const hasKeys = (value) => value && typeof value === 'object' && Object.keys(val
 
 const runVariant = async ({ argv, variant, runIndex, artifacts, workload, maxReportBytes, signal, root, afterChild }) => {
   const runId = `run-${String(runIndex + 1).padStart(3, '0')}`;
-  const outPath = path.join(artifacts.runDir, `${runId}.json`);
+  const outPath = artifacts.registerReport(`${runId}.json`);
   const variantId = `variant-${String(runIndex + 1).padStart(6, '0')}`;
   const experiment = { version: BENCH_EXPERIMENT_VERSION, experimentId: artifacts.experimentId, variantId,
     workloadFingerprint: workload.fingerprint, maxReportBytes,
@@ -193,12 +194,12 @@ const runVariant = async ({ argv, variant, runIndex, artifacts, workload, maxRep
   const startedAt = Date.now();
   let result, processFailure = null;
   try {
-    result = await spawnSubprocess(process.execPath, args, {
+    result = await artifacts.trackExternal(() => spawnSubprocess(process.execPath, args, {
       cwd: root, env: attachBenchmarkExperiment(env, experiment), signal,
       maxOutputBytes: 32 * 1024, captureStdout: true, captureStderr: true,
       outputMode: 'string', rejectOnNonZeroExit: false, killTree: true,
       detached: process.platform !== 'win32'
-    });
+    }), { reportFailure: false });
   } catch (error) {
     observeStorageResource(error, { phase: 'ab-sweep-child-settlement' }).requireSettled();
     processFailure = typeof error?.code === 'string' ? error.code : 'SUBPROCESS_EXECUTION_FAILED';
@@ -208,6 +209,9 @@ const runVariant = async ({ argv, variant, runIndex, artifacts, workload, maxRep
   // Normal execution has no alternate report source or stdout fallback.
   await afterChild?.({ outPath, experiment });
   const read = readSweepVariantReport(artifacts.runDir, outPath, maxReportBytes);
+  if (read.reportReceipt) artifacts.expectReport(`${runId}.json`, {
+    sha256: read.reportReceipt.sha256.slice(7), bytes: read.reportReceipt.bytes
+  });
   return { runId, variant, experiment, durationMs: Date.now() - startedAt,
     status: Number.isInteger(result.exitCode) ? result.exitCode : null,
     signal: typeof result.signal === 'string' ? result.signal : null, processFailure,
@@ -221,45 +225,52 @@ export const runAbSweep = async ({ argv, root = ROOT, signal, afterChild } = {})
   if (!workload.entries.length) throw new Error('ab-sweep: no scripts selected.');
   const sourceBefore = captureSweepSource(root);
   const artifacts = await createSweepArtifacts(root, { workloadFingerprint: workload.fingerprint,
-    matrixFingerprint: benchmarkFingerprint(matrix) });
-  const runs = [];
-  let retainedBytes = 0, stopped = null;
-  for (const [index, variant] of matrix.entries()) {
-    const remainingBytes = AB_SWEEP_MAX_ARTIFACT_BYTES - retainedBytes;
-    if (signal?.aborted) stopped ||= 'cancelled';
-    if (remainingBytes < 64 * 1024) stopped ||= 'artifact-budget-exhausted';
-    if (stopped) {
-      runs.push({ runId: `run-${String(index + 1).padStart(3, '0')}`, variant, status: null,
-        experiment: { experimentId: artifacts.experimentId, variantId: `variant-${String(index + 1).padStart(6, '0')}` },
-        notRunReason: stopped, reportError: 'not-run', report: null, reportPath: null, reportReceipt: null });
-      continue;
+    matrixFingerprint: benchmarkFingerprint(matrix) }, { signal: signal?.aborted ? null : signal });
+  let result, primary, failed = false;
+  try {
+    const runs = [];
+    let retainedBytes = 0, stopped = null;
+    for (const [index, variant] of matrix.entries()) {
+      const remainingBytes = AB_SWEEP_MAX_ARTIFACT_BYTES - retainedBytes;
+      if (signal?.aborted) stopped ||= 'cancelled';
+      if (remainingBytes < 64 * 1024) stopped ||= 'artifact-budget-exhausted';
+      if (stopped) {
+        runs.push({ runId: `run-${String(index + 1).padStart(3, '0')}`, variant, status: null,
+          experiment: { experimentId: artifacts.experimentId, variantId: `variant-${String(index + 1).padStart(6, '0')}` },
+          notRunReason: stopped, reportError: 'not-run', report: null, reportPath: null, reportReceipt: null });
+        continue;
+      }
+      const run = await runVariant({ argv, variant, runIndex: index, artifacts, workload,
+        maxReportBytes: Math.min(BENCH_REPORT_MAX_BYTES, remainingBytes), signal, root, afterChild });
+      retainedBytes += run.reportReceipt?.bytes || 0;
+      runs.push(run);
+      if (run.signal || signal?.aborted) stopped = 'cancelled';
+      if (run.reportError === 'unreadable-or-oversized-report') stopped = 'report-storage-failure';
     }
-    const run = await runVariant({ argv, variant, runIndex: index, artifacts, workload,
-      maxReportBytes: Math.min(BENCH_REPORT_MAX_BYTES, remainingBytes), signal, root, afterChild });
-    retainedBytes += run.reportReceipt?.bytes || 0;
-    runs.push(run);
-    if (run.signal || signal?.aborted) stopped = 'cancelled';
-    if (run.reportError === 'unreadable-or-oversized-report') stopped = 'report-storage-failure';
-  }
-  const sourceAfter = captureSweepSource(root);
-  const qualification = qualifySweepRuns({ runs, workload, sourceBefore, sourceAfter });
-  const output = {
-    schemaVersion: AB_SWEEP_REPORT_VERSION, generatedAt: new Date().toISOString(),
-    experimentId: artifacts.experimentId, finalReceiptPath: artifacts.finalPath,
-    source: { before: sourceBefore, after: sourceAfter, scope: 'git-boundaries-and-entry-bytes' },
-    workload, objective: qualification.objective, exclusions: qualification.exclusions,
-    coverage: qualification.coverage, outcome: signal?.aborted ? 'cancelled' : qualification.outcome,
-    matrix: { runCount: runs.length, knobs: argv.knobs },
-    artifactBudget: { maxBytes: AB_SWEEP_MAX_ARTIFACT_BYTES, retainedBytes, maxReportBytes: BENCH_REPORT_MAX_BYTES },
-    tuple: { repoRoot: argv.repoRoot ? path.resolve(root, argv.repoRoot) : root, platform: os.platform(), arch: os.arch(),
-      cpuModel: os.cpus()[0]?.model || null, logicalCpus: os.cpus().length, totalMemoryBytes: os.totalmem() },
-    runs: qualification.runs.map(({ report, variant, ...run }) => ({ ...run, config: variant,
-      summary: report?.summary || null, results: report?.results || null })),
-    recommendation: signal?.aborted ? null : qualification.recommendation
-  };
-  await artifacts.finish(output);
-  if (argv.json) await atomicWriteText(path.resolve(root, argv.json), JSON.stringify(output, null, 2) + '\n');
-  return { report: output, exitCode: output.recommendation ? 0 : 1 };
+    const sourceAfter = captureSweepSource(root);
+    const qualification = qualifySweepRuns({ runs, workload, sourceBefore, sourceAfter });
+    const output = {
+      schemaVersion: AB_SWEEP_REPORT_VERSION, generatedAt: new Date().toISOString(),
+      experimentId: artifacts.experimentId, finalReceiptPath: artifacts.finalPath,
+      source: { before: sourceBefore, after: sourceAfter, scope: 'git-boundaries-and-entry-bytes' },
+      workload, objective: qualification.objective, exclusions: qualification.exclusions,
+      coverage: qualification.coverage, outcome: signal?.aborted ? 'cancelled' : qualification.outcome,
+      matrix: { runCount: runs.length, knobs: argv.knobs },
+      artifactBudget: { maxBytes: AB_SWEEP_MAX_ARTIFACT_BYTES, retainedBytes, maxReportBytes: BENCH_REPORT_MAX_BYTES },
+      tuple: { repoRoot: argv.repoRoot ? path.resolve(root, argv.repoRoot) : root, platform: os.platform(), arch: os.arch(),
+        cpuModel: os.cpus()[0]?.model || null, logicalCpus: os.cpus().length, totalMemoryBytes: os.totalmem() },
+      runs: qualification.runs.map(({ report, variant, ...run }) => ({ ...run, config: variant,
+        summary: report?.summary || null, results: report?.results || null })),
+      recommendation: signal?.aborted ? null : qualification.recommendation
+    };
+    await artifacts.finish(output);
+    if (argv.json) await atomicWriteText(path.resolve(root, argv.json), JSON.stringify(output, null, 2) + '\n');
+    result = { report: output, exitCode: output.recommendation ? 0 : 1 };
+  } catch (error) { primary = error; failed = true; }
+  try { await artifacts.close(failed ? primary : result, { failed }); }
+  catch (error) { primary = failed ? addStorageFailureContext(primary, {}, error, { secondaryPresent: true }) : error; failed = true; }
+  if (failed) throw primary;
+  return result;
 };
 
 const main = async () => {

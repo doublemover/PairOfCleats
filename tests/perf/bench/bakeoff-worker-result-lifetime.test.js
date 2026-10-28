@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { setImmediate } from 'node:timers/promises';
 import { withBakeoffCheckpoint } from '../../../tools/bench/embeddings/bakeoff-checkpoint.js';
-import { errorGraphIncludes } from '../../helpers/error-graph.js';
+import { errorGraphIncludes, errorGraphSome } from '../../helpers/error-graph.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
 // UNVALIDATED: actual checkpoint writer, accepted-write drain and published
@@ -28,7 +28,7 @@ const writeOptions = ['after-write', 'secondary-write'].includes(selected) ? { b
   if (selected === 'secondary-write') throw secondary;
 } } : {};
 const options = { root, checkpointPath, receiptRoot: path.join(root, 'receipts'), settings, writeOptions };
-let failure, failed = false;
+let failure, failed = false, evidence;
 try {
   const run = withBakeoffCheckpoint(options, async owner => {
     calls++;
@@ -55,15 +55,19 @@ try {
     assert.equal(admitted, false);
     if (selected === 'replacement') result.cacheOwnershipReleased = () => true;
     const original = failure.fileLockPublicationSession; assert.ok(original);
+    errorGraphSome(failure.workerError || failure, value => { evidence ||= value?.benchmarkEvidenceOwner; return false; });
+    assert.ok(evidence, 'the original benchmark evidence owner remains available for explicit settlement');
     await assert.rejects(original.releaseAfterClose());
     settled = true;
-    if (selected === 'independent-observer') { await assert.rejects(original.releaseAfterClose()); inspectionSettled = true; }
+    if (selected === 'independent-observer') { await assert.rejects(evidence.closeAfterSettlement()); inspectionSettled = true; }
+    await evidence.closeAfterSettlement();
     await original.releaseAfterClose(); assert.equal(failure.cacheOwnershipReleased(), true); assert.equal(calls, 1);
     assert.equal(await withBakeoffCheckpoint({ ...options, writeOptions: {} }, () => 7), 7, 'settled metadata recovery permits a fresh invocation');
     await assert.rejects(fs.stat(lockPath), { code: 'ENOENT' });
   }
 } finally {
   settled = true; inspectionSettled = true; release?.();
+  await evidence?.closeAfterSettlement();
   if (failure?.fileLockPublicationSession) await failure.fileLockPublicationSession.releaseAfterClose();
   await fs.rm(root, { recursive: true, force: true });
 }

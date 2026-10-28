@@ -1,33 +1,44 @@
-import fs from 'node:fs/promises';
 import path from 'node:path';
-import crypto from 'node:crypto';
 import { TextDecoder } from 'node:util';
-import { assertNoSymlinkPath, readVerifiedContainedFileSync } from '../../src/shared/contained-file.js';
-import { atomicWriteJson } from '../../src/shared/io/atomic-write.js';
+import { readVerifiedContainedFileSync } from '../../src/shared/contained-file.js';
 import { observeStorageResource } from '../../src/shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 import { admitBenchmarkObservation } from './runner-observation.js';
+import { BENCH_REPORT_MAX_BYTES } from './runner-workload.js';
+import { BENCH_EVIDENCE_RECORD_BYTES } from './evidence-contract.js';
+import { createBenchmarkEvidenceRun } from './evidence-store.js';
 
 export const AB_SWEEP_ARTIFACT_VERSION = 1;
+export const AB_SWEEP_MAX_ARTIFACT_BYTES = 512 * 1024 * 1024;
 
 /** The shared atomic owner publishes new files exclusively. Invocation paths
  * are never reused; final recommendations retain exact raw-report digests. */
-export const createSweepArtifacts = async (root, context) => {
+export const createSweepArtifacts = async (root, context, { signal } = {}) => {
   const parent = path.join(root, '.testLogs', 'bench-ab-sweep');
-  assertNoSymlinkPath(root, parent, { allowMissing: true });
-  await fs.mkdir(parent, { recursive: true });
-  assertNoSymlinkPath(root, parent);
-  const runDir = await fs.mkdtemp(path.join(parent, 'run-'));
-  const experimentId = crypto.randomUUID(), finalPath = path.join(runDir, 'final.json');
-  const owner = { version: AB_SWEEP_ARTIFACT_VERSION, kind: 'ab-sweep', experimentId,
-    createdAt: new Date().toISOString(), ...context };
-  await atomicWriteJson(path.join(runDir, 'owner.json'), owner, { createOnly: true });
+  const evidence = await createBenchmarkEvidenceRun({ root, familyRoot: parent, family: 'ab-sweep', signal,
+    requiredBytes: AB_SWEEP_MAX_ARTIFACT_BYTES + BENCH_REPORT_MAX_BYTES + BENCH_EVIDENCE_RECORD_BYTES + 65536 });
+  const { runDir, runId: experimentId } = evidence, finalPath = path.join(runDir, 'final.json');
+  try {
+    await evidence.writeJson('owner.json', { ...context, version: AB_SWEEP_ARTIFACT_VERSION, kind: 'ab-sweep',
+      experimentId, createdAt: new Date().toISOString() });
+  } catch (error) {
+    try { await evidence.finish(error, { failed: true }); }
+    catch (secondary) { throw addStorageFailureContext(error, {}, secondary, { secondaryPresent: true }); }
+    throw error;
+  }
   let sealed = false;
-  return Object.freeze({ experimentId, runDir, finalPath, finish: async report => {
-    if (sealed) throw new Error('A/B sweep already has an immutable final receipt.');
-    if (report.experimentId !== experimentId || report.finalReceiptPath !== finalPath) throw new Error('A/B terminal receipt belongs to another invocation.');
-    await atomicWriteJson(finalPath, report, { createOnly: true });
-    sealed = true;
-  } });
+  return Object.freeze({ experimentId, runDir, finalPath, registerReport: evidence.registerFile,
+    trackExternal: evidence.trackExternal, expectReport: evidence.expectFile, close: evidence.finish,
+    finish: async report => {
+      if (sealed) throw new Error('A/B sweep already has an immutable final receipt.');
+      if (report.experimentId !== experimentId || report.finalReceiptPath !== finalPath) throw new Error('A/B terminal receipt belongs to another invocation.');
+      const text = JSON.stringify(report, null, 2) + '\n';
+      if (Buffer.byteLength(text) > BENCH_REPORT_MAX_BYTES) throw new Error('A/B final report exceeds its fixed byte allowance.');
+      evidence.markReferenced();
+      await evidence.writeText('final.json', text);
+      sealed = true;
+      await evidence.finish(report);
+    } });
 };
 
 const tail = (value, limit) => typeof value === 'string' ? value.slice(-limit) : null;
