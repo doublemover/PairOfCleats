@@ -4288,16 +4288,19 @@
       "unvalidatedSourceHeads": [
         "d316a37ba9cace19e0fdd71f25c983a0cf9c856f",
         "99d84d2c534c92b4cefd022353dee366c49bccaf",
-        "cd2583658aa29fba7c137f9d0b3d967abbb290c0"
+        "cd2583658aa29fba7c137f9d0b3d967abbb290c0",
+        "4bdecbafad29592278b34d5715a2c992a49634e3"
       ],
       "unvalidatedReceipts": [
         "storage-space-implementation-2026-10-27.md",
         "storage-session-observation-implementation-2026-10-27.md",
-        "native-reader-observation-implementation-2026-10-27.md"
+        "native-reader-observation-implementation-2026-10-27.md",
+        "vfs-storage-implementation-2026-10-28.md"
       ],
       "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
       "sessionObservationFollowup": "Shared session admission now captures successful action and settlement receipt observers, freezes projected receipt fields and retains independent inspection/observer errors through original handles. Eleven authored cases await execution; native-reader observation, remaining adapters/custom backend registration and full qualification remain.",
-      "nativeObservationFollowup": "Canonical native-reader admission now retains the first failed-open callback plus independent observer/physical-close failures through the existing composer and actual session. Five authored cases await execution; actual native/current-candidate qualification and custom/backend/category adoption remain."
+      "nativeObservationFollowup": "Canonical native-reader admission now retains the first failed-open callback plus independent observer/physical-close failures through the existing composer and actual session. Five authored cases await execution; actual native/current-candidate qualification and custom/backend/category adoption remain.",
+      "vfsStorageFollowup": "Runtime-selected canonical VFS roots now join the existing native-reader repository/category owner through semantic/legacy tooling and all five LSP adapters. Client/file observations and actual metadata release precede consumer retirement; failed admission blocks later publication. Seven authored lease controls are unexecuted. Same-origin revision turnover, cross-process writer/custom registration and full qualification remain."
     },
     {
       "number": 1268,
@@ -6892,7 +6895,8 @@
         "5cae80c13f1379da9125cdbabb70e564e182eba5",
         "1aa491181b723d932a9f82c5a8a066cecf5e3af5",
         "99d84d2c534c92b4cefd022353dee366c49bccaf",
-        "cd2583658aa29fba7c137f9d0b3d967abbb290c0"
+        "cd2583658aa29fba7c137f9d0b3d967abbb290c0",
+        "4bdecbafad29592278b34d5715a2c992a49634e3"
       ],
       "unvalidatedReceipts": [
         "sqlite-operation-implementation-2026-10-27.md",
@@ -6902,13 +6906,15 @@
         "runtime-receipt-observation-implementation-2026-10-27.md",
         "build-state-ownership-implementation-2026-10-27.md",
         "storage-session-observation-implementation-2026-10-27.md",
-        "native-reader-observation-implementation-2026-10-27.md"
+        "native-reader-observation-implementation-2026-10-27.md",
+        "vfs-storage-implementation-2026-10-28.md"
       ],
       "currentImplementation": "SQLite runner/helpers and Clangd acquisition retain original work through shared storage teardown. Managed Go/Lua/generic discovery propagates pending inspection; retained generation admission protects the first scan and owns file/Dir/metadata recovery. Functional qualification and remaining custom cleanup adoption are not discharged.",
       "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
       "receiptObservationFollowup": "Runtime receipt observations and admitted acknowledgements now compose with lower build-state original descriptor/coordinator ownership, complete sibling failure retention, retired-root refusal and explicit required queue recovery. Twelve receipt and twenty lower-store cases are authored, unexecuted. Actual state/runtime/category qualification and remaining backend/route adoption are not discharged.",
       "sessionObservationFollowup": "Shared session admission now captures successful action and settlement receipt observers, freezes projected receipt fields and retains independent inspection/observer errors through original handles. Eleven authored cases await execution; native-reader observation, remaining adapters/custom backend registration and full qualification remain.",
-      "nativeObservationFollowup": "Canonical native-reader admission now retains the first failed-open callback plus independent observer/physical-close failures through the existing composer and actual session. Five authored cases await execution; actual native/current-candidate qualification and custom/backend/category adoption remain."
+      "nativeObservationFollowup": "Canonical native-reader admission now retains the first failed-open callback plus independent observer/physical-close failures through the existing composer and actual session. Five authored cases await execution; actual native/current-candidate qualification and custom/backend/category adoption remain.",
+      "vfsStorageFollowup": "Runtime-selected canonical VFS roots now join the existing native-reader repository/category owner through semantic/legacy tooling and all five LSP adapters. Client/file observations and actual metadata release precede consumer retirement; failed admission blocks later publication. Seven authored lease controls are unexecuted. Same-origin revision turnover, cross-process writer/custom registration and full qualification remain."
     },
     {
       "number": 1575,
@@ -7584,12 +7590,15 @@
       "phase": "provider-consumer-lifetime-implemented-storage-adoption-pending",
       "status": "source-partially-implemented",
       "unvalidatedSourceHeads": [
-        "d8e6d540f5b4e1729b00ae91dc354eda3931d51b"
+        "d8e6d540f5b4e1729b00ae91dc354eda3931d51b",
+        "4bdecbafad29592278b34d5715a2c992a49634e3"
       ],
       "unvalidatedReceipts": [
-        "vfs-consumer-implementation-2026-10-28.md"
+        "vfs-consumer-implementation-2026-10-28.md",
+        "vfs-storage-implementation-2026-10-28.md"
       ],
-      "currentImplementation": "Actual pooled/single-use LSP sessions pin original VFS publications through client closure and started file/cache observations. Conflicting replacement stays blocked after collection; identical content is requalified, external mutation is refused, and retirement never repeats writes or confirmed transport shutdown. Eight authored cases are unexecuted. Cross-process/category cleanup and producer registration, remaining adapters and full original/follow-up qualification remain."
+      "currentImplementation": "Actual pooled/single-use LSP sessions pin original VFS publications through client closure and started file/cache observations. Conflicting replacement stays blocked after collection; identical content is requalified, external mutation is refused, and retirement never repeats writes or confirmed transport shutdown. Eight authored cases are unexecuted. Cross-process/category cleanup and producer registration, remaining adapters and full original/follow-up qualification remain.",
+      "vfsStorageFollowup": "Runtime-selected canonical VFS roots now join the existing native-reader repository/category owner through semantic/legacy tooling and all five LSP adapters. Client/file observations and actual metadata release precede consumer retirement; failed admission blocks later publication. Seven authored lease controls are unexecuted. Same-origin revision turnover, cross-process writer/custom registration and full qualification remain."
     },
     {
       "number": 1644,

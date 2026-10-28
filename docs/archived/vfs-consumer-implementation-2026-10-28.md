@@ -46,3 +46,8 @@ registration owners. A consumer pin gives no deletion authority and cannot
 prevent external OS writers from changing a mutable project-relative path.
 #1643 remains partial; actual source/provider/current-candidate qualification
 and #1267/#1574 broader lifetime adoption remain.
+
+Subsequent [canonical storage admission](vfs-storage-implementation-2026-10-28.md)
+addresses the category seam for runtime-selected roots. The preceding remaining
+list records this receipt's original checkpoint; external/cross-process and
+current-candidate qualification limits remain.
