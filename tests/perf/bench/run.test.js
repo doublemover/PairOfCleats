@@ -27,6 +27,8 @@ import { resolveAdaptiveQueryWorkerCount } from './query-runtime.js';
 import { executeBenchQueryPlan } from './query-execution.js';
 import { createBenchProcessTreeSampler } from '../../../tools/bench/language/process-tree-memory.js';
 import { createBenchQueryOutcomeCollector } from '../../../tools/bench/language/query-outcomes.js';
+import { collectBenchmarkArtifactReport } from '../../../tools/bench/language/artifact-report.js';
+import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
 
 const root = process.cwd();
 const originalRawArgs = process.argv.slice(2);
@@ -113,7 +115,6 @@ if (safeRegex.test('a'.repeat(100))) {
 }
 
 const repoArg = argv.repo ? path.resolve(argv.repo) : null;
-const reportPath = path.join(root, 'tools', 'index', 'report-artifacts.js');
 const buildIndexPath = path.join(root, 'build_index.js');
 const indexerServicePath = path.join(root, 'tools', 'service', 'indexer-service.js');
 const queryWorkerPath = path.join(root, 'tests', 'perf', 'bench', 'query-worker.js');
@@ -670,10 +671,14 @@ for (const concurrency of queryConcurrencyList) {
   runs.push(await runQueries(concurrency));
 }
 
-const reportArgs = [reportPath, '--json'];
-if (repoArg) reportArgs.push('--repo', repoArg);
-const reportResult = spawnSync(process.execPath, reportArgs, { encoding: 'utf8', windowsHide: true });
-const artifactReport = reportResult.status === 0 ? JSON.parse(reportResult.stdout || '{}') : {};
+let artifactReport, artifactReportAdmission;
+try {
+  ({ report: artifactReport, receipt: artifactReportAdmission } = collectBenchmarkArtifactReport({ repoRoot: runtimeRoot, env: baseEnv }));
+} catch (error) {
+  try { closeDisplay(); }
+  catch (cleanup) { throw addStorageFailureContext(error, {}, cleanup, { secondaryPresent: true }); }
+  throw error;
+}
 const corruption = artifactReport?.corruption || null;
 const shouldCheckArtifactCorruption = !testingDefaultsEnabled || needsSqlite;
 if (shouldCheckArtifactCorruption && corruption && corruption.ok === false) {
@@ -710,6 +715,7 @@ const output = {
   repo: { root: repoArg || root },
   summary,
   runs: summaries,
+  artifactReportAdmission,
   artifacts: artifactReport
 };
 
