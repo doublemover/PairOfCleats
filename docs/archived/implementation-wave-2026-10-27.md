@@ -120,6 +120,8 @@ PR #572 metadata was refreshed and read back at checkpoint `c070f3095` (180 loca
 
 - [SQLite replacement ownership](sqlite-publication-resource-implementation-2026-10-28.md): original rename/removal/copy settlement gates fallback/recovery; frozen/falsey restore failures preserve both causes. Thirteen real-file/session controls authored, unexecuted; native/platform/custom acceptance remain.
 
+- [SQLite output files](sqlite-output-files-implementation-2026-10-28.md): full/incremental readiness requires measured output size; original work/main-unlink settlement precedes sidecar retirement, preserving frozen/falsey causes. Eighteen controls authored, unexecuted; native/platform/custom acceptance remain.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.

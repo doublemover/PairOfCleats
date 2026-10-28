@@ -153,3 +153,13 @@ and secondary causes, including frozen/falsey values, survive without mutating
 either. Thirteen `storage/sqlite/publication-resource-ownership/*` controls use
 tiny actual files/session owners and remain authored, unexecuted. Existing real
 WAL/SHM/native publication and fallback fixtures retain their assertions.
+
+Both full and incremental SQLite readiness require the actual regular output
+file's measured nonnegative safe size. Failed stat, invalid size and pending
+original observations cannot become a zero-byte report. Measured zero remains
+zero. Failed-stage cleanup admits only its actual absolute attempt path, checks
+original work first, and retires sidecars only after confirmed main removal or
+confirmed benign absence. Pending ENOENT and successful-but-pending unlink
+results retain the stage family and original failure. Falsey mode failures keep
+their exact cause. Eighteen `storage/sqlite/build/output-file-ownership/*` cases,
+including two actual native builds, are authored and unexecuted.
