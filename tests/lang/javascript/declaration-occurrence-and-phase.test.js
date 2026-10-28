@@ -33,6 +33,13 @@ const prepare = async (text, parser) => {
     return { chunk, docmeta, projected, payload };
   });
   const file = buildFileRelations(relations, 'fixture.js');
+  for (const value of values) {
+    const actual = buildChunkRelations({ lang, chunk: value.chunk, fileRelations: file, callIndex: index });
+    assert.deepEqual(actual, value.projected, 'the real compact file projection retains its live occurrence-index source');
+    const copiedIndex = { ...index };
+    const unowned = buildChunkRelations({ lang, chunk: value.chunk, fileRelations: file, callIndex: copiedIndex });
+    assert.deepEqual(unowned.calls, [], 'copying index fields cannot borrow compacted source evidence');
+  }
   const validation = validateArtifact('file_relations', [{ file: 'fixture.js', relations: file }]);
   assert.equal(validation.ok, true, validation.errors.join('; '));
   return { text, options, context, relations, chunks, index, values, file };

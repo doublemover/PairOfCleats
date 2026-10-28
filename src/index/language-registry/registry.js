@@ -6,6 +6,7 @@ import { isManagedReferenceLanguage, projectManagedReferences } from '../../cont
 import { admitImportExtraction, attachImportExtraction, createImportExtraction, getImportExtraction, projectImportExtraction } from '../../shared/import-extraction.js';
 import { normalizeImportSpecifiers, sanitizeImportSpecifier } from '../shared/import-specifier.js';
 import { LANGUAGE_REGISTRY } from './registry-data.js';
+import { getCallIndexSource } from '../../shared/call-index-source.js';
 import { normalizeCollectorHint } from './import-collectors/utils.js';
 const require = createRequire(import.meta.url);
 const { resolveJavaScriptDeclarationReference } = deferLanguageFunctions(
@@ -192,15 +193,18 @@ export function buildChunkRelations({ lang, chunk, fileRelations, callIndex = nu
         output.callCoverage = 'partial-javascript-declaration-association-unavailable';
         return output;
       }
-      const indexMatchesDetails = callIndex?.callDetailsSource === fileRelations.callDetails && callIndex?.callDetailsLength === fileRelations.callDetails?.length;
-      const indexMatchesCalls = callIndex?.callsSource === fileRelations.calls && callIndex?.callsLength === fileRelations.calls?.length;
+      const original = getCallIndexSource(callIndex);
+      const source = !Object.hasOwn(fileRelations, 'calls') && !Object.hasOwn(fileRelations, 'callDetails')
+        && original?.jsDeclarations === fileRelations.jsDeclarations ? original : fileRelations;
+      const indexMatchesDetails = callIndex?.callDetailsSource === source.callDetails && callIndex?.callDetailsLength === source.callDetails?.length;
+      const indexMatchesCalls = callIndex?.callsSource === source.calls && callIndex?.callsLength === source.calls?.length;
       const record = join.record, owned = indexMatchesDetails && callIndex?.callDetailsByOccurrenceId
         ? callIndex.callDetailsByOccurrenceId.get(record.id) || []
-        : (fileRelations.callDetails || []).filter(detail => detail.callerOccurrenceId === record.id);
+        : (source.callDetails || []).filter(detail => detail.callerOccurrenceId === record.id);
       const retained = owned.filter(detail => detail.callerOccurrenceId === record.id && detail.start >= chunk.start && detail.end <= chunk.end);
       const callees = new Set(retained.filter(detail => detail.role !== 'constructor').map(detail => detail.callee).filter(Boolean));
       const pairs = indexMatchesCalls && callIndex?.callsByCaller
-        ? callIndex.callsByCaller.get(record.id) || [] : (fileRelations.calls || []).filter(([owner]) => owner === record.id);
+        ? callIndex.callsByCaller.get(record.id) || [] : (source.calls || []).filter(([owner]) => owner === record.id);
       const seen = new Set();
       output.calls = pairs.filter(([, callee]) => callees.has(callee) && !seen.has(callee) && seen.add(callee)).map(([, callee]) => [chunk.name, callee]);
       if (retained.length) output.callDetails = retained;

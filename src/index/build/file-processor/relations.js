@@ -1,5 +1,6 @@
 import { createImportExtraction, getImportExtraction, projectImportExtraction } from '../../../shared/import-extraction.js';
 import { admitManagedReferenceFacts } from '../../../contracts/managed-reference-identities.js';
+import { ownCallIndexSource } from '../../../shared/call-index-source.js';
 const normalizeLimit = (value) => {
   if (value == null || value === '' || typeof value === 'boolean'
     || (typeof value === 'string' && !value.trim())) return null;
@@ -112,9 +113,9 @@ export const buildCallIndex = (relations) => {
       }
     }
   }
-  return { callsByCaller, callDetailsByCaller, callDetailsByOccurrenceId, callDetailsWithRange,
+  return ownCallIndexSource({ callsByCaller, callDetailsByCaller, callDetailsByOccurrenceId, callDetailsWithRange,
     callsSource: relations.calls, callsLength: relations.calls?.length || 0,
-    callDetailsSource: relations.callDetails, callDetailsLength: relations.callDetails?.length || 0 };
+    callDetailsSource: relations.callDetails, callDetailsLength: relations.callDetails?.length || 0 }, relations);
 };
 
 export const buildFileRelations = (relations, relKey = null) => {

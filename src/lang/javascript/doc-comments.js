@@ -35,7 +35,7 @@ const parseDocumentation = (raw, range) => {
   const parseComment = loadCommentParser();
   // Keep declared-package/module failures distinct from malformed annotations.
   const parseType = raw.includes('@param') || raw.includes('@arg') || raw.includes('@return') ? loadTypeParser() : null;
-  const result = { ...empty('parsed'), range }, parameters = new Map();
+  const result = { ...empty('parsed'), range: { start: range.start, end: range.end } }, parameters = new Map();
   try {
     const block = parseComment(raw);
     if (block.problems?.length || block.tags.length > LIMITS.tags) throw new Error('malformed-or-over-budget-doc-comment');
