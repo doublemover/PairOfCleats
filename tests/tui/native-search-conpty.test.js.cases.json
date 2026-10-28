@@ -1,4 +1,4 @@
 {
   "schemaVersion": 1,
-  "cases": ["query-source", "pagination", "cancel", "empty-error", "replace", "scope", "navigation", "truncated", "modes", "incompatible", "narrow", "interrupt", "handshake"]
+  "cases": ["query-source", "pagination", "cancel", "empty-error", "replace", "scope", "navigation", "truncated", "modes", "incompatible", "narrow", "interrupt", "handshake", "failed-first", "failed-first-narrow"]
 }

@@ -14,8 +14,10 @@ import { createCompatibilityIndex } from '../helpers/index-compatibility-fixture
 
 assert.equal(process.platform, 'win32', 'This owner requires actual Windows ConPTY; POSIX needs its own PTY owner');
 const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tui/native-search-conpty/')[1];
-assert.ok(['query-source', 'pagination', 'cancel', 'empty-error', 'replace', 'scope', 'navigation', 'truncated', 'modes', 'incompatible', 'narrow', 'interrupt', 'handshake'].includes(mode));
-const columns = mode === 'narrow' ? 60 : 170, terminalRows = mode === 'narrow' ? 18 : 46;
+assert.ok(['query-source', 'pagination', 'cancel', 'empty-error', 'replace', 'scope', 'navigation', 'truncated', 'modes', 'incompatible', 'narrow', 'interrupt', 'handshake', 'failed-first', 'failed-first-narrow'].includes(mode));
+const firstFailure = ['failed-first', 'failed-first-narrow'].includes(mode);
+const columns = mode === 'failed-first-narrow' ? 32 : mode === 'failed-first' ? 80 : mode === 'narrow' ? 60 : 170;
+const terminalRows = firstFailure ? 24 : mode === 'narrow' ? 18 : 46;
 const root = process.cwd(), { dir } = await prepareIsolatedTestCacheDir(`native-search-${mode}`);
 const repo = path.join(dir, 'selected repository');
 const alternate = path.join(dir, 'alternate repository');
@@ -34,7 +36,9 @@ const binarySha256 = createHash('sha256').update(await fs.readFile(binary)).dige
 await fs.writeFile(path.join(dir, 'native-source-identity.json'), JSON.stringify({ binary, binarySha256,
   node: process.version, abi: process.versions.modules, platform: process.platform,
   sources: Object.fromEntries(await Promise.all(['crates/pairofcleats-tui/src/main.rs',
-    'crates/pairofcleats-tui/src/search.rs', 'tools/tui/operator/search.js', 'tools/tui/supervisor.js']
+    'crates/pairofcleats-tui/src/search.rs', 'crates/pairofcleats-tui/src/search_failure.rs',
+    'crates/pairofcleats-tui/src/search_failure_catalog.rs', 'src/contracts/tui-operation-failures.json',
+    'tools/tui/operator/search.js', 'tools/tui/operator/operation-failure.js', 'tools/tui/supervisor/jobs.js', 'tools/tui/supervisor.js']
     .map(async file => [file, createHash('sha256').update(await fs.readFile(path.join(root, file))).digest('hex')])) ) }, null, 2));
 const env = applyTestEnv({ syncProcess: false, cacheRoot: path.join(dir, 'cache'), embeddings: 'stub',
   testConfig: { threads: 1, indexing: { scm: { provider: 'none' }, typeInference: false,
@@ -150,15 +154,32 @@ try {
       const filters = mode === 'pagination' ? { ann: false, lang: 'javascript' }
         : mode === 'truncated' ? { ann: false, type: 'FunctionDeclaration' }
           : ['modes', 'incompatible'].includes(mode) ? { ann: false, file: ['src/answer.js', 'README.md', 'records.json'] } : { ann: false };
+      if (firstFailure) terminal.write(`\x1b[Z\x15${path.join(repo, 'src/answer.js')}\t`);
       terminal.write(`${requestedQuery}\t\x15${['modes', 'incompatible'].includes(mode) ? 'all' : 'code'}\t\x15memory\t\x15${mode === 'pagination' ? 1 : mode === 'truncated' ? 100 : 5}\t\t\t\x15${JSON.stringify(filters)}\r`);
-      if (mode === 'incompatible') {
+      if (firstFailure) {
+        let failed;
+        await wait(async () => { failed = (await readEvents()).find(row => row.event === 'job:end' && row.jobId === 'native-search-2'); return failed; }, 'failed first query');
+        assert.equal(failed.status, 'failed'); assert.equal(failed.result, null);
+        assert.equal(failed.error.failure.reason, 'invalid-repository');
+        await rendered('query-failed'); await rendered('invalid-repository');
+        assert.equal(screen().includes('contains no hits'), false);
+        assert.equal((await readEvents()).some(row => row.event === 'job:spawn'), false);
+        const after = await lastJob();
+        terminal.write(`e\t\x15${repo}\t\x15${query}\r`);
+        const recovered = await settled('query', after);
+        assert.equal(recovered.repoPath, await fs.realpath(repo));
+        assert.ok(recovered.hits.some(hit => hit.file === 'src/answer.js'));
+        await rendered('indexed hits');
+      } else if (mode === 'incompatible') {
         let end;
         await wait(async () => {
           end = (await readEvents()).find(row => row.event === 'job:end' && row.jobId === 'native-search-2');
           return end;
         }, 'incompatible index admission failure');
-        assert.equal(end.status, 'failed'); assert.equal(end.error.code, 'SUBPROCESS_FAILED');
-        assert.equal(end.result, null); await rendered('SUBPROCESS_FAILED');
+        assert.equal(end.status, 'failed'); assert.equal(end.error.code, 'INTERNAL');
+        assert.equal(end.error.failure.reason, 'unknown');
+        assert.equal(end.result, null); await rendered('query-failed: unknown');
+        assert.equal(screen().includes('contains no hits'), false);
       } else if (mode === 'modes') {
         const result = await settled('query');
         assert.deepEqual(result.hits.map(hit => hit.mode), ['code', 'prose', 'extracted-prose', 'records']);
@@ -175,7 +196,8 @@ try {
         }, 'actual CLI capture bound');
         assert.equal(end.status, 'failed', JSON.stringify(end));
         assert.equal(end.error.code, 'ERR_TUI_SEARCH_OUTPUT'); assert.equal(end.result, null);
-        await rendered('ERR_TUI_SEARCH_OUTPUT');
+        assert.equal(end.error.failure.reason, 'incomplete-response');
+        await rendered('incomplete-response');
       } else if (['cancel', 'replace', 'scope', 'interrupt'].includes(mode)) {
         let spawn;
         await wait(async () => {
@@ -194,6 +216,10 @@ try {
         }, 'actual cancelled query outcome');
         assert.equal(end.status, 'cancelled', JSON.stringify(end));
         assert.equal(isProcessAlive(spawn.pid), false);
+        if (mode === 'cancel') {
+          assert.equal(end.error.failure.outcome, 'cancelled');
+          await rendered('cancelled'); terminal.write('\x1b');
+        }
         if (!['cancel', 'interrupt'].includes(mode)) {
           const replacement = await settled('query', Number(spawn.jobId.split('-').at(-1)));
           assert.equal(replacement.queryGeneration, 2);
@@ -226,7 +252,8 @@ try {
           return rejected;
         }, 'canonical invalid backend rejection');
         assert.equal(rejected.status, 'failed'); assert.equal(rejected.error.code, 'ERR_TUI_SEARCH_REQUEST');
-        await rendered('ERR_TUI_SEARCH_REQUEST');
+        assert.equal(rejected.error.failure.reason, 'invalid-request');
+        await rendered('invalid-request');
         const failedAfter = await lastJob();
         terminal.write(`e\x15memory\t\t\t\t\t\t\x15${query}\r`);
         const recovered = await settled('query', failedAfter);
