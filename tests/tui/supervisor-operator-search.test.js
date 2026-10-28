@@ -16,7 +16,7 @@ await fs.mkdir(path.join(repo, 'src'), { recursive: true });
 applyTestEnv({ cacheRoot: path.join(dir, 'cache'), embeddings: 'off', syncProcess: true,
   extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: selected === 'launch-authority' ? path.join(dir, 'missing-trusted.json') : null,
     PAIROFCLEATS_TRUSTED_REPOS: JSON.stringify(selected === 'navigation-untrusted' ? [] : [repo]) } });
-const index = await createCompatibilityIndex(repo, { compatibilityKey: 'native-operator-search', profileId: 'default' });
+const index = await createCompatibilityIndex(repo, { compatibilityKey: 'native-operator-search', profileId: 'default', published: true });
 const body = 'export function alpha() { return 42; }\n';
 const rows = Array.from({ length: 3 }, (_, id) => ({ id, file: `src/item${id}.js`,
   kind: 'FunctionDeclaration', name: `alpha${id}`, tokens: ['alpha'],

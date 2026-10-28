@@ -7,7 +7,7 @@ import { getTuiEnvConfig } from '../../../src/shared/env/tui.js';
 const root = process.cwd(), dir = getTuiEnvConfig().eventLogDir;
 const record = row => fs.appendFileSync(path.join(dir, 'pids.jsonl'), JSON.stringify(row) + '\n');
 const supervisor = spawn(process.execPath, [path.join(root, 'tools/tui/supervisor.js')],
-  { stdio: ['pipe', 'pipe', 'inherit'] });
+  { stdio: ['pipe', 'pipe', 'inherit'], windowsHide: true });
 record({ proxy: process.pid, supervisor: supervisor.pid });
 readline.createInterface({ input: supervisor.stdout }).on('line', line => {
   process.stdout.write(line + '\n');
