@@ -5,6 +5,7 @@ import { createSupervisorSession } from '../helpers/supervisor-session.js';
 import { createCompatibilityIndex } from '../helpers/index-compatibility-fixture.js';
 import { prepareIsolatedTestCacheDir } from '../helpers/test-cache.js';
 import { applyTestEnv } from '../helpers/test-env.js';
+import { spawnSubprocess } from '../../src/shared/subprocess/runner.js';
 
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('tui/supervisor-search-failure-contract/')[1];
 const reasons = { 'invalid-repository': 'invalid-repository', 'invalid-request': 'invalid-request',
@@ -14,7 +15,14 @@ const { dir } = await prepareIsolatedTestCacheDir(`search-failure-contract-${sel
 const repo = path.join(dir, 'repository'); await fs.mkdir(repo);
 const cacheRoot = path.join(dir, 'cache');
 applyTestEnv({ cacheRoot, syncProcess: true, embeddings: 'off',
-  extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null, GIT_CEILING_DIRECTORIES: dir } });
+  extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null } });
+if (selected === 'missing-capability') {
+  // An unborn fixture checkout has no verifiable HEAD. The production owner
+  // deliberately strips ambient GIT_* overrides, so a ceiling is not authority.
+  await spawnSubprocess('git', ['init', '--quiet', repo], { cwd: dir,
+    env: Object.fromEntries(Object.entries(process.env).filter(([key]) => !/^GIT_/i.test(key))),
+    stdio: 'pipe', timeoutMs: 3000, maxOutputBytes: 4096, rejectOnNonZeroExit: true });
+}
 const index = await createCompatibilityIndex(repo, { compatibilityKey: 'safe-search-failures', profileId: 'default',
   published: true, userConfig: { cache: { root: cacheRoot } } });
 if (selected === 'missing-index') await fs.unlink(path.join(index, 'chunk_meta.json'));
