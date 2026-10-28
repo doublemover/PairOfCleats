@@ -26,6 +26,7 @@ import { collectEmbeddingReplayState, repairEmbeddingReplayState } from '../../.
 import { getRepoCacheRoot, loadUserConfig } from '../../../tools/shared/dict-utils.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 import { createBaseIndex } from '../../indexing/validate/helpers.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'services-soak-operational-recovery');
@@ -184,7 +185,8 @@ const runEmbeddingRecoverySoak = async () => {
     await fs.mkdir(path.join(indexDir, 'pieces'), { recursive: true });
     await fs.mkdir(backendStageDir, { recursive: true });
     await fs.writeFile(path.join(indexDir, 'dense_vectors_uint8.bin'), `vector-${cycle}`);
-    await fs.writeFile(path.join(indexDir, 'pieces', 'manifest.json'), JSON.stringify({ cycle }, null, 2));
+    await fs.writeFile(path.join(indexDir, 'pieces', 'manifest.json'), JSON.stringify({ version: 2,
+      artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, extensions: { fixtureCycle: cycle }, pieces: [] }, null, 2));
     await writeJson(buildStatePath, {
       stage: 'stage3',
       updatedAt: new Date().toISOString(),
@@ -226,6 +228,7 @@ const runEmbeddingRecoverySoak = async () => {
 
     const repair = await repairEmbeddingReplayState(job);
     assert.equal(repair.repaired, true, `expected embeddings repair to take action for cycle ${cycle}`);
+    assert.equal(repair.after.backendStage.exists, true, 'legacy stage contents remain outside current writer ownership');
     metrics.repairedRuns += 1;
 
     const secondRepair = await repairEmbeddingReplayState(job);

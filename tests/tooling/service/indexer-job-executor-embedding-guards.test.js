@@ -4,6 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createJobExecutor } from '../../../tools/service/indexer-service/job-executor.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-job-executor-'));
 const buildRoot = path.join(tempRoot, 'build');
@@ -62,7 +63,8 @@ await fs.writeFile(path.join(indexDir, 'index_state.json'), JSON.stringify({
   }
 }, null, 2));
 await fs.writeFile(path.join(indexDir, 'dense_vectors_uint8.bin'), 'artifact');
-await fs.writeFile(path.join(indexDir, 'pieces', 'manifest.json'), JSON.stringify({ ok: true }, null, 2));
+await fs.writeFile(path.join(indexDir, 'pieces', 'manifest.json'), JSON.stringify({ version: 2,
+  artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, pieces: [] }, null, 2));
 
 const replayExecutor = createJobExecutor({
   ...baseExecutorInput,
@@ -88,8 +90,19 @@ const validResult = await replayExecutor.executeClaimedJob({
 assert.equal(validResult.handled, false, 'expected runnable embeddings job to fall through to subprocess execution');
 assert.equal(validResult.runResult?.exitCode, 0);
 assert.equal(validResult.runResult?.replay?.repair?.repaired, true, 'expected executor to surface replay repair metadata');
-assert.equal(validResult.runResult?.replay?.current?.backendStage?.exists, false, 'expected stale backend stage to be repaired before execution');
+assert.equal(validResult.runResult?.replay?.current?.backendStage?.exists, true, 'executor must retain an unowned legacy stage');
+assert.ok(validResult.runResult.replay.repair.actions.some(entry => entry.type === 'retain-unowned-backend-stage-dir'));
 assert.equal(validResult.runResult?.replay?.current?.embeddings?.pending, false, 'expected repaired replay state to clear stale pending bit');
+
+const outside = path.join(tempRoot, 'unrelated-index'); await fs.mkdir(outside);
+await fs.writeFile(path.join(outside, 'sentinel'), 'retain external data');
+const rejected = await replayExecutor.executeClaimedJob({ job: { id: 'outside-job', repo: tempRoot,
+  buildRoot, indexDir: outside, mode: 'code' }, jobLifecycle: {
+  registerPromise() { assert.fail('an invalid indexDir cannot dispatch a child'); }
+}, logPath: null });
+assert.equal(rejected.handled, true);
+assert.equal(nonRetriableCalls.at(-1).error, 'embedding indexDir must be inside buildRoot');
+assert.equal(await fs.readFile(path.join(outside, 'sentinel'), 'utf8'), 'retain external data');
 
 await fs.rm(tempRoot, { recursive: true, force: true });
 

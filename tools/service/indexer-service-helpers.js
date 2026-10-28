@@ -101,6 +101,8 @@ export const resolveEmbeddingBackendStageDir = (job, mode = null) => {
   const normalized = normalizeEmbeddingJob(job);
   const modeName = String(mode || job?.mode || '').trim();
   if (!modeName) return null;
+  if (!['code', 'prose', 'extracted-prose', 'records'].includes(modeName)) throw Object.assign(
+    new Error('Embedding replay requires a canonical index mode.'), { code: 'ERR_EMBEDDING_REPLAY_MODE' });
   const base = normalized.buildRoot || normalized.indexDir || null;
   if (!base) return null;
   return path.join(base, '.embeddings-backend-staging', `index-${modeName}`);

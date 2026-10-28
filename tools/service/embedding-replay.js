@@ -5,7 +5,11 @@ import {
   readServiceBuildStateSnapshot,
   resolveEmbeddingBackendStageDir
 } from './indexer-service-helpers.js';
-import { loadIndexState, writeIndexState } from '../build/embeddings/state.js';
+import { loadIndexState } from '../build/embeddings/state.js';
+import { publishIndexStateMutation } from '../../src/shared/index-state-publication.js';
+import { observeStorageResource } from '../../src/shared/storage/failure-observation.js';
+import { assertNoSymlinkPath } from '../../src/shared/contained-file.js';
+import { stableStringify } from '../../src/shared/stable-json.js';
 
 const REPLAY_CONTRACT_VERSION = 1;
 const EMBEDDING_ARTIFACT_PATHS = [
@@ -29,7 +33,8 @@ const readJson = async (filePath, fallback = null) => {
   try {
     const raw = await fs.readFile(filePath, 'utf8');
     return JSON.parse(raw);
-  } catch {
+  } catch (error) {
+    observeStorageResource(error, { phase: 'embedding-replay-diagnostic-json' }).requireSettled();
     return fallback;
   }
 };
@@ -38,8 +43,10 @@ const pathExists = async (targetPath) => {
   try {
     await fs.stat(targetPath);
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    observeStorageResource(error, { phase: 'embedding-replay-path-probe' }).requireSettled();
+    if (error?.code === 'ENOENT') return false;
+    throw error;
   }
 };
 
@@ -89,10 +96,10 @@ const summarizeArtifacts = async (indexDir) => {
   };
 };
 
-export async function collectEmbeddingReplayState(job = {}) {
+const collectReplayState = async (job, suppliedState) => {
   const normalized = normalizeEmbeddingJob(job);
   const statePath = normalized.indexDir ? path.join(normalized.indexDir, 'index_state.json') : null;
-  const indexState = statePath ? loadIndexState(statePath) : {};
+  const indexState = suppliedState ?? (statePath ? loadIndexState(statePath) : {});
   const backendStageDir = resolveEmbeddingBackendStageDir(normalized, job?.mode || null);
   const backendStageExists = backendStageDir ? await pathExists(backendStageDir) : false;
   const artifacts = await summarizeArtifacts(normalized.indexDir);
@@ -128,48 +135,59 @@ export async function collectEmbeddingReplayState(job = {}) {
       exists: backendStageExists
     },
     artifacts,
-    partialDurableState: pending || backendStageExists || (artifacts.presentCount > 0 && !ready)
+    partialDurableState: pending || (artifacts.presentCount > 0 && !ready)
   };
-}
+};
+
+export const collectEmbeddingReplayState = (job = {}) => collectReplayState(job);
+
+const replayWitness = state => stableStringify(Object.fromEntries([
+  ...['repoId', 'buildId', 'mode', 'artifactSurfaceVersion', 'compatibilityKey', 'cohortKey', 'profile', 'embeddings']
+    .map(key => [key, state[key]]), ['runtimeAttemptId', state.extensions?.runtimeAttemptId]
+]));
 
 export async function repairEmbeddingReplayState(job = {}) {
-  const before = await collectEmbeddingReplayState(job);
+  const normalized = normalizeEmbeddingJob(job);
+  if (!normalized.buildRoot || !normalized.indexDir || normalized.indexDirUnderBuildRoot !== true) throw Object.assign(
+    new Error('Embedding replay indexDir must be inside its selected buildRoot.'), { code: 'ERR_EMBEDDING_REPLAY_ROOT' });
+  resolveEmbeddingBackendStageDir(normalized, job?.mode);
+  assertNoSymlinkPath(normalized.buildRoot, normalized.indexDir);
+  // Capture the actual original state before any asynchronous observations.
+  const statePath = path.join(normalized.indexDir, 'index_state.json'), original = loadIndexState(statePath);
+  const witness = replayWitness(original);
+  const before = await collectReplayState(job, original);
   const actions = [];
+  let repaired = false;
   if (before.backendStage.exists && before.backendStage.path) {
-    await fs.rm(before.backendStage.path, { recursive: true, force: true });
+    // Current writers own compact random .ann- directories, not this legacy
+    // pathname. Its name is no authority to recursively delete unknown data.
     actions.push({
-      type: 'remove-backend-stage-dir',
+      type: 'retain-unowned-backend-stage-dir',
       path: before.backendStage.path
     });
   }
-  if (before.indexStatePath && before.embeddings.pending === true && before.embeddings.ready !== true) {
-    const indexState = loadIndexState(before.indexStatePath);
-    const now = new Date().toISOString();
-    indexState.generatedAt = indexState.generatedAt || now;
-    indexState.updatedAt = now;
-    indexState.embeddings = {
-      ...(indexState.embeddings || {}),
-      pending: false,
-      ready: false,
-      updatedAt: now,
-      replay: {
-        version: REPLAY_CONTRACT_VERSION,
-        lastRecoveredAt: now,
-        repairedBy: 'service-indexer',
-        partialDurableState: before.partialDurableState,
-        actions: actions.map((entry) => entry.type)
-      }
-    };
-    await writeIndexState(before.indexStatePath, indexState);
-    actions.push({
-      type: 'reset-pending-index-state',
-      path: before.indexStatePath
-    });
+  if (before.embeddings.pending === true && before.embeddings.ready !== true) {
+    if (original.extensions?.runtimeAttemptId != null) {
+      // The next real Stage3 invocation claims and initializes its own pending
+      // state. A service diagnostic cannot impersonate the previous attempt.
+      actions.push({ type: 'retain-owned-index-state', path: statePath });
+    } else {
+      await publishIndexStateMutation(normalized.indexDir, current => {
+        if (replayWitness(current) !== witness) throw Object.assign(
+          new Error('Embedding replay conflicts with newer generation or invocation state.'), { code: 'ERR_INDEX_STATE_PUBLICATION_CONFLICT' });
+        const now = new Date().toISOString();
+        current.embeddings = { ...current.embeddings, pending: false, ready: false, updatedAt: now,
+          replay: { version: REPLAY_CONTRACT_VERSION, lastRecoveredAt: now, repairedBy: 'service-indexer',
+            partialDurableState: before.partialDurableState, actions: actions.map(entry => entry.type) } };
+      });
+      repaired = true;
+      actions.push({ type: 'reset-pending-index-state', path: statePath });
+    }
   }
   const after = await collectEmbeddingReplayState(job);
   return {
     version: REPLAY_CONTRACT_VERSION,
-    repaired: actions.length > 0,
+    repaired,
     actions,
     before,
     after

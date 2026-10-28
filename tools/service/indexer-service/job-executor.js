@@ -510,7 +510,8 @@ export const createJobExecutor = ({
       console.error(`[indexer] embedding job ${job.id} uses legacy payload; upgrading for processing.`);
     }
     if (normalized.indexDirUnderBuildRoot === false) {
-      console.error(`[indexer] embedding job ${job.id} indexDir not under buildRoot; continuing with buildRoot only.`);
+      await completeNonRetriableFailure(job, 'embedding indexDir must be inside buildRoot');
+      return { handled: true };
     }
     if (!job.embeddingPlan && (normalized.formatVersion >= 3 || job.observability?.context?.embeddingPlanRequired)) {
       await completeNonRetriableFailure(job, 'missing required embedding execution plan');

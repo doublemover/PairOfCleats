@@ -5,6 +5,7 @@ import path from 'node:path';
 
 import { collectEmbeddingReplayState, repairEmbeddingReplayState } from '../../../tools/service/embedding-replay.js';
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
+import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 
 const root = process.cwd();
 const tempRoot = resolveTestCachePath(root, 'service-indexer-embedding-replay-contract');
@@ -18,9 +19,11 @@ const indexStatePath = path.join(indexDir, 'index_state.json');
 await fs.rm(tempRoot, { recursive: true, force: true });
 await fs.mkdir(path.join(indexDir, 'pieces'), { recursive: true });
 await fs.mkdir(backendStageDir, { recursive: true });
+await fs.writeFile(path.join(backendStageDir, 'unowned-sentinel.txt'), 'preserve unrelated legacy contents');
 
 await fs.writeFile(path.join(indexDir, 'dense_vectors_uint8.bin'), 'vector-bytes');
-await fs.writeFile(path.join(indexDir, 'pieces', 'manifest.json'), JSON.stringify({ ok: true }, null, 2));
+await fs.writeFile(path.join(indexDir, 'pieces', 'manifest.json'), JSON.stringify({ version: 2,
+  artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, pieces: [] }, null, 2));
 await fs.writeFile(buildStatePath, JSON.stringify({
   stage: 'stage3',
   updatedAt: '2026-03-18T00:00:00.000Z',
@@ -74,11 +77,13 @@ assert.equal(indexDirOnlyBefore.backendStage.exists, true);
 
 const repair = await repairEmbeddingReplayState(job);
 assert.equal(repair.repaired, true, 'expected repair to take action');
-assert.equal(repair.actions.some((entry) => entry.type === 'remove-backend-stage-dir'), true);
+assert.equal(repair.actions.some((entry) => entry.type === 'retain-unowned-backend-stage-dir'), true);
+assert.equal(repair.actions.some((entry) => entry.type === 'remove-backend-stage-dir'), false);
 assert.equal(repair.actions.some((entry) => entry.type === 'reset-pending-index-state'), true);
 
 const after = await collectEmbeddingReplayState(job);
-assert.equal(after.backendStage.exists, false, 'expected repair to remove stale backend stage directory');
+assert.equal(after.backendStage.exists, true, 'a legacy pathname cannot authorize deleting unknown files');
+assert.equal(await fs.readFile(path.join(backendStageDir, 'unowned-sentinel.txt'), 'utf8'), 'preserve unrelated legacy contents');
 assert.equal(after.embeddings.pending, false, 'expected repair to clear stale pending bit');
 assert.equal(after.embeddings.ready, false, 'expected repair to keep embeddings unready after interrupted run');
 assert.equal(after.embeddings.replay?.repairedBy, 'service-indexer');
