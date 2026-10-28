@@ -126,6 +126,8 @@ PR #572 metadata was refreshed and read back at checkpoint `c070f3095` (180 loca
 
 - [SQLite artifact identities](sqlite-artifact-identity-implementation-2026-10-28.md): normalized source-stage joins/private streaming witnesses reject equal-count chunk corruption before replacement; fallback targets/cursors/optional stats stay owned. Thirty-one identity controls plus stale-ledger control authored, unexecuted. File/vector/incremental/final correspondence and qualification remain.
 
+- [SQLite native correspondence](sqlite-native-correspondence-implementation-2026-10-28.md): same-transaction bounded joins detect wrong dense/chunk/file/ANN membership while preserving empty file entries and disabled ANN. Sixteen controls authored, unexecuted; original source/hash/vector-value/incremental/final correspondence and qualification remain.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.

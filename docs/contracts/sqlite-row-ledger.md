@@ -33,9 +33,14 @@ staging. Copied JSON, another target/mode and injected probe snapshots cannot
 qualify it. Original cursor methods and independent return failures are retained.
 
 This is **normalized artifact-stage chunk coverage**, not a parser oracle or
-complete generation/file/vector correspondence. File rows remain observed-only;
-source file/hash inventories, bundle/incremental identity joins, dense/ANN
-mapping, post-compaction/final publication correspondence and replay remain.
+complete generation/file/vector correspondence. The same native transaction also
+checks dense-to-chunk mode/ID membership, chunk-to-file membership, exact native
+file chunk counts and admitted ANN-to-dense IDs in both directions. Empty source
+manifest entries remain valid. Disabled ANN is explicitly unadmitted. Each
+relation retains at most 16 bounded samples and truncation, not a corpus Set;
+query failure propagates. Injected snapshots cannot claim this native coverage.
+Source file/hash inventories, bundle/incremental source identity,
+post-compaction/final publication correspondence and replay remain.
 Unadopted routes explicitly report identities unqualified. Bounded streaming
 correspondence, generation-qualified replay and acceptance remain #284 work.
 No whole-corpus identity Set, public option, backend/schema fallback, skipped
@@ -43,6 +48,7 @@ assertion or larger deadline is introduced.
 
 Thirty-three count/capability controls, including a canonical version-2 gate and
 six tiny actual SQLite cases, are authored and unexecuted. Thirty-one identity/
-cursor/actual-build controls are also authored and unexecuted. The original row-ledger fixture retains all its
+cursor/actual-build controls and 16 native correspondence controls are also
+authored and unexecuted. The original row-ledger fixture retains all its
 positive mismatch/classification assertions. Existing full/incremental/bundle/
 mode/native ownership cases require checks against the resulting candidate.
