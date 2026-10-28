@@ -1086,9 +1086,9 @@
       "recordedDisposition": "implementation_needed",
       "priority": "unranked",
       "batch": "storage-publication-and-cleanup",
-      "phase": "source-review-and-implementation",
-      "status": "queued",
-      "currentDisposition": "implementation_needed",
+      "phase": "row-identity-correspondence-and-focused-qualification",
+      "status": "source-partial-unvalidated",
+      "currentDisposition": "partial_or_followup",
       "unvalidatedSourceHeads": [
         "a87beee17374ebfc8d22f415dd455590daf89443",
         "f92c53623fe170b7eeba025bb1c20b86832ff573",
@@ -1099,7 +1099,8 @@
         "9f08e6f0ffe8f9ddfaecd00d1a43dd838d838eb4",
         "f4c8f384345020dce06a764f6446e490be314acf",
         "a3913798cdaf8b8314c69cf43be2e73256a11200",
-        "cdc6ab2c44b37a2b87c39b23b9ae49cfc19b4049"
+        "cdc6ab2c44b37a2b87c39b23b9ae49cfc19b4049",
+        "26aba2371ff227384caa579602fe4899b612b0a1"
       ],
       "unvalidatedReceipts": [
         "native-state-publication-implementation-2026-10-28.md",
@@ -1108,7 +1109,8 @@
         "embedding-state-conflicts-implementation-2026-10-28.md",
         "embedding-manifest-ownership-implementation-2026-10-28.md",
         "embedding-replay-ownership-implementation-2026-10-28.md",
-        "initial-state-publication-implementation-2026-10-28.md"
+        "initial-state-publication-implementation-2026-10-28.md",
+        "sqlite-ledger-counts-implementation-2026-10-28.md"
       ],
       "nativeStatePublicationFollowup": "Required SQLite/LMDB state and shared manifest read/write/checksum failures now propagate instead of acknowledging in-memory ready state after failed publication. Malformed existing state cannot silently become an empty replacement. Optional LMDB metrics suppress only confirmed-settled resource observations. Eleven actual-producer controls are authored and unexecuted; paired/concurrent publication, row/build-mode, custom registration/cleanup and original/follow-up acceptance remain separate.",
       "compactionCountFollowup": "Actual compaction now refuses failed table metadata/query and invalid row counts instead of substituting zero. Required chunks and dense_vectors absence fails; zero needs a successful query. Eight actual native controls are authored, unexecuted, preserving unchanged source/once-only close/metadata recovery plus empty/nonempty dense positives. Existing compaction/row/build-mode and full original acceptance remain.",
@@ -1148,7 +1150,17 @@
           "sourceHead": "cdc6ab2c44b37a2b87c39b23b9ae49cfc19b4049",
           "receipt": "initial-state-publication-implementation-2026-10-28.md",
           "implementation": "Initial state/compact metadata and final manifest use the shared publication owner with a private original-content/path session. Changed native/invocation/generation contents fail rather than being discarded. Captured producer intent, retained original optional/read/hash observations, mutable-state checksum refresh and strict sealed zero/unknown handling have seventeen authored, unexecuted controls. Crash-atomic paired recovery and wider cleanup remain source scope."
+        },
+        {
+          "sourceHead": "26aba2371ff227384caa579602fe4899b612b0a1",
+          "receipt": "sqlite-ledger-counts-implementation-2026-10-28.md",
+          "implementation": "Internal ledger v2 preserves unknown/invalid counts and exact zero dense expectations. Actual full/incremental post-import checks share one required native transaction for chunk/dense/file/ANN counts and explicit ready/disabled/unavailable ANN policy; required query errors propagate after original closure. Thirty-two count/capability controls including six actual-native cases are authored, unexecuted. File/hash/range and chunk/dense/ANN identity correspondence, bounded deltas/replay and original/follow-up qualification remain."
         }
+      ],
+      "remainingWork": [
+        "Bind expected artifact/source generation and file/hash/range/chunk/dense/ANN identities with bounded streaming correspondence and mismatch samples.",
+        "Complete isolated generation-qualified reconciliation/replay and actual partial-update/artifact/bundle corruption differential.",
+        "Execute original and follow-up current-candidate count/capability/native/ownership acceptance; count equality is not identity parity."
       ]
     },
     {
@@ -4813,7 +4825,8 @@
         "2bd50246022173eee5f469b303eeb0ebd3f6c15e",
         "79cb896023555324f9499caec7b43a5a9d90c9b9",
         "244cd6ddd8086c1ffc280c1c225cfa4772592b32",
-        "3f5d80543c2d6255eed86c7dbe6652a60592c410"
+        "3f5d80543c2d6255eed86c7dbe6652a60592c410",
+        "26aba2371ff227384caa579602fe4899b612b0a1"
       ],
       "unvalidatedReceipts": [
         "storage-space-implementation-2026-10-27.md",
@@ -4844,7 +4857,8 @@
         "lmdb-close-result-implementation-2026-10-28.md",
         "lmdb-ready-publication-implementation-2026-10-28.md",
         "sqlite-publication-resource-implementation-2026-10-28.md",
-        "sqlite-output-files-implementation-2026-10-28.md"
+        "sqlite-output-files-implementation-2026-10-28.md",
+        "sqlite-ledger-counts-implementation-2026-10-28.md"
       ],
       "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
       "sessionObservationFollowup": "Shared session admission now captures successful action and settlement receipt observers, freezes projected receipt fields and retains independent inspection/observer errors through original handles. Eleven authored cases await execution; native-reader observation, remaining adapters/custom backend registration and full qualification remain.",
@@ -4947,6 +4961,11 @@
           "sourceHead": "3f5d80543c2d6255eed86c7dbe6652a60592c410",
           "receipt": "sqlite-output-files-implementation-2026-10-28.md",
           "implementation": "Actual full/incremental SQLite readiness requires measured regular-file bytes; unreadable/invalid/pending stats cannot become zero. Failed-stage cleanup checks original work and main-unlink ownership before sidecar admission, retains frozen/falsey causes and preserves unknown evidence. Eighteen controls including two actual native builds are authored, unexecuted. Custom producer/cleanup, remaining backend routes and full native/platform acceptance remain."
+        },
+        {
+          "sourceHead": "26aba2371ff227384caa579602fe4899b612b0a1",
+          "receipt": "sqlite-ledger-counts-implementation-2026-10-28.md",
+          "implementation": "Internal ledger v2 preserves unknown/invalid counts and exact zero dense expectations. Actual full/incremental post-import checks share one required native transaction for chunk/dense/file/ANN counts and explicit ready/disabled/unavailable ANN policy; required query errors propagate after original closure. Thirty-two count/capability controls including six actual-native cases are authored, unexecuted. File/hash/range and chunk/dense/ANN identity correspondence, bounded deltas/replay and original/follow-up qualification remain."
         }
       ]
     },
@@ -7836,7 +7855,8 @@
         "2bd50246022173eee5f469b303eeb0ebd3f6c15e",
         "79cb896023555324f9499caec7b43a5a9d90c9b9",
         "244cd6ddd8086c1ffc280c1c225cfa4772592b32",
-        "3f5d80543c2d6255eed86c7dbe6652a60592c410"
+        "3f5d80543c2d6255eed86c7dbe6652a60592c410",
+        "26aba2371ff227384caa579602fe4899b612b0a1"
       ],
       "unvalidatedReceipts": [
         "sqlite-operation-implementation-2026-10-27.md",
@@ -7871,7 +7891,8 @@
         "lmdb-close-result-implementation-2026-10-28.md",
         "lmdb-ready-publication-implementation-2026-10-28.md",
         "sqlite-publication-resource-implementation-2026-10-28.md",
-        "sqlite-output-files-implementation-2026-10-28.md"
+        "sqlite-output-files-implementation-2026-10-28.md",
+        "sqlite-ledger-counts-implementation-2026-10-28.md"
       ],
       "currentImplementation": "SQLite runner/helpers and Clangd acquisition retain original work through shared storage teardown. Managed Go/Lua/generic discovery propagates pending inspection; retained generation admission protects the first scan and owns file/Dir/metadata recovery. Functional qualification and remaining custom cleanup adoption are not discharged.",
       "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
@@ -7976,6 +7997,11 @@
           "sourceHead": "3f5d80543c2d6255eed86c7dbe6652a60592c410",
           "receipt": "sqlite-output-files-implementation-2026-10-28.md",
           "implementation": "Actual full/incremental SQLite readiness requires measured regular-file bytes; unreadable/invalid/pending stats cannot become zero. Failed-stage cleanup checks original work and main-unlink ownership before sidecar admission, retains frozen/falsey causes and preserves unknown evidence. Eighteen controls including two actual native builds are authored, unexecuted. Custom producer/cleanup, remaining backend routes and full native/platform acceptance remain."
+        },
+        {
+          "sourceHead": "26aba2371ff227384caa579602fe4899b612b0a1",
+          "receipt": "sqlite-ledger-counts-implementation-2026-10-28.md",
+          "implementation": "Internal ledger v2 preserves unknown/invalid counts and exact zero dense expectations. Actual full/incremental post-import checks share one required native transaction for chunk/dense/file/ANN counts and explicit ready/disabled/unavailable ANN policy; required query errors propagate after original closure. Thirty-two count/capability controls including six actual-native cases are authored, unexecuted. File/hash/range and chunk/dense/ANN identity correspondence, bounded deltas/replay and original/follow-up qualification remain."
         }
       ]
     },
@@ -10128,10 +10154,10 @@
   "currentCounts": {
     "open": 718,
     "qualificationPending": 482,
-    "partialFollowup": 144,
-    "implementationStatusUnresolved": 92
+    "partialFollowup": 145,
+    "implementationStatusUnresolved": 91
   },
-  "reconciledAt": "2026-10-28T10:45:26.168Z",
+  "reconciledAt": "2026-10-28T16:01:20.508Z",
   "completedSourceBatch": [
     347,
     586,
@@ -10247,12 +10273,23 @@
         "implementationStatusUnresolved": 92
       },
       "meaning": "Prior source classification; actual shared durable Lua/configured-LSP workspace/method admission now awaits qualification."
+    },
+    {
+      "reconciledAt": "2026-10-28T16:01:20.507Z",
+      "sourceHead": "26aba2371ff227384caa579602fe4899b612b0a1",
+      "counts": {
+        "open": 718,
+        "qualificationPending": 482,
+        "partialFollowup": 144,
+        "implementationStatusUnresolved": 92
+      },
+      "meaning": "Prior source classification; SQLite row-ledger count/capability admission is now partial source implementation; identity correspondence/replay and qualification remain."
     }
   ],
   "currentCountsBasis": {
-    "meaning": "718-open GitHub snapshot plus recorded local source work; not functional acceptance.",
+    "meaning": "718-open GitHub snapshot refreshed at checkpoint 200 plus recorded local source work; not functional acceptance.",
     "publishedHead": "adbcaf777ce91642bb0a60de892171d8c3a529f7",
-    "sourceHead": "3100f10da9c4fcee101c5529434340c3f1e0e3e6",
-    "receipt": "workspace-method-health-implementation-2026-10-28.md"
+    "sourceHead": "26aba2371ff227384caa579602fe4899b612b0a1",
+    "receipt": "sqlite-ledger-counts-implementation-2026-10-28.md"
   }
 }
