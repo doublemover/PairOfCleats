@@ -29,5 +29,8 @@ malformed responses and ordinary partial output keep their existing contracts.
 This is implemented but **functionally unqualified**. The
 [source receipt](../archived/tooling-guard-lifetime-implementation-2026-10-28.md)
 records authored cases. Cross-process workspace/method health, finite cooldown
-and controlled recovery remain separate source work; a process-local breaker is
-not durable health evidence.
+and controlled recovery are implemented by the
+[shared advisory owner](lsp-workspace-method-health.md), pending qualification.
+Original settled method decisions retain failure diagnostics without duplicate
+provider trips; transport corruption and unavailable persistence remain conservative.
+A process-local breaker alone is not durable health evidence.

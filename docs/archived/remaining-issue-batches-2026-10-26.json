@@ -769,8 +769,8 @@
         1747,
         1748
       ],
-      "sourceWork": 58,
-      "qualification": 100,
+      "sourceWork": 57,
+      "qualification": 101,
       "baselineSourceWork": 59,
       "baselineQualification": 100,
       "completed": 1
@@ -1175,21 +1175,25 @@
       "recordedDisposition": "implementation_needed",
       "priority": "unranked",
       "batch": "performance-and-evaluation",
-      "phase": "source-review-and-implementation",
-      "status": "source-partially-implemented-qualification-pending",
-      "currentDisposition": "partial_or_followup",
-      "currentImplementation": "Existing serial Lua request/cutoff and same-process quarantine remain. The actual shared request guard now blocks retries, later dispatch, ordinary breaker admission and LSP fallback while original resource observations are pending; cancellation is not retried. Independent diagnostic/logging failures and concurrent originals remain captured within a bounded observation inventory. Sixteen controls authored and unexecuted; durable workspace/method health remains.",
+      "phase": "qualification-pending",
+      "status": "source-implemented-qualification-pending",
+      "currentDisposition": "qualification_pending",
+      "currentImplementation": "Actual configured LSP collection observes runtime/source/config/policy health, persists bounded per-workspace/method states through existing cache/atomic/file-lock owners, applies finite shared cooldowns before admission, and controls recovery probes. Settled method failure retains diagnostics and healthy-method contribution; transport/protocol corruption retains provider poisoning. Unknown/corrupt/foreign/future health stays conservative. Twenty-nine controls, including fresh-process and actual pooled collector boundaries, are authored and unexecuted.",
       "remainingWork": [
-        "Implement shared durable provider/workspace/method health with observed runtime, workspace/source/config and policy fingerprints; do not reuse output/request caches as fresh health.",
-        "Admit persisted health before method dispatch, distinguish timeout/transport/malformed classes, retain healthy-method/root independence, finite cooldowns and one controlled recovery probe.",
-        "Author and execute two separate fixture processes using the same owned cache; qualify identity changes, cooldown/recovery, avoided-request diagnostics, existing Lua partial/quarantine controls and serial meaningful benchmark acceptance."
+        "Execute the 29 new cases, including fresh-process and actual pooled collector contribution, competing recovery, changed identity, corrupt/foreign/future metadata, negative authority, original ownership and persistence failure.",
+        "Run existing configured-provider-lua-hover-timeout-quarantine, request/cache/adaptive, transport/protocol and native-disposal fixtures with their original positive/negative assertions.",
+        "Qualify current Windows small/medium benchmark reproductions serially; retain per-method actual requests/failures, suppression/withheld allowance, useful partial output and raw latency/resource observations. Confirm default environment/context reuse without silently normalizing invocation-dependent provenance.",
+        "Pass resulting-candidate acceptance and required publication gate; bootstrap activation alone is not runtime qualification."
       ],
       "unvalidatedSourceHeads": [
         "59b66d5661176e793d75261039cd4d4c6b6ed069",
-        "37248f67645c8e26fce855e2cbb4cd99cabca525"
+        "37248f67645c8e26fce855e2cbb4cd99cabca525",
+        "1cddb7e1fcb9e3b2522ff02b040350c8b1363f6b",
+        "3100f10da9c4fcee101c5529434340c3f1e0e3e6"
       ],
       "unvalidatedReceipts": [
-        "tooling-guard-lifetime-implementation-2026-10-28.md"
+        "tooling-guard-lifetime-implementation-2026-10-28.md",
+        "workspace-method-health-implementation-2026-10-28.md"
       ]
     },
     {
@@ -10053,8 +10057,8 @@
   ],
   "currentCounts": {
     "open": 718,
-    "qualificationPending": 481,
-    "partialFollowup": 145,
+    "qualificationPending": 482,
+    "partialFollowup": 144,
     "implementationStatusUnresolved": 92
   },
   "reconciledAt": "2026-10-28T10:45:26.168Z",
@@ -10162,12 +10166,23 @@
         "implementationStatusUnresolved": 93
       },
       "meaning": "Prior source classification; shared Lua/tooling request guard now has partial original-resource and cancellation admission, while durable health remains implementation work."
+    },
+    {
+      "reconciledAt": "2026-10-28T14:57:15.058Z",
+      "sourceHead": "3100f10da9c4fcee101c5529434340c3f1e0e3e6",
+      "counts": {
+        "open": 718,
+        "qualificationPending": 481,
+        "partialFollowup": 145,
+        "implementationStatusUnresolved": 92
+      },
+      "meaning": "Prior source classification; actual shared durable Lua/configured-LSP workspace/method admission now awaits qualification."
     }
   ],
   "currentCountsBasis": {
     "meaning": "718-open GitHub snapshot plus recorded local source work; not functional acceptance.",
     "publishedHead": "adbcaf777ce91642bb0a60de892171d8c3a529f7",
-    "sourceHead": "37248f67645c8e26fce855e2cbb4cd99cabca525",
-    "receipt": "tooling-guard-lifetime-implementation-2026-10-28.md"
+    "sourceHead": "3100f10da9c4fcee101c5529434340c3f1e0e3e6",
+    "receipt": "workspace-method-health-implementation-2026-10-28.md"
   }
 }

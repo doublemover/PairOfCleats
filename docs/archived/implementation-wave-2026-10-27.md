@@ -108,7 +108,9 @@ PR #572 metadata was refreshed and read back at checkpoint `c070f3095` (180 loca
 
 - [Provider declaration observation](provider-profile-declaration-implementation-2026-10-28.md): immutable bounded declarations precede I/O; negative/executable resolution retains original resource prerequisites before diagnostics. Nine controls authored, unexecuted; built-in binding remains.
 
-- [Tooling request guard lifetime](tooling-guard-lifetime-implementation-2026-10-28.md): original pending work blocks retry and actual LSP degraded fallback; cancellation is immediate, independent diagnostics/concurrent originals stay captured. Sixteen controls authored, unexecuted. #292 is partial; durable workspace/method health remains. Latest counts: **481 pending / 145 partial / 92 unresolved**.
+- [Tooling request guard lifetime](tooling-guard-lifetime-implementation-2026-10-28.md): original pending work blocks retry and actual LSP degraded fallback; cancellation is immediate, independent diagnostics/concurrent originals stay captured. Sixteen controls authored, unexecuted. #292 is partial; durable workspace/method health remains. At that checkpoint: **481 pending / 145 partial / 92 unresolved**.
+
+- [Shared workspace/method health](workspace-method-health-implementation-2026-10-28.md): actual configured LSP admission persists observed context, isolates method cooldown from transport poisoning, retains healthy contribution and uses controlled recovery. Twenty-nine controls authored, unexecuted; #292 is source-complete pending qualification. Current counts: **482 pending / 144 partial / 92 unresolved**.
 
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
