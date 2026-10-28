@@ -1135,7 +1135,8 @@
         "26aba2371ff227384caa579602fe4899b612b0a1",
         "417a4479dbd750b61d95e6de555ece174d004c56",
         "1173c6ec774d9b6df11cb078851724ca34a28a6f",
-        "bc1e38284608b1c015c892cdf4893cdd42aa8e5e"
+        "bc1e38284608b1c015c892cdf4893cdd42aa8e5e",
+        "b6652070b27a485fe7ee3180ff449f41539949e8"
       ],
       "unvalidatedReceipts": [
         "native-state-publication-implementation-2026-10-28.md",
@@ -1148,7 +1149,8 @@
         "sqlite-ledger-counts-implementation-2026-10-28.md",
         "sqlite-artifact-identity-implementation-2026-10-28.md",
         "sqlite-native-correspondence-implementation-2026-10-28.md",
-        "sqlite-compaction-identity-implementation-2026-10-28.md"
+        "sqlite-compaction-identity-implementation-2026-10-28.md",
+        "sqlite-compaction-vectors-implementation-2026-10-28.md"
       ],
       "nativeStatePublicationFollowup": "Required SQLite/LMDB state and shared manifest read/write/checksum failures now propagate instead of acknowledging in-memory ready state after failed publication. Malformed existing state cannot silently become an empty replacement. Optional LMDB metrics suppress only confirmed-settled resource observations. Eleven actual-producer controls are authored and unexecuted; paired/concurrent publication, row/build-mode, custom registration/cleanup and original/follow-up acceptance remain separate.",
       "compactionCountFollowup": "Actual compaction now refuses failed table metadata/query and invalid row counts instead of substituting zero. Required chunks and dense_vectors absence fails; zero needs a successful query. Eight actual native controls are authored, unexecuted, preserving unchanged source/once-only close/metadata recovery plus empty/nonempty dense positives. Existing compaction/row/build-mode and full original acceptance remain.",
@@ -1208,10 +1210,15 @@
           "sourceHead": "bc1e38284608b1c015c892cdf4893cdd42aa8e5e",
           "receipt": "sqlite-compaction-identity-implementation-2026-10-28.md",
           "implementation": "Actual compactor independently witnesses original chunks with planned ID/path normalization, validates covered identities and native relations after VACUUM, and returns a private original completion association to the real build ledger. Nonsemantic shared/unknown/metadata-only modes are refused before destructive rewrite. Prior artifact checks remain separate; successful cursor observations survive late revocation. Sixteen actual-native and one cursor controls are authored, unexecuted. Complete payload/vector/source/final correspondence and qualification remain."
+        },
+        {
+          "sourceHead": "b6652070b27a485fe7ee3180ff449f41539949e8",
+          "receipt": "sqlite-compaction-vectors-implementation-2026-10-28.md",
+          "implementation": "Actual compaction witnesses original BLOB bytes against planned chunk IDs and normalized dense metadata, rejects orphan/wrong native source types, and gates actual output after VACUUM. The original bounded cursor owner is shared with domain-separated binary/float encodings; no second corpus map. Nine added native controls are authored, unexecuted. Original source/model/bundle/incremental/final identity and measured qualification remain."
         }
       ],
       "remainingWork": [
-        "Complete original source file/hash inventories, bundle/incremental source identities, payload/vector values and validity, and final published-path correspondence with bounded evidence; normalized compaction chunk identities/relations are implemented but unqualified.",
+        "Complete original source file/hash inventories, bundle/incremental identities and vector validity, remaining chunk payload and final published-path correspondence. Normalized compaction chunk/vector-byte/meta preservation is implemented but unqualified.",
         "Complete isolated generation-qualified reconciliation/replay and actual partial-update/artifact/bundle corruption differential.",
         "Execute original and follow-up current-candidate count/capability/native/ownership and measured join/hash/sort acceptance; native consistency and normalized artifact-stage correspondence are not complete source identity parity."
       ]
@@ -10245,7 +10252,7 @@
     "partialFollowup": 146,
     "implementationStatusUnresolved": 90
   },
-  "reconciledAt": "2026-10-28T17:41:17.114Z",
+  "reconciledAt": "2026-10-28T17:49:05.046Z",
   "completedSourceBatch": [
     347,
     586,
@@ -10388,7 +10395,7 @@
   "currentCountsBasis": {
     "meaning": "718-open GitHub snapshot refreshed at checkpoint 200 plus recorded local source work; not functional acceptance.",
     "publishedHead": "adbcaf777ce91642bb0a60de892171d8c3a529f7",
-    "sourceHead": "bc1e38284608b1c015c892cdf4893cdd42aa8e5e",
-    "receipt": "sqlite-compaction-identity-implementation-2026-10-28.md"
+    "sourceHead": "b6652070b27a485fe7ee3180ff449f41539949e8",
+    "receipt": "sqlite-compaction-vectors-implementation-2026-10-28.md"
   }
 }

@@ -50,7 +50,18 @@ supply the witness; public compaction result JSON remains `{skipped:false}`.
 Original pre-import/artifact checks remain separately recorded from post-compaction
 checks. Cursor observations survive projection and late revocation before another
 native step. Source file/hash inventories, bundle/incremental source identity,
-complete payload/vector values, final published identity and replay remain.
+complete payload identity, final published identity and replay remain.
+
+The compactor also streams original native dense BLOB bytes through planned
+chunk IDs. SQL assigns ordinals across all chunks before joining optional/partial
+dense rows; an orphan source vector cannot silently disappear. Domain-separated,
+length-delimited hashes cover mapped IDs, mode, exact bytes and dense metadata
+after the compactor's existing default normalization. Actual output after VACUUM
+must match. Text/non-BLOB vectors fail; model, scale and quantization changes are
+detected. This uses the same bounded original-cursor owner as chunk identities,
+with no second corpus map. Nine additional native controls are authored, unrun.
+This proves planned compaction preservation, not embedding/model correctness,
+original artifact/bundle vector parity or final-path publication identity.
 
 A mode-only compactor also refuses any other/unknown mode in known mode-bearing
 tables, including metadata-only empty modes. This protection no longer depends on

@@ -136,6 +136,8 @@ PR #572 metadata was refreshed and read back at checkpoint `c070f3095` (180 loca
 
 - [SQLite compaction identity](sqlite-compaction-identity-implementation-2026-10-28.md): independent source witnesses account for planned IDs/path normalization and gate actual post-VACUUM output/build publication; shared/unknown modes are refused even without semantic metadata. Sixteen native and one cursor controls authored, unexecuted; complete payload/vector/source/final correspondence and qualification remain.
 
+- [SQLite compaction vectors](sqlite-compaction-vectors-implementation-2026-10-28.md): native source bytes/metadata bind to planned chunk IDs and gate post-VACUUM replacement; orphan/text vectors and equal-count permutations cannot pass. Nine added native controls authored, unexecuted; original source/model/final correspondence and measured qualification remain.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.
