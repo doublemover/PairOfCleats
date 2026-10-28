@@ -48,7 +48,8 @@ Batch failure stops new claims and joins active siblings before returning errors
 Returned materialization evidence records root, origin, requested hash, actual
 SHA-256, bytes, descriptor identity and verification work. Sources distinguish
 verified memory/cold candidates, independently verified existing files and created/
-regenerated content. A missing requested docHash retains forced materialization.
+regenerated content. A missing requested docHash still requires actual expected
+content qualification; it cannot admit stale bytes as a cache hit.
 Semantic VFS routing and LSP binding versions advance so older derived provider
 products cannot silently inherit the former disk-content assumption.
 
@@ -67,10 +68,27 @@ release; reuse keeps one owner per root/launch namespace. All admitted owners ar
 attempted during retirement. Semantic and legacy tooling routes carry this context
 through generic, dedicated, Clangd, Pyright and SourceKit LSP adapters.
 
-Cross-process writer arbitration and custom/external producer registration remain
-separate. A configured path outside the canonical cache acquires no guessed
-category authority. Standalone callers without launch context keep local pinning
-only. Neither receipt nor consumer admission grants deletion authority or prevents
-uncooperative OS writers. Remaining #1643 scope and actual provider/runtime
-qualification stay explicit. LSP binding producer version 57 separates the new
-lifetime policy.
+Cross-process publication now uses the existing file-lock and scoped resource
+session owners. An exact-document writer guard serializes current descriptor
+qualification, shared pin admission and atomic publication. Equal verified content
+can share durable pins across processes. Replacement requires zero existing
+exact-file pins; unknown or dead initiating owners do not prove resource closure.
+The original client, every accepted materializer and cold-cache publication must
+settle before pin retirement. Leaf metadata retires before category admission;
+failed metadata recovery does not rewrite source or repeat provider shutdown.
+
+Coordination is beneath the actual materialization root at `.poc-vfs-access`,
+so callers with different application homes still share document arbitration.
+That internal namespace, including canonical aliases, is unavailable as a
+virtual-document target. It contains protocol metadata, not published source.
+Unknown writer records remain protected; stale removal is limited to the exact
+existing producer's definitely dead local lock. Standalone callers use the same
+document guard/pin through their original operation; actual provider sessions
+retain pins until client closure, including idle reuse.
+
+Custom/external producer registration and category cleanup remain separate. A
+configured path outside the canonical cache acquires no guessed category or
+deletion authority. Uncooperative OS writers remain outside this protocol.
+LSP binding version 58 invalidates products admitted under the earlier lifetime
+policy. Ten cross-process/observer/namespace cases are authored and unexecuted;
+existing root/content, provider, storage, native and full #1643 acceptance remain.

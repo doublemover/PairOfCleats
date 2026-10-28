@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["conflict", "same-content", "different-homes", "independent-documents", "without-doc-hash", "unknown-owner", "pending-cache", "metadata-failure", "observer-retention", "reserved-namespace"]
+}

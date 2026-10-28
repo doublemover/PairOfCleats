@@ -9,6 +9,7 @@ import { describeStorageFailure, observeStorageResource } from '../../../shared/
 import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
 import { acquireNativeReaderStorage, findNativeReaderStorage, registerNativeReaderStorage } from '../../../shared/storage/native-reader.js';
 import { ensureToolingCacheDir } from '../cache-storage.js';
+import { withVfsPublicationAdmission } from './publication-owner.js';
 
 const VFS_DISK_CACHE = new Map();
 const VFS_DISK_CACHE_MAX_ENTRIES = 50_000;
@@ -16,7 +17,8 @@ const pendingMaterializations = new Map();
 const consumerSessions = new WeakMap();
 const canonicalPathKey = value => process.platform === 'win32' ? path.toNamespacedPath(value).toLowerCase() : value;
 const ownerSettled = owner => {
-  try { return owner.finished && !owner.consumers.size && (!owner.failureObservation || owner.failureObservation.isSettled()); }
+  try { return owner.finished && !owner.activeCalls && !owner.consumers.size && (!owner.failureObservation || owner.failureObservation.isSettled())
+    && (!owner.documentPin || owner.documentPin.isReleased()); }
   catch { return false; }
 };
 
@@ -40,6 +42,7 @@ export const createVfsMaterializationSession = ({ isClosed }) => {
     admissionFailed: false, retiring: false, released: false };
   const closure = observeStorageResource(observeStorageResource(Object.freeze({ cacheOwnershipPending: true,
     cacheOwnershipReleased: () => isClosed() === true }), { phase: 'vfs-consumer-client' }).retain(), { phase: 'vfs-consumer-client' });
+  state.closure = closure;
   const session = Object.freeze({
     get size() { return state.owners.size; },
     get storageRootCount() { return state.storage.size; },
@@ -76,9 +79,10 @@ export const createVfsMaterializationSession = ({ isClosed }) => {
         for (const observation of state.admissionFailures) observation.requireSettled();
         for (const owner of state.owners) {
           owner.failureObservation?.requireSettled();
-          if (!owner.finished) throw Object.assign(new Error('Original VFS publication remains outstanding.'), {
-            cacheOwnershipPending: true, cacheOwnershipReleased: () => owner.finished
+          if (!owner.finished || owner.activeCalls) throw Object.assign(new Error('Original VFS publication remains outstanding.'), {
+            cacheOwnershipPending: true, cacheOwnershipReleased: () => owner.finished && !owner.activeCalls
           });
+          if ([...owner.consumers].every(consumer => consumer.retiring && consumer.closure.isSettled())) owner.documentPin?.releaseAfterClosure();
         }
         let failure, failed = false;
         for (const admission of state.storage) {
@@ -196,6 +200,8 @@ export const resolveVfsDiskPath = ({ baseDir, virtualPath }) => {
     throw new Error(`VFS virtualPath must be relative: ${virtualPath}`);
   }
   const parts = rawPath.split('/').filter((part) => part.length > 0);
+  if (parts[0]?.replace(/[ .]+$/u, '').toLowerCase() === '.poc-vfs-access') throw Object.assign(
+    new Error('VFS publication coordination is reserved for its original owner.'), { code: 'ERR_VFS_MATERIALIZATION_PATH' });
   if (!parts.length) {
     throw new Error(`VFS virtualPath is invalid: ${virtualPath}`);
   }
@@ -237,40 +243,54 @@ export const ensureVfsDiskDocument = async ({
   let owner = pendingMaterializations.get(key);
   if (owner?.finished) {
     owner.failureObservation?.requireSettled();
+    if (!owner.activeCalls && !owner.consumers.size) owner.documentPin?.releaseAfterClosure();
     if (ownerSettled(owner)) { pendingMaterializations.delete(key); owner = null; }
   }
   if (owner && (owner.hash !== hash || owner.docHash !== resolvedDocHash)) throw createVfsMaterializationConflict(virtualPath, owner);
   const retainedPublication = owner?.finished === true;
   if (!owner) {
-    owner = { key, hash, docHash: resolvedDocHash, finished: false, failureObservation: null, promise: null, consumers: new Set() };
+    owner = { key, hash, docHash: resolvedDocHash, finished: false, activeCalls: 0, failureObservation: null, documentPin: null,
+      promise: null, consumers: new Set() };
     pinConsumer(owner, materializationSession);
     pendingMaterializations.set(key, owner);
     owner.promise = (async () => {
       try {
         ensureToolingCacheDir(root);
-        const cachedPath = resolvedDocHash && coldStartCache?.get
-          ? coldStartCache.get({ virtualPath, docHash: resolvedDocHash, expectedPath: absPath }) : null;
-        const coldCandidate = typeof cachedPath === 'string' && canonicalPathKey(path.resolve(cachedPath)) === key;
-        const cached = VFS_DISK_CACHE.get(cacheKey);
-        const prior = cached?.docHash === resolvedDocHash ? cached : null;
-        const qualified = resolvedDocHash ? await qualifyMaterialization({ baseDir: root, absPath, bytes, hash, prior }) : null;
-        if (qualified) {
-          setVfsDiskCacheEntry(cacheKey, { path: absPath, docHash: resolvedDocHash, ...qualified });
-          return Object.freeze({ path: absPath, cacheHit: true, source: qualified.verification === 'unchanged-opened-file-identity' && prior ? 'memory'
-            : coldCandidate ? 'cold-start' : 'existing-verified',
-          materialization: Object.freeze({ version: 1, baseDir: root, virtualPath, docHash: resolvedDocHash,
-            sha256: hash, sizeBytes: bytes, ...qualified, policy: 'mutable-path-current-descriptor' }) });
-        }
-        ensureToolingCacheDir(path.dirname(absPath));
-        assertNoSymlinkPath(root, absPath, { allowMissing: true });
-        await atomicWriteText(absPath, text, { mkdir: false,
-          beforeCommit: () => assertNoSymlinkPath(root, absPath, { allowMissing: true }) });
-        const published = await qualifyMaterialization({ baseDir: root, absPath, bytes, hash });
-        if (!published) throw Object.assign(new Error('Published VFS content changed before qualification.'), { code: 'ERR_VFS_MATERIALIZATION_CHANGED' });
-        setVfsDiskCacheEntry(cacheKey, { path: absPath, docHash: resolvedDocHash, ...published });
-        return Object.freeze({ path: absPath, cacheHit: false, source: prior || coldCandidate ? 'regenerated' : 'created',
-          materialization: Object.freeze({ version: 1, baseDir: root, virtualPath, docHash: resolvedDocHash,
-            sha256: hash, sizeBytes: bytes, ...published, policy: 'mutable-path-current-descriptor' }) });
+        return await withVfsPublicationAdmission({ root, target: absPath }, async admission => {
+          const cachedPath = resolvedDocHash && coldStartCache?.get
+            ? coldStartCache.get({ virtualPath, docHash: resolvedDocHash, expectedPath: absPath }) : null;
+          const coldCandidate = typeof cachedPath === 'string' && canonicalPathKey(path.resolve(cachedPath)) === key;
+          const cached = VFS_DISK_CACHE.get(cacheKey);
+          const prior = cached?.docHash === resolvedDocHash ? cached : null;
+          const qualified = await qualifyMaterialization({ baseDir: root, absPath, bytes, hash, prior });
+          if (qualified) {
+            owner.documentPin = admission.pin(() => owner.finished && !owner.activeCalls && (!owner.failureObservation || owner.failureObservation.isSettled())
+              && [...owner.consumers].every(consumer => consumer.retiring && consumer.closure.isSettled()));
+            const pinned = await qualifyMaterialization({ baseDir: root, absPath, bytes, hash, prior: qualified });
+            if (!pinned) throw Object.assign(new Error('VFS content changed during original consumer admission.'), { code: 'ERR_VFS_MATERIALIZATION_CHANGED' });
+            const admitted = { ...qualified, identity: pinned.identity,
+              verificationBytes: qualified.verificationBytes + pinned.verificationBytes,
+              verification: pinned.verificationBytes ? pinned.verification : qualified.verification };
+            setVfsDiskCacheEntry(cacheKey, { path: absPath, docHash: resolvedDocHash, ...admitted });
+            return Object.freeze({ path: absPath, cacheHit: true, source: qualified.verification === 'unchanged-opened-file-identity' && prior ? 'memory'
+              : coldCandidate ? 'cold-start' : 'existing-verified',
+            materialization: Object.freeze({ version: 1, baseDir: root, virtualPath, docHash: resolvedDocHash,
+              sha256: hash, sizeBytes: bytes, ...admitted, policy: 'mutable-path-current-descriptor' }) });
+          }
+          admission.assertWritable();
+          owner.documentPin = admission.pin(() => owner.finished && !owner.activeCalls && (!owner.failureObservation || owner.failureObservation.isSettled())
+            && [...owner.consumers].every(consumer => consumer.retiring && consumer.closure.isSettled()));
+          ensureToolingCacheDir(path.dirname(absPath));
+          assertNoSymlinkPath(root, absPath, { allowMissing: true });
+          await atomicWriteText(absPath, text, { mkdir: false,
+            beforeCommit: () => assertNoSymlinkPath(root, absPath, { allowMissing: true }) });
+          const published = await qualifyMaterialization({ baseDir: root, absPath, bytes, hash });
+          if (!published) throw Object.assign(new Error('Published VFS content changed before qualification.'), { code: 'ERR_VFS_MATERIALIZATION_CHANGED' });
+          setVfsDiskCacheEntry(cacheKey, { path: absPath, docHash: resolvedDocHash, ...published });
+          return Object.freeze({ path: absPath, cacheHit: false, source: prior || coldCandidate ? 'regenerated' : 'created',
+            materialization: Object.freeze({ version: 1, baseDir: root, virtualPath, docHash: resolvedDocHash,
+              sha256: hash, sizeBytes: bytes, ...published, policy: 'mutable-path-current-descriptor' }) });
+        });
       } catch (error) {
         rememberOwnerFailure(owner, error); throw error;
       } finally {
@@ -279,26 +299,39 @@ export const ensureVfsDiskDocument = async ({
       }
     })();
   } else pinConsumer(owner, materializationSession);
-  let result = await owner.promise;
-  if (retainedPublication) {
-    let qualified;
-    try { qualified = await qualifyMaterialization({ baseDir: root, absPath, bytes, hash, prior: VFS_DISK_CACHE.get(cacheKey) }); }
-    catch (error) { rememberOwnerFailure(owner, error); throw error; }
-    if (!qualified) throw Object.assign(new Error('Active provider VFS content changed; replacement awaits original consumer closure.'), {
-      code: 'ERR_VFS_MATERIALIZATION_CHANGED', cacheOwnershipPending: true, cacheOwnershipReleased: () => ownerSettled(owner)
-    });
-    setVfsDiskCacheEntry(cacheKey, { path: absPath, docHash: resolvedDocHash, ...qualified });
-    result = Object.freeze({ ...result, cacheHit: true, source: 'existing-verified',
-      materialization: Object.freeze({ ...result.materialization, ...qualified }) });
+  owner.activeCalls++;
+  let invocationError, invocationFailed = false;
+  try {
+    let result = await owner.promise;
+    if (retainedPublication) {
+      let qualified;
+      try { qualified = await qualifyMaterialization({ baseDir: root, absPath, bytes, hash, prior: VFS_DISK_CACHE.get(cacheKey) }); }
+      catch (error) { rememberOwnerFailure(owner, error); throw error; }
+      if (!qualified) throw Object.assign(new Error('Active provider VFS content changed; replacement awaits original consumer closure.'), {
+        code: 'ERR_VFS_MATERIALIZATION_CHANGED', cacheOwnershipPending: true, cacheOwnershipReleased: () => ownerSettled(owner)
+      });
+      setVfsDiskCacheEntry(cacheKey, { path: absPath, docHash: resolvedDocHash, ...qualified });
+      result = Object.freeze({ ...result, cacheHit: true, source: 'existing-verified',
+        materialization: Object.freeze({ ...result.materialization, ...qualified }) });
+    }
+    if (resolvedDocHash && coldStartCache?.set) {
+      try { await coldStartCache.set({
+        virtualPath,
+        docHash: resolvedDocHash,
+        diskPath: result.path,
+        sizeBytes: bytes,
+        materialization: result.materialization
+      }); } catch (error) { rememberOwnerFailure(owner, error); throw error; }
+    }
+    return result;
+  } catch (error) { invocationFailed = true; invocationError = error; throw error; }
+  finally {
+    owner.activeCalls--;
+    try {
+      if (!owner.activeCalls && !owner.consumers.size && (!owner.failureObservation || owner.failureObservation.isSettled())) owner.documentPin?.releaseAfterClosure();
+    } catch (cleanup) {
+      throw invocationFailed ? addStorageFailureContext(invocationError, {}, cleanup, { secondaryPresent: true }) : cleanup;
+    }
+    if (ownerSettled(owner) && pendingMaterializations.get(key) === owner) pendingMaterializations.delete(key);
   }
-  if (resolvedDocHash && coldStartCache?.set) {
-    try { coldStartCache.set({
-      virtualPath,
-      docHash: resolvedDocHash,
-      diskPath: result.path,
-      sizeBytes: bytes,
-      materialization: result.materialization
-    }); } catch (error) { rememberOwnerFailure(owner, error); throw error; }
-  }
-  return result;
 };
