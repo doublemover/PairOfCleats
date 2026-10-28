@@ -8,7 +8,7 @@ import { addStorageFailureContext } from '../../../../shared/storage/operation-e
 // Query unavailability may be reported as an ordinary absent count. Native or
 // independent ownership failure may not: close the captured handle first and
 // retain the original storage/physical owners whenever settlement is unknown.
-export const probeSqlite = ({ Database, dbPath, repoRoot = process.cwd(), userConfig = null }, read, fallback) => {
+export const probeSqlite = ({ Database, dbPath, repoRoot = process.cwd(), userConfig = null, required = false }, read, fallback) => {
   let db = null, close = null, nativeClosed = false, failed = false, primary, value = fallback;
   const storage = acquireNativeReaderStorage(dbPath, userConfig ? { repoRoot, userConfig, nativeBackend: 'sqlite' } : null, () => nativeClosed);
   storage?.start();
@@ -28,7 +28,7 @@ export const probeSqlite = ({ Database, dbPath, repoRoot = process.cwd(), userCo
   }
   if (failed) {
     observeStorageResource(primary, { phase: 'sqlite-build-probe' }).requireSettled();
-    if (primary?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw primary;
+    if (required || primary?.code === 'ERR_INDEX_FORMAT_UNSUPPORTED') throw primary;
     return fallback;
   }
   return value;
@@ -39,7 +39,12 @@ export const readSqliteCounts = input => probeSqlite(input, db => {
   const counts = {};
   const rows = db.prepare('SELECT mode, COUNT(*) AS total FROM chunks GROUP BY mode').all();
   for (const row of toArray(rows)) {
-    if (row?.mode) counts[row.mode] = Number.isFinite(row.total) ? row.total : 0;
+    if (row?.mode) {
+      if (!Number.isSafeInteger(row.total) || row.total < 0) throw Object.assign(new Error('SQLite grouped count is unavailable or invalid.'), {
+        code: 'ERR_SQLITE_COUNT_UNAVAILABLE'
+      });
+      counts[row.mode] = row.total;
+    }
   }
   return counts;
 }, {});
@@ -49,7 +54,7 @@ export const readSqliteModeCount = input => {
   if (!input.dbPath || !input.mode) return null;
   return probeSqlite(input, db => {
     const row = db.prepare('SELECT COUNT(*) AS total FROM chunks WHERE mode = ?').get(input.mode);
-    return Number.isFinite(row?.total) ? row.total : 0;
+    return Number.isSafeInteger(row?.total) && row.total >= 0 ? row.total : null;
   }, null);
 };
 
@@ -58,7 +63,7 @@ export const readSqliteDenseModeCount = input => {
   if (!input.dbPath || !input.mode) return null;
   return probeSqlite(input, db => {
     const row = db.prepare('SELECT COUNT(*) AS total FROM dense_vectors WHERE mode = ?').get(input.mode);
-    return Number.isFinite(row?.total) ? row.total : 0;
+    return Number.isSafeInteger(row?.total) && row.total >= 0 ? row.total : null;
   }, null);
 };
 
@@ -67,8 +72,31 @@ export const readSqliteTableCount = input => {
   if (!input.dbPath || !input.tableName) return null;
   return probeSqlite(input, db => {
     const row = db.prepare(`SELECT COUNT(*) AS total FROM ${input.tableName}`).get();
-    return Number.isFinite(row?.total) ? row.total : 0;
+    return Number.isSafeInteger(row?.total) && row.total >= 0 ? row.total : null;
   }, null);
+};
+
+/** Required staged ledger counts share one native owner and read transaction.
+ * Absence is explicit; a failed query/extension is never a zero or absent table. */
+export const readSqliteModeRowCounts = (input, { annTable = 'dense_vectors_ann', configureAnn = null } = {}) => {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(annTable)) throw new TypeError('SQLite ledger requires a validated ANN table identifier.');
+  return probeSqlite({ ...input, required: true }, db => db.transaction(() => {
+    const annPresent = Boolean(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ?").get(annTable));
+    if (annPresent && configureAnn) {
+      const configured = configureAnn(db);
+      observeStorageResource(configured, { phase: 'sqlite-ledger-ann-configuration' }).requireSettled();
+      if (configured?.ok !== true) throw Object.assign(new Error('SQLite ledger cannot read the published ANN representation.'), {
+        code: 'ERR_SQLITE_LEDGER_ANN_UNAVAILABLE'
+      });
+    }
+    return {
+      chunks: db.prepare('SELECT COUNT(*) AS total FROM chunks WHERE mode = ?').get(input.mode)?.total,
+      dense: db.prepare('SELECT COUNT(*) AS total FROM dense_vectors WHERE mode = ?').get(input.mode)?.total,
+      files: db.prepare('SELECT COUNT(*) AS total FROM file_manifest WHERE mode = ?').get(input.mode)?.total,
+      ann: annPresent ? db.prepare(`SELECT COUNT(*) AS total FROM ${annTable}`).get()?.total : null,
+      annPresent
+    };
+  })(), null);
 };
 
 /** Probe an internal vector table; unavailable queries return false after close. */

@@ -332,6 +332,17 @@ const executeSqliteModeBuildsOwned = async ({
         extension: modeVectorExtension,
         enabled: vectorAnnEnabled && (mode === 'code' || mode === 'prose' || mode === 'extracted-prose')
       };
+      const validatePublishedCounts = dbPath => {
+        const result = validateSqliteRowLedgerPostImport({ repoRoot: root, userConfig, rowLedger: activeRowLedger, Database, dbPath,
+          annTable: resolvedVectorConfig?.extension?.table || 'dense_vectors_ann',
+          annExpectation: !resolvedVectorConfig.enabled ? 'disabled' : sqliteStats.vectorAnn?.ready === true ? 'ready' : 'unavailable',
+          configureAnn: resolvedVectorConfig.enabled ? db => resolvedVectorConfig.loadVectorExtension(db,
+            resolvedVectorConfig.extension, `sqlite ${mode} ledger`) : null });
+        sqliteStats.rowLedgerChecks = { ...(sqliteStats.rowLedgerChecks || {}), postImport: result };
+        if (!result.ok) throw Object.assign(new Error(result.message), {
+          code: result.code, failureClass: result.failureClass, rowLedger: result.rowLedger, observed: result.observed
+        });
+      };
       let activeBatchConfig = null;
       let activeIngestPlan = null;
 
@@ -449,7 +460,9 @@ const executeSqliteModeBuildsOwned = async ({
           };
         }
         if (updateResult?.used) {
+          validatePublishedCounts(outputPath);
           const counts = readSqliteCounts({
+            required: true,
             repoRoot: root,
             userConfig,
             Database,
@@ -609,26 +622,7 @@ const executeSqliteModeBuildsOwned = async ({
         sqliteStats.rowLedger = activeRowLedger;
         sqliteStats.rowLedgerInputCountSource = 'decoded-artifact-rows';
       }
-      const postImportValidation = validateSqliteRowLedgerPostImport({
-        repoRoot: root,
-        userConfig,
-        rowLedger: activeRowLedger,
-        Database,
-        dbPath: tempOutputPath,
-        annTable: resolvedVectorConfig?.extension?.table || 'dense_vectors_ann'
-      });
-      sqliteStats.rowLedgerChecks = {
-        ...(sqliteStats.rowLedgerChecks || {}),
-        postImport: postImportValidation
-      };
-      if (!postImportValidation.ok) {
-        const validationError = new Error(postImportValidation.message);
-        validationError.code = postImportValidation.code;
-        validationError.failureClass = postImportValidation.failureClass;
-        validationError.rowLedger = postImportValidation.rowLedger;
-        validationError.observed = postImportValidation.observed;
-        throw validationError;
-      }
+      validatePublishedCounts(tempOutputPath);
       const hadVectorTable = resolvedVectorConfig?.enabled === true
         ? hasVectorTableAtPath({
           repoRoot: root,
@@ -653,6 +647,7 @@ const executeSqliteModeBuildsOwned = async ({
       await replaceSqliteDatabase(tempOutputPath, outputPath, { signal });
       tempOutputPath = null;
       const counts = readSqliteCounts({
+        required: true,
         repoRoot: root,
         userConfig,
         Database,

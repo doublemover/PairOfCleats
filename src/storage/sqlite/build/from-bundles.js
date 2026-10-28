@@ -265,6 +265,7 @@ async function buildDatabaseFromBundlesOwned({
       table: vectorExtension.table || 'dense_vectors_ann',
       column: vectorExtension.column || 'embedding'
     };
+    batchStats.vectorAnn = vectorAnnState;
     const ensureVectorAnn = (dims) => {
       if (!vectorAnnEnabled) return;
       const prepared = prepareVectorAnnInsert({ db, mode, vectorConfig, dims });
