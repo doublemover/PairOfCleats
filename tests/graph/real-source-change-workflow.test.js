@@ -41,7 +41,7 @@ try {
     assert.equal(validateGraphContextPack(cli).ok, true);
     assert.ok(cli.edges.some(edge => edge.from.path === relevantTest && edge.to.chunkUid === selectedChunk
       && edge.importProjection.containingFile === changed), 'real source importer projects through its exact indexed containing file');
-    assert.deepEqual(JSON.parse(output.at(-1)), cli);
+    assert.deepEqual(JSON.parse(output.at(-1)), JSON.parse(JSON.stringify(cli)));
   } finally { console.log = originalLog; }
   const report = buildSuggestTestsReport({ changed: [changed], graphRelations, indexSignature, repoRoot: repo,
     tests: [relevantTest, 'tests/graph/suggest-tests-name-boundaries.test.js'] });
