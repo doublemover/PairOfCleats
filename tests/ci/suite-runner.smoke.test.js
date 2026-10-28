@@ -54,8 +54,11 @@ assertRequired(ciOutput, [
 
 const nightlyOutput = runDrySuite('nightly');
 assertRequired(nightlyOutput, [
-  /tests[\\/]run\.js --lane ci /,
-  /--lane storage --lane perf/,
+  /tests[\\/]run\.js --lane all /,
+  /\[dry-run\] Serial ANN generation:/,
+  /\[dry-run\] Retained canonical fixture owners:/,
+  /\[dry-run\] Script coverage \(tools\):/,
+  /\[dry-run\] Operational soak and recovery suites:/,
   /--report-file/,
   /--timings-file/,
   /--stability-file/,

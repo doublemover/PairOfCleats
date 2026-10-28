@@ -70,6 +70,10 @@ try {
     const pack = assembleCompositeContextPack({ repoRoot: root, seed: { type: 'chunk', chunkUid: 'seed' },
       chunkMeta: [{ chunkUid: 'seed', file: 'source.js', start: 0, end: 7 }], includeGraph: false, indexSignature: 'fixed-generation',
       now: () => '2026-10-28T00:00:00.000Z' });
+    if (selected === 'cache-provenance') {
+      pack.primary.provenance = { excerptSource: 'fixture source', excerptHash: pack.primary.excerptHash,
+        excerptBytes: Buffer.byteLength(pack.primary.excerpt) };
+    }
     const options = { repoRoot: root };
     const initial = await applyRenderedTokenBudget(pack, profile.policy, options); initial.publish();
     assert.equal(initial.payload.renderedContext, renderCompositeContextPack(pack) + '\n');
