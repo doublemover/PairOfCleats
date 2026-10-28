@@ -1,5 +1,6 @@
 import { createInteractiveRequestAdmission, REQUEST_NOT_ADMITTED } from './request-admission.js';
 import { throwIfAborted } from '../../../../../shared/abort.js';
+import { observeStorageResource } from '../../../../../shared/storage/failure-observation.js';
 import { openOwnedLspDocument, closeOwnedLspDocument } from '../document-lifecycle.js';
 import { exactRangeToOffsets, offsetToLspPosition, buildLspLineIndex } from '../../../lsp/positions.js';
 import { lspRangeContains } from '../../../../../index/semantic/lsp-locations.js';
@@ -291,6 +292,8 @@ export const processDocumentTypes = async ({
         }
       );
     } catch (err) {
+      guard.assertSettled?.();
+      observeStorageResource(err, { phase: 'lsp-request-failure' }).requireSettled();
       log(`[index] ${cmd} documentSymbol failed (${doc.virtualPath}): ${err?.message || err}`);
       emitToolingRequestSignal({
         log,
@@ -471,6 +474,8 @@ export const processDocumentTypes = async ({
           else writeNegativeRequestCache('hover', position);
           return { attempted: true, info: hoverInfo };
         } catch (err) {
+          guard.assertSettled?.();
+          observeStorageResource(err, { phase: 'lsp-request-failure' }).requireSettled();
           const info = handleStageRequestError({
             err,
             log,
@@ -525,6 +530,8 @@ export const processDocumentTypes = async ({
           hoverMetrics.semanticTokensSucceeded += 1;
           return decoded;
         } catch (err) {
+          guard.assertSettled?.();
+          observeStorageResource(err, { phase: 'lsp-request-failure' }).requireSettled();
           handleStageRequestError({
             err,
             log,
@@ -596,6 +603,8 @@ export const processDocumentTypes = async ({
           else writeNegativeRequestCache('signature_help', position);
           return { attempted: true, info };
         } catch (err) {
+          guard.assertSettled?.();
+          observeStorageResource(err, { phase: 'lsp-request-failure' }).requireSettled();
           const info = handleStageRequestError({
             err,
             log,
@@ -647,6 +656,8 @@ export const processDocumentTypes = async ({
           hoverMetrics.inlayHintsSucceeded += 1;
           return hints;
         } catch (err) {
+          guard.assertSettled?.();
+          observeStorageResource(err, { phase: 'lsp-request-failure' }).requireSettled();
           handleStageRequestError({
             err,
             log,
@@ -751,6 +762,8 @@ export const processDocumentTypes = async ({
           writeNegativeRequestCache(cacheKey, position);
           return { attempted: true, info: null, payload };
         } catch (err) {
+          guard.assertSettled?.();
+          observeStorageResource(err, { phase: 'lsp-request-failure' }).requireSettled();
           const info = handleStageRequestError({
             err,
             log,

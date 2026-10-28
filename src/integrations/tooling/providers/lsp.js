@@ -60,6 +60,7 @@ import { sleep } from '../../../shared/sleep.js';
 import { applyToolchainDaemonPolicyEnv } from '../../../shared/toolchain-env.js';
 import { resolveDotnetRuntimeLaunch } from '../../../index/tooling/dotnet-runtime.js';
 import { sha1 } from '../../../shared/hash.js';
+import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
 
 /**
  * Parse positive integer configuration with fallback floor of 1.
@@ -602,6 +603,8 @@ export async function collectLspTypes({
         refreshRuntimeState();
         return out;
       } catch (err) {
+        guard.assertSettled?.();
+        observeStorageResource(err, { phase: 'lsp-request-failure' }).requireSettled();
         const message = String(err?.message || err || '').toLowerCase();
         const transportFailure = err?.code === 'ERR_LSP_TRANSPORT_CLOSED'
           || message.includes('transport closed')
@@ -703,6 +706,8 @@ export async function collectLspTypes({
       }
       shouldShutdownClient = lease.pooled !== true;
     } catch (err) {
+      guard.assertSettled?.();
+      observeStorageResource(err, { phase: 'lsp-request-failure' }).requireSettled();
       throwIfAborted(toolingAbortSignal);
       if (err?.code === LSP_SESSION_DESYNC_ERROR_CODE) {
         throw err;
@@ -1105,6 +1110,8 @@ export async function collectLspTypes({
         try {
           await coldStartCache.flush();
         } catch (err) {
+          guard.assertSettled?.();
+          observeStorageResource(err, { phase: 'lsp-request-failure' }).requireSettled();
           log(`[tooling] vfs cold-start cache flush failed: ${err?.message || err}`);
         }
       }
@@ -1203,6 +1210,7 @@ export async function collectLspTypes({
     try {
       return await runWithPooledSession();
     } catch (err) {
+      observeStorageResource(err, { phase: 'lsp-request-failure' }).requireSettled();
       const isSessionDesync = err?.code === LSP_SESSION_DESYNC_ERROR_CODE;
       const isQuarantined = err?.code === 'TOOLING_QUARANTINED';
       if (isQuarantined) {
