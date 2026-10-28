@@ -14,7 +14,7 @@ const hooks = registerHooks({ resolve(specifier, context, nextResolve) {
 } });
 try {
   const { createEmbeddingExecutionPlan, preflightEmbeddingExecutionPlan, bindEmbeddingExecutionPlan,
-    validateEmbeddingExecutionPlan, projectEmbeddingExecutionEvidence } = await import('../../../src/shared/embedding-execution-plan.js');
+    validateEmbeddingExecutionPlan, projectEmbeddingExecutionEvidence, readEmbeddingPreflightRejection } = await import('../../../src/shared/embedding-execution-plan.js');
   const { dir } = await prepareIsolatedTestCacheDir(`embedding-preflight-${mode}`);
   const modelsDir = path.join(dir, 'models');
   const modelRoot = path.join(modelsDir, 'fixture', 'model');
@@ -28,11 +28,26 @@ try {
         resolvedEmbeddingMode: !enabled ? 'off' : stub ? 'stub' : service ? 'service' : 'inline' } });
   if (mode === 'missing-selected') {
     const selected = path.join(dir, 'missing.onnx');
-    assert.throws(() => preflightEmbeddingExecutionPlan(make({ modelPath: selected })), error =>
-      error.code === 'ERR_EMBEDDING_MODEL_PATH' && error.modelPath === selected && Boolean(error.cause));
+    const plan = make({ modelPath: selected });
+    assert.throws(() => preflightEmbeddingExecutionPlan(plan), error => {
+      assert.equal(error.code, 'ERR_EMBEDDING_MODEL_PATH'); assert.equal(error.modelPath, selected); assert.ok(error.cause);
+      const rejected = readEmbeddingPreflightRejection(error);
+      assert.ok(rejected); assert.equal(rejected.plan.digest, plan.digest);
+      const evidence = projectEmbeddingExecutionEvidence(rejected);
+      assert.equal(evidence.preflight.status, 'unavailable'); assert.equal(evidence.preflight.reason, 'selected-graph-observation-failed');
+      assert.equal(evidence.preflight.runtime, 'unverified'); assert.equal(evidence.preflight.inference, 'unverified');
+      assert.equal(readEmbeddingPreflightRejection({ ...error }), null, 'copied diagnostics cannot manufacture observed rejection identity');
+      return true;
+    });
   } else if (mode === 'missing-default') {
-    assert.throws(() => preflightEmbeddingExecutionPlan(make()), error => error.code === 'ERR_EMBEDDING_PREFLIGHT'
-      && error.preflight.status === 'unavailable' && error.preflight.downloadAttempted === false);
+    assert.throws(() => preflightEmbeddingExecutionPlan(make()), error => {
+      assert.equal(error.code, 'ERR_EMBEDDING_PREFLIGHT'); assert.equal(error.preflight.status, 'unavailable');
+      assert.equal(error.preflight.downloadAttempted, false);
+      const rejected = readEmbeddingPreflightRejection(error);
+      assert.equal(rejected.preflight, error.preflight);
+      assert.equal(projectEmbeddingExecutionEvidence(rejected).preflight.reason, 'local-onnx-graph-unavailable');
+      return true;
+    });
   } else if (mode === 'present' || mode === 'pinned-graph') {
     await fs.mkdir(path.dirname(graph), { recursive: true });
     // Deliberately invalid model bytes prove this is a presence check, not a

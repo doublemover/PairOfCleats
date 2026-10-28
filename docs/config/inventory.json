@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-28T02:04:25.222Z",
+  "generatedAt": "2026-10-28T02:38:55.808Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -3713,6 +3713,7 @@
         "tests/indexing/runtime/category-session-teardown.test.js",
         "tests/indexing/runtime/failure-receipt-category-settlement.test.js",
         "tests/indexing/runtime/initialization-resource-unwind.test.js",
+        "tests/indexing/runtime/rejected-preflight-receipt.test.js",
         "tests/indexing/runtime/run-resource-drain-timeout.test.js",
         "tests/indexing/runtime/runtime-attempt-lifecycle.test.js",
         "tests/indexing/runtime/stage-closeout-delayed-child.test.js",
@@ -4659,6 +4660,7 @@
         "tests/indexing/incremental/tokenization-cache.test.js",
         "tests/indexing/language-registry/metadata-import-boundary.test.js",
         "tests/indexing/language-registry/operation-import-boundary.test.js",
+        "tests/indexing/runtime/rejected-preflight-receipt.test.js",
         "tests/indexing/runtime/shared-resource-scope-isolation.test.js",
         "tests/indexing/runtime/stage-closeout-delayed-child.test.js",
         "tests/indexing/segments/comment-import-boundary.test.js",
@@ -5105,6 +5107,7 @@
         "tests/indexing/extracted-prose/extraction-report.test.js",
         "tests/indexing/incremental/piece-output-producer-identity.test.js",
         "tests/indexing/runtime/initialization-resource-unwind.test.js",
+        "tests/indexing/runtime/rejected-preflight-receipt.test.js",
         "tests/indexing/runtime/shared-resource-scope-isolation.test.js",
         "tests/indexing/runtime/stage-closeout-delayed-child.test.js",
         "tests/indexing/semantic/drain-publication-authority.test.js",

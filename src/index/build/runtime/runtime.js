@@ -4,6 +4,8 @@ import { persistRuntimeAttempt } from '../build-state/runtime.js';
 import { initializeRuntimeReceipt, withRuntimeReceiptInitialization, refreshRuntimeReceipt, logRuntimeReceiptLocation } from './receipt.js';
 import { resolveEmbeddingIntent } from '../../../shared/embedding-intent.js';
 import { projectEmbeddingExecutionEvidence } from '../../../shared/embedding-execution-plan.js';
+import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
+import { resolveRepoCacheRootPath } from '../../../shared/repo-paths.js';
 import { normalizeSemanticConfig } from '../../semantic/config.js';
 import { validateSemanticEnrichmentAdmission } from '../../semantic/enrichment-context.js';
 import fsSync from 'node:fs';
@@ -140,14 +142,27 @@ async function createBuildRuntimeImpl({
   onRuntimeAttempt,
   onStorageAdmission,
   semanticEnrichmentDrain = null,
-  embeddingSelection = null
+  embeddingSelection = null,
+  initializationRejection = null
 } = {}) {
-  const selectedEmbeddingEvidence = embeddingSelection
-    ? projectEmbeddingExecutionEvidence(embeddingSelection, { root }) : null;
+  // Internal diagnostic route from the actual preflight catch. Configuration
+  // cannot supply this value and it grants no storage/execution authority.
+  if (initializationRejection !== null && (initializationRejection?.phase !== 'embedding-preflight'
+    || !Object.hasOwn(initializationRejection, 'error') || typeof initializationRejection.effectiveConfigHash !== 'string'
+    || !initializationRejection.effectiveConfigHash || initializationRejection.effectiveConfigHash.length > 256
+    || typeof initializationRejection.expectedRepoCacheRoot !== 'string'
+    || !path.isAbsolute(initializationRejection.expectedRepoCacheRoot))) throw new TypeError('Invalid runtime initialization rejection.');
+  const rejection = initializationRejection === null ? null
+    : observeStorageResource(initializationRejection.error, { phase: 'rejected-runtime-initialization' });
+  const rejectionConfigHash = initializationRejection?.effectiveConfigHash;
+  const rejectionCacheRoot = initializationRejection?.expectedRepoCacheRoot;
+  rejection?.requireSettled();
   const initialization = createLifecycleRegistry({ name: 'build-runtime-initialization' });
   const resourceScope = createRunResourceScope();
   let indexRuntimeStorage = null;
   try {
+    const selectedEmbeddingEvidence = embeddingSelection
+      ? projectEmbeddingExecutionEvidence(embeddingSelection, { root }) : null;
     const pendingLogs = [];
     let log = (...args) => pendingLogs.push(args);
     const initStartedAt = Date.now();
@@ -179,6 +194,16 @@ async function createBuildRuntimeImpl({
 
     let configSources = null;
     const userConfig = await timeInit('load config', () => loadUserConfig(root, { onSources: (sources) => { configSources = sources; } }));
+    if (rejection) {
+      rejection.requireSettled();
+      const identity = value => process.platform === 'win32' ? path.resolve(value).toLowerCase() : path.resolve(value);
+      if (getEffectiveConfigHash(root, userConfig) !== rejectionConfigHash
+        || identity(resolveRepoCacheRootPath(root, userConfig)) !== identity(rejectionCacheRoot)) {
+        throw Object.assign(new Error('Launch configuration or selected cache changed before rejected-preflight recording.'), {
+          code: 'ERR_RUNTIME_REJECTION_SELECTION_CHANGED'
+        });
+      }
+    }
     if (semanticEnrichmentDrain != null) await validateSemanticEnrichmentAdmission(semanticEnrichmentDrain, { root, userConfig });
     indexRuntimeStorage = acquireBuildRuntimeStorage(root, userConfig);
     onStorageAdmission(indexRuntimeStorage);
@@ -334,7 +359,7 @@ async function createBuildRuntimeImpl({
         benchRun: envConfig.benchRun === true,
         workload: 'batch'
       });
-      setScmRuntimeConfig(scmConfig);
+      if (!rejection) setScmRuntimeConfig(scmConfig);
       const cacheRoot = cacheRootCandidate;
       const cacheRootSource = userConfig.cache?.root
         ? 'config'
@@ -350,7 +375,7 @@ async function createBuildRuntimeImpl({
         );
       }
       const startupCalibrationEnabled = indexingConfig?.platformPresets?.startupCalibration !== false;
-      const startupCalibration = await timeInit('startup calibration', () => runStartupCalibrationProbe({
+      const startupCalibration = rejection ? null : await timeInit('startup calibration', () => runStartupCalibrationProbe({
         cacheRoot,
         enabled: startupCalibrationEnabled
       }));
@@ -388,7 +413,7 @@ async function createBuildRuntimeImpl({
           ? daemonConfig.health
           : null
       );
-      const daemonSession = acquireRuntimeDaemonSession({
+      const daemonSession = rejection ? null : acquireRuntimeDaemonSession({
         enabled: daemonEnabled,
         sessionKey: daemonSessionKeyFromArg || daemonConfig.sessionKey || envConfig.indexDaemonSession || null,
         cacheRoot,
@@ -504,7 +529,7 @@ async function createBuildRuntimeImpl({
       const scmProviderOverride = typeof argv['scm-provider'] === 'string'
         ? argv['scm-provider']
         : (typeof argv.scmProvider === 'string' ? argv.scmProvider : null);
-      const scmProviderSetting = scmProviderOverride || scmConfig?.provider || 'auto';
+      const scmProviderSetting = rejection ? 'none' : scmProviderOverride || scmConfig?.provider || 'auto';
       let scmSelection = getScmProviderAndRoot({
         provider: scmProviderSetting,
         startPath: root,
@@ -566,17 +591,22 @@ async function createBuildRuntimeImpl({
         }
         buildId = existing.buildId || 'unknown';
       }
+      rejection?.requireSettled();
       const runtimeAttempt = await initializeRuntimeReceipt({
         buildRoot, buildId, root, stage, configHash, toolVersion, repoProvenance, profile,
         observability, envelope, executionClass: daemonSession ? 'daemon' : 'in-process',
         paths: { repo: root, cache: { selected: cacheRoot, source: cacheRootSource }, repoCache: repoCacheRoot, build: buildRoot, logs: logDestination },
-        inputs: { configSources, quality: autoPolicy.quality, platformPreset: platformRuntimePreset, learnedAutoProfile, schedulerAutoTuneProfile },
+        inputs: { configSources, quality: autoPolicy.quality, platformPreset: platformRuntimePreset, learnedAutoProfile, schedulerAutoTuneProfile,
+          ...(rejection ? { admission: { phase: 'embedding-preflight', outcome: 'rejected', sourceDiscoveryEntered: false } } : {}) },
         embeddings: { ...(selectedEmbeddingEvidence ? { selection: selectedEmbeddingEvidence } : {}),
-          observation: { state: 'not-started', provider: null, dims: null, observedAt: null } }
+          observation: rejection ? { state: 'failed', provider: null, dims: null, observedAt: new Date().toISOString(),
+            method: 'requested-embedding-preflight-rejected' }
+            : { state: 'not-started', provider: null, dims: null, observedAt: null } }
       });
       onRuntimeAttempt(runtimeAttempt, buildRoot);
       observability = { ...observability, context: { ...observability?.context, runtimeAttemptId: runtimeAttempt.attemptId } };
       logRuntimeReceiptLocation(buildRoot, runtimeAttempt, log);
+      if (rejection) { rejection.requireSettled(); throw rejection.primary; }
       const stage1SubprocessOwnershipPrefix = buildStage1SubprocessOwnershipPrefix({ buildId });
       const daemonJobContext = createRuntimeDaemonJobContext(daemonSession, {
         root,
@@ -1331,6 +1361,7 @@ async function createBuildRuntimeImpl({
       return runtime;
     });
   } catch (error) {
+    if (rejection) error = rejection.retain(error, { inspectionPresent: true });
     resourceScope.stopAdmission();
     throw await closeBuildRuntimeInitialization({ initialization, error, owner: indexRuntimeStorage });
   }

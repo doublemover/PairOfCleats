@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["missing-model", "invalid-plan", "selection-drift", "core-before-parse", "pending-admission"]
+}

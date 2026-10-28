@@ -13,6 +13,7 @@ import { applyObservabilityContextEnv, buildChildObservability, parseObservabili
 import { toRealPathSync } from '../workspace/identity.js';
 import { snapshotEmbeddingMetadata } from './embedding-selection-snapshot.js';
 import { resolveEmbeddingModelProfile, validateEmbeddingModelProfile, resolveQueryEmbeddingContract } from './embedding-model-profile.js';
+import { observeStorageResource } from './storage/failure-observation.js';
 
 export const EMBEDDING_LAUNCH_OPTION_KEYS = Object.freeze([
   'model', 'dims', 'threads', 'scheduler', 'scheduler-cpu', 'scheduler-io',
@@ -60,6 +61,12 @@ const digest = plan => {
   return crypto.createHash('sha256').update(stableStringify(semantic)).digest('hex');
 };
 const preflightSelections = new WeakMap();
+const rejectedPreflights = new WeakMap();
+
+/** Actual read-only admission failures retain their original selected request.
+ * This is diagnostic identity, never an execution or resource-release grant.
+ */
+export const readEmbeddingPreflightRejection = error => rejectedPreflights.get(error) || null;
 
 /** Freeze existing resolver outputs; never serialize raw user config or environment. */
 export const createEmbeddingExecutionPlan = ({ root, indexRoot = null, buildId = null, modes, modelId = null, argv = {}, userConfig = {}, rawEnv = process.env, intent = null }) => {
@@ -237,14 +244,26 @@ export const preflightEmbeddingExecutionPlan = (plan, { executionHost = 'local',
   // Fetch-capable providers retain their existing acquisition/runtime owner. A
   // parent-host file observation cannot qualify that owner or a cache-only hit.
   if (selected.embeddings.provider !== 'onnx') return result('unverified', 'provider-acquisition-at-execution');
-  const graph = resolveOnnxModelPath({ rootDir: selected.repoRoot,
-    modelPath: selected.embeddings.onnx.modelPath, modelsDir: selected.modelsDir,
-    modelId: selected.embeddings.model });
+  let graph;
+  try {
+    graph = resolveOnnxModelPath({ rootDir: selected.repoRoot,
+      modelPath: selected.embeddings.onnx.modelPath, modelsDir: selected.modelsDir,
+      modelId: selected.embeddings.model });
+  } catch (error) {
+    const observation = observeStorageResource(error, { phase: 'embedding-preflight-rejection' });
+    observation.requireSettled();
+    rejectedPreflights.set(observation.primary, Object.freeze({ plan: selected,
+      preflight: receipt('unavailable', 'selected-graph-observation-failed') }));
+    throw observation.primary;
+  }
   throwIfAborted(signal);
   if (!graph) {
-    throw Object.assign(new Error('The requested local ONNX graph is unavailable. Download/verify the selected model or run explicit Stage2 without embeddings.'), {
-      code: 'ERR_EMBEDDING_PREFLIGHT', preflight: receipt('unavailable', 'local-onnx-graph-unavailable')
+    const preflight = receipt('unavailable', 'local-onnx-graph-unavailable');
+    const error = Object.assign(new Error('The requested local ONNX graph is unavailable. Download/verify the selected model or run explicit Stage2 without embeddings.'), {
+      code: 'ERR_EMBEDDING_PREFLIGHT', preflight
     });
+    rejectedPreflights.set(error, Object.freeze({ plan: selected, preflight }));
+    throw error;
   }
   // Complete graph selection before CPU work. A later default/selector change
   // must not silently choose a different graph; runtime still verifies bytes.
@@ -269,7 +288,8 @@ export const projectEmbeddingExecutionEvidence = ({ plan, preflight }, selection
   fields(preflight, { version: value => value === 1,
     status: value => ['inactive', 'unverified', 'ready-to-attempt', 'unavailable'].includes(value),
     reason: value => ['embeddings-off', 'stub-does-not-use-model-assets', 'execution-host-deferred',
-      'provider-acquisition-at-execution', 'selected-graph-readable', 'local-onnx-graph-unavailable'].includes(value),
+      'provider-acquisition-at-execution', 'selected-graph-readable', 'local-onnx-graph-unavailable',
+      'selected-graph-observation-failed'].includes(value),
     executionHost: value => ['local', 'deferred'].includes(value), runtime: value => value === 'unverified',
     inference: value => value === 'unverified', downloadAttempted: value => value === false }, 'preflight evidence');
   const hash = value => crypto.createHash('sha256').update(stableStringify(value)).digest('hex');

@@ -18,12 +18,13 @@ import { resolveCurrentProcessRuntimeEnvelope } from '../../../shared/runtime-en
 import { coerceAbortSignal, isAbortError, throwIfAborted } from '../../../shared/abort.js';
 import { spawnSubprocess } from '../../../shared/subprocess/runner.js';
 import { resolveEmbeddingRuntime } from '../embeddings.js';
-import { createEmbeddingExecutionPlan, preflightEmbeddingExecutionPlan } from '../../../shared/embedding-execution-plan.js';
+import { createEmbeddingExecutionPlan, preflightEmbeddingExecutionPlan, readEmbeddingPreflightRejection } from '../../../shared/embedding-execution-plan.js';
 import { resolveBuildInvocationArgs, buildStage2Args, normalizeStage } from '../args.js';
 import { updateEnrichmentState } from '../enrichment-state.js';
 import { getRepoCacheRoot, getRepoRoot } from '../../../shared/repo-paths.js';
 import {
   getCacheRoot,
+  getEffectiveConfigHash,
   getToolVersion,
   loadUserConfig,
   resolveToolRoot
@@ -234,11 +235,28 @@ async function buildIndexRun(repoRoot, options = {}) {
   const includeEmbeddings = (embeddingRuntime.embeddingEnabled || embeddingRuntime.embeddingService)
     && embedModes.length > 0;
   if (includeEmbeddings && (explicitStage === 'stage3' || !explicitStage && !twoStageEnabled)) {
-    const admitted = preflightEmbeddingExecutionPlan(createEmbeddingExecutionPlan({
-      root, modes: embedModes, argv, userConfig, rawEnv: runtimeEnv, intent: embeddingRuntime
-    }), { executionHost: embeddingRuntime.embeddingService ? 'deferred' : 'local', signal: abortSignal });
-    embeddingRuntime.executionPlan = admitted.plan;
-    embeddingRuntime.preflight = admitted.preflight;
+    try {
+      const admitted = preflightEmbeddingExecutionPlan(createEmbeddingExecutionPlan({
+        root, modes: embedModes, argv, userConfig, rawEnv: runtimeEnv, intent: embeddingRuntime
+      }), { executionHost: embeddingRuntime.embeddingService ? 'deferred' : 'local', signal: abortSignal });
+      embeddingRuntime.executionPlan = admitted.plan;
+      embeddingRuntime.preflight = admitted.preflight;
+    } catch (error) {
+      // Unknown original work cannot authorize more native/metadata dispatch.
+      observeStorageResource(error, { phase: 'build-embedding-preflight-rejection' }).requireSettled();
+      if (isAbortError(error)) throw error;
+      // Reuse the actual runtime receipt/initialization teardown. The rejection
+      // stops immediately after receipt admission, before dictionary/model,
+      // worker and source-discovery work; no stage artifacts are produced.
+      const diagnosticRuntime = await createBuildRuntime({ root, argv: { ...argv, stage: explicitStage || 'stage2' },
+        rawArgv, policy, observability, semanticEnrichmentDrain: options.semanticEnrichmentDrain,
+        embeddingSelection: readEmbeddingPreflightRejection(error),
+        initializationRejection: { phase: 'embedding-preflight', error,
+          effectiveConfigHash: getEffectiveConfigHash(root, userConfig), expectedRepoCacheRoot: repoCacheRoot } });
+      // Defensive against a future constructor accidentally returning success.
+      await teardownRuntime(diagnosticRuntime);
+      throw error;
+    }
   }
   const includeSqlite = shouldBuildSqlite && sqliteModes.length > 0;
   const overallProgressOptions = (!explicitStage && !twoStageEnabled)

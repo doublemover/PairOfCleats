@@ -57,10 +57,9 @@ Native ONNX cache-only reuse already requires reusable model-artifact identity;
 without its local graph that lane cannot qualify a cache-only hit. Graph presence
 does not require a second native initialization, and missing native runtime is
 not rejected here because a qualified cache-only hit may avoid runtime loading.
-The small private preflight receipt adds no serialized plan fields. Its original
-attempt failure persistence, broader availability/fetch states and other build
-routes remain outstanding. Nine graph-admission/evidence cases are authored,
-unexecuted.
+The small private preflight receipt adds no serialized plan fields. Broader
+availability/fetch states and other build routes remain outstanding. Nine
+graph-admission/evidence cases are authored, unexecuted.
 
 When the ordinary selected request reaches Stage2 runtime initialization, the
 original runtime attempt now retains a bounded diagnostic selection summary and
@@ -77,6 +76,26 @@ final scope-bound child plan digest. Child runtime inputs retain both, and the
 existing `parentAttemptId` links the child result to the parent attempt. Malformed
 submitted digest metadata fails before child attempt writes. Actual runtime
 initialization and Stage3 receipt/queue fixtures now assert these links; they have
-not run. Known-fatal selection/asset errors that occur before a durable attempt
-root is selected still need original-attempt failure recording. Watch/two-stage
-adoption and complete read-only/fetch/cache-only qualification remain open.
+not run. Watch/two-stage adoption and complete read-only/fetch/cache-only
+qualification remain open.
+
+Known-fatal ordinary full-build/explicit Stage3 preflight rejection now enters
+the existing runtime initialization/receipt owner through an internal diagnostic
+argument. Original errors and their selected failed preflight association remain
+captured; invalid plans have no invented complete selection. Copied error data
+cannot manufacture the private observed rejection. The same actual attempt and
+category/storage/initialization teardown record a failed lifecycle without
+starting source discovery, dictionary/model/worker work, calibration, daemon
+reuse or SCM execution. No embedding child is launched and no index generation is promoted.
+The diagnostic attempt uses a fresh normal build root, rather than overwriting
+an existing target generation or creating another authoritative store.
+
+Pending original work refuses additional native/receipt dispatch. Configuration
+and canonical cache selection must still match their captured parent values;
+drift cannot redirect the rejection receipt. Unavailable receipt roots and
+recording/cleanup failures retain original causes and existing recovery owners.
+Failure recording does not turn the rejected command into success, and graph
+presence remains distinct from inference. Normal initialization behavior and
+public CLI/configuration contracts are unchanged. Five additional runtime/core
+boundary controls and strengthened original preflight assertions are authored;
+all functional qualification remains pending.
