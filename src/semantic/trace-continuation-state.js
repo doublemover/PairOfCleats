@@ -87,8 +87,14 @@ export const createTraceTraversalState = ({ checkpoint = null, maxBytes = 8 * 10
       stats.admittedEntries++; stats.copiedItemBytes += valueBytes; publish(); return 'admitted';
     },
     reset(item, identity) {
+      const previous = { seen, front, back };
       seen = null; front = null; back = null;
-      if (owner.enqueue(item, identity) !== 'admitted') throw new Error('Trace seed cannot fit the state byte allowance.');
+      try {
+        if (owner.enqueue(item, identity) !== 'admitted') throw Object.assign(
+          new Error('Trace seed cannot fit the state byte allowance.'), { code: 'ERR_SEMANTIC_OUTPUT_LIMIT' });
+      } catch (error) {
+        ({ seen, front, back } = previous); publish(); throw error;
+      }
     },
     peek() { normalize(); return front?.value.item || null; },
     shift() { normalize(); if (front) front = front.next; publish(); },

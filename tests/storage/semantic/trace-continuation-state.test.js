@@ -52,6 +52,19 @@ if (selected === 'persistent-order') {
   assert.equal(owner.stats().visitedNodeAllocations, before.visitedNodeAllocations);
   assert.equal(owner.stats().admittedEntries, 1); assert.ok(owner.logicalBytes <= 2048);
   assert.equal(owner.snapshot().seen, frozen.seen); assert.equal(owner.snapshot().back, frozen.back);
+} else if (selected === 'seed-refusal') {
+  const owner = createTraceTraversalState({ maxBytes: 2048 });
+  owner.reset(item(1), 'first');
+  const previous = owner.snapshot();
+  assert.throws(() => owner.reset(item(2), 'x'.repeat(10000)), { code: 'ERR_SEMANTIC_OUTPUT_LIMIT' });
+  const restored = owner.snapshot();
+  assert.equal(restored.seen, previous.seen); assert.equal(restored.front, previous.front); assert.equal(restored.back, previous.back);
+  assert.equal(owner.peek().ref.localId, 1, 'refused replacement cannot discard the admitted original frontier');
+  assert.throws(() => owner.reset({ ...item(2), depth: -1 }, 'invalid'), TypeError);
+  assert.equal(owner.peek().ref.localId, 1, 'invalid producer input retains its original cause and prior state');
+  const smallest = createTraceTraversalState({ maxBytes: 1024 });
+  assert.throws(() => smallest.reset(item(0), 'seed'), { code: 'ERR_SEMANTIC_OUTPUT_LIMIT' });
+  assert.equal(smallest.size, 0); assert.equal(smallest.seenCount, 0);
 } else if (selected === 'retention') {
   const budget = createTraceContinuationBudget({ maxBytes: 8192 }), retired = [], expires = Date.now() + 60000;
   const first = budget.retain(4096, expires, () => { retired.push('first'); });
@@ -61,7 +74,7 @@ if (selected === 'persistent-order') {
   assert.equal(budget.stats().retainedBytes, 8192); assert.equal(budget.stats().retainedCursors, 2);
   budget.sweep(expires + 1); assert.deepEqual(retired, ['first', 'second', 'third']); assert.equal(budget.stats().retainedBytes, 0);
   assert.throws(() => budget.retain(8193, expires, () => {}), { code: 'ERR_SEMANTIC_OUTPUT_LIMIT' });
-} else if (['actual-pages', 'actual-replay', 'aggregate-services', 'failed-publication', 'state-frontier'].includes(selected)) {
+} else if (['actual-pages', 'actual-replay', 'aggregate-services', 'failed-publication', 'state-frontier', 'seed-refusal-service'].includes(selected)) {
   const fixture = await createRecoveryFixture('value');
   try {
     const ref = localId => ({ partitionId: fixture.partitionId, localId });
@@ -90,31 +103,37 @@ if (selected === 'persistent-order') {
     } else {
       let rejectFinal = false;
       const failure = new Error('original final response projection failed');
-      const service = createSemanticTraceService({ ...(broad ? { maxStateBytes: 8192 } : {}),
-        maxContinuations: selected === 'failed-publication' ? 1 : 64,
-        finalizeResult: result => { if (rejectFinal) throw failure; return result; } });
-      const first = await service({ store, request }); assert.ok(first.cursor);
-      if (selected === 'actual-replay') {
-        const pages = await Promise.all([service({ store, request: { ...request, cursor: first.cursor } }), service({ store, request: { ...request, cursor: first.cursor } })]);
-        assert.deepEqual(pages[0].records, pages[1].records); assert.deepEqual(pages[0].edges, pages[1].edges);
-        assert.deepEqual((await service({ store, request: { ...request, cursor: first.cursor } })).records, pages[0].records);
-      } else if (selected === 'failed-publication') {
-        rejectFinal = true; await assert.rejects(service({ store, request }), error => error === failure);
-        rejectFinal = false;
-        assert.equal(service.continuationStats().serviceCursors, 1);
-        assert.ok((await service({ store, request: { ...request, cursor: first.cursor } })).records.length);
+      const service = createSemanticTraceService({ ...(broad ? { maxStateBytes: 8192 }
+        : selected === 'seed-refusal-service' ? { maxStateBytes: 1024 } : {}),
+      maxContinuations: selected === 'failed-publication' ? 1 : 64,
+      finalizeResult: result => { if (rejectFinal) throw failure; return result; } });
+      if (selected === 'seed-refusal-service') {
+        await assert.rejects(service({ store, request }), { code: 'ERR_SEMANTIC_OUTPUT_LIMIT' });
+        assert.equal(service.continuationStats().serviceCursors, 0);
       } else {
-        const ids = first.records.map(row => row.ref.localId);
-        let cursor = first.cursor, budgetFrontier = first.frontier.some(row => row.reason === 'visited_budget'), pages = 1;
-        while (cursor) {
-          const page = await service({ store, request: { ...request, cursor } });
-          ids.push(...page.records.map(row => row.ref.localId)); cursor = page.cursor;
-          budgetFrontier ||= page.frontier.some(row => row.reason === 'visited_budget');
-          assert.ok(++pages <= 45); assert.equal(service.continuationStats().lastPageWork.copiedHistoryEntries, 0);
-          assert.ok(service.continuationStats().lastPageWork.logicalBytes <= (broad ? 8192 : 8 * 1024 * 1024));
+        const first = await service({ store, request }); assert.ok(first.cursor);
+        if (selected === 'actual-replay') {
+          const pages = await Promise.all([service({ store, request: { ...request, cursor: first.cursor } }), service({ store, request: { ...request, cursor: first.cursor } })]);
+          assert.deepEqual(pages[0].records, pages[1].records); assert.deepEqual(pages[0].edges, pages[1].edges);
+          assert.deepEqual((await service({ store, request: { ...request, cursor: first.cursor } })).records, pages[0].records);
+        } else if (selected === 'failed-publication') {
+          rejectFinal = true; await assert.rejects(service({ store, request }), error => error === failure);
+          rejectFinal = false;
+          assert.equal(service.continuationStats().serviceCursors, 1);
+          assert.ok((await service({ store, request: { ...request, cursor: first.cursor } })).records.length);
+        } else {
+          const ids = first.records.map(row => row.ref.localId);
+          let cursor = first.cursor, budgetFrontier = first.frontier.some(row => row.reason === 'visited_budget'), pages = 1;
+          while (cursor) {
+            const page = await service({ store, request: { ...request, cursor } });
+            ids.push(...page.records.map(row => row.ref.localId)); cursor = page.cursor;
+            budgetFrontier ||= page.frontier.some(row => row.reason === 'visited_budget');
+            assert.ok(++pages <= 45); assert.equal(service.continuationStats().lastPageWork.copiedHistoryEntries, 0);
+            assert.ok(service.continuationStats().lastPageWork.logicalBytes <= (broad ? 8192 : 8 * 1024 * 1024));
+          }
+          if (broad) { assert.equal(budgetFrontier, true); assert.ok(ids.length < 40); }
+          else assert.deepEqual(ids, Array.from({ length: 40 }, (_, n) => n), 'independent authored chain defines exact ordered traversal');
         }
-        if (broad) { assert.equal(budgetFrontier, true); assert.ok(ids.length < 40); }
-        else assert.deepEqual(ids, Array.from({ length: 40 }, (_, n) => n), 'independent authored chain defines exact ordered traversal');
       }
       service.dispose(); assert.equal(service.continuationStats().serviceRetainedBytes, 0);
     }
