@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { createLspClient } from '../../../src/integrations/tooling/lsp/client.js';
 import { resolveWindowsCmdInvocation, resolveWindowsCmdShimPath } from '../../../src/shared/subprocess/windows-cmd.js';
 import { resolveCommandInvocation } from '../../../src/shared/subprocess/command-invocation.js';
@@ -12,7 +13,7 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 applyTestEnv();
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('/').at(-1);
 assert.ok(['arguments', 'environment', 'cwd', 'relative-wrapper', 'relative-path', 'processor',
-  'system-root', 'client-wrapper', 'hidden', 'restart-isolation', 'invalid-arguments'].includes(selected));
+  'system-root', 'client-wrapper', 'hidden', 'restart-isolation', 'invalid-arguments', 'url-cwd', 'wrapper-url-cwd', 'null-cwd'].includes(selected));
 const { dir } = await prepareIsolatedTestCacheDir(`lsp-launch-snapshot-${selected}`);
 const wrapper = path.join(dir, 'inert-wrapper.cmd');
 // Conditional wrapper must stay opaque; this fixture must exercise cmd-host
@@ -32,7 +33,7 @@ try {
   if (selected === 'invalid-arguments') {
     for (const value of [['bad\0argument'], [7], {}]) assert.throws(() => createLspClient({ ...options, args: value }), TypeError);
     assert.equal(observed.length, 0);
-  } else if (['relative-wrapper', 'relative-path', 'processor', 'system-root'].includes(selected)) {
+  } else if (['relative-wrapper', 'relative-path', 'processor', 'system-root', 'wrapper-url-cwd', 'null-cwd'].includes(selected)) {
     process.env.ComSpec = path.join(dir, 'ambient-cmd.exe'); process.env.COMSPEC = process.env.ComSpec;
     const selectedEnv = { ...env };
     if (selected === 'system-root') {
@@ -40,14 +41,17 @@ try {
     }
     const name = selected === 'relative-wrapper' ? './inert-wrapper.cmd' : 'inert-wrapper.cmd';
     if (selected === 'relative-path') selectedEnv.PATH = '.';
-    const invocation = resolveWindowsCmdInvocation(name, args, selectedEnv, { cwd: dir });
+    if (selected === 'null-cwd') process.chdir(dir);
+    const cwd = selected === 'wrapper-url-cwd' ? pathToFileURL(dir + path.sep) : selected === 'null-cwd' ? null : dir;
+    const invocation = resolveWindowsCmdInvocation(name, args, selectedEnv, { cwd });
     assert.equal(invocation.command, selected === 'system-root'
       ? path.join(selectedEnv.SystemRoot, 'System32', 'cmd.exe') : env.ComSpec);
-    assert.equal(resolveWindowsCmdShimPath(name, selectedEnv, { cwd: dir }), wrapper);
+    assert.equal(resolveWindowsCmdShimPath(name, selectedEnv, { cwd }), wrapper);
     assert.ok(invocation.args.at(-1).includes('inert-wrapper.cmd'));
-    if (process.platform === 'win32') assert.deepEqual(resolveCommandInvocation(name, args, selectedEnv, { cwd: dir }), invocation);
+    if (process.platform === 'win32') assert.deepEqual(resolveCommandInvocation(name, args, selectedEnv, { cwd }), invocation);
   } else {
     if (selected === 'cwd') { options.cwd = '.'; process.chdir(dir); }
+    if (selected === 'url-cwd') options.cwd = pathToFileURL(dir + path.sep);
     if (selected === 'client-wrapper') { options.cmd = 'inert-wrapper.cmd'; options.shell = true; }
     const client = createLspClient(options);
     args.push('--late-argument'); env.FIXTURE_LAUNCH = 'caller mutation'; env.PATH = path.join(dir, 'absent');

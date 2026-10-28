@@ -1,6 +1,6 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { pathToFileURL, fileURLToPath } from 'node:url';
 import {
   closeJsonRpcWriter,
   createFramedJsonRpcParser,
@@ -189,7 +189,7 @@ export function createLspClient(options) {
     throw new TypeError('createLspClient requires a string argument array without NUL.');
   }
   const args = Object.freeze(requestedArgs.slice());
-  const cwd = path.resolve(requestedCwd || process.cwd());
+  const cwd = path.resolve(requestedCwd instanceof URL ? fileURLToPath(requestedCwd) : requestedCwd || process.cwd());
   const useShell = typeof shell === 'boolean'
     ? shell
     : (process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd));

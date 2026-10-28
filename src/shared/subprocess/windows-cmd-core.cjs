@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const { fileURLToPath } = require('node:url');
 
 const WINDOWS_CMD_META_PATTERN = /[()\][%!^"`<>&|;, *?\t]/u;
 const WINDOWS_CMD_META_ESCAPE_PATTERN = /[()\][%!^"`<>&|;, *?\t]/gu;
@@ -55,6 +56,7 @@ function splitPathEntries(envPath) {
 }
 
 function resolveCommandPath(cmd, env = process.env, { cwd = process.cwd() } = {}) {
+  cwd = cwd instanceof URL ? fileURLToPath(cwd) : cwd || process.cwd();
   const raw = String(cmd || '').trim();
   if (!raw) return '';
   if (path.isAbsolute(raw)) return fs.existsSync(raw) ? raw : '';
@@ -71,6 +73,7 @@ function resolveCommandPath(cmd, env = process.env, { cwd = process.cwd() } = {}
 }
 
 function resolveWindowsCmdShimPath(cmd, env = process.env, { cwd = process.cwd() } = {}) {
+  cwd = cwd instanceof URL ? fileURLToPath(cwd) : cwd || process.cwd();
   const raw = String(cmd || '').trim();
   if (!raw) return '';
   const ext = path.extname(raw).toLowerCase();
