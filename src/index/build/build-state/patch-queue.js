@@ -4,6 +4,7 @@ import { estimateJsonBytes } from '../../../shared/cache/size.js';
 import { createLifecycleRegistry } from '../../../shared/lifecycle/registry.js';
 import { logLine } from '../../../shared/progress-runtime.js';
 import { runBuildCleanupWithTimeout } from '../cleanup-timeout.js';
+import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
 import {
   BUILD_STATE_DURABILITY_CLASS,
   isRequiredBuildStateDurability,
@@ -12,7 +13,7 @@ import {
 import {
   formatBuildStateLockOwner,
   isBuildStateLockUnavailableResult
-} from './store.js';
+} from './store-errors.js';
 
 const DEFAULT_DEBOUNCE_MS = 250;
 const LONG_DEBOUNCE_MS = 500;
@@ -146,17 +147,48 @@ export const createPatchQueue = ({
     return createTimedOutOutcome(key, elapsedMs);
   };
 
-  const isLockUnavailable = (err) => (
-    String(err?.code || '') === BUILD_STATE_LOCK_UNAVAILABLE_CODE
-    || err?.buildState?.reason === 'lock-unavailable'
-    || err?.buildState?.retryable === true
-    || isBuildStateLockUnavailableResult(err)
-  );
+  const isLockUnavailable = err => {
+    const observation = observeStorageResource(err, { phase: 'build-state-queue-result' });
+    observation.requireSettled();
+    let result;
+    try {
+      result = observation.primary.code === BUILD_STATE_LOCK_UNAVAILABLE_CODE
+        || observation.primary.buildState?.reason === 'lock-unavailable'
+        || observation.primary.buildState?.retryable === true
+        || isBuildStateLockUnavailableResult(err);
+    } catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+    observation.requireSettled();
+    return result;
+  };
 
-  const isRetryableLockUnavailable = (err, durabilityClass) => (
-    !isRequiredBuildStateDurability(durabilityClass)
-    && isLockUnavailable(err)
-  );
+  // Capture diagnostics while still inside the serialized writer. A later
+  // detached batch must see every original/diagnostic owner before dispatch.
+  const captureFailure = (buildRoot, error, durabilityClass) => {
+    const original = observeStorageResource(error, { phase: 'build-state-queue-failure' });
+    let failure = error, lockUnavailable = false, settled = false;
+    try {
+      original.requireSettled();
+      lockUnavailable = isLockUnavailable(error);
+      if (lockUnavailable && !isRequiredBuildStateDurability(durabilityClass)) {
+        const key = path.resolve(buildRoot), nowMs = Date.now();
+        if (nowMs - (lockRetryLogAtMsByBuildRoot.get(key) || 0) >= LOCK_UNAVAILABLE_RETRY_LOG_INTERVAL_MS) {
+          const lockOwner = error?.buildState?.lockOwner || error?.lockOwner || null;
+          const ownerDetail = formatBuildStateLockOwner(lockOwner);
+          original.requireSettled();
+          logLine(`[build_state] state write lock unavailable for ${key}${ownerDetail ? ` (owner: ${ownerDetail})` : ''}; deferring best-effort patch flush and retrying.`,
+            { kind: 'warning', buildState: { event: 'patch-lock-unavailable-retry', buildRoot: key, lockOwner } });
+          lockRetryLogAtMsByBuildRoot.set(key, nowMs);
+        }
+      } else recordStateError(buildRoot, error);
+      original.requireSettled();
+      settled = true;
+    } catch (inspection) {
+      failure = original.retain(inspection, { inspectionPresent: true });
+      lockUnavailable = false;
+    }
+    return { error: failure, observation: observeStorageResource(failure, { phase: 'build-state-queue-recovery' }),
+      lockUnavailable, autoRetry: settled && !isRequiredBuildStateDurability(durabilityClass) };
+  };
 
   const isActiveStateKey = (key) => (
     stateQueues.has(key)
@@ -292,7 +324,8 @@ export const createPatchQueue = ({
       lastDurableAcknowledgementAtMs: pending.lastDurableAcknowledgementAtMs,
       lastDurableLogicalUpdateAtMs: pending.lastDurableLogicalUpdateAtMs,
       activeFlushes: pending.activeFlushes,
-      pendingPatchBytes: estimateJsonBytes(pending.patch),
+      // Logical retained payload bytes, including failed work; not a heap claim.
+      pendingPatchBytes: estimateJsonBytes(pending.patch) + estimateJsonBytes(pending.failedBatch?.patch),
       pendingWaiterCount: Array.isArray(pending.waiters) ? pending.waiters.length : 0,
       coalescedPatches: Math.max(0, Math.floor(Number(pending.coalescedPatchCount) || 0)),
       lastFlushDurationMs: Number.isFinite(pending.lastFlushDurationMs)
@@ -311,6 +344,10 @@ export const createPatchQueue = ({
   const schedulePendingFlush = (buildRoot, pending) => {
     cancelPendingTimer(pending);
     if (pending.activeFlushes > 0 || (!pending.patch && !pending.failedBatch)) return;
+    if (pending.failedBatch && !pending.failedBatch.autoRetry) {
+      for (const waiter of [...pending.waiters]) settleWaiter(pending, waiter, 'reject', pending.failedBatch.error);
+      return;
+    }
     const nowMs = Date.now();
     const oldestAtMs = Math.min(...[pending.patch ? pending.pendingSinceMs : null,
       pending.failedBatch?.pendingSinceMs].filter(Number.isFinite));
@@ -324,13 +361,13 @@ export const createPatchQueue = ({
       const cancel = pending.timerCancel;
       pending.timer = null; pending.timerCancel = null;
       cancel?.();
-      void flushPendingState(buildRoot);
+      void flushPendingState(buildRoot, { automatic: true }).catch(() => null);
     }, delay);
     pending.timer.unref?.();
     pending.timerCancel = pending.lifecycle.registerTimer(pending.timer, { label: 'build-state-debounce' });
   };
 
-  const flushPendingState = async (buildRoot) => {
+  const flushPendingState = async (buildRoot, { automatic = false } = {}) => {
     const key = path.resolve(buildRoot);
     const pending = statePending.get(key);
     if (!pending || (!pending.patch && !pending.failedBatch)) return null;
@@ -343,6 +380,7 @@ export const createPatchQueue = ({
     );
     const batch = { pendingSinceMs: pending.pendingSinceMs, lastLogicalUpdateAtMs: pending.lastLogicalUpdateAtMs,
       coalescedPatchCount: pending.coalescedPatchCount, startedAtMs: null };
+    let failedRecord = null;
     const waiters = pending.waiters;
     pending.patch = null;
     pending.events = [];
@@ -359,8 +397,8 @@ export const createPatchQueue = ({
         async () => {
           // Recover inside the serialized owner, before any later detached batch
           // can commit. Newer fields win and event chronology remains oldest first.
-          if (pending.failedBatch) {
-            const failed = pending.failedBatch;
+          const failed = pending.failedBatch;
+          if (failed) {
             batch.pendingSinceMs = Number.isFinite(batch.pendingSinceMs)
               ? Math.min(batch.pendingSinceMs, failed.pendingSinceMs) : failed.pendingSinceMs;
             batch.lastLogicalUpdateAtMs = Number.isFinite(batch.lastLogicalUpdateAtMs)
@@ -376,12 +414,19 @@ export const createPatchQueue = ({
           batch.startedAtMs = Date.now();
           pending.lastFlushStartedAtMs = batch.startedAtMs;
           try {
+            if (failed) {
+              if (automatic && !failed.autoRetry) throw failed.error;
+              // A new patch/explicit drain cannot bypass the original native
+              // operation or publication owner's unconfirmed cleanup.
+              failed.observation.requireSettled();
+            }
             const value = await applyStatePatch(buildRoot, patch, events, { durabilityClass });
             if (isLockUnavailable(value)) throw value;
             return value;
           } catch (error) {
-            pending.failedBatch = { ...batch, patch, events, durabilityClass };
-            throw error;
+            failedRecord = { ...batch, patch, events, durabilityClass, ...captureFailure(buildRoot, error, durabilityClass) };
+            pending.failedBatch = failedRecord;
+            throw failedRecord.error;
           }
         }
       );
@@ -390,19 +435,17 @@ export const createPatchQueue = ({
       pending.lastDurableAcknowledgementAtMs = pending.lastFlushCompletedAtMs;
       pending.lastDurableLogicalUpdateAtMs = batch.lastLogicalUpdateAtMs;
       pending.retryNotBeforeMs = null;
-      if (isLockUnavailable(result)) {
-        throw result;
-      }
       waiters.forEach((waiter) => settleWaiter(pending, waiter, 'resolve', createFlushedOutcome(result)));
       return result;
     } catch (err) {
       pending.lastFlushCompletedAtMs = Date.now();
       pending.lastFlushDurationMs = Math.max(0, pending.lastFlushCompletedAtMs - batch.startedAtMs);
-      const lockUnavailable = isLockUnavailable(err);
+      const failure = failedRecord?.error ?? err;
+      const lockUnavailable = failedRecord?.lockUnavailable === true;
       if (lockUnavailable) {
         waiters.forEach((waiter) => {
           if (isRequiredBuildStateDurability(waiter?.durabilityClass)) {
-            settleWaiter(pending, waiter, 'reject', err);
+            settleWaiter(pending, waiter, 'reject', failure);
             return;
           }
           settleWaiter(
@@ -413,31 +456,10 @@ export const createPatchQueue = ({
           );
         });
       } else {
-        waiters.forEach((waiter) => settleWaiter(pending, waiter, 'reject', err));
+        waiters.forEach((waiter) => settleWaiter(pending, waiter, 'reject', failure));
       }
       pending.retryNotBeforeMs = Date.now() + resolveDebounceMs(pending.patch || pending.failedBatch?.patch);
-      if (lockUnavailable) {
-        const nowMs = Date.now();
-        const lastLoggedAtMs = Number(lockRetryLogAtMsByBuildRoot.get(key) || 0);
-        if (nowMs - lastLoggedAtMs >= LOCK_UNAVAILABLE_RETRY_LOG_INTERVAL_MS) {
-          lockRetryLogAtMsByBuildRoot.set(key, nowMs);
-          const lockOwner = err?.buildState?.lockOwner || err?.lockOwner || null;
-          const ownerDetail = formatBuildStateLockOwner(lockOwner);
-          logLine(
-            `[build_state] state write lock unavailable for ${key}${ownerDetail ? ` (owner: ${ownerDetail})` : ''}; deferring best-effort patch flush and retrying.`,
-            {
-              kind: 'warning',
-              buildState: {
-                event: 'patch-lock-unavailable-retry',
-                buildRoot: key,
-                lockOwner
-              }
-            }
-          );
-        }
-      } else {
-        recordStateError(buildRoot, err);
-      }
+      if (!failedRecord?.autoRetry) throw failure;
       return null;
     } finally {
       pending.activeFlushes -= 1;
@@ -460,6 +482,20 @@ export const createPatchQueue = ({
     if (!buildRoot || !patch) return Promise.resolve(createFlushedOutcome(null));
     const pending = getPendingEntry(buildRoot);
     const resolvedDurabilityClass = resolveBuildStateDurabilityClass(durabilityClass);
+    if (pending.failedBatch) {
+      try { pending.failedBatch.observation.requireSettled(); }
+      catch (inspection) {
+        const failed = pending.failedBatch;
+        failed.error = failed.observation.retain(inspection, { inspectionPresent: true });
+        failed.observation = observeStorageResource(failed.error, { phase: 'build-state-queue-admission' });
+        failed.autoRetry = false;
+        cancelPendingTimer(pending);
+        return Promise.reject(failed.error);
+      }
+      if (!pending.failedBatch.autoRetry && !flushNow && !isRequiredBuildStateDurability(resolvedDurabilityClass)) {
+        return Promise.reject(pending.failedBatch.error);
+      }
+    }
     const enqueuedAtMs = Date.now();
     if (pending.patch) {
       pending.coalescedPatchCount += 1;
@@ -482,7 +518,7 @@ export const createPatchQueue = ({
     }
     cancelPendingTimer(pending);
     if (flushNow || isRequiredBuildStateDurability(resolvedDurabilityClass)) {
-      void flushPendingState(buildRoot);
+      void flushPendingState(buildRoot).catch(() => null);
     } else {
       schedulePendingFlush(buildRoot, pending);
     }

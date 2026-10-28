@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["ordinary", "missing-root", "root-denied", "retired-before-lock", "preparation", "siblings", "diagnostic"]
+}

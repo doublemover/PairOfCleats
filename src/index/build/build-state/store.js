@@ -1,3 +1,8 @@
+import { writeBuildStateText as writeTextWithDurability } from "./store-io.js";
+import { createBuildStateWriteFailureError, normalizeBuildStateLockOwner, createBuildStateLockUnavailableError, createBuildStateLockUnavailableResult, readBuildStateFailureCode } from "./store-errors.js";
+import { observeStorageResource, describeStorageFailure } from '../../../shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
+import { redactDiagnosticText } from '../../../shared/diagnostic-text.js';
 import { mergeRuntimeAttempts } from '../../../shared/runtime-envelope/receipt.js';
 import { assertCurrentIndexFormat } from '../../../contracts/index-format.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../contracts/versioning.js';
@@ -56,121 +61,17 @@ const acquireBuildStateFileLock = async (options) => {
   return fileLockModule.acquireFileLock(options);
 };
 
+const releaseBuildStateFileLock = async (lock, workerError) => {
+  const fileLockModule = await fileLockModulePromise;
+  await fileLockModule.releaseFileLockOrThrow(lock, { workerError });
+};
+
 export const setActiveStateKeyResolver = (resolver) => {
   activeStateKeyResolver = typeof resolver === 'function' ? resolver : null;
 };
 
-export const formatBuildStateLockOwner = (owner) => {
-  if (!owner || typeof owner !== 'object') return null;
-  const parts = [];
-  if (Number.isFinite(Number(owner.pid)) && Number(owner.pid) > 0) {
-    parts.push(`pid=${Math.floor(Number(owner.pid))}`);
-  }
-  if (typeof owner.lockId === 'string' && owner.lockId.trim()) {
-    parts.push(`lockId=${owner.lockId.trim()}`);
-  }
-  if (typeof owner.scope === 'string' && owner.scope.trim()) {
-    parts.push(`scope=${owner.scope.trim()}`);
-  }
-  if (typeof owner.startedAt === 'string' && owner.startedAt.trim()) {
-    parts.push(`startedAt=${owner.startedAt.trim()}`);
-  }
-  return parts.length ? parts.join(', ') : null;
-};
+export { formatBuildStateLockOwner, isBuildStateLockUnavailableResult } from "./store-errors.js";
 
-const createBuildStateWriteFailureError = ({
-  buildRoot,
-  target,
-  phase,
-  cause
-}) => {
-  const resolvedBuildRoot = buildRoot ? path.resolve(buildRoot) : null;
-  const code = String(cause?.code || cause?.name || 'UNKNOWN');
-  const err = new Error(
-    `[build_state] ${target} write failed (${code})${resolvedBuildRoot ? ` for ${resolvedBuildRoot}` : ''}.`,
-    { cause }
-  );
-  err.code = 'ERR_BUILD_STATE_WRITE_FAILED';
-  err.target = target;
-  err.phase = phase;
-  err.buildRoot = resolvedBuildRoot;
-  err.causeCode = String(cause?.code || '');
-  return err;
-};
-
-const normalizeBuildStateLockOwner = (info, fallbackPid = null) => {
-  if (!info || typeof info !== 'object') {
-    const numericPid = Number(fallbackPid);
-    return Number.isFinite(numericPid) && numericPid > 0 ? { pid: numericPid } : null;
-  }
-  const owner = {};
-  const pid = Number(info.pid ?? fallbackPid);
-  if (Number.isFinite(pid) && pid > 0) owner.pid = pid;
-  if (typeof info.lockId === 'string' && info.lockId.trim()) owner.lockId = info.lockId.trim();
-  if (typeof info.scope === 'string' && info.scope.trim()) owner.scope = info.scope.trim();
-  if (typeof info.startedAt === 'string' && info.startedAt.trim()) owner.startedAt = info.startedAt.trim();
-  return Object.keys(owner).length ? owner : null;
-};
-
-const createBuildStateLockUnavailableError = ({
-  buildRoot,
-  durabilityClass,
-  owner = null,
-  cause = null
-}) => {
-  const resolvedBuildRoot = buildRoot ? path.resolve(buildRoot) : null;
-  const normalizedOwner = normalizeBuildStateLockOwner(owner);
-  const ownerDetail = formatBuildStateLockOwner(normalizedOwner);
-  const err = new Error(
-    `[build_state] state write lock unavailable${resolvedBuildRoot ? ` for ${resolvedBuildRoot}` : ''}${ownerDetail ? ` (owner: ${ownerDetail})` : ''}.`,
-    cause ? { cause } : undefined
-  );
-  err.code = 'ERR_BUILD_STATE_LOCK_UNAVAILABLE';
-  err.buildRoot = resolvedBuildRoot;
-  err.retryable = true;
-  if (cause?.code) err.causeCode = String(cause.code);
-  err.lockOwner = normalizedOwner;
-  err.buildState = {
-    retryable: true,
-    reason: 'lock-unavailable',
-    durabilityClass: resolveBuildStateDurabilityClass(durabilityClass),
-    buildRoot: resolvedBuildRoot,
-    lockOwner: normalizedOwner
-  };
-  return err;
-};
-
-const createBuildStateLockUnavailableResult = ({
-  buildRoot,
-  durabilityClass,
-  owner = null
-}) => {
-  const resolvedBuildRoot = buildRoot ? path.resolve(buildRoot) : null;
-  const normalizedOwner = normalizeBuildStateLockOwner(owner);
-  return {
-    ok: false,
-    deferred: true,
-    retryable: true,
-    code: 'ERR_BUILD_STATE_LOCK_UNAVAILABLE',
-    buildRoot: resolvedBuildRoot,
-    lockOwner: normalizedOwner,
-    buildState: {
-      retryable: true,
-      reason: 'lock-unavailable',
-      durabilityClass: resolveBuildStateDurabilityClass(durabilityClass),
-      buildRoot: resolvedBuildRoot,
-      lockOwner: normalizedOwner
-    }
-  };
-};
-
-export const isBuildStateLockUnavailableResult = (value) => (
-  Boolean(value)
-  && typeof value === 'object'
-  && value.code === 'ERR_BUILD_STATE_LOCK_UNAVAILABLE'
-  && value.retryable === true
-  && value.buildState?.reason === 'lock-unavailable'
-);
 
 const isActiveStateKey = (key) => {
   if (!activeStateKeyResolver) return false;
@@ -207,9 +108,31 @@ const readFingerprint = async (filePath) => {
     const stat = await fs.stat(filePath);
     return { mtimeMs: stat.mtimeMs, size: stat.size };
   } catch (error) {
-    if (error?.code === 'ENOENT') return null;
+    if (readBuildStateFailureCode(error, 'build-state-fingerprint') === 'ENOENT') return null;
     throw error;
   }
+};
+
+// Drain every started sibling, retaining every independent native observation.
+const throwRejectedWrites = settled => {
+  let failure, failed = false;
+  for (const entry of settled) {
+    if (entry.status !== 'rejected') continue;
+    failure = failed ? addStorageFailureContext(failure, {}, entry.reason,
+      { secondaryPresent: true, forceAggregate: true }) : entry.reason;
+    failed = true;
+  }
+  if (failed) throw failure;
+};
+
+const isVanishedRootFailure = async (buildRoot, error) => {
+  const observation = observeStorageResource(error, { phase: 'build-state-write-root' });
+  if (readBuildStateFailureCode(error, 'build-state-write-root-code') !== 'ENOENT') return false;
+  let exists;
+  try { exists = await buildRootExists(buildRoot); }
+  catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+  observation.requireSettled();
+  return !exists;
 };
 
 const readJsonFile = async (filePath, {
@@ -247,8 +170,10 @@ const readJsonFile = async (filePath, {
     }
     return parsed;
   } catch (err) {
-    if (err?.code === 'ENOENT') return null;
-    if (err?.code === 'ERR_BUILD_STATE_TOO_LARGE') throw err;
+    const observation = observeStorageResource(err, { phase: 'build-state-read' });
+    const code = readBuildStateFailureCode(err, 'build-state-read-code');
+    if (code === 'ENOENT') return null;
+    if (code === 'ERR_BUILD_STATE_TOO_LARGE') throw err;
     if (strict) {
       const wrapped = new Error(
         `[build_state] failed to parse ${label} file: ${filePath}`,
@@ -257,7 +182,7 @@ const readJsonFile = async (filePath, {
       wrapped.code = 'ERR_BUILD_STATE_CORRUPT';
       wrapped.target = target;
       wrapped.buildRoot = buildRoot ? path.resolve(buildRoot) : null;
-      throw wrapped;
+      throw observation.wrap(wrapped);
     }
     return null;
   }
@@ -355,8 +280,9 @@ export const buildRootExists = async (buildRoot) => {
   try {
     await fs.access(buildRoot);
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    if (readBuildStateFailureCode(error, 'build-state-root-existence') === 'ENOENT') return false;
+    throw error;
   }
 };
 
@@ -400,13 +326,17 @@ export const hydrateStateDefaults = async (state, buildRoot) => {
         currentReadError = info || null;
       }
     });
-    if (currentReadError?.error?.code && currentReadError.error.code !== 'ENOENT') {
-      const errorCode = currentReadError.error.code || 'ERR_CURRENT_POINTER_READ';
-      logLine(
-        `[build_state] current.json read failed (${errorCode}) at ${currentPath}; `
+    if (currentReadError) {
+      const observation = observeStorageResource(currentReadError.error, { phase: 'build-state-current-pointer' });
+      const errorCode = readBuildStateFailureCode(currentReadError.error, 'build-state-current-pointer-code');
+      if (errorCode !== 'ENOENT') {
+        logLine(
+          `[build_state] current.json read failed (${errorCode}) at ${currentPath}; `
           + 'using in-state repo defaults',
-        { kind: 'warning' }
-      );
+          { kind: 'warning' }
+        );
+      }
+      observation.requireSettled();
     }
     if (current && typeof current === 'object') {
       if (!repo && current.repo) {
@@ -504,10 +434,11 @@ const sanitizeMainState = (state) => {
 };
 
 export const recordStateError = (buildRoot, err) => {
-  if (!buildRoot || !err) return;
+  if (!buildRoot) return;
   const key = path.resolve(buildRoot);
   const existing = stateErrors.get(key) || { count: 0, lastAt: null, message: null };
-  const message = err?.message || String(err);
+  const diagnostic = describeStorageFailure(err, { phase: 'build-state-error-report' });
+  const message = redactDiagnosticText(diagnostic.message).slice(0, 2048);
   const next = {
     count: existing.count + 1,
     lastAt: new Date().toISOString(),
@@ -524,7 +455,7 @@ const compressRotatedLog = async (filePath) => {
     const payload = await fs.readFile(filePath);
     const gzPath = `${filePath}.gz`;
     const gzPayload = await gzipAsync(payload);
-    await atomicWriteText(gzPath, gzPayload, { newline: false });
+    await atomicWriteText(gzPath, gzPayload, { newline: false, mkdir: false });
     await fs.unlink(filePath);
   } catch (err) {
     throw err;
@@ -535,7 +466,7 @@ const statIfExists = async (filePath) => {
   try {
     return await fs.stat(filePath);
   } catch (err) {
-    if (err?.code === 'ENOENT') return null;
+    if (readBuildStateFailureCode(err, 'build-state-stat') === 'ENOENT') return null;
     throw err;
   }
 };
@@ -574,7 +505,8 @@ const listRotatedLogEntries = async (filePath) => {
     let stat = null;
     try {
       stat = await fs.stat(fullPath);
-    } catch {
+    } catch (error) {
+      if (readBuildStateFailureCode(error, 'build-state-archive-stat') !== 'ENOENT') throw error;
       continue;
     }
     rotatedEntries.push({
@@ -610,11 +542,14 @@ const pruneRotatedLogs = async (filePath, target) => {
     toDelete.push(entry.path);
   }
   if (!toDelete.length) return;
-  await Promise.all(toDelete.map(async (targetPath) => {
+  const settled = await Promise.allSettled(toDelete.map(async (targetPath) => {
     try {
       await fs.rm(targetPath, { force: true });
-    } catch {}
+    } catch (error) {
+      if (readBuildStateFailureCode(error, 'build-state-archive-prune') !== 'ENOENT') throw error;
+    }
   }));
+  throwRejectedWrites(settled);
 };
 
 const rotateLogIfNeeded = async (
@@ -670,51 +605,6 @@ const rotateLogIfNeeded = async (
     recordStateError(buildRoot, err);
   }
   return { rotated: true, existed: true };
-};
-
-const syncParentDirectory = async (filePath) => {
-  const parentPath = path.dirname(filePath);
-  let handle = null;
-  try {
-    handle = await fs.open(parentPath, 'r');
-    await handle.sync();
-  } catch (err) {
-    const code = String(err?.code || '').toUpperCase();
-    // Some platforms/filesystems do not support directory fsync.
-    if (code !== 'EINVAL' && code !== 'ENOTSUP' && code !== 'EPERM') {
-      throw err;
-    }
-  } finally {
-    try {
-      await handle?.close();
-    } catch {}
-  }
-};
-
-const writeTextWithDurability = async (filePath, text, {
-  append = false,
-  durable = false
-} = {}) => {
-  if (!append) {
-    await atomicWriteText(filePath, text, { newline: false });
-    return;
-  }
-  if (!durable) {
-    await fs.appendFile(filePath, text, 'utf8');
-    return;
-  }
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  const existedBefore = Boolean(await statIfExists(filePath));
-  const handle = await fs.open(filePath, append ? 'a' : 'w');
-  try {
-    await handle.writeFile(text, 'utf8');
-    await handle.sync();
-  } finally {
-    await handle.close();
-  }
-  if (!existedBefore || !append) {
-    await syncParentDirectory(filePath);
-  }
 };
 
 const appendEventLog = async (
@@ -952,7 +842,7 @@ const writeStateFile = async (
     return state;
   }
   try {
-    await atomicWriteJson(statePath, state, { spaces: 0 });
+    await atomicWriteJson(statePath, state, { spaces: 0, mkdir: false });
     const fingerprint = await readFingerprint(statePath);
     cache.state = state;
     cache.fingerprint = fingerprint;
@@ -960,7 +850,6 @@ const writeStateFile = async (
     if (comparableHash) cache.lastComparableHash = comparableHash;
     return state;
   } catch (err) {
-    if (err?.code === 'ENOENT' && !(await buildRootExists(buildRoot))) return null;
     if (isRequiredBuildStateDurability(resolvedDurabilityClass)) {
       throw createBuildStateWriteFailureError({
         buildRoot,
@@ -969,6 +858,7 @@ const writeStateFile = async (
         cause: err
       });
     }
+    if (await isVanishedRootFailure(buildRoot, err)) return null;
     recordStateError(buildRoot, err);
     return null;
   }
@@ -1006,7 +896,7 @@ const writeSidecarFile = async (
     return payload;
   }
   try {
-    await atomicWriteText(filePath, jsonString);
+    await atomicWriteText(filePath, jsonString, { mkdir: false });
     const fingerprint = await readFingerprint(filePath);
     cache.progress = payload;
     cache.progressFingerprint = fingerprint;
@@ -1014,7 +904,6 @@ const writeSidecarFile = async (
     cache.progressSerialized = jsonString;
     return payload;
   } catch (err) {
-    if (err?.code === 'ENOENT' && !(await buildRootExists(buildRoot))) return null;
     if (isRequiredBuildStateDurability(resolvedDurabilityClass)) {
       throw createBuildStateWriteFailureError({
         buildRoot,
@@ -1023,6 +912,7 @@ const writeSidecarFile = async (
         cause: err
       });
     }
+    if (await isVanishedRootFailure(buildRoot, err)) return null;
     recordStateError(buildRoot, err);
     return null;
   }
@@ -1035,8 +925,14 @@ export const applyStatePatch = async (
   { durabilityClass = BUILD_STATE_DURABILITY_CLASS.BEST_EFFORT } = {}
 ) => {
   if (!buildRoot || !patch) return null;
-  if (!(await buildRootExists(buildRoot))) return null;
   const resolvedDurabilityClass = resolveBuildStateDurabilityClass(durabilityClass);
+  if (!(await buildRootExists(buildRoot))) {
+    if (isRequiredBuildStateDurability(resolvedDurabilityClass)) {
+      throw createBuildStateWriteFailureError({ buildRoot, target: 'state-root', phase: 'admission',
+        cause: Object.assign(new Error('Selected build root no longer exists.'), { code: 'ERR_BUILD_STATE_ROOT_MISSING' }) });
+    }
+    return null;
+  }
   const lockPath = resolveStateWriteLockPath(buildRoot);
   const lockTimeoutMessage = `[build_state] state write lock timeout for ${path.resolve(buildRoot)}`;
   let lock = null;
@@ -1048,6 +944,7 @@ export const applyStatePatch = async (
       pollMs: 100,
       staleMs: 15 * 60 * 1000,
       forceStaleCleanup: false,
+      createParent: false,
       timeoutBehavior: isRequiredBuildStateDurability(resolvedDurabilityClass) ? 'throw' : 'null',
       timeoutMessage: lockTimeoutMessage,
       metadata: { scope: 'build-state-write' },
@@ -1056,7 +953,14 @@ export const applyStatePatch = async (
       }
     });
   } catch (error) {
-    if (error?.message === lockTimeoutMessage) {
+    const observation = observeStorageResource(error, { phase: 'build-state-lock-acquire' });
+    let message;
+    try { observation.requireSettled(); message = observation.primary.message; observation.requireSettled(); }
+    catch (inspection) {
+      throw createBuildStateWriteFailureError({ buildRoot, target: 'state-lock', phase: 'acquire',
+        cause: observation.retain(inspection, { inspectionPresent: true }) });
+    }
+    if (message === lockTimeoutMessage) {
       throw createBuildStateLockUnavailableError({
         buildRoot,
         durabilityClass: resolvedDurabilityClass,
@@ -1085,8 +989,7 @@ export const applyStatePatch = async (
       owner: lastBusyOwner
     });
   }
-  let releaseError = null;
-  try {
+  const performPatch = async () => {
     const { main, progress, checkpoints } = splitPatch(patch);
     patchInvocationCounter = (patchInvocationCounter + 1) >>> 0;
     const patchId = sha1(JSON.stringify({
@@ -1116,12 +1019,12 @@ export const applyStatePatch = async (
 
     const writes = [];
     if (progress) {
-      writes.push(writeSidecarFile(buildRoot, 'progress', nextProgress, cache, {
+      writes.push(() => writeSidecarFile(buildRoot, 'progress', nextProgress, cache, {
         durabilityClass: resolvedDurabilityClass
       }));
     }
     if (checkpoints) {
-      writes.push(writeSidecarFile(
+      writes.push(() => writeSidecarFile(
         buildRoot,
         'checkpoints',
         {
@@ -1145,7 +1048,7 @@ export const applyStatePatch = async (
       );
       if (shouldWrite) {
         merged.updatedAt = new Date().toISOString();
-        writes.push(writeStateFile(buildRoot, merged, cache, {
+        writes.push(() => writeStateFile(buildRoot, merged, cache, {
           comparableHash,
           durabilityClass: resolvedDurabilityClass
         }));
@@ -1156,11 +1059,7 @@ export const applyStatePatch = async (
     }
 
     if (writes.length) {
-      const settledWrites = await Promise.allSettled(writes);
-      const rejectedWrite = settledWrites.find((entry) => entry.status === 'rejected');
-      if (rejectedWrite) {
-        throw rejectedWrite.reason;
-      }
+      throwRejectedWrites(await Promise.allSettled(writes.map(write => Promise.resolve().then(write))));
     }
     const eventsPath = resolveEventsPath(buildRoot);
     if (events?.length && !(await hasPatchStageApplied(buildRoot, patchId, 'events', eventsPath))) {
@@ -1181,29 +1080,20 @@ export const applyStatePatch = async (
       }
     }
     return merged;
-  } finally {
-    let released = false;
-    try {
-      released = await lock.release();
-    } catch (err) {
-      releaseError = err;
-    }
-    if (!releaseError && released !== true) {
-      releaseError = new Error(
-        `[build_state] state write lock release returned false for ${path.resolve(buildRoot)}.`
-      );
-      releaseError.code = 'ERR_BUILD_STATE_LOCK_RELEASE_FAILED';
-    }
-    if (releaseError) {
-      if (isRequiredBuildStateDurability(resolvedDurabilityClass)) {
-        throw createBuildStateWriteFailureError({
-          buildRoot,
-          target: 'state-lock',
-          phase: 'release',
-          cause: releaseError
-        });
-      }
-      recordStateError(buildRoot, releaseError);
-    }
+  };
+  let result, operationError, operationObservation, operationFailed = false;
+  try { result = await performPatch(); }
+  catch (error) {
+    operationFailed = true; operationError = error;
+    operationObservation = observeStorageResource(error, { phase: 'build-state-patch' });
   }
+  try {
+    await releaseBuildStateFileLock(lock, operationObservation ? operationObservation.retain() : null);
+  } catch (error) {
+    const releaseFailure = createBuildStateWriteFailureError({ buildRoot, target: 'state-lock', phase: 'release', cause: error });
+    throw operationFailed ? addStorageFailureContext(operationError, {}, releaseFailure,
+      { secondaryPresent: true, forceAggregate: true }) : releaseFailure;
+  }
+  if (operationFailed) throw operationError;
+  return result;
 };

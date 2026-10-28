@@ -52,6 +52,7 @@ export {
  *  staleMs?:number,
  *  metadata?:object|null,
  *  forceStaleCleanup?:boolean,
+ *  createParent?:boolean,
  *  timeoutBehavior?:'null'|'throw',
  *  timeoutMessage?:string,
  *  invalidLockGraceMs?:number,
@@ -69,6 +70,7 @@ export const acquireFileLock = async ({
   staleMs = DEFAULT_FILE_LOCK_STALE_MS,
   metadata = null,
   forceStaleCleanup = false,
+  createParent = true,
   timeoutBehavior = 'null',
   timeoutMessage = 'Lock timeout.',
   invalidLockGraceMs = null,
@@ -130,6 +132,9 @@ export const acquireFileLock = async ({
         continue;
       }
       if (code === 'ENOENT') {
+        // A generation-scoped follow-up writer may borrow an admitted parent,
+        // but must not recreate a retired generation during lock acquisition.
+        if (!createParent) throw err;
         parentMissingRetries += 1;
         incrementParentMissingRetriesMetric();
         let parentReady = false;

@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["ordinary", "write-close", "pending-write", "pending-sync", "close-only", "missing-root"]
+}

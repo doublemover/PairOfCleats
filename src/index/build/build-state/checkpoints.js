@@ -5,6 +5,7 @@ import { atomicWriteText } from '../../../shared/io/atomic-write.js';
 import { sha1 } from '../../../shared/hash.js';
 import { compareStrings } from '../../../shared/sort.js';
 import { readJsonFileSafe } from '../../../shared/file-read.js';
+import { readBuildStateFailureCode } from './store-errors.js';
 import {
   STAGE_CHECKPOINTS_SIDECAR_VERSION,
   STAGE_CHECKPOINTS_INDEX_BASENAME,
@@ -55,8 +56,9 @@ const readFingerprint = async (filePath) => {
   try {
     const stat = await fs.stat(filePath);
     return { mtimeMs: stat.mtimeMs, size: stat.size };
-  } catch {
-    return null;
+  } catch (error) {
+    if (readBuildStateFailureCode(error, 'build-state-checkpoint-fingerprint') === 'ENOENT') return null;
+    throw error;
   }
 };
 
@@ -245,7 +247,7 @@ export const writeCheckpointSlices = async (buildRoot, {
     if (modeHash !== priorModeHash || !fingerprintsMatch(currentFingerprint, priorFingerprint)) {
       const canonical = buildStageCheckpointModeBasename(mode);
       modePath = path.join(buildRoot, `${canonical.slice(0, -5)}.${randomUUID()}.json`);
-      await atomicWriteText(modePath, `${JSON.stringify(modePayload)}\n`);
+      await atomicWriteText(modePath, `${JSON.stringify(modePayload)}\n`, { mkdir: false });
     }
     modeFingerprints[mode] = await readFingerprint(modePath);
     modeHashes[mode] = modeHash;
@@ -255,7 +257,7 @@ export const writeCheckpointSlices = async (buildRoot, {
     };
   }
   nextIndex.updatedAt = now;
-  await atomicWriteText(indexPath, `${JSON.stringify(serializeCheckpointIndex(nextIndex))}\n`);
+  await atomicWriteText(indexPath, `${JSON.stringify(serializeCheckpointIndex(nextIndex))}\n`, { mkdir: false });
   // Retain old slices for readers with an older index. Build retention owns
   // their eventual retirement; a failed commit never deletes recovery data.
   cache.modeHashes = modeHashes;
