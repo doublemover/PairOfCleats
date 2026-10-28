@@ -52,6 +52,7 @@ references were preserved. Published head/base remained `adbcaf777` / `main`.
 | [cd2583658](native-reader-observation-implementation-2026-10-27.md) | First failed-open callback and independent native/error observer retention through canonical reader admission | 5 authored cases; actual native/category qualification and custom backend adoption remain |
 | [d8e6d540f](vfs-consumer-implementation-2026-10-28.md) | VFS publication pins through original pooled/single-use LSP disposal, current-file requalification and close-only retirement | 8 authored cases; cross-process/category adoption and actual provider qualification remain |
 | [4bdecbafa](vfs-storage-implementation-2026-10-28.md) | Runtime-selected VFS repository/category admission through all LSP adapters and original client/file/metadata retirement | 7 authored cases; revision turnover, cross-process writers/custom roots and actual provider qualification remain |
+| [489e067e6](lsp-source-epoch-implementation-2026-10-28.md) | Actual source/root epoch turnover through reserved FIFO pool admission and confirmed original client/file/metadata retirement | 9 authored cases; actual provider, cross-process/custom-root and full qualification remain |
 
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero

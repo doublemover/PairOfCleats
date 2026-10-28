@@ -38,3 +38,8 @@ the existing pool, cross-process writer arbitration and external/custom producer
 registration. Full original/follow-up #1643 acceptance and broader #1267/#1574
 category/backend adoption remain. No native crash attribution or runtime pass is
 claimed.
+
+Subsequent [source epoch turnover](lsp-source-epoch-implementation-2026-10-28.md)
+addresses the same-origin revision item through the existing pool. The preceding
+remaining list describes this receipt's original checkpoint; cross-process/custom
+registration and functional qualification remain.
