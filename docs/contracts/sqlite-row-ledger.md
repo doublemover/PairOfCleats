@@ -39,8 +39,23 @@ file chunk counts and admitted ANN-to-dense IDs in both directions. Empty source
 manifest entries remain valid. Disabled ANN is explicitly unadmitted. Each
 relation retains at most 16 bounded samples and truncation, not a corpus Set;
 query failure propagates. Injected snapshots cannot claim this native coverage.
-Source file/hash inventories, bundle/incremental source identity,
-post-compaction/final publication correspondence and replay remain.
+
+Compaction now captures an independent original-source chunk witness in its
+existing file/start/old-ID order. It permits only planned sequential IDs and the
+existing file normalizer. After VACUUM, the actual staged database must match
+covered UID/mode/file/range/line/metadata identities and native file/dense/ANN
+relations before replacement. The actual build runner repeats its post-compaction
+ledger check with that original private witness. A copied completion object cannot
+supply the witness; public compaction result JSON remains `{skipped:false}`.
+Original pre-import/artifact checks remain separately recorded from post-compaction
+checks. Cursor observations survive projection and late revocation before another
+native step. Source file/hash inventories, bundle/incremental source identity,
+complete payload/vector values, final published identity and replay remain.
+
+A mode-only compactor also refuses any other/unknown mode in known mode-bearing
+tables, including metadata-only empty modes. This protection no longer depends on
+the presence of semantic-generation metadata. Rejection precedes rewriting the
+original database. It preserves the existing unsupported shared-compaction policy.
 Unadopted routes explicitly report identities unqualified. Bounded streaming
 correspondence, generation-qualified replay and acceptance remain #284 work.
 No whole-corpus identity Set, public option, backend/schema fallback, skipped
@@ -50,5 +65,6 @@ Thirty-three count/capability controls, including a canonical version-2 gate and
 six tiny actual SQLite cases, are authored and unexecuted. Thirty-one identity/
 cursor/actual-build controls and 16 native correspondence controls are also
 authored and unexecuted. The original row-ledger fixture retains all its
-positive mismatch/classification assertions. Existing full/incremental/bundle/
+positive mismatch/classification assertions. Sixteen compaction/source/native
+controls and one late-cursor control are also authored, unexecuted. Existing full/incremental/bundle/
 mode/native ownership cases require checks against the resulting candidate.

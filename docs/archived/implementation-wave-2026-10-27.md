@@ -134,6 +134,8 @@ PR #572 metadata was refreshed and read back at checkpoint `c070f3095` (180 loca
 
 - [Forensic publication and drain](forensic-publication-ordering-implementation-2026-10-28.md): real crash logger snapshots and serializes accepted bundles/indexes, coalesces raw outcomes per kind/signature, preserves required policy, stops intake and closes independent writers after failure. Eighteen atomic-IO controls authored, unexecuted; cross-instance authority/crash atomicity and native qualification remain.
 
+- [SQLite compaction identity](sqlite-compaction-identity-implementation-2026-10-28.md): independent source witnesses account for planned IDs/path normalization and gate actual post-VACUUM output/build publication; shared/unknown modes are refused even without semantic metadata. Sixteen native and one cursor controls authored, unexecuted; complete payload/vector/source/final correspondence and qualification remain.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.
