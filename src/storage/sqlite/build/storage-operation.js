@@ -93,6 +93,19 @@ export const withSqliteStorageOperation = async (context, targets, action) => {
       throw new Error('SQLite temporary category changed during the admitted operation.');
     }
   };
+  const requireAdmission = () => {
+    if (blocked) throw blocked;
+    try {
+      if (overflow) throw new Error('SQLite original resource observation budget is unavailable.');
+      for (const observation of observations.values()) observation.requireSettled();
+    } catch (error) {
+      // Retain independent observer failures before stopping new work. A later
+      // physical settlement permits metadata recovery, never reopening this
+      // failed operation for another native route.
+      blocked = retain(error);
+      throw blocked;
+    }
+  };
   const release = () => {
     if (released) return true;
     if (!settled || overflow) throw new Error('SQLite operation is not settled; metadata cannot acknowledge resource closure.');
@@ -124,13 +137,17 @@ export const withSqliteStorageOperation = async (context, targets, action) => {
     retainFailure: retain,
     use(work) {
       if (settled || accepted.size >= 128 || typeof work !== 'function') throw new Error('SQLite accepted operation budget is unavailable.');
-      const promise = Promise.resolve().then(work);
+      requireAdmission();
+      const promise = Promise.resolve().then(() => { requireAdmission(); return work(); }).then(value => {
+        observeStorageResource(value, { phase: 'sqlite-accepted-result' }).requireSettled();
+        return value;
+      });
       accepted.add(promise); promise.catch(error => { retain(error); });
       return promise;
     },
     admitTargets(paths = []) {
       if (settled) throw new Error('SQLite operation no longer admits resource work.');
-      if (blocked) throw blocked;
+      requireAdmission();
       try {
         if (!Array.isArray(paths) || paths.length > 64) throw new TypeError('SQLite resource admission requires bounded selected paths.');
         revalidate();
@@ -182,6 +199,7 @@ export const withSqliteStorageOperation = async (context, targets, action) => {
       coordinationRoot, scope: 'sqlite-build-temporary-category' }), released: false, category: true });
     owner.admitTargets(targets);
     value = await operations.run(owner, () => action(owner));
+    observeStorageResource(value, { phase: 'sqlite-operation-result' }).requireSettled();
   } catch (error) { failed = true; primary = error; retain(error); }
   // An ignored accepted child cannot outlive its parent's namespace leases.
   let drained = 0;
