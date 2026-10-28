@@ -10,9 +10,11 @@ const invalid = message => Object.assign(new Error(message), { code: 'ERR_SQLITE
 
 /** Ordered, length-delimited SHA256, one native row at a time. No corpus Set,
  * JSON copy of metadata, unordered accumulator or caller-supplied digest. */
-const digestRows = rows => {
+const digestRows = (rows, projectRow = null) => {
   const hash = createHash('sha256').update('pairofcleats-sqlite-chunk-identity-v1\0');
   let count = 0, previous = -1, done = false, failed = false, primary, close;
+  const observations = [];
+  const requireSteps = () => { for (const observation of observations) observation.requireSettled(); };
   try {
     // Keep original cursor methods. A bad row must retire the native iterator,
     // preserving a failed return independently instead of hiding either cause.
@@ -20,13 +22,20 @@ const digestRows = rows => {
     const next = rows.next;
     if (typeof next !== 'function' || typeof close !== 'function') throw invalid('SQLite identity read has no original cursor owner.');
     while (true) {
+      requireSteps();
       const step = next.call(rows);
-      const observation = observeStorageResource(step, { phase: 'sqlite-identity-cursor-step' }); observation.requireSettled();
+      const observation = observeStorageResource(step, { phase: 'sqlite-identity-cursor-step' });
+      if (observation.hasResourceObservation) {
+        if (observations.length >= 128) throw Object.assign(invalid('SQLite identity cursor observation history exceeded its bound.'), { cacheOwnershipPending: true });
+        observations.push(observation);
+      }
+      observation.requireSettled();
       let row;
       try {
-        if (step.done === true) { done = true; break; }
+        if (step.done === true) { done = true; requireSteps(); break; }
         row = step.value;
       } catch (inspection) { throw observation.wrap(inspection); }
+      if (projectRow) row = projectRow(row, count);
       if (!Number.isSafeInteger(row.id) || row.id < 0 || row.id <= previous) throw invalid('SQLite source/target chunk IDs are invalid or duplicated.');
       previous = row.id;
       for (const field of fields) {
@@ -38,6 +47,7 @@ const digestRows = rows => {
       }
       count++;
       if (!Number.isSafeInteger(count)) throw invalid('SQLite chunk identity count exceeds safe representation.');
+      requireSteps();
     }
   } catch (error) { failed = true; primary = error; }
   if (!done) {
@@ -79,6 +89,25 @@ export const captureSqliteChunkStageIdentity = (db, mode, { outputPath = db.name
   const expected = digestRows(db.prepare(`${sourceProjection} ORDER BY c.id`).iterate());
   const witness = Object.freeze({ schemaVersion: 1, kind: 'sqlite-artifact-chunk-identity', mode,
     count: expected.count, sha256: expected.sha256, coverage: 'normalized-artifact-stage-chunks' });
+  witnesses.set(witness, { target: normalizePath(outputPath), mode, expected });
+  return witness;
+};
+
+/** Compaction deliberately assigns IDs in its existing file/start/old-ID order.
+ * The independent original-source pass permits only that planned reassignment
+ * and the existing file normalizer; all covered chunk identity fields remain.
+ */
+export const captureSqliteCompactionChunkIdentity = (db, mode, { outputPath = db.name, normalizeFile } = {}) => {
+  if (typeof outputPath !== 'string' || !path.isAbsolute(outputPath) || typeof normalizeFile !== 'function') {
+    throw invalid('SQLite compaction identity requires its original output and file normalization owner.');
+  }
+  const expected = digestRows(db.prepare(`SELECT ${fields.join(', ')} FROM chunks WHERE mode = ? ORDER BY file, start, id`).iterate(mode),
+    (row, ordinal) => {
+      if (!Number.isSafeInteger(row.id) || row.id < 0) throw invalid('SQLite compaction source has an invalid document ID.');
+      return { ...row, id: ordinal, file: normalizeFile(row.file) };
+    });
+  const witness = Object.freeze({ schemaVersion: 1, kind: 'sqlite-compaction-chunk-identity', mode,
+    count: expected.count, sha256: expected.sha256, coverage: 'normalized-compaction-source-chunk-identities' });
   witnesses.set(witness, { target: normalizePath(outputPath), mode, expected });
   return witness;
 };

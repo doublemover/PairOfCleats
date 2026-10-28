@@ -238,7 +238,7 @@ export const validateSqliteRowLedgerPostImport = ({
       `post-import ANN count mismatch (${observed.ann} !== ${annExpectation === 'disabled' ? 0 : observed.dense})`);
   }
   if (chunkIdentity && !matchesSqliteChunkIdentity(chunkIdentity, snapshot?.chunkIdentity, dbPath, ledger.mode)) return {
-    ...failure(SQLITE_ROW_LEDGER_FAILURE.postImportValidationMismatch, 'post-import chunk identity mismatch against original artifact stage'),
+    ...failure(SQLITE_ROW_LEDGER_FAILURE.postImportValidationMismatch, 'post-import chunk identity mismatch against original producer witness'),
     code: 'ERR_SQLITE_POSTIMPORT_IDENTITY_MISMATCH', failureClass: 'row_identity_mismatch',
     rowIdentity: { expected: chunkIdentity, observed: snapshot?.chunkIdentity || null }
   };
@@ -250,7 +250,7 @@ export const validateSqliteRowLedgerPostImport = ({
   return { ok: true, phase: 'post-import', rowLedger: ledger, observed,
     coverage: { chunks: 'exact-count', dense: 'exact-count', ann: observed.annPresent ? 'exact-count' : annExpectation,
       files: snapshot?.correspondence?.coverage?.files || 'observed-only',
-      identities: chunkIdentity ? 'normalized-artifact-stage-chunks' : 'unqualified',
+      identities: chunkIdentity ? chunkIdentity.coverage : 'unqualified',
       correspondence: snapshot?.correspondence?.coverage || null } };
 };
 

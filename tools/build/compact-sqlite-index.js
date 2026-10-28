@@ -34,6 +34,12 @@ import {
 import { collectManifestByNormalized } from '../../src/storage/sqlite/build/from-artifacts/sources.js';
 import { updateSqliteState } from '../../src/storage/sqlite/build/index-state.js';
 import { assertSqliteMinhashReceiver, writeSqliteMinhashHeader } from '../../src/storage/sqlite/minhash.js';
+import { captureSqliteCompactionChunkIdentity, readSqliteChunkIdentity, matchesSqliteChunkIdentity } from '../../src/storage/sqlite/build/row-identity.js';
+import { readSqliteRowCorrespondence } from '../../src/storage/sqlite/build/row-correspondence.js';
+
+const compactionWitnesses = new WeakMap();
+export const getSqliteCompactionChunkIdentity = result => result !== null && ['object', 'function'].includes(typeof result)
+  ? compactionWitnesses.get(result) || null : null;
 
 
 /** Copy immutable facts and metadata in bounded batches, retaining source row order. */
@@ -152,11 +158,9 @@ export async function compactDatabase(input, resources = null) {
   if (!hasRequiredTables(sourceDb, REQUIRED_TABLES)) {
     throw new Error(`[compact] ${mode} db missing required tables. Rebuild first.`);
   }
-  const semanticGeneration = sourceDb.prepare("SELECT value FROM index_format_meta WHERE key='semanticGeneration'").get();
   const knownSemanticTables = new Set([...CREATE_SEMANTIC_TABLES_SQL.matchAll(/CREATE TABLE IF NOT EXISTS (semantic_[a-z_]+)/g)].map(match => match[1]));
   const unknownTables = sourceDb.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'semantic_%'").all().filter(row => !knownSemanticTables.has(row.name));
-  const otherModes = semanticGeneration ? sourceDb.prepare('SELECT COUNT(*) AS total FROM chunks WHERE mode != ?').get(mode).total : 0;
-  if (unknownTables.length || otherModes > 0) {
+  if (unknownTables.length) {
     throw Object.assign(new Error('Semantic compaction is unsupported for unknown semantic tables or shared mode databases; use separate mode databases and rebuild from source with pairofcleats index build --repo "' + (input.repoRoot || process.cwd()) + '" --mode all.'), { code: 'ERR_SQLITE_COMPACTION_UNSUPPORTED' });
   }
   const modeColumnByTable = new Map();
@@ -193,6 +197,16 @@ export async function compactDatabase(input, resources = null) {
       new Error(`SQLite compaction received an invalid ${table} row count.`), { code: 'ERR_SQLITE_COMPACTION_COUNT' });
     return row.total;
   };
+  // A mode-only rewrite must never replace a shared database, including an
+  // empty foreign mode represented only by metadata. This is independent of
+  // semanticGeneration; NULL/unknown modes also have no discard authority.
+  for (const table of [...REQUIRED_TABLES, 'minhash_meta']) {
+    if (!tableHasModeColumn(sourceDb, table)) continue;
+    const other = sourceDb.prepare(`SELECT 1 AS otherMode FROM ${table} WHERE mode IS NOT ? LIMIT 1`).get(mode);
+    if (other) throw Object.assign(new Error(`SQLite compaction cannot discard other or unknown modes in ${table}; rebuild separate mode databases.`), {
+      code: 'ERR_SQLITE_COMPACTION_UNSUPPORTED', table
+    });
+  }
   const beforeStats = {
     bytes: sourceSize,
     chunks: countRows(sourceDb, 'chunks'),
@@ -208,7 +222,9 @@ export async function compactDatabase(input, resources = null) {
   const outDb = resources.open(() => new Database(tempPath));
   let pragmaState = null;
   let afterStats;
+  let chunkIdentity = null;
   try {
+    chunkIdentity = captureSqliteCompactionChunkIdentity(sourceDb, mode, { outputPath: dbPath, normalizeFile: normalizeFilePath });
     pragmaState = applyBuildPragmas(outDb, { inputBytes: sourceSize });
     outDb.exec(CREATE_TABLES_SQL);
     createOptionalFtsTables(outDb, listOptionalFtsTables(sourceDb).map(table => table.replace('chunks_fts_', '')));
@@ -530,6 +546,19 @@ export async function compactDatabase(input, resources = null) {
     assertSqliteIndexFormat({ db: outDb, repoRoot: input.repoRoot || process.cwd(), indexPath: tempPath, operation: 'compact-output' });
     await rebuildSqliteFilterFacts(outDb, mode);
     outDb.exec('VACUUM');
+    outDb.transaction(() => {
+      const observed = readSqliteChunkIdentity(outDb, mode);
+      if (!matchesSqliteChunkIdentity(chunkIdentity, observed, dbPath, mode)) throw Object.assign(
+        new Error('SQLite compaction changed source chunk identities beyond planned ID/path normalization.'), {
+          code: 'ERR_SQLITE_COMPACTION_IDENTITY_MISMATCH', rowIdentity: { expected: chunkIdentity, observed }
+        });
+      const correspondence = readSqliteRowCorrespondence(outDb, mode, {
+        annTable: vectorExtension?.table || 'dense_vectors_ann', checkAnn: vectorAnnReady === true
+      });
+      if (!correspondence.ok) throw Object.assign(new Error('SQLite compaction broke native chunk/file/dense/ANN correspondence.'), {
+        code: 'ERR_SQLITE_COMPACTION_CORRESPONDENCE_MISMATCH', rowIdentity: correspondence
+      });
+    })();
     afterStats = {
       bytes: Number(fs.statSync(tempPath).size) || 0,
       chunks: countRows(outDb, 'chunks'),
@@ -575,7 +604,9 @@ export async function compactDatabase(input, resources = null) {
     });
   }
 
-  return { skipped: false };
+  const result = { skipped: false };
+  compactionWitnesses.set(result, chunkIdentity);
+  return result;
 }
 
 const isDirectRun = isDirectExecution(import.meta.url);

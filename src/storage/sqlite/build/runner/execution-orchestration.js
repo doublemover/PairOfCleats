@@ -9,7 +9,7 @@ import { createTempPath } from '../../../../shared/json-stream/atomic.js';
 import { ensureDiskSpace, estimateDirBytes } from '../../../../shared/disk-space.js';
 import { createStageCheckpointRecorder } from '../../../../index/build/stage-checkpoints.js';
 import { resolveVectorExtensionConfigForMode } from '../../../../../tools/sqlite/vector-extension.js';
-import { compactDatabase } from '../../../../../tools/build/compact-sqlite-index.js';
+import { compactDatabase, getSqliteCompactionChunkIdentity } from '../../../../../tools/build/compact-sqlite-index.js';
 import { loadIncrementalManifest } from '../../incremental.js';
 import {
   replaceSqliteDatabase,
@@ -332,14 +332,14 @@ const executeSqliteModeBuildsOwned = async ({
         extension: modeVectorExtension,
         enabled: vectorAnnEnabled && (mode === 'code' || mode === 'prose' || mode === 'extracted-prose')
       };
-      const validatePublishedCounts = dbPath => {
+      const validatePublishedCounts = (dbPath, checkName = 'postImport') => {
         const result = validateSqliteRowLedgerPostImport({ repoRoot: root, userConfig, rowLedger: activeRowLedger, Database, dbPath,
           chunkIdentity: sqliteStats.chunkIdentity || null,
           annTable: resolvedVectorConfig?.extension?.table || 'dense_vectors_ann',
           annExpectation: !resolvedVectorConfig.enabled ? 'disabled' : sqliteStats.vectorAnn?.ready === true ? 'ready' : 'unavailable',
           configureAnn: resolvedVectorConfig.enabled ? db => resolvedVectorConfig.loadVectorExtension(db,
             resolvedVectorConfig.extension, `sqlite ${mode} ledger`) : null });
-        sqliteStats.rowLedgerChecks = { ...(sqliteStats.rowLedgerChecks || {}), postImport: result };
+        sqliteStats.rowLedgerChecks = { ...(sqliteStats.rowLedgerChecks || {}), [checkName]: result };
         if (!result.ok) throw Object.assign(new Error(result.message), {
           code: result.code, failureClass: result.failureClass, rowLedger: result.rowLedger, observed: result.observed,
           ...(result.rowIdentity ? { rowIdentity: result.rowIdentity } : {})
@@ -643,7 +643,21 @@ const executeSqliteModeBuildsOwned = async ({
           vectorExtension: resolvedVectorConfig.extension,
           logger: externalLogger || { log, warn, error }
         });
-        if (compacted) logDetails.push('compacted');
+        observeStorageResource(compacted, { phase: 'sqlite-compaction-original-result' }).requireSettled();
+        if (typeof compacted?.skipped !== 'boolean') throw Object.assign(new Error('SQLite compaction did not return its original completion receipt.'), {
+          code: 'ERR_SQLITE_COMPACTION_RECEIPT'
+        });
+        if (!compacted.skipped) {
+          sqliteStats.chunkIdentityBeforeCompaction = sqliteStats.chunkIdentity || null;
+          sqliteStats.chunkIdentity = getSqliteCompactionChunkIdentity(compacted);
+          // The compactor owns a new expected identity after planned ID/path
+          // normalization. Check that actual result before final replacement.
+          if (!sqliteStats.chunkIdentity) throw Object.assign(new Error('SQLite compaction completion has no source identity witness.'), {
+            code: 'ERR_SQLITE_COMPACTION_RECEIPT'
+          });
+          validatePublishedCounts(tempOutputPath, 'postCompaction');
+          logDetails.push('compacted');
+        }
       }
       throwIfAborted(signal);
       await replaceSqliteDatabase(tempOutputPath, outputPath, { signal });

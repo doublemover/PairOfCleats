@@ -17,7 +17,7 @@ const selected = process.env.PAIROFCLEATS_TEST_ID?.split('/').at(-1);
 assert.ok(['stage-positive', 'stage-missing', 'stage-id', 'stage-file', 'stage-range', 'stage-uid', 'stage-mode',
   'stage-meta', 'stage-duplicate', 'stage-invalid-id', 'stage-bounded-samples', 'post-uid', 'post-file', 'post-range',
   'post-id', 'post-meta', 'post-extra', 'post-missing', 'foreign-target', 'foreign-mode', 'copied-witness',
-  'cursor-primary-and-return', 'cursor-pending-step', 'cursor-pending-return', 'cursor-replacement',
+  'cursor-primary-and-return', 'cursor-pending-step', 'cursor-pending-return', 'cursor-replacement', 'cursor-late-revocation',
   'native-build-positive', 'native-build-corrupt', 'native-build-no-stats', 'native-bundle-no-stats', 'fallback-target', 'forged-probe'].includes(selected));
 if (selected.startsWith('cursor-')) {
   const primary = Object.freeze(new Error('original cursor next failure')), secondary = Object.freeze(new Error('original cursor return failure'));
@@ -27,6 +27,12 @@ if (selected.startsWith('cursor-')) {
   const iterator = {
     next() {
       nexts++;
+      if (selected === 'cursor-late-revocation') {
+        ready = true;
+        const row = { id: 0, chunk_id: 'uid', mode: 'code', file: 'source.js', start: 0, end: 1, startLine: 1, endLine: 1 };
+        Object.defineProperty(row, 'metaV2_json', { get() { ready = false; return '{}'; } });
+        return { value: row, done: false, cacheOwnershipReleased: () => ready };
+      }
       if (selected === 'cursor-replacement') { iterator.return = () => assert.fail('late cursor return cannot replace its original'); return { value: { id: -1 }, done: false }; }
       if (selected === 'cursor-pending-step') return step;
       throw primary;
@@ -41,6 +47,9 @@ if (selected.startsWith('cursor-')) {
   }
   if (selected.startsWith('cursor-pending-')) {
     assert.equal(errorGraphIncludes(failure, selected === 'cursor-pending-step' ? step : returned), true);
+    assert.equal(failure.cacheOwnershipReleased(), false); ready = true; assert.equal(failure.cacheOwnershipReleased(), true);
+  }
+  if (selected === 'cursor-late-revocation') {
     assert.equal(failure.cacheOwnershipReleased(), false); ready = true; assert.equal(failure.cacheOwnershipReleased(), true);
   }
 } else {
