@@ -124,6 +124,8 @@ PR #572 metadata was refreshed and read back at checkpoint `c070f3095` (180 loca
 
 - [SQLite ledger counts](sqlite-ledger-counts-implementation-2026-10-28.md): ledger v2 keeps unknown/zero distinct; full/incremental count/capability admission shares one required transaction. Thirty-two controls authored, unexecuted. Identity correspondence/replay remain; #284 is partial. Current source counts: **482 pending / 145 partial / 91 unresolved**.
 
+- [SQLite artifact identities](sqlite-artifact-identity-implementation-2026-10-28.md): normalized source-stage joins/private streaming witnesses reject equal-count chunk corruption before replacement; fallback targets/cursors/optional stats stay owned. Thirty-one identity controls plus stale-ledger control authored, unexecuted. File/vector/incremental/final correspondence and qualification remain.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.
