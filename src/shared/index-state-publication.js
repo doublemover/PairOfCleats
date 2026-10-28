@@ -65,21 +65,32 @@ export const withIndexStatePublicationLock = async (indexDir, action, { signal =
 export const publishIndexStateMutation = async (indexDir, mutate, { signal = null } = {}) => {
   if (typeof mutate !== 'function') throw new TypeError('Index-state publication requires a mutation.');
   const result = await withIndexStatePublicationLock(indexDir, async root => {
+    const prerequisites = [];
+    const capture = (value, phase) => {
+      const original = observeStorageResource(value, { phase });
+      if (!original.hasResourceObservation) return;
+      const captured = observeStorageResource(original.retain(), { phase });
+      prerequisites.push(captured); captured.requireSettled();
+    };
+    const requireOriginals = () => { for (const prerequisite of prerequisites) prerequisite.requireSettled(); };
     const statePath = path.join(root, 'index_state.json');
     const state = readIndexStateForPublication(statePath, { signal });
     const value = await mutate(state);
-    observeStorageResource(value, { phase: 'index-state-publication-mutation' }).requireSettled();
+    capture(value, 'index-state-publication-mutation');
     const next = value === undefined ? state : value;
     if (!object(next)) throw invalid();
     const now = new Date().toISOString();
     const prepared = withGeneratedArtifactMetadata({ ...next, generatedAt: next.generatedAt || now, updatedAt: now }, 'index-state');
     throwIfAborted(signal);
+    requireOriginals();
     await writeJsonObjectFile(statePath, { fields: prepared, atomic: true });
     // Complete an already started state/manifest pair even if cancellation was
     // requested during the state write; the caller still observes cancellation.
     await updateIndexStateManifest(root);
     throwIfAborted(signal);
-    return { state: prepared };
+    requireOriginals();
+    return { state: prepared, ...(prerequisites.length ? { cacheOwnershipPending: true,
+      cacheOwnershipReleased: () => prerequisites.every(prerequisite => prerequisite.isSettled()) } : {}) };
   }, { signal });
   return result.state;
 };

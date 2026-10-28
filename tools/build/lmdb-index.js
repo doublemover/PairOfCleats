@@ -18,6 +18,7 @@ import {
 } from '../../src/shared/dense-vector-artifacts.js';
 import { writeJsonObjectFile } from '../../src/shared/json-stream/json-writers.js';
 import { updateLmdbState } from '../../src/storage/lmdb/index-state.js';
+import { prepareLmdbReadyPublication } from '../../src/storage/lmdb/ready-publication.js';
 import { LMDB_ARTIFACT_KEYS, LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../../src/storage/lmdb/schema.js';
 import { replaceLmdbEntries } from '../../src/storage/lmdb/replace.js';
 import { loadLmdbArtifactInputs } from '../../src/storage/lmdb/artifact-inputs.js';
@@ -346,7 +347,7 @@ await runNativeDatabaseCommand({ commandIdentity: 'lmdb.build', delegated: true 
       // A rejected selected source must not invalidate an otherwise ready old
       // store or create its replacement target before source admission settles.
       await fs.mkdir(targetPath, { recursive: true });
-      await updateLmdbState(indexDir, {
+      const pendingState = await updateLmdbState(indexDir, {
         enabled: true,
         ready: false,
         pending: true,
@@ -358,7 +359,7 @@ await runNativeDatabaseCommand({ commandIdentity: 'lmdb.build', delegated: true 
       await resources.use(db, () => storeArtifacts(db, meta, artifacts));
       const writeMs = Date.now() - writeStart;
 
-      const finalState = await updateLmdbState(indexDir, {
+      const publication = await prepareLmdbReadyPublication(indexDir, pendingState, {
         enabled: true,
         ready: true,
         pending: false,
@@ -369,7 +370,8 @@ await runNativeDatabaseCommand({ commandIdentity: 'lmdb.build', delegated: true 
         mapSizeEstimatedBytes: estimatedBytes
       });
       const finalDb = resources.open(() => open({ path: targetPath, readOnly: false, mapSize: mapSizeBytes }));
-      await resources.use(finalDb, () => storeValue(finalDb, LMDB_ARTIFACT_KEYS.indexState, finalState));
+      await resources.use(finalDb, () => storeValue(finalDb, LMDB_ARTIFACT_KEYS.indexState, publication.state));
+      await publication.commit();
 
       const totalMs = Date.now() - buildStart;
       const metrics = {
