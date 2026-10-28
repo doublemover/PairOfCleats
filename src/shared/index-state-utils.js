@@ -15,13 +15,10 @@ import { isGeneratedArtifactMetadata, withGeneratedArtifactMetadata } from './ge
 export const updateIndexStateManifest = async (indexDir) => {
   const manifestPath = path.join(indexDir, 'pieces', 'manifest.json');
   if (!fsSync.existsSync(manifestPath)) return;
-  let manifest = null;
-  try {
-    manifest = readJsonFile(manifestPath, { maxBytes: MAX_JSON_BYTES }) || null;
-  } catch {
-    return;
+  const manifest = readJsonFile(manifestPath, { maxBytes: MAX_JSON_BYTES });
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest) || !Array.isArray(manifest.pieces)) {
+    throw Object.assign(new Error('Cannot refresh an invalid index-state manifest.'), { code: 'ERR_INDEX_STATE_MANIFEST' });
   }
-  if (!manifest || !Array.isArray(manifest.pieces)) return;
   const statePath = path.join(indexDir, 'index_state.json');
   if (!fsSync.existsSync(statePath)) return;
   const targetIndex = manifest.pieces.findIndex((piece) => (
@@ -32,14 +29,13 @@ export const updateIndexStateManifest = async (indexDir) => {
   let bytes = null;
   let checksum = null;
   let checksumAlgo = null;
-  try {
-    const stat = await fs.stat(statePath);
-    bytes = stat.size;
-    const result = await checksumFile(statePath);
-    checksum = result?.value || null;
-    checksumAlgo = result?.algo || null;
-  } catch {}
-  if (!Number.isFinite(Number(bytes)) || Number(bytes) < 0 || !checksum) return;
+  const stat = await fs.stat(statePath);
+  bytes = stat.size;
+  const result = await checksumFile(statePath);
+  checksum = result?.value || null;
+  checksumAlgo = result?.algo || null;
+  if (!Number.isSafeInteger(bytes) || bytes < 0 || !checksum || !checksumAlgo) throw Object.assign(
+    new Error('Cannot refresh index-state manifest without its actual byte/checksum observation.'), { code: 'ERR_INDEX_STATE_MANIFEST' });
   const nextChecksum = checksum && checksumAlgo ? `${checksumAlgo}:${checksum}` : null;
   const current = manifest.pieces[targetIndex] || {};
   if (
@@ -63,9 +59,5 @@ export const updateIndexStateManifest = async (indexDir) => {
     updatedAt: new Date().toISOString(),
     pieces
   }, 'pieces-manifest');
-  try {
-    await writeJsonObjectFile(manifestPath, { fields: next, atomic: true });
-  } catch {
-    // Ignore manifest write failures.
-  }
+  await writeJsonObjectFile(manifestPath, { fields: next, atomic: true });
 };

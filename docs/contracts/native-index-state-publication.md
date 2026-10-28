@@ -1,0 +1,30 @@
+# Required native index-state publication
+
+SQLite and LMDB state changes are required publication work. An in-memory
+`ready` object does not establish a completed write. Existing malformed state,
+state write failure, manifest parse/shape/checksum failure and manifest write
+failure propagate through the original command/operation owner. A malformed
+existing state cannot silently become an empty replacement.
+
+The existing JSON/atomic-file owners still perform writes and retain original
+descriptor, temporary-file and publication failures. The state-manifest owner
+refreshes only its `index_state` piece, preserving unrelated pieces and caller
+extensions. Missing legacy manifests or manifests without an index-state piece
+retain their optional compatibility behavior. A present invalid manifest fails.
+
+LMDB metrics remain optional only after their original resource observation
+confirms settlement. A pending or unreadable observation fails the command and
+keeps its resource prerequisites. It cannot be hidden by best-effort reporting.
+
+State and manifest use their existing individual atomic writers. This change
+does not create an atomic two-file transaction or claim new concurrent-writer
+serialization/recovery. If the second publication fails, the command fails;
+the error retains its original ownership evidence. Broader category registration,
+publication recovery and cleanup authority remain with their existing owners.
+
+Eleven `storage/native-index-state-publication/*` cases are authored and
+unexecuted. They cover actual SQLite/LMDB producer reads/writes, invalid state,
+manifest parse/write/checksum failures, frozen original observations and healthy
+byte/checksum/extension preservation. Existing artifact/bundle/incremental,
+embedding manifest, native-command and original/follow-up acceptance still need
+execution on the resulting candidate.

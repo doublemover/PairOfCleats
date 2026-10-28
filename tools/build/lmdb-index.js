@@ -17,8 +17,7 @@ import {
   resolveDenseVectorBinaryArtifact
 } from '../../src/shared/dense-vector-artifacts.js';
 import { writeJsonObjectFile } from '../../src/shared/json-stream/json-writers.js';
-import { updateIndexStateManifest } from '../../src/shared/index-state-utils.js';
-import { withGeneratedArtifactMetadata } from '../../src/shared/generated-artifact-core.js';
+import { updateLmdbState } from '../../src/storage/lmdb/index-state.js';
 import { LMDB_ARTIFACT_KEYS, LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../../src/storage/lmdb/schema.js';
 import { replaceLmdbEntries } from '../../src/storage/lmdb/replace.js';
 import { loadLmdbArtifactInputs } from '../../src/storage/lmdb/artifact-inputs.js';
@@ -27,6 +26,7 @@ import { resolveAsOfContext, resolveSingleRootForModes } from '../../src/index/a
 import { createIndexBuildToolCli } from './index-tool-cli.js';
 import { Packr } from 'msgpackr';
 import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
+import { observeStorageResource } from '../../src/shared/storage/failure-observation.js';
 
 const require = createRequire(import.meta.url);
 let open = null;
@@ -116,42 +116,6 @@ await runNativeDatabaseCommand({ commandIdentity: 'lmdb.build', delegated: true 
       return total;
     };
 
-
-    /**
- * Update `index_state.json` with LMDB metadata patch and refresh manifest.
- *
- * @param {string} indexDir
- * @param {object} patch
- * @returns {Promise<object|null>}
- */
-    const updateLmdbState = async (indexDir, patch) => {
-      if (!indexDir) return null;
-      const statePath = path.join(indexDir, 'index_state.json');
-      let state = {};
-      if (fsSync.existsSync(statePath)) {
-        try {
-          state = readJsonFile(statePath, { maxBytes: MAX_JSON_BYTES }) || {};
-        } catch {
-          state = {};
-        }
-      }
-      const now = new Date().toISOString();
-      state.generatedAt = state.generatedAt || now;
-      state.updatedAt = now;
-      state.lmdb = {
-        ...(state.lmdb || {}),
-        ...patch,
-        updatedAt: now
-      };
-      state = withGeneratedArtifactMetadata(state, 'index-state');
-      try {
-        await writeJsonObjectFile(statePath, { fields: state, atomic: true });
-      } catch {
-        // Ignore index state write failures.
-      }
-      await updateIndexStateManifest(indexDir);
-      return state;
-    };
 
     const modeTask = display.task('LMDB', { total: modes.length, stage: 'lmdb' });
     let completedModes = 0;
@@ -435,7 +399,9 @@ await runNativeDatabaseCommand({ commandIdentity: 'lmdb.build', delegated: true 
           path.join(metricsDir, `lmdb-${mode}.json`),
           { fields: metrics, atomic: true }
         );
-      } catch {}
+      } catch (error) {
+        observeStorageResource(error, { phase: 'lmdb-metrics-publication' }).requireSettled();
+      }
 
       completedModes += 1;
       modeTask.set(completedModes, modes.length, { message: `built ${mode}` });

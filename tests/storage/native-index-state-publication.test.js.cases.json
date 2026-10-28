@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["sqlite-write", "lmdb-write", "sqlite-read", "lmdb-read", "sqlite-invalid", "lmdb-invalid", "manifest-read", "manifest-write", "manifest-checksum", "healthy-sqlite", "healthy-lmdb"]
+}
