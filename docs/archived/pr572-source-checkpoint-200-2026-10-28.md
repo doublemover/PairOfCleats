@@ -49,3 +49,22 @@ routes. Native/Windows/CLI/MCP, consumer/replay/editor/browser, measured perform
 and external platform/model/release qualification remain. Work remains solo,
 Windows-only; no subagent, worktree, WSL/Linux execution, elevated launch,
 security change or physical symlink was used.
+
+## Publication read-back and recovery
+
+Checkpoint commit `49adae4c14d3052647b5d495e139f73f7a5e0445`, tree
+`a6738ad8ad2f9c4a2221156a496d297d46892184`, contains 200 local commits above
+the published branch. PR #572 metadata was updated and read back exactly at
+**2026-10-28T15:49:28Z**: 64,661 characters, all 718 live issue references once
+in collapsed groups, existing 154 qualified closing references unchanged, base
+`main`, requested head branch and published SHA unchanged. No source push occurred.
+
+The incremental historical author-workspace backup is
+`.tmp/tasks/git-ref-recovery-20261027/7abea07528a040e09e667e598424d6fb/native-publication-and-health-through200.bundle`:
+**88,812 bytes**, SHA256
+`de9207dd8bf52ae74ff243cc65ca487ae84bf0ff9b43e31b4cd52b1949e11760`.
+It contains checkpoint 200, requires checkpoint 180
+`c070f3095ebac7ea6ef873eee7502025f83ae6c0`, and passed `git bundle verify`.
+Earlier incremental backups remain required for complete reconstruction. This
+ignored author-workspace backup is not promised in clean checkouts. Remote
+`git ls-remote` independently confirmed `adbcaf777ce91642bb0a60de892171d8c3a529f7`.
