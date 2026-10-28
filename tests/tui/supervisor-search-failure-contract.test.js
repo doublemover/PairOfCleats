@@ -12,9 +12,11 @@ const reasons = { 'invalid-repository': 'invalid-repository', 'invalid-request':
 assert.ok(Object.hasOwn(reasons, selected) || ['empty-success', 'results-success'].includes(selected));
 const { dir } = await prepareIsolatedTestCacheDir(`search-failure-contract-${selected}`);
 const repo = path.join(dir, 'repository'); await fs.mkdir(repo);
-applyTestEnv({ cacheRoot: path.join(dir, 'cache'), syncProcess: true, embeddings: 'off',
+const cacheRoot = path.join(dir, 'cache');
+applyTestEnv({ cacheRoot, syncProcess: true, embeddings: 'off',
   extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null, GIT_CEILING_DIRECTORIES: dir } });
-const index = await createCompatibilityIndex(repo, { compatibilityKey: 'safe-search-failures', profileId: 'default' });
+const index = await createCompatibilityIndex(repo, { compatibilityKey: 'safe-search-failures', profileId: 'default',
+  published: true, userConfig: { cache: { root: cacheRoot } } });
 if (selected === 'missing-index') await fs.unlink(path.join(index, 'chunk_meta.json'));
 if (selected === 'unsupported-format') {
   const statePath = path.join(index, 'index_state.json');
