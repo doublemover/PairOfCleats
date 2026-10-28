@@ -398,6 +398,12 @@ export const selectRiskPartialFlowsWithinBudget = ({
 export const admitRiskFlowEnvelope = ({ flows, partial = false, riskCapHits, recordRiskTruncation, stage, hydrate = null }) => {
   const maxBytes = partial ? CONTEXT_PACK_MAX_RISK_PARTIAL_BYTES : CONTEXT_PACK_MAX_RISK_BYTES;
   const maxTokens = partial ? CONTEXT_PACK_MAX_RISK_PARTIAL_TOKENS : CONTEXT_PACK_MAX_RISK_TOKENS;
+  const recordBytes = partial
+    ? detail => recordRiskTruncation('maxPartialBytes', detail)
+    : detail => recordRiskTruncation('maxRiskBytes', detail);
+  const recordTokens = partial
+    ? detail => recordRiskTruncation('maxPartialTokens', detail)
+    : detail => recordRiskTruncation('maxRiskTokens', detail);
   const selected = []; let bytes = 2, tokens = 0, omittedFlows = 0;
   const measure = (flow, phase) => {
     if (!flow || typeof flow !== 'object' || Array.isArray(flow)) throw new TypeError('Risk admission requires a complete flow object.');
@@ -406,12 +412,12 @@ export const admitRiskFlowEnvelope = ({ flows, partial = false, riskCapHits, rec
     const nextBytes = bytes + comma + measured.bytes;
     const nextTokens = measured.tokens === null ? null : tokens + measured.tokens;
     if (!measured.exactBytes || nextBytes > maxBytes || nextTokens > maxTokens) {
-      for (const [cap, hit, limit, observed, omitted] of [
-        [partial ? 'maxPartialBytes' : 'maxRiskBytes', !measured.exactBytes || nextBytes > maxBytes, maxBytes, nextBytes, measured.bytes],
-        [partial ? 'maxPartialTokens' : 'maxRiskTokens', nextTokens !== null && nextTokens > maxTokens, maxTokens, nextTokens, measured.tokens]
+      for (const [cap, hit, limit, observed, omitted, record] of [
+        [partial ? 'maxPartialBytes' : 'maxRiskBytes', !measured.exactBytes || nextBytes > maxBytes, maxBytes, nextBytes, measured.bytes, recordBytes],
+        [partial ? 'maxPartialTokens' : 'maxRiskTokens', nextTokens !== null && nextTokens > maxTokens, maxTokens, nextTokens, measured.tokens, recordTokens]
       ]) if (hit) {
         riskCapHits.add(cap);
-        recordRiskTruncation(cap, { limit, observed, omitted,
+        record({ limit, observed, omitted,
           note: `Rank ${flow.rank} ${partial ? 'partial ' : ''}risk flow omitted at ${phase} admission; projected ${cap.endsWith('Bytes') ? 'byte' : 'estimated-token'} count is ${!measured.exactBytes || !measured.exactTokens ? 'a lower bound' : 'exact'}.` });
       }
       return null;
