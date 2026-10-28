@@ -1,4 +1,4 @@
 {
   "schemaVersion": 1,
-  "cases": ["artifacts", "bundles", "incremental", "fallback", "unknown-close"]
+  "cases": ["artifacts", "bundles", "incremental", "fallback", "unknown-close", "configured-artifacts", "configured-bundles", "configured-incremental", "configured-fallback"]
 }

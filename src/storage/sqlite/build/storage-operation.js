@@ -7,6 +7,8 @@ import { getApplicationHome, getCacheRoot, resolveCacheTempRoot } from '../../..
 import { isPathWithinRoot } from '../../../shared/file-paths.js';
 import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
 import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
+import { acquireConfiguredNativeStorageSession, resolveConfiguredNativeStorageSelection,
+  configuredNativeStorageConfigurationKey } from '../../../shared/storage/configured-native-storage.js';
 
 const operations = new AsyncLocalStorage();
 const identity = value => process.platform === 'win32' ? path.resolve(value).toLowerCase() : path.resolve(value);
@@ -47,7 +49,8 @@ export const withSqliteStorageOperation = async (context, targets, action) => {
   const userConfig = context.userConfig;
   const repoCacheRoot = resolveRepoCacheRootPath(repoRoot, userConfig, { getCacheRoot: () => getCacheRoot({ env }) });
   const home = getApplicationHome({ env });
-  if (inherited?.matches(repoCacheRoot, home)) {
+  const configurationKey = configuredNativeStorageConfigurationKey('sqlite', userConfig);
+  if (inherited?.matches(repoCacheRoot, home, configurationKey)) {
     return inherited.use(() => { inherited.admitTargets(targets); return action(inherited); });
   }
   const tmpRoot = resolveCacheTempRoot({ env });
@@ -55,6 +58,8 @@ export const withSqliteStorageOperation = async (context, targets, action) => {
   const admission = acquireRepoStorageSession(repoCacheRoot, { repoRoot, userConfig, env }, { scope: 'sqlite-build-operation' });
   const stateRoot = path.join(home, 'state'), coordinationRoot = path.join(stateRoot, 'storage-access');
   const sessions = [{ session: admission.session, released: false, category: true }], admitted = new Set();
+  const configuredAdmissions = new Map();
+  const configuredContext = { repoRoot, userConfig, env, nativeBackend: 'sqlite' };
   const failures = [], observations = new Map(), described = new WeakSet(), accepted = new Set();
   let settled = false, released = false, overflow = false, recovering = null, blocked = null, owner;
   const originalsSettled = () => !overflow && [...observations.values()].every(observation => observation.isSettled());
@@ -80,6 +85,10 @@ export const withSqliteStorageOperation = async (context, targets, action) => {
   };
   const revalidate = () => {
     admission.revalidate();
+    if (configuredNativeStorageConfigurationKey('sqlite', userConfig) !== configurationKey) {
+      throw Object.assign(new Error('SQLite configured storage paths changed during the admitted operation.'), { code: 'ERR_INDEX_STORAGE_SELECTION' });
+    }
+    for (const configured of configuredAdmissions.values()) configured.revalidate();
     if (identity(resolveCacheTempRoot({ env })) !== identity(tmpRoot)) {
       throw new Error('SQLite temporary category changed during the admitted operation.');
     }
@@ -110,7 +119,8 @@ export const withSqliteStorageOperation = async (context, targets, action) => {
     released = true; return true;
   };
   owner = Object.freeze({ kind: 'sqlite-build-operation', repoCacheRoot, tmpRoot, isSettled,
-    matches: (repo, launchHome) => !settled && identity(repo) === identity(repoCacheRoot) && identity(launchHome) === identity(home),
+    matches: (repo, launchHome, selectionKey) => !settled && identity(repo) === identity(repoCacheRoot)
+      && identity(launchHome) === identity(home) && selectionKey === configurationKey,
     retainFailure: retain,
     use(work) {
       if (settled || accepted.size >= 128 || typeof work !== 'function') throw new Error('SQLite accepted operation budget is unavailable.');
@@ -125,19 +135,33 @@ export const withSqliteStorageOperation = async (context, targets, action) => {
         if (!Array.isArray(paths) || paths.length > 64) throw new TypeError('SQLite resource admission requires bounded selected paths.');
         revalidate();
         const selected = new Map();
+        const normalized = new Map();
         for (const target of paths) {
           if (target == null) continue;
           if (typeof target !== 'string' || !path.isAbsolute(target)) throw new TypeError('SQLite resource paths must be absolute.');
           const absolute = path.resolve(target), key = identity(absolute);
-          // Explicit external outputs retain their existing behavior and protection;
-          // they cannot manufacture a registered root or authorize its deletion.
-          if (!isPathWithinRoot(absolute, repoCacheRoot) && !isPathWithinRoot(absolute, tmpRoot)) continue;
+          normalized.set(key, absolute);
+          if (isPathWithinRoot(absolute, repoCacheRoot) || isPathWithinRoot(absolute, tmpRoot) || configuredAdmissions.has(key)) continue;
+          const external = resolveConfiguredNativeStorageSelection(absolute, configuredContext);
+          if (!external) continue;
+          if (configuredAdmissions.size === 4) throw new Error('SQLite configured namespace admission budget exceeded.');
+          const configured = acquireConfiguredNativeStorageSession(absolute, configuredContext, { scope: 'sqlite-build-configured-namespace' });
+          sessions.push({ session: configured.session, released: false });
+          configuredAdmissions.set(key, configured);
+        }
+        const namespaces = [...configuredAdmissions.values()].map(entry => entry.selection.namespace);
+        for (const [key, absolute] of normalized) {
+          // Final configured target admission precedes its provider-owned
+          // staging/sidecar family, regardless of order within this batch.
+          // Unregistered external outputs retain their report-only protection.
+          if (!isPathWithinRoot(absolute, repoCacheRoot) && !isPathWithinRoot(absolute, tmpRoot)
+            && !namespaces.some(root => isPathWithinRoot(absolute, root))) continue;
           if (!admitted.has(key)) selected.set(key, absolute);
         }
         if (admitted.size + selected.size > 256) throw new Error('SQLite operation resource admission budget exceeded.');
         if (selected.size) {
           const session = acquireStorageSession({ roots: [...selected.values()],
-            authorizedRoots: [repoCacheRoot, tmpRoot, stateRoot], coordinationRoot, scope: 'sqlite-build-resource' });
+            authorizedRoots: [repoCacheRoot, tmpRoot, stateRoot, ...namespaces], coordinationRoot, scope: 'sqlite-build-resource' });
           sessions.push({ session, released: false });
           for (const key of selected.keys()) admitted.add(key);
         }

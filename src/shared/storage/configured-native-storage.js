@@ -11,15 +11,15 @@ const modes = Object.freeze({ sqlite: { code: ['codeDbPath', 'index-code.db'], p
 lmdb: { code: ['codeDbPath', 'index-code'], prose: ['proseDbPath', 'index-prose'] } });
 const identity = target => process.platform === 'win32' ? path.resolve(target).toLowerCase() : path.resolve(target);
 const fingerprint = value => createHash('sha256').update(stableStringify(value)).digest('hex');
-const selectionFailure = () => Object.assign(new Error('Configured native reader selection changed or is not an eligible storage namespace.'), {
+const selectionFailure = () => Object.assign(new Error('Configured native storage selection changed or is not an eligible namespace.'), {
   code: 'ERR_INDEX_STORAGE_SELECTION'
 });
 const configuredPath = (repoRoot, value) => typeof value === 'string' && value.length > 0 ? resolvePath(repoRoot, value) : null;
 
-/** Reading authority comes from the effective backend configuration, never the
- * target's filename, a marker or a filesystem parent. This grants no deletion,
- * publication or claim that the selected bytes have a qualified generation. */
-export const resolveConfiguredNativeReaderSelection = (target, context) => {
+/** Namespace admission follows the effective backend configuration. The actual
+ * native operation retains its write/publication authority. This lease grants
+ * no deletion or claim that selected bytes have a qualified generation. */
+export const resolveConfiguredNativeStorageSelection = (target, context) => {
   const backend = context.nativeBackend, definitions = typeof backend === 'string' && Object.hasOwn(modes, backend) ? modes[backend] : null;
   if (!definitions) return null;
   const config = context.userConfig[backend];
@@ -36,15 +36,22 @@ export const resolveConfiguredNativeReaderSelection = (target, context) => {
     const publication = context.nativePublicationIdentity;
     if (publication !== undefined && publication !== null && (typeof publication !== 'string' || publication.length > 65536)) throw selectionFailure();
     return Object.freeze({ schemaVersion: 1, backend, mode, target: path.resolve(selected), namespace: path.resolve(namespace),
-      sourceSetting: `${backend}.${direct ? key : 'dbDir'}`, producer: `pairofcleats-${backend}-reader-v1`,
+      sourceSetting: `${backend}.${direct ? key : 'dbDir'}`, producer: `pairofcleats-${backend}-storage-v1`,
       publicationIdentitySha256: typeof publication === 'string' ? fingerprint(publication) : null,
       publicationStatus: typeof publication === 'string' ? 'caller-generation-identity' : 'unattested', deletionAuthority: false });
   }
   return null;
 };
 
-export const acquireConfiguredNativeReaderSession = (target, context) => {
-  const selection = resolveConfiguredNativeReaderSelection(target, context);
+export const configuredNativeStorageConfigurationKey = (backend, userConfig) => {
+  if (typeof backend !== 'string' || !Object.hasOwn(modes, backend)) return null;
+  const config = userConfig[backend];
+  return fingerprint(['dbDir', ...Object.values(modes[backend]).map(([key]) => key)]
+    .map(key => [key, typeof config?.[key] === 'string' ? config[key] : null]));
+};
+
+export const acquireConfiguredNativeStorageSession = (target, context, { scope = null } = {}) => {
+  const selection = resolveConfiguredNativeStorageSelection(target, context);
   if (!selection) return null;
   const launchEnv = { ...(context.env || process.env) };
   const home = getApplicationHome({ env: launchEnv }), state = path.join(home, 'state');
@@ -57,9 +64,9 @@ export const acquireConfiguredNativeReaderSession = (target, context) => {
   const roots = selection.backend === 'sqlite' ? [selection.target, `${selection.target}-wal`, `${selection.target}-shm`, `${selection.target}-journal`]
     : [selection.target];
   const session = acquireStorageSession({ roots, authorizedRoots: [selection.namespace, state],
-    coordinationRoot: path.join(state, 'storage-access'), scope: `configured-${selection.backend}-reader` });
+    coordinationRoot: path.join(state, 'storage-access'), scope: scope || `configured-${selection.backend}-reader` });
   return { session, selection, revalidate: () => {
-    const current = locate(), selected = resolveConfiguredNativeReaderSelection(target, context);
+    const current = locate(), selected = resolveConfiguredNativeStorageSelection(target, context);
     if (!selected || fingerprint(selected) !== selectedFingerprint || current.status !== before.status || current.sha256 !== before.sha256) throw selectionFailure();
   } };
 };

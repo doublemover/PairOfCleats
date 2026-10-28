@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-28T05:21:01.821Z",
+  "generatedAt": "2026-10-28T05:29:45.264Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -3733,6 +3733,7 @@
         "tests/shared/storage/cleanup-failure-observation.test.js",
         "tests/shared/storage/cli-reviewed-context-and-selectors.test.js",
         "tests/shared/storage/configured-native-readers.test.js",
+        "tests/shared/storage/configured-sqlite-operation.test.js",
         "tests/shared/storage/dictionary-language-reader-budget.test.js",
         "tests/shared/storage/dictionary-real-stream-lifetime.test.js",
         "tests/shared/storage/dictionary-secondary-failures-retain-ownership.test.js",
@@ -4709,6 +4710,7 @@
         "tests/shared/concurrency/scheduler-exact-ready-replay.test.js",
         "tests/shared/dense-vector-binary-writes.test.js",
         "tests/shared/storage/configured-native-readers.test.js",
+        "tests/shared/storage/configured-sqlite-operation.test.js",
         "tests/shared/storage/free-space-observation.test.js",
         "tests/shared/storage/native-command-sessions.test.js",
         "tests/shared/storage/native-compaction-session.test.js",

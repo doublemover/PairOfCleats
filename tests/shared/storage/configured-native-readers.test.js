@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { acquireNativeReaderStorage, registerNativeReaderStorage, findNativeReaderStorage, getPendingNativeStorageReaders } from '../../../src/shared/storage/native-reader.js';
-import { resolveConfiguredNativeReaderSelection } from '../../../src/shared/storage/configured-native-reader.js';
+import { resolveConfiguredNativeStorageSelection } from '../../../src/shared/storage/configured-native-storage.js';
 import { inspectStorageAccess, withExclusiveStorageAccess } from '../../../src/shared/storage/access.js';
 import { getCacheRoot } from '../../../src/shared/cache-roots.js';
 import { getRepoId } from '../../../src/shared/repo-paths.js';
@@ -40,7 +40,7 @@ try {
   } else if (selected === 'unregistered') {
     assert.equal(acquireNativeReaderStorage(path.join(namespace, 'unselected.db'), context, () => true), null);
     assert.equal(acquireNativeReaderStorage(target, { ...context, nativeBackend: undefined }, () => true), null);
-    assert.equal(resolveConfiguredNativeReaderSelection(target, { ...context, nativeBackend: '__proto__' }), null);
+    assert.equal(resolveConfiguredNativeStorageSelection(target, { ...context, nativeBackend: '__proto__' }), null);
   } else {
     const owner = acquireNativeReaderStorage(target, context, () => nativeClosed); owners.push(owner);
     assert.ok(owner); assert.equal(owner.selection.deletionAuthority, false); assert.equal(owner.selection.backend, backend);
@@ -77,8 +77,8 @@ try {
         if (selected === 'publication-identity') {
           assert.match(owner.selection.publicationIdentitySha256, /^[a-f0-9]{64}$/);
           assert.equal(owner.selection.publicationStatus, 'caller-generation-identity');
-          assert.equal(resolveConfiguredNativeReaderSelection(target, { ...context, nativePublicationIdentity: null }).publicationStatus, 'unattested');
-          assert.notEqual(resolveConfiguredNativeReaderSelection(target, { ...context, nativePublicationIdentity: 'different-generation' }).publicationIdentitySha256,
+          assert.equal(resolveConfiguredNativeStorageSelection(target, { ...context, nativePublicationIdentity: null }).publicationStatus, 'unattested');
+          assert.notEqual(resolveConfiguredNativeStorageSelection(target, { ...context, nativePublicationIdentity: 'different-generation' }).publicationIdentitySha256,
             owner.selection.publicationIdentitySha256);
         }
         let mutated = false;

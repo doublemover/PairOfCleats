@@ -6,7 +6,7 @@ import { isStorageSessionReleaseFailure } from './session.js';
 import { observeStorageResource } from './failure-observation.js';
 import { addStorageFailureContext } from './operation-error.js';
 import { getApplicationHome, getCacheRoot } from '../cache-roots.js';
-import { resolveConfiguredNativeReaderSelection, acquireConfiguredNativeReaderSession } from './configured-native-reader.js';
+import { resolveConfiguredNativeStorageSelection, acquireConfiguredNativeStorageSession } from './configured-native-storage.js';
 
 const pending = new Set();
 const registered = new WeakMap(), knownOwners = new WeakSet();
@@ -35,7 +35,7 @@ export const findNativeReaderStorage = (resource, target, context) => {
   if (!context) return null;
   validateContext(context);
   const repoRoot = selectedRepoRoot(context);
-  if (!isPathWithinRoot(target, repoRoot) && !resolveConfiguredNativeReaderSelection(target, context)) return null;
+  if (!isPathWithinRoot(target, repoRoot) && !resolveConfiguredNativeStorageSelection(target, context)) return null;
   const coordination = path.join(getApplicationHome({ env: context.env || process.env }), 'state', 'storage-access');
   const scopes = registered.get(resource), owner = scopes?.get(scopeKey(target, coordination));
   if (!owner && scopes?.size >= 64) throw new Error('Native reader launch-namespace budget exceeded.');
@@ -66,7 +66,7 @@ export const acquireNativeReaderStorage = (target, storageContext, nativeSettled
   const repoCacheRoot = selectedRepoRoot(storageContext);
   const admission = isPathWithinRoot(target, repoCacheRoot)
     ? acquireRepoStorageSession(repoCacheRoot, storageContext, { scope: 'native-index-reader', resourceRoots: [target] })
-    : acquireConfiguredNativeReaderSession(target, storageContext);
+    : acquireConfiguredNativeStorageSession(target, storageContext);
   if (!admission) return null;
   const observations = new Map(), failures = [], described = new WeakSet();
   let started = false, attempted = false, released = false, overflow = false, owner;

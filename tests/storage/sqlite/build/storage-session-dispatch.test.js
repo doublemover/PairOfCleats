@@ -17,7 +17,9 @@ import { writeSqliteArtifactManifest } from '../../../helpers/artifact-io-fixtur
 import { prepareIsolatedTestCacheDir } from '../../../helpers/test-cache.js';
 import { applyTestEnv } from '../../../helpers/test-env.js';
 
-const selected = process.env.PAIROFCLEATS_TEST_ID?.split('storage-session-dispatch/')[1];
+const caseId = process.env.PAIROFCLEATS_TEST_ID?.split('storage-session-dispatch/')[1];
+const configured = caseId?.startsWith('configured-');
+const selected = configured ? caseId.slice('configured-'.length) : caseId;
 assert.ok(['artifacts', 'bundles', 'incremental', 'fallback', 'unknown-close'].includes(selected));
 const { dir } = await prepareIsolatedTestCacheDir(`sqlite-storage-dispatch-${selected}`);
 const repoRoot = path.join(dir, 'repo'), home = path.join(dir, 'home'), cache = path.join(dir, 'cache');
@@ -25,7 +27,10 @@ await fsp.mkdir(repoRoot);
 applyTestEnv({ cacheRoot: cache, extraEnv: { PAIROFCLEATS_HOME: home, PAIROFCLEATS_TRUSTED_CONFIG: null } });
 const userConfig = { cache: { root: cache } }, storageContext = { repoRoot, userConfig };
 const repo = resolveRepoCacheRootPath(repoRoot, userConfig), tmp = resolveCacheTempRoot();
-const indexDir = path.join(repo, 'builds', 'generation', 'index-code'), outPath = path.join(repo, 'builds', 'generation', 'index-sqlite', 'code.db');
+const indexDir = path.join(repo, 'builds', 'generation', 'index-code');
+const outPath = configured ? path.join(dir, 'configured-output', 'code.db')
+  : path.join(repo, 'builds', 'generation', 'index-sqlite', 'code.db');
+if (configured) userConfig.sqlite = { codeDbPath: outPath };
 await fsp.mkdir(indexDir, { recursive: true }); await fsp.mkdir(path.dirname(outPath), { recursive: true });
 await writeSqliteArtifactManifest(indexDir, []);
 const chunk = { id: 0, file: 'sample.js', start: 0, end: 1, tokens: [] };
@@ -51,6 +56,7 @@ let recording = true, fallbackOpens = 0;
 function TrackingDatabase(file) {
   const actual = comparable(file);
   for (const root of [cache, repo, tmp, actual]) assertLease(root);
+  if (configured) assertLease(path.dirname(outPath));
   if (selected === 'fallback' && !actual.startsWith(path.join(tmp, 'sqlite-build') + path.sep)) {
     throw Object.assign(new Error('controlled Windows SQLite CANTOPEN'), { code: 'SQLITE_CANTOPEN' });
   }
@@ -66,6 +72,7 @@ Database.prototype.prepare = function (...args) {
 Database.prototype.close = function () {
   if (recording) {
     assertLease(this.name); for (const root of [cache, repo, tmp]) assertLease(root);
+    if (configured) assertLease(path.dirname(outPath));
     closes.set(this, (closes.get(this) || 0) + 1);
     if (selected === 'unknown-close' && handles.has(this)) throw nativeFailure;
   }
@@ -106,6 +113,7 @@ try {
   }
   if (selected !== 'unknown-close') {
     for (const root of [cache, repo, tmp, outPath]) assert.equal((await inspectStorageAccess(root, { coordinationRoot })).protected, false);
+    if (configured) assert.equal((await inspectStorageAccess(path.dirname(outPath), { coordinationRoot })).protected, false);
   }
 } finally {
   recording = false; Database.prototype.prepare = originalPrepare; Database.prototype.close = originalClose;
