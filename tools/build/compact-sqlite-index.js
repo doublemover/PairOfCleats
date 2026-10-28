@@ -36,6 +36,7 @@ import { updateSqliteState } from '../../src/storage/sqlite/build/index-state.js
 import { assertSqliteMinhashReceiver, writeSqliteMinhashHeader } from '../../src/storage/sqlite/minhash.js';
 import { captureSqliteCompactionChunkIdentity, readSqliteChunkIdentity, matchesSqliteChunkIdentity } from '../../src/storage/sqlite/build/row-identity.js';
 import { readSqliteRowCorrespondence } from '../../src/storage/sqlite/build/row-correspondence.js';
+import { captureSqliteCompactionVectorIdentity, readSqliteCompactedVectorIdentity, matchesSqliteCompactionVectorIdentity } from '../../src/storage/sqlite/build/compaction-vector-identity.js';
 
 const compactionWitnesses = new WeakMap();
 export const getSqliteCompactionChunkIdentity = result => result !== null && ['object', 'function'].includes(typeof result)
@@ -223,8 +224,14 @@ export async function compactDatabase(input, resources = null) {
   let pragmaState = null;
   let afterStats;
   let chunkIdentity = null;
+  let vectorIdentity = null;
   try {
     chunkIdentity = captureSqliteCompactionChunkIdentity(sourceDb, mode, { outputPath: dbPath, normalizeFile: normalizeFilePath });
+    vectorIdentity = captureSqliteCompactionVectorIdentity(sourceDb, mode, { outputPath: dbPath, normalizeMeta: row => {
+      const quantization = resolveQuantizationParams({ minVal: row.min_val, maxVal: row.max_val, levels: row.levels });
+      return { ...row, dims: row.dims ?? null, scale: row.scale ?? 1.0, model: row.model ?? null,
+        min_val: quantization.minVal, max_val: quantization.maxVal, levels: quantization.levels };
+    } });
     pragmaState = applyBuildPragmas(outDb, { inputBytes: sourceSize });
     outDb.exec(CREATE_TABLES_SQL);
     createOptionalFtsTables(outDb, listOptionalFtsTables(sourceDb).map(table => table.replace('chunks_fts_', '')));
@@ -551,6 +558,11 @@ export async function compactDatabase(input, resources = null) {
       if (!matchesSqliteChunkIdentity(chunkIdentity, observed, dbPath, mode)) throw Object.assign(
         new Error('SQLite compaction changed source chunk identities beyond planned ID/path normalization.'), {
           code: 'ERR_SQLITE_COMPACTION_IDENTITY_MISMATCH', rowIdentity: { expected: chunkIdentity, observed }
+        });
+      const vectors = readSqliteCompactedVectorIdentity(outDb, mode);
+      if (!matchesSqliteCompactionVectorIdentity(vectorIdentity, vectors, dbPath, mode)) throw Object.assign(
+        new Error('SQLite compaction changed original vector bytes, chunk mapping or normalized metadata.'), {
+          code: 'ERR_SQLITE_COMPACTION_VECTOR_IDENTITY', rowIdentity: { expected: vectorIdentity, observed: vectors }
         });
       const correspondence = readSqliteRowCorrespondence(outDb, mode, {
         annTable: vectorExtension?.table || 'dense_vectors_ann', checkAnn: vectorAnnReady === true

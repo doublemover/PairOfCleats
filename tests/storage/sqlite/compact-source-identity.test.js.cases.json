@@ -1,8 +1,30 @@
 {
   "schemaVersion": 1,
   "cases": [
-    "planned-renumbering", "copied-result", "uid-copy", "file-copy", "range-copy", "metadata-copy",
-    "post-vacuum-change", "missing-file", "orphan-dense", "source-query-failure", "invalid-source-id",
-    "shared-chunks", "shared-empty-manifest", "shared-null-mode", "shared-doc-lengths", "missing-normalizer"
+    "planned-renumbering",
+    "copied-result",
+    "uid-copy",
+    "file-copy",
+    "range-copy",
+    "metadata-copy",
+    "post-vacuum-change",
+    "missing-file",
+    "orphan-dense",
+    "source-query-failure",
+    "invalid-source-id",
+    "shared-chunks",
+    "shared-empty-manifest",
+    "shared-null-mode",
+    "shared-doc-lengths",
+    "missing-normalizer",
+    "vector-copy",
+    "vector-permutation",
+    "vector-drop",
+    "metadata-model",
+    "metadata-scale",
+    "metadata-quantization",
+    "source-orphan-dense",
+    "source-vector-type",
+    "vector-query-failure"
   ]
 }

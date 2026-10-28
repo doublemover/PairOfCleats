@@ -1,7 +1,5 @@
+import { digestSqliteIdentityRows } from './row-identity-digest.js';
 import path from 'node:path';
-import { createHash } from 'node:crypto';
-import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
-import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
 
 const witnesses = new WeakMap();
 const fields = ['id', 'chunk_id', 'mode', 'file', 'start', 'end', 'startLine', 'endLine', 'metaV2_json'];
@@ -10,61 +8,8 @@ const invalid = message => Object.assign(new Error(message), { code: 'ERR_SQLITE
 
 /** Ordered, length-delimited SHA256, one native row at a time. No corpus Set,
  * JSON copy of metadata, unordered accumulator or caller-supplied digest. */
-const digestRows = (rows, projectRow = null) => {
-  const hash = createHash('sha256').update('pairofcleats-sqlite-chunk-identity-v1\0');
-  let count = 0, previous = -1, done = false, failed = false, primary, close;
-  const observations = [];
-  const requireSteps = () => { for (const observation of observations) observation.requireSettled(); };
-  try {
-    // Keep original cursor methods. A bad row must retire the native iterator,
-    // preserving a failed return independently instead of hiding either cause.
-    close = rows.return;
-    const next = rows.next;
-    if (typeof next !== 'function' || typeof close !== 'function') throw invalid('SQLite identity read has no original cursor owner.');
-    while (true) {
-      requireSteps();
-      const step = next.call(rows);
-      const observation = observeStorageResource(step, { phase: 'sqlite-identity-cursor-step' });
-      if (observation.hasResourceObservation) {
-        if (observations.length >= 128) throw Object.assign(invalid('SQLite identity cursor observation history exceeded its bound.'), { cacheOwnershipPending: true });
-        observations.push(observation);
-      }
-      observation.requireSettled();
-      let row;
-      try {
-        if (step.done === true) { done = true; requireSteps(); break; }
-        row = step.value;
-      } catch (inspection) { throw observation.wrap(inspection); }
-      if (projectRow) row = projectRow(row, count);
-      if (!Number.isSafeInteger(row.id) || row.id < 0 || row.id <= previous) throw invalid('SQLite source/target chunk IDs are invalid or duplicated.');
-      previous = row.id;
-      for (const field of fields) {
-        const value = row[field];
-        if (value === null) hash.update('N;');
-        else if (typeof value === 'string') hash.update(`S${Buffer.byteLength(value)}:`).update(value).update(';');
-        else if (Number.isSafeInteger(value)) hash.update(`I${value};`);
-        else throw invalid(`SQLite chunk identity field ${field} is invalid or unavailable.`);
-      }
-      count++;
-      if (!Number.isSafeInteger(count)) throw invalid('SQLite chunk identity count exceeds safe representation.');
-      requireSteps();
-    }
-  } catch (error) { failed = true; primary = error; }
-  if (!done) {
-    try {
-      if (typeof close !== 'function') throw invalid('SQLite identity cursor closure is unavailable.');
-      const result = close.call(rows);
-      observeStorageResource(result, { phase: 'sqlite-identity-cursor-return' }).requireSettled();
-      if (result?.done !== true) throw Object.assign(invalid('SQLite identity cursor return did not confirm closure.'), {
-        cacheOwnershipPending: true, cacheOwnershipReleased: () => false
-      });
-    } catch (cleanup) {
-      throw failed ? addStorageFailureContext(primary, {}, cleanup, { secondaryPresent: true, forceAggregate: true }) : cleanup;
-    }
-  }
-  if (failed) throw primary;
-  return Object.freeze({ schemaVersion: 1, count, sha256: hash.update(`E${count};`).digest('hex') });
-};
+const digestRows = (rows, projectRow = null) => digestSqliteIdentityRows(rows, { fields, projectRow });
+
 const sourceProjection = `SELECT c.id, c.chunk_id, c.mode, COALESCE(c.file, f.file) AS file,
   c.start, c.end, c.startLine, c.endLine, c.metaV2_json
   FROM chunks_stage c LEFT JOIN file_meta_stage f ON c.file_id = f.id`;
