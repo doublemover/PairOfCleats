@@ -111,17 +111,19 @@ export const allocateVectorSpoolLifetime = async (parentDir, drain) => {
   owner = Object.freeze({ directory, isSettled, remember, retain,
     async open(channel) {
       if (retiring || !CHANNELS.has(channel) || files.has(channel)) throw new TypeError('Vector spool channel admission is invalid or retired.');
-      const filename = path.join(directory, `${channel}.uint8`);
-      assertNoSymlinkPath(parentDir, filename, { allowMissing: true });
-      const handle = await fs.open(filename, 'wx+', 0o600);
-      const resource = createContainedFileResource({ handle, sync: false, additionalMethods: ['write', 'sync', 'truncate'] });
-      const file = { path: filename, resource, identity: null, recovery: null, removed: false, failure: null };
-      files.set(channel, file);
-      const identity = await resource.operations.stat({ bigint: true });
-      if (!identity.isFile() || identity.nlink !== 1n || !hasObjectIdentity(identity)) throw new Error('Vector spool channel lacks an exact ordinary file identity.');
-      file.identity = identity;
-      resource.inspect(() => verifyContainedFileHandle(handle, parentDir, filename));
-      return Object.freeze({ handle, resource, operations: resource.operations, filename });
+      try {
+        const filename = path.join(directory, `${channel}.uint8`);
+        assertNoSymlinkPath(parentDir, filename, { allowMissing: true });
+        const handle = await fs.open(filename, 'wx+', 0o600);
+        const resource = createContainedFileResource({ handle, sync: false, additionalMethods: ['write', 'sync', 'truncate'] });
+        const file = { path: filename, resource, identity: null, recovery: null, removed: false, failure: null };
+        files.set(channel, file);
+        const identity = await resource.operations.stat({ bigint: true });
+        if (!identity.isFile() || identity.nlink !== 1n || !hasObjectIdentity(identity)) throw new Error('Vector spool channel lacks an exact ordinary file identity.');
+        file.identity = identity;
+        resource.inspect(() => verifyContainedFileHandle(handle, parentDir, filename));
+        return Object.freeze({ handle, resource, operations: resource.operations, filename });
+      } catch (error) { retiring = true; remember(error); throw retain(error); }
     },
     close() {
       if (!initialClose) initialClose = settle(false);
@@ -140,6 +142,6 @@ export const allocateVectorSpoolLifetime = async (parentDir, drain) => {
     const identity = await fs.lstat(directory, { bigint: true });
     if (!identity.isDirectory() || !hasObjectIdentity(identity)) throw new Error('Allocated vector spool lacks its original directory identity.');
     directoryIdentity = identity;
-  } catch (error) { remember(error); throw retain(error); }
+  } catch (error) { retiring = true; remember(error); throw retain(error); }
   return owner;
 };

@@ -79,6 +79,7 @@ try {
       constructionFailure = error; return errorGraphIncludes(error, owned);
     });
     const owner = constructionFailure.vectorSpoolLifetime; assert.ok(owner); assert.equal(owner.isSettled(), false);
+    await assert.rejects(owner.open('doc'), /retired/, 'failed allocation/admission cannot open another native channel');
     await fs.access(owner.directory);
     ready = true;
     if (selected === 'construction') {
