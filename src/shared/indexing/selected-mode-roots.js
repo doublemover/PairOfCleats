@@ -43,8 +43,8 @@ export const captureSelectedModeRoots = ({ root, userConfig, indexRoot = null })
   const repoCacheRoot = resolveRepoCacheRootPath(root, userConfig);
   const buildsRoot = path.join(repoCacheRoot, 'builds');
   const currentPath = path.join(buildsRoot, 'current.json');
-  retainRepoCacheAccess(repoCacheRoot);
   if (!fs.existsSync(currentPath)) return remember({ source: 'no-publication', modes: [], roots: {}, pointer: null }, scope);
+  retainRepoCacheAccess(repoCacheRoot);
   const read = readVerifiedContainedFileSync(repoCacheRoot, currentPath, { maxBytes: 512 * 1024 });
   const pointer = JSON.parse(read.buffer.toString('utf8'));
   assertCurrentIndexFormat({ operation: 'read', component: 'selected modes', foundVersion: pointer.artifactSurfaceVersion,
