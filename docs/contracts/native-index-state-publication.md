@@ -109,6 +109,13 @@ return contract. A path stat from before that read cannot supply the receipt's
 size. The added `manifest-size-race` regression forces the historical split
 observation and checks the actual manifest against current bytes; it is unrun.
 
+Internal checksum observations also include exact string dev/ino identities
+from BigInt descriptor stats. Inode/nanosecond comparisons cannot fall back to
+rounded Number equality. Final verification follows actual digest completion;
+accepted digest work settles before cancellation closes its descriptor. Eleven
+`shared/hash/exact-file-observation/*` cases are authored, unexecuted. Numeric
+diagnostic fields and ordinary checksum/SHA return contracts remain.
+
 SQLite compaction also requires successful table metadata and nonnegative safe
 integer counts. Required `chunks` or `dense_vectors` query failure cannot stand
 in for zero rows. Native/observer failures propagate through the existing command

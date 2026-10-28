@@ -96,6 +96,8 @@ PR #572 metadata was refreshed and read back at checkpoint `1ce60bb59` (160 loca
 
 - [Bakeoff worker lifetime](bakeoff-worker-lifetime-implementation-2026-10-28.md): original worker observations survive accepted-write drain and actual checkpoint unlock; eight controls authored, unexecuted. Settled evidence retirement/reference protection and capacity admission remain source work.
 
+- [Exact checksum observations](exact-checksum-observation-implementation-2026-10-28.md): original descriptor BigInt identities and nanosecond checks survive Windows Number collisions and asynchronous digest completion; eleven controls authored, unexecuted.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.

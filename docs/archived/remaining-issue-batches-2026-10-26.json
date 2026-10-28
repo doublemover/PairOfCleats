@@ -4756,7 +4756,8 @@
         "a3913798cdaf8b8314c69cf43be2e73256a11200",
         "cdc6ab2c44b37a2b87c39b23b9ae49cfc19b4049",
         "bf602f71a2b9b202bddbb0380404272b9f7a0c78",
-        "4e723e3f88cd0bdf4999ea79bbbfd004c9e7c915"
+        "4e723e3f88cd0bdf4999ea79bbbfd004c9e7c915",
+        "9995cd60e65dc6087b4a0910e6beeeeba0b3796a"
       ],
       "unvalidatedReceipts": [
         "storage-space-implementation-2026-10-27.md",
@@ -4780,7 +4781,8 @@
         "embedding-replay-ownership-implementation-2026-10-28.md",
         "initial-state-publication-implementation-2026-10-28.md",
         "cleanup-original-results-implementation-2026-10-28.md",
-        "handoff-drain-ownership-implementation-2026-10-28.md"
+        "handoff-drain-ownership-implementation-2026-10-28.md",
+        "exact-checksum-observation-implementation-2026-10-28.md"
       ],
       "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
       "sessionObservationFollowup": "Shared session admission now captures successful action and settlement receipt observers, freezes projected receipt fields and retains independent inspection/observer errors through original handles. Eleven authored cases await execution; native-reader observation, remaining adapters/custom backend registration and full qualification remain.",
@@ -4853,6 +4855,11 @@
           "sourceHead": "4e723e3f88cd0bdf4999ea79bbbfd004c9e7c915",
           "receipt": "handoff-drain-ownership-implementation-2026-10-28.md",
           "implementation": "Local handoff publishes an existing scoped resource fence before drain dispatch. Original result/failure observations and parent lease identity gate matching receipt/token admission; pending work retains suspended reading and the drain fence. Explicit actual-owner recovery resumes ordinary reading without drain replay or manufacturing a token; failed metadata removal is not automatically retried. Thirteen controls authored and unexecuted; broader integration/runtime qualification remains."
+        },
+        {
+          "sourceHead": "9995cd60e65dc6087b4a0910e6beeeeba0b3796a",
+          "receipt": "exact-checksum-observation-implementation-2026-10-28.md",
+          "implementation": "Internal checksum observations bind exact BigInt descriptor dev/ino strings and nanosecond checks to the same original hash/extent. Final verification follows actual digest completion, preserving cancellation lifetime. Eleven controls are authored and unexecuted; this grants no deletion authority and benchmark retirement/capacity plus broader cleanup/native qualification remain."
         }
       ]
     },
@@ -7736,7 +7743,8 @@
         "a3913798cdaf8b8314c69cf43be2e73256a11200",
         "cdc6ab2c44b37a2b87c39b23b9ae49cfc19b4049",
         "bf602f71a2b9b202bddbb0380404272b9f7a0c78",
-        "4e723e3f88cd0bdf4999ea79bbbfd004c9e7c915"
+        "4e723e3f88cd0bdf4999ea79bbbfd004c9e7c915",
+        "9995cd60e65dc6087b4a0910e6beeeeba0b3796a"
       ],
       "unvalidatedReceipts": [
         "sqlite-operation-implementation-2026-10-27.md",
@@ -7765,7 +7773,8 @@
         "embedding-replay-ownership-implementation-2026-10-28.md",
         "initial-state-publication-implementation-2026-10-28.md",
         "cleanup-original-results-implementation-2026-10-28.md",
-        "handoff-drain-ownership-implementation-2026-10-28.md"
+        "handoff-drain-ownership-implementation-2026-10-28.md",
+        "exact-checksum-observation-implementation-2026-10-28.md"
       ],
       "currentImplementation": "SQLite runner/helpers and Clangd acquisition retain original work through shared storage teardown. Managed Go/Lua/generic discovery propagates pending inspection; retained generation admission protects the first scan and owns file/Dir/metadata recovery. Functional qualification and remaining custom cleanup adoption are not discharged.",
       "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
@@ -7840,6 +7849,11 @@
           "sourceHead": "4e723e3f88cd0bdf4999ea79bbbfd004c9e7c915",
           "receipt": "handoff-drain-ownership-implementation-2026-10-28.md",
           "implementation": "Local handoff publishes an existing scoped resource fence before drain dispatch. Original result/failure observations and parent lease identity gate matching receipt/token admission; pending work retains suspended reading and the drain fence. Explicit actual-owner recovery resumes ordinary reading without drain replay or manufacturing a token; failed metadata removal is not automatically retried. Thirteen controls authored and unexecuted; broader integration/runtime qualification remains."
+        },
+        {
+          "sourceHead": "9995cd60e65dc6087b4a0910e6beeeeba0b3796a",
+          "receipt": "exact-checksum-observation-implementation-2026-10-28.md",
+          "implementation": "Internal checksum observations bind exact BigInt descriptor dev/ino strings and nanosecond checks to the same original hash/extent. Final verification follows actual digest completion, preserving cancellation lifetime. Eleven controls are authored and unexecuted; this grants no deletion authority and benchmark retirement/capacity plus broader cleanup/native qualification remain."
         }
       ]
     },
@@ -8837,10 +8851,19 @@
         "Execute original/follow-up functional qualification and measured checks serially on the resulting candidate."
       ],
       "unvalidatedSourceHeads": [
-        "ff403a9273fac40d955c43e77ff830198744831a"
+        "ff403a9273fac40d955c43e77ff830198744831a",
+        "9995cd60e65dc6087b4a0910e6beeeeba0b3796a"
       ],
       "unvalidatedReceipts": [
-        "bakeoff-worker-lifetime-implementation-2026-10-28.md"
+        "bakeoff-worker-lifetime-implementation-2026-10-28.md",
+        "exact-checksum-observation-implementation-2026-10-28.md"
+      ],
+      "unvalidatedFollowups": [
+        {
+          "sourceHead": "9995cd60e65dc6087b4a0910e6beeeeba0b3796a",
+          "receipt": "exact-checksum-observation-implementation-2026-10-28.md",
+          "implementation": "Internal checksum observations bind exact BigInt descriptor dev/ino strings and nanosecond checks to the same original hash/extent. Final verification follows actual digest completion, preserving cancellation lifetime. Eleven controls are authored and unexecuted; this grants no deletion authority and benchmark retirement/capacity plus broader cleanup/native qualification remain."
+        }
       ]
     },
     {
