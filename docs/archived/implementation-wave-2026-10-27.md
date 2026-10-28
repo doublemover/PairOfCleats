@@ -62,6 +62,8 @@ PR #572 metadata was refreshed and read back at checkpoint `138d9d9e5` (120 loca
 
 - [Cross-process original VFS pins](vfs-cross-process-implementation-2026-10-28.md): exact-file publication arbitration, shared verified content and original provider/cache settlement; ten new controls authored, unexecuted.
 
+- [Required native state publication](native-state-publication-implementation-2026-10-28.md): SQLite/LMDB required state and manifest failures propagate; optional metrics retain original pending owners; eleven authored cases unexecuted.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.

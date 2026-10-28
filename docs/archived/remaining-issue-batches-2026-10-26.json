@@ -1050,7 +1050,14 @@
       "batch": "storage-publication-and-cleanup",
       "phase": "source-review-and-implementation",
       "status": "queued",
-      "currentDisposition": "implementation_needed"
+      "currentDisposition": "implementation_needed",
+      "unvalidatedSourceHeads": [
+        "a87beee17374ebfc8d22f415dd455590daf89443"
+      ],
+      "unvalidatedReceipts": [
+        "native-state-publication-implementation-2026-10-28.md"
+      ],
+      "nativeStatePublicationFollowup": "Required SQLite/LMDB state and shared manifest read/write/checksum failures now propagate instead of acknowledging in-memory ready state after failed publication. Malformed existing state cannot silently become an empty replacement. Optional LMDB metrics suppress only confirmed-settled resource observations. Eleven actual-producer controls are authored and unexecuted; paired/concurrent publication, row/build-mode, custom registration/cleanup and original/follow-up acceptance remain separate."
     },
     {
       "number": 289,
@@ -4638,7 +4645,8 @@
         "bc2f557c27ef9d81c3cb635641d80c62b79696cf",
         "21464f188ba9d8f785fbbe7ba01aebcd6a87293d",
         "afa75fe93a76d2693036a74a774b6510f700d8d0",
-        "b48e9157cdbe5ca1673dba13ee570177070f41e8"
+        "b48e9157cdbe5ca1673dba13ee570177070f41e8",
+        "a87beee17374ebfc8d22f415dd455590daf89443"
       ],
       "unvalidatedReceipts": [
         "storage-space-implementation-2026-10-27.md",
@@ -4650,7 +4658,8 @@
         "configured-sqlite-operation-implementation-2026-10-28.md",
         "session-retirement-implementation-2026-10-28.md",
         "configured-native-command-implementation-2026-10-28.md",
-        "managed-child-acknowledgement-implementation-2026-10-28.md"
+        "managed-child-acknowledgement-implementation-2026-10-28.md",
+        "native-state-publication-implementation-2026-10-28.md"
       ],
       "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
       "sessionObservationFollowup": "Shared session admission now captures successful action and settlement receipt observers, freezes projected receipt fields and retains independent inspection/observer errors through original handles. Eleven authored cases await execution; native-reader observation, remaining adapters/custom backend registration and full qualification remain.",
@@ -4662,7 +4671,8 @@
       "sessionRetirementFollowup": "Original storage lease/release methods now retire descendants first, retain admitted ancestors on child metadata failure, attempt independent siblings and avoid replaying successful releases. Pending original metadata and independent observer errors must settle before explicit removal retries. Six authored controls remain unexecuted; full session/category/native/cleanup qualification and broader backend/publication adoption remain.",
       "configuredNativeCommandFollowup": "Actual LMDB build/SQLite compaction lifetime owner now admits exact effective configured namespaces, revalidates selection before native creation, blocks failed readmission and retires leaf metadata before canonical categories. Shared original observations preserve independently thrown owners instead of transiently returning false. Six inert-original controls and five actual configured native controls are authored, unexecuted; full case IDs isolate canonical/configured caches. Broader publication/cleanup/legacy adoption and full acceptance remain.",
       "managedOriginalAcknowledgementFollowup": "Managed children now check the actual session-captured action observation and once-captured receipt before write-reservation release. Exact admission-producer failure association and the actual own session form recovery; copied properties/matching IDs cannot mint it. Captured receipt observers survive enclosing acknowledgement, arbitrary error capability getters remain unread and original errors survive fallback. Eight authored controls remain unexecuted; original admission/child/native/category and broader backend/publication/cleanup qualification remain.",
-      "currentDisposition": "partial_or_followup"
+      "currentDisposition": "partial_or_followup",
+      "nativeStatePublicationFollowup": "Required SQLite/LMDB state and shared manifest read/write/checksum failures now propagate instead of acknowledging in-memory ready state after failed publication. Malformed existing state cannot silently become an empty replacement. Optional LMDB metrics suppress only confirmed-settled resource observations. Eleven actual-producer controls are authored and unexecuted; paired/concurrent publication, row/build-mode, custom registration/cleanup and original/follow-up acceptance remain separate."
     },
     {
       "number": 1268,
@@ -7518,7 +7528,8 @@
         "bc2f557c27ef9d81c3cb635641d80c62b79696cf",
         "21464f188ba9d8f785fbbe7ba01aebcd6a87293d",
         "afa75fe93a76d2693036a74a774b6510f700d8d0",
-        "b48e9157cdbe5ca1673dba13ee570177070f41e8"
+        "b48e9157cdbe5ca1673dba13ee570177070f41e8",
+        "a87beee17374ebfc8d22f415dd455590daf89443"
       ],
       "unvalidatedReceipts": [
         "sqlite-operation-implementation-2026-10-27.md",
@@ -7535,7 +7546,8 @@
         "configured-sqlite-operation-implementation-2026-10-28.md",
         "session-retirement-implementation-2026-10-28.md",
         "configured-native-command-implementation-2026-10-28.md",
-        "managed-child-acknowledgement-implementation-2026-10-28.md"
+        "managed-child-acknowledgement-implementation-2026-10-28.md",
+        "native-state-publication-implementation-2026-10-28.md"
       ],
       "currentImplementation": "SQLite runner/helpers and Clangd acquisition retain original work through shared storage teardown. Managed Go/Lua/generic discovery propagates pending inspection; retained generation admission protects the first scan and owns file/Dir/metadata recovery. Functional qualification and remaining custom cleanup adoption are not discharged.",
       "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
@@ -7549,7 +7561,8 @@
       "sessionRetirementFollowup": "Original storage lease/release methods now retire descendants first, retain admitted ancestors on child metadata failure, attempt independent siblings and avoid replaying successful releases. Pending original metadata and independent observer errors must settle before explicit removal retries. Six authored controls remain unexecuted; full session/category/native/cleanup qualification and broader backend/publication adoption remain.",
       "configuredNativeCommandFollowup": "Actual LMDB build/SQLite compaction lifetime owner now admits exact effective configured namespaces, revalidates selection before native creation, blocks failed readmission and retires leaf metadata before canonical categories. Shared original observations preserve independently thrown owners instead of transiently returning false. Six inert-original controls and five actual configured native controls are authored, unexecuted; full case IDs isolate canonical/configured caches. Broader publication/cleanup/legacy adoption and full acceptance remain.",
       "managedOriginalAcknowledgementFollowup": "Managed children now check the actual session-captured action observation and once-captured receipt before write-reservation release. Exact admission-producer failure association and the actual own session form recovery; copied properties/matching IDs cannot mint it. Captured receipt observers survive enclosing acknowledgement, arbitrary error capability getters remain unread and original errors survive fallback. Eight authored controls remain unexecuted; original admission/child/native/category and broader backend/publication/cleanup qualification remain.",
-      "currentDisposition": "partial_or_followup"
+      "currentDisposition": "partial_or_followup",
+      "nativeStatePublicationFollowup": "Required SQLite/LMDB state and shared manifest read/write/checksum failures now propagate instead of acknowledging in-memory ready state after failed publication. Malformed existing state cannot silently become an empty replacement. Optional LMDB metrics suppress only confirmed-settled resource observations. Eleven actual-producer controls are authored and unexecuted; paired/concurrent publication, row/build-mode, custom registration/cleanup and original/follow-up acceptance remain separate."
     },
     {
       "number": 1575,
