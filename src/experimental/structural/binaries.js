@@ -19,17 +19,9 @@ const resolveWindowsStructuralInvocation = (command, args, options) => {
   // cmd.exe used the child cwd for explicit relative paths and searched it
   // before PATH for bare wrapper names. Preserve that lookup before quoting.
   if (path.isAbsolute(command) || /[\\/]/u.test(command) || /^[a-z]:/iu.test(command) || fsExists(localCommand)) {
-    return resolveWindowsCmdInvocation(localCommand, args, env);
+    return resolveWindowsCmdInvocation(localCommand, args, env, { cwd });
   }
-  const pathEnv = env.PATH || env.Path || env.path || '';
-  const resolutionEnv = {
-    ...env,
-    PATH: pathEnv.split(path.delimiter)
-      .filter((entry) => entry.trim())
-      .map((entry) => path.resolve(cwd, entry.trim()))
-      .join(path.delimiter)
-  };
-  return resolveWindowsCmdInvocation(command, args, resolutionEnv);
+  return resolveWindowsCmdInvocation(command, args, env, { cwd });
 };
 
 const runCommand = (resolved, args, options = {}) => {

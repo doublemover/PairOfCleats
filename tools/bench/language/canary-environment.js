@@ -92,7 +92,7 @@ export const runCanaryVersionProbe = (probe, plan) => {
   if (!selected) return { available: false, version: null, exitCode: null, execution, error: 'probe executable unavailable' };
   try {
     const invocation = process.platform === 'win32'
-      ? resolveWindowsCmdInvocation(selected.absolutePath, probe.args, plan.env)
+      ? resolveWindowsCmdInvocation(selected.absolutePath, probe.args, plan.env, { cwd: plan.cwd })
       : { command: selected.absolutePath, args: probe.args };
     const result = spawnSync(invocation.command, invocation.args, {
       windowsVerbatimArguments: invocation.windowsVerbatimArguments === true, windowsHide: true,
