@@ -104,6 +104,8 @@ PR #572 metadata was refreshed and read back at checkpoint `1ce60bb59` (160 loca
 
 - [Read-only command preparation](command-selection-preparation-implementation-2026-10-28.md): one discovery/policy owner serves immutable preparation and real preflight; eligibility is explicitly unprobed. Eight controls authored, unexecuted; actual built-in binding remains.
 
+- [Windows launch inputs](windows-launch-inputs-implementation-2026-10-28.md): actual LSP launches snapshot arguments/cwd, use selected wrapper environment/processor and suppress consoles; operator/canary/structural consumers share child-cwd lookup. Nineteen controls authored, unexecuted; complete built-in profile adoption remains.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.

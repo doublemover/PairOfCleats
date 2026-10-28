@@ -62,6 +62,14 @@ or release a cache lock. Callers retain cache, installation, scheduler or capaci
 authority until their existing resource owner can prove settlement. A timeout
 rejection, dead parent PID or later unrelated run cannot authorize cleanup.
 
+Windows command wrappers use the existing CMD invocation owner. Async/sync
+resolved-command helpers pass the selected child cwd and environment into wrapper
+lookup; relative wrapper/PATH entries resolve there, and COMSPEC/SystemRoot come
+from that environment. Explicit file-URL/default cwd retains native behavior.
+The LSP client snapshots its argument/cwd inputs, gives each spawn a separate
+environment copy and sets `windowsHide: true`. Literal shell metacharacters and
+verbatim argument transport retain their existing encoding/negative contracts.
+
 Tracked termination receipts retain a private, identity-bound observation of
 their original registered close promises and tree attempts. An unconfirmed
 attempt can later acknowledge exact child close through that original observer;

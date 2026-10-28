@@ -29,6 +29,12 @@ the selected path; a new resolution observes replacement or permission changes
 before consulting probe success caches. Broader tool-byte/profile identity remains
 its existing separate contract.
 
+Internal read-only selection and real command preflight share this discovery and
+policy owner. Eligible read-only selection has `probe.ok: null` and no attempted
+probes; it launches no child. Operator commands resolve relative PATH/explicit
+inputs against their selected repository cwd and retain an absolute selected
+path before the existing trust checks. Selection does not authorize execution.
+
 Actual filesystem candidate controls and real profile/handshake consumers with
 intercepted benign launch boundaries are authored and unrun. Link cases inject
 metadata and create no symlinks; they do not qualify physical-link behavior.
