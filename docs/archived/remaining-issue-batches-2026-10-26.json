@@ -4827,11 +4827,13 @@
         "bba2c5c8dc039e2817602f4c38306c561597754c",
         "b8915d74041262bd7539f0b189a2929e23f17f8a",
         "65f8f1c79b4deeb23e409e03e6cd0ee5d4847f86",
-        "d0484a6a719e79c875a2fff4d25383e8d8d2feeb"
+        "d0484a6a719e79c875a2fff4d25383e8d8d2feeb",
+        "5cae80c13f1379da9125cdbabb70e564e182eba5"
       ],
       "unvalidatedReceipts": [
         "embedding-selection-implementation-2026-10-27.md",
-        "embedding-preflight-implementation-2026-10-27.md"
+        "embedding-preflight-implementation-2026-10-27.md",
+        "runtime-receipt-observation-implementation-2026-10-27.md"
       ],
       "currentImplementation": "Ordinary full builds capture immutable model/provider/profile/environment/resources before Stage2. Read-only local ONNX graph admission pins the exact graph and rechecks at Stage3; off/stub/deferred/fetch-capable states remain distinct without model load/download. Existing parent attempts retain bounded selected/preflight evidence and child attempts retain submitted/final plan digests with parent linkage. Nine preflight cases plus existing runtime/receipt/handoff controls are authored, unexecuted. Other build routes, broader native/fetch/cache-only states and full qualification remain. Known-fatal ordinary full-build/explicit Stage3 preflight now records through existing runtime attempt/initialization/category owners. Captured config/cache selection must match; unknown original work prevents native/metadata dispatch. Diagnostic rejection stops before source/model/worker work and skips calibration, daemon reuse and SCM execution. Fourteen preflight/runtime controls are authored and unexecuted; broader route evaluation/adoption, failed-recording recovery and original/follow-up qualification remain.",
       "title": "[Build] Preflight requested embedding assets and execution plan before expensive Stage2 work",
@@ -4839,7 +4841,8 @@
       "priority": "unranked",
       "batch": "retrieval-contracts",
       "phase": "preflight-rejection-recording-implemented-other-route-evaluation-pending",
-      "status": "source-partially-implemented"
+      "status": "source-partially-implemented",
+      "receiptObservationFollowup": "Runtime receipt failures/success replies retain original resource observers, diagnostic failures and admitted attempt identity. Null/mismatched replies cannot claim durable acknowledgement. Twelve inert-boundary controls are authored, unexecuted. Source-confirmed lower build-state error/sidecar/coordinator/queue gaps are next; this does not complete original/follow-up acceptance."
     },
     {
       "number": 1326,
@@ -6877,16 +6880,19 @@
         "47ca8bea98676b43aa86dfb53e23adbb94036bf3",
         "773e6893e18e1e570562a41a280231109f6c61f8",
         "6154945a4d1d6bb4cb4db6de673c0220134690c2",
-        "d316a37ba9cace19e0fdd71f25c983a0cf9c856f"
+        "d316a37ba9cace19e0fdd71f25c983a0cf9c856f",
+        "5cae80c13f1379da9125cdbabb70e564e182eba5"
       ],
       "unvalidatedReceipts": [
         "sqlite-operation-implementation-2026-10-27.md",
         "clangd-acquisition-implementation-2026-10-27.md",
         "managed-selection-implementation-2026-10-27.md",
-        "storage-space-implementation-2026-10-27.md"
+        "storage-space-implementation-2026-10-27.md",
+        "runtime-receipt-observation-implementation-2026-10-27.md"
       ],
       "currentImplementation": "SQLite runner/helpers and Clangd acquisition retain original work through shared storage teardown. Managed Go/Lua/generic discovery propagates pending inspection; retained generation admission protects the first scan and owns file/Dir/metadata recovery. Functional qualification and remaining custom cleanup adoption are not discharged.",
-      "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain."
+      "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
+      "receiptObservationFollowup": "Runtime receipt failures/success replies retain original resource observers, diagnostic failures and admitted attempt identity. Null/mismatched replies cannot claim durable acknowledgement. Twelve inert-boundary controls are authored, unexecuted. Source-confirmed lower build-state error/sidecar/coordinator/queue gaps are next; this does not complete original/follow-up acceptance."
     },
     {
       "number": 1575,
