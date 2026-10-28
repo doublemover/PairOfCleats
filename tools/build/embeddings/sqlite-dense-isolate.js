@@ -1,13 +1,14 @@
-import fsSync from 'node:fs';
 import path from 'node:path';
 import { getTestEnvConfig } from '../../../src/shared/env/testing.js';
 import { sha1 } from '../../../src/shared/hash.js';
 import { runIsolatedNodeScriptSync } from '../../../src/shared/subprocess/runner.js';
 import { updateSqliteDense } from './sqlite-dense.js';
+import { observeStorageResource } from '../../../src/shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
 
 const CHILD_ENV = 'PAIROFCLEATS_SQLITE_DENSE_CHILD';
 const PAYLOAD_ENV = 'PAIROFCLEATS_SQLITE_DENSE_PAYLOAD';
-const REPLAY_SCHEMA_VERSION = '1.0.0';
+const REPLAY_SCHEMA_VERSION = '1.1.0';
 
 const WINDOWS_NATIVE_CRASH_EXIT_CODES = new Set([
   3221225477, // 0xC0000005 access violation
@@ -21,16 +22,9 @@ const WINDOWS_NATIVE_CRASH_EXIT_CODES = new Set([
 const toText = (value) => (typeof value === 'string' ? value.trim() : '');
 
 const truncateText = (value, maxChars = 4000) => {
-  const text = Array.isArray(value) ? value.join('\n') : String(value || '');
+  const text = typeof value === 'string' ? value : '';
   if (text.length <= maxChars) return text;
   return text.slice(text.length - maxChars);
-};
-
-const sanitizePathToken = (value, fallback = 'unknown') => {
-  const text = toText(value);
-  if (!text) return fallback;
-  const sanitized = text.replace(/[^a-zA-Z0-9._-]+/g, '_');
-  return sanitized || fallback;
 };
 
 const isPlainObject = (value) => !!value && typeof value === 'object' && !Array.isArray(value);
@@ -62,45 +56,15 @@ const maybeInjectSqliteDenseTestFailure = () => {
   }
 };
 
-const collectFilesRecursive = (dirPath) => {
-  const out = [];
-  if (!dirPath || !fsSync.existsSync(dirPath)) return out;
-  const stack = [path.resolve(dirPath)];
-  while (stack.length) {
-    const current = stack.pop();
-    let entries = [];
-    try {
-      entries = fsSync.readdirSync(current, { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    for (const entry of entries) {
-      const fullPath = path.join(current, entry.name);
-      if (entry.isDirectory()) {
-        stack.push(fullPath);
-      } else if (entry.isFile()) {
-        out.push(fullPath);
-      }
-    }
-  }
-  return out.sort((left, right) => left.localeCompare(right));
-};
-
-const resolveCrashCaptureDir = ({
-  repoCacheRoot = null,
-  buildId = null,
-  mode = null,
-  enabled = false
-} = {}) => {
-  if (!enabled || !repoCacheRoot || process.platform !== 'win32') return null;
-  return path.join(
-    repoCacheRoot,
-    'logs',
-    'forensics',
-    'sqlite-stage3-dumps',
-    `${sanitizePathToken(buildId || mode || 'build')}-${sanitizePathToken(mode || 'mode')}`
-  );
-};
+/** A requested directory is not a dump-producing capability. Keep normal
+ * replay diagnostics when no scoped native collector has been admitted. */
+export const resolveSqliteDenseCrashCapture = ({ requested = false, platform = process.platform } = {}) => Object.freeze({
+  requested: requested === true, enabled: false,
+  status: requested !== true ? 'disabled' : platform === 'win32' ? 'unavailable' : 'unsupported-platform',
+  reason: requested !== true ? null : platform === 'win32' ? 'native-dump-collector-not-configured' : 'native-dump-capture-requires-windows',
+  collector: null, dumpDir: null, dumpFiles: Object.freeze([])
+});
+const finite = value => typeof value === 'number' && Number.isFinite(value) ? value : null;
 
 const buildReplayBundle = ({
   buildId = null,
@@ -109,8 +73,7 @@ const buildReplayBundle = ({
   payload = null,
   childResult = null,
   failureClass = null,
-  dumpDir = null,
-  dumpFiles = []
+  crashCapture = null
 } = {}) => ({
   schemaVersion: REPLAY_SCHEMA_VERSION,
   generatedAt: new Date().toISOString(),
@@ -123,28 +86,27 @@ const buildReplayBundle = ({
   replay: {
     root: payload?.root || null,
     indexRoot: payload?.indexRoot || null,
+    repoCacheRoot: payload?.repoCacheRoot || null,
     dbPath: payload?.dbPath || null,
     vectorsPath: payload?.vectorsPath || null,
-    dims: Number.isFinite(Number(payload?.dims)) ? Number(payload.dims) : null,
-    scale: Number.isFinite(Number(payload?.scale)) ? Number(payload.scale) : null,
+    dims: finite(payload?.dims),
+    scale: finite(payload?.scale),
     modelId: payload?.modelId || null,
     quantization: payload?.quantization || null,
     sharedDb: payload?.sharedDb === true,
-    writeBatchSize: Number.isFinite(Number(payload?.writeBatchSize)) ? Number(payload.writeBatchSize) : null
+    writeBatchSize: finite(payload?.writeBatchSize)
   },
   child: {
-    exitCode: Number.isFinite(Number(childResult?.exitCode)) ? Number(childResult.exitCode) : null,
+    exitCode: finite(childResult?.exitCode),
     signal: toText(childResult?.signal) || null,
-    durationMs: Number.isFinite(Number(childResult?.durationMs)) ? Number(childResult.durationMs) : null,
+    durationMs: finite(childResult?.durationMs),
     nativeCrash: isSqliteDenseNativeCrashExit(childResult?.exitCode),
     stdoutTail: truncateText(childResult?.stdout),
-    stderrTail: truncateText(childResult?.stderr)
+    stderrTail: truncateText(childResult?.stderr),
+    stdoutStatus: typeof childResult?.stdout === 'string' ? 'captured' : 'unavailable',
+    stderrStatus: typeof childResult?.stderr === 'string' ? 'captured' : 'unavailable'
   },
-  crashCapture: {
-    enabled: !!dumpDir,
-    dumpDir: dumpDir || null,
-    dumpFiles
-  }
+  crashCapture
 });
 
 export const runSqliteDenseIsolateChild = async (payload = {}) => {
@@ -195,27 +157,23 @@ export const runSqliteDenseWithBoundary = async ({
   buildId = null,
   workerIdentity = null,
   logger = console,
-  enableWindowsCrashCapture = false
+  enableWindowsCrashCapture = false,
+  testRunChild = null
 } = {}) => {
   if (!toText(vectorsPath)) {
     const error = new Error(`[embeddings] ${mode}: sqlite dense isolate requires vectorsPath.`);
     error.code = 'ERR_SQLITE_DENSE_ISOLATE_INPUT';
     throw error;
   }
-  const crashCaptureDir = resolveCrashCaptureDir({
-    repoCacheRoot,
-    buildId,
-    mode,
-    enabled: enableWindowsCrashCapture
-  });
-  const preexistingDumpFiles = new Set(collectFilesRecursive(crashCaptureDir));
-  if (crashCaptureDir) {
-    fsSync.mkdirSync(crashCaptureDir, { recursive: true });
+  if (testRunChild !== null && (typeof testRunChild !== 'function' || !getTestEnvConfig().testing)) {
+    throw Object.assign(new Error('SQLite child runner injection requires the explicit test environment.'), { code: 'ERR_SQLITE_DENSE_ISOLATE_INPUT' });
   }
+  const crashCapture = resolveSqliteDenseCrashCapture({ requested: enableWindowsCrashCapture });
   const payload = {
     root,
     userConfig,
     indexRoot,
+    repoCacheRoot,
     mode,
     vectorsPath,
     dims,
@@ -245,7 +203,7 @@ export const runSqliteDenseWithBoundary = async ({
       process.exit(2);
     });
   `;
-  const childResult = runIsolatedNodeScriptSync({
+  const childResult = await (testRunChild || runIsolatedNodeScriptSync)({
     script,
     env: {
       ...process.env,
@@ -260,10 +218,23 @@ export const runSqliteDenseWithBoundary = async ({
     rejectOnNonZeroExit: false,
     name: `sqlite-dense:${mode || 'unknown'}`
   });
-  if (Number(childResult?.exitCode) === 0 && !toText(childResult?.signal)) {
+  const childObservation = observeStorageResource(childResult, { phase: 'sqlite-dense-original-child' });
+  childObservation.requireSettled();
+  let observed;
+  try {
+    const status = childResult?.exitCode;
+    observed = Object.freeze({ exitCode: Number.isSafeInteger(status) ? status : null, signal: toText(childResult?.signal) || null,
+      durationMs: finite(childResult?.durationMs), stdout: childResult?.stdout, stderr: childResult?.stderr,
+      stdoutTruncated: childResult?.outputCapture?.stdout?.truncated === true });
+  } catch (inspection) { throw childObservation.wrap(inspection); }
+  childObservation.requireSettled();
+  if (observed.exitCode === 0 && !observed.signal) {
     let parsed = null;
     try {
-      parsed = JSON.parse(toText(childResult?.stdout) || '{}');
+      const text = toText(observed.stdout);
+      if (!text || observed.stdoutTruncated) throw new SyntaxError('SQLite child JSON is empty or truncated.');
+      parsed = JSON.parse(text);
+      if (!isPlainObject(parsed)) throw new TypeError('SQLite child result must be an object.');
     } catch (err) {
       const error = new Error(`[embeddings] ${mode}: sqlite dense isolate returned invalid JSON: ${err?.message || err}`);
       error.code = 'ERR_SQLITE_DENSE_ISOLATE_PARSE';
@@ -271,13 +242,14 @@ export const runSqliteDenseWithBoundary = async ({
       throw error;
     }
     if (emitOutput !== false && parsed?.skipped !== true && typeof logger?.log === 'function') {
-      logger.log(`[embeddings] ${mode}: SQLite dense vectors updated (${dbPath || 'sqlite'}).`);
+      const logged = logger.log(`[embeddings] ${mode}: SQLite dense vectors updated (${dbPath || 'sqlite'}).`);
+      observeStorageResource(logged, { phase: 'sqlite-dense-success-log' }).requireSettled();
     }
-    return parsed || { skipped: false };
+    childObservation.requireSettled();
+    return parsed;
   }
-  const dumpFiles = collectFilesRecursive(crashCaptureDir)
-    .filter((filePath) => !preexistingDumpFiles.has(filePath));
-  const nativeCrash = isSqliteDenseNativeCrashExit(childResult?.exitCode);
+
+  const nativeCrash = isSqliteDenseNativeCrashExit(observed.exitCode);
   const failureClass = nativeCrash ? 'native_subprocess_crash' : 'subprocess_failure';
   const resolvedWorkerIdentity = workerIdentity || `stage3-sqlite:${mode || 'unknown'}`;
   const replayBundle = buildReplayBundle({
@@ -285,53 +257,42 @@ export const runSqliteDenseWithBoundary = async ({
     workerIdentity: resolvedWorkerIdentity,
     mode,
     payload,
-    childResult,
+    childResult: observed,
     failureClass,
-    dumpDir: crashCaptureDir,
-    dumpFiles
+    crashCapture
   });
-  let replayBundlePath = null;
-  if (typeof crashLogger?.persistForensicBundle === 'function') {
-    replayBundlePath = await crashLogger.persistForensicBundle({
-      kind: 'sqlite-stage3-replay',
-      signature: `sqlite-stage3-${sha1(JSON.stringify({
-        buildId,
-        mode,
-        dbPath: payload.dbPath || '',
-        vectorsPath: payload.vectorsPath || '',
-        exitCode: childResult?.exitCode ?? '',
-        signal: childResult?.signal || ''
-      })).slice(0, 20)}`,
-      bundle: replayBundle,
-      meta: {
-        stage: 'stage3',
-        mode,
-        workerIdentity: resolvedWorkerIdentity
-      }
-    });
-  }
-  if (typeof logger?.warn === 'function') {
-    logger.warn(
-      `[embeddings] ${mode}: sqlite dense isolate failed ` +
-      `(exit=${childResult?.exitCode ?? 'null'} signal=${childResult?.signal || 'null'} ` +
-      `failureClass=${failureClass}).`
-    );
-  }
-  const error = new Error(
-    `[embeddings] ${mode}: sqlite dense isolate failed ` +
-    `(exit=${childResult?.exitCode ?? 'null'} signal=${childResult?.signal || 'null'}).`
-  );
-  error.code = nativeCrash ? 'ERR_SQLITE_STAGE3_NATIVE_CRASH' : 'ERR_SQLITE_STAGE3_SUBPROCESS_FAILED';
-  error.stage = 'sqlite-dense-isolate';
-  error.failureClass = failureClass;
-  error.workerId = resolvedWorkerIdentity;
-  error.buildId = buildId || null;
-  error.bundleId = buildId || path.basename(indexRoot || '') || null;
-  error.mode = mode || null;
-  error.nativeCrash = nativeCrash;
-  error.replayBundlePath = replayBundlePath;
-  error.dumpDir = crashCaptureDir;
-  error.dumpFiles = dumpFiles;
-  error.result = childResult;
-  throw error;
+  const primary = Object.assign(new Error(
+    `[embeddings] ${mode}: sqlite dense isolate failed (exit=${observed.exitCode ?? 'null'} signal=${observed.signal || 'null'}).`
+  ), {
+    code: nativeCrash ? 'ERR_SQLITE_STAGE3_NATIVE_CRASH' : 'ERR_SQLITE_STAGE3_SUBPROCESS_FAILED',
+    stage: 'sqlite-dense-isolate', failureClass, workerId: resolvedWorkerIdentity, buildId: buildId || null,
+    bundleId: buildId || path.basename(indexRoot || '') || null, mode: mode || null, nativeCrash,
+    replayBundlePath: null, crashCapture, dumpDir: null, dumpFiles: crashCapture.dumpFiles, result: childResult
+  });
+  let failure = primary;
+  try {
+    if (typeof crashLogger?.persistForensicBundle === 'function') {
+      const persisted = await crashLogger.persistForensicBundle({
+        required: true,
+        kind: 'sqlite-stage3-replay',
+        signature: `sqlite-stage3-${sha1(JSON.stringify({ buildId, mode, dbPath: payload.dbPath || '',
+          vectorsPath: payload.vectorsPath || '', exitCode: observed.exitCode, signal: observed.signal || '' })).slice(0, 20)}`,
+        bundle: replayBundle,
+        meta: { stage: 'stage3', mode, workerIdentity: resolvedWorkerIdentity }
+      });
+      observeStorageResource(persisted, { phase: 'sqlite-dense-forensic-publication' }).requireSettled();
+      if (persisted !== null && typeof persisted !== 'string') throw new TypeError('SQLite forensic publication returned an invalid path.');
+      primary.replayBundlePath = persisted;
+    }
+  } catch (publication) { failure = addStorageFailureContext(failure, {}, publication, { secondaryPresent: true, forceAggregate: true }); }
+  try {
+    if (typeof logger?.warn === 'function') {
+      const logged = logger.warn(`[embeddings] ${mode}: sqlite dense isolate failed ` +
+        `(exit=${observed.exitCode ?? 'null'} signal=${observed.signal || 'null'} failureClass=${failureClass}).`);
+      observeStorageResource(logged, { phase: 'sqlite-dense-failure-log' }).requireSettled();
+    }
+  } catch (reporting) { failure = addStorageFailureContext(failure, {}, reporting, { secondaryPresent: true, forceAggregate: true }); }
+  try { childObservation.requireSettled(); }
+  catch (pending) { failure = addStorageFailureContext(failure, {}, pending, { secondaryPresent: true, forceAggregate: true }); }
+  throw failure;
 };

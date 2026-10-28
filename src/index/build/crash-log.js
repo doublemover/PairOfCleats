@@ -13,6 +13,8 @@ import { atomicWriteJson, atomicWriteJsonSync } from '../../shared/io/atomic-wri
 import { sha1 } from '../../shared/hash.js';
 import { normalizeFailureEvent, validateFailureEvent } from './failure-taxonomy.js';
 import { createCrashEvidenceOwner, boundedCrashEvent } from './crash-evidence.js';
+import { observeStorageResource } from '../../shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../shared/storage/operation-error.js';
 export { createCrashEvidenceOwner, readCrashEvidenceState } from './crash-evidence.js';
 
 /**
@@ -998,7 +1000,8 @@ export async function createCrashLogger({ repoCacheRoot, enabled, buildId = null
     kind = 'forensic',
     signature = null,
     bundle = null,
-    meta = null
+    meta = null,
+    required = false
   } = {}) => {
     if (!bundle || typeof bundle !== 'object') return null;
     const resolvedKind = sanitizePathToken(kind, 'forensic');
@@ -1020,16 +1023,19 @@ export async function createCrashLogger({ repoCacheRoot, enabled, buildId = null
       meta: meta || null,
       bundle
     };
+    let candidate = null;
     try {
       await fs.mkdir(forensicsDir, { recursive: true });
       await atomicWriteJson(filePath, payload, { spaces: 2 });
-      forensicSignatures.add(resolvedSignature);
-      forensicBundleIndex.set(resolvedSignature, {
+      const entry = {
         ts: payload.ts,
         kind: resolvedKind,
         signature: resolvedSignature,
         path: filePath
-      });
+      };
+      candidate = entry;
+      forensicSignatures.add(resolvedSignature);
+      forensicBundleIndex.set(resolvedSignature, entry);
       await atomicWriteJson(
         forensicsIndexPath,
         {
@@ -1045,7 +1051,15 @@ export async function createCrashLogger({ repoCacheRoot, enabled, buildId = null
       });
       return filePath;
     } catch (err) {
-      warnIo('persist forensic bundle', err);
+      // A failed index/log publication cannot leave a successful dedup cache.
+      // Preserve a newer concurrent candidate and all already-written evidence.
+      if (candidate && forensicBundleIndex.get(resolvedSignature) === candidate) {
+        forensicBundleIndex.delete(resolvedSignature); forensicSignatures.delete(resolvedSignature);
+      }
+      observeStorageResource(err, { phase: 'forensic-bundle-publication' }).requireSettled();
+      if (required) throw err;
+      try { warnIo('persist forensic bundle', err); }
+      catch (reporting) { throw addStorageFailureContext(err, {}, reporting, { secondaryPresent: true, forceAggregate: true }); }
       return null;
     }
   };

@@ -3785,28 +3785,33 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
               enableWindowsCrashCapture: envConfig?.benchRun === true || isTestingEnv()
             }));
           } catch (err) {
-            crashLogger.logError({
-              phase: `embeddings:${mode}`,
-              stage: 'sqlite-dense-isolate',
-              tool: 'sqlite-dense',
-              workerId: err?.workerId || `stage3-sqlite:${mode}`,
-              buildId: err?.buildId || (modeIndexRoot ? path.basename(modeIndexRoot) : null),
-              bundleId: err?.bundleId || (modeIndexRoot ? path.basename(modeIndexRoot) : null),
-              message: err?.message || String(err),
-              code: err?.code || null,
-              failureClass: err?.failureClass || null,
-              file: mergedVectorsBasePath,
-              indexRoot: modeIndexRoot,
-              dbPath: mode === 'code' ? sqlitePathsForMode?.codePath : sqlitePathsForMode?.prosePath,
-              replayBundlePath: err?.replayBundlePath || null,
-              nativeCrash: err?.nativeCrash === true,
-              dumpDir: err?.dumpDir || null,
-              dumpFiles: Array.isArray(err?.dumpFiles) ? err.dumpFiles : [],
-              exitCode: Number.isFinite(Number(err?.result?.exitCode)) ? Number(err.result.exitCode) : null,
-              signal: typeof err?.result?.signal === 'string' ? err.result.signal : null,
-              stderrTail: err?.result?.stderr || null,
-              stdoutTail: err?.result?.stdout || null
-            });
+            try {
+              observeStorageResource(err, { phase: 'sqlite-dense-stage3-failure' }).requireSettled();
+              const reported = await crashLogger.logError({
+                phase: `embeddings:${mode}`,
+                stage: 'sqlite-dense-isolate',
+                tool: 'sqlite-dense',
+                workerId: err?.workerId || `stage3-sqlite:${mode}`,
+                buildId: err?.buildId || (modeIndexRoot ? path.basename(modeIndexRoot) : null),
+                bundleId: err?.bundleId || (modeIndexRoot ? path.basename(modeIndexRoot) : null),
+                message: err?.message || String(err),
+                code: err?.code || null,
+                failureClass: err?.failureClass || null,
+                file: mergedVectorsBasePath,
+                indexRoot: modeIndexRoot,
+                dbPath: mode === 'code' ? sqlitePathsForMode?.codePath : sqlitePathsForMode?.prosePath,
+                replayBundlePath: err?.replayBundlePath || null,
+                nativeCrash: err?.nativeCrash === true,
+                dumpDir: err?.dumpDir || null,
+                dumpFiles: Array.isArray(err?.dumpFiles) ? err.dumpFiles : [],
+                crashCapture: err?.crashCapture || null,
+                exitCode: typeof err?.result?.exitCode === 'number' && Number.isFinite(err.result.exitCode) ? err.result.exitCode : null,
+                signal: typeof err?.result?.signal === 'string' ? err.result.signal : null,
+                stderrTail: err?.result?.stderr || null,
+                stdoutTail: err?.result?.stdout || null
+              });
+              observeStorageResource(reported, { phase: 'sqlite-dense-stage3-diagnostic' }).requireSettled();
+            } catch (reporting) { throw addStorageFailureContext(err, {}, reporting, { secondaryPresent: true, forceAggregate: true }); }
             throw err;
           }
           const vectorAnn = sqliteResult?.vectorAnn || null;
