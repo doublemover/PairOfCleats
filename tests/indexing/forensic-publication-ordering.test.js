@@ -41,8 +41,9 @@ try {
   const originalOpen = fs.open;
   fs.open = async (file, flags, ...args) => {
     if (typeof file === 'string' && typeof flags === 'string' && /[wx]/u.test(flags)) {
-      const index = file.includes('index-crash-forensics-index.json');
-      const payload = file.includes(`${path.sep}forensics${path.sep}`);
+      const directory = path.dirname(path.resolve(file));
+      const index = directory === logger.paths.directory;
+      const payload = directory === path.join(logger.paths.directory, 'forensics');
       if (payload) payloadWrites++; if (index) indexWrites++;
       if (inject && (index || payload) && ['pending-error', 'replaced-observer'].includes(selected)) throw pendingFailure;
       if (inject && (index || payload) && ['warning-failure', 'warning-pending', 'close-after-failure'].includes(selected)) throw primary;

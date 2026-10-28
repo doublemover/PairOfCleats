@@ -117,14 +117,15 @@ if (selected.startsWith('table-') || selected.startsWith('dims-') || selected ==
       const statement = prepare(sql);
       if (sql.startsWith('SELECT name FROM sqlite_master')) {
         const get = statement.get.bind(statement);
-        statement.get = table => {
+        statement.get = (...parameters) => {
+          const table = parameters[0];
           if (table === 'dense_vectors' || table === 'dense_meta') {
             tableQueries++;
             if (selected === 'native-null-close') throw null;
             if (['native-pending', 'native-pending-replaced'].includes(selected)) throw pendingError;
             if (['native-table-failure', 'native-work-close'].includes(selected)) throw primary;
           }
-          return get(table);
+          return get(...parameters);
         };
       }
       return statement;

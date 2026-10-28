@@ -67,7 +67,7 @@ try {
     buildId: 'original-generation', embeddings: { ready: false, pending: true } }));
   await fs.writeFile(manifestPath, JSON.stringify({ version: 2, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
     pieces: [{ name: 'index_state', type: 'stats', format: 'json', path: 'index_state.json' },
-      { name: 'unrelated', path: 'unrelated.json', bytes: 2, checksum: 'retained' }] }));
+      { name: 'unrelated', type: 'stats', format: 'json', path: 'unrelated.json', bytes: 2, checksum: 'retained' }] }));
   const before = await fs.readFile(manifestPath, 'utf8');
   if (selected.startsWith('metadata-') || ['string-count', 'negative-count', 'unsafe-count', 'malformed-meta',
     'unreadable-meta', 'pending-meta', 'unselected-meta'].includes(selected)) {

@@ -40,9 +40,11 @@ try {
     console.warn = (...args) => { warnings++; assert.ok(args.some(value => String(value).includes('forensic'))); };
     fs.open = async (file, flags, ...args) => {
       if (typeof file === 'string' && typeof flags === 'string' && /[wx]/u.test(flags)) {
-        const target = selected === 'required-forensic-index' ? 'index-crash-forensics-index.json' : 'sqlite-stage3-replay-fixture.json';
-        if (file.includes('sqlite-stage3-replay-fixture.json')) writes++;
-        if (injected && file.includes(target)) throw primary;
+        const directory = path.dirname(path.resolve(file));
+        const payload = directory === path.join(logger.paths.directory, 'forensics');
+        const target = selected === 'required-forensic-index' ? directory === logger.paths.directory : payload;
+        if (payload) writes++;
+        if (injected && target) throw primary;
       }
       return open(file, flags, ...args);
     };
