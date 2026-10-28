@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import { createSupervisorSession } from '../helpers/supervisor-session.js';
 import { createCompatibilityIndex } from '../helpers/index-compatibility-fixture.js';
 import { prepareIsolatedTestCacheDir } from '../helpers/test-cache.js';
@@ -25,6 +26,11 @@ if (selected === 'missing-capability') {
 }
 const index = await createCompatibilityIndex(repo, { compatibilityKey: 'safe-search-failures', profileId: 'default',
   published: true, userConfig: { cache: { root: cacheRoot } } });
+const source = 'export function alpha() { return 42; }\n';
+await fs.mkdir(path.join(repo, 'src')); await fs.writeFile(path.join(repo, 'src/code.js'), source);
+await fs.writeFile(path.join(index, 'chunk_meta.json'), JSON.stringify([{ id: 0, file: 'src/code.js', name: 'alpha',
+  kind: 'FunctionDeclaration', tokens: ['alpha'], chunkUid: 'uid:alpha', start: 0, end: Buffer.byteLength(source),
+  startLine: 1, endLine: 1, sourceHash: createHash('sha1').update(source).digest('hex') }]));
 if (selected === 'missing-index') await fs.unlink(path.join(index, 'chunk_meta.json'));
 if (selected === 'unsupported-format') {
   const statePath = path.join(index, 'index_state.json');
