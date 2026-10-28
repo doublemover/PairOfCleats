@@ -30,7 +30,7 @@ const SERIAL_NATIVE_LIFECYCLE_IDS = ['storage/sqlite/build/cancellation'];
 const API_CONTRACT_IDS = ['services/api/router-contract-matrix', 'services/api/core',
   'services/api/repo-authorization', 'services/api/server-stream', 'services/api/search-contract-matrix',
   'services/api/federated-search-validation-matrix', 'services/api/federated-filter-enumeration',
-  'services/api/search-stream-outcomes'];
+  'services/api/search-stream-outcomes', 'services/api/graph-evidence-pages'];
 const exactSelectors = ids => ids.flatMap(id => ['--match', `/^${id.replaceAll('/', '\\/')}$/`]);
 const LSP_FIXTURE_BIN = path.join(ROOT, 'tests', 'fixtures', 'lsp', 'bin');
 
