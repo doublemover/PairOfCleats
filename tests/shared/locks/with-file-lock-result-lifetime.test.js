@@ -9,7 +9,7 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 // UNVALIDATED: actual lock publication/release and original returned observers.
 applyTestEnv();
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('/').at(-1);
-assert.ok(['pending', 'unmarked', 'observer-child', 'replacement', 'settled', 'plain-values'].includes(selected));
+assert.ok(['pending', 'unmarked', 'observer-child', 'replacement', 'settled', 'plain-values', 'release-getter'].includes(selected));
 const parent = path.resolve('.tmp/tasks'); await fs.mkdir(parent, { recursive: true });
 const root = await fs.mkdtemp(path.join(parent, 'file-lock-result-'));
 try {
@@ -20,7 +20,7 @@ try {
       await assert.rejects(fs.stat(file), { code: 'ENOENT' });
     }
   } else {
-    let ready = selected === 'settled', childReady = false, inspectChild = selected === 'observer-child';
+    let ready = selected === 'settled' || selected === 'release-getter', childReady = false, inspectChild = selected === 'observer-child';
     let held, workers = 0, getterCalls = 0;
     const child = Object.freeze(Object.assign(new Error('independent result observer owns work'), {
       cacheOwnershipPending: true, cacheOwnershipReleased() { assert.equal(this, child); return childReady; }
@@ -35,10 +35,17 @@ try {
       ...(selected !== 'unmarked' ? { cacheOwnershipPending: { value: true } } : {}),
       cacheOwnershipReleased: { get() { getterCalls++; return reported; } }
     }));
-    const operation = withFileLock({ lockPath: file }, lock => { held = lock; workers++; return result; });
+    const operation = withFileLock({ lockPath: file }, lock => {
+      held = lock; workers++;
+      if (selected === 'release-getter') {
+        const release = lock.release;
+        Object.defineProperty(lock, 'release', { get() { ready = false; reported = () => true; return release; } });
+      }
+      return result;
+    });
     if (selected === 'settled') {
       assert.equal(await operation, result);
-      assert.equal(workers, 1); assert.equal(getterCalls, 1);
+      assert.equal(workers, 1); assert.ok(getterCalls >= 1);
       await assert.rejects(fs.stat(file), { code: 'ENOENT' });
     } else {
       let failure;

@@ -276,16 +276,21 @@ export const withFileLock = async (options, worker) => {
   const lock = await acquireFileLock(options);
   if (!lock) return null;
   let workerResult;
+  let workerPrerequisite = null;
   let workerError = null;
   let workerFailed = false;
   try {
     workerResult = await worker(lock);
-    observeStorageResource(workerResult, { phase: 'file-lock-worker-result' }).requireSettled();
+    const observation = observeStorageResource(workerResult, { phase: 'file-lock-worker-result' });
+    observation.requireSettled();
+    if (observation.hasResourceObservation) workerPrerequisite = observation.retain();
   } catch (error) {
     workerFailed = true;
     workerError = error;
   }
-  await releaseFileLockOrThrow(lock, { workerError });
+  // The release owner rechecks after metadata/method inspection and keeps this
+  // original prerequisite through actual unlink, even for a fulfilled worker.
+  await releaseFileLockOrThrow(lock, { workerError: workerFailed ? workerError : workerPrerequisite });
   if (workerFailed) throw workerError;
   return workerResult;
 };

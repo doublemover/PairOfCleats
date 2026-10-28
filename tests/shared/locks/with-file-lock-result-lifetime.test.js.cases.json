@@ -1,4 +1,4 @@
 {
   "schemaVersion": 1,
-  "cases": ["pending", "unmarked", "observer-child", "replacement", "settled", "plain-values"]
+  "cases": ["pending", "unmarked", "observer-child", "replacement", "settled", "plain-values", "release-getter"]
 }
