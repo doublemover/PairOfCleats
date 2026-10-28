@@ -10,7 +10,8 @@ export async function writeTriageRecordArtifacts(recordsDir, record) {
   const jsonPath = resolveRecordArtifactPathSafe(recordsDir, recordId, '.json');
   const mdPath = resolveRecordArtifactPathSafe(recordsDir, recordId, '.md');
   if (!jsonPath || !mdPath) {
-    const error = new Error(`Invalid recordId path: ${recordId}`);
+    const label = typeof recordId === 'string' ? JSON.stringify(recordId.slice(0, 256)) : '<non-string>';
+    const error = new Error(`Invalid recordId path: ${label}`);
     error.code = 'ERR_TRIAGE_RECORD_ID_PATH';
     throw error;
   }
