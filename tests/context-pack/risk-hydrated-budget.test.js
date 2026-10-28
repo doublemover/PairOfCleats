@@ -45,6 +45,8 @@ if (selected === 'measurement') {
   let hydration = 0;
   admitRiskFlowEnvelope({ flows: [{ rank: 1, value: 'x'.repeat(24577) }], ...sink(), stage: 'test', hydrate: () => { hydration++; } });
   assert.equal(hydration, 0, 'a metadata-rejected candidate never requests hydration');
+  assert.throws(() => admitRiskFlowEnvelope({ flows: [base], ...sink(), stage: 'test', hydrate: () => undefined }),
+    /complete flow object/u, 'a failed hydration producer cannot become a null flow that appears to fit');
 } else {
   assert.ok(['full-metadata', 'partial-metadata', 'accumulated', 'actual-exact-fit', 'positive-source'].includes(selected));
   const { dir } = await prepareIsolatedTestCacheDir(`risk-hydrated-${selected}`), repoRoot = path.join(dir, 'repo');

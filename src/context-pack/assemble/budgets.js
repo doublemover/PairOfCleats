@@ -400,6 +400,7 @@ export const admitRiskFlowEnvelope = ({ flows, partial = false, riskCapHits, rec
   const maxTokens = partial ? CONTEXT_PACK_MAX_RISK_PARTIAL_TOKENS : CONTEXT_PACK_MAX_RISK_TOKENS;
   const selected = []; let bytes = 2, tokens = 0, omittedFlows = 0;
   const measure = (flow, phase) => {
+    if (!flow || typeof flow !== 'object' || Array.isArray(flow)) throw new TypeError('Risk admission requires a complete flow object.');
     const comma = selected.length ? 1 : 0;
     const measured = measureRiskBudgetValue(flow, { maxBytes: Math.max(0, maxBytes - bytes - comma), maxTokens: maxTokens - tokens });
     const nextBytes = bytes + comma + measured.bytes;
