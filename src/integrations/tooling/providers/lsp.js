@@ -200,6 +200,7 @@ export async function collectLspTypes({
   parseSignature,
   strict = true,
   vfsRoot = null,
+  storageContext = null,
   uriScheme = 'file',
   captureDiagnostics = false,
   collectTypes = true,
@@ -929,10 +930,14 @@ export async function collectLspTypes({
           nativeUris.set(doc.virtualPath, admitted);
         }
       }
+      const materializedDocs = selectedDocsToOpen.filter(doc => !nativeUris.has(doc.virtualPath));
+      if (resolvedScheme === 'file' && materializedDocs.length) {
+        lease.materializationSession.admitRoot(resolvedRoot, storageContext);
+      }
       const diskPathMap = resolvedScheme === 'file'
         ? await ensureVirtualFilesBatch({
           rootDir: resolvedRoot,
-          docs: selectedDocsToOpen.filter(doc => !nativeUris.has(doc.virtualPath)),
+          docs: materializedDocs,
           batching: resolvedBatching,
           coldStartCache,
           materializationSession: lease.materializationSession

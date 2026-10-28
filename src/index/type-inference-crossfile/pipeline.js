@@ -154,6 +154,7 @@ const resolveCacheContext = ({
 export async function applyCrossFileInference({
   rootDir,
   buildRoot,
+  storageContext = null,
   cacheRoot = null,
   cacheEnabled = true,
   chunks,
@@ -224,7 +225,7 @@ export async function applyCrossFileInference({
     }
 
     const stats = await runCrossFilePropagation({
-      rootDir, buildRoot, chunks, log, useTooling, enableTypeInference,
+      rootDir, buildRoot, storageContext, chunks, log, useTooling, enableTypeInference,
       enableRiskCorrelation, fileRelations, fidelity, inferenceLite,
       inferenceLiteHighSignalOnly, symbolicTypeGraphs, abortSignal,
       onProgress: async progress => {

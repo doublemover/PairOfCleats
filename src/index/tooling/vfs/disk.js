@@ -7,6 +7,7 @@ import { assertNoSymlinkPath, withContainedFile } from '../../../shared/containe
 import { atomicWriteText } from '../../../shared/io/atomic-write.js';
 import { describeStorageFailure, observeStorageResource } from '../../../shared/storage/failure-observation.js';
 import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
+import { acquireNativeReaderStorage, findNativeReaderStorage, registerNativeReaderStorage } from '../../../shared/storage/native-reader.js';
 import { ensureToolingCacheDir } from '../cache-storage.js';
 
 const VFS_DISK_CACHE = new Map();
@@ -30,27 +31,64 @@ const rememberOwnerFailure = (owner, error) => {
 /** The existing provider session supplies its captured original closure
  * predicate. Retirement prevents new admission; only confirmed client closure
  * and every started materialization allow these in-process pins to retire.
- * This grants no file removal, category lease or cross-process exclusion.
+ * Optional canonical storage admission reuses the existing native-reader
+ * category/resource owner. This grants no file removal or external authority.
  */
 export const createVfsMaterializationSession = ({ isClosed }) => {
   if (typeof isClosed !== 'function') throw new TypeError('VFS consumer requires its original client closure observer.');
-  const state = { owners: new Set(), retiring: false, released: false };
+  const state = { owners: new Set(), storage: new Set(), admissionFailures: [], admissionError: null,
+    admissionFailed: false, retiring: false, released: false };
   const closure = observeStorageResource(observeStorageResource(Object.freeze({ cacheOwnershipPending: true,
     cacheOwnershipReleased: () => isClosed() === true }), { phase: 'vfs-consumer-client' }).retain(), { phase: 'vfs-consumer-client' });
   const session = Object.freeze({
     get size() { return state.owners.size; },
+    get storageRootCount() { return state.storage.size; },
+    admitRoot(baseDir, context) {
+      if (state.retiring || state.released) throw new TypeError('Retired VFS consumers cannot acquire storage.');
+      if (state.admissionFailed) throw state.admissionError;
+      if (!context) return false;
+      for (const observation of state.admissionFailures) observation.requireSettled();
+      const target = path.resolve(baseDir);
+      let admission;
+      try {
+        if (findNativeReaderStorage(session, target, context)) return true;
+        admission = acquireNativeReaderStorage(target, context, () => state.retiring && closure.isSettled()
+          && [...state.owners].every(owner => owner.finished && (!owner.failureObservation || owner.failureObservation.isSettled())));
+        if (!admission) return false; // External roots acquire no guessed authority.
+        state.storage.add(admission);
+        admission.start(); registerNativeReaderStorage(session, admission);
+        return true;
+      } catch (error) {
+        state.admissionFailed = true; state.admissionError = error;
+        // Partial metadata admission already exposes its exact existing owner.
+        // Keep it reachable through this same consumer, without dispatch/replay.
+        if (!admission) state.admissionFailures.push(observeStorageResource(
+          observeStorageResource(error, { phase: 'vfs-consumer-storage-admission' }).retain(), { phase: 'vfs-consumer-storage-admission' }));
+        throw error;
+      }
+    },
     retire() { state.retiring = true; },
     releaseAfterClosure() {
       state.retiring = true;
       if (state.released) return true;
       try {
-        if (state.owners.size) closure.requireSettled();
+        if (state.owners.size || state.storage.size) closure.requireSettled();
+        for (const observation of state.admissionFailures) observation.requireSettled();
         for (const owner of state.owners) {
           owner.failureObservation?.requireSettled();
           if (!owner.finished) throw Object.assign(new Error('Original VFS publication remains outstanding.'), {
             cacheOwnershipPending: true, cacheOwnershipReleased: () => owner.finished
           });
         }
+        let failure, failed = false;
+        for (const admission of state.storage) {
+          try { admission.releaseAfterClosure(); }
+          catch (error) {
+            failure = failed ? addStorageFailureContext(failure, {}, error, { secondaryPresent: true }) : error;
+            failed = true;
+          }
+        }
+        if (failed) throw failure;
       } catch (error) {
         throw addStorageFailureContext(error, { vfsMaterializationSession: session }, null,
           { forceAggregate: true, nonEnumerable: ['vfsMaterializationSession'] });
@@ -70,6 +108,7 @@ const pinConsumer = (owner, session) => {
   if (session === null) return;
   const state = consumerSessions.get(session);
   if (!state || state.retiring || state.released) throw new TypeError('VFS materialization requires its active original consumer session.');
+  if (state.admissionFailed) throw state.admissionError;
   owner.consumers.add(state); state.owners.add(owner);
 };
 

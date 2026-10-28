@@ -105,6 +105,7 @@ const toTypeNameList = (value) => {
 export async function runCrossFilePropagation({
   rootDir,
   buildRoot,
+  storageContext = null,
   chunks,
   log = () => {},
   useTooling = false,
@@ -312,6 +313,7 @@ export async function runCrossFilePropagation({
     log('[tooling] pass:start stage=cross-file.');
     const toolingResult = await runToolingPass({
       rootDir,
+      storageContext,
       buildRoot: buildRoot || rootDir,
       chunks,
       entryByUid,

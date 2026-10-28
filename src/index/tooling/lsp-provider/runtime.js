@@ -492,6 +492,7 @@ export const collectConfiguredOutput = async ({
         parseSignature: server.signatureProfile === 'ruby-lsp' ? parseRubyLspSignature : parseGenericSignature,
         strict: ctx?.strict !== false,
         vfsRoot: ctx?.buildRoot || ctx.repoRoot,
+        storageContext: ctx.storageContext || null,
         uriScheme: server.uriScheme || 'file',
         vfsTokenMode: ctx?.toolingConfig?.vfs?.tokenMode,
         vfsIoBatching: ctx?.toolingConfig?.vfs?.ioBatching,

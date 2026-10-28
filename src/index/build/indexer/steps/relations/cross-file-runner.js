@@ -120,6 +120,7 @@ export const runCrossFileInference = async ({
       let registeredProviderOutput = null;
       if (semanticSession.enabled || semanticLspSession.enabled) {
         const toolingResult = await runToolingPass({ rootDir: runtime.root, buildRoot: runtime.buildRoot,
+          storageContext: { repoRoot: runtime.root, userConfig: runtime.userConfig, env: { ...process.env } },
           chunks: state.chunks, entryByUid: new Map(), log,
           toolingConfig, toolingDocuments, fileTextByFile: semanticSession.fileTextByFile,
           abortSignal: signal, semanticSession, semanticLspSession, applyTypes: useTooling });
@@ -186,6 +187,7 @@ export const runCrossFileInference = async ({
       const crossFileStart = Date.now();
       const crossFileStats = await applyCrossFileInference({
         rootDir: runtime.root,
+        storageContext: { repoRoot: runtime.root, userConfig: runtime.userConfig, env: { ...process.env } },
         buildRoot: runtime.buildRoot,
         cacheRoot: runtime.repoCacheRoot,
         chunks: inferenceChunks,

@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["lifetime", "admission-race", "metadata-failure", "external-root", "launch-homes", "multiple-generations", "pending-file"]
+}

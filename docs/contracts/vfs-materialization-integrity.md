@@ -47,8 +47,19 @@ unchanged verified content is not rewritten. Root changes, same-size mutations,
 truncation, missing files, concurrent conflicts and publication/close failures have
 dedicated coverage; no new symlink creation is needed.
 
-These consumer pins are in-process publication exclusion. Cross-process writers,
-category cleanup and migration still need their existing storage-session admission
-and producer identity; neither the descriptor receipt nor this pin grants deletion
-authority. That remaining #1643 scope and actual provider/runtime qualification
-stay explicit. LSP binding producer version 56 separates the new lifetime policy.
+These consumer pins provide in-process publication exclusion. Canonical build
+tooling also supplies its actual repository, effective configuration and captured
+launch environment. Before materialization, the same consumer acquires the existing
+native-reader storage owner for the selected build root. Its repository/category
+leases persist through idle client use, outstanding files and failed metadata
+release; reuse keeps one owner per root/launch namespace. All admitted owners are
+attempted during retirement. Semantic and legacy tooling routes carry this context
+through generic, dedicated, Clangd, Pyright and SourceKit LSP adapters.
+
+Cross-process writer arbitration and custom/external producer registration remain
+separate. A configured path outside the canonical cache acquires no guessed
+category authority. Standalone callers without launch context keep local pinning
+only. Neither receipt nor consumer admission grants deletion authority or prevents
+uncooperative OS writers. Remaining #1643 scope and actual provider/runtime
+qualification stay explicit. LSP binding producer version 56 separates the new
+lifetime policy.

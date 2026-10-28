@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-28T04:03:24.304Z",
+  "generatedAt": "2026-10-28T04:11:14.457Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -3816,6 +3816,7 @@
         "tests/tooling/setup/windows-capability-resource-recovery.test.js",
         "tests/tooling/setup/windows-compiler-capability.test.js",
         "tests/tooling/setup/windows-prerequisite-resource-recovery.test.js",
+        "tests/tooling/vfs/consumer-storage-admission.test.js",
         "tests/tui/native-install-generation-conpty.test.js",
         "tests/tui/operator-storage-locator-authority.test.js",
         "tests/tui/operator-storage-plan.test.js",
@@ -4747,6 +4748,7 @@
         "tests/tooling/triage/history-lineage.test.js",
         "tests/tooling/triage/record-id-native-io-admission.test.js",
         "tests/tooling/triage/record-publication.test.js",
+        "tests/tooling/vfs/consumer-storage-admission.test.js",
         "tests/tooling/vfs/provider-session-lifetime.test.js",
         "tests/tui/native-artifact-actions.test.js",
         "tests/tui/native-index-workflows.test.js",

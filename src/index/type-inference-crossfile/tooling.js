@@ -208,6 +208,7 @@ export const prepareToolingPassDocuments = async ({ chunks, fileTextByFile, tool
 export const runToolingPass = async ({
   rootDir,
   buildRoot,
+  storageContext = null,
   chunks,
   entryByUid,
   log,
@@ -255,6 +256,7 @@ export const runToolingPass = async ({
 
   const ctx = {
     repoRoot: rootDir,
+    storageContext,
     buildRoot: buildRoot || rootDir,
     mode: 'code',
     strict,

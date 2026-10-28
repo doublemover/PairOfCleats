@@ -462,6 +462,7 @@ export const createPyrightProvider = () => ({
       parseSignature: (detail) => parsePythonSignature(detail),
       strict: ctx?.strict !== false,
       vfsRoot: ctx?.buildRoot || ctx.repoRoot,
+      storageContext: ctx.storageContext || null,
       vfsTokenMode: ctx?.toolingConfig?.vfs?.tokenMode,
       vfsIoBatching: ctx?.toolingConfig?.vfs?.ioBatching,
       vfsColdStartCache: ctx?.toolingConfig?.vfs?.coldStartCache,
