@@ -46,6 +46,7 @@ const changedSections = {
   throughputLedger: 0
 };
 const writeFailures = [];
+const refreshFailures = [];
 
 console.error(color.bold(color.cyan('Materialize Throughput Artifacts')));
 console.error(color.gray(`Root: ${resultsRoot}`));
@@ -75,6 +76,9 @@ for (const dir of folders) {
       payload,
       indexingSummary: indexingResult.indexingSummary, measurementEvidence
     });
+    if (analysisResult.refresh?.state === 'source-unavailable') {
+      refreshFailures.push({ path: resultPath, section: 'analysis', reason: analysisResult.refresh.reason });
+    }
 
     inputSession.processed(resultPath);
     const dirty = Boolean(indexingResult.changed || analysisResult.changed || throughputLedgerResult.changed);
@@ -124,5 +128,13 @@ if (writeFailures.length) {
   console.error(color.bold(color.yellow(`Write failures: ${writeFailures.length}`)));
   for (const entry of writeFailures.slice(0, 12)) {
     console.error(`  ${entry.path} :: ${entry.message}`);
+  }
+}
+if (refreshFailures.length) {
+  process.exitCode = 1;
+  console.error('');
+  console.error(color.bold(color.yellow(`Refresh failures: ${refreshFailures.length}`)));
+  for (const entry of refreshFailures.slice(0, 12)) {
+    console.error(`  ${entry.path} :: ${entry.section} (${entry.reason})`);
   }
 }

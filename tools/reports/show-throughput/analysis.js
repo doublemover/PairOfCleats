@@ -1,6 +1,7 @@
 import { resolveRecordedMeasurementInputs, recordedLedgerProvenance, canReuseRecordedLedger, BENCH_MEASUREMENT_DERIVATION_VERSION } from '../../bench/language/metrics/recorded-evidence.js';
 import fs from 'node:fs';
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import {
   buildThroughputLedgerForTask,
   computeThroughputLedgerRegression,
@@ -343,6 +344,12 @@ export const resolveBenchAnalysis = ({
   preferExisting = true
 }) => {
   const existing = payload?.artifacts?.analysis;
+  const previous = payload?.artifacts?.materialization?.sections?.analysis;
+  const existingProvenance = previous || existing?.derivation
+    ? { section: 'analysis', source: previous?.source || existing?.derivation?.source || 'fallback-build-state',
+      category: previous?.category || 'fallback',
+      ...(previous?.derivation || existing?.derivation ? { derivation: previous?.derivation || existing.derivation } : {}) }
+    : createProvenance('analysis', 'native-analysis', 'native');
   if (preferExisting && existing
     && typeof existing === 'object'
     && existing.schemaVersion === ANALYSIS_SCHEMA_VERSION
@@ -351,7 +358,7 @@ export const resolveBenchAnalysis = ({
     return {
       analysis: existing,
       changed: false,
-      provenance: createProvenance('analysis', 'native-analysis', 'native')
+      provenance: existingProvenance
     };
   }
   const computed = computeBenchAnalysis(payload, {
@@ -375,7 +382,8 @@ export const resolveBenchAnalysis = ({
     return {
       analysis: existing,
       changed: false,
-      provenance: createProvenance('analysis', 'native-analysis', 'native')
+      provenance: existingProvenance,
+      ...(existingProvenance.category !== 'native' ? { refresh: { state: 'source-unavailable', reason: 'analysis-reconstruction-unavailable' } } : {})
     };
   }
   return {
@@ -490,7 +498,16 @@ export const materializeBenchAnalysis = ({
   });
   if (!resolved.analysis) return resolved;
   if (resolved.provenance?.source === 'native-analysis') return resolved;
+  if (resolved.refresh?.state === 'source-unavailable') return resolved;
   const artifacts = ensureArtifactsObject(payload);
+  // This producer owns generatedAt as reconstruction time. Reconstruct first,
+  // compare every semantic field, and retain the original time only for equal
+  // derived content. Historical measurement/source timestamps are untouched.
+  const previous = artifacts.analysis;
+  if (typeof previous?.generatedAt === 'string' && Number.isFinite(Date.parse(previous.generatedAt))
+    && isDeepStrictEqual({ ...previous, generatedAt: null }, { ...resolved.analysis, generatedAt: null })) {
+    resolved.analysis = previous;
+  }
   const changed = JSON.stringify(artifacts.analysis || null) !== JSON.stringify(resolved.analysis);
   artifacts.analysis = resolved.analysis;
   const metadataChanged = upsertMaterializationSection(payload, 'analysis', resolved.provenance);
