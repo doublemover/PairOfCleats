@@ -44,6 +44,16 @@ This contract qualifies recorded measurement reconstruction. It does not qualify
 real-model performance, historical environment equivalence or live structural
 build-state analysis as an immutable attempt snapshot.
 
+Live structural analysis keeps its recorded materialization provenance on later
+reads. Explicit refresh reconstructs before comparing all semantic fields.
+Only this analysis producer's invocation-dependent `generatedAt` is excluded
+from that comparison; equal content retains the original object and timestamp,
+including its key order. Changed content receives a new reconstruction time.
+Measurement/source timestamps are never normalized. An unavailable refresh of
+previously derived analysis preserves the stored evidence, returns
+`analysis-reconstruction-unavailable`, and makes the materializer exit nonzero.
+It is not a successful no-op and does not promote the old analysis to native.
+
 Small fixtures retain a saved A report while mutating/removing current B metrics
 and configuration. They exercise actual aggregate and ledger callers, qualified
 snapshot admission, counter/clock pairing, native priority, unknown duration,

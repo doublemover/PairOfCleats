@@ -1032,9 +1032,16 @@
       "recordedDisposition": "implementation_needed",
       "priority": "unranked",
       "batch": "performance-and-evaluation",
-      "phase": "source-review-and-implementation",
-      "status": "queued",
-      "currentDisposition": "implementation_needed"
+      "phase": "qualification-pending",
+      "status": "source-implemented-qualification-pending",
+      "currentDisposition": "qualification_pending",
+      "unvalidatedSourceHeads": [
+        "c08076a81c07b9e2c3f1be12f3fc311a14e9c44f"
+      ],
+      "unvalidatedReceipts": [
+        "throughput-materialization-implementation-2026-10-28.md"
+      ],
+      "currentImplementation": "Explicit analysis refresh reconstructs before semantic equality, retains original invocation time/object for unchanged content, preserves stored derived provenance and reports unavailable refresh without discarding prior evidence. Nine authored real-file/CLI controls and measured acceptance remain unexecuted; immutable temporal-source structural qualification remains #1680."
     },
     {
       "number": 277,
@@ -1083,16 +1090,17 @@
         "342c39c7b05ce17e8750c93b3a47b9b23e631703"
       ],
       "unvalidatedReceipts": [
-        "clangd-compilation-context-implementation-2026-10-27.md"
+        "clangd-compilation-context-implementation-2026-10-27.md",
+        "throughput-materialization-implementation-2026-10-28.md"
       ],
-      "currentImplementation": "Bounded compilation database/response admission, captured per-document coverage and source/launch revalidation, healthy/weak planning, physical URI routing, per-file hover policy and LSP producer version 52 implemented; 26 authored cases await execution and real Windows qualification.",
+      "currentImplementation": "Prior source implements bounded read-only compilation/response admission, exact and weak document maps, shared launch-bound preflight/run revalidation and weak-only planning/hover limits with reconciled diagnostics. Twenty-five authored admission cases, actual collector, original fixtures and real Windows clangd reproductions remain unexecuted; #1161/#1146 retain separate closure/profile scope.",
       "title": "Clangd: contain documentSymbol timeout storms and make weak compile-context fallback deterministic",
       "recordedDisposition": "implementation_needed",
       "priority": "unranked",
       "batch": "provider-admission",
-      "phase": "source-review-and-implementation",
-      "status": "queued",
-      "currentDisposition": "implementation_needed"
+      "phase": "qualification-pending",
+      "status": "source-implemented-qualification-pending",
+      "currentDisposition": "qualification_pending"
     },
     {
       "number": 292,
@@ -9733,11 +9741,11 @@
   ],
   "currentCounts": {
     "open": 718,
-    "qualificationPending": 478,
+    "qualificationPending": 480,
     "partialFollowup": 144,
-    "implementationStatusUnresolved": 96
+    "implementationStatusUnresolved": 94
   },
-  "reconciledAt": "2026-10-28T09:22:01.064Z",
+  "reconciledAt": "2026-10-28T09:29:39.309Z",
   "completedSourceBatch": [
     347,
     586,
@@ -9798,12 +9806,23 @@
         "implementationStatusUnresolved": 98
       },
       "meaning": "Prior source reconciliation; subsequent operator/report/shortcut implementation is recorded separately."
+    },
+    {
+      "reconciledAt": "2026-10-28T09:29:39.308Z",
+      "sourceHead": "228e6ce38aba4eee617557fa8a1f4ba2d1465091",
+      "counts": {
+        "open": 718,
+        "qualificationPending": 478,
+        "partialFollowup": 144,
+        "implementationStatusUnresolved": 96
+      },
+      "meaning": "Prior source reconciliation; throughput refresh and prior compilation implementation are recorded subsequently."
     }
   ],
   "currentCountsBasis": {
     "meaning": "Complete live GitHub inventory plus recorded local source implementation; not functional acceptance.",
     "publishedHead": "adbcaf777ce91642bb0a60de892171d8c3a529f7",
-    "sourceHead": "228e6ce38aba4eee617557fa8a1f4ba2d1465091",
-    "receipt": "operator-report-and-shortcut-implementation-2026-10-28.md"
+    "sourceHead": "c08076a81c07b9e2c3f1be12f3fc311a14e9c44f",
+    "receipt": "throughput-materialization-implementation-2026-10-28.md"
   }
 }

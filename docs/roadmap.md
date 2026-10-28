@@ -9,15 +9,13 @@ Canonical for: initiative status, execution order, and remaining work
 
 The [closeout review](archived/github-issue-closeout-2026-10-26.md) assessed
 **770 issues/238 comments**, closing 27; later batches closed 25 more.
-The latest **718-open source snapshot** records 478 qualification-pending,
-144 partial and 96 unresolved entries, including unpublished implementations.
+The latest **718-open source snapshot** records 480 qualification-pending,
+144 partial and 94 unresolved entries, including unpublished implementations.
 
 The [complete assessment](archived/github-issue-closeout-2026-10-26.json) retains
 source/test mappings and closure witnesses; [earlier receipts](archived/solo-issue-repairs-2026-10-25.md)
 retain historical evidence. Work is solo and Windows-only. Hosted gate/policy/Rust
 TUI passed at `f8532f1d2`; seven broader jobs failed (see the review).
-
-Historical Windows front gates passed 40/40 cases at their recorded sources:
 
 Completed source-bound checks are indexed in the
 [qualification archive](archived/native-runtime-qualification-index-2026-10-27.md)
@@ -34,8 +32,7 @@ removed 110 lock records. Locked bootstrap passed without warnings/errors:
 37 packages, 33 routes, 8 patches/26 targets/61 hunks. Retained inputs and exact
 receipts remain in the archive; functional checks/publication gate are deferred.
 
-These observations do not combine into suite/platform/model/release acceptance.
-Task checks omit an inherited missing trusted-config selector. [Storage observation repairs](archived/storage-space-implementation-2026-10-27.md)
+Suite/platform/model/release acceptance remains separate. [Storage repairs](archived/storage-space-implementation-2026-10-27.md)
 await execution; lifecycle policy (#1267) and custom cleanup (#1574) remain.
 
 Execution is solo, Windows-only and implementation-first. The [complete owner
@@ -43,8 +40,7 @@ queue](archived/remaining-issue-batches-2026-10-26.json) orders source work by
 severity and shared dependencies, retaining qualification separately:
 
 1. P1 cleanup (#1574): [state ownership](archived/build-state-ownership-implementation-2026-10-27.md) and configured stores await qualification. #1627 remains unqualified.
-2. Worker/child/service ownership, provider installation and compilation context
-   (#631, #289), keeping live readers and original cleanup owners intact.
+2. Worker/service ownership and provider installation (#631); [compilation context and report refresh](archived/throughput-materialization-implementation-2026-10-28.md) await qualification.
 3. Language/semantic/replay and retrieval/API evidence contracts; [comment source/demand ownership](archived/comment-pipeline-implementation-2026-10-27.md)
    has 38 authored JS/TS/Rust/import cases. [Frontmatter interiors](archived/frontmatter-content-implementation-2026-10-27.md)
    have 8 more. [Metadata routing](archived/language-routing-implementation-2026-10-27.md)
@@ -70,10 +66,8 @@ severity and shared dependencies, retaining qualification separately:
    and [Windows descendant RSS qualification](archived/query-process-tree-implementation-2026-10-27.md) (#1675); actual measurements remain.
 6. Research capabilities after their prerequisite source/retrieval/evidence owners.
 
-Frontload related implementation, then run bounded affected checks and repair
-actual failures. Keep real-tool/model, non-Windows and release execution explicit;
-source receipts and small fixtures do not discharge those qualifications. Earlier
-completed detail remains in the linked repair archives.
+Frontload implementation, then run bounded affected checks and fix failures.
+Real-tool/model, non-Windows and release qualification remain explicit.
 
 Validation uses **targeted Windows re-checks** under the user's 2026-10-24 scope.
 The [validation receipt](archived/windows-solo-validation-2026-10-23.md) preserves

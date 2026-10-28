@@ -70,6 +70,8 @@ PR #572 metadata was refreshed and read back at checkpoint `138d9d9e5` (120 loca
 
 - [Operator reports and opt-in shortcuts](operator-report-and-shortcut-implementation-2026-10-28.md): #173 selection/risk/recovery identity and #216 packaged keyboard opt-in; 13 new cases and original producer/queue/archive controls authored, unexecuted.
 
+- [Throughput refresh and compilation reconciliation](throughput-materialization-implementation-2026-10-28.md): #275 semantic idempotence, retained provenance and explicit failed refresh; nine new cases authored. #289 source was already implemented; native qualification remains.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.
