@@ -44,3 +44,29 @@ export const publishEmbeddingFailure = async ({ primary, statePath, prepareState
   }
   return failure;
 };
+
+/** A deferred spool stays required after work settles. Close only through the
+ * captured original spool after the original work observer confirms settlement.
+ * Failed native close recovery remains an explicit operation on that spool. */
+export const createDeferredVectorSpoolRetirement = (primary, spool) => {
+  const work = observeStorageResource(observeStorageResource(primary, { phase: 'stage3-deferred-spool-work' }).retain(),
+    { phase: 'stage3-deferred-spool-work' });
+  const close = spool.close, observe = spool.isSettled;
+  let closing = null;
+  const isSettled = () => {
+    try { return work.isSettled() && observe.call(spool) === true; } catch { return false; }
+  };
+  let owner;
+  owner = Object.freeze({ isSettled, closeAfterWork() {
+    if (!closing) closing = (async () => {
+      work.requireSettled();
+      if (observe.call(spool) !== true) await close.call(spool);
+      if (!isSettled()) throw addStorageFailureContext(new Error('Original deferred vector spool remains unsettled.'), {
+        vectorSpoolRetirement: owner, cacheOwnershipPending: true, cacheOwnershipReleased: isSettled
+      }, undefined, { nonEnumerable: ['vectorSpoolRetirement'] });
+      return Object.freeze({ settled: true, pending: false });
+    })().finally(() => { closing = null; });
+    return closing;
+  } });
+  return owner;
+};

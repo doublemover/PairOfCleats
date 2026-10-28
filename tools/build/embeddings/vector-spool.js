@@ -1,9 +1,10 @@
 import fs from 'node:fs';
-import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { setImmediate as yieldEventLoop } from 'node:timers/promises';
 import { throwIfAborted } from '../../../src/shared/abort.js';
-import { assertNoSymlinkPath, verifyContainedFileHandle } from '../../../src/shared/contained-file.js';
+import { verifyContainedFileHandle } from '../../../src/shared/contained-file.js';
+import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
+import { allocateVectorSpoolLifetime } from './vector-spool-lifetime.js';
 
 const CHANNELS = ['code', 'doc', 'merged'];
 const MAX_WINDOW_BYTES = 16 * 1024 * 1024;
@@ -26,17 +27,12 @@ export const createEmbeddingVectorSpool = async ({ parentDir, count, dims, signa
     || Math.ceil(count / 8) * 5 > MAX_BITMAP_BYTES) throw failure('Vector spool dimensions/count/window exceed bounded authority.');
   throwIfAborted(signal);
   parentDir = path.resolve(parentDir);
-  assertNoSymlinkPath(parentDir, parentDir);
-  // Windows mkdtemp needs its extended path form even when later file I/O
-  // already accepts this generation's long ordinary path.
-  const allocated = await fsp.mkdtemp(path.toNamespacedPath(path.join(parentDir, '.stage3-vector-spool-')));
-  const directory = path.join(parentDir, path.basename(allocated));
   const bytesPerWindow = Math.max(dims, Math.floor(Math.min(MAX_WINDOW_BYTES, windowBytes) / dims) * dims);
   const rowsPerWindow = Math.max(1, Math.floor(bytesPerWindow / dims));
-  const handles = {}, filenames = {}, presence = {}, seals = {}, windows = {};
+  const handles = {}, fileOwners = {}, fileOperations = {}, filenames = {}, presence = {}, seals = {}, windows = {};
   const reserved = Buffer.alloc(Math.ceil(count / 8)), occupied = Buffer.alloc(reserved.length);
   const operations = new Set();
-  let sealed = false, closed = false, firstFailure = null, closing = null;
+  let sealed = false, closed = false, firstFailure = null, hasWriteFailure = false, closing = null;
   let durabilityFlush = null, requestedDurability = 0, settledDurability = 0;
   let writeBuffered = 0;
   const work = { count, dims, logicalPayloadBytes: count * dims * 3, bitmapBytes: reserved.length * 5,
@@ -44,32 +40,24 @@ export const createEmbeddingVectorSpool = async ({ parentDir, count, dims, signa
     peakWriteBufferedBytes: 0, readWindowBytes: bytesPerWindow, currentReadBufferedBytes: 0,
     peakReadBufferedBytes: 0, retainedCorpusVectorBytes: 0, presentRows: { code: 0, doc: 0, merged: 0 } };
   const assertOpen = () => { throwIfAborted(signal); if (closed) throw failure('Vector spool is closed.'); };
-  const removeOwnedDirectory = async () => {
-    // Recursive removal always checks the exact nonce directory in its named
-    // parent; never reconstruct a deletion target from artifact metadata.
-    assertNoSymlinkPath(parentDir, directory, { allowMissing: true });
-    if (path.dirname(directory) !== path.resolve(parentDir) || !path.basename(directory).startsWith('.stage3-vector-spool-')) throw failure('Vector spool cleanup escaped its attempt parent.');
-    await fsp.rm(directory, { recursive: true, force: true });
-  };
+  const lifetime = await allocateVectorSpoolLifetime(parentDir, async () => {
+    closed = true;
+    await Promise.allSettled([...operations]);
+  });
+  const directory = lifetime.directory;
   try {
     for (const channel of CHANNELS) {
-      const filename = path.join(directory, `${channel}.uint8`);
-      filenames[channel] = filename;
-      assertNoSymlinkPath(parentDir, filename, { allowMissing: true });
-      handles[channel] = await fsp.open(filename, 'wx+', 0o600);
-      verifyContainedFileHandle(handles[channel], parentDir, filename);
-      await handles[channel].truncate(count * dims);
+      const opened = await lifetime.open(channel);
+      filenames[channel] = opened.filename; handles[channel] = opened.handle;
+      fileOwners[channel] = opened.resource; fileOperations[channel] = opened.operations;
+      await opened.operations.truncate(count * dims);
       presence[channel] = Buffer.alloc(reserved.length);
     }
   } catch (error) {
-    const cleanup = [];
-    for (const handle of Object.values(handles)) try { await handle.close(); } catch (cause) { cleanup.push(cause); }
-    try { await removeOwnedDirectory(); } catch (cause) { cleanup.push(cause); }
-    if (cleanup.length) {
-      error.spoolCleanupErrors = cleanup; error.cacheOwnershipPending = true;
-      error.vectorSpoolPath = directory; error.vectorSpoolHandles = Object.values(handles);
-    }
-    throw error;
+    lifetime.remember(error);
+    try { await lifetime.close(); }
+    catch (cleanup) { throw lifetime.retain(error, [cleanup]); }
+    throw lifetime.retain(error);
   }
   const transferDurableOwnership = async () => {
     const target = ++requestedDurability;
@@ -79,7 +67,7 @@ export const createEmbeddingVectorSpool = async ({ parentDir, count, dims, signa
         // joins a later durability boundary after all its own writes finish.
         await yieldEventLoop(); assertOpen();
         const current = requestedDurability;
-        for (const channel of CHANNELS) await handles[channel].sync();
+        for (const channel of CHANNELS) await fileOperations[channel].sync();
         work.durabilityBatches++; settledDurability = current;
       })().finally(() => { durabilityFlush = null; });
       await durabilityFlush;
@@ -88,7 +76,8 @@ export const createEmbeddingVectorSpool = async ({ parentDir, count, dims, signa
 
   const writeRows = async (items, vectors) => {
     assertOpen();
-    if (sealed || firstFailure) throw firstFailure || failure('Cannot write a sealed vector spool.');
+    if (hasWriteFailure) throw firstFailure;
+    if (sealed) throw failure('Cannot write a sealed vector spool.');
     if (!Array.isArray(items) || CHANNELS.some(channel => !Array.isArray(vectors[channel]) || vectors[channel].length !== items.length)) throw failure('Spool file channel counts disagree.');
     const local = new Set();
     for (let offset = 0; offset < items.length; offset++) {
@@ -114,7 +103,7 @@ export const createEmbeddingVectorSpool = async ({ parentDir, count, dims, signa
           work.peakWriteBufferedBytes = Math.max(work.peakWriteBufferedBytes, writeBuffered);
           try {
             for (let row = cursor; row < stop; row++) if (vectors[channel][row].length) buffer.set(vectors[channel][row], (row - cursor) * dims);
-            const handle = handles[channel], position = items[cursor].index * dims;
+            const handle = fileOperations[channel], position = items[cursor].index * dims;
             let offset = 0;
             while (offset < buffer.length) {
               assertOpen();
@@ -133,37 +122,39 @@ export const createEmbeddingVectorSpool = async ({ parentDir, count, dims, signa
       await transferDurableOwnership();
       for (const index of local) set(occupied, index);
       work.rowsWritten += items.length;
-    } catch (error) { firstFailure ||= error; throw error; }
+    } catch (error) { if (!hasWriteFailure) { firstFailure = error; hasWriteFailure = true; } throw error; }
   };
 
   const read = (channel, index) => {
     assertOpen();
-    if (!sealed) throw failure('Vector spool cannot be read before durable sealing.');
-    if (index < 0 || index >= count || !Number.isSafeInteger(index)) return undefined;
-    if (!bit(occupied, index) || !bit(presence[channel], index)) return empty;
-    let window = windows[channel];
-    const start = Math.floor(index / rowsPerWindow) * rowsPerWindow;
-    if (!window || window.start !== start) {
-      const handle = handles[channel], filename = filenames[channel];
-      verifyContainedFileHandle(handle, parentDir, filename);
-      if (!sameStat(seals[channel], fs.fstatSync(handle.fd, { bigint: true }))) throw failure('Sealed vector spool changed during consumption.');
-      const rows = Math.min(rowsPerWindow, count - start), buffer = Buffer.alloc(rows * dims);
-      let offset = 0;
-      while (offset < buffer.length) {
-        throwIfAborted(signal);
-        const remaining = buffer.length - offset;
-        const readBytes = fs.readSync(handle.fd, buffer, offset, remaining, start * dims + offset);
-        if (!Number.isSafeInteger(readBytes) || readBytes <= 0 || readBytes > remaining) throw failure('Vector spool read made invalid forward progress.');
-        offset += readBytes; work.readCalls++; work.bytesRead += readBytes;
+    return fileOwners[channel].inspect(() => {
+      if (!sealed) throw failure('Vector spool cannot be read before durable sealing.');
+      if (index < 0 || index >= count || !Number.isSafeInteger(index)) return undefined;
+      if (!bit(occupied, index) || !bit(presence[channel], index)) return empty;
+      let window = windows[channel];
+      const start = Math.floor(index / rowsPerWindow) * rowsPerWindow;
+      if (!window || window.start !== start) {
+        const handle = handles[channel], filename = filenames[channel];
+        verifyContainedFileHandle(handle, parentDir, filename);
+        if (!sameStat(seals[channel], fs.fstatSync(handle.fd, { bigint: true }))) throw failure('Sealed vector spool changed during consumption.');
+        const rows = Math.min(rowsPerWindow, count - start), buffer = Buffer.alloc(rows * dims);
+        let offset = 0;
+        while (offset < buffer.length) {
+          throwIfAborted(signal);
+          const remaining = buffer.length - offset;
+          const readBytes = fs.readSync(handle.fd, buffer, offset, remaining, start * dims + offset);
+          if (!Number.isSafeInteger(readBytes) || readBytes <= 0 || readBytes > remaining) throw failure('Vector spool read made invalid forward progress.');
+          offset += readBytes; work.readCalls++; work.bytesRead += readBytes;
+        }
+        verifyContainedFileHandle(handle, parentDir, filename);
+        if (!sameStat(seals[channel], fs.fstatSync(handle.fd, { bigint: true }))) throw failure('Sealed vector spool changed during its range read.');
+        work.currentReadBufferedBytes += buffer.length - (window?.buffer.length || 0);
+        work.peakReadBufferedBytes = Math.max(work.peakReadBufferedBytes, work.currentReadBufferedBytes);
+        // Never overwrite a previous window: consumers may still own its views.
+        window = { start, buffer }; windows[channel] = window;
       }
-      verifyContainedFileHandle(handle, parentDir, filename);
-      if (!sameStat(seals[channel], fs.fstatSync(handle.fd, { bigint: true }))) throw failure('Sealed vector spool changed during its range read.');
-      work.currentReadBufferedBytes += buffer.length - (window?.buffer.length || 0);
-      work.peakReadBufferedBytes = Math.max(work.peakReadBufferedBytes, work.currentReadBufferedBytes);
-      // Never overwrite a previous window: consumers may still own its views.
-      window = { start, buffer }; windows[channel] = window;
-    }
-    return new Uint8Array(window.buffer.buffer, window.buffer.byteOffset + (index - start) * dims, dims);
+      return new Uint8Array(window.buffer.buffer, window.buffer.byteOffset + (index - start) * dims, dims);
+    });
   };
   // Read-only virtual arrays preserve existing ordinal/iterator consumers and
   // Array.isArray contracts without allocating N slots or retaining N row views.
@@ -188,39 +179,47 @@ export const createEmbeddingVectorSpool = async ({ parentDir, count, dims, signa
     defineProperty() { throw failure('Spool vector sequences are read-only.'); },
     deleteProperty() { throw failure('Spool vector sequences are read-only.'); }
   })]));
-  return {
+  const releaseWindows = () => {
+    for (const channel of CHANNELS) delete windows[channel];
+    work.currentReadBufferedBytes = 0;
+  };
+  return Object.freeze({
     directory, vectors,
+    isSettled: lifetime.isSettled,
+    isRetiring: () => closed,
     writeFile(items, channels) {
-      const operation = writeRows(items, channels).catch(error => { error.vectorSpoolFailure = true; throw error; }); operations.add(operation);
+      if (closed) return Promise.reject(addStorageFailureContext(failure('Vector spool is closed.'), { vectorSpoolFailure: true }));
+      const operation = writeRows(items, channels).catch(error => {
+        lifetime.remember(error);
+        const context = addStorageFailureContext(error, { vectorSpoolFailure: true });
+        if (hasWriteFailure && firstFailure === error) firstFailure = context;
+        throw context;
+      }); operations.add(operation);
       operation.then(() => operations.delete(operation), () => operations.delete(operation));
       return operation;
     },
     async seal() {
       assertOpen();
-      if (firstFailure) throw firstFailure;
+      if (hasWriteFailure) throw firstFailure;
       if (operations.size) throw failure('Cannot seal while file writes still own spool ranges.');
       if (sealed) return;
       for (const channel of CHANNELS) {
-        await handles[channel].sync();
-        verifyContainedFileHandle(handles[channel], parentDir, filenames[channel]);
-        seals[channel] = await handles[channel].stat({ bigint: true });
+        await fileOperations[channel].sync();
+        fileOwners[channel].inspect(() => verifyContainedFileHandle(handles[channel], parentDir, filenames[channel]));
+        seals[channel] = await fileOperations[channel].stat({ bigint: true });
         if (seals[channel].size !== BigInt(count * dims)) throw failure('Vector spool sealed length disagrees with its identity.');
       }
       throwIfAborted(signal); sealed = true;
     },
-    stats: () => ({ ...work, presentRows: { ...work.presentRows }, sealed, closed, pendingWrites: operations.size }),
+    stats: () => ({ ...work, presentRows: { ...work.presentRows }, sealed, closed: lifetime.isSettled(), retiring: closed, pendingWrites: operations.size }),
     close() {
-      if (!closing) closing = (async () => {
-        closed = true;
-        await Promise.allSettled([...operations]);
-        const cleanup = [];
-        for (const handle of Object.values(handles)) try { await handle.close(); } catch (error) { cleanup.push(error); }
-        if (!cleanup.length) try { await removeOwnedDirectory(); } catch (error) { cleanup.push(error); }
-        for (const channel of CHANNELS) delete windows[channel];
-        work.currentReadBufferedBytes = 0;
-        if (cleanup.length) throw Object.assign(new AggregateError(cleanup, 'Vector spool cleanup failed.'), { vectorSpoolPath: directory, cacheOwnershipPending: true });
-      })();
-      return closing;
+      closed = true;
+      if (!closing) closing = lifetime.close().then(releaseWindows);
+      return lifetime.isSettled() ? Promise.resolve() : closing;
+    },
+    async recoverAfterClose() {
+      closed = true;
+      const receipt = await lifetime.recoverAfterClose(); releaseWindows(); return receipt;
     }
-  };
+  });
 };

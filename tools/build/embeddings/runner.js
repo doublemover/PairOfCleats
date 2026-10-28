@@ -118,7 +118,7 @@ import {
 } from './embed.js';
 import { writeHnswBackends, writeLanceDbBackends } from './backends.js';
 import { updatePieceManifest } from './manifest.js';
-import { publishEmbeddingGeneration, publishEmbeddingFailure } from './publication.js';
+import { publishEmbeddingGeneration, publishEmbeddingFailure, createDeferredVectorSpoolRetirement } from './publication.js';
 import { publishBackendGeneration } from './backend-publication.js';
 import { buildEmbeddingGenerationAsync } from '../../../src/shared/embedding-generation.js';
 import { createFileEmbeddingsProcessor } from './pipeline.js';
@@ -1711,11 +1711,22 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
   let embedder;
   let cleanupScheduler = null;
   let persistentTextCacheStore = null;
+  const pendingSpoolRetirements = new Set();
   onCleanup(async () => {
     const failures = [];
     for (const settle of [() => cleanupScheduler?.shutdown?.({ awaitRunning: true, timeoutMs: 5000 }),
-      () => persistentTextCacheStore?.close?.(), () => embedder?.dispose?.(), () => crashLogger.close?.(), () => finalize()]) {
-      try { await settle(); } catch (error) { failures.push(error); }
+      () => persistentTextCacheStore?.close?.(), () => embedder?.dispose?.(), async () => {
+        const settled = await Promise.allSettled([...pendingSpoolRetirements].map(async owner => {
+          await owner.closeAfterWork(); pendingSpoolRetirements.delete(owner);
+        }));
+        const errors = settled.filter(result => result.status === 'rejected').map(result => result.reason);
+        if (errors.length) throw errors.slice(1).reduce((primary, secondary) =>
+          addStorageFailureContext(primary, {}, secondary, { secondaryPresent: true }), errors[0]);
+      }, () => crashLogger.close?.(), () => finalize()]) {
+      try {
+        const result = await settle();
+        if (result !== undefined) observeStorageResource(result, { phase: 'stage3-original-cleanup-result' }).requireSettled();
+      } catch (error) { failures.push(error); }
     }
     if (failures.length) throw failures.slice(1).reduce((primary, secondary) =>
       addStorageFailureContext(primary, {}, secondary, { secondaryPresent: true }), failures[0]);
@@ -1950,6 +1961,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
   let completedModes = 0;
   const validModes = new Set(['code', 'prose', 'extracted-prose', 'records']);
   const writerStatsByMode = {};
+  let phaseFailure, phaseFailed = false;
   const crossFileChunkDedupeEnabled = !stubFastPathEnabled
     && embeddingsConfig?.crossFileChunkDedupe !== false;
   const crossFileChunkDedupeMaxEntries = resolveCrossFileChunkDedupeMaxEntries(indexingConfig);
@@ -4168,9 +4180,14 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
           if (modeFailed) try { observeStorageResource(modePrimaryFailure, { phase: 'stage3-original-failure' }).requireSettled(); }
           catch (error) {
             workSettled = false;
+            const retirement = !modeVectorSpool.isRetiring() && !modeVectorSpool.isSettled()
+              ? createDeferredVectorSpoolRetirement(modePrimaryFailure, modeVectorSpool) : null;
+            if (retirement) pendingSpoolRetirements.add(retirement);
             modePrimaryFailure = addStorageFailureContext(modePrimaryFailure, {
-              vectorSpool: modeVectorSpool, get vectorSpoolPath() { return modeVectorSpool.directory; }
-            }, error, { secondaryPresent: true, nonEnumerable: ['vectorSpool'] });
+              vectorSpool: modeVectorSpool, vectorSpoolRetirement: retirement,
+              get vectorSpoolPath() { return modeVectorSpool.directory; },
+              cacheOwnershipPending: true, cacheOwnershipReleased: modeVectorSpool.isSettled
+            }, error, { secondaryPresent: true, nonEnumerable: ['vectorSpool', 'vectorSpoolRetirement'] });
           }
           if (workSettled) try {
             const result = await modeVectorSpool.close();
@@ -4195,15 +4212,27 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
     }
     return { modes, scheduler: scheduler?.stats?.(), writer: writerStatsByMode };
   } catch (err) {
-    try { await runtimeReceipts.fail(err); } catch { /* Preserve the original failure. */ }
-    err.diagnosticEvidence = crashLogger.logError({
-      phase: 'stage3',
-      stage: 'embeddings',
-      message: err?.message || String(err),
-      stack: err?.stack || null
-    });
-    throw err;
+    phaseFailed = true; phaseFailure = err;
+    try {
+      const result = await runtimeReceipts.fail(phaseFailure);
+      if (result !== undefined) observeStorageResource(result, { phase: 'stage3-terminal-receipt-result' }).requireSettled();
+    } catch (error) { phaseFailure = addStorageFailureContext(phaseFailure, { phase: 'stage3-terminal-receipt' }, error,
+      { secondaryPresent: true }); }
+    try {
+      const evidence = crashLogger.logError({ phase: 'stage3', stage: 'embeddings',
+        message: phaseFailure?.message || String(phaseFailure), stack: phaseFailure?.stack || null });
+      phaseFailure = addStorageFailureContext(phaseFailure, { diagnosticEvidence: evidence });
+      if (evidence !== undefined) observeStorageResource(evidence, { phase: 'stage3-terminal-diagnostic' }).requireSettled();
+    } catch (error) { phaseFailure = addStorageFailureContext(phaseFailure, { phase: 'stage3-terminal-diagnostic' }, error,
+      { secondaryPresent: true }); }
+    throw phaseFailure;
   } finally {
-    await persistentTextCacheStore?.close?.();
+    try {
+      const result = await persistentTextCacheStore?.close?.();
+      if (result !== undefined) observeStorageResource(result, { phase: 'stage3-terminal-cache-close' }).requireSettled();
+    } catch (error) {
+      throw phaseFailed ? addStorageFailureContext(phaseFailure, { phase: 'stage3-terminal-cache-close' }, error,
+        { secondaryPresent: true }) : error;
+    }
   }
 }
