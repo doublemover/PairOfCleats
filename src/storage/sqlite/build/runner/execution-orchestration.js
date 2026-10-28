@@ -12,7 +12,6 @@ import { resolveVectorExtensionConfigForMode } from '../../../../../tools/sqlite
 import { compactDatabase } from '../../../../../tools/build/compact-sqlite-index.js';
 import { loadIncrementalManifest } from '../../incremental.js';
 import {
-  removeSqliteSidecars,
   replaceSqliteDatabase,
   resolveExpectedDenseCount
 } from '../../utils.js';
@@ -49,6 +48,7 @@ import {
 import { createModeReporter } from './reporting-state-transitions.js';
 import { resolveModeSelectionPlan } from './selection-planning.js';
 import { withSqliteStorageOperation, getSqliteStorageOperation } from '../storage-operation.js';
+import { cleanupFailedSqliteStaging, readSqliteOutputBytes } from './output-files.js';
 
 /**
  * Execute sqlite build orchestration for all selected modes.
@@ -456,13 +456,10 @@ const executeSqliteModeBuildsOwned = async ({
             dbPath: outputPath
           });
           const durationMs = Date.now() - startTs;
-          let stat = null;
-          try {
-            stat = await fs.stat(outputPath);
-          } catch {}
+          const outputBytes = await readSqliteOutputBytes(outputPath);
           await reporter.reportIncrementalReady({
             counts,
-            outputBytes: Number(stat?.size) || 0,
+            outputBytes,
             durationMs,
             sqliteStats
           });
@@ -662,12 +659,12 @@ const executeSqliteModeBuildsOwned = async ({
         dbPath: outputPath
       });
       const durationMs = Date.now() - startTs;
-      const stat = await fs.stat(outputPath);
+      const outputBytes = await readSqliteOutputBytes(outputPath);
       const note = logDetails.length ? logDetails.join(', ') : null;
       await reporter.reportBuildReady({
         counts,
         inputBytes,
-        outputBytes: Number(stat?.size) || 0,
+        outputBytes,
         durationMs,
         note,
         sqliteStats
@@ -696,24 +693,7 @@ const executeSqliteModeBuildsOwned = async ({
     } catch (err) {
       modeFailed = true; modeFailure = err;
       getSqliteStorageOperation()?.retainFailure(err);
-      let resourcesSettled = false;
-      try { observeStorageResource(err, { phase: 'sqlite-build-failure' }).requireSettled(); resourcesSettled = true; }
-      catch (pending) { err = pending; }
-      if (tempOutputPath && resourcesSettled) {
-        let mainRemoved = true;
-        try {
-          await fs.rm(tempOutputPath, { force: true });
-        } catch (cleanup) {
-          if (!['ENOENT', 'ENOTDIR'].includes(cleanup?.code)) {
-            mainRemoved = false;
-            err = addStorageFailureContext(err, {}, cleanup, { secondaryPresent: true });
-          }
-        }
-        if (mainRemoved) {
-          try { await removeSqliteSidecars(tempOutputPath); }
-          catch (cleanup) { err = addStorageFailureContext(err, {}, cleanup, { secondaryPresent: true }); }
-        }
-      }
+      err = await cleanupFailedSqliteStaging(tempOutputPath, err);
       modeFailure = err;
       const errorMessage = err?.message || String(err);
       try { await reporter.reportFailure({ errorMessage, err }); }
@@ -728,7 +708,7 @@ const executeSqliteModeBuildsOwned = async ({
         });
         throw modeFailure;
       }
-      const wrapped = new Error(errorMessage);
+      const wrapped = new Error(errorMessage, { cause: err });
       const classifiedFailure = classifySqliteModeBuildFailure(wrapped);
       wrapped.code = classifiedFailure.code;
       wrapped.failureClass = classifiedFailure.failureClass;
