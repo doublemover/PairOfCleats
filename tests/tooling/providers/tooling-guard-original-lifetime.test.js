@@ -8,7 +8,7 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 applyTestEnv();
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('/').at(-1);
 assert.ok(['pending', 'unmarked', 'unconfirmable', 'result', 'replacement', 'settled', 'cancelled',
-  'ordinary-retry', 'exhausted', 'falsey', 'diagnostic-independent', 'log-independent', 'late-diagnostic', 'retry-boundary'].includes(selected));
+  'ordinary-retry', 'exhausted', 'falsey', 'diagnostic-independent', 'log-independent', 'late-diagnostic', 'retry-boundary', 'concurrent', 'overflow'].includes(selected));
 let settled = ['settled', 'late-diagnostic', 'retry-boundary'].includes(selected), independentSettled = false, calls = 0, timer;
 const independent = Object.freeze(Object.assign(new Error('independent original diagnostic work'), {
   cacheOwnershipReleased() { assert.equal(this, independent); return independentSettled; }
@@ -36,7 +36,23 @@ const attempt = () => guard.run(() => {
   throw resource;
 }, { label: 'hover' });
 try {
-  if (selected === 'ordinary-retry' || selected === 'settled') {
+  if (selected === 'concurrent' || selected === 'overflow') {
+    const statuses = Array(selected === 'overflow' ? 66 : 2).fill(false);
+    const originals = statuses.map((_, index) => Object.freeze(Object.assign(new Error(`original concurrent request ${index}`), {
+      cacheOwnershipReleased: () => statuses[index]
+    })));
+    const results = await Promise.allSettled(originals.map(value => guard.run(async () => { calls++; return value; })));
+    assert.ok(results.every(row => row.status === 'rejected')); assert.equal(calls, originals.length);
+    await assert.rejects(guard.run(() => { calls++; })); assert.equal(calls, originals.length);
+    if (selected === 'concurrent') {
+      statuses[0] = true; await assert.rejects(guard.run(() => { calls++; })); assert.equal(calls, 2);
+      statuses[1] = true; assert.equal(await guard.run(() => { calls++; return 23; }), 23); assert.equal(calls, 3);
+    } else {
+      statuses.fill(true); assert.equal(guard.getState().observationInventoryComplete, false);
+      await assert.rejects(guard.run(() => { calls++; }), { code: 'ERR_TOOLING_GUARD_RESOURCE_BUDGET' });
+      assert.equal(calls, 66, 'incomplete observation inventory cannot manufacture safe recovery');
+    }
+  } else if (selected === 'ordinary-retry' || selected === 'settled') {
     assert.equal(await attempt(), 17); assert.equal(calls, 2); assert.equal(guard.getState().consecutiveFailures, 0);
   } else if (selected === 'cancelled') {
     await assert.rejects(attempt(), { name: 'AbortError' }); assert.equal(calls, 1);

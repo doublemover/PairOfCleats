@@ -1,4 +1,4 @@
 {
   "schemaVersion": 1,
-  "cases": ["pending", "unmarked", "unconfirmable", "result", "replacement", "settled", "cancelled", "ordinary-retry", "exhausted", "falsey", "diagnostic-independent", "log-independent", "late-diagnostic", "retry-boundary"]
+  "cases": ["pending", "unmarked", "unconfirmable", "result", "replacement", "settled", "cancelled", "ordinary-retry", "exhausted", "falsey", "diagnostic-independent", "log-independent", "late-diagnostic", "retry-boundary", "concurrent", "overflow"]
 }

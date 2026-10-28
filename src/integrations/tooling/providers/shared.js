@@ -294,6 +294,7 @@ export const createToolingGuard = ({
     }
   };
   const requireOriginal = (value, phase) => {
+    if (overflow) throw addStorageFailureContext(overflow, {}, value, { secondaryPresent: true });
     const original = observeStorageResource(value, { phase });
     try { original.requireSettled(); }
     catch (error) {
