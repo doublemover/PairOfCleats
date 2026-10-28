@@ -65,7 +65,13 @@ export const acquireNativeReaderStorage = (target, storageContext, nativeSettled
     { scope: 'native-index-reader', resourceRoots: [target] });
   const observations = new Map(), failures = [], described = new WeakSet();
   let started = false, attempted = false, released = false, overflow = false, owner;
-  const resourceClosed = () => !started || nativeSettled() === true;
+  const captureObservation = (value, phase) => observeStorageResource(
+    observeStorageResource(value, { phase }).retain(), { phase });
+  // The existing composer records independently thrown observer errors even
+  // when a caller only asks for a boolean settlement observation.
+  const nativeObservation = captureObservation(Object.freeze({ cacheOwnershipPending: true,
+    cacheOwnershipReleased: () => !started || nativeSettled() === true }), 'native-reader-original-close');
+  const resourceClosed = () => nativeObservation.isSettled();
   const originalsSettled = () => !overflow && [...observations.values()].every(observe => observe.isSettled());
   const isSettled = () => {
     try { return released && resourceClosed() && originalsSettled(); } catch { return false; }
@@ -76,7 +82,7 @@ export const acquireNativeReaderStorage = (target, storageContext, nativeSettled
       else {
         failures.push(error);
         if (!isStorageSessionReleaseFailure(error, admission.session)) {
-          observations.set(error, observeStorageResource(error, { phase: 'native-reader-storage' }));
+          observations.set(error, captureObservation(error, 'native-reader-storage'));
         }
       }
     }
@@ -98,8 +104,9 @@ export const acquireNativeReaderStorage = (target, storageContext, nativeSettled
     },
     retainFailure: retain,
     failedOpen(error) {
-      try { observeStorageResource(error, { phase: 'native-reader-open' }).requireSettled(); }
-      catch { throw retain(error); }
+      const observation = observeStorageResource(error, { phase: 'native-reader-open' });
+      try { observation.requireSettled(); }
+      catch (inspection) { throw retain(observation.retain(inspection, { inspectionPresent: true })); }
       started = false;
       try { owner.releaseAfterClosure(); }
       catch (cleanup) { throw addStorageFailureContext(error, {}, cleanup, { secondaryPresent: true, forceAggregate: true }); }
