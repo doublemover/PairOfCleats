@@ -37,8 +37,10 @@ replacing a present generation. JSON request data is captured before waiting.
 Initial embedding claims compare the original attempt reference; later writes
 require that attempt. Terminal reloads retain the original generation and attempt,
 so failure reporting cannot mark replacement work failed. Identity changes fail.
-Validation reads use the same publication lock. Embedding manifest writer adoption,
-initial-generation writers, crash-atomic recovery and cleanup remain separate scope.
+Validation reads and embedding manifest updates use the same publication lock.
+The runner supplies its original state capability before manifest/validation work;
+a replaced attempt cannot publish a manifest or commit a validation receipt.
+Initial-generation writers, crash-atomic recovery and cleanup remain separate scope.
 
 Twelve `storage/native-index-state-publication/*` cases are authored and
 unexecuted. They cover actual SQLite/LMDB producer reads/writes, invalid state,
@@ -61,6 +63,21 @@ stale ready/terminal publication, queued snapshots, later caller mutations,
 repeated native changes, prototype-named extension data and invalid extensions.
 Existing publication-readiness and terminal-failure assertions remain; their
 setup now loads actual baselines and injects at the actual contained-open owner.
+
+Embedding manifests capture requested backend pieces before lock admission, then
+read the latest manifest under ownership. Present legacy HNSW metadata must pass
+its canonical schema and safe count/dimension checks; only actual absence uses
+legacy defaults. Explicit backend generations do not consult unselected legacy
+metadata. Required read/hash failures propagate, including original unmarked
+pending observations; they cannot authorize backup or fallback publication.
+Settled invalid/missing primary manifests retain explicit valid-backup recovery.
+File checksums and byte extents share the same verified contained descriptor.
+Twenty-seven `indexing/embeddings/manifest-publication-ownership/*` controls are
+authored and unexecuted for these paths, native-writer contention, captured
+requests, stale-attempt admission and unchanged original manifest on failure.
+Validation and ready-receipt commitment retain one publication owner; captured
+original validation/receipt observations survive getters and callback failure
+through actual metadata release. Original-session recovery never repeats work.
 
 The state-manifest checksum and byte extent now come from the same verified
 contained descriptor. The shared hasher returns its immutable observation only

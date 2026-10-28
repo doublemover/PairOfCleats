@@ -82,7 +82,9 @@ PR #572 metadata was refreshed and read back at checkpoint `1b762ec69` (140 loca
 
 - [Native state serialization](index-state-serialization-implementation-2026-10-28.md): SQLite/LMDB mutations share read/write/manifest ownership; twelve actual-producer/peer-process controls authored, unexecuted.
 
-- [Embedding state conflicts](embedding-state-conflicts-implementation-2026-10-28.md): original-loaded deltas preserve newer native namespaces; invocation/generation guards reject stale ready and terminal writes. Nineteen controls authored, unexecuted; embedding-manifest adoption remains.
+- [Embedding state conflicts](embedding-state-conflicts-implementation-2026-10-28.md): original-loaded deltas preserve newer native namespaces; invocation/generation guards reject stale ready and terminal writes. Nineteen controls authored, unexecuted.
+
+- [Embedding manifest ownership](embedding-manifest-ownership-implementation-2026-10-28.md): shared writer mutex, invocation admission, required read/hash observations and original validation/ready-receipt settlement; twenty-seven controls authored, unexecuted.
 
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
