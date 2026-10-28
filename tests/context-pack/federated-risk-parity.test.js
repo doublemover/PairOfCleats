@@ -24,6 +24,8 @@ import { federatedRiskProjectionErrors } from '../../src/context-pack/federated-
 import { validateCompositeContextPack } from '../../src/contracts/validators/analysis.js';
 import { renderCompositeContextPack, renderCompositeContextPackJson } from '../../src/retrieval/output/composite-context-pack.js';
 import { renderCompositeContextPackSarif } from '../../src/retrieval/output/risk-sarif.js';
+import { buildRiskExplanationPresentationFromRiskSlice } from '../../src/retrieval/output/risk-explain.js';
+import { CONTEXT_PACK_RESPONSE_MAX_BYTES } from '../../src/context-pack/response-budget.js';
 
 applyTestEnv();
 
@@ -199,8 +201,22 @@ try {
   const multiDirect = await buildCompositeContextPackPayload(multiRepoArgs);
   const originalMembers = assertAttestations(multiDirect);
   const rendered = renderCompositeContextPackJson(multiDirect);
-  assert.deepEqual(rendered.rendered.risk.federation.attestations, originalMembers);
-  for (const flow of rendered.rendered.risk.flows) {
+  assert.ok(Buffer.byteLength(JSON.stringify(rendered, null, 2)) + 1 <= CONTEXT_PACK_RESPONSE_MAX_BYTES);
+  const riskRendering = buildRiskExplanationPresentationFromRiskSlice(multiDirect.risk, { surface: 'contextPack', format: 'json' }).json;
+  if (rendered.risk === null) {
+    const budget = rendered.warnings.find(entry => entry.code === 'CONTEXT_PACK_RESPONSE_BUDGET');
+    assert.ok(budget.originalBytes > CONTEXT_PACK_RESPONSE_MAX_BYTES);
+    assert.deepEqual(budget.omitted, ['risk']);
+    assert.equal(rendered.rendered.risk, null);
+    assert.throws(() => renderCompositeContextPackJson(multiDirect, { strictRisk: true }), { code: 'ERR_CONTEXT_PACK_RESPONSE_BUDGET' });
+  } else {
+    assert.deepEqual(rendered.rendered.risk, riskRendering);
+  }
+  const singleRendered = renderCompositeContextPackJson(singleDirect, { strictRisk: true });
+  assert.deepEqual(singleRendered.rendered.risk.federation.attestations, assertAttestations(singleDirect),
+    'an admitted complete JSON response preserves actual member attestations');
+  assert.deepEqual(riskRendering.federation.attestations, originalMembers);
+  for (const flow of riskRendering.flows) {
     const member = originalMembers.find(value => value.repoId === flow.repo.repoId);
     assert.equal(flow.repo.attestationId, member.attestationId);
     for (const step of flow.steps) assert.equal(step.repo.attestationId, member.attestationId);
