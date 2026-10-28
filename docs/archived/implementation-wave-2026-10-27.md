@@ -62,6 +62,7 @@ the unexecuted Windows source work separately from published acceptance.
 | [a51237712](context-token-budget-implementation-2026-10-28.md) | Pinned pure JS exact rendered-token accounting, bounded original workers and independent response byte admission | 25 authored cases; profile/surface/lifecycle and measured counting qualification remain |
 | [c6ddbea3b](configured-reader-implementation-2026-10-28.md) | Effective configured SQLite/LMDB reader namespaces, sidecars, cache reuse and actual launch selection | 18 new authored controls; native/category qualification, writer/publication registration and cleanup adoption remain |
 | [bc2f557c2](configured-sqlite-operation-implementation-2026-10-28.md) | Configured SQLite build/staging/sidecar namespaces through original operation, nested selection and metadata retirement | 13 new authored controls; actual dispatch/category qualification and remaining backend/publication/cleanup adoption remain |
+| [21464f188](session-retirement-implementation-2026-10-28.md) | Descendant-first original lease retirement, retained ancestors and independently settled metadata recovery | 6 authored controls; actual session/category/native and original/follow-up qualification remain |
 
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
