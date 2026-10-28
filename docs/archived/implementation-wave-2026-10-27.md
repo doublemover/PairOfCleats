@@ -112,6 +112,8 @@ PR #572 metadata was refreshed and read back at checkpoint `c070f3095` (180 loca
 
 - [Shared workspace/method health](workspace-method-health-implementation-2026-10-28.md): actual configured LSP admission persists observed context, isolates method cooldown from transport poisoning, retains healthy contribution and uses controlled recovery. Twenty-nine controls authored, unexecuted; #292 is source-complete pending qualification. Current counts: **482 pending / 144 partial / 92 unresolved**.
 
+- [Native command successful results](native-command-result-implementation-2026-10-28.md): original operation/work/SQLite-close observations retain actual category/resource admission; first native close remains distinct from metadata recovery. Twenty-four controls authored, unexecuted; #1267/#1574 remain partial.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.

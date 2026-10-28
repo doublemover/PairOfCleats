@@ -3,7 +3,7 @@
 Canonical SQLite compact and LMDB build commands use their existing lifecycle
 registry and delegated authority owners. Each actual handle captures its original
 close method and receiver once. Concurrent closes and finalization join the same
-promise; a rejected close remains unknown and is not automatically retried.
+promise; an invoked native close is never replayed after rejection.
 Missing or explicitly unconfirmed native close cannot produce a positive receipt.
 Admission ends with the command operation, before invoking any later factory.
 Accepted `use` work remains owned through its completion and close even if the
@@ -19,6 +19,21 @@ cleanup, metadata and inspection causes. Nonenumerable command-lifetime evidence
 retains original handles and independent original settlement observations.
 Absent or false advisory flags cannot erase an observer. Unknown observations
 stay pending. A swallowed work failure cannot erase its observed pending child.
+
+Successful operation, accepted-work and SQLite close results retain their
+original resource observers too. Result identity and ordinary scalar returns
+are preserved. Original pending work blocks a handle's first close and further
+native dispatch. After that work settles, the existing resource owner can
+explicitly perform the first native close; metadata recovery cannot perform it.
+A close that returned successfully but carries pending independent ownership
+is invoked once and keeps its original observation required. `isClosed` stays
+false until that close observation settles. Registry completion records that
+all hooks returned, including rejections; actual handle state and every original
+observation independently remain required before lease release. Consequently,
+metadata-only recovery never substitutes for native closure or replays work.
+
+The LMDB helper's callback/returned-result integration is a separate remaining
+boundary; SQLite result controls do not qualify it.
 
 The command sends the existing delegated closure receipt only after operation,
 registry, every original handle and independent observation settle. Failed
