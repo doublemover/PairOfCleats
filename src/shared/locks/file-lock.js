@@ -280,6 +280,7 @@ export const withFileLock = async (options, worker) => {
   let workerFailed = false;
   try {
     workerResult = await worker(lock);
+    observeStorageResource(workerResult, { phase: 'file-lock-worker-result' }).requireSettled();
   } catch (error) {
     workerFailed = true;
     workerError = error;
