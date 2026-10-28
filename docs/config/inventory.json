@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-28T05:51:05.402Z",
+  "generatedAt": "2026-10-28T06:02:49.028Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4713,6 +4713,7 @@
         "tests/shared/storage/configured-native-readers.test.js",
         "tests/shared/storage/configured-sqlite-operation.test.js",
         "tests/shared/storage/free-space-observation.test.js",
+        "tests/shared/storage/managed-child-original-ack.test.js",
         "tests/shared/storage/native-command-observation.test.js",
         "tests/shared/storage/native-command-sessions.test.js",
         "tests/shared/storage/native-compaction-session.test.js",

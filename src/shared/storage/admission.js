@@ -13,6 +13,11 @@ import { withStorageDirectory, getStorageDirectorySession } from './directory.js
 import { observeStorageResource } from './failure-observation.js';
 import { addStorageFailureContext } from './operation-error.js';
 
+const admissionFailures = new WeakMap();
+/** Exact producer association; copied fields and matching IDs grant no owner. */
+export const getStorageWriteAdmissionFailure = error => error !== null && ['object', 'function'].includes(typeof error)
+  ? admissionFailures.get(error) || null : null;
+
 const exact = (value, field) => {
   if (!Number.isSafeInteger(value) || value < 0) throw new TypeError(`Storage admission requires exact nonnegative ${field}.`);
   return value;
@@ -195,6 +200,7 @@ export const acquireStorageWriteReservation = async ({ root, resourceId, coordin
       const observe = Object.getOwnPropertyDescriptor(error, 'cacheOwnershipReleased').value;
       Object.defineProperties(error, { cacheOwnershipPending: { value: true, writable: false, configurable: false },
         cacheOwnershipReleased: { value: observe, writable: false, configurable: false } });
+      admissionFailures.set(error, Object.freeze({ owner: admittedReservation, reservations: Object.freeze([admittedReservation]) }));
       settlementFailures.add(error); return error;
     };
     const settle = async () => {
@@ -300,6 +306,8 @@ export const acquireStorageWriteReservation = async ({ root, resourceId, coordin
       const observe = Object.getOwnPropertyDescriptor(error, 'cacheOwnershipReleased').value;
       Object.defineProperties(error, { cacheOwnershipPending: { value: true, writable: false, configurable: false },
         cacheOwnershipReleased: { value: observe, writable: false, configurable: false } });
+      admissionFailures.set(error, Object.freeze({ owner: session,
+        reservations: Object.freeze(admittedReservation ? [admittedReservation] : []) }));
       throw error;
     }
   }

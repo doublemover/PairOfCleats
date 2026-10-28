@@ -55,7 +55,7 @@ export const retainSessionFailure = (primary, settlementError, session, {
   }
 };
 
-const captureSettlementReceipt = receipt => {
+export const captureSettlementReceipt = receipt => {
   const observation = observeStorageResource(receipt, { phase: 'storage-session-receipt' });
   observation.requireSettled();
   let captured;
@@ -168,8 +168,11 @@ export const runWithStorageSession = async (input, action, { settlement } = {}) 
   // existing resource observer or erase it by changing the separate marker.
   const original = observeStorageResource(operationFailed ? operationError : value, { phase: 'storage-session-action' });
   const resourceObservation = original.retain();
+  const capturedResource = observeStorageResource(resourceObservation, { phase: 'storage-session-captured-action' });
   try {
-    const receipt = await settlement({ value, error: operationError, resourceId: session.resourceId });
+    const settlementInput = { value, error: operationError, resourceId: session.resourceId };
+    Object.defineProperty(settlementInput, 'resourceObservation', { value: capturedResource });
+    const receipt = await settlement(settlementInput);
     const captured = captureSettlementReceipt(receipt);
     original.requireSettled();
     captured.requireSettled();
