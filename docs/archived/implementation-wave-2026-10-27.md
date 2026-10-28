@@ -6,7 +6,7 @@ The following local implementation checkpoints have not been functionally
 qualified or pushed; the publication front gate remains deferred during source
 work. Their separate receipts preserve exact trees, limitations and checks.
 
-PR #572 metadata was refreshed and read back at checkpoint `138d9d9e5` (120 local commits), updated `2026-10-28T07:53:42Z`. A complete live inventory verified all 718 open reports once: 473 implementation-recorded/qualification-pending, 144 partial and 101 unresolved; 154 qualified closing references remain unchanged. The [subsequent source reconciliation](source-classification-reconciliation-2026-10-28.md) moves #668/#672/#681 to pending, yielding 476/144/98. No functional acceptance or source publication is implied.
+PR #572 metadata was refreshed and read back at checkpoint `1b762ec69` (140 local commits), updated `2026-10-28T09:42:27Z`: 64,971 characters, all 718 live open reports once, **480 pending / 144 partial / 94 unresolved**, and 154 qualified closing references unchanged. The [checkpoint receipt](pr572-source-checkpoint-140-2026-10-28.md) retains source, scope and backup identities. Earlier source reconciliation remains historical; no functional acceptance or source publication is implied.
 
 | Source | Deliverable | Deferred coverage / remaining work |
 | --- | --- | --- |
