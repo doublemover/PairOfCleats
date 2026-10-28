@@ -4,7 +4,7 @@ import path from 'node:path';
 import { registerHooks } from 'node:module';
 import { checksumFile } from '../../src/shared/hash.js';
 import { applyTestEnv } from '../helpers/test-env.js';
-import { errorGraphIncludes } from '../helpers/error-graph.js';
+import { errorGraphIncludes, errorGraphSome } from '../helpers/error-graph.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 
 // UNVALIDATED: actual state/manifest producers and real healthy writes. The
@@ -77,7 +77,14 @@ try {
     await assert.rejects(run(), error => { failure = error; return true; });
     if (selected.endsWith('-write') || selected === 'manifest-checksum') {
       assert.equal(errorGraphIncludes(failure, original), true); assert.equal(failure.cacheOwnershipReleased(), false);
-      settled = true; assert.equal(failure.cacheOwnershipReleased(), true);
+      settled = true;
+      if (selected === 'sqlite-write' || selected === 'lmdb-write') {
+        assert.equal(failure.cacheOwnershipReleased(), false, 'original writer settlement alone cannot retire publication metadata');
+        let publication;
+        errorGraphSome(failure, error => { publication = error?.fileLockPublicationSession; return Boolean(publication); });
+        assert.ok(publication); await publication.releaseAfterClose();
+      }
+      assert.equal(failure.cacheOwnershipReleased(), true);
     }
     if (selected.endsWith('-invalid')) assert.equal(failure.code, 'ERR_INDEX_STATE_INVALID');
     assert.equal(await fs.readFile(statePath, 'utf8'), stateBefore, 'a failed read/write/manifest-only refresh cannot replace source state');
