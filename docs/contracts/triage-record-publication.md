@@ -48,7 +48,10 @@ replay admission. It does not retain one full JSON record/Markdown string per
 inventory entry or independently reload the latest mutable selector for metadata.
 Existing source references point to the immutable physical Markdown generation,
 so deferred embeddings can still read the original source after a later update.
-The shared records producer version is 10; earlier derived meaning cannot replay.
+New decision views use renderer 2, including the original finding link. Existing
+renderer-1 generations retain exact verification through their original renderer.
+Reimport upgrades rendering in a new generation and preserves earlier evidence.
+The shared records producer version is 11; earlier derived meaning cannot replay.
 
 No CLI flag, configuration knob, vector/SQLite artifact relaxation or automatic
 retention/deletion policy is added. Distinct updates retain evidence; common

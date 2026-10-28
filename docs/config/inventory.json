@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-28T01:47:37.742Z",
+  "generatedAt": "2026-10-28T02:04:25.222Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4735,6 +4735,7 @@
         "tests/tooling/reports/parity-response-admission.test.js",
         "tests/tooling/script-coverage/group-runner.js",
         "tests/tooling/script-coverage/runner.js",
+        "tests/tooling/triage/history-lineage.test.js",
         "tests/tooling/triage/record-id-native-io-admission.test.js",
         "tests/tooling/triage/record-publication.test.js",
         "tests/tui/native-artifact-actions.test.js",
@@ -5641,7 +5642,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 500,
+    "totalFlags": 501,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -5873,6 +5874,7 @@
       "head",
       "heap-mb",
       "help",
+      "history-after",
       "id",
       "identity",
       "impliedNodeFormat",
@@ -8302,6 +8304,7 @@
         "file": "tools/triage/context-pack.js",
         "flags": [
           "ann",
+          "history-after",
           "out",
           "record",
           "repo",

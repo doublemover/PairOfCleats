@@ -147,19 +147,40 @@ node tools/triage/context-pack.js --record <recordId> --out context.json
 
 The context pack includes:
 - `finding` (normalized record)
-- `history` (related decisions)
+- `history` (exact finding decisions and related precedents)
+- `historySelection` (relation, matched fields, historical validity and coverage)
 - `repoEvidence` (code/prose search hits)
 
 Context packs assume code/prose indexes exist (`pairofcleats index build`) and the records index is built (`pairofcleats index build --mode records`).
 
-History scanning uses four concurrent verified JSON reads and retains at most
-`maxHistory` full candidates per route class. The previous route-first, score,
-newest-timestamp and record-ID ordering remains; exact ties preserve directory
-order even if reads finish out of order. A zero effective history budget avoids
-directory scanning. Individual canonical JSON reads keep the existing 16 MiB
-sidecar allowance. Names/queue bookkeeping and total scanned I/O remain O(N);
-retained full candidate payloads are O(K), plus admitted reads and one transient
-heap insertion. This is a source work bound, not measured RSS/latency evidence.
+History reserves half the result allowance, rounded up, for decisions explicitly
+linked to this finding. Related precedents retain route-first affinity ranking;
+shared vulnerabilities or package names do not make them exact lineage. Unused
+related slots can hold more exact decisions. Rows expose original finding links,
+matched fields, route/observation drift and expiry at an explicit `asOf` time.
+Conflicting decisions and authored reviewers remain history; none automatically
+approves or suppresses the current finding.
+
+The existing `maxHistory` selects up to 256 records; history plus its selection
+envelope is capped at 1 MiB compact JSON. Omitted and oversized entries are
+explicit. Scanning uses four concurrent verified reads with the existing 16 MiB
+individual allowance. Three bounded candidate lanes retain at most 3 MiB of
+charged wire/item data, plus one transient insertion and admitted reads. Names,
+queue bookkeeping and compact snapshot digests remain O(N). These are work/data
+bounds, not RSS or latency measurements. A zero history budget avoids scanning.
+
+If `historySelection.continuationState` is `available`, its cursor retrieves the
+next exact-history page within the same observed finding/record set and policy:
+
+```powershell
+$historyCursor = (Get-Content -LiteralPath 'context.json' -Raw | ConvertFrom-Json).historySelection.continuation | ConvertTo-Json -Compress -Depth 8
+node tools/triage/context-pack.js --record <recordId> --repo <repo> --history-after $historyCursor --out context-next.json --no-ann
+```
+
+A changed finding, record set, scope or effective budget refuses the cursor;
+start a fresh context pack. Each page makes one fresh scan with bounded read
+concurrency. This cursor covers exact history; unavailable oversized records and
+other omissions remain visible in the [selection contract](../contracts/triage-history-selection.md).
 
 Read/parse failures produce an explicit incomplete-history warning, total failure
 count and up to eight bounded diagnostic samples. They do not become evidence
@@ -167,7 +188,8 @@ that the history was exhaustively empty. Pending native ownership propagates
 instead of becoming a warning. Missing selected findings remain distinct from
 malformed/unreadable findings. These source changes and authored queue/heap/
 default-reader controls are unvalidated; broader resource/quality and end-to-end
-context-pack acceptance remain outstanding.
+context-pack acceptance remain outstanding. New decision Markdown includes the
+original finding ID; earlier immutable views retain their declared rendering.
 
 ## MCP tools
 

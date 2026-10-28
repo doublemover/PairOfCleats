@@ -7,7 +7,7 @@ import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 
 // UNVALIDATED: actual queue/heap/history selection; synthetic read scheduling is
 // not a throughput/RSS benchmark. Real small files exercise the default reader.
-const finding = { recordId: 'current', service: 'api', env: 'prod', vuln: { cve: 'CVE-TARGET' },
+const finding = { recordId: 'current', recordType: 'finding', source: 'generic', service: 'api', env: 'prod', vuln: { cve: 'CVE-TARGET' },
   package: { name: 'target', manifestPath: 'src/package.json' } };
 const corpus = Array.from({ length: 1024 }, (_, ordinal) => {
   const route = ordinal < 2, direct = ordinal % 11 === 0, vuln = ordinal % 2 === 0;
@@ -90,7 +90,7 @@ for (const maxHistory of [NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) await ass
 
 const root = await makeTempDir('poc-triage-history-bounds-');
 try {
-  const record = { recordId: 'original', recordType: 'decision', service: 'api', env: 'prod', decision: { findingRecordId: 'current' } };
+  const record = { recordId: 'original', recordType: 'decision', source: 'manual', service: 'api', env: 'prod', decision: { findingRecordId: 'current' } };
   await fs.writeFile(path.join(root, 'original.json'), JSON.stringify(record));
   await fs.writeFile(path.join(root, 'malformed.json'), '{');
   await fs.writeFile(path.join(root, 'primitive.json'), 'false');

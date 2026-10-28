@@ -128,7 +128,7 @@ export const readTriagePublication = async (recordsDir, jsonPath, { signal = nul
   const markdown = await readVerifiedContainedFile(recordsDir, generation.mdPath, { maxBytes: MARKDOWN_MAX_BYTES,
     expectedHash: receipt.markdownHash, expectedBytes: receipt.markdownBytes, signal });
   const text = decode(markdown.buffer);
-  if (text !== renderRecordMarkdown(recordContent(record))) throw invalid('Triage Markdown differs from its selected canonical record.');
+  if (text !== renderRecordMarkdown(recordContent(record), { rendererVersion: receipt.rendererVersion })) throw invalid('Triage Markdown differs from its selected canonical record.');
   return { record, selected, publication: Object.freeze({ ...receipt }), ...generation, text };
 };
 
@@ -179,7 +179,8 @@ export const publishTriageRecord = async (recordsDir, input, { signal = null, be
       if (content(previous.record) !== content(record)) throw Object.assign(
         new Error(`Derived triage identity conflict for ${id}; existing artifacts were preserved.`), { code: 'ERR_TRIAGE_RECORD_IDENTITY_CONFLICT' });
     }
-    if (previous?.publication && stableStringify(recordContent(previous.record)) === stableStringify(record)) {
+    if (previous?.publication?.rendererVersion === TRIAGE_RENDERER_VERSION
+      && stableStringify(recordContent(previous.record)) === stableStringify(record)) {
       return { jsonPath, mdPath: previous.mdPath, generation: previous.publication.generation,
         generationJsonPath: previous.jsonPath };
     }

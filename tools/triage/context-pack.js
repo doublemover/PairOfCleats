@@ -7,11 +7,12 @@ import { getRepoCacheRoot, getRuntimeConfig, getTriageConfig, resolveRepoConfig,
 import { setEmbeddingsEnv } from '../../src/shared/env/runtime.js';
 import { writeJsonFileResolved } from '../../src/shared/json-file.js';
 import { resolveRecordPathSafe } from './context-pack-paths.js';
-import { buildTriageHistory } from './history.js';
+import { buildTriageHistorySelection } from './history-selection.js';
 import { loadTriageRecordSnapshot } from './record-snapshot.js';
 import { describeStorageFailure } from '../../src/shared/storage/failure-observation.js';
 import { projectTriageEvidence } from './evidence.js';
 import { TRIAGE_EVIDENCE_VERSION } from '../../src/contracts/triage-evidence.js';
+import { parseTriageHistoryCursor } from '../../src/contracts/validators/triage-history.js';
 
 const argv = createCli({
   scriptName: 'triage-context-pack',
@@ -20,7 +21,8 @@ const argv = createCli({
     ann: { type: 'boolean' },
     repo: { type: 'string' },
     record: { type: 'string' },
-    out: { type: 'string' }
+    out: { type: 'string' },
+    'history-after': { type: 'string', description: 'JSON exact-history continuation from the preceding context pack.' }
   }
 }).parse();
 const rawArgs = process.argv.slice(2);
@@ -29,7 +31,7 @@ const annFlagPresent = rawArgs.includes('--ann') || rawArgs.includes('--no-ann')
 const { repoRoot, userConfig } = resolveRepoConfig(argv.repo);
 const recordId = String(argv.record || '').trim();
 if (!recordId) {
-  console.error('usage: node tools/triage/context-pack.js --record <recordId> [--repo <path>] [--out <file>] [--no-ann] [--stub-embeddings]');
+  console.error('usage: node tools/triage/context-pack.js --record <recordId> [--repo <path>] [--out <file>] [--history-after <json>] [--no-ann] [--stub-embeddings]');
   process.exit(1);
 }
 
@@ -38,7 +40,8 @@ const baseEnv = resolveRuntimeEnv(runtimeConfig, process.env);
 const triageConfig = getTriageConfig(repoRoot, userConfig);
 const repoCacheRoot = getRepoCacheRoot(repoRoot, userConfig);
 const recordsDir = triageConfig.recordsDir;
-const finding = await loadRecord(recordsDir, recordId);
+const findingSnapshot = await loadRecord(recordsDir, recordId);
+const finding = findingSnapshot?.record;
 
 if (!finding) {
   console.error(`Finding record not found: ${recordId}`);
@@ -58,12 +61,19 @@ const maxEvidencePerQuery = Number.isFinite(Number(contextPackConfig.maxEvidence
 const warnings = [];
 const indexCache = new Map();
 const sqliteCache = new Map();
-const history = await buildTriageHistory({
+let historyCursor = null;
+if (argv['history-after'] !== undefined) {
+  historyCursor = parseTriageHistoryCursor(argv['history-after']);
+}
+const { history, historySelection } = await buildTriageHistorySelection({
   recordsDir,
+  repoRoot,
   recordId,
   finding,
+  findingObservation: findingSnapshot.observation,
   maxHistory,
-  warnings
+  warnings,
+  cursor: historyCursor
 });
 
 const repoEvidence = await buildRepoEvidence({
@@ -79,6 +89,7 @@ const pack = {
   generatedAt: new Date().toISOString(),
   finding,
   history,
+  historySelection,
   repoEvidence,
   warnings: warnings.length ? warnings : undefined
 };
@@ -90,6 +101,8 @@ console.log(JSON.stringify({
   evidenceVersion: TRIAGE_EVIDENCE_VERSION,
   searchedRepository: repoEvidence.repository,
   historyCount: history.length,
+  historyState: historySelection.coverage.state,
+  exactHistoryContinuation: historySelection.continuationState,
   evidenceQueries: repoEvidence.queries.length,
   warnings: warnings.length ? warnings : undefined
 }, null, 2));
@@ -157,7 +170,7 @@ async function loadRecord(recordsDir, recordId) {
   const filePath = resolveRecordPathSafe(recordsDir, recordId);
   if (!filePath) return null;
   try {
-    return (await loadTriageRecordSnapshot(recordsDir, recordId, { recordType: 'finding' })).record;
+    return await loadTriageRecordSnapshot(recordsDir, recordId, { recordType: 'finding' });
   } catch (error) {
     const diagnostic = describeStorageFailure(error, { phase: 'triage-finding-read', defaultCode: 'ERR_TRIAGE_FINDING_READ' });
     if (diagnostic.code === 'ENOENT') return null;

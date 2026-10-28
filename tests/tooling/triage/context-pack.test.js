@@ -6,6 +6,8 @@ import assert from 'node:assert/strict';
 import { getTriageContext, run, runJson } from '../../helpers/triage.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { TRIAGE_EVIDENCE_VERSION } from '../../../src/contracts/triage-evidence.js';
+import { TRIAGE_HISTORY_SELECTION_VERSION } from '../../../src/contracts/triage-history.js';
+import { assertTriageHistorySelection } from '../../../src/contracts/validators/triage-history.js';
 
 const buildTriageEvidenceRepo = async (repoRoot) => {
   await fsPromises.mkdir(path.join(repoRoot, 'src'), { recursive: true });
@@ -107,6 +109,12 @@ if (!fs.existsSync(contextOut)) {
 }
 
 const pack = JSON.parse(await fsPromises.readFile(contextOut, 'utf8'));
+assertTriageHistorySelection(pack.historySelection);
+assert.equal(pack.historySelection.schemaVersion, TRIAGE_HISTORY_SELECTION_VERSION);
+assert.equal(pack.historySelection.items.length, pack.history.length);
+assert.equal(pack.historySelection.items.some(item => item.relation === 'exactFinding' && item.findingRecordId === findingId), true,
+  'actual ingest/decision/context CLI retains the original finding link');
+for (const item of pack.historySelection.items) assert.equal(pack.history.some(record => record.recordId === item.sourceDecisionId), true);
 await writeTestLog('triage-context-pack.json', pack);
 await writeTestLog('triage-context-pack-evidence.json', pack.repoEvidence || {});
 await writeTestLog('triage-context-pack-history.json', { history: pack.history || [] });
