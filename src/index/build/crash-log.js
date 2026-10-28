@@ -15,6 +15,7 @@ import { normalizeFailureEvent, validateFailureEvent } from './failure-taxonomy.
 import { createCrashEvidenceOwner, boundedCrashEvent } from './crash-evidence.js';
 import { observeStorageResource } from '../../shared/storage/failure-observation.js';
 import { addStorageFailureContext } from '../../shared/storage/operation-error.js';
+import { createForensicPublisher } from './forensic-publisher.js';
 export { createCrashEvidenceOwner, readCrashEvidenceState } from './crash-evidence.js';
 
 /**
@@ -75,20 +76,6 @@ const sanitizePathToken = (value, fallback = 'unknown') => {
   if (!trimmed) return fallback;
   const cleaned = trimmed.replace(/[^a-zA-Z0-9._-]+/g, '_');
   return cleaned || fallback;
-};
-
-/**
- * Compute stable forensic payload signature for dedupe/indexing.
- *
- * @param {unknown} payload
- * @returns {string}
- */
-const computeForensicSignature = (payload) => {
-  try {
-    return sha1(JSON.stringify(payload || null)).slice(0, 20);
-  } catch {
-    return sha1(String(payload || '')).slice(0, 20);
-  }
 };
 
 const normalizeCrashRetentionProfile = (value) => {
@@ -880,8 +867,6 @@ export async function createCrashLogger({ repoCacheRoot, enabled, buildId = null
   const tracePath = path.join(logsDir, 'index-crash-file-trace.ndjson');
   const forensicsDir = path.join(evidenceOwner.paths.directory, 'forensics');
   const forensicsIndexPath = path.join(evidenceOwner.paths.directory, 'index-crash-forensics-index.json');
-  const forensicSignatures = new Set();
-  const forensicBundleIndex = new Map();
   const ioWarnings = new Set();
   let queuedState = null;
   let stateWriteInFlight = null;
@@ -900,7 +885,7 @@ export async function createCrashLogger({ repoCacheRoot, enabled, buildId = null
    * @param {unknown} err
    * @returns {void}
    */
-  const warnIo = (action, err) => {
+  const warnIo = (action, err, { strict = false } = {}) => {
     const message = err?.message || String(err);
     const code = err?.code || 'ERR_IO';
     const causeCode = err?.causeCode || err?.cause?.code || '';
@@ -908,7 +893,11 @@ export async function createCrashLogger({ repoCacheRoot, enabled, buildId = null
     const key = `${action}:${code}:${causeCode}:${targetPath}`;
     if (ioWarnings.has(key)) return;
     ioWarnings.add(key);
-    try { console.warn(`[crash-log] ${action} failed (${code}): ${message}`); } catch {}
+    try {
+      const result = console.warn(`[crash-log] ${action} failed (${code}): ${message}`);
+      if (strict) observeStorageResource(result, { phase: 'forensic-io-warning' }).requireSettled();
+      return result;
+    } catch (error) { if (strict) throw error; }
   };
   try {
     await fs.mkdir(logsDir, { recursive: true });
@@ -987,98 +976,39 @@ export async function createCrashLogger({ repoCacheRoot, enabled, buildId = null
   };
 
 
-  /**
-   * Persist one forensic bundle to disk with signature-level dedupe.
-   *
-   * Returns the existing path when a signature was already written in this
-   * process, otherwise writes payload + index entries and returns new path.
-   *
-   * @param {{kind?:string,signature?:string|null,bundle?:object|null,meta?:object|null}} [input]
-   * @returns {Promise<string|null>}
-   */
-  const persistForensicBundle = async ({
-    kind = 'forensic',
-    signature = null,
-    bundle = null,
-    meta = null,
-    required = false
-  } = {}) => {
-    if (!bundle || typeof bundle !== 'object') return null;
-    const resolvedKind = sanitizePathToken(kind, 'forensic');
-    const resolvedSignature = sanitizePathToken(
-      signature || bundle?.signature || computeForensicSignature({ kind: resolvedKind, bundle }),
-      'bundle'
-    );
-    if (forensicSignatures.has(resolvedSignature)) {
-      return forensicBundleIndex.get(resolvedSignature)?.path || null;
+  const forensics = createForensicPublisher({
+    directory: forensicsDir, indexPath: forensicsIndexPath, sanitizeToken: sanitizePathToken,
+    getContext: () => ({ phase: currentPhase, file: currentFile?.file || null }), appendLine,
+    warnIo: (action, error) => warnIo(action, error, { strict: true })
+  });
+  const persistForensicBundle = input => forensics.persist(input);
+  const throwFailures = failures => {
+    if (!failures.length) return;
+    let error = failures[0];
+    for (const secondary of [...new Set(failures.slice(1))]) {
+      if (secondary !== error) error = addStorageFailureContext(error, {}, secondary, { secondaryPresent: true, forceAggregate: true });
     }
-    const fileName = `${resolvedKind}-${resolvedSignature}.json`;
-    const filePath = path.join(forensicsDir, fileName);
-    const payload = {
-      ts: formatTimestamp(),
-      kind: resolvedKind,
-      signature: resolvedSignature,
-      phase: currentPhase || null,
-      file: currentFile?.file || null,
-      meta: meta || null,
-      bundle
-    };
-    let candidate = null;
-    try {
-      await fs.mkdir(forensicsDir, { recursive: true });
-      await atomicWriteJson(filePath, payload, { spaces: 2 });
-      const entry = {
-        ts: payload.ts,
-        kind: resolvedKind,
-        signature: resolvedSignature,
-        path: filePath
-      };
-      candidate = entry;
-      forensicSignatures.add(resolvedSignature);
-      forensicBundleIndex.set(resolvedSignature, entry);
-      await atomicWriteJson(
-        forensicsIndexPath,
-        {
-          ts: formatTimestamp(),
-          entries: Array.from(forensicBundleIndex.values())
-            .sort((a, b) => String(a.signature).localeCompare(String(b.signature)))
-        },
-        { spaces: 2 }
-      );
-      await appendLine(`forensic bundle persisted (${resolvedKind})`, {
-        signature: resolvedSignature,
-        path: filePath
-      });
-      return filePath;
-    } catch (err) {
-      // A failed index/log publication cannot leave a successful dedup cache.
-      // Preserve a newer concurrent candidate and all already-written evidence.
-      if (candidate && forensicBundleIndex.get(resolvedSignature) === candidate) {
-        forensicBundleIndex.delete(resolvedSignature); forensicSignatures.delete(resolvedSignature);
-      }
-      observeStorageResource(err, { phase: 'forensic-bundle-publication' }).requireSettled();
-      if (required) throw err;
-      try { warnIo('persist forensic bundle', err); }
-      catch (reporting) { throw addStorageFailureContext(err, {}, reporting, { secondaryPresent: true, forceAggregate: true }); }
-      return null;
-    }
+    throw error;
   };
-
+  const writers = [logWriter, traceWriter, attemptLogWriter, attemptTraceWriter];
   const flush = async () => {
-    await flushStateWrites();
-    await Promise.all([
-      logWriter.flush(),
-      traceWriter.flush(),
-      attemptLogWriter.flush(),
-      attemptTraceWriter.flush()
-    ]);
+    const failures = [];
+    try { await forensics.flush(); } catch (error) { failures.push(error); }
+    // Forensic work can append diagnostics; drain it before capturing the
+    // append barriers. Every independent owner settles even after one failure.
+    const outcomes = await Promise.allSettled([flushStateWrites(), ...writers.map(writer => writer.flush())]);
+    for (const outcome of outcomes) if (outcome.status === 'rejected') failures.push(outcome.reason);
+    throwFailures(failures);
   };
-
   const close = () => {
     if (closePromise) return closePromise;
+    forensics.stop();
     closePromise = (async () => {
-      await flush();
-      await Promise.all([logWriter.close(), traceWriter.close(), attemptLogWriter.close(), attemptTraceWriter.close()]);
+      const failures = [];
+      try { await flush(); } catch (error) { failures.push(error); }
+      const outcomes = await Promise.allSettled(writers.map(writer => writer.close()));
+      for (const outcome of outcomes) if (outcome.status === 'rejected') failures.push(outcome.reason);
+      throwFailures(failures);
     })();
     return closePromise;
   };
