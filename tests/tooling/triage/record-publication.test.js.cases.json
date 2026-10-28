@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["atomic-generation", "exact-reimport", "same-id-interleave", "cross-process", "independent-ids", "failed-after-json", "failed-before-commit", "tampered-stage", "input-capture", "cancellation", "receipt-negatives", "inventory-and-retained-source", "index-generation", "unknown-namespace", "pending-resource", "pending-resource-value"]
+}

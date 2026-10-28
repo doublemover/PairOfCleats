@@ -84,9 +84,14 @@ the record has no valid repository value; null scaffold fields cannot erase a
 mixed array's individual routing. Invalid/blank routing values do not override
 valid defaults or existing supplied routing.
 
-Each ingest writes:
-- `<repoCacheRoot>/triage/records/<recordId>.json`
-- `<repoCacheRoot>/triage/records/<recordId>.md`
+Each ingest publishes `<repoCacheRoot>/triage/records/<recordId>.json` and returns
+the selected immutable Markdown generation in `mdPath`. Use the returned path;
+the producer no longer updates a second mutable `<recordId>.md` alias. The
+canonical JSON selects a complete verified JSON/Markdown generation, so concurrent
+imports or failed staging cannot mix indexed text with another record's metadata.
+Exact reimports reuse the verified generation. Legacy Markdown inputs remain
+readable. See the [publication contract](../contracts/triage-record-publication.md)
+for retained generations, bounded reads and the versioned internal receipt.
 
 ## Decisions
 ```

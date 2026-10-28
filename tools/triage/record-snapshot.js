@@ -1,5 +1,6 @@
 import { readVerifiedContainedFile } from '../../src/shared/contained-file.js';
 import { resolveRecordPathSafe } from './context-pack-paths.js';
+import { triageRecordContent } from '../../src/contracts/validators/triage-record-publication.js';
 
 export const TRIAGE_RECORD_MAX_BYTES = 16 * 1024 * 1024;
 const invalid = (code, message, cause) => Object.assign(new Error(message, cause ? { cause } : undefined), { code });
@@ -35,5 +36,5 @@ export const loadTriageRecordSnapshot = async (recordsDir, requestedId, { maxByt
     source: record.source, hashAlgorithm: 'sha256', hash: source.hash, bytes: source.buffer.length,
     createdAt: timestamp(record.createdAt), updatedAt: timestamp(record.updatedAt),
     idProvenance: idProvenance ? Object.freeze(idProvenance) : null });
-  return Object.freeze({ record, observation });
+  return Object.freeze({ record: triageRecordContent(record), observation });
 };

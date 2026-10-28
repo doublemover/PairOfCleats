@@ -4,6 +4,8 @@ import { iterateFilesystemCandidates } from '../../index/build/discovery/candida
 import { throwIfAborted } from '../../shared/abort.js';
 import { describeStorageFailure } from '../../shared/storage/failure-observation.js';
 import { addStorageFailureContext } from '../../shared/storage/operation-error.js';
+import { readTriagePublication, requiresTriagePublicationRead, hasTriagePublicationNamespace,
+  captureTriagePublicationInput, TRIAGE_GENERATION_DIRECTORY } from './record-publication.js';
 
 const stamp = stat => ['dev', 'ino', 'mtimeNs', 'ctimeNs'].map(key => String(stat[key]));
 const changed = () => Object.assign(new Error('Records inventory changed during admission.'), { code: 'ERR_RECORDS_INVENTORY_CHANGED' });
@@ -13,7 +15,7 @@ const changed = () => Object.assign(new Error('Records inventory changed during 
 export const createRecordsMarkdownInventory = (directory, { signal = null } = {}) => {
   if (typeof directory !== 'string' || !directory) throw new TypeError('Records inventory root required.');
   const root = path.resolve(directory), metrics = {};
-  let receipt = null, started = false;
+  let receipt = null, started = false, currentPublication = null;
   const files = async function* () {
     if (started) throw new Error('Records inventory cannot be consumed twice.');
     started = true;
@@ -29,15 +31,39 @@ export const createRecordsMarkdownInventory = (directory, { signal = null } = {}
       }
       if (before.isSymbolicLink() || !before.isDirectory()) throw changed();
       const canonicalRoot = await fs.realpath(root);
-      for await (const file of iterateFilesystemCandidates({ root, canonicalRoot, strictTraversal: true, signal, metrics })) {
+      const hasPublications = await hasTriagePublicationNamespace(root, { signal });
+      const ignoreMatcher = { ignores: relative => hasPublications && relative.split('/')[0] === TRIAGE_GENERATION_DIRECTORY };
+      for await (const file of iterateFilesystemCandidates({ root, canonicalRoot, strictTraversal: true, signal, metrics, ignoreMatcher })) {
         throwIfAborted(signal);
-        if (!file.endsWith('.md')) continue;
+        const extension = path.extname(file);
+        if (!['.md', '.json'].includes(extension)) continue;
         const stat = await fs.lstat(file);
         // Preserve the previous inventory's regular-file-only selection. Never
         // reinterpret a link as a record source or substitute another link kind.
         if (stat.isSymbolicLink()) { ignoredLinks++; continue; }
         if (!stat.isFile()) throw changed();
-        count++; yield file;
+        const jsonPath = extension === '.json' ? file : file.slice(0, -3) + '.json';
+        if (extension === '.json') {
+          // Existing Markdown candidates own legacy discovery and avoid a
+          // second full in-memory path/ID set. JSON-only published generations
+          // remain discoverable without creating compatibility Markdown files.
+          try {
+            const presentation = await fs.lstat(file.slice(0, -5) + '.md');
+            if (presentation.isFile() && !presentation.isSymbolicLink()) continue;
+          }
+          catch (error) {
+            if (describeStorageFailure(error, { phase: 'record-presentation-inventory' }).code !== 'ENOENT') throw error;
+          }
+        }
+        const published = await requiresTriagePublicationRead(root, jsonPath, { signal, namespacePresent: hasPublications });
+        let publication = published ? await readTriagePublication(root, jsonPath, { signal }) : null;
+        currentPublication = captureTriagePublicationInput(publication);
+        if (currentPublication) {
+          const markdownPath = currentPublication.markdownPath;
+          publication = null;
+          count++; yield markdownPath;
+        } else if (extension === '.md') { count++; yield file; }
+        currentPublication = null;
       }
       throwIfAborted(signal);
       const after = await fs.lstat(root, { bigint: true });
@@ -51,7 +77,9 @@ export const createRecordsMarkdownInventory = (directory, { signal = null } = {}
         complete: false, outcome: 'failed', admittedFiles: count, directories: metrics.directoriesEnumerated || 0 }) });
     }
   };
-  return { files: files(), receipt() {
+  return { files: files(), publicationForCurrent(file) {
+    return currentPublication?.markdownPath === file ? currentPublication : null;
+  }, receipt() {
     if (!receipt) throw new Error('Records inventory has no complete terminal receipt.');
     return receipt;
   } };

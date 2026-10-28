@@ -31,7 +31,7 @@ export const createRecordSourceReference = ({ repoRoot, recordsDir, kind, relati
  * the repo has one triage source, independent of discovery order/metadata. */
 export const createRecordSourceUnion = ({ repoRoot, recordsDir }) => {
   const physical = new Map();
-  const add = (absPath, kind, recordMeta) => {
+  const add = (absPath, kind, recordMeta, triagePublication = null) => {
     const root = kind === 'triage' ? recordsDir : repoRoot;
     const relativePath = toPosix(path.relative(root, path.resolve(absPath)));
     const recordSource = createRecordSourceReference({ repoRoot, recordsDir, kind, relativePath });
@@ -46,11 +46,12 @@ export const createRecordSourceUnion = ({ repoRoot, recordsDir }) => {
         return;
       }
     }
-    physical.set(key, { absPath: path.resolve(absPath), root, relPath: relativePath, recordMeta, recordSource });
+    physical.set(key, { absPath: path.resolve(absPath), root, relPath: relativePath, recordMeta, recordSource,
+      ...(triagePublication ? { triagePublication } : {}) });
   };
   return {
     addRepository(entry) { add(entry.abs, 'repository', entry.record); },
-    addTriage(absPath) { add(absPath, 'triage', { source: 'triage', recordType: 'record', reason: 'records-dir' }); },
+    addTriage(absPath, publication = null) { add(absPath, 'triage', { source: 'triage', recordType: 'record', reason: 'records-dir' }, publication); },
     finish() {
       const identities = new Map();
       for (const source of physical.values()) {

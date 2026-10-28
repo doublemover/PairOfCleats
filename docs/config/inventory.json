@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-28T00:36:15.891Z",
+  "generatedAt": "2026-10-28T00:59:50.773Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4734,6 +4734,7 @@
         "tests/tooling/script-coverage/group-runner.js",
         "tests/tooling/script-coverage/runner.js",
         "tests/tooling/triage/record-id-native-io-admission.test.js",
+        "tests/tooling/triage/record-publication.test.js",
         "tests/tui/native-artifact-actions.test.js",
         "tests/tui/native-index-workflows.test.js",
         "tests/tui/native-job-inspection.test.js",

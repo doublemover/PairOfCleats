@@ -116,7 +116,7 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
   const inventory = createRecordsMarkdownInventory(recordsDir, { signal: abortSignal });
   for await (const absPath of inventory.files) {
     throwIfAborted(abortSignal);
-    sourceUnion.addTriage(absPath);
+    sourceUnion.addTriage(absPath, inventory.publicationForCurrent(absPath));
   }
   const recordSources = sourceUnion.finish();
   const triageInputReceipt = inventory.receipt();
@@ -134,14 +134,17 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
     const started = Date.now();
     const absPath = recordEntry.absPath;
     const relPath = recordEntry.relPath;
-    const source = await readVerifiedContainedFile(recordEntry.root, absPath, { maxBytes: 32 * 1024 * 1024, signal: abortSignal });
+    const publication = recordEntry.triagePublication;
+    const sourceOptions = { maxBytes: 32 * 1024 * 1024, signal: abortSignal,
+      ...(publication ? { expectedHash: publication.markdownHash, expectedBytes: publication.markdownBytes } : {}) };
+    const source = await readVerifiedContainedFile(recordEntry.root, absPath, sourceOptions);
     const sourceHash = sha1(source.buffer), fileStat = source.stat;
     const sourceText = source.buffer.toString('utf8');
     if (!sourceText) continue;
 
     const isTriage = recordEntry.recordSource.kind === 'triage';
     const recordSource = { ...recordEntry.recordSource, contentHash: sourceHash };
-    const record = isTriage ? await loadRecordJson(recordsDir, absPath, abortSignal) : null;
+    const record = isTriage ? await loadRecordJson(recordsDir, absPath, abortSignal, publication) : null;
     const docmeta = buildDocMeta(record, triageConfig, recordEntry.recordMeta);
     const recordName = record?.vuln?.vulnId
       || record?.recordId
@@ -153,8 +156,8 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
       logicalHash, policy: reusePolicy, textLength: sourceText.length, sourceHash, recordSource, signal: abortSignal });
     if (reused.chunk) {
       // Admission reads exact current inputs; recheck after asynchronous bundle I/O.
-      const again = await readVerifiedContainedFile(recordEntry.root, absPath, { maxBytes: 32 * 1024 * 1024, signal: abortSignal });
-      const currentRecord = isTriage ? await loadRecordJson(recordsDir, absPath, abortSignal) : null;
+      const again = await readVerifiedContainedFile(recordEntry.root, absPath, sourceOptions);
+      const currentRecord = isTriage ? await loadRecordJson(recordsDir, absPath, abortSignal, publication) : null;
       if (recordsLogicalContentHash({ text: again.buffer.toString('utf8'), record: currentRecord,
         recordMeta: recordEntry.recordMeta, policy: reusePolicy.snapshot, sourceHash: sha1(again.buffer), recordSource }) !== logicalHash) throw new Error(`Record changed during replay admission: ${recordFile}`);
       const chunk = reused.chunk;
@@ -390,19 +393,22 @@ export async function buildRecordsIndexForRepo({ runtime, discovery = null, abor
   });
 }
 
-async function loadRecordJson(recordsDir, mdPath, signal = null) {
+async function loadRecordJson(recordsDir, mdPath, signal = null, publication = null) {
   const base = path.basename(mdPath, '.md');
   const dir = path.dirname(mdPath);
   const jsonPath = path.join(dir, `${base}.json`);
   try {
-    const source = await readVerifiedContainedFile(recordsDir, jsonPath, { maxBytes: 16 * 1024 * 1024, signal });
+    if (publication && (publication.markdownPath !== mdPath || publication.jsonPath !== jsonPath)) throw new Error('Record publication input differs from its selected immutable generation.');
+    const source = await readVerifiedContainedFile(recordsDir, jsonPath, { maxBytes: 16 * 1024 * 1024, signal,
+      ...(publication ? { expectedHash: publication.jsonHash, expectedBytes: publication.jsonBytes } : {}) });
     const raw = source.buffer.toString('utf8');
     const record = JSON.parse(raw);
     if (!record || typeof record !== 'object' || Array.isArray(record)) throw new Error(`Invalid canonical record sidecar: ${jsonPath}`);
+    if (publication && record.recordId !== publication.recordId) throw new Error('Record publication ID differs from its selected generation.');
     return record;
   } catch (error) {
     const diagnostic = describeStorageFailure(error, { phase: 'record-sidecar-source' });
-    if (diagnostic.code === 'ENOENT') return null;
+    if (diagnostic.code === 'ENOENT' && !publication) return null;
     if (error?.name === 'AbortError') throw error;
     throw new Error(`Cannot establish record sidecar identity: ${jsonPath}`, { cause: error });
   }
