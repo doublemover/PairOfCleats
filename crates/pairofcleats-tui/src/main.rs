@@ -12,6 +12,9 @@ mod recording_tests;
 mod recordings;
 mod review_presentation;
 mod search;
+mod search_failure;
+#[rustfmt::skip]
+mod search_failure_catalog;
 mod settings;
 mod supervisor_lifetime;
 mod supervisor_transport;

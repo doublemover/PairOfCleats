@@ -2,6 +2,21 @@
   "schemaVersion": "1.0.0",
   "surfaces": [
     {
+      "id": "tui-search-failures",
+      "owner": "tui-contracts",
+      "committed": true,
+      "validationMode": "registry-audited",
+      "freshnessExpectation": "regenerate after the closed operation failure catalog changes",
+      "freshness": {
+        "mode": "generated-compare",
+        "command": "node tools/tui/generate-search-failures.js --out {output:0}",
+        "outputs": [{ "format": "text" }]
+      },
+      "outputs": ["crates/pairofcleats-tui/src/search_failure_catalog.rs"],
+      "refresh": { "command": "node tools/tui/generate-search-failures.js" },
+      "audit": { "command": "node tools/docs/generated-surfaces.js --check-freshness --surface tui-search-failures" }
+    },
+    {
       "id": "mcp-tool-schema",
       "owner": "service-contracts",
       "committed": true,
