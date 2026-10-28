@@ -4678,7 +4678,8 @@
         "b6fbbf1a4cde7bb7f54495244ad296514c755ab5",
         "70a0801626b081642ac2f51c61c20e74be29cfdc",
         "169b5aafb5f2b79a7e2d6a397eab9a87a9c0930b",
-        "285c1799c423fd2df8a6f588256b775aa13cdb76"
+        "285c1799c423fd2df8a6f588256b775aa13cdb76",
+        "32d1b2afc9d01d644098c2b335cde3978542f950"
       ],
       "unvalidatedReceipts": [
         "storage-space-implementation-2026-10-27.md",
@@ -4693,7 +4694,8 @@
         "managed-child-acknowledgement-implementation-2026-10-28.md",
         "native-state-publication-implementation-2026-10-28.md",
         "embedding-terminal-publication-implementation-2026-10-28.md",
-        "vector-spool-ownership-implementation-2026-10-28.md"
+        "vector-spool-ownership-implementation-2026-10-28.md",
+        "sqlite-pending-admission-implementation-2026-10-28.md"
       ],
       "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
       "sessionObservationFollowup": "Shared session admission now captures successful action and settlement receipt observers, freezes projected receipt fields and retains independent inspection/observer errors through original handles. Eleven authored cases await execution; native-reader observation, remaining adapters/custom backend registration and full qualification remain.",
@@ -4710,7 +4712,14 @@
       "compactionCountFollowup": "Actual compaction now refuses failed table metadata/query and invalid row counts instead of substituting zero. Required chunks and dense_vectors absence fails; zero needs a successful query. Eight actual native controls are authored, unexecuted, preserving unchanged source/once-only close/metadata recovery plus empty/nonempty dense positives. Existing compaction/row/build-mode and full original acceptance remain.",
       "stateChecksumObservationFollowup": "State-manifest byte extent and checksum now come from the same original contained descriptor and return only after its actual close. Existing checksum-only contracts remain; digest completion stays joined. A split-stat size-race control and actual descriptor-failure injection are authored and unexecuted; twenty native state/compaction controls total remain pending.",
       "embeddingTerminalPublicationFollowup": "Actual Stage3 terminal receipt/state errors and successful-value ownership observations now survive with original work. Existing malformed/unsettled state cannot silently become an empty replacement. Progress/artifact/drain/stats and checkpoint/spool errors use shared composition instead of frozen-primary mutation or a bare pending flag; falsey failures stay failures. Twelve actual-owner controls are authored, unexecuted. Full runner/cache/queue/native qualification and actual deferred-spool closure/recovery remain.",
-      "vectorSpoolOwnershipFollowup": "Original allocated spool directory and exact files now use contained-file descriptor owners, captured native methods, accepted-work drain, sibling closure and explicit original async-close/metadata recovery. Failed admission cannot reopen; unknown/replaced objects remain protected and recursive prefix removal is gone. Frozen/falsey writes, truthful retiring/closed stats and actual deferred spool settlement survive original work completion. Existing outer cleanup joins deferred retirement after provider disposal and preserves terminal receipt/diagnostic/cache failures. Fifteen real-FileHandle controls are authored, unexecuted; full runner/provider/cache/category and original acceptance remain."
+      "vectorSpoolOwnershipFollowup": "Original allocated spool directory and exact files now use contained-file descriptor owners, captured native methods, accepted-work drain, sibling closure and explicit original async-close/metadata recovery. Failed admission cannot reopen; unknown/replaced objects remain protected and recursive prefix removal is gone. Frozen/falsey writes, truthful retiring/closed stats and actual deferred spool settlement survive original work completion. Existing outer cleanup joins deferred retirement after provider disposal and preserves terminal receipt/diagnostic/cache failures. Fifteen real-FileHandle controls are authored, unexecuted; full runner/provider/cache/category and original acceptance remain.",
+      "unvalidatedFollowups": [
+        {
+          "sourceHead": "32d1b2afc9d01d644098c2b335cde3978542f950",
+          "receipt": "sqlite-pending-admission-implementation-2026-10-28.md",
+          "implementation": "SQLite target/child and queued dispatch now require retained original settlement; successful outer/child results retain pending observers. Twelve actual-native/lease controls authored and unexecuted. Custom registration/deletion, category/all/multi-repo and broad native qualification remain."
+        }
+      ]
     },
     {
       "number": 1268,
@@ -7581,7 +7590,8 @@
         "b6fbbf1a4cde7bb7f54495244ad296514c755ab5",
         "70a0801626b081642ac2f51c61c20e74be29cfdc",
         "169b5aafb5f2b79a7e2d6a397eab9a87a9c0930b",
-        "285c1799c423fd2df8a6f588256b775aa13cdb76"
+        "285c1799c423fd2df8a6f588256b775aa13cdb76",
+        "32d1b2afc9d01d644098c2b335cde3978542f950"
       ],
       "unvalidatedReceipts": [
         "sqlite-operation-implementation-2026-10-27.md",
@@ -7601,7 +7611,8 @@
         "managed-child-acknowledgement-implementation-2026-10-28.md",
         "native-state-publication-implementation-2026-10-28.md",
         "embedding-terminal-publication-implementation-2026-10-28.md",
-        "vector-spool-ownership-implementation-2026-10-28.md"
+        "vector-spool-ownership-implementation-2026-10-28.md",
+        "sqlite-pending-admission-implementation-2026-10-28.md"
       ],
       "currentImplementation": "SQLite runner/helpers and Clangd acquisition retain original work through shared storage teardown. Managed Go/Lua/generic discovery propagates pending inspection; retained generation admission protects the first scan and owns file/Dir/metadata recovery. Functional qualification and remaining custom cleanup adoption are not discharged.",
       "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
@@ -7620,7 +7631,14 @@
       "compactionCountFollowup": "Actual compaction now refuses failed table metadata/query and invalid row counts instead of substituting zero. Required chunks and dense_vectors absence fails; zero needs a successful query. Eight actual native controls are authored, unexecuted, preserving unchanged source/once-only close/metadata recovery plus empty/nonempty dense positives. Existing compaction/row/build-mode and full original acceptance remain.",
       "stateChecksumObservationFollowup": "State-manifest byte extent and checksum now come from the same original contained descriptor and return only after its actual close. Existing checksum-only contracts remain; digest completion stays joined. A split-stat size-race control and actual descriptor-failure injection are authored and unexecuted; twenty native state/compaction controls total remain pending.",
       "embeddingTerminalPublicationFollowup": "Actual Stage3 terminal receipt/state errors and successful-value ownership observations now survive with original work. Existing malformed/unsettled state cannot silently become an empty replacement. Progress/artifact/drain/stats and checkpoint/spool errors use shared composition instead of frozen-primary mutation or a bare pending flag; falsey failures stay failures. Twelve actual-owner controls are authored, unexecuted. Full runner/cache/queue/native qualification and actual deferred-spool closure/recovery remain.",
-      "vectorSpoolOwnershipFollowup": "Original allocated spool directory and exact files now use contained-file descriptor owners, captured native methods, accepted-work drain, sibling closure and explicit original async-close/metadata recovery. Failed admission cannot reopen; unknown/replaced objects remain protected and recursive prefix removal is gone. Frozen/falsey writes, truthful retiring/closed stats and actual deferred spool settlement survive original work completion. Existing outer cleanup joins deferred retirement after provider disposal and preserves terminal receipt/diagnostic/cache failures. Fifteen real-FileHandle controls are authored, unexecuted; full runner/provider/cache/category and original acceptance remain."
+      "vectorSpoolOwnershipFollowup": "Original allocated spool directory and exact files now use contained-file descriptor owners, captured native methods, accepted-work drain, sibling closure and explicit original async-close/metadata recovery. Failed admission cannot reopen; unknown/replaced objects remain protected and recursive prefix removal is gone. Frozen/falsey writes, truthful retiring/closed stats and actual deferred spool settlement survive original work completion. Existing outer cleanup joins deferred retirement after provider disposal and preserves terminal receipt/diagnostic/cache failures. Fifteen real-FileHandle controls are authored, unexecuted; full runner/provider/cache/category and original acceptance remain.",
+      "unvalidatedFollowups": [
+        {
+          "sourceHead": "32d1b2afc9d01d644098c2b335cde3978542f950",
+          "receipt": "sqlite-pending-admission-implementation-2026-10-28.md",
+          "implementation": "SQLite target/child and queued dispatch now require retained original settlement; successful outer/child results retain pending observers. Twelve actual-native/lease controls authored and unexecuted. Custom registration/deletion, category/all/multi-repo and broad native qualification remain."
+        }
+      ]
     },
     {
       "number": 1575,
@@ -9745,7 +9763,7 @@
     "partialFollowup": 144,
     "implementationStatusUnresolved": 94
   },
-  "reconciledAt": "2026-10-28T09:29:39.309Z",
+  "reconciledAt": "2026-10-28T09:39:24.860Z",
   "completedSourceBatch": [
     347,
     586,

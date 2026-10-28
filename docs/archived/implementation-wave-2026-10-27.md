@@ -72,6 +72,8 @@ PR #572 metadata was refreshed and read back at checkpoint `138d9d9e5` (120 loca
 
 - [Throughput refresh and compilation reconciliation](throughput-materialization-implementation-2026-10-28.md): #275 semantic idempotence, retained provenance and explicit failed refresh; nine new cases authored. #289 source was already implemented; native qualification remains.
 
+- [SQLite original-resource admission](sqlite-pending-admission-implementation-2026-10-28.md): #1574/#1267 reject new/queued dispatch behind unsettled original resources and retain successful result owners; twelve actual-native/lease controls authored, unexecuted.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.
