@@ -100,6 +100,8 @@ PR #572 metadata was refreshed and read back at checkpoint `1ce60bb59` (160 loca
 
 - [Benchmark evidence retention](benchmark-evidence-retention-implementation-2026-10-28.md): actual A/B/bakeoff producers use fixed family admission, permanent issued-reference protection and exact-file retirement of old unreferenced settlements; 22 controls plus one SHA observation are authored, unexecuted. #1663 is source-complete pending qualification; current counts are **481 pending / 144 partial / 93 unresolved**.
 
+- [Provider execution snapshots](provider-execution-snapshot-implementation-2026-10-28.md): environment/cwd, observed command/module and runtime/project context enter version 2 invocation identity; original result ownership survives later checks. Thirteen new controls are authored, unexecuted; built-in binding and doctor reconciliation remain (#1146).
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.

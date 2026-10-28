@@ -17,6 +17,16 @@ selected command/module, arguments, environment and project context; merely
 copying a host receipt does not establish those observations. Unknown dependency
 closure remains non-durable under the existing profile contract.
 
+The helper requires a concrete bounded `execution` snapshot: `kind` is `command`
+or `module`, `cwd` is absolute, `environment` is the complete explicit string
+environment, and configured/resolved command arrays equal those observed in the
+profile. A module also supplies its absolute path and matching observed SHA256.
+The helper freezes a private copy and passes it to `execute(snapshot)`; adapters
+must execute from that snapshot. It starts no child during preparation. Its
+version 2 invocation witness includes an execution digest covering environment,
+working directory, runtime and project context. Raw environment values remain
+private and are not cached or reported. An omitted environment cannot qualify.
+
 The orchestrator compares the complete observed profile, provider/version and
 selected source/target/configuration context before cache admission. Qualified
 execution calls that captured owner instead of independently calling a provider's
@@ -30,7 +40,7 @@ invocation produces required-computation failure and no cache publication. Origi
 pending ownership remains independently required. Existing TypeScript and native
 execution authority is unchanged; this hook cannot grant repository trust.
 
-LSP semantic producer version 53 invalidates prior derived replay after this
+LSP semantic producer version 59 invalidates prior derived replay after this
 provenance change. Built-in Clangd and other adapters lacking the hook currently
 use the unqualified live path even when a host supplies a complete observation.
 The invocation framework is not a claim that every built-in launch is integrated.
@@ -43,3 +53,9 @@ including tool/argument/variant mismatch, absent profiles/owners, changed source
 and same-version tool bytes, policy drift, failed/pending execution, coalescing
 and serialized-capability refusal. These are authored coverage, not execution or
 real-tool qualification.
+
+Thirteen additional unexecuted `tooling/providers/provider-execution-snapshot/*`
+controls cover launch-input identity, module/command mismatch, private immutable
+environment, coalescing and original result ownership during later verification.
+The [source receipt](../archived/provider-execution-snapshot-implementation-2026-10-28.md)
+records the exact candidate and remaining built-in integration.
