@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["metadata-valid", "metadata-zero", "metadata-null", "string-count", "negative-count", "unsafe-count", "malformed-meta", "unreadable-meta", "pending-meta", "unselected-meta", "missing-meta", "state-hash-failure", "vector-hash-failure", "observed-extent", "concurrent-state", "queued-snapshot", "stale-attempt", "validation-stale-attempt", "unmarked-primary-read", "primary-backup", "pending-binary-meta", "malformed-shards"]
+}

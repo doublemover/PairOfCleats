@@ -3648,7 +3648,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
         // writers require their newly written vectors to be manifest-declared;
         // a prior generation's manifest cannot authorize this handoff.
         await scheduleIo(() => updatePieceManifest({ indexDir, mode, totalChunks, dims: finalDims,
-          backendPieces: [], embeddingGeneration }));
+          backendPieces: [], embeddingGeneration, publicationState: indexState, signal: config.signal }));
         logArtifactLocation(mode, 'dense_vectors_uint8_meta', `${mergedVectorsBasePath}.meta.json`);
         logArtifactLocation(mode, 'dense_vectors_doc_uint8_meta', `${docVectorsBasePath}.meta.json`);
         logArtifactLocation(mode, 'dense_vectors_code_uint8_meta', `${codeVectorsBasePath}.meta.json`);
@@ -3939,7 +3939,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
           publishManifest: async () => {
             try {
               await scheduleIo(() => updatePieceManifest({ indexDir, mode, totalChunks, dims: finalDims,
-                backendPieces: backendPublication.pieces, embeddingGeneration }));
+                backendPieces: backendPublication.pieces, embeddingGeneration, publicationState: indexState, signal: config.signal }));
               void logArtifactLocation(mode, 'pieces_manifest', path.join(indexDir, 'pieces', 'manifest.json'));
             } catch (error) {
               throw new Error(`Embedding generation manifest publication failed: ${error.message}`, { cause: error });

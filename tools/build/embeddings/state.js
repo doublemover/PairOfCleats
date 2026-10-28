@@ -44,6 +44,16 @@ export const loadIndexState = (statePath, { publicationSource = null } = {}) => 
   return state;
 };
 
+/** Called while holding the shared publication lock, before manifest or
+ * validation work. Authority comes from this invocation's original state. */
+export const assertIndexStatePublicationSource = (statePath, source) => {
+  const exactPath = path.resolve(statePath), base = baselines.get(source);
+  if (!base || base.path !== exactPath) throw conflict('publication source');
+  const current = readIndexStateForPublication(exactPath), actual = snapshot(current);
+  for (const key of identities) if (actual.fields.get(key) !== base.generation.get(key)) throw conflict(`generation ${key}`);
+  if ((current.extensions?.runtimeAttemptId ?? null) !== base.attemptId) throw conflict('runtime attempt');
+};
+
 /** Publish only the caller's changes against its original loaded state. An
  * explicit initial claim uses compare-and-set; subsequent writes require that
  * same invocation. Terminal writers pass their original attempt, never a fresh

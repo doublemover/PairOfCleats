@@ -133,14 +133,14 @@ await assert.rejects(updatePieceManifest({ indexDir, mode: 'code', totalChunks: 
 assert.equal(await fs.readFile(manifestPath, 'utf8'), '{truncated', 'failed recovery cannot replace the prior manifest');
 
 await fs.writeFile(manifestPath, stableBytes);
-const originalReadFileSync = fsSync.readFileSync;
+const originalOpenSync = fsSync.openSync;
 try {
-  fsSync.readFileSync = function (filename, ...args) {
+  fsSync.openSync = function (filename, ...args) {
     if (String(filename) === manifestPath) throw Object.assign(new Error('injected manifest access denial'), { code: 'EACCES' });
-    return originalReadFileSync.call(this, filename, ...args);
+    return originalOpenSync.call(this, filename, ...args);
   };
   await assert.rejects(updatePieceManifest({ indexDir, mode: 'code', totalChunks: 1, dims: 4 }), /valid existing manifest/);
-} finally { fsSync.readFileSync = originalReadFileSync; }
+} finally { fsSync.openSync = originalOpenSync; }
 assert.equal(await fs.readFile(manifestPath, 'utf8'), stableBytes, 'unreadable existing authority is never treated as a new manifest');
 await fs.writeFile(manifestPath, JSON.stringify({ pieces: [] }));
 await assert.rejects(updatePieceManifest({ indexDir, mode: 'code', totalChunks: 1, dims: 4 }), /valid existing manifest/);

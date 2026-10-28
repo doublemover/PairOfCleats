@@ -1,4 +1,4 @@
-import { writeIndexState } from './state.js';
+import { writeIndexState, assertIndexStatePublicationSource } from './state.js';
 import path from 'node:path';
 import { withIndexStatePublicationLock } from '../../../src/shared/index-state-publication.js';
 import { throwIfAborted } from '../../../src/shared/abort.js';
@@ -16,7 +16,10 @@ export const publishEmbeddingGeneration = async ({
   await writeIndexState(statePath, indexState, { signal });
   await publishManifest();
   throwIfAborted(signal);
-  const validation = await withIndexStatePublicationLock(path.dirname(statePath), validate, { signal });
+  const validation = await withIndexStatePublicationLock(path.dirname(statePath), () => {
+    assertIndexStatePublicationSource(statePath, indexState);
+    return validate();
+  }, { signal });
   throwIfAborted(signal);
   if (!validation.ok) return validation;
   await commitReceipt();
