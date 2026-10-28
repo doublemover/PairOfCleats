@@ -16,7 +16,7 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 applyTestEnv();
 const lang = getLanguageForFile('.js', 'fixture.js');
 const prepare = async (text, parser) => {
-  const options = { javascript: { parser }, treeSitter: { enabled: false }, astDataflowEnabled: true, controlFlowEnabled: true };
+  const options = { ext: '.js', javascript: { parser }, treeSitter: { enabled: false }, astDataflowEnabled: true, controlFlowEnabled: true };
   const context = await lang.prepare({ text, ext: '.js', relPath: 'fixture.js', mode: 'code', options });
   assert.equal(getJavaScriptSyntaxIdentity(context.jsAst).family, parser, 'fallback is not qualification of the requested parser');
   const relations = lang.buildRelations({ text, ext: '.js', relPath: 'fixture.js', context, options });

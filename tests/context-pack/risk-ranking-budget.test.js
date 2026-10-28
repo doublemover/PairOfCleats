@@ -270,7 +270,9 @@ assert.equal(pack.risk?.summary?.previewFlowIds?.[0], flows[0].flowId, 'expected
 // for the actual hydrated evidence, independently of aggregate overflow.
 const stepIndexDir = path.join(tempRoot, 'index-step-budget');
 await fs.cp(indexDir, stepIndexDir, { recursive: true });
-await writeJsonl(path.join(stepIndexDir, 'risk_flows.jsonl'), [flows[2]]);
+const stepFlow = structuredClone(flows[2]);
+stepFlow.path.callSiteIdsByStep = stepFlow.path.callSiteIdsByStep.map((ids, index) => index === 0 ? ids : ids.slice(0, 1));
+await writeJsonl(path.join(stepIndexDir, 'risk_flows.jsonl'), [stepFlow]);
 await writeJsonObjectFile(path.join(stepIndexDir, 'risk_interprocedural_stats.json'), {
   fields: { ...baseStats, counts: { ...baseStats.counts, flowsEmitted: 1 } }
 });
