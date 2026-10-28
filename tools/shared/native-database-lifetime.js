@@ -30,16 +30,32 @@ export const runNativeDatabaseCommand = async ({ commandIdentity, delegated = fa
   const storageAdmissions = [];
   let operationSettled = false, registrySettled = false, delegationConfirmed = !owner, observerOverflow = false;
   let acceptedWorkSettled = false, recoveringStorage = null, lastFailure = null;
-  const observe = error => {
-    if ((objectLike(error) && described.has(error)) || observations.has(error)) return;
-    const original = observeStorageResource(error, { phase: 'native-command-original' });
-    if (!original.hasResourceObservation) return;
+  const observe = (error, phase = 'native-command-original') => {
+    if (objectLike(error) && described.has(error)) return null;
+    if (observations.has(error)) return observations.get(error);
+    const original = observeStorageResource(error, { phase });
+    if (!original.hasResourceObservation) return null;
     if (observations.size >= 128) { observerOverflow = true; return; }
     const retained = original.retain();
-    const captured = observeStorageResource(retained, { phase: 'native-command-original' });
+    const captured = observeStorageResource(retained, { phase });
     const check = () => captured.isSettled();
-    Object.defineProperty(check, 'failure', { value: retained });
+    Object.defineProperties(check, { failure: { value: retained }, requireSettled: { value: captured.requireSettled } });
     observations.set(error, check);
+    return check;
+  };
+  const requireOriginals = () => {
+    if (observerOverflow) throw new Error('Native command original resource inventory is incomplete.');
+    for (const check of observations.values()) {
+      try { check.requireSettled(); }
+      catch (error) { observe(error); throw error; }
+    }
+  };
+  const requireResult = (value, phase) => {
+    const check = observe(value, phase);
+    if (observerOverflow) throw new Error('Native command original resource inventory is incomplete.');
+    try { check?.requireSettled(); }
+    catch (error) { observe(error); throw error; }
+    return value;
   };
   const resourcesClosed = () => !observerOverflow && [...states].every(state => state.phase === 'closed')
     && [...observations.values()].every(check => check());
@@ -108,6 +124,7 @@ export const runNativeDatabaseCommand = async ({ commandIdentity, delegated = fa
       assertActive();
       scopeAdmitted = false;
       try {
+        requireOriginals();
         if (!scope?.repoRoot) throw new TypeError('Native storage scope requires its launch-selected repository context.');
         if (owner) assertDelegatedNativeDatabaseScope(owner, { ...scope, commandId: commandIdentity });
         if (scope?.repoRoot) {
@@ -146,7 +163,7 @@ export const runNativeDatabaseCommand = async ({ commandIdentity, delegated = fa
     open(factory) {
       assertActive();
       if (!scopeAdmitted || typeof factory !== 'function') throw new Error('Delegated database paths must be admitted before opening native handles.');
-      try { scopeCheck?.(); }
+      try { requireOriginals(); scopeCheck?.(); }
       catch (error) { scopeAdmitted = false; observe(error); throw error; }
       return resources.own(factory());
     },
@@ -154,7 +171,8 @@ export const runNativeDatabaseCommand = async ({ commandIdentity, delegated = fa
       assertActive();
       if (!scopeAdmitted) throw new Error('Delegated database paths must be admitted before opening native handles.');
       if (!objectLike(handle) || handles.has(handle)) throw new TypeError('A new owned native database handle is required.');
-      const state = { resource: handle, phase: 'open', promise: null, close: null, work: new Set(), failures: new Set() };
+      const state = { resource: handle, phase: 'open', promise: null, close: null, closeObservation: null,
+        closeStarted: false, work: new Set(), failures: new Set() };
       let originalClose, captureError, captureFailed = false;
       try {
         originalClose = handle.close;
@@ -170,12 +188,22 @@ export const runNativeDatabaseCommand = async ({ commandIdentity, delegated = fa
             if (observation && !observation()) throw failure;
           }
           if (captureFailed) throw captureError;
+          state.closeStarted = true;
           const closed = commandIdentity === 'lmdb.build'
             ? await closeLmdbDatabase(handle, originalClose)
             : await originalClose.call(handle);
           if (closed === false) throw new Error('Native database close was explicitly unconfirmed.');
           state.phase = 'closed';
-        }).catch(error => { state.phase = 'unknown'; observe(error); throw error; });
+          state.closeObservation = observe(closed, 'native-command-close-result');
+          state.closeObservation?.requireSettled();
+          if (observerOverflow) throw new Error('Native command original resource inventory is incomplete.');
+        }).catch(error => {
+          // Re-admission may dispatch a first close after its original work
+          // settles. An invoked native close is never replayed, even on failure.
+          if (!state.closeStarted) { state.phase = 'waiting'; state.promise = null; }
+          else if (state.phase !== 'closed') state.phase = 'unknown';
+          observe(error); throw error;
+        });
         state.promise.catch(() => {});
         return state.promise;
       };
@@ -194,11 +222,14 @@ export const runNativeDatabaseCommand = async ({ commandIdentity, delegated = fa
     use(handle, work) {
       try {
         assertActive();
+        requireOriginals();
         if (!handles.has(handle) || typeof work !== 'function') throw new TypeError('Owned database work is required.');
         if (handles.get(handle).state.phase !== 'open') throw new Error('Native database handle no longer admits work.');
       } catch (error) { return Promise.reject(error); }
       const state = handles.get(handle).state;
-      const working = Promise.resolve().then(() => work(handle));
+      const working = Promise.resolve().then(() => {
+        requireOriginals(); return work(handle);
+      }).then(value => requireResult(value, 'native-command-work-result'));
       state.work.add(working);
       working.then(() => state.work.delete(working), error => {
         state.work.delete(working); state.failures.add(error); observe(error);
@@ -215,7 +246,11 @@ export const runNativeDatabaseCommand = async ({ commandIdentity, delegated = fa
       using.catch(() => {});
       return using;
     },
-    isClosed: handle => handles.get(handle)?.state.phase === 'closed'
+    isClosed: handle => {
+      const state = handles.get(handle)?.state;
+      try { return state?.phase === 'closed' && (!state.closeObservation || state.closeObservation()); }
+      catch { return false; }
+    }
   });
   const releaseStorageMetadata = () => {
     if (!operationSettled || !acceptedWorkSettled || !registrySettled || !resourcesClosed()) {
@@ -235,7 +270,7 @@ export const runNativeDatabaseCommand = async ({ commandIdentity, delegated = fa
     if (errors.length) throw new AggregateError(errors, 'Native command storage metadata release failed.', { cause: errors[0] });
   };
   let result, primary, cleanup, hasPrimary = false, hasCleanup = false;
-  try { result = await operation(resources); }
+  try { result = await operation(resources); requireResult(result, 'native-command-operation-result'); }
   catch (error) { hasPrimary = true; primary = error; observe(error); }
   finally { operationSettled = true; }
   const uses = await Promise.allSettled([...acceptedUses]);
@@ -248,8 +283,9 @@ export const runNativeDatabaseCommand = async ({ commandIdentity, delegated = fa
       'Native database command and accepted work failed.', { cause: errors[0] });
     hasPrimary = true;
   }
-  try { await lifecycle.close(); registrySettled = true; }
+  try { await lifecycle.close(); }
   catch (error) { hasCleanup = true; cleanup = error; observe(error); }
+  finally { registrySettled = true; }
   if (hasCleanup || !resourcesClosed()) {
     throw preserve(primary, cleanup, { hasPrimary, hasCleanup });
   }
