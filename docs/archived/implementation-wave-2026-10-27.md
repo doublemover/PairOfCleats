@@ -60,6 +60,7 @@ the unexecuted Windows source work separately from published acceptance.
 | [c6ed8a8b9](context-function-implementation-2026-10-28.md) | Complete parser-qualified function edit units with exact pinned-source spans, independent content hashes and explicit file fallback | 18 authored cases; actual surfaces/source/resource and corpus qualification remain |
 | [c8a7ae65c](context-function-surfaces-implementation-2026-10-28.md) | Plain-text exact edit boundaries/hashes and independent real CLI/HTTP/MCP/frozen-function controls | 5 authored cases; 23 complete-function cases total await execution |
 | [a51237712](context-token-budget-implementation-2026-10-28.md) | Pinned pure JS exact rendered-token accounting, bounded original workers and independent response byte admission | 25 authored cases; profile/surface/lifecycle and measured counting qualification remain |
+| [c6ddbea3b](configured-reader-implementation-2026-10-28.md) | Effective configured SQLite/LMDB reader namespaces, sidecars, cache reuse and actual launch selection | 18 new authored controls; native/category qualification, writer/publication registration and cleanup adoption remain |
 
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero

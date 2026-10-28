@@ -4308,20 +4308,24 @@
         "99d84d2c534c92b4cefd022353dee366c49bccaf",
         "cd2583658aa29fba7c137f9d0b3d967abbb290c0",
         "4bdecbafad29592278b34d5715a2c992a49634e3",
-        "489e067e630333429ca35a6d0cf3f3ab6e38843f"
+        "489e067e630333429ca35a6d0cf3f3ab6e38843f",
+        "c6ddbea3b58224f6039aa04076d5cf6a56090f4f",
+        "8ef677bfa824593ae11a81a54707c1f39901050e"
       ],
       "unvalidatedReceipts": [
         "storage-space-implementation-2026-10-27.md",
         "storage-session-observation-implementation-2026-10-27.md",
         "native-reader-observation-implementation-2026-10-27.md",
         "vfs-storage-implementation-2026-10-28.md",
-        "lsp-source-epoch-implementation-2026-10-28.md"
+        "lsp-source-epoch-implementation-2026-10-28.md",
+        "configured-reader-implementation-2026-10-28.md"
       ],
       "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
       "sessionObservationFollowup": "Shared session admission now captures successful action and settlement receipt observers, freezes projected receipt fields and retains independent inspection/observer errors through original handles. Eleven authored cases await execution; native-reader observation, remaining adapters/custom backend registration and full qualification remain.",
       "nativeObservationFollowup": "Canonical native-reader admission now retains the first failed-open callback plus independent observer/physical-close failures through the existing composer and actual session. Five authored cases await execution; actual native/current-candidate qualification and custom/backend/category adoption remain.",
       "vfsStorageFollowup": "Runtime-selected canonical VFS roots now join the existing native-reader repository/category owner through semantic/legacy tooling and all five LSP adapters. Client/file observations and actual metadata release precede consumer retirement; failed admission blocks later publication. Seven authored lease controls are unexecuted. Same-origin revision turnover, cross-process writer/custom registration and full qualification remain.",
-      "vfsEpochFollowup": "File-backed collection derives epochs from actual source/root identity and uses existing pool creation/disposal owners for ordered turnover. Turns reserve before publication, cancelled waiters withdraw after predecessors, and old native/file/metadata closure precedes replacement. Nine authored cases are unexecuted; cross-process writer/custom registration and complete actual provider/current-candidate qualification remain."
+      "vfsEpochFollowup": "File-backed collection derives epochs from actual source/root identity and uses existing pool creation/disposal owners for ordered turnover. Turns reserve before publication, cancelled waiters withdraw after predecessors, and old native/file/metadata closure precedes replacement. Nine authored cases are unexecuted; cross-process writer/custom registration and complete actual provider/current-candidate qualification remain.",
+      "configuredReaderFollowup": "Actual configured SQLite/LMDB retrieval and SQLite build probes now admit exact backend-selected external namespaces through the existing original storage reader owner. SQLite database/WAL/SHM/journal and cached handle lifetimes are protected; actual launch environment selects canonical cache roots. Immutable reader/generation diagnostics grant no publication or deletion authority. Thirteen protocol and five actual configured SQLite controls are authored, unexecuted. Custom writer/publication registration, legacy/backend/category cleanup adoption and complete qualification remain."
     },
     {
       "number": 1268,
@@ -6918,7 +6922,9 @@
         "99d84d2c534c92b4cefd022353dee366c49bccaf",
         "cd2583658aa29fba7c137f9d0b3d967abbb290c0",
         "4bdecbafad29592278b34d5715a2c992a49634e3",
-        "489e067e630333429ca35a6d0cf3f3ab6e38843f"
+        "489e067e630333429ca35a6d0cf3f3ab6e38843f",
+        "c6ddbea3b58224f6039aa04076d5cf6a56090f4f",
+        "8ef677bfa824593ae11a81a54707c1f39901050e"
       ],
       "unvalidatedReceipts": [
         "sqlite-operation-implementation-2026-10-27.md",
@@ -6930,7 +6936,8 @@
         "storage-session-observation-implementation-2026-10-27.md",
         "native-reader-observation-implementation-2026-10-27.md",
         "vfs-storage-implementation-2026-10-28.md",
-        "lsp-source-epoch-implementation-2026-10-28.md"
+        "lsp-source-epoch-implementation-2026-10-28.md",
+        "configured-reader-implementation-2026-10-28.md"
       ],
       "currentImplementation": "SQLite runner/helpers and Clangd acquisition retain original work through shared storage teardown. Managed Go/Lua/generic discovery propagates pending inspection; retained generation admission protects the first scan and owns file/Dir/metadata recovery. Functional qualification and remaining custom cleanup adoption are not discharged.",
       "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
@@ -6938,7 +6945,8 @@
       "sessionObservationFollowup": "Shared session admission now captures successful action and settlement receipt observers, freezes projected receipt fields and retains independent inspection/observer errors through original handles. Eleven authored cases await execution; native-reader observation, remaining adapters/custom backend registration and full qualification remain.",
       "nativeObservationFollowup": "Canonical native-reader admission now retains the first failed-open callback plus independent observer/physical-close failures through the existing composer and actual session. Five authored cases await execution; actual native/current-candidate qualification and custom/backend/category adoption remain.",
       "vfsStorageFollowup": "Runtime-selected canonical VFS roots now join the existing native-reader repository/category owner through semantic/legacy tooling and all five LSP adapters. Client/file observations and actual metadata release precede consumer retirement; failed admission blocks later publication. Seven authored lease controls are unexecuted. Same-origin revision turnover, cross-process writer/custom registration and full qualification remain.",
-      "vfsEpochFollowup": "File-backed collection derives epochs from actual source/root identity and uses existing pool creation/disposal owners for ordered turnover. Turns reserve before publication, cancelled waiters withdraw after predecessors, and old native/file/metadata closure precedes replacement. Nine authored cases are unexecuted; cross-process writer/custom registration and complete actual provider/current-candidate qualification remain."
+      "vfsEpochFollowup": "File-backed collection derives epochs from actual source/root identity and uses existing pool creation/disposal owners for ordered turnover. Turns reserve before publication, cancelled waiters withdraw after predecessors, and old native/file/metadata closure precedes replacement. Nine authored cases are unexecuted; cross-process writer/custom registration and complete actual provider/current-candidate qualification remain.",
+      "configuredReaderFollowup": "Actual configured SQLite/LMDB retrieval and SQLite build probes now admit exact backend-selected external namespaces through the existing original storage reader owner. SQLite database/WAL/SHM/journal and cached handle lifetimes are protected; actual launch environment selects canonical cache roots. Immutable reader/generation diagnostics grant no publication or deletion authority. Thirteen protocol and five actual configured SQLite controls are authored, unexecuted. Custom writer/publication registration, legacy/backend/category cleanup adoption and complete qualification remain."
     },
     {
       "number": 1575,
