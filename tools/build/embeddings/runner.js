@@ -2051,7 +2051,9 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
         updatedAt: stateNow
       };
       const cacheRepoId = indexState?.repoId || null;
-      await scheduleIo(() => writeIndexState(statePath, indexState));
+      await scheduleIo(() => writeIndexState(statePath, indexState, {
+        attemptId: runtimeReceipts.reference(mode), claimAttempt: true, signal: config.signal
+      }));
 
       let fileTask = null;
       let chunkTask = null;
@@ -4129,7 +4131,7 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
           { secondaryPresent: true }); modePrimaryFailure = err; }
         const prepareFailureState = failure => {
           const now = new Date().toISOString();
-          const failureState = loadIndexState(statePath);
+          const failureState = loadIndexState(statePath, { publicationSource: indexState });
           failureState.generatedAt = failureState.generatedAt || now;
           failureState.updatedAt = now;
           failureState.mode = failureState.mode || mode;

@@ -31,14 +31,14 @@ const receipts = {
   reference(mode) { assert.equal(this, receipts); assert.equal(mode, 'code'); if (selected === 'reference-failure') throw secondary; return 'original-attempt'; },
   observation(mode) { assert.equal(this, receipts); assert.equal(mode, 'code'); if (selected === 'observation-failure') throw secondary; return { status: 'failed' }; }
 };
-const readFile = fsSync.readFileSync;
+const openFile = fsSync.openSync;
 try {
   let statePath = path.join(root, 'index_state.json');
   if (['corrupt-state', 'invalid-state', 'pending-state-read'].includes(selected)) {
     await fs.writeFile(statePath, selected === 'corrupt-state' ? '{truncated' : selected === 'invalid-state' ? 'null' : '{"preserved":true}');
-    if (selected === 'pending-state-read') fsSync.readFileSync = (file, ...args) => {
+    if (selected === 'pending-state-read') fsSync.openSync = (file, ...args) => {
       if (typeof file === 'string' && path.resolve(file) === statePath) throw secondary;
-      return readFile(file, ...args);
+      return openFile(file, ...args);
     };
   }
   if (selected === 'state-write-failure') {
@@ -68,7 +68,7 @@ try {
       settled = true; assert.equal(result.cacheOwnershipReleased(), true);
     }
   }
-  fsSync.readFileSync = readFile;
+  fsSync.openSync = openFile;
   if (['corrupt-state', 'invalid-state', 'pending-state-read'].includes(selected)) {
     assert.equal(await fs.readFile(statePath, 'utf8'), selected === 'corrupt-state' ? '{truncated' : selected === 'invalid-state' ? 'null' : '{"preserved":true}');
   } else if (['state-read-failure', 'state-write-failure', 'reference-failure', 'observation-failure'].includes(selected)) {
@@ -79,5 +79,5 @@ try {
     assert.equal(state.extensions.original, 'retained'); assert.equal(state.extensions.runtimeAttemptId, 'original-attempt');
     assert.deepEqual(state.extensions.runtimeEmbeddingObservation, { status: 'failed' });
   }
-} finally { settled = true; fsSync.readFileSync = readFile; await fs.rm(root, { recursive: true, force: true }); }
+} finally { settled = true; fsSync.openSync = openFile; await fs.rm(root, { recursive: true, force: true }); }
 console.log(`Embedding terminal failure publication: ${selected}`);

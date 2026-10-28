@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { publishEmbeddingGeneration } from '../../../tools/build/embeddings/publication.js';
+import { loadIndexState } from '../../../tools/build/embeddings/state.js';
 import { updatePieceManifest } from '../../../tools/build/embeddings/manifest.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { checksumFile } from '../../../src/shared/hash.js';
@@ -18,7 +19,8 @@ try {
     await fs.writeFile(manifestPath, JSON.stringify({ version: 2, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
       pieces: [{ name: 'index_state', type: 'stats', format: 'json', path: 'index_state.json' }] }));
     let receipts = 0;
-    const indexState = { embeddings: { ready: true, pending: false, embeddingGeneration: 'test-generation' } };
+    const indexState = loadIndexState(statePath);
+    indexState.embeddings = { ready: true, pending: false, embeddingGeneration: 'test-generation' };
     const assertPending = async () => {
       const state = await persisted();
       assert.equal(state.embeddings.ready, false);
@@ -57,7 +59,8 @@ try {
   for (const abortAt of ['manifest', 'validation', 'receipt']) {
     const controller = new AbortController();
     const abort = phase => { if (abortAt === phase) controller.abort(); };
-    const indexState = { embeddings: { ready: true, pending: false } };
+    const indexState = loadIndexState(statePath);
+    indexState.embeddings = { ready: true, pending: false };
     await assert.rejects(publishEmbeddingGeneration({ statePath, indexState, signal: controller.signal,
       publishManifest: async () => { abort('manifest'); },
       validate: async () => { abort('validation'); return { ok: true }; },

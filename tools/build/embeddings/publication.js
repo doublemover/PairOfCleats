@@ -1,4 +1,6 @@
 import { writeIndexState } from './state.js';
+import path from 'node:path';
+import { withIndexStatePublicationLock } from '../../../src/shared/index-state-publication.js';
 import { throwIfAborted } from '../../../src/shared/abort.js';
 import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
 import { observeStorageResource } from '../../../src/shared/storage/failure-observation.js';
@@ -11,16 +13,16 @@ export const publishEmbeddingGeneration = async ({
 }) => {
   throwIfAborted(signal);
   indexState.embeddings = { ...indexState.embeddings, ready: false, pending: true };
-  await writeIndexState(statePath, indexState);
+  await writeIndexState(statePath, indexState, { signal });
   await publishManifest();
   throwIfAborted(signal);
-  const validation = await validate();
+  const validation = await withIndexStatePublicationLock(path.dirname(statePath), validate, { signal });
   throwIfAborted(signal);
   if (!validation.ok) return validation;
   await commitReceipt();
   throwIfAborted(signal);
   indexState.embeddings = { ...indexState.embeddings, ready: true, pending: false };
-  await writeIndexState(statePath, indexState);
+  await writeIndexState(statePath, indexState, { signal });
   return validation;
 };
 
@@ -36,9 +38,10 @@ export const publishEmbeddingFailure = async ({ primary, statePath, prepareState
   }
   try {
     const state = await prepareState(failure);
-    state.extensions = { ...state.extensions, runtimeAttemptId: runtimeReceipts.reference(mode),
+    const attemptId = runtimeReceipts.reference(mode);
+    state.extensions = { ...state.extensions, runtimeAttemptId: attemptId,
       runtimeEmbeddingObservation: runtimeReceipts.observation(mode) };
-    await writeIndexState(statePath, state);
+    await writeIndexState(statePath, state, { attemptId });
   } catch (error) {
     failure = addStorageFailureContext(failure, { phase: 'stage3-failure-state' }, error, { secondaryPresent: true });
   }
