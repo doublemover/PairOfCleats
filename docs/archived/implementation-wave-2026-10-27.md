@@ -76,6 +76,8 @@ PR #572 metadata was refreshed and read back at checkpoint `1b762ec69` (140 loca
 
 - [Throughput observations](throughput-observations-implementation-2026-10-28.md): #277 zero/unknown and matched count/clock repairs, bounded comparison diagnostics and derivation version 3; twenty-five cases authored. Workload/attempt admission remains source work.
 
+- [Benchmark artifact-report admission](benchmark-artifact-report-implementation-2026-10-28.md): actual producer no longer turns a failed child into an empty report; complete capture/JSON/root and original observation checks have twelve authored controls, unexecuted.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.

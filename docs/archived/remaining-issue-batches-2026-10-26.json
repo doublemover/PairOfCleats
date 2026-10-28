@@ -1053,13 +1053,22 @@
       "status": "source-partially-implemented-qualification-pending",
       "currentDisposition": "partial_or_followup",
       "unvalidatedSourceHeads": [
-        "2dada0f772e592df2e5522e83ef67093cf7c19f1"
+        "2dada0f772e592df2e5522e83ef67093cf7c19f1",
+        "b8034d9f3194a91ddd9ed8aeb480fe6d05e6ed01"
       ],
       "unvalidatedReceipts": [
-        "throughput-observations-implementation-2026-10-28.md"
+        "throughput-observations-implementation-2026-10-28.md",
+        "benchmark-artifact-report-implementation-2026-10-28.md"
       ],
       "currentImplementation": "Zero/unknown numeric admission, missing mode/stage and baseline sample coverage, explicit non-percent zero baselines, bounded diagnostics and actual JSON/human summaries are implemented. Feature/throughput indexing summaries use the existing matched observation owner; diagnostic derivation v3 invalidates stale meaning. Twenty-five new controls plus original numeric/history/CLI assertions are authored and unexecuted.",
-      "remainingImplementation": "Compatible workload/environment/cache and independent-attempt admission through actual benchmark producers and callers, incomplete/zero work classification against those receipts, incompatible/unknown controls, and serial measured qualification with raw samples."
+      "remainingImplementation": "Compatible workload/environment/cache and independent-attempt admission through actual benchmark producers and callers, incomplete/zero work classification against those receipts, incompatible/unknown controls, and serial measured qualification with raw samples.",
+      "unvalidatedFollowups": [
+        {
+          "sourceHead": "b8034d9f3194a91ddd9ed8aeb480fe6d05e6ed01",
+          "receipt": "benchmark-artifact-report-implementation-2026-10-28.md",
+          "implementation": "Actual benchmark artifact-report child cannot fail into an empty successful report. Shared bounded hidden subprocess capture, JSON/repository and original-resource admission are implemented with twelve authored controls. Native crash attribution, workload/attempt qualification and original acceptance remain."
+        }
+      ]
     },
     {
       "number": 279,
@@ -1083,14 +1092,23 @@
       "unvalidatedSourceHeads": [
         "a87beee17374ebfc8d22f415dd455590daf89443",
         "f92c53623fe170b7eeba025bb1c20b86832ff573",
-        "ce10a3aa90ef94a418c393a83b97908a744b0e06"
+        "ce10a3aa90ef94a418c393a83b97908a744b0e06",
+        "b8034d9f3194a91ddd9ed8aeb480fe6d05e6ed01"
       ],
       "unvalidatedReceipts": [
-        "native-state-publication-implementation-2026-10-28.md"
+        "native-state-publication-implementation-2026-10-28.md",
+        "benchmark-artifact-report-implementation-2026-10-28.md"
       ],
       "nativeStatePublicationFollowup": "Required SQLite/LMDB state and shared manifest read/write/checksum failures now propagate instead of acknowledging in-memory ready state after failed publication. Malformed existing state cannot silently become an empty replacement. Optional LMDB metrics suppress only confirmed-settled resource observations. Eleven actual-producer controls are authored and unexecuted; paired/concurrent publication, row/build-mode, custom registration/cleanup and original/follow-up acceptance remain separate.",
       "compactionCountFollowup": "Actual compaction now refuses failed table metadata/query and invalid row counts instead of substituting zero. Required chunks and dense_vectors absence fails; zero needs a successful query. Eight actual native controls are authored, unexecuted, preserving unchanged source/once-only close/metadata recovery plus empty/nonempty dense positives. Existing compaction/row/build-mode and full original acceptance remain.",
-      "stateChecksumObservationFollowup": "State-manifest byte extent and checksum now come from the same original contained descriptor and return only after its actual close. Existing checksum-only contracts remain; digest completion stays joined. A split-stat size-race control and actual descriptor-failure injection are authored and unexecuted; twenty native state/compaction controls total remain pending."
+      "stateChecksumObservationFollowup": "State-manifest byte extent and checksum now come from the same original contained descriptor and return only after its actual close. Existing checksum-only contracts remain; digest completion stays joined. A split-stat size-race control and actual descriptor-failure injection are authored and unexecuted; twenty native state/compaction controls total remain pending.",
+      "unvalidatedFollowups": [
+        {
+          "sourceHead": "b8034d9f3194a91ddd9ed8aeb480fe6d05e6ed01",
+          "receipt": "benchmark-artifact-report-implementation-2026-10-28.md",
+          "implementation": "Actual benchmark artifact-report child cannot fail into an empty successful report. Shared bounded hidden subprocess capture, JSON/repository and original-resource admission are implemented with twelve authored controls. Native crash attribution, workload/attempt qualification and original acceptance remain."
+        }
+      ]
     },
     {
       "number": 289,
@@ -9777,7 +9795,7 @@
     "partialFollowup": 145,
     "implementationStatusUnresolved": 93
   },
-  "reconciledAt": "2026-10-28T10:03:06.309Z",
+  "reconciledAt": "2026-10-28T10:11:15.470Z",
   "completedSourceBatch": [
     347,
     586,
