@@ -49,6 +49,14 @@ remain secondary to the native error. A failed collector cannot acknowledge a
 successful SQLite result. Setup/runtime activation is separate from native
 lifecycle and crash qualification.
 
+The real wrapper also appends at most 64 small owned progress events. Events bind
+nonce/PID/sequence and a closed phase set around initialization, native import and
+SQLite update. Complete lines survive a partial final write; foreign identity or
+invalid committed events fail collection. Missing/partial progress cannot claim
+complete diagnostics. These are completed JavaScript checkpoints, **not a native
+fault attribution**. Import and progress-write failures retain their actual owner
+instead of misreporting a successful import as dependency absence.
+
 The native error exists before forensic publication or warning work. Required
 forensic IO failure and independent pending observations remain secondary causes;
 they cannot replace the original native failure or trigger another child run.
@@ -79,8 +87,11 @@ Forty-six additional format/collector controls are authored and unexecuted.
 The collector controls use synthetic minidumps and an explicit trusted fixture
 runner; none launches CDB or proves an access-violation cause. Actual child wrapper,
 CDB/minidump/termination/symbol and original replay acceptance remain. Eighteen
-more real atomic-IO concurrency/drain controls are authored and unexecuted. Replay
-references are not an immutable self-contained archive of the crashing generation.
+more real atomic-IO concurrency/drain controls are authored and unexecuted.
+Six real ordinary-child wrapper controls and three fixture-controlled progress
+controls are also authored, unexecuted; no debugger or access violation is simulated
+as passing native qualification. Replay references are not an immutable
+self-contained archive of the crashing generation.
 Microsoft documents [child-process debugger ownership](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/cdb-command-line-options),
 [second-chance filters](https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/sx--sxd--sxe--sxi--sxn--sxr--sx---set-exceptions-)
 and [minidump creation](https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/-dump--create-dump-file-).

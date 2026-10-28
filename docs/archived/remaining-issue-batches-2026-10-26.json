@@ -1028,12 +1028,14 @@
       "unvalidatedSourceHeads": [
         "03c44b27843fb6096695e3e80849ebc8383449ca",
         "71ed56edf9e84ea11fb6587b4b2c63b8c49e8c9e",
-        "3639069ca9bed027dc8065cb369a9b38351df69a"
+        "3639069ca9bed027dc8065cb369a9b38351df69a",
+        "c4700800c55f03527f844b778a0a266a1a6cc055"
       ],
       "unvalidatedReceipts": [
         "sqlite-boundary-diagnostics-implementation-2026-10-28.md",
         "windows-cdb-collector-implementation-2026-10-28.md",
-        "forensic-publication-ordering-implementation-2026-10-28.md"
+        "forensic-publication-ordering-implementation-2026-10-28.md",
+        "windows-cdb-child-progress-implementation-2026-10-28.md"
       ],
       "unvalidatedFollowups": [
         {
@@ -1050,6 +1052,11 @@
           "sourceHead": "3639069ca9bed027dc8065cb369a9b38351df69a",
           "receipt": "forensic-publication-ordering-implementation-2026-10-28.md",
           "implementation": "Actual crash logger snapshots accepted JSON and serializes payload/index writes on a lazy shared queue, coalescing raw outcomes by kind/signature with independent required policy. Flush/close drain accepted calls and warning resources; close attempts all independent append owners after failure. Bounded serialized payload/work admission and 18 real atomic-IO controls are authored, unexecuted. Cross-instance attempt authority/crash atomicity, immutable replay and real native qualification remain."
+        },
+        {
+          "sourceHead": "c4700800c55f03527f844b778a0a266a1a6cc055",
+          "receipt": "windows-cdb-child-progress-implementation-2026-10-28.md",
+          "implementation": "Actual diagnostic child records bounded nonce/PID/sequence phases around native import and SQLite update; collector admits completed events, preserves interrupted context and rejects foreign committed progress. JavaScript checkpoints never attribute native faults; native import/presentation resources remain original. Six real-child and three fixture-progress controls are authored, unexecuted. Actual wrapper/CDB/native/symbol/replay acceptance remains."
         }
       ],
       "remainingWork": [
@@ -10252,7 +10259,7 @@
     "partialFollowup": 146,
     "implementationStatusUnresolved": 90
   },
-  "reconciledAt": "2026-10-28T17:49:05.046Z",
+  "reconciledAt": "2026-10-28T17:59:19.389Z",
   "completedSourceBatch": [
     347,
     586,
@@ -10393,9 +10400,9 @@
     }
   ],
   "currentCountsBasis": {
-    "meaning": "718-open GitHub snapshot refreshed at checkpoint 200 plus recorded local source work; not functional acceptance.",
+    "meaning": "718-open GitHub snapshot freshly refreshed at checkpoint 220 plus recorded local source work; not functional acceptance.",
     "publishedHead": "adbcaf777ce91642bb0a60de892171d8c3a529f7",
-    "sourceHead": "b6652070b27a485fe7ee3180ff449f41539949e8",
-    "receipt": "sqlite-compaction-vectors-implementation-2026-10-28.md"
+    "sourceHead": "c4700800c55f03527f844b778a0a266a1a6cc055",
+    "receipt": "windows-cdb-child-progress-implementation-2026-10-28.md"
   }
 }
