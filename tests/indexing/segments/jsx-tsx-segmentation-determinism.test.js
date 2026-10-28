@@ -33,10 +33,12 @@ const second = discoverSegments({
 });
 
 assert.deepEqual(second, first, 'expected deterministic tsx segment boundaries');
-assert.equal(first.some((segment) => segment.type === 'embedded' && segment.languageId === 'html'), true,
-  'expected html embedded segment for tsx markup');
-assert.equal(first.some((segment) => segment.type === 'code' && segment.languageId === 'typescript'), true,
-  'expected code segment for tsx logic');
+assert.equal(first.length, 1, 'JSX syntax remains inside its complete canonical program');
+assert.deepEqual({ type: first[0].type, languageId: first[0].languageId, ext: first[0].ext,
+  start: first[0].start, end: first[0].end },
+{ type: 'code', languageId: 'typescript', ext: '.tsx', start: 0, end: tsxText.length });
+assert.equal(tsxText.slice(first[0].start, first[0].end), tsxText,
+  'the declaration, markup and expression islands retain one exact source view');
 
 let lastEnd = -1;
 for (const segment of first) {

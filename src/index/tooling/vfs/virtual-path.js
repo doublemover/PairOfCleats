@@ -21,6 +21,8 @@ export const normalizeLanguageId = (value, fallback = null) => {
  * @returns {string}
  */
 export const resolveEffectiveExt = ({ languageId, containerExt }) => {
+  if (containerExt === '.jsx' && (!languageId || ['javascript', 'jsx'].includes(languageId))) return '.jsx';
+  if (containerExt === '.tsx' && (!languageId || ['typescript', 'tsx'].includes(languageId))) return '.tsx';
   if (languageId && LANGUAGE_ID_EXT.has(languageId)) {
     return LANGUAGE_ID_EXT.get(languageId);
   }

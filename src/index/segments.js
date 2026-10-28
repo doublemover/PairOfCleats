@@ -197,7 +197,9 @@ export function chunkSegments({
     const isBase = isBaseSegment(segment, text.length, baseSegmentType);
     const tokenMode = resolveSegmentTokenMode(segment);
     if (!shouldIndexSegment(segment, tokenMode, effectiveMode)) continue;
-    const segmentExt = resolveSegmentExt(ext, segment);
+    // The canonical container retains its actual dialect (.jsx/.tsx included).
+    // Language aliases choose extensions only for independently sliced views.
+    const segmentExt = isBase ? ext : resolveSegmentExt(ext, segment);
     const embeddingContext = segment.embeddingContext || segment.meta?.embeddingContext || null;
     const segmentStartLine = offsetToLine(resolvedLineIndex, segment.start);
     const segmentEndOffset = segment.end > segment.start ? segment.end - 1 : segment.start;
