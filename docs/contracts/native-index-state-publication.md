@@ -79,6 +79,15 @@ Validation and ready-receipt commitment retain one publication owner; captured
 original validation/receipt observations survive getters and callback failure
 through actual metadata release. Original-session recovery never repeats work.
 
+Service replay resets legacy unowned pending state through the same mutation
+owner against its original generation/invocation/embedding witness. It retains
+current native namespaces and extensions. Persisted attempt-owned state remains
+with that invocation; the next actual Stage3 run performs its explicit initial
+claim. Legacy staging pathnames are diagnostics, not deletion authority or proof
+of partial current work. Outside-buildRoot jobs and noncanonical modes fail.
+Fourteen `services/indexer/embedding-replay-publication/*` controls plus the
+original replay/executor/soak cases are authored or retained, unexecuted.
+
 The state-manifest checksum and byte extent now come from the same verified
 contained descriptor. The shared hasher returns its immutable observation only
 after original descriptor closure; existing checksum-only callers retain their

@@ -86,6 +86,8 @@ PR #572 metadata was refreshed and read back at checkpoint `1b762ec69` (140 loca
 
 - [Embedding manifest ownership](embedding-manifest-ownership-implementation-2026-10-28.md): shared writer mutex, invocation admission, required read/hash observations and original validation/ready-receipt settlement; twenty-seven controls authored, unexecuted.
 
+- [Service replay ownership](embedding-replay-ownership-implementation-2026-10-28.md): legacy state resets preserve current native data, stale witnesses/outside roots fail, and unknown legacy staging is retained; fourteen controls authored, unexecuted.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.

@@ -142,3 +142,12 @@ or empty selections, missing required inputs and a selection that runs no report
 fail as request errors. Valid reports keep a successful CLI exit status even
 when they contain warnings/errors; automation can apply its own policy to
 `summary.status`. No repair operation is performed by report generation.
+
+Embedding replay resets unchanged legacy pending state under the existing state
+publication owner. A changed generation or invocation fails recovery. Persisted
+attempt-owned state is retained for the next actual Stage3 invocation to claim
+and initialize. Jobs with index directories outside their build root fail before
+dispatch. Legacy `.embeddings-backend-staging` directories remain visible in
+replay diagnostics and are preserved: their pathname grants no deletion authority.
+Retention actions alone report `repaired: false`. Current native writers own their
+separately allocated `.ann-*` directories and their cleanup.
