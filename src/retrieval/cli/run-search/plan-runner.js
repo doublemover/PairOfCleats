@@ -64,6 +64,8 @@ import {
 } from './options.js';
 import { createBackendContextWithTracking } from './backend-context.js';
 import { createBackendDisposer } from '../backend-disposal.js';
+import { createSearchSettlement } from '../search-settlement.js';
+import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
 import { INTERNAL_SEARCH_POLICY, resolveEffectiveSearchPlanIdentity, resolveEffectiveScorePolicyIdentity, resolveObservedSearchSystemIdentity, consumeEffectiveSearchPlan } from '../effective-plan.js';
 
 import {
@@ -107,6 +109,18 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
   let queryPlanCache = options.queryPlanCache ?? null;
   const backendDisposers = new Set();
   const disposeBackends = createBackendDisposer(backendDisposers);
+  const settlement = createSearchSettlement({ dispose: disposeBackends, after: [
+    () => telemetry?.emitResourceWarnings?.({ warn: () => {} }),
+    async () => {
+      if (typeof queryPlanCache?.persist !== 'function') return;
+      try { await queryPlanCache.persist(); }
+      catch (error) {
+        // An ordinary cache persistence miss remains optional; it cannot hide
+        // an original unsettled file/namespace/native resource.
+        observeStorageResource(error, { phase: 'search-plan-cache-persistence' }).requireSettled();
+      }
+    }
+  ] });
 
   if (signal?.aborted) {
     throw createError(ERROR_CODES.CANCELLED, 'Search cancelled.', { cancelled: true });
@@ -1303,6 +1317,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     recordSearchMetrics('ok');
     return payload;
   } catch (err) {
+    settlement.captureFailure(err);
     recordSearchMetrics('error');
     if (emitOutput && jsonOutput && !err?.emitted) {
       let message = err?.message || 'Search failed.';
@@ -1321,18 +1336,6 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     }
     throw err;
   } finally {
-    // Release handles before telemetry or cache persistence can fail. Cleanup
-    // failures must not replace an existing search/cancellation failure.
-    try { await disposeBackends(); } catch {}
-    if (telemetry?.emitResourceWarnings) {
-      telemetry.emitResourceWarnings({
-        warn: () => {}
-      });
-    }
-    if (typeof queryPlanCache?.persist === 'function') {
-      try {
-        await queryPlanCache.persist();
-      } catch {}
-    }
+    await settlement.settle();
   }
 }
