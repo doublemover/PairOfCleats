@@ -60,7 +60,8 @@ try { await assert.rejects(inventoryStageOutput(options), /backend bytes changed
 finally { fs.lstat = lstat; }
 await assert.rejects(inventoryBackendPayload({ dir: fixture.dir, limits: { entries: 4097 } }), /only lower/);
 const manifest = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
-const restore = () => fs.writeFile(manifestPath, JSON.stringify(manifest));
+const originalManifestBytes = await fs.readFile(manifestPath);
+const restore = () => fs.writeFile(manifestPath, originalManifestBytes);
 for (const mutate of [
   value => { value.pieces.find(piece => piece.format === 'dir').path = '../escape'; },
   value => { value.pieces.push({ ...value.pieces[0], path: './ordinary.txt' }); },

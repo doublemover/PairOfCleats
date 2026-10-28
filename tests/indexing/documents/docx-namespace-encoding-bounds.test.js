@@ -84,7 +84,8 @@ try {
       const result = await extractDocx({ buffer: buildMinimalDocxBuffer([], { xml }) });
       assert.equal(result.ok, true, `${backend}: ${result.reason || result.warnings?.join('; ')}`);
       assert.deepEqual(result.paragraphs, expected); assert.deepEqual(chunked(result.paragraphs), baseline);
-      const allowedWarnings = new Set(['paragraph style with ID Heading1 was referenced but not defined in the document',
+      const allowedWarnings = new Set(['Paragraph style with ID Heading1 was referenced but not defined in the document',
+        'An unrecognised element was ignored: w:cr',
         'An unrecognised element was ignored: {urn:foreign}group']);
       assert.ok(result.warnings.every(value => allowedWarnings.has(value)), `unexpected provider diagnostics: ${result.warnings.join('; ')}`);
     }

@@ -84,8 +84,9 @@ const adoc = ['= Manual', '', '[source,text]', '----', '== Listing Impostor', '-
   '====', '======', '== Nested Impostor', '======', '====', '', '[[usage-id]]', '== Usage', '',
   '....', '== Literal Impostor', '....', '', '++++', '== Raw Impostor', '++++', '', '--', '== Open Impostor', '--', '',
   '* Item', '+', '== List Impostor', '', '== Usage', '', 'tail'];
-const adocExpected = [{ title: 'Manual', line: 0, endLine: 0, level: 0, parent: null },
-  { title: 'Usage', line: 18, endLine: 18, level: 1, parent: 0 }, { title: 'Usage', line: 36, endLine: 36, level: 1, parent: 0 }];
+const adocExpected = [{ title: 'Manual', line: 0, inset: 2, endLine: 0, level: 0, parent: null },
+  { title: 'Usage', line: 18, inset: 3, endLine: 18, level: 1, parent: 0 },
+  { title: 'Usage', line: 36, inset: 3, endLine: 36, level: 1, parent: 0 }];
 for (const newline of ['\n', '\r\n']) {
   const result = oracle({ lines: adoc, newline, ext: '.adoc', project: projectAsciiDocOutline, expected: adocExpected });
   assert.equal(result.headings[1].anchor.value, 'usage-id');
