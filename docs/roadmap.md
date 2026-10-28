@@ -1,6 +1,6 @@
 # PairOfCleats Roadmap
 
-Status: Implementation through checkpoint 240; full Windows validation next
+Status: Checkpoint 240 implementation freeze; full Windows validation in progress
 Last audited: 2026-10-27
 Last reconciled: 2026-10-28
 Canonical for: initiative status, execution order, and remaining work
@@ -21,11 +21,10 @@ Completed source-bound checks are indexed in the
 [qualification archive](archived/native-runtime-qualification-index-2026-10-27.md)
 and [qualification matrix](testing/qualification-matrix.md).
 
-The [current solo implementation wave](archived/implementation-wave-2026-10-27.md)
-indexes source/tree receipts and deferred checks for storage, providers, languages,
-embeddings, triage, rendering, native workflows and performance.
-These checkpoints remain **functionally unvalidated**; package allowances and
-built-in/native/custom integration remain.
+The [solo implementation wave](archived/implementation-wave-2026-10-27.md) remains
+functionally unvalidated. The [checkpoint-240 Windows campaign](archived/windows-full-validation-checkpoint-240-2026-10-28.md)
+freezes implementation for the full suite and issue acceptance. Remaining source
+gaps stay recorded in the owner queue.
 
 [Five dependency retirements](archived/dependency-ownership-implementation-2026-10-27.md)
 removed 110 lock records. Locked bootstrap passed without warnings/errors:
