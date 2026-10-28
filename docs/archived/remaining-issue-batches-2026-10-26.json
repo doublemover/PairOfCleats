@@ -1655,7 +1655,15 @@
       "priority": "unranked",
       "batch": "storage-publication-and-cleanup",
       "phase": "source-review-and-implementation",
-      "status": "queued"
+      "status": "source-implemented-qualification-pending",
+      "currentDisposition": "qualification_pending",
+      "currentImplementation": "Per-ID original cross-process lock, atomic canonical selector and immutable paired JSON/Markdown generations replace independently mutable pair publication. Exact reimports reuse a verified generation; conflict decisions are owned. Inventory carries compact witnesses and actual index/replay consumption rechecks both payload hashes/lengths. Original generation source reads survive later publication; finding/history return public fields without internal bookkeeping. Sixteen authored unexecuted cases include real separate-process and actual builder interleavings, cancellation, failure, unknown roots and resource recovery. Full original/follow-up execution remains.",
+      "unvalidatedSourceHeads": [
+        "2c05a6a0dfcc95f93c39d682e680aecb9ed0a55c"
+      ],
+      "unvalidatedReceipts": [
+        "docs/archived/triage-publication-implementation-2026-10-27.md"
+      ]
     },
     {
       "number": 855,
@@ -7616,13 +7624,14 @@
       "number": 1652,
       "unvalidatedSourceHeads": [
         "08fe8b40ba060e7ab0531111c62279f62b96cab8",
-        "449159675248f07a8591a118b374d9544bb3ca82"
+        "449159675248f07a8591a118b374d9544bb3ca82",
+        "1d4263e99e5f9a2966da644fa53b60ae6ed7f5d3"
       ],
       "unvalidatedReceipts": [
         "frontmatter-content-implementation-2026-10-27.md",
         "docs/archived/embedded-content-implementation-2026-10-27.md"
       ],
-      "currentImplementation": "Shared versioned exact source-piece content views now drive Markdown/comment fence validation, chunking, token input, local relations, scheduler plan/execution, VFS documents/hashes/targets and immutable semantic maps/readers. Comment config retains semantic indentation, CRLF, broad comment identity and the same parser view used for validation. Strict v2 piecewise maps, inverse ownership, map-aware UID/cache and metadata admission retain explicit unavailable transformations/bounds; legacy cross-piece invocation-owner joins remain explicitly unsupported. Twenty-one authored cases are unexecuted. Actual native scheduler, persisted warm relocation, published navigation and complete original/follow-up qualification remain.",
+      "currentImplementation": "Shared versioned exact source-piece content views now drive Markdown/comment fence validation, chunking, token input, local relations, scheduler plan/execution, VFS documents/hashes/targets and immutable semantic maps/readers. Comment config retains semantic indentation, CRLF, broad comment identity and the same parser view used for validation. Strict v2 piecewise maps, inverse ownership, map-aware UID/cache and metadata admission retain explicit unavailable transformations/bounds; legacy cross-piece invocation-owner joins remain explicitly unsupported. Twenty-one authored cases are unexecuted. Actual native scheduler, persisted warm relocation, published navigation and complete original/follow-up qualification remain. Actual MetaV2 projection now retains content views and typed comment origins; source chunking/type normalization/VFS routing advance to 37/14/6. The existing 21 cases also cover retained metadata projection; functional qualification remains deferred.",
       "title": "Separate Markdown container extents from embedded parser content and source maps",
       "recordedDisposition": "implementation_needed",
       "priority": "unranked",
@@ -7658,9 +7667,10 @@
       "phase": "source-review-and-implementation",
       "status": "source-implemented-qualification-pending",
       "currentDisposition": "qualification_pending",
-      "currentImplementation": "Shared versioned exact source-piece content views now drive Markdown/comment fence validation, chunking, token input, local relations, scheduler plan/execution, VFS documents/hashes/targets and immutable semantic maps/readers. Comment config retains semantic indentation, CRLF, broad comment identity and the same parser view used for validation. Strict v2 piecewise maps, inverse ownership, map-aware UID/cache and metadata admission retain explicit unavailable transformations/bounds; legacy cross-piece invocation-owner joins remain explicitly unsupported. Twenty-one authored cases are unexecuted. Actual native scheduler, persisted warm relocation, published navigation and complete original/follow-up qualification remain.",
+      "currentImplementation": "Shared versioned exact source-piece content views now drive Markdown/comment fence validation, chunking, token input, local relations, scheduler plan/execution, VFS documents/hashes/targets and immutable semantic maps/readers. Comment config retains semantic indentation, CRLF, broad comment identity and the same parser view used for validation. Strict v2 piecewise maps, inverse ownership, map-aware UID/cache and metadata admission retain explicit unavailable transformations/bounds; legacy cross-piece invocation-owner joins remain explicitly unsupported. Twenty-one authored cases are unexecuted. Actual native scheduler, persisted warm relocation, published navigation and complete original/follow-up qualification remain. Actual MetaV2 projection now retains content views and typed comment origins; source chunking/type normalization/VFS routing advance to 37/14/6. The existing 21 cases also cover retained metadata projection; functional qualification remains deferred.",
       "unvalidatedSourceHeads": [
-        "449159675248f07a8591a118b374d9544bb3ca82"
+        "449159675248f07a8591a118b374d9544bb3ca82",
+        "1d4263e99e5f9a2966da644fa53b60ae6ed7f5d3"
       ],
       "unvalidatedReceipts": [
         "docs/archived/embedded-content-implementation-2026-10-27.md"

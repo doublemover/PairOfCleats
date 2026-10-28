@@ -5,6 +5,15 @@
 `codex/pr557-audit-repairs-20261012`. Windows x64, Node 26.12.1.
 Local implementation checkpoint; not pushed or functionally qualified.
 
+Follow-up source `1d4263e99e5f9a2966da644fa53b60ae6ed7f5d3`, tree
+`a46628b19fe9d9c6e6e2573a0d9b66de26c5bc2d`, retains the content view and comment
+origin through the actual `buildMetaV2` projection. Its typed origin schema and
+cross-field checks prevent persistence from silently discarding the admitted map.
+The existing 21 cases now also exercise the real metadata builder for comment
+and JavaScript products. Source chunking/type normalization/VFS routing advance
+to 37/14/6; the first checkpoint's original versions remain recorded below.
+Static format/syntax/whitespace checks passed; all functional checks remain unrun.
+
 ## Repaired representation
 
 #1652/#1654 shared the same defect: discovery/validation described logical
