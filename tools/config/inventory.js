@@ -165,6 +165,9 @@ const KNOWN_ENV_VARS = new Set([
   'PAIROFCLEATS_LANCEDB_CHILD',
   'PAIROFCLEATS_LANCEDB_ISOLATE',
   'PAIROFCLEATS_LANCEDB_PAYLOAD',
+  // Explicit CDB collector -> diagnostic child transport, consumed once.
+  // Unset in ordinary launches; not a public configuration switch.
+  'PAIROFCLEATS_WINDOWS_CDB_CHILD_CONTEXT',
   'PAIROFCLEATS_LOG_FORMAT',
   'PAIROFCLEATS_LOG_LEVEL',
   'PAIROFCLEATS_MAX_OLD_SPACE_MB',

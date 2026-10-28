@@ -115,3 +115,5 @@ and [minidump creation](https://learn.microsoft.com/en-us/windows-hardware/drive
 The default `/m` content includes modules, threads and stacks; `/ma` also includes
 full memory. No debugger registration, global security setting, installation or
 native/debugger execution occurred in this implementation batch.
+
+`PAIROFCLEATS_WINDOWS_CDB_CHILD_CONTEXT` is an internal collector-to-child transport record, unset by default. The explicit collector supplies its owned attempt directory and nonce; the child consumes and removes it before application import. It is registered in the internal environment inventory, carries no public configuration budget, and does not enable a collector or authorize cleanup. The child/protocol fixture controls cover malformed and ordinary launches.
