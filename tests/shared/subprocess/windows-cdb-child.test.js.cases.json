@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["async-output", "nonzero-exit", "truncated-output", "invalid-context", "simulated-native-exit", "phase-checkpoint"]
+}

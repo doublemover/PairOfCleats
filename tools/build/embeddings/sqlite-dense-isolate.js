@@ -111,14 +111,24 @@ const buildReplayBundle = ({
 });
 
 export const runSqliteDenseIsolateChild = async (payload = {}) => {
+  const { recordWindowsCdbChildPhase: recordPhase } = await import('../../shared/windows-cdb-child.js');
+  recordPhase('sqlite:entry');
   maybeInjectSqliteDenseTestFailure();
   let Database = null;
+  recordPhase('sqlite:before-native-import');
   try {
     ({ default: Database } = await import('better-sqlite3'));
   } catch (err) {
-    throw new Error(`better-sqlite3 unavailable for sqlite dense isolate: ${err?.message || err}`);
+    const observation = observeStorageResource(err, { phase: 'sqlite-dense-native-import' });
+    observation.requireSettled();
+    let detail;
+    try { detail = typeof err?.message === 'string' ? err.message : 'native import failed'; }
+    catch (inspection) { throw observation.wrap(inspection); }
+    throw observation.wrap(new Error(`better-sqlite3 unavailable for sqlite dense isolate: ${detail}`, { cause: err }));
   }
-  return updateSqliteDense({
+  recordPhase('sqlite:native-import-completed');
+  recordPhase('sqlite:update-start');
+  const result = await updateSqliteDense({
     Database,
     root: payload.root,
     userConfig: payload.userConfig,
@@ -136,6 +146,8 @@ export const runSqliteDenseIsolateChild = async (payload = {}) => {
     warnOnMissing: payload.warnOnMissing !== false,
     logger: console
   });
+  recordPhase('sqlite:update-completed');
+  return result;
 };
 
 export const runSqliteDenseWithBoundary = async ({

@@ -10,7 +10,7 @@ import { observeStorageResource } from '../../src/shared/storage/failure-observa
 import { addStorageFailureContext } from '../../src/shared/storage/operation-error.js';
 import { spawnSubprocess } from '../../src/shared/subprocess/runner.js';
 import { inspectWindowsMinidump, WINDOWS_MINIDUMP_MAX_BYTES } from './windows-minidump.js';
-import { WINDOWS_CDB_CHILD_CONTEXT, WINDOWS_CDB_COMMANDS, WINDOWS_CDB_OUTPUT_BYTES as OUTPUT_BYTES } from './windows-cdb-protocol.js';
+import { WINDOWS_CDB_CHILD_CONTEXT, WINDOWS_CDB_COMMANDS, WINDOWS_CDB_CHILD_PHASES, WINDOWS_CDB_OUTPUT_BYTES as OUTPUT_BYTES } from './windows-cdb-protocol.js';
 
 const ATTEMPT_BYTES = 24 * 1024 * 1024;
 const FAMILY_BYTES = 128 * 1024 * 1024;
@@ -169,6 +169,18 @@ export const runWindowsCdbCapture = async (config, options, retainFailure) => {
       }
     }
     if (!reply && !dump) throw fail('no-target-exit-or-owned-dump');
+    let progress = Object.freeze({ status: 'unavailable', lastCompletedPhase: null, sequence: null });
+    if (finalInventory.files.some(file => file.name === 'child-progress.ndjson')) {
+      const text = (await read('child-progress.ndjson', 16 * 1024)).buffer.toString('utf8');
+      const lines = text.split('\n'), complete = lines.pop() === '';
+      if (lines.length > 64) throw fail('target-progress-extent');
+      for (let index = 0; index < lines.length; index++) {
+        const event = JSON.parse(lines[index]);
+        if (event.schemaVersion !== 1 || event.token !== token || event.pid !== launch.pid || event.sequence !== index + 1
+          || !WINDOWS_CDB_CHILD_PHASES.includes(event.phase)) throw fail('target-progress-identity');
+        progress = Object.freeze({ status: complete ? 'recorded' : 'partial', lastCompletedPhase: event.phase, sequence: event.sequence });
+      }
+    }
     const after = [];
     for (const input of before) {
       const observed = remember(await sha256FileObservation(input.path, { containedRoot: path.parse(input.path).root }), 'final-input-hash');
@@ -186,16 +198,18 @@ export const runWindowsCdbCapture = async (config, options, retainFailure) => {
         && debugOutput?.outputCapture?.stdout?.truncated === false && debugOutput?.outputCapture?.stderr?.truncated === false,
       execution: config.testRunDebugger ? 'fixture-controlled' : 'real-debugger', inputs: Object.freeze(after),
       nativeQualification: 'pending' });
+    const captureWithProgress = Object.freeze({ ...crashCapture, progress,
+      diagnosticsComplete: crashCapture.diagnosticsComplete && progress.status === 'recorded' });
     // CDB's own zero exit after q is not the debuggee's status. A validated
     // exception stream, or the exact ordinary exit reply, owns that status.
     const childResult = Object.freeze({ exitCode: dump?.exceptionCode ?? reply?.exitCode ?? null, signal: null,
       stdout, stderr, durationMs: processResult?.durationMs ?? null,
       outputCapture: reply?.outputCapture ?? { stdout: { truncated: true }, stderr: { truncated: true } } });
-    result = Object.freeze({ childResult, crashCapture });
-    remember(await atomicWriteJson(path.join(directory, 'capture.json'), crashCapture), 'capture-write');
+    result = Object.freeze({ childResult, crashCapture: captureWithProgress });
+    remember(await atomicWriteJson(path.join(directory, 'capture.json'), captureWithProgress), 'capture-write');
     remember(await inventory(directory), 'published-inventory');
     if (debuggerFailed) {
-      failure = fail('debugger-or-growth-monitor-failed', { crashCapture, childResult });
+      failure = fail('debugger-or-growth-monitor-failed', { crashCapture: captureWithProgress, childResult });
       if (processFailure !== null) failure = combine(failure, processFailure);
       if (monitorFailure !== null) failure = combine(failure, monitorFailure);
     }

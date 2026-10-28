@@ -1,13 +1,22 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { WINDOWS_CDB_CHILD_CONTEXT, WINDOWS_CDB_OUTPUT_BYTES as OUTPUT_BYTES } from './windows-cdb-protocol.js';
+import { WINDOWS_CDB_CHILD_CONTEXT, WINDOWS_CDB_CHILD_PHASES, WINDOWS_CDB_OUTPUT_BYTES as OUTPUT_BYTES } from './windows-cdb-protocol.js';
+
+let activeContext = null, sequence = 0;
+export const recordWindowsCdbChildPhase = phase => {
+  if (!activeContext) return;
+  if (!WINDOWS_CDB_CHILD_PHASES.includes(phase) || sequence >= 64) throw new Error('Invalid or excessive CDB child phase.');
+  fs.appendFileSync(path.join(activeContext.directory, 'child-progress.ndjson'), `${JSON.stringify({ schemaVersion: 1,
+    token: activeContext.token, pid: process.pid, sequence: ++sequence, phase })}\n`);
+};
 
 /** Installed only in the explicit diagnostic child. The exit event, rather
  * than completion of import(), witnesses ordinary asynchronous work finishing.
  * Each bounded output append closes before returning to native application work.
  */
 export const runWindowsCdbChild = async () => {
+  if (activeContext) throw new Error('CDB child context is already active.');
   const context = JSON.parse(process.env[WINDOWS_CDB_CHILD_CONTEXT] || '{}');
   delete process.env[WINDOWS_CDB_CHILD_CONTEXT];
   if (typeof context.token !== 'string' || !/^[a-f0-9-]{36}$/u.test(context.token)
@@ -47,6 +56,9 @@ export const runWindowsCdbChild = async () => {
   });
   writeJson('child-launch.json', { schemaVersion: 1, token: context.token, pid: process.pid,
     node: process.version, abi: process.versions.modules, platform: process.platform, arch: process.arch });
+  fs.writeFileSync(path.join(context.directory, 'child-progress.ndjson'), '', { flag: 'wx', mode: 0o600 });
+  activeContext = Object.freeze({ token: context.token, directory: context.directory });
+  recordWindowsCdbChildPhase('child:initialized');
   process.chdir(context.cwd);
   await import(pathToFileURL(path.join(context.directory, 'application.mjs')).href);
 };

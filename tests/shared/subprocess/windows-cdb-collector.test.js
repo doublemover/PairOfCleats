@@ -19,7 +19,8 @@ const cases = ['owned-dump', 'normal-exit', 'simulated-exit', 'no-dump', 'wrong-
   'missing-launch', 'wrong-token', 'bad-reply', 'debugger-failure', 'launch-failure', 'pending-result',
   'pending-error', 'unexpected-entry', 'oversize-dump', 'runtime-changed', 'capture-write-failure',
   'metadata-release-failure', 'forged-capability', 'relative-path', 'untrusted-runner', 'revoked-trust',
-  'boundary-native', 'boundary-collector-failure', 'boundary-forged', 'boundary-dual-runner'];
+  'boundary-native', 'boundary-collector-failure', 'boundary-forged', 'boundary-dual-runner',
+  'progress-valid', 'progress-partial', 'progress-foreign'];
 assert.ok(cases.includes(selected));
 if (process.platform !== 'win32' || process.arch !== 'x64') {
   assert.throws(() => createWindowsCdbCollector({}), { reason: 'unsupported-platform' });
@@ -52,6 +53,12 @@ const runDebugger = async (command, args, options) => {
   const launch = { schemaVersion: 1, token: selected === 'wrong-token' ? 'foreign' : context.token,
     pid: 1234, node: process.version, abi: process.versions.modules, platform: 'win32', arch: 'x64' };
   if (selected !== 'missing-launch') await fs.writeFile(path.join(attempt, 'child-launch.json'), JSON.stringify(launch));
+  if (selected.startsWith('progress-')) {
+    const first = JSON.stringify({ schemaVersion: 1, token: context.token, pid: 1234, sequence: 1, phase: 'child:initialized' });
+    const second = JSON.stringify({ schemaVersion: 1, token: context.token, pid: selected === 'progress-foreign' ? 4321 : 1234,
+      sequence: 2, phase: 'sqlite:update-start' });
+    await fs.writeFile(path.join(attempt, 'child-progress.ndjson'), `${first}\n${selected === 'progress-partial' ? '{"schemaVersion":' : `${second}\n`}`);
+  }
   const stdout = selected === 'normal-exit' ? '{"skipped":false,"count":1}' : '';
   const stderr = 'exact original child diagnostic';
   await fs.writeFile(path.join(attempt, 'child-stdout.bin'), stdout);
@@ -104,15 +111,21 @@ try {
       if (selected === 'revoked-trust') await withTemporaryEnv({ PAIROFCLEATS_TESTING: null }, call);
       else result = await call();
     } catch (error) { failure = error; }
-    if (['owned-dump', 'normal-exit', 'simulated-exit'].includes(selected)) {
+    if (['owned-dump', 'normal-exit', 'simulated-exit', 'progress-valid', 'progress-partial'].includes(selected)) {
       assert.equal(failure, null); assert.equal(result.crashCapture.execution, 'fixture-controlled');
       assert.equal(result.crashCapture.nativeQualification, 'pending');
-      assert.equal(result.crashCapture.status, selected === 'owned-dump' ? 'captured' : 'no-dump');
+      const captured = selected === 'owned-dump' || selected.startsWith('progress-');
+      assert.equal(result.crashCapture.status, captured ? 'captured' : 'no-dump');
       assert.equal(result.childResult.exitCode, selected === 'normal-exit' ? 0 : 3221225477);
-      if (selected === 'owned-dump') {
+      if (captured) {
         assert.equal(result.crashCapture.dump.processId, 1234); assert.equal(result.crashCapture.dump.exceptionHex, '0xc0000005');
         assert.equal(result.crashCapture.dumpFiles.length, 1); assert.match(result.crashCapture.dump.sha256, /^[a-f0-9]{64}$/u);
       } else assert.deepEqual(result.crashCapture.dumpFiles, []);
+      if (selected.startsWith('progress-')) {
+        assert.equal(result.crashCapture.progress.status, selected === 'progress-valid' ? 'recorded' : 'partial');
+        assert.equal(result.crashCapture.progress.lastCompletedPhase, selected === 'progress-valid' ? 'sqlite:update-start' : 'child:initialized');
+        assert.equal(result.crashCapture.diagnosticsComplete, selected === 'progress-valid');
+      }
     } else {
       assert.ok(failure, `${selected} must fail without retry`);
       if (selected === 'launch-failure' || selected === 'capture-write-failure' || selected === 'metadata-release-failure') assert.ok(errorGraphIncludes(failure, primary));
