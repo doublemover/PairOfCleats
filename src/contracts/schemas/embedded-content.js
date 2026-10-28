@@ -13,3 +13,6 @@ export const EMBEDDED_CONTENT_VIEW_SCHEMA = object({
   pieces: { type: 'array', minItems: 1, maxItems: 256,
     items: object({ start: integer, end: integer, localStart: integer, localEnd: integer }) }
 });
+
+export const EMBEDDED_CONTENT_ORIGIN_SCHEMA = object({ kind: { const: 'comment' },
+  identity: { type: 'string', pattern: '^[a-f0-9]{64}$' }, start: integer, end: integer });

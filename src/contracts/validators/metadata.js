@@ -5,6 +5,13 @@ import { assertEmbeddedContentView, embeddedContentIdentity, unmapEmbeddedConten
 export const validateMetadataV2Semantics = (metadata) => {
   const errors = [];
   if (!metadata || typeof metadata !== 'object') return errors;
+  if (metadata.segment?.contentView) {
+    try {
+      const view = assertEmbeddedContentView(metadata.segment.contentView), origin = metadata.segment.contentOrigin;
+      if (metadata.segment.start !== view.sourceStart || metadata.segment.end !== view.sourceEnd
+        || origin && (origin.start !== view.containerStart || origin.end !== view.containerEnd)) throw new Error('segment extent differs');
+    } catch { errors.push('/segment: embedded content differs from its admitted source/container extent'); }
+  } else if (metadata.segment?.contentOrigin) errors.push('/segment: content origin requires its admitted content view');
   if (metadata.sourceOutline) errors.push(...sourceOutlineErrors(metadata.sourceOutline).map(error => '/sourceOutline: ' + error));
   if (metadata.javascriptDeclaration) {
     const value = metadata.javascriptDeclaration, mapping = value.sourceMapping;

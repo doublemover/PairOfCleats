@@ -16,6 +16,7 @@ import { projectJavaScriptDeclaration } from '../../../src/lang/javascript/decla
 import { buildCodeRelations } from '../../../src/lang/javascript/relations.js';
 import { buildLineIndex } from '../../../src/shared/lines.js';
 import { validateMetadataV2Semantics } from '../../../src/contracts/validators/metadata.js';
+import { buildMetaV2 } from '../../../src/index/metadata-v2.js';
 
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('/').at(-1);
 const json = '{\n  "name": "界😀",\n  "enabled": true\n}';
@@ -79,6 +80,12 @@ if (fixtures[selected]) {
     assert.equal(result.data.comments[0].end, text.length, 'broad prose/reference comment extent remains available');
     assert.equal(segment.meta.commentContentIdentity, embeddedContentIdentity(result.data.comments[0].contentView));
     assert.ok(chunks.every(chunk => chunk.segment.contentOrigin.identity === segment.meta.commentContentIdentity));
+    for (const chunk of chunks) {
+      const metadata = buildMetaV2({ chunk: { ...chunk, file: 'fixture' + ext, ext } });
+      assert.deepEqual(metadata.segment.contentView, segment.contentView);
+      assert.equal(metadata.segment.contentOrigin.identity, segment.meta.commentContentIdentity);
+      assert.deepEqual(validateMetadataV2Semantics(metadata), []);
+    }
     assert.ok(result.meta.extraSegments.some(value => value.type === 'comment'));
   }
 } else if (selected === 'vfs-and-token-input') {
@@ -162,6 +169,10 @@ if (fixtures[selected]) {
   assert.deepEqual(validateMetadataV2Semantics(metadata), []);
   const wrong = structuredClone(metadata); wrong.segment.contentView.policy = 'unknown-policy-v2';
   assert.ok(validateMetadataV2Semantics(wrong).length, 'metadata cannot attach a different or unknown piecewise map');
+  const retained = buildMetaV2({ chunk: { ...chunk, file: 'guide.md', ext: '.md', lang: 'javascript' },
+    docmeta: { ...projection.metadata, flowEvidence: projection.flowEvidence, javascriptDeclaration: projection.javascriptDeclaration } });
+  assert.deepEqual(retained.segment.contentView, segment.contentView, 'actual metadata projection cannot drop the map before persistence');
+  assert.deepEqual(validateMetadataV2Semantics(retained), []);
 } else if (selected === 'closing-and-invalid-config') {
   for (const source of ['/**\n * ```json\n * { nope }\n * ```\n */',
     '/**\n * ````json\n * {}\n * ```\n */', '/**\n * ```json\n * {}\n */']) {

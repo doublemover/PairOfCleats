@@ -216,6 +216,8 @@ export function buildMetaV2({ chunk, docmeta, toolInfo, analysisPolicy }) {
     ...(chunk.recordSource ? { recordSource: chunk.recordSource } : {}),
     segment: segment
       ? {
+        ...(segment.contentView ? { contentView: segment.contentView } : {}),
+        ...(segment.contentOrigin ? { contentOrigin: segment.contentOrigin } : {}),
         segmentId: normalizeString(segment.segmentId),
         segmentUid: normalizeString(segment.segmentUid),
         virtualPath: normalizeString(segment.virtualPath),

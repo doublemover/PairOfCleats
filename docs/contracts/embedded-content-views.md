@@ -59,9 +59,9 @@ A cross-piece owner is explicitly unavailable for that legacy invocation join;
 the retained piecewise syntax/semantic facts remain available. This does not
 claim complete framework binding or runtime invocation semantics.
 
-Shared producer identities change with this meaning: source chunking 36,
+Shared producer identities change with this meaning: source chunking 37,
 comment extraction/classification 6, JavaScript relations 3, type normalization
-13, VFS routing 5, compiler bindings 27 and LSP bindings 54. Existing strict
+14, VFS routing 6, compiler bindings 27 and LSP bindings 54. Existing strict
 canonical map checks, cache isolation and immutable metadata behavior remain.
 
 The 21 `indexing/segments/embedded-content-views/*` cases are **authored and
