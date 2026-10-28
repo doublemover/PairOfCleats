@@ -11,7 +11,7 @@ export function extractDocMeta(text, chunk, astMeta = null, sourceView = null) {
   const chunkText = text.slice(chunk.start, chunk.end);
   const projection = projectJavaScriptDeclaration(text, chunk, astMeta, astMeta?.jsDeclarations?.analysis, sourceView);
   const nameMeta = projection.join.record ? projection.metadata : null;
-  const documentation = projection.join.record?.documentation || resolveStandaloneJavaScriptDocumentation(text, chunk);
+  const documentation = projection.join.record?.metadata?.documentation || resolveStandaloneJavaScriptDocumentation(text, chunk);
   const params = documentation.parameters.map(parameter => parameter.name);
   const paramTypes = { ...Object.fromEntries(documentation.parameters.filter(parameter => parameter.type)
     .map(parameter => [parameter.name, parameter.type])), ...(nameMeta?.paramTypes || {}) };

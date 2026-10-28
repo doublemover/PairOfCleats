@@ -1,5 +1,6 @@
 import { JAVASCRIPT_RELATIONS_VERSION } from '../../lang/javascript/version.js';
 import { EMBEDDED_CONTENT_VIEW_SCHEMA } from './embedded-content.js';
+import { JAVASCRIPT_DOCUMENTATION_SCHEMA } from './javascript-documentation.js';
 const count = { type: 'integer', minimum: 0, maximum: Number.MAX_SAFE_INTEGER };
 const nullableString = { type: ['string', 'null'] };
 const range = { type: 'object', additionalProperties: false, required: ['start', 'end'], properties: { start: count, end: count } };
@@ -18,7 +19,8 @@ export const JAVASCRIPT_DECLARATION_CATALOG_SCHEMA = { type: 'object', additiona
     records: { type: 'object', maxProperties: 10000, additionalProperties: { type: 'object', additionalProperties: false,
       required: ['id', 'sourceHash', 'range', 'role', 'associations', 'kind', 'displayName', 'internalName', 'parentId', 'metadata'], properties: {
         id, sourceHash: digest, range, role: { type: 'string', minLength: 1, maxLength: 128 }, kind: { enum: ['module', 'class', 'callable', 'evaluation'] },
-        displayName: { type: 'string' }, internalName: nullableString, parentId: { ...id, type: ['string', 'null'] }, metadata: { type: 'object' },
+        displayName: { type: 'string' }, internalName: nullableString, parentId: { ...id, type: ['string', 'null'] },
+        metadata: { type: 'object', properties: { documentation: JAVASCRIPT_DOCUMENTATION_SCHEMA } },
         scopeState: { enum: ['complete', 'partial'] }, scopeReasons: { type: 'array', maxItems: 16, items: { type: 'string' } },
         associations: { type: 'array', minItems: 1, maxItems: 2, items: { type: 'object', additionalProperties: false, required: ['kind', 'range'],
           properties: { kind: { enum: ['declaration', 'variable-initializer', 'assignment-value', 'member-value', 'export-declaration'] }, range } } }

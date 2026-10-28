@@ -20,6 +20,15 @@ export const javascriptDeclarationErrors = catalog => {
     if (parent && (parent.range.start > record.range.start || parent.range.end < record.range.end
       || parent.range.start === record.range.start && parent.range.end === record.range.end && parent.kind !== 'module')) error('lexical parent does not enclose its declaration');
     const associations = record.associations || [];
+    const documentation = record.metadata?.documentation;
+    if (documentation?.range && (documentation.range.end <= documentation.range.start
+      || documentation.range.end > source.length
+      || documentation.range.end > Math.min(...associations.map(value => value.range.start)))) {
+      error('documentation range must precede its source-owned declaration associations');
+    }
+    if (documentation?.parameters && new Set(documentation.parameters.map(value => value.name)).size !== documentation.parameters.length) {
+      error('documentation repeats a parameter name');
+    }
     if (associations.filter(value => value.kind === 'declaration').length !== 1
       || !associations.some(value => value.kind === 'declaration' && value.range.start === record.range.start
         && value.range.end === record.range.end)) error('declaration association must equal its owner range');

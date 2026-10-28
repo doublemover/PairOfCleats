@@ -1,0 +1,37 @@
+import assert from 'node:assert/strict';
+import { getLanguageForFile } from '../../../src/index/language-registry.js';
+import { validateArtifact } from '../../../src/contracts/validators/artifacts.js';
+import { JAVASCRIPT_RELATIONS_VERSION } from '../../../src/lang/javascript/version.js';
+import { SEMANTIC_ANALYSIS_VERSIONS } from '../../../src/index/semantic/analysis-versions.js';
+import { applyTestEnv } from '../../helpers/test-env.js';
+
+applyTestEnv();
+const text = '/**\n * @param {string} [value="x"]\n * @returns {number}\n */\nexport function documented(value) { return value.length; }\n';
+const lang = getLanguageForFile('.js', 'documented.js');
+const options = { javascript: { parser: 'babel' }, treeSitter: { enabled: false }, astDataflowEnabled: true, controlFlowEnabled: true };
+const context = await lang.prepare({ text, ext: '.js', relPath: 'documented.js', mode: 'code', options });
+const relations = lang.buildRelations({ text, relPath: 'documented.js', context, options });
+const artifact = JSON.parse(JSON.stringify([{ file: 'documented.js', relations }]));
+const checked = validateArtifact('file_relations', artifact);
+assert.equal(checked.ok, true, checked.errors.join('; '));
+assert.equal(SEMANTIC_ANALYSIS_VERSIONS.javascriptRelations, JAVASCRIPT_RELATIONS_VERSION);
+const catalog = artifact[0].relations.jsDeclarations;
+const record = Object.values(catalog.records).find(value => value.metadata.documentation.state === 'parsed');
+assert.ok(record, 'the actual serialized language product must retain its parsed leading documentation');
+assert.equal(record.documentation, undefined, 'documentation must use the existing metadata extension');
+assert.deepEqual(record.metadata.documentation.parameters, [{ name: 'value', type: 'string', optional: true, default: '"x"', rest: false }]);
+assert.equal(record.metadata.documentation.returnType, 'number');
+assert.equal(record.metadata.documentation.range.end < record.range.start, true);
+const rejects = mutate => {
+  const copy = structuredClone(artifact), row = copy[0].relations.jsDeclarations.records[record.id];
+  mutate(row, copy[0].relations.jsDeclarations);
+  assert.equal(validateArtifact('file_relations', copy).ok, false);
+};
+rejects(row => { row.documentation = row.metadata.documentation; delete row.metadata.documentation; });
+rejects(row => { row.metadata.documentation.execute = 'untrusted command'; });
+rejects(row => { row.metadata.documentation.range.end = text.length + 1; });
+rejects(row => { row.metadata.documentation.range.end = row.range.end; });
+rejects(row => { row.metadata.documentation.parameters.push({ ...row.metadata.documentation.parameters[0] }); });
+rejects(row => { row.metadata.documentation.state = 'absent'; });
+rejects((row, value) => { value.producerVersion = String(Number(JAVASCRIPT_RELATIONS_VERSION) - 1); });
+console.log('Serialized JavaScript documentation respects strict declaration metadata, source ranges and replay version ownership');

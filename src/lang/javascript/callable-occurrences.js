@@ -66,8 +66,8 @@ export const createJavaScriptDeclarationCatalog = (ast, text) => {
     if (!reference) { partial('declaration_range_unavailable'); return null; }
     if (Object.hasOwn(catalog.records, reference.id)) return catalog.records[reference.id];
     if (declarations >= catalog.coverage.maxDeclarations) { partial('declaration_admission_limit'); return null; }
-    const record = { ...reference, kind, displayName, internalName: node.id?.name || null, parentId, metadata,
-      documentation: documentation.forDeclaration(reference.associations) };
+    const record = { ...reference, kind, displayName, internalName: node.id?.name || null, parentId,
+      metadata: { ...metadata, documentation: documentation.forDeclaration(reference.associations) } };
     catalog.records[record.id] = record;
     declarations++;
     for (const value of record.associations) (catalog.rangeOwners[key(value.range)] ||= []).push(record.id);
