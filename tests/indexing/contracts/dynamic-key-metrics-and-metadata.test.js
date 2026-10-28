@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { createFeatureMetrics } from '../../../src/index/build/feature-metrics.js';
+import { createFeatureMetrics, mergeFeatureMetrics } from '../../../src/index/build/feature-metrics.js';
 import { createPerfProfile,recordFileMetric,finalizePerfProfile } from '../../../src/index/build/perf-profile.js';
 import { createStageCheckpointRecorder } from '../../../src/index/build/stage-checkpoints.js';
 import { createRuntimeTelemetry } from '../../../src/index/build/runtime/queues.js';
@@ -16,15 +16,39 @@ for (const key of ['__proto__','constructor','toString']) {
   const finalized = features.finalize();
   assert.equal(finalized.modes.code.languages[key].lines,3);
   assert.ok(Object.hasOwn(finalized.modes.code.languageSets,key));
+  features.registerSettings(key, Object.fromEntries([[key, true]]));
+  features.recordSetting({ mode: key, setting: key, enabled: true, languageId: key, languageSet: key,
+    lines: 3, bytes: 10, durationMs: 5 });
+  const recorded = features.finalize();
+  const merged = mergeFeatureMetrics(JSON.parse(JSON.stringify(recorded)), recorded);
+  assert.equal(merged.modes.code.languages[key].lines, 6);
+  assert.equal(merged.modes[key].settings[key].totals.count, 2);
+  assert.equal(merged.modes[key].settings[key].languages[key].lines, 6);
+  assert.equal(merged.modes[key].settings[key].languageSets[key].bytes, 20);
+  assert.ok(Object.hasOwn(JSON.parse(JSON.stringify(merged)).modes, key));
   const perf = createPerfProfile(); recordFileMetric(perf,{ languageId:key,bytes:10,lines:1,durationMs:2 });
   assert.equal(finalizePerfProfile(perf).languages[key].totals.files,1);
   const recorder = createStageCheckpointRecorder(); recorder.record({ stage:key,memory:{ rss:1 } });
   assert.equal(recorder.buildSummary().stages[key].checkpointCount,1);
+  const assertFinite = value => {
+    if (typeof value === 'number') assert.ok(Number.isFinite(value), 'checkpoint numbers remain finite');
+    else if (value && typeof value === 'object') Object.values(value).forEach(assertFinite);
+  };
+  assertFinite(recorder.buildSummary());
   const telemetry = createRuntimeTelemetry(); telemetry.setInFlightBytes(key,{ bytes:17,count:1 }); telemetry.recordDuration(key,25);
   assert.ok(Object.hasOwn(telemetry.readInFlightBytes().channels,key));
   assert.equal(telemetry.readDurationHistograms()[key].count,1);
   const bucket = {}; bumpStat(bucket,key); bumpStat(bucket,key); assert.equal(bucket[key],2);
+  assert.equal(Object.getPrototypeOf(bucket), Object.prototype);
+  assert.equal(JSON.parse(JSON.stringify(bucket))[key], 2);
   assert.equal(toEventCounts([{kind:key}])[key],1);
+  const events = toEventCounts([{ kind: key }, { kind: key }, { kind: 'file.added' }]);
+  assert.equal(JSON.parse(JSON.stringify(events))[key], 2); assert.equal(events['file.added'], 1);
+  const profile = buildScanProfile({ indexMetrics: { code: { files: { skippedByReason: Object.fromEntries([[key, 2]]) } } },
+    featureMetrics: { modes: { code: { languages: Object.fromEntries([[key, { lines: 3 }]]) } } } });
+  const wire = JSON.parse(JSON.stringify(profile));
+  assert.equal(wire.modes.code.files.skippedByReason[key], 2);
+  assert.equal(wire.modes.code.lines.byLanguage[key], 3); assert.equal(wire.languageLines[key], 3);
   const paramTypes = JSON.parse(`{"${key}":"string"}`);
   const meta = buildMetaV2({ chunk:{ file:'a.js',start:0,end:5,kind:'FunctionDeclaration' },docmeta:{ paramTypes } });
   assert.equal(meta.types.declared.params[key][0].type,'string');
