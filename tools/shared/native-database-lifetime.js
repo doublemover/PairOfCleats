@@ -5,6 +5,9 @@ import { closeLmdbDatabase } from '../../src/storage/lmdb/close.js';
 import { acquireRepoStorageSession } from '../../src/shared/storage/repository-session.js';
 import { isPathWithinRoot } from '../../src/shared/file-paths.js';
 import path from 'node:path';
+import { observeStorageResource } from '../../src/shared/storage/failure-observation.js';
+import { readStorageFailureContext } from '../../src/shared/storage/operation-error.js';
+import { acquireConfiguredNativeStorageSession, configuredNativeStorageConfigurationKey } from '../../src/shared/storage/configured-native-storage.js';
 
 const commands = new Set(['sqlite.compact', 'lmdb.build']);
 const pendingOwners = new Set();
@@ -20,6 +23,7 @@ export const runNativeDatabaseCommand = async ({ commandIdentity, delegated = fa
   const owner = delegated ? getDelegatedRepoCacheOwner() : null;
   if (owner) assertDelegatedNativeCommandIdentity(owner, commandIdentity);
   let scopeAdmitted = !owner;
+  let scopeCheck = null;
   const lifecycle = createLifecycleRegistry({ name: commandIdentity });
   const handles = new WeakMap();
   const states = new Set(), observations = new Map(), described = new WeakSet(), acceptedUses = new Set();
@@ -27,17 +31,15 @@ export const runNativeDatabaseCommand = async ({ commandIdentity, delegated = fa
   let operationSettled = false, registrySettled = false, delegationConfirmed = !owner, observerOverflow = false;
   let acceptedWorkSettled = false, recoveringStorage = null, lastFailure = null;
   const observe = error => {
-    if (!objectLike(error) || described.has(error) || observations.has(error)) return;
-    let observation = null;
-    try {
-      const method = error.cacheOwnershipReleased;
-      if (error.cacheOwnershipPending === true || typeof method === 'function') {
-        observation = () => { try { return typeof method === 'function' && method.call(error) === true; } catch { return false; } };
-      }
-    } catch { observation = () => false; }
-    if (observation) {
-      if (observations.size < 128) observations.set(error, observation); else observerOverflow = true;
-    }
+    if ((objectLike(error) && described.has(error)) || observations.has(error)) return;
+    const original = observeStorageResource(error, { phase: 'native-command-original' });
+    if (!original.hasResourceObservation) return;
+    if (observations.size >= 128) { observerOverflow = true; return; }
+    const retained = original.retain();
+    const captured = observeStorageResource(retained, { phase: 'native-command-original' });
+    const check = () => captured.isSettled();
+    Object.defineProperty(check, 'failure', { value: retained });
+    observations.set(error, check);
   };
   const resourcesClosed = () => !observerOverflow && [...states].every(state => state.phase === 'closed')
     && [...observations.values()].every(check => check());
@@ -71,7 +73,11 @@ export const runNativeDatabaseCommand = async ({ commandIdentity, delegated = fa
   };
   const preserve = (primary, cleanup, { hasPrimary = true, hasCleanup = false, settlement = false } = {}) => {
     const errors = [...(hasPrimary ? [primary] : []), ...(hasCleanup && (!hasPrimary || cleanup !== primary) ? [cleanup] : [])];
-    for (const [error, check] of observations) if (!check() && !errors.includes(error)) errors.push(error);
+    for (const [error, check] of observations) if (!check()) {
+      for (const original of [error, check.failure, ...(readStorageFailureContext(check.failure)?.inspectionErrors || [])]) {
+        if (!errors.includes(original)) errors.push(original);
+      }
+    }
     let message = 'Native database operation or cleanup failed.';
     const first = errors[0];
     let descriptors = null;
@@ -101,26 +107,47 @@ export const runNativeDatabaseCommand = async ({ commandIdentity, delegated = fa
     admitScope(scope) {
       assertActive();
       scopeAdmitted = false;
-      if (!scope?.repoRoot) throw new TypeError('Native storage scope requires its launch-selected repository context.');
-      if (owner) assertDelegatedNativeDatabaseScope(owner, { ...scope, commandId: commandIdentity });
-      if (scope?.repoRoot) {
-        if (states.size || storageAdmissions.length) throw new Error('Native storage scope must be captured once before handle acquisition.');
-        if (!Array.isArray(scope.targets) || !scope.targets.length || scope.targets.length > 16
+      try {
+        if (!scope?.repoRoot) throw new TypeError('Native storage scope requires its launch-selected repository context.');
+        if (owner) assertDelegatedNativeDatabaseScope(owner, { ...scope, commandId: commandIdentity });
+        if (scope?.repoRoot) {
+          if (states.size || storageAdmissions.length) throw new Error('Native storage scope must be captured once before handle acquisition.');
+          if (!Array.isArray(scope.targets) || !scope.targets.length || scope.targets.length > 16
           || scope.targets.some(target => typeof target !== 'string' || !path.isAbsolute(target))) {
-          throw new TypeError('Native storage scope requires bounded absolute selected targets.');
+            throw new TypeError('Native storage scope requires bounded absolute selected targets.');
+          }
+          const admission = acquireRepoStorageSession(scope.repoCacheRoot,
+            { repoRoot: scope.repoRoot, userConfig: scope.userConfig, env: scope.env }, {
+              scope: 'native-database-command', resourceRoots: scope.targets.filter(target => isPathWithinRoot(target, scope.repoCacheRoot))
+            });
+          storageAdmissions.push({ session: admission.session, released: false, category: true, revalidate: admission.revalidate });
+          admission.revalidate();
+          const backend = commandIdentity === 'lmdb.build' ? 'lmdb' : 'sqlite';
+          const configurationKey = configuredNativeStorageConfigurationKey(backend, scope.userConfig);
+          const configuredContext = { repoRoot: scope.repoRoot, userConfig: scope.userConfig, env: scope.env, nativeBackend: backend };
+          for (const target of [...new Set(scope.targets)]) {
+            if (isPathWithinRoot(target, scope.repoCacheRoot)) continue;
+            const configured = acquireConfiguredNativeStorageSession(target, configuredContext, { scope: `${commandIdentity}-configured-namespace` });
+            if (!configured) continue;
+            storageAdmissions.push({ session: configured.session, released: false, category: false, revalidate: configured.revalidate });
+            configured.revalidate();
+          }
+          const revalidate = () => {
+            if (configuredNativeStorageConfigurationKey(backend, scope.userConfig) !== configurationKey) {
+              throw Object.assign(new Error('Native database configured paths changed during admitted work.'), { code: 'ERR_INDEX_STORAGE_SELECTION' });
+            }
+            for (const original of storageAdmissions) original.revalidate();
+          };
+          scopeCheck = revalidate;
         }
-        const admission = acquireRepoStorageSession(scope.repoCacheRoot,
-          { repoRoot: scope.repoRoot, userConfig: scope.userConfig, env: scope.env }, {
-            scope: 'native-database-command', resourceRoots: scope.targets.filter(target => isPathWithinRoot(target, scope.repoCacheRoot))
-          });
-        storageAdmissions.push({ session: admission.session, released: false });
-        admission.revalidate();
-      }
-      scopeAdmitted = true;
+        scopeAdmitted = true;
+      } catch (error) { observe(error); throw error; }
     },
     open(factory) {
       assertActive();
       if (!scopeAdmitted || typeof factory !== 'function') throw new Error('Delegated database paths must be admitted before opening native handles.');
+      try { scopeCheck?.(); }
+      catch (error) { scopeAdmitted = false; observe(error); throw error; }
       return resources.own(factory());
     },
     own(handle) {
@@ -195,8 +222,9 @@ export const runNativeDatabaseCommand = async ({ commandIdentity, delegated = fa
       throw new Error('Original native command resources remain unsettled; metadata-only recovery cannot close or acknowledge them.');
     }
     const errors = [];
-    for (const admission of storageAdmissions) {
+    for (const admission of [...storageAdmissions.filter(entry => !entry.category), ...storageAdmissions.filter(entry => entry.category)]) {
       if (admission.released) continue;
+      if (admission.category && errors.length) continue;
       try {
         if (admission.session.releaseAfterSettlement({ resourceId: admission.session.resourceId, settled: true, pending: false }) !== true) {
           throw new Error('Native command storage metadata did not confirm original release.');

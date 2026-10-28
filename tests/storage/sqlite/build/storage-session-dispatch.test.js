@@ -21,7 +21,7 @@ const caseId = process.env.PAIROFCLEATS_TEST_ID?.split('storage-session-dispatch
 const configured = caseId?.startsWith('configured-');
 const selected = configured ? caseId.slice('configured-'.length) : caseId;
 assert.ok(['artifacts', 'bundles', 'incremental', 'fallback', 'unknown-close'].includes(selected));
-const { dir } = await prepareIsolatedTestCacheDir(`sqlite-storage-dispatch-${selected}`);
+const { dir } = await prepareIsolatedTestCacheDir(`sqlite-storage-dispatch-${caseId}`);
 const repoRoot = path.join(dir, 'repo'), home = path.join(dir, 'home'), cache = path.join(dir, 'cache');
 await fsp.mkdir(repoRoot);
 applyTestEnv({ cacheRoot: cache, extraEnv: { PAIROFCLEATS_HOME: home, PAIROFCLEATS_TRUSTED_CONFIG: null } });

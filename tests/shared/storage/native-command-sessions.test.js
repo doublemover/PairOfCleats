@@ -10,14 +10,19 @@ import { inspectStorageAccess, withExclusiveStorageAccess } from '../../../src/s
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
-const selected = process.env.PAIROFCLEATS_TEST_ID?.split('native-command-sessions/')[1];
+const caseId = process.env.PAIROFCLEATS_TEST_ID?.split('native-command-sessions/')[1];
+const configured = caseId?.startsWith('configured-');
+const selected = configured ? caseId.slice('configured-'.length) : caseId;
 assert.ok(['sqlite', 'lmdb', 'admission-race', 'metadata', 'primary-and-metadata', 'native-unknown', 'scope-authority'].includes(selected));
-const { dir } = await prepareIsolatedTestCacheDir(`native-command-session-${selected}`);
+const { dir } = await prepareIsolatedTestCacheDir(`native-command-session-${caseId}`);
 const repoRoot = path.join(dir, 'repo'), home = path.join(dir, 'home'), cache = path.join(dir, 'cache');
 await fsp.mkdir(repoRoot);
 applyTestEnv({ extraEnv: { PAIROFCLEATS_HOME: home, PAIROFCLEATS_TRUSTED_CONFIG: null } });
 const userConfig = { cache: { root: cache } }, repoCacheRoot = resolveRepoCacheRootPath(repoRoot, userConfig);
-const target = path.join(repoCacheRoot, 'builds', 'generation', selected === 'lmdb' ? 'index-lmdb/index-code' : 'index-sqlite/index-code.db');
+const target = configured ? path.join(dir, 'configured-native', selected === 'lmdb' ? 'index-code' : 'index-code.db')
+  : path.join(repoCacheRoot, 'builds', 'generation', selected === 'lmdb' ? 'index-lmdb/index-code' : 'index-sqlite/index-code.db');
+if (configured) userConfig[selected === 'lmdb' ? 'lmdb' : 'sqlite'] = { codeDbPath: target };
+const nativeNamespace = selected === 'lmdb' ? target : path.dirname(target);
 await fsp.mkdir(path.dirname(target), { recursive: true });
 const coordinationRoot = path.join(home, 'state', 'storage-access');
 const scope = () => ({ repoRoot, userConfig, repoCacheRoot, targets: [target] });
@@ -26,6 +31,7 @@ const assertProtection = async expected => {
     assert.equal((await inspectStorageAccess(root, { coordinationRoot })).protected, expected,
       'the native command owns its launch-selected repository/resource/category lifetime');
   }
+  if (configured) assert.equal((await inspectStorageAccess(nativeNamespace, { coordinationRoot })).protected, expected);
   assert.equal((await inspectStorageAccess(dir, { coordinationRoot })).protected, false);
 };
 const originalClose = Database.prototype.close, originalRm = fs.rmSync;
@@ -54,7 +60,7 @@ const contains = (value, expected, seen = new Set()) => {
 try {
   if (selected === 'admission-race') {
     let opened = false;
-    const exclusive = await withExclusiveStorageAccess(cache, async () => {
+    const exclusive = await withExclusiveStorageAccess(configured ? nativeNamespace : cache, async () => {
       await assert.rejects(runNativeDatabaseCommand({ commandIdentity: 'sqlite.compact' }, resources => {
         try { resources.admitScope(scope()); }
         catch (error) {

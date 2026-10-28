@@ -56,7 +56,8 @@ export const observeStorageResource = (value, { phase = 'storage-failure', phase
   };
   // Observation only, for an existing owner that must retain these original
   // prerequisites before another native operation. It grants no release proof.
-  return Object.freeze({ primary, retain, wrap, requireSettled, isSettled: originalSettled });
+  return Object.freeze({ primary, retain, wrap, requireSettled, isSettled: originalSettled,
+    hasResourceObservation: observed });
 };
 
 /** A report is safe only after the original resource observation is confirmed.

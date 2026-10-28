@@ -18,7 +18,7 @@ const caseId = process.env.PAIROFCLEATS_TEST_ID?.split('native-reader-lifetime/'
 const configured = caseId?.startsWith('configured-');
 const selected = configured ? caseId.slice('configured-'.length) : caseId;
 assert.ok(['cache', 'uncached', 'metadata-failure', 'admission-race', 'launch-homes', 'open-failure', 'native-failure', 'original-cache-close'].includes(selected));
-const { dir } = await prepareIsolatedTestCacheDir(`native-reader-${selected}`);
+const { dir } = await prepareIsolatedTestCacheDir(`native-reader-${caseId}`);
 const repoRoot = path.join(dir, 'repo'), cache = path.join(dir, 'cache'), home = path.join(dir, 'home');
 await fsp.mkdir(repoRoot);
 applyTestEnv({ extraEnv: { PAIROFCLEATS_HOME: home, PAIROFCLEATS_TRUSTED_CONFIG: null } });
