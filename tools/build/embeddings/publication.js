@@ -5,6 +5,9 @@ import { throwIfAborted } from '../../../src/shared/abort.js';
 import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
 import { observeStorageResource } from '../../../src/shared/storage/failure-observation.js';
 
+const retainPublicationPrerequisites = (primary, observations) => observations.reduce((failure, observation) =>
+  addStorageFailureContext(failure, {}, observation.retain(), { secondaryPresent: true }), primary);
+
 /** Keep a crashed or rejected generation unavailable until manifest validation.
  * A subsequent Stage3 run can rebuild a generation left pending at any boundary.
  */
@@ -16,14 +19,33 @@ export const publishEmbeddingGeneration = async ({
   await writeIndexState(statePath, indexState, { signal });
   await publishManifest();
   throwIfAborted(signal);
-  const validation = await withIndexStatePublicationLock(path.dirname(statePath), () => {
-    assertIndexStatePublicationSource(statePath, indexState);
-    return validate();
+  const published = await withIndexStatePublicationLock(path.dirname(statePath), async () => {
+    const required = [];
+    const requireResult = (value, phase) => {
+      const observation = observeStorageResource(value, { phase });
+      if (observation.hasResourceObservation) required.push(observation);
+      observation.requireSettled(); return observation;
+    };
+    try {
+      assertIndexStatePublicationSource(statePath, indexState);
+      const validation = await validate(), original = requireResult(validation, 'stage3-generation-validation');
+      const ok = validation.ok;
+      original.requireSettled(); throwIfAborted(signal);
+      if (ok) {
+        const receipt = await commitReceipt();
+        requireResult(receipt, 'stage3-generation-ready-receipt');
+        original.requireSettled(); throwIfAborted(signal);
+      }
+      // Carry successful original observations through actual metadata unlink.
+      // The public return below remains the exact original validation object.
+      return required.length ? addStorageFailureContext(new Error('Embedding publication prerequisites.'),
+        { validation, ok }, retainPublicationPrerequisites(new Error('Original publication work.'), required),
+        { secondaryPresent: true }) : { validation, ok };
+    } catch (error) { throw retainPublicationPrerequisites(error, required); }
   }, { signal });
+  const validation = published.validation;
   throwIfAborted(signal);
-  if (!validation.ok) return validation;
-  await commitReceipt();
-  throwIfAborted(signal);
+  if (!published.ok) return validation;
   indexState.embeddings = { ...indexState.embeddings, ready: true, pending: false };
   await writeIndexState(statePath, indexState, { signal });
   return validation;

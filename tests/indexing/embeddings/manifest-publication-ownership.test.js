@@ -6,6 +6,7 @@ import { updatePieceManifest } from '../../../tools/build/embeddings/manifest.js
 import { loadIndexState, writeIndexState } from '../../../tools/build/embeddings/state.js';
 import { publishEmbeddingGeneration } from '../../../tools/build/embeddings/publication.js';
 import { withIndexStatePublicationLock } from '../../../src/shared/index-state-publication.js';
+import { acquireFileLock } from '../../../src/shared/locks/file-lock.js';
 import { updateSqliteState } from '../../../src/storage/sqlite/build/index-state.js';
 import { checksumFile } from '../../../src/shared/hash.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
@@ -20,7 +21,8 @@ assert.ok(['metadata-valid', 'metadata-zero', 'metadata-null', 'string-count', '
   'malformed-meta', 'unreadable-meta', 'pending-meta', 'unselected-meta', 'missing-meta',
   'state-hash-failure', 'vector-hash-failure', 'observed-extent', 'concurrent-state', 'queued-snapshot',
   'stale-attempt', 'validation-stale-attempt', 'unmarked-primary-read', 'primary-backup',
-  'pending-binary-meta', 'malformed-shards'].includes(selected));
+  'pending-binary-meta', 'malformed-shards', 'receipt-lock', 'validation-pending', 'receipt-pending',
+  'receipt-revokes-validation', 'validation-getter'].includes(selected));
 const parent = path.resolve('.tmp/tasks'); await fs.mkdir(parent, { recursive: true });
 const root = await fs.mkdtemp(path.join(parent, 'embedding-manifest-owner-'));
 const manifestPath = path.join(root, 'pieces', 'manifest.json'), statePath = path.join(root, 'index_state.json');
@@ -33,7 +35,7 @@ const ordinary = Object.freeze(Object.assign(new Error('original publication rea
 const pending = Object.freeze(Object.assign(new Error('original read remains outstanding'), {
   cacheOwnershipReleased() { assert.equal(this, pending); return settled; }
 }));
-const pendingFault = ['pending-meta', 'pending-binary-meta', 'unmarked-primary-read'].includes(selected);
+const pendingFault = ['pending-meta', 'pending-binary-meta', 'unmarked-primary-read', 'validation-pending', 'receipt-pending'].includes(selected);
 fsSync.openSync = (file, ...args) => {
   if (typeof file === 'string' && path.resolve(file) === faultPath) throw pendingFault ? pending : ordinary;
   return originalOpen(file, ...args);
@@ -125,6 +127,36 @@ try {
         commitReceipt: async () => { receipts++; } }), { code: 'ERR_INDEX_STATE_PUBLICATION_CONFLICT' });
       assert.equal(validations, 0); assert.equal(receipts, 0);
       assert.equal(JSON.parse(await fs.readFile(statePath, 'utf8')).extensions.runtimeAttemptId, 'attempt-b');
+    }
+  } else if (['receipt-lock', 'validation-pending', 'receipt-pending', 'receipt-revokes-validation', 'validation-getter'].includes(selected)) {
+    const state = await claim('attempt-a');
+    let receipts = 0;
+    const revoke = ['receipt-revokes-validation', 'validation-getter'].includes(selected);
+    if (revoke) settled = true;
+    const validation = Object.freeze({ get ok() { if (selected === 'validation-getter') settled = false; return true; },
+      cacheOwnershipReleased: pending.cacheOwnershipReleased.bind(pending) });
+    const run = () => publishEmbeddingGeneration({ statePath, indexState: state,
+      publishManifest: () => publish({ publicationState: state }),
+      validate: async () => selected === 'validation-pending' || revoke ? validation : { ok: true },
+      commitReceipt: async () => {
+        receipts++;
+        const lockPath = path.join(root, '.index_state.write.lock');
+        assert.equal(JSON.parse(await fs.readFile(lockPath, 'utf8')).scope, 'index-state-publication');
+        const competing = await acquireFileLock({ lockPath, waitMs: 0, staleMs: Number.MAX_SAFE_INTEGER });
+        assert.equal(competing, null, 'ready receipt remains inside the actual original publication owner');
+        if (selected === 'receipt-revokes-validation') settled = false;
+        return selected === 'receipt-pending' ? pending : undefined;
+      } });
+    if (selected === 'receipt-lock') { assert.equal((await run()).ok, true); assert.equal(receipts, 1); }
+    else {
+      await assert.rejects(run(), error => { failure = error; return true; });
+      assert.equal(receipts, ['validation-pending', 'validation-getter'].includes(selected) ? 0 : 1);
+      assert.equal(errorGraphIncludes(failure, selected === 'validation-pending' || revoke ? validation : pending), true);
+      assert.equal(JSON.parse(await fs.readFile(statePath, 'utf8')).embeddings.ready, false);
+      let session; errorGraphSome(failure, value => { session = value?.fileLockPublicationSession; return Boolean(session); });
+      assert.ok(session); assert.equal(failure.cacheOwnershipReleased(), false);
+      settled = true; await session.releaseAfterClose(); assert.equal(failure.cacheOwnershipReleased(), true);
+      failure = null;
     }
   } else if (['unmarked-primary-read', 'primary-backup'].includes(selected)) {
     await fs.writeFile(manifestPath + '.bak', before);
