@@ -80,6 +80,8 @@ PR #572 metadata was refreshed and read back at checkpoint `1b762ec69` (140 loca
 
 - [Original file-lock results](file-lock-result-implementation-2026-10-28.md): successful returned work cannot retire metadata before original/independent settlement; six real-lock result controls authored, unexecuted.
 
+- [Native state serialization](index-state-serialization-implementation-2026-10-28.md): actual SQLite/LMDB mutations share read/write/manifest ownership, preserve unrelated namespaces and retain original release failures; twelve actual-producer/peer-process controls authored, unexecuted. Embedding adoption remains source work.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.

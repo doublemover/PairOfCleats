@@ -16,18 +16,35 @@ LMDB metrics remain optional only after their original resource observation
 confirms settlement. A pending or unreadable observation fails the command and
 keeps its resource prerequisites. It cannot be hidden by best-effort reporting.
 
-State and manifest use their existing individual atomic writers. This change
-does not create an atomic two-file transaction or claim new concurrent-writer
-serialization/recovery. If the second publication fails, the command fails;
-the error retains its original ownership evidence. Broader category registration,
-publication recovery and cleanup authority remain with their existing owners.
+SQLite/LMDB namespace mutations now share the existing file-lock owner across
+the actual state read, mutation, write and manifest refresh. Reads are bounded
+and contained; only actual absence starts empty. Namespace shape is validated,
+producer patch data is captured before waiting, and unrelated fields come from
+the latest state. Known local dead owners can retire only their exact original
+lock; live, unknown and unsettled owners stay protected. Pending work retains
+the actual lock publication session for explicit metadata recovery.
 
-Eleven `storage/native-index-state-publication/*` cases are authored and
+State and manifest still use individual atomic writers; this is not a crash-atomic
+two-file transaction. If the second publication fails, the command fails and
+preserves the actual already-written state. A later explicit mutation can refresh
+its checksum. Cancellation before write leaves both files unchanged; once a
+state write starts, its manifest refresh completes before cancellation is
+reported. Embedding/initial-generation writers and broader registration,
+publication recovery and cleanup remain separate adoption/qualification scope.
+
+Twelve `storage/native-index-state-publication/*` cases are authored and
 unexecuted. They cover actual SQLite/LMDB producer reads/writes, invalid state,
 manifest parse/write/checksum failures, frozen original observations and healthy
 byte/checksum/extension preservation. Existing artifact/bundle/incremental,
 embedding manifest, native-command and original/follow-up acceptance still need
 execution on the resulting candidate.
+
+Twelve additional `shared/index-state-serialized-publication/*` cases cover
+actual native state producers, parallel/queued namespaces, immutable patch
+capture, invalid input, manifest failure/recovery, original pending mutation,
+cancellation and controlled peer-process contention. The original frozen writer
+failure checks also require actual publication-metadata recovery. All remain
+authored and unexecuted.
 
 The state-manifest checksum and byte extent now come from the same verified
 contained descriptor. The shared hasher returns its immutable observation only
