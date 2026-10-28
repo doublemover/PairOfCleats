@@ -83,10 +83,11 @@ export const createArtifactPieceRegistry = ({
     if (typeof piecePath !== 'string' || !piecePath) return;
     const target = pieceEntriesByPath.get(piecePath);
     if (!target || typeof target !== 'object') return;
-    const bytes = Number(meta?.bytes);
+    const bytes = meta?.bytes;
     const checksumValue = typeof meta?.checksum === 'string' ? meta.checksum.trim().toLowerCase() : null;
     const checksumAlgo = typeof meta?.checksumAlgo === 'string' ? meta.checksumAlgo.trim().toLowerCase() : null;
-    if (Number.isFinite(bytes) && bytes >= 0) target.bytes = bytes;
+    if (bytes != null && (!Number.isSafeInteger(bytes) || bytes < 0)) throw new Error(`Invalid sealed artifact byte count for ${piecePath}`);
+    if (bytes != null) target.bytes = bytes;
     if (checksumValue && checksumAlgo) {
       target.checksum = `${checksumAlgo}:${checksumValue}`;
     } else if (typeof meta?.checksumHash === 'string' && meta.checksumHash.includes(':')) {

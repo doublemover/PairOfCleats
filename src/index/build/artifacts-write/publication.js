@@ -89,6 +89,7 @@ export const createArtifactOrderingRecorder = ({
 };
 
 export const runArtifactPublicationFinalizers = async ({
+  indexStatePublication = null,
   runTrackedArtifactCloseout,
   commitArtifactCleanup,
   listPieceEntries,
@@ -146,6 +147,7 @@ export const runArtifactPublicationFinalizers = async ({
   const publicationBuildRoot = buildRoot || path.resolve(outDir, '..');
   const publicationManifestPath = path.join(outDir, 'pieces', 'manifest.json');
   await runTrackedArtifactCloseout('pieces-manifest', async () => writePiecesManifest({
+    indexStatePublication,
     pieceEntries,
     outDir,
     mode,

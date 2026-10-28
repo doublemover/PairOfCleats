@@ -11,6 +11,8 @@ import { coerceAbortSignal } from '../../../shared/abort.js';
 import { log, logLine, showProgress } from '../../../shared/progress-runtime.js';
 import { MAX_JSON_BYTES } from '../../../shared/artifact-io/constants.js';
 import { readJsonFile } from '../../../shared/artifact-io/json.js';
+import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
+import { captureInitialIndexStatePublication, runInitialIndexStatePublication } from '../artifacts/index-state-publication.js';
 import { withGeneratedArtifactMetadata } from '../../../shared/generated-artifact-core.js';
 import { loadJsonArrayArtifact } from '../../../shared/artifact-io/loaders/core.js';
 import { resolveArtifactCompressionTier } from '../../../shared/artifact-io/compression.js';
@@ -925,18 +927,21 @@ async function writeIndexArtifactsInCodecScope(input) {
     );
   }
   // State hashes and rows must observe completed physical artifact metrics.
+  let indexStatePublication = null;
   const enqueueIndexStateWrites = async () => {
     if (indexState && typeof indexState === 'object') {
+      indexStatePublication = captureInitialIndexStatePublication(outDir);
       const indexStatePath = path.join(outDir, 'index_state.json');
       const indexStateMetaPath = path.join(outDir, 'index_state.meta.json');
       const determinismReportPath = path.join(outDir, 'determinism_report.json');
-      const markedIndexState = withGeneratedArtifactMetadata(indexState, 'index-state');
+      observeStorageResource(indexState, { phase: 'initial-index-state-input' }).requireSettled();
+      const markedIndexState = withGeneratedArtifactMetadata(structuredClone(indexState), 'index-state');
       indexState.extensions = markedIndexState.extensions;
-      const stableState = stripIndexStateNondeterministicFields(indexState, { forStableHash: true });
+      const stableState = stripIndexStateNondeterministicFields(markedIndexState, { forStableHash: true });
       const stableHash = sha1(stableStringifyForSignature(stableState));
       const determinismReport = buildDeterminismReport({
         mode,
-        indexState
+        indexState: markedIndexState
       });
       let canSkipIndexState = false;
       try {
@@ -950,7 +955,7 @@ async function writeIndexArtifactsInCodecScope(input) {
             canSkipIndexState = true;
           }
         }
-      } catch {}
+      } catch (error) { observeStorageResource(error, { phase: 'initial-index-state-reuse' }).requireSettled(); }
       const indexStateWarnBytes = Math.max(1024 * 64, Math.floor(maxJsonBytes * 0.1));
       const indexStateCompressThreshold = Math.max(1024 * 128, Math.floor(maxJsonBytes * 0.2));
       /**
@@ -963,7 +968,7 @@ async function writeIndexArtifactsInCodecScope(input) {
         await writeJsonObjectFile(indexStateMetaPath, {
           fields: withGeneratedArtifactMetadata({
             stableHash,
-            generatedAt: indexState.generatedAt || null,
+            generatedAt: markedIndexState.generatedAt || null,
             updatedAt: new Date().toISOString(),
             bytes: Number.isFinite(bytes) ? bytes : null
           }, 'index-state-meta'),
@@ -988,13 +993,13 @@ async function writeIndexArtifactsInCodecScope(input) {
       if (!canSkipIndexState) {
         enqueueWrite(
           formatArtifactLabel(indexStatePath),
-          async () => {
+          async () => runInitialIndexStatePublication(indexStatePublication, outDir, async () => {
             await writeJsonObjectFile(indexStatePath, { fields: markedIndexState, atomic: true });
             let bytes = null;
             try {
               const stat = await fs.stat(indexStatePath);
               bytes = stat.size;
-            } catch {}
+            } catch (error) { observeStorageResource(error, { phase: 'initial-index-state-size' }).requireSettled(); }
             if (Number.isFinite(bytes) && bytes > indexStateWarnBytes) {
               log(
                 `index_state ~${formatBytes(bytes)}; consider pruning volatile fields or enabling compression.`
@@ -1013,7 +1018,7 @@ async function writeIndexArtifactsInCodecScope(input) {
               });
             }
             await writeIndexStateMeta(bytes);
-          },
+          }, { signal: effectiveAbortSignal }),
           {
             publishedPieces: [{
               entry: { type: 'stats', name: 'index_state', format: 'json' },
@@ -1024,14 +1029,14 @@ async function writeIndexArtifactsInCodecScope(input) {
       } else {
         enqueueWrite(
           formatArtifactLabel(indexStateMetaPath),
-          async () => {
+          async () => runInitialIndexStatePublication(indexStatePublication, outDir, async () => {
             let bytes = null;
             try {
               const stat = await fs.stat(indexStatePath);
               bytes = stat.size;
-            } catch {}
+            } catch (error) { observeStorageResource(error, { phase: 'initial-index-state-reused-size' }).requireSettled(); }
             await writeIndexStateMeta(bytes);
-          }
+          }, { signal: effectiveAbortSignal })
         );
         if (await pathExists(indexStatePath)) {
           addPieceFile({ type: 'stats', name: 'index_state', format: 'json' }, indexStatePath);
@@ -2273,6 +2278,7 @@ async function writeIndexArtifactsInCodecScope(input) {
     return nameA.localeCompare(nameB);
   });
   const publicationOutcome = await runArtifactPublicationFinalizers({
+    indexStatePublication,
     runTrackedArtifactCloseout,
     commitArtifactCleanup,
     listPieceEntries,
