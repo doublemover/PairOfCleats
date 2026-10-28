@@ -1,6 +1,6 @@
 # PairOfCleats Roadmap
 
-Status: Checkpoint 240 implementation freeze; full Windows validation in progress
+Status: Full Windows baseline complete; shared failure repairs and qualification
 Last audited: 2026-10-28
 Last reconciled: 2026-10-28
 Canonical for: initiative status, execution order, and remaining work
@@ -21,10 +21,9 @@ Completed source-bound checks are indexed in the
 [qualification archive](archived/native-runtime-qualification-index-2026-10-27.md)
 and [qualification matrix](testing/qualification-matrix.md).
 
-The [solo implementation wave](archived/implementation-wave-2026-10-27.md) remains
-functionally unvalidated. The [checkpoint-240 Windows campaign](archived/windows-full-validation-checkpoint-240-2026-10-28.md)
-freezes implementation for the full suite and issue acceptance. Remaining source
-gaps stay recorded in the owner queue.
+The [full Windows baseline](archived/windows-full-validation-checkpoint-265-2026-10-28.md)
+executed all 6,098 required fixtures: 5,819 passed and 279 failed, including 14
+timeouts. Shared repairs and issue acceptance follow this complete catalog.
 
 [Five dependency retirements](archived/dependency-ownership-implementation-2026-10-27.md)
 removed 110 lock records. Locked bootstrap passed without warnings/errors:
@@ -67,20 +66,19 @@ implementation by severity and shared dependencies:
 
 The [scoped CDB collector](archived/windows-cdb-collector-implementation-2026-10-28.md)
 and forensic drain are wired; native qualification remains.
-At checkpoint 240, freeze implementation and run full Windows validation.
+Checkpoint 265 completed the full Windows baseline; repair its shared failures.
 Real-tool/model, non-Windows and release checks remain explicit.
 
-Current reconciliation, 2026-10-28: full Windows validation began at checkpoint
-240. Shared-failure repairs precede resumed cohorts. The [prior receipt](archived/windows-solo-validation-2026-10-23.md)
-preserves revision-specific checks; B1-B7 controls still need current qualification.
-The [459-case re-check receipt](archived/windows-historical-rechecks-2026-10-24.md)
-records 32 baseline passes, 426 failures (10 timeouts) and one POSIX exclusion.
-Focused repairs through `f6c7812a4` move 73 failures to passing: latest scoped
-counts are 105 passes, 353 failures and one exclusion (nine timeouts remain).
-The [360-item implementation queue](archived/windows-360-failure-repair-attempts-2026-10-24.json)
-tracks all 360 initial attempts: 308 unvalidated repairs, 25 unresolved causes,
-20 existing owner repairs and seven earlier tested repairs. The [360-case re-check](archived/windows-360-recheck-2026-10-24.json)
-passed 260; 100 failed (seven timeouts), with no skips or access violations. A [focused re-check](archived/windows-targeted-rechecks-2026-10-24.json) moved 96 to passing; 4 await closure.
+Current reconciliation, 2026-10-28: the full baseline is complete; shared-failure
+repairs and current qualification continue.
+Gate B1-B7 technical, compatibility, matrix, conformance,
+observability, quality, and security-risk controls need
+reconciled acceptance under the [rollout policy](specs/usr-core-rollout-release-migration.md).
+Historical [459-case observations](archived/windows-historical-rechecks-2026-10-24.md),
+[360 implementation attempts](archived/windows-360-failure-repair-attempts-2026-10-24.json),
+[360-case re-checks](archived/windows-360-recheck-2026-10-24.json) and
+[targeted follow-ups](archived/windows-targeted-rechecks-2026-10-24.json) retain
+their original source identities; the current baseline supersedes their active counts.
 The
 [next repair receipt](archived/windows-failure-repairs-2026-10-24.md) records
 37 passing checks plus 15 cache/setup, 12 import/lease, 19 runtime and eight coverage/probe checks; heap

@@ -6,17 +6,16 @@ Current execution evidence and unresolved failures belong to the
 [deep test audit](../archived/deep-test-audit-2026-10-18.md) and the
 [active roadmap](../roadmap.md).
 
-The [current solo implementation wave](../archived/implementation-wave-2026-10-27.md)
-retains exact unvalidated source/tree checkpoints and affected checks. New storage
-observation/admission, JSX/TSX syntax ownership and triage publication/history
-repairs have authored controls and static checks only. Their local source does
-not inherit earlier runtime qualification; functional acceptance and publication
-gates were deferred through checkpoint 240. The [full Windows campaign](../archived/windows-validation-240-progress-2026-10-28.md)
-has now begun: the repaired front gate passes 40/40; pinned Rust passes 152/152;
-focused SQLite publication and actual ConPTY recovery have passing observations.
-The first 24 correctness cohorts recorded 742 passes/60 failures. The
-[shared repairs](../archived/windows-validation-shared-repairs-2026-10-28.md)
-have focused passing observations; complete suite and issue acceptance remain pending.
+The [full Windows campaign](../archived/windows-full-validation-checkpoint-265-2026-10-28.md)
+completed all 6,098 required fixtures at `90d0e510a`: 5,819 passed and 279 failed,
+including 14 runner timeouts. There were no skips, omissions, duplicate IDs or
+recorded test-process access-violation exits. Native lifecycle results were
+1,412/1,504 passing; performance/resource contracts were 184/202 passing, run
+serially with unchanged thresholds on a shared desktop. The receipt retains
+every fixture, explicit exclusion and report hash. Shared repairs and focused
+qualification continue; the suite remains failing. Earlier 40-case front gates,
+152-case pinned Rust checks and ConPTY observations retain their own source
+identities in the linked historical receipts.
 
 Current Clangd acquisition and managed-file lifetime source is **unvalidated**
 at `773e6893e`; [20 authored checks and remaining qualification](../archived/clangd-acquisition-implementation-2026-10-27.md)
