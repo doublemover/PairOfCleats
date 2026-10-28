@@ -1119,6 +1119,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
       useLmdb,
       emitOutput,
       exitOnError,
+      jsonOutput,
       annActive,
       filtersActive: queryPlan.filtersActive,
       relationFilters: queryPlan.filters,

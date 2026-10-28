@@ -44,6 +44,7 @@ export async function resolveSearchIndexMetadata({
   useSqlite,
   emitOutput,
   exitOnError,
+  jsonOutput = false,
   strict = true,
   allowUnsafeMix = false,
   indexMetaByMode = null,
@@ -56,16 +57,20 @@ export async function resolveSearchIndexMetadata({
     indexBaseRootByMode,
     explicitRef
   };
+  // Keep advisory warnings intact. Only required-index failure output/exit must
+  // yield to the runner's structured error and cleanup owner for JSON callers.
+  const requiredIndexOptions = { emitOutput: emitOutput && !jsonOutput,
+    exitOnError: exitOnError && !jsonOutput, resolveOptions };
   const proseIndexDir = runProse ? resolveIndexDir(rootDir, 'prose', userConfig, resolveOptions) : null;
   const codeIndexDir = runCode ? resolveIndexDir(rootDir, 'code', userConfig, resolveOptions) : null;
   const proseDir = runProse && (!useSqlite || filterOnly)
-    ? requireIndexDir(rootDir, 'prose', userConfig, { emitOutput, exitOnError, resolveOptions })
+    ? requireIndexDir(rootDir, 'prose', userConfig, requiredIndexOptions)
     : proseIndexDir;
   const codeDir = runCode && (!useSqlite || filterOnly)
-    ? requireIndexDir(rootDir, 'code', userConfig, { emitOutput, exitOnError, resolveOptions })
+    ? requireIndexDir(rootDir, 'code', userConfig, requiredIndexOptions)
     : codeIndexDir;
   const recordsDir = runRecords
-    ? requireIndexDir(rootDir, 'records', userConfig, { emitOutput, exitOnError, resolveOptions })
+    ? requireIndexDir(rootDir, 'records', userConfig, requiredIndexOptions)
     : null;
 
   let extractedProseDir = null;
@@ -85,11 +90,7 @@ export async function resolveSearchIndexMetadata({
 
   if (resolvedLoadExtractedProse) {
     if (resolvedRunExtractedProse && (filterOnly || searchMode === 'extracted-prose' || searchMode === 'default')) {
-      extractedProseDir = requireIndexDir(rootDir, 'extracted-prose', userConfig, {
-        emitOutput,
-        exitOnError,
-        resolveOptions
-      });
+      extractedProseDir = requireIndexDir(rootDir, 'extracted-prose', userConfig, requiredIndexOptions);
     } else {
       try {
         extractedProseDir = resolveIndexDir(rootDir, 'extracted-prose', userConfig, resolveOptions);
