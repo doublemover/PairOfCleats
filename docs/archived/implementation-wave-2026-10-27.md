@@ -66,6 +66,8 @@ PR #572 metadata was refreshed and read back at checkpoint `138d9d9e5` (120 loca
 
 - [Embedding terminal publication](embedding-terminal-publication-implementation-2026-10-28.md): original work plus receipt/state/progress/cleanup causes survive; malformed or unsettled state is preserved; twelve authored controls unexecuted.
 
+- [Original vector spool lifetime](vector-spool-ownership-implementation-2026-10-28.md): original FileHandle ownership, exact scratch retirement, explicit recovery and deferred settlement; fifteen actual-file controls authored, unexecuted.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.

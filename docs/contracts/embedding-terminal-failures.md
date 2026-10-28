@@ -27,3 +27,31 @@ asynchronous preparation, corrupt/null source preservation and pending read
 observations. Actual full-runner queue/spool/receipt/native/cache lifetimes and
 original/follow-up acceptance remain required. The source is not runtime
 qualification or a new recovery protocol.
+
+The vector spool now uses the existing contained-file owner for each original
+FileHandle and its captured stat/read/write/sync/truncate/close operations. A
+close stops admission and joins accepted writes; retiring is separate from
+confirmed closed state. Healthy descriptor siblings close independently. Failed
+or unobserved native closure retains the original session for explicit
+`recoverAfterClose`; confirmed closes are never replayed.
+
+The allocation owner records the actual mkdtemp directory and admitted file
+identities. It removes only the three exact created files after confirmed native
+closure and observations, then removes the empty original directory. Unknown
+children, replaced/shared files, replaced directories and unobserved identities
+remain protected. Recursive prefix-based removal is gone. Metadata-only recovery
+does not repeat confirmed native close or rewrite vector bytes.
+
+Deferred mode cleanup retains both original work and actual spool settlement.
+The existing outer cleanup attempts it after original scheduler/provider disposal;
+a later true work callback alone cannot acknowledge still-open spool files.
+Native close failure retains its original explicit recovery owner. Outer receipt,
+diagnostic and text-cache cleanup failures also preserve the original cause,
+including frozen/falsey failures and independently pending successful results.
+
+Fifteen additional `indexing/embeddings/vector-spool-original-lifetime/*` cases
+are authored and unexecuted. Real FileHandle gates cover pending/failed close,
+healthy siblings, captured-method identity, failed construction/admission,
+metadata recovery, unknown/replaced objects, frozen/falsey writes, accepted-work
+drain, independent observers, truthful closed state and deferred work settlement.
+Existing ordinal/generation/short-progress/cancellation tests remain required.

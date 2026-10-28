@@ -42,3 +42,7 @@ still need owner inspection; this patch does not turn a retained path or later
 work settlement into proof of spool closure. Common category/custom producer
 registration and cleanup remain under #1574. No overall issue classification or
 closure changes here.
+
+Subsequent [original vector spool ownership](vector-spool-ownership-implementation-2026-10-28.md)
+implements the close/recovery/deferred-settlement source gap identified above;
+its 15 authored controls and all runtime qualification remain pending.
