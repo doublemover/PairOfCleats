@@ -33,6 +33,7 @@ work. Their separate receipts preserve exact trees, limitations and checks.
 | [5996ecd59](sqlite-trial-profiles-implementation-2026-10-27.md) | Independent alternated SQLite trials, mixed immutable mutation rounds and atomic raw receipts | 7 authored cases; actual native CLI/trial correctness and measured lexical/latency qualification remain |
 | [a61b11efb](trace-state-implementation-2026-10-27.md) | Persistent context-sensitive trace state and shared byte/TTL cursor retention for trace/explain | 9 authored controls; actual parity/replay/publication/aggregate and serial CPU/heap qualification remain |
 | [9d5f6c8be](hydrated-risk-budget-implementation-2026-10-27.md) | Metadata pre-admission and final hydrated risk-family budgets with exact emitted accounting | 7 authored controls; actual assembly/ranking/truncation/strict/federated acceptance remains |
+| [449159675](embedded-content-implementation-2026-10-27.md) | Shared exact content views and versioned piecewise maps through comment/Markdown parsing, tokens, scheduler, VFS and semantic readers | 21 authored cases; native scheduler, persisted warm relocation, navigation and full affected qualification remain |
 
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero

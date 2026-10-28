@@ -954,8 +954,13 @@
       "status": "source-implemented-qualification-pending",
       "currentDisposition": "qualification_pending",
       "currentImplementation": "Retains existing ranking/caps and now admits normalized call-site metadata before source reads against remaining hydrated allowance, then re-admits whole hydrated units. Bounded compact JSON measurement counts repeated evidence and exact emitted full/partial array bytes plus the existing token estimator; discarded skeleton/frontier-only candidates cannot regain hydration. Seven authored controls; actual complete assembly/ranking/truncation/strict/federated acceptance remains.",
-      "unvalidatedSourceHeads": ["9d5f6c8bea42d81b8af5bf73b90ba8fc46cda669"],
-      "unvalidatedReceipts": ["docs/archived/hydrated-risk-budget-implementation-2026-10-27.md"]
+      "unvalidatedSourceHeads": [
+        "9d5f6c8bea42d81b8af5bf73b90ba8fc46cda669",
+        "aa2cbe523b3af3c40ddd904b836ef8cd65afb0c7"
+      ],
+      "unvalidatedReceipts": [
+        "docs/archived/hydrated-risk-budget-implementation-2026-10-27.md"
+      ]
     },
     {
       "number": 147,
@@ -1190,8 +1195,13 @@
       "status": "source-implemented-qualification-pending",
       "currentDisposition": "qualification_pending",
       "currentImplementation": "Row-based retained log history with arbitrary wrapped windows, paused source-byte anchors, arrival/reflow/eviction handling, stored row-offset clamping and shared mouse/replay offsets. Five native cases and real frame captures authored; offline locked test-source typecheck passed. Native rendering/ConPTY and complete follow-up qualification remain.",
-      "unvalidatedSourceHeads": ["b4cee1582557f4000f7cc4af9b838b6f1709b525", "bf475fe1a9669062f155e38bd1c0252b22f68adf"],
-      "unvalidatedReceipts": ["docs/archived/tui-log-rows-implementation-2026-10-27.md"]
+      "unvalidatedSourceHeads": [
+        "b4cee1582557f4000f7cc4af9b838b6f1709b525",
+        "bf475fe1a9669062f155e38bd1c0252b22f68adf"
+      ],
+      "unvalidatedReceipts": [
+        "docs/archived/tui-log-rows-implementation-2026-10-27.md"
+      ]
     },
     {
       "number": 630,
@@ -5209,8 +5219,12 @@
       "status": "source-implemented-qualification-pending",
       "currentDisposition": "qualification_pending",
       "currentImplementation": "Original captured controls render observer, explicit normal invalidation, generation-bound submitted-frame/pixel checkpoint, committed-model hash, scoped injected failures and post-browser-close diagnostics. Seven authored observer/owner controls plus late-phase negatives; actual browser shader/module/fallback/no-op fault injection and rendered fidelity/hardware qualification remain.",
-      "unvalidatedSourceHeads": ["5da4c257857f6118b89960f8220e35448af432f1"],
-      "unvalidatedReceipts": ["docs/archived/scene-render-observation-implementation-2026-10-27.md"]
+      "unvalidatedSourceHeads": [
+        "5da4c257857f6118b89960f8220e35448af432f1"
+      ],
+      "unvalidatedReceipts": [
+        "docs/archived/scene-render-observation-implementation-2026-10-27.md"
+      ]
     },
     {
       "number": 1373,
@@ -6916,8 +6930,12 @@
       "status": "source-implemented-qualification-pending",
       "currentDisposition": "qualification_pending",
       "currentImplementation": "Immutable persistent AVL visited state and FIFO frontier eliminate full history clones, with new-item byte admission, existing partial budget frontiers and service/runner logical-byte retention. Earlier cursor replay remains supported until count/TTL/byte eviction; trace/explain service retirement releases leases and publication remains after original reader cleanup. Nine authored controls; actual correctness/replay/cleanup/multi-service and serial CPU/heap qualification remain.",
-      "unvalidatedSourceHeads": ["a61b11efba3838f42520e9b0b4a4e75cbdddf732"],
-      "unvalidatedReceipts": ["docs/archived/trace-state-implementation-2026-10-27.md"]
+      "unvalidatedSourceHeads": [
+        "a61b11efba3838f42520e9b0b4a4e75cbdddf732"
+      ],
+      "unvalidatedReceipts": [
+        "docs/archived/trace-state-implementation-2026-10-27.md"
+      ]
     },
     {
       "number": 1582,
@@ -7166,8 +7184,12 @@
       "status": "source-implemented-qualification-pending",
       "currentDisposition": "qualification_pending",
       "currentImplementation": "Demanded source-offset line blocks, source/analyzer/dictionary identity, pre-preparation input/output admission, bounded active/retained bytes, overlap/LRU retirement, exact chunk fallback and close/cancel/failure ownership. Twelve authored controls; actual consumer/worker correctness and serial dense/sparse resource/performance qualification remain.",
-      "unvalidatedSourceHeads": ["ee5e1cb13091cb510ab6028313d72b1e251abe57"],
-      "unvalidatedReceipts": ["docs/archived/demanded-line-tokens-implementation-2026-10-27.md"]
+      "unvalidatedSourceHeads": [
+        "ee5e1cb13091cb510ab6028313d72b1e251abe57"
+      ],
+      "unvalidatedReceipts": [
+        "docs/archived/demanded-line-tokens-implementation-2026-10-27.md"
+      ]
     },
     {
       "number": 1604,
@@ -7592,18 +7614,21 @@
     {
       "number": 1652,
       "unvalidatedSourceHeads": [
-        "08fe8b40ba060e7ab0531111c62279f62b96cab8"
+        "08fe8b40ba060e7ab0531111c62279f62b96cab8",
+        "449159675248f07a8591a118b374d9544bb3ca82"
       ],
       "unvalidatedReceipts": [
-        "frontmatter-content-implementation-2026-10-27.md"
+        "frontmatter-content-implementation-2026-10-27.md",
+        "docs/archived/embedded-content-implementation-2026-10-27.md"
       ],
-      "currentImplementation": "Frontmatter config input is its exact original delimiter-free UTF-16 interior, preserving LF/CRLF and separate broad prose/container boundaries. Extraction policy enters segment identity; shared source chunking 35 enters file parse/replay identity. Eight actual chunk/VFS cases are authored, unexecuted. Wrapped/list/indented fence views and canonical piecewise map/semantic/VFS qualification remain.",
+      "currentImplementation": "Shared versioned exact source-piece content views now drive Markdown/comment fence validation, chunking, token input, local relations, scheduler plan/execution, VFS documents/hashes/targets and immutable semantic maps/readers. Comment config retains semantic indentation, CRLF, broad comment identity and the same parser view used for validation. Strict v2 piecewise maps, inverse ownership, map-aware UID/cache and metadata admission retain explicit unavailable transformations/bounds; legacy cross-piece invocation-owner joins remain explicitly unsupported. Twenty-one authored cases are unexecuted. Actual native scheduler, persisted warm relocation, published navigation and complete original/follow-up qualification remain.",
       "title": "Separate Markdown container extents from embedded parser content and source maps",
       "recordedDisposition": "implementation_needed",
       "priority": "unranked",
       "batch": "language-semantics",
       "phase": "source-review-and-implementation",
-      "status": "queued"
+      "status": "source-implemented-qualification-pending",
+      "currentDisposition": "qualification_pending"
     },
     {
       "number": 1653,
@@ -7630,7 +7655,15 @@
       "priority": "unranked",
       "batch": "tooling-and-governance",
       "phase": "source-review-and-implementation",
-      "status": "queued"
+      "status": "source-implemented-qualification-pending",
+      "currentDisposition": "qualification_pending",
+      "currentImplementation": "Shared versioned exact source-piece content views now drive Markdown/comment fence validation, chunking, token input, local relations, scheduler plan/execution, VFS documents/hashes/targets and immutable semantic maps/readers. Comment config retains semantic indentation, CRLF, broad comment identity and the same parser view used for validation. Strict v2 piecewise maps, inverse ownership, map-aware UID/cache and metadata admission retain explicit unavailable transformations/bounds; legacy cross-piece invocation-owner joins remain explicitly unsupported. Twenty-one authored cases are unexecuted. Actual native scheduler, persisted warm relocation, published navigation and complete original/follow-up qualification remain.",
+      "unvalidatedSourceHeads": [
+        "449159675248f07a8591a118b374d9544bb3ca82"
+      ],
+      "unvalidatedReceipts": [
+        "docs/archived/embedded-content-implementation-2026-10-27.md"
+      ]
     },
     {
       "number": 1655,
@@ -8254,8 +8287,13 @@
       "status": "source-implemented-qualification-pending",
       "currentDisposition": "qualification_pending",
       "currentImplementation": "Bounded smoke/lexical/wide workloads, independent serial trials with alternated arm order, identical incremental starting preparation, repeated changed/new/deleted/shrinking/growing snapshots, realized row assertions and exact source/output validation. Atomic pending-operation checkpoints and raw final distributions retain failures and source/runtime/cache conditions. Seven authored controls; actual native CLI/trial execution, representative measurements and separate latency qualification remain.",
-      "unvalidatedSourceHeads": ["2948837ceef60c5a9d2bf5662fb7870f36f5caa9", "5996ecd59a5bad3805696413beb9a0b20afaac65"],
-      "unvalidatedReceipts": ["docs/archived/sqlite-trial-profiles-implementation-2026-10-27.md"]
+      "unvalidatedSourceHeads": [
+        "2948837ceef60c5a9d2bf5662fb7870f36f5caa9",
+        "5996ecd59a5bad3805696413beb9a0b20afaac65"
+      ],
+      "unvalidatedReceipts": [
+        "docs/archived/sqlite-trial-profiles-implementation-2026-10-27.md"
+      ]
     },
     {
       "number": 1734,

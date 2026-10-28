@@ -5,6 +5,10 @@ Source `9d5f6c8bea42d81b8af5bf73b90ba8fc46cda669`, tree
 `codex/pr557-audit-repairs-20261012`. Windows x64, Node 26.12.1.
 Unpublished; functional qualification remains deferred.
 
+Follow-up `aa2cbe523` rejects a missing hydrated flow product before measurement;
+it cannot serialize as a fitting null unit. The existing authored boundary case
+now covers that producer error. It is also unexecuted.
+
 The existing selector admitted skeletons with null call-site details, then inserted
 hydrated metadata/excerpts without rechecking family byte/token caps. Its counters
 still described the smaller skeleton. Final admission now measures complete
