@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "pending-enoent", "pending-exdev", "pending-eperm", "rename-result", "backup-result",
+    "remove-result", "copy-result", "sidecar-result", "frozen-restore", "falsey-restore",
+    "diagnostic-inspection", "healthy-replace", "healthy-restore"
+  ]
+}

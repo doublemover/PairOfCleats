@@ -981,7 +981,8 @@ export async function removeSqliteSidecars(basePath, { swallowNonBenign = false,
       if (fs.existsSync(targetPath)) {
         logLine(`[sqlite-cleanup] remove ${targetPath}`, { kind: 'status' });
       }
-      await fsPromises.rm(targetPath, { force: true });
+      const removed = await fsPromises.rm(targetPath, { force: true });
+      observeStorageResource(removed, { phase: 'sqlite-sidecar-removal-result' }).requireSettled();
     } catch (err) {
       getSqliteStorageOperation()?.retainFailure(err);
       const diagnostic = describeStorageFailure(err, { phase: 'sqlite-sidecar-removal' });
@@ -1031,7 +1032,8 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
   };
   const removeFileWithDiagnostics = async (targetPath, { context, swallow = true } = {}) => {
     try {
-      await fsPromises.rm(targetPath, { force: true });
+      const removed = await fsPromises.rm(targetPath, { force: true });
+      observeStorageResource(removed, { phase: 'sqlite-replacement-removal-result' }).requireSettled();
       return true;
     } catch (err) {
       getSqliteStorageOperation()?.retainFailure(err);
@@ -1055,7 +1057,7 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
     err.sourcePath = sourcePath;
     err.destinationPath = destinationPath;
     err.cause = cause || null;
-    err.causeCode = cause?.code || null;
+    err.causeCode = 'EXDEV';
     return err;
   };
   /**
@@ -1067,9 +1069,12 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
     { operation = 'sqlite-replace' } = {}
   ) => {
     try {
-      await fsPromises.rename(sourcePath, destinationPath);
+      const moved = await fsPromises.rename(sourcePath, destinationPath);
+      observeStorageResource(moved, { phase: 'sqlite-replacement-rename-result' }).requireSettled();
     } catch (err) {
-      if (err?.code === 'EXDEV') {
+      getSqliteStorageOperation()?.retainFailure(err);
+      const diagnostic = describeStorageFailure(err, { phase: 'sqlite-replacement-rename' });
+      if (diagnostic.code === 'EXDEV') {
         throw createCrossDeviceReplaceError(operation, sourcePath, destinationPath, err);
       }
       throw err;
@@ -1100,6 +1105,7 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
         backupAvailable = true;
         backupFromCurrentFinal = true;
       } catch (err) {
+        observeStorageResource(err, { phase: 'sqlite-replacement-backup' }).requireSettled();
         if (isAbortError(err)) throw err;
         if (err?.code === 'ERR_SQLITE_REPLACE_CROSS_DEVICE') {
           throw err;
@@ -1124,7 +1130,8 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
       operation: 'restore-backup-to-final'
     });
     if (keepBackup) {
-      await fsPromises.copyFile(finalDbPath, backupPath);
+      const copied = await fsPromises.copyFile(finalDbPath, backupPath);
+      observeStorageResource(copied, { phase: 'sqlite-replacement-copy-result' }).requireSettled();
     } else {
       backupAvailable = false;
       backupFromCurrentFinal = false;
@@ -1138,6 +1145,7 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
         operation: 'promote-temp-to-final'
       });
     } catch (err) {
+      observeStorageResource(err, { phase: 'sqlite-replacement-fallback' }).requireSettled();
       if (err?.code !== 'EEXIST' && err?.code !== 'EPERM' && err?.code !== 'ENOTEMPTY') {
         throw err;
       }
@@ -1155,11 +1163,13 @@ export async function replaceSqliteDatabase(tempDbPath, finalDbPath, options = {
       });
     }
   } catch (err) {
+    // Unknown original rename/removal work cannot authorize another rename or
+    // recovery. Keep all current/staged/backup evidence with its actual owner.
+    observeStorageResource(err, { phase: 'sqlite-replacement-before-restore' }).requireSettled();
     try {
       await tryRestoreBackup();
     } catch (restoreError) {
-      restoreError.message = `[sqlite] Failed to restore backup after replace failure: ${restoreError.message}`;
-      throw restoreError;
+      throw addStorageFailureContext(err, {}, restoreError, { secondaryPresent: true, forceAggregate: true });
     }
     throw err;
   }
