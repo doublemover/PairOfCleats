@@ -544,3 +544,5 @@ history. Follow resumes at the newest row. Wrapped byte spans share the existing
 2 MiB presentation cache; an uncached oversized entry still exposes its full
 history while materializing only the requested viewport. These source changes
 still await native rendered-frame and terminal-lifetime qualification.
+
+Native search failures use a separate [bounded recovery contract](../contracts/tui-search-failures.md). Failed first searches preserve their form, distinguish failure from admitted empty responses, and offer scoped recovery without automatic provisioning or command execution. Windows runtime qualification is pending checkpoint 240.

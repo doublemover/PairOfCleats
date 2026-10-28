@@ -7616,8 +7616,21 @@
       "priority": "unranked",
       "batch": "operator-and-editors",
       "phase": "source-review-and-implementation",
-      "status": "queued",
-      "currentDisposition": "implementation_needed"
+      "status": "implemented-core-qualification-and-integration-pending",
+      "currentDisposition": "partial_or_followup",
+      "unvalidatedSourceHeads": [
+        "30619812f40b769c8136ed39d49329c72e1a8650",
+        "ddbceed7cc349e3f8e411a3b2d25b7900c83ef6c",
+        "0a0de2e6fd1efd6d9acfca080afaaeb194004ae8",
+        "92f7aee8f60c6f9de414bbed46ed3719a96d9507",
+        "192e86e2bbe9149de3e5bd453d83b3fb854e4e87",
+        "9a8160fa279b89d662dd632222c2523cc90ef5cf",
+        "2abf062b44c413406ba8cff17fc09033e89c8f99"
+      ],
+      "unvalidatedReceipts": [
+        "tui-search-failure-implementation-2026-10-28.md"
+      ],
+      "currentImplementation": "Closed failure catalog/schema/generated Rust; safe child/supervisor projection retaining original cleanup; distinct native outcomes, scoped retry/status/readiness and diagnostic forms; JSON missing-index failure stays under runner cleanup. Functional execution and full discriminating supervisor/native integration coverage remain for checkpoint 240."
     },
     {
       "number": 1559,
@@ -10312,8 +10325,8 @@
   "currentCounts": {
     "open": 718,
     "qualificationPending": 482,
-    "partialFollowup": 146,
-    "implementationStatusUnresolved": 90
+    "partialFollowup": 147,
+    "implementationStatusUnresolved": 89
   },
   "reconciledAt": "2026-10-28T18:45:11.020Z",
   "completedSourceBatch": [
@@ -10458,7 +10471,7 @@
   "currentCountsBasis": {
     "meaning": "718-open GitHub snapshot freshly refreshed at checkpoint 220 plus recorded local source work; not functional acceptance.",
     "publishedHead": "adbcaf777ce91642bb0a60de892171d8c3a529f7",
-    "sourceHead": "af7586dead04bcaaec726264e9a99e798ab32ffc",
-    "receipt": "sqlite-close-results-implementation-2026-10-28.md"
+    "sourceHead": "2abf062b44c413406ba8cff17fc09033e89c8f99",
+    "receipt": "tui-search-failure-implementation-2026-10-28.md"
   }
 }
