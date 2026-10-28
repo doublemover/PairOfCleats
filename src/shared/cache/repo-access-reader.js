@@ -1,13 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { createLockPayload, readLockInfoSync, isLocalProcessDefinitelyDead,
   removeLockFileSyncIfOwned } from '../locks/file-lock-info.js';
 import { toRealPathSync } from '../../workspace/identity.js';
 import { assertNoSymlinkPath } from '../contained-file.js';
 import { assertNoRepoCacheDelegation } from './repo-access-delegation-guard.js';
 import { isKnownRepoAccessOwner } from './repo-access-owner.js';
+import { observeStorageResource } from '../storage/failure-observation.js';
+import { addStorageFailureContext } from '../storage/operation-error.js';
 
 const held = new Map();
 const scoped = new Map();
@@ -189,16 +191,71 @@ export const prepareRepoCacheAccessHandoff = async (repoCacheRoot, { coordinatio
   const paths = repoAccessPaths(repoCacheRoot, { coordinationRoot });
   const lease = held.get(paths.directory);
   if (!lease || lease.suspended || typeof drain !== 'function') throw new Error('Handoff requires one retained local lease and an explicit reader-drain owner.');
+  // Publish an existing resource lease before drain dispatch. An unresolved
+  // drain must not lose its fence through the normal process-reader exit hook.
+  const fence = acquireRepoCacheAccessLease(repoCacheRoot, { coordinationRoot,
+    scope: 'local-cache-handoff-drain', resourceId: randomUUID(), requireSettlement: true });
+  const releaseFence = fence.release;
+  const prerequisites = [];
+  const capture = (value, phase) => {
+    const original = observeStorageResource(value, { phase });
+    const captured = original.hasResourceObservation ? observeStorageResource(original.retain(), { phase }) : original;
+    prerequisites.push(captured); return captured;
+  };
+  const requireOriginal = () => { for (const prerequisite of prerequisites) prerequisite.requireSettled(); };
+  const requireParent = () => {
+    try {
+      if (held.get(paths.directory) !== lease || readLockInfoSync(lease.file)?.lockId !== lease.payload.lockId) {
+        throw Object.assign(new Error('Original parent reader lease changed during handoff.'), { code: 'ERR_REPO_CACHE_HANDOFF_OWNERSHIP' });
+      }
+    } catch (error) { capture(error, 'cache-handoff-parent-inspection'); throw error; }
+  };
+  let fenceFailed = false, fenceFailure;
+  const closeFence = (recover = false) => {
+    requireOriginal();
+    if (fence.released) return;
+    if (fenceFailed && !recover) throw fenceFailure;
+    try {
+      const result = releaseFence.call(fence);
+      capture(result, 'cache-handoff-drain-fence-release').requireSettled();
+      if (result !== true || fence.released !== true) throw new Error('Original handoff drain fence release remains unconfirmed.');
+      requireOriginal();
+    } catch (error) {
+      fenceFailed = true; fenceFailure = error;
+      capture(error, 'cache-handoff-drain-fence-failure'); throw error;
+    }
+  };
+  let resumed = false;
+  const resume = (recover = false) => {
+    if (resumed) return;
+    requireOriginal(); requireParent(); closeFence(recover); requireParent(); requireOriginal();
+    lease.suspended = false; resumed = true;
+  };
+  const owner = Object.freeze({ resumeAfterSettlement: () => resume(true), isSettled: () => resumed });
   lease.suspended = true;
   try {
     const receipt = await drain({ root: paths.root, leaseId: lease.payload.lockId });
-    if (receipt?.drained !== true || receipt?.pending === true || receipt?.leaseId !== lease.payload.lockId) {
+    const original = capture(receipt, 'cache-handoff-drain-result'); original.requireSettled();
+    const admitted = receipt?.drained === true && receipt?.pending !== true && receipt?.leaseId === lease.payload.lockId;
+    original.requireSettled(); requireParent();
+    if (!admitted) {
       throw new Error('Reader-drain receipt does not confirm this exact retained lease.');
     }
+    closeFence(); original.requireSettled();
     const token = Object.freeze({ root: paths.root, leaseId: lease.payload.lockId, kind: 'local-cache-access-handoff' });
     handoffs.set(token, { lease, paths, consumed: false });
     return token;
-  } catch (error) { lease.suspended = false; throw error; }
+  } catch (error) {
+    capture(error, 'cache-handoff-drain-failure');
+    try { resume(); }
+    catch (resumeError) {
+      const failure = resumeError === error ? error : addStorageFailureContext(error, {}, resumeError, { secondaryPresent: true });
+      throw addStorageFailureContext(failure, { repoCacheHandoffOwner: owner,
+        cacheOwnershipPending: true, cacheOwnershipReleased: owner.isSettled }, undefined,
+      { nonEnumerable: ['repoCacheHandoffOwner'] });
+    }
+    throw error;
+  }
 };
 
 export const cancelRepoCacheAccessHandoff = token => {

@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["positive", "wrong-lease", "pending-result", "pending-error", "marker-only", "observer-throw", "getter-revocation", "field-getter-error", "falsey-error", "changed-parent", "fence-release-failure", "callback-replacement", "cancel-positive"]
+}
