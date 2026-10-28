@@ -36,7 +36,9 @@ assert.ok(!pending.actions.includes('retry'));
 assert.equal(projectTuiOperationFailure({}, { timedOut: true, cancelled: true }).reason, 'timeout');
 assert.equal(projectTuiOperationFailure({}, { cancelled: true }).reason, 'cancelled');
 const envelope = (text, outputCapture = {}) => ({ result: { stdout: text, stderr: secret, outputCapture } });
-const safe = JSON.stringify({ ok: false, code: 'NO_INDEX', field: 'query', message: secret });
+const safe = JSON.stringify({ ok: false, code: 'NO_INDEX', field: 'query', message: secret.slice(0, 2048) });
+assert.equal(readTuiSearchChildFailure(envelope(JSON.stringify({ ok: false, code: 'NO_INDEX', message: secret }))).code, null,
+  'an oversized malicious envelope cannot own a cause even when its code is known');
 assert.equal(readTuiSearchChildFailure(envelope(safe)).code, 'NO_INDEX');
 assert.equal(readTuiSearchChildFailure(envelope(safe)).field, 'query');
 for (const outputCapture of [{ stdout: { truncated: true } }, { stdout: { encodingLoss: true } }]) {
