@@ -1,3 +1,5 @@
+import { observeStorageResource } from '../shared/storage/failure-observation.js';
+
 const pending = new Set(), failureOwners = new WeakMap();
 const cacheHandoffs = new WeakMap();
 const nativeSettlements = new WeakMap();
@@ -22,6 +24,7 @@ export const takeSqliteCacheCloseOwner = (db, gate) => {
   return owner;
 };
 const objectLike = value => value !== null && ['object', 'function'].includes(typeof value);
+const primitiveResult = Object.freeze({ requireSettled() {} });
 export const getPendingSqliteCacheOwners = () => Object.freeze([...pending]);
 export const getSqliteCacheFailureOwner = error => objectLike(error) ? failureOwners.get(error) || null : null;
 
@@ -38,10 +41,12 @@ export const createSqliteCacheCloseOwner = (db, { canClose, onClosed, onNativeCl
       cacheOwnershipReleased: { value: captured.owner.isSettled }
     });
   }
-  const failures = [], seen = new Set(), observers = [];
+  const failures = [], seen = new Set(), observers = [], resultObservers = [], nativeResultObservers = [];
   const settlementHooks = new Set([onNativeClosed]);
+  const completedHooks = new Set(), completedClosed = new Set(), closedCallbacks = [{ method: onClosed, receiver: undefined }];
   let originalClose, captureFailed = false, disposed = false, closed = false, closing = false;
   let lastError = null, overflow = false, owner, retired = false, nativeConfirmed = false;
+  let checkingResources = false, checkingNative = false;
   const record = value => {
     const queue = [value];
     while (queue.length) {
@@ -62,7 +67,33 @@ export const createSqliteCacheCloseOwner = (db, { canClose, onClosed, onNativeCl
       });
     }
   };
-  const resourcesSettled = () => !overflow && observers.every(observe => observe());
+  const resultsSettled = list => list.every(observation => {
+    try { return observation.isSettled(); } catch (error) { record(error); return false; }
+  });
+  const nativeResultsSettled = () => {
+    if (checkingNative) return false;
+    checkingNative = true;
+    try { return !overflow && resultsSettled(nativeResultObservers); }
+    finally { checkingNative = false; }
+  };
+  const resourcesSettled = () => {
+    if (checkingResources) return false;
+    checkingResources = true;
+    try { return !overflow && observers.every(observe => observe()) && resultsSettled(resultObservers); }
+    finally { checkingResources = false; }
+  };
+  const captureResult = (value, phase, native = false) => {
+    if (!objectLike(value)) return primitiveResult;
+    if (objectLike(value) && failureOwners.get(value) === owner) throw Object.assign(
+      new Error('SQLite settlement cannot acknowledge its own failure report.'), { cacheOwnershipPending: true });
+    const observation = observeStorageResource(value, { phase });
+    if (observation.hasResourceObservation) {
+      if (resultObservers.length >= 128) { overflow = true; throw new Error('SQLite close result observations exceeded their bound.'); }
+      resultObservers.push(observation);
+      if (native) nativeResultObservers.push(observation);
+    }
+    return observation;
+  };
   const isSettled = () => closed && resourcesSettled();
   const describe = () => {
     // Fixed diagnostics avoid invoking arbitrary primary message/stack getters.
@@ -76,10 +107,10 @@ export const createSqliteCacheCloseOwner = (db, { canClose, onClosed, onNativeCl
     });
     failureOwners.set(error, owner); lastError = error; pending.add(owner); return error;
   };
-  const receipt = () => Object.freeze({ settled: isSettled(), pending: !isSettled() });
+  const receipt = () => { const settled = isSettled(); return Object.freeze({ settled, pending: !settled }); };
   const close = ({ retry = false } = {}) => {
     retired = true; cacheHandoffs.delete(db);
-    if (isSettled()) return receipt();
+    if (isSettled()) { pending.delete(owner); return receipt(); }
     pending.add(owner);
     if (!canClose()) return receipt();
     if (closing || lastError && !retry) throw lastError || describe();
@@ -88,6 +119,7 @@ export const createSqliteCacheCloseOwner = (db, { canClose, onClosed, onNativeCl
     try {
       if (!disposed) {
         const result = originalClose.call(db);
+        const observation = captureResult(result, 'sqlite-cache-original-close-result', true);
         if (result === false) throw new Error('SQLite cache close explicitly remained unconfirmed.');
         if (result !== undefined && result !== db) {
           // The installed better-sqlite3 close contract returns its receiver.
@@ -96,13 +128,37 @@ export const createSqliteCacheCloseOwner = (db, { canClose, onClosed, onNativeCl
           throw Object.assign(new Error('SQLite cache close returned unknown synchronous evidence.'), { cacheOwnershipPending: true });
         }
         disposed = true;
+        observation.requireSettled();
       }
       if (!resourcesSettled()) throw describe();
       nativeConfirmed = true;
       const settlementErrors = [];
-      for (const hook of settlementHooks) { try { hook(); } catch (error) { settlementErrors.push(error); } }
+      const settleCallback = (key, completed, method, receiver, phase) => {
+        if (completed.has(key)) return;
+        if (!resourcesSettled()) throw describe();
+        try {
+          const value = method.call(receiver);
+          completed.add(key);
+          const observation = captureResult(value, phase);
+          if (value instanceof Promise) {
+            Promise.prototype.then.call(value, () => {}, error => { record(error); });
+            throw Object.assign(new Error('SQLite settlement callback returned unknown synchronous evidence.'), { cacheOwnershipPending: true });
+          }
+          observation.requireSettled();
+        } catch (error) { record(error); settlementErrors.push(error); }
+      };
+      // Cache bookkeeping can itself return owned work. Observe it before
+      // metadata hooks release launch-namespace exclusions; physical native
+      // settlement remains a separate predicate to avoid a metadata self-gate.
+      for (const callback of closedCallbacks) settleCallback(callback, completedClosed, callback.method, callback.receiver, 'sqlite-cache-closed-result');
+      if (settlementErrors.length) throw new AggregateError(settlementErrors, 'SQLite closed bookkeeping failed.', { cause: settlementErrors[0] });
+      for (const hook of settlementHooks) settleCallback(hook, completedHooks, hook, undefined, 'sqlite-cache-native-settlement-result');
       if (settlementErrors.length) throw new AggregateError(settlementErrors, 'SQLite storage settlement failed.', { cause: settlementErrors[0] });
-      closed = true; pending.delete(owner); onClosed(); return receipt();
+      if (!resourcesSettled()) throw describe();
+      closed = true;
+      const result = receipt();
+      if (!result.settled) throw describe();
+      pending.delete(owner); return result;
     } catch (error) {
       if (failureOwners.get(error) === owner) throw error;
       record(error); throw describe();
@@ -111,19 +167,19 @@ export const createSqliteCacheCloseOwner = (db, { canClose, onClosed, onNativeCl
   owner = Object.freeze({ kind: 'sqlite-cache', db, isSettled,
     get lastError() { return lastError; }, retainFailure: record,
     retire: () => close(), release: () => close({ retry: true }) });
-  if (objectLike(db)) nativeSettlements.set(db, { owner, settled: () => nativeConfirmed,
+  if (objectLike(db)) nativeSettlements.set(db, { owner, settled: () => nativeConfirmed && nativeResultsSettled(),
     hooks: settlementHooks, retired: () => closing || disposed || captureFailed || lastError !== null });
   try {
     originalClose = db?.close;
     if (typeof originalClose !== 'function') throw new TypeError('SQLite cache requires its original synchronous close method.');
   } catch (error) { captureFailed = true; record(error); throw describe(); }
   if (allowCacheHandoff) cacheHandoffs.set(db, gate => {
-    if (retired || lastError || typeof gate?.canClose !== 'function' || typeof gate?.onClosed !== 'function') {
+    const nextCanClose = gate?.canClose, nextOnClosed = gate?.onClosed;
+    if (retired || lastError || typeof nextCanClose !== 'function' || typeof nextOnClosed !== 'function') {
       throw new Error('SQLite cache requires its unused original resource owner.');
     }
-    const initialOnClosed = onClosed;
-    canClose = gate.canClose;
-    onClosed = () => { initialOnClosed(); gate.onClosed(); };
+    canClose = nextCanClose;
+    closedCallbacks.push({ method: nextOnClosed, receiver: gate });
     return owner;
   });
   return owner;

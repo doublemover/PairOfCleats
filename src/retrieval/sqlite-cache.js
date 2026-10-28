@@ -39,6 +39,9 @@ export function createSqliteDbCache({
   let disposed = false;
   let cleanupErrors = null;
   const retiredEntries = new Set(), deferredErrors = new Set();
+  const reconcileRetiredEntries = () => {
+    for (const entry of retiredEntries) if (entry.owner.isSettled()) retiredEntries.delete(entry);
+  };
   const attemptCleanup = (action) => {
     try {
       action();
@@ -61,6 +64,7 @@ export function createSqliteDbCache({
       cleanupErrors = previousErrors;
     }
     errors.push(...deferredErrors); deferredErrors.clear();
+    reconcileRetiredEntries();
     for (const entry of retiredEntries) {
       if (entry.owner.lastError && !entry.owner.isSettled()) errors.push(entry.owner.lastError);
     }
@@ -74,9 +78,13 @@ export function createSqliteDbCache({
     }
   };
   const closeRetiredEntry = (entry) => {
-    if (!entry || !entry.retired || entry.refs || entry.closed) return;
+    if (!entry || !entry.retired || entry.refs) return;
+    if (entry.owner.isSettled()) { retiredEntries.delete(entry); return; }
     retiredEntries.add(entry);
-    attemptCleanup(() => entry.owner.retire());
+    attemptCleanup(() => {
+      entry.owner.retire();
+      if (entry.owner.isSettled()) retiredEntries.delete(entry);
+    });
   };
   const createLease = (entry) => {
     entry.refs += 1;
@@ -136,10 +144,13 @@ export function createSqliteDbCache({
   };
   const makeEntry = (dbPath, db, options) => {
     const entry = { db, dbPath, generationTag: normalizeGenerationTag(options.generationTag),
-      signature: fileSignature(dbPath), refs: 0, retired: disposed || !cacheHandle.cache, closed: false };
+      signature: fileSignature(dbPath), refs: 0, retired: disposed || !cacheHandle.cache,
+      get closed() { return this.owner?.isSettled() === true; } };
     const gate = {
       canClose: () => entry.retired && entry.refs === 0,
-      onClosed: () => { entry.closed = true; retiredEntries.delete(entry); }
+      // Owner completion, including namespace settlement, is authoritative.
+      // Bookkeeping callbacks must not erase a still-pending original owner.
+      onClosed() {}
     };
     entry.owner = takeSqliteCacheCloseOwner(db, gate) || createSqliteCacheCloseOwner(db, gate);
     return entry;
@@ -191,10 +202,11 @@ export function createSqliteDbCache({
     closeAll,
     dispose,
     retainFailure(error) {
+      reconcileRetiredEntries();
       const entries = new Set([...retiredEntries, ...(cacheHandle.cache?.values() || [])]);
       for (const entry of entries) entry.owner.retainFailure(error);
     },
-    pendingOwners: () => Object.freeze([...retiredEntries].map(entry => entry.owner)),
+    pendingOwners: () => { reconcileRetiredEntries(); return Object.freeze([...retiredEntries].map(entry => entry.owner)); },
     size: cacheHandle.size
   };
 }

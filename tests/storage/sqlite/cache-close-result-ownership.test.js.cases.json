@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "native-pending",
+    "native-replaced",
+    "native-inspection",
+    "native-independent",
+    "native-revoked",
+    "hook-pending",
+    "closed-pending",
+    "handoff-pending",
+    "hook-promise",
+    "closed-promise",
+    "hook-ordinary-failure",
+    "closed-ordinary-failure",
+    "closed-before-namespace",
+    "handoff-original",
+    "native-actual",
+    "native-actual-pending",
+    "cache-registry"
+  ]
+}
