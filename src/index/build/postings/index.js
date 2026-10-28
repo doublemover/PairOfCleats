@@ -15,6 +15,7 @@ import { resolveMinhashOutputs } from './minhash.js';
 import { buildPhraseAndChargramPostings } from './phrase-chargram.js';
 import { createSpillHelpers, compareChargramRows } from './spill.js';
 import { buildTokenAndFieldPostings } from './token-field.js';
+import { collectFieldPostingNames, getFieldPostingLengths, setFieldPostingRecord } from './field-record.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 
 /**
@@ -158,27 +159,13 @@ export async function buildPostings(input) {
   const buildEmptyFieldPostings = () => {
     if (!fieldedEnabled) return null;
     const fields = {};
-    const fieldNames = new Set();
-    if (fieldPostings && typeof fieldPostings === 'object') {
-      Object.keys(fieldPostings).forEach((field) => fieldNames.add(field));
-    }
-    if (fieldDocLengths && typeof fieldDocLengths === 'object') {
-      Object.keys(fieldDocLengths).forEach((field) => fieldNames.add(field));
-    }
+    const fieldNames = collectFieldPostingNames(fieldPostings, fieldDocLengths);
     if (!fieldNames.size) {
       ['name', 'signature', 'doc', 'comment', 'body'].forEach((field) => fieldNames.add(field));
     }
     for (const field of fieldNames) {
-      const lengths = Array.isArray(fieldDocLengths?.[field])
-        ? fieldDocLengths[field].map((len) => (Number.isFinite(len) ? len : 0))
-        : [];
-      fields[field] = {
-        vocab: [],
-        postings: [],
-        docLengths: lengths,
-        avgDocLen: 0,
-        totalDocs: lengths.length
-      };
+      const lengths = getFieldPostingLengths(fieldDocLengths, field).map((len) => Number.isFinite(len) ? len : 0);
+      setFieldPostingRecord(fields, field, { docLengths: lengths });
     }
     return { fields };
   };

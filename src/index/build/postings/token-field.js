@@ -1,4 +1,5 @@
-import { setOwn } from '../../../shared/object-record.js';
+import { getOwn } from '../../../shared/object-record.js';
+import { collectFieldPostingNames, getFieldPostingLengths, setFieldPostingRecord } from './field-record.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { sortStrings } from './constants.js';
 import { normalizeTfPostingList } from './id-lists.js';
@@ -71,20 +72,21 @@ export const buildTokenAndFieldPostings = async ({
     }
     const avgDocLen = normalizedDocLengths.length ? totalLength / normalizedDocLengths.length : 0;
     let fieldPostingsResult = null;
-    if (sparseEnabled && fieldPostings && fieldDocLengths) {
+    if (sparseEnabled && (fieldPostings || fieldDocLengths)) {
       const fields = {};
-      const fieldEntries = Object.entries(fieldPostings);
+      const fieldEntries = Array.from(collectFieldPostingNames(fieldPostings, fieldDocLengths),
+        field => [field, getOwn(fieldPostings || {}, field)]);
       yield* sortPostingsWork(fieldEntries, (left, right) => sortStrings(left[0], right[0]), workBatchSize, 'field-order');
       for (const [field, postingsMap] of fieldEntries) {
         throwIfAborted(signal);
-        if (!postingsMap || typeof postingsMap.entries !== 'function') continue;
+        if (postingsMap != null && typeof postingsMap.entries !== 'function') continue;
         const entries = [];
-        for (const [token, posting] of postingsMap.entries()) {
+        for (const [token, posting] of postingsMap?.entries() || []) {
           entries.push([token, posting]);
           if (entries.length % workBatchSize === 0) yield { phase: 'field-vocabulary', field, units: workBatchSize };
         }
         if (entries.length % workBatchSize) yield { phase: 'field-vocabulary', field, units: entries.length % workBatchSize };
-        consume(postingsMap);
+        if (postingsMap) consume(postingsMap);
         yield* sortPostingsWork(entries, (left, right) => sortStrings(left[0], right[0]), workBatchSize, 'field-vocabulary-sort');
         const vocab = new Array(entries.length), postings = new Array(entries.length);
         let postingUnits = 0;
@@ -102,15 +104,15 @@ export const buildTokenAndFieldPostings = async ({
           if (postingUnits >= workBatchSize) { yield { phase: 'field-posting', field, units: postingUnits }; postingUnits = 0; }
         }
         if (postingUnits) yield { phase: 'field-posting', field, units: postingUnits };
-        const raw = fieldDocLengths[field] || [], lengths = Array.isArray(raw) ? new Array(raw.length) : [];
+        const raw = getFieldPostingLengths(fieldDocLengths, field), lengths = new Array(raw.length);
         let lengthSum = 0;
         for (let index = 0; index < lengths.length; index++) {
           const length = Number.isFinite(raw[index]) ? raw[index] : 0;
           lengths[index] = length; lengthSum += length;
           if ((index + 1) % workBatchSize === 0) yield { phase: 'field-lengths', field, units: workBatchSize };
         }
-        setOwn(fields, field, { vocab, postings, docLengths: lengths,
-          avgDocLen: lengths.length ? lengthSum / lengths.length : 0, totalDocs: lengths.length });
+        setFieldPostingRecord(fields, field, { vocab, postings, docLengths: lengths,
+          avgDocLen: lengths.length ? lengthSum / lengths.length : 0 });
         yield { phase: 'field-complete', field, units: 1 };
       }
       if (Object.keys(fields).length) fieldPostingsResult = { fields };
