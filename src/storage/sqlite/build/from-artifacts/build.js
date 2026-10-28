@@ -188,7 +188,7 @@ async function buildDatabaseFromArtifactsOwned({
   let succeeded = false, operationFailed = false, operationError;
   try {
     const vectorAnn = prepareVectorAnnTable({ db, indexData: index, mode, vectorConfig });
-    batchStats.vectorAnn = { enabled: vectorConfig?.enabled === true, ready: Boolean(vectorAnn?.insert),
+    if (batchStats) batchStats.vectorAnn = { enabled: vectorConfig?.enabled === true, ready: Boolean(vectorAnn?.insert),
       table: vectorAnn?.tableName || vectorConfig?.extension?.table || 'dense_vectors_ann' };
     const {
       insertClause,
@@ -398,6 +398,8 @@ async function buildDatabaseFromArtifactsOwned({
       insertFileMetaStage,
       insertChunkStage,
       insertFileManifest,
+      onChunkIdentity: identity => { if (batchStats) batchStats.chunkIdentity = identity; },
+      outputPath: promotePath || dbPath,
       manifestByNormalized
     });
 

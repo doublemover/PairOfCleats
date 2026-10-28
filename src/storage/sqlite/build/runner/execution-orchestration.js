@@ -334,13 +334,15 @@ const executeSqliteModeBuildsOwned = async ({
       };
       const validatePublishedCounts = dbPath => {
         const result = validateSqliteRowLedgerPostImport({ repoRoot: root, userConfig, rowLedger: activeRowLedger, Database, dbPath,
+          chunkIdentity: sqliteStats.chunkIdentity || null,
           annTable: resolvedVectorConfig?.extension?.table || 'dense_vectors_ann',
           annExpectation: !resolvedVectorConfig.enabled ? 'disabled' : sqliteStats.vectorAnn?.ready === true ? 'ready' : 'unavailable',
           configureAnn: resolvedVectorConfig.enabled ? db => resolvedVectorConfig.loadVectorExtension(db,
             resolvedVectorConfig.extension, `sqlite ${mode} ledger`) : null });
         sqliteStats.rowLedgerChecks = { ...(sqliteStats.rowLedgerChecks || {}), postImport: result };
         if (!result.ok) throw Object.assign(new Error(result.message), {
-          code: result.code, failureClass: result.failureClass, rowLedger: result.rowLedger, observed: result.observed
+          code: result.code, failureClass: result.failureClass, rowLedger: result.rowLedger, observed: result.observed,
+          ...(result.rowIdentity ? { rowIdentity: result.rowIdentity } : {})
         });
       };
       let activeBatchConfig = null;

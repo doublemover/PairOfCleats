@@ -4,6 +4,6 @@
     "pre-undefined", "pre-null", "pre-nan", "pre-infinity", "pre-negative", "pre-fractional", "pre-unsafe", "pre-string", "pre-boolean",
     "post-undefined", "post-null", "post-nan", "post-infinity", "post-negative", "post-fractional", "post-unsafe", "post-string", "post-boolean",
     "pre-extra-zero", "post-extra-zero", "ready-empty-ann", "ready-absent-ann", "disabled-ann", "optional-absent", "file-count-unavailable",
-    "pending-snapshot", "native-zero", "native-positive", "native-query-failure", "native-required-ann", "native-empty-ann", "native-one-transaction"
+    "pending-snapshot", "native-zero", "native-positive", "native-query-failure", "native-required-ann", "native-empty-ann", "native-one-transaction", "stale-ledger"
   ]
 }

@@ -17,7 +17,7 @@ const invalid = { undefined, null: null, nan: NaN, infinity: Infinity, negative:
   unsafe: Number.MAX_SAFE_INTEGER + 1, string: '0', boolean: false };
 const named = ['pre-extra-zero', 'post-extra-zero', 'ready-empty-ann', 'ready-absent-ann', 'disabled-ann',
   'optional-absent', 'file-count-unavailable', 'pending-snapshot', 'native-zero', 'native-positive',
-  'native-query-failure', 'native-required-ann', 'native-empty-ann', 'native-one-transaction'];
+  'native-query-failure', 'native-required-ann', 'native-empty-ann', 'native-one-transaction', 'stale-ledger'];
 assert.ok(named.includes(selected) || /^(pre|post)-(undefined|null|nan|infinity|negative|fractional|unsafe|string|boolean)$/u.test(selected));
 const ledger = (chunks = 0, dense = 0) => createSqliteModeRowLedger({ mode: 'code', source: 'artifacts',
   expectedChunkCount: chunks, expectedDenseCount: dense, expectedFileCount: 0 });
@@ -80,6 +80,10 @@ if (selected.startsWith('native-')) {
   assert.equal(result.observed.chunks, null, 'unknown/invalid evidence remains unavailable rather than measured zero');
   const expected = ledger(value, 0); assert.equal(expected.expected.chunks, null);
   assert.equal(post(expected, snapshot()).ok, false);
+} else if (selected === 'stale-ledger') {
+  const stale = { ...ledger(), schemaVersion: 1 };
+  assert.equal(validateSqliteRowLedgerPreImport({ rowLedger: stale, bundleResult: { count: 0, denseCount: 0 } }).ok, false);
+  assert.equal(post(stale, snapshot()).ok, false);
 } else if (selected === 'pre-extra-zero') {
   const result = validateSqliteRowLedgerPreImport({ rowLedger: ledger(2, 0), bundleResult: { count: 2, denseCount: 1 } });
   assert.equal(result.ok, false); assert.equal(result.code, 'ERR_SQLITE_PREIMPORT_DENSE_COUNT_MISMATCH');

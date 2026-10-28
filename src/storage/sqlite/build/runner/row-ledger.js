@@ -5,6 +5,7 @@ import {
   readSqliteModeRowCounts
 } from './sqlite-probes.js';
 import { observeStorageResource } from '../../../../shared/storage/failure-observation.js';
+import { isSqliteChunkIdentityWitness, matchesSqliteChunkIdentity } from '../row-identity.js';
 
 const normalizeCount = (value) => {
   return Number.isSafeInteger(value) && value >= 0 ? value : null;
@@ -27,6 +28,8 @@ const hasPartialDenseCoverage = (embedStats) => Boolean(
   )
 );
 
+export const SQLITE_ROW_LEDGER_SCHEMA_VERSION = 2;
+
 export const SQLITE_ROW_LEDGER_FAILURE = Object.freeze({
   inputInvalid: 'input_invalid',
   rowCountMismatch: 'row_count_mismatch',
@@ -43,7 +46,7 @@ export const createSqliteModeRowLedger = ({
   expectedFileCount = null,
   inputRoot = null
 } = {}) => ({
-  schemaVersion: 2,
+  schemaVersion: SQLITE_ROW_LEDGER_SCHEMA_VERSION,
   mode: typeof mode === 'string' ? mode : 'unknown',
   source: typeof source === 'string' ? source : 'artifacts',
   inputRoot: typeof inputRoot === 'string' && inputRoot ? inputRoot : null,
@@ -113,7 +116,8 @@ export const validateSqliteRowLedgerPreImport = ({
     };
   }
 
-  if ([expectedChunks, expectedDense, observedChunks, observedDense].some(value => value === null)) {
+  if (ledger.schemaVersion !== SQLITE_ROW_LEDGER_SCHEMA_VERSION
+    || [expectedChunks, expectedDense, observedChunks, observedDense].some(value => value === null)) {
     return { ok: false, phase: 'pre-import', failureClass: SQLITE_ROW_LEDGER_FAILURE.inputInvalid,
       code: resolveSqliteRowLedgerFailureCode(SQLITE_ROW_LEDGER_FAILURE.inputInvalid, 'pre-import'),
       message: 'bundle/expected row counts are unavailable or invalid', rowLedger: ledger,
@@ -189,17 +193,21 @@ export const validateSqliteRowLedgerPreImport = ({
 
 export const validateSqliteRowLedgerPostImport = ({
   repoRoot = process.cwd(), userConfig = null, rowLedger, Database, dbPath,
-  annTable = 'dense_vectors_ann', annExpectation = 'optional', configureAnn = null, probe = {}
+  annTable = 'dense_vectors_ann', annExpectation = 'optional', configureAnn = null, chunkIdentity = null, probe = {}
 } = {}) => {
   const ledger = rowLedger && typeof rowLedger === 'object' ? rowLedger : createSqliteModeRowLedger();
   const input = { repoRoot, userConfig, Database, dbPath, mode: ledger.mode };
+  if (chunkIdentity && !isSqliteChunkIdentityWitness(chunkIdentity, dbPath, ledger.mode)) throw Object.assign(
+    new Error('SQLite row identity witness is foreign, copied or belongs to another target/mode.'), { code: 'ERR_SQLITE_ROW_IDENTITY_MISMATCH' });
   const customCounts = ['readModeCount', 'readDenseCount', 'readTableCount'].some(key => typeof probe[key] === 'function');
+  if (chunkIdentity && (customCounts || typeof probe.readSnapshot === 'function')) throw Object.assign(
+    new Error('Qualified chunk identity requires the actual native snapshot owner.'), { code: 'ERR_SQLITE_ROW_IDENTITY_MISMATCH' });
   const snapshot = typeof probe.readSnapshot === 'function' ? probe.readSnapshot(input)
     : customCounts ? {
       chunks: (probe.readModeCount || readSqliteModeCount)(input),
       dense: (probe.readDenseCount || readSqliteDenseModeCount)(input),
       ann: (probe.readTableCount || readSqliteTableCount)({ ...input, tableName: annTable })
-    } : readSqliteModeRowCounts(input, { annTable, configureAnn });
+    } : readSqliteModeRowCounts(input, { annTable, configureAnn, chunkIdentity: Boolean(chunkIdentity) });
   observeStorageResource(snapshot, { phase: 'sqlite-ledger-staged-counts' }).requireSettled();
   const observed = { chunks: normalizeCount(snapshot?.chunks), dense: normalizeCount(snapshot?.dense),
     files: normalizeCount(snapshot?.files), ann: normalizeCount(snapshot?.ann),
@@ -208,7 +216,8 @@ export const validateSqliteRowLedgerPostImport = ({
   const failure = (kind, message) => ({ ok: false, phase: 'post-import',
     failureClass: kind === SQLITE_ROW_LEDGER_FAILURE.inputInvalid ? kind : SQLITE_ROW_LEDGER_FAILURE.postImportValidationMismatch,
     code: resolveSqliteRowLedgerFailureCode(kind, 'post-import'), message, rowLedger: ledger, observed });
-  if ([expectedChunks, expectedDense, observed.chunks, observed.dense].some(value => value === null)
+  if (ledger.schemaVersion !== SQLITE_ROW_LEDGER_SCHEMA_VERSION
+    || [expectedChunks, expectedDense, observed.chunks, observed.dense].some(value => value === null)
     || !customCounts && observed.files === null
     || !['ready', 'optional', 'disabled', 'unavailable'].includes(annExpectation)
     || typeof observed.annPresent !== 'boolean'
@@ -225,9 +234,14 @@ export const validateSqliteRowLedgerPostImport = ({
     return failure(SQLITE_ROW_LEDGER_FAILURE.postImportValidationMismatch,
       `post-import ANN count mismatch (${observed.ann} !== ${annExpectation === 'disabled' ? 0 : observed.dense})`);
   }
+  if (chunkIdentity && !matchesSqliteChunkIdentity(chunkIdentity, snapshot?.chunkIdentity, dbPath, ledger.mode)) return {
+    ...failure(SQLITE_ROW_LEDGER_FAILURE.postImportValidationMismatch, 'post-import chunk identity mismatch against original artifact stage'),
+    code: 'ERR_SQLITE_POSTIMPORT_IDENTITY_MISMATCH', failureClass: 'row_identity_mismatch',
+    rowIdentity: { expected: chunkIdentity, observed: snapshot?.chunkIdentity || null }
+  };
   return { ok: true, phase: 'post-import', rowLedger: ledger, observed,
     coverage: { chunks: 'exact-count', dense: 'exact-count', ann: observed.annPresent ? 'exact-count' : annExpectation,
-      files: 'observed-only', identities: 'unqualified' } };
+      files: 'observed-only', identities: chunkIdentity ? 'normalized-artifact-stage-chunks' : 'unqualified' } };
 };
 
 export const classifySqliteModeBuildFailure = (err) => {

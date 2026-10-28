@@ -5,6 +5,7 @@ import {
   normalizeChunkForSqlite
 } from '../../build-helpers.js';
 import { normalizeFilePath } from '../../utils.js';
+import { captureSqliteChunkStageIdentity } from '../row-identity.js';
 import {
   CHUNK_META_REQUIRED_KEYS,
   iterateChunkMetaSources,
@@ -306,6 +307,8 @@ export const createChunkIngestor = (ctx) => {
     recordTable('chunks', chunkCount, durationMs);
     recordTable('chunks_fts', chunkCount, durationMs);
     insertOptionalFtsFromStage(db);
+    const identity = captureSqliteChunkStageIdentity(db, targetMode, { outputPath: ctx.outputPath || db.name });
+    ctx.onChunkIdentity?.(identity);
     db.exec('DELETE FROM chunks_stage;');
   };
 
