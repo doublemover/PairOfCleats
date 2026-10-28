@@ -526,7 +526,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
    */
   const startOperation = async ({ jobId, method }, execute,
     { timeoutMs = 15000, title = 'Settings', isCommitted = data => data?.saved === true, failureProjection = null } = {}) => {
-    assertAcceptingWork({ allowPending: ['status', 'describe', 'services', 'stop-service'].includes(method) });
+    assertAcceptingWork({ allowPending: ['status', 'readiness', 'describe', 'services', 'stop-service'].includes(method) });
     assertWorkAdmission?.({ kind: 'operation', method });
     if (typeof jobId !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(jobId)) {
       throw new Error('Internal operation requires a bounded jobId.');

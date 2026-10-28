@@ -209,7 +209,13 @@ export const createTuiSearchSession = ({ toolRoot, env = process.env, spawn = sp
     try { retirements.assertSettled(); } catch { retained = true; }
     return { resourcePending: retained || pendingWork.size > 0 || hasPendingResources(), closed: disposed };
   };
-  return { describe, query, continueSearch, source, open, status,
+  const readiness = async request => {
+    assertTuiSearchRequest('readiness', request);
+    const { inspectBootstrapReadiness } = await import('../../../src/shared/bootstrap-readiness.js');
+    const receipt = await inspectBootstrapReadiness({ root: toolRoot, probeNatives: false });
+    return { prepared: receipt.ready === true, qualification: 'activation-metadata-only', nativeProbesRun: false };
+  };
+  return { describe, query, continueSearch, source, open, status, readiness,
     dispose() {
       disposed = true; epoch++; for (const controller of controllers) controller.abort();
       pending = null; current = null; scopes.dispose();

@@ -4174,6 +4174,13 @@ fn interpret_terminal_key(model: &mut AppModel, key: KeyEvent) {
             if model.repository_search.key(key) {
                 model.overlay = OverlayMode::None;
             }
+            if let Some((repo, command)) = model.repository_search.take_recovery() {
+                if model.index_workflows.open_recovery(&repo, command) {
+                    model.overlay = OverlayMode::IndexWorkflows;
+                } else {
+                    model.repository_search.recovery_busy();
+                }
+            }
             model.dirty = true;
         }
         OverlayMode::IndexWorkflows => {

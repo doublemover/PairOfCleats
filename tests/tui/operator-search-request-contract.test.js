@@ -8,6 +8,8 @@ const request = { repoPath: process.cwd(), search: { query: 'alpha', mode: 'all'
 const resultId = randomUUID(), hitId = 'a'.repeat(64);
 assert.equal(assertTuiSearchRequest('query', request), request);
 assertTuiSearchRequest('describe', {});
+assertTuiSearchRequest('status', {});
+assertTuiSearchRequest('readiness', {});
 const session = createTuiSearchSession({ toolRoot: process.cwd() });
 const descriptor = session.describe({});
 assert.deepEqual(descriptor.resultModes, ['code', 'prose', 'extracted-prose', 'records']);
@@ -30,6 +32,8 @@ for (const [field] of REPEATED_LIST_FIELDS) {
   assertTuiSearchRequest('query', { ...request, search: { [field]: ['alpha', 'beta'] } });
 }
 const rejects = (kind, value) => assert.throws(() => assertTuiSearchRequest(kind, value), { code: 'ERR_TUI_SEARCH_REQUEST' });
+rejects('readiness', { prerequisites: true });
+rejects('status', { recoverResources: true });
 for (const search of [{}, { query: 'alpha', unknown: true }, { query: 'alpha', top: -1 },
   { query: 'alpha', top: NaN }, { query: 'alpha', backend: 'invented' },
   { query: 'alpha', asOf: 'commit:a', snapshot: 'other' }, { query: 'alpha', cursor: 'forged' },

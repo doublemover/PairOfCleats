@@ -118,7 +118,7 @@ impl SearchFailure {
             actions.push("i index health");
         }
         if self.allows("inspect-setup") {
-            actions.push("s checkout diagnosis");
+            actions.push("s setup metadata");
         }
         if self.allows("inspect-tooling") {
             actions.push("p tooling doctor");

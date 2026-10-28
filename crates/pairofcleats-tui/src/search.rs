@@ -55,6 +55,8 @@ pub(crate) struct SearchUi {
     failure: Option<SearchFailure>,
     outcome: SearchOutcome,
     cleanup_ready: bool,
+    recovery: Option<(String, &'static str)>,
+    setup_note: Option<&'static str>,
     next_id: u64,
     status: String,
 }
@@ -97,6 +99,8 @@ impl Default for SearchUi {
             failure: None,
             outcome: SearchOutcome::Idle,
             cleanup_ready: false,
+            recovery: None,
+            setup_note: None,
             next_id: 1,
             status: String::new(),
         }
@@ -136,6 +140,8 @@ impl SearchUi {
         self.failed_request = None;
         self.outcome = SearchOutcome::Idle;
         self.cleanup_ready = false;
+        self.recovery = None;
+        self.setup_note = None;
         self.page = Page::Composer;
         self.status = "Scope changed; submit a new query".into();
         self.revision += 1;
@@ -180,6 +186,24 @@ impl SearchUi {
         status
     }
 
+    fn prepare_recovery(&mut self, command: &'static str) {
+        if let Some(request) = &self.failed_request {
+            if request.repo == self.fields[0].trim() {
+                self.recovery = Some((request.repo.clone(), command));
+            }
+        }
+    }
+
+    pub fn take_recovery(&mut self) -> Option<(String, &'static str)> {
+        self.recovery.take()
+    }
+
+    pub fn recovery_busy(&mut self) {
+        self.status =
+            "Finish or dispose the existing workflow before opening recovery there".into();
+        self.revision += 1;
+    }
+
     fn request(&mut self, method: &str, params: Value) {
         if !self.available {
             return;
@@ -190,10 +214,11 @@ impl SearchUi {
             params: params.clone(),
             repo: self.fields[0].trim().into(),
         });
-        if method != "status" {
+        if !["status", "readiness"].contains(&method) {
             self.failure = None;
             self.cleanup_ready = false;
             self.outcome = SearchOutcome::Running;
+            self.setup_note = None;
         }
         let id = format!("native-search-{}", self.next_id);
         self.next_id += 1;
@@ -323,11 +348,24 @@ impl SearchUi {
                     return false;
                 }
                 KeyCode::Char('e') => {
+                    self.recovery = None;
                     self.page = Page::Composer;
                     return false;
                 }
                 KeyCode::Char('d') => {
                     self.page = Page::Diagnostics;
+                    return false;
+                }
+                KeyCode::Char('s') if failure.allows("inspect-setup") => {
+                    self.request("readiness", json!({}));
+                    return false;
+                }
+                KeyCode::Char('i') if failure.allows("inspect-index") => {
+                    self.prepare_recovery("index.validate");
+                    return false;
+                }
+                KeyCode::Char('p') if failure.allows("inspect-tooling") => {
+                    self.prepare_recovery("tooling.doctor");
                     return false;
                 }
                 _ => {}
@@ -560,13 +598,27 @@ impl SearchUi {
             );
             self.failure = Some(failure);
             self.cleanup_ready = false;
-            if method != "status" {
+            if !["status", "readiness"].contains(&method.as_str()) {
                 self.failed_request = context;
             }
             return true;
         }
         let data = &event["result"]["data"];
         match method.as_str() {
+            "readiness" => {
+                self.setup_note = Some(
+                    if data["prepared"] == true
+                        && data["qualification"] == "activation-metadata-only"
+                        && data["nativeProbesRun"] == false
+                    {
+                        "Setup metadata is intact. Native probes and runtime qualification did not run."
+                    } else {
+                        "Setup metadata is incomplete or unavailable. Inspect the checkout before provisioning."
+                    },
+                );
+                self.status =
+                    "Setup metadata inspected; the original search failure remains below".into();
+            }
             "status" => {
                 self.cleanup_ready = data["resourcePending"] == false && data["closed"] == false;
                 self.status = if self.cleanup_ready {
@@ -718,6 +770,9 @@ impl SearchUi {
             return lines;
         }
         if let Some(failure) = &self.failure {
+            if let Some(note) = self.setup_note {
+                lines.push(note.into());
+            }
             for line in failure.lines() {
                 for chunk in line.as_bytes().chunks(width.max(1)) {
                     lines.push(String::from_utf8_lossy(chunk).into_owned());

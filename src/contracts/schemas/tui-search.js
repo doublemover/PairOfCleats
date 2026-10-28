@@ -6,9 +6,10 @@ const record = properties => ({ type: 'object', additionalProperties: false, pro
 export const TUI_SEARCH_REQUEST_SCHEMAS = {
   dispatch: record({ proto: { const: 'poc.tui@1' }, op: { const: 'search:run' },
     jobId: { type: 'string', pattern: '^[a-zA-Z0-9_-]{1,128}$' },
-    method: { enum: ['describe', 'status', 'query', 'continue', 'source', 'open'] }, params: { type: 'object' } }),
+    method: { enum: ['describe', 'status', 'readiness', 'query', 'continue', 'source', 'open'] }, params: { type: 'object' } }),
   describe: record({}),
   status: record({}),
+  readiness: record({}),
   query: record({ repoPath: { type: 'string', minLength: 1, maxLength: 4096, pattern: '^[^\\u0000]+$' },
     search: { type: 'object' } }),
   continue: record({ resultId: id }),

@@ -5,6 +5,8 @@ use std::collections::VecDeque;
 use crate::overlay_viewport::{selected_rows, selected_window, ReviewViewport};
 use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use serde_json::{json, Map, Value};
+#[path = "workflow_recovery.rs"]
+mod recovery;
 
 #[derive(Clone)]
 enum ClickTarget {
@@ -60,6 +62,7 @@ pub(crate) struct WorkflowUi {
     services_return: Page,
     service_outcome: Option<Value>,
     service_resources: Vec<Value>,
+    recovery_command: Option<&'static str>,
 }
 
 impl Default for WorkflowUi {
@@ -98,12 +101,14 @@ impl Default for WorkflowUi {
             services_return: Page::Commands,
             service_outcome: None,
             service_resources: vec![],
+            recovery_command: None,
         }
     }
 }
 
 impl WorkflowUi {
     pub fn open(&mut self, initial_scope: &str) {
+        self.clear_recovery();
         if self.target.is_empty() {
             self.target = initial_scope.into();
         }
@@ -523,6 +528,7 @@ impl WorkflowUi {
             || event["resultState"] != "complete"
             || event["result"]["method"] != method
         {
+            self.clear_recovery();
             self.status = format!(
                 "Workflow {}: {}. Preview again before launch.",
                 event["status"].as_str().unwrap_or("failed"),
@@ -569,6 +575,7 @@ impl WorkflowUi {
                 self.commands = data["commands"].as_array().cloned().unwrap_or_default();
                 self.page = Page::Commands;
                 self.status = "Canonical command catalog loaded; no work started. Unsupported rows explain the missing adapter.".into();
+                self.apply_recovery();
             }
             "preview" => {
                 self.presentation.get_mut().clear();

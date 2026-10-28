@@ -1,5 +1,47 @@
 use super::*;
 
+#[test]
+fn failure_recovery_navigation_is_scope_bound_and_setup_is_metadata_only() {
+    let mut ui = ready();
+    key(&mut ui, KeyCode::Enter);
+    ui.outbox.clear();
+    fail(&mut ui, "NO_INDEX");
+    key(&mut ui, KeyCode::Char('i'));
+    assert_eq!(
+        ui.take_recovery(),
+        Some(("/selected repository".into(), "index.validate"))
+    );
+    assert!(ui.outbox.is_empty());
+    ui.fields[0] = "/other repository".into();
+    key(&mut ui, KeyCode::Char('i'));
+    assert!(ui.take_recovery().is_none());
+    ui.scope_changed("/selected repository");
+    key(&mut ui, KeyCode::Enter);
+    ui.outbox.clear();
+    fail(&mut ui, "CAPABILITY_MISSING");
+    key(&mut ui, KeyCode::Char('p'));
+    assert_eq!(
+        ui.take_recovery(),
+        Some(("/selected repository".into(), "tooling.doctor"))
+    );
+    key(&mut ui, KeyCode::Char('s'));
+    assert_eq!(ui.outbox.pop_front().unwrap()["method"], "readiness");
+    reply(
+        &mut ui,
+        "readiness",
+        json!({"prepared":true,"qualification":"activation-metadata-only","nativeProbesRun":false}),
+    );
+    assert_eq!(
+        ui.failure.as_ref().unwrap().definition.reason,
+        "missing-capability"
+    );
+    assert!(ui
+        .lines(24, 100)
+        .join("\n")
+        .contains("runtime qualification did not run"));
+    assert!(ui.outbox.is_empty());
+}
+
 fn fail(ui: &mut SearchUi, code: &str) {
     let id = ui.pending.as_ref().unwrap().0.clone();
     ui.event(

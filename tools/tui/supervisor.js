@@ -116,7 +116,7 @@ const {
   captureArtifactInventory: input => artifactRegistry.capture(input),
   assertWorkAdmission: ({ kind, method }) => {
     output.assertWritable();
-    if (kind === 'operation' && ['status', 'describe', 'services', 'stop-service'].includes(method)) return;
+    if (kind === 'operation' && ['status', 'readiness', 'describe', 'services', 'stop-service'].includes(method)) return;
     indexWorkflows?.assertCacheAdmission();
   }
 });
@@ -147,7 +147,7 @@ const runSearch = async (request, context) => {
   contracts.assertTuiSearchRequest(request.method, request.params);
   if (signal.aborted) throw Object.assign(new Error('Cancelled.'), { code: 'ABORT_ERR' });
   searchSession ||= search.createTuiSearchSession({ toolRoot: ROOT });
-  const methods = { describe: 'describe', status: 'status', query: 'query', continue: 'continueSearch', source: 'source', open: 'open' };
+  const methods = { describe: 'describe', status: 'status', readiness: 'readiness', query: 'query', continue: 'continueSearch', source: 'source', open: 'open' };
   return searchSession[methods[request.method]](request.params, context);
 };
 
