@@ -15,4 +15,7 @@ this does not change the release error/cause contract.
 
 Plain values and confirmed resource results keep their existing return identity.
 No lock format, ownership authority, stale policy, deadline or retry changes.
-The six new real-lock result controls are authored and unexecuted.
+The captured prerequisite is carried through the existing release owner, which
+rechecks it after release-method/options inspection and through actual unlink.
+A release getter cannot revoke original settlement and substitute a new observer
+to retire metadata. Seven real-lock result controls are authored and unexecuted.

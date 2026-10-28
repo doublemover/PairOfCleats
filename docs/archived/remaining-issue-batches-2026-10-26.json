@@ -1094,12 +1094,14 @@
         "f92c53623fe170b7eeba025bb1c20b86832ff573",
         "ce10a3aa90ef94a418c393a83b97908a744b0e06",
         "b8034d9f3194a91ddd9ed8aeb480fe6d05e6ed01",
-        "b51a60c2e65a6e5109669716c762f608eb66edfa"
+        "b51a60c2e65a6e5109669716c762f608eb66edfa",
+        "5400c00b68ea8f038bd85286f61b9e8447f7d7a1"
       ],
       "unvalidatedReceipts": [
         "native-state-publication-implementation-2026-10-28.md",
         "benchmark-artifact-report-implementation-2026-10-28.md",
-        "index-state-serialization-implementation-2026-10-28.md"
+        "index-state-serialization-implementation-2026-10-28.md",
+        "embedding-state-conflicts-implementation-2026-10-28.md"
       ],
       "nativeStatePublicationFollowup": "Required SQLite/LMDB state and shared manifest read/write/checksum failures now propagate instead of acknowledging in-memory ready state after failed publication. Malformed existing state cannot silently become an empty replacement. Optional LMDB metrics suppress only confirmed-settled resource observations. Eleven actual-producer controls are authored and unexecuted; paired/concurrent publication, row/build-mode, custom registration/cleanup and original/follow-up acceptance remain separate.",
       "compactionCountFollowup": "Actual compaction now refuses failed table metadata/query and invalid row counts instead of substituting zero. Required chunks and dense_vectors absence fails; zero needs a successful query. Eight actual native controls are authored, unexecuted, preserving unchanged source/once-only close/metadata recovery plus empty/nonempty dense positives. Existing compaction/row/build-mode and full original acceptance remain.",
@@ -1114,6 +1116,11 @@
           "sourceHead": "b51a60c2e65a6e5109669716c762f608eb66edfa",
           "receipt": "index-state-serialization-implementation-2026-10-28.md",
           "implementation": "Actual SQLite/LMDB state mutations serialize contained read, namespace patch, state and manifest refresh through the existing lock owner. Pending original work retains lock metadata; twelve producer/concurrency/peer-process controls are authored and unexecuted. Embedding/initial-generation adoption and crash-atomic paired publication remain separate."
+        },
+        {
+          "sourceHead": "5400c00b68ea8f038bd85286f61b9e8447f7d7a1",
+          "receipt": "embedding-state-conflicts-implementation-2026-10-28.md",
+          "implementation": "Embedding state publication shares the native mutex and merges original-loaded field/extension deltas. Initial attempt compare-and-set and original generation/invocation guards reject stale ready/terminal writes; nineteen controls authored and unexecuted. Embedding-manifest/initial-generation adoption and crash-atomic recovery remain source scope."
         }
       ]
     },
@@ -4714,7 +4721,9 @@
         "285c1799c423fd2df8a6f588256b775aa13cdb76",
         "32d1b2afc9d01d644098c2b335cde3978542f950",
         "5df6cdf6bd5d3c1e8bd555a1e9037b5486598bae",
-        "b51a60c2e65a6e5109669716c762f608eb66edfa"
+        "b51a60c2e65a6e5109669716c762f608eb66edfa",
+        "93676573e268f9a742049bd22a89e84dbccd448b",
+        "5400c00b68ea8f038bd85286f61b9e8447f7d7a1"
       ],
       "unvalidatedReceipts": [
         "storage-space-implementation-2026-10-27.md",
@@ -4732,7 +4741,8 @@
         "vector-spool-ownership-implementation-2026-10-28.md",
         "sqlite-pending-admission-implementation-2026-10-28.md",
         "file-lock-result-implementation-2026-10-28.md",
-        "index-state-serialization-implementation-2026-10-28.md"
+        "index-state-serialization-implementation-2026-10-28.md",
+        "embedding-state-conflicts-implementation-2026-10-28.md"
       ],
       "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
       "sessionObservationFollowup": "Shared session admission now captures successful action and settlement receipt observers, freezes projected receipt fields and retains independent inspection/observer errors through original handles. Eleven authored cases await execution; native-reader observation, remaining adapters/custom backend registration and full qualification remain.",
@@ -4765,6 +4775,16 @@
           "sourceHead": "b51a60c2e65a6e5109669716c762f608eb66edfa",
           "receipt": "index-state-serialization-implementation-2026-10-28.md",
           "implementation": "Actual SQLite/LMDB state mutations serialize contained read, namespace patch, state and manifest refresh through the existing lock owner. Pending original work retains lock metadata; twelve producer/concurrency/peer-process controls are authored and unexecuted. Embedding/initial-generation adoption and crash-atomic paired publication remain separate."
+        },
+        {
+          "sourceHead": "93676573e268f9a742049bd22a89e84dbccd448b",
+          "receipt": "file-lock-result-implementation-2026-10-28.md",
+          "implementation": "Successful worker prerequisites now survive release-method/options inspection through actual lock metadata unlink. Seventh release-getter control authored and unexecuted; no worker replay or replacement observer authority."
+        },
+        {
+          "sourceHead": "5400c00b68ea8f038bd85286f61b9e8447f7d7a1",
+          "receipt": "embedding-state-conflicts-implementation-2026-10-28.md",
+          "implementation": "Embedding state publication shares the native mutex and merges original-loaded field/extension deltas. Initial attempt compare-and-set and original generation/invocation guards reject stale ready/terminal writes; nineteen controls authored and unexecuted. Embedding-manifest/initial-generation adoption and crash-atomic recovery remain source scope."
         }
       ]
     },
@@ -7640,7 +7660,9 @@
         "285c1799c423fd2df8a6f588256b775aa13cdb76",
         "32d1b2afc9d01d644098c2b335cde3978542f950",
         "5df6cdf6bd5d3c1e8bd555a1e9037b5486598bae",
-        "b51a60c2e65a6e5109669716c762f608eb66edfa"
+        "b51a60c2e65a6e5109669716c762f608eb66edfa",
+        "93676573e268f9a742049bd22a89e84dbccd448b",
+        "5400c00b68ea8f038bd85286f61b9e8447f7d7a1"
       ],
       "unvalidatedReceipts": [
         "sqlite-operation-implementation-2026-10-27.md",
@@ -7663,7 +7685,8 @@
         "vector-spool-ownership-implementation-2026-10-28.md",
         "sqlite-pending-admission-implementation-2026-10-28.md",
         "file-lock-result-implementation-2026-10-28.md",
-        "index-state-serialization-implementation-2026-10-28.md"
+        "index-state-serialization-implementation-2026-10-28.md",
+        "embedding-state-conflicts-implementation-2026-10-28.md"
       ],
       "currentImplementation": "SQLite runner/helpers and Clangd acquisition retain original work through shared storage teardown. Managed Go/Lua/generic discovery propagates pending inspection; retained generation admission protects the first scan and owns file/Dir/metadata recovery. Functional qualification and remaining custom cleanup adoption are not discharged.",
       "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
@@ -7698,6 +7721,16 @@
           "sourceHead": "b51a60c2e65a6e5109669716c762f608eb66edfa",
           "receipt": "index-state-serialization-implementation-2026-10-28.md",
           "implementation": "Actual SQLite/LMDB state mutations serialize contained read, namespace patch, state and manifest refresh through the existing lock owner. Pending original work retains lock metadata; twelve producer/concurrency/peer-process controls are authored and unexecuted. Embedding/initial-generation adoption and crash-atomic paired publication remain separate."
+        },
+        {
+          "sourceHead": "93676573e268f9a742049bd22a89e84dbccd448b",
+          "receipt": "file-lock-result-implementation-2026-10-28.md",
+          "implementation": "Successful worker prerequisites now survive release-method/options inspection through actual lock metadata unlink. Seventh release-getter control authored and unexecuted; no worker replay or replacement observer authority."
+        },
+        {
+          "sourceHead": "5400c00b68ea8f038bd85286f61b9e8447f7d7a1",
+          "receipt": "embedding-state-conflicts-implementation-2026-10-28.md",
+          "implementation": "Embedding state publication shares the native mutex and merges original-loaded field/extension deltas. Initial attempt compare-and-set and original generation/invocation guards reject stale ready/terminal writes; nineteen controls authored and unexecuted. Embedding-manifest/initial-generation adoption and crash-atomic recovery remain source scope."
         }
       ]
     },

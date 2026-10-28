@@ -39,7 +39,7 @@ Execution is solo, Windows-only and implementation-first. The [complete owner
 queue](archived/remaining-issue-batches-2026-10-26.json) orders source work by
 severity and shared dependencies, retaining qualification separately:
 
-1. P1 cleanup (#1574): [state ownership](archived/build-state-ownership-implementation-2026-10-27.md), configured stores and [SQLite admission](archived/sqlite-pending-admission-implementation-2026-10-28.md) await qualification. Custom cleanup and #1627 remain.
+1. P1 cleanup (#1574): configured stores, SQLite admission and [embedding state ownership](archived/embedding-state-conflicts-implementation-2026-10-28.md) await qualification. Custom cleanup and #1627 remain.
 2. Worker/service ownership and provider installation (#631); [compilation context and report refresh](archived/throughput-materialization-implementation-2026-10-28.md) await qualification.
 3. Language/semantic/replay and retrieval/API evidence contracts; [comment source/demand ownership](archived/comment-pipeline-implementation-2026-10-27.md)
    has 38 authored JS/TS/Rust/import cases. [Frontmatter interiors](archived/frontmatter-content-implementation-2026-10-27.md)

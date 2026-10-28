@@ -28,3 +28,12 @@ policy, timeouts, retries and deletion authority are unchanged. #1267/#1574 and
 their broader source/qualification requirements remain open. This is a shared
 prerequisite for further index-state publication work, not paired-publication or
 whole-storage acceptance. Source remains unpublished.
+
+Follow-up source `93676573e268f9a742049bd22a89e84dbccd448b`, tree
+`91b78c16bedd7f039b71d2f51bafb933f842832f`, retains the successful result's
+original prerequisite through the existing release owner. That owner rechecks
+after release-method/options inspection and through actual unlink. The seventh
+authored, unexecuted `release-getter` case revokes original settlement from the
+actual lock's release getter and substitutes a positive public observer. Metadata
+remains protected until the original observer confirms settlement; recovery does
+not replay the worker. Format/ESLint, two syntax checks and whitespace passed.

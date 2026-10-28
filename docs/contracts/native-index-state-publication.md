@@ -29,8 +29,16 @@ two-file transaction. If the second publication fails, the command fails and
 preserves the actual already-written state. A later explicit mutation can refresh
 its checksum. Cancellation before write leaves both files unchanged; once a
 state write starts, its manifest refresh completes before cancellation is
-reported. Embedding/initial-generation writers and broader registration,
-publication recovery and cleanup remain separate adoption/qualification scope.
+reported. Embedding state writers now use the same owner with original-loaded
+field deltas: unchanged native fields and unrelated extension keys come from the
+latest state. Conflicting changes fail with `ERR_INDEX_STATE_PUBLICATION_CONFLICT`.
+Baselines are private, object/path-bound hashes; copying a state does not authorize
+replacing a present generation. JSON request data is captured before waiting.
+Initial embedding claims compare the original attempt reference; later writes
+require that attempt. Terminal reloads retain the original generation and attempt,
+so failure reporting cannot mark replacement work failed. Identity changes fail.
+Validation reads use the same publication lock. Embedding manifest writer adoption,
+initial-generation writers, crash-atomic recovery and cleanup remain separate scope.
 
 Twelve `storage/native-index-state-publication/*` cases are authored and
 unexecuted. They cover actual SQLite/LMDB producer reads/writes, invalid state,
@@ -45,6 +53,14 @@ capture, invalid input, manifest failure/recovery, original pending mutation,
 cancellation and controlled peer-process contention. The original frozen writer
 failure checks also require actual publication-metadata recovery. All remain
 authored and unexecuted.
+
+Nineteen `indexing/embeddings/state-publication-conflicts/*` cases are authored
+and unexecuted for native/extension merging, conflicting/idempotent writes,
+deletion, generation identity, copied/path-mismatched objects, attempt claims,
+stale ready/terminal publication, queued snapshots, later caller mutations,
+repeated native changes, prototype-named extension data and invalid extensions.
+Existing publication-readiness and terminal-failure assertions remain; their
+setup now loads actual baselines and injects at the actual contained-open owner.
 
 The state-manifest checksum and byte extent now come from the same verified
 contained descriptor. The shared hasher returns its immutable observation only
