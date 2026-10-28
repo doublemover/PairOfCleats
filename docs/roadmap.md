@@ -52,7 +52,7 @@ severity and shared dependencies, retaining qualification separately:
    removes eleven direct adapter edges; [operation loading](archived/language-operation-loading-implementation-2026-10-27.md)
    separates family/prose initialization. [Embedded content views](archived/embedded-content-implementation-2026-10-27.md)
    carry exact piecewise maps through Markdown/comment parsing, tokens, scheduler, VFS and semantic readers; 21 cases remain.
-   JSX/TSX retain canonical syntax; other adapters, workers and execution remain.
+   JSX/TSX and function edit units await execution; other adapters remain.
    [Early embedding selection](archived/embedding-selection-implementation-2026-10-27.md)
    pins the full-build request before Stage2; [graph preflight/attempt linkage](archived/embedding-preflight-implementation-2026-10-27.md)
    and rejected-attempt recording are implemented. Other routes and readiness/cache-only qualification remain.

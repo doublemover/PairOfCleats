@@ -2992,12 +2992,15 @@
       "phase": "complete-function-units-implemented-qualification-pending",
       "status": "source-implemented-qualification-pending",
       "unvalidatedSourceHeads": [
-        "c6ed8a8b9dabed759244a0d029f6568969ddc4b4"
+        "c6ed8a8b9dabed759244a0d029f6568969ddc4b4",
+        "c8a7ae65c1e086c2d9dca95d26a4e038581b0261"
       ],
       "unvalidatedReceipts": [
-        "context-function-implementation-2026-10-28.md"
+        "context-function-implementation-2026-10-28.md",
+        "context-function-surfaces-implementation-2026-10-28.md"
       ],
-      "currentImplementation": "Existing task/surface/file/fallback policy now admits parser-qualified complete JS/TS/JSX/TSX callables and exact export/single-binding associations from the same verified source snapshot. Function unit schema 2 carries original span/full-file hash and separate content hash; no clipped patch target or shared edit-range cache. Eighteen authored cases are unexecuted; actual CLI/API/MCP, source/lifetime/fidelity/corpus and full original/follow-up qualification remain."
+      "currentImplementation": "Existing task/surface/file/fallback policy now admits parser-qualified complete JS/TS/JSX/TSX callables and exact export/single-binding associations from the same verified source snapshot. Function unit schema 2 carries original span/full-file hash and separate content hash; no clipped patch target or shared edit-range cache. Eighteen authored cases are unexecuted; actual CLI/API/MCP, source/lifetime/fidelity/corpus and full original/follow-up qualification remain.",
+      "functionSurfaceFollowup": "Human-readable output now identifies complete units, original spans, full source/unit hashes and index generation. Five actual CLI/HTTP/MCP/frozen/text cases are authored, unexecuted, making 23 new complete-function controls. Existing file/fallback/invalid-policy negatives remain. No functional or publication acceptance is claimed."
     },
     {
       "number": 1125,

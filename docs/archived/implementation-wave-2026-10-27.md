@@ -54,6 +54,7 @@ references were preserved. Published head/base remained `adbcaf777` / `main`.
 | [4bdecbafa](vfs-storage-implementation-2026-10-28.md) | Runtime-selected VFS repository/category admission through all LSP adapters and original client/file/metadata retirement | 7 authored cases; revision turnover, cross-process writers/custom roots and actual provider qualification remain |
 | [489e067e6](lsp-source-epoch-implementation-2026-10-28.md) | Actual source/root epoch turnover through reserved FIFO pool admission and confirmed original client/file/metadata retirement | 9 authored cases; actual provider, cross-process/custom-root and full qualification remain |
 | [c6ed8a8b9](context-function-implementation-2026-10-28.md) | Complete parser-qualified function edit units with exact pinned-source spans, independent content hashes and explicit file fallback | 18 authored cases; actual surfaces/source/resource and corpus qualification remain |
+| [c8a7ae65c](context-function-surfaces-implementation-2026-10-28.md) | Plain-text exact edit boundaries/hashes and independent real CLI/HTTP/MCP/frozen-function controls | 5 authored cases; 23 complete-function cases total await execution |
 
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
