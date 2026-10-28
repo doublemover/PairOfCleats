@@ -125,6 +125,7 @@ import { createFileEmbeddingsProcessor } from './pipeline.js';
 import { createEmbeddingsScheduler } from './scheduler.js';
 import { createBoundedWriterQueue } from './writer-queue.js';
 import { runSqliteDenseWithBoundary } from './sqlite-dense-isolate.js';
+import { isWindowsCdbCollector } from '../../shared/windows-cdb-collector.js';
 import {
   resolveEmbeddingSamplingConfig,
   createDeterministicFileStreamSampler,
@@ -1306,6 +1307,9 @@ export const refreshIncrementalBundlesWithEmbeddings = async ({
  * @returns {Promise<void>}
  */
 export async function runBuildEmbeddingsWithConfig(config) {
+  if (config.windowsCrashCollector != null && !isWindowsCdbCollector(config.windowsCrashCollector)) {
+    throw Object.assign(new Error('Windows native diagnostics require the original internal CDB collector capability.'), { code: 'ERR_SQLITE_DENSE_ISOLATE_INPUT' });
+  }
   let receipts = null;
   let cleanup = null, primaryFailure = null;
   try { return await runBuildEmbeddingsImpl(config, value => { receipts = value; }, value => { cleanup = value; }); }
@@ -3782,7 +3786,8 @@ async function runBuildEmbeddingsImpl(config, onRuntimeReceipts, onCleanup) {
               buildId: modeIndexRoot ? path.basename(modeIndexRoot) : null,
               workerIdentity: `stage3-sqlite:${mode}`,
               logger,
-              enableWindowsCrashCapture: envConfig?.benchRun === true || isTestingEnv()
+              enableWindowsCrashCapture: envConfig?.benchRun === true || isTestingEnv(),
+              windowsCrashCollector: config.windowsCrashCollector ?? null
             }));
           } catch (err) {
             try {

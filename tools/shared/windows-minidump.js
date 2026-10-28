@@ -68,6 +68,7 @@ export const inspectWindowsMinidump = (buffer, { expectedPid } = {}) => {
   const list = requireStream(4, 4), moduleCount = u32(list.rva);
   if (!moduleCount || moduleCount > MAX_MODULES || moduleCount * 108 > list.size - 4) throw fail('module-list');
   const modules = [];
+  let moduleTextBytes = 0;
   for (let index = 0; index < moduleCount; index++) {
     const base = list.rva + 4 + index * 108, name = string(u32(base + 20));
     const codeView = location(base + 76);
@@ -80,6 +81,8 @@ export const inspectWindowsMinidump = (buffer, { expectedPid } = {}) => {
       pdb = Object.freeze({ guidBytes: buffer.subarray(codeView.rva + 4, codeView.rva + 20).toString('hex'),
         age: u32(codeView.rva + 20), path: buffer.toString('utf8', start, end) });
     }
+    moduleTextBytes += Buffer.byteLength(name) + (pdb ? Buffer.byteLength(pdb.path) : 0);
+    if (moduleTextBytes > 1024 * 1024) throw fail('aggregate-module-text-extent');
     modules.push(Object.freeze({ name, baseAddress: `0x${u64(base).toString(16)}`, imageBytes: u32(base + 8),
       checksum: u32(base + 12), timeDateStamp: u32(base + 16), pdb }));
   }

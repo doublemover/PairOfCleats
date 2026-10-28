@@ -5,6 +5,7 @@ import { runIsolatedNodeScriptSync } from '../../../src/shared/subprocess/runner
 import { updateSqliteDense } from './sqlite-dense.js';
 import { observeStorageResource } from '../../../src/shared/storage/failure-observation.js';
 import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
+import { isWindowsCdbCollector, runWindowsCdbCollector, getWindowsCdbFailureResult } from '../../shared/windows-cdb-collector.js';
 
 const CHILD_ENV = 'PAIROFCLEATS_SQLITE_DENSE_CHILD';
 const PAYLOAD_ENV = 'PAIROFCLEATS_SQLITE_DENSE_PAYLOAD';
@@ -100,7 +101,7 @@ const buildReplayBundle = ({
     exitCode: finite(childResult?.exitCode),
     signal: toText(childResult?.signal) || null,
     durationMs: finite(childResult?.durationMs),
-    nativeCrash: isSqliteDenseNativeCrashExit(childResult?.exitCode),
+    nativeCrash: Boolean(crashCapture?.dump) || isSqliteDenseNativeCrashExit(childResult?.exitCode),
     stdoutTail: truncateText(childResult?.stdout),
     stderrTail: truncateText(childResult?.stderr),
     stdoutStatus: typeof childResult?.stdout === 'string' ? 'captured' : 'unavailable',
@@ -158,6 +159,7 @@ export const runSqliteDenseWithBoundary = async ({
   workerIdentity = null,
   logger = console,
   enableWindowsCrashCapture = false,
+  windowsCrashCollector = null,
   testRunChild = null
 } = {}) => {
   if (!toText(vectorsPath)) {
@@ -168,7 +170,10 @@ export const runSqliteDenseWithBoundary = async ({
   if (testRunChild !== null && (typeof testRunChild !== 'function' || !getTestEnvConfig().testing)) {
     throw Object.assign(new Error('SQLite child runner injection requires the explicit test environment.'), { code: 'ERR_SQLITE_DENSE_ISOLATE_INPUT' });
   }
-  const crashCapture = resolveSqliteDenseCrashCapture({ requested: enableWindowsCrashCapture });
+  if (windowsCrashCollector !== null && (!isWindowsCdbCollector(windowsCrashCollector) || testRunChild !== null)) {
+    throw Object.assign(new Error('SQLite native collection requires its original scoped collector and child runner.'), { code: 'ERR_SQLITE_DENSE_ISOLATE_INPUT' });
+  }
+  let crashCapture = resolveSqliteDenseCrashCapture({ requested: enableWindowsCrashCapture });
   const payload = {
     root,
     userConfig,
@@ -203,7 +208,7 @@ export const runSqliteDenseWithBoundary = async ({
       process.exit(2);
     });
   `;
-  const childResult = await (testRunChild || runIsolatedNodeScriptSync)({
+  const childOptions = {
     script,
     env: {
       ...process.env,
@@ -217,7 +222,21 @@ export const runSqliteDenseWithBoundary = async ({
     captureStderr: true,
     rejectOnNonZeroExit: false,
     name: `sqlite-dense:${mode || 'unknown'}`
-  });
+  };
+  let childResult, collectorFailure = null;
+  if (windowsCrashCollector !== null) {
+    try {
+      const captured = await runWindowsCdbCollector(windowsCrashCollector, childOptions);
+      childResult = captured.childResult; crashCapture = captured.crashCapture;
+    } catch (error) {
+      const observation = observeStorageResource(error, { phase: 'sqlite-dense-native-collector' });
+      observation.requireSettled();
+      const captured = getWindowsCdbFailureResult(error);
+      if (!captured) throw error;
+      collectorFailure = error; crashCapture = captured.crashCapture;
+      childResult = captured.childResult || Object.freeze({ exitCode: null, signal: null, stdout: '', stderr: '', durationMs: null });
+    }
+  } else childResult = await (testRunChild || runIsolatedNodeScriptSync)(childOptions);
   const childObservation = observeStorageResource(childResult, { phase: 'sqlite-dense-original-child' });
   childObservation.requireSettled();
   let observed;
@@ -228,7 +247,7 @@ export const runSqliteDenseWithBoundary = async ({
       stdoutTruncated: childResult?.outputCapture?.stdout?.truncated === true });
   } catch (inspection) { throw childObservation.wrap(inspection); }
   childObservation.requireSettled();
-  if (observed.exitCode === 0 && !observed.signal) {
+  if (observed.exitCode === 0 && !observed.signal && collectorFailure === null) {
     let parsed = null;
     try {
       const text = toText(observed.stdout);
@@ -249,7 +268,7 @@ export const runSqliteDenseWithBoundary = async ({
     return parsed;
   }
 
-  const nativeCrash = isSqliteDenseNativeCrashExit(observed.exitCode);
+  const nativeCrash = Boolean(crashCapture.dump) || isSqliteDenseNativeCrashExit(observed.exitCode);
   const failureClass = nativeCrash ? 'native_subprocess_crash' : 'subprocess_failure';
   const resolvedWorkerIdentity = workerIdentity || `stage3-sqlite:${mode || 'unknown'}`;
   const replayBundle = buildReplayBundle({
@@ -267,9 +286,10 @@ export const runSqliteDenseWithBoundary = async ({
     code: nativeCrash ? 'ERR_SQLITE_STAGE3_NATIVE_CRASH' : 'ERR_SQLITE_STAGE3_SUBPROCESS_FAILED',
     stage: 'sqlite-dense-isolate', failureClass, workerId: resolvedWorkerIdentity, buildId: buildId || null,
     bundleId: buildId || path.basename(indexRoot || '') || null, mode: mode || null, nativeCrash,
-    replayBundlePath: null, crashCapture, dumpDir: null, dumpFiles: crashCapture.dumpFiles, result: childResult
+    replayBundlePath: null, crashCapture, dumpDir: crashCapture.dumpDir, dumpFiles: crashCapture.dumpFiles, result: childResult
   });
   let failure = primary;
+  if (collectorFailure !== null) failure = addStorageFailureContext(failure, {}, collectorFailure, { secondaryPresent: true, forceAggregate: true });
   try {
     if (typeof crashLogger?.persistForensicBundle === 'function') {
       const persisted = await crashLogger.persistForensicBundle({
