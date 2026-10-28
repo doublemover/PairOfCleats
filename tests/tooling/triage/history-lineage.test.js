@@ -20,7 +20,7 @@ applyTestEnv();
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('/').at(-1);
 const cases = ['exact-route-drift', 'similarity-is-not-lineage', 'historical-facts', 'byte-budget', 'count-and-read-bounds',
   'disabled', 'read-failure', 'pending-error', 'pending-result', 'continuation', 'stale-continuation', 'scope-continuation',
-  'cursor-negatives', 'persisted', 'legacy-renderer'];
+  'cursor-negatives', 'persisted', 'legacy-renderer', 'pending-scan-result', 'directory-observer-change'];
 assert.ok(cases.includes(selected));
 const asOf = '2026-10-27T12:00:00.000Z';
 const repoRoot = path.resolve('.tmp', 'lineage-selected-repository'), recordsDir = path.resolve('.tmp', 'lineage-selected-records');
@@ -139,6 +139,18 @@ try {
       } }).then(() => assert.fail('pending ownership must reject'), failure => failure);
     assert.equal(error.cacheOwnershipReleased(), false); settled = true; assert.equal(error.cacheOwnershipReleased(), true);
     assert.equal(calls, 1);
+  } else if (selected === 'pending-scan-result' || selected === 'directory-observer-change') {
+    let settled = selected === 'directory-observer-change', calls = 0;
+    const entries = [{ name: 'directory-owned.json', isFile: () => true }];
+    Object.defineProperties(entries, { cacheOwnershipPending: { value: true },
+      cacheOwnershipReleased: { value() { assert.equal(this, entries); return settled; } } });
+    Object.freeze(entries);
+    const error = await buildTriageHistorySelection({ ...input,
+      readDirectory: async () => entries,
+      readRecord: async () => { calls++; settled = false; return decision('directory-owned'); }
+    }).then(() => assert.fail('directory observation remains required through the original read'), failure => failure);
+    assert.equal(calls, selected === 'pending-scan-result' ? 0 : 1);
+    assert.equal(error.cacheOwnershipReleased(), false); settled = true; assert.equal(error.cacheOwnershipReleased(), true);
   } else if (['continuation', 'stale-continuation', 'scope-continuation', 'cursor-negatives'].includes(selected)) {
     const records = ['a', 'b', 'c', 'd', 'e'].map(id => decision(id));
     const first = await select(records, { maxHistory: 2 }), cursor = first.historySelection.continuation;

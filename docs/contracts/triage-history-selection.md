@@ -42,7 +42,9 @@ failures and whether counts are lower bounds. Disabled history performs no
 directory/candidate reads and does not claim an exhaustive empty result.
 Ordinary read failures retain bounded diagnostic samples and prevent continuation;
 pending successful or failed native/resource observations propagate through the
-existing settled queue instead of becoming incomplete-success warnings.
+existing settled queue instead of becoming incomplete-success warnings. Directory
+entries are captured before awaits; the original directory and record observers
+remain required across callback completion and before further native dispatch.
 
 When pageable exact links remain, the compact cursor binds policy, repository,
 record namespace, finding content/observation, as-of time, effective budget, a
@@ -67,5 +69,5 @@ New decision Markdown uses renderer 2 and includes the original finding link and
 historical interpretation. Stored renderer-1 generations verify with their exact
 original renderer. Reimport can publish renderer 2 while retaining the old
 immutable evidence. Records producer version 11 invalidates derived old meaning.
-Fifteen focused controls and strengthened actual context CLI coverage are
+Seventeen focused controls and strengthened actual context CLI coverage are
 authored; functional and resource/latency qualification remain pending.

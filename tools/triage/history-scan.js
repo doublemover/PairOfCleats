@@ -16,8 +16,12 @@ export const readTriageHistoryRecord = async filePath => (
  */
 export const scanTriageHistoryRecords = async ({ recordsDir, warnings, onRecord,
   readDirectory = directory => fs.readdir(directory, { withFileTypes: true }), readRecord = readTriageHistoryRecord }) => {
-  let entries;
-  try { entries = await readDirectory(recordsDir); }
+  let entries, directoryObservation;
+  try {
+    entries = await readDirectory(recordsDir);
+    directoryObservation = observeStorageResource(entries, { phase: 'triage-history-scan-result' });
+    directoryObservation.requireSettled();
+  }
   catch (error) {
     const diagnostic = describeStorageFailure(error, { phase: 'triage-history-scan', defaultCode: 'ERR_TRIAGE_HISTORY_SCAN' });
     warnings.push({ step: 'history-scan', code: diagnostic.code, error: redactDiagnosticText(diagnostic.message) });
@@ -25,15 +29,31 @@ export const scanTriageHistoryRecords = async ({ recordsDir, warnings, onRecord,
   }
   // Stable directory identity is independent of completion order; callbacks may
   // retain one compact digest per admitted name without retaining corpus bodies.
-  const files = entries.filter(entry => entry.isFile() && path.extname(entry.name) === '.json');
+  const files = [];
+  try {
+    if (!Array.isArray(entries)) throw new TypeError('History directory observation must contain ordinary entries.');
+    for (const entry of entries) {
+      if (!entry.isFile()) continue;
+      const name = entry.name;
+      if (typeof name !== 'string' || name.includes('/') || name.includes('\\')) {
+        throw new TypeError('History directory entries cannot select another path.');
+      }
+      if (path.extname(name) === '.json') files.push({ name });
+    }
+  } catch (inspection) { throw directoryObservation.retain(inspection, { inspectionPresent: true, inspectionPrimary: true }); }
+  directoryObservation.requireSettled();
   let failed = 0;
   const samples = [];
   await runWithConcurrency(files, TRIAGE_HISTORY_READ_CONCURRENCY, async (entry, { index }) => {
-    let record;
+    directoryObservation.requireSettled();
+    let record, recordObservation;
     try {
       record = await readRecord(path.join(recordsDir, entry.name));
-      observeStorageResource(record, { phase: 'triage-history-read-result' }).requireSettled();
+      recordObservation = observeStorageResource(record, { phase: 'triage-history-read-result' });
+      recordObservation.requireSettled(); directoryObservation.requireSettled();
     } catch (error) {
+      try { directoryObservation.requireSettled(); }
+      catch { throw directoryObservation.retain(error, { inspectionPresent: true, inspectionPrimary: true }); }
       const diagnostic = describeStorageFailure(error, { phase: 'triage-history-read', defaultCode: 'ERR_TRIAGE_HISTORY_READ' });
       failed++;
       samples.push({ file: entry.name, code: diagnostic.code, error: redactDiagnosticText(diagnostic.message) });
@@ -41,8 +61,14 @@ export const scanTriageHistoryRecords = async ({ recordsDir, warnings, onRecord,
       if (samples.length > TRIAGE_HISTORY_DIAGNOSTIC_SAMPLES) samples.pop();
       return;
     }
-    await onRecord(record, { name: entry.name, index });
+    try { await onRecord(record, { name: entry.name, index }); }
+    catch (error) {
+      const retained = recordObservation.retain(error, { inspectionPresent: true, inspectionPrimary: true });
+      throw directoryObservation.retain(retained, { inspectionPresent: true, inspectionPrimary: true });
+    }
+    recordObservation.requireSettled(); directoryObservation.requireSettled();
   }, { collectResults: false, retries: 0 });
+  directoryObservation.requireSettled();
   if (failed) warnings.push({ step: 'history-read', error: 'History is incomplete because candidate reads failed.',
     failed, samples, omittedSamples: failed - samples.length });
   return { complete: failed === 0, failed, reads: files.length, names: files.map(entry => entry.name) };
