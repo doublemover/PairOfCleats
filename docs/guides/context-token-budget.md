@@ -70,6 +70,15 @@ destruction/termination. Unconfirmed original reads/workers remain retained and
 block later counting until their actual observations settle. No inline fallback
 or crash-status retry runs.
 
+An internal invocation may count at most 128 serial envelopes, with one verified
+profile and one lazily initialized worker. Identical local counts reuse bounded
+scalar scratch; the tokenizer stays only in that invocation's worker and is
+disposed before publication. Ignored accepted operations are joined, failures
+remain failures, early publication/retired/nested invocations reject explicitly,
+and cancellation starts original worker teardown. The ten-second deadline bounds
+the entire invocation. This supports bounded selection trials without repeated
+profile loading; it makes no measured latency claim.
+
 The in-process cache holds at most 512 scalar counts and SHA-256 keys, without
 source strings or tokenizer objects. Keys cover exact rendered bytes, profile
 hashes/settings/revision, engine/rendering and task/budget policy. Publication

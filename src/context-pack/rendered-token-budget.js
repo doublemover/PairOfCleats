@@ -11,8 +11,22 @@ export const applyRenderedTokenBudget = async (payload, policy, { repoRoot, task
   if (!policy) return { payload, publish: () => {} };
   throwIfAborted(signal);
   const renderedContext = renderCompositeContextPack(payload) + '\n';
+  if (Buffer.byteLength(renderedContext) > CONTEXT_PACK_RESPONSE_MAX_BYTES) {
+    throw Object.assign(new Error('Rendered context alone exceeds the complete response byte budget.'), {
+      code: 'ERR_CONTEXT_PACK_RESPONSE_BUDGET', status: 413
+    });
+  }
   const counted = await countRenderedContextTokens({ text: renderedContext, policy, repoRoot, taskPolicy, signal, timeoutMs });
   throwIfAborted(signal);
+  return finalizeRenderedTokenBudget(payload, policy, counted, renderedContext);
+};
+
+/** A selector may update JSON-only diagnostics after a bounded exact trial.
+ * Reuse requires byte-for-byte identical rendered text, not an estimated sum. */
+export const finalizeRenderedTokenBudget = (payload, policy, counted, renderedContext) => {
+  if (renderedContext !== renderCompositeContextPack(payload) + '\n') {
+    throw Object.assign(new Error('Rendered context changed after exact counting.'), { code: 'ERR_CONTEXT_PACK_SCHEMA', status: 500 });
+  }
   const admittedTokens = counted.tokens + policy.reservedTokens;
   if (!Number.isSafeInteger(admittedTokens) || admittedTokens > policy.maxTokens) {
     throw Object.assign(new Error('Selected context and reserved overhead exceed the exact rendered token budget.'), {

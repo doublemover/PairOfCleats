@@ -1,9 +1,8 @@
 import { Tokenizer } from '@huggingface/tokenizers';
 import { observeWorkerHeap } from '../shared/workers/heap-contract.js';
 
-export default function countRenderedContext({ tokenizerBytes, configBytes, text, addSpecialTokens }) {
-  const heap = observeWorkerHeap();
-  if (!heap.resourceLimitAcknowledged) throw new Error('Tokenizer worker heap bound was not acknowledged.');
+let activeTokenizer = null;
+const createTokenizer = (tokenizerBytes, configBytes) => {
   const decoder = new TextDecoder('utf-8', { fatal: true });
   const tokenizer = JSON.parse(decoder.decode(tokenizerBytes)), config = JSON.parse(decoder.decode(configBytes));
   if (!['WordPiece', 'BPE', 'Unigram'].includes(tokenizer.model?.type)) throw new Error('Unsupported exact tokenizer model type.');
@@ -31,10 +30,22 @@ export default function countRenderedContext({ tokenizerBytes, configBytes, text
     || tokenizer.model?.dropout > 0 || config.enable_sampling === true) {
     throw new Error('Tokenizer profile requests unsupported truncation, padding or sampling.');
   }
-  const encoding = new Tokenizer(tokenizer, config).encode(text, { add_special_tokens: addSpecialTokens });
+  return new Tokenizer(tokenizer, config);
+};
+
+export default function countRenderedContext({ tokenizerBytes, configBytes, text, addSpecialTokens }) {
+  const heap = observeWorkerHeap();
+  if (!heap.resourceLimitAcknowledged) throw new Error('Tokenizer worker heap bound was not acknowledged.');
+  let initialized = false;
+  if (tokenizerBytes !== undefined || configBytes !== undefined) {
+    if (activeTokenizer) throw new Error('A tokenizer invocation cannot replace its pinned profile.');
+    activeTokenizer = createTokenizer(tokenizerBytes, configBytes); initialized = true;
+  }
+  if (!activeTokenizer || typeof text !== 'string' || Buffer.byteLength(text) > 131072) throw new Error('Missing tokenizer profile or invalid bounded input.');
+  const encoding = activeTokenizer.encode(text, { add_special_tokens: addSpecialTokens });
   const ids = encoding.ids;
   if (!Array.isArray(ids) || ids.length > 1048576 || ids.some(id => !Number.isSafeInteger(id) || id < 0)) {
     throw new Error('Tokenizer returned an invalid or oversized exact encoding.');
   }
-  return { tokens: ids.length, heapAcknowledged: true };
+  return { tokens: ids.length, heapAcknowledged: true, initialized };
 }
