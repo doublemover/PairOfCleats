@@ -90,8 +90,11 @@ stderr status. Quiet and non-TTY presentation use the existing display policy.
 Phase timers are cleared on success, failure and cancellation. Failed child,
 checkpoint and display diagnostics remain together, and a failed phase never
 announces successful completion. A/B report namespaces, recommendation admission
-and broader evidence retention remain tracked separately from this checkpoint
-and phase-lifecycle contract.
+and evidence retention use the shared
+[benchmark evidence contract](../contracts/benchmark-evidence-retention.md).
+Final and resume references pin their runs; old unreferenced settlements can
+retire after seven days. A fixed 2 GiB family budget denies new runs when
+protected evidence fills capacity. Runtime qualification remains pending.
 
 ## Model-aware formatting policy
 

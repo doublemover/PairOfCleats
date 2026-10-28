@@ -9,8 +9,8 @@ Canonical for: initiative status, execution order, and remaining work
 
 The [closeout review](archived/github-issue-closeout-2026-10-26.md) assessed
 **770 issues/238 comments**, closing 27; later batches closed 25 more.
-The latest **718-open source snapshot** records 480 qualification-pending,
-145 partial and 93 unresolved entries, including unpublished implementations.
+The latest **718-open source snapshot** records 481 qualification-pending,
+144 partial and 93 unresolved entries, including unpublished implementations.
 
 The [complete assessment](archived/github-issue-closeout-2026-10-26.json) retains
 source/test mappings and closure witnesses; [earlier receipts](archived/solo-issue-repairs-2026-10-25.md)
@@ -61,7 +61,7 @@ severity and shared dependencies, retaining qualification separately:
    [reports and opt-in shortcuts](archived/operator-report-and-shortcut-implementation-2026-10-28.md) await execution (#635, #173, #216).
    [Wrapped log rows](archived/tui-log-rows-implementation-2026-10-27.md) and paused anchors are implemented/typechecked; native qualification remains (#619).
    [Scene render witnesses](archived/scene-render-observation-implementation-2026-10-27.md) now observe captured operations; browser qualification remains (#1372).
-5. Performance/evaluation: [numeric observations](archived/throughput-observations-implementation-2026-10-28.md) (#277), retained comparisons (#1663),
+5. Performance/evaluation: [numeric observations](archived/throughput-observations-implementation-2026-10-28.md) (#277), [retained comparisons](contracts/benchmark-evidence-retention.md) (#1663),
    [serial SQLite trial profiles](archived/sqlite-trial-profiles-implementation-2026-10-27.md) (#1733)
    and [Windows descendant RSS qualification](archived/query-process-tree-implementation-2026-10-27.md) (#1675); actual measurements remain.
 6. Research capabilities after their prerequisite source/retrieval/evidence owners.

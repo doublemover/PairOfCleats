@@ -769,8 +769,8 @@
         1747,
         1748
       ],
-      "sourceWork": 59,
-      "qualification": 99,
+      "sourceWork": 58,
+      "qualification": 100,
       "baselineSourceWork": 59,
       "baselineQualification": 100,
       "completed": 1
@@ -8841,22 +8841,24 @@
       "recordedDisposition": "partial_or_followup",
       "priority": "P2",
       "batch": "performance-and-evaluation",
-      "phase": "source-review-and-implementation",
-      "status": "queued",
-      "currentDisposition": "partial_or_followup",
-      "currentImplementation": "Existing immutable A/B/bakeoff run-owned paths and atomic checkpoint ownership remain. The actual bakeoff wrapper now retains original successful worker observations through accepted-write drain and checkpoint release, preserving independent failures and explicit metadata recovery. Eight additional controls are authored and unexecuted; evidence retention/reference/capacity implementation remains.",
+      "phase": "qualification-pending",
+      "status": "source-implemented-qualification-pending",
+      "currentDisposition": "qualification_pending",
+      "currentImplementation": "Actual A/B and embedding bakeoff producers adopt existing storage reservations and original file-lock settlement, fixed 2 GiB family admission, irreversible final/export/resume reference protection and seven-day retirement of complete unchanged unreferenced runs. SHA256 and exact native file identities bind settlement; individual unlink and empty-directory removal preserve unknown data. Twenty-two new retention controls and an exact SHA control are authored and unexecuted; eight worker-lifetime controls retain explicit original owner recovery.",
       "remainingWork": [
-        "Implement settled-run evidence retirement with explicit saved/export/resume reference protection and bounded capacity admission. Unknown or still-referenced evidence must remain protected.",
-        "Qualify immutable paths, checkpoint interruption/concurrency, capacity and retained-reference behavior through actual owners.",
-        "Execute original/follow-up functional qualification and measured checks serially on the resulting candidate."
+        "Execute original and follow-up A/B interleaving, sequential path/digest, cancelled/failed report and bakeoff resume/corruption/interruption/concurrency controls on the resulting candidate.",
+        "Qualify actual retention/admission owners, unknown/active/reference protection, failure/recovery and bounded capacity; retain original positive and negative assertions.",
+        "Run meaningful resource/work and requested latency checks serially with raw samples, then complete the publication front gate."
       ],
       "unvalidatedSourceHeads": [
         "ff403a9273fac40d955c43e77ff830198744831a",
-        "9995cd60e65dc6087b4a0910e6beeeeba0b3796a"
+        "9995cd60e65dc6087b4a0910e6beeeeba0b3796a",
+        "a073483b9668e58e5c52f9bc62d917814ca0c6e3"
       ],
       "unvalidatedReceipts": [
         "bakeoff-worker-lifetime-implementation-2026-10-28.md",
-        "exact-checksum-observation-implementation-2026-10-28.md"
+        "exact-checksum-observation-implementation-2026-10-28.md",
+        "benchmark-evidence-retention-implementation-2026-10-28.md"
       ],
       "unvalidatedFollowups": [
         {
@@ -10003,8 +10005,8 @@
   ],
   "currentCounts": {
     "open": 718,
-    "qualificationPending": 480,
-    "partialFollowup": 145,
+    "qualificationPending": 481,
+    "partialFollowup": 144,
     "implementationStatusUnresolved": 93
   },
   "reconciledAt": "2026-10-28T10:45:26.168Z",
@@ -10090,12 +10092,23 @@
         "implementationStatusUnresolved": 94
       },
       "meaning": "Verified 140-commit PR/source classification; subsequent numeric implementation makes #277 partial, not complete."
+    },
+    {
+      "reconciledAt": "2026-10-28T13:22:01.372Z",
+      "sourceHead": "a073483b9668e58e5c52f9bc62d917814ca0c6e3",
+      "counts": {
+        "open": 718,
+        "qualificationPending": 480,
+        "partialFollowup": 145,
+        "implementationStatusUnresolved": 93
+      },
+      "meaning": "Prior source classification; settled benchmark retention and capacity move #1663 to pending qualification."
     }
   ],
   "currentCountsBasis": {
-    "meaning": "Complete live GitHub inventory plus recorded local source implementation; not functional acceptance.",
+    "meaning": "Complete 718-open GitHub snapshot plus recorded local source implementation; not functional acceptance.",
     "publishedHead": "adbcaf777ce91642bb0a60de892171d8c3a529f7",
-    "sourceHead": "2dada0f772e592df2e5522e83ef67093cf7c19f1",
-    "receipt": "throughput-observations-implementation-2026-10-28.md"
+    "sourceHead": "a073483b9668e58e5c52f9bc62d917814ca0c6e3",
+    "receipt": "benchmark-evidence-retention-implementation-2026-10-28.md"
   }
 }

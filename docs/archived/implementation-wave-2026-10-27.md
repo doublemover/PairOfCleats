@@ -94,9 +94,11 @@ PR #572 metadata was refreshed and read back at checkpoint `1ce60bb59` (160 loca
 
 - [Local handoff drain admission](handoff-drain-ownership-implementation-2026-10-28.md): a scoped resource fence precedes drain dispatch; original observations gate matching receipts, token admission and explicit reader recovery. Thirteen controls authored, unexecuted.
 
-- [Bakeoff worker lifetime](bakeoff-worker-lifetime-implementation-2026-10-28.md): original worker observations survive accepted-write drain and actual checkpoint unlock; eight controls authored, unexecuted. Settled evidence retirement/reference protection and capacity admission remain source work.
+- [Bakeoff worker lifetime](bakeoff-worker-lifetime-implementation-2026-10-28.md): original worker observations survive accepted-write drain and actual checkpoint unlock; eight controls authored, unexecuted. Subsequent retention/reference/capacity implementation is recorded below.
 
 - [Exact checksum observations](exact-checksum-observation-implementation-2026-10-28.md): original descriptor BigInt identities and nanosecond checks survive Windows Number collisions and asynchronous digest completion; eleven controls authored, unexecuted.
+
+- [Benchmark evidence retention](benchmark-evidence-retention-implementation-2026-10-28.md): actual A/B/bakeoff producers use fixed family admission, permanent issued-reference protection and exact-file retirement of old unreferenced settlements; 22 controls plus one SHA observation are authored, unexecuted. #1663 is source-complete pending qualification; current counts are **481 pending / 144 partial / 93 unresolved**.
 
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
