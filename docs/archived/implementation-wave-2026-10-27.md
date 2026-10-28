@@ -36,6 +36,7 @@ work. Their separate receipts preserve exact trees, limitations and checks.
 | [449159675 / 1d4263e99](embedded-content-implementation-2026-10-27.md) | Shared exact content views and versioned piecewise maps through parsing, tokens, scheduler, VFS, semantic readers and retained chunk metadata | 21 authored cases; native scheduler, persisted warm relocation, navigation and full affected qualification remain |
 | [f564f5f79](triage-path-admission-implementation-2026-10-27.md) | Canonical triage IDs and pre-IO Windows stream/device/extension admission | 2 authored IO-barrier cases and strengthened path controls; publication coherence remains separate |
 | [2c05a6a0d](triage-publication-implementation-2026-10-27.md) | Per-ID cross-process ownership, immutable JSON/Markdown generations and hash-pinned inventory/index/deferred source admission | 16 authored cases; CLI/index/replay/search, actual process/resource and full affected qualification remain |
+| [d316a37ba](storage-space-implementation-2026-10-27.md) | Original free-space resource observation, immutable admission values and callable destination-probe failures | 11 authored cases; actual destination/admission/resource qualification and broader lifecycle/backend adoption remain |
 
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero

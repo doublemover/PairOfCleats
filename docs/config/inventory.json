@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-28T00:59:50.773Z",
+  "generatedAt": "2026-10-28T01:38:39.708Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4692,6 +4692,7 @@
         "tests/services/api/semantic-detail-format-compatibility.test.js",
         "tests/shared/concurrency/scheduler-exact-ready-replay.test.js",
         "tests/shared/dense-vector-binary-writes.test.js",
+        "tests/shared/storage/free-space-observation.test.js",
         "tests/shared/storage/native-command-sessions.test.js",
         "tests/shared/storage/native-compaction-session.test.js",
         "tests/shared/storage/native-reader-lifetime.test.js",

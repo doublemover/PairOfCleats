@@ -26,10 +26,10 @@ Completed source-bound checks are indexed in the
 and [qualification matrix](testing/qualification-matrix.md).
 
 The [current solo implementation wave](archived/implementation-wave-2026-10-27.md)
-indexes exact source/tree receipts for storage, provider, language, embedding, triage,
-rendering, native workflow and performance implementations and their deferred checks.
-These local checkpoints remain **functionally unvalidated**; package
-build allowances and built-in/native/custom ownership integration remain explicit.
+indexes source/tree receipts and deferred checks for storage, providers, languages,
+embeddings, triage, rendering, native workflows and performance.
+These checkpoints remain **functionally unvalidated**; package build allowances
+and built-in/native/custom ownership integration remain.
 
 [Five dependency retirements](archived/dependency-ownership-implementation-2026-10-27.md)
 removed 110 lock records. Locked bootstrap passed without warnings/errors:
@@ -38,7 +38,8 @@ receipts remain in the archive; functional checks/publication gate are deferred.
 
 These scoped observations do not combine into suite/platform/model/release acceptance.
 Task checks omit an inherited missing trusted-config selector; global settings and
-trust rules remain intact. Lifecycle policy (#1267) and custom cleanup (#1574) remain.
+trust rules remain. [Storage observation repairs](archived/storage-space-implementation-2026-10-27.md)
+await execution; lifecycle policy (#1267) and custom cleanup (#1574) remain.
 
 Execution is solo, Windows-only and implementation-first. The [complete owner
 queue](archived/remaining-issue-batches-2026-10-26.json) orders source work by
