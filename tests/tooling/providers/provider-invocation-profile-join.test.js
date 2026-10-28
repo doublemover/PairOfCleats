@@ -37,6 +37,8 @@ const profileFor = (tool = 'tool-a', args = [], variant = 'default') => observeP
   project: { files: [{ path: 'project.json' }], variant, targets: ['source.fixture'] }
 });
 const expected = await profileFor(); ctx.providerProfiles = { [id]: expected };
+const executionFor = profile => ({ kind: 'command', cwd: dir, environment: { FIXTURE: 'original-environment' },
+  configuredCommand: profile.tool.configuredCommand, resolvedCommand: profile.tool.resolvedCommand });
 const saved = new Map(TOOLING_PROVIDERS);
 let prepared = 0, captured = 0, live = 0, ready = false, cap;
 const payload = name => Object.freeze({ byChunkUid: { [chunkUid]: { payload: { returnType: name } } } });
@@ -58,6 +60,7 @@ try {
       const actualProfile = await profileFor(selected === 'different-tool' ? 'tool-b' : 'tool-a',
         selected === 'arguments' ? ['--changed-argument'] : [], selected === 'variant' ? 'another-variant' : 'default');
       cap = await createObservedProviderInvocation({ ctx: context, inputs: actualInputs, profile: actualProfile,
+        execution: executionFor(actualProfile),
         execute: async () => {
           captured++;
           if (selected === 'execution-mutation') context.toolingConfig = { ...context.toolingConfig, changed: true };
@@ -85,7 +88,7 @@ try {
     }
   } else if (['coalesced-execution', 'serialized-capability'].includes(selected)) {
     const profile = await profileFor();
-    cap = await createObservedProviderInvocation({ ctx, inputs, profile, execute: async () => { captured++; return payload('Captured'); } });
+    cap = await createObservedProviderInvocation({ ctx, inputs, profile, execution: executionFor(profile), execute: async () => { captured++; return payload('Captured'); } });
     const matching = { ctx, inputs, providerId: id, adapterVersion: version, profileHash: profile.profileHash };
     assert.equal(matchObservedProviderInvocation(cap, matching), true);
     if (selected === 'serialized-capability') {

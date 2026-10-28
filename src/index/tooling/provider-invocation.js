@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { canonicalSemanticJson, semanticHash } from '../semantic/identity.js';
 import { providerProfileCacheIdentity, verifyProviderProfileReceipt } from './provider-profile.js';
 import { observeStorageResource } from '../../shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../shared/storage/operation-error.js';
 import { throwIfAborted } from '../../shared/abort.js';
 
 const owners = new WeakMap();
@@ -12,6 +13,29 @@ const freeze = value => {
 };
 const fail = message => Object.assign(new Error(message), { code: 'ERR_TOOLING_INVOCATION_IDENTITY' });
 const fileKey = value => process.platform === 'win32' ? path.resolve(value).toLowerCase() : path.resolve(value);
+
+/** The trusted adapter must execute this captured plan, not re-resolve ambient
+ * state inside its callback. Only a digest leaves the private capability; raw
+ * environment values never enter provenance, diagnostics or durable cache. */
+const captureExecution = (execution, profile) => {
+  if (!execution || typeof execution !== 'object') throw fail('Invocation needs its original concrete execution snapshot.');
+  const captured = JSON.parse(canonicalSemanticJson(execution, { maxBytes: 4 * 1024 * 1024 }));
+  if (!captured || !['command', 'module'].includes(captured.kind)
+    || typeof captured.cwd !== 'string' || !path.isAbsolute(captured.cwd)
+    || !captured.environment || typeof captured.environment !== 'object' || Array.isArray(captured.environment)
+    || Object.entries(captured.environment).some(([key, value]) => !key || key.includes('=') || key.includes('\0')
+      || typeof value !== 'string' || value.includes('\0'))) throw fail('Invocation requires its concrete bounded working directory and environment.');
+  const same = (left, right) => canonicalSemanticJson(left) === canonicalSemanticJson(right);
+  if (!same(captured.configuredCommand, profile.tool.configuredCommand)
+    || !same(captured.resolvedCommand, profile.tool.resolvedCommand)) throw fail('Captured command selection disagrees with the observed tool profile.');
+  if (captured.kind === 'module') {
+    if (typeof captured.module?.path !== 'string' || !path.isAbsolute(captured.module.path)
+      || !/^[a-f0-9]{64}$/u.test(captured.module.sha256)
+      || !profile.tool.files.some(file => fileKey(file.path) === fileKey(captured.module.path)
+        && file.hash === captured.module.sha256)) throw fail('Captured module is absent from the original observed tool inventory.');
+  } else if (Object.hasOwn(captured, 'module')) throw fail('A command invocation cannot substitute an unobserved module.');
+  return freeze(captured);
+};
 
 /** Exact selected source/target context. This is internal admission, not a new
  * source identity format. Unknown/non-JSON inputs cannot qualify durable use. */
@@ -48,13 +72,14 @@ const inputIdentity = (ctx, inputs) => {
  * plan. An observation supplied by the host cannot manufacture this capability.
  * The owner must bind actual module/command/project/environment selection in
  * its profile; unknown closure remains ineligible through the profile owner. */
-export const createObservedProviderInvocation = async ({ ctx, inputs, profile, execute }) => {
+export const createObservedProviderInvocation = async ({ ctx, inputs, profile, execution, execute }) => {
   if (typeof execute !== 'function' || !ctx?.repoRoot || !profile) throw fail('Invocation needs its original execution owner and observed profile.');
   const snapshot = freeze(JSON.parse(canonicalSemanticJson(profile, { maxBytes: 8 * 1024 * 1024,
     check: () => throwIfAborted(inputs.abortSignal) })));
   const profileHash = providerProfileCacheIdentity(snapshot, { providerId: snapshot.providerId,
     adapterVersion: snapshot.adapterVersion, repoRoot: ctx.repoRoot });
   if (!profileHash) throw fail('Invocation profile is incomplete or belongs to another repository.');
+  const capturedExecution = captureExecution(execution, snapshot);
   const selected = inputIdentity(ctx, inputs);
   const observed = new Map(snapshot.sources.map(source => [fileKey(source.path), source.hash]));
   const actual = new Map(selected.sources.map(source => [source.path, source.hash]));
@@ -62,10 +87,13 @@ export const createObservedProviderInvocation = async ({ ctx, inputs, profile, e
     throw fail('Observed profile does not describe the actual selected invocation sources.');
   }
   await verifyProviderProfileReceipt(snapshot, { signal: inputs.abortSignal });
-  const identity = { schemaVersion: 1, providerId: snapshot.providerId, adapterVersion: snapshot.adapterVersion,
-    profileHash, inputIdentity: selected.key };
-  const invocation = freeze({ ...identity, invocationHash: semanticHash('tooling.provider-invocation.v1', identity) });
-  owners.set(invocation, { profile: snapshot, ctx, inputs, execute, running: null });
+  const identity = { schemaVersion: 2, providerId: snapshot.providerId, adapterVersion: snapshot.adapterVersion,
+    profileHash, inputIdentity: selected.key, executionHash: semanticHash('tooling.provider-execution.v1', {
+      execution: capturedExecution, platform: process.platform, arch: process.arch, node: process.version,
+      project: snapshot.project
+    }) };
+  const invocation = freeze({ ...identity, invocationHash: semanticHash('tooling.provider-invocation.v2', identity) });
+  owners.set(invocation, { profile: snapshot, ctx, inputs, execute, execution: capturedExecution, running: null });
   return invocation;
 };
 
@@ -87,13 +115,22 @@ export const runObservedProviderInvocation = (invocation, { signal } = {}) => {
     throwIfAborted(signal);
     await verifyProviderProfileReceipt(owner.profile, { signal });
     if (inputIdentity(owner.ctx, owner.inputs).key !== invocation.inputIdentity) throw fail('Invocation inputs changed before execution.');
-    const output = await owner.execute();
+    const output = await owner.execute(owner.execution);
     const observation = observeStorageResource(output, { phase: 'provider-invocation-result' });
-    observation.requireSettled(); throwIfAborted(signal);
-    await verifyProviderProfileReceipt(owner.profile, { signal });
-    if (inputIdentity(owner.ctx, owner.inputs).key !== invocation.inputIdentity) throw fail('Invocation inputs changed during execution.');
-    observation.requireSettled();
-    return output ? { ...output, invocation } : output;
+    const prerequisite = observation.hasResourceObservation ? observation.retain() : null;
+    try {
+      observation.requireSettled(); throwIfAborted(signal);
+      await verifyProviderProfileReceipt(owner.profile, { signal });
+      if (inputIdentity(owner.ctx, owner.inputs).key !== invocation.inputIdentity) throw fail('Invocation inputs changed during execution.');
+      observation.requireSettled();
+      const result = output ? { ...output, invocation, ...(prerequisite ? {
+        cacheOwnershipPending: true, cacheOwnershipReleased: observation.isSettled
+      } : {}) } : output;
+      observation.requireSettled();
+      return result;
+    } catch (error) {
+      throw prerequisite ? addStorageFailureContext(error, {}, prerequisite, { secondaryPresent: true }) : error;
+    }
   })();
   return owner.running;
 };
