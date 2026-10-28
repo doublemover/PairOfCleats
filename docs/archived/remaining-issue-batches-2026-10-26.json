@@ -7618,8 +7618,15 @@
       "recordedDisposition": "implementation_needed",
       "priority": "unranked",
       "batch": "language-semantics",
-      "phase": "source-review-and-implementation",
-      "status": "queued"
+      "phase": "canonical-syntax-implemented-functional-qualification-pending",
+      "status": "source-implemented-qualification-pending",
+      "unvalidatedSourceHeads": [
+        "765026a3550eb4eebd9f141c1dc235997e5dedfe"
+      ],
+      "unvalidatedReceipts": [
+        "jsx-syntax-implementation-2026-10-27.md"
+      ],
+      "currentImplementation": "Canonical JSX/TSX program retains full-file syntax/chunk preparations, enclosing declarations and expression ownership; actual dialect survives VFS routing. Independent slices preserve cache isolation. Twelve authored parser/declaration/call/VFS controls and strengthened determinism are unexecuted. No secondary HTML-equivalence projection is emitted; any optional overlapping detail view requires separate occurrence/dedup admission. Original consumer/replay/native qualification remains."
     },
     {
       "number": 1651,

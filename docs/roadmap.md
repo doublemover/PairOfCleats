@@ -28,15 +28,15 @@ and [qualification matrix](testing/qualification-matrix.md).
 The [current solo implementation wave](archived/implementation-wave-2026-10-27.md)
 indexes source/tree receipts and deferred checks for storage, providers, languages,
 embeddings, triage, rendering, native workflows and performance.
-These checkpoints remain **functionally unvalidated**; package build allowances
-and built-in/native/custom ownership integration remain.
+These checkpoints remain **functionally unvalidated**; package allowances and
+built-in/native/custom integration remain.
 
 [Five dependency retirements](archived/dependency-ownership-implementation-2026-10-27.md)
 removed 110 lock records. Locked bootstrap passed without warnings/errors:
 37 packages, 33 routes, 8 patches/26 targets/61 hunks. Retained inputs and exact
 receipts remain in the archive; functional checks/publication gate are deferred.
 
-These scoped observations do not combine into suite/platform/model/release acceptance.
+These observations do not combine into suite/platform/model/release acceptance.
 Task checks omit an inherited missing trusted-config selector; global settings and
 trust rules remain. [Storage observation repairs](archived/storage-space-implementation-2026-10-27.md)
 await execution; lifecycle policy (#1267) and custom cleanup (#1574) remain.
@@ -54,7 +54,7 @@ severity and shared dependencies, retaining qualification separately:
    removes eleven direct adapter edges; [operation loading](archived/language-operation-loading-implementation-2026-10-27.md)
    separates family/prose initialization. [Embedded content views](archived/embedded-content-implementation-2026-10-27.md)
    carry exact piecewise maps through Markdown/comment parsing, tokens, scheduler, VFS and semantic readers; 21 cases remain.
-   Other adapters, worker initialization and execution remain.
+   JSX/TSX retain canonical syntax; other adapters, workers and execution remain.
    [Early embedding selection](archived/embedding-selection-implementation-2026-10-27.md)
    pins the full-build request before Stage2; [graph preflight/attempt linkage](archived/embedding-preflight-implementation-2026-10-27.md)
    are implemented. Failure persistence, other routes and full readiness/cache-only qualification remain.
