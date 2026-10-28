@@ -1509,7 +1509,11 @@ const buildThroughputLedgerSummary = (tasks) => {
     diffSchemaVersion: THROUGHPUT_LEDGER_DIFF_SCHEMA_VERSION,
     taskCount: tasks.length,
     ledgerTaskCount: tasks.filter((entry) => isValidThroughputLedger(entry?.throughputLedger)).length,
-    diffTaskCount: tasks.filter((entry) => entry?.throughputLedgerDiff?.baselineCount > 0).length,
+    diffTaskCount: tasks.filter((entry) => entry?.throughputLedgerDiff?.comparedEntries > 0).length,
+    partialDiffTaskCount: tasks.filter((entry) => entry?.throughputLedgerDiff?.status === 'partial').length,
+    unavailableDiffTaskCount: tasks.filter((entry) => entry?.throughputLedgerDiff?.status === 'unavailable').length,
+    zeroBaselineTaskCount: tasks.filter((entry) => entry?.throughputLedgerDiff?.status === 'zero-baseline').length,
+    noBaselineTaskCount: tasks.filter((entry) => entry?.throughputLedgerDiff?.status === 'no-baseline').length,
     topRegressions
   };
 };

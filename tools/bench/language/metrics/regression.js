@@ -47,6 +47,9 @@ const resolveBaselineConfidence = (summary) => {
   return 'high';
 };
 
+const measuredValue = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+const DIAGNOSTIC_ROWS = 16;
+
 const buildRegressionSummary = ({
   currentLedger,
   baselineEntries,
@@ -54,69 +57,96 @@ const buildRegressionSummary = ({
 }) => {
   const metric = metricConfig?.key || 'chunksPerSec';
   const baselineMap = new Map();
-  for (const baseline of baselineEntries) {
-    for (const [modeKey, modeEntry] of Object.entries(baseline.modalities || {})) {
+  const eligible = new Set();
+  for (const ledger of [currentLedger, ...baselineEntries]) {
+    for (const [modeKey, modeEntry] of Object.entries(ledger.modalities || {})) {
       for (const [stageKey, stageEntry] of Object.entries(modeEntry?.stages || {})) {
-        const rate = Number(stageEntry?.[metric]);
-        if (!Number.isFinite(rate) || rate <= 0) continue;
-        const key = `${modeKey}:${stageKey}`;
-        if (!baselineMap.has(key)) baselineMap.set(key, []);
-        baselineMap.get(key).push(rate);
+        // The ledger intentionally supplies only total counters today. An
+        // all-unobserved non-total metric is not a failed stage measurement.
+        if (stageKey === 'total' || measuredValue(stageEntry?.[metric]) !== null) eligible.add(JSON.stringify([modeKey, stageKey]));
       }
+    }
+  }
+  const dimensions = [...eligible].map(key => { const [modeKey, stageKey] = JSON.parse(key); return { key, modeKey, stageKey }; });
+  const exclusions = [];
+  let excludedEntries = 0;
+  const exclude = (modality, stage, reason, baseline = null) => {
+    excludedEntries++;
+    if (exclusions.length < DIAGNOSTIC_ROWS) exclusions.push({ modality, stage, reason, baseline });
+  };
+  for (const [baselineIndex, baseline] of baselineEntries.entries()) {
+    for (const { key, modeKey, stageKey } of dimensions) {
+      const rate = measuredValue(baseline.modalities?.[modeKey]?.stages?.[stageKey]?.[metric]);
+      if (rate === null) { exclude(modeKey, stageKey, 'baseline-observation-unavailable', baselineIndex); continue; }
+      if (!baselineMap.has(key)) baselineMap.set(key, []);
+      baselineMap.get(key).push(rate);
     }
   }
 
   const regressions = [];
   const improvements = [];
+  const zeroBaselines = [];
   let comparedEntries = 0;
+  let observedCurrentEntries = 0, unavailableCurrentEntries = 0, missingBaselineEntries = 0, zeroBaselineEntries = 0;
   const resolvedThreshold = Number(metricConfig?.regressionThresholdPct);
   const threshold = Number.isFinite(resolvedThreshold)
     ? resolvedThreshold
     : (metricConfig?.kind === 'duration' ? 0.08 : -0.08);
 
-  for (const [modeKey, modeEntry] of Object.entries(currentLedger.modalities || {})) {
-    for (const [stageKey, stageEntry] of Object.entries(modeEntry?.stages || {})) {
-      const currentRate = Number(stageEntry?.[metric]);
-      if (!Number.isFinite(currentRate) || currentRate <= 0) continue;
-      const key = `${modeKey}:${stageKey}`;
-      const baselineRates = baselineMap.get(key) || [];
-      const baselineSummary = summarizeNumericDistribution(baselineRates);
-      const baselineRate = Number(baselineSummary?.median);
-      if (!Number.isFinite(baselineRate) || baselineRate <= 0) continue;
-      const deltaRate = currentRate - baselineRate;
-      const deltaPct = deltaRate / baselineRate;
-      comparedEntries += 1;
-      const row = {
-        modality: modeKey,
-        stage: stageKey,
-        metric,
-        metricKind: metricConfig?.kind || 'rate',
-        metricLabel: metricConfig?.label || metric,
-        currentRate,
-        baselineRate,
-        baselineMean: baselineSummary?.mean ?? null,
-        baselineMedian: baselineSummary?.median ?? null,
-        baselineMin: baselineSummary?.min ?? null,
-        baselineMax: baselineSummary?.max ?? null,
-        baselineP95: baselineSummary?.p95 ?? null,
-        baselineStdDev: baselineSummary?.stdDev ?? null,
-        baselineCv: baselineSummary?.coefficientOfVariation ?? null,
-        baselineConfidence: resolveBaselineConfidence(baselineSummary),
-        deltaRate,
-        deltaPct,
-        baselineSamples: baselineRates.length
-      };
-      const isRegression = metricConfig?.kind === 'duration'
-        ? deltaPct >= Math.abs(threshold)
-        : deltaPct <= threshold;
-      const isImprovement = metricConfig?.kind === 'duration'
-        ? deltaPct <= -Math.abs(threshold)
-        : deltaPct >= Math.abs(threshold);
-      if (isRegression) {
-        regressions.push(row);
-      } else if (isImprovement) {
-        improvements.push(row);
-      }
+  for (const { key, modeKey, stageKey } of dimensions) {
+    const currentRate = measuredValue(currentLedger.modalities?.[modeKey]?.stages?.[stageKey]?.[metric]);
+    if (currentRate === null) {
+      unavailableCurrentEntries++;
+      exclude(modeKey, stageKey, 'current-observation-unavailable');
+      continue;
+    }
+    observedCurrentEntries++;
+    const baselineRates = baselineMap.get(key) || [];
+    const baselineSummary = summarizeNumericDistribution(baselineRates);
+    const baselineRate = measuredValue(baselineSummary?.median);
+    if (baselineRate === null) {
+      missingBaselineEntries++;
+      exclude(modeKey, stageKey, 'baseline-observation-unavailable');
+      continue;
+    }
+    const deltaRate = currentRate - baselineRate;
+    const deltaPct = baselineRate === 0 ? null : deltaRate / baselineRate;
+    const row = {
+      modality: modeKey,
+      stage: stageKey,
+      metric,
+      metricKind: metricConfig?.kind || 'rate',
+      metricLabel: metricConfig?.label || metric,
+      currentRate,
+      baselineRate,
+      baselineMean: baselineSummary?.mean ?? null,
+      baselineMedian: baselineSummary?.median ?? null,
+      baselineMin: baselineSummary?.min ?? null,
+      baselineMax: baselineSummary?.max ?? null,
+      baselineP95: baselineSummary?.p95 ?? null,
+      baselineStdDev: baselineSummary?.stdDev ?? null,
+      baselineCv: baselineSummary?.coefficientOfVariation ?? null,
+      baselineConfidence: resolveBaselineConfidence(baselineSummary),
+      deltaRate,
+      deltaPct,
+      baselineSamples: baselineRates.length
+    };
+    if (baselineRate === 0) {
+      zeroBaselineEntries++;
+      if (zeroBaselines.length < DIAGNOSTIC_ROWS) zeroBaselines.push({ ...row, outcome: currentRate === 0 ? 'both-zero' : 'zero-baseline' });
+      continue;
+    }
+    comparedEntries += 1;
+    const isRegression = metricConfig?.kind === 'duration'
+      ? deltaPct >= Math.abs(threshold)
+      : deltaPct <= threshold;
+    const isImprovement = metricConfig?.kind === 'duration'
+      ? deltaPct <= -Math.abs(threshold)
+      : deltaPct >= Math.abs(threshold);
+    if (isRegression) {
+      regressions.push(row);
+    } else if (isImprovement) {
+      improvements.push(row);
     }
   }
 
@@ -137,6 +167,14 @@ const buildRegressionSummary = ({
     metricLabel: metricConfig?.label || metric,
     baselineCount: baselineEntries.length,
     comparedEntries,
+    status: !baselineEntries.length ? 'no-baseline'
+      : comparedEntries ? (excludedEntries || unavailableCurrentEntries || missingBaselineEntries || zeroBaselineEntries ? 'partial' : 'compared')
+        : zeroBaselineEntries ? 'zero-baseline' : 'unavailable',
+    coverage: { observedCurrentEntries, unavailableCurrentEntries, missingBaselineEntries, zeroBaselineEntries },
+    zeroBaselines,
+    excludedEntries,
+    exclusions,
+    omittedExclusions: Math.max(0, excludedEntries - exclusions.length),
     regressionThresholdPct: threshold,
     regressions,
     improvements
@@ -157,31 +195,6 @@ export const computeThroughputLedgerRegression = ({
       ? { ...config, regressionThresholdPct }
       : config
   ));
-  if (!baselineEntries.length) {
-    const metrics = Object.fromEntries(metricConfigs.map((config) => [
-      config.key,
-      {
-        metric: config.key,
-        metricKind: config.kind,
-        metricLabel: config.label,
-        baselineCount: 0,
-        comparedEntries: 0,
-        regressionThresholdPct: config.key === metric ? regressionThresholdPct : config.regressionThresholdPct,
-        regressions: [],
-        improvements: []
-      }
-    ]));
-    return {
-      schemaVersion: THROUGHPUT_LEDGER_DIFF_SCHEMA_VERSION,
-      metric,
-      baselineCount: 0,
-      comparedEntries: 0,
-      regressionThresholdPct,
-      regressions: [],
-      improvements: [],
-      metrics
-    };
-  }
   const metrics = Object.fromEntries(metricConfigs.map((config) => [
     config.key,
     buildRegressionSummary({
@@ -203,6 +216,12 @@ export const computeThroughputLedgerRegression = ({
     metric,
     baselineCount: primary.baselineCount,
     comparedEntries: primary.comparedEntries,
+    status: primary.status || 'unavailable',
+    coverage: primary.coverage || null,
+    zeroBaselines: primary.zeroBaselines || [],
+    exclusions: primary.exclusions || [],
+    excludedEntries: primary.excludedEntries || 0,
+    omittedExclusions: primary.omittedExclusions || 0,
     regressionThresholdPct: primary.regressionThresholdPct,
     regressions: primary.regressions,
     improvements: primary.improvements,

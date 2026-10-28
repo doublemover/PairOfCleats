@@ -24,6 +24,7 @@ import {
   rateFromTotals,
   sumRates,
   collect,
+  toFiniteOrNull,
   summarizeNumericDistribution,
   summarizeThroughputDistribution
 } from './show-throughput/aggregate.js';
@@ -49,7 +50,8 @@ import {
   resolveThroughputLedger,
   applyRunThroughputLedgerDiffs,
   compareLedgerRegressions,
-  collectRunLedgerRegressions
+  collectRunLedgerRegressions,
+  collectRunLedgerComparisonSummary
 } from './show-throughput/analysis.js';
 import { compareReportRunTime, matchesRepoFilter } from './show-throughput/selection.js';
 import {
@@ -746,6 +748,11 @@ for (const dir of folders) {
   runs.sort(compareReportRunTime);
   // Diffs are order-sensitive; always compute against chronological run order.
   applyRunThroughputLedgerDiffs(runs);
+  const ledgerComparisons = collectRunLedgerComparisonSummary(runs);
+  if (shouldRenderTextOverview) {
+    const counts = ledgerComparisons.states;
+    console.log(color.gray(`  Ledger observations: ${counts.compared} compared, ${counts.partial} partial, ${counts['zero-baseline']} zero baseline, ${counts.unavailable} unavailable, ${counts['no-baseline']} no baseline, ${counts['no-ledger']} no ledger.`));
+  }
   const folderLedgerRegressions = collectRunLedgerRegressions(runs);
   if (folderLedgerRegressions.length) {
     ledgerRegressionsGlobal.push(...folderLedgerRegressions.map((entry) => ({ ...entry, folder: dir.name })));
@@ -795,6 +802,7 @@ for (const dir of folders) {
     : 0;
   folderReports.push({
     folder: dir.name,
+    ledgerComparisons,
     label: dir.name,
     runCount: runs.length,
     codeDistribution,
@@ -1542,6 +1550,7 @@ const outputSummary = {
     throughputLedger: formatSectionProvenance(provenanceTotalsGlobal, 'throughputLedger')
   },
   topRegressions: ledgerRegressionsGlobal.slice(0, topN),
+  ledgerComparisons: collectRunLedgerComparisonSummary(folderReports.flatMap(report => report.runs)),
   topVariability: variabilityRows.slice(0, topN),
   ciSummary: {
     folderCount: folderReports.length,
@@ -1566,6 +1575,7 @@ const outputSummary = {
     queryMedian: report.wallPerQuery?.median ?? null,
     searchMedian: report.wallPerSearch?.median ?? null,
     regressionCount: report.regressionCount,
+    ledgerComparisons: report.ledgerComparisons,
     regressionSeverity: report.regressionSeverity,
     variability: report.codeDistribution?.chunksPerSec?.coefficientOfVariation ?? null,
     coverageCandidates: report.outcomeRepos.coverage.candidates,
@@ -1606,13 +1616,14 @@ const buildRepoRows = () => {
         label: run.repoIdentity || run.file,
         repoIdentity: run.repoIdentity,
         file: run.file,
-        chunksMedian: Number(modeDistribution?.chunksPerSec),
-        filesMedian: Number(modeDistribution?.filesPerSec),
-        buildIndexMedian: Number(run.summary?.buildMs?.index),
-        queryMedian: Number(run.summary?.queryWallMsPerQuery),
-        searchMedian: Number(run.summary?.queryWallMsPerSearch),
-        regressionSeverity: Math.max(...Object.values(run.throughputLedgerDiff?.metrics || {})
-          .flatMap((metricSummary) => (metricSummary?.regressions || []).map((entry) => Math.abs(Number(entry?.deltaPct) || 0))), 0),
+        chunksMedian: toFiniteOrNull(modeDistribution?.chunksPerSec),
+        filesMedian: toFiniteOrNull(modeDistribution?.filesPerSec),
+        buildIndexMedian: toFiniteOrNull(run.summary?.buildMs?.index),
+        queryMedian: toFiniteOrNull(run.summary?.queryWallMsPerQuery),
+        searchMedian: toFiniteOrNull(run.summary?.queryWallMsPerSearch),
+        ledgerComparisonStatus: run.throughputLedgerDiff?.status || 'no-ledger',
+        regressionSeverity: run.throughputLedgerDiff?.comparedEntries > 0 ? Math.max(...Object.values(run.throughputLedgerDiff?.metrics || {})
+          .flatMap((metricSummary) => (metricSummary?.regressions || []).map((entry) => Math.abs(Number(entry?.deltaPct) || 0))), 0) : null,
         variability: null
       });
     }
@@ -1638,7 +1649,7 @@ const printRepoText = (rows) => {
     console.log(
       `${row.folder}/${row.repoIdentity}: chunks ${formatNumber(row.chunksMedian)} | ` +
       `build ${formatMs(row.buildIndexMedian)} | query ${formatMs(row.queryMedian)} | ` +
-      `search ${formatMs(row.searchMedian)} | reg ${formatPct(row.regressionSeverity)}`
+      `search ${formatMs(row.searchMedian)} | reg ${formatPct(row.regressionSeverity)} [${row.ledgerComparisonStatus}]`
     );
   }
 };

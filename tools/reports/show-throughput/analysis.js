@@ -586,3 +586,17 @@ export const collectRunLedgerRegressions = (runs) => {
   rows.sort(compareLedgerRegressions);
   return rows;
 };
+
+export const collectRunLedgerComparisonSummary = runs => {
+  const states = { compared: 0, partial: 0, unavailable: 0, 'zero-baseline': 0, 'no-baseline': 0, 'no-ledger': 0 };
+  let comparedEntries = 0, excludedEntries = 0, zeroBaselineEntries = 0;
+  for (const run of runs) {
+    const diff = run?.throughputLedgerDiff;
+    const status = diff ? (Object.hasOwn(states, diff.status) ? diff.status : 'unavailable') : 'no-ledger';
+    states[status]++;
+    comparedEntries += diff?.comparedEntries || 0;
+    excludedEntries += diff?.excludedEntries || 0;
+    zeroBaselineEntries += diff?.coverage?.zeroBaselineEntries || 0;
+  }
+  return { metric: 'chunksPerSec', scope: 'numeric-observations', states, comparedEntries, excludedEntries, zeroBaselineEntries };
+};
