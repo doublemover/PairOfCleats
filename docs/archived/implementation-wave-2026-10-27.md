@@ -65,6 +65,7 @@ the unexecuted Windows source work separately from published acceptance.
 | [21464f188](session-retirement-implementation-2026-10-28.md) | Descendant-first original lease retirement, retained ancestors and independently settled metadata recovery | 6 authored controls; actual session/category/native and original/follow-up qualification remain |
 | [afa75fe93](configured-native-command-implementation-2026-10-28.md) | Configured LMDB/compaction command scopes and original/independent resource observations | 11 new authored controls; actual native/category/route qualification and remaining publication/cleanup adoption remain |
 | [b48e9157c](managed-child-acknowledgement-implementation-2026-10-28.md) | Managed quota retirement after original action/receipt observations and producer-bound admission recovery | 8 authored controls; actual admission/child/category and full original/follow-up qualification remain |
+| [dc7746853](tokenizer-invocation-implementation-2026-10-28.md) | One original bounded tokenizer worker/profile for serial exact trials, local scalar reuse and joined accepted work | 9 authored controls; actual profile/worker/surface and measured cold/warm qualification remain |
 
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero

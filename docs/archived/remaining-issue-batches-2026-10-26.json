@@ -3013,11 +3013,14 @@
       "currentDisposition": "qualification_pending",
       "currentImplementation": "Optional pinned local tokenizer/config identities now flow through canonical CLI/HTTP/MCP requests. Pure JS exact rendered-text encoding uses bounded serialized original workers, actual contained file/hash admission, explicit cancellation/unavailability/overflow, independent complete-response byte admission and scalar-only content/profile/policy cache publication after actual teardown and validation. Twenty-five authored controls remain unexecuted; full profile/lifecycle/surface/cold-warm latency and original/follow-up qualification remain.",
       "unvalidatedSourceHeads": [
-        "a512377128207026a75097aceb811f6d2f6a6409"
+        "a512377128207026a75097aceb811f6d2f6a6409",
+        "dc774685321113a497229383f45480ce6e99fd3f"
       ],
       "unvalidatedReceipts": [
-        "context-token-budget-implementation-2026-10-28.md"
-      ]
+        "context-token-budget-implementation-2026-10-28.md",
+        "tokenizer-invocation-implementation-2026-10-28.md"
+      ],
+      "invocationFollowup": "The existing exact counter now owns one verified profile and lazily initialized bounded worker for at most 128 serial envelopes, scalar-only local reuse, joined accepted work/failures and immediate original cancellation teardown. Nested/retired/early/excess operations reject; final reuse requires identical complete rendering and revalidated payload/byte identity. Nine authored controls are unexecuted; thirty-four exact-budget/invocation controls total and measured qualification remain. #1126 selector source is separate."
     },
     {
       "number": 1126,
