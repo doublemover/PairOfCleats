@@ -112,13 +112,21 @@ export const withBakeoffCheckpoint = async ({ root, checkpointPath, settings, si
         return operation;
       }
     });
-    let result;
-    try { result = await worker(owner); } catch (error) { remember(error); }
+    let result, prerequisite = null;
+    try {
+      result = await worker(owner);
+      const original = observeStorageResource(result, { phase: 'bakeoff-checkpoint-worker-result' });
+      if (original.hasResourceObservation) prerequisite = original.retain();
+      original.requireSettled();
+    } catch (error) { remember(error); }
     active = false;
     await Promise.allSettled([...pending]);
     for (const error of writeFailures) remember(error);
-    if (failed) throw primary;
-    return { result };
+    if (failed) throw prerequisite ? addStorageFailureContext(primary, {}, prerequisite, { secondaryPresent: true }) : primary;
+    // A successful worker can still own resources. Keep its captured original
+    // prerequisite through accepted-write drain and actual checkpoint unlock.
+    return prerequisite ? addStorageFailureContext(new Error('Original bakeoff worker prerequisites.'),
+      { result }, prerequisite, { secondaryPresent: true }) : { result };
   });
   if (!owned) throw problem('ERR_BAKEOFF_CHECKPOINT_BUSY', 'Another invocation owns the selected bakeoff checkpoint.');
   return owned.result;
