@@ -1,13 +1,14 @@
 import { sha1 } from './hash.js';
+import { stableStringify } from './stable-json.js';
 import { resolveEmbeddingModelProfile } from './embedding-model-profile.js';
 import { isEmbeddingModelRepositoryId } from './embedding-artifact-identity.js';
 import { resolveEmbeddingDenseContract, denseContractFormatting, assertEmbeddingDenseFormatting,
   validateEmbeddingDenseContract } from './embedding-dense-contract.js';
 
 /** Embedding identity schema version. */
-export const EMBEDDING_IDENTITY_VERSION = 6;
+export const EMBEDDING_IDENTITY_VERSION = 7;
 /** Embedding identity fingerprint tag used in cache keys. */
-export const EMBEDDING_IDENTITY_FINGERPRINT = 'embeddings-v6';
+export const EMBEDDING_IDENTITY_FINGERPRINT = 'embeddings-v7';
 
 const normalizeString = (value) => {
   if (typeof value !== 'string') return null;
@@ -158,12 +159,13 @@ export const buildEmbeddingIdentity = ({
 /**
  * Compute a stable identity key for embedding cache entries.
  *
- * Deterministic: JSON stringification of normalized identity.
+ * Canonical JSON key order survives persistence through index-state writers.
+ * Array order remains meaningful for ordered execution-provider preferences.
  *
  * @param {object} identity
  * @returns {string}
  */
 export const buildEmbeddingIdentityKey = (identity) => {
   const safeIdentity = identity && typeof identity === 'object' ? identity : {};
-  return sha1(JSON.stringify(safeIdentity));
+  return sha1(stableStringify(safeIdentity));
 };
