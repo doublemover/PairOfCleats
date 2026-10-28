@@ -1,3 +1,4 @@
+import { hasSqliteDenseTable as hasTable, resolveSqliteDenseVectorTableDims as resolveVectorTableDims } from './sqlite-dense-schema.js';
 import { assertSqliteIndexFormat } from '../../../src/storage/sqlite/index-format.js';
 import fsSync from 'node:fs';
 import path from 'node:path';
@@ -24,17 +25,8 @@ import { openDenseVectorBinarySourceSync } from '../../../src/shared/dense-vecto
 import { readVerifiedContainedFileSync } from '../../../src/shared/contained-file.js';
 import { stableStringify } from '../../../src/shared/stable-json.js';
 import { throwIfAborted } from '../../../src/shared/abort.js';
-
-const hasTable = (db, table) => {
-  try {
-    const row = db.prepare(
-      "SELECT name FROM sqlite_master WHERE type='table' AND name = ?"
-    ).get(table);
-    return !!row;
-  } catch {
-    return false;
-  }
-};
+import { addStorageFailureContext } from '../../../src/shared/storage/operation-error.js';
+import { createSqliteDenseLifetime, retainSqliteDenseCleanupFailure } from './sqlite-dense-lifetime.js';
 
 const ensureDenseMetaSchema = (db) => {
   const rows = db.prepare('PRAGMA table_info(dense_meta)').all();
@@ -103,33 +95,20 @@ export const resolveSqliteDenseVectorRows = ({
 } = {}) => {
   if (Array.isArray(vectors)) return vectors;
   const source = resolveSqliteDenseArtifactSource({ vectorsPath, modelId, dims });
-  try { return Array.from(source, row => row.vector); } finally { source.close(); }
+  const lifetime = createSqliteDenseLifetime(source);
+  let failed = false, primary;
+  try { return Array.from(source, row => row.vector); }
+  catch (error) { failed = true; primary = error; lifetime.rememberWork(error); throw error; }
+  finally {
+    try { lifetime.close(); }
+    catch (cleanup) { throw failed ? retainSqliteDenseCleanupFailure(primary, cleanup) : cleanup; }
+  }
 };
 
 const resolveSqliteDenseVectorSource = ({ vectors, ...options }) => Array.isArray(vectors)
   ? { count: vectors.length, close: () => {}, *[Symbol.iterator]() {
     for (let docId = 0; docId < vectors.length; docId++) yield { docId, vector: vectors[docId] };
   } } : resolveSqliteDenseArtifactSource(options);
-
-const resolveVectorTableDims = (db, table, column) => {
-  if (!db || !table || !column) return null;
-  try {
-    const rows = db.prepare(`PRAGMA table_info(${table})`).all();
-    const col = rows.find((row) => row.name === column);
-    const type = col?.type || '';
-    const match = String(type).match(/\[(\d+)\]/);
-    if (match) return Number(match[1]);
-  } catch {}
-  try {
-    const row = db.prepare(
-      "SELECT sql FROM sqlite_master WHERE type='table' AND name = ?"
-    ).get(table);
-    const sql = row?.sql || '';
-    const match = String(sql).match(/\[(\d+)\]/);
-    if (match) return Number(match[1]);
-  } catch {}
-  return null;
-};
 
 export const updateSqliteDense = ({
   Database,
@@ -189,9 +168,11 @@ export const updateSqliteDense = ({
   const work = { oldRowsScanned: 0, newRowsScanned: 0, rowsCompared: 0, baseWrites: 0, baseDeletes: 0,
     annWrites: 0, annDeletes: 0, peakOldVectorBytes: 0 };
   const vectorSource = resolveSqliteDenseVectorSource({ vectors, vectorsPath, modelId, dims, signal, metrics: work });
-  let db = null, validCount = 0, primaryFailure = null;
+  const lifetime = createSqliteDenseLifetime(vectorSource);
+  let db = null, validCount = 0, primaryFailure, hasPrimaryFailure = false;
   try {
     db = new Database(resolvedDbPath);
+    lifetime.attachDatabase(db);
     assertSqliteIndexFormat({ db, repoRoot: root, indexPath: resolvedDbPath, operation: 'embedding-update' });
     if (!hasTable(db, 'dense_vectors') || !hasTable(db, 'dense_meta')) {
       if (emitOutput && warnOnMissing) {
@@ -200,12 +181,10 @@ export const updateSqliteDense = ({
       return { skipped: true, reason: 'missing dense tables', vectorAnn: vectorAnnState };
     }
     let pragmaState = null;
-    try {
-      const estimatedInputBytes = Math.max(1, Math.floor(vectorSource.count * Math.max(1, Number(dims) || 1)));
-      pragmaState = applyBuildPragmas(db, { inputBytes: estimatedInputBytes });
-      // Embedding updates trade some throughput for safer crash behavior.
-      db.pragma('synchronous = NORMAL');
-    } catch {}
+    const estimatedInputBytes = Math.max(1, Math.floor(vectorSource.count * Math.max(1, Number(dims) || 1)));
+    pragmaState = applyBuildPragmas(db, { inputBytes: estimatedInputBytes });
+    // Embedding updates trade some throughput for safer crash behavior.
+    db.pragma('synchronous = NORMAL');
 
     const transactionStarted = process.hrtime.bigint();
     db.exec('BEGIN IMMEDIATE');
@@ -219,6 +198,9 @@ export const updateSqliteDense = ({
       if (loadResult.ok) {
         if (hasVectorTable(db, vectorAnnTable)) {
           const existingDims = resolveVectorTableDims(db, vectorAnnTable, vectorAnnColumn);
+          if (existingDims === null) throw Object.assign(new Error('Existing SQLite vector column dimensions are unavailable; refusing destructive rebuild.'), {
+            code: 'ERR_SQLITE_DENSE_SCHEMA'
+          });
           if (Number.isFinite(existingDims) && existingDims !== dims) {
             db.exec(`DROP TABLE IF EXISTS ${vectorAnnTable}`);
             const created = ensureVectorTable(db, vectorExtension, dims);
@@ -475,21 +457,19 @@ export const updateSqliteDense = ({
       pragmas: pragmaState?.applied || null
     };
   } catch (error) {
-    primaryFailure = error;
-    if (db?.inTransaction) {
-      try { db.exec('ROLLBACK'); }
-      catch (rollbackError) {
-        primaryFailure = new AggregateError([error, rollbackError], 'SQLite dense update and rollback failed.', { cause: error });
-        throw primaryFailure;
-      }
+    hasPrimaryFailure = true; primaryFailure = error; lifetime.rememberWork(error);
+    try {
+      lifetime.requireWork();
+      if (db?.inTransaction) db.exec('ROLLBACK');
+    } catch (rollbackError) {
+      primaryFailure = addStorageFailureContext(error, {}, rollbackError, { secondaryPresent: true, forceAggregate: true });
+      throw primaryFailure;
     }
     throw error;
   } finally {
-    const closeErrors = [];
-    try { db?.close(); } catch (error) { closeErrors.push(error); }
-    try { vectorSource.close(); } catch (error) { closeErrors.push(error); }
-    if (closeErrors.length) throw new AggregateError(primaryFailure ? [primaryFailure, ...closeErrors] : closeErrors,
-      'SQLite dense resource cleanup failed.', { cause: primaryFailure || closeErrors[0] });
+    try { lifetime.close(); }
+    catch (cleanup) { throw hasPrimaryFailure
+      ? retainSqliteDenseCleanupFailure(primaryFailure, cleanup) : cleanup; }
   }
 };
 
