@@ -34,6 +34,7 @@ work. Their separate receipts preserve exact trees, limitations and checks.
 | [a61b11efb / 9d2986b3f](trace-state-implementation-2026-10-27.md) | Persistent trace state, bounded cursor retention and atomic classified seed refusal | 11 authored controls; actual parity/replay/publication/aggregate and serial CPU/heap qualification remain |
 | [9d5f6c8be](hydrated-risk-budget-implementation-2026-10-27.md) | Metadata pre-admission and final hydrated risk-family budgets with exact emitted accounting | 7 authored controls; actual assembly/ranking/truncation/strict/federated acceptance remains |
 | [449159675](embedded-content-implementation-2026-10-27.md) | Shared exact content views and versioned piecewise maps through comment/Markdown parsing, tokens, scheduler, VFS and semantic readers | 21 authored cases; native scheduler, persisted warm relocation, navigation and full affected qualification remain |
+| [f564f5f79](triage-path-admission-implementation-2026-10-27.md) | Canonical triage IDs and pre-IO Windows stream/device/extension admission | 2 authored IO-barrier cases and strengthened path controls; publication coherence remains separate |
 
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero

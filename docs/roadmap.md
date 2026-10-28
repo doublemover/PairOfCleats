@@ -26,7 +26,7 @@ Completed source-bound checks are indexed in the
 and [qualification matrix](testing/qualification-matrix.md).
 
 The [current solo implementation wave](archived/implementation-wave-2026-10-27.md)
-indexes exact source/tree receipts for storage, provider, language, embedding,
+indexes exact source/tree receipts for storage, provider, language, embedding, triage,
 rendering, native workflow and performance implementations and their deferred checks.
 These local checkpoints remain **functionally unvalidated**; package
 build allowances and built-in/native/custom ownership integration remain explicit.
