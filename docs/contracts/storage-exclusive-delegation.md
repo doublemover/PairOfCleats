@@ -71,3 +71,13 @@ send callback, requires the child's assertion-success marker and zero exit, and
 retains parent exclusion. These authored controls are unrun. LMDB and the existing
 TUI service's actual SQLite/LMDB closers require their owner integration and
 deferred runtime proof.
+
+Local preparation now publishes an existing resource-settlement lease before
+drain dispatch. Original result/failure observations gate receipt inspection and
+token admission; `drained: true` alone cannot settle outstanding work. Pending
+drain keeps the parent suspended and the resource fence protected from normal
+process-reader exit cleanup. The actual `repoCacheHandoffOwner` can explicitly
+resume ordinary readers after original settlement and exact fence retirement;
+it neither reruns the drain nor mints a mutation token from failed work. Failed
+fence removal requires explicit recovery. Thirteen additional local drain
+controls are authored, unexecuted; native/cross-process qualification remains.

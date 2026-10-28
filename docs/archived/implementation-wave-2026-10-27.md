@@ -92,6 +92,8 @@ PR #572 metadata was refreshed and read back at checkpoint `1ce60bb59` (160 loca
 
 - [Cleanup original results](cleanup-original-results-implementation-2026-10-28.md): generic/composed exclusion retains successful original work, suspended handoffs and category leases; actual metadata recovery avoids circular waits and work replay. Seventeen controls authored, unexecuted.
 
+- [Local handoff drain admission](handoff-drain-ownership-implementation-2026-10-28.md): a scoped resource fence precedes drain dispatch; original observations gate matching receipts, token admission and explicit reader recovery. Thirteen controls authored, unexecuted.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.
