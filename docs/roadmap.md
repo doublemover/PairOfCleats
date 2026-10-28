@@ -1,7 +1,7 @@
 # PairOfCleats Roadmap
 
 Status: Checkpoint 240 implementation freeze; full Windows validation in progress
-Last audited: 2026-10-27
+Last audited: 2026-10-28
 Last reconciled: 2026-10-28
 Canonical for: initiative status, execution order, and remaining work
 
@@ -70,9 +70,9 @@ and forensic drain are wired; native qualification remains.
 At checkpoint 240, freeze implementation and run full Windows validation.
 Real-tool/model, non-Windows and release checks remain explicit.
 
-Validation uses **targeted Windows re-checks** under the user's 2026-10-24 scope.
-The [validation receipt](archived/windows-solo-validation-2026-10-23.md) preserves
-source-bound checks; B1-B7 controls still require current qualification.
+Current reconciliation, 2026-10-28: full Windows validation began at checkpoint
+240. Repair gate failures before exhaustive cohorts. The [prior receipt](archived/windows-solo-validation-2026-10-23.md)
+preserves revision-specific checks; B1-B7 controls still need current qualification.
 The [459-case re-check receipt](archived/windows-historical-rechecks-2026-10-24.md)
 records 32 baseline passes, 426 failures (10 timeouts) and one POSIX exclusion.
 Focused repairs through `f6c7812a4` move 73 failures to passing: latest scoped
@@ -104,16 +104,10 @@ source implementation first on October 25, with functional execution deferred
 until the implementation batches are ready. Formatting and static checks continue. Commit and push completed batches;
 refresh the PR overview at least every 20 commits.
 
-The historical October 23 snapshot contained **1,151 open reports (#147–#1722)**: P0 0,
-P1 58, P2 574, P3 105, P4 0, Perf 125, and other/unprioritized 289.
-Compared with the previous 970-report snapshot this adds 181 reports, including
-12 older/reopened reports. Titles supply priority; labels do not supply those
-priorities. The [solo repair receipt](archived/solo-issue-repairs-2026-10-23.md)
-records this delta, reviewed scopes, source checkpoints and unfinished owners.
-The [prior comprehensive receipt](archived/github-issue-repairs-2026-10-21.md)
-and [pause handoff](archived/implementation-pause-2026-10-23.md) retain the
-previous wave's detailed mappings and provenance. Open status, source changes
-and accepted issue closure are separate facts.
+The [October 23 intake](archived/solo-issue-repairs-2026-10-23.md),
+[prior repair wave](archived/github-issue-repairs-2026-10-21.md) and
+[pause handoff](archived/implementation-pause-2026-10-23.md) retain historical
+counts and mappings. Current intake and qualification status appear above.
 
 Earlier solo source batches repaired exact embedding/cache identities, sparse Boolean
 completion and execution-qualified result reuse, offsets/bitmap/signed ranking,
