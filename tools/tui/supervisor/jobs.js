@@ -15,6 +15,7 @@ import {
 } from './request-utils.js';
 import { createJobWatchdogController, resolveWatchdogPolicy } from './watchdog.js';
 import { captureOwnedCleanup, ownedCleanupIsPending, combineOwnedErrors } from '../operator/settle-owned.js';
+import { projectTuiOperationFailure, tuiFailureCode, getTuiFailureInspections } from '../operator/operation-failure.js';
 
 /**
  * Build and expose job lifecycle operations for the supervisor runtime.
@@ -56,6 +57,29 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
     job.resourceError = job.resourceError && job.resourceError !== error
       ? combineOwnedErrors(job.resourceError, [error]) : error;
     job.cleanupPending = () => ownedCleanupIsPending(job.resourceError);
+  };
+  const hasPendingResources = () => [...state.jobs.values()].some(job => ownedCleanupIsPending(job.resourceError));
+  const searchFailure = (job, error, { cancelled = false, timedOut = false } = {}) => {
+    retainPendingResource(job, error);
+    const code = tuiFailureCode(error);
+    for (const inspection of getTuiFailureInspections(code)) retainPendingResource(job, inspection);
+    let failure = projectTuiOperationFailure(error, { cancelled, timedOut });
+    for (const inspection of getTuiFailureInspections(failure)) retainPendingResource(job, inspection);
+    const resourcePending = ownedCleanupIsPending(job.resourceError);
+    if (resourcePending) failure = projectTuiOperationFailure(null, { resourcePending, diagnosticId: failure.diagnosticId });
+    return { code: resourcePending ? 'ERR_TUI_RESOURCE_PENDING' : timedOut ? 'ERR_TUI_OPERATION_TIMEOUT'
+      : cancelled ? 'ABORT_ERR' : code.code, failure };
+  };
+  // An unadmitted fresh request still needs a terminal reply. Never finalize or
+  // replace an accepted job when a duplicate ID is rejected.
+  const rejectSearchOperation = (jobId, error) => {
+    if (typeof jobId !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(jobId) || state.jobs.has(jobId)) return false;
+    const job = { id: jobId, seq: 0, status: 'failed', finalized: true, settled: true, internal: true };
+    const projected = searchFailure(job, error);
+    if (ownedCleanupIsPending(job.resourceError)) state.jobs.set(jobId, job);
+    emit('job:end', { internal: true, admission: 'rejected', status: 'failed', durationMs: 0,
+      exitCode: null, signal: null, result: null, resultState: 'incomplete', error: projected }, { jobId });
+    return true;
   };
   /**
    * Return one tracked job by id.
@@ -501,7 +525,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
    * An atomic save that already completed remains successful on late abort.
    */
   const startOperation = async ({ jobId, method }, execute,
-    { timeoutMs = 15000, title = 'Settings', isCommitted = data => data?.saved === true } = {}) => {
+    { timeoutMs = 15000, title = 'Settings', isCommitted = data => data?.saved === true, failureProjection = null } = {}) => {
     assertAcceptingWork({ allowPending: ['status', 'describe', 'services', 'stop-service'].includes(method) });
     assertWorkAdmission?.({ kind: 'operation', method });
     if (typeof jobId !== 'string' || !/^[a-zA-Z0-9_-]{1,128}$/.test(jobId)) {
@@ -518,15 +542,19 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
     }, timeoutMs);
     const finish = payload => finalizeJob(job, { internal: true, durationMs: Date.now() - job.startedAt,
       signal: null, ...payload });
-    job.settlement = Promise.resolve().then(() => execute({ signal: job.abortController.signal, operationJobId: jobId, operationOwner: job, onSpawn: child => {
-      emit('job:spawn', { pid: child.pid, internal: true }, { jobId });
-    } })).then(data => {
+    job.settlement = Promise.resolve().then(() => execute({ signal: job.abortController.signal, operationJobId: jobId,
+      operationOwner: job, hasPendingResources, onSpawn: child => {
+        emit('job:spawn', { pid: child.pid, internal: true }, { jobId });
+      } })).then(data => {
       const committed = isCommitted(data);
       if (job.abortController.signal.aborted && !committed) {
         finish({ status: job.timedOut ? 'failed' : 'cancelled', exitCode: null, result: null,
-          error: { code: job.timedOut ? 'ERR_TUI_OPERATION_TIMEOUT' : 'ABORT_ERR' } });
+          error: failureProjection === 'search' ? searchFailure(job, null, { cancelled: true, timedOut: job.timedOut })
+            : { code: job.timedOut ? 'ERR_TUI_OPERATION_TIMEOUT' : 'ABORT_ERR' } });
       } else if (Buffer.byteLength(JSON.stringify(data) ?? '') > 1024 * 1024) {
-        finish({ status: 'failed', exitCode: null, result: null, error: { code: 'ERR_TUI_OPERATION_OUTPUT' } });
+        const error = { code: 'ERR_TUI_OPERATION_OUTPUT' };
+        finish({ status: 'failed', exitCode: null, result: null,
+          error: failureProjection === 'search' ? searchFailure(job, error) : error });
       } else {
         finish({ status: 'done', exitCode: 0, resultState: 'complete', result: { method, data } });
       }
@@ -534,9 +562,10 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
       retainPendingResource(job, error);
       const aborted = job.abortController.signal.aborted;
       finish({ status: aborted && !job.timedOut ? 'cancelled' : 'failed', exitCode: null, result: null,
-        error: { code: ownedCleanupIsPending(job.resourceError) ? 'ERR_TUI_RESOURCE_PENDING'
-          : job.timedOut ? 'ERR_TUI_OPERATION_TIMEOUT' : aborted ? 'ABORT_ERR'
-            : String(error?.code ?? 'ERR_TUI_OPERATION_FAILED').replace(/[^a-zA-Z0-9_]/g, '').slice(0, 80) } });
+        error: failureProjection === 'search' ? searchFailure(job, error, { cancelled: aborted, timedOut: job.timedOut })
+          : { code: ownedCleanupIsPending(job.resourceError) ? 'ERR_TUI_RESOURCE_PENDING'
+            : job.timedOut ? 'ERR_TUI_OPERATION_TIMEOUT' : aborted ? 'ABORT_ERR'
+              : String(error?.code ?? 'ERR_TUI_OPERATION_FAILED').replace(/[^a-zA-Z0-9_]/g, '').slice(0, 80) } });
     }).finally(() => { job.settled = true; clearTimeout(timer); cleanupFinalizedJob(jobId, job); });
     job.settlement.catch(() => {});
   };
@@ -544,6 +573,7 @@ export const createJobController = ({ state, runId, root, emit, emitLog, buildFl
   return {
     startJob,
     startOperation,
+    rejectSearchOperation,
     cancelJob,
     cleanupFinalizedJob,
     failJobInvalidRequest

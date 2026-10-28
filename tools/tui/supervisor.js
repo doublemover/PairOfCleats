@@ -102,6 +102,7 @@ let artifactRegistry = createTuiArtifactRegistry();
 const {
   startJob,
   startOperation,
+  rejectSearchOperation,
   cancelJob,
   failJobInvalidRequest
 } = createJobController({
@@ -146,7 +147,7 @@ const runSearch = async (request, context) => {
   contracts.assertTuiSearchRequest(request.method, request.params);
   if (signal.aborted) throw Object.assign(new Error('Cancelled.'), { code: 'ABORT_ERR' });
   searchSession ||= search.createTuiSearchSession({ toolRoot: ROOT });
-  const methods = { describe: 'describe', query: 'query', continue: 'continueSearch', source: 'source', open: 'open' };
+  const methods = { describe: 'describe', status: 'status', query: 'query', continue: 'continueSearch', source: 'source', open: 'open' };
   return searchSession[methods[request.method]](request.params, context);
 };
 
@@ -273,8 +274,9 @@ const handleRequest = async (request) => {
   if (op === 'search:run') {
     try {
       await startOperation({ jobId: request.jobId, method: request.method }, context => runSearch(request, context),
-        { title: 'Search', isCommitted: data => data?.opened === true });
-    } catch {
+        { title: 'Search', isCommitted: data => data?.opened === true, failureProjection: 'search' });
+    } catch (error) {
+      rejectSearchOperation(request.jobId, error);
       emitLog(null, 'error', 'Search request was not admitted.');
     }
     return;

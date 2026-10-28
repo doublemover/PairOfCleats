@@ -11,7 +11,8 @@ import { getSearchRequestSchema } from '../../api/validation.js';
 import { readVerifiedContainedFile, assertNoSymlinkPath } from '../../../src/shared/contained-file.js';
 import { resolveTrustedTuiCommand, runTrustedTuiCommand } from './command.js';
 import { buildSearchDiagnostics } from '../../../src/retrieval/output/search-diagnostics.js';
-import { createOwnedCleanupRetirements, ownedCleanupIsPending } from './settle-owned.js';
+import { captureOwnedCleanup, combineOwnedErrors, createOwnedCleanupRetirements, ownedCleanupIsPending } from './settle-owned.js';
+import { readTuiSearchChildFailure, tuiFailureCode, getTuiFailureInspections } from './operation-failure.js';
 
 const MODES = [['code', 'code'], ['prose', 'prose'], ['extractedProse', 'extracted-prose'], ['records', 'records']];
 const MAX_OUTPUT_BYTES = 768 * 1024;
@@ -50,11 +51,23 @@ export const createTuiSearchSession = ({ toolRoot, env = process.env, spawn = sp
     const built = buildSearchRequestArgs({ ...state.search, ...(cursor ? { cursor } : {}) },
       { includeRepo: true, repoPath: state.scope.configRoot, defaultOutput: 'compact', allowedOutputs: ['compact'] });
     if (!built.ok) fail('ERR_TUI_SEARCH_REQUEST', built.message);
-    const child = await spawn(process.execPath, [path.join(toolRoot, 'bin/pairofcleats.js'),
+    let child;
+    try { child = await spawn(process.execPath, [path.join(toolRoot, 'bin/pairofcleats.js'),
       'search', ...built.args, ...(built.query ? ['--', built.query] : [])], {
       cwd: state.scope.configRoot, env, signal, onSpawn, timeoutMs: 15000,
       stdio: ['ignore', 'pipe', 'pipe'], maxOutputBytes: MAX_OUTPUT_BYTES, rejectOnNonZeroExit: true
-    });
+    }); } catch (error) {
+      captureOwnedCleanup(error);
+      const failure = readTuiSearchChildFailure(error), fallback = tuiFailureCode(error);
+      const inspections = [...failure.inspections, ...getTuiFailureInspections(fallback)];
+      const original = inspections.length ? combineOwnedErrors(error, inspections) : error;
+      const observation = captureOwnedCleanup(original);
+      throw Object.assign(new Error('Search child did not complete.', { cause: original }), {
+        code: failure.code || fallback.code, tuiField: failure.field, tuiNativeSearchFailure: failure.nativeFailure,
+        ...(observation.present ? { cacheOwnershipPending: true,
+          cacheOwnershipReleased: () => observation.released() } : {})
+      });
+    }
     throwIfAborted(signal);
     scopes.captureScope(state.scope.id);
     if (state.epoch !== epoch || disposed) fail('ERR_TUI_SEARCH_STALE', 'The search has changed.');
@@ -190,7 +203,13 @@ export const createTuiSearchSession = ({ toolRoot, env = process.env, spawn = sp
         file: safeLabel(hit.file), line, diagnostics: safeText(child.stderr).slice(0, 8192) };
     }, signal);
   };
-  return { describe, query, continueSearch, source, open,
+  const status = (request, { hasPendingResources = () => false } = {}) => {
+    assertTuiSearchRequest('status', request);
+    let retained = false;
+    try { retirements.assertSettled(); } catch { retained = true; }
+    return { resourcePending: retained || pendingWork.size > 0 || hasPendingResources(), closed: disposed };
+  };
+  return { describe, query, continueSearch, source, open, status,
     dispose() {
       disposed = true; epoch++; for (const controller of controllers) controller.abort();
       pending = null; current = null; scopes.dispose();
