@@ -1,5 +1,9 @@
 # Windows validation after checkpoint 240
 
+The [shared-repair continuation](windows-validation-shared-repairs-2026-10-28.md)
+records the first 24 cohorts, original failures and subsequent producer/cache
+repairs. The full suite and native/performance acceptance remain in progress.
+
 Implementation froze at `7fd9190860201f8e726c128f1f7878d1cb4c1fe5`.
 The first repair batch ends at source
 `96e7d44407e0e64f958270db5e90f32ad88743d1`, tree

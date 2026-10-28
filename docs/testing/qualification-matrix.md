@@ -14,7 +14,9 @@ not inherit earlier runtime qualification; functional acceptance and publication
 gates were deferred through checkpoint 240. The [full Windows campaign](../archived/windows-validation-240-progress-2026-10-28.md)
 has now begun: the repaired front gate passes 40/40; pinned Rust passes 152/152;
 focused SQLite publication and actual ConPTY recovery have passing observations.
-The 6,095 required-case campaign and remaining issue acceptance are still pending.
+The first 24 correctness cohorts recorded 742 passes/60 failures. The
+[shared repairs](../archived/windows-validation-shared-repairs-2026-10-28.md)
+have focused passing observations; complete suite and issue acceptance remain pending.
 
 Current Clangd acquisition and managed-file lifetime source is **unvalidated**
 at `773e6893e`; [20 authored checks and remaining qualification](../archived/clangd-acquisition-implementation-2026-10-27.md)

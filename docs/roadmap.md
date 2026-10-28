@@ -71,7 +71,7 @@ At checkpoint 240, freeze implementation and run full Windows validation.
 Real-tool/model, non-Windows and release checks remain explicit.
 
 Current reconciliation, 2026-10-28: full Windows validation began at checkpoint
-240. Repair gate failures before exhaustive cohorts. The [prior receipt](archived/windows-solo-validation-2026-10-23.md)
+240. Shared-failure repairs precede resumed cohorts. The [prior receipt](archived/windows-solo-validation-2026-10-23.md)
 preserves revision-specific checks; B1-B7 controls still need current qualification.
 The [459-case re-check receipt](archived/windows-historical-rechecks-2026-10-24.md)
 records 32 baseline passes, 426 failures (10 timeouts) and one POSIX exclusion.
