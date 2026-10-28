@@ -7,11 +7,15 @@ qualified or pushed; the publication front gate remains deferred during source
 work. Their separate receipts preserve exact trees, limitations and checks.
 
 PR #572 metadata was refreshed and read back at local checkpoint
-`e07de6ce0` (80 commits), updated `2026-10-28T02:19:45Z`. A complete live inventory
-verified all 718 open issues once across the collapsed status lists: 470 with
-implementation recorded/qualification pending, 143 partial and 105 unresolved.
+`c5504e9b4` (100 commits), updated `2026-10-28T04:43:56Z`. A complete live inventory
+verified all 718 open issues once across the collapsed status lists: 471 with
+implementation recorded/qualification pending, 144 partial and 103 unresolved.
 These source classifications include unpublished work; qualified closing
 references were preserved. Published head/base remained `adbcaf777` / `main`.
+The refresh moves #1124 to implementation recorded and #1325 to partial after
+their new source work; already recorded platform/host/path qualifications retain
+their pending status. The read-back description is 63,774 characters and names
+the unexecuted Windows source work separately from published acceptance.
 
 | Source | Deliverable | Deferred coverage / remaining work |
 | --- | --- | --- |
