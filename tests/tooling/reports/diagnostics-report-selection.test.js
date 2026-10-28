@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { runNode } from '../../helpers/run-node.js';
 import { buildDiagnosticsReport } from '../../../tools/reports/diagnostics-report.js';
 import { buildRiskAnalysisStatus, withRiskContractVersion } from '../../../src/context-pack/assemble/risk-load.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
@@ -45,8 +45,9 @@ try {
         degraded: code === 'missing', summaryOnly: false, strictFailure: true, artifactStatus: {}, stats: {}, caps: {}, degradedReasons: [] })
     }) }));
     const cli = path.resolve('tools/reports/diagnostics-report.js');
-    const result = spawnSync(process.execPath, [cli, '--report', selected === 'cli-invalid' ? 'unsupported' : 'cap-heavy-risk-packs',
-      '--context-pack', contextPackPath, '--json'], { cwd: root, env: process.env, windowsHide: true, encoding: 'utf8', timeout: 10000 });
+    const result = runNode([cli, '--report', selected === 'cli-invalid' ? 'unsupported' : 'cap-heavy-risk-packs',
+      '--context-pack', contextPackPath, '--json'], 'diagnostics report selection', root, process.env,
+    { stdio: 'pipe', allowFailure: true, timeoutMs: 10000 });
     assert.equal(result.error, undefined);
     if (selected === 'cli-invalid') {
       assert.equal(result.status, 1);

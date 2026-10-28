@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { runNode } from '../../helpers/run-node.js';
 import {
   materializeBenchAnalysis, resolveBenchAnalysis
 } from '../../../tools/reports/show-throughput/analysis.js';
@@ -73,9 +73,8 @@ try {
     const reportPath = path.join(folder, 'fixture.json');
     await fs.writeFile(reportPath, JSON.stringify(payload));
     if (selected === 'cli-refresh-failure') await fs.unlink(statePath);
-    const runCli = () => spawnSync(process.execPath, [cliPath, '--root', results], {
-      cwd: root, env: process.env, windowsHide: true, encoding: 'utf8', timeout: 10000
-    });
+    const runCli = () => runNode([cliPath, '--root', results], 'throughput analysis materialization', root, process.env,
+      { stdio: 'pipe', allowFailure: true, timeoutMs: 10000 });
     const firstRun = runCli();
     assert.equal(firstRun.error, undefined);
     if (selected === 'cli-refresh-failure') {
