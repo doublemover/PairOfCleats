@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { createCallSitePages } from '../../src/graph/call-site-pages.js';
@@ -99,10 +100,28 @@ try {
   await assert.rejects(changed.next(), { code: 'ERR_JSONL_CONTENT_INTEGRITY' });
   assert.equal(changed.getDiagnostics().retainedDescriptorUpperBound, 0); await fs.writeFile(dataFile, original);
 
-  const replaced = create().iteratePages({ limit: 1 }); await replaced.next();
-  const temporary = dataFile + '.replacement'; await fs.writeFile(temporary, original); await fs.rename(temporary, dataFile);
-  await assert.rejects(replaced.next(), error => ['ERR_UNSAFE_FILE_PATH', 'ERR_FILE_CHANGED', 'ERR_JSONL_CONTENT_INTEGRITY'].includes(error.code));
-  assert.equal(replaced.getDiagnostics().retainedDescriptorUpperBound, 0);
+  const temporary = dataFile + '.replacement'; await fs.writeFile(temporary, original);
+  const replacementIdentity = await fs.stat(temporary, { bigint: true });
+  const statSync = fsSync.statSync;
+  let observeReplacement = false;
+  // Windows can deny replacing a retained descriptor. Preserve that actual
+  // observation, then qualify the identity check using the second real inode.
+  fsSync.statSync = function(location, ...args) {
+    if (observeReplacement && path.resolve(String(location)) === dataFile) return replacementIdentity;
+    return statSync.call(this, location, ...args);
+  };
+  try {
+    const replaced = create().iteratePages({ limit: 1 }); await replaced.next();
+    try { await fs.rename(temporary, dataFile); }
+    catch (error) {
+      assert.equal(process.platform, 'win32'); assert.equal(error.code, 'EPERM');
+      assert.deepEqual(await fs.readFile(dataFile), original);
+      assert.notEqual(replacementIdentity.ino, (await fs.stat(dataFile, { bigint: true })).ino);
+      observeReplacement = true;
+    }
+    await assert.rejects(replaced.next(), error => ['ERR_UNSAFE_FILE_PATH', 'ERR_FILE_CHANGED', 'ERR_JSONL_CONTENT_INTEGRITY'].includes(error.code));
+    assert.equal(replaced.getDiagnostics().retainedDescriptorUpperBound, 0);
+  } finally { fsSync.statSync = statSync; }
 
   let opened = 0;
   fs.open = async (location, ...args) => {
