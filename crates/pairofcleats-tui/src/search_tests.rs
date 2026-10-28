@@ -79,6 +79,21 @@ fn failed_first_search_has_a_failure_and_never_claims_an_empty_response() {
 }
 
 #[test]
+fn narrow_failure_keeps_the_repository_reason_on_one_row() {
+    let mut ui = ready();
+    key(&mut ui, KeyCode::Enter);
+    ui.outbox.clear();
+    fail(&mut ui, "ERR_TUI_SCOPE_INVALID");
+    assert!(
+        ui.lines(24, 28)
+            .iter()
+            .any(|line| line == "Reason: invalid-repository"),
+        "a narrow failure keeps its closed reason intact on a separate row"
+    );
+    assert!(ui.outbox.is_empty());
+}
+
+#[test]
 fn failure_outcomes_remain_distinct_and_unknown_text_is_not_rendered() {
     for (code, expected) in [
         ("ABORT_ERR", SearchOutcome::Cancelled),

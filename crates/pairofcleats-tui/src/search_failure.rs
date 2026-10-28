@@ -93,7 +93,8 @@ impl SearchFailure {
 
     pub fn lines(&self) -> Vec<String> {
         let mut rows = vec![
-            format!("{}: {}", self.definition.outcome, self.definition.reason),
+            self.definition.outcome.into(),
+            format!("Reason: {}", self.definition.reason),
             self.definition.message.into(),
             self.help(),
         ];

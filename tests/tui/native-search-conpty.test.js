@@ -149,7 +149,7 @@ try {
         assert.equal((await readEvents()).some(row => row.internal && row.event === 'job:start'), false);
         await fs.writeFile(path.join(dir, 'release-hello'), 'explicit fixture handshake release\n');
       } else terminal.write('R');
-      await rendered('Ready; Enter runs a canonical search');
+      await rendered(columns < 40 ? 'Ready; Enter runs' : 'Ready; Enter runs a canonical search');
       const requestedQuery = ['pagination', 'truncated', 'modes', 'incompatible'].includes(mode) ? '' : mode === 'empty-error' ? 'unfindableNativeTerm' : query;
       const filters = mode === 'pagination' ? { ann: false, lang: 'javascript' }
         : mode === 'truncated' ? { ann: false, type: 'FunctionDeclaration' }
@@ -294,7 +294,11 @@ try {
       }
       if (mode !== 'interrupt') {
         if (mode !== 'cancel') terminal.write('\x1b');
-        await rendered('Tab pane'); terminal.write('q');
+        if (columns < 40) {
+          await wait(() => !screen().includes('Repository search'), 'search overlay closed at narrow width');
+          await fs.writeFile(path.join(dir, `screen-${screens++}.txt`), screen());
+        } else await rendered('Tab pane');
+        terminal.write('q');
       }
     } finally {
       subscription.dispose();
