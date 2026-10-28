@@ -4809,7 +4809,8 @@
         "9995cd60e65dc6087b4a0910e6beeeeba0b3796a",
         "59b66d5661176e793d75261039cd4d4c6b6ed069",
         "37248f67645c8e26fce855e2cbb4cd99cabca525",
-        "7e5e93ebace95d3307da81658da3000a33f667ab"
+        "7e5e93ebace95d3307da81658da3000a33f667ab",
+        "2bd50246022173eee5f469b303eeb0ebd3f6c15e"
       ],
       "unvalidatedReceipts": [
         "storage-space-implementation-2026-10-27.md",
@@ -4836,7 +4837,8 @@
         "handoff-drain-ownership-implementation-2026-10-28.md",
         "exact-checksum-observation-implementation-2026-10-28.md",
         "tooling-guard-lifetime-implementation-2026-10-28.md",
-        "native-command-result-implementation-2026-10-28.md"
+        "native-command-result-implementation-2026-10-28.md",
+        "lmdb-close-result-implementation-2026-10-28.md"
       ],
       "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
       "sessionObservationFollowup": "Shared session admission now captures successful action and settlement receipt observers, freezes projected receipt fields and retains independent inspection/observer errors through original handles. Eleven authored cases await execution; native-reader observation, remaining adapters/custom backend registration and full qualification remain.",
@@ -4919,6 +4921,11 @@
           "sourceHead": "7e5e93ebace95d3307da81658da3000a33f667ab",
           "receipt": "native-command-result-implementation-2026-10-28.md",
           "implementation": "Actual native command captures successful operation/work/SQLite-close ownership, blocks native dispatch behind pending originals, and separates first-close admission from metadata-only recovery. Twenty-four canonical/configured inert-handle controls are authored and unexecuted. LMDB helper result integration, custom producer registration, backend cleanup and broad native/category acceptance remain."
+        },
+        {
+          "sourceHead": "2bd50246022173eee5f469b303eeb0ebd3f6c15e",
+          "receipt": "lmdb-close-result-implementation-2026-10-28.md",
+          "implementation": "Actual LMDB retrieval/build/validator owners retain one original native close result plus completion callback; exact once-only close and independent observations survive metadata recovery and late settlement revocation. Configured validation now supplies its actual backend/mode namespace before native open. Eighteen inert-owner and eight actual-native validator controls are authored, unexecuted; custom publication/deletion and broad qualification remain."
         }
       ]
     },
@@ -7804,7 +7811,8 @@
         "bf602f71a2b9b202bddbb0380404272b9f7a0c78",
         "4e723e3f88cd0bdf4999ea79bbbfd004c9e7c915",
         "9995cd60e65dc6087b4a0910e6beeeeba0b3796a",
-        "7e5e93ebace95d3307da81658da3000a33f667ab"
+        "7e5e93ebace95d3307da81658da3000a33f667ab",
+        "2bd50246022173eee5f469b303eeb0ebd3f6c15e"
       ],
       "unvalidatedReceipts": [
         "sqlite-operation-implementation-2026-10-27.md",
@@ -7835,7 +7843,8 @@
         "cleanup-original-results-implementation-2026-10-28.md",
         "handoff-drain-ownership-implementation-2026-10-28.md",
         "exact-checksum-observation-implementation-2026-10-28.md",
-        "native-command-result-implementation-2026-10-28.md"
+        "native-command-result-implementation-2026-10-28.md",
+        "lmdb-close-result-implementation-2026-10-28.md"
       ],
       "currentImplementation": "SQLite runner/helpers and Clangd acquisition retain original work through shared storage teardown. Managed Go/Lua/generic discovery propagates pending inspection; retained generation admission protects the first scan and owns file/Dir/metadata recovery. Functional qualification and remaining custom cleanup adoption are not discharged.",
       "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
@@ -7920,6 +7929,11 @@
           "sourceHead": "7e5e93ebace95d3307da81658da3000a33f667ab",
           "receipt": "native-command-result-implementation-2026-10-28.md",
           "implementation": "Actual native command captures successful operation/work/SQLite-close ownership, blocks native dispatch behind pending originals, and separates first-close admission from metadata-only recovery. Twenty-four canonical/configured inert-handle controls are authored and unexecuted. LMDB helper result integration, custom producer registration, backend cleanup and broad native/category acceptance remain."
+        },
+        {
+          "sourceHead": "2bd50246022173eee5f469b303eeb0ebd3f6c15e",
+          "receipt": "lmdb-close-result-implementation-2026-10-28.md",
+          "implementation": "Actual LMDB retrieval/build/validator owners retain one original native close result plus completion callback; exact once-only close and independent observations survive metadata recovery and late settlement revocation. Configured validation now supplies its actual backend/mode namespace before native open. Eighteen inert-owner and eight actual-native validator controls are authored, unexecuted; custom publication/deletion and broad qualification remain."
         }
       ]
     },

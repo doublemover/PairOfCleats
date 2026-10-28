@@ -20,7 +20,7 @@ retains original handles and independent original settlement observations.
 Absent or false advisory flags cannot erase an observer. Unknown observations
 stay pending. A swallowed work failure cannot erase its observed pending child.
 
-Successful operation, accepted-work and SQLite close results retain their
+Successful operation, accepted-work and native close results retain their
 original resource observers too. Result identity and ordinary scalar returns
 are preserved. Original pending work blocks a handle's first close and further
 native dispatch. After that work settles, the existing resource owner can
@@ -32,8 +32,14 @@ all hooks returned, including rejections; actual handle state and every original
 observation independently remain required before lease release. Consequently,
 metadata-only recovery never substitutes for native closure or replays work.
 
-The LMDB helper's callback/returned-result integration is a separate remaining
-boundary; SQLite result controls do not qualify it.
+LMDB uses one captured close owner for both the returned result and native
+completion callback. Early JavaScript return does not imply physical closure;
+an actual native rejection/false remains unconfirmed after a later callback.
+Successful physical closure can independently await the original result or
+inspection owner. Retrieval, native commands and validation share that owner;
+explicit storage metadata recovery observes it without invoking native close.
+Configured LMDB validation supplies its actual backend/mode selection before
+opening the database, so custom namespaces join the same lifetime protocol.
 
 The command sends the existing delegated closure receipt only after operation,
 registry, every original handle and independent observation settle. Failed

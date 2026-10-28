@@ -114,6 +114,8 @@ PR #572 metadata was refreshed and read back at checkpoint `c070f3095` (180 loca
 
 - [Native command successful results](native-command-result-implementation-2026-10-28.md): original operation/work/SQLite-close observations retain actual category/resource admission; first native close remains distinct from metadata recovery. Twenty-four controls authored, unexecuted; #1267/#1574 remain partial.
 
+- [LMDB close results](lmdb-close-result-implementation-2026-10-28.md): actual retrieval/build/validation retain native result and completion callback; configured validators join their selected namespace. Eighteen inert-owner and eight actual-native controls authored, unexecuted; custom publication/deletion remain.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.
