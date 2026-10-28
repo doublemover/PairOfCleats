@@ -2,6 +2,7 @@ import { sleep } from '../../../shared/sleep.js';
 import { isAbortError } from '../../../shared/abort.js';
 import { observeStorageResource, describeStorageFailure } from '../../../shared/storage/failure-observation.js';
 import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
+import { getWorkspaceHealthDecision } from './lsp/workspace-health-decision.js';
 import {
   mergeTypeEntries,
   normalizeTypeEntry,
@@ -319,20 +320,21 @@ export const createToolingGuard = ({
   const reset = () => {
     consecutiveFailures = 0;
   };
-  const recordFailure = (err, label) => {
+  const recordFailure = (err, label, { methodScoped = false } = {}) => {
     const diagnostic = describeStorageFailure(err, { phase: 'tooling-guard-failure-diagnostic',
       defaultCode: 'TOOLING_REQUEST_FAILED', defaultMessage: err !== null && typeof err === 'object' ? 'Tooling request failed.' : String(err) });
-    consecutiveFailures += 1;
+    if (!methodScoped) consecutiveFailures += 1;
     const message = diagnostic.message;
     lastFailure = {
       label: label || null,
+      scope: methodScoped ? 'method' : 'provider',
       message,
       code: diagnostic.code === 'TOOLING_REQUEST_FAILED' ? null : diagnostic.code,
       at: new Date().toISOString(),
       timedOut: /\btimeout\b/i.test(message)
     };
-    if (label) log(`[tooling] ${name} ${label} failed (${consecutiveFailures}/${breakerThreshold}): ${message}`);
-    if (isOpen()) {
+    if (label) log(`[tooling] ${name} ${label} failed (${methodScoped ? 'method cooldown' : `${consecutiveFailures}/${breakerThreshold}`}): ${message}`);
+    if (!methodScoped && isOpen()) {
       tripCount += 1;
       log(`[tooling] ${name} circuit breaker tripped.`);
     }
@@ -356,7 +358,7 @@ export const createToolingGuard = ({
     while (attempt <= retries) {
       requirePendingOriginals();
       try {
-        const result = await fn({ timeoutMs: timeoutOverride || timeoutMs });
+        const result = await fn({ timeoutMs: timeoutOverride || timeoutMs, attempt, retriesRemaining: retries - attempt });
         requireOriginal(result, 'tooling-guard-successful-result');
         reset();
         return result;
@@ -367,9 +369,11 @@ export const createToolingGuard = ({
         try { cancelled = isAbortError(err); }
         catch (inspectionError) { throw retainFailureDiagnostic(err, inspectionError, prerequisite); }
         if (cancelled) throw err;
+        const healthDecision = getWorkspaceHealthDecision(err);
+        if (healthDecision?.kind === 'not-admitted') throw err;
         attempt += 1;
-        if (attempt > retries) {
-          try { recordFailure(err, label); originalFailure.requireSettled(); }
+        if (attempt > retries || healthDecision?.kind === 'failed-admitted') {
+          try { recordFailure(err, label, { methodScoped: healthDecision?.methodScoped === true }); originalFailure.requireSettled(); }
           catch (diagnosticError) { throw retainFailureDiagnostic(err, diagnosticError, prerequisite); }
           throw err;
         }

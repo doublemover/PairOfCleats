@@ -61,6 +61,8 @@ import { applyToolchainDaemonPolicyEnv } from '../../../shared/toolchain-env.js'
 import { resolveDotnetRuntimeLaunch } from '../../../index/tooling/dotnet-runtime.js';
 import { sha1 } from '../../../shared/hash.js';
 import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
+import { createWorkspaceMethodHealth } from './lsp/workspace-method-health.js';
+import { getWorkspaceHealthDecision } from './lsp/workspace-health-decision.js';
 
 /**
  * Parse positive integer configuration with fallback floor of 1.
@@ -212,6 +214,7 @@ export async function collectLspTypes({
   indexDir = null,
   vfsColdStartCache = null,
   cacheRoot = null,
+  workspaceHealthContext = null,
   hoverTimeoutMs = null,
   signatureHelpTimeoutMs = null,
   definitionTimeoutMs = null,
@@ -494,6 +497,25 @@ export async function collectLspTypes({
     baseEnv: applyToolchainDaemonPolicyEnv(process.env, { toolingRoot, providerId: resolvedProviderId, command: cmd }) });
   runtime.command = String(launch.command || '');
   runtime.managedRuntimeInstallations = launch.managedRuntimeCommands.map(({ toolId, descriptorId, installId }) => ({ toolId, descriptorId, installId }));
+  const workspaceHealth = workspaceHealthContext ? await createWorkspaceMethodHealth({ cacheRoot,
+    repoRoot: resolvedRoot, workspaceRoot: resolvedWorkspaceRootDir, providerId: resolvedProviderId,
+    workspaceKey: resolvedWorkspaceKey || null, command: launch.command, args, environment: launch.environment,
+    documents: docs, initializationOptions, providerVersion: workspaceHealthContext.providerVersion,
+    configFileNames: workspaceHealthContext.configFileNames,
+    policy: { context: workspaceHealthContext, timeoutMs, retries, breakerThreshold,
+      hoverEnabled, signatureHelpEnabled, definitionEnabled, typeDefinitionEnabled, referencesEnabled,
+      documentSymbolConcurrency, hoverConcurrency, hoverDisableAfterTimeouts,
+      resolvedHoverTimeout, resolvedSignatureHelpTimeout, resolvedDefinitionTimeout, resolvedTypeDefinitionTimeout,
+      resolvedReferencesTimeout, resolvedDocumentSymbolTimeout, resolvedHoverDisableAfterTimeouts,
+      managedRuntimeCommands: launch.managedRuntimeCommands },
+    timeoutThreshold: docs.some(doc => doc.languageId === 'lua' || doc.effectiveExt === '.lua') ? 1 : 3,
+    signal: toolingAbortSignal }) : null;
+  const deferredHealthCheck = method => ({ name: 'tooling_workspace_method_deferred', status: 'warn',
+    message: `${resolvedProviderId} ${method} deferred by observed workspace-method cooldown; other admitted methods remain available.` });
+  if (workspaceHealth?.suppressBeforeAdmission('initialize')) {
+    checks.push(deferredHealthCheck('initialize')); runtime.workspaceHealth = workspaceHealth.metrics();
+    return buildEmptyCollectResult(checks, runtime);
+  }
 
   const runWithPooledSession = () => withLspSession({
     abortSignal: toolingAbortSignal,
@@ -572,6 +594,7 @@ export async function collectLspTypes({
         ? lease.getReliabilityState()
         : lifecycleHealth.getState();
       runtime.guard = guard.getState ? guard.getState() : null;
+      if (workspaceHealth) runtime.workspaceHealth = workspaceHealth.metrics();
       if (includeRequests || runtime.requests == null) {
         runtime.requests = typeof client.getMetrics === 'function' ? client.getMetrics() : null;
       }
@@ -599,7 +622,9 @@ export async function collectLspTypes({
         await sleep(Math.min(1000, Math.max(25, state.fdPressureBackoffRemainingMs)));
       }
       try {
-        const out = await guard.run(fn, options);
+        const out = await guard.run(workspaceHealth
+          ? parameters => workspaceHealth.run(options.label, () => fn(parameters), { retriesRemaining: parameters.retriesRemaining })
+          : fn, options);
         refreshRuntimeState();
         return out;
       } catch (err) {
@@ -615,8 +640,12 @@ export async function collectLspTypes({
         if (transportFailure && typeof lease.markPoisoned === 'function') {
           lease.markPoisoned('transport_failure');
         }
-        if (requestTimeout && typeof lease.markPoisoned === 'function') {
+        if (requestTimeout && getWorkspaceHealthDecision(err)?.methodScoped !== true && typeof lease.markPoisoned === 'function') {
           lease.markPoisoned('request_timeout');
+        }
+        const healthDecision = getWorkspaceHealthDecision(err);
+        if (healthDecision?.failureClass === 'malformed' && !healthDecision.methodScoped && typeof lease.markPoisoned === 'function') {
+          lease.markPoisoned('protocol_parse_failure');
         }
         refreshRuntimeState();
         throw err;
@@ -700,6 +729,20 @@ export async function collectLspTypes({
       effectiveTypeDefinitionEnabled = capabilityGate.effective.typeDefinition;
       effectiveReferencesEnabled = capabilityGate.effective.references;
       skipSymbolCollection = capabilityGate.skipSymbolCollection;
+      if (workspaceHealth) {
+        const suppress = method => {
+          if (!workspaceHealth.suppressBeforeAdmission(method)) return false;
+          checks.push(deferredHealthCheck(method)); return true;
+        };
+        if (effectiveHoverEnabled && suppress('hover')) effectiveHoverEnabled = false;
+        if (effectiveSemanticTokensEnabled && suppress('semanticTokens')) effectiveSemanticTokensEnabled = false;
+        if (effectiveSignatureHelpEnabled && suppress('signatureHelp')) effectiveSignatureHelpEnabled = false;
+        if (effectiveInlayHintsEnabled && suppress('inlayHints')) effectiveInlayHintsEnabled = false;
+        if (effectiveDefinitionEnabled && suppress('definition')) effectiveDefinitionEnabled = false;
+        if (effectiveTypeDefinitionEnabled && suppress('typeDefinition')) effectiveTypeDefinitionEnabled = false;
+        if (effectiveReferencesEnabled && suppress('references')) effectiveReferencesEnabled = false;
+        if (!skipSymbolCollection && suppress('documentSymbol')) skipSymbolCollection = true;
+      }
       checks.push(...capabilityGate.checks);
       if (skipSymbolCollection) {
         shouldShutdownClient = lease.pooled !== true;

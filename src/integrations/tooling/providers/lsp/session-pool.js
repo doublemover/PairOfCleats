@@ -10,6 +10,7 @@ import { stableStringify } from '../../../../shared/stable-json.js';
 import { currentRunResourceScope } from '../../../../shared/lifecycle/run-scope.js';
 import { retainRunSession } from './run-ownership.js';
 import { createVfsMaterializationSession } from '../../../../index/tooling/vfs/disk.js';
+import { LSP_SHORT_QUARANTINE_MS, LSP_EXTENDED_QUARANTINE_MS } from './health-policy.js';
 
 const DEFAULT_IDLE_TIMEOUT_MS = 1_500;
 const DEFAULT_MAX_LIFETIME_MS = 10 * 60_000;
@@ -56,8 +57,6 @@ const testHooks = {
   extendedQuarantineMs: null
 };
 
-const DEFAULT_SHORT_QUARANTINE_MS = 15_000;
-const DEFAULT_EXTENDED_QUARANTINE_MS = 60_000;
 const QUARANTINE_LEVEL = Object.freeze({
   SHORT: 'short',
   EXTENDED: 'extended'
@@ -80,11 +79,11 @@ const normalizeArgs = (value) => (
 );
 
 const resolveShortQuarantineMs = () => (
-  toPositiveInt(testHooks.shortQuarantineMs, DEFAULT_SHORT_QUARANTINE_MS, 100)
+  toPositiveInt(testHooks.shortQuarantineMs, LSP_SHORT_QUARANTINE_MS, 100)
 );
 
 const resolveExtendedQuarantineMs = () => (
-  toPositiveInt(testHooks.extendedQuarantineMs, DEFAULT_EXTENDED_QUARANTINE_MS, 100)
+  toPositiveInt(testHooks.extendedQuarantineMs, LSP_EXTENDED_QUARANTINE_MS, 100)
 );
 
 const createSessionHealthRecord = () => ({
@@ -1312,8 +1311,8 @@ export const __testLspSessionPool = {
     testHooks.disposeDelayMs = toNonNegativeInt(value, 0);
   },
   setQuarantineDurations({ shortMs = null, extendedMs = null } = {}) {
-    testHooks.shortQuarantineMs = shortMs == null ? null : toPositiveInt(shortMs, DEFAULT_SHORT_QUARANTINE_MS, 100);
-    testHooks.extendedQuarantineMs = extendedMs == null ? null : toPositiveInt(extendedMs, DEFAULT_EXTENDED_QUARANTINE_MS, 100);
+    testHooks.shortQuarantineMs = shortMs == null ? null : toPositiveInt(shortMs, LSP_SHORT_QUARANTINE_MS, 100);
+    testHooks.extendedQuarantineMs = extendedMs == null ? null : toPositiveInt(extendedMs, LSP_EXTENDED_QUARANTINE_MS, 100);
   },
   getPendingDisposals() {
     return disposalBarriers.size;

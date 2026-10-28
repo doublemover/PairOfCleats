@@ -1,4 +1,5 @@
 import { normalizeLspLocations } from '../../../../../index/semantic/lsp-locations.js';
+import { describeStorageFailure } from '../../../../../shared/storage/failure-observation.js';
 
 const normalizeHoverContents = (contents) => {
   if (!contents) return '';
@@ -93,9 +94,10 @@ const recordSoftDeadlineCheck = ({
   });
 };
 
-export const isTimeoutError = (err) => (
-  String(err?.message || err || '').toLowerCase().includes('timeout')
-);
+export const isTimeoutError = err => {
+  const diagnostic = describeStorageFailure(err, { phase: 'lsp-request-timeout-classification' });
+  return diagnostic.code === 'ERR_LSP_REQUEST_TIMEOUT' || diagnostic.message.toLowerCase().includes('timeout');
+};
 
 const TIMEOUT_METRIC_KEY_BY_STAGE = Object.freeze({
   hover: 'hoverTimedOut',
