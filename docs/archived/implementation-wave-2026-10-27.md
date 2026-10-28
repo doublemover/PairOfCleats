@@ -48,6 +48,7 @@ references were preserved. Published head/base remained `adbcaf777` / `main`.
 | [a97ec9600 / 2d2da584a](triage-history-implementation-2026-10-27.md) | Bounded exact finding lineage, qualified precedents, typed observed-set continuation, original directory observations and retained renderer-1 evidence | 17 authored cases and strengthened actual context CLI; functional/resource/consumer qualification remains |
 | [5cae80c13](runtime-receipt-observation-implementation-2026-10-27.md) | Original write/result observations through typed runtime-receipt failures and admitted-attempt acknowledgements | 12 authored cases; functional qualification remains |
 | [1aa491181](build-state-ownership-implementation-2026-10-27.md) | Original state/append/coordinator ownership, complete sibling failure retention, retired-root refusal and explicit required queue recovery | 20 authored cases; actual state/runtime/category qualification and remaining backend adoption remain |
+| [99d84d2c5](storage-session-observation-implementation-2026-10-27.md) | Original successful action and settlement receipt observations, captured receipt fields and independently retained observer failures | 11 authored cases; actual session/native/category qualification and broader adoption remain |
 
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
