@@ -25,6 +25,17 @@ original client disposal and all started publication/cache work precede retireme
 Shared consumers must all close. Retirement admits no further materializations,
 and explicit release never repeats a failed write or changes its command outcome.
 
+File-based collection supplies a source epoch derived from the selected root,
+actual UTF-8 source bytes, virtual origins and document/dialect labels. Different
+epochs turn over the actual client through the existing pool's creation and
+disposal owners. Already-reserved requests finish in FIFO order before turnover;
+confirmed old client/file/metadata retirement precedes a new client or replacement
+write. Equal epochs retain healthy reuse. Cancellation withdraws its own turn,
+and an unconfirmed old exit blocks replacement without an automatic retry.
+Reservation occurs inside the existing creation barrier, so a newly created
+session cannot be retired before its first borrower reserves a turn. Queued
+borrowers remain protected from idle/capacity eviction.
+
 Publication uses the shared atomic text owner and requalifies the published file.
 The old direct overwrite cannot expose partial document bytes. Identical concurrent
 in-process requests join one owner; conflicting active requests reject with that owner's
@@ -61,5 +72,5 @@ separate. A configured path outside the canonical cache acquires no guessed
 category authority. Standalone callers without launch context keep local pinning
 only. Neither receipt nor consumer admission grants deletion authority or prevents
 uncooperative OS writers. Remaining #1643 scope and actual provider/runtime
-qualification stay explicit. LSP binding producer version 56 separates the new
+qualification stay explicit. LSP binding producer version 57 separates the new
 lifetime policy.

@@ -53,6 +53,7 @@ import {
 } from './lsp/vfs-batching.js';
 import { buildLspCapabilityGate, probeLspCapabilities } from './lsp/capabilities.js';
 import { withLspSession } from './lsp/session-pool.js';
+import { buildVfsConsumerGeneration } from './lsp/materialization-generation.js';
 import { throwIfAborted } from '../../../shared/abort.js';
 import { coercePositiveInt } from '../../../shared/number-coerce.js';
 import { sleep } from '../../../shared/sleep.js';
@@ -394,6 +395,8 @@ export async function collectLspTypes({
   const resolvedWorkspaceRootDir = String(workspaceRootDir || rootDir || '').trim() || rootDir;
   const resolvedWorkspaceKey = String(workspaceKey || workspaceRootDir || rootDir || '').trim() || null;
   const resolvedScheme = normalizeUriScheme(uriScheme);
+  const materializationGeneration = resolvedScheme === 'file'
+    ? buildVfsConsumerGeneration({ rootDir: resolvedRoot, docs }) : null;
   const resolvedBatching = resolveVfsIoBatching(vfsIoBatching);
 
   const targetsByPath = new Map();
@@ -516,7 +519,8 @@ export async function collectLspTypes({
     lifecycleFdPressureBackoffMs,
     sessionIdleTimeoutMs,
     sessionMaxLifetimeMs,
-    initializationOptions
+    initializationOptions,
+    materializationGeneration
   }, async (lease) => {
     const client = lease.client;
     const currentAuthority = workspaceExecutionAuthority();

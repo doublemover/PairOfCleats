@@ -324,6 +324,29 @@ const createPendingBarrier = () => {
   return { promise, resolve, reject };
 };
 
+// Reserve under the existing key's creation owner, before publishing the
+// session to another admission. Cancellation withdraws only this queued turn.
+const reserveSessionTurn = (session, reused) => {
+  const previous = session.queue, barrier = createPendingBarrier(), resolve = barrier.resolve;
+  let released = false;
+  session.queuedTurns += 1;
+  barrier.resolve = () => {
+    if (released) return;
+    released = true; session.queuedTurns -= 1; resolve();
+  };
+  session.queue = barrier.promise;
+  return { session, reused, previous, barrier };
+};
+const withdrawSessionTurn = reservation => {
+  void reservation.previous.then(reservation.barrier.resolve, reservation.barrier.resolve);
+};
+const readMaterializationGeneration = options => {
+  const value = options.materializationGeneration;
+  if (value === null || value === undefined) return null;
+  if (typeof value !== 'string' || !/^[a-f0-9]{64}$/u.test(value)) throw new TypeError('LSP materialization generation requires its actual source digest.');
+  return value;
+};
+
 const awaitWithTimeout = async (promise, timeoutMs) => {
   const resolvedTimeoutMs = toPositiveInt(timeoutMs, DEFAULT_DISPOSE_TIMEOUT_MS, 100);
   let timeoutHandle = null;
@@ -465,7 +488,7 @@ const enqueueSessionDisposal = (session, {
     if (previous) {
       await previous.catch(() => {});
     }
-    if (killFirst) {
+    if (killFirst && !session.nativeDisposalConfirmed) {
       const killResult = await awaitWithTimeout(
         Promise.resolve(killSessionClient(session)),
         DEFAULT_KILL_TIMEOUT_MS
@@ -512,7 +535,7 @@ const evictIdleSessionsForCapacity = async ({ maxEntries, protectedKey = null } 
   for (const [key, session] of sessions.entries()) {
     if (sessions.size <= cap) break;
     if (!session || key === protectedKey) continue;
-    if (session.activeCount > 0) continue;
+    if (session.activeCount > 0 || session.queuedTurns > 0) continue;
     sessions.delete(key);
     sessionPoolMetrics.maxSessionEvictions += 1;
     await enqueueSessionDisposal(session, { killFirst: true });
@@ -709,6 +732,7 @@ const createSession = async (options) => {
     createdAt: now,
     lastUsedAt: now,
     activeCount: 0,
+    queuedTurns: 0,
     reuseCount: 0,
     recycleCount: 0,
     idleTimeoutMs: toPositiveInt(options.sessionIdleTimeoutMs, DEFAULT_IDLE_TIMEOUT_MS, 1000),
@@ -815,7 +839,7 @@ const runCleanupPass = async () => {
   const now = Date.now();
   const disposals = [];
   for (const [key, session] of sessions.entries()) {
-    if (!session || session.activeCount > 0) continue;
+    if (!session || session.activeCount > 0 || session.queuedTurns > 0) continue;
     refreshSessionState(session);
     if (session.state === SESSION_STATE.POISONED) {
       if (session.activeCount > 0 || sessions.get(key) !== session) continue;
@@ -863,6 +887,7 @@ const ensureCleanupTimer = () => {
 };
 
 const getOrCreateSession = async (options) => {
+  const materializationGeneration = readMaterializationGeneration(options);
   const key = buildSessionKey(options);
   const healthRecord = getOrCreateSessionHealthRecord(key);
   return await withSessionCreationBarrier(key, async () => {
@@ -882,16 +907,27 @@ const getOrCreateSession = async (options) => {
       beginRecoveryProbe(healthRecord);
     }
     const now = Date.now();
-    const existing = sessions.get(key);
+    let existing = sessions.get(key), generationRecycleCount = 0;
+    if (existing && !existing.disposed && (existing.options.materializationGeneration ?? null) !== materializationGeneration) {
+      // Holding this same creation barrier prevents later callers from joining
+      // the old epoch. Its already-reserved turns retain their FIFO order.
+      await raceAbort(options.abortSignal, existing.queue);
+      await awaitSessionDisposalBarrier(key, options.abortSignal);
+      throwIfAborted(options.abortSignal);
+      if (sessions.get(key) === existing) sessions.delete(key);
+      generationRecycleCount = existing.recycleCount + 1;
+      if (!existing.disposed) await raceAbort(options.abortSignal, enqueueSessionDisposal(existing));
+      existing = null;
+    }
     if (existing && !existing.disposed) {
       refreshSessionState(existing);
-      if (existing.state === SESSION_STATE.POISONED && existing.activeCount === 0) {
+      if (existing.state === SESSION_STATE.POISONED && existing.activeCount === 0 && existing.queuedTurns === 0) {
         sessions.delete(key);
         await enqueueSessionDisposal(existing, { killFirst: true });
       } else {
         const idleTimeoutMs = toPositiveInt(existing.idleTimeoutMs, DEFAULT_IDLE_TIMEOUT_MS, 1000);
         const idleExpired = (now - Number(existing.lastUsedAt || now)) >= idleTimeoutMs;
-        if ((shouldExpireForLifetime(existing, now) || idleExpired) && existing.activeCount === 0) {
+        if ((shouldExpireForLifetime(existing, now) || idleExpired) && existing.activeCount === 0 && existing.queuedTurns === 0) {
           sessions.delete(key);
           await enqueueSessionDisposal(existing, { killFirst: true });
         } else {
@@ -899,7 +935,7 @@ const getOrCreateSession = async (options) => {
           // Refresh insertion order so capacity eviction remains LRU-like.
           sessions.delete(key);
           sessions.set(key, existing);
-          return { session: existing, reused: true };
+          return reserveSessionTurn(existing, true);
         }
       }
     }
@@ -911,16 +947,17 @@ const getOrCreateSession = async (options) => {
     });
     throwIfAborted(options.abortSignal);
     // Lease-only closures/signals must not become idle pooled-session state.
-    const retainedOptions = { ...options, healthRecord };
+    const retainedOptions = { ...options, materializationGeneration, healthRecord };
     for (const field of ['abortSignal', 'onNotification', 'onRequest', 'stderrFilter', 'onStderrLine']) delete retainedOptions[field];
     const next = await createSession(retainedOptions);
+    next.recycleCount = generationRecycleCount;
+    const reservation = reserveSessionTurn(next, false);
     sessions.set(key, next);
-    await evictIdleSessionsForCapacity({
-      maxEntries: options?.sessionPoolMaxEntries,
-      protectedKey: key
-    });
+    try {
+      await evictIdleSessionsForCapacity({ maxEntries: options?.sessionPoolMaxEntries, protectedKey: key });
+    } catch (error) { withdrawSessionTurn(reservation); throw error; }
     ensureCleanupTimer();
-    return { session: next, reused: false };
+    return reservation;
   }, options.abortSignal);
 };
 
@@ -945,16 +982,18 @@ const acquireSessionTurn = async (options, owner) => {
       const resolved = await getOrCreateSession(options);
       // Pin waiting consumers before the exclusive turn. Abort withdraws only
       // the caller's wait; the original creation still joins its run's drain.
-      retainPooledRunSession(resolved.session, owner);
+      try { retainPooledRunSession(resolved.session, owner); }
+      catch (error) { withdrawSessionTurn(resolved); throw error; }
       return resolved;
     };
     const creation = owner ? owner.track(create) : Promise.resolve().then(create);
-    const resolved = await raceAbort(signal, creation);
-    throwIfAborted(signal);
-    const session = resolved.session, prev = session.queue, barrier = createPendingBarrier();
-    session.queue = barrier.promise;
+    let resolved;
+    try { resolved = await raceAbort(signal, creation); }
+    catch (error) { void creation.then(withdrawSessionTurn, () => {}); throw error; }
+    const prev = resolved.previous, barrier = resolved.barrier;
     sessionPoolMetrics.leaseQueueWaiters += 1;
     try {
+      throwIfAborted(signal);
       await raceAbort(signal, prev);
       throwIfAborted(signal);
     } catch (error) {
@@ -1209,7 +1248,7 @@ const withLspSessionRun = async (options, fn, owner) => {
       session.recycleCount += 1;
       sessions.delete(session.key);
       disposalPromise = enqueueSessionDisposal(session, { killFirst: true });
-    } else if (shouldExpireForLifetime(session) && session.activeCount === 0) {
+    } else if (shouldExpireForLifetime(session) && session.activeCount === 0 && session.queuedTurns <= 1) {
       session.recycleCount += 1;
       sessions.delete(session.key);
       disposalPromise = enqueueSessionDisposal(session, { killFirst: true });

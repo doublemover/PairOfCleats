@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-28T04:11:14.457Z",
+  "generatedAt": "2026-10-28T04:20:40.329Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4739,6 +4739,7 @@
         "tests/tooling/install/phpactor-download-authority.test.js",
         "tests/tooling/lsp/compilation-database-admission.test.js",
         "tests/tooling/lsp/go-rust-signature-boundaries.test.js",
+        "tests/tooling/lsp/materialization-generation.test.js",
         "tests/tooling/lsp/signature-boundary-providers.test.js",
         "tests/tooling/providers/provider-invocation-profile-join.test.js",
         "tests/tooling/reports/compare-models-partial-ranks.test.js",
