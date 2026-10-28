@@ -7581,8 +7581,15 @@
       "recordedDisposition": "partial_or_followup",
       "priority": "unranked",
       "batch": "source-coordinates-and-lifetime",
-      "phase": "source-review-and-implementation",
-      "status": "queued"
+      "phase": "provider-consumer-lifetime-implemented-storage-adoption-pending",
+      "status": "source-partially-implemented",
+      "unvalidatedSourceHeads": [
+        "d8e6d540f5b4e1729b00ae91dc354eda3931d51b"
+      ],
+      "unvalidatedReceipts": [
+        "vfs-consumer-implementation-2026-10-28.md"
+      ],
+      "currentImplementation": "Actual pooled/single-use LSP sessions pin original VFS publications through client closure and started file/cache observations. Conflicting replacement stays blocked after collection; identical content is requalified, external mutation is refused, and retirement never repeats writes or confirmed transport shutdown. Eight authored cases are unexecuted. Cross-process/category cleanup and producer registration, remaining adapters and full original/follow-up qualification remain."
     },
     {
       "number": 1644,
