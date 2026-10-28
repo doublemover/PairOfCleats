@@ -133,14 +133,15 @@ export const selectRiskFlowsWithinBudget = ({
   let maxFlowTruncationRecorded = false;
   let budgetTruncationRecorded = false;
 
-  for (const entry of rankedFlows) {
+  for (let index = 0; index < rankedFlows.length; index += 1) {
+    const entry = rankedFlows[index];
     if (selectedRawFlows.length >= CONTEXT_PACK_MAX_RISK_FLOWS) {
       omittedFlows += 1;
       if (!maxFlowTruncationRecorded) {
         recordRiskTruncation('maxFlows', {
           limit: CONTEXT_PACK_MAX_RISK_FLOWS,
           observed: rankedFlows.length,
-          omitted: rankedFlows.length - CONTEXT_PACK_MAX_RISK_FLOWS,
+          omitted: rankedFlows.length - index,
           note: 'Risk flows truncated for composite context pack.'
         });
         maxFlowTruncationRecorded = true;
@@ -283,14 +284,15 @@ export const selectRiskPartialFlowsWithinBudget = ({
   let maxPartialFlowTruncationRecorded = false;
   let partialBudgetTruncationRecorded = false;
 
-  for (const entry of rankedPartialFlows) {
+  for (let index = 0; index < rankedPartialFlows.length; index += 1) {
+    const entry = rankedPartialFlows[index];
     if (selectedRawPartialFlows.length >= CONTEXT_PACK_MAX_RISK_PARTIAL_FLOWS) {
       omittedPartialFlows += 1;
       if (!maxPartialFlowTruncationRecorded) {
         recordRiskTruncation('maxPartialFlows', {
           limit: CONTEXT_PACK_MAX_RISK_PARTIAL_FLOWS,
           observed: rankedPartialFlows.length,
-          omitted: rankedPartialFlows.length - CONTEXT_PACK_MAX_RISK_PARTIAL_FLOWS,
+          omitted: rankedPartialFlows.length - index,
           note: 'Partial risk flows truncated for composite context pack.'
         });
         maxPartialFlowTruncationRecorded = true;
