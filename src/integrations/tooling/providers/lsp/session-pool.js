@@ -9,6 +9,7 @@ import { sleep } from '../../../../shared/sleep.js';
 import { stableStringify } from '../../../../shared/stable-json.js';
 import { currentRunResourceScope } from '../../../../shared/lifecycle/run-scope.js';
 import { retainRunSession } from './run-ownership.js';
+import { createVfsMaterializationSession } from '../../../../index/tooling/vfs/disk.js';
 
 const DEFAULT_IDLE_TIMEOUT_MS = 1_500;
 const DEFAULT_MAX_LIFETIME_MS = 10 * 60_000;
@@ -365,38 +366,43 @@ const disposeSessionClient = async (session) => {
   }
   const runDispose = async () => {
     session.state = SESSION_STATE.RETIRED;
+    session.materializations.retire();
     const delayMs = toNonNegativeInt(testHooks.disposeDelayMs, 0);
     if (delayMs > 0) {
       await sleep(delayMs);
     }
-    let shutdownError = null;
-    try {
-      if (session.client && typeof session.client.shutdownAndExit === 'function') {
-        await awaitWithTimeout(
-          session.client.shutdownAndExit(),
-          DEFAULT_DISPOSE_TIMEOUT_MS
-        );
+    if (!session.nativeDisposalConfirmed) {
+      let shutdownError = null;
+      try {
+        if (session.client && typeof session.client.shutdownAndExit === 'function') {
+          await awaitWithTimeout(
+            session.client.shutdownAndExit(),
+            DEFAULT_DISPOSE_TIMEOUT_MS
+          );
+        }
+      } catch (error) { shutdownError = error; }
+      const outcome = await awaitWithTimeout(
+        Promise.resolve(killSessionClient(session)),
+        DEFAULT_KILL_TIMEOUT_MS
+      );
+      const confirmsExit = value => Array.isArray(value) ? value.length > 0 && value.every(confirmsExit)
+        : value?.exitObserved === true;
+      const resourceWait = typeof session.client?.waitForResourceSettlement === 'function'
+        ? await awaitWithTimeout(session.client.waitForResourceSettlement(), DEFAULT_KILL_TIMEOUT_MS)
+        : { timedOut: false };
+      // Ask the retained owner even on pending disposal so its exact delayed
+      // child-close notification can reconcile ownership without a pool lease.
+      await session.client?.releaseManagedInstallation?.();
+      const evidence = session.client?.getTerminationEvidence?.();
+      if (outcome.timedOut || resourceWait.timedOut || !(evidence ? (evidence.settled ?? evidence.exitObserved) === true : confirmsExit(outcome.value))) {
+        throw Object.assign(new Error('LSP disposal did not confirm child exit.'), {
+          code: 'ERR_LSP_DISPOSAL_UNCONFIRMED', termination: { timedOut: outcome.timedOut, ...evidence, result: outcome.value },
+          ...(shutdownError ? { cleanupErrors: [shutdownError] } : {})
+        });
       }
-    } catch (error) { shutdownError = error; }
-    const outcome = await awaitWithTimeout(
-      Promise.resolve(killSessionClient(session)),
-      DEFAULT_KILL_TIMEOUT_MS
-    );
-    const confirmsExit = value => Array.isArray(value) ? value.length > 0 && value.every(confirmsExit)
-      : value?.exitObserved === true;
-    const resourceWait = typeof session.client?.waitForResourceSettlement === 'function'
-      ? await awaitWithTimeout(session.client.waitForResourceSettlement(), DEFAULT_KILL_TIMEOUT_MS)
-      : { timedOut: false };
-    // Ask the retained owner even on pending disposal so its exact delayed
-    // child-close notification can reconcile ownership without a pool lease.
-    await session.client?.releaseManagedInstallation?.();
-    const evidence = session.client?.getTerminationEvidence?.();
-    if (outcome.timedOut || resourceWait.timedOut || !(evidence ? (evidence.settled ?? evidence.exitObserved) === true : confirmsExit(outcome.value))) {
-      throw Object.assign(new Error('LSP disposal did not confirm child exit.'), {
-        code: 'ERR_LSP_DISPOSAL_UNCONFIRMED', termination: { timedOut: outcome.timedOut, ...evidence, result: outcome.value },
-        ...(shutdownError ? { cleanupErrors: [shutdownError] } : {})
-      });
+      session.nativeDisposalConfirmed = true;
     }
+    session.materializations.releaseAfterClosure();
     session.disposed = true;
     unconfirmedDisposals.delete(session.key);
     return { exitObserved: true };
@@ -689,9 +695,14 @@ const createSession = async (options) => {
     breakerThreshold: options.breakerThreshold,
     log: options.log
   });
+  const readTermination = client.getTerminationEvidence;
+  const materializations = createVfsMaterializationSession({
+    isClosed: () => typeof readTermination === 'function' && readTermination.call(client)?.settled === true
+  });
   return {
     key,
     client,
+    materializations,
     guard,
     lifecycleHealth,
     queue: Promise.resolve(),
@@ -1089,6 +1100,7 @@ const withLspSessionRun = async (options, fn, owner) => {
       throwIfAborted(options?.abortSignal);
       return await fn({
         client: singleSession.client,
+        materializationSession: singleSession.materializations,
         guard: singleSession.guard,
         lifecycleHealth: singleSession.lifecycleHealth,
         pooled: false,
@@ -1153,6 +1165,7 @@ const withLspSessionRun = async (options, fn, owner) => {
   try {
     const result = await fn({
       client: session.client,
+      materializationSession: session.materializations,
       guard: session.guard,
       lifecycleHealth: session.lifecycleHealth,
       pooled: true,

@@ -6,15 +6,71 @@ import { isPathUnderDir } from '../../../shared/path-normalize.js';
 import { assertNoSymlinkPath, withContainedFile } from '../../../shared/contained-file.js';
 import { atomicWriteText } from '../../../shared/io/atomic-write.js';
 import { describeStorageFailure, observeStorageResource } from '../../../shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
 import { ensureToolingCacheDir } from '../cache-storage.js';
 
 const VFS_DISK_CACHE = new Map();
 const VFS_DISK_CACHE_MAX_ENTRIES = 50_000;
 const pendingMaterializations = new Map();
+const consumerSessions = new WeakMap();
 const canonicalPathKey = value => process.platform === 'win32' ? path.toNamespacedPath(value).toLowerCase() : value;
 const ownerSettled = owner => {
-  try { return owner.finished && (!owner.failureObservation || owner.failureObservation.isSettled()); }
+  try { return owner.finished && !owner.consumers.size && (!owner.failureObservation || owner.failureObservation.isSettled()); }
   catch { return false; }
+};
+
+const rememberOwnerFailure = (owner, error) => {
+  const context = owner.failureObservation
+    ? addStorageFailureContext(owner.failureObservation.retain(), {}, error, { secondaryPresent: true }) : error;
+  owner.failureObservation = observeStorageResource(observeStorageResource(context, { phase: 'vfs-materialization-owner' }).retain(),
+    { phase: 'vfs-materialization-owner' });
+  if (!pendingMaterializations.has(owner.key) && !ownerSettled(owner)) pendingMaterializations.set(owner.key, owner);
+};
+
+/** The existing provider session supplies its captured original closure
+ * predicate. Retirement prevents new admission; only confirmed client closure
+ * and every started materialization allow these in-process pins to retire.
+ * This grants no file removal, category lease or cross-process exclusion.
+ */
+export const createVfsMaterializationSession = ({ isClosed }) => {
+  if (typeof isClosed !== 'function') throw new TypeError('VFS consumer requires its original client closure observer.');
+  const state = { owners: new Set(), retiring: false, released: false };
+  const closure = observeStorageResource(observeStorageResource(Object.freeze({ cacheOwnershipPending: true,
+    cacheOwnershipReleased: () => isClosed() === true }), { phase: 'vfs-consumer-client' }).retain(), { phase: 'vfs-consumer-client' });
+  const session = Object.freeze({
+    get size() { return state.owners.size; },
+    retire() { state.retiring = true; },
+    releaseAfterClosure() {
+      state.retiring = true;
+      if (state.released) return true;
+      try {
+        if (state.owners.size) closure.requireSettled();
+        for (const owner of state.owners) {
+          owner.failureObservation?.requireSettled();
+          if (!owner.finished) throw Object.assign(new Error('Original VFS publication remains outstanding.'), {
+            cacheOwnershipPending: true, cacheOwnershipReleased: () => owner.finished
+          });
+        }
+      } catch (error) {
+        throw addStorageFailureContext(error, { vfsMaterializationSession: session }, null,
+          { forceAggregate: true, nonEnumerable: ['vfsMaterializationSession'] });
+      }
+      for (const owner of state.owners) {
+        owner.consumers.delete(state);
+        if (ownerSettled(owner) && pendingMaterializations.get(owner.key) === owner) pendingMaterializations.delete(owner.key);
+      }
+      state.owners.clear(); state.released = true; return true;
+    }
+  });
+  consumerSessions.set(session, state);
+  return session;
+};
+
+const pinConsumer = (owner, session) => {
+  if (session === null) return;
+  const state = consumerSessions.get(session);
+  if (!state || state.retiring || state.released) throw new TypeError('VFS materialization requires its active original consumer session.');
+  owner.consumers.add(state); state.owners.add(owner);
 };
 
 export const createVfsMaterializationConflict = (virtualPath, owner = null) => Object.assign(
@@ -120,7 +176,7 @@ export const resolveVfsDiskPath = ({ baseDir, virtualPath }) => {
 
 /**
  * Ensure a VFS-backed document exists on disk; avoid rewrites when the doc hash matches.
- * @param {{baseDir:string,virtualPath:string,text?:string,docHash?:string|null,coldStartCache?:{get?:Function,set?:Function}|null}} input
+ * @param {{baseDir:string,virtualPath:string,text?:string,docHash?:string|null,coldStartCache?:{get?:Function,set?:Function}|null,materializationSession?:object|null}} input
  * @returns {Promise<{path:string,cacheHit:boolean,source?:string}>}
  */
 export const ensureVfsDiskDocument = async ({
@@ -128,7 +184,8 @@ export const ensureVfsDiskDocument = async ({
   virtualPath,
   text = '',
   docHash = null,
-  coldStartCache = null
+  coldStartCache = null,
+  materializationSession = null
 }) => {
   if (typeof text !== 'string') throw new TypeError('VFS disk text must be a string.');
   const resolvedDocHash = typeof docHash === 'string' && docHash.trim().length > 0
@@ -144,8 +201,10 @@ export const ensureVfsDiskDocument = async ({
     if (ownerSettled(owner)) { pendingMaterializations.delete(key); owner = null; }
   }
   if (owner && (owner.hash !== hash || owner.docHash !== resolvedDocHash)) throw createVfsMaterializationConflict(virtualPath, owner);
+  const retainedPublication = owner?.finished === true;
   if (!owner) {
-    owner = { hash, docHash: resolvedDocHash, finished: false, failureObservation: null, promise: null };
+    owner = { key, hash, docHash: resolvedDocHash, finished: false, failureObservation: null, promise: null, consumers: new Set() };
+    pinConsumer(owner, materializationSession);
     pendingMaterializations.set(key, owner);
     owner.promise = (async () => {
       try {
@@ -174,22 +233,33 @@ export const ensureVfsDiskDocument = async ({
           materialization: Object.freeze({ version: 1, baseDir: root, virtualPath, docHash: resolvedDocHash,
             sha256: hash, sizeBytes: bytes, ...published, policy: 'mutable-path-current-descriptor' }) });
       } catch (error) {
-        owner.failureObservation = observeStorageResource(error, { phase: 'vfs-materialization-owner' }); throw error;
+        rememberOwnerFailure(owner, error); throw error;
       } finally {
         owner.finished = true;
         if (ownerSettled(owner) && pendingMaterializations.get(key) === owner) pendingMaterializations.delete(key);
       }
     })();
+  } else pinConsumer(owner, materializationSession);
+  let result = await owner.promise;
+  if (retainedPublication) {
+    let qualified;
+    try { qualified = await qualifyMaterialization({ baseDir: root, absPath, bytes, hash, prior: VFS_DISK_CACHE.get(cacheKey) }); }
+    catch (error) { rememberOwnerFailure(owner, error); throw error; }
+    if (!qualified) throw Object.assign(new Error('Active provider VFS content changed; replacement awaits original consumer closure.'), {
+      code: 'ERR_VFS_MATERIALIZATION_CHANGED', cacheOwnershipPending: true, cacheOwnershipReleased: () => ownerSettled(owner)
+    });
+    setVfsDiskCacheEntry(cacheKey, { path: absPath, docHash: resolvedDocHash, ...qualified });
+    result = Object.freeze({ ...result, cacheHit: true, source: 'existing-verified',
+      materialization: Object.freeze({ ...result.materialization, ...qualified }) });
   }
-  const result = await owner.promise;
   if (resolvedDocHash && coldStartCache?.set) {
-    coldStartCache.set({
+    try { coldStartCache.set({
       virtualPath,
       docHash: resolvedDocHash,
       diskPath: result.path,
       sizeBytes: bytes,
       materialization: result.materialization
-    });
+    }); } catch (error) { rememberOwnerFailure(owner, error); throw error; }
   }
   return result;
 };

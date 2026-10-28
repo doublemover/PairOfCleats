@@ -934,12 +934,13 @@ export async function collectLspTypes({
           rootDir: resolvedRoot,
           docs: selectedDocsToOpen.filter(doc => !nativeUris.has(doc.virtualPath)),
           batching: resolvedBatching,
-          coldStartCache
+          coldStartCache,
+          materializationSession: lease.materializationSession
         })
         : null;
 
       if (semanticSession) for (const doc of selectedDocsToOpen) {
-        const uri = nativeUris.get(doc.virtualPath) || await resolveDocumentUri({ rootDir: resolvedRoot, doc, uriScheme: resolvedScheme, tokenMode: vfsTokenMode, diskPathMap, coldStartCache });
+        const uri = nativeUris.get(doc.virtualPath) || await resolveDocumentUri({ rootDir: resolvedRoot, doc, uriScheme: resolvedScheme, tokenMode: vfsTokenMode, diskPathMap, coldStartCache, materializationSession: lease.materializationSession });
         semanticSession.registerDocument(doc, uri);
       }
       const processDoc = async (doc) => {
@@ -954,7 +955,8 @@ export async function collectLspTypes({
           uriScheme: resolvedScheme,
           tokenMode: vfsTokenMode,
           diskPathMap,
-          coldStartCache
+          coldStartCache,
+          materializationSession: lease.materializationSession
         });
         const legacyUri = resolvedScheme === 'poc-vfs' ? buildVfsUri(doc.virtualPath) : null;
         if (collectTypes === false) {

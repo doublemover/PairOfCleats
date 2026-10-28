@@ -2,8 +2,8 @@
 
 Project-relative VFS paths remain mutable paths under the requested document
 root. Their reuse policy is a current contained-descriptor observation, not an
-immutable lifetime grant. A caller needing a stable document set must retain its
-existing session/root isolation; external writes after return cannot be prevented
+immutable lifetime grant. File-based LSP collection additionally pins the actual
+materialization through its original pooled or single-use client session. External writes after return cannot be prevented
 by a cached receipt.
 
 `ensureVfsDiskDocument` resolves the current root and virtual origin before using
@@ -15,6 +15,15 @@ device, inode, link count, size and nanosecond modification/change/birth times m
 All descriptor work and close must settle before a hit is returned. Missing or
 changed content is materialized from the supplied text. Unsafe paths and original
 resource failures retain their strict owners.
+
+An active provider pin prevents this materializer from replacing that origin with
+different content even after collection returns. Same-content consumer admission
+requalifies the current descriptor; changed external bytes are refused while
+readers remain. A request finishing, didClose notification, cancellation or an
+unconfirmed kill does not release these pins. The existing pool's confirmed
+original client disposal and all started publication/cache work precede retirement.
+Shared consumers must all close. Retirement admits no further materializations,
+and explicit release never repeats a failed write or changes its command outcome.
 
 Publication uses the shared atomic text owner and requalifies the published file.
 The old direct overwrite cannot expose partial document bytes. Identical concurrent
@@ -38,7 +47,8 @@ unchanged verified content is not rewritten. Root changes, same-size mutations,
 truncation, missing files, concurrent conflicts and publication/close failures have
 dedicated coverage; no new symlink creation is needed.
 
-Cross-process publishers and readers that need a URI to remain stable after this
-operation still need a session/generation lifetime owner. The descriptor receipt
-does not provide that lease. That remaining #1643 scope stays explicit rather than
-promoting current-file verification into immutable reader-lifetime qualification.
+These consumer pins are in-process publication exclusion. Cross-process writers,
+category cleanup and migration still need their existing storage-session admission
+and producer identity; neither the descriptor receipt nor this pin grants deletion
+authority. That remaining #1643 scope and actual provider/runtime qualification
+stay explicit. LSP binding producer version 56 separates the new lifetime policy.

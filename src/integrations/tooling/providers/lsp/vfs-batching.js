@@ -9,7 +9,7 @@ import { addStorageFailureContext } from '../../../../shared/storage/operation-e
  * Ensure a VFS document exists on disk for file-based LSP servers.
  * Uses docHash to avoid unnecessary rewrites.
  */
-const ensureVirtualFile = async (rootDir, doc, coldStartCache = null) => {
+const ensureVirtualFile = async (rootDir, doc, coldStartCache = null, materializationSession = null) => {
   const virtualPath = doc?.virtualPath;
   const normalized = typeof virtualPath === 'string' ? virtualPath.replace(/\\/g, '/') : '';
   if (!normalized) {
@@ -26,7 +26,7 @@ const ensureVirtualFile = async (rootDir, doc, coldStartCache = null) => {
     virtualPath: doc.virtualPath,
     text: doc.text || '',
     docHash: doc.docHash || null,
-    coldStartCache
+    coldStartCache, materializationSession
   });
   return result.path;
 };
@@ -58,19 +58,19 @@ export const resolveVfsIoBatching = (value) => {
 
 const byteLengthOfDoc = (doc) => Buffer.byteLength(String(doc?.text || ''), 'utf8');
 
-const writeVfsEntryWithRetry = async ({ rootDir, entry, coldStartCache, warnings }) => {
+const writeVfsEntryWithRetry = async ({ rootDir, entry, coldStartCache, warnings, materializationSession }) => {
   const write = () => ensureVfsDiskDocument({
     baseDir: rootDir,
     virtualPath: entry.doc.virtualPath,
     text: entry.doc.text || '',
     docHash: entry.doc.docHash || null,
-    coldStartCache
+    coldStartCache, materializationSession
   });
   try {
     return await write();
   } catch (error) {
     const diagnostic = describeStorageFailure(error, { phase: 'vfs-batched-write-retry' });
-    if (diagnostic.code === 'ERR_VFS_MATERIALIZATION_CONFLICT') throw error;
+    if (['ERR_VFS_MATERIALIZATION_CONFLICT', 'ERR_VFS_MATERIALIZATION_CHANGED'].includes(diagnostic.code)) throw error;
     warnings.push({
       code: 'VFS_WRITE_RETRY',
       virtualPath: entry.doc.virtualPath,
@@ -104,7 +104,7 @@ const writeVfsEntryWithRetry = async ({ rootDir, entry, coldStartCache, warnings
  * @param {object|null} input.coldStartCache
  * @returns {{enqueue:(doc:object)=>Promise<void>,flush:()=>Promise<Map<string,string>>,drain:()=>Promise<Map<string,string>>,results:Map<string,string>,warnings:Array<object>,getPendingSize:()=>number}}
  */
-export const createVfsQueuedWriteBatcher = ({ rootDir, batching, coldStartCache = null }) => {
+export const createVfsQueuedWriteBatcher = ({ rootDir, batching, coldStartCache = null, materializationSession = null }) => {
   const resolvedBatching = (batching && typeof batching === 'object' && batching.enabled !== true)
     ? {
       maxInflight: Math.max(1, Math.floor(Number(batching.maxInflight) || 1)),
@@ -164,7 +164,7 @@ export const createVfsQueuedWriteBatcher = ({ rootDir, batching, coldStartCache 
         const current = entries[index];
         index += 1;
         try {
-          const result = await writeVfsEntryWithRetry({ rootDir, entry: current, coldStartCache, warnings });
+          const result = await writeVfsEntryWithRetry({ rootDir, entry: current, coldStartCache, warnings, materializationSession });
           results.set(current.doc.virtualPath, result.path);
         } catch (error) { if (!failed) { failed = true; primary = error; } throw error; }
       }
@@ -241,7 +241,7 @@ export const createVfsQueuedWriteBatcher = ({ rootDir, batching, coldStartCache 
  * @param {object|null} input.coldStartCache
  * @returns {Promise<Map<string,string>>}
  */
-export const ensureVirtualFilesBatch = async ({ rootDir, docs, batching, coldStartCache }) => {
+export const ensureVirtualFilesBatch = async ({ rootDir, docs, batching, coldStartCache, materializationSession = null }) => {
   const results = new Map();
   if (!Array.isArray(docs) || docs.length === 0) return results;
   const writer = createVfsQueuedWriteBatcher({
@@ -249,7 +249,7 @@ export const ensureVirtualFilesBatch = async ({ rootDir, docs, batching, coldSta
     batching: batching
       ? { enabled: true, ...batching }
       : { enabled: true, maxInflight: 1, maxQueueEntries: docs.length },
-    coldStartCache
+    coldStartCache, materializationSession
   });
 
   for (const doc of docs) {
@@ -281,7 +281,8 @@ export const resolveDocumentUri = async ({
   uriScheme,
   tokenMode,
   diskPathMap,
-  coldStartCache
+  coldStartCache,
+  materializationSession = null
 }) => {
   if (uriScheme === 'poc-vfs') {
     const resolved = await resolveVfsTokenUri({
@@ -293,6 +294,6 @@ export const resolveDocumentUri = async ({
   }
 
   const cachedPath = diskPathMap?.get(doc.virtualPath) || null;
-  const absPath = cachedPath || await ensureVirtualFile(rootDir, doc, coldStartCache);
+  const absPath = cachedPath || await ensureVirtualFile(rootDir, doc, coldStartCache, materializationSession);
   return pathToFileUri(absPath);
 };
