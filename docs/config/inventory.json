@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-28T02:38:55.808Z",
+  "generatedAt": "2026-10-28T02:59:42.343Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4660,6 +4660,7 @@
         "tests/indexing/incremental/tokenization-cache.test.js",
         "tests/indexing/language-registry/metadata-import-boundary.test.js",
         "tests/indexing/language-registry/operation-import-boundary.test.js",
+        "tests/indexing/runtime/receipt-persistence-observation.test.js",
         "tests/indexing/runtime/rejected-preflight-receipt.test.js",
         "tests/indexing/runtime/shared-resource-scope-isolation.test.js",
         "tests/indexing/runtime/stage-closeout-delayed-child.test.js",

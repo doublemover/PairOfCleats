@@ -56,3 +56,21 @@ swallowed as a timer result, and inspecting a hostile code getter cannot replace
 the primary before teardown captures it. Generic real deadlines still report
 unknown native ownership; late promise fulfillment is not a closure receipt.
 Actual timer/original-primary controls are authored and unrun.
+
+Runtime-attempt persistence now carries original write-resource observations
+through its typed `ERR_RUNTIME_RECEIPT_PERSIST` boundary. The exact original
+rejected value remains its cause, including falsey/frozen values. Original
+callbacks/receivers survive field replacement; required observations are sealed
+against report mutation. Independent diagnostic/getter and degraded-state
+projection failures stay in the non-enumerable captured context. Diagnostic code
+projection does not coerce arbitrary objects or inspect unconfirmed work.
+
+Successful write replies must also settle before inspection and identify the
+admitted attempt/build/lifecycle/update through the existing state result.
+Null/missing/mismatched results cannot become a durable acknowledgement; only
+confirmed replies update/announce the caller's attempt. This is an internal
+writer acknowledgement, not independent physical-file verification or permission
+to release a native handle. The existing build-state writer remains responsible
+for its actual atomic writes, lock, sidecars and durability. Twelve boundary
+controls are authored and unexecuted; lower writer/queue ownership adoption and
+full affected qualification remain separate required work.

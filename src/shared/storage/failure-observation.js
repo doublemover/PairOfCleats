@@ -38,9 +38,25 @@ export const observeStorageResource = (value, { phase = 'storage-failure', phase
     catch (inspection) { throw retain(inspection, { inspectionPresent: true }); }
     if (!confirmed) throw retain();
   };
+  /** Keep a typed producer error and its exact cause while carrying the same
+   * original observer/inspection prerequisites across a diagnostic boundary.
+   * This grants no retry, native-close or metadata-release authority.
+   */
+  const wrap = (failure, { inspection, inspectionPresent = false } = {}) => {
+    const context = retain(inspection, { inspectionPresent });
+    const captured = Object.getOwnPropertyDescriptor(context, 'cacheOwnershipReleased').value;
+    const wrapped = addStorageFailureContext(failure, { storageFailureObservation: context,
+      cacheOwnershipPending: true, cacheOwnershipReleased: () => captured.call(context) === true }, null,
+    { nonEnumerable: ['storageFailureObservation'] });
+    const observe = Object.getOwnPropertyDescriptor(wrapped, 'cacheOwnershipReleased').value;
+    Object.defineProperties(wrapped, { cacheOwnershipPending: { value: true, writable: false, configurable: false },
+      cacheOwnershipReleased: { value: observe, writable: false, configurable: false } });
+    retainedFailures.add(wrapped);
+    return wrapped;
+  };
   // Observation only, for an existing owner that must retain these original
   // prerequisites before another native operation. It grants no release proof.
-  return Object.freeze({ primary, retain, requireSettled, isSettled: originalSettled });
+  return Object.freeze({ primary, retain, wrap, requireSettled, isSettled: originalSettled });
 };
 
 /** A report is safe only after the original resource observation is confirmed.
