@@ -112,3 +112,33 @@ After an approved repair, inspect/status this exact config/queue again, then
 verify selected job outcome and target mode readiness/known query. The config-A /
 ambient-config-B sentinel, embeddings namespace and live-lock transcript fixtures
 are **UNVALIDATED** in the current development batch; no live queue was changed.
+
+## Operator diagnostics
+
+Inspect the selected service without applying recovery actions:
+
+```sh
+node tools/reports/diagnostics-report.js --report queue-health,stale-jobs --config "path/to/service-config.json" --queue index --json
+```
+
+Omit `--json` for the human report. Both formats retain stale-job root causes
+and concrete remediation. Structured actions carry the exact Node executable,
+absolute service script/config, queue, job and inspected working directory.
+Human commands preserve that working directory, including relative service
+paths. Review the inspect output before taking a suggested retry or quarantine
+action. If `--queue-dir` selects a directory different from the service config,
+the report gives `STALE_JOB_RECOVERY_CONFIG_MISMATCH` and withholds executable
+recovery actions until a matching service config is selected.
+
+Risk reports accept `--report risk-coverage --repo <root>` or
+`--report cap-heavy-risk-packs --context-pack <json>`. The latter retains the
+producer's availability status, analysis code, reason, summary-only, degradation
+and strict-failure fields. Disabled and summary-only results are warnings;
+healthy uncapped output is OK; capped/degraded output is a warning; missing,
+timed-out, invalid or unrecognized output is an error in the report.
+
+`--report all` selects the reports applicable to the supplied inputs. Unsupported
+or empty selections, missing required inputs and a selection that runs no report
+fail as request errors. Valid reports keep a successful CLI exit status even
+when they contain warnings/errors; automation can apply its own policy to
+`summary.status`. No repair operation is performed by report generation.

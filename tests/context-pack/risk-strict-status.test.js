@@ -9,6 +9,7 @@ import { assembleCompositeContextPack, classifyRiskLoadFailure } from '../../src
 import { ARTIFACT_SURFACE_VERSION } from '../../src/contracts/versioning.js';
 import { applyTestEnv } from '../helpers/test-env.js';
 import { resolveTestCachePath } from '../helpers/test-cache.js';
+import { buildCapHeavyRiskPacksReport, renderDiagnosticsReportHuman } from '../../tools/reports/diagnostics-report.js';
 
 applyTestEnv({ testing: '1' });
 
@@ -146,6 +147,29 @@ const assertStrictFail = (indexDir) => {
   );
 };
 
+// Exercise the report with the actual producer outputs below, including failed
+// artifact loads. Hand-authored analysisStatus objects cannot prove this parity.
+const assertOperatorReport = async (pack, expectedCode, expectedStatus, expectedReason = null) => {
+  const contextPackPath = path.join(tempRoot, 'operator-pack.json');
+  await fs.writeFile(contextPackPath, JSON.stringify(pack));
+  const report = buildCapHeavyRiskPacksReport({ contextPackPath });
+  assert.equal(report.status, expectedStatus);
+  assert.equal(report.summary.analysisCode, expectedCode);
+  assert.equal(report.summary.riskStatus, pack.risk.status);
+  assert.equal(report.summary.reason, pack.risk.reason ?? pack.risk.analysisStatus?.reason ?? null);
+  assert.equal(report.summary.summaryOnly, pack.risk.analysisStatus.summaryOnly);
+  assert.equal(report.summary.degraded, pack.risk.analysisStatus.degraded);
+  assert.equal(report.summary.strictFailure, pack.risk.analysisStatus.strictFailure);
+  if (expectedReason) assert.ok(report.reasonCodes.includes(expectedReason));
+  else assert.deepEqual(report.reasonCodes, []);
+  const human = renderDiagnosticsReportHuman({ summary: { status: report.status }, reports: [report] });
+  assert.ok(human.includes(`Cap-Heavy Risk Packs [${expectedStatus}]`));
+  assert.ok(human.includes(`analysisCode: ${expectedCode}`));
+  assert.ok(human.includes(`riskStatus: ${pack.risk.status}`));
+  if (report.summary.reason) assert.ok(human.includes(`reason: ${report.summary.reason}`));
+  if (expectedReason) assert.ok(human.includes(expectedReason));
+};
+
 assert.equal(classifyRiskLoadFailure({ code: 'ETIMEDOUT' }), 'timed_out');
 
 const disabledPack = await buildPack({
@@ -154,6 +178,7 @@ const disabledPack = await buildPack({
   summaries: [summaryRow]
 });
 assert.equal(disabledPack.risk?.analysisStatus?.code, 'disabled');
+await assertOperatorReport(disabledPack, 'disabled', 'warn', 'RISK_PACK_DISABLED');
 assertStrictFail(path.join(tempRoot, 'disabled', 'index-code'));
 
 const summaryOnlyPack = await buildPack({
@@ -162,10 +187,12 @@ const summaryOnlyPack = await buildPack({
   summaries: [summaryRow]
 });
 assert.equal(summaryOnlyPack.risk?.analysisStatus?.code, 'summary_only');
+await assertOperatorReport(summaryOnlyPack, 'summary_only', 'warn', 'RISK_PACK_SUMMARY_ONLY');
 assertStrictFail(path.join(tempRoot, 'summary-only', 'index-code'));
 
 const missingPack = await buildPack({ name: 'missing' });
 assert.equal(missingPack.risk?.analysisStatus?.code, 'missing');
+await assertOperatorReport(missingPack, 'missing', 'error', 'RISK_PACK_NOT_ACTIONABLE');
 assertStrictFail(path.join(tempRoot, 'missing', 'index-code'));
 
 const cappedPack = await buildPack({
@@ -175,6 +202,7 @@ const cappedPack = await buildPack({
   flows: [hugeFlow, normalFlow]
 });
 assert.equal(cappedPack.risk?.analysisStatus?.code, 'capped');
+await assertOperatorReport(cappedPack, 'capped', 'warn', 'RISK_PACK_CAPPED');
 assertStrictFail(path.join(tempRoot, 'capped', 'index-code'));
 
 const invalidPack = await buildPack({
@@ -185,6 +213,7 @@ const invalidPack = await buildPack({
   invalidFlows: true
 });
 assert.equal(invalidPack.risk?.analysisStatus?.code, 'schema_invalid');
+await assertOperatorReport(invalidPack, 'schema_invalid', 'error', 'RISK_PACK_NOT_ACTIONABLE');
 assertStrictFail(path.join(tempRoot, 'invalid', 'index-code'));
 
 const zeroFlowPack = await buildPack({
@@ -193,6 +222,7 @@ const zeroFlowPack = await buildPack({
   summaries: [summaryRow]
 });
 assert.equal(zeroFlowPack.risk?.analysisStatus?.code, 'ok');
+await assertOperatorReport(zeroFlowPack, 'ok', 'ok');
 assert.doesNotThrow(() => assembleCompositeContextPack({
   seed: { type: 'chunk', chunkUid: 'chunk-primary' },
   chunkMeta,
@@ -255,6 +285,8 @@ for (const family of ['stats', 'summaries']) {
       const pack = assembleAt(indexDir);
       assert.equal(pack.risk.analysisStatus.artifactStatus[family], 'load_failed');
       assert.equal(pack.risk.analysisStatus.code, expected);
+      await assertOperatorReport(pack, expected, expected === 'degraded' ? 'warn' : 'error',
+        expected === 'degraded' ? 'RISK_PACK_DEGRADED' : 'RISK_PACK_NOT_ACTIONABLE');
       assert.equal(pack.risk.analysisStatus.strictFailure, true);
       assert.equal(pack.risk.degraded, true);
       assert.ok(pack.warnings.some(warning => warning.code.startsWith(`RISK_${family.toUpperCase()}_`)));

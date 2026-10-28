@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createCli } from '../../src/shared/cli.js';
 import { isDirectExecution } from '../../src/shared/direct-execution.js';
 import { writeJsonFileResolved } from '../../src/shared/json-file.js';
@@ -100,32 +101,62 @@ const combineStatuses = (sections) => sections.reduce((status, section) => (
 ), 'ok');
 
 const normalizeRequestedKinds = (value) => {
-  const raw = typeof value === 'string' ? value.trim() : '';
-  if (!raw || raw === DIAGNOSTICS_REPORT_KIND.ALL) {
-    return [DIAGNOSTICS_REPORT_KIND.ALL];
+  if (value == null) return [DIAGNOSTICS_REPORT_KIND.ALL];
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new Error('Diagnostics report selection must be a nonempty comma-separated list.');
   }
-  return uniq(raw.split(',').map((entry) => entry.trim().toLowerCase()));
+  const requested = value.split(',').map((entry) => entry.trim().toLowerCase());
+  const supported = new Set(Object.values(DIAGNOSTICS_REPORT_KIND));
+  for (const kind of requested) {
+    if (!supported.has(kind)) throw new Error(`Unsupported diagnostics report: ${kind || '(empty)'}`);
+  }
+  if (requested.includes(DIAGNOSTICS_REPORT_KIND.ALL) && requested.length !== 1) {
+    throw new Error('Select all alone, or name the specific diagnostics reports.');
+  }
+  return uniq(requested);
 };
 
 const resolveSelectedKinds = (requestedKinds, input = {}) => {
   const requested = normalizeRequestedKinds(requestedKinds);
-  if (!requested.includes(DIAGNOSTICS_REPORT_KIND.ALL)) return requested;
-  const selected = [];
-  if (input.repoRoot) selected.push(DIAGNOSTICS_REPORT_KIND.RISK_COVERAGE);
-  if (input.contextPackPath) selected.push(DIAGNOSTICS_REPORT_KIND.CAP_HEAVY_RISK_PACKS);
-  if (input.queueDir) {
-    selected.push(DIAGNOSTICS_REPORT_KIND.QUEUE_HEALTH);
-    selected.push(DIAGNOSTICS_REPORT_KIND.STALE_JOBS);
+  let selected = requested;
+  if (requested.includes(DIAGNOSTICS_REPORT_KIND.ALL)) {
+    selected = [];
+    if (input.repoRoot) selected.push(DIAGNOSTICS_REPORT_KIND.RISK_COVERAGE);
+    if (input.contextPackPath) selected.push(DIAGNOSTICS_REPORT_KIND.CAP_HEAVY_RISK_PACKS);
+    if (input.queueDir || input.configPath) {
+      selected.push(DIAGNOSTICS_REPORT_KIND.QUEUE_HEALTH, DIAGNOSTICS_REPORT_KIND.STALE_JOBS);
+    }
+  }
+  if (!selected.length) throw new Error('No diagnostics reports selected; provide a repository, context pack, or service input.');
+  if (selected.includes(DIAGNOSTICS_REPORT_KIND.RISK_COVERAGE) && !input.repoRoot) {
+    throw new Error('The risk-coverage report requires a repository.');
+  }
+  if (selected.includes(DIAGNOSTICS_REPORT_KIND.CAP_HEAVY_RISK_PACKS) && !input.contextPackPath) {
+    throw new Error('The cap-heavy-risk-packs report requires a context-pack path.');
   }
   return uniq(selected);
 };
 
-const resolveQueueDirInput = ({ queueDir = null, configPath = null }) => {
-  if (queueDir) return path.resolve(queueDir);
-  const config = loadServiceConfig(getServiceConfigPath(configPath || null));
-  return config.queueDir
+const resolveServiceInput = ({ queueDir = null, configPath = null }) => {
+  const resolvedConfigPath = getServiceConfigPath(configPath || null);
+  const config = loadServiceConfig(resolvedConfigPath);
+  const configuredQueueDir = config.queueDir
     ? path.resolve(config.queueDir)
     : path.join(getCacheRoot(), 'service', 'queue');
+  const selectedQueueDir = queueDir ? path.resolve(queueDir) : configuredQueueDir;
+  // Prefer a false-negative recovery hint over equating distinct directories
+  // in a Windows directory with case-sensitive names enabled.
+  const comparePath = (value) => {
+    try { return fs.realpathSync.native(value); }
+    catch (error) { if (error?.code === 'ENOENT') return value; throw error; }
+  };
+  return {
+    config,
+    configPath: resolvedConfigPath,
+    queueDir: selectedQueueDir,
+    configuredQueueDir,
+    commandMatchesQueue: comparePath(selectedQueueDir) === comparePath(configuredQueueDir)
+  };
 };
 
 const resolveArtifactStatus = (presence, { required = false } = {}) => {
@@ -314,7 +345,12 @@ export function buildCapHeavyRiskPacksReport({ contextPackPath }) {
   const omittedFlows = toInt(observed.omittedFlows) + toInt(observed.omittedPartialFlows);
   section.summary = {
     ...section.summary,
+    riskStatus: pack.risk.status ?? null,
+    reason: pack.risk.reason ?? pack.risk.analysisStatus?.reason ?? null,
     analysisCode,
+    degraded: pack.risk.analysisStatus?.degraded ?? pack.risk.degraded ?? null,
+    summaryOnly: pack.risk.analysisStatus?.summaryOnly ?? null,
+    strictFailure: pack.risk.analysisStatus?.strictFailure ?? null,
     capsHit,
     truncationEntries: truncation.length,
     omittedFlows
@@ -330,6 +366,16 @@ export function buildCapHeavyRiskPacksReport({ contextPackPath }) {
     section.status = 'warn';
     pushReason(section.reasonCodes, 'RISK_PACK_DEGRADED');
     pushHint(section.hints, 'Inspect missing artifact surfaces before trusting this context pack as complete evidence.');
+  } else if (analysisCode === 'disabled' || analysisCode === 'summary_only') {
+    section.status = 'warn';
+    pushReason(section.reasonCodes, analysisCode === 'disabled' ? 'RISK_PACK_DISABLED' : 'RISK_PACK_SUMMARY_ONLY');
+    pushHint(section.hints, analysisCode === 'disabled'
+      ? 'Enable interprocedural risk analysis before relying on concrete flow evidence.'
+      : 'Generate full risk output when concrete flow evidence is required.');
+  } else if (analysisCode !== 'ok' && analysisCode !== 'capped') {
+    section.status = 'error';
+    pushReason(section.reasonCodes, 'RISK_PACK_UNRECOGNIZED_STATUS');
+    pushHint(section.hints, 'Regenerate the context pack with a recognized risk analysis status.');
   }
   if (analysisCode === 'capped' || capsHit.length > 0 || truncation.length > 0) {
     section.status = upgradeStatus(section.status, 'warn');
@@ -337,6 +383,7 @@ export function buildCapHeavyRiskPacksReport({ contextPackPath }) {
     pushHint(section.hints, 'Narrow the seed, lower hop fanout, or apply risk filters before increasing pack budgets.');
   }
   if (omittedFlows > 0) {
+    section.status = upgradeStatus(section.status, 'warn');
     pushReason(section.reasonCodes, 'RISK_PACK_FLOWS_DROPPED');
     pushHint(section.hints, 'Dropped flows indicate the pack is prioritizing boundedness over completeness; reduce scope before raising limits.');
   }
@@ -347,8 +394,8 @@ export function buildCapHeavyRiskPacksReport({ contextPackPath }) {
   return finalizeSection(section);
 }
 
-const resolveQueueConfigs = ({ configPath, queueName = 'index' }) => {
-  const config = loadServiceConfig(getServiceConfigPath(configPath || null));
+const resolveQueueConfigs = ({ configPath, queueName = 'index', serviceInput = null }) => {
+  const config = serviceInput?.config || loadServiceConfig(getServiceConfigPath(configPath || null));
   const normalizedQueueName = toDisplayQueueName(queueName);
   const isEmbeddingsQueue = normalizedQueueName === 'embeddings' || normalizedQueueName.startsWith('embeddings-');
   return {
@@ -358,9 +405,9 @@ const resolveQueueConfigs = ({ configPath, queueName = 'index' }) => {
   };
 };
 
-export async function buildQueueHealthReport({ queueDir, queueName = 'index', configPath = null }) {
+export async function buildQueueHealthReport({ queueDir, queueName = 'index', configPath = null, serviceInput = null }) {
   const section = createSection(DIAGNOSTICS_REPORT_KIND.QUEUE_HEALTH);
-  const resolved = resolveQueueConfigs({ configPath, queueName });
+  const resolved = resolveQueueConfigs({ configPath, queueName, serviceInput });
   const [queue, quarantine, backpressure, metrics] = await Promise.all([
     queueSummary(queueDir, resolved.queueName),
     quarantineSummary(queueDir, resolved.queueName),
@@ -418,38 +465,64 @@ export async function buildQueueHealthReport({ queueDir, queueName = 'index', co
   return finalizeSection(section);
 }
 
-const buildStaleJobEntry = (entry, queueName) => {
-  const remediation = [
-    `Inspect: node tools/service/indexer-service.js inspect --queue ${queueName} --job ${entry.id} --json`
-  ];
+const quoteCommandArgument = (value) => `'${String(value).replaceAll("'", process.platform === 'win32' ? "''" : "'\\''")}'`;
+const renderCommand = ({ executable, args, cwd }) => {
+  const command = [executable, ...args].map(quoteCommandArgument).join(' ');
+  return process.platform === 'win32'
+    ? `& { Push-Location -LiteralPath ${quoteCommandArgument(cwd)} -ErrorAction Stop; try { & ${command} } finally { Pop-Location } }`
+    : `(cd -- ${quoteCommandArgument(cwd)} && exec ${command})`;
+};
+const serviceCommandPath = fileURLToPath(new URL('../service/indexer-service.js', import.meta.url));
+
+const buildStaleJobEntry = (entry, queueName, serviceInput) => {
+  const remediation = [];
+  const actions = [];
+  const addAction = (label, command, extraArgs = []) => {
+    if (!serviceInput.commandMatchesQueue) return;
+    const action = { label, executable: process.execPath, cwd: process.cwd(),
+      args: [serviceCommandPath, command, '--config', serviceInput.configPath,
+        '--queue', queueName, '--job', String(entry.id), ...extraArgs, '--json'] };
+    actions.push(action);
+    remediation.push(`${label}: ${renderCommand(action)}`);
+  };
+  addAction('Inspect', 'inspect');
   let rootCauseCode = 'STALE_JOB_UNKNOWN';
   if (entry.status === 'orphaned') {
     rootCauseCode = 'STALE_JOB_OWNER_DEAD';
-    remediation.push(`Quarantine if confirmed dead: node tools/service/indexer-service.js quarantine-job --queue ${queueName} --job ${entry.id} --reason orphaned-worker --json`);
+    addAction('Quarantine if confirmed dead', 'quarantine-job', ['--reason', 'orphaned-worker']);
   } else if (entry.status === 'stale') {
     rootCauseCode = 'STALE_JOB_LEASE_EXPIRED';
-    remediation.push(`Retry after inspection: node tools/service/indexer-service.js retry --queue ${queueName} --job ${entry.id} --json`);
+    addAction('Retry after inspection', 'retry');
   } else if (entry.status === 'warning') {
     rootCauseCode = 'STALE_JOB_HEARTBEAT_LATE';
+  }
+  if (!serviceInput.commandMatchesQueue) {
+    remediation.push(`Select a service config whose queueDir is ${serviceInput.queueDir} before invoking job recovery; the inspected directory differs from ${serviceInput.configPath}.`);
   }
   return {
     ...entry,
     rootCauseCode,
-    remediation
+    remediation,
+    actions,
+    remediationAvailable: serviceInput.commandMatchesQueue
   };
 };
 
-export async function buildStaleJobsReport({ queueDir, queueName = 'index' }) {
+export async function buildStaleJobsReport({ queueDir, queueName = 'index', configPath = null, serviceInput = null }) {
   const section = createSection(DIAGNOSTICS_REPORT_KIND.STALE_JOBS);
+  const selectedService = serviceInput || resolveServiceInput({ queueDir, configPath });
   const normalizedQueueName = toDisplayQueueName(queueName);
-  const state = await inspectRepairState(queueDir, normalizedQueueName);
+  const state = await inspectRepairState(selectedService.queueDir, normalizedQueueName);
   const staleJobs = Array.isArray(state?.heartbeat?.jobs)
     ? state.heartbeat.jobs
       .filter((entry) => entry.status === 'stale' || entry.status === 'orphaned' || entry.status === 'warning')
-      .map((entry) => buildStaleJobEntry(entry, normalizedQueueName))
+      .map((entry) => buildStaleJobEntry(entry, normalizedQueueName, selectedService))
     : [];
   section.summary = {
     queueName: normalizedQueueName,
+    configPath: selectedService.configPath,
+    queueDir: selectedService.queueDir,
+    remediationAvailable: selectedService.commandMatchesQueue,
     totalRunning: toInt(state?.heartbeat?.totalRunning),
     stale: staleJobs.filter((entry) => entry.status === 'stale').length,
     orphaned: staleJobs.filter((entry) => entry.status === 'orphaned').length,
@@ -460,6 +533,11 @@ export async function buildStaleJobsReport({ queueDir, queueName = 'index' }) {
     locks: state?.locks || [],
     orphans: state?.orphans || { logs: [], reports: [] }
   };
+  if (!selectedService.commandMatchesQueue) {
+    section.status = upgradeStatus(section.status, 'warn');
+    pushReason(section.reasonCodes, 'STALE_JOB_RECOVERY_CONFIG_MISMATCH');
+    pushHint(section.hints, 'Recovery commands require a service config that selects the inspected queue directory.');
+  }
   if (staleJobs.some((entry) => entry.status === 'stale')) {
     section.status = upgradeStatus(section.status, 'error');
     pushReason(section.reasonCodes, 'STALE_JOB_LEASE_EXPIRED');
@@ -482,13 +560,10 @@ export async function buildStaleJobsReport({ queueDir, queueName = 'index' }) {
 }
 
 export async function buildDiagnosticsReport(input = {}) {
-  const queueDir = (input.queueDir || input.configPath)
-    ? resolveQueueDirInput({ queueDir: input.queueDir, configPath: input.configPath })
-    : null;
-  const selectedKinds = resolveSelectedKinds(input.reportKinds, {
-    ...input,
-    queueDir
-  });
+  const selectedKinds = resolveSelectedKinds(input.reportKinds, input);
+  const serviceInput = selectedKinds.some(kind => kind === DIAGNOSTICS_REPORT_KIND.QUEUE_HEALTH || kind === DIAGNOSTICS_REPORT_KIND.STALE_JOBS)
+    ? resolveServiceInput(input) : null;
+  const queueDir = serviceInput?.queueDir ?? null;
   const sections = [];
   for (const kind of selectedKinds) {
     if (kind === DIAGNOSTICS_REPORT_KIND.RISK_COVERAGE) {
@@ -503,14 +578,16 @@ export async function buildDiagnosticsReport(input = {}) {
       sections.push(await buildQueueHealthReport({
         queueDir,
         queueName: input.queueName,
-        configPath: input.configPath
+        configPath: input.configPath,
+        serviceInput
       }));
       continue;
     }
     if (kind === DIAGNOSTICS_REPORT_KIND.STALE_JOBS) {
       sections.push(await buildStaleJobsReport({
         queueDir,
-        queueName: input.queueName
+        queueName: input.queueName,
+        serviceInput
       }));
     }
   }
@@ -522,7 +599,7 @@ export async function buildDiagnosticsReport(input = {}) {
       contextPackPath: input.contextPackPath ? path.resolve(input.contextPackPath) : null,
       queueDir: queueDir ? path.resolve(queueDir) : null,
       queueName: input.queueName ? toDisplayQueueName(input.queueName) : null,
-      configPath: input.configPath ? path.resolve(input.configPath) : null
+      configPath: serviceInput?.configPath ?? (input.configPath ? path.resolve(input.configPath) : null)
     },
     summary: {
       status: combineStatuses(sections),
@@ -564,6 +641,9 @@ export function renderDiagnosticsReportHuman(report) {
       if (jobs.length) {
         for (const job of jobs) {
           lines.push(`job ${job.id}: ${job.status} (${job.rootCauseCode})`);
+          for (const remediation of Array.isArray(job.remediation) ? job.remediation : []) {
+            lines.push(`  ${remediation}`);
+          }
         }
       } else {
         lines.push('job status: no stale or warning jobs detected');
