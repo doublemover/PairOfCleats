@@ -47,8 +47,14 @@ const runObservedAnalysisOperation = async (context, {
   const observability = buildAnalysisObservability(context, operation, analysisContext);
   reporter?.start(startMessage, { observability });
   const result = await execute();
+  let projected = attachObservability(result, observability);
+  if (operation === 'context_pack' && result?.tokenAccounting) {
+    const { finalizeRenderedContextTransport } = await import('../../../../src/context-pack/rendered-token-budget.js');
+    throwIfRequestCancelled(context);
+    projected = finalizeRenderedContextTransport(result, projected);
+  }
   reporter?.done(doneMessage, { observability });
-  return attachObservability(result, observability);
+  return projected;
 };
 
 export async function runRiskExplain(args = {}, context = {}) {

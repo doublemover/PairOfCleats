@@ -5,6 +5,28 @@ import { contextDigest, contextPayloadDigest, contextProfileDigest, contextToken
 import { CONTEXT_RENDERING_VERSION } from '../contracts/schemas/context-token-budget.js';
 import { throwIfAborted } from '../shared/abort.js';
 
+// A transport may decorate this exact fresh result, never a copied/serialized
+// receipt. Retain the actual completed count and its immutable policy snapshot.
+const countedPayloads = new WeakMap();
+const invalidTransport = () => Object.assign(new Error('Counted context transport projection lost its original owner.'), {
+  code: 'ERR_CONTEXT_PACK_SCHEMA', status: 500
+});
+
+export const finalizeRenderedContextTransport = (payload, projected) => {
+  if (!payload?.tokenAccounting) return projected;
+  const owned = countedPayloads.get(payload);
+  if (!owned || contextPayloadDigest(payload) !== owned.payloadDigest
+    || contextDigest(JSON.stringify(payload.tokenAccounting)) !== owned.receiptDigest
+    || contextTokenProjectionErrors(payload).length) throw invalidTransport();
+  // Invocation observability is the existing MCP decoration. No arbitrary
+  // source field may be changed or omitted under this original count.
+  for (const key of new Set([...Object.keys(payload), ...Object.keys(projected)])) {
+    if (key !== 'observability' && (!Object.hasOwn(payload, key) || !Object.hasOwn(projected, key)
+      || !Object.is(payload[key], projected[key]))) throw invalidTransport();
+  }
+  return finalizeRenderedTokenBudget(projected, owned.policy, owned.counted, owned.text).payload;
+};
+
 /** Count the one supported, versioned text envelope after optional sections
  * have been admitted. Never trim or rewrite selected intact edit units to fit. */
 export const applyRenderedTokenBudget = async (payload, policy, { repoRoot, taskPolicy, signal, timeoutMs } = {}) => {
@@ -52,5 +74,9 @@ export const finalizeRenderedTokenBudget = (payload, policy, counted, renderedCo
   // Check the decorated CLI representation before admitting a reusable count.
   // Later renderers may not prune the payload covered by this receipt.
   renderCompositeContextPackJson(result);
+  countedPayloads.set(result, Object.freeze({ payloadDigest: result.tokenAccounting.payloadSha256,
+    receiptDigest: contextDigest(JSON.stringify(result.tokenAccounting)), text: renderedContext,
+    counted: Object.freeze({ tokens: counted.tokens, publish: counted.publish }),
+    policy: Object.freeze({ ...policy, profile: Object.freeze({ ...profile }) }) }));
   return { payload: result, publish: counted.publish };
 };
