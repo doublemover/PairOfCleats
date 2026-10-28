@@ -2,6 +2,7 @@ import { color } from './ansi.js';
 import { recordSearchArtifacts } from './persist.js';
 import { prepareSearchOutput } from './render.js';
 import { runSearchSession } from './run-search-session.js';
+import { createError, ERROR_CODES } from '../../shared/error-codes.js';
 
 /**
  * Execute retrieval, render output, and persist query artifacts.
@@ -355,6 +356,7 @@ export async function executeSearchAndEmit(input) {
   });
 
   if (beforePublish) await beforePublish();
+  if (input.signal?.aborted) throw createError(ERROR_CODES.CANCELLED, 'Search cancelled.', { cancelled: true });
   prepared.emit();
   return prepared.payload;
 }

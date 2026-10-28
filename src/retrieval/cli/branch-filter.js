@@ -35,7 +35,7 @@ export const resolveRepoBranch = async ({ root, signal = null }) => {
 
 export const applyBranchFilter = async ({
   branchFilter, caseSensitive, root, backendLabel, backendPolicy, emitOutput,
-  jsonOutput, recordSearchMetrics, repoBranch: repoBranchInput, resolveBranch, signal = null
+  jsonOutput, recordSearchMetrics, repoBranch: repoBranchInput, resolveBranch, signal = null, beforePublish = null
 } = {}) => {
   throwIfAborted(signal);
   if (!branchFilter) return { matched: true, repoBranch: null, payload: null, receipt: null };
@@ -55,9 +55,11 @@ export const applyBranchFilter = async ({
       { branchQualification: receipt, details: { branchQualification: receipt } });
   }
   if (!matches) {
-    const payload = { backend: backendLabel, prose: [], code: [], records: [], stats: {
+    const payload = { backend: backendLabel, prose: [], code: [], extractedProse: [], records: [], stats: {
       branch: repoBranch, branchFilter, branchMatch: false, branchQualification: receipt, backendPolicy
     } };
+    if (beforePublish) await beforePublish();
+    throwIfAborted(signal);
     if (emitOutput) {
       if (jsonOutput) console.log(JSON.stringify(payload, null, 2));
       else console.error(`Branch filter ${branchFilter} did not match current branch ${repoBranch}; returning no results.`);
