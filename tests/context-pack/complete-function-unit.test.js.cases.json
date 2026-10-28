@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["javascript", "typescript", "jsx", "tsx", "method", "nested", "partial", "retained-fragment", "retained-mismatch", "malformed", "source-drift", "cannot-fit", "large-file-small-unit", "source-read-limit", "work-limit", "unsupported", "cancelled", "contract"]
+}

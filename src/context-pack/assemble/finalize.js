@@ -114,7 +114,7 @@ export const assembleCompositeContextPack = ({
     maxBytes: maxBytes == null ? null : normalizeOptionalNumber(maxBytes),
     maxTokens: maxTokens == null ? null : normalizeOptionalNumber(maxTokens),
     indexSignature,
-    warnings, taskPolicy, seed: seedRef, signal
+    warnings, taskPolicy, seed: seedRef, signal, checkDeadline, maxWorkUnits: caps.maxWorkUnits
   };
   const excerptPayload = taskPolicy?.task === 'edit-safe' ? buildTaskPrimaryExcerpt(excerptInput) : buildPrimaryExcerpt(excerptInput);
   checkDeadline();

@@ -129,9 +129,9 @@ const readSourceSnapshot = (filePath, repoRoot, hashAlgorithm = 'sha1', sourceCo
   return snapshot;
 };
 const rangeKey = (filePath, cacheScope, start, end) => `utf16-v2|${filePath}|${cacheScope}|${start}|${end}`;
-const readSnapshotRange = (snapshot, filePath, start, end, cacheScope) => {
+const readSnapshotRange = (snapshot, filePath, start, end, cacheScope, { cache = true } = {}) => {
   const key = rangeKey(filePath, cacheScope, start, end);
-  const cached = getCachedValue(fileRangeCache, key);
+  const cached = cache ? getCachedValue(fileRangeCache, key) : null;
   if (cached !== null) return cached;
   const source = sourceText(snapshot);
   const splitSurrogate = index => index > 0 && index < source.length
@@ -143,7 +143,7 @@ const readSnapshotRange = (snapshot, filePath, start, end, cacheScope) => {
       { code: 'ERR_CONTEXT_PACK_SOURCE_RANGE' });
   }
   const text = source.slice(start, end);
-  setCachedValue(fileRangeCache, key, text, FILE_RANGE_CACHE_MAX);
+  if (cache) setCachedValue(fileRangeCache, key, text, FILE_RANGE_CACHE_MAX);
   return text;
 };
 
@@ -213,11 +213,13 @@ export const resolveExcerpt = ({
   hashAlgorithm = 'sha1',
   sourceContext = null,
   taskPolicy = undefined,
-  signal = null
+  signal = null,
+  sourceMaxBytes = null,
+  selectRange = null
 }) => {
   const intact = taskPolicy?.task === 'edit-safe';
   const snapshot = readSourceSnapshot(filePath, repoRoot, hashAlgorithm, sourceContext,
-    { ...(intact ? { maxBytes } : {}), signal });
+    { ...(intact ? { maxBytes: sourceMaxBytes ?? maxBytes } : {}), signal });
   const cacheScope = `${indexSignature || 'working'}:${snapshot.hash}`;
   const expectedHash = typeof indexedHash === 'string'
     ? indexedHash.replace(new RegExp(`^${hashAlgorithm}:`), '').toLowerCase() : null;
@@ -229,6 +231,12 @@ export const resolveExcerpt = ({
   };
   if (intact && sourceIdentity.drift !== 'unchanged') throw Object.assign(new Error('Edit source differs from its pinned indexed source hash.'), { code: 'ERR_CONTEXT_PACK_SOURCE_MISMATCH', status: 409 });
   throwIfAborted(signal);
+  let selectedRange = null;
+  if (selectRange !== null) {
+    if (!intact || typeof selectRange !== 'function') throw new TypeError('Range qualification requires its internal intact-source owner.');
+    selectedRange = selectRange(sourceText(snapshot));
+    [start, end] = selectedRange.span;
+  }
   const cacheKeyInfo = buildLocalCacheKey({
     namespace: 'context-pack-excerpt',
     payload: {
@@ -246,7 +254,7 @@ export const resolveExcerpt = ({
   if (cached) return cached;
   let text = '';
   if (start != null || end != null) {
-    text = readSnapshotRange(snapshot, filePath, start, end, cacheScope);
+    text = readSnapshotRange(snapshot, filePath, start, end, cacheScope, { cache: !intact });
   } else {
     text = sourceText(snapshot);
   }
@@ -266,7 +274,8 @@ export const resolveExcerpt = ({
     }
   }
   throwIfAborted(signal);
-  const payload = { excerpt: deduped, truncated, excerptHash, truncatedBytes, truncatedTokens, sourceIdentity, sourceLength: text.length };
+  const payload = { excerpt: deduped, truncated, excerptHash, truncatedBytes, truncatedTokens, sourceIdentity, sourceLength: text.length,
+    ...(selectedRange ? { selectedRange, sourceFileLength: sourceText(snapshot).length } : {}) };
   // Edit units are reverified for each assembly and never publish a partial
   // request's derived cache state if later assembly or cancellation fails.
   if (!intact) setCachedValue(excerptCache, cacheKeyInfo.key, payload, EXCERPT_CACHE_MAX);

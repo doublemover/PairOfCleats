@@ -17,6 +17,9 @@ or unrequested witnesses remain explicit. `indexCompatKey` alone cannot pin this
 capability. Graph witnesses provide no executable-path or feasibility proof.
 
 The canonical context task schema is `src/contracts/schemas/context-task.js`.
+Complete-file edit units retain schema version 1; parser-qualified complete
+functions use version 2 with original file hash/span, exact unit content hash and
+parser identity. Both require unchanged pinned source and intact evidence.
 Its optional version 1 request policy distinguishes exploration excerpts from
 edit-safe complete files. Edit units bind the actual UTF-8 excerpt hash, byte
 length, complete UTF-16 span and index signature; their evidence cannot claim

@@ -14,24 +14,34 @@ absent. API, MCP and direct tooling requests can opt into policy version 1:
 }
 ```
 
-`edit-safe` admits one complete UTF-8 source file. The verified bytes must match
+`edit-safe` admits a complete UTF-8 file or a qualified complete function. The source bytes must match
 the selected index's retained full-file hash, and the index signature must be
 available. The primary excerpt preserves the original BOM, tabs, spaces, line
 endings and Unicode. `primary.unit` records the complete half-open UTF-16 span,
 UTF-8 byte length, source hash, index signature and requested granularity. The
 ordinary `strictEvidence` and type/semantic completeness contracts still apply.
 
-Current chunk metadata does not prove that a function survived chunk splitting as
-a complete unit. A `function` request therefore returns
+Function requests parse the same verified full-file snapshot using the existing
+JS/TS parser owners, including JSX/TSX dialects. An exact callable, export or
+single-variable binding association is required. A retained definition range may
+qualify a split fragment only when it exactly matches that parser association and
+contains the fragment. A name or containing interval alone grants no boundary.
+Malformed/recovered syntax, ambiguous associations and unsupported dialects return
 `ERR_CONTEXT_PACK_UNIT_UNAVAILABLE` unless `wholeFileFallback` is explicitly true.
-That fallback returns a complete verified file and records `fallbackUsed: true`;
-it never labels a clipped chunk as a complete function. Missing or ambiguous
+That fallback returns a complete verified file with `fallbackUsed: true`; it never
+labels a clipped chunk as a complete function. Missing or ambiguous
 source, missing hashes, unsupported encoding and outside-repository files also
 produce explicit unavailable outcomes. Changed source returns
 `ERR_CONTEXT_PACK_SOURCE_MISMATCH`; historical spans are never applied to changed
 current source.
 
-The mandatory file must fit the smaller of `maxBytes` and 128 KiB, as well as the
+Complete files retain unit schema version 1. Complete functions use unit schema
+version 2, recording parser family/version, original half-open UTF-16 span,
+full-file source length/hash and a separate SHA-256 of the exact emitted unit.
+Whitespace and line endings within that span are preserved. No new request flag
+or policy version is required; default/exploration behavior remains unchanged.
+
+The mandatory unit must fit the smaller of `maxBytes` and 128 KiB, as well as the
 existing approximate whitespace token allowance when `maxTokens` is specified.
 Failure returns `ERR_CONTEXT_PACK_UNIT_CANNOT_FIT`, without whitespace rewriting
 or clipping. Final native and rendered JSON budgets still include metadata and
@@ -41,6 +51,15 @@ The existing `maxWallClockMs` cap is checked cooperatively around source admissi
 and assembly; expiry returns `ERR_CONTEXT_PACK_UNIT_DEADLINE`. Native operations
 must settle before cancellation or deadline failures are reported.
 
+Function qualification reads at most 1 MiB of source, traverses at most 100,000
+AST nodes (also bounded by a supplied `maxWorkUnits`) and queues at most 10,000
+nodes. A small function may fit inside a file larger than the response limit.
+Source/traversal exhaustion is explicit unavailable qualification, not evidence
+that a clipped unit is safe. Deadline/cancellation checks are cooperative around
+the bounded synchronous parse and during traversal. Parser allocation and latency
+still require measurement. Parsers load only for function requests. Intact-unit
+source ranges never publish into shared excerpt/range caches.
+
 `exploration` accepts `granularity: "excerpt"` and keeps the existing compact
 excerpt behavior, including explicit truncation and incomplete evidence. It
 cannot use whole-file fallback. Task policy participates in excerpt cache
@@ -49,7 +68,7 @@ caches local to the request, publishing no derived files into historical index
 roots and no incomplete edit result into shared caches.
 
 The central CLI admits `--task`, `--granularity` and `--wholeFileFallback`. This policy does not add a target
-tokenizer or claim better edit outcomes. Function boundary qualification, runtime
+tokenizer or claim better edit outcomes. Runtime function-boundary/surface
 surface acceptance and production-corpus/patch-application comparisons remain
 unqualified until their dedicated supported-runtime runs.
 
@@ -69,6 +88,7 @@ implicit edit authority, fallback or executable-path claim.
 
 Coverage owners are `tests/context-pack/task-policy.test.js`,
 `tests/context-pack/task-policy-surfaces.test.js`,
+`tests/context-pack/complete-function-unit.test.js`,
 `tests/graph/path-capability-publication.test.js`, and
 `tests/storage/semantic/path-capabilities.test.js`. Config inventory checks
 registered public flags against the reviewed list and fixed budget.
