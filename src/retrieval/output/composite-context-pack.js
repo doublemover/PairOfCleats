@@ -18,10 +18,18 @@ const renderPrimary = (primary) => {
     ? `[${primary.range.startLine}-${primary.range.endLine}]`
     : '';
   lines.push(`File: ${file}${range ? `:${range}` : ''}`);
+  const unit = primary.unit;
+  if (unit) {
+    lines.push(`Edit unit: ${unit.granularity}; UTF-16 [${unit.span[0]}, ${unit.span[1]}); ${unit.byteLength} UTF-8 bytes`);
+    lines.push(`Source hash: ${unit.sourceHash}`);
+    if (unit.contentHash) lines.push(`Unit hash: ${unit.contentHash}`);
+    lines.push(`Index generation: ${unit.indexSignature}`);
+    if (unit.fallbackUsed) lines.push('Whole-file fallback: explicitly allowed');
+  }
   const excerpt = primary.excerpt || '';
   if (excerpt) {
     lines.push('');
-    lines.push('Excerpt:');
+    lines.push(unit ? `Complete ${unit.granularity}:` : 'Excerpt:');
     lines.push(excerpt);
   }
   const provenance = primary?.provenance && typeof primary.provenance === 'object' ? primary.provenance : null;

@@ -231,7 +231,8 @@ export const createRiskRepoIndexFixture = async ({
   await fs.mkdir(path.dirname(fileAbsPath), { recursive: true });
   const gitInit = spawnSync('git', ['init', '-q'], {
     cwd: repoPath,
-    encoding: 'utf8'
+    encoding: 'utf8',
+    windowsHide: true
   });
   assert.equal(gitInit.status, 0, `expected git init to succeed for ${repoPath}`);
   await fs.writeFile(fileAbsPath, sourceText, 'utf8');

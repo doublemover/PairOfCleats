@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-28T04:33:09.037Z",
+  "generatedAt": "2026-10-28T04:39:44.266Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4643,6 +4643,7 @@
         "tests/cli/general/metadata-and-index-admission.test.js",
         "tests/cli/search/contract-matrix.test.js",
         "tests/cli/search/helpers/missing-value-flags.js",
+        "tests/context-pack/complete-function-surfaces.test.js",
         "tests/context-pack/complete-function-unit.test.js",
         "tests/context-pack/graph-selection.test.js",
         "tests/context-pack/risk-filters-parity.test.js",
