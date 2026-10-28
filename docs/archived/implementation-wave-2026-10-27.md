@@ -69,6 +69,8 @@ the unexecuted Windows source work separately from published acceptance.
 
 - [Bounded evidence-set selection](context-evidence-selection-implementation-2026-10-28.md): #1126 canonical opt-in, source-qualified frozen pooling, exact bounded controls and shared-pool evaluation; 45 new cases authored, unexecuted.
 
+- [Cross-process original VFS pins](vfs-cross-process-implementation-2026-10-28.md): exact-file publication arbitration, shared verified content and original provider/cache settlement; ten new controls authored, unexecuted.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.
