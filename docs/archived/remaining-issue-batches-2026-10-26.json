@@ -1022,9 +1022,27 @@
       "recordedDisposition": "implementation_needed",
       "priority": "unranked",
       "batch": "storage-publication-and-cleanup",
-      "phase": "source-review-and-implementation",
-      "status": "queued",
-      "currentDisposition": "implementation_needed"
+      "phase": "scoped-native-collector-and-replay-qualification",
+      "status": "source-partial-unvalidated",
+      "currentDisposition": "partial_or_followup",
+      "unvalidatedSourceHeads": [
+        "03c44b27843fb6096695e3e80849ebc8383449ca"
+      ],
+      "unvalidatedReceipts": [
+        "sqlite-boundary-diagnostics-implementation-2026-10-28.md"
+      ],
+      "unvalidatedFollowups": [
+        {
+          "sourceHead": "03c44b27843fb6096695e3e80849ebc8383449ca",
+          "receipt": "sqlite-boundary-diagnostics-implementation-2026-10-28.md",
+          "implementation": "SQLite stage3 now reports dump capture unavailable without an actual collector, removes unowned recursive scan/placeholders, requires numeric zero plus complete object JSON, and retains original child/native failure through required forensic publication and diagnostics. Failed matching dedup candidates roll back; required verified SQLite no longer silently skips the original real fixture. Twenty-seven explicit-runner/forensic controls are authored, unexecuted. Scoped CDB collection, owned dump/context/stack/module validation, forensic ordering and actual native/replay qualification remain."
+        }
+      ],
+      "remainingWork": [
+        "Implement/admit a real optional scoped Windows collector; validate owned dump exception/context/stacks/modules with original process/metadata lifetimes.",
+        "Complete forensic publication ordering/accepted drain and generation-qualified replay without native or child replay on diagnostics failure.",
+        "Execute original and follow-up Windows native/replay/collector controls on the resulting candidate; simulated exit codes and unavailable capture do not demonstrate crash attribution or closure."
+      ]
     },
     {
       "number": 275,
@@ -4842,7 +4860,8 @@
         "3f5d80543c2d6255eed86c7dbe6652a60592c410",
         "26aba2371ff227384caa579602fe4899b612b0a1",
         "417a4479dbd750b61d95e6de555ece174d004c56",
-        "1173c6ec774d9b6df11cb078851724ca34a28a6f"
+        "1173c6ec774d9b6df11cb078851724ca34a28a6f",
+        "03c44b27843fb6096695e3e80849ebc8383449ca"
       ],
       "unvalidatedReceipts": [
         "storage-space-implementation-2026-10-27.md",
@@ -4876,7 +4895,8 @@
         "sqlite-output-files-implementation-2026-10-28.md",
         "sqlite-ledger-counts-implementation-2026-10-28.md",
         "sqlite-artifact-identity-implementation-2026-10-28.md",
-        "sqlite-native-correspondence-implementation-2026-10-28.md"
+        "sqlite-native-correspondence-implementation-2026-10-28.md",
+        "sqlite-boundary-diagnostics-implementation-2026-10-28.md"
       ],
       "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
       "sessionObservationFollowup": "Shared session admission now captures successful action and settlement receipt observers, freezes projected receipt fields and retains independent inspection/observer errors through original handles. Eleven authored cases await execution; native-reader observation, remaining adapters/custom backend registration and full qualification remain.",
@@ -4994,6 +5014,11 @@
           "sourceHead": "1173c6ec774d9b6df11cb078851724ca34a28a6f",
           "receipt": "sqlite-native-correspondence-implementation-2026-10-28.md",
           "implementation": "One original native transaction now checks dense-to-chunk mode/ID membership, chunk-to-file binding, exact native file chunk counts and admitted ANN-to-dense IDs in both directions. Bounded indexed witnesses preserve empty file entries, disabled ANN and exact query failures; injected snapshots cannot claim native coverage. Sixteen controls are authored, unexecuted. Source file/hash, bundle/incremental identity, vector-value/validity, post-compaction/final publication/replay and full acceptance remain."
+        },
+        {
+          "sourceHead": "03c44b27843fb6096695e3e80849ebc8383449ca",
+          "receipt": "sqlite-boundary-diagnostics-implementation-2026-10-28.md",
+          "implementation": "SQLite stage3 now reports dump capture unavailable without an actual collector, removes unowned recursive scan/placeholders, requires numeric zero plus complete object JSON, and retains original child/native failure through required forensic publication and diagnostics. Failed matching dedup candidates roll back; required verified SQLite no longer silently skips the original real fixture. Twenty-seven explicit-runner/forensic controls are authored, unexecuted. Scoped CDB collection, owned dump/context/stack/module validation, forensic ordering and actual native/replay qualification remain."
         }
       ]
     },
@@ -10196,10 +10221,10 @@
   "currentCounts": {
     "open": 718,
     "qualificationPending": 482,
-    "partialFollowup": 145,
-    "implementationStatusUnresolved": 91
+    "partialFollowup": 146,
+    "implementationStatusUnresolved": 90
   },
-  "reconciledAt": "2026-10-28T16:01:20.508Z",
+  "reconciledAt": "2026-10-28T16:49:26.689Z",
   "completedSourceBatch": [
     347,
     586,
@@ -10326,12 +10351,23 @@
         "implementationStatusUnresolved": 92
       },
       "meaning": "Prior source classification; SQLite row-ledger count/capability admission is now partial source implementation; identity correspondence/replay and qualification remain."
+    },
+    {
+      "reconciledAt": "2026-10-28T16:49:26.688Z",
+      "sourceHead": "03c44b27843fb6096695e3e80849ebc8383449ca",
+      "counts": {
+        "open": 718,
+        "qualificationPending": 482,
+        "partialFollowup": 145,
+        "implementationStatusUnresolved": 91
+      },
+      "meaning": "Prior source classification; SQLite crash capability and primary diagnostic ownership are now partial source implementation; actual native collector and qualification remain."
     }
   ],
   "currentCountsBasis": {
     "meaning": "718-open GitHub snapshot refreshed at checkpoint 200 plus recorded local source work; not functional acceptance.",
     "publishedHead": "adbcaf777ce91642bb0a60de892171d8c3a529f7",
-    "sourceHead": "26aba2371ff227384caa579602fe4899b612b0a1",
-    "receipt": "sqlite-ledger-counts-implementation-2026-10-28.md"
+    "sourceHead": "03c44b27843fb6096695e3e80849ebc8383449ca",
+    "receipt": "sqlite-boundary-diagnostics-implementation-2026-10-28.md"
   }
 }
