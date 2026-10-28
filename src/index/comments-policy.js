@@ -1,11 +1,11 @@
 // Private extraction policy identity, separate from artifact layout versions.
-export const COMMENT_CLASSIFICATION_VERSION = '6';
+export const COMMENT_CLASSIFICATION_VERSION = '7';
 // Match legal-notice structures at a comment line boundary. Bare license names
 // inside prose (including submit/commit/permit/limits) are deliberately ambiguous.
 const line = String.raw`(?:^|[\r\n])[\t ]*(?:(?:/\*+!?|//[!/]?|\*+|<!--|#+|;|--)[\t ]*)?`;
 const spdx = String.raw`SPDX-License-Identifier[\t ]*:[\t ]*[a-z0-9][a-z0-9.+-]*`;
 const copyright = String.raw`(?:copyright[\t ]+(?:\(c\)|©|\d{4})(?:[\t ]|$)|©[\t ]*\d{4}(?:[\t ]|$))`;
-const notice = String.raw`(?:(?:MIT|Apache) License(?:,?[\t ]+Version[\t ]+[0-9.]+)?[\t ]*(?:\*/|-->)?[\t ]*(?:$|[\r\n])|License[\t ]*:[\t ]*(?:MIT|Apache-2\.0|BSD-[23]-Clause|(?:A?GPL|LGPL)-[123]\.[0-9])(?:-only|-or-later)?(?:[\t ]|$)|Licensed under[\t ]+(?:the[\t ]+)?[a-z0-9]|Permission is hereby granted,[\t ]+free of charge)`;
+const notice = String.raw`(?:(?:MIT|Apache) License(?:,?[\t ]+Version[\t ]+[0-9.]+)?[\t ]*(?:\*/|-->)?[\t ]*(?:$|[\r\n])|License[\t ]*:[\t ]*(?:MIT|Apache-2\.0|BSD-[23]-Clause|(?:A?GPL|LGPL)-[123]\.[0-9])(?:-only|-or-later)?(?:[\t\r\n ]|$)|Licensed under[\t ]+(?:the[\t ]+)?[a-z0-9]|Permission is hereby granted,[\t ]+free of charge)`;
 export const DEFAULT_COMMENT_LICENSE_PATTERN = `${line}(?:(${spdx})|(${copyright})|(${notice}))`;
 
 const fields = ['extract', 'includeInCode', 'includeLicense', 'minDocChars', 'minInlineChars', 'minTokens',
