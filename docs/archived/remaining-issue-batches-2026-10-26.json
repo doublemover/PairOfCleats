@@ -1050,8 +1050,16 @@
       "priority": "unranked",
       "batch": "performance-and-evaluation",
       "phase": "source-review-and-implementation",
-      "status": "queued",
-      "currentDisposition": "implementation_needed"
+      "status": "source-partially-implemented-qualification-pending",
+      "currentDisposition": "partial_or_followup",
+      "unvalidatedSourceHeads": [
+        "2dada0f772e592df2e5522e83ef67093cf7c19f1"
+      ],
+      "unvalidatedReceipts": [
+        "throughput-observations-implementation-2026-10-28.md"
+      ],
+      "currentImplementation": "Zero/unknown numeric admission, missing mode/stage and baseline sample coverage, explicit non-percent zero baselines, bounded diagnostics and actual JSON/human summaries are implemented. Feature/throughput indexing summaries use the existing matched observation owner; diagnostic derivation v3 invalidates stale meaning. Twenty-five new controls plus original numeric/history/CLI assertions are authored and unexecuted.",
+      "remainingImplementation": "Compatible workload/environment/cache and independent-attempt admission through actual benchmark producers and callers, incomplete/zero work classification against those receipts, incompatible/unknown controls, and serial measured qualification with raw samples."
     },
     {
       "number": 279,
@@ -8781,7 +8789,13 @@
       "batch": "performance-and-evaluation",
       "phase": "source-review-and-focused-qualification",
       "status": "queued",
-      "currentDisposition": "qualification_pending"
+      "currentDisposition": "qualification_pending",
+      "unvalidatedSourceHeads": [
+        "2dada0f772e592df2e5522e83ef67093cf7c19f1"
+      ],
+      "unvalidatedReceipts": [
+        "throughput-observations-implementation-2026-10-28.md"
+      ]
     },
     {
       "number": 1681,
@@ -9760,10 +9774,10 @@
   "currentCounts": {
     "open": 718,
     "qualificationPending": 480,
-    "partialFollowup": 144,
-    "implementationStatusUnresolved": 94
+    "partialFollowup": 145,
+    "implementationStatusUnresolved": 93
   },
-  "reconciledAt": "2026-10-28T09:39:24.860Z",
+  "reconciledAt": "2026-10-28T10:03:06.309Z",
   "completedSourceBatch": [
     347,
     586,
@@ -9835,12 +9849,23 @@
         "implementationStatusUnresolved": 96
       },
       "meaning": "Prior source reconciliation; throughput refresh and prior compilation implementation are recorded subsequently."
+    },
+    {
+      "reconciledAt": "2026-10-28T10:03:06.308Z",
+      "sourceHead": "c08076a81c07b9e2c3f1be12f3fc311a14e9c44f",
+      "counts": {
+        "open": 718,
+        "qualificationPending": 480,
+        "partialFollowup": 144,
+        "implementationStatusUnresolved": 94
+      },
+      "meaning": "Verified 140-commit PR/source classification; subsequent numeric implementation makes #277 partial, not complete."
     }
   ],
   "currentCountsBasis": {
     "meaning": "Complete live GitHub inventory plus recorded local source implementation; not functional acceptance.",
     "publishedHead": "adbcaf777ce91642bb0a60de892171d8c3a529f7",
-    "sourceHead": "c08076a81c07b9e2c3f1be12f3fc311a14e9c44f",
-    "receipt": "throughput-materialization-implementation-2026-10-28.md"
+    "sourceHead": "2dada0f772e592df2e5522e83ef67093cf7c19f1",
+    "receipt": "throughput-observations-implementation-2026-10-28.md"
   }
 }

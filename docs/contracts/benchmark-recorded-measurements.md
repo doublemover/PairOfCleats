@@ -13,13 +13,17 @@ rate. Missing/null/string values do not become observed zero. Timing derivations
 identify observed and unavailable stages; an entirely absent profile stays null.
 An already observed embedding stage is not counted again from a summary duration.
 
-Diagnostic derivation version **1** records the original source digest, recorded
+Diagnostic derivation version **3** records the original source digest, recorded
 timestamp, per-mode sources and optional attempt evidence. Materialization retains
 that derivation in the ledger and section provenance. A later read preserves its
 fallback classification. Older fallback ledgers lacking source qualification are
 reconstructed from saved observations; they are never promoted to native simply
 because they occupy the ledger slot. Explicit materialization preserves genuine
 native ledgers. Unchanged source observations produce stable derived content.
+Version 3 also invalidates older derived numeric summaries so null/zero and
+matched-subset coverage repairs cannot reuse their earlier meaning. The
+[numeric observation contract](throughput-numeric-observations.md) defines those
+states without claiming workload or independent-attempt qualification.
 
 An optional internal `artifacts.measurementSnapshot` receipt can fill absent
 historical facts. Its version-1 fields are `schemaVersion`, `attemptId`, `path`,

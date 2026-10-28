@@ -74,6 +74,8 @@ PR #572 metadata was refreshed and read back at checkpoint `1b762ec69` (140 loca
 
 - [SQLite original-resource admission](sqlite-pending-admission-implementation-2026-10-28.md): #1574/#1267 reject new/queued dispatch behind unsettled original resources and retain successful result owners; twelve actual-native/lease controls authored, unexecuted.
 
+- [Throughput observations](throughput-observations-implementation-2026-10-28.md): #277 zero/unknown and matched count/clock repairs, bounded comparison diagnostics and derivation version 3; twenty-five cases authored. Workload/attempt admission remains source work.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.
