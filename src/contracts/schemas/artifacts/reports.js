@@ -935,10 +935,10 @@ const scanProfileSchema = {
   allOf: [{
     if: { properties: { schemaVersion: { const: 1 } } },
     then: { properties: {
-      modes: { properties: Object.fromEntries(SCAN_PROFILE_MODES.map(mode => [mode, scanProfileModeSchema])) },
-      totals: { properties: {
-        files: { properties: { candidates: intId, scanned: intId, skipped: intId } },
-        chunks: intId, tokens: intId, bytes: { properties: { artifact: intId } }
+      modes: { type: 'object', properties: Object.fromEntries(SCAN_PROFILE_MODES.map(mode => [mode, scanProfileModeSchema])) },
+      totals: { type: 'object', properties: {
+        files: { type: 'object', properties: { candidates: intId, scanned: intId, skipped: intId } },
+        chunks: intId, tokens: intId, bytes: { type: 'object', properties: { artifact: intId } }
       } }
     } },
     else: { required: ['coverage'] }
