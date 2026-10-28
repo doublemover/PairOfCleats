@@ -38,7 +38,7 @@ work. Their separate receipts preserve exact trees, limitations and checks.
 | [2c05a6a0d](triage-publication-implementation-2026-10-27.md) | Per-ID cross-process ownership, immutable JSON/Markdown generations and hash-pinned inventory/index/deferred source admission | 16 authored cases; CLI/index/replay/search, actual process/resource and full affected qualification remain |
 | [d316a37ba](storage-space-implementation-2026-10-27.md) | Original free-space resource observation, immutable admission values and callable destination-probe failures | 11 authored cases; actual destination/admission/resource qualification and broader lifecycle/backend adoption remain |
 | [765026a35](jsx-syntax-implementation-2026-10-27.md) | Complete JSX/TSX syntax owner, prepared declaration/expression projections and retained chunk/VFS dialect | 12 authored cases and strengthened determinism; actual parser/consumer/replay qualification remains |
-| [a97ec9600](triage-history-implementation-2026-10-27.md) | Bounded exact finding lineage, qualified precedents, typed observed-set continuation and retained renderer-1 evidence | 15 authored cases and strengthened actual context CLI; functional/resource/consumer qualification remains |
+| [a97ec9600 / 2d2da584a](triage-history-implementation-2026-10-27.md) | Bounded exact finding lineage, qualified precedents, typed observed-set continuation, original directory observations and retained renderer-1 evidence | 17 authored cases and strengthened actual context CLI; functional/resource/consumer qualification remains |
 
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero

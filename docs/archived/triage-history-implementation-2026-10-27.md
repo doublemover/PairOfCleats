@@ -66,3 +66,15 @@ was refreshed. No functional fixture, CLI/child, index, model, benchmark or
 publication front gate ran. Actual original/new history, context, record
 publication/decision/ingest and consumer/replay acceptance remains; #1699 and
 #821 remain open pending their complete required qualification.
+
+## Directory observation follow-up
+
+Unvalidated source `2d2da584aa11c2ddb7a64b6f862ff8d36a65b352`, tree
+`7b103db3a9623a4c7532ea6aa0bb62cf1077031f`, also captures successful directory
+ownership before projecting names. Fixed name DTOs cannot change across awaits
+or select another path. Original directory/record observers remain required
+before further native reads, after callbacks and at return; independent callback
+failures retain both prerequisites. Two additional unexecuted cases cover a
+pending successful directory and an observer changing during an actual admitted
+read, bringing the suite to **17 authored cases**. Format/ESLint, changed syntax
+and whitespace checks pass; no functional execution or new qualification occurred.

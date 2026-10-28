@@ -8061,12 +8061,13 @@
       "phase": "lineage-selection-and-continuation-implemented-qualification-pending",
       "status": "source-implemented-qualification-pending",
       "unvalidatedSourceHeads": [
-        "a97ec9600a6707e8b0620562842a797e75a10ea4"
+        "a97ec9600a6707e8b0620562842a797e75a10ea4",
+        "2d2da584aa11c2ddb7a64b6f862ff8d36a65b352"
       ],
       "unvalidatedReceipts": [
         "triage-history-implementation-2026-10-27.md"
       ],
-      "currentImplementation": "One shared four-read scan, bounded exact/related allocation, typed selection and historical validity, original/current observation drift and scope-qualified finding links. Count/compact-byte/retained-lane bounds and source/policy/finding-bound exact continuation are implemented; pending success/error ownership propagates. Fifteen authored cases and actual context CLI assertions are unexecuted. Renderer 2 exposes finding links while valid immutable renderer-1 evidence remains readable. Original/follow-up functional and resource/consumer acceptance remain."
+      "currentImplementation": "One shared four-read scan, bounded exact/related allocation, typed selection and historical validity, original/current observation drift and scope-qualified finding links. Count/compact-byte/retained-lane bounds and source/policy/finding-bound exact continuation are implemented; pending success/error ownership propagates. Seventeen authored cases and actual context CLI assertions are unexecuted. Renderer 2 exposes finding links while valid immutable renderer-1 evidence remains readable. Original/follow-up functional and resource/consumer acceptance remain. Successful directory observers and captured entry names also remain required through callbacks and before further native dispatch."
     },
     {
       "number": 1700,
