@@ -4826,19 +4826,20 @@
       "unvalidatedSourceHeads": [
         "bba2c5c8dc039e2817602f4c38306c561597754c",
         "b8915d74041262bd7539f0b189a2929e23f17f8a",
-        "65f8f1c79b4deeb23e409e03e6cd0ee5d4847f86"
+        "65f8f1c79b4deeb23e409e03e6cd0ee5d4847f86",
+        "d0484a6a719e79c875a2fff4d25383e8d8d2feeb"
       ],
       "unvalidatedReceipts": [
         "embedding-selection-implementation-2026-10-27.md",
         "embedding-preflight-implementation-2026-10-27.md"
       ],
-      "currentImplementation": "Ordinary full builds capture immutable model/provider/profile/environment/resources before Stage2. Read-only local ONNX graph admission pins the exact graph and rechecks at Stage3; off/stub/deferred/fetch-capable states remain distinct without model load/download. Existing parent attempts retain bounded selected/preflight evidence and child attempts retain submitted/final plan digests with parent linkage. Nine preflight cases plus existing runtime/receipt/handoff controls are authored, unexecuted. Early fatal failure persistence, other build routes, broader native/fetch/cache-only states and full qualification remain.",
+      "currentImplementation": "Ordinary full builds capture immutable model/provider/profile/environment/resources before Stage2. Read-only local ONNX graph admission pins the exact graph and rechecks at Stage3; off/stub/deferred/fetch-capable states remain distinct without model load/download. Existing parent attempts retain bounded selected/preflight evidence and child attempts retain submitted/final plan digests with parent linkage. Nine preflight cases plus existing runtime/receipt/handoff controls are authored, unexecuted. Other build routes, broader native/fetch/cache-only states and full qualification remain. Known-fatal ordinary full-build/explicit Stage3 preflight now records through existing runtime attempt/initialization/category owners. Captured config/cache selection must match; unknown original work prevents native/metadata dispatch. Diagnostic rejection stops before source/model/worker work and skips calibration, daemon reuse and SCM execution. Fourteen preflight/runtime controls are authored and unexecuted; broader route evaluation/adoption, failed-recording recovery and original/follow-up qualification remain.",
       "title": "[Build] Preflight requested embedding assets and execution plan before expensive Stage2 work",
       "recordedDisposition": "implementation_needed",
       "priority": "unranked",
       "batch": "retrieval-contracts",
-      "phase": "source-review-and-implementation",
-      "status": "queued"
+      "phase": "preflight-rejection-recording-implemented-other-route-evaluation-pending",
+      "status": "source-partially-implemented"
     },
     {
       "number": 1326,

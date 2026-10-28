@@ -6,6 +6,13 @@ The following local implementation checkpoints have not been functionally
 qualified or pushed; the publication front gate remains deferred during source
 work. Their separate receipts preserve exact trees, limitations and checks.
 
+PR #572 metadata was refreshed and read back at local checkpoint
+`e07de6ce0` (80 commits), updated `2026-10-28T02:19:45Z`. A complete live inventory
+verified all 718 open issues once across the collapsed status lists: 470 with
+implementation recorded/qualification pending, 143 partial and 105 unresolved.
+These source classifications include unpublished work; qualified closing
+references were preserved. Published head/base remained `adbcaf777` / `main`.
+
 | Source | Deliverable | Deferred coverage / remaining work |
 | --- | --- | --- |
 | [47ca8bea9](sqlite-operation-implementation-2026-10-27.md) | Complete SQLite operation/native/temp/finalization owner | 21 authored cases; remaining custom backend adoption |
@@ -23,7 +30,7 @@ work. Their separate receipts preserve exact trees, limitations and checks.
 | [bba2c5c8d](embedding-selection-implementation-2026-10-27.md) | Pre-Stage2 immutable model/resource selection and generation-only binding for inline/queued launches | 6 authored cases plus strengthened handoff; asset/runtime/cache-only preflight and other build routes remain |
 | [6dda56194 / 1d72db1a7](json-import-admission-implementation-2026-10-27.md) | Strict JSON collector envelopes, one bounded reference cursor walk and qualified JSONC compatibility omissions | 20 authored cases; actual collector/graph/replay and measured resource qualification remain |
 | [7394e4ba1](language-routing-implementation-2026-10-27.md) | Shared immutable routing metadata and eleven ID-only consumer migrations | 4 authored guards plus actual adapter parity; family/prose/worker loading and measurements remain |
-| [b8915d740 / 65f8f1c79](embedding-preflight-implementation-2026-10-27.md) | Read-only local graph selection/recheck and existing parent/child attempt evidence | 9 authored cases and strengthened actual owners; early failure persistence, other routes and qualification remain |
+| [b8915d740 / 65f8f1c79 / d0484a6a7](embedding-preflight-implementation-2026-10-27.md) | Read-only graph selection/recheck, parent/child evidence and rejected-preflight persistence through actual runtime initialization/teardown | 14 authored cases and strengthened actual owners; other route evaluation, recording-failure recovery and qualification remain |
 | [154d7ba6b](language-operation-loading-implementation-2026-10-27.md) | Demanded language/format loading and independent prose fallback | 6 authored guards; static module graphs 221→11 and 263→76; runtime/worker/performance qualification remains |
 | [5b093bb96](query-process-tree-implementation-2026-10-27.md) | Settled query failure drain and bounded Windows descendant/lifetime memory observations | 13 authored cases; actual Windows census/lifecycle and serial resource/performance qualification remain |
 | [8e8088c44](render-source-implementation-2026-10-27.md) | One read/scan owner for previews and summaries, explicit partial state and corrected negative word limit | 13 authored cases and mandatory virtual reparse negatives; actual consumer/cache/encoding/performance checks remain |

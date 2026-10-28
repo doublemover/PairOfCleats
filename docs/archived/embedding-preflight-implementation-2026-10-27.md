@@ -49,3 +49,42 @@ unchanged by these source edits.
 precedes a durable attempt root, watch/two-stage/recovery adoption, broader
 native/asset/fetch/cache-only states and actual zero-parser/child/TOCTOU
 qualification. See the [selection contract](../contracts/embedding-execution-selection.md).
+
+## Rejected-attempt follow-up
+
+Unvalidated source `d0484a6a719e79c875a2fff4d25383e8d8d2feeb`, tree
+`1d4d179eec83b6225a1317ec041960f9d23f3b7b`, records known-fatal ordinary
+full-build/explicit Stage3 preflight through the existing runtime attempt and
+initialization/category teardown. A private association retains actual failed
+graph selection without modifying original typed errors; invalid plans do not
+invent a complete selected request. Original selected/error identity survives
+recording and cleanup failures. Unknown original work prevents more native or
+metadata dispatch.
+
+The diagnostic path checks captured configuration and canonical cache selection
+before storage admission. It uses a fresh normal build root and rejects
+immediately after attempt admission, before source discovery, dictionary/model/
+worker work. Calibration, daemon reuse and SCM execution are omitted on this
+path; normal initialization is unchanged. Failed lifecycle persistence and exact
+category release remain with the actual existing owners. No new receipt store,
+public configuration flag, model initialization, embedding child or promotion
+was introduced. An inaccessible/drifting receipt selection remains an explicit
+recording failure rather than a fabricated durable success.
+
+Five **unexecuted** `indexing/runtime/rejected-preflight-receipt/*` cases cover
+real attempt write/readback, invalid plans, configuration drift, the ordinary
+core boundary and independently pending model inspection. Actual production
+operation guards require zero parser, worker, dictionary, model, calibration,
+daemon and Tree-sitter-preload calls. The expected missing-root diagnostic is
+asserted in the drift case. Existing missing-graph preflight assertions now also
+verify private failure association, retained typed causes and copied-data
+rejection. Together with the original nine preflight cases, fourteen controls
+are authored, not run. Existing initialization/receipt/handoff/recovery controls
+remain required.
+
+Format/ESLint, changed JavaScript syntax, config budget, command inventory
+generation and whitespace checks pass; shared-module analysis finds zero cycles.
+No functional fixture, child fixture, model, native campaign or publication front
+gate ran. Other build-route evaluation/adoption, wider native/fetch/cache-only
+states, failed-recording recovery and complete original/follow-up qualification
+remain open under #1325; this source checkpoint does not close that issue.

@@ -57,7 +57,7 @@ severity and shared dependencies, retaining qualification separately:
    JSX/TSX retain canonical syntax; other adapters, workers and execution remain.
    [Early embedding selection](archived/embedding-selection-implementation-2026-10-27.md)
    pins the full-build request before Stage2; [graph preflight/attempt linkage](archived/embedding-preflight-implementation-2026-10-27.md)
-   are implemented. Failure persistence, other routes and full readiness/cache-only qualification remain.
+   and rejected-attempt recording are implemented. Other routes and readiness/cache-only qualification remain.
    [Strict JSON admission](archived/json-import-admission-implementation-2026-10-27.md)
    adds common caps, aggregate traversal and qualified omissions; 20 cases await execution.
    [Render source admission](archived/render-source-implementation-2026-10-27.md) bounds preview/summary work; 13 cases await execution.
