@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { semanticHash, canonicalSemanticJson } from '../semantic/identity.js';
 import { readVerifiedContainedFile, assertNoSymlinkPath } from '../../shared/contained-file.js';
 import { throwIfAborted } from '../../shared/abort.js';
+import { observeStorageResource, describeStorageFailure } from '../../shared/storage/failure-observation.js';
 
 export const PROVIDER_PROFILE_VERSION = 1;
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
@@ -36,6 +37,18 @@ export const observeProviderProfile = async ({ providerId, adapterVersion, contr
   if (contractVersion !== 1 || !['complete', 'unknown'].includes(dependencyClosure)) throw fail('Unsupported profile contract or dependency closure.');
   if (!Array.isArray(toolFiles) || !Array.isArray(sourceInputs) || !Array.isArray(capabilities)
     || capabilities.length > 128 || !sourceInputs.length) throw fail('Profile needs bounded tool/source/capability inventories.');
+  // Capture caller-owned declaration bytes before the first asynchronous read.
+  // Later mutation cannot replace commands, expected hashes, negative entries,
+  // project variants or dependency inventories while observation awaits I/O.
+  ({ toolFiles, sourceInputs, capabilities, configuredCommand, resolvedCommand, project } = JSON.parse(canonicalSemanticJson({
+    toolFiles, sourceInputs, capabilities, configuredCommand, resolvedCommand, project
+  }, { maxBytes: 32 * 1024 * 1024, check: () => throwIfAborted(signal) })));
+  if (!project || typeof project !== 'object' || Array.isArray(project)
+    || ['files', 'sdkFiles', 'dependencies'].some(key => project[key] !== undefined && !Array.isArray(project[key]))) {
+    throw fail('Profile needs explicit bounded project file inventories.');
+  }
+  if ([toolFiles, sourceInputs, project.files || [], project.sdkFiles || [], project.dependencies || []]
+    .reduce((count, entries) => count + entries.length, 0) > maxFiles) throw fail('Provider profile file budget exhausted before observation.');
   const root = await fs.realpath(repoRoot), seen = new Set();
   let retainedBytes = 0, fileCount = 0;
   const observe = async (entry, purpose, defaultRoot = root) => {
@@ -50,7 +63,9 @@ export const observeProviderProfile = async ({ providerId, adapterVersion, contr
     if (entry.absent === true) {
       assertNoSymlinkPath(authorizedRoot, filename, { allowMissing: true });
       try { await fs.lstat(filename); } catch (error) {
-        if (error.code === 'ENOENT') return { root: authorizedRoot, path: filename, state: 'absent', hash: null, bytes: 0 };
+        if (describeStorageFailure(error, { phase: 'provider-profile-negative-observation' }).code === 'ENOENT') {
+          return { root: authorizedRoot, path: filename, state: 'absent', hash: null, bytes: 0 };
+        }
         throw error;
       }
       throw fail('A recorded negative resolution is now present.');
@@ -87,7 +102,8 @@ export const observeProviderProfile = async ({ providerId, adapterVersion, contr
   if (!tool.length) reasons.push('tool_bytes_unobserved');
   let resolvedExecutable = null;
   if (path.isAbsolute(resolved[0])) {
-    try { resolvedExecutable = await fs.realpath(resolved[0]); } catch { /* Incomplete identity remains non-durable. */ }
+    try { resolvedExecutable = await fs.realpath(resolved[0]); }
+    catch (error) { observeStorageResource(error, { phase: 'provider-profile-executable-resolution' }).requireSettled(); }
   }
   if (!resolvedExecutable || !tool.some(entry => path.relative(path.resolve(entry.path), path.resolve(resolvedExecutable)) === '')) reasons.push('resolved_executable_unobserved');
   if (dependencyClosure !== 'complete') reasons.push('read_dependency_closure_unknown');
@@ -146,7 +162,11 @@ export const verifyProviderProfileReceipt = async (receipt, { signal = null } = 
       || await fs.realpath(entry.root) !== entry.root) throw fail('Provider file root identity changed.');
     if (entry.state === 'absent') {
       assertNoSymlinkPath(entry.root, entry.path, { allowMissing: true });
-      try { await fs.lstat(entry.path); } catch (error) { if (error.code === 'ENOENT') continue; throw error; }
+      try { await fs.lstat(entry.path); }
+      catch (error) {
+        if (describeStorageFailure(error, { phase: 'provider-profile-negative-verification' }).code === 'ENOENT') continue;
+        throw error;
+      }
       throw fail('A recorded negative provider dependency is now present.');
     }
     if (entry.state !== 'present' || !digest(entry.hash)) throw fail('Invalid observed provider file identity.');

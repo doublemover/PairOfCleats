@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["snapshot", "file-budget", "negative-pending", "negative-unmarked", "negative-settled", "verification-pending", "executable-pending", "frozen", "diagnostic-order"]
+}
