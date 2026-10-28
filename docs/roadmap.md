@@ -10,8 +10,7 @@ Canonical for: initiative status, execution order, and remaining work
 The [closeout review](archived/github-issue-closeout-2026-10-26.md) assessed
 **770 issues/238 comments**, closing 27; later batches closed 25 more.
 The **718-open snapshot** records 459 qualification, 146 partial/follow-up and
-113 unresolved implementation entries. These labels track evidence, not proof
-of absent code. The owner queue retains completion checklists and current status.
+113 unresolved implementation entries. The owner queue retains current checklists and status.
 
 The [complete assessment](archived/github-issue-closeout-2026-10-26.json) retains
 source/test mappings and closure witnesses; [earlier receipts](archived/solo-issue-repairs-2026-10-25.md)
@@ -37,15 +36,14 @@ removed 110 lock records. Locked bootstrap passed without warnings/errors:
 receipts remain in the archive; functional checks/publication gate are deferred.
 
 These observations do not combine into suite/platform/model/release acceptance.
-Task checks omit an inherited missing trusted-config selector; global settings and
-trust rules remain. [Storage observation repairs](archived/storage-space-implementation-2026-10-27.md)
+Task checks omit an inherited missing trusted-config selector. [Storage observation repairs](archived/storage-space-implementation-2026-10-27.md)
 await execution; lifecycle policy (#1267) and custom cleanup (#1574) remain.
 
 Execution is solo, Windows-only and implementation-first. The [complete owner
 queue](archived/remaining-issue-batches-2026-10-26.json) orders source work by
 severity and shared dependencies, retaining qualification separately:
 
-1. P1 build-state writers/backend cleanup (#1574); source-pinned publication (#1627).
+1. P1 backend cleanup (#1574); [state/append/queue ownership](archived/build-state-ownership-implementation-2026-10-27.md) has 20 unexecuted cases. Publication (#1627) remains unqualified.
 2. Worker/child/service ownership, provider installation and compilation context
    (#631, #289), keeping live readers and original cleanup owners intact.
 3. Language/semantic/replay and retrieval/API evidence contracts; [comment source/demand ownership](archived/comment-pipeline-implementation-2026-10-27.md)

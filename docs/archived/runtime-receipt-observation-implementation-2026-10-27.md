@@ -42,6 +42,11 @@ new acknowledgement/resource checks remain required on the resulting candidate.
 
 ## Next source work at the lower build-state owner
 
+**Follow-up:** [lower-store implementation](build-state-ownership-implementation-2026-10-27.md)
+records the subsequent repair and 20 unexecuted cases. The list below describes
+the source gaps at this receipt's original checkpoint; functional qualification
+and broader lifecycle/backend adoption remain.
+
 Source inspection finds additional work that this wrapper does not discharge:
 
 - `store.js` typed write/lock wrappers and raw error-code branches can still lose
