@@ -1,5 +1,6 @@
 import { createCollectorBudgetContext, resolveCollectorBudgetConfig } from '../../index/language-registry/import-collectors/utils.js';
 import { sanitizeImportSpecifier } from '../../index/shared/import-specifier.js';
+import { attachImportExtraction, createImportExtraction, projectImportExtraction } from '../../shared/import-extraction.js';
 
 const DEFAULTS = Object.freeze({ maxChars: 524288, maxTokens: 250000, maxMatches: 512, maxLines: 0, maxMs: 0 });
 const preparedSources = new WeakMap();
@@ -255,7 +256,7 @@ export const prepareCssSource = (text, options = {}) => {
       : reasons.size ? 'partial' : 'complete', reasons: Object.freeze([...reasons].sort()),
     sourceLength: original.length, scannedLength: index, tokens, occurrences: imports.length });
     const facts = Object.freeze({ version: 1, dialect: 'css', imports: Object.freeze(imports), blocks: Object.freeze(blocks), coverage });
-    preparedSources.set(facts, { source: original, policy, signal });
+    preparedSources.set(facts, { source: original, policy, signal, budget: context.budget, admittedLength: source.length });
     if (coverage.state !== 'complete') {
       const diagnostic = { type: 'css-source-coverage', collectorId: 'imports:css', ...coverage };
       if (Array.isArray(options.collectorDiagnostics)) options.collectorDiagnostics.push(diagnostic);
@@ -268,9 +269,15 @@ export const prepareCssSource = (text, options = {}) => {
 };
 
 export const collectCssImportEntries = (text, options = {}) => {
-  const facts = prepareCssSource(text, options), entries = new Map();
-  for (const occurrence of facts.imports) {
-    if (!entries.has(occurrence.specifier)) entries.set(occurrence.specifier, { specifier: occurrence.specifier, provenance: 'parsed-literal' });
-  }
-  return Object.defineProperty([...entries.values()], 'coverage', { value: facts.coverage });
+  const facts = prepareCssSource(text, options), owner = preparedSources.get(facts);
+  const observed = facts.imports.map(({ specifier }) => ({ specifier, provenance: 'parsed-literal' }));
+  const entries = [...new Map(observed.map(entry => [entry.specifier, entry])).values()];
+  const receipt = createImportExtraction({ entries: observed, text: owner.source, producerId: 'css-source-imports',
+    parser: { id: 'css-source-tokens', version: String(facts.version), available: true },
+    parserCoverage: facts.coverage.state, state: facts.coverage.state, reasons: facts.coverage.reasons,
+    scope: 'css-top-level-literal-import-rules', limits: owner.budget, admittedLength: owner.admittedLength,
+    observedEntries: observed.length });
+  attachImportExtraction(entries, projectImportExtraction(receipt, observed, entries,
+    { owner: 'css-distinct-imports', duplicates: observed.length - entries.length }));
+  return Object.defineProperty(entries, 'coverage', { value: facts.coverage });
 };

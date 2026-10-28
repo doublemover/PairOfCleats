@@ -129,6 +129,7 @@ let changedBundleResult = null;
 let changedImportsResult = null;
 try {
   changedBundleResult = await readCachedBundle({
+    repoRoot: tempRoot,
     enabled: true,
     absPath,
     relKey,
@@ -139,6 +140,7 @@ try {
     sharedReadState: changedSharedReadState
   });
   changedImportsResult = await readCachedImports({
+    repoRoot: tempRoot,
     enabled: true,
     absPath,
     relKey,

@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import assert from 'node:assert/strict';
 import { collectCssImportEntries, prepareCssSource } from '../../src/lang/css/source.js';
+import { collectCssImports } from '../../src/lang/css.js';
+import { canReuseImportExtraction, getImportExtraction } from '../../src/shared/import-extraction.js';
 
 const cases = [
   ['/* @import "./ghost.css"; */', []],
@@ -28,6 +30,10 @@ for (const [source, expected] of cases) {
   const facts = prepareCssSource(source);
   assert.deepEqual(facts.imports.map(value => value.specifier), expected, source);
   assert.equal(facts.coverage.state, 'complete', source);
+  const entries = collectCssImportEntries(source, { cssSourceFacts: facts });
+  assert.equal(canReuseImportExtraction(getImportExtraction(entries), entries), true, 'only owned complete token facts qualify');
+  const imports = collectCssImports(source, { cssSourceFacts: facts });
+  assert.equal(canReuseImportExtraction(getImportExtraction(imports), imports), true, 'the string projection retains qualification');
   for (const value of facts.imports) {
     assert.equal(source.slice(value.literalStart, value.literalEnd), value.raw);
     assert.ok(source.slice(value.start, value.end).toLowerCase().startsWith('@im'), source);
@@ -48,6 +54,8 @@ assert.equal(value.qualifiers.interpretation, 'source-only');
 const duplicate = collectCssImportEntries('@import "thing,"; @import "thing"; @import "thing,";');
 assert.deepEqual(duplicate.map(entry => entry.specifier), ['thing,', 'thing']);
 assert.equal(duplicate.coverage.occurrences, 3, 'deduplication cannot erase source occurrence evidence');
+assert.equal(getImportExtraction(duplicate).steps[0].duplicates, 1);
+assert.equal(getImportExtraction(duplicate).counts.observed, 3);
 
 for (const source of ['@import url();', '@import "";', '@import "unterminated', '@import url(./wide name.css);',
   '@import url("./bad.css" extra);', '@import "./one.css" @import "./two.css";',
@@ -57,6 +65,8 @@ for (const source of ['@import url();', '@import "";', '@import "unterminated', 
   const malformed = prepareCssSource(source, { collectorDiagnostics: diagnostics });
   assert.deepEqual(malformed.imports, [], source);
   assert.equal(malformed.coverage.state, 'partial', source);
+  const entries = collectCssImportEntries(source, { cssSourceFacts: malformed });
+  assert.equal(canReuseImportExtraction(getImportExtraction(entries), entries), false, 'malformed syntax cannot qualify empty imports');
   assert.ok(diagnostics.some(entry => entry.type === 'css-source-coverage'), source);
 }
 const bounded = prepareCssSource('@import "./good.css"; @import "./cut.css";', { collectorScanBudget: { maxChars: 36 } });
@@ -85,6 +95,11 @@ assert.notEqual(prepareCssSource(source + '\n', { cssSourceFacts: facts }), fact
 assert.notEqual(prepareCssSource(source, { cssSourceFacts: { ...facts } }), facts, 'a copied shape is not an owned preparation');
 assert.notEqual(prepareCssSource(source, { cssSourceFacts: facts, collectorScanBudget: { maxTokens: 1 } }), facts);
 assert.equal(prepareCssSource(source, { cssSourceFacts: facts, ext: '.less' }).coverage.state, 'unsupported');
+for (const options of [{ collectorScanBudget: { maxChars: 8 } }, { collectorScanBudget: { maxTokens: 1 } },
+  { collectorScanBudget: { maxMatches: 1 } }, { signal: abort.signal }, { ext: '.scss' }]) {
+  const entries = collectCssImportEntries('@import "./one.css"; @import "./two.css";', { cssSourceFacts: facts, ...options });
+  assert.equal(canReuseImportExtraction(getImportExtraction(entries), entries), false, 'changed policy, cancellation and unsupported dialect cannot borrow complete evidence');
+}
 const braceSource = '.n { content: "}"; /* } */ color: red; }\r\n.other { color: blue; }';
 assert.deepEqual(prepareCssSource(braceSource).blocks.map(block => braceSource.slice(block.start, block.end)),
   ['.n { content: "}"; /* } */ color: red; }', '.other { color: blue; }']);

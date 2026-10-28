@@ -2,7 +2,6 @@ import { observeStorageResource } from '../../shared/storage/failure-observation
 import { attachImportExtraction, canReuseImportExtraction, createImportExtraction, getImportExtraction, importExtractionRuntimeVersions, projectImportExtraction } from '../../shared/import-extraction.js';
 import path from 'node:path';
 import { init as initEsModuleLexer, parse as parseEsModuleLexer } from 'es-module-lexer';
-import { init as initCjsLexer, parse as parseCjsLexer } from 'cjs-module-lexer';
 import {
   collectLanguageImportEntries,
   collectLanguageImports
@@ -32,7 +31,6 @@ import {
 import { resolveLanguageLabelFromImporter } from './import-resolution/labels.js';
 
 let esModuleInitPromise = null;
-let cjsInitPromise = null;
 
 const sortStrings = (a, b) => (a < b ? -1 : (a > b ? 1 : 0));
 
@@ -310,11 +308,6 @@ const ensureEsModuleLexer = async () => {
   await esModuleInitPromise;
 };
 
-const ensureCjsLexer = async () => {
-  if (!cjsInitPromise) cjsInitPromise = initCjsLexer();
-  await cjsInitPromise;
-};
-
 /**
  * Deduplicate and stable-sort import specifiers for deterministic output.
  *
@@ -424,7 +417,7 @@ const coerceCachedImportEntries = (value) => {
 };
 
 /**
- * Fast-path JS/TS import discovery using ESM/CJS lexers with regex fallback.
+ * Fast-path JS/TS module literals from a successful ESM lexer observation.
  *
  * Returns `null` when no parser path produced any signal, allowing callers to
  * defer to slower parsing logic.
@@ -434,39 +427,23 @@ const coerceCachedImportEntries = (value) => {
  */
 const collectModuleImportsFast = async ({ text, ext }) => {
   if (!isJsLike(ext) && !isTypeScript(ext)) return null;
+  // CJS reexport metadata is not a general require-call parser. Require-like
+  // text and escaped identifiers need the source-owned AST collector; regex
+  // matches inside strings/comments cannot become qualified dependencies.
+  if (text.includes('require') || text.includes('\\')) return null;
   const imports = new Set();
-  let success = false;
   try {
     await ensureEsModuleLexer();
     const [entries] = parseEsModuleLexer(text);
     if (Array.isArray(entries)) {
-      success = true;
       for (const entry of entries) {
         const spec = entry?.n;
         if (typeof spec === 'string' && spec) imports.add(spec);
       }
+      return Array.from(imports);
     }
   } catch {}
-  try {
-    await ensureCjsLexer();
-    const result = parseCjsLexer(text);
-    if (result) {
-      success = true;
-      if (Array.isArray(result.reexports)) {
-        result.reexports.forEach((imp) => {
-          if (imp) imports.add(imp);
-        });
-      }
-    }
-  } catch {}
-  const requireRegex = /(?:^|[^.\w$])require\s*\(\s*['"]([^'"\n]+)['"]\s*\)/g;
-  for (const match of text.matchAll(requireRegex)) {
-    if (match[1]) {
-      imports.add(match[1]);
-      success = true;
-    }
-  }
-  return success ? normalizeImports(Array.from(imports)) : null;
+  return null;
 };
 
 /**
@@ -779,14 +756,11 @@ export async function scanImports({
       }
       const fastImports = await collectModuleImportsFast({ text, ext });
       if (Array.isArray(fastImports)) {
-        const imports = normalizeImports(fastImports);
         const sourceReceipt = createImportExtraction({ entries: fastImports, text, producerId: 'module-lexer-fast-path',
-          parser: { id: 'esm-cjs-static-module-lexers', version: [importExtractionRuntimeVersions()['es-module-lexer'], importExtractionRuntimeVersions()['cjs-module-lexer']].every(Boolean)
-            ? importExtractionRuntimeVersions()['es-module-lexer'] + '/' + importExtractionRuntimeVersions()['cjs-module-lexer'] : null, available: true },
+          parser: { id: 'es-module-lexer', version: importExtractionRuntimeVersions()['es-module-lexer'], available: true },
           parserCoverage: 'partial', scope: 'js-static-module-reference-literals-v1', observedEntries: fastImports.length });
-        const valid = fastImports.filter(entry => normalizeImports([entry]).length).length;
-        attachImportExtraction(imports, projectImportExtraction(sourceReceipt, fastImports, imports, { owner: 'scan-normalization',
-          duplicates: valid - imports.length, invalid: fastImports.length - valid }));
+        attachImportExtraction(fastImports, sourceReceipt);
+        const { imports } = normalizeImportEntriesWithHints(fastImports);
         recordImports(imports);
       } else {
         const importEntries = collectLanguageImportEntries({

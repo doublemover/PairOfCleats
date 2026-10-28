@@ -1,4 +1,5 @@
-import { parseJavaScriptAst } from './parse.js';
+import { getJavaScriptSyntaxIdentity, ownsJavaScriptSyntaxText, parseJavaScriptAst } from './parse.js';
+import { attachImportExtraction, createImportExtraction } from '../../shared/import-extraction.js';
 
 const WALK_SKIP_KEYS = new Set([
   'loc',
@@ -10,7 +11,8 @@ const WALK_SKIP_KEYS = new Set([
   'trailingComments',
   'innerComments',
   'extra',
-  'parent'
+  'parent',
+  'errors'
 ]);
 
 /**
@@ -79,10 +81,18 @@ export function collectImportsFromAst(ast) {
  * @returns {string[]}
  */
 export function collectImports(text, options = {}) {
-  if (!text || (!text.includes('import') && !text.includes('export') && !text.includes('require'))) {
-    return [];
-  }
-  const ast = options.ast || parseJavaScriptAst(text, options);
-  if (!ast) return [];
-  return collectImportsFromAst(ast);
+  const signal = options.abortSignal || options.signal;
+  const ast = signal?.aborted ? null : options.ast || parseJavaScriptAst(text, options);
+  const imports = ast ? collectImportsFromAst(ast) : [];
+  const identity = getJavaScriptSyntaxIdentity(ast);
+  const owned = ownsJavaScriptSyntaxText(ast, text);
+  // Literal dependencies are a declared syntax subset, not a claim about
+  // constructed runtime imports. An injected/stale AST or recovered parse
+  // cannot qualify an empty result or a reusable source observation.
+  return attachImportExtraction(imports, createImportExtraction({ entries: imports,
+    text: typeof text === 'string' ? text : null, producerId: 'javascript-literal-imports',
+    parser: identity ? { id: 'javascript-' + identity.family, version: identity.version, available: true } : null,
+    parserCoverage: 'partial', scope: 'javascript-literal-import-export-require-specifiers',
+    state: ast && !owned ? 'unqualified' : null,
+    reasons: signal?.aborted ? ['cancelled'] : !ast ? ['parse-failed'] : !owned ? ['source_parser_unqualified'] : ast.errors?.length ? ['parse-recovered'] : [] }));
 }

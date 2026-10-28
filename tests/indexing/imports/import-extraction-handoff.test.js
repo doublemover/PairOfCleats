@@ -14,7 +14,7 @@ import { enqueueFileRelationsArtifacts } from '../../../src/index/build/artifact
 import { writePiecesManifest } from '../../../src/index/build/artifacts/checksums.js';
 import { loadJsonArrayArtifact } from '../../../src/shared/artifact-io/loaders/core.js';
 import { loadGraphRelations } from '../../../src/shared/artifact-io/loaders/graph.js';
-import { getImportExtraction, summarizeImportExtraction } from '../../../src/shared/import-extraction.js';
+import { canReuseImportExtraction, getImportExtraction, summarizeImportExtraction } from '../../../src/shared/import-extraction.js';
 import { sha1 } from '../../../src/shared/hash.js';
 import { createImportResolutionTempRoot } from '../../helpers/import-resolution-fixture.js';
 import { writeAndLoadRelationBenchGraphArtifacts } from '../relations/helpers/graph-relations-artifact-fixture.js';
@@ -127,5 +127,38 @@ try {
     observed => error.code === 'EIO' ? observed.cacheOwnershipReleased() === false : observed === error,
     'neither programming defects nor unsettled resources become ordinary unavailable-source diagnostics');
   }
+  const moduleSources = new Map([
+    ['modules.js', { text: `import 'thing,'; import 'thing'; import '  thing  '; export * from './real.js';`,
+      expected: ['  thing  ', './real.js', 'thing', 'thing,'], parser: 'es-module-lexer' }],
+    ['requires.js', { text: String.raw`// require('./ghost.js')
+const note = "require('./ghost2.js')";
+req\u0075ire('./escaped.js'); require('./real.js'); require('thing,'); module.exports = require('./reexport.js');`,
+    expected: ['./escaped.js', './real.js', './reexport.js', 'thing,'], parser: 'javascript-babel' }],
+    ['empty.js', { text: `// require('./ghost.js')\nconst note = "require('./ghost2.js')";`,
+      expected: [], parser: 'javascript-babel' }]
+  ]);
+  const moduleFiles = [];
+  for (const [rel, { text }] of moduleSources) {
+    const abs = path.join(root, rel); await fs.writeFile(abs, text);
+    moduleFiles.push({ abs, rel, stat: await fs.stat(abs) });
+  }
+  const cold = await scanImports({ files: moduleFiles, root, mode: 'code', languageOptions: {}, importConcurrency: 1 });
+  for (const file of moduleFiles) {
+    const { text, expected, parser } = moduleSources.get(file.rel), imports = cold.importsByFile[file.rel];
+    const receipt = cold.importExtractionByFile[file.rel];
+    assert.deepEqual(imports, expected, 'literal parser output never undergoes scanner punctuation cleanup');
+    assert.equal(receipt.parser.id, parser, 'actual module lexers and AST fallback both retain their own producer');
+    assert.equal(canReuseImportExtraction(receipt, imports), true);
+    manifest.files[file.rel] = await writeIncrementalBundle({ enabled: true, bundleDir, relKey: file.rel,
+      fileStat: file.stat, fileHash: sha1(text), fileChunks: [], bundleFormat: 'json', fileRelations: {
+        imports, importScanExtraction: receipt, importScanFingerprint: cold.importScanFingerprint } });
+    assert.deepEqual(await read(file, cold.importScanFingerprint), expected);
+  }
+  const acquired = [];
+  const warm = await scanImports({ files: moduleFiles, root, mode: 'code', languageOptions: {}, importConcurrency: 1,
+    incrementalState: { enabled: true, manifest, bundleDir, bundleFormat: 'json' },
+    fileTextByFile: { get: () => null, set: file => acquired.push(file) } });
+  assert.deepEqual(warm.importsByFile, cold.importsByFile);
+  assert.ok(!acquired.includes('empty.js'), 'qualified empty hits never reacquire source for nonexistent hints');
 } finally { Object.assign(route, original); await fs.rm(root, { recursive: true, force: true }); }
 console.log('Import extraction survives registry, zero-edge resolution, durable artifacts and qualified incremental replay.');

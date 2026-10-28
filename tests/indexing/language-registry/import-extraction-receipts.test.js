@@ -7,8 +7,49 @@ import { collectLanguageImportResult, getLanguageForFile } from '../../../src/in
 import { buildSimpleRelations } from '../../../src/index/language-registry/simple-relations.js';
 import { buildFileRelations, stripFileRelations } from '../../../src/index/build/file-processor/relations.js';
 import { validateArtifact } from '../../../src/contracts/validators/artifacts.js';
+import { collectImports } from '../../../src/lang/javascript/imports.js';
+import { parseJavaScriptAst } from '../../../src/lang/javascript/parse.js';
+import { installedPackageVersion } from '../../../src/shared/installed-package-version.js';
 import { admitImportExtraction, attachImportExtraction, canReuseImportExtraction, createImportExtraction,
   getImportExtraction, projectImportExtraction, summarizeImportExtraction } from '../../../src/shared/import-extraction.js';
+
+for (const parser of ['babel', 'acorn', 'esprima']) {
+  for (const source of ['', 'const ordinary = 1;', String.raw`req\u0075ire('./escaped.js');`,
+    `import './one.js'; export * from './two.js'; require('./one.js');`]) {
+    const ast = parseJavaScriptAst(source, { parser });
+    const imports = collectImports(source, { ast });
+    const receipt = getImportExtraction(imports);
+    assert.equal(canReuseImportExtraction(receipt, imports), true, `${parser}: owned, error-free syntax qualifies its static subset`);
+    assert.equal(receipt.parser.id, 'javascript-' + parser);
+    assert.equal(receipt.parser.version, installedPackageVersion(parser === 'babel' ? '@babel/parser' : parser));
+    assert.equal(receipt.state, 'partial'); assert.equal(receipt.reasonCounts.parser_scope_partial, 1);
+    assert.equal(receipt.recognition, imports.length ? 'nonempty' : 'empty');
+    if (source.includes('u0075')) assert.deepEqual(imports, ['./escaped.js'], 'keyword prefilters cannot hide escaped callees');
+    if (source.startsWith('import')) assert.deepEqual([...imports].sort(), ['./one.js', './two.js']);
+    assert.throws(() => admitImportExtraction(receipt, imports, { text: source + '\n' }), { code: 'ERR_IMPORT_EXTRACTION_CONTRACT' });
+  }
+}
+const dynamic = collectImports(`import('./literal.js'); import(variable);`);
+assert.deepEqual(dynamic, ['./literal.js']);
+assert.equal(getImportExtraction(dynamic).scope, 'javascript-literal-import-export-require-specifiers');
+assert.equal(getImportExtraction(dynamic).state, 'partial', 'runtime-constructed imports stay outside the qualified static subset');
+const ownedSource = `import './owned.js';`, ownedAst = parseJavaScriptAst(ownedSource);
+for (const [text, options] of [
+  [ownedSource, { ast: { type: 'Program', body: [] } }],
+  [`import './changed.js';`, { ast: ownedAst }],
+  ['export const duplicate=1; export const duplicate=2;', {}],
+  ['import {', {}],
+  [ownedSource, { signal: { aborted: true } }]
+]) {
+  const imports = collectImports(text, options), receipt = getImportExtraction(imports);
+  assert.equal(canReuseImportExtraction(receipt, imports), false, 'foreign/stale/recovered/failed/cancelled syntax never qualifies');
+  assert.equal(receipt.reusePolicy, 'refresh-required');
+}
+const literal = collectLanguageImportResult({ text: `require('thing,'); require('thing'); require('  thing  ');`,
+  ext: '.js', relPath: 'literal.js', mode: 'code' });
+assert.deepEqual(literal.entries.map(entry => entry.specifier), ['  thing  ', 'thing', 'thing,']);
+assert.ok(literal.entries.every(entry => entry.provenance === 'parsed-literal'));
+assert.equal(canReuseImportExtraction(literal.receipt, literal.entries), true);
 
 const parserIdentity = { id: 'fixture-reference-parser', version: '1' };
 const model = (values = []) => ({ coverage: 'partial', reason: null, sourceLines: 1,

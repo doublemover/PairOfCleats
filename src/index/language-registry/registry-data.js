@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module';
 import { deferLanguageFunctions } from '../deferred-language-functions.js';
+import { toParsedLiteralImportEntries } from '../../shared/import-extraction.js';
 import path from 'node:path';
 import {
   isCLike,
@@ -562,6 +563,7 @@ const MANAGED_LANGUAGE_ADAPTERS = [
     id: 'javascript',
     match: (ext) => isJsLike(ext),
     collectImports,
+    collectImportEntries: (text, options) => toParsedLiteralImportEntries(collectImports(text, options)),
     prepare: async ({ text, mode, ext, options }) => {
       if (mode !== 'code') return {};
       const context = {};

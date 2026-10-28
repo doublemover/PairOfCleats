@@ -1,4 +1,5 @@
 import { collectCssImportEntries, prepareCssSource } from './css/source.js';
+import { attachImportExtraction, getImportExtraction, projectImportExtraction } from '../shared/import-extraction.js';
 export { collectCssImportEntries, prepareCssSource } from './css/source.js';
 import { buildLineIndex, countLines, createLineAccessor, offsetToLine } from '../shared/lines.js';
 import { extractDocComment, sliceSignature } from './shared.js';
@@ -222,7 +223,9 @@ function gatherRuleNodes(root, budget) {
 
 export function collectCssImports(text, options = {}) {
   const entries = collectCssImportEntries(text, options);
-  return Object.defineProperty(entries.map(entry => entry.specifier), 'coverage', { value: entries.coverage });
+  const values = entries.map(entry => entry.specifier);
+  attachImportExtraction(values, projectImportExtraction(getImportExtraction(entries), entries, values, { owner: 'css-string-array' }));
+  return Object.defineProperty(values, 'coverage', { value: entries.coverage });
 }
 
 export function buildCssChunks(text, options = {}) {

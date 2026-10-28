@@ -23,7 +23,8 @@ const freeze = value => {
 const seal = input => freeze({ ...input, identity: 'ie1:' + hash(input) });
 
 /** Package metadata is an input/readiness identity, never activation evidence. */
-export const importExtractionRuntimeVersions = () => Object.fromEntries(['yaml', 'smol-toml', 'protobufjs', 'parse5', 'es-module-lexer', 'cjs-module-lexer']
+export const importExtractionRuntimeVersions = () => Object.fromEntries(['yaml', 'smol-toml', 'protobufjs', 'parse5',
+  '@babel/parser', 'acorn', 'esprima', 'es-module-lexer', 'cjs-module-lexer']
   .map(name => [name, installedPackageVersion(name)]));
 
 export const createImportExtraction = ({ entries, text, producerId = 'legacy-array', parser = null,
@@ -45,7 +46,7 @@ export const createImportExtraction = ({ entries, text, producerId = 'legacy-arr
     else if (codes.some(code => /(?:^|-)invalid-|^invalid-|^parse-failed$/u.test(code))) state = 'invalid';
     else if (codes.some(code => /(?:source|node|depth|time|token|document|line)[-_](?:length-)?(?:limit|bytes)|^scan_/u.test(code))) state = 'partial';
     else if (parserCoverage === 'unavailable' || parserReason) state = 'unavailable';
-    else if (codes.length) state = 'partial';
+    else if (codes.length && parser) state = 'partial';
   }
   if (parser?.available === false && !['cancelled', 'unsupported', 'invalid'].includes(state)) state = 'unavailable';
   if (!states.has(state)) throw fail('Unknown import extraction state.');
