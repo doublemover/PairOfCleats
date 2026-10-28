@@ -1,6 +1,6 @@
 import { color } from './ansi.js';
 import { recordSearchArtifacts } from './persist.js';
-import { renderSearchOutput } from './render.js';
+import { prepareSearchOutput } from './render.js';
 import { runSearchSession } from './run-search-session.js';
 
 /**
@@ -15,6 +15,7 @@ export async function executeSearchAndEmit(input) {
     filterCursor = null,
     plain = false,
     t0,
+    beforePublish = null,
     emitOutput,
     jsonOutput,
     jsonCompact,
@@ -259,7 +260,7 @@ export async function executeSearchAndEmit(input) {
 
   const elapsedMs = Date.now() - t0;
 
-  const payload = renderSearchOutput({
+  const prepared = prepareSearchOutput({
     effectivePlanIdentity,
     scorePolicyIdentity,
     effectiveSystemIdentity,
@@ -353,5 +354,7 @@ export async function executeSearchAndEmit(input) {
       : null
   });
 
-  return payload;
+  if (beforePublish) await beforePublish();
+  prepared.emit();
+  return prepared.payload;
 }

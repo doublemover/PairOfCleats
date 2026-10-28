@@ -1199,6 +1199,7 @@ export async function runSearchCli(rawArgs = process.argv.slice(2), options = {}
     }
 
     const payload = await executeSearchAndEmit({
+      beforePublish: settlement.beforePublish,
       branchQualification: branchResult.receipt,
       filterOnly,
       filterCursor: argv.cursor || null,

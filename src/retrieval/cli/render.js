@@ -285,7 +285,7 @@ const sectionModeLabel = (mode) => {
  * @param {object} input
  * @returns {object}
  */
-export function renderSearchOutput({
+export function prepareSearchOutput({
   filterEnumeration = null,
   filtersActive = false,
   plain = false,
@@ -575,265 +575,280 @@ export function renderSearchOutput({
     }
   }
 
-  if (emitOutput && jsonOutput) {
-    const totalHits = outputPayload.prose.length
+  // Materialize every index-backed observation before the request closes its
+  // backend. Emission uses these snapshots and prepared hit objects only.
+  const chunkCounts = emitOutput && !jsonOutput && showStats ? {
+    prose: idxProse?.chunkMeta?.length ?? 0, code: idxCode?.chunkMeta?.length ?? 0,
+    extractedProse: idxExtractedProse?.chunkMeta?.length ?? 0, records: idxRecords?.chunkMeta?.length ?? 0
+  } : null;
+  let emitted = false;
+  const emit = () => {
+    if (emitted) throw Object.assign(new Error('Prepared search output was already emitted.'), { code: 'ERR_SEARCH_OUTPUT_REPLAY' });
+    emitted = true;
+    if (emitOutput && jsonOutput) {
+      const totalHits = outputPayload.prose.length
       + outputPayload.extractedProse.length
       + outputPayload.code.length
       + outputPayload.records.length;
-    const shouldStream = streamJson || totalHits >= 500;
-    if (shouldStream) {
-      const out = process.stdout;
-      const writeArray = (arr) => {
-        out.write('[');
-        arr.forEach((item, index) => {
-          if (index > 0) out.write(',');
-          out.write(JSON.stringify(item));
-        });
-        out.write(']');
-      };
-      out.write('{');
-      out.write(`\"backend\":${JSON.stringify(outputPayload.backend)}`);
-      out.write(',\"prose\":');
-      writeArray(outputPayload.prose);
-      out.write(',\"extractedProse\":');
-      writeArray(outputPayload.extractedProse);
-      out.write(',\"code\":');
-      writeArray(outputPayload.code);
-      out.write(',\"records\":');
-      writeArray(outputPayload.records);
-      out.write(',\"bundles\":');
-      out.write(JSON.stringify(outputPayload.bundles));
-      if (outputPayload.retrieval) {
-        out.write(',\"retrieval\":');
-        out.write(JSON.stringify(outputPayload.retrieval));
+      const shouldStream = streamJson || totalHits >= 500;
+      if (shouldStream) {
+        const out = process.stdout;
+        const writeArray = (arr) => {
+          out.write('[');
+          arr.forEach((item, index) => {
+            if (index > 0) out.write(',');
+            out.write(JSON.stringify(item));
+          });
+          out.write(']');
+        };
+        out.write('{');
+        out.write(`\"backend\":${JSON.stringify(outputPayload.backend)}`);
+        out.write(',\"prose\":');
+        writeArray(outputPayload.prose);
+        out.write(',\"extractedProse\":');
+        writeArray(outputPayload.extractedProse);
+        out.write(',\"code\":');
+        writeArray(outputPayload.code);
+        out.write(',\"records\":');
+        writeArray(outputPayload.records);
+        out.write(',\"bundles\":');
+        out.write(JSON.stringify(outputPayload.bundles));
+        if (outputPayload.retrieval) {
+          out.write(',\"retrieval\":');
+          out.write(JSON.stringify(outputPayload.retrieval));
+        }
+        if (outputPayload.asOf) {
+          out.write(',\"asOf\":');
+          out.write(JSON.stringify(outputPayload.asOf));
+        }
+        if (outputPayload.stats) {
+          out.write(',\"stats\":');
+          out.write(JSON.stringify(outputPayload.stats));
+        }
+        if (outputPayload.pagination) { out.write(',"pagination":'); out.write(JSON.stringify(outputPayload.pagination)); }
+        if (outputPayload.outputBudget) { out.write(',\"outputBudget\":'); out.write(JSON.stringify(outputPayload.outputBudget)); }
+        out.write('}\n');
+      } else {
+        console.log(JSON.stringify(outputPayload));
       }
-      if (outputPayload.asOf) {
-        out.write(',\"asOf\":');
-        out.write(JSON.stringify(outputPayload.asOf));
-      }
-      if (outputPayload.stats) {
-        out.write(',\"stats\":');
-        out.write(JSON.stringify(outputPayload.stats));
-      }
-      if (outputPayload.pagination) { out.write(',"pagination":'); out.write(JSON.stringify(outputPayload.pagination)); }
-      if (outputPayload.outputBudget) { out.write(',\"outputBudget\":'); out.write(JSON.stringify(outputPayload.outputBudget)); }
-      out.write('}\n');
-    } else {
-      console.log(JSON.stringify(outputPayload));
-    }
-  }
-
-  if (emitOutput && !jsonOutput) {
-    const visibleCode = filterEnumeration ? outputPayload.code : codeHitsFinal;
-    const visibleProse = filterEnumeration ? outputPayload.prose : proseHitsFinal;
-    const visibleExtracted = filterEnumeration ? outputPayload.extractedProse : extractedProseHitsFinal;
-    const visibleRecords = filterEnumeration ? outputPayload.records : recordHitsFinal;
-    const styled = !plain && process.stdout.isTTY === true && !Object.hasOwn(process.env, 'NO_COLOR') && process.env.TERM !== 'dumb';
-    if (!styled) hyperlinkMode = 'off';
-    const layout = { ...resolveHumanLayout(process.stdout), styled };
-    const outputStream = { write: (text) => {
-      const readable = styled ? text : stripAnsi(text);
-      // Pipes retain ordinary readable text and opaque cursors stay on one line.
-      return process.stdout.write(process.stdout.isTTY === true ? wrapTerminalText(readable, layout.columns) : readable);
-    } };
-    const readPreview = createSourcePreviewReader(rootDir);
-    let showProse = runProse ? topN : 0;
-    let showExtractedProse = runExtractedProse ? topN : 0;
-    let showCode = runCode ? topN : 0;
-    let showRecords = runRecords ? topN : 0;
-
-    if (runProse && runCode) {
-      if (baseHits.proseHits.length < topN) {
-        showCode += showProse;
-      }
-      if (baseHits.codeHits.length < topN) {
-        showProse += showCode;
-      }
-    }
-    if (contextExpansionEnabled) {
-      showProse += expandedHits.prose.contextHits.length;
-      showExtractedProse += expandedHits.extractedProse.contextHits.length;
-      showCode += expandedHits.code.contextHits.length;
-      showRecords += expandedHits.records.contextHits.length;
     }
 
-    const sectionInputs = buildHumanSections({
-      runCode,
-      runExtractedProse,
-      runProse,
-      runRecords,
-      explain,
-      backendLabel,
-      codeHits: visibleCode.slice(0, showCode),
-      extractedProseHits: visibleExtracted.slice(0, showExtractedProse),
-      proseHits: visibleProse.slice(0, showProse),
-      recordHits: visibleRecords.slice(0, showRecords)
-    });
+    if (emitOutput && !jsonOutput) {
+      const visibleCode = filterEnumeration ? outputPayload.code : codeHitsFinal;
+      const visibleProse = filterEnumeration ? outputPayload.prose : proseHitsFinal;
+      const visibleExtracted = filterEnumeration ? outputPayload.extractedProse : extractedProseHitsFinal;
+      const visibleRecords = filterEnumeration ? outputPayload.records : recordHitsFinal;
+      const styled = !plain && process.stdout.isTTY === true && !Object.hasOwn(process.env, 'NO_COLOR') && process.env.TERM !== 'dumb';
+      if (!styled) hyperlinkMode = 'off';
+      const layout = { ...resolveHumanLayout(process.stdout), styled };
+      const outputStream = { write: (text) => {
+        const readable = styled ? text : stripAnsi(text);
+        // Pipes retain ordinary readable text and opaque cursors stay on one line.
+        return process.stdout.write(process.stdout.isTTY === true ? wrapTerminalText(readable, layout.columns) : readable);
+      } };
+      const readPreview = createSourcePreviewReader(rootDir);
+      let showProse = runProse ? topN : 0;
+      let showExtractedProse = runExtractedProse ? topN : 0;
+      let showCode = runCode ? topN : 0;
+      let showRecords = runRecords ? topN : 0;
 
-    const countSummary = formatCountSummary(sectionInputs.map((section) => ({
-      label: sectionModeLabel(section.mode), count: section.hits.length
-    })), color);
-    writeLine(
-      outputStream,
-      alignLine(
-        color.bold('Search Results'),
-        `${colorText('elapsed', ANSI.fgDarkGray)} ${color.bold(`${elapsedMs}ms`)}`,
-        layout.columns
-      )
-    );
-    const queryLabel = typeof rawQuery === 'string' && rawQuery.trim()
-      ? sanitizeTerminalText(rawQuery.trim(), { multiline: false })
-      : sanitizeTerminalText(queryTokens.join(' '), { multiline: false });
-    if (queryLabel) {
-      writeLine(outputStream, `${colorText('query', ANSI.fgDarkGray)} ${color.bold(queryLabel)}`);
-    }
-    const renderedModeLabels = sectionInputs.length
-      ? [...new Set(sectionInputs.map((section) => sectionModeLabel(section.mode)).filter(Boolean))]
-      : [
-        runCode ? 'code' : null,
-        runExtractedProse ? 'comments' : null,
-        runProse ? 'text' : null,
-        runRecords ? 'records' : null
-      ].filter(Boolean);
-    const backendModeLines = buildWrappedSummaryLines([
-      `${colorText('backend', ANSI.fgDarkGray)} ${backendLabel}`,
-      `${colorText('modes', ANSI.fgDarkGray)} ${renderedModeLabels.join(', ')}`
-    ], { width: layout.columns });
-    backendModeLines.forEach((line) => writeLine(outputStream, line));
-    if (countSummary) {
-      writeLine(outputStream, `${colorText('hits', ANSI.fgDarkGray)} ${countSummary}`);
-    }
-    if (sectionInputs.length && !filterEnumeration) {
-      writeLine(outputStream, colorText('order ranked within each mode; counts reflect displayed hits', ANSI.fgDarkGray));
-    }
-    if (asOfContext?.provided) {
-      const shortHash = asOfContext.identityHashShort || String(asOfContext.identityHash || '').slice(0, 8);
+      if (runProse && runCode) {
+        if (baseHits.proseHits.length < topN) {
+          showCode += showProse;
+        }
+        if (baseHits.codeHits.length < topN) {
+          showProse += showCode;
+        }
+      }
+      if (contextExpansionEnabled) {
+        showProse += expandedHits.prose.contextHits.length;
+        showExtractedProse += expandedHits.extractedProse.contextHits.length;
+        showCode += expandedHits.code.contextHits.length;
+        showRecords += expandedHits.records.contextHits.length;
+      }
+
+      const sectionInputs = buildHumanSections({
+        runCode,
+        runExtractedProse,
+        runProse,
+        runRecords,
+        explain,
+        backendLabel,
+        codeHits: visibleCode.slice(0, showCode),
+        extractedProseHits: visibleExtracted.slice(0, showExtractedProse),
+        proseHits: visibleProse.slice(0, showProse),
+        recordHits: visibleRecords.slice(0, showRecords)
+      });
+
+      const countSummary = formatCountSummary(sectionInputs.map((section) => ({
+        label: sectionModeLabel(section.mode), count: section.hits.length
+      })), color);
       writeLine(
         outputStream,
-        `${colorText('as-of', ANSI.fgDarkGray)} ${asOfContext.ref || 'latest'} ${colorText(`(${shortHash})`, ANSI.fgDarkGray)}`
+        alignLine(
+          color.bold('Search Results'),
+          `${colorText('elapsed', ANSI.fgDarkGray)} ${color.bold(`${elapsedMs}ms`)}`,
+          layout.columns
+        )
       );
-    }
-    if (outputPayload.pagination) {
-      const page = outputPayload.pagination;
-      writeLine(outputStream, `filter matches ${page.returned} on this page / ${page.total} total indexed matches`);
-      writeLine(outputStream, 'order indexed chunks; missing compiler facts are excluded');
-      if (page.nextCursor) writeLine(outputStream, `next --cursor ${page.nextCursor}`);
-    }
-    if (sectionInputs.some((section) => section.mode === 'code')) {
-      writeLine(outputStream, colorText('Source previews: current files at indexed offsets; edits may differ. > marks query text, not ranking evidence.', ANSI.fgDarkGray));
-    }
-    writeLine(outputStream, makeRule(layout.columns));
-    writeLine(outputStream);
-
-    if (!sectionInputs.length) {
-      for (const line of buildNoResultsLines({
-        color,
-        layout,
-        queryLabel,
-        renderedModeLabels,
-        diagnostics: outputPayload.retrieval?.emptyResults || []
-      })) {
-        writeLine(outputStream, line);
+      const queryLabel = typeof rawQuery === 'string' && rawQuery.trim()
+        ? sanitizeTerminalText(rawQuery.trim(), { multiline: false })
+        : sanitizeTerminalText(queryTokens.join(' '), { multiline: false });
+      if (queryLabel) {
+        writeLine(outputStream, `${colorText('query', ANSI.fgDarkGray)} ${color.bold(queryLabel)}`);
       }
+      const renderedModeLabels = sectionInputs.length
+        ? [...new Set(sectionInputs.map((section) => sectionModeLabel(section.mode)).filter(Boolean))]
+        : [
+          runCode ? 'code' : null,
+          runExtractedProse ? 'comments' : null,
+          runProse ? 'text' : null,
+          runRecords ? 'records' : null
+        ].filter(Boolean);
+      const backendModeLines = buildWrappedSummaryLines([
+        `${colorText('backend', ANSI.fgDarkGray)} ${backendLabel}`,
+        `${colorText('modes', ANSI.fgDarkGray)} ${renderedModeLabels.join(', ')}`
+      ], { width: layout.columns });
+      backendModeLines.forEach((line) => writeLine(outputStream, line));
+      if (countSummary) {
+        writeLine(outputStream, `${colorText('hits', ANSI.fgDarkGray)} ${countSummary}`);
+      }
+      if (sectionInputs.length && !filterEnumeration) {
+        writeLine(outputStream, colorText('order ranked within each mode; counts reflect displayed hits', ANSI.fgDarkGray));
+      }
+      if (asOfContext?.provided) {
+        const shortHash = asOfContext.identityHashShort || String(asOfContext.identityHash || '').slice(0, 8);
+        writeLine(
+          outputStream,
+          `${colorText('as-of', ANSI.fgDarkGray)} ${asOfContext.ref || 'latest'} ${colorText(`(${shortHash})`, ANSI.fgDarkGray)}`
+        );
+      }
+      if (outputPayload.pagination) {
+        const page = outputPayload.pagination;
+        writeLine(outputStream, `filter matches ${page.returned} on this page / ${page.total} total indexed matches`);
+        writeLine(outputStream, 'order indexed chunks; missing compiler facts are excluded');
+        if (page.nextCursor) writeLine(outputStream, `next --cursor ${page.nextCursor}`);
+      }
+      if (sectionInputs.some((section) => section.mode === 'code')) {
+        writeLine(outputStream, colorText('Source previews: current files at indexed offsets; edits may differ. > marks query text, not ranking evidence.', ANSI.fgDarkGray));
+      }
+      writeLine(outputStream, makeRule(layout.columns));
       writeLine(outputStream);
-    }
 
-    for (const section of sectionInputs) {
-      writeLine(outputStream, makeSectionHeader({
-        label: section.label,
-        count: section.hits.length,
-        color,
-        layout
-      }));
-      const summaryState = section.mode === 'records' ? null : { lastCount: 0 };
-      section.hits.forEach((hit, index) => {
-        const formatArgs = {
-          chunk: hit,
-          index,
-          mode: section.mode,
-          score: hit.score,
-          scoreType: hit.scoreType,
-          explain,
-          explainTier,
+      if (!sectionInputs.length) {
+        for (const line of buildNoResultsLines({
           color,
-          queryTokens,
-          rx: highlightRegex,
-          matched: showMatched,
           layout,
-          hyperlinkMode,
-          sourceReader: readPreview.sourceReader,
-          sourcePreview: section.mode === 'code' ? readPreview(hit, {
-            queryTokens, maxLines: index < section.fullCount ? 8 : 3,
-            maxChars: index < section.fullCount ? 1600 : 600
-          }) : null
-        };
-        if (index < section.fullCount) {
-          outputStream.write(formatFullChunk({
-            ...formatArgs,
-            rootDir: section.mode === 'records' ? null : rootDir,
-            summaryState,
-            allowSummary
-          }));
-        } else {
-          outputStream.write(formatShortChunk({
-            ...formatArgs,
-            rootDir: section.mode === 'records' ? null : rootDir
-          }));
-        }
-      });
-      writeLine(outputStream);
-    }
-
-    if (process.stdout.isTTY === true) {
-      const hints = [!explain ? '--explain scores' : null, explainTier !== 'full' ? '--why details' : null,
-        '--json structured output', 'search --help options'].filter(Boolean);
-      writeLine(outputStream, colorText(`More: ${hints.join('; ')}.`, ANSI.fgDarkGray));
-      writeLine(outputStream);
-    }
-
-    if (showStats) {
-      const proseCount = idxProse?.chunkMeta?.length ?? 0;
-      const codeCount = idxCode?.chunkMeta?.length ?? 0;
-      const extractedProseCount = idxExtractedProse?.chunkMeta?.length ?? 0;
-      const recordsCount = idxRecords?.chunkMeta?.length ?? 0;
-      const cacheTag = cacheInfo.enabled ? (cacheInfo.hit ? 'cache=hit' : 'cache=miss') : 'cache=off';
-      const statsParts = [
-        `prose chunks=${proseCount}`,
-        `code chunks=${codeCount}`,
-        runExtractedProse ? `extracted-prose chunks=${extractedProseCount}` : null,
-        runRecords ? `records chunks=${recordsCount}` : null,
-        `(${cacheTag})`
-      ].filter(Boolean);
-      if (explain && backendPolicyInfo?.reason) {
-        statsParts.push(`backend=${backendLabel}`);
-        statsParts.push(`policy=${backendPolicyInfo.reason}`);
-      }
-      writeLine(outputStream, color.gray(`Stats: ${statsParts.join(', ')}`));
-    }
-
-    const diagnostics = normalizeDiagnosticEntries(profileInfo).map((entry) => Object.fromEntries(
-      Object.entries(entry).map(([key, value]) => [key, typeof value === 'string' ? sanitizeTerminalText(value, { multiline: false }) : value])
-    ));
-    if (diagnostics.length) {
-      writeLine(outputStream, makeSectionHeader({
-        label: 'Diagnostics',
-        count: diagnostics.length,
-        color,
-        layout
-      }));
-      for (const entry of diagnostics) {
-        for (const line of formatDiagnosticEntry(entry, { layout, color })) {
+          queryLabel,
+          renderedModeLabels,
+          diagnostics: outputPayload.retrieval?.emptyResults || []
+        })) {
           writeLine(outputStream, line);
         }
+        writeLine(outputStream);
       }
-      writeLine(outputStream);
+
+      for (const section of sectionInputs) {
+        writeLine(outputStream, makeSectionHeader({
+          label: section.label,
+          count: section.hits.length,
+          color,
+          layout
+        }));
+        const summaryState = section.mode === 'records' ? null : { lastCount: 0 };
+        section.hits.forEach((hit, index) => {
+          const formatArgs = {
+            chunk: hit,
+            index,
+            mode: section.mode,
+            score: hit.score,
+            scoreType: hit.scoreType,
+            explain,
+            explainTier,
+            color,
+            queryTokens,
+            rx: highlightRegex,
+            matched: showMatched,
+            layout,
+            hyperlinkMode,
+            sourceReader: readPreview.sourceReader,
+            sourcePreview: section.mode === 'code' ? readPreview(hit, {
+              queryTokens, maxLines: index < section.fullCount ? 8 : 3,
+              maxChars: index < section.fullCount ? 1600 : 600
+            }) : null
+          };
+          if (index < section.fullCount) {
+            outputStream.write(formatFullChunk({
+              ...formatArgs,
+              rootDir: section.mode === 'records' ? null : rootDir,
+              summaryState,
+              allowSummary
+            }));
+          } else {
+            outputStream.write(formatShortChunk({
+              ...formatArgs,
+              rootDir: section.mode === 'records' ? null : rootDir
+            }));
+          }
+        });
+        writeLine(outputStream);
+      }
+
+      if (process.stdout.isTTY === true) {
+        const hints = [!explain ? '--explain scores' : null, explainTier !== 'full' ? '--why details' : null,
+          '--json structured output', 'search --help options'].filter(Boolean);
+        writeLine(outputStream, colorText(`More: ${hints.join('; ')}.`, ANSI.fgDarkGray));
+        writeLine(outputStream);
+      }
+
+      if (showStats) {
+        const { prose: proseCount, code: codeCount, extractedProse: extractedProseCount, records: recordsCount } = chunkCounts;
+        const cacheTag = cacheInfo.enabled ? (cacheInfo.hit ? 'cache=hit' : 'cache=miss') : 'cache=off';
+        const statsParts = [
+          `prose chunks=${proseCount}`,
+          `code chunks=${codeCount}`,
+          runExtractedProse ? `extracted-prose chunks=${extractedProseCount}` : null,
+          runRecords ? `records chunks=${recordsCount}` : null,
+          `(${cacheTag})`
+        ].filter(Boolean);
+        if (explain && backendPolicyInfo?.reason) {
+          statsParts.push(`backend=${backendLabel}`);
+          statsParts.push(`policy=${backendPolicyInfo.reason}`);
+        }
+        writeLine(outputStream, color.gray(`Stats: ${statsParts.join(', ')}`));
+      }
+
+      const diagnostics = normalizeDiagnosticEntries(profileInfo).map((entry) => Object.fromEntries(
+        Object.entries(entry).map(([key, value]) => [key, typeof value === 'string' ? sanitizeTerminalText(value, { multiline: false }) : value])
+      ));
+      if (diagnostics.length) {
+        writeLine(outputStream, makeSectionHeader({
+          label: 'Diagnostics',
+          count: diagnostics.length,
+          color,
+          layout
+        }));
+        for (const entry of diagnostics) {
+          for (const line of formatDiagnosticEntry(entry, { layout, color })) {
+            writeLine(outputStream, line);
+          }
+        }
+        writeLine(outputStream);
+      }
     }
-  }
 
-  const outputCacheReporter = getOutputCacheReporter();
-  if (emitOutput && verboseCache && outputCacheReporter) {
-    outputCacheReporter.report();
-  }
+    const outputCacheReporter = getOutputCacheReporter();
+    if (emitOutput && verboseCache && outputCacheReporter) {
+      outputCacheReporter.report();
+    }
 
-  return outputPayload;
+  };
+  return Object.freeze({ payload: outputPayload, emit });
+}
+
+/** Existing synchronous renderer retains its return value and output behavior. */
+export function renderSearchOutput(input) {
+  const prepared = prepareSearchOutput(input);
+  prepared.emit();
+  return prepared.payload;
 }
