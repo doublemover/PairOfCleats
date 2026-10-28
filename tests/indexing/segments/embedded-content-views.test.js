@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { parseDocument } from 'yaml';
 import { createHash } from 'node:crypto';
 import { discoverSegments, chunkSegments, assignSegmentUids } from '../../../src/index/segments.js';
 import { extractComments, normalizeCommentConfig } from '../../../src/index/comments.js';
@@ -71,8 +72,13 @@ if (fixtures[selected]) {
   const chunks = jsonChunks(text, [segment], ext);
   assert.ok(chunks.length, 'logical content reaches the real language chunker');
   if (segment.languageId === 'json') assertKeys(text, chunks);
-  if (selected.includes('yaml')) assert.ok(chunks.some(chunk => chunk.name?.includes('child')),
-    'nested YAML remains a nested authored config key');
+  if (selected.includes('yaml')) {
+    assert.equal(chunks.length, 1, 'the configured YAML root mode retains one config section');
+    const document = parseDocument(readChunkContent(text, chunks[0]));
+    assert.deepEqual(document.errors, []);
+    assert.equal(document.getIn(['root', 'child']), true, 'authored indentation preserves the nested key');
+    assert.equal(document.getIn(['root', 'sibling']), false);
+  }
   if (ext !== '.md') {
     assert.equal(result.data.configAdmission.accepted, 1);
     assert.equal(result.data.configAdmission.parsedBytes, Buffer.byteLength(expected));

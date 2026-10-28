@@ -46,7 +46,16 @@ export const collectMarkdownSegments = (text, config) => {
       if (action === 'enter' && !current.inFence && current.fenceCount === 1) {
         if (token.type === 'lineEnding' || token.type === 'lineEndingBlank') {
           if (current.firstBreak) current.firstBreak = false;
-          else { append(token.start.offset, token.end.offset); current.lastBreak = token.start.offset; }
+          else {
+            // Micromark's end offset can include the next line's skipped host
+            // prefix. Its serialized EOL identifies only the authored newline.
+            const ending = tokenContext.sliceSerialize(token);
+            const end = token.start.offset + ending.length;
+            if (!/^(?:\r\n|\r|\n)$/u.test(ending) || end > token.end.offset
+              || text.slice(token.start.offset, end) !== ending) current.unavailable = 'non-source-preserving-markdown-content';
+            else append(token.start.offset, end);
+            current.lastBreak = token.start.offset;
+          }
         } else if (token.type === 'codeFlowValue') {
           const original = text.slice(token.start.offset, token.end.offset);
           // Partial tab expansion or preprocessing replacement needs generated
