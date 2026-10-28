@@ -3506,11 +3506,13 @@
       "number": 1146,
       "unvalidatedSourceHeads": [
         "d60d3cd10472a7dff0ab37764f5026d14107b970",
-        "cf969e46d74f6b99d1f56f142ed298efc4b60c91"
+        "cf969e46d74f6b99d1f56f142ed298efc4b60c91",
+        "da87a022ec8a3e75068b3ad69805b3bf38863338"
       ],
       "unvalidatedReceipts": [
         "provider-invocation-implementation-2026-10-27.md",
-        "provider-execution-snapshot-implementation-2026-10-28.md"
+        "provider-execution-snapshot-implementation-2026-10-28.md",
+        "command-selection-preparation-implementation-2026-10-28.md"
       ],
       "currentImplementation": "Durable profiles require a privately registered captured execution owner matching actual source/target/configuration and observed profile identity. Mismatched/absent owners remain unqualified live; exact invocation witnesses gate caching. Thirteen cases are authored, unexecuted; built-in command/module/environment/project wiring and reporting reconciliation remain.",
       "title": "Bind provider tool profiles to observed executable and project identities",
@@ -3525,6 +3527,11 @@
           "sourceHead": "cf969e46d74f6b99d1f56f142ed298efc4b60c91",
           "receipt": "provider-execution-snapshot-implementation-2026-10-28.md",
           "implementation": "Private immutable execution snapshots bind environment/cwd, observed command/module selection, runtime and project context into version 2 invocation cache identity. Original result ownership survives post-verification failure and projection. Thirteen new controls are authored/unexecuted; actual built-in launch binding and SDK/doctor reconciliation remain."
+        },
+        {
+          "sourceHead": "da87a022ec8a3e75068b3ad69805b3bf38863338",
+          "receipt": "command-selection-preparation-implementation-2026-10-28.md",
+          "implementation": "Read-only command selection shares actual bounded discovery and execution-authority policy with real preflight, without probes or children. Eight controls are authored and unexecuted. Actual built-in launch binding remains source work."
         }
       ]
     },

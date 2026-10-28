@@ -102,6 +102,8 @@ PR #572 metadata was refreshed and read back at checkpoint `1ce60bb59` (160 loca
 
 - [Provider execution snapshots](provider-execution-snapshot-implementation-2026-10-28.md): environment/cwd, observed command/module and runtime/project context enter version 2 invocation identity; original result ownership survives later checks. Thirteen new controls are authored, unexecuted; built-in binding and doctor reconciliation remain (#1146).
 
+- [Read-only command preparation](command-selection-preparation-implementation-2026-10-28.md): one discovery/policy owner serves immutable preparation and real preflight; eligibility is explicitly unprobed. Eight controls authored, unexecuted; actual built-in binding remains.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.

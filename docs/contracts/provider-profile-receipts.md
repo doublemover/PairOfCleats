@@ -54,6 +54,13 @@ and same-version tool bytes, policy drift, failed/pending execution, coalescing
 and serialized-capability refusal. These are authored coverage, not execution or
 real-tool qualification.
 
+Built-in preparation can select commands through the same read-only discovery
+and policy owner as real preflight, using `resolveToolingCommandSelection`.
+Eligible selection has `probe.ok: null` and no attempted probes; it is not runtime
+qualification. Real `resolveToolingCommandProfile` performs its existing probe
+after that shared selection. Repository/workspace authority still applies before
+either result can reach a launch owner.
+
 Thirteen additional unexecuted `tooling/providers/provider-execution-snapshot/*`
 controls cover launch-input identity, module/command mismatch, private immutable
 environment, coalescing and original result ownership during later verification.
