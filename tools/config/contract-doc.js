@@ -182,6 +182,7 @@ export const buildConfigContractDoc = (options = {}) => {
   lines.push('');
   lines.push('- `--renderedTokenBudget` (JSON string, absent by default): pinned local tokenizer profile and independent exact rendered-text allowance.');
   lines.push('- CLI/MCP/HTTP share `renderedTokenBudget`; exact counting includes the versioned text envelope and declared reserved overhead.');
+  lines.push('- `--evidenceSelection` (JSON string, absent by default): bounded single-repository experimental top-k, MMR, role-coverage or facility-location selection over verified intact units; requires edit-safe task and exact rendered-token accounting.');
   lines.push('- Unsupported profiles, unavailable bounded counting, token overflow and complete-response byte overflow fail explicitly.');
   lines.push('- See `docs/guides/context-token-budget.md` for profile authority, engine/version, limits and envelope exclusions.');
   lines.push('');

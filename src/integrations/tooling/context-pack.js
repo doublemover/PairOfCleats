@@ -31,6 +31,17 @@ import { CONTEXT_PACK_RISK_FIELD_SCOPES, CONTEXT_PACK_RISK_FEDERATED_REPO_LIMIT 
 
 const DEFAULT_MAX_FEDERATED_CONTEXT_PACK_REPOS = 4;
 const MAX_FEDERATED_CONTEXT_PACK_REPOS = CONTEXT_PACK_RISK_FEDERATED_REPO_LIMIT;
+const selectedCounts = new WeakMap();
+const requestStarts = new WeakMap();
+const evidenceComparisonSink = Symbol('evidenceControlComparison');
+
+const remainingTokenDeadline = (input, context) => {
+  const remaining = Number.isFinite(input.maxWallClockMs)
+    ? input.maxWallClockMs - (performance.now() - requestStarts.get(context)) : 10000;
+  if (remaining <= 0) throw createContextPackRequestError('ERR_CONTEXT_PACK_TOKENIZER_UNAVAILABLE',
+    'Exact token accounting has no remaining deadline.', 422);
+  return remaining;
+};
 
 const createContextPackRequestError = (code, message, status = 400) => {
   const error = new Error(message);
@@ -424,6 +435,18 @@ async function buildSingleRepoCompositeContextPackPayload(input = {}, context = 
   if (input.includeSemantic === true) payload = attachSemanticContextSection(payload,
     await buildSemanticContextSection({ repoRoot, indexDir, primary: payload.primary, userConfig, signal: context.signal }));
 
+  if (input.evidenceSelection) {
+    payload = enforceContextPackResponseBudget(payload, input);
+    if (!payload.graph) throw createContextPackRequestError('ERR_CONTEXT_PACK_INVALID_REQUEST',
+      'Evidence selection requires retained graph candidates.');
+    const { applyContextEvidenceSelection } = await import('../../context-pack/evidence-selection.js');
+    const counted = await applyContextEvidenceSelection({ payload, chunkIndex, repoRoot, taskPolicy: input.taskPolicy,
+      policy: input.evidenceSelection, tokenPolicy: input.renderedTokenBudget, signal: context.signal,
+      timeoutMs: remainingTokenDeadline(input, context), compareControls: typeof context[evidenceComparisonSink] === 'function' });
+    selectedCounts.set(context, counted);
+    payload = counted.payload;
+  }
+
   const validation = validateCompositeContextPack(payload);
   if (!validation.ok) {
     throw createContextPackRequestError(
@@ -437,6 +460,8 @@ async function buildSingleRepoCompositeContextPackPayload(input = {}, context = 
 }
 
 export async function buildFederatedCompositeContextPackPayload(input = {}, context = {}) {
+  if (input.evidenceSelection !== undefined) throw createContextPackRequestError('ERR_CONTEXT_PACK_INVALID_REQUEST',
+    'Evidence selection currently requires a single repository.');
   input = { ...input, taskPolicy: resolveContextTaskPolicy(input.taskPolicy) };
   context = { ...context };
   const workspaceConfig = resolveWorkspaceConfigForContextPack(input, context);
@@ -577,10 +602,18 @@ export async function buildCompositeContextPackPayload(input = {}, context = {})
   context = { ...context };
   throwIfAborted(context.signal);
   const started = performance.now();
+  requestStarts.set(context, started);
   input = { ...input, taskPolicy: resolveContextTaskPolicy(input.taskPolicy),
     renderedTokenBudget: resolveRenderedTokenBudget(input.renderedTokenBudget) };
   if (input.renderedTokenBudget && !input.repoRoot) {
     throw createContextPackRequestError('ERR_CONTEXT_PACK_INVALID_REQUEST', 'Exact token accounting requires an explicit repository for local profile authority.');
+  }
+  if (input.evidenceSelection !== undefined) {
+    const { resolveEvidenceSelectionPolicy } = await import('../../context-pack/evidence-selection-policy.js');
+    input.evidenceSelection = resolveEvidenceSelectionPolicy(input.evidenceSelection);
+    if (input.taskPolicy?.task !== 'edit-safe' || !input.renderedTokenBudget || input.includeGraph === false
+      || shouldUseFederatedContextPack(input)) throw createContextPackRequestError('ERR_CONTEXT_PACK_INVALID_REQUEST',
+      'Evidence selection requires one explicit repository, edit-safe task policy, graph candidates and exact renderedTokenBudget.');
   }
   const payload = shouldUseFederatedContextPack(input)
     ? await buildFederatedCompositeContextPackPayload(input, context)
@@ -591,19 +624,34 @@ export async function buildCompositeContextPackPayload(input = {}, context = {})
     throw error;
   }
   throwIfAborted(context.signal);
-  const bounded = enforceContextPackResponseBudget(payload, input);
-  let counted = { payload: bounded, publish: () => {} };
-  if (input.renderedTokenBudget) {
-    const remaining = Number.isFinite(input.maxWallClockMs) ? input.maxWallClockMs - (performance.now() - started) : 10000;
-    if (remaining <= 0) throw createContextPackRequestError('ERR_CONTEXT_PACK_TOKENIZER_UNAVAILABLE', 'Exact token accounting has no remaining deadline.', 422);
+  const selected = selectedCounts.get(context);
+  const bounded = selected ? payload : enforceContextPackResponseBudget(payload, input);
+  let counted = selected || { payload: bounded, publish: () => {} };
+  if (input.renderedTokenBudget && !selected) {
+    const remaining = remainingTokenDeadline(input, context);
     const { applyRenderedTokenBudget } = await import('../../context-pack/rendered-token-budget.js');
     counted = await applyRenderedTokenBudget(bounded, input.renderedTokenBudget, { repoRoot: input.repoRoot,
       taskPolicy: input.taskPolicy, signal: context.signal, timeoutMs: remaining });
   }
   const validation = validateCompositeContextPack(counted.payload);
   if (!validation.ok) throw createContextPackRequestError('ERR_CONTEXT_PACK_SCHEMA', validation.errors.join('; '), 500);
+  if (counted.comparison) for (const row of counted.comparison) {
+    const checked = validateCompositeContextPack(row.payload);
+    if (!checked.ok) throw createContextPackRequestError('ERR_CONTEXT_PACK_SCHEMA', checked.errors.join('; '), 500);
+  }
   throwIfAborted(context.signal); counted.publish();
+  if (counted.comparison) context[evidenceComparisonSink](counted.comparison);
   return counted.payload;
+}
+
+/** Internal evaluation entry point: one source-qualified frozen pool and local
+ * tokenizer invocation, four independent bounded controls. No new CLI/API knob. */
+export async function buildContextEvidenceControlComparison(input = {}, context = {}) {
+  if (!input.evidenceSelection) throw createContextPackRequestError('ERR_CONTEXT_PACK_INVALID_REQUEST',
+    'Evidence control comparison requires an explicit selection policy.');
+  let comparison;
+  await buildCompositeContextPackPayload(input, { ...context, [evidenceComparisonSink]: value => { comparison = value; } });
+  return comparison;
 }
 
 /**

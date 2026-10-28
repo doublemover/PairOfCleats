@@ -24,7 +24,7 @@ Actual advertised MCP schema, HTTP validator, shared builder and canonical CLI
 fixtures cover lists, metadata, backends, integer bounds, absent/null/zero and the
 intentional transport differences. They have not executed.
 
-The MCP schema snapshot is now at 1.10.1, including these value domains and later
+The MCP schema snapshot is now at 1.11.0, including these value domains and later
 context/semantic contract changes. Regenerate it with
 `node tools/docs/generated-surfaces.js --refresh --surface mcp-tool-schema`;
 the shared freshness gate compares it with the authoritative definitions.

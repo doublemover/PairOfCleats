@@ -1,5 +1,6 @@
 import { CONTEXT_TASK_POLICY_SCHEMA } from '../../contracts/schemas/context-task.js';
 import { CONTEXT_RENDERED_TOKEN_BUDGET_SCHEMA } from '../../contracts/schemas/context-token-budget.js';
+import { CONTEXT_EVIDENCE_SELECTION_SCHEMA } from '../../contracts/schemas/context-evidence-selection.js';
 import { buildSearchRequestProperties } from '../../shared/search-request-schema.js';
 import { SEMANTIC_TRACE_REQUEST_SCHEMA } from '../../contracts/schemas/semantic-trace.js';
 import { SEMANTIC_FIND_REQUEST_SCHEMA } from '../../contracts/schemas/semantic-find.js';
@@ -12,7 +13,7 @@ import { GRAPH_EVIDENCE_REQUEST_SCHEMA } from '../../contracts/schemas/graph-evi
 import { getToolVersion } from '../../../tools/dict-utils/tool.js';
 import { SEARCH_REQUEST_REQUIREMENT } from '../../shared/search-request.js';
 
-export const MCP_SCHEMA_VERSION = '1.10.1';
+export const MCP_SCHEMA_VERSION = '1.11.0';
 
 const STRING_OR_STRING_ARRAY_SCHEMA = Object.freeze({
   anyOf: [
@@ -199,6 +200,7 @@ export function getToolDefs(defaultModelId) {
             seed: { type: 'string', description: 'Chunk/file/symbol seed reference.' },
             taskPolicy: CONTEXT_TASK_POLICY_SCHEMA,
             renderedTokenBudget: CONTEXT_RENDERED_TOKEN_BUDGET_SCHEMA,
+            evidenceSelection: CONTEXT_EVIDENCE_SELECTION_SCHEMA,
             pathSemantics: { enum: ['graph-witness'] },
             hops: { type: 'number', description: 'Neighborhood depth.' },
             includeGraph: { type: 'boolean' },

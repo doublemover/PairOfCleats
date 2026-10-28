@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["source", "file-units", "drift", "aliases", "duplicate-looking", "ambiguous-uid", "ambiguous-primary", "missing-source", "missing-roles", "pool-cap", "candidate-cap", "zero", "one", "exact-limit", "one-under", "mandatory-overflow", "cancelled", "projection", "comparison"]
+}

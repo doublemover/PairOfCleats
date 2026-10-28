@@ -1,6 +1,7 @@
 import { SEMANTIC_CONTEXT_SCHEMA, SEMANTIC_CONTEXT_FEDERATION_SCHEMA } from '../semantic-context.js';
 import { CONTEXT_TASK_POLICY_SCHEMA, CONTEXT_EDIT_UNIT_SCHEMA } from '../context-task.js';
 import { CONTEXT_TOKEN_ACCOUNTING_SCHEMA } from '../context-token-budget.js';
+import { CONTEXT_EVIDENCE_SET_SCHEMA } from '../context-evidence-selection.js';
 import {
   CONTEXT_PACK_RISK_CONTRACT_VERSION,
   CONTEXT_PACK_RISK_SCHEMA_VERSION
@@ -45,11 +46,13 @@ const includedSemanticEvidence = state => ({
 export const COMPOSITE_CONTEXT_PACK_SCHEMA = {
   type: 'object',
   required: ['version', 'seed', 'primary', 'provenance', 'evidence'],
-  dependencies: { renderedContext: ['tokenAccounting'], tokenAccounting: ['renderedContext'] },
+  dependencies: { renderedContext: ['tokenAccounting'], tokenAccounting: ['renderedContext'],
+    evidenceSelection: ['renderedContext', 'tokenAccounting', 'graph'] },
   properties: {
     version: semverString,
     renderedContext: { type: 'string', maxLength: 131072 },
     tokenAccounting: CONTEXT_TOKEN_ACCOUNTING_SCHEMA,
+    evidenceSelection: CONTEXT_EVIDENCE_SET_SCHEMA,
     seed: seedRefSchema,
     provenance: provenanceSchema,
     primary: {
@@ -118,6 +121,8 @@ export const COMPOSITE_CONTEXT_PACK_SCHEMA = {
       required: ['schemaVersion'],
       properties: {
         schemaVersion: { type: 'number' },
+        selection: { type: 'object', additionalProperties: false, required: ['included', 'state', 'heuristic'],
+          properties: { included: { const: true }, state: { enum: ['selected', 'partial'] }, heuristic: { const: true } } },
         policy: {
           type: 'object',
           required: ['strictEvidence'],
@@ -199,6 +204,18 @@ export const COMPOSITE_CONTEXT_PACK_SCHEMA = {
   // Keep direct schema consumers and the runtime validator on the same
   // inclusion contract after optional response-budget omission.
   allOf: [
+    {
+      if: { type: 'object', required: ['evidenceSelection'], properties: { evidenceSelection: {} } },
+      then: { type: 'object', properties: {
+        graph: { type: 'object' },
+        evidence: { type: 'object', required: ['selection', 'policy'], properties: {
+          selection: { type: 'object' },
+          policy: { type: 'object', required: ['taskPolicy'], properties: {
+            taskPolicy: { type: 'object', required: ['task'], properties: { task: { const: 'edit-safe' } } }
+          } }
+        } }
+      } }
+    },
     {
       if: { type: 'object', properties: { evidence: { type: 'object', required: ['policy'], properties: {
         policy: { type: 'object', required: ['taskPolicy'], properties: {

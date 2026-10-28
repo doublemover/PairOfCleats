@@ -116,6 +116,7 @@ export const CONTEXT_PACK_OPTIONS = {
   granularity: { type: 'string', choices: ['file', 'function', 'excerpt'] },
   wholeFileFallback: { type: 'boolean' },
   renderedTokenBudget: { type: 'string' },
+  evidenceSelection: { type: 'string' },
   pathSemantics: { type: 'string', choices: ['graph-witness'] },
   repo: { type: 'string' },
   seed: { type: 'string' },

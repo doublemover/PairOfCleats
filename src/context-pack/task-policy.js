@@ -27,7 +27,7 @@ export const resolveContextTaskPolicy = input => {
  * snapshot. Neither a name nor a containing interval proves a patch target.
  */
 export const buildTaskPrimaryExcerpt = ({ taskPolicy, chunk, seed, repoRoot, indexSignature, maxBytes, maxTokens,
-  signal, warnings, checkDeadline, maxWorkUnits }) => {
+  signal, warnings, checkDeadline, maxWorkUnits, onWork }) => {
   throwIfAborted(signal);
   if (!chunk?.file || seed?.status && seed.status !== 'resolved') throw failure('ERR_CONTEXT_PACK_UNIT_UNAVAILABLE', 'Edit-safe primary requires one unambiguous indexed source file.');
   const indexedHash = chunk.fileHash || chunk.metaV2?.fileHash;
@@ -38,7 +38,7 @@ export const buildTaskPrimaryExcerpt = ({ taskPolicy, chunk, seed, repoRoot, ind
   const functionRequested = taskPolicy.granularity === 'function';
   let fallbackUsed = false;
   const selectRange = functionRequested ? text => {
-    try { return selectCompleteFunctionUnit({ text, chunk, signal, checkDeadline, maxWorkUnits }); }
+    try { return selectCompleteFunctionUnit({ text, chunk, signal, checkDeadline, maxWorkUnits, onWork }); }
     catch (error) {
       const diagnostic = describeStorageFailure(error, { phase: 'context-function-unit' });
       if (!taskPolicy.wholeFileFallback || diagnostic.code !== 'ERR_CONTEXT_PACK_UNIT_UNAVAILABLE') throw error;

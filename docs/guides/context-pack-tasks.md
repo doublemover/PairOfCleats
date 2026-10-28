@@ -68,6 +68,9 @@ caches local to the request, publishing no derived files into historical index
 roots and no incomplete edit result into shared caches.
 
 The central CLI admits `--task`, `--granularity` and `--wholeFileFallback`.
+[Bounded evidence-set selection](context-evidence-selection.md) can add verified
+intact optional units under an exact rendered budget. Its default remains absent.
+
 [Exact rendered token budgeting](context-token-budget.md) is a separate opt-in
 that preserves these intact units. Runtime function-boundary/surface
 acceptance and production-corpus/patch-application comparisons remain

@@ -131,7 +131,9 @@ ownership are specified in [legacy output lifetime](mcp-output-lifetime.md).
 
 ### Tool schema versioning
 
-The current source catalog is 1.10.1. `graph_evidence` explicitly declares an
+The current source catalog is 1.11.0. `context_pack` declares the optional bounded
+`evidenceSelection` policy; see [selection semantics](../guides/context-evidence-selection.md).
+`graph_evidence` explicitly declares an
 object root for MCP SDK interoperability, preserving its existing `oneOf`
 branches and strict request validators. Real SDK discovery, search/context and
 cancellation checks pass at the October 24 repair checkpoint. Its additive opt-in semantic

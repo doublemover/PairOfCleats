@@ -36,13 +36,17 @@ export const resolveSeedCandidates = (seed) => {
 export const buildChunkIndex = (chunkMeta, { repoRoot = null } = {}) => {
   if (!Array.isArray(chunkMeta)) return null;
   const byChunkUid = new Map();
+  const ambiguousChunkUids = new Set();
   const byFile = new Map();
   const bySymbol = new Map();
   for (const chunk of chunkMeta) {
     if (!chunk) continue;
     const entry = { ...chunk };
     const chunkUid = entry.chunkUid || entry.metaV2?.chunkUid || null;
-    if (chunkUid && !byChunkUid.has(chunkUid)) byChunkUid.set(chunkUid, entry);
+    if (chunkUid) {
+      if (!byChunkUid.has(chunkUid)) byChunkUid.set(chunkUid, entry);
+      else ambiguousChunkUids.add(chunkUid);
+    }
     const normalizedFile = normalizePathForRepo(entry.file, repoRoot);
     if (normalizedFile) {
       const list = byFile.get(normalizedFile) || [];
@@ -54,6 +58,7 @@ export const buildChunkIndex = (chunkMeta, { repoRoot = null } = {}) => {
   }
   return {
     byChunkUid,
+    ambiguousChunkUids,
     byFile,
     bySymbol,
     normalizePath: (value) => normalizePathForRepo(value, repoRoot)

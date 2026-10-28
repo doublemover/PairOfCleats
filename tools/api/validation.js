@@ -1,6 +1,7 @@
 import { buildSearchRequestProperties, createSearchStringListSchema } from '../../src/shared/search-request-schema.js';
 import { CONTEXT_TASK_POLICY_SCHEMA } from '../../src/contracts/schemas/context-task.js';
 import { CONTEXT_RENDERED_TOKEN_BUDGET_SCHEMA } from '../../src/contracts/schemas/context-token-budget.js';
+import { CONTEXT_EVIDENCE_SELECTION_SCHEMA } from '../../src/contracts/schemas/context-evidence-selection.js';
 import { validateFederatedSearchAdmission } from '../../src/retrieval/federation/request.js';
 import { cloneJsonSchema, compileSchema, createAjv } from '../../src/shared/validation/ajv-factory.js';
 import {
@@ -177,6 +178,7 @@ const contextPackSchema = {
     pathSemantics: { const: 'graph-witness' },
     taskPolicy: CONTEXT_TASK_POLICY_SCHEMA,
     renderedTokenBudget: CONTEXT_RENDERED_TOKEN_BUDGET_SCHEMA,
+    evidenceSelection: CONTEXT_EVIDENCE_SELECTION_SCHEMA,
     includeImports: { type: 'boolean' },
     includeUsages: { type: 'boolean' },
     includeCallersCallees: { type: 'boolean' },

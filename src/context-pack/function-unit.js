@@ -17,7 +17,7 @@ const equal = (left, right) => left && right && left[0] === right[0] && left[1] 
  * single-binding/export associations. Containment/name alone is insufficient:
  * a split fragment cannot silently acquire a different nested function owner.
  */
-export const selectCompleteFunctionUnit = ({ text, chunk, signal, checkDeadline = () => {}, maxWorkUnits = null }) => {
+export const selectCompleteFunctionUnit = ({ text, chunk, signal, checkDeadline = () => {}, maxWorkUnits = null, onWork }) => {
   throwIfAborted(signal); checkDeadline();
   const ext = path.extname(chunk.file).toLowerCase();
   if (!extensions.has(ext)) throw unavailable('This source dialect has no qualified complete-function adapter.');
@@ -38,6 +38,7 @@ export const selectCompleteFunctionUnit = ({ text, chunk, signal, checkDeadline 
   let visited = 0;
   while (pending.length) {
     if (++visited > limit) throw unavailable('Complete-function qualification exhausted its traversal allowance.');
+    onWork?.();
     if (visited % 128 === 0) { throwIfAborted(signal); checkDeadline(); }
     const { node, parent, grandparent, greatGrandparent } = pending.pop();
     if (callables.has(node.type) && node.body) {

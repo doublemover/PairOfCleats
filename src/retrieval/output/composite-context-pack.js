@@ -213,6 +213,16 @@ export const renderCompositeContextPackJson = (payload, options = {}) => {
 export const renderCompositeContextPack = (payload) => {
   const sections = [];
   sections.push(renderPrimary(payload?.primary).join('\n'));
+  if (payload?.evidenceSelection) {
+    const selection = payload.evidenceSelection;
+    const lines = ['Optional evidence set (' + selection.selectorVersion + ')',
+      'Control: ' + selection.policy.algorithm, 'Policy: ' + selection.policyDigest,
+      'Role evidence: ' + selection.roleVersion + '; similarity: ' + selection.similarityVersion,
+      'Selection is bounded and heuristic. JSON records costs, omissions and the coverage frontier.'];
+    for (const entry of selection.selected) lines.push(['Evidence ' + entry.id,
+      'Graph roles: ' + (entry.roles.join(', ') || 'unavailable'), ...renderPrimary(entry).slice(1)].join('\n'));
+    sections.push(lines.join('\n\n'));
+  }
   if (payload?.graph) {
     sections.push(renderGraphContextPack(payload.graph));
   }

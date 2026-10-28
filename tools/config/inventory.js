@@ -74,6 +74,7 @@ const PUBLIC_CLI_FLAGS = new Set([
   'output',
   'pathSemantics',
   'renderedTokenBudget',
+  'evidenceSelection',
   'port',
   'quality',
   'queue',
@@ -300,7 +301,7 @@ const KNOWN_ENV_VARS = new Set([
 const BUDGETS = {
   configKeys: 5,
   envVars: 1,
-  cliFlags: 78
+  cliFlags: 79
 };
 const PUBLIC_FLAG_SOURCES = new Set([
   'bin/pairofcleats.js',

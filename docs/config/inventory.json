@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-28T06:46:22.635Z",
+  "generatedAt": "2026-10-28T07:29:43.525Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
-    "cliFlags": 78
+    "cliFlags": 79
   },
   "allowlists": {
     "configKeys": [
@@ -30,6 +30,7 @@
       "cors-allow-any",
       "cors-allowed-origins",
       "dry-run",
+      "evidenceSelection",
       "explain",
       "filter",
       "flow-id",
@@ -4650,6 +4651,9 @@
         "tests/cli/search/helpers/missing-value-flags.js",
         "tests/context-pack/complete-function-surfaces.test.js",
         "tests/context-pack/complete-function-unit.test.js",
+        "tests/context-pack/evidence-selection-source.test.js",
+        "tests/context-pack/evidence-selection-surfaces.test.js",
+        "tests/context-pack/evidence-set-selector.test.js",
         "tests/context-pack/graph-selection.test.js",
         "tests/context-pack/rendered-token-budget.test.js",
         "tests/context-pack/rendered-token-surfaces.test.js",
@@ -5671,7 +5675,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 502,
+    "totalFlags": 503,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -5686,6 +5690,7 @@
       "cors-allow-any",
       "cors-allowed-origins",
       "dry-run",
+      "evidenceSelection",
       "filter",
       "flow-id",
       "format",
@@ -6191,6 +6196,7 @@
       "cors-allow-any",
       "cors-allowed-origins",
       "dry-run",
+      "evidenceSelection",
       "flow-id",
       "format",
       "granularity",
@@ -6275,6 +6281,7 @@
           "cors-allow-any",
           "cors-allowed-origins",
           "dry-run",
+          "evidenceSelection",
           "flow-id",
           "format",
           "granularity",

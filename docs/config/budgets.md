@@ -27,13 +27,17 @@ runtime security boundary.
 
 - Public config keys: 5
 - Public env vars: 1
-- Public entry-point CLI flags: 78
+- Public entry-point CLI flags: 79
 
 Current total/schema/internal counts are generated in `docs/config/inventory.md`
 and `docs/config/inventory.json`; do not duplicate a stale snapshot here.
 
-The 2026-10-28 budget of 78 includes the previously reviewed task/path options
-(77), plus `--renderedTokenBudget` for #1125. This JSON option defaults absent
+The 2026-10-28 budget of 79 includes the previously reviewed task/path options
+(77), plus `--renderedTokenBudget` for #1125 and `--evidenceSelection` for #1126. Both JSON options default absent.
+The latter explicitly chooses a bounded experimental set-selection control over
+source-qualified graph candidates; its role and lexical similarity heuristics
+cannot be inferred from hardware policy. Pure controls, source/admission,
+contract and cross-surface fixtures own its qualification. The tokenizer option
 and binds a caller-selected exact allowance to a pinned local tokenizer profile.
 It cannot be inferred from automatic hardware policy. No config key or environment
 variable is added. Request/schema, exact-count, authority and cross-surface fixtures

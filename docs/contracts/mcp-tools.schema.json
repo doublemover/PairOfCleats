@@ -1,5 +1,5 @@
 {
-  "schemaVersion": "1.10.1",
+  "schemaVersion": "1.11.0",
   "tools": [
     {
       "name": "bootstrap",
@@ -395,6 +395,67 @@
                     "const": "huggingface-tokenizers-0.2.0-v1"
                   }
                 }
+              }
+            }
+          },
+          "evidenceSelection": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "schemaVersion",
+              "algorithm"
+            ],
+            "properties": {
+              "schemaVersion": {
+                "const": 1
+              },
+              "algorithm": {
+                "enum": [
+                  "top-k",
+                  "mmr",
+                  "role-coverage",
+                  "facility-location"
+                ]
+              },
+              "maxCandidates": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 64
+              },
+              "maxSelected": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 16
+              },
+              "maxPairwise": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4096
+              },
+              "maxWorkUnits": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 262144
+              },
+              "maxWallClockMs": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 10000
+              },
+              "maxPoolBytes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 524288
+              },
+              "maxMeasurements": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 128
+              },
+              "lambda": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
               }
             }
           },

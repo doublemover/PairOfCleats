@@ -566,6 +566,7 @@ Notes:
 
 - `--renderedTokenBudget` (JSON string, absent by default): pinned local tokenizer profile and independent exact rendered-text allowance.
 - CLI/MCP/HTTP share `renderedTokenBudget`; exact counting includes the versioned text envelope and declared reserved overhead.
+- `--evidenceSelection` (JSON string, absent by default): bounded single-repository experimental top-k, MMR, role-coverage or facility-location selection over verified intact units; requires edit-safe task and exact rendered-token accounting.
 - Unsupported profiles, unavailable bounded counting, token overflow and complete-response byte overflow fail explicitly.
 - See `docs/guides/context-token-budget.md` for profile authority, engine/version, limits and envelope exclusions.
 
