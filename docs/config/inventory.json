@@ -1,9 +1,9 @@
 {
-  "generatedAt": "2026-10-28T04:39:44.266Z",
+  "generatedAt": "2026-10-28T05:10:10.845Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
-    "cliFlags": 77
+    "cliFlags": 78
   },
   "allowlists": {
     "configKeys": [
@@ -74,6 +74,7 @@
       "queue",
       "quiet",
       "reason",
+      "renderedTokenBudget",
       "repo",
       "repo-filter",
       "root",
@@ -4646,6 +4647,8 @@
         "tests/context-pack/complete-function-surfaces.test.js",
         "tests/context-pack/complete-function-unit.test.js",
         "tests/context-pack/graph-selection.test.js",
+        "tests/context-pack/rendered-token-budget.test.js",
+        "tests/context-pack/rendered-token-surfaces.test.js",
         "tests/context-pack/risk-filters-parity.test.js",
         "tests/context-pack/risk-hydrated-budget.test.js",
         "tests/context-pack/risk-truncation-contract.test.js",
@@ -5658,7 +5661,7 @@
   ],
   "envVarsUnknown": [],
   "cliFlags": {
-    "totalFlags": 501,
+    "totalFlags": 502,
     "publicFlags": [
       "all",
       "allow-unauthenticated",
@@ -5715,6 +5718,7 @@
       "queue",
       "quiet",
       "reason",
+      "renderedTokenBudget",
       "repo",
       "repo-filter",
       "root",
@@ -6218,6 +6222,7 @@
       "queue",
       "quiet",
       "reason",
+      "renderedTokenBudget",
       "repo",
       "repo-filter",
       "root",
@@ -6301,6 +6306,7 @@
           "queue",
           "quiet",
           "reason",
+          "renderedTokenBudget",
           "repo",
           "repo-filter",
           "root",

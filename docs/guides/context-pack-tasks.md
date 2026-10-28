@@ -67,16 +67,18 @@ identity. Edit requests reverify source and keep their derived graph/excerpt
 caches local to the request, publishing no derived files into historical index
 roots and no incomplete edit result into shared caches.
 
-The central CLI admits `--task`, `--granularity` and `--wholeFileFallback`. This policy does not add a target
-tokenizer or claim better edit outcomes. Runtime function-boundary/surface
-surface acceptance and production-corpus/patch-application comparisons remain
+The central CLI admits `--task`, `--granularity` and `--wholeFileFallback`.
+[Exact rendered token budgeting](context-token-budget.md) is a separate opt-in
+that preserves these intact units. Runtime function-boundary/surface
+acceptance and production-corpus/patch-application comparisons remain
 unqualified until their dedicated supported-runtime runs.
 
 ## Reviewed public option surface
 
 The config inventory includes these four optional flags introduced by the task
-policy and path-capability implementation. Its CLI budget is 77 (previously 73);
-config-key and environment-variable budgets are unchanged. These flags add no
+policy and path-capability implementation. Its CLI budget was 77 (previously 73);
+the separate exact-token option advances the current reviewed budget to 78.
+Config-key and environment-variable budgets are unchanged. These flags add no
 implicit edit authority, fallback or executable-path claim.
 
 | Flag | Default | Purpose and admission |

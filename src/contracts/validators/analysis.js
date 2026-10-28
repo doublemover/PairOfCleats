@@ -16,6 +16,7 @@ import { formatValidatorErrors, toValidationResult } from './result.js';
 import { validateMetadataV2Semantics } from './metadata.js';
 import { graphPathProjectionErrors } from '../../graph/path-capability.js';
 import { contextTaskProjectionErrors } from '../context-task.js';
+import { contextTokenProjectionErrors } from '../context-token-budget.js';
 import { apiContractProjectionErrors } from '../schemas/api-contracts.js';
 import { federatedRiskProjectionErrors } from '../../context-pack/federated-risk.js';
 
@@ -74,6 +75,7 @@ export function validateCompositeContextPack(payload) {
   const errors = schemaOk ? [] : formatValidatorErrors(COMPOSITE_CONTEXT_PACK_VALIDATOR);
   if (schemaOk && payload.graph?.pathCapability) errors.push(...graphPathProjectionErrors(payload.graph, 'graph_context'));
   if (schemaOk) errors.push(...contextTaskProjectionErrors(payload));
+  if (schemaOk) errors.push(...contextTokenProjectionErrors(payload));
   if (schemaOk) errors.push(...federatedRiskProjectionErrors(payload));
   const compatibility = validateContextPackRiskContractCompatibility(payload);
   if (!compatibility.ok) {

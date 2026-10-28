@@ -330,6 +330,74 @@
               }
             ]
           },
+          "renderedTokenBudget": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "schemaVersion",
+              "maxTokens",
+              "profile"
+            ],
+            "properties": {
+              "schemaVersion": {
+                "const": 1
+              },
+              "maxTokens": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "reservedTokens": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "rendering": {
+                "const": "context-text-v1"
+              },
+              "profile": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "id",
+                  "revision",
+                  "directory",
+                  "tokenizerSha256",
+                  "configSha256"
+                ],
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "revision": {
+                    "type": "string",
+                    "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$"
+                  },
+                  "directory": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "tokenizerSha256": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "configSha256": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "addSpecialTokens": {
+                    "type": "boolean"
+                  },
+                  "engine": {
+                    "const": "huggingface-tokenizers-0.2.0-v1"
+                  }
+                }
+              }
+            }
+          },
           "pathSemantics": {
             "enum": [
               "graph-witness"

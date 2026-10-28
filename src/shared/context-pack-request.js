@@ -16,6 +16,7 @@ const CONTEXT_PACK_PAYLOAD_FIELDS = Object.freeze([
   'includePaths',
   'pathSemantics',
   'taskPolicy',
+  'renderedTokenBudget',
   'maxBytes',
   'maxTokens',
   'maxTypeEntries',
@@ -90,6 +91,12 @@ export function buildContextPackRequestInput(source = {}, {
  */
 export function buildCliContextPackRequestInput(argv = {}, { repoRoot = undefined } = {}) {
   const source = { ...argv };
+  if (argv.renderedTokenBudget !== undefined) {
+    try { source.renderedTokenBudget = JSON.parse(argv.renderedTokenBudget); }
+    catch (cause) { throw Object.assign(new Error('Invalid renderedTokenBudget JSON.', { cause }), {
+      code: 'ERR_CONTEXT_PACK_INVALID_REQUEST', status: 400
+    }); }
+  }
   if (argv.task !== undefined || argv.granularity !== undefined || argv.wholeFileFallback !== undefined) {
     source.taskPolicy = { schemaVersion: 1, task: argv.task, granularity: argv.granularity,
       wholeFileFallback: argv.wholeFileFallback === true };

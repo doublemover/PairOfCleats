@@ -25,6 +25,7 @@ import { toRealPathSync } from '../../workspace/identity.js';
 import { selectWorkspaceRepos } from '../../retrieval/federation/select.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { resolveContextTaskPolicy } from '../../context-pack/task-policy.js';
+import { resolveRenderedTokenBudget } from '../../context-pack/token-budget-policy.js';
 import { aggregateRiskMemberStatus, createRiskMemberAttestation } from '../../context-pack/federated-risk.js';
 import { CONTEXT_PACK_RISK_FIELD_SCOPES, CONTEXT_PACK_RISK_FEDERATED_REPO_LIMIT } from '../../contracts/context-pack-risk-contract.js';
 
@@ -575,7 +576,12 @@ export async function buildFederatedCompositeContextPackPayload(input = {}, cont
 export async function buildCompositeContextPackPayload(input = {}, context = {}) {
   context = { ...context };
   throwIfAborted(context.signal);
-  input = { ...input, taskPolicy: resolveContextTaskPolicy(input.taskPolicy) };
+  const started = performance.now();
+  input = { ...input, taskPolicy: resolveContextTaskPolicy(input.taskPolicy),
+    renderedTokenBudget: resolveRenderedTokenBudget(input.renderedTokenBudget) };
+  if (input.renderedTokenBudget && !input.repoRoot) {
+    throw createContextPackRequestError('ERR_CONTEXT_PACK_INVALID_REQUEST', 'Exact token accounting requires an explicit repository for local profile authority.');
+  }
   const payload = shouldUseFederatedContextPack(input)
     ? await buildFederatedCompositeContextPackPayload(input, context)
     : await buildSingleRepoCompositeContextPackPayload(input, context);
@@ -586,9 +592,18 @@ export async function buildCompositeContextPackPayload(input = {}, context = {})
   }
   throwIfAborted(context.signal);
   const bounded = enforceContextPackResponseBudget(payload, input);
-  const validation = validateCompositeContextPack(bounded);
+  let counted = { payload: bounded, publish: () => {} };
+  if (input.renderedTokenBudget) {
+    const remaining = Number.isFinite(input.maxWallClockMs) ? input.maxWallClockMs - (performance.now() - started) : 10000;
+    if (remaining <= 0) throw createContextPackRequestError('ERR_CONTEXT_PACK_TOKENIZER_UNAVAILABLE', 'Exact token accounting has no remaining deadline.', 422);
+    const { applyRenderedTokenBudget } = await import('../../context-pack/rendered-token-budget.js');
+    counted = await applyRenderedTokenBudget(bounded, input.renderedTokenBudget, { repoRoot: input.repoRoot,
+      taskPolicy: input.taskPolicy, signal: context.signal, timeoutMs: remaining });
+  }
+  const validation = validateCompositeContextPack(counted.payload);
   if (!validation.ok) throw createContextPackRequestError('ERR_CONTEXT_PACK_SCHEMA', validation.errors.join('; '), 500);
-  return bounded;
+  throwIfAborted(context.signal); counted.publish();
+  return counted.payload;
 }
 
 /**

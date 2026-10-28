@@ -1,5 +1,6 @@
 import { SEMANTIC_CONTEXT_SCHEMA, SEMANTIC_CONTEXT_FEDERATION_SCHEMA } from '../semantic-context.js';
 import { CONTEXT_TASK_POLICY_SCHEMA, CONTEXT_EDIT_UNIT_SCHEMA } from '../context-task.js';
+import { CONTEXT_TOKEN_ACCOUNTING_SCHEMA } from '../context-token-budget.js';
 import {
   CONTEXT_PACK_RISK_CONTRACT_VERSION,
   CONTEXT_PACK_RISK_SCHEMA_VERSION
@@ -44,8 +45,11 @@ const includedSemanticEvidence = state => ({
 export const COMPOSITE_CONTEXT_PACK_SCHEMA = {
   type: 'object',
   required: ['version', 'seed', 'primary', 'provenance', 'evidence'],
+  dependencies: { renderedContext: ['tokenAccounting'], tokenAccounting: ['renderedContext'] },
   properties: {
     version: semverString,
+    renderedContext: { type: 'string', maxLength: 131072 },
+    tokenAccounting: CONTEXT_TOKEN_ACCOUNTING_SCHEMA,
     seed: seedRefSchema,
     provenance: provenanceSchema,
     primary: {

@@ -27,10 +27,17 @@ runtime security boundary.
 
 - Public config keys: 5
 - Public env vars: 1
-- Public entry-point CLI flags: 72
+- Public entry-point CLI flags: 78
 
 Current total/schema/internal counts are generated in `docs/config/inventory.md`
 and `docs/config/inventory.json`; do not duplicate a stale snapshot here.
+
+The 2026-10-28 budget of 78 includes the previously reviewed task/path options
+(77), plus `--renderedTokenBudget` for #1125. This JSON option defaults absent
+and binds a caller-selected exact allowance to a pinned local tokenizer profile.
+It cannot be inferred from automatic hardware policy. No config key or environment
+variable is added. Request/schema, exact-count, authority and cross-surface fixtures
+own its admission; runtime and measured performance qualification remain pending.
 
 The 2026-10-10 increase from 71 to 72 admits `--includeSemantic`, the explicitly
 requested context-pack evidence opt-in. It defaults off and controls bounded

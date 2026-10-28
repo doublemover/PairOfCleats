@@ -562,6 +562,13 @@ Notes:
 - CLI/MCP/HTTP share the `includeSemantic` request field; no environment or repository-config equivalent is added.
 - Owned by `src/context-pack/semantic.js`; see `docs/guides/semantic-index.md` for bounds and evidence limits.
 
+### Context-pack exact rendered tokens
+
+- `--renderedTokenBudget` (JSON string, absent by default): pinned local tokenizer profile and independent exact rendered-text allowance.
+- CLI/MCP/HTTP share `renderedTokenBudget`; exact counting includes the versioned text envelope and declared reserved overhead.
+- Unsupported profiles, unavailable bounded counting, token overflow and complete-response byte overflow fail explicitly.
+- See `docs/guides/context-token-budget.md` for profile authority, engine/version, limits and envelope exclusions.
+
 ### TypeScript type representation
 
 - `tooling.typescript.typeRepresentation` accepts `legacy` (default) or experimental `symbolic`.

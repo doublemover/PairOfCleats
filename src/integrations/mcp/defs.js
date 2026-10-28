@@ -1,4 +1,5 @@
 import { CONTEXT_TASK_POLICY_SCHEMA } from '../../contracts/schemas/context-task.js';
+import { CONTEXT_RENDERED_TOKEN_BUDGET_SCHEMA } from '../../contracts/schemas/context-token-budget.js';
 import { buildSearchRequestProperties } from '../../shared/search-request-schema.js';
 import { SEMANTIC_TRACE_REQUEST_SCHEMA } from '../../contracts/schemas/semantic-trace.js';
 import { SEMANTIC_FIND_REQUEST_SCHEMA } from '../../contracts/schemas/semantic-find.js';
@@ -197,6 +198,7 @@ export function getToolDefs(defaultModelId) {
             maxFederatedRepos: { type: 'number' },
             seed: { type: 'string', description: 'Chunk/file/symbol seed reference.' },
             taskPolicy: CONTEXT_TASK_POLICY_SCHEMA,
+            renderedTokenBudget: CONTEXT_RENDERED_TOKEN_BUDGET_SCHEMA,
             pathSemantics: { enum: ['graph-witness'] },
             hops: { type: 'number', description: 'Neighborhood depth.' },
             includeGraph: { type: 'boolean' },

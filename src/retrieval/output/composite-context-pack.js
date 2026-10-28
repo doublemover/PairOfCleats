@@ -4,7 +4,7 @@ import {
 } from './risk-explain.js';
 import { renderGraphContextPack } from './graph-context-pack.js';
 import { renderCompositeContextPackSarif } from './risk-sarif.js';
-import { enforceContextPackResponseBudget } from '../../context-pack/response-budget.js';
+import { enforceContextPackResponseBudget, CONTEXT_PACK_RESPONSE_MAX_BYTES } from '../../context-pack/response-budget.js';
 
 const renderPrimary = (primary) => {
   const lines = [];
@@ -187,6 +187,15 @@ const projectCompositeContextPackJson = (payload) => ({
 });
 
 export const renderCompositeContextPackJson = (payload, options = {}) => {
+  if (payload.tokenAccounting) {
+    const projected = projectCompositeContextPackJson(payload);
+    if (Buffer.byteLength(JSON.stringify(projected, null, 2)) + 1 > CONTEXT_PACK_RESPONSE_MAX_BYTES) {
+      throw Object.assign(new Error('Counted context exceeds the complete CLI JSON response byte budget.'), {
+        code: 'ERR_CONTEXT_PACK_RESPONSE_BUDGET', status: 413
+      });
+    }
+    return projected;
+  }
   const bounded = structuredClone(payload);
   let projected;
   enforceContextPackResponseBudget(bounded, {

@@ -178,6 +178,13 @@ export const buildConfigContractDoc = (options = {}) => {
   lines.push('- CLI/MCP/HTTP share the `includeSemantic` request field; no environment or repository-config equivalent is added.');
   lines.push('- Owned by `src/context-pack/semantic.js`; see `docs/guides/semantic-index.md` for bounds and evidence limits.');
   lines.push('');
+  lines.push('### Context-pack exact rendered tokens');
+  lines.push('');
+  lines.push('- `--renderedTokenBudget` (JSON string, absent by default): pinned local tokenizer profile and independent exact rendered-text allowance.');
+  lines.push('- CLI/MCP/HTTP share `renderedTokenBudget`; exact counting includes the versioned text envelope and declared reserved overhead.');
+  lines.push('- Unsupported profiles, unavailable bounded counting, token overflow and complete-response byte overflow fail explicitly.');
+  lines.push('- See `docs/guides/context-token-budget.md` for profile authority, engine/version, limits and envelope exclusions.');
+  lines.push('');
   lines.push('### TypeScript type representation');
   lines.push('');
   lines.push('- `tooling.typescript.typeRepresentation` accepts `legacy` (default) or experimental `symbolic`.');

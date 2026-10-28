@@ -7,6 +7,7 @@ import { projectRiskDeltaRequest, projectRiskExplainRequest } from '../../analys
 import { buildCompositeContextPackPayload } from '../../../src/integrations/tooling/context-pack.js';
 import { buildContextPackRequestInput } from '../../../src/shared/context-pack-request.js';
 import { isContextTaskFailure } from '../../../src/contracts/context-task.js';
+import { isContextTokenFailure } from '../../../src/contracts/context-token-budget.js';
 import { withHttpRequestLifetime } from './request-lifetime.js';
 import { attachObservability, buildChildObservability } from '../../../src/shared/observability.js';
 import { ERROR_CODES } from '../../../src/shared/error-codes.js';
@@ -176,10 +177,10 @@ export async function handleContextPackRoute({
         ? { reason: 'invalid_risk_filters' }
         : err?.code === 'ERR_CONTEXT_PACK_STRICT_EVIDENCE'
           ? { reason: 'strict_evidence_incomplete', evidence: err?.evidence || null }
-          : isContextTaskFailure(err)
+          : isContextTaskFailure(err) || isContextTokenFailure(err)
             ? { reason: err.code, contextPackCode: err.code }
             : err?.code === ERROR_CODES.FORBIDDEN ? { reason: 'workspace_not_permitted' } : {};
-      const code = [400, 408, 409, 413].includes(status) ? ERROR_CODES.INVALID_REQUEST
+      const code = [400, 408, 409, 413, 422].includes(status) ? ERROR_CODES.INVALID_REQUEST
         : status === 403 ? ERROR_CODES.FORBIDDEN
           : status === 404 ? ERROR_CODES.NO_INDEX
             : ERROR_CODES.INTERNAL;
