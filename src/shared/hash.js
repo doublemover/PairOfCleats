@@ -40,6 +40,9 @@ const withFileHasher = async (filePath, createHasher, { containedRoot = null, si
     if (!before.isFile() || !Number.isSafeInteger(before.size) || before.size < 0) {
       throw new Error('File hash requires a bounded regular file extent.');
     }
+    const exactBefore = includeObservation ? await descriptor.stat({ bigint: true }) : null;
+    if (exactBefore && (!exactBefore.isFile() || ['dev', 'ino', 'size', 'mtimeNs', 'ctimeNs'].some(key => typeof exactBefore[key] !== 'bigint')
+      || exactBefore.size !== BigInt(before.size))) throw changedFile();
     const buffer = Buffer.allocUnsafe(Math.min(65536, before.size));
     let position = 0;
     while (position < before.size) {
@@ -50,12 +53,18 @@ const withFileHasher = async (filePath, createHasher, { containedRoot = null, si
       update.call(hasher, buffer.subarray(0, bytesRead));
       position += bytesRead;
     }
-    const after = await descriptor.stat();
-    if (!after.isFile() || ['dev', 'ino', 'size', 'mtimeMs', 'ctimeMs'].some(key => before[key] !== after[key])) throw changedFile();
-    descriptor.verify?.();
     throwIfAborted(signal);
     const value = await digest.call(hasher);
+    throwIfAborted(signal);
+    const after = await descriptor.stat();
+    if (!after.isFile() || ['dev', 'ino', 'size', 'mtimeMs', 'ctimeMs'].some(key => before[key] !== after[key])) throw changedFile();
+    const exactAfter = includeObservation ? await descriptor.stat({ bigint: true }) : null;
+    if (exactAfter && (!exactAfter.isFile() || ['dev', 'ino', 'size', 'mtimeNs', 'ctimeNs'].some(key => typeof exactAfter[key] !== 'bigint'
+      || exactBefore[key] !== exactAfter[key]))) throw changedFile();
+    descriptor.verify?.();
+    throwIfAborted(signal);
     return includeObservation ? Object.freeze({ value, bytes: after.size,
+      fileIdentity: Object.freeze({ dev: exactAfter.dev.toString(), ino: exactAfter.ino.toString() }),
       identity: Object.freeze(Object.fromEntries(['dev', 'ino', 'size', 'mtimeMs', 'ctimeMs'].map(key => [key, after[key]]))) }) : value;
   };
   if (containedRoot) return withContainedFile(containedRoot, filePath, compute);

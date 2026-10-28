@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["plain", "contained", "high-identity", "numeric-collision", "coarse-time", "digest-change", "digest-cancel", "exact-stat-failure", "exact-stat-untyped", "sha256-noexact", "frozen"]
+}
