@@ -65,7 +65,7 @@ try {
       fileHash: sha1(source), fileChunks: [], bundleFormat: 'json',
       fileRelations: { imports: scan.importsByFile[relKey], cssImportCoverage: coverage, importScanFingerprint: scan.importScanFingerprint } });
   };
-  const readBundle = () => readCachedImports({ enabled: true, absPath: filePath, relKey, fileStat: stat, manifest,
+  const readBundle = () => readCachedImports({ repoRoot: root, enabled: true, absPath: filePath, relKey, fileStat: stat, manifest,
     bundleDir, bundleFormat: 'json', expectedImportScanFingerprint: scan.importScanFingerprint });
   await writeBundle(scan.importCoverageByFile[relKey]);
   assert.deepEqual(await readBundle(), expected, 'real bundle round trip preserves distinct literal identities');

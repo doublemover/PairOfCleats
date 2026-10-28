@@ -71,7 +71,7 @@ try {
   for (const file of files) manifest.files[file.rel] = await writeIncrementalBundle({ enabled: true, bundleDir, manifest,
     relKey: file.rel, fileStat: file.stat, fileHash: sha1(sources.get(file.rel)), fileChunks: [], bundleFormat: 'json',
     fileRelations: state.fileRelations.get(file.rel) });
-  const read = (file, fingerprint = result.importScanFingerprint) => readCachedImports({ enabled: true, bundleDir, manifest,
+  const read = (file, fingerprint = result.importScanFingerprint) => readCachedImports({ repoRoot: root, enabled: true, bundleDir, manifest,
     absPath: file.abs, relKey: file.rel, fileStat: file.stat, bundleFormat: 'json', expectedImportScanFingerprint: fingerprint });
   assert.equal(await read(files[0]), null, 'degraded empty results cannot replay as successful empty');
   const reused = await read(files[1]);

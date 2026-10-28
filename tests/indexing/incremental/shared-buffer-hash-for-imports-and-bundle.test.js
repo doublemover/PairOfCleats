@@ -76,6 +76,7 @@ let bundleResult = null;
 let importsResult = null;
 try {
   bundleResult = await readCachedBundle({
+    repoRoot: tempRoot,
     enabled: true,
     absPath,
     relKey,
@@ -86,6 +87,7 @@ try {
     sharedReadState
   });
   importsResult = await readCachedImports({
+    repoRoot: tempRoot,
     enabled: true,
     absPath,
     relKey,

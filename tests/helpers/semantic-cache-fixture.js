@@ -66,7 +66,7 @@ export const createSemanticCacheFixture = async () => {
     const chunks = suppliedChunks || (zeroChunks ? [] : [{ file, start: 0, end: text.length,
       kind: 'code', name: 'input', tokens: ['fixture'], text }]);
     const entry = await writeIncrementalBundle({ enabled: true, bundleDir, manifest, relKey: file,
-      fileStat: { mtimeMs: 1234567.25, size: bytes.length }, fileHash: fileHash ?? sha1(bytes),
+      fileStat: await fs.stat(path.join(repoRoot, file)), fileHash: fileHash ?? sha1(bytes),
       fileChunks: chunks, fileRelations: null, dependencySignatures, semanticFactsRef: factsRef,
       semanticContext: { buildRoot, diskAccount: account, dependencySignatures: dependencies } });
     if (!entry) throw new Error('Fixture bundle write failed.');

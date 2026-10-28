@@ -14,14 +14,15 @@ const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-snapshot-bound-'));
 try {
   const bundleDir = path.join(root, 'bundles'), absPath = path.join(root, 'source.js');
   const textA = 'const A = 1;', textB = 'const B = 2;';
-  const fileStat = { size: Buffer.byteLength(textA), mtimeMs: 2000 };
+  await fs.writeFile(absPath, textA);
+  await fs.utimes(absPath, new Date(2000), new Date(2000));
+  const fileStat = await fs.stat(absPath);
   const dependencies = { parse: 'p', lexical: 'l', enrichment: 'e', embeddings: 'm' };
   const write = text => writeIncrementalBundle({ enabled: true, bundleDir, relKey: 'source.js',
     fileStat, fileHash: sha1(text), dependencySignatures: dependencies,
     fileChunks: [{ file: './source.js', text }], fileRelations: { imports: [text] }, bundleFormat: 'json' });
   const entryA = await write(textA), entryB = await write(textB);
   assert.notDeepEqual(entryA.bundles, entryB.bundles, 'distinct source snapshots never overwrite one another');
-  await fs.writeFile(absPath, textA);
   const manifest = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, files: { 'source.js': entryA } };
   const input = { repoRoot: root, enabled: true, bundleDir, absPath, relKey: 'source.js', fileStat, manifest };
   assert.equal((await readCachedBundle(input)).cachedBundle.chunks[0].text, textA);
