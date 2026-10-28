@@ -9,12 +9,22 @@ export const createBackendDisposer = (disposers = new Set()) => {
       pending = Promise.resolve().then(async () => {
         const errors = [], observations = [];
         for (const dispose of disposers) {
+          const outcomes = [];
           try {
-            await dispose();
+            const invocation = dispose();
+            outcomes.push(observeStorageResource(invocation, { phase: 'search-backend-close-invocation' }));
+            const result = await invocation;
+            if (result !== invocation) outcomes.push(observeStorageResource(result, { phase: 'search-backend-close-result' }));
+            for (const outcome of outcomes) outcome.requireSettled();
           } catch (error) {
             // Capture before a sibling disposer can alter report callbacks.
             observations.push(observeStorageResource(error, { phase: 'search-backend-disposal' }));
-            errors.push(error);
+            let failure = error;
+            for (const outcome of outcomes) {
+              if (outcome.hasResourceObservation) failure = outcome.wrap(failure);
+            }
+            observations.push(...outcomes);
+            errors.push(failure);
           }
         }
         disposers.clear();
