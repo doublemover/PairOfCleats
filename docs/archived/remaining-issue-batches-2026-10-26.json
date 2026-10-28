@@ -4705,7 +4705,8 @@
         "70a0801626b081642ac2f51c61c20e74be29cfdc",
         "169b5aafb5f2b79a7e2d6a397eab9a87a9c0930b",
         "285c1799c423fd2df8a6f588256b775aa13cdb76",
-        "32d1b2afc9d01d644098c2b335cde3978542f950"
+        "32d1b2afc9d01d644098c2b335cde3978542f950",
+        "5df6cdf6bd5d3c1e8bd555a1e9037b5486598bae"
       ],
       "unvalidatedReceipts": [
         "storage-space-implementation-2026-10-27.md",
@@ -4721,7 +4722,8 @@
         "native-state-publication-implementation-2026-10-28.md",
         "embedding-terminal-publication-implementation-2026-10-28.md",
         "vector-spool-ownership-implementation-2026-10-28.md",
-        "sqlite-pending-admission-implementation-2026-10-28.md"
+        "sqlite-pending-admission-implementation-2026-10-28.md",
+        "file-lock-result-implementation-2026-10-28.md"
       ],
       "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
       "sessionObservationFollowup": "Shared session admission now captures successful action and settlement receipt observers, freezes projected receipt fields and retains independent inspection/observer errors through original handles. Eleven authored cases await execution; native-reader observation, remaining adapters/custom backend registration and full qualification remain.",
@@ -4744,6 +4746,11 @@
           "sourceHead": "32d1b2afc9d01d644098c2b335cde3978542f950",
           "receipt": "sqlite-pending-admission-implementation-2026-10-28.md",
           "implementation": "SQLite target/child and queued dispatch now require retained original settlement; successful outer/child results retain pending observers. Twelve actual-native/lease controls authored and unexecuted. Custom registration/deletion, category/all/multi-repo and broad native qualification remain."
+        },
+        {
+          "sourceHead": "5df6cdf6bd5d3c1e8bd555a1e9037b5486598bae",
+          "receipt": "file-lock-result-implementation-2026-10-28.md",
+          "implementation": "Shared withFileLock now requires original resource settlement from successful worker results before metadata release, retaining the original publication session and independent observers. Six real-lock controls authored and unexecuted; broad source/qualification scope remains."
         }
       ]
     },
@@ -7617,7 +7624,8 @@
         "70a0801626b081642ac2f51c61c20e74be29cfdc",
         "169b5aafb5f2b79a7e2d6a397eab9a87a9c0930b",
         "285c1799c423fd2df8a6f588256b775aa13cdb76",
-        "32d1b2afc9d01d644098c2b335cde3978542f950"
+        "32d1b2afc9d01d644098c2b335cde3978542f950",
+        "5df6cdf6bd5d3c1e8bd555a1e9037b5486598bae"
       ],
       "unvalidatedReceipts": [
         "sqlite-operation-implementation-2026-10-27.md",
@@ -7638,7 +7646,8 @@
         "native-state-publication-implementation-2026-10-28.md",
         "embedding-terminal-publication-implementation-2026-10-28.md",
         "vector-spool-ownership-implementation-2026-10-28.md",
-        "sqlite-pending-admission-implementation-2026-10-28.md"
+        "sqlite-pending-admission-implementation-2026-10-28.md",
+        "file-lock-result-implementation-2026-10-28.md"
       ],
       "currentImplementation": "SQLite runner/helpers and Clangd acquisition retain original work through shared storage teardown. Managed Go/Lua/generic discovery propagates pending inspection; retained generation admission protects the first scan and owns file/Dir/metadata recovery. Functional qualification and remaining custom cleanup adoption are not discharged.",
       "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
@@ -7663,6 +7672,11 @@
           "sourceHead": "32d1b2afc9d01d644098c2b335cde3978542f950",
           "receipt": "sqlite-pending-admission-implementation-2026-10-28.md",
           "implementation": "SQLite target/child and queued dispatch now require retained original settlement; successful outer/child results retain pending observers. Twelve actual-native/lease controls authored and unexecuted. Custom registration/deletion, category/all/multi-repo and broad native qualification remain."
+        },
+        {
+          "sourceHead": "5df6cdf6bd5d3c1e8bd555a1e9037b5486598bae",
+          "receipt": "file-lock-result-implementation-2026-10-28.md",
+          "implementation": "Shared withFileLock now requires original resource settlement from successful worker results before metadata release, retaining the original publication session and independent observers. Six real-lock controls authored and unexecuted; broad source/qualification scope remains."
         }
       ]
     },
@@ -9795,7 +9809,7 @@
     "partialFollowup": 145,
     "implementationStatusUnresolved": 93
   },
-  "reconciledAt": "2026-10-28T10:11:15.470Z",
+  "reconciledAt": "2026-10-28T10:22:17.720Z",
   "completedSourceBatch": [
     347,
     586,

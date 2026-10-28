@@ -43,8 +43,8 @@ try {
     } else {
       let failure;
       await assert.rejects(operation, error => { failure = error; return true; });
-      assert.ok(errorGraphIncludes(failure, result));
-      if (selected === 'observer-child') assert.ok(errorGraphIncludes(failure, child));
+      assert.ok(errorGraphIncludes(failure.workerError, result));
+      if (selected === 'observer-child') assert.ok(errorGraphIncludes(failure.workerError, child));
       assert.equal(workers, 1); assert.ok(getterCalls >= 1);
       const capturedReads = getterCalls;
       assert.equal(isFileLockPublicationPending(file), true);
