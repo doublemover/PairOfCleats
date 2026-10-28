@@ -142,3 +142,14 @@ turn into a successful publication acknowledgment. Nineteen new
 `storage/lmdb/ready-publication/*` controls, including four actual-native cases,
 remain authored and unexecuted. This does not make state/manifest publication
 crash-atomic or qualify concurrent native writers to one target.
+
+SQLite rename, removal and backup-copy results must confirm original resource
+settlement before promotion, fallback, restoration or backup retirement.
+Pending errors are not classified as benign ENOENT, cross-volume EXDEV or
+Windows EPERM fallback. Unknown promotion preserves current/staged/backup
+evidence without issuing another recovery mutation. Ordinary failed promotion
+still restores its owned prior backup. If restoration also fails, exact primary
+and secondary causes, including frozen/falsey values, survive without mutating
+either. Thirteen `storage/sqlite/publication-resource-ownership/*` controls use
+tiny actual files/session owners and remain authored, unexecuted. Existing real
+WAL/SHM/native publication and fallback fixtures retain their assertions.

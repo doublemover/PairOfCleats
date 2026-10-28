@@ -118,6 +118,8 @@ PR #572 metadata was refreshed and read back at checkpoint `c070f3095` (180 loca
 
 - [LMDB readiness ordering](lmdb-ready-publication-implementation-2026-10-28.md): actual builder commits readiness only after backend state/original close and a source/LMDB compare-and-set; independent SQLite changes survive. Nineteen controls authored, unexecuted; custom publication/deletion and full native acceptance remain.
 
+- [SQLite replacement ownership](sqlite-publication-resource-implementation-2026-10-28.md): original rename/removal/copy settlement gates fallback/recovery; frozen/falsey restore failures preserve both causes. Thirteen real-file/session controls authored, unexecuted; native/platform/custom acceptance remain.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.

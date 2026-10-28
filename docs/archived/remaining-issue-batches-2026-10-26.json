@@ -4811,7 +4811,8 @@
         "37248f67645c8e26fce855e2cbb4cd99cabca525",
         "7e5e93ebace95d3307da81658da3000a33f667ab",
         "2bd50246022173eee5f469b303eeb0ebd3f6c15e",
-        "79cb896023555324f9499caec7b43a5a9d90c9b9"
+        "79cb896023555324f9499caec7b43a5a9d90c9b9",
+        "244cd6ddd8086c1ffc280c1c225cfa4772592b32"
       ],
       "unvalidatedReceipts": [
         "storage-space-implementation-2026-10-27.md",
@@ -4840,7 +4841,8 @@
         "tooling-guard-lifetime-implementation-2026-10-28.md",
         "native-command-result-implementation-2026-10-28.md",
         "lmdb-close-result-implementation-2026-10-28.md",
-        "lmdb-ready-publication-implementation-2026-10-28.md"
+        "lmdb-ready-publication-implementation-2026-10-28.md",
+        "sqlite-publication-resource-implementation-2026-10-28.md"
       ],
       "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
       "sessionObservationFollowup": "Shared session admission now captures successful action and settlement receipt observers, freezes projected receipt fields and retains independent inspection/observer errors through original handles. Eleven authored cases await execution; native-reader observation, remaining adapters/custom backend registration and full qualification remain.",
@@ -4933,6 +4935,11 @@
           "sourceHead": "79cb896023555324f9499caec7b43a5a9d90c9b9",
           "receipt": "lmdb-ready-publication-implementation-2026-10-28.md",
           "implementation": "Actual LMDB builder now prepares an immutable backend snapshot, completes original backend write/native close, then commits readiness against captured source/LMDB state under the existing owner. Competing generation/embedding/native changes reject stale readiness; independent SQLite metadata is preserved. Original input and successful mutation observations remain required through metadata release. Nineteen controls including four actual-native cases are authored, unexecuted. Custom publication/deletion, crash-atomic pairing, native concurrency and broad acceptance remain."
+        },
+        {
+          "sourceHead": "244cd6ddd8086c1ffc280c1c225cfa4772592b32",
+          "receipt": "sqlite-publication-resource-implementation-2026-10-28.md",
+          "implementation": "SQLite rename/removal/copy success and failure ownership now gates promotion/fallback/restoration/backup retirement before error classification. Unknown operations retain evidence and metadata-only recovery cannot replay file mutation. Frozen/falsey restoration failures preserve exact promotion and secondary causes. Thirteen real-file/session controls are authored, unexecuted; native/Windows/custom cleanup and broad acceptance remain."
         }
       ]
     },
@@ -7820,7 +7827,8 @@
         "9995cd60e65dc6087b4a0910e6beeeeba0b3796a",
         "7e5e93ebace95d3307da81658da3000a33f667ab",
         "2bd50246022173eee5f469b303eeb0ebd3f6c15e",
-        "79cb896023555324f9499caec7b43a5a9d90c9b9"
+        "79cb896023555324f9499caec7b43a5a9d90c9b9",
+        "244cd6ddd8086c1ffc280c1c225cfa4772592b32"
       ],
       "unvalidatedReceipts": [
         "sqlite-operation-implementation-2026-10-27.md",
@@ -7853,7 +7861,8 @@
         "exact-checksum-observation-implementation-2026-10-28.md",
         "native-command-result-implementation-2026-10-28.md",
         "lmdb-close-result-implementation-2026-10-28.md",
-        "lmdb-ready-publication-implementation-2026-10-28.md"
+        "lmdb-ready-publication-implementation-2026-10-28.md",
+        "sqlite-publication-resource-implementation-2026-10-28.md"
       ],
       "currentImplementation": "SQLite runner/helpers and Clangd acquisition retain original work through shared storage teardown. Managed Go/Lua/generic discovery propagates pending inspection; retained generation admission protects the first scan and owns file/Dir/metadata recovery. Functional qualification and remaining custom cleanup adoption are not discharged.",
       "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
@@ -7948,6 +7957,11 @@
           "sourceHead": "79cb896023555324f9499caec7b43a5a9d90c9b9",
           "receipt": "lmdb-ready-publication-implementation-2026-10-28.md",
           "implementation": "Actual LMDB builder now prepares an immutable backend snapshot, completes original backend write/native close, then commits readiness against captured source/LMDB state under the existing owner. Competing generation/embedding/native changes reject stale readiness; independent SQLite metadata is preserved. Original input and successful mutation observations remain required through metadata release. Nineteen controls including four actual-native cases are authored, unexecuted. Custom publication/deletion, crash-atomic pairing, native concurrency and broad acceptance remain."
+        },
+        {
+          "sourceHead": "244cd6ddd8086c1ffc280c1c225cfa4772592b32",
+          "receipt": "sqlite-publication-resource-implementation-2026-10-28.md",
+          "implementation": "SQLite rename/removal/copy success and failure ownership now gates promotion/fallback/restoration/backup retirement before error classification. Unknown operations retain evidence and metadata-only recovery cannot replay file mutation. Frozen/falsey restoration failures preserve exact promotion and secondary causes. Thirteen real-file/session controls are authored, unexecuted; native/Windows/custom cleanup and broad acceptance remain."
         }
       ]
     },
