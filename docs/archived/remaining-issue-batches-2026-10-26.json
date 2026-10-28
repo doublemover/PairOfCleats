@@ -3008,8 +3008,16 @@
       "recordedDisposition": "implementation_needed",
       "priority": "unranked",
       "batch": "retrieval-contracts",
-      "phase": "source-review-and-implementation",
-      "status": "queued"
+      "phase": "exact-rendered-token-accounting-implemented-qualification-pending",
+      "status": "source-implemented-qualification-pending",
+      "currentDisposition": "qualification_pending",
+      "currentImplementation": "Optional pinned local tokenizer/config identities now flow through canonical CLI/HTTP/MCP requests. Pure JS exact rendered-text encoding uses bounded serialized original workers, actual contained file/hash admission, explicit cancellation/unavailability/overflow, independent complete-response byte admission and scalar-only content/profile/policy cache publication after actual teardown and validation. Twenty-five authored controls remain unexecuted; full profile/lifecycle/surface/cold-warm latency and original/follow-up qualification remain.",
+      "unvalidatedSourceHeads": [
+        "a512377128207026a75097aceb811f6d2f6a6409"
+      ],
+      "unvalidatedReceipts": [
+        "context-token-budget-implementation-2026-10-28.md"
+      ]
     },
     {
       "number": 1126,

@@ -59,6 +59,7 @@ the unexecuted Windows source work separately from published acceptance.
 | [489e067e6](lsp-source-epoch-implementation-2026-10-28.md) | Actual source/root epoch turnover through reserved FIFO pool admission and confirmed original client/file/metadata retirement | 9 authored cases; actual provider, cross-process/custom-root and full qualification remain |
 | [c6ed8a8b9](context-function-implementation-2026-10-28.md) | Complete parser-qualified function edit units with exact pinned-source spans, independent content hashes and explicit file fallback | 18 authored cases; actual surfaces/source/resource and corpus qualification remain |
 | [c8a7ae65c](context-function-surfaces-implementation-2026-10-28.md) | Plain-text exact edit boundaries/hashes and independent real CLI/HTTP/MCP/frozen-function controls | 5 authored cases; 23 complete-function cases total await execution |
+| [a51237712](context-token-budget-implementation-2026-10-28.md) | Pinned pure JS exact rendered-token accounting, bounded original workers and independent response byte admission | 25 authored cases; profile/surface/lifecycle and measured counting qualification remain |
 
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
@@ -69,6 +70,9 @@ The dependency retirement triggered one fresh locked bootstrap: exit 0,
 zero warning/error/failure matches. Setup readiness does not qualify all runtime
 lifecycles. No project functional fixture ran during this implementation wave.
 Earlier published runtime receipts remain revision-specific observations.
+Promoting the existing locked tokenizer dependency required another locked
+bootstrap: exit 0, the same 37 required packages/33 routes/8 patch packages,
+zero warning/error matches. Its exact input/log hashes are in the token receipt.
 
 GitHub issues remain open until their original and follow-up acceptance is
 demonstrated. Unpublished source is tracked in the active owner queue without
