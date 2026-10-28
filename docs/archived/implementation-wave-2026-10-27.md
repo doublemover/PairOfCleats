@@ -161,6 +161,10 @@ Promoting the existing locked tokenizer dependency required another locked
 bootstrap: exit 0, the same 37 required packages/33 routes/8 patch packages,
 zero warning/error matches. Its exact input/log hashes are in the token receipt.
 
+Validation began after checkpoint 240. The [current progress receipt](windows-validation-240-progress-2026-10-28.md)
+records original gate/fixture failures, repaired checks, pinned Rust and real
+Windows terminal observations separately from the pending full 6,095-case plan.
+
 GitHub issues remain open until their original and follow-up acceptance is
 demonstrated. Unpublished source is tracked in the active owner queue without
 pretending old hosted results qualify it. No Linux/WSL, subagents, worktrees,

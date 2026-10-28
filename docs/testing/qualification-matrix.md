@@ -1,6 +1,6 @@
 # Platform and performance qualification
 
-Audited: 2026-10-27. Source contracts and workflow definitions describe required
+Audited: 2026-10-28. Source contracts and workflow definitions describe required
 behavior; a configured job is not evidence that the current candidate passed it.
 Current execution evidence and unresolved failures belong to the
 [deep test audit](../archived/deep-test-audit-2026-10-18.md) and the
@@ -11,7 +11,10 @@ retains exact unvalidated source/tree checkpoints and affected checks. New stora
 observation/admission, JSX/TSX syntax ownership and triage publication/history
 repairs have authored controls and static checks only. Their local source does
 not inherit earlier runtime qualification; functional acceptance and publication
-gates remain deferred during implementation.
+gates were deferred through checkpoint 240. The [full Windows campaign](../archived/windows-validation-240-progress-2026-10-28.md)
+has now begun: the repaired front gate passes 40/40; pinned Rust passes 152/152;
+focused SQLite publication and actual ConPTY recovery have passing observations.
+The 6,095 required-case campaign and remaining issue acceptance are still pending.
 
 Current Clangd acquisition and managed-file lifetime source is **unvalidated**
 at `773e6893e`; [20 authored checks and remaining qualification](../archived/clangd-acquisition-implementation-2026-10-27.md)
