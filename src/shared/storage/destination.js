@@ -5,8 +5,9 @@ import { assertNoSymlinkPath, verifyContainedFileHandle } from '../contained-fil
 import { isPathWithinRoot, isRootPath } from '../file-paths.js';
 import { acquireStorageSession, isStorageSessionReleaseFailure } from './session.js';
 import { addStorageFailureContext } from './operation-error.js';
+import { describeStorageFailure, observeStorageResource } from './failure-observation.js';
 
-const asError = value => value && typeof value === 'object' ? value : new Error(String(value), { cause: value });
+const asError = value => value !== null && ['object', 'function'].includes(typeof value) ? value : new Error(String(value), { cause: value });
 const observePending = error => {
   try {
     const observe = error?.cacheOwnershipReleased;
@@ -35,13 +36,23 @@ export const inspectStorageFreeSpace = async ({ destination, requiredBytes = 0, 
       try { await fs.lstat(observed); break; }
       catch (error) {
         const parent = path.dirname(observed);
-        if (error.code !== 'ENOENT' || parent === observed) throw error;
+        const failure = describeStorageFailure(error, { phase: 'storage-free-space-ancestor' });
+        if (failure.code !== 'ENOENT' || parent === observed) throw error;
         observed = parent;
       }
     }
     const stat = await fs.statfs(observed, { bigint: true });
-    const available = stat.bavail * stat.bsize;
-    if (stat.bsize <= 0n || available < 0n || available > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('Filesystem free-space accounting is unsupported or outside exact range.');
+    const observation = observeStorageResource(stat, { phase: 'storage-free-space-result' });
+    observation.requireSettled();
+    let blockBytes, available;
+    try {
+      const availableBlocks = stat.bavail;
+      blockBytes = stat.bsize;
+      if (typeof availableBlocks !== 'bigint' || typeof blockBytes !== 'bigint') throw new TypeError('Filesystem free-space accounting requires exact bigint fields.');
+      available = availableBlocks * blockBytes;
+    } catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true, inspectionPrimary: true }); }
+    observation.requireSettled();
+    if (blockBytes <= 0n || available < 0n || available > BigInt(Number.MAX_SAFE_INTEGER)) throw new Error('Filesystem free-space accounting is unsupported or outside exact range.');
     const availableBytes = Number(available);
     return { schemaVersion: 1, complete: true, destination: target, observedPath: observed,
       observedAt: new Date().toISOString(), availableBytes, requiredBytes, minimumFreeBytes,
@@ -49,10 +60,11 @@ export const inspectStorageFreeSpace = async ({ destination, requiredBytes = 0, 
       provenance: 'native-statfs-bavail-times-bsize', mutationPerformed: false,
       limitation: 'Observation is not a reservation; recheck before publication and handle disk-full failures.' };
   } catch (error) {
+    const failure = describeStorageFailure(error, { phase: 'storage-free-space', defaultCode: 'ERR_STORAGE_SPACE_UNKNOWN' });
     return { schemaVersion: 1, complete: false, destination: target, observedPath: observed,
       observedAt: new Date().toISOString(), availableBytes: null, requiredBytes, minimumFreeBytes,
       reserveSatisfied: false, mutationPerformed: false,
-      error: { code: error.code || 'ERR_STORAGE_SPACE_UNKNOWN', message: error.message } };
+      error: failure };
   }
 };
 

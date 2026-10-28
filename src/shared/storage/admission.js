@@ -105,12 +105,20 @@ export const acquireStorageWriteReservation = async ({ root, resourceId, coordin
   try {
     assertNoSymlinkPath(path.parse(directory).root, directory, { allowMissing: true });
     const pending = await reservations(directory);
-    const free = await freeSpaceOwner({ destination: root, requiredBytes, minimumFreeBytes });
+    const freeResponse = await freeSpaceOwner({ destination: root, requiredBytes, minimumFreeBytes });
+    const freeObservation = observeStorageResource(freeResponse, { phase: 'storage-write-free-space' });
+    freeObservation.requireSettled();
+    let free;
+    try { free = Object.freeze({ complete: freeResponse?.complete, availableBytes: freeResponse?.availableBytes,
+      observedPath: freeResponse?.observedPath }); }
+    catch (inspection) { throw freeObservation.retain(inspection, { inspectionPresent: true, inspectionPrimary: true }); }
+    freeObservation.requireSettled();
     if (free?.complete !== true || !Number.isSafeInteger(free.availableBytes) || free.availableBytes < 0
       || typeof free.observedPath !== 'string' || !path.isAbsolute(free.observedPath)) throw fail('free-space-accounting-unknown');
     if (!isPathWithinRoot(root, free.observedPath)) throw fail('free-space-observation-does-not-belong-to-destination');
     assertNoSymlinkPath(path.parse(free.observedPath).root, free.observedPath);
     const observed = await fs.lstat(free.observedPath, { bigint: true });
+    freeObservation.requireSettled();
     const device = String(observed.dev);
     const reservedDeviceBytes = pending.filter(entry => entry.value.device === device)
       .reduce((sum, entry) => sum + BigInt(entry.value.requiredBytes), 0n);
@@ -131,6 +139,7 @@ export const acquireStorageWriteReservation = async ({ root, resourceId, coordin
         throw fail('hard-logical-budget-would-be-exceeded', { measuredBytes, requiredBytes, hardBytes });
       }
     }
+    freeObservation.requireSettled();
     await fs.mkdir(directory, { recursive: true });
     assertNoSymlinkPath(path.parse(directory).root, directory);
     const id = randomUUID();
@@ -138,6 +147,7 @@ export const acquireStorageWriteReservation = async ({ root, resourceId, coordin
     const value = { schemaVersion: 1, kind: 'pairofcleats-storage-write-reservation', ...createLockPayload({
       hostname: os.hostname(), scope: 'storage-write-reservation', resourceId }), root, device,
     requiredBytes, minimumFreeBytes, hardBytes, measuredBytes, metric: 'unique-logical-file-bytes', id };
+    freeObservation.requireSettled();
     await atomicWriteJson(file, value, { mkdir: false, createOnly: true });
     const sealed = await readReservation(file);
     if (digest(sealed.value) !== digest(value) || Number(sealed.stat.nlink) !== 1) throw fail('write-reservation-publication-changed');
@@ -240,6 +250,7 @@ export const acquireStorageWriteReservation = async ({ root, resourceId, coordin
         if (!releasing) releasing = settle().finally(() => { releasing = null; });
         return releasing;
       } });
+    freeObservation.requireSettled();
     return admittedReservation;
   } catch (error) {
     const observation = observeStorageResource(error, { phase: 'storage-write-admission' });
