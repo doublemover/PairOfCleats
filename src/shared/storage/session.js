@@ -4,6 +4,8 @@ import { acquireRepoCacheAccessLease } from '../cache/repo-access.js';
 import { getFailedRepoCacheAccessLease } from '../cache/repo-access-reader.js';
 import { assertNoSymlinkPath } from '../contained-file.js';
 import { isPathWithinRoot } from '../file-paths.js';
+import { observeStorageResource } from './failure-observation.js';
+import { addStorageFailureContext } from './operation-error.js';
 
 const leaseReleaseFailures = new WeakMap();
 /** Distinguish our exact failed metadata release from independent resource
@@ -11,48 +13,56 @@ const leaseReleaseFailures = new WeakMap();
 export const isStorageSessionReleaseFailure = (error, session) => Boolean(session)
   && leaseReleaseFailures.get(error) === session;
 
-const asError = value => value && typeof value === 'object' ? value : new Error(String(value), { cause: value });
-const capturePendingClosure = error => {
-  if (!error) return null;
-  try {
-    const observer = error.cacheOwnershipReleased;
-    if (error.cacheOwnershipPending !== true && typeof observer !== 'function') return null;
-    return () => { try { return typeof observer === 'function' && observer.call(error) === true; } catch { return false; } };
-  } catch { return () => false; }
-};
-export const retainSessionFailure = (primary, settlementError, session, { originalClosure = null } = {}) => {
-  const failure = asError(primary || settlementError);
-  const additional = primary && settlementError !== failure ? asError(settlementError) : null;
-  const observers = [originalClosure, ...[failure, additional].filter(Boolean).map(capturePendingClosure)].filter(Boolean);
-  // Capture original function identities before attaching the aggregate observer.
-  // The retained session itself still requires its exact explicit settlement.
-  const descriptors = {
-    cacheOwnershipPending: { value: true, configurable: true, writable: true },
-    cacheOwnershipReleased: { value: () => observers.length > 0 && observers.every(observe => observe()), configurable: true, writable: true },
-    storageSession: { value: session, configurable: true },
-    ...(additional ? { storageSettlementError: { value: additional, configurable: true } } : {})
+const asError = value => value !== null && ['object', 'function'].includes(typeof value) ? value : new Error(String(value), { cause: value });
+export const retainSessionFailure = (primary, settlementError, session, {
+  originalClosure = null, resourceObservation = null, primaryPresent = primary !== null && primary !== undefined
+} = {}) => {
+  const failure = asError(primaryPresent ? primary : settlementError);
+  const additional = primaryPresent && settlementError !== primary ? asError(settlementError) : null;
+  // The common composer retains callback/marker/descriptor inspection failures
+  // and original receivers. Its context is built before touching the primary.
+  let context = addStorageFailureContext(failure, {}, additional, { secondaryPresent: additional !== null, forceAggregate: true });
+  if (resourceObservation) context = addStorageFailureContext(context, {}, resourceObservation, { secondaryPresent: true });
+  if (typeof originalClosure === 'function') context = addStorageFailureContext(context, {}, Object.freeze({
+    cacheOwnershipPending: true, cacheOwnershipReleased: originalClosure
+  }), { secondaryPresent: true });
+  const fields = { storageSession: session, ...(additional ? { storageSettlementError: additional } : {}) };
+  const descriptorsFor = value => {
+    const retained = observeStorageResource(value, { phase: 'storage-session-failure' }).retain();
+    const captured = Object.getOwnPropertyDescriptor(retained, 'cacheOwnershipReleased').value;
+    return {
+      cacheOwnershipPending: { value: true, configurable: false, writable: false },
+      cacheOwnershipReleased: { value: () => captured.call(retained) === true, configurable: false, writable: false },
+      storageSession: { value: session, configurable: true },
+      storageFailureObservation: { value: retained, configurable: true },
+      ...(additional ? { storageSettlementError: { value: additional, configurable: true } } : {})
+    };
   };
   try {
     // A nested session keeps its own handle on the exact original cause.
     if (Object.hasOwn(failure, 'storageSession')) throw new Error('Existing session owner must be preserved.');
-    Object.defineProperties(failure, descriptors);
+    Object.defineProperties(failure, descriptorsFor(context));
     return failure;
-  } catch {
-    let message = 'Storage resource operation or settlement failed.';
-    try { if (typeof failure.message === 'string') message = failure.message; } catch {}
-    const aggregate = new AggregateError([failure, ...(additional ? [additional] : [])],
-      message, { cause: failure });
-    try { if (typeof failure.name === 'string') aggregate.name = failure.name; } catch {}
-    // Preserve non-enumerable resource capabilities without invoking getters or
-    // replacing the aggregate's exact original cause/errors.
-    const existing = Object.getOwnPropertyDescriptors(failure);
-    for (const key of Reflect.ownKeys(existing)) {
-      if (['cause', 'errors', 'message', 'stack'].includes(key) || Object.hasOwn(descriptors, key)) continue;
-      Object.defineProperty(aggregate, key, existing[key]);
-    }
-    Object.defineProperties(aggregate, descriptors);
+  } catch (inspection) {
+    // Ordinary frozen/existing-owner fallback is represented by the common
+    // composer, including exact original capabilities and inspection evidence.
+    context = addStorageFailureContext(context, {}, inspection, { secondaryPresent: true, forceAggregate: true });
+    const aggregate = addStorageFailureContext(failure, { ...fields, storageFailureObservation: null }, context,
+      { secondaryPresent: true, forceAggregate: true, nonEnumerable: Object.keys(fields).concat('storageFailureObservation') });
+    Object.defineProperties(aggregate, { ...descriptorsFor(aggregate),
+      cause: { value: failure, configurable: true, writable: true } });
     return aggregate;
   }
+};
+
+const captureSettlementReceipt = receipt => {
+  const observation = observeStorageResource(receipt, { phase: 'storage-session-receipt' });
+  observation.requireSettled();
+  let captured;
+  try { captured = Object.freeze({ resourceId: receipt?.resourceId, settled: receipt?.settled, pending: receipt?.pending }); }
+  catch (inspection) { throw observation.retain(inspection, { inspectionPresent: true }); }
+  observation.requireSettled();
+  return { receipt: captured, requireSettled: observation.requireSettled };
 };
 
 /** Session lifetime is resource lifetime, not request timeout or Promise.race.
@@ -85,7 +95,8 @@ export const acquireStorageSession = ({ roots, coordinationRoot, authorizedRoots
   const session = Object.freeze({ schemaVersion: 1, resourceId, roots: selected, coordinationRoot: metadataRoot,
     get leaseIds() { return leases.map(lease => lease.leaseId); },
     releaseAfterSettlement: receipt => {
-      if (receipt?.resourceId !== resourceId || receipt.settled !== true || receipt.pending !== false) {
+      const captured = captureSettlementReceipt(receipt);
+      if (captured.receipt.resourceId !== resourceId || captured.receipt.settled !== true || captured.receipt.pending !== false) {
         throw Object.assign(new Error('Storage session remains retained until its exact resource lifetime settles.'), { code: 'ERR_STORAGE_SESSION_PENDING', cacheOwnershipPending: true });
       }
       if (released) return true;
@@ -129,23 +140,24 @@ export const acquireStorageSession = ({ roots, coordinationRoot, authorizedRoots
 export const runWithStorageSession = async (input, action, { settlement } = {}) => {
   if (typeof action !== 'function' || typeof settlement !== 'function') throw new TypeError('Storage session execution requires action and settlement owners.');
   const session = acquireStorageSession(input);
-  let value;
+  let value, operationFailed = false;
   let operationError = null;
   try { value = await action(session); }
-  catch (error) { operationError = error && typeof error === 'object' ? error : new Error(String(error), { cause: error }); }
+  catch (error) { operationFailed = true; operationError = asError(error); }
   // Capture before calling the settlement owner: a callback cannot replace an
   // existing resource observer or erase it by changing the separate marker.
-  const originalClosure = capturePendingClosure(operationError);
+  const original = observeStorageResource(operationFailed ? operationError : value, { phase: 'storage-session-action' });
+  const resourceObservation = original.retain();
   try {
     const receipt = await settlement({ value, error: operationError, resourceId: session.resourceId });
-    const observers = [originalClosure, capturePendingClosure(operationError)].filter(Boolean);
-    if (observers.length) {
-      if (receipt?.pending !== false || !observers.every(observe => observe())) throw operationError;
-    }
-    session.releaseAfterSettlement(receipt);
+    const captured = captureSettlementReceipt(receipt);
+    original.requireSettled();
+    captured.requireSettled();
+    original.requireSettled();
+    session.releaseAfterSettlement(captured.receipt);
   } catch (settlementError) {
-    throw retainSessionFailure(operationError, settlementError, session, { originalClosure });
+    throw retainSessionFailure(operationError, settlementError, session, { resourceObservation, primaryPresent: operationFailed });
   }
-  if (operationError) throw operationError;
+  if (operationFailed) throw operationError;
   return { value, resourceId: session.resourceId, settled: true };
 };

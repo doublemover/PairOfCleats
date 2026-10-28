@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-28T03:43:18.459Z",
+  "generatedAt": "2026-10-28T03:50:40.686Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4705,6 +4705,7 @@
         "tests/shared/storage/native-reader-lifetime.test.js",
         "tests/shared/storage/native-validator-sessions.test.js",
         "tests/shared/storage/repo-cleanup-exclusion.test.js",
+        "tests/shared/storage/session-resource-observation.test.js",
         "tests/shared/storage/sqlite-operation-lifetime.test.js",
         "tests/shared/storage/sqlite-probe-lifetime.test.js",
         "tests/shared/subprocess/sync-timeout-detached-tree.test.js",
