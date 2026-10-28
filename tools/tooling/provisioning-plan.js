@@ -31,6 +31,7 @@ const sameExecutable = (actual, expected) => actual.path === expected.path && ac
 export const normalizeToolProvisioningDeclaration = tool => {
   const install = Object.fromEntries(Object.entries(tool.install || {}).map(([scope, action]) => {
     if (!action || typeof action !== 'object') return [scope, action];
+    if (Array.isArray(action)) return [scope, [...action]];
     const allocation = scope === 'cache' ? resolveDeclaredInstallAdmission(action) : null;
     const storageAllocationBlocker = allocation && allocation.state !== 'estimate-declared'
       ? { code: 'recipe-storage-allocation-unqualified', state: allocation.state, owner: 'canonical-product-recipe',
