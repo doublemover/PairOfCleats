@@ -1,6 +1,6 @@
 # PairOfCleats Roadmap
 
-Status: Solo implementation wave; functional qualification deferred
+Status: Implementation through checkpoint 240; full Windows validation next
 Last audited: 2026-10-27
 Last reconciled: 2026-10-28
 Canonical for: initiative status, execution order, and remaining work
@@ -67,8 +67,9 @@ implementation by severity and shared dependencies:
 6. Research capabilities after their prerequisite source/retrieval/evidence owners.
 
 The [scoped CDB collector](archived/windows-cdb-collector-implementation-2026-10-28.md)
-and forensic drain are wired; native qualification remains. Frontload implementation,
-then bounded checks. Real-tool/model, non-Windows and release checks remain.
+and forensic drain are wired; native qualification remains.
+At checkpoint 240, freeze implementation and run full Windows validation.
+Real-tool/model, non-Windows and release checks remain explicit.
 
 Validation uses **targeted Windows re-checks** under the user's 2026-10-24 scope.
 The [validation receipt](archived/windows-solo-validation-2026-10-23.md) preserves

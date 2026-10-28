@@ -140,6 +140,8 @@ PR #572 metadata was refreshed and read back at checkpoint `c070f3095` (180 loca
 
 - [Owned child progress](windows-cdb-child-progress-implementation-2026-10-28.md): actual SQLite/CDB child records bounded nonce/PID phases; partial writes stay partial and foreign progress cannot qualify diagnostics. Six real-child and three collector progress controls authored, unexecuted. [Checkpoint 220](pr572-source-checkpoint-220-2026-10-28.md) maps all 718 live issues and 206 additional authored controls since 200; source remains unpublished/unqualified.
 
+- [SQLite dense schema/lifetime](sqlite-dense-schema-lifetime-implementation-2026-10-28.md): actual update propagates schema failures, refuses unsupported destructive width inference and retains original synchronous DB/source cleanup across falsey/independent errors. Thirty-three controls authored, unexecuted. The user now requests full Windows validation at the next 20-commit boundary, **checkpoint 240**, before further implementation waves.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.

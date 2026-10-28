@@ -49,6 +49,20 @@ remain secondary to the native error. A failed collector cannot acknowledge a
 successful SQLite result. Setup/runtime activation is separate from native
 lifecycle and crash qualification.
 
+The actual synchronous dense updater now distinguishes genuine absent catalog rows
+from failed/invalid schema queries. A selected column's native type or bounded,
+anchored producer DDL owns its width; another column/default string cannot justify
+a destructive ANN rebuild. Unknown width fails before DROP. Required synchronous
+pragma failure propagates. These checks retain original query observations.
+
+Dense update and the legacy row-materialization helper compose the existing
+constructor-time SQLite close owner and original contained-source close owner.
+Unsettled work blocks rollback/cleanup; independent settled cleanup attempts run
+even after another close fails. Falsey work and independent close errors remain.
+The private cleanup capability reconciles existing original resources, never vector
+reconciliation or rollback. This is synchronous resource ownership, not complete
+custom-root writer registration or a new public configuration surface.
+
 The real wrapper also appends at most 64 small owned progress events. Events bind
 nonce/PID/sequence and a closed phase set around initialization, native import and
 SQLite update. Complete lines survive a partial final write; foreign identity or
@@ -92,6 +106,9 @@ Six real ordinary-child wrapper controls and three fixture-controlled progress
 controls are also authored, unexecuted; no debugger or access violation is simulated
 as passing native qualification. Replay references are not an immutable
 self-contained archive of the crashing generation.
+Thirty-three schema/lifetime controls, including eight actual SQLite paths, are
+also authored and unexecuted. The user's current boundary is checkpoint 240:
+finish that implementation batch, then run full Windows-applicable validation.
 Microsoft documents [child-process debugger ownership](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/cdb-command-line-options),
 [second-chance filters](https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/sx--sxd--sxe--sxi--sxn--sxr--sx---set-exceptions-)
 and [minidump creation](https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/-dump--create-dump-file-).
