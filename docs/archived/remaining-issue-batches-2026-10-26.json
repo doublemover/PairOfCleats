@@ -1053,13 +1053,15 @@
       "currentDisposition": "implementation_needed",
       "unvalidatedSourceHeads": [
         "a87beee17374ebfc8d22f415dd455590daf89443",
-        "f92c53623fe170b7eeba025bb1c20b86832ff573"
+        "f92c53623fe170b7eeba025bb1c20b86832ff573",
+        "ce10a3aa90ef94a418c393a83b97908a744b0e06"
       ],
       "unvalidatedReceipts": [
         "native-state-publication-implementation-2026-10-28.md"
       ],
       "nativeStatePublicationFollowup": "Required SQLite/LMDB state and shared manifest read/write/checksum failures now propagate instead of acknowledging in-memory ready state after failed publication. Malformed existing state cannot silently become an empty replacement. Optional LMDB metrics suppress only confirmed-settled resource observations. Eleven actual-producer controls are authored and unexecuted; paired/concurrent publication, row/build-mode, custom registration/cleanup and original/follow-up acceptance remain separate.",
-      "compactionCountFollowup": "Actual compaction now refuses failed table metadata/query and invalid row counts instead of substituting zero. Required chunks and dense_vectors absence fails; zero needs a successful query. Eight actual native controls are authored, unexecuted, preserving unchanged source/once-only close/metadata recovery plus empty/nonempty dense positives. Existing compaction/row/build-mode and full original acceptance remain."
+      "compactionCountFollowup": "Actual compaction now refuses failed table metadata/query and invalid row counts instead of substituting zero. Required chunks and dense_vectors absence fails; zero needs a successful query. Eight actual native controls are authored, unexecuted, preserving unchanged source/once-only close/metadata recovery plus empty/nonempty dense positives. Existing compaction/row/build-mode and full original acceptance remain.",
+      "stateChecksumObservationFollowup": "State-manifest byte extent and checksum now come from the same original contained descriptor and return only after its actual close. Existing checksum-only contracts remain; digest completion stays joined. A split-stat size-race control and actual descriptor-failure injection are authored and unexecuted; twenty native state/compaction controls total remain pending."
     },
     {
       "number": 289,
@@ -4649,7 +4651,8 @@
         "afa75fe93a76d2693036a74a774b6510f700d8d0",
         "b48e9157cdbe5ca1673dba13ee570177070f41e8",
         "a87beee17374ebfc8d22f415dd455590daf89443",
-        "f92c53623fe170b7eeba025bb1c20b86832ff573"
+        "f92c53623fe170b7eeba025bb1c20b86832ff573",
+        "ce10a3aa90ef94a418c393a83b97908a744b0e06"
       ],
       "unvalidatedReceipts": [
         "storage-space-implementation-2026-10-27.md",
@@ -4676,7 +4679,8 @@
       "managedOriginalAcknowledgementFollowup": "Managed children now check the actual session-captured action observation and once-captured receipt before write-reservation release. Exact admission-producer failure association and the actual own session form recovery; copied properties/matching IDs cannot mint it. Captured receipt observers survive enclosing acknowledgement, arbitrary error capability getters remain unread and original errors survive fallback. Eight authored controls remain unexecuted; original admission/child/native/category and broader backend/publication/cleanup qualification remain.",
       "currentDisposition": "partial_or_followup",
       "nativeStatePublicationFollowup": "Required SQLite/LMDB state and shared manifest read/write/checksum failures now propagate instead of acknowledging in-memory ready state after failed publication. Malformed existing state cannot silently become an empty replacement. Optional LMDB metrics suppress only confirmed-settled resource observations. Eleven actual-producer controls are authored and unexecuted; paired/concurrent publication, row/build-mode, custom registration/cleanup and original/follow-up acceptance remain separate.",
-      "compactionCountFollowup": "Actual compaction now refuses failed table metadata/query and invalid row counts instead of substituting zero. Required chunks and dense_vectors absence fails; zero needs a successful query. Eight actual native controls are authored, unexecuted, preserving unchanged source/once-only close/metadata recovery plus empty/nonempty dense positives. Existing compaction/row/build-mode and full original acceptance remain."
+      "compactionCountFollowup": "Actual compaction now refuses failed table metadata/query and invalid row counts instead of substituting zero. Required chunks and dense_vectors absence fails; zero needs a successful query. Eight actual native controls are authored, unexecuted, preserving unchanged source/once-only close/metadata recovery plus empty/nonempty dense positives. Existing compaction/row/build-mode and full original acceptance remain.",
+      "stateChecksumObservationFollowup": "State-manifest byte extent and checksum now come from the same original contained descriptor and return only after its actual close. Existing checksum-only contracts remain; digest completion stays joined. A split-stat size-race control and actual descriptor-failure injection are authored and unexecuted; twenty native state/compaction controls total remain pending."
     },
     {
       "number": 1268,
@@ -7534,7 +7538,8 @@
         "afa75fe93a76d2693036a74a774b6510f700d8d0",
         "b48e9157cdbe5ca1673dba13ee570177070f41e8",
         "a87beee17374ebfc8d22f415dd455590daf89443",
-        "f92c53623fe170b7eeba025bb1c20b86832ff573"
+        "f92c53623fe170b7eeba025bb1c20b86832ff573",
+        "ce10a3aa90ef94a418c393a83b97908a744b0e06"
       ],
       "unvalidatedReceipts": [
         "sqlite-operation-implementation-2026-10-27.md",
@@ -7568,7 +7573,8 @@
       "managedOriginalAcknowledgementFollowup": "Managed children now check the actual session-captured action observation and once-captured receipt before write-reservation release. Exact admission-producer failure association and the actual own session form recovery; copied properties/matching IDs cannot mint it. Captured receipt observers survive enclosing acknowledgement, arbitrary error capability getters remain unread and original errors survive fallback. Eight authored controls remain unexecuted; original admission/child/native/category and broader backend/publication/cleanup qualification remain.",
       "currentDisposition": "partial_or_followup",
       "nativeStatePublicationFollowup": "Required SQLite/LMDB state and shared manifest read/write/checksum failures now propagate instead of acknowledging in-memory ready state after failed publication. Malformed existing state cannot silently become an empty replacement. Optional LMDB metrics suppress only confirmed-settled resource observations. Eleven actual-producer controls are authored and unexecuted; paired/concurrent publication, row/build-mode, custom registration/cleanup and original/follow-up acceptance remain separate.",
-      "compactionCountFollowup": "Actual compaction now refuses failed table metadata/query and invalid row counts instead of substituting zero. Required chunks and dense_vectors absence fails; zero needs a successful query. Eight actual native controls are authored, unexecuted, preserving unchanged source/once-only close/metadata recovery plus empty/nonempty dense positives. Existing compaction/row/build-mode and full original acceptance remain."
+      "compactionCountFollowup": "Actual compaction now refuses failed table metadata/query and invalid row counts instead of substituting zero. Required chunks and dense_vectors absence fails; zero needs a successful query. Eight actual native controls are authored, unexecuted, preserving unchanged source/once-only close/metadata recovery plus empty/nonempty dense positives. Existing compaction/row/build-mode and full original acceptance remain.",
+      "stateChecksumObservationFollowup": "State-manifest byte extent and checksum now come from the same original contained descriptor and return only after its actual close. Existing checksum-only contracts remain; digest completion stays joined. A split-stat size-race control and actual descriptor-failure injection are authored and unexecuted; twenty native state/compaction controls total remain pending."
     },
     {
       "number": 1575,

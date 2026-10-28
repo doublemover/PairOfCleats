@@ -49,3 +49,14 @@ pre-staging source bytes and once-only original close/metadata recovery controls
 Format/ESLint, two changed JavaScript syntax checks and whitespace passed. No
 functional or native execution occurred. Nineteen state/compaction controls are
 now authored; full row-ledger/build-mode and owner qualification still remain.
+
+Descriptor-observation follow-up source `ce10a3aa90ef94a418c393a83b97908a744b0e06`,
+tree `dccaa3f72e187ef74b34ba8b414e960e791b16b9`, removes the split path-stat/hash
+receipt. The existing bounded incremental hasher can return bytes/identity from
+the original verified descriptor after actual closure. State manifest refresh
+uses that contained observation; checksum-only callers retain their shape.
+Digest completion remains joined, including an asynchronous original digest.
+The new size-race control and updated actual descriptor-failure injection are
+authored, unexecuted. Twelve state and eight compaction cases now total twenty;
+all prior required checks remain. Format/ESLint, three changed JavaScript syntax
+checks, whitespace and zero-cycle analysis passed; no functional execution ran.

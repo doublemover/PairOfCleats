@@ -29,6 +29,13 @@ byte/checksum/extension preservation. Existing artifact/bundle/incremental,
 embedding manifest, native-command and original/follow-up acceptance still need
 execution on the resulting candidate.
 
+The state-manifest checksum and byte extent now come from the same verified
+contained descriptor. The shared hasher returns its immutable observation only
+after original descriptor closure; existing checksum-only callers retain their
+return contract. A path stat from before that read cannot supply the receipt's
+size. The added `manifest-size-race` regression forces the historical split
+observation and checks the actual manifest against current bytes; it is unrun.
+
 SQLite compaction also requires successful table metadata and nonnegative safe
 integer counts. Required `chunks` or `dense_vectors` query failure cannot stand
 in for zero rows. Native/observer failures propagate through the existing command
