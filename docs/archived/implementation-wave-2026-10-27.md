@@ -67,6 +67,8 @@ the unexecuted Windows source work separately from published acceptance.
 | [b48e9157c](managed-child-acknowledgement-implementation-2026-10-28.md) | Managed quota retirement after original action/receipt observations and producer-bound admission recovery | 8 authored controls; actual admission/child/category and full original/follow-up qualification remain |
 | [dc7746853](tokenizer-invocation-implementation-2026-10-28.md) | One original bounded tokenizer worker/profile for serial exact trials, local scalar reuse and joined accepted work | 9 authored controls; actual profile/worker/surface and measured cold/warm qualification remain |
 
+- [Bounded evidence-set selection](context-evidence-selection-implementation-2026-10-28.md): #1126 canonical opt-in, source-qualified frozen pooling, exact bounded controls and shared-pool evaluation; 45 new cases authored, unexecuted.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.

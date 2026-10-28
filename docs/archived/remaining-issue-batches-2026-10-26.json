@@ -3028,8 +3028,16 @@
       "recordedDisposition": "implementation_needed",
       "priority": "unranked",
       "batch": "retrieval-contracts",
-      "phase": "source-review-and-implementation",
-      "status": "queued"
+      "phase": "bounded-evidence-selection-implemented-qualification-pending",
+      "status": "source-implemented-qualification-pending",
+      "currentDisposition": "qualification_pending",
+      "currentImplementation": "Optional strict CLI/HTTP/MCP selection now captures a frozen source-qualified intact-unit pool, bounded priority/MMR/role/facility controls, exact full-render token/byte admission, explicit source/coverage/work frontiers, stable identities and cancellation-safe final publication. Shared-pool evaluation reports honest role/redundancy/post-hoc recall and observed timing/memory; no real task outcome or default ranking claim. Forty-five authored cases are unexecuted; original/follow-up and useful low/high-budget quality/lifecycle/performance qualification remain.",
+      "unvalidatedSourceHeads": [
+        "b998e23d4352c514ca6173f3d0bb7e0418cbf3c0"
+      ],
+      "unvalidatedReceipts": [
+        "context-evidence-selection-implementation-2026-10-28.md"
+      ]
     },
     {
       "number": 1127,
