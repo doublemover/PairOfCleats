@@ -9,8 +9,8 @@ Canonical for: initiative status, execution order, and remaining work
 
 The [closeout review](archived/github-issue-closeout-2026-10-26.md) assessed
 **770 issues/238 comments**, closing 27; later batches closed 25 more.
-The latest **718-open source snapshot** records 473 qualification-pending,
-144 partial and 101 unresolved entries, including unpublished implementations.
+The latest **718-open source snapshot** records 476 qualification-pending,
+144 partial and 98 unresolved entries, including unpublished implementations.
 
 The [complete assessment](archived/github-issue-closeout-2026-10-26.json) retains
 source/test mappings and closure witnesses; [earlier receipts](archived/solo-issue-repairs-2026-10-25.md)

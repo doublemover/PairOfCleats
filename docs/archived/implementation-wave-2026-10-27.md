@@ -6,16 +6,7 @@ The following local implementation checkpoints have not been functionally
 qualified or pushed; the publication front gate remains deferred during source
 work. Their separate receipts preserve exact trees, limitations and checks.
 
-PR #572 metadata was refreshed and read back at local checkpoint
-`c5504e9b4` (100 commits), updated `2026-10-28T04:43:56Z`. A complete live inventory
-verified all 718 open issues once across the collapsed status lists: 471 with
-implementation recorded/qualification pending, 144 partial and 103 unresolved.
-These source classifications include unpublished work; qualified closing
-references were preserved. Published head/base remained `adbcaf777` / `main`.
-The refresh moves #1124 to implementation recorded and #1325 to partial after
-their new source work; already recorded platform/host/path qualifications retain
-their pending status. The read-back description is 63,774 characters and names
-the unexecuted Windows source work separately from published acceptance.
+PR #572 metadata was refreshed and read back at checkpoint `138d9d9e5` (120 local commits), updated `2026-10-28T07:53:42Z`. A complete live inventory verified all 718 open reports once: 473 implementation-recorded/qualification-pending, 144 partial and 101 unresolved; 154 qualified closing references remain unchanged. The [subsequent source reconciliation](source-classification-reconciliation-2026-10-28.md) moves #668/#672/#681 to pending, yielding 476/144/98. No functional acceptance or source publication is implied.
 
 | Source | Deliverable | Deferred coverage / remaining work |
 | --- | --- | --- |

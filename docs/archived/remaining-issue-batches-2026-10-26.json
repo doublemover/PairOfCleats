@@ -1353,16 +1353,17 @@
         "18a11375463acdf2ed74dfa6ab2451c8a8703972"
       ],
       "unvalidatedReceipts": [
-        "javascript-documentation-implementation-2026-10-27.md"
+        "javascript-documentation-implementation-2026-10-27.md",
+        "source-classification-reconciliation-2026-10-28.md"
       ],
-      "currentImplementation": "Privately admitted parser comment ranges feed bounded declaration-associated JSDoc parsing using the locked libraries and documented dialect. AST metadata retains precedence, hints preserve structured names/types, and JavaScript relations are versioned. Twenty-one authored cases and existing consumer/replay/import checks remain unexecuted.",
+      "currentImplementation": "Actual source-parser comment ownership and bounded existing-library JSDoc/type parsing are implemented. Raw documentation hints/states remain distinct from stronger AST identity. Twenty-one authored cases and all original parser/consumer/replay/import/follow-up qualification remain unexecuted.",
       "title": "Reuse declared JSDoc parsers instead of regex-scanning JavaScript chunk text",
       "recordedDisposition": "implementation_needed",
       "priority": "unranked",
       "batch": "language-semantics",
-      "phase": "source-review-and-implementation",
-      "status": "queued",
-      "currentDisposition": "implementation_needed"
+      "phase": "existing-source-reconciled-qualification-pending",
+      "status": "source-implemented-qualification-pending",
+      "currentDisposition": "qualification_pending"
     },
     {
       "number": 670,
@@ -1384,16 +1385,17 @@
         "1515ad0a8ebfb7c3125ffd5570f3e86e79133837"
       ],
       "unvalidatedReceipts": [
-        "dependency-ownership-implementation-2026-10-27.md"
+        "dependency-ownership-implementation-2026-10-27.md",
+        "source-classification-reconciliation-2026-10-28.md"
       ],
-      "currentImplementation": "Proved the scoped Lua native registry/bootstrap route is exclusive; removed the unscoped direct root and permission through npm lock regeneration. Fresh locked bootstrap verifies 37 required packages and 33 language routes without warning/error matches. Inventory and Lua consumer regression execution remains deferred.",
+      "currentImplementation": "Actual dynamic/CLI/native/peer ownership was proved before five unused roots and three permissions were retired through supported lock regeneration. Current manifest/lock remain converged and required locked bootstrap succeeded without warning/error matches. Authored inventory and actual Lua/parser/MDX/structural/dictionary/LanceDB/original/follow-up runtime qualification remain.",
       "title": "Remove the superseded native tree-sitter-lua dependency after the scoped-grammar cutover",
       "recordedDisposition": "implementation_needed",
       "priority": "unranked",
       "batch": "language-semantics",
-      "phase": "source-review-and-implementation",
-      "status": "queued",
-      "currentDisposition": "implementation_needed"
+      "phase": "existing-source-reconciled-qualification-pending",
+      "status": "source-implemented-qualification-pending",
+      "currentDisposition": "qualification_pending"
     },
     {
       "number": 674,
@@ -1421,16 +1423,17 @@
         "1515ad0a8ebfb7c3125ffd5570f3e86e79133837"
       ],
       "unvalidatedReceipts": [
-        "dependency-ownership-implementation-2026-10-27.md"
+        "dependency-ownership-implementation-2026-10-27.md",
+        "source-classification-reconciliation-2026-10-28.md"
       ],
-      "currentImplementation": "Audited imports, dynamic/native/CLI owners and complete incoming lock edges; removed four unused roots and two orphan permissions, preserving Arrow/esquery/NAN users. Combined with Lua retirement, npm removes 110 records without retained upgrades. Fresh setup passes; focused consumer/inventory tests are authored/deferred, with historical reference claims deprecated.",
+      "currentImplementation": "Actual dynamic/CLI/native/peer ownership was proved before five unused roots and three permissions were retired through supported lock regeneration. Current manifest/lock remain converged and required locked bootstrap succeeded without warning/error matches. Authored inventory and actual Lua/parser/MDX/structural/dictionary/LanceDB/original/follow-up runtime qualification remain.",
       "title": "Remove four unconsumed dependency roots and orphan SWC/ripgrep install permissions",
       "recordedDisposition": "implementation_needed",
       "priority": "unranked",
       "batch": "language-semantics",
-      "phase": "source-review-and-implementation",
-      "status": "queued",
-      "currentDisposition": "implementation_needed"
+      "phase": "existing-source-reconciled-qualification-pending",
+      "status": "source-implemented-qualification-pending",
+      "currentDisposition": "qualification_pending"
     },
     {
       "number": 683,
@@ -9667,11 +9670,11 @@
   ],
   "currentCounts": {
     "open": 718,
-    "qualificationPending": 473,
+    "qualificationPending": 476,
     "partialFollowup": 144,
-    "implementationStatusUnresolved": 101
+    "implementationStatusUnresolved": 98
   },
-  "reconciledAt": "2026-10-28T07:52:16.435Z",
+  "reconciledAt": "2026-10-28T07:57:44.041Z",
   "completedSourceBatch": [
     347,
     586,
@@ -9710,12 +9713,23 @@
         "implementationStatusUnresolved": 113
       },
       "meaning": "Historical classification preserved before the 120-commit live/source reconciliation."
+    },
+    {
+      "reconciledAt": "2026-10-28T07:52:16.435Z",
+      "sourceHead": "ab9dbafb0b42c30c327d0ac94c66eeba74e04e14",
+      "counts": {
+        "open": 718,
+        "qualificationPending": 473,
+        "partialFollowup": 144,
+        "implementationStatusUnresolved": 101
+      },
+      "meaning": "Verified live/source PR snapshot at the 120-commit checkpoint; three later stale classifications reconciled separately."
     }
   ],
   "currentCountsBasis": {
     "meaning": "Complete live GitHub inventory plus recorded local source implementation; not functional acceptance.",
     "publishedHead": "adbcaf777ce91642bb0a60de892171d8c3a529f7",
-    "sourceHead": "ab9dbafb0b42c30c327d0ac94c66eeba74e04e14",
-    "receipt": "vfs-cross-process-implementation-2026-10-28.md"
+    "sourceHead": "138d9d9e560963506d6fc0991e5df6ec39de9f28",
+    "receipt": "source-classification-reconciliation-2026-10-28.md"
   }
 }
