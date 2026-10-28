@@ -24,7 +24,7 @@ try {
     assert.equal(this, loading); loadingCloses++; if (!allowClose) throw loadingClose;
   } };
   const failure = await rejected(readPdfPages({ pdfjs: { getDocument: () => loading }, source, policy }));
-  assert.equal(failure.cause, original); assert.equal(failure.code, 'EIO');
+  assert.ok(errorGraphIncludes(failure, original)); assert.equal(failure.code, 'EIO');
   assert.deepEqual(new Set(failure.cleanupErrors), new Set([documentClose, loadingClose]));
   assert.equal(original.cleanupErrors, undefined, 'cleanup cannot mutate or mask a frozen primary');
   assert.equal(isPendingPdfExtractionFailure(failure), true);
@@ -83,7 +83,10 @@ try {
     promise: Promise.resolve({ numPages: 1, getPage: async () => ({ getTextContent: async () => { throw original; },
       cleanup: () => { throw cleanup; } }) }), destroy() {}
   }) }, source, policy }));
-  assert.equal(pageFailure.cause, original); assert.deepEqual(pageFailure.errors, [original, cleanup]);
+  assert.ok(errorGraphIncludes(pageFailure, original)); assert.ok(errorGraphIncludes(pageFailure, cleanup));
+  assert.equal(pageFailure.errors.length, 2);
+  assert.ok(errorGraphIncludes(pageFailure.errors[0], original), 'coverage annotation retains the original primary error');
+  assert.equal(pageFailure.errors[1], cleanup, 'page cleanup remains the exact ordered secondary failure');
   assert.equal(pageFailure.cacheOwnershipReleased(), true, 'ordinary failed extraction can finish its resource cleanup');
   assert.equal(isPendingPdfExtractionFailure(pageFailure), false);
 
