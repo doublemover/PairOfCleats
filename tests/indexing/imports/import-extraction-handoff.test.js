@@ -13,6 +13,7 @@ import { resolveBundleImports } from '../../../src/index/build/incremental/share
 import { enqueueFileRelationsArtifacts } from '../../../src/index/build/artifacts/writers/file-relations.js';
 import { writePiecesManifest } from '../../../src/index/build/artifacts/checksums.js';
 import { loadJsonArrayArtifact } from '../../../src/shared/artifact-io/loaders/core.js';
+import { loadGraphRelations } from '../../../src/shared/artifact-io/loaders/graph.js';
 import { getImportExtraction, summarizeImportExtraction } from '../../../src/shared/import-extraction.js';
 import { sha1 } from '../../../src/shared/hash.js';
 import { createImportResolutionTempRoot } from '../../helpers/import-resolution-fixture.js';
@@ -104,8 +105,9 @@ try {
     assert.deepEqual(summarizeImportExtraction(new Map(loaded.map(row => [row.file, row.relations]))), summarizeImportExtraction(records));
   }
   const graphDir = path.join(root, 'graph'); await fs.mkdir(graphDir);
-  const { rows: graph } = await writeAndLoadRelationBenchGraphArtifacts({ outDir: graphDir, fileRelations: state.fileRelations,
+  const { manifest: graphManifest } = await writeAndLoadRelationBenchGraphArtifacts({ outDir: graphDir, fileRelations: state.fileRelations,
     chunks: [{ file: 'healthy.yaml', chunkUid: 'healthy', name: 'healthy', kind: 'Config', codeRelations: {} }], maxJsonBytes: 16384 });
+  const graph = await loadGraphRelations(graphDir, { manifest: graphManifest, strict: true });
   assert.deepEqual(graph.extractionCoverage, summarizeImportExtraction(state.fileRelations), 'the actual sharded graph writer and strict loader preserve file-level failures');
   assert.equal(graph.importGraph.edgeCount, 0);
 

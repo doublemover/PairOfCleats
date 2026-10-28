@@ -4,7 +4,7 @@ import PQueue from 'p-queue';
 import { runWithQueue } from '../../../src/shared/concurrency/run-with-queue.js';
 import { runShardSubsetsWithRetry } from '../../../src/index/build/indexer/steps/process-files/ordering.js';
 import { readPdfPages } from '../../../src/index/extractors/pdf.js';
-import { errorGraphIncludes } from '../../helpers/error-graph.js';
+import { errorGraphIncludes, errorGraphSome } from '../../helpers/error-graph.js';
 import { createPdfExtractionLifetime, getPendingPdfExtractionOwners,
   isPendingPdfExtractionFailure } from '../../../src/index/extractors/pdf-lifetime.js';
 
@@ -84,9 +84,9 @@ try {
       cleanup: () => { throw cleanup; } }) }), destroy() {}
   }) }, source, policy }));
   assert.ok(errorGraphIncludes(pageFailure, original)); assert.ok(errorGraphIncludes(pageFailure, cleanup));
-  assert.equal(pageFailure.errors.length, 2);
-  assert.ok(errorGraphIncludes(pageFailure.errors[0], original), 'coverage annotation retains the original primary error');
-  assert.equal(pageFailure.errors[1], cleanup, 'page cleanup remains the exact ordered secondary failure');
+  assert.ok(errorGraphSome(pageFailure, error => Array.isArray(error?.errors) && error.errors.length === 2
+    && error.errors[0] === original && error.errors[1] === cleanup),
+  'coverage annotation retains the exact ordered primary/cleanup pair');
   assert.equal(pageFailure.cacheOwnershipReleased(), true, 'ordinary failed extraction can finish its resource cleanup');
   assert.equal(isPendingPdfExtractionFailure(pageFailure), false);
 

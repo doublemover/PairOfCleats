@@ -12,6 +12,8 @@ import {
 import { sha1 } from '../../../src/shared/hash.js';
 import { ARTIFACT_SURFACE_VERSION } from '../../../src/contracts/versioning.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { collectLanguageImports } from '../../../src/index/language-registry.js';
+import { getImportExtraction } from '../../../src/shared/import-extraction.js';
 
 import { resolveTestCachePath } from '../../helpers/test-cache.js';
 
@@ -35,6 +37,7 @@ const relKey = 'src/file.js';
 await fs.utimes(absPath, new Date(2000), new Date(2000));
 const coarseStat = await fs.stat(absPath);
 const fileHash = sha1(sourceBuffer);
+const imports = collectLanguageImports({ text: sourceBuffer.toString('utf8'), ext: '.js', relPath: relKey, mode: 'code' });
 
 const manifestEntry = await writeIncrementalBundle({
   enabled: true,
@@ -43,7 +46,7 @@ const manifestEntry = await writeIncrementalBundle({
   fileStat: coarseStat,
   fileHash,
   fileChunks: [],
-  fileRelations: { imports: ['./dep.js'] },
+  fileRelations: { imports, importExtraction: getImportExtraction(imports) },
   vfsManifestRows: null,
   bundleFormat: 'json'
 });

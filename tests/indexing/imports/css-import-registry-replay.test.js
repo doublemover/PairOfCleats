@@ -63,7 +63,8 @@ try {
   const writeBundle = async coverage => {
     manifest.files[relKey] = await writeIncrementalBundle({ enabled: true, bundleDir, manifest, relKey, fileStat: stat,
       fileHash: sha1(source), fileChunks: [], bundleFormat: 'json',
-      fileRelations: { imports: scan.importsByFile[relKey], cssImportCoverage: coverage, importScanFingerprint: scan.importScanFingerprint } });
+      fileRelations: { imports: scan.importsByFile[relKey], importScanExtraction: scan.importExtractionByFile[relKey],
+        cssImportCoverage: coverage, importScanFingerprint: scan.importScanFingerprint } });
   };
   const readBundle = () => readCachedImports({ repoRoot: root, enabled: true, absPath: filePath, relKey, fileStat: stat, manifest,
     bundleDir, bundleFormat: 'json', expectedImportScanFingerprint: scan.importScanFingerprint });

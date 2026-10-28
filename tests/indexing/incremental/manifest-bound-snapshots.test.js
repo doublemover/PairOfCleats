@@ -8,25 +8,31 @@ import { canonicalBundleSourceKey } from '../../../src/shared/bundle-source-key.
 import { readCachedBundle, readCachedImports, writeIncrementalBundle } from '../../../src/index/build/incremental.js';
 import { readIncrementalBundleSnapshot, writeIncrementalBundleSnapshot } from '../../../src/index/build/incremental/bundle-snapshot.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
+import { collectLanguageImports } from '../../../src/index/language-registry.js';
+import { getImportExtraction } from '../../../src/shared/import-extraction.js';
 
 applyTestEnv({ testing: '1' });
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-snapshot-bound-'));
 try {
   const bundleDir = path.join(root, 'bundles'), absPath = path.join(root, 'source.js');
-  const textA = 'const A = 1;', textB = 'const B = 2;';
+  const textA = "import './a.js';\nconst A = 1;", textB = "import './b.js';\nconst B = 2;";
   await fs.writeFile(absPath, textA);
   await fs.utimes(absPath, new Date(2000), new Date(2000));
   const fileStat = await fs.stat(absPath);
   const dependencies = { parse: 'p', lexical: 'l', enrichment: 'e', embeddings: 'm' };
-  const write = text => writeIncrementalBundle({ enabled: true, bundleDir, relKey: 'source.js',
-    fileStat, fileHash: sha1(text), dependencySignatures: dependencies,
-    fileChunks: [{ file: './source.js', text }], fileRelations: { imports: [text] }, bundleFormat: 'json' });
+  const write = text => {
+    const imports = collectLanguageImports({ text, ext: '.js', relPath: 'source.js', mode: 'code' });
+    return writeIncrementalBundle({ enabled: true, bundleDir, relKey: 'source.js',
+      fileStat, fileHash: sha1(text), dependencySignatures: dependencies,
+      fileChunks: [{ file: './source.js', text }],
+      fileRelations: { imports, importExtraction: getImportExtraction(imports) }, bundleFormat: 'json' });
+  };
   const entryA = await write(textA), entryB = await write(textB);
   assert.notDeepEqual(entryA.bundles, entryB.bundles, 'distinct source snapshots never overwrite one another');
   const manifest = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION, files: { 'source.js': entryA } };
   const input = { repoRoot: root, enabled: true, bundleDir, absPath, relKey: 'source.js', fileStat, manifest };
   assert.equal((await readCachedBundle(input)).cachedBundle.chunks[0].text, textA);
-  assert.deepEqual(await readCachedImports(input), [textA]);
+  assert.deepEqual(await readCachedImports(input), ['./a.js']);
   manifest.files['source.js'] = { ...entryA, bundles: entryB.bundles, bundleInventory: entryB.bundleInventory };
   assert.equal((await readCachedBundle(input)).cachedBundle, null, 'B bundle cannot satisfy A source snapshot');
   assert.equal(await readCachedImports(input), null);
