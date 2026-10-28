@@ -5,6 +5,7 @@ import { acquireNativeReaderStorage } from '../../../../shared/storage/native-re
 import { observeStorageResource } from '../../../../shared/storage/failure-observation.js';
 import { addStorageFailureContext } from '../../../../shared/storage/operation-error.js';
 import { readSqliteChunkIdentity } from '../row-identity.js';
+import { readSqliteRowCorrespondence } from '../row-correspondence.js';
 
 // Query unavailability may be reported as an ordinary absent count. Native or
 // independent ownership failure may not: close the captured handle first and
@@ -79,7 +80,8 @@ export const readSqliteTableCount = input => {
 
 /** Required staged ledger counts share one native owner and read transaction.
  * Absence is explicit; a failed query/extension is never a zero or absent table. */
-export const readSqliteModeRowCounts = (input, { annTable = 'dense_vectors_ann', configureAnn = null, chunkIdentity = false } = {}) => {
+export const readSqliteModeRowCounts = (input, { annTable = 'dense_vectors_ann', configureAnn = null, chunkIdentity = false,
+  checkAnnCorrespondence = true } = {}) => {
   if (!/^[A-Za-z_][A-Za-z0-9_]*$/u.test(annTable)) throw new TypeError('SQLite ledger requires a validated ANN table identifier.');
   return probeSqlite({ ...input, required: true }, db => db.transaction(() => {
     const annPresent = Boolean(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name = ?").get(annTable));
@@ -96,7 +98,8 @@ export const readSqliteModeRowCounts = (input, { annTable = 'dense_vectors_ann',
       files: db.prepare('SELECT COUNT(*) AS total FROM file_manifest WHERE mode = ?').get(input.mode)?.total,
       ann: annPresent ? db.prepare(`SELECT COUNT(*) AS total FROM ${annTable}`).get()?.total : null,
       annPresent,
-      ...(chunkIdentity ? { chunkIdentity: readSqliteChunkIdentity(db, input.mode) } : {})
+      ...(chunkIdentity ? { chunkIdentity: readSqliteChunkIdentity(db, input.mode) } : {}),
+      correspondence: readSqliteRowCorrespondence(db, input.mode, { annTable, checkAnn: annPresent && checkAnnCorrespondence })
     };
   })(), null);
 };

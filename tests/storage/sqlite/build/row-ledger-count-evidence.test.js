@@ -45,7 +45,7 @@ if (selected.startsWith('native-')) {
   Database.prototype.prepare = function (sql, ...args) {
     if (this.name === target && (/COUNT\(\*\)/u.test(sql) || sql.includes('sqlite_master') && this.inTransaction)) {
       handles.add(this); transactionChecks++; assert.equal(this.inTransaction, true, 'capability and all row counts share one read transaction');
-      if (/COUNT\(\*\)/u.test(sql)) countQueries++;
+      if (sql.startsWith('SELECT COUNT(*) AS total')) countQueries++;
       if (selected === 'native-query-failure' && sql.includes('FROM dense_vectors WHERE')) throw fault;
     }
     return originalPrepare.call(this, sql, ...args);

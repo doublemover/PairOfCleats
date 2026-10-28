@@ -207,8 +207,11 @@ export const validateSqliteRowLedgerPostImport = ({
       chunks: (probe.readModeCount || readSqliteModeCount)(input),
       dense: (probe.readDenseCount || readSqliteDenseModeCount)(input),
       ann: (probe.readTableCount || readSqliteTableCount)({ ...input, tableName: annTable })
-    } : readSqliteModeRowCounts(input, { annTable, configureAnn, chunkIdentity: Boolean(chunkIdentity) });
+    } : readSqliteModeRowCounts(input, { annTable, configureAnn, chunkIdentity: Boolean(chunkIdentity),
+      checkAnnCorrespondence: annExpectation !== 'disabled' });
   observeStorageResource(snapshot, { phase: 'sqlite-ledger-staged-counts' }).requireSettled();
+  if (snapshot?.correspondence && (customCounts || typeof probe.readSnapshot === 'function')) throw Object.assign(
+    new Error('Qualified native correspondence requires the actual snapshot owner.'), { code: 'ERR_SQLITE_ROW_IDENTITY_MISMATCH' });
   const observed = { chunks: normalizeCount(snapshot?.chunks), dense: normalizeCount(snapshot?.dense),
     files: normalizeCount(snapshot?.files), ann: normalizeCount(snapshot?.ann),
     annPresent: snapshot?.annPresent ?? normalizeCount(snapshot?.ann) !== null };
@@ -239,9 +242,16 @@ export const validateSqliteRowLedgerPostImport = ({
     code: 'ERR_SQLITE_POSTIMPORT_IDENTITY_MISMATCH', failureClass: 'row_identity_mismatch',
     rowIdentity: { expected: chunkIdentity, observed: snapshot?.chunkIdentity || null }
   };
+  if (snapshot?.correspondence && snapshot.correspondence.ok !== true) return {
+    ...failure(SQLITE_ROW_LEDGER_FAILURE.postImportValidationMismatch, 'post-import native file/dense/ANN correspondence mismatch'),
+    code: 'ERR_SQLITE_POSTIMPORT_CORRESPONDENCE_MISMATCH', failureClass: 'row_identity_mismatch',
+    rowIdentity: { phase: 'post-import-correspondence', ...snapshot.correspondence }
+  };
   return { ok: true, phase: 'post-import', rowLedger: ledger, observed,
     coverage: { chunks: 'exact-count', dense: 'exact-count', ann: observed.annPresent ? 'exact-count' : annExpectation,
-      files: 'observed-only', identities: chunkIdentity ? 'normalized-artifact-stage-chunks' : 'unqualified' } };
+      files: snapshot?.correspondence?.coverage?.files || 'observed-only',
+      identities: chunkIdentity ? 'normalized-artifact-stage-chunks' : 'unqualified',
+      correspondence: snapshot?.correspondence?.coverage || null } };
 };
 
 export const classifySqliteModeBuildFailure = (err) => {
