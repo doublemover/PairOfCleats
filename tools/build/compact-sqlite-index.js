@@ -169,16 +169,13 @@ export async function compactDatabase(input, resources = null) {
    */
   const tableHasModeColumn = (db, table) => {
     if (modeColumnByTable.has(table)) return modeColumnByTable.get(table);
-    try {
-      const rows = db.prepare(`PRAGMA table_info(${table})`).all();
-      const hasMode = Array.isArray(rows)
-        && rows.some((row) => String(row?.name || '').toLowerCase() === 'mode');
-      modeColumnByTable.set(table, hasMode);
-      return hasMode;
-    } catch {
-      modeColumnByTable.set(table, false);
-      return false;
-    }
+    const rows = db.prepare(`PRAGMA table_info(${table})`).all();
+    if (!Array.isArray(rows)) throw Object.assign(new Error('SQLite compaction received invalid table metadata.'), {
+      code: 'ERR_SQLITE_COMPACTION_COUNT'
+    });
+    const hasMode = rows.some((row) => String(row?.name || '').toLowerCase() === 'mode');
+    modeColumnByTable.set(table, hasMode);
+    return hasMode;
   };
   /**
    * Count rows for a table, filtering by current mode when supported.
@@ -188,15 +185,13 @@ export async function compactDatabase(input, resources = null) {
    * @returns {number}
    */
   const countRows = (db, table) => {
-    try {
-      const hasMode = tableHasModeColumn(db, table);
-      const row = hasMode
-        ? db.prepare(`SELECT COUNT(*) AS total FROM ${table} WHERE mode = ?`).get(mode)
-        : db.prepare(`SELECT COUNT(*) AS total FROM ${table}`).get();
-      return Number.isFinite(row?.total) ? row.total : 0;
-    } catch {
-      return 0;
-    }
+    const hasMode = tableHasModeColumn(db, table);
+    const row = hasMode
+      ? db.prepare(`SELECT COUNT(*) AS total FROM ${table} WHERE mode = ?`).get(mode)
+      : db.prepare(`SELECT COUNT(*) AS total FROM ${table}`).get();
+    if (!Number.isSafeInteger(row?.total) || row.total < 0) throw Object.assign(
+      new Error(`SQLite compaction received an invalid ${table} row count.`), { code: 'ERR_SQLITE_COMPACTION_COUNT' });
+    return row.total;
   };
   const beforeStats = {
     bytes: sourceSize,

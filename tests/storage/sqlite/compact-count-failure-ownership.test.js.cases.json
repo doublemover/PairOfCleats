@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["pragma-failure", "count-failure", "pending-count", "invalid-count", "dense-missing", "required-missing", "dense-empty", "healthy"]
+}
