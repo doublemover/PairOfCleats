@@ -17,6 +17,30 @@ The package is currently private; these instructions do not assume a published
 global npm package or a globally linked CLI command. CLI/Node paths belong in
 User Settings rather than `.sublime-project` overrides.
 
+## Optional keyboard shortcuts
+
+Installation does not claim any keyboard shortcuts. All commands remain
+available through the command palette and the applicable menus.
+
+To opt in, open `Preferences: Key Bindings` and copy the entries from
+[`keybindings/Windows.json`](keybindings/Windows.json),
+[`keybindings/Linux.json`](keybindings/Linux.json), or
+[`keybindings/OSX.json`](keybindings/OSX.json) into your **User** keymap array.
+Review them against your existing bindings and change any conflicting chords.
+These example JSON files are packaged for reference and are not loaded as
+keymaps. Each supplies five suggested two-step chords:
+
+| Prefix | Second key | Command |
+| --- | --- | --- |
+| `Ctrl+Alt+P` (Windows/Linux), `Super+Alt+P` (macOS) | `S` | Search |
+| same | `Q` | Search selection |
+| same | `D` | Go to definition |
+| same | `R` | Find references |
+| same | `P` | Show progress |
+
+Remove those entries from your User keymap to opt out. Package updates leave
+your User bindings intact; the shipped default and platform keymaps stay empty.
+
 ## Package Control notes
 
 The plugin supports Sublime Text 3's embedded Python 3.3; checkout setup still
