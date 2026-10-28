@@ -2989,8 +2989,15 @@
       "recordedDisposition": "implementation_needed",
       "priority": "unranked",
       "batch": "retrieval-contracts",
-      "phase": "source-review-and-implementation",
-      "status": "queued"
+      "phase": "complete-function-units-implemented-qualification-pending",
+      "status": "source-implemented-qualification-pending",
+      "unvalidatedSourceHeads": [
+        "c6ed8a8b9dabed759244a0d029f6568969ddc4b4"
+      ],
+      "unvalidatedReceipts": [
+        "context-function-implementation-2026-10-28.md"
+      ],
+      "currentImplementation": "Existing task/surface/file/fallback policy now admits parser-qualified complete JS/TS/JSX/TSX callables and exact export/single-binding associations from the same verified source snapshot. Function unit schema 2 carries original span/full-file hash and separate content hash; no clipped patch target or shared edit-range cache. Eighteen authored cases are unexecuted; actual CLI/API/MCP, source/lifetime/fidelity/corpus and full original/follow-up qualification remain."
     },
     {
       "number": 1125,
