@@ -1,7 +1,9 @@
-import { getCurrentBuildInfo, getIndexDir } from '../../tools/shared/dict-utils.js';
+import path from 'node:path';
+import { getIndexDir } from '../../tools/shared/dict-utils.js';
 
 /**
- * Resolve a mode index directory from build output logs, with current-build fallback.
+ * Resolve this invocation's selected generation from the canonical JSON outcome.
+ * Display logs and another current-build pointer cannot grant that authority.
  *
  * @param {string} repoRoot
  * @param {object} userConfig
@@ -15,12 +17,13 @@ export const resolveIndexDirFromBuildResult = (
   result,
   { mode = 'code' } = {}
 ) => {
-  const output = `${result?.stderr || ''}\n${result?.stdout || ''}`;
-  const buildRootMatch = output.match(/^\[init\] build root:\s*(.+)$/m);
-  let indexRoot = buildRootMatch?.[1]?.trim() || null;
-  if (!indexRoot) {
-    const current = getCurrentBuildInfo(repoRoot, userConfig, { mode });
-    indexRoot = current?.activeRoot || current?.buildRoot || null;
+  const outcome = JSON.parse(String(result?.stdout || '').trim());
+  if (outcome.schemaVersion !== 1 || typeof outcome.repo !== 'string'
+    || path.relative(path.resolve(repoRoot), path.resolve(outcome.repo)) !== '' || !Array.isArray(outcome.generations)) {
+    throw new Error('Expected this repository\'s canonical build outcome; invoke the build with --json.');
   }
-  return getIndexDir(repoRoot, mode, userConfig, indexRoot ? { indexRoot } : {});
+  const generation = outcome.generations.findLast(entry => typeof entry.buildRoot === 'string'
+    && path.isAbsolute(entry.buildRoot) && Array.isArray(entry.modes) && entry.modes.includes(mode));
+  if (!generation) throw new Error(`Build outcome has no selected ${mode} generation.`);
+  return getIndexDir(repoRoot, mode, userConfig, { indexRoot: generation.buildRoot });
 };

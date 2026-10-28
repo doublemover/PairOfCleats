@@ -6,7 +6,8 @@ import path from 'node:path';
 import { MAX_JSON_BYTES, loadChunkMeta, loadJsonArrayArtifact } from '../../../src/shared/artifact-io.js';
 import { buildMetaV2 } from '../../../src/index/metadata-v2.js';
 import { validateMetaV2Equivalence } from '../../../src/index/validate/checks.js';
-import { getCurrentBuildInfo, getIndexDir, loadUserConfig } from '../../../tools/shared/dict-utils.js';
+import { loadUserConfig } from '../../../tools/shared/dict-utils.js';
+import { resolveIndexDirFromBuildResult } from '../../helpers/index-build-output.js';
 import { runNode } from '../../helpers/run-node.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { makeTempDir } from '../../helpers/temp.js';
@@ -107,6 +108,7 @@ export function buildWidget() {
 
   const result = runNode([
     path.join(root, 'build_index.js'),
+    '--json',
     '--stub-embeddings',
     '--stage',
     'stage2',
@@ -120,12 +122,7 @@ export function buildWidget() {
   assert.equal(result.status, 0, `build_index failed: ${result.stderr || result.stdout || '<empty>'}`);
 
   const userConfig = loadUserConfig(repoRoot);
-  const buildOutput = `${result.stderr || ''}\n${result.stdout || ''}`;
-  const buildRootMatch = buildOutput.match(/^\[init\] build root:\s*(.+)$/m);
-  const buildRootFromOutput = buildRootMatch?.[1]?.trim() || null;
-  const currentBuild = getCurrentBuildInfo(repoRoot, userConfig, { mode: 'code' });
-  const indexRoot = buildRootFromOutput || currentBuild?.activeRoot || currentBuild?.buildRoot || null;
-  const codeDir = getIndexDir(repoRoot, 'code', userConfig, indexRoot ? { indexRoot } : {});
+  const codeDir = resolveIndexDirFromBuildResult(repoRoot, userConfig, result);
   const chunkMeta = await loadChunkMeta(codeDir, { maxBytes: MAX_JSON_BYTES, strict: true });
   const fileMeta = await loadJsonArrayArtifact(codeDir, 'file_meta', { maxBytes: MAX_JSON_BYTES, strict: true });
   const fileById = new Map((Array.isArray(fileMeta) ? fileMeta : []).map((entry) => [entry.id, entry.file]));
