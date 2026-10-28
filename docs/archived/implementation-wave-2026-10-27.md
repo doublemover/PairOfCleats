@@ -61,6 +61,7 @@ the unexecuted Windows source work separately from published acceptance.
 | [c8a7ae65c](context-function-surfaces-implementation-2026-10-28.md) | Plain-text exact edit boundaries/hashes and independent real CLI/HTTP/MCP/frozen-function controls | 5 authored cases; 23 complete-function cases total await execution |
 | [a51237712](context-token-budget-implementation-2026-10-28.md) | Pinned pure JS exact rendered-token accounting, bounded original workers and independent response byte admission | 25 authored cases; profile/surface/lifecycle and measured counting qualification remain |
 | [c6ddbea3b](configured-reader-implementation-2026-10-28.md) | Effective configured SQLite/LMDB reader namespaces, sidecars, cache reuse and actual launch selection | 18 new authored controls; native/category qualification, writer/publication registration and cleanup adoption remain |
+| [bc2f557c2](configured-sqlite-operation-implementation-2026-10-28.md) | Configured SQLite build/staging/sidecar namespaces through original operation, nested selection and metadata retirement | 13 new authored controls; actual dispatch/category qualification and remaining backend/publication/cleanup adoption remain |
 
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero

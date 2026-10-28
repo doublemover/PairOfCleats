@@ -4310,7 +4310,8 @@
         "4bdecbafad29592278b34d5715a2c992a49634e3",
         "489e067e630333429ca35a6d0cf3f3ab6e38843f",
         "c6ddbea3b58224f6039aa04076d5cf6a56090f4f",
-        "8ef677bfa824593ae11a81a54707c1f39901050e"
+        "8ef677bfa824593ae11a81a54707c1f39901050e",
+        "bc2f557c27ef9d81c3cb635641d80c62b79696cf"
       ],
       "unvalidatedReceipts": [
         "storage-space-implementation-2026-10-27.md",
@@ -4318,14 +4319,16 @@
         "native-reader-observation-implementation-2026-10-27.md",
         "vfs-storage-implementation-2026-10-28.md",
         "lsp-source-epoch-implementation-2026-10-28.md",
-        "configured-reader-implementation-2026-10-28.md"
+        "configured-reader-implementation-2026-10-28.md",
+        "configured-sqlite-operation-implementation-2026-10-28.md"
       ],
       "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
       "sessionObservationFollowup": "Shared session admission now captures successful action and settlement receipt observers, freezes projected receipt fields and retains independent inspection/observer errors through original handles. Eleven authored cases await execution; native-reader observation, remaining adapters/custom backend registration and full qualification remain.",
       "nativeObservationFollowup": "Canonical native-reader admission now retains the first failed-open callback plus independent observer/physical-close failures through the existing composer and actual session. Five authored cases await execution; actual native/current-candidate qualification and custom/backend/category adoption remain.",
       "vfsStorageFollowup": "Runtime-selected canonical VFS roots now join the existing native-reader repository/category owner through semantic/legacy tooling and all five LSP adapters. Client/file observations and actual metadata release precede consumer retirement; failed admission blocks later publication. Seven authored lease controls are unexecuted. Same-origin revision turnover, cross-process writer/custom registration and full qualification remain.",
       "vfsEpochFollowup": "File-backed collection derives epochs from actual source/root identity and uses existing pool creation/disposal owners for ordered turnover. Turns reserve before publication, cancelled waiters withdraw after predecessors, and old native/file/metadata closure precedes replacement. Nine authored cases are unexecuted; cross-process writer/custom registration and complete actual provider/current-candidate qualification remain.",
-      "configuredReaderFollowup": "Actual configured SQLite/LMDB retrieval and SQLite build probes now admit exact backend-selected external namespaces through the existing original storage reader owner. SQLite database/WAL/SHM/journal and cached handle lifetimes are protected; actual launch environment selects canonical cache roots. Immutable reader/generation diagnostics grant no publication or deletion authority. Thirteen protocol and five actual configured SQLite controls are authored, unexecuted. Custom writer/publication registration, legacy/backend/category cleanup adoption and complete qualification remain."
+      "configuredReaderFollowup": "Actual configured SQLite/LMDB retrieval and SQLite build probes now admit exact backend-selected external namespaces through the existing original storage reader owner. SQLite database/WAL/SHM/journal and cached handle lifetimes are protected; actual launch environment selects canonical cache roots. Immutable reader/generation diagnostics grant no publication or deletion authority. Thirteen protocol and five actual configured SQLite controls are authored, unexecuted. Custom writer/publication registration, legacy/backend/category cleanup adoption and complete qualification remain.",
+      "configuredWriterFollowup": "SQLite final configured outputs now retain their native/staging/sidecar namespaces through the existing original operation owner, accepted children, publication and metadata retirement. Two-pass admission protects reversed staging/final batches; inherited scope includes actual configured-path identity and changed selections remain blocked. Nine protocol and four actual configured dispatch controls are authored, unexecuted (31 new controls across configured readers/writers). LMDB/legacy/other route adoption, artifact producer/publication registration, category deletion/requalification and full acceptance remain."
     },
     {
       "number": 1268,
@@ -6766,8 +6769,8 @@
       ],
       "partialReceipt": "repository-cleanup-admission-2026-10-27.json",
       "remainingWork": [
-        "Custom/external backend registration with producer/publication identity and explicit launch authority.",
-        "Complete SQLite writer storage-session/temporary-namespace adoption, sidecar and unadopted legacy/other-backend lifetimes.",
+        "Complete custom/external artifact producer/publication registration and explicit cleanup launch authority; reader/build lifetime leases confer no deletion proof.",
+        "Complete remaining LMDB/legacy/other-backend writer/reader adoption and qualify canonical/configured SQLite operations, sidecars and original settlement.",
         "Category-specific eligible backend deletion/requalification and all/multi-repo CLI/MCP acceptance."
       ],
       "followupSourceHeads": [
@@ -6924,7 +6927,8 @@
         "4bdecbafad29592278b34d5715a2c992a49634e3",
         "489e067e630333429ca35a6d0cf3f3ab6e38843f",
         "c6ddbea3b58224f6039aa04076d5cf6a56090f4f",
-        "8ef677bfa824593ae11a81a54707c1f39901050e"
+        "8ef677bfa824593ae11a81a54707c1f39901050e",
+        "bc2f557c27ef9d81c3cb635641d80c62b79696cf"
       ],
       "unvalidatedReceipts": [
         "sqlite-operation-implementation-2026-10-27.md",
@@ -6937,7 +6941,8 @@
         "native-reader-observation-implementation-2026-10-27.md",
         "vfs-storage-implementation-2026-10-28.md",
         "lsp-source-epoch-implementation-2026-10-28.md",
-        "configured-reader-implementation-2026-10-28.md"
+        "configured-reader-implementation-2026-10-28.md",
+        "configured-sqlite-operation-implementation-2026-10-28.md"
       ],
       "currentImplementation": "SQLite runner/helpers and Clangd acquisition retain original work through shared storage teardown. Managed Go/Lua/generic discovery propagates pending inspection; retained generation admission protects the first scan and owns file/Dir/metadata recovery. Functional qualification and remaining custom cleanup adoption are not discharged.",
       "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
@@ -6946,7 +6951,8 @@
       "nativeObservationFollowup": "Canonical native-reader admission now retains the first failed-open callback plus independent observer/physical-close failures through the existing composer and actual session. Five authored cases await execution; actual native/current-candidate qualification and custom/backend/category adoption remain.",
       "vfsStorageFollowup": "Runtime-selected canonical VFS roots now join the existing native-reader repository/category owner through semantic/legacy tooling and all five LSP adapters. Client/file observations and actual metadata release precede consumer retirement; failed admission blocks later publication. Seven authored lease controls are unexecuted. Same-origin revision turnover, cross-process writer/custom registration and full qualification remain.",
       "vfsEpochFollowup": "File-backed collection derives epochs from actual source/root identity and uses existing pool creation/disposal owners for ordered turnover. Turns reserve before publication, cancelled waiters withdraw after predecessors, and old native/file/metadata closure precedes replacement. Nine authored cases are unexecuted; cross-process writer/custom registration and complete actual provider/current-candidate qualification remain.",
-      "configuredReaderFollowup": "Actual configured SQLite/LMDB retrieval and SQLite build probes now admit exact backend-selected external namespaces through the existing original storage reader owner. SQLite database/WAL/SHM/journal and cached handle lifetimes are protected; actual launch environment selects canonical cache roots. Immutable reader/generation diagnostics grant no publication or deletion authority. Thirteen protocol and five actual configured SQLite controls are authored, unexecuted. Custom writer/publication registration, legacy/backend/category cleanup adoption and complete qualification remain."
+      "configuredReaderFollowup": "Actual configured SQLite/LMDB retrieval and SQLite build probes now admit exact backend-selected external namespaces through the existing original storage reader owner. SQLite database/WAL/SHM/journal and cached handle lifetimes are protected; actual launch environment selects canonical cache roots. Immutable reader/generation diagnostics grant no publication or deletion authority. Thirteen protocol and five actual configured SQLite controls are authored, unexecuted. Custom writer/publication registration, legacy/backend/category cleanup adoption and complete qualification remain.",
+      "configuredWriterFollowup": "SQLite final configured outputs now retain their native/staging/sidecar namespaces through the existing original operation owner, accepted children, publication and metadata retirement. Two-pass admission protects reversed staging/final batches; inherited scope includes actual configured-path identity and changed selections remain blocked. Nine protocol and four actual configured dispatch controls are authored, unexecuted (31 new controls across configured readers/writers). LMDB/legacy/other route adoption, artifact producer/publication registration, category deletion/requalification and full acceptance remain."
     },
     {
       "number": 1575,

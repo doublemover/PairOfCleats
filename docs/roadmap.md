@@ -42,7 +42,7 @@ Execution is solo, Windows-only and implementation-first. The [complete owner
 queue](archived/remaining-issue-batches-2026-10-26.json) orders source work by
 severity and shared dependencies, retaining qualification separately:
 
-1. P1 cleanup (#1574): [state ownership](archived/build-state-ownership-implementation-2026-10-27.md) and configured readers await qualification. #1627 remains unqualified.
+1. P1 cleanup (#1574): [state ownership](archived/build-state-ownership-implementation-2026-10-27.md) and configured stores await qualification. #1627 remains unqualified.
 2. Worker/child/service ownership, provider installation and compilation context
    (#631, #289), keeping live readers and original cleanup owners intact.
 3. Language/semantic/replay and retrieval/API evidence contracts; [comment source/demand ownership](archived/comment-pipeline-implementation-2026-10-27.md)
