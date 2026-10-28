@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import fsSync from 'node:fs';
 import path from 'node:path';
 import { publishEmbeddingFailure } from '../../../tools/build/embeddings/publication.js';
+import { loadIndexState } from '../../../tools/build/embeddings/state.js';
 import { errorGraphIncludes, errorGraphSome } from '../../helpers/error-graph.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
@@ -10,7 +12,7 @@ import { applyTestEnv } from '../../helpers/test-env.js';
 applyTestEnv();
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('/').at(-1);
 assert.ok(['primary-only', 'receipt-failure', 'receipt-result', 'state-read-failure', 'state-write-failure',
-  'reference-failure', 'observation-failure', 'falsey-primary', 'async-state'].includes(selected));
+  'reference-failure', 'observation-failure', 'falsey-primary', 'async-state', 'corrupt-state', 'invalid-state', 'pending-state-read'].includes(selected));
 const parent = path.resolve('.tmp/tasks'); await fs.mkdir(parent, { recursive: true });
 const root = await fs.mkdtemp(path.join(parent, 'terminal-embedding-'));
 let settled = false, prepared = false, receiptCalls = 0;
@@ -29,8 +31,16 @@ const receipts = {
   reference(mode) { assert.equal(this, receipts); assert.equal(mode, 'code'); if (selected === 'reference-failure') throw secondary; return 'original-attempt'; },
   observation(mode) { assert.equal(this, receipts); assert.equal(mode, 'code'); if (selected === 'observation-failure') throw secondary; return { status: 'failed' }; }
 };
+const readFile = fsSync.readFileSync;
 try {
   let statePath = path.join(root, 'index_state.json');
+  if (['corrupt-state', 'invalid-state', 'pending-state-read'].includes(selected)) {
+    await fs.writeFile(statePath, selected === 'corrupt-state' ? '{truncated' : selected === 'invalid-state' ? 'null' : '{"preserved":true}');
+    if (selected === 'pending-state-read') fsSync.readFileSync = (file, ...args) => {
+      if (typeof file === 'string' && path.resolve(file) === statePath) throw secondary;
+      return readFile(file, ...args);
+    };
+  }
   if (selected === 'state-write-failure') {
     const blocked = path.join(root, 'blocked'); await fs.writeFile(blocked, 'original sentinel'); statePath = path.join(blocked, 'index_state.json');
   }
@@ -38,6 +48,7 @@ try {
     writer: { drained: true }, prepareState: async () => {
       prepared = true;
       if (selected === 'state-read-failure') throw secondary;
+      if (['corrupt-state', 'invalid-state', 'pending-state-read'].includes(selected)) return loadIndexState(statePath);
       if (selected === 'async-state') await Promise.resolve();
       return { mode: 'code', embeddings: { ready: false, pending: false }, extensions: { original: 'retained' } };
     } });
@@ -48,13 +59,19 @@ try {
     if (selected === 'state-write-failure') {
       assert.equal(errorGraphSome(result, value => value instanceof Error && value !== primary), true);
       assert.equal(await fs.readFile(path.join(root, 'blocked'), 'utf8'), 'original sentinel');
+    } else if (['corrupt-state', 'invalid-state'].includes(selected)) {
+      assert.equal(errorGraphSome(result, value => value instanceof Error && value !== primary), true);
+      if (selected === 'invalid-state') assert.equal(errorGraphSome(result, value => value?.code === 'ERR_INDEX_STATE_INVALID'), true);
     } else {
       if (selected !== 'receipt-result') assert.equal(errorGraphIncludes(result, secondary), true);
       assert.equal(result.cacheOwnershipReleased(), false);
       settled = true; assert.equal(result.cacheOwnershipReleased(), true);
     }
   }
-  if (['state-read-failure', 'state-write-failure', 'reference-failure', 'observation-failure'].includes(selected)) {
+  fsSync.readFileSync = readFile;
+  if (['corrupt-state', 'invalid-state', 'pending-state-read'].includes(selected)) {
+    assert.equal(await fs.readFile(statePath, 'utf8'), selected === 'corrupt-state' ? '{truncated' : selected === 'invalid-state' ? 'null' : '{"preserved":true}');
+  } else if (['state-read-failure', 'state-write-failure', 'reference-failure', 'observation-failure'].includes(selected)) {
     if (selected !== 'state-write-failure') await assert.rejects(fs.stat(statePath), { code: 'ENOENT' });
   } else {
     const state = JSON.parse(await fs.readFile(statePath, 'utf8'));
@@ -62,5 +79,5 @@ try {
     assert.equal(state.extensions.original, 'retained'); assert.equal(state.extensions.runtimeAttemptId, 'original-attempt');
     assert.deepEqual(state.extensions.runtimeEmbeddingObservation, { status: 'failed' });
   }
-} finally { settled = true; await fs.rm(root, { recursive: true, force: true }); }
+} finally { settled = true; fsSync.readFileSync = readFile; await fs.rm(root, { recursive: true, force: true }); }
 console.log(`Embedding terminal failure publication: ${selected}`);

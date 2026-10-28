@@ -7,17 +7,16 @@ import { updateIndexStateManifest } from '../../../src/shared/index-state-utils.
 import { withGeneratedArtifactMetadata } from '../../../src/shared/generated-artifact-core.js';
 
 /**
- * Load `index_state.json` defensively for embeddings updates.
+ * Load the existing state before mutation; only actual absence starts empty.
  * @param {string} statePath
  * @returns {object}
  */
 export const loadIndexState = (statePath) => {
   if (!fsSync.existsSync(statePath)) return {};
-  try {
-    return readJsonFile(statePath, { maxBytes: MAX_JSON_BYTES }) || {};
-  } catch {
-    return {};
-  }
+  const state = readJsonFile(statePath, { maxBytes: MAX_JSON_BYTES });
+  if (!state || typeof state !== 'object' || Array.isArray(state)) throw Object.assign(
+    new Error('Embedding state publication requires a valid existing index-state object.'), { code: 'ERR_INDEX_STATE_INVALID' });
+  return state;
 };
 
 /**
