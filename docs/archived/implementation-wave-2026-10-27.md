@@ -116,6 +116,8 @@ PR #572 metadata was refreshed and read back at checkpoint `c070f3095` (180 loca
 
 - [LMDB close results](lmdb-close-result-implementation-2026-10-28.md): actual retrieval/build/validation retain native result and completion callback; configured validators join their selected namespace. Eighteen inert-owner and eight actual-native controls authored, unexecuted; custom publication/deletion remain.
 
+- [LMDB readiness ordering](lmdb-ready-publication-implementation-2026-10-28.md): actual builder commits readiness only after backend state/original close and a source/LMDB compare-and-set; independent SQLite changes survive. Nineteen controls authored, unexecuted; custom publication/deletion and full native acceptance remain.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.
