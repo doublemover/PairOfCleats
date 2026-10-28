@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    "settled", "early-return", "callback-before-return", "pending-result", "replacement-before-callback",
+    "inspection", "marker", "explicit-false", "rejected-native", "frozen-native", "falsey-native",
+    "callback-then-reject", "method-snapshot", "result-revoked", "command-pending", "configured-command-pending",
+    "command-revoked", "configured-command-revoked"
+  ]
+}

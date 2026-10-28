@@ -11,7 +11,7 @@ import {
   validateLmdbSchemaAndMode
 } from '../../storage/lmdb/utils.js';
 import { addIssue } from './issues.js';
-import { closeLmdbDatabase } from '../../storage/lmdb/close.js';
+import { createLmdbCloseOwner } from '../../storage/lmdb/close.js';
 import { addStorageFailureContext } from '../../shared/storage/operation-error.js';
 import { acquireNativeReaderStorage } from '../../shared/storage/native-reader.js';
 
@@ -49,8 +49,9 @@ export const buildLmdbReport = async ({ root, userConfig, indexRoot, modes, repo
         { capability: 'lmdb', displayScope: `lmdb/${label}`, state: 'unverified', code: 'WARN_INDEX_LMDB_UNVERIFIED' });
     };
     const validateStore = async (label, storePath) => {
-      let nativeClosed = false, db = null, attemptedOpen = false;
-      const storage = storePath ? acquireNativeReaderStorage(storePath, { repoRoot: root, userConfig }, () => nativeClosed) : null;
+      let nativeClosed = false, db = null, attemptedOpen = false, closeOwner = null;
+      const storage = storePath ? acquireNativeReaderStorage(storePath, { repoRoot: root, userConfig, nativeBackend: 'lmdb', nativeMode: label },
+        () => nativeClosed || closeOwner?.isSettled() === true) : null;
       storage?.start();
       let originalClose, primary, failed = false;
       try {
@@ -67,6 +68,7 @@ export const buildLmdbReport = async ({ root, userConfig, indexRoot, modes, repo
         catch (error) { storage?.failedOpen(error); throw error; }
         originalClose = db.close;
         if (typeof originalClose !== 'function') throw new TypeError('LMDB validation requires its original close method.');
+        closeOwner = createLmdbCloseOwner(db, originalClose);
         const schemaValidation = validateLmdbSchemaAndMode({
           db,
           label,
@@ -129,7 +131,10 @@ export const buildLmdbReport = async ({ root, userConfig, indexRoot, modes, repo
       finally {
         try {
           if (db) {
-            try { await closeLmdbDatabase(db, originalClose); nativeClosed = true; }
+            try {
+              if (!closeOwner) throw new TypeError('LMDB validation has no captured close owner.');
+              await closeOwner.close(); nativeClosed = true;
+            }
             catch (error) { throw storage ? storage.retainFailure(error) : error; }
           } else if (!attemptedOpen) nativeClosed = true;
           if (db || !attemptedOpen) storage?.releaseAfterClosure();

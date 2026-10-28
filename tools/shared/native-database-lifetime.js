@@ -1,7 +1,7 @@
 import { createLifecycleRegistry } from '../../src/shared/lifecycle/registry.js';
 import { getDelegatedRepoCacheOwner, settleDelegatedRepoCacheOwner } from '../../src/shared/cache/repo-access-delegation.js';
 import { assertDelegatedNativeCommandIdentity, assertDelegatedNativeDatabaseScope } from './native-database-authority.js';
-import { closeLmdbDatabase } from '../../src/storage/lmdb/close.js';
+import { createLmdbCloseOwner } from '../../src/storage/lmdb/close.js';
 import { acquireRepoStorageSession } from '../../src/shared/storage/repository-session.js';
 import { isPathWithinRoot } from '../../src/shared/file-paths.js';
 import path from 'node:path';
@@ -173,10 +173,11 @@ export const runNativeDatabaseCommand = async ({ commandIdentity, delegated = fa
       if (!objectLike(handle) || handles.has(handle)) throw new TypeError('A new owned native database handle is required.');
       const state = { resource: handle, phase: 'open', promise: null, close: null, closeObservation: null,
         closeStarted: false, work: new Set(), failures: new Set() };
-      let originalClose, captureError, captureFailed = false;
+      let originalClose, lmdbCloseOwner, captureError, captureFailed = false;
       try {
         originalClose = handle.close;
         if (typeof originalClose !== 'function') throw new TypeError('An owned native database close method is required.');
+        if (commandIdentity === 'lmdb.build') lmdbCloseOwner = createLmdbCloseOwner(handle, originalClose);
       } catch (error) { captureFailed = true; captureError = error; observe(error); }
       const close = () => {
         if (state.promise) return state.promise;
@@ -190,17 +191,18 @@ export const runNativeDatabaseCommand = async ({ commandIdentity, delegated = fa
           if (captureFailed) throw captureError;
           state.closeStarted = true;
           const closed = commandIdentity === 'lmdb.build'
-            ? await closeLmdbDatabase(handle, originalClose)
+            ? await lmdbCloseOwner.close()
             : await originalClose.call(handle);
           if (closed === false) throw new Error('Native database close was explicitly unconfirmed.');
           state.phase = 'closed';
-          state.closeObservation = observe(closed, 'native-command-close-result');
+          state.closeObservation = observe(lmdbCloseOwner || closed, 'native-command-close-result');
           state.closeObservation?.requireSettled();
           if (observerOverflow) throw new Error('Native command original resource inventory is incomplete.');
         }).catch(error => {
           // Re-admission may dispatch a first close after its original work
           // settles. An invoked native close is never replayed, even on failure.
           if (!state.closeStarted) { state.phase = 'waiting'; state.promise = null; }
+          else if (lmdbCloseOwner?.isPhysicallyClosed()) state.phase = 'closed';
           else if (state.phase !== 'closed') state.phase = 'unknown';
           observe(error); throw error;
         });
@@ -209,7 +211,7 @@ export const runNativeDatabaseCommand = async ({ commandIdentity, delegated = fa
       };
       state.close = close;
       lifecycle.register(handle, { close, label: 'native-database' });
-      handles.set(handle, { state, close });
+      handles.set(handle, { state, close, lmdbCloseOwner });
       states.add(state);
       if (captureFailed) throw captureError;
       return handle;
@@ -247,8 +249,9 @@ export const runNativeDatabaseCommand = async ({ commandIdentity, delegated = fa
       return using;
     },
     isClosed: handle => {
-      const state = handles.get(handle)?.state;
-      try { return state?.phase === 'closed' && (!state.closeObservation || state.closeObservation()); }
+      const entry = handles.get(handle), state = entry?.state;
+      try { return state?.phase === 'closed' && (!entry.lmdbCloseOwner || entry.lmdbCloseOwner.isSettled())
+        && (!state.closeObservation || state.closeObservation()); }
       catch { return false; }
     }
   });

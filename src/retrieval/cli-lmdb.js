@@ -1,7 +1,7 @@
 import { retainCachePathAccess } from '../shared/cache/repo-access.js';
 import { LMDB_META_KEYS, LMDB_SCHEMA_VERSION } from '../storage/lmdb/schema.js';
 import { createBackendDisposer } from './cli/backend-disposal.js';
-import { closeLmdbDatabase } from '../storage/lmdb/close.js';
+import { createLmdbCloseOwner } from '../storage/lmdb/close.js';
 import { addStorageFailureContext } from '../shared/storage/operation-error.js';
 import { acquireNativeReaderStorage } from '../shared/storage/native-reader.js';
 import {
@@ -31,7 +31,7 @@ export async function createLmdbBackend(options) {
   const disposers = new Set();
   const dispose = createBackendDisposer(disposers);
   const closeByDb = new Map();
-  const nativeClosed = new WeakMap(), storageByDb = new WeakMap();
+  const nativeCloseOwners = new WeakMap(), storageByDb = new WeakMap();
 
   if (!useLmdb) {
     return { useLmdb, dbCode, dbProse, isAvailable: false, dispose };
@@ -71,7 +71,7 @@ export async function createLmdbBackend(options) {
     let db = null;
     const storageContext = options.storageContext ? { ...options.storageContext, nativeBackend: 'lmdb', nativeMode: label,
       nativePublicationIdentity: typeof lmdbStates?.[label]?.buildId === 'string' ? lmdbStates[label].buildId : null } : null;
-    const storage = acquireNativeReaderStorage(storePath, storageContext, () => nativeClosed.get(db) === true);
+    const storage = acquireNativeReaderStorage(storePath, storageContext, () => nativeCloseOwners.get(db)?.isSettled() === true);
     try {
       if (!hasLmdbStore(storePath)) { storage?.releaseAfterClosure(); return null; }
       storage?.start();
@@ -89,8 +89,7 @@ export async function createLmdbBackend(options) {
           if (captureFailed) throw addStorageFailureContext(captureFailure, {
             cacheOwnershipPending: true, cacheOwnershipReleased: () => false
           }, null, { forceAggregate: true });
-          await closeLmdbDatabase(db, originalClose);
-          nativeClosed.set(db, true);
+          await nativeCloseOwners.get(db).close();
         } catch (error) {
           let failure = error;
           for (const lease of leases) failure = lease.retainFailure(failure);
@@ -111,6 +110,7 @@ export async function createLmdbBackend(options) {
       try {
         originalClose = db.close;
         if (typeof originalClose !== 'function') throw new TypeError('LMDB requires its original close method.');
+        nativeCloseOwners.set(db, createLmdbCloseOwner(db, originalClose));
       } catch (error) { captureFailed = true; captureFailure = error; throw error; }
     }
     const validation = validateLmdbSchemaAndMode({

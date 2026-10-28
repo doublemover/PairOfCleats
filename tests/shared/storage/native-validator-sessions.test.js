@@ -19,21 +19,25 @@ import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { createBaseIndex } from '../../indexing/validate/helpers.js';
 
-const selected = process.env.PAIROFCLEATS_TEST_ID?.split('native-validator-sessions/')[1];
+const caseId = process.env.PAIROFCLEATS_TEST_ID?.split('native-validator-sessions/')[1];
+const configured = caseId?.startsWith('configured-');
+const selected = configured ? caseId.slice('configured-'.length) : caseId;
 const [family, scenario = 'success'] = selected.split('-');
 const backend = family === 'parity' ? 'sqlite' : family;
 assert.ok(['sqlite', 'lmdb'].includes(backend));
-assert.ok(['success', 'admission', 'metadata', 'pending', 'native', 'missing'].includes(scenario));
-const { dir } = await prepareIsolatedTestCacheDir(`native-validator-${selected}`);
+assert.ok(['success', 'admission', 'metadata', 'pending', 'native', 'missing', 'result'].includes(scenario));
+assert.ok(!configured || backend === 'lmdb');
+const { dir } = await prepareIsolatedTestCacheDir(`native-validator-${caseId}`);
 const repoRoot = path.join(dir, 'repo'), home = path.join(dir, 'home'), cache = path.join(dir, 'cache');
 await fsp.mkdir(repoRoot);
 applyTestEnv({ extraEnv: { PAIROFCLEATS_HOME: home, PAIROFCLEATS_TRUSTED_CONFIG: null } });
 const userConfig = { cache: { root: cache } }, repo = resolveRepoCacheRootPath(repoRoot, userConfig);
 const indexRoot = path.join(repo, 'builds', 'generation'), indexDir = path.join(indexRoot, 'index-code');
 const target = backend === 'sqlite' ? path.join(indexRoot, 'index-sqlite', 'index-code.db')
-  : path.join(indexRoot, 'index-lmdb', 'index-code');
+  : path.join(configured ? path.join(dir, 'configured-lmdb') : path.join(indexRoot, 'index-lmdb'), 'index-code');
+if (configured) userConfig.lmdb = { codeDbPath: target };
 await fsp.mkdir(path.dirname(target), { recursive: true });
-const coordinationRoot = path.join(home, 'state', 'storage-access'), roots = [cache, path.join(cache, 'repos'), repo, target];
+const coordinationRoot = path.join(home, 'state', 'storage-access'), roots = configured ? [target] : [cache, path.join(cache, 'repos'), repo, target];
 let parityManifest = null;
 if (family === 'parity') {
   const fixture = await createBaseIndex({ rootDir: path.join(dir, 'source'), chunkMeta: [], fileMeta: [] });
@@ -83,7 +87,11 @@ Database.prototype.close = function () {
 if (backend === 'lmdb') allDbs.set = function (key, db) {
   database = db; originalNativeClose = db.close;
   const originalGet = db.get;
-  db.close = function (callback) { closes++; active(); if (scenario === 'native') throw nativeError; return originalNativeClose.call(this, callback); };
+  db.close = function (callback) {
+    closes++; active(); if (scenario === 'native') throw nativeError;
+    const value = originalNativeClose.call(this, callback);
+    return scenario === 'result' ? Promise.resolve(value).then(() => primary) : value;
+  };
   db.get = function (...args) { beforeQuery(); return originalGet.apply(this, args); };
   return originalSet.call(this, key, db);
 };
@@ -120,7 +128,7 @@ const report = async () => {
 };
 try {
   if (scenario === 'admission') {
-    const held = await withExclusiveStorageAccess(cache, async () => {
+    const held = await withExclusiveStorageAccess(configured ? target : cache, async () => {
       await assert.rejects(report(), { code: 'ERR_REPO_CACHE_CLEANUP_BUSY' });
       assert.equal(queryCalls, 0); assert.equal(database, undefined); return true;
     }, { coordinationRoot });
@@ -139,7 +147,7 @@ try {
     } else {
       const storage = find(failure, 'nativeStorageOwner'); assert.ok(storage);
       assert.equal(backend === 'sqlite' ? database.open : database.status !== 'closed', false);
-      if (scenario === 'pending') {
+      if (scenario === 'pending' || scenario === 'result') {
         assert.ok(contains(failure, primary)); reported = () => true;
         assert.throws(() => storage.releaseAfterClosure(), 'the original independent observer remains required'); originalSettled = true;
       } else { assert.throws(() => storage.releaseAfterClosure()); denyMetadata = false; }
@@ -154,4 +162,4 @@ try {
   if (backend === 'sqlite' && database?.open) originalSqliteClose.call(database);
   if (backend === 'lmdb' && database?.status === 'open') await closeLmdbDatabase(database, originalNativeClose);
 }
-console.log(`Native validator ${selected} keeps launch-selected storage through original closure and preserves exact failure owners.`);
+console.log(`Native validator ${caseId} keeps launch-selected storage through original closure and preserves exact failure owners.`);
