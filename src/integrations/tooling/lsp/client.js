@@ -164,8 +164,8 @@ const summarizeLatencies = (samples, totalMs, maxMs) => ({
 export function createLspClient(options) {
   const {
     cmd,
-    args = [],
-    cwd,
+    args: requestedArgs = [],
+    cwd: requestedCwd,
     env,
     shell,
     log = () => {},
@@ -185,6 +185,11 @@ export function createLspClient(options) {
     beforeSpawn
   } = options || {};
   if (!cmd) throw new Error('createLspClient requires a command.');
+  if (!Array.isArray(requestedArgs) || requestedArgs.some(value => typeof value !== 'string' || value.includes('\0'))) {
+    throw new TypeError('createLspClient requires a string argument array without NUL.');
+  }
+  const args = Object.freeze(requestedArgs.slice());
+  const cwd = path.resolve(requestedCwd || process.cwd());
   const useShell = typeof shell === 'boolean'
     ? shell
     : (process.platform === 'win32' && /\.(cmd|bat)$/i.test(cmd));
@@ -671,15 +676,16 @@ export function createLspClient(options) {
     uncorrelatedProtocolEvents = 0;
     const childGen = generation;
     const invocation = useShell
-      ? resolveWindowsCmdInvocation(cmd, args)
+      ? resolveWindowsCmdInvocation(cmd, args, resolvedEnv, { cwd })
       : { command: cmd, args };
     const spawnCmd = invocation.command;
     const spawnArgs = invocation.args;
     const spawnOptions = {
       stdio: ['pipe', 'pipe', 'pipe'],
       cwd,
-      env: invocation.env ? { ...resolvedEnv, ...invocation.env } : resolvedEnv,
+      env: { ...resolvedEnv, ...invocation.env },
       shell: false,
+      windowsHide: true,
       windowsVerbatimArguments: invocation.windowsVerbatimArguments === true,
       detached: killTreeDetached
     };

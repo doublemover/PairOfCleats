@@ -54,41 +54,41 @@ function splitPathEntries(envPath) {
     .filter(Boolean);
 }
 
-function resolveCommandPath(cmd, env = process.env) {
+function resolveCommandPath(cmd, env = process.env, { cwd = process.cwd() } = {}) {
   const raw = String(cmd || '').trim();
   if (!raw) return '';
   if (path.isAbsolute(raw)) return fs.existsSync(raw) ? raw : '';
   if (/[\\/]/u.test(raw)) {
-    const candidate = path.resolve(raw);
+    const candidate = path.resolve(cwd, raw);
     return fs.existsSync(candidate) ? candidate : '';
   }
   const envPath = env?.PATH || env?.Path || env?.path || '';
   for (const dir of splitPathEntries(envPath)) {
-    const candidate = path.join(dir, raw);
+    const candidate = path.resolve(cwd, dir, raw);
     if (fs.existsSync(candidate)) return candidate;
   }
   return '';
 }
 
-function resolveWindowsCmdShimPath(cmd, env = process.env) {
+function resolveWindowsCmdShimPath(cmd, env = process.env, { cwd = process.cwd() } = {}) {
   const raw = String(cmd || '').trim();
   if (!raw) return '';
   const ext = path.extname(raw).toLowerCase();
   if (ext === '.cmd' || ext === '.bat') {
-    return resolveCommandPath(raw, env);
+    return resolveCommandPath(raw, env, { cwd });
   }
   if (ext) return '';
 
   if (path.isAbsolute(raw) || /[\\/]/u.test(raw)) {
     for (const candidateExt of ['.cmd', '.bat']) {
-      const candidate = `${raw}${candidateExt}`;
+      const candidate = path.resolve(cwd, `${raw}${candidateExt}`);
       if (fs.existsSync(candidate)) return candidate;
     }
     return '';
   }
 
   for (const candidateExt of ['.cmd', '.bat']) {
-    const resolved = resolveCommandPath(`${raw}${candidateExt}`, env);
+    const resolved = resolveCommandPath(`${raw}${candidateExt}`, env, { cwd });
     if (resolved) return resolved;
   }
   return '';
@@ -168,14 +168,14 @@ function buildWindowsShellCommand(cmd, args = [], { doubleEscape = false } = {})
     .join(' ');
 }
 
-function resolveWindowsCommandProcessor() {
-  const explicit = String(process.env.ComSpec || process.env.COMSPEC || '').trim();
+function resolveWindowsCommandProcessor(env = process.env) {
+  const explicit = String(env.ComSpec || env.COMSPEC || '').trim();
   if (explicit) return explicit;
-  const systemRoot = String(process.env.SystemRoot || process.env.SYSTEMROOT || 'C:\\Windows').trim() || 'C:\\Windows';
+  const systemRoot = String(env.SystemRoot || env.SYSTEMROOT || 'C:\\Windows').trim() || 'C:\\Windows';
   return path.join(systemRoot, 'System32', 'cmd.exe');
 }
 
-function buildWindowsCmdShellInvocation(cmdPath, args = []) {
+function buildWindowsCmdShellInvocation(cmdPath, args = [], env = process.env) {
   // A recognized native launch with trailing, unquoted %* parses argv again.
   // Comments, SET/ECHO text, quoted %*, CALL and positional forwarding are not
   // evidence of this protocol. General nested batch protocols remain opaque.
@@ -184,15 +184,15 @@ function buildWindowsCmdShellInvocation(cmdPath, args = []) {
     .map(unwrapWrapperPrefix)
     .some((line) => WRAPPER_LAUNCH_PATTERN.test(line) && /(?:^|\s)%\*\s*$/u.test(line));
   return {
-    command: resolveWindowsCommandProcessor(),
+    command: resolveWindowsCommandProcessor(env),
     args: ['/d', '/s', '/c', `"${buildWindowsShellCommand(cmdPath, args, { doubleEscape })}"`],
     windowsVerbatimArguments: true
   };
 }
 
-function resolveWindowsCmdInvocation(cmd, args = [], env = process.env) {
+function resolveWindowsCmdInvocation(cmd, args = [], env = process.env, options = {}) {
   const raw = String(cmd || '').trim();
-  const resolvedShimPath = resolveWindowsCmdShimPath(raw, env);
+  const resolvedShimPath = resolveWindowsCmdShimPath(raw, env, options);
   if (!resolvedShimPath && /\.(cmd|bat)$/iu.test(raw)) {
     const error = new Error(`Windows wrapper command not found: ${cmd}`);
     error.code = 'ERR_WINDOWS_CMD_NOT_FOUND';
@@ -203,7 +203,7 @@ function resolveWindowsCmdInvocation(cmd, args = [], env = process.env) {
   }
   const shimInvocation = maybeResolveWindowsCmdShim(resolvedShimPath, args);
   if (shimInvocation) return shimInvocation;
-  return buildWindowsCmdShellInvocation(resolvedShimPath, args);
+  return buildWindowsCmdShellInvocation(resolvedShimPath, args, env);
 }
 
 module.exports = {

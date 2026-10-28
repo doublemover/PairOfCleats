@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["arguments", "environment", "cwd", "relative-wrapper", "relative-path", "processor", "system-root", "client-wrapper", "hidden", "restart-isolation", "invalid-arguments"]
+}
