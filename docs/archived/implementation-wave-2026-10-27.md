@@ -88,6 +88,8 @@ PR #572 metadata was refreshed and read back at checkpoint `1b762ec69` (140 loca
 
 - [Service replay ownership](embedding-replay-ownership-implementation-2026-10-28.md): legacy state resets preserve current native data, stale witnesses/outside roots fail, and unknown legacy staging is retained; fourteen controls authored, unexecuted.
 
+- [Initial state publication](initial-state-publication-implementation-2026-10-28.md): private original-content guards join initial state/compact metadata and manifest writers to shared ownership; pending observations and sealed zero/unknown values stay truthful. Seventeen controls authored, unexecuted.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.

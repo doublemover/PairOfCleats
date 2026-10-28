@@ -40,7 +40,12 @@ so failure reporting cannot mark replacement work failed. Identity changes fail.
 Validation reads and embedding manifest updates use the same publication lock.
 The runner supplies its original state capability before manifest/validation work;
 a replaced attempt cannot publish a manifest or commit a validation receipt.
-Initial-generation writers, crash-atomic recovery and cleanup remain separate scope.
+Initial artifact writers also join the shared owner using private path-bound
+original-content fingerprints. State/compact metadata and later manifest writes
+each revalidate that snapshot; newer native/invocation state fails publication
+instead of being replaced. Intended replacement of an observed prior staged state
+remains possible. This does not make the pair crash-atomic; recovery and cleanup
+remain separate scope.
 
 Twelve `storage/native-index-state-publication/*` cases are authored and
 unexecuted. They cover actual SQLite/LMDB producer reads/writes, invalid state,
@@ -87,6 +92,15 @@ claim. Legacy staging pathnames are diagnostics, not deletion authority or proof
 of partial current work. Outside-buildRoot jobs and noncanonical modes fail.
 Fourteen `services/indexer/embedding-replay-publication/*` controls plus the
 original replay/executor/soak cases are authored or retained, unexecuted.
+
+Initial writers capture producer JSON and manifest intent before waiting.
+Unsettled reuse/size/stat/hash observations cannot become fallback success;
+successful callback observations remain prerequisites through actual metadata
+release. Calculated checksums and extents share a contained descriptor. The
+mutable index-state piece is always refreshed; sealed immutable-piece checksum
+reuse retains its existing fast path. Unknown bytes stay unknown, invalid sealed
+sizes fail and measured zero is preserved. Seventeen
+`indexing/artifacts/initial-state-publication/*` cases are authored, unexecuted.
 
 The state-manifest checksum and byte extent now come from the same verified
 contained descriptor. The shared hasher returns its immutable observation only

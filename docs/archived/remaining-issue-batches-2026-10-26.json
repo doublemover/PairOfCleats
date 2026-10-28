@@ -1098,7 +1098,8 @@
         "5400c00b68ea8f038bd85286f61b9e8447f7d7a1",
         "9f08e6f0ffe8f9ddfaecd00d1a43dd838d838eb4",
         "f4c8f384345020dce06a764f6446e490be314acf",
-        "a3913798cdaf8b8314c69cf43be2e73256a11200"
+        "a3913798cdaf8b8314c69cf43be2e73256a11200",
+        "cdc6ab2c44b37a2b87c39b23b9ae49cfc19b4049"
       ],
       "unvalidatedReceipts": [
         "native-state-publication-implementation-2026-10-28.md",
@@ -1106,7 +1107,8 @@
         "index-state-serialization-implementation-2026-10-28.md",
         "embedding-state-conflicts-implementation-2026-10-28.md",
         "embedding-manifest-ownership-implementation-2026-10-28.md",
-        "embedding-replay-ownership-implementation-2026-10-28.md"
+        "embedding-replay-ownership-implementation-2026-10-28.md",
+        "initial-state-publication-implementation-2026-10-28.md"
       ],
       "nativeStatePublicationFollowup": "Required SQLite/LMDB state and shared manifest read/write/checksum failures now propagate instead of acknowledging in-memory ready state after failed publication. Malformed existing state cannot silently become an empty replacement. Optional LMDB metrics suppress only confirmed-settled resource observations. Eleven actual-producer controls are authored and unexecuted; paired/concurrent publication, row/build-mode, custom registration/cleanup and original/follow-up acceptance remain separate.",
       "compactionCountFollowup": "Actual compaction now refuses failed table metadata/query and invalid row counts instead of substituting zero. Required chunks and dense_vectors absence fails; zero needs a successful query. Eight actual native controls are authored, unexecuted, preserving unchanged source/once-only close/metadata recovery plus empty/nonempty dense positives. Existing compaction/row/build-mode and full original acceptance remain.",
@@ -1141,6 +1143,11 @@
           "sourceHead": "a3913798cdaf8b8314c69cf43be2e73256a11200",
           "receipt": "embedding-replay-ownership-implementation-2026-10-28.md",
           "implementation": "Service replay now captures original generation/invocation/embedding witnesses before observations and resets only unchanged legacy state under the shared publication owner, preserving newer native fields. Attempt-owned state and unknown legacy staging remain with their actual owners; outside-root jobs/canonical mode violations fail. Fourteen controls and strengthened original replay/executor/soak fixtures are unexecuted. Owned interrupted-stage recovery remains scope."
+        },
+        {
+          "sourceHead": "cdc6ab2c44b37a2b87c39b23b9ae49cfc19b4049",
+          "receipt": "initial-state-publication-implementation-2026-10-28.md",
+          "implementation": "Initial state/compact metadata and final manifest use the shared publication owner with a private original-content/path session. Changed native/invocation/generation contents fail rather than being discarded. Captured producer intent, retained original optional/read/hash observations, mutable-state checksum refresh and strict sealed zero/unknown handling have seventeen authored, unexecuted controls. Crash-atomic paired recovery and wider cleanup remain source scope."
         }
       ]
     },
@@ -4746,7 +4753,8 @@
         "5400c00b68ea8f038bd85286f61b9e8447f7d7a1",
         "9f08e6f0ffe8f9ddfaecd00d1a43dd838d838eb4",
         "f4c8f384345020dce06a764f6446e490be314acf",
-        "a3913798cdaf8b8314c69cf43be2e73256a11200"
+        "a3913798cdaf8b8314c69cf43be2e73256a11200",
+        "cdc6ab2c44b37a2b87c39b23b9ae49cfc19b4049"
       ],
       "unvalidatedReceipts": [
         "storage-space-implementation-2026-10-27.md",
@@ -4767,7 +4775,8 @@
         "index-state-serialization-implementation-2026-10-28.md",
         "embedding-state-conflicts-implementation-2026-10-28.md",
         "embedding-manifest-ownership-implementation-2026-10-28.md",
-        "embedding-replay-ownership-implementation-2026-10-28.md"
+        "embedding-replay-ownership-implementation-2026-10-28.md",
+        "initial-state-publication-implementation-2026-10-28.md"
       ],
       "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
       "sessionObservationFollowup": "Shared session admission now captures successful action and settlement receipt observers, freezes projected receipt fields and retains independent inspection/observer errors through original handles. Eleven authored cases await execution; native-reader observation, remaining adapters/custom backend registration and full qualification remain.",
@@ -4825,6 +4834,11 @@
           "sourceHead": "a3913798cdaf8b8314c69cf43be2e73256a11200",
           "receipt": "embedding-replay-ownership-implementation-2026-10-28.md",
           "implementation": "Service replay now captures original generation/invocation/embedding witnesses before observations and resets only unchanged legacy state under the shared publication owner, preserving newer native fields. Attempt-owned state and unknown legacy staging remain with their actual owners; outside-root jobs/canonical mode violations fail. Fourteen controls and strengthened original replay/executor/soak fixtures are unexecuted. Owned interrupted-stage recovery remains scope."
+        },
+        {
+          "sourceHead": "cdc6ab2c44b37a2b87c39b23b9ae49cfc19b4049",
+          "receipt": "initial-state-publication-implementation-2026-10-28.md",
+          "implementation": "Initial state/compact metadata and final manifest use the shared publication owner with a private original-content/path session. Changed native/invocation/generation contents fail rather than being discarded. Captured producer intent, retained original optional/read/hash observations, mutable-state checksum refresh and strict sealed zero/unknown handling have seventeen authored, unexecuted controls. Crash-atomic paired recovery and wider cleanup remain source scope."
         }
       ]
     },
@@ -7705,7 +7719,8 @@
         "5400c00b68ea8f038bd85286f61b9e8447f7d7a1",
         "9f08e6f0ffe8f9ddfaecd00d1a43dd838d838eb4",
         "f4c8f384345020dce06a764f6446e490be314acf",
-        "a3913798cdaf8b8314c69cf43be2e73256a11200"
+        "a3913798cdaf8b8314c69cf43be2e73256a11200",
+        "cdc6ab2c44b37a2b87c39b23b9ae49cfc19b4049"
       ],
       "unvalidatedReceipts": [
         "sqlite-operation-implementation-2026-10-27.md",
@@ -7731,7 +7746,8 @@
         "index-state-serialization-implementation-2026-10-28.md",
         "embedding-state-conflicts-implementation-2026-10-28.md",
         "embedding-manifest-ownership-implementation-2026-10-28.md",
-        "embedding-replay-ownership-implementation-2026-10-28.md"
+        "embedding-replay-ownership-implementation-2026-10-28.md",
+        "initial-state-publication-implementation-2026-10-28.md"
       ],
       "currentImplementation": "SQLite runner/helpers and Clangd acquisition retain original work through shared storage teardown. Managed Go/Lua/generic discovery propagates pending inspection; retained generation admission protects the first scan and owns file/Dir/metadata recovery. Functional qualification and remaining custom cleanup adoption are not discharged.",
       "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
@@ -7791,6 +7807,11 @@
           "sourceHead": "a3913798cdaf8b8314c69cf43be2e73256a11200",
           "receipt": "embedding-replay-ownership-implementation-2026-10-28.md",
           "implementation": "Service replay now captures original generation/invocation/embedding witnesses before observations and resets only unchanged legacy state under the shared publication owner, preserving newer native fields. Attempt-owned state and unknown legacy staging remain with their actual owners; outside-root jobs/canonical mode violations fail. Fourteen controls and strengthened original replay/executor/soak fixtures are unexecuted. Owned interrupted-stage recovery remains scope."
+        },
+        {
+          "sourceHead": "cdc6ab2c44b37a2b87c39b23b9ae49cfc19b4049",
+          "receipt": "initial-state-publication-implementation-2026-10-28.md",
+          "implementation": "Initial state/compact metadata and final manifest use the shared publication owner with a private original-content/path session. Changed native/invocation/generation contents fail rather than being discarded. Captured producer intent, retained original optional/read/hash observations, mutable-state checksum refresh and strict sealed zero/unknown handling have seventeen authored, unexecuted controls. Crash-atomic paired recovery and wider cleanup remain source scope."
         }
       ]
     },
