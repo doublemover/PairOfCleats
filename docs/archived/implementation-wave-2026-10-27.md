@@ -132,6 +132,8 @@ PR #572 metadata was refreshed and read back at checkpoint `c070f3095` (180 loca
 
 - [Scoped Windows CDB collection](windows-cdb-collector-implementation-2026-10-28.md): actual SQLite/Stage3 accepts an explicit lazy collector; bounded owned target minidumps and ordinary replies determine child status. Native exceptions survive later diagnostic/metadata failure. Forty-six controls authored, unexecuted; real CDB/wrapper/lifecycle/symbol/replay and forensic ordering qualification remain.
 
+- [Forensic publication and drain](forensic-publication-ordering-implementation-2026-10-28.md): real crash logger snapshots and serializes accepted bundles/indexes, coalesces raw outcomes per kind/signature, preserves required policy, stops intake and closes independent writers after failure. Eighteen atomic-IO controls authored, unexecuted; cross-instance authority/crash atomicity and native qualification remain.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.

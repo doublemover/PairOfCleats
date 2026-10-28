@@ -67,7 +67,7 @@ implementation by severity and shared dependencies:
 6. Research capabilities after their prerequisite source/retrieval/evidence owners.
 
 The [scoped CDB collector](archived/windows-cdb-collector-implementation-2026-10-28.md)
-is wired; native attribution and qualification remain. Frontload implementation,
+and forensic drain are wired; native qualification remains. Frontload implementation,
 then bounded checks. Real-tool/model, non-Windows and release checks remain.
 
 Validation uses **targeted Windows re-checks** under the user's 2026-10-24 scope.

@@ -52,9 +52,22 @@ lifecycle and crash qualification.
 The native error exists before forensic publication or warning work. Required
 forensic IO failure and independent pending observations remain secondary causes;
 they cannot replace the original native failure or trigger another child run.
-Failed publication invalidates only its matching in-memory dedup candidate and
-preserves already-written evidence. This does not qualify concurrent forensic
-index publication or make its multi-file record crash-atomic.
+One logger now serializes forensic payload/index publication on the shared queue.
+It snapshots accepted JSON before asynchronous work, keys dedup by kind/signature,
+and exposes a cached path only after full publication. Matching in-flight callers
+join the original outcome; optional callers cannot downgrade a required caller.
+Settled failed required publication remains a flush failure until an explicit
+successful publication for that key. No native/application work is retried.
+
+Flush drains accepted caller outcomes, including diagnostics, before append
+barriers. Close stops forensic intake, drains accepted work and independently
+attempts all four append closes even after a failure. Original pending results,
+errors, warning resources and late revocation remain required. Admission limits
+retained serialized payloads to 2 MiB each, 8 MiB pending, 32 MiB accepted per
+logger, 32 simultaneous callers and 512 write attempts. These are payload/work
+limits, not pre-serialization peak memory or OS disk quotas. Already-written
+evidence remains. Multi-file crash atomicity, concurrent separate logger owners
+of one explicit attempt, and generation-qualified immutable replay remain separate.
 
 Fixture child runners require the explicit test environment and are absent from
 CLI/config. Simulated exit codes do not qualify a native dump collector. SQLite
@@ -65,7 +78,8 @@ remain. Twenty-seven new controls and the affected original fixture are unrun.
 Forty-six additional format/collector controls are authored and unexecuted.
 The collector controls use synthetic minidumps and an explicit trusted fixture
 runner; none launches CDB or proves an access-violation cause. Actual child wrapper,
-CDB/minidump/termination/symbol and original replay acceptance remain. Replay
+CDB/minidump/termination/symbol and original replay acceptance remain. Eighteen
+more real atomic-IO concurrency/drain controls are authored and unexecuted. Replay
 references are not an immutable self-contained archive of the crashing generation.
 Microsoft documents [child-process debugger ownership](https://learn.microsoft.com/en-us/windows-hardware/drivers/debugger/cdb-command-line-options),
 [second-chance filters](https://learn.microsoft.com/en-us/windows-hardware/drivers/debuggercmds/sx--sxd--sxe--sxi--sxn--sxr--sx---set-exceptions-)
