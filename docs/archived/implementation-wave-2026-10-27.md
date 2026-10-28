@@ -130,6 +130,8 @@ PR #572 metadata was refreshed and read back at checkpoint `c070f3095` (180 loca
 
 - [SQLite native boundary diagnostics](sqlite-boundary-diagnostics-implementation-2026-10-28.md): capture stays unavailable without a collector; strict child status/JSON and original native causes survive required forensic/diagnostic failures. Twenty-seven controls authored, unexecuted; real CDB collection/native attribution remain. Current source counts: **482 pending / 146 partial / 90 unresolved**.
 
+- [Scoped Windows CDB collection](windows-cdb-collector-implementation-2026-10-28.md): actual SQLite/Stage3 accepts an explicit lazy collector; bounded owned target minidumps and ordinary replies determine child status. Native exceptions survive later diagnostic/metadata failure. Forty-six controls authored, unexecuted; real CDB/wrapper/lifecycle/symbol/replay and forensic ordering qualification remain.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.

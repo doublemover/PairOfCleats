@@ -35,9 +35,8 @@ receipts remain in the archive; functional checks/publication gate are deferred.
 Suite/platform/model/release acceptance remains separate. [Storage repairs](archived/storage-space-implementation-2026-10-27.md)
 await execution; lifecycle policy (#1267) and custom cleanup (#1574) remain.
 
-Execution is solo, Windows-only and implementation-first. The [complete owner
-queue](archived/remaining-issue-batches-2026-10-26.json) orders source work by
-severity and shared dependencies, retaining qualification separately:
+The [owner queue](archived/remaining-issue-batches-2026-10-26.json) orders
+implementation by severity and shared dependencies:
 
 1. P1 cleanup (#1574): [native lifetimes](archived/native-command-result-implementation-2026-10-28.md) await qualification; custom publication/deletion and #1627 remain.
 2. Worker/service ownership and provider installation (#631); [compilation context and report refresh](archived/throughput-materialization-implementation-2026-10-28.md) await qualification.
@@ -67,8 +66,9 @@ severity and shared dependencies, retaining qualification separately:
    Shared [workspace/method health](contracts/lsp-workspace-method-health.md) is implemented (#292); qualification remains.
 6. Research capabilities after their prerequisite source/retrieval/evidence owners.
 
-Frontload implementation, then run bounded affected checks and fix failures.
-Real-tool/model, non-Windows and release qualification remain explicit.
+The [scoped CDB collector](archived/windows-cdb-collector-implementation-2026-10-28.md)
+is wired; native attribution and qualification remain. Frontload implementation,
+then bounded checks. Real-tool/model, non-Windows and release checks remain.
 
 Validation uses **targeted Windows re-checks** under the user's 2026-10-24 scope.
 The [validation receipt](archived/windows-solo-validation-2026-10-23.md) preserves

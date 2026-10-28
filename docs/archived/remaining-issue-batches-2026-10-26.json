@@ -1022,26 +1022,33 @@
       "recordedDisposition": "implementation_needed",
       "priority": "unranked",
       "batch": "storage-publication-and-cleanup",
-      "phase": "scoped-native-collector-and-replay-qualification",
+      "phase": "collector-source-native-replay-and-forensic-qualification",
       "status": "source-partial-unvalidated",
       "currentDisposition": "partial_or_followup",
       "unvalidatedSourceHeads": [
-        "03c44b27843fb6096695e3e80849ebc8383449ca"
+        "03c44b27843fb6096695e3e80849ebc8383449ca",
+        "71ed56edf9e84ea11fb6587b4b2c63b8c49e8c9e"
       ],
       "unvalidatedReceipts": [
-        "sqlite-boundary-diagnostics-implementation-2026-10-28.md"
+        "sqlite-boundary-diagnostics-implementation-2026-10-28.md",
+        "windows-cdb-collector-implementation-2026-10-28.md"
       ],
       "unvalidatedFollowups": [
         {
           "sourceHead": "03c44b27843fb6096695e3e80849ebc8383449ca",
           "receipt": "sqlite-boundary-diagnostics-implementation-2026-10-28.md",
           "implementation": "SQLite stage3 now reports dump capture unavailable without an actual collector, removes unowned recursive scan/placeholders, requires numeric zero plus complete object JSON, and retains original child/native failure through required forensic publication and diagnostics. Failed matching dedup candidates roll back; required verified SQLite no longer silently skips the original real fixture. Twenty-seven explicit-runner/forensic controls are authored, unexecuted. Scoped CDB collection, owned dump/context/stack/module validation, forensic ordering and actual native/replay qualification remain."
+        },
+        {
+          "sourceHead": "71ed56edf9e84ea11fb6587b4b2c63b8c49e8c9e",
+          "receipt": "windows-cdb-collector-implementation-2026-10-28.md",
+          "implementation": "Actual SQLite/Stage3 accepts an explicit lazy CDB capability. Child-aware second-chance collection validates bounded owned target exception/context/thread/module/PID evidence and ordinary replies without trusting CDB exit. Cooperative bounded storage and original process/metadata ownership retain native primary failures through diagnostic failure. Twenty synthetic format and 26 Windows fixture-controlled IO/boundary controls are authored, unexecuted. Real wrapper/CDB/lifecycle/symbol/replay qualification and forensic ordering remain."
         }
       ],
       "remainingWork": [
-        "Implement/admit a real optional scoped Windows collector; validate owned dump exception/context/stacks/modules with original process/metadata lifetimes.",
-        "Complete forensic publication ordering/accepted drain and generation-qualified replay without native or child replay on diagnostics failure.",
-        "Execute original and follow-up Windows native/replay/collector controls on the resulting candidate; simulated exit codes and unavailable capture do not demonstrate crash attribution or closure."
+        "Qualify actual child wrapper, CDB native capture/context/stacks/modules, target/descendant termination and matching symbols on Windows; synthetic dump fixtures are not native attribution.",
+        "Complete forensic publication ordering/accepted drain and immutable generation-qualified replay without native or child replay on diagnostics failure.",
+        "Execute original and follow-up current-candidate Windows/native/replay/collector controls and the demonstrated crash regression; no crash cause or closure has been established by source work."
       ]
     },
     {
@@ -10224,7 +10231,7 @@
     "partialFollowup": 146,
     "implementationStatusUnresolved": 90
   },
-  "reconciledAt": "2026-10-28T16:49:26.689Z",
+  "reconciledAt": "2026-10-28T17:16:17.986Z",
   "completedSourceBatch": [
     347,
     586,
@@ -10367,7 +10374,7 @@
   "currentCountsBasis": {
     "meaning": "718-open GitHub snapshot refreshed at checkpoint 200 plus recorded local source work; not functional acceptance.",
     "publishedHead": "adbcaf777ce91642bb0a60de892171d8c3a529f7",
-    "sourceHead": "03c44b27843fb6096695e3e80849ebc8383449ca",
-    "receipt": "sqlite-boundary-diagnostics-implementation-2026-10-28.md"
+    "sourceHead": "71ed56edf9e84ea11fb6587b4b2c63b8c49e8c9e",
+    "receipt": "windows-cdb-collector-implementation-2026-10-28.md"
   }
 }
