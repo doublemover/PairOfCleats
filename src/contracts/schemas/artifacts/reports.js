@@ -941,7 +941,7 @@ const scanProfileSchema = {
         chunks: intId, tokens: intId, bytes: { type: 'object', properties: { artifact: intId } }
       } }
     } },
-    else: { required: ['coverage'] }
+    else: { properties: { coverage: scanProfileCoverage }, required: ['coverage'] }
   }],
   additionalProperties: false
 };
