@@ -780,7 +780,7 @@ export const isProbeCommandDefinitelyMissing = (probe) => {
  *   probe:{ok:boolean,attempted:Array<object>}
  * }}
  */
-export const resolveToolingCommandProfile = (input) => {
+const selectToolingCommand = (input) => {
   const signal = composeAbortSignals(input?.signal, input?.abortSignal);
   throwIfAborted(signal);
   const providerId = normalizeProviderId(input?.providerId || input?.cmd || 'tooling');
@@ -842,6 +842,30 @@ export const resolveToolingCommandProfile = (input) => {
         candidateReason: eligibility?.reason || discoveryReceipt.status },
       failureReasons: [...(reasonCode === 'command-discovery-not-found' ? ['missing-command'] : []), reasonCode] } };
   }
+  return {
+    providerId, requested: { cmd: requestedCmd, args: requestedArgs },
+    resolved: { cmd: resolvedCmd || requestedCmd, args: requestedArgs, mode: 'direct', reason: 'default-direct-launch' },
+    probe: { ok: null, attempted: [], discovery: discoveryReceipt }
+  };
+};
+
+/** Read-only selection through the same bounded discovery and execution-policy
+ * owners used by real command preflight. Preparation never probes, provisions,
+ * starts a child or treats path eligibility as observed runtime qualification. */
+export const resolveToolingCommandSelection = input => {
+  const selected = selectToolingCommand(input);
+  Object.freeze(selected.requested.args); Object.freeze(selected.requested);
+  Object.freeze(selected.resolved.args); Object.freeze(selected.resolved);
+  Object.freeze(selected.probe.attempted); Object.freeze(selected.probe);
+  return Object.freeze(selected);
+};
+
+export const resolveToolingCommandProfile = input => {
+  const selected = selectToolingCommand(input);
+  if (selected.resolved.mode === 'blocked') return selected;
+  const { providerId } = selected, requestedCmd = selected.requested.cmd, requestedArgs = selected.requested.args;
+  const resolvedCmd = selected.resolved.cmd, repoRoot = input?.repoRoot || process.cwd(), toolingConfig = input?.toolingConfig || {};
+  const signal = composeAbortSignals(input?.signal, input?.abortSignal);
   const probeTimeoutMs = resolveProbeTimeoutMs({
     providerId,
     requestedCmd,
@@ -898,7 +922,7 @@ export const resolveToolingCommandProfile = (input) => {
     resolved,
     probe: {
       ...probe,
-      discovery: discovery.getReceipt(),
+      discovery: selected.probe.discovery,
       versionText: extractProbeVersionText(probe?.attempted),
       failureReasons: summarizeProbeFailureReasons(probe)
     }
