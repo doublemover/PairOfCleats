@@ -3510,13 +3510,15 @@
         "da87a022ec8a3e75068b3ad69805b3bf38863338",
         "1aa4537d1d980c0d7fe0e79285967b6612bb71e2",
         "86b96a410b7a009c3c880563cc033390b055e755",
-        "78fff012f7a98afb5fbe65a10568de31eba5d463"
+        "78fff012f7a98afb5fbe65a10568de31eba5d463",
+        "a4cdca2d3f2e9587c028f8f703e1502fc383b406"
       ],
       "unvalidatedReceipts": [
         "provider-invocation-implementation-2026-10-27.md",
         "provider-execution-snapshot-implementation-2026-10-28.md",
         "command-selection-preparation-implementation-2026-10-28.md",
-        "windows-launch-inputs-implementation-2026-10-28.md"
+        "windows-launch-inputs-implementation-2026-10-28.md",
+        "provider-profile-declaration-implementation-2026-10-28.md"
       ],
       "currentImplementation": "Durable profiles require a privately registered captured execution owner matching actual source/target/configuration and observed profile identity. Mismatched/absent owners remain unqualified live; exact invocation witnesses gate caching. Thirteen cases are authored, unexecuted; built-in command/module/environment/project wiring and reporting reconciliation remain.",
       "title": "Bind provider tool profiles to observed executable and project identities",
@@ -3541,6 +3543,11 @@
           "sourceHead": "78fff012f7a98afb5fbe65a10568de31eba5d463",
           "receipt": "windows-launch-inputs-implementation-2026-10-28.md",
           "implementation": "Actual LSP arguments/cwd and per-spawn environment remain captured; Windows wrappers use selected environment/COMSPEC/SystemRoot and child cwd, direct LSP spawns are hidden, and URL/default cwd is retained. Operator/canary/structural consumers share child cwd resolution. Nineteen controls are authored/unexecuted. Built-in qualified plan/context adoption and SDK/doctor reconciliation remain."
+        },
+        {
+          "sourceHead": "a4cdca2d3f2e9587c028f8f703e1502fc383b406",
+          "receipt": "provider-profile-declaration-implementation-2026-10-28.md",
+          "implementation": "Profile declarations are canonical snapshots before I/O, declared file counts are admitted before reads, and negative/executable resolution requires original resource settlement before diagnostics or ordinary absence. Nine controls authored/unexecuted; built-in launch/context binding and SDK/doctor reconciliation remain."
         }
       ]
     },

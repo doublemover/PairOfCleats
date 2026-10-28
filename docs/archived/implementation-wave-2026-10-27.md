@@ -106,6 +106,8 @@ PR #572 metadata was refreshed and read back at checkpoint `c070f3095` (180 loca
 
 - [Windows launch inputs](windows-launch-inputs-implementation-2026-10-28.md): actual LSP launches snapshot arguments/cwd, use selected wrapper environment/processor and suppress consoles; operator/canary/structural consumers share child-cwd lookup. Nineteen controls authored, unexecuted; complete built-in profile adoption remains.
 
+- [Provider declaration observation](provider-profile-declaration-implementation-2026-10-28.md): immutable bounded declarations precede I/O; negative/executable resolution retains original resource prerequisites before diagnostics. Nine controls authored, unexecuted; built-in binding remains.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.

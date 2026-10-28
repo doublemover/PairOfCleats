@@ -2,7 +2,7 @@
 
 Implementation status: UNVALIDATED. Fixtures are authored and unrun; no real tool is qualified by this document.
 
-`observeProviderProfile` reads a bounded, explicitly selected inventory. It does not discover PATH tools, execute commands, resolve dependencies, install packages or grant repository execution. The build/launch owner supplies configured and resolved argument arrays, observed version and API profile separately from adapter and contract versions. Executable/module bytes, pinned source bytes, canonical repository root, target variant, project configuration, SDK files, VFS mapping and positive/negative resolution entries contribute to the receipt hash.
+`observeProviderProfile` snapshots bounded canonical declarations before I/O and admits their file count before observation. Negative/executable resolution requires original resource settlement before error-code inspection or ordinary absence. It reads a bounded, explicitly selected inventory. It does not discover PATH tools, execute commands, resolve dependencies, install packages or grant repository execution. The build/launch owner supplies configured and resolved argument arrays, observed version and API profile separately from adapter and contract versions. Executable/module bytes, pinned source bytes, canonical repository root, target variant, project configuration, SDK files, VFS mapping and positive/negative resolution entries contribute to the receipt hash.
 
 A self-reported version alone never permits durable reuse. Empty executable inventory, a resolved executable absent from the observed file inventory, unknown read dependency closure or an install/runtime tool identity mismatch produces a non-durable receipt with reasons. A negative resolution becoming present is rejected. `verifyProviderProfileReceipt` takes an immutable JSON snapshot and rechecks every recorded byte, contained authorized root and negative dependency within the original read bounds. The orchestrator rechecks before cache admission, before consumption or invocation, and after a live provider settles. The JSONL process/host row writer and request-local refinement use the same check. A serialized old receipt is provenance, not a fresh filesystem observation or an execution grant. Existing TypeScript trusted module loading and native compiler authority remain mandatory.
 
@@ -40,7 +40,7 @@ invocation produces required-computation failure and no cache publication. Origi
 pending ownership remains independently required. Existing TypeScript and native
 execution authority is unchanged; this hook cannot grant repository trust.
 
-LSP semantic producer version 60 invalidates prior derived replay after this
+LSP semantic producer version 61 invalidates prior derived replay after this
 provenance change. Built-in Clangd and other adapters lacking the hook currently
 use the unqualified live path even when a host supplies a complete observation.
 The invocation framework is not a claim that every built-in launch is integrated.
