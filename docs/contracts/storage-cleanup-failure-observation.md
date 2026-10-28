@@ -24,10 +24,13 @@ combinations, receiver and replacement negatives, stopping before a second
 cleanup operation, independently pending diagnostic inspectors, unknown native
 markers and unchanged candidate bytes. Nothing has been executed for this batch.
 
-The apply callback's existing exclusion release occurs before outer failure
-reporting. This change therefore does not retain that exclusion for unknown
-native work, repair coordinator cleanup failure composition, or repair the lower
-contained-file descriptor-close lifetime. Those remain open implementation and
-qualification work. A propagated pending error alone is not evidence of held
-coordination or native closure. Cross-process, native, platform and CLI
-acceptance remains deferred.
+The original checkpoint did not retain exclusion for unknown native work or
+repair lower resource ownership. The
+[2026-10-28 source follow-up](../archived/cleanup-original-results-implementation-2026-10-28.md)
+now captures original successful results and failures before generic/composed
+exclusion release. It retains actual lock prerequisites, parent-reader suspension
+and category leases. Explicit owners recover exact metadata after original work
+settles, with no cleanup replay or circular aggregate predicate. A propagated
+pending error alone still proves neither coordination nor native closure.
+Seventeen additional controls are authored, unexecuted; broader custom producer,
+cross-process, native, platform and CLI acceptance remains deferred.

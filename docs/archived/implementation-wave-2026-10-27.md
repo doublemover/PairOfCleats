@@ -90,6 +90,8 @@ PR #572 metadata was refreshed and read back at checkpoint `1ce60bb59` (160 loca
 
 - [Initial state publication](initial-state-publication-implementation-2026-10-28.md): private original-content guards join initial state/compact metadata and manifest writers to shared ownership; pending observations and sealed zero/unknown values stay truthful. Seventeen controls authored, unexecuted.
 
+- [Cleanup original results](cleanup-original-results-implementation-2026-10-28.md): generic/composed exclusion retains successful original work, suspended handoffs and category leases; actual metadata recovery avoids circular waits and work replay. Seventeen controls authored, unexecuted.
+
 Static format/ESLint, changed-JavaScript syntax, config budget and whitespace
 checks passed at the recorded checkpoints; shared-module analysis found zero
 cycles where source imports changed. These are not functional suite acceptance.

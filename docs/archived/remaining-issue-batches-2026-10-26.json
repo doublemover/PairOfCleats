@@ -4754,7 +4754,8 @@
         "9f08e6f0ffe8f9ddfaecd00d1a43dd838d838eb4",
         "f4c8f384345020dce06a764f6446e490be314acf",
         "a3913798cdaf8b8314c69cf43be2e73256a11200",
-        "cdc6ab2c44b37a2b87c39b23b9ae49cfc19b4049"
+        "cdc6ab2c44b37a2b87c39b23b9ae49cfc19b4049",
+        "bf602f71a2b9b202bddbb0380404272b9f7a0c78"
       ],
       "unvalidatedReceipts": [
         "storage-space-implementation-2026-10-27.md",
@@ -4776,7 +4777,8 @@
         "embedding-state-conflicts-implementation-2026-10-28.md",
         "embedding-manifest-ownership-implementation-2026-10-28.md",
         "embedding-replay-ownership-implementation-2026-10-28.md",
-        "initial-state-publication-implementation-2026-10-28.md"
+        "initial-state-publication-implementation-2026-10-28.md",
+        "cleanup-original-results-implementation-2026-10-28.md"
       ],
       "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
       "sessionObservationFollowup": "Shared session admission now captures successful action and settlement receipt observers, freezes projected receipt fields and retains independent inspection/observer errors through original handles. Eleven authored cases await execution; native-reader observation, remaining adapters/custom backend registration and full qualification remain.",
@@ -4839,6 +4841,11 @@
           "sourceHead": "cdc6ab2c44b37a2b87c39b23b9ae49cfc19b4049",
           "receipt": "initial-state-publication-implementation-2026-10-28.md",
           "implementation": "Initial state/compact metadata and final manifest use the shared publication owner with a private original-content/path session. Changed native/invocation/generation contents fail rather than being discarded. Captured producer intent, retained original optional/read/hash observations, mutable-state checksum refresh and strict sealed zero/unknown handling have seventeen authored, unexecuted controls. Crash-atomic paired recovery and wider cleanup remain source scope."
+        },
+        {
+          "sourceHead": "bf602f71a2b9b202bddbb0380404272b9f7a0c78",
+          "receipt": "cleanup-original-results-implementation-2026-10-28.md",
+          "implementation": "Generic/composed cleanup now retains original successful action work through actual exclusion/category release; parent handoff stays suspended on pending work. Captured original publication sessions recover exact metadata without circular aggregate waits or cleanup/native-close replay. Seventeen controls are authored and unexecuted; wider custom producer/cleanup integration and runtime qualification remain."
         }
       ]
     },
@@ -7720,7 +7727,8 @@
         "9f08e6f0ffe8f9ddfaecd00d1a43dd838d838eb4",
         "f4c8f384345020dce06a764f6446e490be314acf",
         "a3913798cdaf8b8314c69cf43be2e73256a11200",
-        "cdc6ab2c44b37a2b87c39b23b9ae49cfc19b4049"
+        "cdc6ab2c44b37a2b87c39b23b9ae49cfc19b4049",
+        "bf602f71a2b9b202bddbb0380404272b9f7a0c78"
       ],
       "unvalidatedReceipts": [
         "sqlite-operation-implementation-2026-10-27.md",
@@ -7747,7 +7755,8 @@
         "embedding-state-conflicts-implementation-2026-10-28.md",
         "embedding-manifest-ownership-implementation-2026-10-28.md",
         "embedding-replay-ownership-implementation-2026-10-28.md",
-        "initial-state-publication-implementation-2026-10-28.md"
+        "initial-state-publication-implementation-2026-10-28.md",
+        "cleanup-original-results-implementation-2026-10-28.md"
       ],
       "currentImplementation": "SQLite runner/helpers and Clangd acquisition retain original work through shared storage teardown. Managed Go/Lua/generic discovery propagates pending inspection; retained generation admission protects the first scan and owns file/Dir/metadata recovery. Functional qualification and remaining custom cleanup adoption are not discharged.",
       "storageObservationImplementation": "Free-space errors and successful replies retain original pending ownership; admission captures immutable values; callable destination failures keep original callbacks. Eleven authored controls await execution. Broader lifecycle/custom backend requirements remain.",
@@ -7812,6 +7821,11 @@
           "sourceHead": "cdc6ab2c44b37a2b87c39b23b9ae49cfc19b4049",
           "receipt": "initial-state-publication-implementation-2026-10-28.md",
           "implementation": "Initial state/compact metadata and final manifest use the shared publication owner with a private original-content/path session. Changed native/invocation/generation contents fail rather than being discarded. Captured producer intent, retained original optional/read/hash observations, mutable-state checksum refresh and strict sealed zero/unknown handling have seventeen authored, unexecuted controls. Crash-atomic paired recovery and wider cleanup remain source scope."
+        },
+        {
+          "sourceHead": "bf602f71a2b9b202bddbb0380404272b9f7a0c78",
+          "receipt": "cleanup-original-results-implementation-2026-10-28.md",
+          "implementation": "Generic/composed cleanup now retains original successful action work through actual exclusion/category release; parent handoff stays suspended on pending work. Captured original publication sessions recover exact metadata without circular aggregate waits or cleanup/native-close replay. Seventeen controls are authored and unexecuted; wider custom producer/cleanup integration and runtime qualification remain."
         }
       ]
     },
