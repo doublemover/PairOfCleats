@@ -2,15 +2,15 @@
 
 Status: Solo implementation wave; functional qualification deferred
 Last audited: 2026-10-27
-Last reconciled: 2026-10-27
+Last reconciled: 2026-10-28
 Canonical for: initiative status, execution order, and remaining work
 
 ## Current GitHub repair program
 
 The [closeout review](archived/github-issue-closeout-2026-10-26.md) assessed
 **770 issues/238 comments**, closing 27; later batches closed 25 more.
-The **718-open snapshot** records 459 qualification, 146 partial/follow-up and
-113 unresolved implementation entries. The owner queue retains current checklists and status.
+The latest **718-open source snapshot** records 472 qualification-pending,
+144 partial and 102 unresolved entries, including unpublished implementations.
 
 The [complete assessment](archived/github-issue-closeout-2026-10-26.json) retains
 source/test mappings and closure witnesses; [earlier receipts](archived/solo-issue-repairs-2026-10-25.md)
@@ -43,7 +43,7 @@ Execution is solo, Windows-only and implementation-first. The [complete owner
 queue](archived/remaining-issue-batches-2026-10-26.json) orders source work by
 severity and shared dependencies, retaining qualification separately:
 
-1. P1 backend cleanup (#1574); [state/append/queue ownership](archived/build-state-ownership-implementation-2026-10-27.md) has 20 unexecuted cases. Publication (#1627) remains unqualified.
+1. P1 cleanup (#1574): [state ownership](archived/build-state-ownership-implementation-2026-10-27.md) and configured readers await qualification. #1627 remains unqualified.
 2. Worker/child/service ownership, provider installation and compilation context
    (#631, #289), keeping live readers and original cleanup owners intact.
 3. Language/semantic/replay and retrieval/API evidence contracts; [comment source/demand ownership](archived/comment-pipeline-implementation-2026-10-27.md)
@@ -52,7 +52,7 @@ severity and shared dependencies, retaining qualification separately:
    removes eleven direct adapter edges; [operation loading](archived/language-operation-loading-implementation-2026-10-27.md)
    separates family/prose initialization. [Embedded content views](archived/embedded-content-implementation-2026-10-27.md)
    carry exact piecewise maps through Markdown/comment parsing, tokens, scheduler, VFS and semantic readers; 21 cases remain.
-   JSX/TSX, function edit units and [exact rendered tokens](archived/context-token-budget-implementation-2026-10-28.md) await execution; other adapters remain.
+   JSX/TSX, function units and [exact tokens](archived/context-token-budget-implementation-2026-10-28.md) await execution; other adapters remain.
    [Early embedding selection](archived/embedding-selection-implementation-2026-10-27.md)
    pins the full-build request before Stage2; [graph preflight/attempt linkage](archived/embedding-preflight-implementation-2026-10-27.md)
    and rejected-attempt recording are implemented. Other routes and readiness/cache-only qualification remain.

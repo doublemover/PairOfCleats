@@ -10,7 +10,7 @@ import { addStorageFailureContext } from '../../../../shared/storage/operation-e
 // retain the original storage/physical owners whenever settlement is unknown.
 export const probeSqlite = ({ Database, dbPath, repoRoot = process.cwd(), userConfig = null }, read, fallback) => {
   let db = null, close = null, nativeClosed = false, failed = false, primary, value = fallback;
-  const storage = acquireNativeReaderStorage(dbPath, userConfig ? { repoRoot, userConfig } : null, () => nativeClosed);
+  const storage = acquireNativeReaderStorage(dbPath, userConfig ? { repoRoot, userConfig, nativeBackend: 'sqlite' } : null, () => nativeClosed);
   storage?.start();
   try {
     try { db = new Database(dbPath, { readonly: true }); }

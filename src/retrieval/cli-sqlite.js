@@ -259,15 +259,17 @@ export async function createSqliteBackend(options) {
       return record.validated ? record.db : null;
     }
     const generationTag = generationTagByPath.get(dbPath) || null;
+    const storageContext = options.storageContext ? { ...options.storageContext, nativeBackend: 'sqlite', nativeMode: mode,
+      nativePublicationIdentity: generationTag } : null;
     const lease = usesCacheLeases ? dbCache.acquire(dbPath, { generationTag }) : null;
     const cached = usesCacheLeases ? lease?.db : dbCache?.get?.(dbPath, { generationTag });
     if (cached) {
       let storage = null;
       try {
         const nativeSettled = getSqliteNativeSettlement(cached);
-        const existing = findNativeReaderStorage(cached, dbPath, options.storageContext);
+        const existing = findNativeReaderStorage(cached, dbPath, storageContext);
         if (nativeSettled && !existing) {
-          storage = acquireNativeReaderStorage(dbPath, options.storageContext, nativeSettled);
+          storage = acquireNativeReaderStorage(dbPath, storageContext, nativeSettled);
           if (storage) {
             addSqliteNativeSettlementHook(cached, () => storage.releaseAfterClosure());
             storage.start();
@@ -287,7 +289,7 @@ export async function createSqliteBackend(options) {
       return cached;
     }
     let db, nativeClosed = false;
-    const storage = acquireNativeReaderStorage(dbPath, options.storageContext, () => nativeClosed);
+    const storage = acquireNativeReaderStorage(dbPath, storageContext, () => nativeClosed);
     let dbStat = null;
     try {
       storage?.start();

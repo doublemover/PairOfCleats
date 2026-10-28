@@ -69,7 +69,9 @@ export async function createLmdbBackend(options) {
   const openStore = async (storePath, label) => {
     retainCachePathAccess(storePath);
     let db = null;
-    const storage = acquireNativeReaderStorage(storePath, options.storageContext, () => nativeClosed.get(db) === true);
+    const storageContext = options.storageContext ? { ...options.storageContext, nativeBackend: 'lmdb', nativeMode: label,
+      nativePublicationIdentity: typeof lmdbStates?.[label]?.buildId === 'string' ? lmdbStates[label].buildId : null } : null;
+    const storage = acquireNativeReaderStorage(storePath, storageContext, () => nativeClosed.get(db) === true);
     try {
       if (!hasLmdbStore(storePath)) { storage?.releaseAfterClosure(); return null; }
       storage?.start();

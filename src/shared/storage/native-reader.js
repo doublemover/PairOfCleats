@@ -5,12 +5,16 @@ import { acquireRepoStorageSession } from './repository-session.js';
 import { isStorageSessionReleaseFailure } from './session.js';
 import { observeStorageResource } from './failure-observation.js';
 import { addStorageFailureContext } from './operation-error.js';
-import { getApplicationHome } from '../cache-roots.js';
+import { getApplicationHome, getCacheRoot } from '../cache-roots.js';
+import { resolveConfiguredNativeReaderSelection, acquireConfiguredNativeReaderSession } from './configured-native-reader.js';
 
 const pending = new Set();
 const registered = new WeakMap(), knownOwners = new WeakSet();
 const identity = value => process.platform === 'win32' ? path.resolve(value).toLowerCase() : path.resolve(value);
 const scopeKey = (target, coordinationRoot) => `${identity(coordinationRoot)}\0${identity(target)}`;
+const selectedRepoRoot = context => resolveRepoCacheRootPath(context.repoRoot, context.userConfig, {
+  getCacheRoot: () => getCacheRoot({ env: context.env || process.env })
+});
 const validateContext = context => {
   if (typeof context.repoRoot !== 'string' || !path.isAbsolute(context.repoRoot)
     || !context.userConfig || typeof context.userConfig !== 'object' || Array.isArray(context.userConfig)
@@ -30,8 +34,8 @@ export const getPendingNativeStorageReaders = () => Object.freeze([...pending]);
 export const findNativeReaderStorage = (resource, target, context) => {
   if (!context) return null;
   validateContext(context);
-  const repoRoot = resolveRepoCacheRootPath(context.repoRoot, context.userConfig);
-  if (!isPathWithinRoot(target, repoRoot)) return null;
+  const repoRoot = selectedRepoRoot(context);
+  if (!isPathWithinRoot(target, repoRoot) && !resolveConfiguredNativeReaderSelection(target, context)) return null;
   const coordination = path.join(getApplicationHome({ env: context.env || process.env }), 'state', 'storage-access');
   const scopes = registered.get(resource), owner = scopes?.get(scopeKey(target, coordination));
   if (!owner && scopes?.size >= 64) throw new Error('Native reader launch-namespace budget exceeded.');
@@ -49,9 +53,9 @@ export const registerNativeReaderStorage = (resource, owner) => {
   scopes.set(key, owner);
 };
 
-/** Protect only the actual launch-selected canonical repository and its category
- * ancestors. External roots retain their existing report-only protection until
- * their publication/registration owner is adopted; a path grants no deletion.
+/** Protect actual canonical storage or an explicitly selected backend namespace.
+ * Configured external readers acquire lifetime leases, never deletion authority.
+ * Unregistered roots retain their existing report-only cleanup protection.
  */
 export const acquireNativeReaderStorage = (target, storageContext, nativeSettled) => {
   if (!storageContext) return null;
@@ -59,10 +63,11 @@ export const acquireNativeReaderStorage = (target, storageContext, nativeSettled
   if (typeof nativeSettled !== 'function' || typeof target !== 'string' || !path.isAbsolute(target)) {
     throw new TypeError('Native reader storage requires an absolute selected path and original settlement owner.');
   }
-  const repoCacheRoot = resolveRepoCacheRootPath(storageContext.repoRoot, storageContext.userConfig);
-  if (!isPathWithinRoot(target, repoCacheRoot)) return null;
-  const admission = acquireRepoStorageSession(repoCacheRoot, storageContext,
-    { scope: 'native-index-reader', resourceRoots: [target] });
+  const repoCacheRoot = selectedRepoRoot(storageContext);
+  const admission = isPathWithinRoot(target, repoCacheRoot)
+    ? acquireRepoStorageSession(repoCacheRoot, storageContext, { scope: 'native-index-reader', resourceRoots: [target] })
+    : acquireConfiguredNativeReaderSession(target, storageContext);
+  if (!admission) return null;
   const observations = new Map(), failures = [], described = new WeakSet();
   let started = false, attempted = false, released = false, overflow = false, owner;
   const captureObservation = (value, phase) => observeStorageResource(
@@ -96,6 +101,7 @@ export const acquireNativeReaderStorage = (target, storageContext, nativeSettled
     return failure;
   };
   owner = Object.freeze({ kind: 'native-index-reader', target, session: admission.session, isSettled,
+    selection: admission.selection || null,
     start() {
       if (attempted || released) throw new Error('Native reader admission cannot be reused.');
       attempted = true;
