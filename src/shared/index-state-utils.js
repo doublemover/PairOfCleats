@@ -1,10 +1,9 @@
-import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import path from 'node:path';
 import { MAX_JSON_BYTES } from './artifact-io/constants.js';
 import { readJsonFile } from './artifact-io/json.js';
 import { writeJsonObjectFile } from './json-stream/json-writers.js';
-import { checksumFile } from './hash.js';
+import { checksumFileObservation } from './hash.js';
 import { isGeneratedArtifactMetadata, withGeneratedArtifactMetadata } from './generated-artifact-core.js';
 
 /**
@@ -26,14 +25,8 @@ export const updateIndexStateManifest = async (indexDir) => {
     || (piece?.name === 'index_state')
   ));
   if (targetIndex < 0) return;
-  let bytes = null;
-  let checksum = null;
-  let checksumAlgo = null;
-  const stat = await fs.stat(statePath);
-  bytes = stat.size;
-  const result = await checksumFile(statePath);
-  checksum = result?.value || null;
-  checksumAlgo = result?.algo || null;
+  const result = await checksumFileObservation(statePath, { containedRoot: indexDir });
+  const bytes = result.bytes, checksum = result.value, checksumAlgo = result.algo;
   if (!Number.isSafeInteger(bytes) || bytes < 0 || !checksum || !checksumAlgo) throw Object.assign(
     new Error('Cannot refresh index-state manifest without its actual byte/checksum observation.'), { code: 'ERR_INDEX_STATE_MANIFEST' });
   const nextChecksum = checksum && checksumAlgo ? `${checksumAlgo}:${checksum}` : null;

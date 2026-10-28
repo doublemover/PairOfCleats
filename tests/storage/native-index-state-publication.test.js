@@ -4,13 +4,14 @@ import path from 'node:path';
 import { registerHooks } from 'node:module';
 import { checksumFile } from '../../src/shared/hash.js';
 import { applyTestEnv } from '../helpers/test-env.js';
+import { errorGraphIncludes } from '../helpers/error-graph.js';
 
 // UNVALIDATED: actual state/manifest producers and real healthy writes. The
 // original writer boundary injects one frozen failure, without a database/model.
 applyTestEnv();
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('/').at(-1);
 assert.ok(['sqlite-write', 'lmdb-write', 'sqlite-read', 'lmdb-read', 'sqlite-invalid', 'lmdb-invalid',
-  'manifest-read', 'manifest-write', 'manifest-checksum', 'healthy-sqlite', 'healthy-lmdb'].includes(selected));
+  'manifest-read', 'manifest-write', 'manifest-checksum', 'manifest-size-race', 'healthy-sqlite', 'healthy-lmdb'].includes(selected));
 const parent = path.resolve('.tmp/tasks'); await fs.mkdir(parent, { recursive: true });
 const root = await fs.mkdtemp(path.join(parent, 'native-state-'));
 const statePath = path.join(root, 'index_state.json'), manifestPath = path.join(root, 'pieces', 'manifest.json');
@@ -36,6 +37,7 @@ const hook = registerHooks({ load(url, context, next) {
   return next(url, context);
 } });
 const stat = fs.stat;
+const open = fs.open;
 try {
   await fs.mkdir(path.dirname(manifestPath));
   await fs.writeFile(statePath, selected.endsWith('-read') && selected !== 'manifest-read' ? '{truncated' : selected.endsWith('-invalid') ? 'null' : JSON.stringify(initial));
@@ -44,13 +46,21 @@ try {
   const { updateSqliteState } = await import('../../src/storage/sqlite/build/index-state.js');
   const { updateLmdbState } = await import('../../src/storage/lmdb/index-state.js');
   const { updateIndexStateManifest } = await import('../../src/shared/index-state-utils.js');
-  if (selected === 'manifest-checksum') fs.stat = async (file, ...args) => {
-    if (path.resolve(file) === statePath) throw original; return stat(file, ...args);
+  if (selected === 'manifest-checksum') fs.open = async (file, ...args) => {
+    const handle = await open(file, ...args);
+    if (path.resolve(file) === statePath) handle.stat = async () => { throw original; };
+    return handle;
+  };
+  if (selected === 'manifest-size-race') fs.stat = async (file, ...args) => {
+    const result = await stat(file, ...args);
+    if (path.resolve(file) === statePath) await fs.appendFile(statePath, ' ');
+    return result;
   };
   const run = () => selected.startsWith('manifest-') ? updateIndexStateManifest(root)
     : selected.includes('lmdb') ? updateLmdbState(root, { ready: true }) : updateSqliteState(root, { status: 'ready' });
-  if (selected.startsWith('healthy-')) {
+  if (selected.startsWith('healthy-') || selected === 'manifest-size-race') {
     await run();
+    fs.stat = stat;
     const state = JSON.parse(await fs.readFile(statePath, 'utf8')), result = JSON.parse(await fs.readFile(manifestPath, 'utf8'));
     assert.equal(state.lmdb.preserved, 'lmdb'); assert.equal(state.sqlite.preserved, 'sqlite');
     assert.deepEqual(state.extensions.caller, initial.extensions.caller); assert.deepEqual(result.extensions.caller, manifest.extensions.caller);
@@ -58,12 +68,13 @@ try {
     const checksum = await checksumFile(statePath);
     assert.equal(result.pieces[0].bytes, (await fs.stat(statePath)).size);
     assert.equal(result.pieces[0].checksum, `${checksum.algo}:${checksum.value}`);
-    if (selected === 'healthy-lmdb') assert.equal(state.lmdb.ready, true); else assert.equal(state.sqlite.status, 'ready');
+    if (selected === 'healthy-lmdb') assert.equal(state.lmdb.ready, true);
+    else if (selected === 'healthy-sqlite') assert.equal(state.sqlite.status, 'ready');
   } else {
     let failure;
     await assert.rejects(run(), error => { failure = error; return true; });
     if (selected.endsWith('-write') || selected === 'manifest-checksum') {
-      assert.equal(failure, original); assert.equal(failure.cacheOwnershipReleased(), false);
+      assert.equal(errorGraphIncludes(failure, original), true); assert.equal(failure.cacheOwnershipReleased(), false);
       settled = true; assert.equal(failure.cacheOwnershipReleased(), true);
     }
     if (selected.endsWith('-invalid')) assert.equal(failure.code, 'ERR_INDEX_STATE_INVALID');
@@ -71,7 +82,7 @@ try {
     assert.equal(await fs.readFile(manifestPath, 'utf8'), manifestBefore, 'failed publication cannot claim a new manifest');
   }
 } finally {
-  settled = true; fs.stat = stat; hook.deregister(); delete globalThis.__nativeStatePublicationFault;
+  settled = true; fs.stat = stat; fs.open = open; hook.deregister(); delete globalThis.__nativeStatePublicationFault;
   await fs.rm(root, { recursive: true, force: true });
 }
 console.log(`Required native index-state publication: ${selected}`);

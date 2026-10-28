@@ -31,7 +31,7 @@ export function sha1(str) {
 }
 
 const changedFile = () => Object.assign(new Error('File changed during its admitted hash read.'), { code: 'ERR_FILE_CHANGED' });
-const withFileHasher = async (filePath, createHasher, { containedRoot = null, signal = null } = {}) => {
+const withFileHasher = async (filePath, createHasher, { containedRoot = null, signal = null } = {}, includeObservation = false) => {
   throwIfAborted(signal);
   const compute = async descriptor => {
     const hasher = createHasher(), update = hasher.update, digest = hasher.digest;
@@ -54,7 +54,9 @@ const withFileHasher = async (filePath, createHasher, { containedRoot = null, si
     if (!after.isFile() || ['dev', 'ino', 'size', 'mtimeMs', 'ctimeMs'].some(key => before[key] !== after[key])) throw changedFile();
     descriptor.verify?.();
     throwIfAborted(signal);
-    return digest.call(hasher);
+    const value = await digest.call(hasher);
+    return includeObservation ? Object.freeze({ value, bytes: after.size,
+      identity: Object.freeze(Object.fromEntries(['dev', 'ino', 'size', 'mtimeMs', 'ctimeMs'].map(key => [key, after[key]]))) }) : value;
   };
   if (containedRoot) return withContainedFile(containedRoot, filePath, compute);
   const open = fs.open, handle = await open.call(fs, filePath, 'r');
@@ -91,6 +93,14 @@ export async function checksumFile(filePath, options = {}) {
   const createHasher = backend.createHasher;
   const value = await withFileHasher(filePath, () => createHasher.call(backend), options);
   return { algo: 'xxh64', value };
+}
+
+/** Internal publication observation: checksum and byte extent come from the
+ * same verified original descriptor, and return only after its actual close. */
+export async function checksumFileObservation(filePath, options = {}) {
+  const backend = await getBackend(), createHasher = backend.createHasher;
+  const result = await withFileHasher(filePath, () => createHasher.call(backend), options, true);
+  return Object.freeze({ algo: 'xxh64', ...result });
 }
 
 export async function getXxhashBackend() {
