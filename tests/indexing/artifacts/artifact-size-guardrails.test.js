@@ -50,7 +50,8 @@ const smallMaxConfig = {
     },
     artifacts: {
       chunkMetaFormat: 'jsonl',
-      chunkMetaShardSize: 1
+      chunkMetaShardSize: 1,
+      byteBudgets: { chunk_meta: maxJsonBytes, token_postings: maxJsonBytes }
     }
   }
 };
@@ -87,7 +88,6 @@ const runBuild = (label, envOverrides) => {
 };
 
 runBuild('artifact guardrails (small max)', {
-  PAIROFCLEATS_TEST_MAX_JSON_BYTES: String(maxJsonBytes),
   PAIROFCLEATS_TEST_CONFIG: JSON.stringify(smallMaxConfig)
 });
 
@@ -139,12 +139,12 @@ const largeMaxConfig = {
   indexing: {
     artifacts: {
       chunkMetaFormat: 'json',
-      tokenPostingsFormat: 'json'
+      tokenPostingsFormat: 'json',
+      byteBudgets: { chunk_meta: 52428800, token_postings: 52428800 }
     }
   }
 };
 runBuild('artifact guardrails (large max)', {
-  PAIROFCLEATS_TEST_MAX_JSON_BYTES: '52428800',
   PAIROFCLEATS_TEST_CONFIG: JSON.stringify(largeMaxConfig)
 });
 
