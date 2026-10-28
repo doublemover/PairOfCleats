@@ -6,6 +6,9 @@ import { repoAccessPaths, consumeRepoCacheAccessHandoff } from './repo-access-re
 import { assertNoSymlinkPath, readVerifiedContainedFileSync } from '../contained-file.js';
 import { inspectRepoCacheDelegation } from './repo-access-delegation-guard.js';
 import { isKnownRepoAccessOwner, isKnownRepoResourceOwner } from './repo-access-owner.js';
+import { observeStorageResource } from '../storage/failure-observation.js';
+import { addStorageFailureContext } from '../storage/operation-error.js';
+import { retainPublishedFileLockPrerequisite } from '../locks/file-lock-producer-observations.js';
 export { repoAccessPaths, retainRepoCacheAccess, retainCachePathAccess,
   prepareRepoCacheAccessHandoff, cancelRepoCacheAccessHandoff,
   acquireRepoCacheAccessLease } from './repo-access-reader.js';
@@ -76,19 +79,84 @@ export const withExclusiveRepoCacheCleanup = async (repoCacheRoot, action, optio
     } });
   if (!lock) return { protected: true, reason: 'cleanup-in-progress' };
   let restoreLocalReader = null;
-  let retained = false;
+  let retained = false, observation = null, workerError, workerFailed = false, workPrerequisite = null;
+  let released = false, closing = null, releaseAttempted = false;
+  const restorationFailures = [];
+  const publication = lock.fileLockPublicationSession;
+  const recoverPublication = publication.releaseAfterClose, publicationSettled = publication.isSettled;
+  const retainOriginal = original => {
+    if (original?.hasResourceObservation) retainPublishedFileLockPrerequisite(lock, original.retain());
+  };
+  const restore = resume => {
+    if (!restoreLocalReader) return;
+    try { restoreLocalReader({ resume }); }
+    catch (error) {
+      const original = observeStorageResource(error, { phase: 'repo-cleanup-reader-restoration' });
+      restorationFailures.push(original); retainOriginal(original); throw error;
+    }
+  };
+  const closeOwned = recover => {
+    if (released) return Promise.resolve();
+    if (!closing) closing = (async () => {
+      try {
+        observation?.requireSettled();
+        for (const failure of restorationFailures) failure.requireSettled();
+        restore(true);
+        observation?.requireSettled();
+        if (recover && releaseAttempted) {
+          const receipt = await recoverPublication.call(publication);
+          observeStorageResource(receipt, { phase: 'repo-cleanup-metadata-recovery' }).requireSettled();
+          if (receipt?.settled !== true || receipt?.pending !== false || publicationSettled.call(publication) !== true) {
+            throw new Error('Original repository cleanup exclusion remains unconfirmed.');
+          }
+        } else {
+          releaseAttempted = true;
+          await releaseFileLockOrThrow(lock, { workerError: workPrerequisite });
+        }
+        released = true;
+      } catch (error) {
+        try { for (const failure of restorationFailures) failure.requireSettled(); restore(false); }
+        catch (restorationError) { throw addStorageFailureContext(error, {}, restorationError, { secondaryPresent: true }); }
+        throw error;
+      }
+    })().finally(() => { closing = null; });
+    return closing;
+  };
+  const owner = Object.freeze({ close: () => closeOwned(true), isSettled: () => released });
   try {
     const currentDelegation = inspectRepoCacheDelegation(paths);
     if (currentDelegation.protected) return { protected: true, reason: currentDelegation.reason };
     if (options.localAccessHandoff) restoreLocalReader = consumeRepoCacheAccessHandoff(options.localAccessHandoff, paths);
     const owners = inspectRepoCacheAccess(repoCacheRoot, options);
     if (owners.length) return { protected: true, reason: 'active-process-lease', owners };
-    return { protected: false, result: await action({ paths, lock,
-      retainExclusion: () => { retained = true; } }) };
+    const result = await action({ paths, lock, retainExclusion: () => { retained = true; } });
+    observation = observeStorageResource(result, { phase: 'repo-cleanup-action-result' });
+    observation.requireSettled();
+    return { protected: false, result };
+  } catch (error) {
+    workerError = error; workerFailed = true;
+    observation ||= observeStorageResource(error, { phase: 'repo-cleanup-action-failure' });
+    throw error;
   } finally {
-    // A failed restoration retains exclusion; releasing it would lose the
-    // process-lifetime reader's protection while its resources may remain live.
-    if (restoreLocalReader) restoreLocalReader({ resume: !retained });
-    if (!retained) await releaseFileLockOrThrow(lock);
+    if (retained) {
+      // Explicit composing/delegating owners retain their own release authority.
+      // Feeding their aggregate settlement back into their lock would self-gate.
+      try { restore(false); }
+      catch (error) { throw workerFailed ? addStorageFailureContext(workerError, {}, error, { secondaryPresent: true }) : error; }
+    } else {
+      workPrerequisite = observation?.hasResourceObservation ? observation.retain() : workerFailed ? workerError : null;
+      if (observation?.hasResourceObservation) {
+        observation = observeStorageResource(workPrerequisite, { phase: 'repo-cleanup-captured-action' });
+        retainPublishedFileLockPrerequisite(lock, workPrerequisite);
+      }
+      try { await closeOwned(false); }
+      catch (error) {
+        const failure = workerFailed && error !== workerError
+          ? addStorageFailureContext(workerError, {}, error, { secondaryPresent: true }) : error;
+        throw addStorageFailureContext(failure, { repoCacheCleanupOwner: owner,
+          cacheOwnershipPending: true, cacheOwnershipReleased: owner.isSettled }, undefined,
+        { nonEnumerable: ['repoCacheCleanupOwner'] });
+      }
+    }
   }
 };
