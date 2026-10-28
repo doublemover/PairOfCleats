@@ -3,7 +3,10 @@ import { createSafeRegex, isSafeRegex } from '../shared/safe-regex.js';
 import { normalizeLimit } from '../shared/limits.js';
 import { COMMENT_CLASSIFICATION_VERSION, DEFAULT_COMMENT_LICENSE_PATTERN } from './comments-policy.js';
 import { resolveCommentOccurrences } from './comment-occurrences.js';
-import { createCommentConfigAdmission } from './comment-config.js';
+import { createCommentConfigAdmission, COMMENT_CONFIG_LIMITS } from './comment-config.js';
+import { createCommentContentView } from './segments/comment-content.js';
+import { collectMarkdownFencedContent } from './segments/markdown-content.js';
+import { createEmbeddedContentView, readEmbeddedContent, mapEmbeddedContentRange, embeddedContentIdentity } from '../shared/embedded-content.js';
 
 const DEFAULT_COMMENT_CONFIG = {
   extract: 'doc',
@@ -521,36 +524,48 @@ export function extractComments({
       coverage
     });
     if (!configAdmission.discover) continue;
-    for (let i = 0; i < contentLines.length && configAdmission.discover; i += 1) {
-      const line = contentLines[i].content;
-      const fenceMatch = line.match(/^\s*```+\s*([A-Za-z0-9_-]+)?/);
-      if (!fenceMatch) continue;
-      const fenceLang = fenceMatch[1] ? fenceMatch[1].toLowerCase() : '';
+    if (!/(?:`{3}|~{3})/u.test(entry.raw)) continue;
+    const commentRange = { start: entry.start, end: entry.end };
+    if (entry.end - entry.start > COMMENT_CONFIG_LIMITS.fileBytes) {
+      configAdmission.unavailable('comment-content-byte-budget', commentRange); continue;
+    }
+    let scanned = true;
+    for (let line = 0; line < commentLines.length; line++) {
+      if (!configAdmission.scanLine(commentRange)) { scanned = false; break; }
+    }
+    if (!scanned) continue;
+    let commentView, logicalComment;
+    try {
+      commentView = createCommentContentView(text, entry);
+      logicalComment = readEmbeddedContent(text, commentView);
+    } catch (error) {
+      if (error.code !== 'ERR_EMBEDDED_CONTENT') throw error;
+      configAdmission.unavailable(error.reason, commentRange); continue;
+    }
+    comments.at(-1).contentView = commentView;
+    for (const block of collectMarkdownFencedContent(logicalComment)) {
+      if (!configAdmission.discover) break;
+      const fenceLang = (block.info || '').trim().split(/\s+/u)[0].toLowerCase();
       const lang = ['json', 'yaml', 'yml', 'toml'].includes(fenceLang) ? fenceLang : null;
       if (!lang) continue;
-      const range = { start: contentLines[i].contentStartOffset, end: entry.end };
-      if (!configAdmission.candidate(range)) break;
-      let endFence = -1;
-      for (let j = i + 1; j < contentLines.length; j += 1) {
-        if (!configAdmission.scanLine(range)) break;
-        if (/^\s*```/.test(contentLines[j].content)) {
-          endFence = j;
-          break;
-        }
+      if (!configAdmission.candidate(commentRange)) break;
+      if (!block.closed) { configAdmission.unavailable('unclosed-comment-fence', commentRange); continue; }
+      if (block.contentUnavailable || !block.contentView) {
+        configAdmission.unavailable(block.contentUnavailable || 'content-unavailable', commentRange); continue;
       }
-      if (endFence === -1 || endFence <= i + 1) continue;
-      const startLineEntry = contentLines[i + 1];
-      const endLineEntry = contentLines[endFence - 1];
-      if (!startLineEntry || !endLineEntry) continue;
-      const startOffset = startLineEntry.contentStartOffset
-        + (startLineEntry.content.match(/^\s*/)?.[0]?.length || 0);
-      const endOffset = endLineEntry.contentStartOffset + endLineEntry.content.length;
-      if (!Number.isFinite(startOffset) || !Number.isFinite(endOffset) || endOffset <= startOffset) {
-        continue;
+      let contentView, content;
+      try {
+        const pieces = block.contentView.pieces.flatMap(piece => mapEmbeddedContentRange(commentView, piece.start, piece.end));
+        contentView = createEmbeddedContentView(text, pieces, { containerStart: entry.start, containerEnd: entry.end,
+          policy: 'comment-config-fenced-content-v1' });
+        content = readEmbeddedContent(text, contentView);
+      } catch (error) {
+        if (error.code !== 'ERR_EMBEDDED_CONTENT') throw error;
+        configAdmission.unavailable(error.reason, commentRange); continue;
       }
+      const startOffset = contentView.sourceStart, endOffset = contentView.sourceEnd;
       const normalizedLang = lang === 'yml' ? 'yaml' : lang;
-      const admitted = configAdmission.parse(normalizedLang, contentLines, i + 1, endFence, { start: startOffset, end: endOffset });
-      i = endFence;
+      const admitted = configAdmission.parseContent(normalizedLang, content, { start: startOffset, end: endOffset });
       if (!admitted) continue;
       configSegments.push({
         type: 'embedded',
@@ -559,9 +574,12 @@ export function extractComments({
         end: endOffset,
         parentSegmentId: null,
         embeddingContext: 'config',
+        contentView,
         meta: {
           fenceInfo: fenceLang || null,
-          source: 'comment'
+          source: 'comment', containerStart: entry.start, containerEnd: entry.end,
+          commentContentIdentity: embeddedContentIdentity(commentView),
+          extractionPolicy: 'comment-config-fenced-content-v1'
         }
       });
     }

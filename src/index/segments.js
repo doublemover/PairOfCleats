@@ -15,6 +15,7 @@ import { segmentMarkdown } from './segments/markdown.js';
 import { segmentJsx } from './segments/jsx.js';
 import { segmentAstro, segmentSvelte, segmentVue } from './segments/vue.js';
 import { buildCdcSegments } from './segments/cdc.js';
+import { embeddedContentIdentity, readSegmentContent } from '../shared/embedded-content.js';
 
 export { normalizeSegmentsConfig } from './segments/config.js';
 export { detectFrontmatter } from './segments/frontmatter.js';
@@ -86,12 +87,13 @@ export const assignSegmentUids = async ({
   for (const segment of segments) {
     if (!segment || segment.segmentUid) continue;
     if (!includeBaseSegments && isBaseSegment(segment, text.length, baseSegmentType)) continue;
-    const segmentText = text.slice(segment.start, segment.end);
+    if (segment.contentUnavailable) continue;
+    const segmentText = readSegmentContent(text, segment);
     const segmentUid = await computeSegmentUid({
       segmentText,
       segmentType: segment.type,
       languageId: segment.languageId,
-      extractionPolicy: segment.meta?.extractionPolicy || null
+      extractionPolicy: segment.contentView ? embeddedContentIdentity(segment.contentView) : segment.meta?.extractionPolicy || null
     });
     if (segmentUid) segment.segmentUid = segmentUid;
   }
@@ -190,7 +192,8 @@ export function chunkSegments({
   const resolvedLineIndex = lineIndex || buildLineIndex(text);
   const chunks = [];
   for (const segment of segments) {
-    const segmentText = text.slice(segment.start, segment.end);
+    if (segment.contentUnavailable) continue;
+    const segmentText = readSegmentContent(text, segment);
     const isBase = isBaseSegment(segment, text.length, baseSegmentType);
     const tokenMode = resolveSegmentTokenMode(segment);
     if (!shouldIndexSegment(segment, tokenMode, effectiveMode)) continue;
@@ -211,7 +214,7 @@ export function chunkSegments({
       }
       : {
         text: segmentText,
-        lineIndex: buildSegmentLineIndex(resolvedLineIndex, segment.start, segment.end)
+        lineIndex: segment.contentView ? buildLineIndex(segmentText) : buildSegmentLineIndex(resolvedLineIndex, segment.start, segment.end)
       };
     const segmentContext = {
       ...(isBase ? context : stripFullFileChunkingCaches(context)),
@@ -247,7 +250,8 @@ export function chunkSegments({
         segmentEnd: segment.end,
         segmentStartLine,
         segmentEndLine,
-        embeddingContext
+        embeddingContext,
+        lineIndex: resolvedLineIndex
       }));
     }
   }

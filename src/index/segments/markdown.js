@@ -1,69 +1,7 @@
-import { parse, postprocess, preprocess } from 'micromark';
-import { normalizeLimit } from '../../shared/limits.js';
-import { CONFIG_LANGS, hasMeaningfulText, normalizeFenceLanguage, normalizeSegmentsConfig } from './config.js';
+import { CONFIG_LANGS, normalizeFenceLanguage, normalizeSegmentsConfig } from './config.js';
 import { detectFrontmatter } from './frontmatter.js';
 import { finalizeSegments } from './finalize.js';
-
-const collectMarkdownSegments = (text, config) => {
-  const spans = [];
-  const blocks = [];
-  const wantInline = config?.inlineCodeSpans === true;
-  const minChars = wantInline ? normalizeLimit(config.inlineCodeMinChars, 8) : 0;
-  const maxSpans = wantInline ? normalizeLimit(config.inlineCodeMaxSpans, 200) : 0;
-  const maxBytes = wantInline ? normalizeLimit(config.inlineCodeMaxBytes, 64 * 1024) : 0;
-  let totalBytes = 0;
-  let events = [];
-  try {
-    events = postprocess(parse().document().write(preprocess()(text, 'utf8', true)));
-  } catch {
-    return { spans, blocks };
-  }
-  let current = null;
-  for (const [action, token] of events) {
-    if (action === 'enter' && token.type === 'codeFenced') {
-      current = { info: null, valueStart: null, valueEnd: null, start: token.start.offset };
-      continue;
-    }
-    if (current) {
-      if (action === 'enter' && token.type === 'codeFencedFenceInfo') {
-        current.info = text.slice(token.start.offset, token.end.offset);
-      }
-      if (token.type === 'codeFlowValue') {
-        if (action === 'enter' && !Number.isFinite(current.valueStart)) {
-          current.valueStart = token.start.offset;
-        }
-        if (action === 'exit') current.valueEnd = token.end.offset;
-      }
-      if (action === 'exit' && token.type === 'codeFenced') {
-        if (Number.isFinite(current.valueStart) && Number.isFinite(current.valueEnd)) {
-          blocks.push({
-            start: current.valueStart,
-            end: current.valueEnd,
-            containerStart: current.start,
-            containerEnd: token.end.offset,
-            info: current.info || null
-          });
-        }
-        current = null;
-      }
-    }
-    if (!wantInline) continue;
-    if (action !== 'enter' || token.type !== 'codeTextData') continue;
-    const start = token.start.offset;
-    const end = token.end.offset;
-    if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
-    const slice = text.slice(start, end);
-    if (!hasMeaningfulText(slice)) continue;
-    const nonWhitespace = slice.replace(/\s/g, '').length;
-    if (nonWhitespace < minChars) continue;
-    const bytes = Buffer.byteLength(slice, 'utf8');
-    if (spans.length >= maxSpans || totalBytes + bytes > maxBytes) continue;
-    totalBytes += bytes;
-    spans.push({ start, end });
-  }
-  return { spans, blocks };
-};
-
+import { collectMarkdownSegments } from './markdown-content.js';
 export const segmentMarkdown = ({ text, ext, relPath, segmentsConfig }) => {
   const config = normalizeSegmentsConfig(segmentsConfig);
   const segments = [];
@@ -108,7 +46,10 @@ export const segmentMarkdown = ({ text, ext, relPath, segmentsConfig }) => {
       end: block.end,
       parentSegmentId: null,
       embeddingContext,
-      meta: { fenceInfo: block.info || null }
+      contentView: block.contentView,
+      ...(block.contentUnavailable ? { contentUnavailable: block.contentUnavailable } : {}),
+      meta: { fenceInfo: block.info || null, containerStart: block.containerStart,
+        containerEnd: block.containerEnd, extractionPolicy: 'markdown-fenced-content-v1' }
     });
   }
   for (const span of spans) {

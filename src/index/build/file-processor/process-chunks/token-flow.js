@@ -29,6 +29,7 @@ import { buildChunkPayload } from '../assemble.js';
 import { attachEmbeddings } from '../embeddings.js';
 import { formatError, normalizeDocMeta } from '../meta.js';
 import { createLineReader, stripCommentText } from '../utils.js';
+import { readChunkContent } from '../../../../shared/embedded-content.js';
 import { resolveSegmentTokenMode } from '../../../segments/config.js';
 import { attachCallDetailsByChunkIndex } from './dedupe.js';
 import { shouldDetectBoilerplateBlocks } from './boilerplate.js';
@@ -494,7 +495,7 @@ const processChunksRun = async (context, acquireLineCache) => {
   for (let ci = 0; ci < chunksForProcessing.length; ++ci) {
     const c = chunksForProcessing[ci];
     if (sourceOrderedChunks) fileTokenStreamCache?.retireBefore(c.start);
-    const ctext = text.slice(c.start, c.end);
+    const ctext = readChunkContent(text, c);
     let tokenText = ctext;
     const lineRange = chunkLineRanges[ci] || { startLine: 1, endLine: fileLineCount || 1 };
     const startLine = lineRange.startLine;
@@ -677,7 +678,7 @@ const processChunksRun = async (context, acquireLineCache) => {
         }
       }
     }
-    if (chunkMode === 'code' && normalizedCommentsConfig.includeInCode !== true && assignedRanges.length) {
+    if (!c.segment?.contentView && chunkMode === 'code' && normalizedCommentsConfig.includeInCode !== true && assignedRanges.length) {
       tokenText = stripCommentText(ctext, c.start, assignedRanges);
     }
 
@@ -694,6 +695,7 @@ const processChunksRun = async (context, acquireLineCache) => {
     let pretokenized = null;
     const useLineTokenStream = !pretokenized && !tokenPayload && effectiveTokenizeEnabled
       && tokenizationFileStreamEnabled
+      && !c.segment?.contentView
       && tokenText === ctext
       && canUseLineTokenStreamSlice({
         chunkStart: c.start,

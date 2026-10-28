@@ -1,5 +1,6 @@
 import { admitFlowEvidence } from '../../shared/flow-evidence.js';
 import { sourceOutlineErrors } from '../../shared/source-outline.js';
+import { assertEmbeddedContentView, embeddedContentIdentity, unmapEmbeddedContentRange } from '../../shared/embedded-content.js';
 /** Validate relationships that JSON Schema field types cannot express. */
 export const validateMetadataV2Semantics = (metadata) => {
   const errors = [];
@@ -8,10 +9,19 @@ export const validateMetadataV2Semantics = (metadata) => {
   if (metadata.javascriptDeclaration) {
     const value = metadata.javascriptDeclaration, mapping = value.sourceMapping;
     if (!mapping || value.projectionRange?.start !== metadata.range?.start || value.projectionRange?.end !== metadata.range?.end) errors.push('/javascriptDeclaration: projection range differs from chunk');
-    if (value.ownerRange && mapping && (value.ownerRange.start < 0 || value.ownerRange.end > mapping.length
+    const logicalLength = mapping?.schemaVersion === 2 ? mapping.contentView?.length : mapping?.length;
+    if (value.ownerRange && mapping && (value.ownerRange.start < 0 || value.ownerRange.end > logicalLength
       || value.ownerRange.end <= value.ownerRange.start)) errors.push('/javascriptDeclaration: owner range exceeds its parsed snapshot');
     const sourceLength = metadata.flowEvidence?.source?.length;
-    if (mapping && (value.projectionRange.start < mapping.offset || value.projectionRange.end > mapping.offset + mapping.length
+    if (mapping?.schemaVersion === 2) {
+      try {
+        const view = assertEmbeddedContentView(mapping.contentView);
+        unmapEmbeddedContentRange(view, value.projectionRange.start, value.projectionRange.end);
+        if (!metadata.segment?.contentView || embeddedContentIdentity(view) !== embeddedContentIdentity(metadata.segment.contentView)
+          || metadata.segment.start !== view.sourceStart || metadata.segment.end !== view.sourceEnd
+          || Number.isSafeInteger(sourceLength) && view.containerEnd > sourceLength) throw new Error('container differs');
+      } catch { errors.push('/javascriptDeclaration: piecewise projection differs from its admitted container map'); }
+    } else if (mapping && (value.projectionRange.start < mapping.offset || value.projectionRange.end > mapping.offset + mapping.length
       || Number.isSafeInteger(sourceLength) && mapping.offset + mapping.length > sourceLength)) errors.push('/javascriptDeclaration: projection mapping exceeds its container source');
     if (value.state === 'qualified' && (!value.occurrenceId || !value.sourceHash)) errors.push('/javascriptDeclaration: qualified join lacks source/occurrence identity');
   }

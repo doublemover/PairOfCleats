@@ -27,8 +27,27 @@ export const createCommentConfigAdmission = ({ enabled = true, onParse = null } 
     if (stop) stopped = true;
     return false;
   };
+  const parseContent = (language, text, range) => {
+    if (text.length > COMMENT_CONFIG_LIMITS.blockBytes) return exclude('candidate-byte-budget', range);
+    const bytes = Buffer.byteLength(text, 'utf8');
+    if (bytes > COMMENT_CONFIG_LIMITS.blockBytes) return exclude('candidate-byte-budget', range);
+    if (bytes > COMMENT_CONFIG_LIMITS.fileBytes - receipt.parsedBytes) return exclude('aggregate-byte-budget', range);
+    if (!text) { receipt.invalid++; return false; }
+    const parse = loadParser(language);
+    onParse?.(Object.freeze({ language, bytes, ...range }));
+    receipt.parserCalls++; receipt.parsedBytes += bytes;
+    try {
+      const errors = [];
+      if (language === 'json') parse(text, errors, { allowTrailingComma: true, allowEmptyContent: false });
+      else parse(text);
+      if (errors.length) { receipt.invalid++; return false; }
+      receipt.accepted++; return true;
+    } catch { receipt.invalid++; return false; }
+  };
   return {
     get discover() { return !stopped; },
+    unavailable: exclude,
+    parseContent,
     candidate(range) {
       if (stopped) return false;
       if (++receipt.candidates > COMMENT_CONFIG_LIMITS.candidates) return exclude('candidate-count-budget', range, true);
@@ -48,18 +67,7 @@ export const createCommentConfigAdmission = ({ enabled = true, onParse = null } 
       }
       if (bytes > COMMENT_CONFIG_LIMITS.fileBytes - receipt.parsedBytes) return exclude('aggregate-byte-budget', range);
       const text = lines.slice(first, end).map(line => line.content).join('\n');
-      if (!text) { receipt.invalid++; return false; }
-      // Required-library loading and observer failures are not malformed input.
-      const parse = loadParser(language);
-      onParse?.(Object.freeze({ language, bytes, ...range }));
-      receipt.parserCalls++; receipt.parsedBytes += bytes;
-      try {
-        const errors = [];
-        if (language === 'json') parse(text, errors, { allowTrailingComma: true, allowEmptyContent: false });
-        else parse(text);
-        if (errors.length) { receipt.invalid++; return false; }
-        receipt.accepted++; return true;
-      } catch { receipt.invalid++; return false; }
+      return parseContent(language, text, range);
     },
     snapshot: () => structuredClone(receipt)
   };

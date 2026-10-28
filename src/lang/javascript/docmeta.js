@@ -1,5 +1,6 @@
 import { projectJavaScriptDeclaration } from './declaration-projection.js';
 import { resolveStandaloneJavaScriptDocumentation } from './doc-comments.js';
+import { projectEmbeddedContentEnvelope } from '../../shared/embedded-content.js';
 /**
  * Extract lightweight doc metadata for JS chunks.
  * @param {string} text
@@ -29,10 +30,11 @@ export function extractDocMeta(text, chunk, astMeta = null, sourceView = null) {
 
   return {
     doc: documentation.range ? text.slice(documentation.range.start, documentation.range.end).slice(0, 300) : '',
-    documentation: { ...documentation, authority: 'documentation', range: documentation.range ? {
-      start: documentation.range.start + (sourceView?.offset || 0),
-      end: documentation.range.end + (sourceView?.offset || 0)
-    } : null },
+    documentation: { ...documentation, authority: 'documentation', range: sourceView?.contentView
+      ? projectEmbeddedContentEnvelope(sourceView.contentView, documentation.range) : documentation.range ? {
+        start: documentation.range.start + (sourceView?.offset || 0),
+        end: documentation.range.end + (sourceView?.offset || 0)
+      } : null },
     params: metaParams,
     paramNames: metaParamNames,
     paramTypes,

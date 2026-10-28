@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { readSegmentContent } from '../../../../shared/embedded-content.js';
 import path from 'node:path';
 import { throwIfAborted } from '../../../../shared/abort.js';
 import { toPosix } from '../../../../shared/file-paths.js';
@@ -276,7 +277,8 @@ export const discoverTreeSitterSchedulerGroups = async ({
         if (!isTreeSitterSchedulerLanguage(languageId)) continue;
         if (!isTreeSitterEnabled(treeSitterOptions, languageId)) continue;
 
-        const segmentText = text.slice(segment.start, segment.end);
+        if (segment.contentUnavailable) continue;
+        const segmentText = readSegmentContent(text, segment);
         if (exceedsTreeSitterLimits({ text: segmentText, languageId, treeSitterConfig, recordSkip })) {
           continue;
         }

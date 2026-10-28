@@ -1,4 +1,5 @@
 import { chunkSegments } from '../../../segments.js';
+import { readSegmentContent } from '../../../../shared/embedded-content.js';
 import {
   resolveSegmentExt,
   resolveSegmentTokenMode,
@@ -147,11 +148,24 @@ export const chunkWithScheduler = async ({
     codeFallbackSegmentCount: 0
   };
   const sourceSegments = Array.isArray(segments) ? segments : [];
+  const contentAdmission = { schemaVersion: 1, state: 'complete', linear: 0, piecewise: 0, unavailable: 0, exclusions: [] };
+  for (const segment of sourceSegments) {
+    if (segment?.contentUnavailable) {
+      contentAdmission.state = 'partial'; contentAdmission.unavailable++;
+      if (contentAdmission.exclusions.length < 16) contentAdmission.exclusions.push({ start: segment.start,
+        end: segment.end, reason: segment.contentUnavailable });
+    } else if (segment?.contentView) {
+      if (segment.contentView.pieces.length > 1) contentAdmission.piecewise++;
+      else contentAdmission.linear++;
+    }
+  }
+  chunkingDiagnostics.segmentContent = contentAdmission;
+  if (contentAdmission.unavailable) logLine?.(`[segments] embedded content unavailable for ${relKey}: ${JSON.stringify(contentAdmission)}`);
   const treeSitterOptions = { treeSitter: treeSitterConfigForMode || {} };
   const schedulerLanguageSet = resolveSchedulerLanguageSet(treeSitterScheduler);
 
   for (const segment of sourceSegments) {
-    if (!segment) continue;
+    if (!segment || segment.contentUnavailable) continue;
     const segmentTokenMode = resolveSegmentTokenMode(segment);
     if (!shouldIndexSegment(segment, segmentTokenMode, tokenMode)) continue;
 
@@ -184,7 +198,7 @@ export const chunkWithScheduler = async ({
       continue;
     }
 
-    const segmentText = text.slice(segment.start, segment.end);
+    const segmentText = readSegmentContent(text, segment);
     if (exceedsTreeSitterLimits({ text: segmentText, languageId: resolvedLang, treeSitterConfig: treeSitterConfigForMode })) {
       pushFallbackSegment({
         segment,

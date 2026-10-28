@@ -1,4 +1,5 @@
 import { JAVASCRIPT_RELATIONS_VERSION } from '../../lang/javascript/version.js';
+import { EMBEDDED_CONTENT_VIEW_SCHEMA } from './embedded-content.js';
 const count = { type: 'integer', minimum: 0, maximum: Number.MAX_SAFE_INTEGER };
 const nullableString = { type: ['string', 'null'] };
 const range = { type: 'object', additionalProperties: false, required: ['start', 'end'], properties: { start: count, end: count } };
@@ -35,7 +36,11 @@ export const JAVASCRIPT_CALLABLE_JOIN_SCHEMA = { type: 'object', additionalPrope
     schemaVersion: { const: 1 }, state: { enum: ['qualified', 'partial', 'unavailable', 'ambiguous'] }, reason: nullableString,
     occurrenceId: { ...id, type: ['string', 'null'] }, role: nullableString, sourceHash: digest, internalName: nullableString,
     ownerRange: { anyOf: [range, { type: 'null' }] }, projectionRange: range, parentId: { ...id, type: ['string', 'null'] },
-    sourceMapping: { type: 'object', additionalProperties: false, required: ['offset', 'length'], properties: { offset: count, length: count } }
+    sourceMapping: { anyOf: [
+      { type: 'object', additionalProperties: false, required: ['offset', 'length'], properties: { offset: count, length: count } },
+      { type: 'object', additionalProperties: false, required: ['schemaVersion', 'contentView'],
+        properties: { schemaVersion: { const: 2 }, contentView: EMBEDDED_CONTENT_VIEW_SCHEMA } }
+    ] }
   } };
 export const JAVASCRIPT_EVALUATION_SCHEMA = { type: 'object', additionalProperties: false,
   required: ['schemaVersion', 'occurrenceId', 'sourceHash', 'ownerRange', 'phase', 'conditional', 'meaning', 'state', 'invocationKind', 'sourceOffset'], properties: {

@@ -1,0 +1,4 @@
+{
+  "schemaVersion": 1,
+  "cases": ["plain", "quote", "list", "indent", "crlf", "blank", "tilde", "long-fence", "starred-json", "starred-crlf", "unstarred-yaml", "starred-yaml", "toml", "html", "vfs-and-token-input", "mapping-and-identity", "invalid-views", "semantic-map", "javascript-projection", "closing-and-invalid-config", "piece-budget"]
+}

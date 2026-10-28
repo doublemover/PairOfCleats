@@ -1,1 +1,1 @@
-export const JAVASCRIPT_RELATIONS_VERSION = '2';
+export const JAVASCRIPT_RELATIONS_VERSION = '3';

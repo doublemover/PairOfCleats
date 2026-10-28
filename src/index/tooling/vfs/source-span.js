@@ -1,4 +1,5 @@
 import { toPosix } from '../../../shared/file-paths.js';
+import { readEmbeddedContent, mapEmbeddedContentRange, unmapEmbeddedContentRange, isUtf16Boundary } from '../../../shared/embedded-content.js';
 
 /** UTF-16 half-open coordinates shared by VFS documents and manifest production. */
 const dividesSurrogate = (text, offset) => offset > 0 && offset < text.length
@@ -35,6 +36,13 @@ export const admitVfsSourceSpan = (chunk, text, containerPath, { requireTarget =
   const segmentStart = segment ? segment.start : 0;
   const segmentEnd = segment ? segment.end : text.length;
   assertSpan(text, segmentStart, segmentEnd, 0, text.length, 'segment', chunk, containerPath);
+  let logicalText = null;
+  if (segment?.contentView) {
+    try {
+      logicalText = readEmbeddedContent(text, segment.contentView);
+      if (segment.contentView.sourceStart !== segmentStart || segment.contentView.sourceEnd !== segmentEnd) throw new Error('extent');
+    } catch (cause) { throw Object.assign(invalid('content-view', chunk, containerPath), { cause }); }
+  }
   const frame = chunk?.coordinateFrame ?? 'container';
   if (frame !== 'container' && frame !== 'segment') throw invalid('unknown-frame', chunk, containerPath);
   if (frame === 'segment' && !segment) throw invalid('relative-without-segment', chunk, containerPath);
@@ -47,10 +55,22 @@ export const admitVfsSourceSpan = (chunk, text, containerPath, { requireTarget =
   if (!Number.isSafeInteger(chunk?.start) || !Number.isSafeInteger(chunk?.end)) {
     throw invalid('chunk-noninteger', chunk, containerPath);
   }
-  const start = frame === 'segment' ? segmentStart + chunk.start : chunk.start;
-  const end = frame === 'segment' ? segmentStart + chunk.end : chunk.end;
+  let start = frame === 'segment' ? segmentStart + chunk.start : chunk.start;
+  let end = frame === 'segment' ? segmentStart + chunk.end : chunk.end;
+  let localRange = null;
+  if (logicalText !== null) {
+    try {
+      localRange = frame === 'segment' ? { start: chunk.start, end: chunk.end }
+        : unmapEmbeddedContentRange(segment.contentView, start, end);
+      if (!isUtf16Boundary(logicalText, localRange.start) || !isUtf16Boundary(logicalText, localRange.end)) throw new Error('local-boundary');
+      const pieces = mapEmbeddedContentRange(segment.contentView, localRange.start, localRange.end);
+      if (frame === 'container' && (pieces[0].start !== start || pieces.at(-1).end !== end)) throw new Error('range');
+      start = pieces[0].start; end = pieces.at(-1).end;
+    } catch (cause) { throw Object.assign(invalid('content-range', chunk, containerPath), { cause }); }
+  }
   assertSpan(text, start, end, segmentStart, segmentEnd, 'chunk', chunk, containerPath);
-  return { start, end, segmentStart, segmentEnd, coordinateUnit: 'utf16', quality: 'exact', frame };
+  return { start, end, segmentStart, segmentEnd, coordinateUnit: 'utf16', quality: 'exact', frame,
+    ...(localRange ? { localRange } : {}) };
 };
 
 /** Bounded internal receipt; permissive omissions must remain visible to callers. */

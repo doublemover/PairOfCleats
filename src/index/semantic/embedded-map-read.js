@@ -3,11 +3,16 @@ import { readVerifiedContainedFile } from '../../shared/contained-file.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { assertEmbeddedSourceMap } from '../../contracts/validators/embedded-source-map.js';
 import { canonicalSemanticJson, semanticHash } from './identity.js';
+import { readEmbeddedContent } from '../../shared/embedded-content.js';
 
 const fail = message => Object.assign(new Error(message), { code: 'ERR_SEMANTIC_SOURCE_MISMATCH' });
 const boundary = (text, offset) => offset === 0 || offset === text.length
   || !(text.charCodeAt(offset - 1) >= 0xd800 && text.charCodeAt(offset - 1) <= 0xdbff
     && text.charCodeAt(offset) >= 0xdc00 && text.charCodeAt(offset) <= 0xdfff);
+const retainedParentContent = (map, text) => {
+  try { return map.schemaVersion === 2 ? readEmbeddedContent(text, map.contentView) : text.slice(map.parentStart, map.parentEnd); }
+  catch (cause) { throw Object.assign(fail('Embedded source pieces differ from the retained parent.'), { cause }); }
+};
 
 /** Read only the pinned embedded owner's map; generated/source-map protocols
  * have separate adapters and cannot masquerade as this linear-range framing. */
@@ -43,7 +48,7 @@ export const assertRetainedEmbeddedSourceRange = ({ map, source, localText, pare
     || source.mapping?.identity !== semanticHash('semantic.embedded-map.v1', map)
     || source.mapping?.parentSourceUnitId !== parentSource.sourceUnitId || map.language !== source.language
     || source.mapping?.quality !== map.quality
-    || map.quality === 'exact' && parentText.slice(map.parentStart, map.parentEnd) !== localText) {
+    || map.quality === 'exact' && retainedParentContent(map, parentText) !== localText) {
     throw fail('Embedded range differs from its exact retained parent/source occurrence.');
   }
   return map;

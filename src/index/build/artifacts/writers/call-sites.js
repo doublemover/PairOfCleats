@@ -187,6 +187,8 @@ const buildCallSiteRow = ({ chunk, detail, stats, semanticRef = null }) => {
   row.extensions.semanticRef = semanticRef || unavailableCallSiteSemanticRef();
   row.extensions.arguments = resolveCallArguments(detail);
   if (detail.evaluationOwner) row.extensions.javascriptEvaluation = structuredClone(detail.evaluationOwner);
+  if (detail.sourceMapping) row.extensions.sourceMapping = structuredClone(detail.sourceMapping);
+  if (detail.evaluationOwnerUnavailable) row.extensions.javascriptEvaluationUnavailable = detail.evaluationOwnerUnavailable;
   if (Array.isArray(detail.argLiterals)) row.extensions.argLiterals = detail.argLiterals.slice(0, MAX_ARGS_PER_CALL);
   const trimmedResult = maybeTrimRow(row);
   if (!trimmedResult.row) {

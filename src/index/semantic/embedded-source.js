@@ -12,6 +12,7 @@ import { createSemanticFactsRef } from './file-ref.js';
 import { persistSemanticEvidence } from './lsp-evidence.js';
 import { throwIfAborted } from '../../shared/abort.js';
 import { assertEmbeddedSourceMap } from '../../contracts/validators/embedded-source-map.js';
+import { readSegmentContent, unmapEmbeddedContentRange } from '../../shared/embedded-content.js';
 const languages = { js: 'javascript', javascript: 'javascript', jsx: 'javascript', ts: 'typescript', typescript: 'typescript', tsx: 'typescript' };
 export const embeddedSegmentKey = segment => [segment.start, segment.end, segment.languageId || 'unknown'].join(':');
 export const getSegmentSemanticContext = (contexts, segment) => contexts?.get(embeddedSegmentKey(segment)) || {};
@@ -22,14 +23,16 @@ export const collectEmbeddedSemanticSources = async ({ parentFacts, segments, te
   const parent = parentFacts.source;
   for (const segment of segments || []) {
     throwIfAborted(signal);
-    if (!segment || segment.start === 0 && segment.end === text.length || segment.embeddingContext === 'prose' || !segment.segmentUid) continue;
+    if (!segment || segment.contentUnavailable || segment.start === 0 && segment.end === text.length || segment.embeddingContext === 'prose' || !segment.segmentUid) continue;
     if (!Number.isSafeInteger(segment.start) || !Number.isSafeInteger(segment.end) || segment.start < 0 || segment.end > text.length || segment.end <= segment.start) throw new TypeError('Invalid embedded source range.');
     const key = embeddedSegmentKey(segment); if (syntaxContexts.has(key)) continue;
-    const segmentText = typeof segment.text === 'string' ? segment.text : text.slice(segment.start, segment.end);
+    const segmentText = segment.contentView ? readSegmentContent(text, segment) : typeof segment.text === 'string' ? segment.text : text.slice(segment.start, segment.end);
     const language = languages[segment.languageId] || segment.languageId || 'unknown';
-    const quality = segmentText !== text.slice(segment.start, segment.end) ? 'synthetic' : segment.mappingQuality === 'coarse' || segment.mappingQuality === 'synthetic' ? segment.mappingQuality : 'exact';
-    const map = assertEmbeddedSourceMap({ schemaVersion: 1, kind: 'embedded-linear-range', quality, parentSourceUnitId: parent.sourceUnitId, parentByteHash: parent.byteHash,
-      parentStart: segment.start, parentEnd: segment.end, localStart: 0, localEnd: segmentText.length, coordinateUnit: 'utf16', segmentUid: segment.segmentUid, language });
+    const piecewise = segment.contentView?.pieces.length > 1;
+    const quality = segment.contentView ? 'exact' : segmentText !== text.slice(segment.start, segment.end) ? 'synthetic' : segment.mappingQuality === 'coarse' || segment.mappingQuality === 'synthetic' ? segment.mappingQuality : 'exact';
+    const map = assertEmbeddedSourceMap({ schemaVersion: piecewise ? 2 : 1, kind: piecewise ? 'embedded-piecewise-range' : 'embedded-linear-range', quality, parentSourceUnitId: parent.sourceUnitId, parentByteHash: parent.byteHash,
+      parentStart: segment.start, parentEnd: segment.end, localStart: 0, localEnd: segmentText.length, coordinateUnit: 'utf16', segmentUid: segment.segmentUid, language,
+      ...(piecewise ? { contentView: segment.contentView } : {}) });
     const identity = semanticHash('semantic.embedded-map.v1', map);
     const mapRef = await persistSemanticEvidence({ value: map, stagingRoot, diskAccount, inventory: evidenceArtifacts, signal });
     const bytes = Buffer.from(segmentText, 'utf8');
@@ -71,7 +74,8 @@ export const collectEmbeddedSemanticOwnership = async ({ embedded, chunks, ...op
   const result = [];
   for (const { segment, bytes, facts } of embedded?.sourceFacts || []) {
     const localChunks = (facts.source.mapping.quality === 'exact' ? chunks : []).filter(chunk => chunk.segment?.segmentUid === segment.segmentUid && chunk.segment.start === segment.start && chunk.segment.end === segment.end)
-      .map(chunk => ({ ...chunk, start: chunk.start - segment.start, end: chunk.end - segment.start }));
+      .map(chunk => ({ ...chunk, ...(segment.contentView ? unmapEmbeddedContentRange(segment.contentView, chunk.start, chunk.end)
+        : { start: chunk.start - segment.start, end: chunk.end - segment.start }) }));
     result.push({ segmentUid: segment.segmentUid, factsRef: await collectSemanticOwnership({ ...options, facts, chunks: localChunks, bytes }) });
   }
   return result;

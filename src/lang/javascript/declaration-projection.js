@@ -1,6 +1,7 @@
 import { resolveJavaScriptDeclaration, JAVASCRIPT_RELATIONS_VERSION } from './callable-occurrences.js';
 import { FLOW_FIELDS, createFlowEvidence, flowSourceIdentity, flowValueEmpty } from '../../shared/flow-evidence.js';
 import { rebaseJavaScriptParameterFacts } from './source-projection.js';
+import { readEmbeddedContent, projectEmbeddedContentEnvelope } from '../../shared/embedded-content.js';
 
 export const projectJavaScriptDeclaration = (text, chunk, relations, analysis = relations?.jsDeclarations?.analysis || {}, sourceView = null) => {
   const join = resolveJavaScriptDeclaration(text, chunk, relations?.jsDeclarations);
@@ -22,8 +23,11 @@ export const projectJavaScriptDeclaration = (text, chunk, relations, analysis = 
   }
   if (record && !complete) reasons.push(record.kind === 'callable' ? 'callable_projection_or_traversal_incomplete' : 'non_callable_declaration_has_no_invocation_flow');
   if (!record) reasons.push('source_owned_callable_unavailable');
-  if (sourceView && (sourceView.text.slice(sourceView.offset, sourceView.offset + text.length) !== text
-    || sourceView.chunk.start !== chunk.start + sourceView.offset || sourceView.chunk.end !== chunk.end + sourceView.offset)) {
+  const mappedRange = sourceView?.contentView ? projectEmbeddedContentEnvelope(sourceView.contentView, chunk) : null;
+  if (sourceView && ((sourceView.contentView ? readEmbeddedContent(sourceView.text, sourceView.contentView)
+    : sourceView.text.slice(sourceView.offset, sourceView.offset + text.length)) !== text
+    || sourceView.chunk.start !== (mappedRange?.start ?? chunk.start + sourceView.offset)
+    || sourceView.chunk.end !== (mappedRange?.end ?? chunk.end + sourceView.offset))) {
     throw Object.assign(new Error('JavaScript segment does not match its container source mapping.'), { code: 'ERR_JS_DECLARATION_OCCURRENCE' });
   }
   const source = flowSourceIdentity({ text: sourceView?.text || text, chunk: sourceView?.chunk || chunk, languageId: 'javascript', context: relations?.jsDeclarations });
@@ -33,6 +37,7 @@ export const projectJavaScriptDeclaration = (text, chunk, relations, analysis = 
   const javascriptDeclaration = { schemaVersion: 1, state: join.state, reason: join.reason, occurrenceId: record?.id || null,
     role: record?.role || null, ownerRange: record?.range || null, projectionRange: { start: sourceView?.chunk.start ?? chunk.start, end: sourceView?.chunk.end ?? chunk.end },
     sourceHash: relations?.jsDeclarations?.source.textHash || null, internalName: record?.internalName || null,
-    sourceMapping: { offset: sourceView?.offset || 0, length: text.length }, parentId: record?.parentId || null };
-  return { join, metadata: rebaseJavaScriptParameterFacts(metadata, sourceView?.offset || 0), flowEvidence, javascriptDeclaration };
+    sourceMapping: sourceView?.contentView ? { schemaVersion: 2, contentView: sourceView.contentView }
+      : { offset: sourceView?.offset || 0, length: text.length }, parentId: record?.parentId || null };
+  return { join, metadata: rebaseJavaScriptParameterFacts(metadata, sourceView?.contentView || sourceView?.offset || 0), flowEvidence, javascriptDeclaration };
 };
