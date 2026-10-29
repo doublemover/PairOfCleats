@@ -29,8 +29,7 @@ original failures. Three Cargo/TUI cases and four R acceptance controls pass;
 queued vector-only readiness and other catalogued failures remain.
 
 The [security follow-up](archived/windows-security-and-validation-followup-2026-10-28.md)
-repairs both advisories, debugger errors and profile-aware inputs; 76/77 checks
-pass. Its dated setup/audit receipt is clean. Queued vector-only readiness fails.
+passes 76/77; queued vector-only readiness fails.
 Checkpoint-305 stopped at user request:
 **2,606 passed, 46 failed (five timeouts), 3,450 unrun**.
 Use focused failure rechecks and direct regressions; no full rerun is scheduled.
@@ -38,7 +37,6 @@ The [contract repairs](archived/windows-contract-repair-checkpoint-305-2026-10-2
 pass 46 controls. [Focused repairs](archived/windows-focused-failure-repairs-2026-10-28.md)
 pass 26/26; [comment/handoff repairs](archived/windows-comment-and-handoff-failure-repairs-2026-10-28.md)
 pass 73 controls. Together they resolve 21 original failures, leaving 25.
-Astro bounds, refusal coverage, line reuse and Stage3 launch authority are repaired.
 
 [CI follow-up](archived/windows-ci-qualification-followup-2026-10-29.md) repairs
 startup/source assertions; all three hosted native jobs pass at `ac69aa559`.
@@ -51,7 +49,8 @@ removed 110 lock records; runtime qualification remains separate.
 [Sublime #1289](archived/sublime-native-closeout-2026-10-29.md) closes after all
 three Windows native package cases; broader editor/platform acceptance remains.
 
-Suite/platform/model/release acceptance remains separate. [Storage repairs](archived/storage-space-implementation-2026-10-27.md)
+[Crash-log latency](archived/crash-log-latency-qualification-2026-10-29.md) passes
+10 Windows controls; POSIX remains (#1315). [Storage repairs](archived/storage-space-implementation-2026-10-27.md)
 await execution; lifecycle policy (#1267) and custom cleanup (#1574) remain.
 
 The [owner queue](archived/remaining-issue-batches-2026-10-26.json) orders

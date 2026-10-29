@@ -40,6 +40,14 @@ all platforms; its single-digit-hour info classifier is repaired. Exact fresh Go
 command identity, unchanged production launch assertions and the macOS binding
 deployment floor are repaired; their final hosted acceptance remains pending.
 
+[Crash-log latency](../archived/crash-log-latency-qualification-2026-10-29.md)
+passes ten Windows controls and retains 20 serial samples per small/long-log
+case. Synchronous p95 is 10.37/9.92 ms; settled p95 is 16.12/16.49 ms against
+250/1,000 ms bounds. Every sample checks original error/redaction, terminal
+precedence, append identity and record order. This warm local-filesystem
+measurement excludes construction and forensic export; hosted POSIX acceptance
+remains under #1315.
+
 The [full Windows campaign](../archived/windows-full-validation-checkpoint-265-2026-10-28.md)
 completed all 6,098 required fixtures at `90d0e510a`: 5,819 passed and 279 failed,
 including 14 runner timeouts. There were no skips, omissions, duplicate IDs or
