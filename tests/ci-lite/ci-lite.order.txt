@@ -1384,3 +1384,4 @@ indexing/stage1/comment-policy-extras-cache
 indexing/contracts/language-policy-matcher-projection
 indexing/stage1/extracted-prose-extras-cache-lru
 embeddings/runner/lancedb-generation-paths
+storage/semantic/runtime-query-close-ownership

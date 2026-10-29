@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1226,
+    "hero": 1227,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -8317,6 +8317,12 @@
     {
       "id": "embeddings/runner/lancedb-generation-paths",
       "order": 1384,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-query-close-ownership",
+      "order": 1385,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
