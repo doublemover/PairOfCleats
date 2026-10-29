@@ -22,10 +22,16 @@ into the existing publication layout. Hosted reruns and unrestricted long-root
 LanceDB support remain separate; no full-suite pass is implied.
 
 [Sublime package acceptance](../archived/sublime-native-closeout-2026-10-29.md)
-closes #1289 on Windows Text 4192/Python 3.3. Packed, unpacked and legacy/shadow
+closes #1289 on Windows/Sublime Text 4192/Python 3.3. Packed, unpacked and legacy/shadow
 cases pass activation, search, update/reload, uninstall, natural exit and isolated
 desktop/child cleanup; 36 affected controls and the publication gate pass.
 Broader editor/platform acceptance remains under #630.
+
+The [SDK/authority follow-up](../archived/windows-ci-integration-repairs-2026-10-29.md)
+passes 22 focused cases and actual Windows short/long-path reads. CI-owned pinned
+Csharp/PHPactor installation and exact workspace grants are implemented; vendor
+installation and real handshake qualification still require the hosted candidate.
+Product storage admission and original physical-link controls remain intact.
 
 The [full Windows campaign](../archived/windows-full-validation-checkpoint-265-2026-10-28.md)
 completed all 6,098 required fixtures at `90d0e510a`: 5,819 passed and 279 failed,

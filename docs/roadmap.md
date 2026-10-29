@@ -40,10 +40,9 @@ pass 26/26; [comment/handoff repairs](archived/windows-comment-and-handoff-failu
 pass 73 controls. Together they resolve 21 original failures, leaving 25.
 Astro bounds, refusal coverage, line reuse and Stage3 launch authority are repaired.
 
-[CI repairs](archived/windows-ci-repairs-2026-10-28.md) pass 15 native workflows
-and 12 controls. The [stable refresh](archived/windows-stable-upgrades-2026-10-29.md)
-updates dependencies, repairs Windows LanceDB staging and qualifies Rust 1.99.1;
-hosted reruns and the remaining P1 acceptances follow.
+[CI follow-up](archived/windows-ci-integration-repairs-2026-10-29.md) passes 22
+controls; hosted SDK/authority checks remain. [Stable upgrades](archived/windows-stable-upgrades-2026-10-29.md)
+and Rust 1.99.1 are locally qualified; remaining P1 acceptances follow.
 
 [Earlier retirements](archived/dependency-ownership-implementation-2026-10-27.md)
 removed 110 lock records; runtime qualification remains separate.
