@@ -1,3 +1,4 @@
+import { unicodeScalarBoundary } from '../../../shared/unicode-chunks.js';
 import { createRequire } from 'node:module';
 import { deferLanguageFunctions } from '../../deferred-language-functions.js';
 import { buildChunksFromLineHeadings, buildLineIndexFromLines } from '../helpers.js';
@@ -232,9 +233,10 @@ export const chunkLargeProseFallback = (text, context = {}) => {
   // Preserve full coverage while capping worst-case tokenization latency for
   // very large prose blobs that would otherwise become one giant chunk.
   const chunks = [];
-  for (let start = 0; start < text.length; start += chunkChars) {
-    const end = Math.min(text.length, start + chunkChars);
+  for (let start = 0; start < text.length;) {
+    const end = unicodeScalarBoundary(text, start, start + chunkChars);
     chunks.push({ start, end, name: null, kind: 'Section', meta: {} });
+    start = end;
   }
   return chunks;
 };

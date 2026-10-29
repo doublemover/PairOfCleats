@@ -27,6 +27,6 @@ for (const unit of ['a', 'é', '😀']) {
   }
 }
 assert.equal(CDC_SEGMENTATION_VERSION, '2.0.0', 'the direct byte-bounded algorithm keeps its existing contract');
-assert.equal(SEMANTIC_ANALYSIS_VERSIONS.sourceChunking, '43');
+assert.ok(Number(SEMANTIC_ANALYSIS_VERSIONS.sourceChunking) >= 43, 'replay must retire pre-byte-admission source chunks');
 assert.equal(SEMANTIC_ANALYSIS_VERSIONS.vfsRouting, '8');
 console.log('CDC discovery shares byte eligibility and preserves below-threshold base semantics.');

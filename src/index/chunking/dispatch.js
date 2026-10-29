@@ -1,3 +1,4 @@
+import { unicodeScalarBoundary } from '../../shared/unicode-chunks.js';
 import { createRequire } from 'node:module';
 import { deferLanguageFunctions } from '../deferred-language-functions.js';
 import {
@@ -478,15 +479,11 @@ export function smartChunk({
   }
   const fallbackChunkSize = 800;
   const fallbackKind = mode === 'code' ? 'Module' : 'Section';
-  const out = new Array(Math.ceil(text.length / fallbackChunkSize));
-  for (let i = 0, off = 0; off < text.length; off += fallbackChunkSize, i += 1) {
-    out[i] = {
-      start: off,
-      end: Math.min(text.length, off + fallbackChunkSize),
-      name: null,
-      kind: fallbackKind,
-      meta: {}
-    };
+  const out = [];
+  for (let off = 0; off < text.length;) {
+    const end = unicodeScalarBoundary(text, off, off + fallbackChunkSize);
+    out.push({ start: off, end, name: null, kind: fallbackKind, meta: {} });
+    off = end;
   }
   return applyChunkingLimits(out, text, limitContext);
 }

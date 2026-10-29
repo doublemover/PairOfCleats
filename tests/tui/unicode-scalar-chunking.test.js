@@ -11,7 +11,7 @@ for (const text of ['', 'ASCII', '界'.repeat(12), 'x😀𐐷é"\\y'.repeat(50)
     }
   }
 }
-const producer = runNodeFixture(['tests/helpers/tui/unicode-frames.js'], 'isolated Node fixture', process.cwd(), process.env, { allowFailure: true, spawnOptions: {
+const producer = runNodeFixture(['tests/helpers/tui/unicode-frames.js'], 'isolated Node fixture', process.cwd(), process.env, { allowFailure: true, stdio: 'pipe', spawnOptions: {
   cwd: process.cwd(), encoding: 'utf8', timeout: 8000, maxBuffer: 8 * 1024 * 1024
 } });
 assert.equal(producer.status, 0, producer.stderr || producer.error?.message);
