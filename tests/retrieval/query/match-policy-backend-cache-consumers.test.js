@@ -61,6 +61,7 @@ try {
   for (const backend of ['memory', 'sqlite-fts', 'ann']) {
     const directory = path.join(dir, backend); await fs.mkdir(directory);
     const plans = createQueryPlanCache({ maxEntries: 32 });
+    const implicitInputs = new Map();
     let annCalls = 0;
     const fixture = buildAnnPipelineFixture({ createAnnProviders: () => new Map([['dense', {
       id: 'dense', isAvailable: () => true,
@@ -89,6 +90,7 @@ try {
         queryCacheEnabled: true, queryCacheTtlMs: 120000, queryCacheMaxEntries: 32,
         queryCacheStrategy: 'memory-first', queryCacheMemoryFreshMs: 0,
         indexSignaturePayload: { backend, modes: { code: 'fixed-match-policy-generation' } } };
+      if (query === 'alpha beta' && (match === 'all' || match === 'any')) implicitInputs.set(match, input);
       const expected = backend === 'ann' ? annExpected || sparseExpected : sparseExpected;
       const cold = await runSearchSession(input), coldCalls = annCalls;
       assert.equal(cold.cache.hit, false);
@@ -97,6 +99,19 @@ try {
       assert.equal(warm.cache.hit, true);
       assert.deepEqual(warm.codeHits.map(hit => hit.id).sort((a, b) => a - b), expected, `${backend}/${match}/${query}: warm membership`);
       assert.equal(annCalls, coldCalls, 'actual result-cache hits do not dispatch another ANN query');
+    }
+    for (const order of [['all', 'any'], ['any', 'all']]) {
+      const cacheDir = path.join(directory, order.join('-')); await fs.mkdir(cacheDir);
+      for (const match of order) {
+        const input = { ...implicitInputs.get(match), queryCacheDir: cacheDir, metricsDir: cacheDir };
+        const expected = match === 'all' ? [1, 4, 7] : [0, 1, 3, 4, 5, 7, 8, 9];
+        const cold = await runSearchSession(input);
+        assert.equal(cold.cache.hit, false, `${backend}/${order}: the other match policy cannot supply this result`);
+        assert.deepEqual(cold.codeHits.map(hit => hit.id).sort((a, b) => a - b), expected);
+        const warm = await runSearchSession(input);
+        assert.equal(warm.cache.hit, true);
+        assert.deepEqual(warm.codeHits.map(hit => hit.id).sort((a, b) => a - b), expected);
+      }
     }
   }
 } finally { db.close(); await fs.rm(dir, { recursive: true, force: true }); }

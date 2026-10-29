@@ -4,9 +4,9 @@ import { createModeExpander } from '../../../src/retrieval/cli/run-search-sessio
 import { graphRelationsFromEdges } from '../../graph/helpers/graph-fixtures.js';
 
 const count = 256;
-const seed = { id: 0, chunkUid: 'seed', file: 'seed.js', name: 'seed', codeRelations: { calls: [['seed', 'common']] } };
+const seed = { id: 0, chunkUid: 'seed', file: 'seed.js', name: 'seed', lang: 'python', codeRelations: { calls: [['seed', 'common']] } };
 const chunks = [seed, ...Array.from({ length: count }, (_, index) => ({ id: index + 1,
-  chunkUid: `target-${index}`, file: 'targets.js', name: 'common' }))];
+  chunkUid: `target-${index}`, file: 'targets.js', name: 'common', lang: 'javascript' }))];
 const baseIndex = buildContextIndex({ chunkMeta: chunks, repoMap: [{ name: 'fallback', file: 'targets.js' }] });
 const modes = [
   { name: 'import-fallback', fileRelations: new Map([['seed.js', { importLinks: ['targets.js'] }]]),
@@ -84,18 +84,41 @@ assert.equal(emptyResult.stats.candidateVisits, 0, 'empty file buckets are separ
 
 const idx = { chunkMeta: chunks, fileRelations: imports.fileRelations,
   contextIndex: { ...baseIndex, chunkMeta: chunks, repoMap: undefined } };
+let unvisitedPredicateReads = 0;
+Object.defineProperty(chunks[count], 'lang', { configurable: true, enumerable: true,
+  get() { unvisitedPredicateReads++; return 'javascript'; } });
 const expander = createModeExpander({ contextExpansionEnabled: true, contextExpansionRespectFilters: true,
-  filtersActive: true, filters: { file: 'seed.js' }, contextExpansionOptions: { ...imports.options, maxWorkUnits: 5 } });
+  filtersActive: true, filters: { lang: 'python' }, contextExpansionOptions: { ...imports.options, maxWorkUnits: 5 } });
 const first = await expander.expandModeHits('code', idx, [{ id: 0 }]);
 assert.ok(hasCap(first, 'maxWorkUnits')); assert.equal(first.stats.candidateVisits <= 5, true);
 assert.equal(first.stats.preparation.filterSet.state, 'built');
 assert.equal(first.stats.preparation.filterSet.availableChunkRows, count + 1);
-assert.equal(first.stats.preparation.filterSet.selectedRows, 1);
+assert.equal(unvisitedPredicateReads, 0, 'a bounded request never filters unrelated tail metadata');
+assert.equal(first.stats.preparation.filterSet.representation, 'candidate-predicate-memo');
+assert.equal(first.stats.preparation.filterSet.selectedRows, null, 'unvisited rows cannot supply a whole-index matching count');
+assert.ok(first.stats.preparation.filterSet.evaluatedRows > 0);
+assert.ok(first.stats.preparation.filterSet.evaluatedRows <= first.stats.candidateAttempts);
+assert.equal(first.stats.preparation.filterSet.matchedRows, 0);
 const warm = await expander.expandModeHits('code', idx, [{ id: 0 }]);
 assert.equal(warm.stats.preparation.filterSet.state, 'reused');
+assert.equal(warm.stats.preparation.filterSet.evaluatedRows, 0);
+assert.ok(warm.stats.preparation.filterSet.memoHits > 0);
+assert.equal(unvisitedPredicateReads, 0);
 assert.equal(expander.contextExpansionStats.code, warm.stats);
-idx.chunkMeta = chunks.map(row => row.id === 7 ? { ...row, file: 'seed.js' } : row);
+Object.defineProperty(chunks[count], 'lang', { configurable: true, enumerable: true, writable: true, value: 'javascript' });
+idx.chunkMeta = chunks.map(row => row.id === 7 ? { ...row, lang: 'python' } : row);
 const replaced = await expander.expandModeHits('code', idx, [{ id: 0 }]);
 assert.equal(replaced.stats.preparation.filterSet.state, 'built', 'changed metadata identity invalidates the prepared filter set');
-assert.equal(replaced.stats.preparation.filterSet.selectedRows, 2);
+assert.ok(replaced.stats.preparation.filterSet.evaluatedRows > 0);
+const complete = createModeExpander({ contextExpansionEnabled: true, contextExpansionRespectFilters: true,
+  filtersActive: true, filters: { lang: 'python' }, contextExpansionOptions: { ...imports.options, maxWorkUnits: 10000 } });
+const positive = await complete.expandModeHits('code', idx, [{ id: 0 }]);
+assert.deepEqual(positive.contextHits.map(hit => hit.id), [7], 'fresh metadata predicates retain the actual matching target');
+assert.equal(positive.stats.preparation.filterSet.matchedRows, 1);
+const nonOrdinal = [{ ...seed, id: 42 }, { ...chunks[1], id: 99, lang: 'python' }];
+const nonOrdinalIndex = buildContextIndex({ chunkMeta: nonOrdinal });
+const nonOrdinalResult = await complete.expandModeHits('code', { chunkMeta: nonOrdinal,
+  fileRelations: imports.fileRelations, contextIndex: { ...nonOrdinalIndex, chunkMeta: nonOrdinal, repoMap: undefined } }, [{ id: 42 }]);
+assert.deepEqual(nonOrdinalResult.contextHits.map(hit => hit.id), [99],
+  'predicate admission uses canonical document IDs rather than array offsets');
 console.log('context expansion charges rejected, duplicate, missing and empty-bucket work before scanning');

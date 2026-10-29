@@ -242,3 +242,9 @@ Coverage is explicitly `indexed-metadata`: all matches in the loaded index are r
 `--type ClassDeclaration` selects indexed chunk kinds. `--extends Base` matches a recorded parent name exactly; `--calls target` matches the recorded callee, not the caller's own name. Relations are available only to the extent recorded by the language/tooling providers, and these name predicates do not resolve overloads or ambiguous cross-file symbol identities.
 
 Full JSON retains symbolic references in chunk metadata; `--compact` exposes the same unmodified envelope as `typeExpressions`, including its declaration provenance and interpretation. For finite-string membership or zero/one/many classification, copy its exact published reference into the existing generation-pinned [detail type query](../guides/semantic-index.md#shared-symbolic-finite-string-types). These operations do not enumerate runtime values or imply general type equivalence, and symbolic display labels are not `--return-type` facts.
+
+### Context filter preparation
+
+Context expansion evaluates exact metadata predicates only for charged candidate attempts. Its request-local memo uses the captured document-ID map and is invalidated with the metadata/relation/filter-index owners. Small context budgets do not trigger an eager whole-index matching-ID set.
+
+The existing `preparation.filterSet` diagnostic identifies `candidate-predicate-memo`, reports probed IDs, missing/evaluated/matched rows and memo hits, and leaves whole-index `selectedRows` unknown (`null`). These are attempted-work observations, not claims about unvisited metadata. Query-result cache policy includes context-expansion policy2; index and filter artifact formats are unchanged.

@@ -10,7 +10,7 @@ import {
   serializeContextIndex,
   hydrateContextIndex
 } from '../../context-expansion.js';
-import { filterChunks } from '../../output.js';
+import { createChunkFilterPredicate } from '../../output/filters.js';
 import { isAbortError, throwIfAborted } from '../../../shared/abort.js';
 import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
 
@@ -118,24 +118,41 @@ export function createModeExpander({
       contextIndexByIndex.delete(idx);
     }
   };
-  const getAllowedIds = (idx) => {
+  const getAllowedIds = (idx, contextIndex) => {
     if (!(contextExpansionRespectFilters && filtersActive)) return { ids: null,
       preparation: { state: 'not-requested', availableChunkRows: idx.chunkMeta.length, selectedRows: null, elapsedMs: 0 } };
     const cached = allowedIdsByIndex.get(idx);
     if (cached && cached.chunkMeta === idx.chunkMeta && cached.filterIndex === idx.filterIndex
-      && cached.fileRelations === idx.fileRelations) return {
-      ids: cached.ids, preparation: { ...cached.preparation, state: 'reused', elapsedMs: 0 }
-    };
+      && cached.fileRelations === idx.fileRelations && cached.byDocId === contextIndex.byDocId) {
+      cached.preparation = { ...cached.preparation, state: 'reused', elapsedMs: 0,
+        probedIds: 0, missingRows: 0, evaluatedRows: 0, matchedRows: 0, memoHits: 0 };
+      return cached;
+    }
     const started = performance.now();
-    const next = new Set(
-      filterChunks(idx.chunkMeta, filters, idx.filterIndex, idx.fileRelations, {
-        compiled: filterPredicates
-      })
-        .map((chunk) => chunk.id)
-    );
-    const prepared = { ids: next, preparation: { state: 'built', availableChunkRows: idx.chunkMeta.length,
-      selectedRows: next.size, elapsedMs: Math.max(0, performance.now() - started) } };
-    allowedIdsByIndex.set(idx, { ...prepared, chunkMeta: idx.chunkMeta, filterIndex: idx.filterIndex, fileRelations: idx.fileRelations });
+    const match = createChunkFilterPredicate(filters, idx.fileRelations, { compiled: filterPredicates });
+    const preparation = { state: 'built', representation: 'candidate-predicate-memo',
+      availableChunkRows: idx.chunkMeta.length, selectedRows: null, probedIds: 0, missingRows: 0,
+      evaluatedRows: 0, matchedRows: 0, memoHits: 0,
+      elapsedMs: Math.max(0, performance.now() - started) };
+    const membership = new Map(), metadata = idx.chunkMeta, byDocId = contextIndex.byDocId;
+    const prepared = { preparation, ids: { has(id) {
+      const stats = prepared.preparation;
+      if (membership.has(id)) { stats.memoHits++; return membership.get(id); }
+      // expandContext charges each attempted candidate before this probe. Never
+      // scan/materialize unrelated metadata to answer a bounded context query.
+      throwIfAborted(signal);
+      const started = performance.now(), chunk = byDocId.get(id);
+      stats.probedIds++;
+      if (chunk) stats.evaluatedRows++;
+      else stats.missingRows++;
+      const accepted = Boolean(chunk) && match(chunk);
+      stats.elapsedMs += Math.max(0, performance.now() - started);
+      if (accepted) stats.matchedRows++;
+      membership.set(id, accepted);
+      return accepted;
+    } } };
+    Object.assign(prepared, { chunkMeta: metadata, byDocId, filterIndex: idx.filterIndex, fileRelations: idx.fileRelations });
+    allowedIdsByIndex.set(idx, prepared);
     return prepared;
   };
   const expandModeHits = async (mode, idx, hits) => {
@@ -145,7 +162,7 @@ export function createModeExpander({
     }
     const prepared = await getContextIndex(idx);
     throwIfAborted(signal);
-    const allowed = getAllowedIds(idx);
+    const allowed = getAllowedIds(idx, prepared);
     throwIfAborted(signal);
     const result = expandContext({
       hits,
@@ -161,7 +178,7 @@ export function createModeExpander({
       contextIndex: prepared,
       signal
     });
-    result.stats.preparation.filterSet = allowed.preparation;
+    result.stats.preparation.filterSet = { ...allowed.preparation };
     contextExpansionStats[mode] = result.stats;
     return {
       hits: hits.concat(result.contextHits),

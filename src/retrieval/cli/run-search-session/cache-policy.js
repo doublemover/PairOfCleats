@@ -15,6 +15,7 @@ import { QUERY_PARSER_VERSION } from '../../query-plan-schema.js';
 import { METADATA_PREDICATE_VERSION } from '../../effective-filter-facts.js';
 import { areRetrievalExecutionsReusable } from '../../../contracts/retrieval-execution.js';
 import { FTS_WORK_POLICY_VERSION } from '../../fts-work-policy.js';
+import { CONTEXT_EXPANSION_POLICY_VERSION } from '../../context-expansion-version.js';
 
 const normalizePositiveIntOrNull = (value) => (
   Number.isFinite(Number(value)) ? Math.max(1, Math.floor(Number(value))) : null
@@ -193,6 +194,7 @@ export async function resolveQueryCacheLookup({
       asOfContext
     });
   cacheSignature = stableStringifyForSignature({index:signature,queryParserVersion:QUERY_PARSER_VERSION,metadataPredicateVersion:METADATA_PREDICATE_VERSION,
+    contextExpansionPolicyVersion: CONTEXT_EXPANSION_POLICY_VERSION,
     queryEmbeddingAdmissionVersion: QUERY_EMBEDDING_ADMISSION_VERSION,
     effectivePlanIdentity,
     ...(chunkAuthorEvidence ? { chunkAuthorEvidence } : {})});
