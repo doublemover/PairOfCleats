@@ -457,13 +457,6 @@ export function queryVectorAnn(db, config, embedding, topN, candidateSet) {
   }
   const normalized = normalizeEmbeddingDims(embedding, config?.dims);
   if (!normalized.embedding) return [];
-  if (normalized.adjusted && normalized.expectedDims) {
-    warnOnce(
-      'vector-extension-query-dims',
-      `[sqlite] ANN query dims mismatch (query=${normalized.queryDims}, index=${normalized.expectedDims}); ` +
-      'clipping/padding query vector to index dims.'
-    );
-  }
   const limit = normalizePositiveInt(topN, 1) || 1;
   const createCandidateTempTable = (ids) => {
     if (!Array.isArray(ids) || !ids.length) return null;

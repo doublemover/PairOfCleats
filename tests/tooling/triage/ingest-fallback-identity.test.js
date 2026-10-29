@@ -4,6 +4,7 @@ import path from 'node:path';
 import { getTriageContext, runJson } from '../../helpers/triage.js';
 import { normalizeGeneric } from '../../../src/integrations/triage/normalize/generic.js';
 import { buildRecordId } from '../../../src/integrations/triage/record-utils.js';
+import { publishTriageRecord, TRIAGE_PUBLICATION_FIELD } from '../../../src/integrations/triage/record-publication.js';
 
 const { root, repoRoot, cacheRoot, env } = await getTriageContext({ name: 'triage-fallback-identity' });
 const input = path.join(cacheRoot, 'input.json');
@@ -52,15 +53,28 @@ assert.throws(() => normalizeGeneric(cyclic), { code: 'ERR_TRIAGE_RECORD_IDENTIT
 // Simulate an existing conflicting artifact at the derived path, independently
 // of the now-fixed truncated identity, and prove it cannot be overwritten.
 const jsonPath = imported.records[0].jsonPath;
-const tampered = JSON.parse(await fs.readFile(jsonPath, 'utf8'));
+const originalBytes = await fs.readFile(jsonPath, 'utf8');
+const tampered = JSON.parse(originalBytes);
 tampered.tail = 'conflicting persisted bytes';
-const before = JSON.stringify(tampered);
-await fs.writeFile(jsonPath, before);
-const mdBefore = await fs.readFile(imported.records[0].mdPath, 'utf8');
+const tamperedBytes = JSON.stringify(tampered);
+await fs.writeFile(jsonPath, tamperedBytes);
+const invalidPublication = await ingest([a]);
+assert.equal(invalidPublication.written, 0);
+assert.equal(invalidPublication.errors, 1);
+assert.match(invalidPublication.errorDetails[0].message, /Invalid triage publication identity/);
+assert.equal(await fs.readFile(jsonPath, 'utf8'), tamperedBytes);
+await fs.writeFile(jsonPath, originalBytes);
+// A valid explicit publication at the same ID reaches derived-identity conflict
+// admission; corrupting receipt bytes above must fail at its earlier boundary.
+const conflicting = { ...JSON.parse(originalBytes), tail: 'conflicting persisted bytes', idProvenance: explicit.idProvenance };
+delete conflicting[TRIAGE_PUBLICATION_FIELD];
+const publishedConflict = await publishTriageRecord(path.dirname(jsonPath), conflicting);
+const before = await fs.readFile(jsonPath, 'utf8');
+const mdBefore = await fs.readFile(publishedConflict.mdPath, 'utf8');
 const conflict = await ingest([a]);
 assert.equal(conflict.written, 0);
 assert.equal(conflict.errors, 1);
 assert.match(conflict.errorDetails[0].message, /derived.*identity.*conflict/i);
 assert.equal(await fs.readFile(jsonPath, 'utf8'), before);
-assert.equal(await fs.readFile(imported.records[0].mdPath, 'utf8'), mdBefore);
+assert.equal(await fs.readFile(publishedConflict.mdPath, 'utf8'), mdBefore);
 console.log('Full Unicode fallback payloads retain distinct artifacts, repeatable IDs and conflict protection');

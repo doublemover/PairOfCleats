@@ -5,6 +5,7 @@ import { createHash } from 'node:crypto';
 import { TOOLING_PROVIDERS, registerToolingProvider } from '../../../src/index/tooling/provider-registry.js';
 import { runToolingProviders } from '../../../src/index/tooling/orchestrator.js';
 import { observeProviderProfile } from '../../../src/index/tooling/provider-profile.js';
+import { createObservedProviderInvocation } from '../../../src/index/tooling/provider-invocation.js';
 import { makeTempDir, rmDirRecursive } from '../../helpers/temp.js';
 
 const root = await makeTempDir('provider-catalog-execution-'), saved = new Map(TOOLING_PROVIDERS);
@@ -18,6 +19,13 @@ const provider = id => ({ id, version: '1', priority: 1, languages: ['fixture'],
   capabilities: { supportsVirtualDocuments: true, supportsSegmentRouting: true },
   getConfigHash() { increment(calls.hash, id); return `fixture-${id}`; },
   async preflight() { increment(calls.preflight, id); return { state: 'ready', checks: [] }; },
+  async prepareInvocation(ctx, selectedInputs) {
+    const profile = ctx.providerProfiles[id];
+    return createObservedProviderInvocation({ ctx, inputs: selectedInputs, profile,
+      execution: { kind: 'command', cwd: ctx.repoRoot, environment: {},
+        configuredCommand: profile.tool.configuredCommand, resolvedCommand: profile.tool.resolvedCommand },
+      execute: () => this.run() });
+  },
   async run() { increment(calls.run, id); return { byChunkUid: { [chunkUid]: { payload: { returnType: 'FixtureType' } } }, diagnostics: { fixture: id } }; }
 });
 try {
@@ -47,8 +55,11 @@ try {
   assert.deepEqual(Object.keys(output.diagnostics).sort(), ['family-a', 'family-b']);
   assert.deepEqual(Object.keys(output.providerProfiles).sort(), ['family-a', 'family-b']);
   for (const id of ['family-a', 'family-b']) assert.equal(output.providerProfiles[id].profileHash, providerProfiles[id].profileHash);
-  await runToolingProviders({ ...ctx, toolingConfig: { ...ctx.toolingConfig, providerOrder: ['family-b', 'family-a'] } }, inputs);
+  await runToolingProviders(ctx, inputs);
   assert.equal(calls.run.get('family-a'), 1); assert.equal(calls.run.get('family-b'), 1,
-    'order-only change reuses the same independently qualified provider executions');
+    'identical captured invocations reuse independently qualified provider executions');
+  await runToolingProviders({ ...ctx, toolingConfig: { ...ctx.toolingConfig, providerOrder: ['family-b', 'family-a'] } }, inputs);
+  assert.equal(calls.run.get('family-a'), 2); assert.equal(calls.run.get('family-b'), 2,
+    'changed captured configuration requires a newly bound invocation for each provider');
 } finally { TOOLING_PROVIDERS.clear(); for (const [id, value] of saved) TOOLING_PROVIDERS.set(id, value); await rmDirRecursive(root); }
 console.log('Actual orchestration rejects catalog collisions before hashes/preflight/cache work and keeps one qualified execution per independent instance.');

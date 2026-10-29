@@ -26,7 +26,7 @@ const env = applyTestEnv({ syncProcess: true, cacheRoot: path.join(dir, 'cache')
 // applyTestEnv synchronizes project overrides, not general process variables.
 // The real supervisor must inherit this explicit fixture launcher search path.
 process.env.PATH = env.PATH;
-const index = await createCompatibilityIndex(repo, { compatibilityKey: 'native-file-authority', profileId: 'default' });
+const index = await createCompatibilityIndex(repo, { compatibilityKey: 'native-file-authority', profileId: 'default', published: true });
 await fs.writeFile(path.join(index, 'chunk_meta.json'), JSON.stringify([{ id: 0, file: 'answer.js',
   kind: 'FunctionDeclaration', name: 'answer', start: 0, end: Buffer.byteLength(body), startLine: 1, endLine: 1,
   sourceHash: createHash('sha1').update(body).digest('hex'), chunkUid: 'authority:answer' }]));

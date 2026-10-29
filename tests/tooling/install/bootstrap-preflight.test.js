@@ -74,7 +74,9 @@ const root = fs.mkdtempSync(path.join(os.tmpdir(), 'poc-bootstrap-preflight-'));
 try {
   const manifest = JSON.parse(fs.readFileSync('package.json', 'utf8'));
   assert.equal(manifest.engines.node, '>=26.12.1 <27');
-  assert.equal(fs.readFileSync('.nvmrc', 'utf8').trim(), '26.12.1');
+  const ciNodeVersion = fs.readFileSync('.nvmrc', 'utf8').trim();
+  assert.match(ciNodeVersion, /^26\.\d+\.\d+$/);
+  assert.equal(runSetupPreflight({ ...options, nodeVersion: ciNodeVersion }).nodeVersion, ciNodeVersion);
   const readme = fs.readFileSync('README.md', 'utf8');
   assert.match(readme, /Node\.js >=26\.12\.1 <27/);
   assert.match(readme, /Python 3 and supported C\/C\+\+[\r\n ]+build tools are mandatory/);

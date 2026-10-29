@@ -15,7 +15,8 @@ const createReadStream = fs.createReadStream;
 const paths = ['a', 'b', 'c', 'd'].map((name, index) => path.join(dir, `sample.part-${String(index).padStart(6, '0')}.jsonl.zst`));
 const expected = paths.map((_, index) => ({ id: index }));
 const manifest = { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
-  pieces: paths.map(file => ({ name: 'sample', path: path.basename(file), format: 'jsonl', count: 1 })) };
+  pieces: [...paths.map(file => ({ name: 'sample', path: path.basename(file), format: 'jsonl', count: 1 })),
+    { name: 'sample_meta', path: 'sample.meta.json', format: 'json' }] };
 const deferred = () => { let resolve; const promise = new Promise(yes => { resolve = yes; }); return { promise, resolve }; };
 const contains = (value, wanted, seen = new Set()) => {
   if (value === wanted) return true;
@@ -24,6 +25,7 @@ const contains = (value, wanted, seen = new Set()) => {
   return contains(value.cause, wanted, seen) || (value.errors || []).some(error => contains(error, wanted, seen));
 };
 try {
+  await fsp.writeFile(path.join(dir, 'sample.meta.json'), JSON.stringify({ format: 'jsonl-sharded', parts: paths.map(file => path.basename(file)) }));
   await Promise.all(paths.map((file, index) => fsp.writeFile(file, zstdCompressSync(Buffer.from(JSON.stringify(expected[index]) + '\n')))));
   for (const route of ['direct', 'artifact']) {
     const sourceFailure = Object.freeze(Object.assign(new Error(`${route}: original source read failed`), { code: 'EIO' }));

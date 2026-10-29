@@ -4,7 +4,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { captureCommandTerminalRun } from '../../tools/testing/search-debug-capture.js';
 import { createTerminalScreen } from '../../tools/testing/terminal-screen.js';
-import { prepareIsolatedTestCacheDir } from '../helpers/test-cache.js';
+import { resolveTestCachePath } from '../helpers/test-cache.js';
 import { applyTestEnv } from '../helpers/test-env.js';
 import { initGitRepo } from '../helpers/git-fixture.js';
 import { isProcessAlive } from '../../src/shared/locks/file-lock-owner.js';
@@ -19,7 +19,12 @@ const mode = process.env.PAIROFCLEATS_TEST_ID?.split('tui/native-index-workflows
 assert.ok(['build-search', 'validate-search', 'watch-cancel', 'build-cancel', 'preview-cancel', 'workspace', 'snapshot',
   'snapshot-create', 'snapshot-list-populated', 'snapshot-show', 'snapshot-freeze', 'snapshot-remove', 'snapshot-prune', 'snapshot-gc',
   'report', 'stats', 'stats-conflict', 'missing-model', 'invalid-provider', 'stale'].includes(mode));
-const root = process.cwd(), { dir } = await prepareIsolatedTestCacheDir('native-index');
+// Keep this native workflow's complete seed within LanceDB's qualified Windows
+// path budget. The backend's long-root qualification has its own coverage owner.
+// The same real build, backends, source input and native operations remain here.
+const root = process.cwd(), prefix = resolveTestCachePath(root, 'ni-');
+await fs.mkdir(path.dirname(prefix), { recursive: true });
+const dir = await fs.mkdtemp(prefix);
 const repo = path.join(dir, 'selected repository'); await fs.mkdir(repo); initGitRepo(repo);
 await fs.writeFile(path.join(repo, 'answer.js'), 'export function nativeWorkflowAnswer() { return 42; }\n');
 const config = path.join(repo, '.pairofcleats.json');

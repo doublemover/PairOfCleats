@@ -31,7 +31,7 @@ for (const [modelIndex, modelId] of models.entries()) {
   await withTemporaryEnv({ ...env, PAIROFCLEATS_CACHE_ROOT: modelCache, PAIROFCLEATS_MODEL: modelId }, async () => {
     const indexDir = getIndexDir(repo, 'code', loadUserConfig(repo));
     await createCompatibilityIndex(path.dirname(indexDir), { directory: path.basename(indexDir),
-      compatibilityKey: 'explicit-model-ranking-fixture', profileId: 'default' });
+      compatibilityKey: 'explicit-model-ranking-fixture', profileId: 'default', buildId: 'controlled-ranking-fixture' });
     const vocab = ['alpha', 'beta', 'gamma'];
     const postings = vocab.map(query => {
       const ids = modelIndex === 0 ? Array.from({ length: 10 }, (_, id) => id)

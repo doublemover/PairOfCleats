@@ -180,7 +180,12 @@ const cases = [
           includeCalls: true
         }
       });
-      assert.equal(JSON.stringify(buildOnce()), JSON.stringify(buildOnce()));
+      const content = result => {
+        const { elapsedMs, ...preparation } = result.stats.preparation;
+        assert.ok(Number.isFinite(elapsedMs) && elapsedMs >= 0, 'invocation timing retains its diagnostic contract');
+        return { ...result, stats: { ...result.stats, preparation } };
+      };
+      assert.deepEqual(content(buildOnce()), content(buildOnce()));
     }
   }
 ];

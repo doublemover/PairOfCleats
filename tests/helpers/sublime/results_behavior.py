@@ -32,7 +32,7 @@ class ResultsBehaviorTests(unittest.TestCase):
         command.run()
         self.assertEqual(len(window.quick_panel_items), 1)
         window.quick_panel_callback(0)
-        expected_path = '{0}:7'.format(os.path.normpath(os.path.join('C:/repo', 'src/app.js')))
+        expected_path = '{0}:7'.format(os.path.abspath(os.path.join('C:/repo', 'src/app.js')))
         self.assertEqual(window.opened_files[0]['path'], expected_path)
         view = window.opened_files[0]['view']
         self.assertIn(self.results.HIGHLIGHT_KEY, view.regions)
@@ -126,12 +126,12 @@ class ResultsBehaviorTests(unittest.TestCase):
             command.run(hit_index=0, action='copy_path')
             self.assertEqual(
                 sys.modules['sublime'].clipboard,
-                os.path.normpath(os.path.join('C:/repo', 'src/app.js')),
+                os.path.abspath(os.path.join('C:/repo', 'src/app.js')),
             )
 
             command.run(hit_index=0, action='open_new_group')
             self.assertEqual(window.current_group, 1)
-            expected_path = '{0}:9'.format(os.path.normpath(os.path.join('C:/repo', 'src/app.js')))
+            expected_path = '{0}:9'.format(os.path.abspath(os.path.join('C:/repo', 'src/app.js')))
             self.assertEqual(window.opened_files[-1]['path'], expected_path)
 
             command.run(hit_index=0, action='rerun_context')

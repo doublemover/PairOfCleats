@@ -4,6 +4,8 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { ensureVfsDiskDocument, resolveVfsDiskPath, createVfsColdStartCache } from '../../../src/index/tooling/vfs.js';
 import { getContainedFileSession } from '../../../src/shared/contained-file.js';
+import { errorGraphSome } from '../../helpers/error-graph.js';
+import { isFileLockPublicationSession } from '../../../src/shared/locks/file-lock-publication.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 
@@ -12,6 +14,7 @@ const { dir } = await prepareIsolatedTestCacheDir('vfs-mat');
 const open = fs.open;
 let releaseWrite = () => {}, allowClose = true, retainedSession = null;
 const active = [];
+const retainedLocks = new Set();
 try {
   const baseDir = path.join(dir, 'documents'), cacheRoot = path.join(dir, 'cache');
   const virtualPath = '.poc-vfs/src/document.js', text = 'export const answer = 42;\n';
@@ -99,15 +102,27 @@ try {
   allowClose = false;
   await assert.rejects(ensureVfsDiskDocument(pendingRequest), error => {
     assert.equal(error.cacheOwnershipPending, true); assert.equal(error.cacheOwnershipReleased(), false);
-    retainedSession = error.containedFileSession || getContainedFileSession(error); assert.ok(retainedSession); return true;
+    errorGraphSome(error, value => {
+      retainedSession ||= getContainedFileSession(value);
+      const lock = value && Object.getOwnPropertyDescriptor(value, 'fileLockPublicationSession')?.value;
+      if (isFileLockPublicationSession(lock)) retainedLocks.add(lock);
+      return false;
+    });
+    assert.ok(retainedSession, 'the actual error graph retains its original failed descriptor close owner');
+    assert.ok(retainedLocks.size > 0, 'publication retains its original lock while the descriptor close is unconfirmed');
+    return true;
   });
   await assert.rejects(ensureVfsDiskDocument(pendingRequest), error => error.cacheOwnershipPending === true && error.cacheOwnershipReleased() === false);
   allowClose = true; await retainedSession.releaseAfterClose(); retainedSession = null; fs.open = open;
+  for (const lock of retainedLocks) await lock.releaseAfterClose();
   const recovered = await ensureVfsDiskDocument(pendingRequest);
   assert.equal(await fs.readFile(recovered.path, 'utf8'), text);
 } finally {
   releaseWrite(); allowClose = true; fs.open = open;
-  try { await Promise.allSettled(active); await retainedSession?.releaseAfterClose(); }
+  try {
+    await Promise.allSettled(active); await retainedSession?.releaseAfterClose();
+    for (const lock of retainedLocks) await lock.releaseAfterClose();
+  }
   finally { await fs.rm(dir, { recursive: true, force: true }); }
 }
 console.log('VFS hits qualify current root/content, preserve unchanged reuse and retain conflicting or failed publication owners.');

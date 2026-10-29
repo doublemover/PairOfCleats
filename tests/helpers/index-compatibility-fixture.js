@@ -56,11 +56,12 @@ export const createCompatibilityIndex = async (
     includeFileLists = true,
     fileName = `src/${mode}.js`,
     published = false,
-    userConfig = null
+    userConfig = null,
+    buildId = published ? 'compatibility-fixture' : null
   }
 ) => {
   const config = published ? (userConfig || loadUserConfig(rootDir)) : null;
-  const buildRoot = published ? path.join(getBuildsRoot(rootDir, config), 'compatibility-fixture') : rootDir;
+  const buildRoot = published ? path.join(getBuildsRoot(rootDir, config), buildId) : rootDir;
   const indexDir = path.join(buildRoot, directory || `index-${mode}`);
   await fs.mkdir(path.join(indexDir, 'pieces'), { recursive: true });
 
@@ -86,6 +87,10 @@ export const createCompatibilityIndex = async (
     compatibilityKey,
     pieces
   };
+  if (buildId) {
+    indexState.buildId = buildId;
+    manifest.buildId = buildId;
+  }
 
   await writeJson(path.join(indexDir, 'chunk_meta.json'), chunkMeta);
   await writeJson(path.join(indexDir, 'token_postings.json'), DEFAULT_TOKEN_POSTINGS);
@@ -105,7 +110,7 @@ export const createCompatibilityIndex = async (
     catch (error) { if (error.code !== 'ENOENT') throw error; }
     const relative = path.relative(getRepoCacheRoot(rootDir, config), buildRoot);
     await writeJson(pointerPath, { artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
-      buildId: 'compatibility-fixture', buildRoot: relative,
+      buildId, buildRoot: relative,
       buildRootsByMode: { ...previous.buildRootsByMode, [mode]: relative } });
   }
 

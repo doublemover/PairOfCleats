@@ -73,7 +73,25 @@ try {
     await assert.rejects(actions.execute('export', { ...selection, confirmed: true, destination: 'raced.bin' }),
       error => error.causeCode === 'ERR_FILE_INTEGRITY', 'staging mutation cannot be reported as a verified export');
   } finally { fs.link = link; }
-  await assert.rejects(fs.stat(path.join(repo, 'raced.bin')), { code: 'ENOENT' }, 'failed verification removes only its owned new file');
+  assert.deepEqual(await fs.readFile(path.join(repo, 'raced.bin')), Buffer.from([7, 7, 7, 7]),
+    'mutation invalidates rollback authority; changed bytes remain preserved evidence');
+  const openFile = fs.open;
+  let verificationFaults = 0;
+  fs.open = async (target, flags, ...args) => {
+    const handle = await openFile.call(fs, target, flags, ...args);
+    if (path.toNamespacedPath(path.resolve(String(target))) === path.toNamespacedPath(path.join(repo, 'failed-verification.bin'))) {
+      verificationFaults++;
+      handle.read = async () => { throw Object.assign(new Error('fixture export verification failed'), { code: 'EIO' }); };
+    }
+    return handle;
+  };
+  try {
+    await assert.rejects(actions.execute('export', { ...selection, confirmed: true, destination: 'failed-verification.bin' }),
+      { code: 'ERR_ATOMIC_WRITE' });
+  } finally { fs.open = openFile; }
+  assert.equal(verificationFaults, 1, 'the real published-file verification reader observed the injected failure');
+  await assert.rejects(fs.stat(path.join(repo, 'failed-verification.bin')), { code: 'ENOENT' },
+    'failed verification removes the unchanged, exactly owned new file after its reader closes');
   await fs.writeFile(source, Buffer.from([0, 1, 128, 254]));
   await assert.rejects(actions.execute('copy', selection), { code: 'ERR_FILE_INTEGRITY' });
   assert.equal((await calls()).length, 2);

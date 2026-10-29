@@ -19,16 +19,22 @@ const request = { jobId: 'reused', command: process.execPath, args: ['-e', 'proc
 try {
   await controller.startJob(request); await wait(() => pending.has(1));
   const original = state.jobs.get('reused'); assert.equal(original.finalized, true);
-  controller.cancelJob('reused'); assert.equal(state.jobs.size, 0);
+  controller.cancelJob('reused'); assert.equal(state.jobs.get('reused'), original,
+    'finalized work still owns the original pending artifact inventory');
+  await assert.rejects(controller.startJob(request), { code: 'ERR_TUI_JOB_EXISTS' });
+  assert.equal(generation, 1, 'refused reuse cannot allocate a replacement artifact generation');
+  pending.get(1)(); await original.settlement;
+  assert.equal(state.jobs.size, 0);
   await controller.startJob(request); await wait(() => pending.has(2));
   const replacement = state.jobs.get('reused'); assert.equal(replacement.finalized, true);
   pending.get(1)();
   // Wait for the old scheduled finally block, not just its capture resolution.
   await new Promise(resolve => setTimeout(resolve, 30));
   assert.equal(state.jobs.get('reused'), replacement, 'old cleanup cannot delete a newer finalized job while its inventory is pending');
-  assert.equal(events.some(event => event.inventoryId === 'generation-1'), false, 'old completion cannot overwrite a reused job inventory');
+  assert.equal(events.filter(event => event.inventoryId === 'generation-1').length, 1,
+    'the original inventory completes exactly once before the ID can be reused');
   pending.get(2)(); await wait(() => state.jobs.size === 0);
-  assert.deepEqual(events.filter(event => event.event === 'job:artifacts').map(event => event.inventoryId), ['generation-2']);
+  assert.deepEqual(events.filter(event => event.event === 'job:artifacts').map(event => event.inventoryId), ['generation-1', 'generation-2']);
   assert.equal(events.filter(event => event.event === 'job:end').length, 2);
 } finally {
   for (const resolve of pending.values()) resolve();

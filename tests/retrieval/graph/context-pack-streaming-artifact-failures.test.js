@@ -34,7 +34,7 @@ try {
   const miss = await assembleCompositeContextPackStreaming({ ...common, seed: { type: 'chunk', chunkUid: 'absent-seed' } });
   assert.equal(miss.stats.seedResolution.readState, 'ready'); assert.equal(miss.stats.seedResolution.hit, false);
   assert.ok(miss.warnings.some(value => value.code === 'CHUNK_UID_MAP_MISS'));
-  const chunk = { id: 0, ...row, name: 'greet', kind: 'FunctionDeclaration', lang: 'javascript', ext: '.js', startLine: 1, endLine: 1 };
+  const chunk = { id: 0, ...row, virtualPath: row.file, name: 'greet', kind: 'FunctionDeclaration', lang: 'javascript', ext: '.js', startLine: 1, endLine: 1 };
   const synchronous = assembleCompositeContextPack({ ...common, seed, chunkMeta: [chunk] });
   assert.equal(synchronous.primary.file, hit.primary.file); assert.equal(synchronous.primary.excerpt, hit.primary.excerpt);
 
@@ -44,7 +44,9 @@ try {
     await fs.writeFile(compact, '{broken\n');
     await assert.rejects(assembleCompositeContextPackStreaming({ ...common, strict, seed }), { code: 'ERR_JSONL_INVALID' });
     await fs.writeFile(compact, JSON.stringify(row) + '\n'); await fs.writeFile(path.join(indexDir, 'late.jsonl'), '{broken\n');
-    const late = { ...manifest, pieces: [piece, { ...piece, path: 'late.jsonl' }] };
+    await fs.writeFile(path.join(indexDir, 'compact.meta.json'), JSON.stringify({ format: 'jsonl-sharded', parts: ['compact.jsonl', 'late.jsonl'] }));
+    const late = { ...manifest, pieces: [piece, { ...piece, path: 'late.jsonl' },
+      { name: 'chunk_uid_map_meta', path: 'compact.meta.json', format: 'json' }] };
     await assert.rejects(assembleCompositeContextPackStreaming({ ...common, manifest: late, strict, seed }), { code: 'ERR_JSONL_INVALID' });
     await assert.rejects(buildChunkUidMapSeedIndex({ repoRoot, indexDir, manifest: late, strict }), { code: 'ERR_JSONL_INVALID' });
   }
@@ -55,7 +57,8 @@ try {
   assert.ok(optional.warnings.some(value => value.code === 'CHUNK_UID_MAP_UNAVAILABLE'
     && value.artifact === 'chunk_uid_map' && value.reason === 'optional-undeclared'));
   assert.ok(!optional.warnings.some(value => value.code === 'CHUNK_UID_MAP_MISS'), 'unavailable is not a negative semantic lookup');
-  await assert.rejects(assembleCompositeContextPackStreaming({ ...common, manifest: null, strict: false, seed }), { code: 'ERR_MANIFEST_MISSING' });
+  await assert.rejects(assembleCompositeContextPackStreaming({ ...common, manifest: null, strict: false, seed }),
+    error => error.code === 'ERR_INDEX_FORMAT_UNSUPPORTED' && error.foundVersion === 'missing');
 
   chunk.metaV2 = buildMetaV2({ chunk, docmeta: {} });
   assert.ok(chunk.metaV2.symbol.symbolId);

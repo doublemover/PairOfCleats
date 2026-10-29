@@ -4,6 +4,7 @@ import { registerHooks } from 'node:module';
 import { createRecoveryFixture, semanticNode } from '../../helpers/semantic-recovery.js';
 import { createNativeFlowTree } from '../../helpers/native-flow-construction.js';
 import { normalizeSemanticConfig } from '../../../src/index/semantic/config.js';
+import { semanticPolicyIdentities } from '../../../src/index/semantic/policy.js';
 import { semanticConstructionAdmissionFor, semanticByteAdmissionFor } from '../../../src/index/semantic/planning.js';
 import { NATIVE_FLOW_SHARED_CONSTRUCTION_BYTES } from '../../../src/index/semantic/native-flow-construction.js';
 import { validateSemanticPartitions } from '../../../src/index/semantic/reconcile.js';
@@ -54,7 +55,7 @@ try {
   const policy = normalizeSemanticConfig({ enabled: true, enrichment: { localFlow: 'eager' },
     storage: { batchRows: 3, batchBytes: 8192, maxQueuedBytes: 16384 } });
   const options = { syntax: { tree: {} }, collector: tree.collector, partition: syntax, source: fixture.source,
-    bytes: fixture.bytes, root: fixture.stagingRoot, policy, diskAccount: fixture.account };
+    bytes: fixture.bytes, root: fixture.stagingRoot, policy: { ...policy, identity: semanticPolicyIdentities(policy) }, diskAccount: fixture.account };
   const admission = semanticConstructionAdmissionFor(fixture.account, NATIVE_FLOW_SHARED_CONSTRUCTION_BYTES);
   const queued = semanticByteAdmissionFor(fixture.account, policy.storage.maxQueuedBytes);
   const probe = globalThis.nativeFlowSinkProbe = { batches: 0, started: Promise.withResolvers(), release: Promise.withResolvers() };
@@ -82,6 +83,7 @@ try {
   globalThis.nativeFlowSinkProbe = { batches: 0 };
   const tiny = normalizeSemanticConfig({ enabled: true, enrichment: { localFlow: 'eager' },
     storage: { batchRows: 3, batchBytes: 8192, maxQueuedBytes: 512 } });
+  tiny.identity = semanticPolicyIdentities(tiny);
   const partial = await collectNativeControlFlow({ ...options, policy: tiny });
   assert.equal(partial.partition, null); assert.equal(partial.coverage.state, 'partial');
   assert.match(partial.coverage.reason, /^native_flow_construction_(entry_bytes|live_bytes)_limit$/u);

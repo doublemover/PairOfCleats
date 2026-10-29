@@ -106,7 +106,7 @@ const runMetricsAggregateCases = async () => {
   assert.equal(Number(aggregate.metrics?.preflights?.total) >= 1, true);
   assert.equal(typeof aggregate.metrics?.preflights?.byPolicy, 'object');
   assert.equal(Number(aggregate.metrics?.preflights?.teardown?.timedOut || 0), 0);
-  assert.equal(aggregate.metrics?.degradedProviderCount, 1);
+  assert.equal(aggregate.metrics?.degradedProviderCount, 2, 'a contributing provider retains its independent FD-pressure warning');
   assert.equal(Number(aggregate.metrics?.degradedWarningChecks || 0) >= 1, true);
   assert.equal(Number(aggregate.metrics?.requests?.requests || 0) >= 1, true);
   assert.equal(Number(aggregate.metrics?.health?.fdPressureEvents || 0) >= 1, true);
@@ -127,7 +127,7 @@ const runMetricsAggregateCases = async () => {
   assert.equal(Number.isFinite(Number(aggregate.metrics?.hover?.skippedByGlobalDisable)), true);
   assert.deepEqual(Object.keys(aggregate.metrics?.providerRuntime || {}), ['dart', 'lsp-test']);
   assert.equal(aggregate.metrics?.providerRuntime?.dart?.degraded?.active, true);
-  assert.equal(aggregate.metrics?.providerRuntime?.['lsp-test']?.degraded?.active, false);
+  assert.equal(aggregate.metrics?.providerRuntime?.['lsp-test']?.degraded?.active, true);
   assert.equal(aggregate.metrics?.providerRuntime?.['lsp-test']?.pooling?.enabled, true);
   assert.equal(aggregate.metrics?.providerRuntime?.['lsp-test']?.pooling?.sessionKeyPresent, true);
   assert.ok(aggregate.metrics?.providerRuntime?.['lsp-test']?.hover && typeof aggregate.metrics.providerRuntime['lsp-test'].hover === 'object');

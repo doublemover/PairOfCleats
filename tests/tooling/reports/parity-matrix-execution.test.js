@@ -99,7 +99,7 @@ try {
           postings: empty ? [] : [[[0,1]], [[0,1]], [[0,1]]],
           docLengths: empty ? [] : [3], avgDocLen: empty ? 0 : 3, totalDocs: empty ? 0 : 1 },
         indexState: { buildId, generatedAt: new Date().toISOString(), mode, artifactSurfaceVersion: ARTIFACT_SURFACE_VERSION,
-          compatibilityKey: 'parity-fixture-v1' },
+          compatibilityKey: 'parity-fixture-v1', profile: { id: 'default', schemaVersion: 1 } },
         manifestOverrides: { mode, buildId, compatibilityKey: 'parity-fixture-v1' }
       });
       await fs.writeFile(path.join(indexDir, 'chunk_meta.meta.json'), JSON.stringify({ totalRecords: empty ? 0 : 1 }));

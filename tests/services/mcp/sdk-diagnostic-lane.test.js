@@ -83,7 +83,8 @@ assert.deepEqual(resolveMcpLaneAdmission({ lane: 'slow', queueMax: 3, occupancy:
     assert.equal(errorCode(await test.call('fixture', 'slow-still-admitted')), null, 'diagnostic pressure preserves slow admission');
     assert.ok(starts.includes('slow-still-admitted')); assert.ok(!starts.includes('never-status'));
     queuedAbort.abort(); await assert.rejects(queued);
-    assert.equal(test.service.getQueueState().lanes.fast.queued, 1, 'PQueue still owns the aborted admission until its turn; do not fabricate early release');
+    assert.equal(test.service.getQueueState().lanes.fast.queued, 0, 'PQueue 10 withdraws the aborted queued admission before its turn');
+    assert.equal(test.service.getQueueState().lanes.fast.active, 1, 'the unrelated running request still owns its capacity');
     release.resolve(); assert.equal(errorCode(await held), null);
     await waitFor(() => test.service.getQueueState().lanes.fast.cancelledBeforeStart === 1);
     assert.equal(errorCode(await test.call('config_status', 'next-status')), null);

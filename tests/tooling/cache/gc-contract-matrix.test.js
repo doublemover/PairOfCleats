@@ -11,6 +11,7 @@ import { runNode } from '../../helpers/run-node.js';
 import { cacheGc } from '../../../tools/mcp/tools/handlers/artifacts.js';
 import { assertSafeCacheDeletion, CACHE_OWNER_FILE } from '../../../src/shared/cache-deletion.js';
 import { resolveRepoCacheRootPath } from '../../../src/shared/repo-paths.js';
+import { withGeneratedCacheMetadata } from '../../../src/shared/generated-artifact-cache.js';
 
 applyTestEnv();
 
@@ -20,6 +21,13 @@ const toolPath = path.join(root, 'tools', 'index', 'cache-gc.js');
 const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'pairofcleats-cache-gc-contract-'));
 const cacheRoot = path.join(tempRoot, 'cache');
 await fs.mkdir(cacheRoot, { recursive: true });
+await fs.writeFile(path.join(cacheRoot, CACHE_OWNER_FILE), JSON.stringify({ owner: 'pairofcleats', layoutVersion: 1 }));
+const seedDisposable = async repoCacheRoot => {
+  const file = path.join(repoCacheRoot, 'tree-sitter-chunk-cache', `tree-sitter-chunk_lk1_${'a'.repeat(40)}.json`);
+  await fs.mkdir(path.dirname(file), { recursive: true });
+  await fs.writeFile(file, JSON.stringify(withGeneratedCacheMetadata({ chunks: [] }, 'tree-sitter-chunks')));
+  return file;
+};
 
 const runGc = (graceDays) => {
   const run = runNode(
@@ -127,26 +135,46 @@ try {
   const legacyRepo = path.join(cacheRoot, 'repos', 'legacy-preview');
   await fs.mkdir(legacyRepo, { recursive: true });
   await fs.writeFile(path.join(legacyRepo, 'data'), 'preserved');
+  const disposableRepo = path.join(tempRoot, 'disposable-preview-repo');
+  await fs.mkdir(disposableRepo);
+  const disposableCache = resolveRepoCacheRootPath(disposableRepo, { cache: { root: cacheRoot } });
+  const disposableFile = await seedDisposable(disposableCache);
+  await fs.utimes(disposableCache, new Date(oldCreatedAt), new Date(oldCreatedAt));
   const preview = runNode([toolPath, '--json', '--cache-root', cacheRoot, '--max-bytes', '1'],
     'legacy preview requires apply', root, applyTestEnv({ syncProcess: false }), { stdio: 'pipe', allowFailure: true });
   assert.equal(preview.status, 0, preview.stderr);
   const legacyPayload = JSON.parse(preview.stdout);
   assert.equal(legacyPayload.dryRun, true);
   assert.equal(legacyPayload.freedBytes, 0);
-  assert.ok(legacyPayload.plannedBytes > 0);
+  assert.equal(legacyPayload.plannedBytes, 0, 'unknown protected bytes prevent size-budget eviction accounting');
+  assert.ok(legacyPayload.protectedRepos.some(entry => entry.id === 'legacy-preview'),
+    'unknown noncanonical bytes are protected even in a marked cache');
+  await fs.access(disposableFile);
   assert.equal(await fs.readFile(path.join(legacyRepo, 'data'), 'utf8'), 'preserved');
-  await fs.mkdir(path.join(legacyRepo, 'locks'));
-  await fs.writeFile(path.join(legacyRepo, 'locks/index.lock'), JSON.stringify({ pid: process.pid }));
-  const protectedPreview = runNode([toolPath, '--json', '--cache-root', cacheRoot, '--max-bytes', '1'],
+  const agePreview = runNode([toolPath, '--json', '--cache-root', cacheRoot, '--max-bytes', '1', '--max-age-days', '1'],
+    'age admits only the proven old generated cache', root, applyTestEnv({ syncProcess: false }), { stdio: 'pipe' });
+  assert.ok(JSON.parse(agePreview.stdout).plannedBytes > 0, 'the qualified stale candidate remains eligible independently of unknown size accounting');
+  const sizeRoot = path.join(tempRoot, 'complete-size-cache');
+  await fs.mkdir(sizeRoot);
+  await fs.writeFile(path.join(sizeRoot, CACHE_OWNER_FILE), JSON.stringify({ owner: 'pairofcleats', layoutVersion: 1 }));
+  const sizeFile = await seedDisposable(resolveRepoCacheRootPath(disposableRepo, { cache: { root: sizeRoot } }));
+  const sizePreview = runNode([toolPath, '--json', '--cache-root', sizeRoot, '--max-bytes', '1'],
+    'complete inventory preserves the original positive size-budget control', root, applyTestEnv({ syncProcess: false }), { stdio: 'pipe' });
+  assert.ok(JSON.parse(sizePreview.stdout).plannedBytes > 0);
+  await fs.access(sizeFile);
+  await fs.mkdir(path.join(disposableCache, 'locks'), { recursive: true });
+  await fs.writeFile(path.join(disposableCache, 'locks/index.lock'), JSON.stringify({ pid: process.pid }));
+  const protectedPreview = runNode([toolPath, '--json', '--cache-root', cacheRoot, '--max-bytes', '1', '--max-age-days', '1'],
     'legacy active ownership is protected', root, applyTestEnv({ syncProcess: false }), { stdio: 'pipe', allowFailure: true });
   assert.equal(protectedPreview.status, 0, protectedPreview.stderr);
-  assert.equal(JSON.parse(protectedPreview.stdout).protectedRepos[0].id, 'legacy-preview');
+  assert.ok(JSON.parse(protectedPreview.stdout).protectedRepos.some(entry => entry.id === path.basename(disposableCache)),
+    'a live builder blocks the previously eligible generated-file candidate');
   assert.equal(JSON.parse(protectedPreview.stdout).removals.length, 0);
 
   applyTestEnv({ cacheRoot, testConfig: { cache: { root: cacheRoot } } });
   const scopedCache = resolveRepoCacheRootPath(tempRoot, { cache: { root: cacheRoot } });
-  await fs.mkdir(scopedCache, { recursive: true });
-  await fs.writeFile(path.join(scopedCache, 'data'), 'repository-owned cache');
+  const scopedFile = await seedDisposable(scopedCache);
+  await fs.utimes(scopedCache, new Date(oldCreatedAt), new Date(oldCreatedAt));
   const mcpPreview = await cacheGc({ repoPath: tempRoot, maxBytes: 1 });
   assert.equal(path.resolve(mcpPreview.cacheRoot), path.resolve(cacheRoot));
   assert.equal(mcpPreview.dryRun, true, 'omitted MCP dryRun must preview');
@@ -154,6 +182,8 @@ try {
   const mcpApplied = await cacheGc({ repoPath: tempRoot, maxBytes: 1, dryRun: false });
   assert.equal(mcpApplied.dryRun, false, 'explicit MCP dryRun=false applies');
   assert.deepEqual(mcpApplied.removals.map(entry => entry.id), [path.basename(scopedCache)]);
+  await assert.rejects(fs.access(scopedFile), { code: 'ENOENT' });
+  assert.equal(await fs.readFile(path.join(legacyRepo, 'data'), 'utf8'), 'preserved');
   await fs.access(prune.objectPath);
   const globalApply = runNode([toolPath, '--apply', '--json', '--cache-root', cacheRoot, '--grace-days', '0'],
     'explicit user-owned whole-cache CAS apply', root, applyTestEnv({ syncProcess: false }), { stdio: 'pipe' });

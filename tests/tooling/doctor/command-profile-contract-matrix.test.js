@@ -427,9 +427,11 @@ const runToolingDirPrecedenceCase = async () => {
 };
 
 const runDirectProbeCases = async () => {
+  const fixtureCommand = name => path.join(root, 'tests', 'fixtures', 'lsp', 'bin',
+    process.platform === 'win32' ? `${name}.cmd` : name);
   const jdtlsProfile = resolveToolingCommandProfile({
     providerId: 'jdtls',
-    cmd: 'jdtls',
+    cmd: fixtureCommand('jdtls'),
     args: [],
     repoRoot: testRoot,
     toolingConfig: {}
@@ -444,20 +446,25 @@ const runDirectProbeCases = async () => {
 
   const zigProfile = resolveToolingCommandProfile({
     providerId: 'zig',
-    cmd: 'zig',
+    cmd: fixtureCommand('zig'),
     args: ['version'],
     repoRoot: testRoot,
     toolingConfig: {}
   });
   assert.equal(zigProfile.probe.attempted?.[0]?.args?.[0], 'version', 'expected zig probe to prefer `zig version`');
 
+  const erlCommand = path.join(testRoot, 'direct-probes', process.platform === 'win32' ? 'erl.cmd' : 'erl');
+  await makeExecutable(erlCommand, process.platform === 'win32'
+    ? '@echo off\r\nnode "%~dp0\\ok.js" %*\r\n'
+    : '#!/bin/sh\nexit 0\n');
   const erlProfile = resolveToolingCommandProfile({
     providerId: 'elixir-ls-erl',
-    cmd: 'erl',
+    cmd: erlCommand,
     args: ['-version'],
     repoRoot: testRoot,
     toolingConfig: {}
   });
+  assertCommandProbeSucceeded(erlProfile, 'the explicit inert Erlang fixture must be eligible');
   assert.equal(erlProfile.probe.attempted?.[0]?.args?.[0], '-version', 'expected erl probe to prefer `erl -version`');
 };
 

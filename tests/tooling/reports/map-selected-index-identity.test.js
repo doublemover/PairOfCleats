@@ -34,7 +34,12 @@ const map = (selected = null, allowFailure = false) => {
   if (allowFailure) return result;
   assert.equal(result.status, 0, result.stderr);
   assert.equal(result.stderr, '');
-  return JSON.parse(result.stdout);
+  const model = JSON.parse(result.stdout);
+  // The exporter stamps every invocation; cached generation/build measurements
+  // and all source content must still compare exactly across warm reads.
+  const { exportedAt, ...provenance } = model.provenance;
+  assert.ok(Number.isFinite(Date.parse(exportedAt)));
+  return { ...model, provenance };
 };
 const names = model => [...new Set(model.nodes.flatMap(node => node.members.map(member => member.name)))];
 const cacheFiles = () => fs.readdir(cacheDir);

@@ -50,9 +50,9 @@ export function makeWidget(name: string): Widget {
 `
   },
   {
-    languageId: 'typescript',
+    languageId: 'tsx',
     file: 'sample.tsx',
-    grammarKey: 'native:typescript',
+    grammarKey: 'native:tsx',
     expectedNames: ['Props', 'Page'],
     content: `type Props = { title: string };
 
@@ -62,7 +62,7 @@ export function Page(props: Props) {
 `
   },
   {
-    languageId: 'javascript',
+    languageId: 'jsx',
     file: 'sample.jsx',
     grammarKey: 'native:javascript',
     expectedNames: ['App'],

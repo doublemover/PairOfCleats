@@ -30,7 +30,7 @@ const cases = [
     }
   },
   {
-    name: 'dimension mismatch truncates consistently and warns once',
+    name: 'invalid query width is rejected and exact-width vectors retain their scalar score',
     run() {
       const idx = {
         denseVec: {
@@ -48,10 +48,12 @@ const cases = [
       try {
         const hitsA = rankDenseVectors(idx, query, 1, null);
         const hitsB = rankDenseVectors(idx, query, 1, null);
-        assert.equal(hitsA.length, 1);
-        assert.equal(hitsB.length, 1);
-        assert.ok(Math.abs(hitsA[0].sim - 3) < 1e-9);
-        assert.equal(warnings, 1);
+        assert.deepEqual(hitsA, []);
+        assert.deepEqual(hitsB, []);
+        const valid = rankDenseVectors(idx, [1, 2], 1, null);
+        assert.equal(valid.length, 1);
+        assert.ok(Math.abs(valid[0].sim - 3) < 1e-9);
+        assert.equal(warnings, 0, 'invalid queries are refused rather than advertised as repaired vectors');
       } finally {
         console.warn = originalWarn;
       }

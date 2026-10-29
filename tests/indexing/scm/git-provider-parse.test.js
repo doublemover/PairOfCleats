@@ -12,6 +12,7 @@ const calls = [];
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 let inFlight = 0;
 let maxInFlight = 0;
+let trackedOutput = 'src/a.js\0src/b.js\0';
 
 try {
   setScmRuntimeConfig({ maxConcurrentProcesses: 2 });
@@ -22,7 +23,7 @@ try {
       calls.push({ command, args });
       await sleep(25);
       if (args.includes('ls-files')) {
-        return completeScmFixtureOutput('src\\a.js\0src/b.js\0');
+        return completeScmFixtureOutput(trackedOutput);
       }
       if (args.includes('diff')) {
         assert.ok(args.includes('-z'), 'changed-file output preserves exact Git NUL-delimited paths');
@@ -34,9 +35,14 @@ try {
     }
   });
 
-  const repoRoot = path.resolve('C:/repo');
+  const repoRoot = path.resolve('tests/fixtures/scm/jj');
   const listResult = await gitProvider.listTrackedFiles({ repoRoot, subdir: 'src' });
   assert.deepEqual(listResult.filesPosix, ['src/a.js', 'src/b.js']);
+  trackedOutput = 'src\\a.js\0src/b.js\0';
+  const literalResult = await gitProvider.listTrackedFiles({ repoRoot });
+  assert.deepEqual(literalResult.filesPosix, process.platform === 'win32'
+    ? ['src/a.js', 'src/b.js'] : ['src/b.js', 'src\\a.js'], 'NUL-delimited POSIX filename bytes remain distinct');
+  trackedOutput = 'src/a.js\0src/b.js\0';
 
   const diffResult = await gitProvider.getChangedFiles({
     repoRoot,

@@ -63,7 +63,9 @@ export const createAnalysisSurfaceHarness = async ({ fixtureRoot, env }) => {
     async runApi(apiPath, payload) {
       const response = await fetch(`http://127.0.0.1:${port}${apiPath}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        // Synchronous CLI controls block this harness's own server loop. Keep
+        // each HTTP observation independent of idle keep-alive socket expiry.
+        headers: { 'Content-Type': 'application/json', Connection: 'close' },
         body: JSON.stringify(payload)
       });
       const parsed = await response.json();
