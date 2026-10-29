@@ -25,20 +25,34 @@
     "initialTargets": 323,
     "closed": [
       619,
+      711,
       713,
+      740,
+      772,
+      798,
+      865,
+      883,
+      893,
+      978,
       979,
       983,
       984,
       985,
+      989,
+      990,
       991,
       993,
       995,
       996,
       1003,
+      1009,
       1010,
+      1016,
+      1020,
       1021,
       1027,
       1029,
+      1030,
       1031,
       1036,
       1037,
@@ -51,6 +65,7 @@
       1048,
       1049,
       1051,
+      1053,
       1054,
       1055,
       1057,
@@ -63,13 +78,74 @@
       1067,
       1068,
       1069,
+      1076,
+      1099,
+      1101,
+      1110,
+      1112,
+      1118,
+      1351,
+      1376,
+      1437,
+      1456,
+      1457,
+      1458,
+      1459,
+      1460,
+      1461,
+      1462,
+      1463,
+      1464,
+      1465,
+      1466,
+      1467,
+      1468,
+      1470,
+      1472,
+      1473,
+      1474,
+      1475,
+      1476,
+      1477,
+      1478,
+      1479,
+      1480,
+      1481,
+      1482,
+      1483,
+      1485,
+      1486,
+      1487,
+      1488,
+      1489,
+      1490,
+      1491,
+      1492,
+      1493,
+      1494,
+      1495,
+      1496,
+      1498,
+      1499,
+      1500,
+      1501,
+      1502,
+      1503,
+      1563,
+      1564,
+      1566,
+      1571,
+      1572,
+      1585,
       1586,
       1614,
       1640,
       1661,
-      1728
+      1728,
+      1735,
+      1743
     ],
-    "remainingTargets": 279
+    "remainingTargets": 203
   },
   "issues": [
     {
@@ -204,7 +280,7 @@
       "number": 740,
       "title": "[P2] Derive native Tree-sitter signature previews past nested parameter punctuation",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/tree-sitter/chunking.js",
@@ -221,13 +297,25 @@
         "indexing/file-processor/tree-sitter-language-passes-serialization-gate",
         "indexing/tokenization/token-classification-tree-sitter"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Expected: the native AST path should use declaration/body structure or a lexical boundary that understands nested and quoted syntax to produce a bounded, accurate signature preview. The source chunk itself need not change.",
         "On a prepared Node 26.10+ native parser, assert exact signature metadata and indexed signature-field tokens for JS/TS destructuring, nested object types, quoted semicolons/braces, comments, multiline signatures, and simple controls.",
         "Verify symbol/map/search projections agree with the indexed source and do not include body text; preserve useful behavior for bodyless declarations and other grammars.",
         "Run affected native and fallback regressions without changing their existing thresholds.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/native-go-swift-kotlin-declaration-acceptance"
+        ],
+        "note": "Native grammar declarations retain correct kinds, names, signatures and source ownership through registered builders, limits, UID and payload consumers.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 762,
@@ -432,7 +520,7 @@
       "number": 893,
       "title": "[P2] Packed token-postings short read triggers unbounded whole-file fallback",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/shared/artifact-io/loaders/token-postings.js",
@@ -447,13 +535,25 @@
         "indexing/artifacts/token-postings-binary-columnar-streaming",
         "indexing/artifacts/token-postings-generation-publication"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Add a deterministic positive-short-read packed fixture that checks both correct postings and that no whole-file read occurs.",
         "Include follow-up acceptance: Add the 600-pair/1-KiB writer-to-loader round trip, plus partial varints and block resets crossing read boundaries, positive-short-read injection, true EOF, checksum failure, exact-boundary lists and multiple consecutive large lists. Assert every read/allocation stays inside the selected transient window.",
         "Include follow-up acceptance: Qualify both skewed one/few very long postings and many-short-postings shapes. Count read calls, decoded pairs and peak transient buffers; sustain enough work to distinguish streaming overhead from setup while preserving exact retrieval results.",
         "Qualify the requested resource/work or latency evidence with meaningful inputs; run actual measurements serially and retain raw samples.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "shared/artifact-io/packed-postings-large-list-windows"
+        ],
+        "note": "Actual packed writer/loader reads consecutive large lists across windows and short reads without whole-file fallback; byte limits, varints, checksums and descriptor ownership remain covered.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 904,
@@ -662,7 +762,7 @@
       "number": 989,
       "title": "[P2] Chunk externalDocs misclassifies Node and Python standard-library imports as packages",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/build/file-processor/meta.js",
@@ -676,16 +776,28 @@
         "indexing/file-processor/framework-profile-resolver-cache",
         "indexing/file-processor/heavy-file-coalescing-segment-tail"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Preserve actual package links and add chunk-metadata regressions.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "indexing/metadata/external-docs-chunk-payload"
+        ],
+        "note": "Actual chunk metadata distinguishes standard-library imports from package documentation links while preserving real packages.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 990,
       "title": "[P2] Omitted relation-inference limits silently truncate every signal to zero",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/build/file-processor/relations.js"
@@ -698,10 +810,22 @@
         "indexing/type-inference/crossfile/import-shadow-return-replay",
         "indexing/type-inference/crossfile/module-export-target-replay"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Treat null/undefined (and empty nonnumeric configuration values) as absent limits. Preserve the arrays when limits are omitted; keep explicit 0 as an intentional drop-all budget. Add regressions for each relation type and the file-usage helper.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "indexing/relations/omitted-inference-limits"
+        ],
+        "note": "Omitted relation limits preserve signals while explicit zero drops them; every relation and file-usage consumer is covered.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 991,
@@ -1123,7 +1247,7 @@
       "number": 1030,
       "title": "[P2] Large docs search fast scan mistakes nested fields for page metadata",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/build/file-processor/docs-search-json.js"
@@ -1134,10 +1258,22 @@
         "indexing/file-processor/generated-artifact-content",
         "indexing/semantic/wasm-source-admission"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Verify resolution of the reported Large docs search fast scan mistakes nested fields for page metadata contract, including the original reproduction and healthy controls.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "indexing/file-processor/docs-search-json-fast-path"
+        ],
+        "note": "Actual docs-search JSON processing retains page-level metadata and rejects nested-key impostors on the fast path.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1032,
@@ -1534,7 +1670,7 @@
       "number": 1053,
       "title": "[P2] Heuristic and template chunkers omit text before the first heading/block",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/chunking/dispatch/heuristic-chunkers.js"
@@ -1547,10 +1683,22 @@
         "indexing/chunking/ini-toml",
         "indexing/chunking/json"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Represent the prefix as a preamble chunk or extend the first chunk to offset 0 without losing the structural range metadata. Cover representative heading and AST template paths. Pure ESM probe only; full runner not invoked under unsupported local Node 26.8.1/unverified bootstrap.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "indexing/chunking/heuristic-template-preamble-ownership"
+        ],
+        "note": "Heading/template prefixes retain their own source ownership through dispatch, configured limits and indexed payloads.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1055,
@@ -2187,7 +2335,7 @@
       "number": 1099,
       "title": "[P2] `index stats --verify` rejects valid vector-only indexes",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "tools/index/stats.js",
@@ -2206,12 +2354,24 @@
         "tooling/index-stats/profile-payload-and-shard-counts",
         "tooling/triage/records-vector-only-missing-embeddings-is-error"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Admit each selected generation's bounded, schema-checked profile/capability envelope first, then derive presence requirements and validator execution from the same normalized policy. A vector-only artifact set must never enter a required token-postings/field-postings path. Validate actually declared optional families when present and reject inconsistent profile/presence/manifest claims; do not blindly trust an omitted list to waive required integrity. Preserve the documented legacy default when profile metadata is genuinely absent, but reject explicitly unknown or conflicting profile IDs in strict mode.",
         "Separate “these historical bytes are internally valid” from “these bytes satisfy the requested current configuration/capability.” Report an explicit compatibility/rebuild-needed reason for the latter instead of calling an intentionally absent family corrupt. Same-run validation should additionally compare against its captured producer plan; neither current ambient config nor unchecked self-declaration is sufficient authority.",
         "Extend the existing vector-only policy and validation contract capsules with a tiny fully declared vector-only fixture and zero sparse pieces, the same fixture under changed current config, sparse fixtures with field/phrase/chargram options toggled since production, a missing truly required dense family, conflicting/unknown persisted policy, legacy metadata, and selected mixed-profile roots. Assert both stats verification and full shared validation, not only buildArtifactLists or writer cleanup. No model execution is necessary. This update is source-only; no full build, test, performance or runtime acceptance is claimed.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "indexing/validate/profile-postings-requirements"
+        ],
+        "note": "Full validator and stats verification derive historical requirements from validated persisted capabilities; current configuration drift requests rebuild, while contradictory/invalid/same-run producer identities fail.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1100,
@@ -2284,7 +2444,7 @@
       "number": 1110,
       "title": "[P2] Strict index validation ignores SHA-256 checksums on packed postings metadata",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/build/artifacts/token-postings.js",
@@ -2300,16 +2460,28 @@
         "shared/artifact-io/packed-postings-safe-integers",
         "shared/artifact-io/packed-postings-short-read"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Support SHA-256 in the shared strict manifest verifier (and reject malformed/unsupported declared algorithms rather than turning them into green warnings). Build a packed fixture, mutate one numeric metadata value without changing array lengths, and assert strict validateIndexArtifacts fails with a checksum mismatch. This is source/contract proof only under unsupported local Node 26.8.1; no production artifact was modified.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "indexing/artifacts/packed-committed-checksums"
+        ],
+        "note": "Actual full validation rejects same-size packed metadata tampering and malformed/unsupported checksums while preserving strict packed admission.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1112,
       "title": "[P2] Bind publication records to the mode and build root being promoted",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/build/artifact-publication.js",
@@ -2323,19 +2495,32 @@
         "indexing/artifacts/publication-family-validation",
         "indexing/artifacts/publication-immutable-generation-cleanup"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Bind the publication validation result and final record to a canonical, versioned manifest/inventory digest, exact selected representation, producer/policy versions, and its successful integrity/identity verdict. Verify that binding when publishing and promoting.",
         "Preserve generation immutability under a known writer/reader lease or sealed ownership receipt. A manifest digest alone cannot prove unchanged piece bytes after unowned mutation; where the ownership boundary is absent or invalid, perform the required independent integrity check or fail closed. Do not impose redundant whole-corpus hashing on an already proven sealed owner merely to check the receipt.",
         "Do not substitute file size/mtime for content authority. Keep mixed-mode roots legitimate, with each mode bound to its own receipt; maintain #1234/#1252's separation between producer hashes and independent reader qualification.",
         "Add a small valid-generation fixture, then separately replace only the manifest inventory, remove a declared piece, change a same-size piece, and reuse a stale same-root validation payload. The actual writer/readiness/promotion boundary must reject or require fresh qualification before changing current.json. Include unchanged sealed generation and legitimate mixed-mode positive controls.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "indexing/build/promotion-requires-publication",
+          "indexing/publication/state-refresh-integrity"
+        ],
+        "note": "Promotion rechecks generation inventory and contained content against validation. Stale receipts, altered same-size bytes, missing pieces and invalid status fail without changing current; legitimate native/Stage3 updates explicitly requalify.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1118,
       "title": "[P2] Reject unknown publication statuses and absent validation evidence",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/build/artifact-publication.js",
@@ -2349,12 +2534,25 @@
         "indexing/artifacts/publication-proof-admission",
         "indexing/artifacts/publication-record-contract"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Assert the writer rejects, and assert an externally persisted status:'published' record lacking an explicit successful validation is rejected by assertArtifactPublicationReady().",
         "Keep test fixture seeding explicit about any bypass it needs.",
         "Require a known status and positive validation evidence for publication rather than interpreting missing/unknown values as success.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "indexing/build/promotion-requires-publication",
+          "indexing/publication/state-refresh-integrity"
+        ],
+        "note": "Promotion rechecks generation inventory and contained content against validation. Stale receipts, altered same-size bytes, missing pieces and invalid status fail without changing current; legitimate native/Stage3 updates explicitly requalify.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1290,
@@ -2895,7 +3093,7 @@
       "number": 1351,
       "title": "[P2] Preserve manifest integrity errors during graph artifact admission",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/shared/artifact-io/manifest-sources.js",
@@ -2911,13 +3109,25 @@
         "indexing/artifacts/artifact-io-manifest-discovery",
         "map/workspace/graph-capability-artifact-scope"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Use a manifest with two graph_relations_meta entries. The actual strict named-entry resolver raises ERR_MANIFEST_INVALID: Multiple manifest entries for graph_relations_meta.",
         "Propagate structural/read/integrity errors for declared requested families in strict mode. Expose a typed presence/readiness result rather than using a Boolean that conflates invalid and absent.",
         "Preserve optional-absent behavior only when the manifest/capability contract actually establishes absence. If permissive degraded reads are allowed, include error provenance and incomplete coverage; never silently cache them as a fully admitted graph.",
         "Test duplicate/ambiguous family and meta declarations, malformed shard meta, absent declared shards, malformed paths, valid optional absence and a valid empty graph. Assert equal behavior through GraphStore and shared graph-tool preparation.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "graph/manifest-integrity-admission"
+        ],
+        "note": "GraphStore and prepared graph admission preserve invalid manifest/metadata/declared-shard failures, while absent optional and empty valid artifacts remain legitimate.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1352,
@@ -3739,7 +3949,7 @@
       "number": 1437,
       "title": "[P2] Do not emit Go grouped type containers as duplicate first-type declarations",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/tree-sitter/config.js",
@@ -3755,11 +3965,23 @@
         "indexer/signatures/contract-matrix",
         "indexing/artifacts/object-cache-metadata-roundtrip"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Emit one canonical declaration per Go type spec and treat the type wrapper as grouping/source context, not an extra symbol named after a child. Preserve leading documentation, source spelling and standalone declaration syntax when choosing ranges; do not fix duplication by losing the type keyword or alias declarations. If a group chunk is deliberately retained, give it an explicit container identity/kind instead of impersonating its first child.",
         "Add bounded grouped mixed struct/interface/alias and ungrouped controls, including two orderings of the grouped kinds. Assert one declaration per symbol, correct names/kinds, non-fabricated grouping metadata and stable source ranges through the Go adapter. Bump the affected cache identity.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/native-go-swift-kotlin-declaration-acceptance"
+        ],
+        "note": "Native grammar declarations retain correct kinds, names, signatures and source ownership through registered builders, limits, UID and payload consumers.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1440,
@@ -3862,7 +4084,7 @@
       "number": 1456,
       "title": "[P2] Resolve Swift declaration kinds from grammar tokens rather than an unmodified text prefix",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/tree-sitter/config.js",
@@ -3876,18 +4098,30 @@
         "lang/contracts/swift-import-relations-contract",
         "lang/javascript/declaration-occurrence-and-phase"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Cover plain/public/attributed structs, enums, actors, classes, protocols and constrained extensions, including a long attribute before the keyword.",
         "Retain the current ordinary struct/protocol/extension positive controls, exact range and name.",
         "Test the native-success consumer, and invalidate affected cached extraction. ## Boundaries This is current tree-sitter classification, not #1165 compiler semantics or #1166 SwiftParser migration.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/native-go-swift-kotlin-declaration-acceptance"
+        ],
+        "note": "Native grammar declarations retain correct kinds, names, signatures and source ownership through registered builders, limits, UID and payload consumers.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1457,
       "title": "[P2] Emit Kotlin enums and interfaces from their declaration nodes, not enum bodies",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/tree-sitter/config.js"
@@ -3900,17 +4134,29 @@
         "lang/javascript/declaration-projection-replay",
         "lang/kotlin/perf-guard"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Resolve the declaration kind from actual grammar tokens/modifiers and emit one EnumDeclaration named Color spanning the full declaration. Do not treat a body wrapper or first entry as the enum's identity. Preserve interface kind and the legitimate ordinary class/method controls.",
         "Test nonempty/empty enums, annotations/modifiers, enum member methods, interfaces and ordinary classes. Verify names, kinds, complete ranges, count and nesting after limits/consumer preparation. Review cache-version invalidation. #1168/#1169 own new Kotlin LSP/Analysis API work, not this native syntax bug. #1437 is a similar Go wrapper defect but has different grammar/config ownership. All-state Kotlin/enum_class_body searches found no duplicate.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/native-go-swift-kotlin-declaration-acceptance"
+        ],
+        "note": "Native grammar declarations retain correct kinds, names, signatures and source ownership through registered builders, limits, UID and payload consumers.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1458,
       "title": "[P2] Preserve Kotlin secondary constructors without borrowing parameter names",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/tree-sitter/config.js",
@@ -3925,16 +4171,28 @@
         "contracts/module-export-surface-compat",
         "file-processor/module-call-chunks"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Separate from Kotlin type-kind/body-wrapper classification: these constructor nodes are already admitted. #1168/#1169 are provider roadmap work; #682 concerns heuristic signature scanning. Live all-state Kotlin/constructor searches found no matching native extraction issue.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/native-go-swift-kotlin-declaration-acceptance"
+        ],
+        "note": "Native grammar declarations retain correct kinds, names, signatures and source ownership through registered builders, limits, UID and payload consumers.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1459,
       "title": "[P2] Name native C functions from their declarators instead of typedef return types",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/tree-sitter/config.js",
@@ -3951,17 +4209,29 @@
         "indexing/semantic/native-deferred-production",
         "indexing/semantic/native-flow-pull-writer"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Do not use the entire declarator text as the name or scan the return type/body.",
         "Preserve source/signature/body ranges. ## Acceptance and boundaries Regress typedef and tagged-struct returns, primitive and pointer returns, nested declarators and ordinary controls; assert distinct function identities after chunk limits.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/native-c-objc-cpp-declaration-acceptance"
+        ],
+        "note": "Actual native C/Objective-C/C++ parsing preserves declarator/selector/qualified identities and complete declaration envelopes without emitting tagged uses as declarations.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1460,
       "title": "[P2] Do not emit C tagged-type uses as fresh structure declarations",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/tree-sitter/config.js",
@@ -3975,16 +4245,28 @@
         "indexer/signatures/contract-matrix",
         "indexing/artifacts/object-cache-metadata-roundtrip"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Distinguish definitions, explicit forward declarations and type uses using grammar context. Do not blindly require a body, because a standalone struct Item; is a legitimate forward declaration. Regress parameter/return/local/field type uses, struct/union/enum definitions, forward declarations and anonymous definitions with typedef ownership. Verify exactly the intended declaration chunks and correct complete ranges; no new standalone type chunk for the sample's two uses. Review cache/version invalidation.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/native-c-objc-cpp-declaration-acceptance"
+        ],
+        "note": "Actual native C/Objective-C/C++ parsing preserves declarator/selector/qualified identities and complete declaration envelopes without emitting tagged uses as declarations.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1461,
       "title": "[P2] Preserve Objective-C selectors and implementation owners in native chunks",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/tree-sitter/config.js",
@@ -3998,17 +4280,29 @@
         "indexing/tree-sitter/chunks",
         "indexing/tree-sitter/native-artifact-resource-lifetime"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Build selectors from grammar roles, retaining all keyword pieces/colons, and resolve class/category implementation owners. Keep class versus instance method identity explicit under the project's naming contract; do not use argument variable names or return types as selector parts.",
         "Test two selectors sharing their first piece, unary methods, class/instance methods, two different implementation owners, interfaces/protocols/categories and normal C functions. Declarations and definitions must retain consistent owner+selector identities and exact ranges without merging distinct methods. Review cache-version invalidation. #1161 is expanded semantic admission/build variants, not this existing ObjC syntax route. Live all-state Objective-C/class_implementation/selector searches found no duplicate.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/native-c-objc-cpp-declaration-acceptance"
+        ],
+        "note": "Actual native C/Objective-C/C++ parsing preserves declarator/selector/qualified identities and complete declaration envelopes without emitting tagged uses as declarations.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1462,
       "title": "[P2] Traverse parse5 template content instead of stopping at an empty childNodes array",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/html.js"
@@ -4021,17 +4315,29 @@
         "indexing/chunking/formats/rst-asciidoc-source-outline",
         "indexing/chunking/ini-toml"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Test static script/link metadata and script/style/code/pre embedded blocks inside and outside templates.",
         "Keep inert/runtime execution status distinct from static source discovery; do not execute templates.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/html-template-source-lines"
+        ],
+        "note": "Actual parse5 template contents and embedded chunks retain host source offsets, line numbers, limits, UID and indexed text.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1463,
       "title": "[P2] Rebase embedded HTML chunk line numbers along with source offsets",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/html.js",
@@ -4046,17 +4352,29 @@
         "indexing/semantic/wasm-source-admission",
         "lang/contracts/html-chunking-fallback"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Cover multiple script/style/code blocks, blank lines, same-line opening tags, CRLF, non-ASCII prefixes, end-exclusive ranges and chunk-limit splitting.",
         "Assert actual source slice plus line range through chunk-ID preparation, not only direct builder offsets.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/html-template-source-lines"
+        ],
+        "note": "Actual parse5 template contents and embedded chunks retain host source offsets, line numbers, limits, UID and indexed text.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1466,
       "title": "[P2] Include finalized risk metadata in incremental bundle reuse decisions",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/build/incremental/bundle-compare.js",
@@ -4080,7 +4398,8 @@
         "indexing/incremental/crossfile-bundle-patch-write",
         "indexing/incremental/reuse"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Make the reuse receipt cover the finalized serialized chunk data that downstream readers consume, including risk and relevant docmeta. If a deliberately narrower projection is retained, enumerate/prove why each excluded field cannot change or is nonpersistent.",
         "Keep exact source/dependency/snapshot identity checks; do not solve this by accepting stale metadata or weakening validation.",
         "Add tiny risk-only/docmeta-only changes with stable source/hash/stat/chunk IDs, unchanged control, and an ordinary selected-field type change.",
@@ -4088,13 +4407,25 @@
         "Include follow-up acceptance: Include unchanged snapshots as a true no-op control and a change in an unrelated file that changes this file's inferred type/risk. Keep deterministic IDs, transactional rollback, complete source binding and no partial successful publication.",
         "Include follow-up acceptance: Measure reuse with a mostly unchanged corpus plus a small set of enrichment-only updates. Report actual rewritten files/rows and verify that the correct repair does not force every file through reserialization on each no-op build.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "storage/sqlite/incremental/finalized-metadata-reuse",
+          "indexing/incremental/crossfile-enrichment-only-reuse"
+        ],
+        "note": "SQLite schema17 binds finalized bundle inventory/dependencies. Actual cross-file enrichment and 24-file database parity distinguish true no-op from three metadata-only updates; rollback and old-version rejection pass.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1467,
       "title": "[P2] Emit Rust required-trait and foreign function declarations from function_signature_item",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/tree-sitter/config.js",
@@ -4111,16 +4442,29 @@
         "indexing/signatures/native-signature-projection",
         "indexing/signatures/signature-canonicalization"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Admit the actual pinned grammar's bodyless callable node. Derive kind/owner by context: required trait members are methods, foreign free functions are functions, not fictional impl methods. Preserve complete signatures and semicolons without swallowing the next definition. Regress required/default trait members, foreign declarations, visibility, parameters/return types and ordinary functions, through limits and identity preparation. Review relevant producer/cache versioning.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/native-rust-java-scope-acceptance",
+          "lang/contracts/native-c-objc-cpp-declaration-acceptance"
+        ],
+        "note": "Actual native Rust/Java and wrapper controls preserve declaration ownership, lexical scopes and source prefixes through registered builders and indexed consumers.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1468,
       "title": "[P2] Distinguish native lexical scopes from type ownership before classifying functions as methods",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/tree-sitter/chunking.js",
@@ -4136,17 +4480,30 @@
         "indexing/tree-sitter/native-artifact-resource-lifetime",
         "indexing/tree-sitter/scheduler-native-plan-contract"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Separate parse-clean, pinned tree-sitter-java 0.23.5 / tree-sitter-cpp 0.23.4 fixtures at the same head confirm this is not Rust-specific: class First { class Inner { void same(){} } } class Second { class Inner { void same(){} } } Output names are First, Inner, Inner.same, Second, Inner, Inner.same: both outer scopes are lost. namespace a { int same(){return 1;} } namespace outer { namespace inner { int deep(){return 3;} } } The functions become a.same and inner.deep, both MethodDeclaration. The nested namespace itself is only inner. This has the same nearest-type and unconditional-method conversion cause. These extra fixtures were independently executed through the same native converter; the UID consumer execution described below covers the Python/Rust fixtures.",
         "Resolve lexical scope and member relationship separately. Preserve enclosing module/type/function paths under the project's naming convention; only genuine immediate semantic type members become methods. Add the Rust, Java and C++ controls above, nested modules/types and the Python native/CPython control. Keep body/range/line metadata exact, and verify name/kind into UID/symbol consumers. Review cache versioning.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/native-rust-java-scope-acceptance",
+          "lang/contracts/native-c-objc-cpp-declaration-acceptance"
+        ],
+        "note": "Actual native Rust/Java and wrapper controls preserve declaration ownership, lexical scopes and source prefixes through registered builders and indexed consumers.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1470,
       "title": "[P2] Preserve declaration prefixes and wrappers in Python, Rust and C++ source coverage",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/tree-sitter/declaration-roles.js",
@@ -4167,19 +4524,32 @@
         "lang/python/python-contract-matrix",
         "indexing/chunking/formats/rst-asciidoc-source-outline"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Represent source coverage, semantic declaration range, signature presentation and attached doc/attribute ranges separately. Consume the existing semantic definition coordinate where appropriate, but do not merely switch one line number and then stop at an intervening attribute.",
         "Extract attached outer documentation from language-owned prefix/comment nodes and retain exact source ranges plus doc role. Keep inner module/item docs, unrelated ordinary comments and neighboring declarations distinct. Do not scan backward through arbitrary source to borrow another declaration's docs.",
         "Preserve doc-before-attribute and attribute-before-doc layouts where legal, stacked/multiline attributes, blank lines, multiple consecutive declarations, CRLF/Unicode and no-doc controls. Assert both exact full source coverage and the intended registered docmeta.doc.",
         "The preview may include a chosen display prefix, but semantic parameter/modifier extraction must use declaration fields, not that preview. #627 now owns the independently verified Rust signature-to-callable-metadata corruption.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/native-rust-java-scope-acceptance",
+          "lang/contracts/native-c-objc-cpp-declaration-acceptance"
+        ],
+        "note": "Actual native Rust/Java and wrapper controls preserve declaration ownership, lexical scopes and source prefixes through registered builders and indexed consumers.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1472,
       "title": "[P2] Admit Java annotation declarations and compact record constructors in native chunks",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/tree-sitter/config.js",
@@ -4195,16 +4565,29 @@
         "indexing/tree-sitter/chunks",
         "indexing/tree-sitter/native-artifact-resource-lifetime"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Admit these real grammar declarations with correct constructor/annotation/member roles, exact source ranges and consistent owner names. Cover compact versus ordinary/canonical record constructors, annotation types with multiple/default-valued elements, standalone and mixed files, and ordinary class/interface controls. Assert one complete chunk per declared construct, no disappearance after dispatch/limits, and no borrowing child parameter/type names. Review extraction/cache-version invalidation.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/native-rust-java-scope-acceptance",
+          "lang/contracts/native-c-objc-cpp-declaration-acceptance"
+        ],
+        "note": "Actual native Rust/Java and wrapper controls preserve declaration ownership, lexical scopes and source prefixes through registered builders and indexed consumers.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1473,
       "title": "[P2] Preserve C++ qualified and operator names instead of regex-truncating declarators",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/tree-sitter/config.js",
@@ -4218,18 +4601,30 @@
         "indexer/signatures/contract-matrix",
         "indexing/artifacts/object-cache-metadata-roundtrip"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Preserve explicit namespace/type qualification and full operator identity under the project's canonical naming contract without doubling lexical qualification.",
         "Retain signatures for overloaded members instead of conflating distinct names.",
         "Assert name/range consistency through the registered native path and review cache invalidation.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/native-c-objc-cpp-declaration-acceptance"
+        ],
+        "note": "Actual native C/Objective-C/C++ parsing preserves declarator/selector/qualified identities and complete declaration envelopes without emitting tagged uses as declarations.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1474,
       "title": "[P2] Capture C and C++ function prototypes from the grammar's declaration nodes",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/tree-sitter/config.js",
@@ -4246,17 +4641,29 @@
         "indexing/tree-sitter/declaration-role-and-scope-contract",
         "lang/javascript/declaration-occurrence-and-phase"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Admit genuine callable declarations by their declarator role, with complete declaration range, declared name, owner and bodyless status. Do not capture every variable/field declaration or treat function-pointer variables as function declarations. Handle multiple declarators explicitly instead of silently naming an entire declaration after its first child.",
         "Add C/C++ mixed prototype+definition fixtures, bodyless class methods, constructors/destructors, pure virtuals, overloads, pointer-return functions, function-pointer variables, ordinary fields, and prototype-only files. Assert exactly the intended callable chunks after limits and no swallowed following declaration; retain coherent fallback/strict behavior. Review cache invalidation.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/c-prototype-registry-acceptance"
+        ],
+        "note": "Actual native prototypes and C-family registry adapters preserve declaration/doc metadata through normal chunk consumers; declaration names do not fabricate call evidence.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1475,
       "title": "[P2] Pass C-family chunks through registry relations and doc-metadata adapters",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/language-registry/registry-data.js",
@@ -4272,16 +4679,28 @@
         "lang/contracts/clike-registry-prepared-relations",
         "lang/contracts/html-registry-metadata"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Test the registered adapter, not only standalone helpers: native and fallback C/C++/ObjC, actual doc comment/signature metadata, one caller/callee edge, exports/usages, relations disabled with docmeta retained, and extension-sensitive keyword sets. Check downstream chunk relations/enrichment and producer-version invalidation.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/c-prototype-registry-acceptance"
+        ],
+        "note": "Actual native prototypes and C-family registry adapters preserve declaration/doc metadata through normal chunk consumers; declaration names do not fabricate call evidence.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1476,
       "title": "[P2] Preserve assignment-style Lua functions beside native declarations",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/lua.js",
@@ -4297,16 +4716,28 @@
         "lang/contracts/native-call-ownership-and-metadata",
         "lang/contracts/native-call-scope-roles"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Admit supported named assignment-function owners and associate the function expression with its actual assignment target and complete source extent. Do not simply emit anonymous function_definition nodes named after a parameter/body identifier. Preserve dotted/member names and make a deliberate policy for local assignments, table fields and multi-assignment; report unsupported/ambiguous forms rather than borrowing a name. Do not reparse once per chunk.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/lua-assignment-call-consumer-acceptance"
+        ],
+        "note": "Lua assignment functions retain complete local/assignment identities and grammar-based signatures; real recursion stays while declaration headers stay out of calls, with unsupported forms explicit.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1477,
       "title": "[P2] Exclude Lua declaration headers from call relations without removing real recursion",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/lua.js",
@@ -4322,16 +4753,28 @@
         "indexing/workers/punctuation-budget-real-worker",
         "lang/contracts/clike-registry-prepared-relations"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Add exact-edge assertions for call-free, single-call, recursive and nested functions, declaration-only inner functions versus actually invoked ones, method declarations and quoted/commented call-like text. Test the registered adapter through lexicon and chunk projection, not only positive some(call exists) checks. Review producer-version invalidation.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/lua-assignment-call-consumer-acceptance"
+        ],
+        "note": "Lua assignment functions retain complete local/assignment identities and grammar-based signatures; real recursion stays while declaration headers stay out of calls, with unsupported forms explicit.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1478,
       "title": "[P2] Extract Bash call summaries from command roles instead of line-start words",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/shell.js",
@@ -4347,18 +4790,30 @@
         "lang/contracts/native-call-argument-authority",
         "lang/contracts/native-call-owner-projection"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Keep unknown dynamic names explicitly unresolved rather than inventing calls.",
         "Do not claim zsh/ksh support from the Bash grammar or execute input scripts to resolve names.",
         "Assert exact expected edges through the adapter, lexicon and chunk consumer, with positive controls and invalid/unsupported dialect behavior.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/ruby-php-native-consumer-acceptance"
+        ],
+        "note": "Real native callable/import consumers preserve Bash lexical command/path roles, Ruby singleton/default-call ownership and PHP enum/parameter metadata. Malformed/unsupported syntax stays partial; PHP reserved parameter keys survive real serialized replay.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1479,
       "title": "[P2] Preserve Ruby singleton receivers before name-keyed call attribution",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/tree-sitter/config.js",
@@ -4373,17 +4828,29 @@
         "lang/contracts/native-call-ownership-and-metadata",
         "lang/contracts/native-call-scope-roles"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Preserve explicit receiver and singleton/instance role in the canonical declaration/relationship identity. Keep lexical containment distinct from receiver ownership; do not guess the runtime target of dynamic receiver expressions. Resolve unqualified self in its actual scope and preserve an explicit unknown/candidate boundary when necessary. Carry the distinction through call joins, symbol/map consumers and cache versioning.",
         "Add the two fixtures above, same-name instance/class methods, class << self, explicit other-object receivers inside a lexical class, nested constant paths, operator methods, ordinary-method controls, and existing supported fallback behavior. Verify actual per-chunk call projections, not just unequal source spans or UIDs.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/ruby-php-native-consumer-acceptance"
+        ],
+        "note": "Real native callable/import consumers preserve Bash lexical command/path roles, Ruby singleton/default-call ownership and PHP enum/parameter metadata. Malformed/unsupported syntax stays partial; PHP reserved parameter keys survive real serialized replay.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1480,
       "title": "[P2] Admit PHP enums without dropping their source and method ownership",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/tree-sitter/config.js",
@@ -4397,16 +4864,28 @@
         "indexing/tree-sitter/crash-persistence-ownership",
         "integrations/triage/records-inventory-and-source-contract"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Admit enum declarations with the appropriate kind and exact full source range, preserve enum ownership for methods, and define case representation without double-counting the enum body. Include unit/backed enums, methods, implemented interfaces, attributes, ordinary-class controls, and files mixing enum and non-enum declarations. Assert retained source text, names/kinds, relations/exports and ID stability; review semantic cache versioning. If a construct is deliberately unsupported, preserve its source with an honest bounded coverage state rather than silently losing it after another declaration succeeds.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/ruby-php-native-consumer-acceptance"
+        ],
+        "note": "Real native callable/import consumers preserve Bash lexical command/path roles, Ruby singleton/default-call ownership and PHP enum/parameter metadata. Malformed/unsupported syntax stays partial; PHP reserved parameter keys survive real serialized replay.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1481,
       "title": "[P2] Preserve Ruby and PHP callable metadata on successful native parsing",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/tree-sitter/declaration-metadata.js",
@@ -4424,19 +4903,31 @@
         "indexing/metadata/adapter-and-relation-diff-identities",
         "indexing/metadata/relations-and-cache-identities"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Forward owned copies of supported paramTypes/paramDefaults through the existing PHP/docmeta contract. Preserve declaration/range provenance and annotations separately from inferred/default-derived types; do not reparse every chunk to recover data already produced.",
         "The native helper currently initializes these maps as {} and assigns map[name] = value. Include the valid parameter name __proto__: ordinary assignment to that key does not create the expected own string-valued entry. Use the existing own-key-safe record helper/null-prototype contract rather than inventing a new object-key utility. Check ordinary, reserved-looking and Unicode-supported names according to actual grammar support.",
         "Expand the current native test beyond params and returnType to the full fields consumed downstream, including empty/absent distinctions, reference/variadic/default roles where supported, and serialization/replay. Keep Ruby and PHP semantics language-specific.",
         "Preserve the successful visibility/export repair and historical verification context below. This is a remaining producer-to-consumer projection task under this owner, not a claim that the original native metadata repair never happened.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/ruby-php-native-consumer-acceptance"
+        ],
+        "note": "Real native callable/import consumers preserve Bash lexical command/path roles, Ruby singleton/default-call ownership and PHP enum/parameter metadata. Malformed/unsupported syntax stays partial; PHP reserved parameter keys survive real serialized replay.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1482,
       "title": "[P2] Exclude Ruby and bodyless PHP declaration headers from call evidence",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/ruby.js",
@@ -4453,16 +4944,28 @@
         "indexing/semantic/call-summary-shadow-manifests",
         "indexing/semantic/compiler-call-adapter"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Add no-call/recursive/no-parenthesis Ruby controls, singleton/operator/endless methods, default expressions, and PHP interface/abstract/bodyful methods. Keep actual body calls and ordinary source/metadata intact; inspect sibling consumers of the shared brace-delimited helper under this same owner. Review cache-version invalidation.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/ruby-php-native-consumer-acceptance"
+        ],
+        "note": "Real native callable/import consumers preserve Bash lexical command/path roles, Ruby singleton/default-call ownership and PHP enum/parameter metadata. Malformed/unsupported syntax stays partial; PHP reserved parameter keys survive real serialized replay.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1483,
       "title": "[P2] Preserve complete quoted Bash source paths before import resolution",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/shell.js",
@@ -4480,13 +4983,25 @@
         "indexing/imports/import-resolution-typescript-runtime-extensions",
         "indexing/imports/import-resolution"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Remove syntax quotes from that token rather than the entire rest of the line.",
         "Keep spaces inside static literals, separate later arguments/comments correctly, and explicitly leave variable/command substitutions unresolved instead of evaluating input scripts.",
         "Do not globally remove whitespace or broaden Bash grammar claims to other shell dialects.",
         "Preserve ordinary unquoted imports and quote-normalization controls.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/ruby-php-native-consumer-acceptance"
+        ],
+        "note": "Real native callable/import consumers preserve Bash lexical command/path roles, Ruby singleton/default-call ownership and PHP enum/parameter metadata. Malformed/unsupported syntax stays partial; PHP reserved parameter keys survive real serialized replay.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1484,
@@ -4530,7 +5045,7 @@
       "number": 1485,
       "title": "[P2] Preserve Jinja capture-set blocks when filters contain equals signs",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/shared/jinja-template-structure.js",
@@ -4546,18 +5061,30 @@
         "indexing/chunking/formats/rst-asciidoc-source-outline",
         "indexing/chunking/ini-toml"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Capture-set detection treats set as a block only if no token anywhere has value === '='. This includes string literal values and nested filter keyword-argument assignment tokens. Consequently it never pushes the actual capture block and its valid endset becomes an unmatched closer. The catch path discards the complete model, including unrelated earlier/later declarations and imports.",
         "Distinguish the assignment operator belonging to the set statement from literal content and nested filter expressions, using token kind and expression position/depth rather than a whole-tag value search. Preserve the bounded lexical/no-execution contract; this does not require implementing general template semantics.",
         "Cover capture filters with literal equals, keyword arguments, nested expressions, and ordinary capture/assignment controls. Assert chunk identities, imports and exports for independent declarations before and after the capture. Preserve malformed-block rejection and the current source/time limits; review producer/cache invalidation.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/logical-build-template-import-acceptance"
+        ],
+        "note": "Actual config/template/build consumers preserve complete literal identities, Unicode and lexical argument roles, rejecting dynamic/comment/recipe impostors through real resolution.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1486,
       "title": "[P2] Do not name Scala extension groups after type parameters or their first methods",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/tree-sitter/config.js",
@@ -4573,16 +5100,28 @@
         "indexer/incremental/signature-lexicon-config",
         "indexer/signatures/contract-matrix"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Cover single/multiple methods, generic and nongeneric receivers, braces/indentation, method-order changes, repeated method names for different receiver types, nested objects, comments and Unicode. Assert producer name/kind/context and downstream symbol/UID projection. Do not merely remove all extension coverage. Review semantic cache versioning.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/scala-r-native-metadata-acceptance"
+        ],
+        "note": "Native Scala/R metadata retains grammar-owned declarations, assignment identities, signatures and docs through shared adapters, UID and indexed payloads.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1487,
       "title": "[P2] Admit Scala package objects and givens without losing source or member ownership",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/tree-sitter/config.js",
@@ -4598,16 +5137,28 @@
         "indexing/tree-sitter/crash-persistence-ownership",
         "integrations/triage/records-inventory-and-source-contract"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Admit the grammar's package-object and given forms with appropriate declaration/container kinds and names; preserve anonymous-given semantics rather than borrowing arbitrary descendant names. Retain complete source coverage and correct ownership for structural-given members. Keep alias givens, annotated/generic/contextual givens, ordinary object controls and mixed files with unrelated declarations. Verify declared identities, kinds, source text, line ranges and consumer projections; review cache/version invalidation.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/scala-r-native-metadata-acceptance"
+        ],
+        "note": "Native Scala/R metadata retains grammar-owned declarations, assignment identities, signatures and docs through shared adapters, UID and indexed payloads.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1488,
       "title": "[P2] Preserve parsed literal dependency identities through config and template import normalization",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/html.js",
@@ -4631,19 +5182,31 @@
         "indexer/incremental/signature-lexicon-config",
         "indexing/chunking/config-tree-sitter-meta-parity"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Keep this shared literal-versus-scanner owner for the remaining config parser handoffs, rather than filing the same normalization defect again:",
         "Use one provenance-aware entry contract for parsed config values as well as the repaired templates. Preserve validation of controls/length and explicit format-specific grammar. A true decoded literal is not an undecoded scanner token; do not globally disable validation for heuristic producers. Keep punctuation or whitespace which belongs to the dependency identity, and distinguish later filesystem/loader support from earlier destruction of collected evidence.",
         "Add a small table with paired thing,/thing, trailing semicolon/parenthesis and a literal quote character. Cover JSON, JSONC, YAML, TOML and XML using their actual syntax owners, then normal registry and config relation admission. Assert both exact identities survive, including deduplication and incremental import replay. Include a scanner control which still removes genuine syntax punctuation. No renderer, template evaluation, external fetching or large corpus is needed.",
         "Keep the distinction between raw heuristic scanner tokens and already-decoded literal specifiers through collector, registry and import-pass boundaries. Apply syntax cleanup only where it is needed, not repeatedly to semantic literal values. Coordinate buildSimpleRelations and later normalization so fixing only a collector does not leave a second corruption point. Do not remove control/length validation or globally loosen pseudo-token rejection without preserving provenance.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/logical-build-template-import-acceptance"
+        ],
+        "note": "Actual config/template/build consumers preserve complete literal identities, Unicode and lexical argument roles, rejecting dynamic/comment/recipe impostors through real resolution.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1489,
       "title": "[P2] Retain CSS @scope containers when native parsing finds nested rules",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/css.js",
@@ -4659,16 +5222,28 @@
         "indexing/chunking/config-tree-sitter-meta-parity",
         "indexing/chunking/dockerfile-continuation"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Admit supported CSS grammar container nodes, including scope_statement, while retaining bounded traversal, exact half-open UTF-16 ranges, comments and line metadata. Cover scope start/end selectors, nested scopes, media/supports controls, empty containers, declarations and nested rules. Assert source coverage and the limits/identity/token-text handoff. Keep CSS lexical chunks distinct from computed DOM/cascade semantics. Review producer/cache-version invalidation.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/css-source-selector-acceptance"
+        ],
+        "note": "CSS scope containers and quoted selector spelling survive native and registry paths with exact source ownership and consumer payloads.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1490,
       "title": "[P2] Derive CSS selector names from syntax instead of quoted punctuation",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/css.js",
@@ -4684,19 +5259,31 @@
         "contracts/module-export-surface-compat",
         "file-processor/module-call-chunks"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Preserve the original selector/prelude spelling for semantic identity, or normalize only tokenizer-qualified inter-token whitespace. Do not rewrite quoted strings, escapes or URL-like token content.",
         "If compact display names need formatting, keep that preview separate from the identity/source-backed name.",
         "Add a tiny paired-selector case with one versus two spaces, quoted tabs where admitted, escapes and non-ASCII values, plus multiline whitespace between selectors as a non-literal control.",
         "Assert the pair remains distinct after the actual native parser, registered chunk adapter, relation/name-field and UID inputs, while exact source ranges remain unchanged. Keep historical punctuation cases as regressions.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/css-source-selector-acceptance"
+        ],
+        "note": "CSS scope containers and quoted selector spelling survive native and registry paths with exact source ownership and consumer payloads.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1491,
       "title": "[P2] Parse logical CMake commands before collecting literal imports",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/language-registry/import-collectors/cmake.js",
@@ -4713,17 +5300,29 @@
         "indexing/imports/discovery-inventory-reuse",
         "indexing/imports/esmodule-lexer-init"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Use a bounded comment/quote/bracket-aware logical-command scanner, shared across the supported include/add_subdirectory/find_package/target_link_libraries/add_dependencies forms. Preserve complete literal arguments and command ownership across LF/CRLF; do not split a literal path on spaces or stop at a parenthesis inside an argument. Exclude comments, maintain existing target/scope handling, and retain unresolved dynamic expressions honestly. No evaluation or project-command execution is necessary.",
         "Add inert fixtures for the three cases, equals-delimited brackets, no-leading-newline controls, actual dynamic quoted/unquoted values, and configuration selectors adjacent to real dependencies. Assert collector → registered relation projection, not only scanner token shape, and retain bounded omission diagnostics. This completes existing #1491 scope; no duplicate lexer issue or build execution is needed. #1194 remains the separate configured-snapshot tier.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/logical-build-template-import-acceptance"
+        ],
+        "note": "Actual config/template/build consumers preserve complete literal identities, Unicode and lexical argument roles, rejecting dynamic/comment/recipe impostors through real resolution.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1492,
       "title": "[P2] Keep Make recipes and assignments out of logical prerequisite imports",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/language-registry/import-collectors/makefile.js",
@@ -4738,19 +5337,31 @@
         "indexing/imports/esmodule-lexer-init",
         "indexing/imports/import-cache-contract-matrix"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "build: source.c echo label: ghost.c Observed: [\"source.c\", \"ghost.c\"]. The tab-indented second line is a recipe, not a prerequisite declaration; ghost.c is merely text passed to echo. The recipe was never executed.",
         "build: CFLAGS = -O2 build: source.c Observed: [\"CFLAGS\", \"=\", \"-O2\", \"source.c\"]. The first line is a target-specific variable assignment, not dependencies.",
         "build: source.c \\ more.c include one.mk \\ two.mk Observed: [\"source.c\", \"one.mk\", \"\\\\\"]: both continued filenames disappear and the include continuation marker becomes an import. Equivalent single-line control returns all four filenames. build:: source.c additionally emits \":\" as a dependency.",
         "Preserve recipe context before trimming, assemble bounded logical non-recipe records, and distinguish include directives, prerequisite rules, target-specific assignments, inline recipes and double-colon rule separators. Keep literal paths and continuation handling correct. Respect the selected Make dialect and explicitly retain unsupported dynamic/variable/pattern cases; do not run make, even in dry-run/database mode, to solve passive extraction.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/logical-build-template-import-acceptance"
+        ],
+        "note": "Actual config/template/build consumers preserve complete literal identities, Unicode and lexical argument roles, rejecting dynamic/comment/recipe impostors through real resolution.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1493,
       "title": "[P2] Preserve Starlark argument lexical roles when collecting build imports",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/language-registry/import-collectors/starlark.js",
@@ -4765,16 +5376,28 @@
         "indexing/imports/discovery-inventory-reuse",
         "indexing/imports/esmodule-lexer-init"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Test comments before the first positional argument, between a keyword and its value, before/after name/path bindings, inline comments, multiline strings, escaped quotes and # characters inside genuine labels, and unchanged no-comment controls across load/use_extension/bazel_dep/local_path_override. Assert collector entries, hints, registry imports and file relations. Review semantic cache invalidation. No Bazel evaluation is needed.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/logical-build-template-import-acceptance"
+        ],
+        "note": "Actual config/template/build consumers preserve complete literal identities, Unicode and lexical argument roles, rejecting dynamic/comment/recipe impostors through real resolution.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1494,
       "title": "[P2] Preserve Unicode Jinja and Django identifiers instead of publishing ASCII fragments",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/shared/jinja-template-structure.js",
@@ -4788,18 +5411,30 @@
         "indexing/language-registry/config-data-adapters-contract",
         "indexing/language-registry/descriptor-routing-parity"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Do not normalize distinct names together or assume Jinja and Django identifier grammars are identical.",
         "Assert exact definitions/references and relation identities together with chunk names and ranges.",
         "Preserve current opaque/comment handling and budgets; review producer/cache invalidation.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/logical-build-template-import-acceptance"
+        ],
+        "note": "Actual config/template/build consumers preserve complete literal identities, Unicode and lexical argument roles, rejecting dynamic/comment/recipe impostors through real resolution.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1495,
       "title": "[P2] Resolve R function identities from assignment ASTs instead of keyword name fields",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/tree-sitter/config.js",
@@ -4814,17 +5449,29 @@
         "file-processor/module-call-chunks",
         "indexer/incremental/contract-matrix"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Resolve the callable's binding relationship from grammar fields and supported assignment/wrapper syntax rather than same-line text. Do not treat the function keyword as a symbol or steal identifiers from parameters/body. Preserve significant dots and quoted identifiers, and use an explicit conservative anonymous identity for unbound callbacks.",
         "Add native fixtures for same-line/multiline <- and =, supported superassignment and quoted/Unicode names, significant leading dots, lambda syntax, anonymous callbacks, nested functions and wrapper forms. Assert name/kind and consumer/UID projections. Coordinate complete assignment-source coverage with #1470 rather than duplicating that root. Review producer/cache versions.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/scala-r-native-metadata-acceptance"
+        ],
+        "note": "Native Scala/R metadata retains grammar-owned declarations, assignment identities, signatures and docs through shared adapters, UID and indexed payloads.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1496,
       "title": "[P2] Retain native signatures and docs in shared heuristic adapter projections",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/language-registry/adapters/heuristic.js",
@@ -4840,16 +5487,28 @@
         "indexing/tokenization/native-leaf-product-reuse",
         "indexing/tree-sitter/native-artifact-resource-lifetime"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Test the registered adapters, not only converter helpers: native Groovy/R comments and signatures, empty metadata fallback, optional relations/flow disabled, actual field-token and metadata persistence, and language-specific projection overrides. Keep source ranges stable and review semantic/cache versioning.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/scala-r-native-metadata-acceptance"
+        ],
+        "note": "Native Scala/R metadata retains grammar-owned declarations, assignment identities, signatures and docs through shared adapters, UID and indexed payloads.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1498,
       "title": "[P2] Preserve SQL declaration identities when mixed statements select the fallback chunker",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/sql/chunking.js",
@@ -4863,19 +5522,31 @@
         "indexing/language-registry/build-language-context-skip-prepare",
         "indexing/language-registry/config-data-adapters-contract"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Distinguish decoded identifier segments and separators from rendered name text, preserving quoted literal dots and case rules.",
         "Preserve native authority and honest fallback/unsupported metadata; no live catalog is needed.",
         "Add source-derived controls for public.users, public . users, public. users, public /*note*/ . \"odd.name\", and a single quoted \"public.users\". Require correct kind, original span, segmented identity and relation exports through normal fallback/registry paths.",
         "Keep the authored mixed-statement repair tests and original full-source coverage requirements. Coordinate the separate legacy usage projector with #1719 rather than assuming chunk-name repair fixes usages.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/sql-xml-source-import-acceptance"
+        ],
+        "note": "SQL/XML consumers preserve dialect-aware segmented identities, source envelopes, root metadata and leading content. SQL quoted include literals resolve exactly; directive-like string content never creates imports.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1499,
       "title": "[P2] Make SQL statement splitting honor dialect-specific quoting and nested comments",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/sql/chunking.js",
@@ -4889,18 +5560,30 @@
         "indexing/language-registry/config-data-adapters-contract",
         "indexing/language-registry/descriptor-routing-parity"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Retain quoted delimiters and nesting without splitting or swallowing adjacent source.",
         "Cover standard versus escape strings, doubled quotes/backticks, nested comments, dollar quotes, DELIMITER controls, newline variants and no-native paths.",
         "Assert complete source coverage and names/exports, not only scanner array length.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/sql-xml-source-import-acceptance"
+        ],
+        "note": "SQL/XML consumers preserve dialect-aware segmented identities, source envelopes, root metadata and leading content. SQL quoted include literals resolve exactly; directive-like string content never creates imports.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1500,
       "title": "[P2] Ignore SQL include directives inside literals and decode quoted include paths",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/lang/sql/imports.js",
@@ -4914,17 +5597,29 @@
         "indexing/language-registry/config-data-adapters-contract",
         "indexing/language-registry/descriptor-routing-parity"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Retain this owner's remaining focused client-syntax, literal/source-range and actual local-resolution acceptance, including explicit unresolved dynamic directives and no execution/network. A bare string collector should not be upgraded to exact client/config authority without the typed literal/coverage handoffs already owned by #1488/#1662. This follow-through did not execute parsers, clients, tests or an index, so operational closure still requires actual focused receipts.",
         "Test multiline single/dollar-quoted literals, tags, comment delimiters within paths/literals, nested comments where supported, quoted spaces/semicolons, doubled quotes and ordinary include forms. Assert imports/importLinks and actual local-resolution evidence in focused integration coverage.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/sql-xml-source-import-acceptance"
+        ],
+        "note": "SQL/XML consumers preserve dialect-aware segmented identities, source envelopes, root metadata and leading content. SQL quoted include literals resolve exactly; directive-like string content never creates imports.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1501,
       "title": "[P2] Preserve XML root metadata and leading mixed content in indexed chunks",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/shared/xml-structure.js",
@@ -4939,16 +5634,28 @@
         "indexing/chunking/ini-toml",
         "indexing/chunking/json"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Preserve the complete original source, including XML declaration/DOCTYPE text, root attributes/namespaces and mixed text before the first child, while retaining honest lexical child/name/opening ranges. Keep declarations/entities inert, without external resolution. Test empty/self-closing roots, one/multiple children, comments/CDATA, Unicode and mixed content with full-coverage assertions. Verify marker retrieval in focused indexing coverage.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "lang/contracts/sql-xml-source-import-acceptance"
+        ],
+        "note": "SQL/XML consumers preserve dialect-aware segmented identities, source envelopes, root metadata and leading content. SQL quoted include literals resolve exactly; directive-like string content never creates imports.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1502,
       "title": "[P2] Keep YAML top-level chunks inside their original document boundaries",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/chunking/formats/yaml.js",
@@ -4963,20 +5670,32 @@
         "indexing/chunking/smartchunk-yaml",
         "indexing/language-registry/python-prepared-chunks"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "[yaml.test.js]( checks names and documentIndex for mapping → mapping. [The lexical contract]( likewise uses mapping documents. Neither of those cases proves that a middle sequence/scalar/flow document owns its bytes.",
         "The same lexical contract's [flow-map control]( expects the old fallback name root, while current top-level assembly emits document 0. Reconcile the intended public naming contract and assertion; preserve generic default root mode separately rather than loosening all names.",
         "Keep the already-authored mapping → sequence → mapping regression. Add initial/final scalar/flow/empty document controls as needed, asserting body-range/documentIndex ownership against independently known separator positions plus complete contiguous source reconstruction.",
         "Define directive, leading-comment and explicit end-marker ownership. Do not infer validity solely from the number of chunks, and do not assign another document's body to a nearby heading.",
         "Check the normal smartChunk/limit wrapper preserves those source/document distinctions and one indexed text consumer sees the middle-document marker under the correct document identity.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "indexing/chunking/yaml-document-source-ownership"
+        ],
+        "note": "YAML source/document envelopes preserve middle sequence/scalar/flow content, separators and prelude identity through indexed payloads.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1503,
       "title": "[P2] Preserve Starlark function bodies instead of heading-splitting nested calls and strings",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/chunking/dispatch/heuristic-chunkers.js",
@@ -4992,11 +5711,23 @@
         "indexing/chunking/json",
         "indexing/chunking/language-role-sensitive"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Use bounded Starlark-aware lexical/indentation structure to distinguish top-level build calls from function-body statements and string contents. Keep a declaration and its body associated until a real peer boundary; retain explicit parent/range identity if configured chunk limits require splitting a large body. Do not create symbols/headings from multiline string data. Keep true top-level BUILD/MODULE calls and preamble coverage.",
         "Test the examples plus comments, triple-single/double strings, multiline signatures and argument lists, nested if/for body calls, adjacent definitions, Unicode/CRLF, top-level rule-call controls and configured oversized-body splits. Assert exact declaration/body source ownership through dispatch, chunk limits, source-text projection and doc metadata, with stable name/parent contracts and semantic-cache version review.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "indexing/chunking/starlark-body-source-ownership"
+        ],
+        "note": "Starlark lexical/indentation boundaries preserve function bodies and strings, explicit continuations and parent ranges through configured splits.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1541,
@@ -5361,7 +6092,7 @@
       "number": 1563,
       "title": "[P2] Preserve per-page PDF text coverage instead of calling mixed-content extraction complete",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/extractors/pdf.js",
@@ -5385,19 +6116,32 @@
         "embeddings/runner/chunk-text-lookup-map",
         "embeddings/runner/persistent-text-cache-vector-encoding"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Retain total observed PDF page count separately from text-bearing unit count and emitted chunk count. Preserve actual source page numbers for retained units.",
         "Capture bounded per-page extraction evidence: text extracted, no text observed, failed/not attempted and any supported independently observed classification. Distinguish known blank from unknown/image-only only when the extractor actually establishes it.",
         "Derive file/run coverage from that evidence. A successful extraction operation is not a claim that every page's meaningful content was indexed. Keep extraction completion, searchable text coverage and unsupported OCR coverage distinct.",
         "Define explicit permissive versus quality-sensitive treatment of unknown/unsupported/failed pages. Do not silently accept unknown coverage as complete or reject a verified blank page merely to increase a failure count.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "indexing/incremental/document-extraction-receipt",
+          "indexing/extracted-prose/document-extraction-cache-policy-key"
+        ],
+        "note": "Actual PDF page outcomes and extraction receipts preserve searchable coverage/provenance through JSON/MessagePack bundle replay, policy identity and Stage3 publication without claiming unsupported OCR completeness.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1564,
       "title": "[P2] Retain document extraction provenance through incremental bundle replay",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/build/file-processor/pre-cpu-state.js",
@@ -5421,13 +6165,26 @@
         "indexing/incremental/crossfile-bundle-metav2-rewrite",
         "indexing/incremental/crossfile-bundle-patch-write"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Persist one bounded versioned extraction receipt with the same immutable source identity as the bundle, or reference an existing verified receipt from it. Do not invent a second competing extraction cache.",
         "Include source type/bytes hash, extractor identity, normalization/chunker/producer identity, effective extraction policy/fidelity, unit counts and required source-unit mapping. Bind it to the bundle/manifest integrity and decode admission.",
         "Carry it through shard splitting/reassembly, Stage2 replacement, bundle comparison and both JSON/msgpack paths. Missing or mismatched receipts must become a scoped refresh/unqualified provenance outcome, not a fabricated complete receipt copied from unrelated current policy.",
         "Restore fileInfo.extraction before returning a reusable document. Reusing validated text/chunks should not require re-running PDF/Mammoth when its receipt remains compatible.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "indexing/incremental/document-extraction-receipt",
+          "indexing/extracted-prose/document-extraction-cache-policy-key"
+        ],
+        "note": "Actual PDF page outcomes and extraction receipts preserve searchable coverage/provenance through JSON/MessagePack bundle replay, policy identity and Stage3 publication without claiming unsupported OCR completeness.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1565,
@@ -5586,7 +6343,7 @@
       "number": 1571,
       "title": "[P2] Scope offsets validation reuse to verified artifacts instead of process-global path strings",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/shared/artifact-io/loaders/shared.js",
@@ -5601,19 +6358,31 @@
         "perf/indexing/artifacts/file-meta-streaming-reuse",
         "shared/artifact-io/token-postings-packed-offsets-path-traversal"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Remove permanent path-only proof reuse. Reuse must belong to a bounded read/validation invocation with exact contained generation, selected data/sidecar identities, content evidence, and reader lifetime.",
         "Keep later requests independent and invalidate on replacement, removal, corruption, cancellation, changed authority, or incomplete validation. If an immutable generation/lease provides stronger authority, explicitly bind and enforce it rather than infer immutability from the filename.",
         "Bound any retained entries and reader/byte budget, and preserve cancellation and descriptor drain. Do not recover performance by dropping sidecar validation altogether when the artifact contract declares it.",
         "Exercise the actual exported streaming-loader route twice on a tiny JSONL plus offsets fixture. Mutate offsets between calls, including same-size/restored-mtime changes; the second call must reject before claiming that sidecar is qualified.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "shared/artifact-io/offsets-loader-proof-lifetime"
+        ],
+        "note": "Exported artifact row loading detects same-size restored-mtime edits, fresh-call changes and count/truncation mismatches with cancellation/close and empty-pair controls.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1572,
       "title": "[P2] Reject empty offsets sidecars for nonempty JSONL artifacts",
       "priority": "P2",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/shared/artifact-io/offsets.js",
@@ -5627,13 +6396,25 @@
         "indexing/artifacts/symbols/symbol-artifacts-emission",
         "indexing/artifacts/artifact-bak-recovery"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Define the paired-empty invariant: zero offsets is valid only for a zero-byte JSONL payload under this format; a nonempty offset sidecar with an empty payload remains invalid. Reject with the established offsets error type before allocating/reading row buffers.",
         "Keep completeness distinct from boundary validation. If a higher-level manifest declares row count, require its count to reconcile with sidecar cardinality in its existing owner. Do not claim this two-line empty check proves all rows were indexed, nor introduce an unconditional second whole-file scan merely to address it.",
         "Preserve the bounded 64-KiB scratch/window algorithm, trailing-newline rules, typed corruption errors, and opened-descriptor lifetime.",
         "Use four tiny pairs: empty/empty succeeds, nonempty JSONL/empty offsets fails, empty JSONL/nonempty offsets fails, and one valid row/one zero offset succeeds. Include a sidecar truncated to zero after a valid write and ensure the exported low-level validator and verified row-reader validation agree. The generic streaming loader must not reuse earlier path-only success (the separate path-only proof-lifetime issue owns that behavior). Assert independent sequential record count cannot be reported as zero from the invalid pair, preserve cancellation/close assertions, and keep existing positive windowed tests.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "shared/artifact-io/offsets-loader-proof-lifetime"
+        ],
+        "note": "Exported artifact row loading detects same-size restored-mtime edits, fresh-call changes and count/truncation mismatches with cancellation/close and empty-pair controls.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1575,
@@ -8436,7 +9217,7 @@
       "number": 711,
       "title": "[P3] Reuse generation-scoped graph node indexes across graph-reranking queries",
       "priority": "P3",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/retrieval/pipeline/rank-stage.js",
@@ -8451,7 +9232,8 @@
         "retrieval/backend/backend-contract-matrix",
         "retrieval/backend/sqlite-missing-sparse-tables-allow-fallback"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Repeated queries with the same immutable graph object must not rescan every graph node; replacement/new generation must build correct new lookup state.",
         "Define mutation/invalidation explicitly; do not cache by repo path alone or retain all old generations strongly.",
         "Preserve duplicate-ID behavior, absent/malformed nodes, deterministic tie ordering, seeds, truncation and explanation scores.",
@@ -8459,7 +9241,20 @@
         "Include follow-up acceptance: Add operation-count tests: warm degree-only request performs no proximity walk; a high-degree node with width 1 and tiny work budget does not redo an unreported full adjacency sort on each query; replacement generation invalidates lookup state; two differently filtered/configured requests do not mutate shared data.",
         "Include follow-up acceptance: Add one actual rank-stage test asserting graph stats survive when explain=false, plus a bounded proximity test showing score/order compatibility and truthful partiality. Measure cold/warm costs separately before claiming latency gains.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "retrieval/ranking/graph-ranking-preparation",
+          "retrieval/ranking/generation-preparation",
+          "retrieval/ranking/graph-ranking-contract-matrix"
+        ],
+        "note": "Generation-scoped lookup/adjacency reuse eliminates repeated setup and degree-only proximity walks. Operation counts, replacement/isolation, actual rank-stage stats and 216 serial cold/warm samples across three sizes preserve scored output.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 748,
@@ -8494,7 +9289,7 @@
       "number": 772,
       "title": "[P3] Map normalized search tokens back to original excerpt text for highlighting",
       "priority": "P3",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/retrieval/cli/highlight.js",
@@ -8513,19 +9308,31 @@
         "retrieval/filters/search-filter-contract-matrix",
         "retrieval/output/human-search-usability"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Query analysis still normalizes scoring tokens to NFKD; the plan passes those tokens alongside the repaired highlight regex.",
         "The real search renderer passes queryTokens into the bounded source-preview reader. Both direct short/full formatter paths do the same.",
         "Preview tokens and source lines are only lowercased before literal matching. No NFKD source-to-original mapping is applied. The first matching line controls the selected 3/8-line window, and the same predicate controls match markers.",
         "Horizontal clipping and final > query text markers repeat that unmatched representation.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "retrieval/output/source-preview-query-context"
+        ],
+        "note": "Real short/full rendering uses shared normalized spelling for window selection, markers and clipping while preserving complete original graphemes and source bytes.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 798,
       "title": "[P3] Document and type both MCP overload error envelopes for clients",
       "priority": "P3",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "tools/mcp/transport.js",
@@ -8539,19 +9346,32 @@
         "services/mcp/maintenance-cancellation",
         "services/mcp/sdk-close-failure"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Qualify the existing overload statement by transport mode and show both wire envelopes plus the parsed application code.",
         "Provide an accurately typed/documented small client classification example for protocol failures versus failed tool results. Preserve unknown errors and malformed text safely; do not treat every JSON-RPC result as successful tool execution.",
         "Keep SDK-compliant tool-error semantics. Do not force SDK errors into the legacy wire form just to match stale prose.",
         "Document that QUEUE_OVERLOADED is admission rejection, while TOOL_TIMEOUT/cancellation or transport loss are different outcomes and do not by themselves establish that mutating work had no effects. Do not recommend blanket automatic replay of mutating tools.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "integrations/mcp/consumer-error-admission",
+          "integrations/mcp/result-envelope-types"
+        ],
+        "note": "MCP documents both transport envelopes and exposes an actually typechecked discriminated helper for protocol/tool/malformed outcomes, retaining unknown errors without automatic mutating replay.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 865,
       "title": "[P3] Watch record sniff treats configured zero-byte cap as 16 KiB",
       "priority": "P3",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/build/records.js",
@@ -8567,18 +9387,31 @@
         "indexing/watch/edit-to-search",
         "indexing/watch/filter"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Define zero semantics explicitly. If zero disables content sniffing, watch should not open/read a sample and classification should not use incidental scan samples; if zero means default, normalize it consistently before both initial and watch paths. Add configuration and initial/watch parity tests for zero, omitted, and positive caps.",
         "Make sample admission carry both bytes and completeness for the requested prefix. Reuse at most the configured byte prefix when an existing sample is longer; when shorter than the requested prefix and not known EOF, extend through the shared bounded reader rather than treating it as complete. Apply the same UTF-8 boundary/decoder policy in initial and watch paths; the cap is bytes, not JS characters. Retain zero's no-extra-read behavior and path-based overrides. Do not expand the scanner's own budget merely to mask a records-policy mismatch.",
         "Extend the existing capsule with positive caps smaller and larger than the supplied scanner prefix, EOF before cap, a signal exactly outside/inside the limit, multibyte boundary splits and default behavior. Assert both final routing and exact requested/read bytes through named sample adapters. The current positive test feeds a prebuilt string directly to the classifier, so it cannot prove the production sampling handoff. Source-only proof; no project tests executed.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "indexing/records/sniff-sampling-parity",
+          "indexing/records/zero-sniff-parity"
+        ],
+        "note": "Initial and watch record sniffing now share exact bounded byte prefixes, UTF-8 handling and completeness/EOF admission; zero performs no sample read.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 883,
       "title": "[P3] Reject explicit blank historical selectors instead of querying latest",
       "priority": "P3",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/as-of.js",
@@ -8596,7 +9429,8 @@
         "cli/search/readable-help",
         "context-pack/federated-risk-parity"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "build:old -> provided true / strict true",
         "Distinguish absent/null optional inputs from explicitly supplied strings. Reject blank historical selectors with INVALID_REQUEST before selecting the default. Validate parsed values centrally, so equals syntax and programmatic search entry points cannot evade the check. Preserve omitted options and explicit latest.",
         "--as-of=, --snapshot=, and whitespace-only values fail with a clear invalid-selector error and no resolver/current-index read.",
@@ -8604,13 +9438,24 @@
         "Include follow-up acceptance: GET string parsing drops empty and whitespace-only values, including both historical alias groups Thus GET /search?q=needle&asOf=%20%20 loses the selector even though the repaired lower-level normalizer would reject it if preserved.",
         "Include follow-up acceptance: POST/MCP whitespace is not the same as empty: the shared converter forwards a nonempty whitespace string to the lower-level normalizer. Keep this distinction in the regression instead of assuming every surface fails identically.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "services/api/historical-selector-admission"
+        ],
+        "note": "Actual HTTP GET aliases, POST, core and CLI equals-syntax reject explicit blank historical selectors before index admission; omitted/null and explicit latest retain their intended behavior.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 978,
       "title": "[P3] Relative import candidate generation misses `index.*` inside dotted directory names",
       "priority": "P3",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/shared/import-candidates.js",
@@ -8625,16 +9470,28 @@
         "indexing/imports/css-import-registry-replay",
         "indexing/imports/expected-artifacts-index"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Treat a trailing slash as a directory hint before extension detection, and preserve index candidates for dotted directory names in all callers. Add a regression with pkg.v2/index.js.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "indexing/type-inference/import-candidates-parity"
+        ],
+        "note": "The actual initial import engine and cross-file resolver retain directory index candidates for dotted paths with trailing slashes, alongside exact non-directory controls.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1009,
       "title": "[P3] Lifecycle duration helper treats null timestamp sentinels as epoch zero",
       "priority": "P3",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/build/indexer/steps/process-files/watchdog.js",
@@ -8648,10 +9505,22 @@
         "indexing/ordering/ordered-completion-tracker",
         "indexing/postings/queue-contract-matrix"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Verify resolution of the reported Lifecycle duration helper treats null timestamp sentinels as epoch zero contract, including the original reproduction and healthy controls.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "indexing/stage1/process-files-zero-modality-elision"
+        ],
+        "note": "Stage1 treats absent/invalid lifecycle timestamps explicitly and releases the real external abort listener even for empty modalities; valid epoch-zero and late-abort controls pass.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1010,
@@ -8688,7 +9557,7 @@
       "number": 1016,
       "title": "[P3] NUMA worker assignment telemetry stays empty when crash logging is disabled",
       "priority": "P3",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/build/workers/pool/worker-coordination.js",
@@ -8702,16 +9571,28 @@
         "indexing/workers/worker-telemetry-retirement",
         "indexing/runtime/worker-pool-default-concurrency"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Cover disabled-crash-logger worker creation and exit.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "indexing/workers/numa-without-crash-logging"
+        ],
+        "note": "Actual interleaved NUMA worker assignment/exit telemetry survives null or disabled crash logging and disabled pinning.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1020,
       "title": "[P3] Embeddings cache index loses reserved entry keys and file paths",
       "priority": "P3",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "tools/build/embeddings/cache/index-state.js"
@@ -8724,10 +9605,22 @@
         "indexing/embeddings/file-reference-cache-roundtrip-and-prune",
         "embeddings/cache/batched-physical-storage"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Use null-prototype dictionaries/Map or safe own-property access and assignment for dynamic cache keys and file paths; cover both merge and file-map generation. Pure ESM probe only; full runner not invoked under unsupported local Node 26.8.1/unverified bootstrap.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "embeddings/cache/dynamic-file-key-index"
+        ],
+        "note": "Reserved own cache keys and file paths survive index merging without prototype mutation or loss of hashes/files.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1021,
@@ -8915,7 +9808,7 @@
       "number": 1076,
       "title": "[P3] Empty Stage1 modality leaves external abort listener attached",
       "priority": "P3",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/build/indexer/steps/process-files.js"
@@ -8928,31 +9821,55 @@
         "indexing/stage1/process-files-cleanup-timeout",
         "indexing/stage1/process-files-inflight-drain"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Add a focused fixture using an instrumented signal and empty entries/chunks to assert listener count returns to baseline.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "indexing/stage1/process-files-zero-modality-elision"
+        ],
+        "note": "Stage1 treats absent/invalid lifecycle timestamps explicitly and releases the real external abort listener even for empty modalities; valid epoch-zero and late-abort controls pass.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1101,
       "title": "[P3] `index stats` totalBytes omits file metadata and several artifact families",
       "priority": "P3",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "tools/index/stats.js"
       ],
       "testIds": [],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Add a fixture with file_meta and an uncategorized piece and assert totals match manifest bytes without double-counting. ## Audit provenance Current source HEAD 9a2380368131c3bca35d1a05b46e9e7f90f9467d; source proof.",
         "Bind the original reproduction and healthy/invalid controls to the existing test owner, or add the missing regression, then retain an executable acceptance receipt."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "tooling/index-stats/all-manifest-byte-accounting"
+        ],
+        "note": "Actual index-stats CLI counts file metadata and uncategorized manifest pieces exactly once, preserving unknown-byte totals.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1376,
       "title": "[P3] Preserve opaque IDs when resolving connected-entity highlights",
       "priority": "P3",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/map/isometric/client/selection.js"
@@ -8965,16 +9882,28 @@
         "map/residency-reveal-failure-state",
         "map/scene-retirement-failure-ownership"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Use typed identity records, or split only the known type prefix and preserve the entire opaque remainder. Share the identity parser with endpoint/selection owners rather than scattering colon assumptions. Test canonical symbol and chunk IDs, multiple colons, colon-bearing file names, Unicode, numeric-zero IDs, file/member disambiguation, selection reset and rebatching. Assert the actual target instance is tinted and restored, not merely that a callback ran.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "map/connected-highlight-opaque-ids"
+        ],
+        "note": "Actual instance tint/restoration preserves opaque chunk/symbol/file IDs, Unicode, colons and numeric zero with file/member disambiguation, reset and rebatching.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1464,
       "title": "[P3] Preserve lexicon filter statistics across Stage2 bundle replacement",
       "priority": "P3",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/build/incremental/writeback.js",
@@ -8992,19 +9921,31 @@
         "integrations/triage/records-bundle-reuse-policy",
         "storage/sqlite/bundle-shard-splitting"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Carry forward the existing, source/dependency-qualified lexicon filter stats when Stage2 changes chunks/relations; do not regenerate the counts from already-filtered relations.",
         "Add a tiny real JSON/MessagePack roundtrip: Stage1 stats -> changed-relations Stage2 writeback -> successful ordinary cache hit -> equal per-file report and totals.",
         "Include unchanged-write control, zero-drop stats, absent stats, sharded bundles, and completion fallback; stale-source/dependency rules must remain intact.",
         "Execute focused acceptance on the current pinned Node/bootstrap without retries or relaxed test budgets.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "indexing/incremental/lexicon-filter-stats-roundtrip"
+        ],
+        "note": "Actual JSON/MessagePack Stage2 replacement and ordinary cache hits retain qualified lexicon statistics across shards, zero/absent stats, completion and unchanged writes; stale source/policy is rejected.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1465,
       "title": "[P3] Keep bundle patches equivalent to the payload used for their checksum",
       "priority": "P3",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/shared/bundle-io.js",
@@ -9021,19 +9962,31 @@
         "indexing/incremental/bundle-mapping-reasons",
         "indexing/incremental/crossfile-bundle-metav2-rewrite"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Use base={file:'a.js',hash:'v1',chunks:[{text:'one'}]}.",
         "Define patch equality and operations in terms of the exact persisted JSON representation. Represent property removal distinctly, or return a documented full-rewrite fallback before mutating any artifacts.",
         "Cover all supported bundle fields or explicitly decline non-representable changes. Do not publish a nextBundle checksum for a different reconstructed payload.",
         "Add real writeBundleFile -> writeBundlePatch -> readBundleFile tests for every case above, plus null-to-missing, undefined omission, fields-only changes, unchanged input, typed arrays and sequential patches.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "shared/io/bundle-patch-persisted-equivalence"
+        ],
+        "note": "Persisted bundle patch/full-write parity covers all fields, removal/null/undefined, typed arrays and sequential patches; unsupported shapes refuse before mutation instead of throwing prematurely.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1566,
       "title": "[P3] Preserve strict artifact failures in streaming context-pack seed resolution",
       "priority": "P3",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/context-pack/seed-resolution.js",
@@ -9050,19 +10003,32 @@
         "context-pack/risk-strict-status",
         "context-pack/strict-evidence-parity"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Keep a valid readable chunk_uid_map, request an unknown chunk UID. This is a legitimate no-match outcome.",
         "Keep the manifest entry, remove its declared map part. Request a known UID. The low-level reader has ERR_ARTIFACT_PARTS_MISSING; today the helper erases it and assembly reports a seed miss.",
         "Keep the declared file but make its content invalid for its format. The actual reader failure must not become the same successful partial payload as case 1.",
         "Optionally use a valid early row followed by a failing later part. The helper must not publish a misleading complete or “zero rows because no seed exists” result.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "retrieval/graph/context-pack-streaming-artifact-failures",
+          "context-pack/strict-evidence-parity"
+        ],
+        "note": "Actual context-pack resolution distinguishes a valid unknown UID from declared missing/corrupt map parts and later-shard failures, preserving strict errors and permissive outcomes.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1585,
       "title": "[P3] Apply count-aware ANN deadlines to provider preflight and stop expired dispatch",
       "priority": "P3",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/retrieval/pipeline/ann-stage.js",
@@ -9077,7 +10043,8 @@
         "retrieval/providers/provider-runtime-contract-matrix",
         "cli/search/symbol-boost"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Give the count-work owner an explicit lifecycle admission/remaining-deadline operation covering preflight and query, rather than creating the only timeout after preflight has already completed.",
         "Share the request's remaining budget; do not start a fresh maxMs timer per provider/phase.",
         "Stop dispatching additional providers once a terminal work/deadline limit is reached.",
@@ -9085,7 +10052,19 @@
         "Preserve the existing rule that pending original provider work must settle or remain explicitly owned before fallback/resource release. Do not fix this with a naked Promise.race that abandons a live preflight.",
         "Explain any deliberately out-of-scope setup phase separately in the receipt/API contract instead of presenting its time as bounded by the count-aware deadline.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "retrieval/pipeline/count-aware-preflight-deadline",
+          "retrieval/pipeline/provider-resource-fallback"
+        ],
+        "note": "Actual ANN pipeline shares one remaining deadline across preflight/query, stops expired provider dispatch, separates timeout/cancellation/health and retains original outstanding work.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1725,
@@ -9185,7 +10164,7 @@
       "number": 1735,
       "title": "[P3] Preserve incremental manifests when filesystem observation fails instead of quarantining valid state",
       "priority": "P3",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/index/build/incremental/planning.js",
@@ -9200,19 +10179,31 @@
         "indexing/incremental/bundle-checksum-schema-cutover",
         "indexing/incremental/bundle-mapping-reasons"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Separate known absence, proven malformed/integrity-invalid content, unsupported format/capacity, and operational/cancellation/ownership failure.",
         "Preserve the original manifest and propagate operational failures with useful context. Do not automatically rename valid-but-unreadable state or continue as if a fresh cache were established.",
         "Quarantine only on an explicit content-corruption classification after a successful authorized read. A broad TypeError/generic-exception catch is not enough to prove on-disk corruption.",
         "Prefer one clear error policy for this incremental-manifest owner rather than adding an expanding list of special errno exceptions. Shared pathExists callers have different contracts; changing it globally requires checking them, or use a manifest-specific observation helper.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "indexing/incremental/manifest-observation-preservation"
+        ],
+        "note": "Operational/cancellation/ownership and unsupported-manifest failures preserve original state; only proven content corruption permits quarantine.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1743,
       "title": "[P3] Stop JSONL shard admission and settle active readers after materialization failure",
       "priority": "P3",
-      "status": "qualification-required",
+      "status": "qualified-closed",
       "initialDisposition": "qualification_pending",
       "sourcePaths": [
         "src/shared/artifact-io/json/read-jsonl-array.js",
@@ -9228,13 +10219,25 @@
         "graph/store-admission-settlement",
         "indexing/artifacts/chunk-meta-jsonl-cleanup"
       ],
-      "remaining": [
+      "remaining": [],
+      "originalRequirements": [
         "Use four sources A/B/C/D and concurrency 2. A fails parsing after both A and B have started; hold B at a controlled async read barrier.",
         "Establish one operation-local terminal admission state. Record the original failure before rethrowing, and check the same state before each next shard claim. Never continue claiming the rest of an invalid artifact after a terminal read/parse failure.",
         "Keep ownership of every already-started iterator until it settles. Prefer rejecting the materialization only after active reads/cleanup drain. If fail-fast outward semantics are deliberately required, expose and retain an explicit drain/ownership capability so callers cannot mistake rejection for quiescence.",
         "Optionally pass one operation-owned cooperative AbortSignal through the existing iterator signal support to stop already-started reads, without aborting unrelated/shared work. Preserve the primary parse/I/O error and independently retain secondary decoder/close failures using the existing failure-context utilities.",
         "Pass the related existing checks and the complete original/follow-up acceptance on the resulting candidate; preserve positive and negative controls."
-      ]
+      ],
+      "closeout": {
+        "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+        "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db",
+        "tests": [
+          "shared/artifact-io/jsonl-shard-failure-drain"
+        ],
+        "note": "JSONL materialization stops new shard admission after the primary parse/I/O failure and drains already-owned readers, retaining secondary close errors.",
+        "state": "closed",
+        "state_reason": "completed",
+        "readback": true
+      }
     },
     {
       "number": 1744,
@@ -16320,6 +17323,614 @@
       "state": "closed",
       "state_reason": "completed",
       "readback": true
+    },
+    {
+      "number": 711,
+      "note": "Generation-scoped lookup/adjacency reuse eliminates repeated setup and degree-only proximity walks. Operation counts, replacement/isolation, actual rank-stage stats and 216 serial cold/warm samples across three sizes preserve scored output.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 740,
+      "note": "Native grammar declarations retain correct kinds, names, signatures and source ownership through registered builders, limits, UID and payload consumers.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 772,
+      "note": "Real short/full rendering uses shared normalized spelling for window selection, markers and clipping while preserving complete original graphemes and source bytes.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 798,
+      "note": "MCP documents both transport envelopes and exposes an actually typechecked discriminated helper for protocol/tool/malformed outcomes, retaining unknown errors without automatic mutating replay.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 865,
+      "note": "Initial and watch record sniffing now share exact bounded byte prefixes, UTF-8 handling and completeness/EOF admission; zero performs no sample read.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 883,
+      "note": "Actual HTTP GET aliases, POST, core and CLI equals-syntax reject explicit blank historical selectors before index admission; omitted/null and explicit latest retain their intended behavior.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 893,
+      "note": "Actual packed writer/loader reads consecutive large lists across windows and short reads without whole-file fallback; byte limits, varints, checksums and descriptor ownership remain covered.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 978,
+      "note": "The actual initial import engine and cross-file resolver retain directory index candidates for dotted paths with trailing slashes, alongside exact non-directory controls.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 989,
+      "note": "Actual chunk metadata distinguishes standard-library imports from package documentation links while preserving real packages.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 990,
+      "note": "Omitted relation limits preserve signals while explicit zero drops them; every relation and file-usage consumer is covered.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1009,
+      "note": "Stage1 treats absent/invalid lifecycle timestamps explicitly and releases the real external abort listener even for empty modalities; valid epoch-zero and late-abort controls pass.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1016,
+      "note": "Actual interleaved NUMA worker assignment/exit telemetry survives null or disabled crash logging and disabled pinning.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1020,
+      "note": "Reserved own cache keys and file paths survive index merging without prototype mutation or loss of hashes/files.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1030,
+      "note": "Actual docs-search JSON processing retains page-level metadata and rejects nested-key impostors on the fast path.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1053,
+      "note": "Heading/template prefixes retain their own source ownership through dispatch, configured limits and indexed payloads.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1076,
+      "note": "Stage1 treats absent/invalid lifecycle timestamps explicitly and releases the real external abort listener even for empty modalities; valid epoch-zero and late-abort controls pass.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1099,
+      "note": "Full validator and stats verification derive historical requirements from validated persisted capabilities; current configuration drift requests rebuild, while contradictory/invalid/same-run producer identities fail.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1101,
+      "note": "Actual index-stats CLI counts file metadata and uncategorized manifest pieces exactly once, preserving unknown-byte totals.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1110,
+      "note": "Actual full validation rejects same-size packed metadata tampering and malformed/unsupported checksums while preserving strict packed admission.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1112,
+      "note": "Promotion rechecks generation inventory and contained content against validation. Stale receipts, altered same-size bytes, missing pieces and invalid status fail without changing current; legitimate native/Stage3 updates explicitly requalify.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1118,
+      "note": "Promotion rechecks generation inventory and contained content against validation. Stale receipts, altered same-size bytes, missing pieces and invalid status fail without changing current; legitimate native/Stage3 updates explicitly requalify.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1351,
+      "note": "GraphStore and prepared graph admission preserve invalid manifest/metadata/declared-shard failures, while absent optional and empty valid artifacts remain legitimate.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1376,
+      "note": "Actual instance tint/restoration preserves opaque chunk/symbol/file IDs, Unicode, colons and numeric zero with file/member disambiguation, reset and rebatching.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1437,
+      "note": "Native grammar declarations retain correct kinds, names, signatures and source ownership through registered builders, limits, UID and payload consumers.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1456,
+      "note": "Native grammar declarations retain correct kinds, names, signatures and source ownership through registered builders, limits, UID and payload consumers.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1457,
+      "note": "Native grammar declarations retain correct kinds, names, signatures and source ownership through registered builders, limits, UID and payload consumers.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1458,
+      "note": "Native grammar declarations retain correct kinds, names, signatures and source ownership through registered builders, limits, UID and payload consumers.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1459,
+      "note": "Actual native C/Objective-C/C++ parsing preserves declarator/selector/qualified identities and complete declaration envelopes without emitting tagged uses as declarations.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1460,
+      "note": "Actual native C/Objective-C/C++ parsing preserves declarator/selector/qualified identities and complete declaration envelopes without emitting tagged uses as declarations.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1461,
+      "note": "Actual native C/Objective-C/C++ parsing preserves declarator/selector/qualified identities and complete declaration envelopes without emitting tagged uses as declarations.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1462,
+      "note": "Actual parse5 template contents and embedded chunks retain host source offsets, line numbers, limits, UID and indexed text.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1463,
+      "note": "Actual parse5 template contents and embedded chunks retain host source offsets, line numbers, limits, UID and indexed text.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1464,
+      "note": "Actual JSON/MessagePack Stage2 replacement and ordinary cache hits retain qualified lexicon statistics across shards, zero/absent stats, completion and unchanged writes; stale source/policy is rejected.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1465,
+      "note": "Persisted bundle patch/full-write parity covers all fields, removal/null/undefined, typed arrays and sequential patches; unsupported shapes refuse before mutation instead of throwing prematurely.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1466,
+      "note": "SQLite schema17 binds finalized bundle inventory/dependencies. Actual cross-file enrichment and 24-file database parity distinguish true no-op from three metadata-only updates; rollback and old-version rejection pass.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1467,
+      "note": "Actual native Rust/Java and wrapper controls preserve declaration ownership, lexical scopes and source prefixes through registered builders and indexed consumers.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1468,
+      "note": "Actual native Rust/Java and wrapper controls preserve declaration ownership, lexical scopes and source prefixes through registered builders and indexed consumers.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1470,
+      "note": "Actual native Rust/Java and wrapper controls preserve declaration ownership, lexical scopes and source prefixes through registered builders and indexed consumers.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1472,
+      "note": "Actual native Rust/Java and wrapper controls preserve declaration ownership, lexical scopes and source prefixes through registered builders and indexed consumers.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1473,
+      "note": "Actual native C/Objective-C/C++ parsing preserves declarator/selector/qualified identities and complete declaration envelopes without emitting tagged uses as declarations.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1474,
+      "note": "Actual native prototypes and C-family registry adapters preserve declaration/doc metadata through normal chunk consumers; declaration names do not fabricate call evidence.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1475,
+      "note": "Actual native prototypes and C-family registry adapters preserve declaration/doc metadata through normal chunk consumers; declaration names do not fabricate call evidence.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1476,
+      "note": "Lua assignment functions retain complete local/assignment identities and grammar-based signatures; real recursion stays while declaration headers stay out of calls, with unsupported forms explicit.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1477,
+      "note": "Lua assignment functions retain complete local/assignment identities and grammar-based signatures; real recursion stays while declaration headers stay out of calls, with unsupported forms explicit.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1478,
+      "note": "Real native callable/import consumers preserve Bash lexical command/path roles, Ruby singleton/default-call ownership and PHP enum/parameter metadata. Malformed/unsupported syntax stays partial; PHP reserved parameter keys survive real serialized replay.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1479,
+      "note": "Real native callable/import consumers preserve Bash lexical command/path roles, Ruby singleton/default-call ownership and PHP enum/parameter metadata. Malformed/unsupported syntax stays partial; PHP reserved parameter keys survive real serialized replay.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1480,
+      "note": "Real native callable/import consumers preserve Bash lexical command/path roles, Ruby singleton/default-call ownership and PHP enum/parameter metadata. Malformed/unsupported syntax stays partial; PHP reserved parameter keys survive real serialized replay.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1481,
+      "note": "Real native callable/import consumers preserve Bash lexical command/path roles, Ruby singleton/default-call ownership and PHP enum/parameter metadata. Malformed/unsupported syntax stays partial; PHP reserved parameter keys survive real serialized replay.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1482,
+      "note": "Real native callable/import consumers preserve Bash lexical command/path roles, Ruby singleton/default-call ownership and PHP enum/parameter metadata. Malformed/unsupported syntax stays partial; PHP reserved parameter keys survive real serialized replay.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1483,
+      "note": "Real native callable/import consumers preserve Bash lexical command/path roles, Ruby singleton/default-call ownership and PHP enum/parameter metadata. Malformed/unsupported syntax stays partial; PHP reserved parameter keys survive real serialized replay.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1485,
+      "note": "Actual config/template/build consumers preserve complete literal identities, Unicode and lexical argument roles, rejecting dynamic/comment/recipe impostors through real resolution.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1486,
+      "note": "Native Scala/R metadata retains grammar-owned declarations, assignment identities, signatures and docs through shared adapters, UID and indexed payloads.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1487,
+      "note": "Native Scala/R metadata retains grammar-owned declarations, assignment identities, signatures and docs through shared adapters, UID and indexed payloads.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1488,
+      "note": "Actual config/template/build consumers preserve complete literal identities, Unicode and lexical argument roles, rejecting dynamic/comment/recipe impostors through real resolution.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1489,
+      "note": "CSS scope containers and quoted selector spelling survive native and registry paths with exact source ownership and consumer payloads.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1490,
+      "note": "CSS scope containers and quoted selector spelling survive native and registry paths with exact source ownership and consumer payloads.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1491,
+      "note": "Actual config/template/build consumers preserve complete literal identities, Unicode and lexical argument roles, rejecting dynamic/comment/recipe impostors through real resolution.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1492,
+      "note": "Actual config/template/build consumers preserve complete literal identities, Unicode and lexical argument roles, rejecting dynamic/comment/recipe impostors through real resolution.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1493,
+      "note": "Actual config/template/build consumers preserve complete literal identities, Unicode and lexical argument roles, rejecting dynamic/comment/recipe impostors through real resolution.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1494,
+      "note": "Actual config/template/build consumers preserve complete literal identities, Unicode and lexical argument roles, rejecting dynamic/comment/recipe impostors through real resolution.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1495,
+      "note": "Native Scala/R metadata retains grammar-owned declarations, assignment identities, signatures and docs through shared adapters, UID and indexed payloads.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1496,
+      "note": "Native Scala/R metadata retains grammar-owned declarations, assignment identities, signatures and docs through shared adapters, UID and indexed payloads.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1498,
+      "note": "SQL/XML consumers preserve dialect-aware segmented identities, source envelopes, root metadata and leading content. SQL quoted include literals resolve exactly; directive-like string content never creates imports.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1499,
+      "note": "SQL/XML consumers preserve dialect-aware segmented identities, source envelopes, root metadata and leading content. SQL quoted include literals resolve exactly; directive-like string content never creates imports.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1500,
+      "note": "SQL/XML consumers preserve dialect-aware segmented identities, source envelopes, root metadata and leading content. SQL quoted include literals resolve exactly; directive-like string content never creates imports.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1501,
+      "note": "SQL/XML consumers preserve dialect-aware segmented identities, source envelopes, root metadata and leading content. SQL quoted include literals resolve exactly; directive-like string content never creates imports.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1502,
+      "note": "YAML source/document envelopes preserve middle sequence/scalar/flow content, separators and prelude identity through indexed payloads.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1503,
+      "note": "Starlark lexical/indentation boundaries preserve function bodies and strings, explicit continuations and parent ranges through configured splits.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1563,
+      "note": "Actual PDF page outcomes and extraction receipts preserve searchable coverage/provenance through JSON/MessagePack bundle replay, policy identity and Stage3 publication without claiming unsupported OCR completeness.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1564,
+      "note": "Actual PDF page outcomes and extraction receipts preserve searchable coverage/provenance through JSON/MessagePack bundle replay, policy identity and Stage3 publication without claiming unsupported OCR completeness.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1566,
+      "note": "Actual context-pack resolution distinguishes a valid unknown UID from declared missing/corrupt map parts and later-shard failures, preserving strict errors and permissive outcomes.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1571,
+      "note": "Exported artifact row loading detects same-size restored-mtime edits, fresh-call changes and count/truncation mismatches with cancellation/close and empty-pair controls.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1572,
+      "note": "Exported artifact row loading detects same-size restored-mtime edits, fresh-call changes and count/truncation mismatches with cancellation/close and empty-pair controls.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1585,
+      "note": "Actual ANN pipeline shares one remaining deadline across preflight/query, stops expired provider dispatch, separates timeout/cancellation/health and retains original outstanding work.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1735,
+      "note": "Operational/cancellation/ownership and unsupported-manifest failures preserve original state; only proven content corruption permits quarantine.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
+    },
+    {
+      "number": 1743,
+      "note": "JSONL materialization stops new shard admission after the primary parse/I/O failure and drains already-owned readers, retaining secondary close errors.",
+      "head": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+      "state": "closed",
+      "state_reason": "completed",
+      "readback": true
     }
   ],
   "serialRepairBatch": {
@@ -18549,7 +20160,7 @@
   },
   "integrationRepairBatch": {
     "base": "f6dc7863475e4ea8a7f63ceec51b8ade30005d64",
-    "status": "qualified-implementation-awaiting-publication",
+    "status": "published-qualified",
     "scope": "Windows x64, Node 26.13.0 ABI147; two persistent agents plus parent in shared checkout",
     "observations": [
       {
@@ -35875,7 +37486,20 @@
         "sourceHead": "66e340c0c7f71ef81b61e63f87fb38ce0499a4db"
       }
     },
-    "qualifiedIssueCandidates": [
+    "remainingInWave": [
+      {
+        "number": 748,
+        "remaining": "Count/index retained bytes, first-use/reverse-CSR and repeated cache-miss resource campaign; bounded preparation fix and parity controls pass."
+      },
+      {
+        "number": 1484,
+        "remaining": {
+          "1484": "Expanded representative cold/warm/incremental performance and resumable quota/cancellation matrix unqualified. Semantics, ownership, >96 calls, spill and frontier controls passed."
+        }
+      }
+    ],
+    "publishedHead": "dab0468e3d5882d534c02656e019e5a99bf5ed58",
+    "qualifiedIssueCloseouts": [
       711,
       740,
       772,
@@ -35953,17 +37577,12 @@
       1735,
       1743
     ],
-    "remainingInWave": [
-      {
-        "number": 748,
-        "remaining": "Count/index retained bytes, first-use/reverse-CSR and repeated cache-miss resource campaign; bounded preparation fix and parity controls pass."
-      },
-      {
-        "number": 1484,
-        "remaining": {
-          "1484": "Expanded representative cold/warm/incremental performance and resumable quota/cancellation matrix unqualified. Semantics, ownership, >96 calls, spill and frontier controls passed."
-        }
-      }
-    ]
+    "programTotals": {
+      "closed": 205,
+      "open": 565,
+      "qualificationPending": 326,
+      "partial": 150,
+      "unresolved": 89
+    }
   }
 }
