@@ -9,8 +9,9 @@ import time
 binary, directory, mode = sys.argv[1:]
 directory = pathlib.Path(directory)
 before = termios.tcgetattr(0)
-if mode == 'validate-search':
-    # Match the Windows observer: setup may overlap, but the actual native
+if mode in ('validate-published', 'search-published'):
+    # The two ordered published-read capsules share the Windows observer rule:
+    # setup may overlap, but the actual native
     # lifetime starts only after the canonical seed owner completes.
     seed_deadline = time.monotonic() + 20
     while not (directory / 'seed-complete-build.json').is_file():

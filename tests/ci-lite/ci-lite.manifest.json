@@ -9,8 +9,8 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1369,
-    "matrix": 108,
+    "hero": 1395,
+    "matrix": 109,
     "meta": 49,
     "soak": 1,
     "heavy-runtime": 0
@@ -9175,6 +9175,168 @@
     {
       "id": "storage/sqlite/incremental/finalized-metadata-reuse",
       "order": 1527,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/pipeline/production-claim-settlement",
+      "order": 1528,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/provider-output-route-admission",
+      "order": 1529,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/artifacts/cleanup-removal-failure-receipts",
+      "order": 1530,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/artifacts/stage-directory-bounded-ownership",
+      "order": 1531,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/inactive-stage2-production",
+      "order": 1532,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/manifest-binary-path-consumers",
+      "order": 1533,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/mixed-representation-dense-channels",
+      "order": 1534,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/text-cache-turnover-measurements/float16",
+      "order": 1535,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/embeddings/text-cache-turnover-measurements/float32",
+      "order": 1536,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/risk/rules/external-policy-replay-consumer",
+      "order": 1537,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/segments/markdown-extension-parity",
+      "order": 1538,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/runtime-claim-citation-closure",
+      "order": 1539,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/semantic/wasm-flow-construction-scaling",
+      "order": 1540,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/validate/nonstrict-declared-json",
+      "order": 1541,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/mcp/domain-handler-transports",
+      "order": 1542,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/ann/strict-dense-artifact-admission",
+      "order": 1543,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/pipeline/provider-latency-observations",
+      "order": 1544,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/artifact-io/binary-row-admission-consumers",
+      "order": 1545,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-source-reference-authority/cli-generation-pin",
+      "order": 1546,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-source-reference-authority/projection-order-forward",
+      "order": 1547,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-source-reference-authority/projection-order-reverse",
+      "order": 1548,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/semantic/runtime-source-reference-authority/source-authority",
+      "order": 1549,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/index-stats/writer-shard-and-required-payloads",
+      "order": 1550,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/index/selected-mode-consumer-matrix",
+      "order": 1551,
+      "suiteCategory": "matrix",
+      "suiteCategoryReason": "matrix-filename"
+    },
+    {
+      "id": "tooling/lsp/boxed-type-identity-consumer",
+      "order": 1552,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/lsp/inlay-role-consumer",
+      "order": 1553,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/reports/selected-scope-health-integrity",
+      "order": 1554,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }

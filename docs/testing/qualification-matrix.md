@@ -15,6 +15,16 @@ observer uses the existing direct native-call method; both original Windows
 TUI workflows pass locally with unchanged 18/26/30-second bounds. Hosted acceptance
 of those repairs and the remaining issue qualifications are still pending.
 
+The next consumer batch adds strict dense checksum admission, generation-scoped
+status/repair targets, provider tensor settlement, runtime citation closure and
+source/import fidelity controls. Opened-byte reparse checks use injected file-kind
+boundaries plus real mutation/cancellation handles in ordinary CI; they do not
+qualify physical OS symlinks. Actual browser render-exception and fallback-page-error
+cases pass in 27.77/25.36 seconds including cleanup. The original mixed-generation
+Stage4 wrapper still exceeds 30 seconds and #1380 remains open. Hosted macOS TUI
+logs identify a stale seed-wait case guard; its repair awaits hosted execution.
+See the current [source-bound receipt](../archived/p2-p3-closeout-2026-10-29.md).
+
 The [Git admission repair](../archived/windows-git-admission-deadlock-2026-10-29.md)
 reproduces the Windows sample-index stall under four CPUs/16 GB: queued Git work
 retained compute needed by earlier commands. Queue admission now suspends CPU
@@ -351,7 +361,7 @@ source changes, helper-only controls or smaller displayed pages.
 | Directed graph traversal | `graph/directed-traversal`, CSR/store/witness fixtures | In/out/both preserve recorded call/usage/import endpoints and real call-site IDs, including reciprocals, self-loops and mixed symbol witnesses. Node order records the walk; JSON/Markdown edges retain source direction. |
 | CSR risk guidance | `context-pack/risk-guidance-csr`, risk assembly and suggest-tests contracts | Normal persisted-CSR preparation preserves direct callers and graph-only test witnesses/fidelity/caps across CLI/API/MCP, without duplicating adjacency into stripped metadata. Supported partial indexes retain raw-graph fallback. |
 | Semantic response omission | `graph/context-pack-response-budget`, real attachment helper and semantic seed discovery | Partial/unavailable sections validate before budgeting; omission reconciles inclusion/state/warnings, preserves primary evidence and remains incomplete. Stale inclusion, missing metadata, wrong state and false completeness fail the contract. |
-| Contributor gate | `.github/workflows/ci.yml`: Ubuntu front gate, then `ci-lite` on Ubuntu, Windows and macOS; Node 26.12.1 | Selected portable behavior and required native bootstrap activation. It is not every discovered test. |
+| Contributor gate | `.github/workflows/ci.yml`: Ubuntu front gate, then `ci-lite` on Ubuntu, Windows and macOS; Node 26.13.0 | Selected portable behavior and required native bootstrap activation. It is not every discovered test. |
 | Portable API contracts | Explicit serial eight-case CI cohort: router, core, repo authorization, streaming success/failure, search matrix, federated validation and filter-only enumeration; nightly selects every discovered API case | The invocation-plan test resolves exact IDs and requires every ordered API fixture to have an owner. Each case uses one job/thread, 30 seconds, zero retries/native redo. New-candidate hosted execution remains pending. |
 | Serial runtime budgets | TOML/Jinja corpora under real 30 ms parser limits; summary code/prose/SQLite assertions with a 20-second build bound; real one-CPU/memory-token compiler admission, measurements and publication under its unchanged 20-second controller | Execute separately from concurrent correctness lanes. Every serial case has one exact broad-lane exclusion and replacement owner, with a 30-second outer limit and zero retries. Raw samples, prior hosted cancellation and source identity remain distinct; no limit is raised. |
 | Windows authority | windows-authority job: exact PR head, real file-symlink capability probe, explicit 49-case inventory, one job, 30-second limits, zero retries/native redo | Strict Windows path/link authority and artifact-boundary qualification, including preflight/map directory aliases and native search/artifact actions. Alias checks supplement file-symlink authority. At 208395791 the local real file-link probe gets EPERM before execution, so this cohort remains blocked. A configured job, Linux file links or the older hosted 47-case pass does not qualify the two added authority owners. |
