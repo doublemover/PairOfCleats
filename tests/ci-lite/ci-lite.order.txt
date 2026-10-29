@@ -1163,6 +1163,15 @@ tooling/api-contracts/export-identity-cli/js-report
 tooling/api-contracts/export-identity-cli/ts-report
 tooling/api-contracts/export-identity-cli/js-fail
 tooling/api-contracts/export-identity-cli/ts-fail
+tooling/api-contracts/export-identity-cli/js-default-anonymous
+tooling/api-contracts/export-identity-cli/js-default-arrow
+tooling/api-contracts/export-identity-cli/js-default-class
+tooling/api-contracts/export-identity-cli/ts-default-anonymous
+tooling/api-contracts/export-identity-cli/ts-default-arrow
+tooling/api-contracts/export-identity-cli/ts-default-class
+shared/storage/write-admission-settlement-contention
+shared/storage/write-admission-retains-pending
+shared/storage/write-admission-inventory-resource
 ci/native-inspection-workflow
 shared/contained-file-pinned-identity
 shared/io/atomic-exclusive-write

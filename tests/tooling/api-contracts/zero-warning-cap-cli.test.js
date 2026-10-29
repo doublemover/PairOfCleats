@@ -4,7 +4,8 @@ import path from 'node:path';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { applyTestEnv } from '../../helpers/test-env.js';
 import { initGitRepo } from '../../helpers/git-fixture.js';
-import { buildIndex } from '../../../src/integrations/core/index.js';
+import { buildIndex } from '../../../src/integrations/core/build-index/index.js';
+import { createFastIndexingTestConfig } from '../../helpers/fast-indexing-config.js';
 import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 import { validateApiContracts } from '../../../src/contracts/validators/analysis.js';
 
@@ -17,14 +18,13 @@ await fs.writeFile(path.join(repo, 'input.js'), `function doThing(a,b) { return 
 export function run() { return doThing(${selected === 'clean' ? '1,2' : '1'}); }
 `);
 // The fixture is a closed source project. Parent checkout ambient @types and
-// browser libraries are not inputs to these ECMAScript callable assertions.
-await fs.writeFile(path.join(repo, 'tsconfig.json'), JSON.stringify({ compilerOptions: { types: [], lib: ['es2022'] } }));
-// Exact API target joins require the existing cross-file resolver even when
-// value/type inference and risk analysis are outside this fixture.
+// browser/standard libraries are not inputs to these local callable assertions.
+await fs.writeFile(path.join(repo, 'tsconfig.json'), JSON.stringify({ compilerOptions: { types: [], noLib: true } }));
+// Exact API target joins use the semantic compiler's eager binding owner.
 const env = applyTestEnv({ cacheRoot: path.join(dir, 'cache'), embeddings: 'stub',
-  testConfig: { threads: 1, indexing: { semantic: { enabled: true }, embeddings: { enabled: false },
-    typeInference: false, typeInferenceCrossFile: true, riskAnalysis: false, riskAnalysisCrossFile: false },
-  tooling: { autoEnableOnDetect: false, lsp: { enabled: false } } },
+  testConfig: createFastIndexingTestConfig({ threads: 1, extraIgnore: ['tsconfig.json'], indexing: {
+    semantic: { enabled: true, enrichment: { bindings: 'eager', localFlow: 'off', crossFileFlow: 'off' } },
+    workerPool: { enabled: false }, embeddings: { enabled: false } } }),
   extraEnv: { PAIROFCLEATS_TRUSTED_CONFIG: null } });
 const signal = AbortSignal.timeout(10000);
 await buildIndex(repo, { mode: 'code', stage: 'stage2', 'stub-embeddings': true,

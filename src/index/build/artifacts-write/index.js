@@ -1915,8 +1915,7 @@ async function writeIndexArtifactsInCodecScope(input) {
     || null;
   const allowCallSitesArtifacts = emitArtifactsMode !== 'none';
   const callSitesRequired = allowCallSitesArtifacts
-    && riskState?.enabled === true
-    && riskState?.summaryOnly !== true;
+    && (mode === 'code' || riskState?.enabled === true && riskState?.summaryOnly !== true);
   const callSitesRef = allowCallSitesArtifacts
     ? await enqueueCallSitesArtifacts({
       state,

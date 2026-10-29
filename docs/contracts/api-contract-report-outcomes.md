@@ -17,6 +17,13 @@ Load, schema, internal and artifact-write failures remain ordinary exit-1
 failures; they do not emit a completed policy report. Requested artifact writes
 precede stdout, so a failed artifact write cannot claim completed publication.
 
+Code generations that permit call-site artifacts publish the canonical empty
+`call_sites` dataset when no calls were observed. This lets a declarations-only
+project produce a qualified zero-call report. A missing manifest declaration
+still fails strict admission; readers never infer an empty dataset from absence.
+The piece-assembly producer version advances so derived replay cannot reuse an
+older omitted dataset as the newly explicit observation.
+
 Human reports retain warning codes/messages even when export selection leaves
 no symbols. Global/per-symbol copies are deduplicated by canonical warning
 identity. One linear projection indexes only retained warning navigation needs
