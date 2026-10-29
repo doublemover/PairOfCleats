@@ -58,7 +58,7 @@ await execution; lifecycle policy (#1267) and custom cleanup (#1574) remain.
 The [owner queue](archived/remaining-issue-batches-2026-10-26.json) orders
 implementation by severity and shared dependencies:
 
-1. P1 cleanup (#1574): [native follow-up](archived/windows-native-cleanup-followup-2026-10-29.md) repairs child/namespace lifetimes; custom deletion and #1627 remain.
+1. P1 #1574: [multi-repo proof](archived/windows-cleanup-multi-repository-2026-10-29.md) qualifies Windows cleanup; custom deletion and #1627 remain.
 2. Worker/service ownership and provider installation (#631); [compilation context and report refresh](archived/throughput-materialization-implementation-2026-10-28.md) await qualification.
 3. Language/semantic/replay and retrieval/API evidence contracts; [comment source/demand ownership](archived/comment-pipeline-implementation-2026-10-27.md)
    has 38 authored JS/TS/Rust/import cases. [Frontmatter interiors](archived/frontmatter-content-implementation-2026-10-27.md)

@@ -14,6 +14,14 @@ pass with fresh caches at the constrained resource settings; hosted acceptance
 of this repair remains separate. At preceding head `fe4ee1a05`, all 43 Windows
 authority fixtures and the three hosted native-inspection jobs pass.
 
+The [multi-repository cleanup qualification](../archived/windows-cleanup-multi-repository-2026-10-29.md)
+passes eight actual CLI/MCP/native cases and four repository-selection controls
+on Windows. It retains live readers/builders, unknown owners and saved evidence,
+removes independently eligible siblings, and observes real Windows delete-sharing
+denial plus natural reader close. Actual SQLite/LMDB custom stores remain usable
+and protected before and after native close. #1574 remains partial for qualified
+custom-store deletion and remaining backend registration.
+
 The [CI repair receipt](../archived/windows-ci-repairs-2026-10-28.md) records
 15/15 focused native workflow cases and 12 passing affected controls on Node
 26.13.0/Windows x64. The recorded existing native binary does not qualify the new
