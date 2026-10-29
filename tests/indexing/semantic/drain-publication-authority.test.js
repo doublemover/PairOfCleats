@@ -83,8 +83,8 @@ try {
       repoCacheRoot: cacheB, buildRoot: path.join(cacheB, 'builds', 'fake'), buildId: 'fake' }), { code: 'ERR_SEMANTIC_ENRICHMENT_STALE' });
     const result = await runSemanticEnrichmentService({ request: drain, userConfig: structuredClone(configA),
       build: async (root, options) => {
-        // Cache retention is excluded by the existing content-policy owner.
-        await fs.writeFile(trusted, JSON.stringify({ cache: { runtime: { fileText: { maxMb: 32 } } } }));
+        // A supported thread budget is excluded by the content-policy owner.
+        await fs.writeFile(trusted, JSON.stringify({ threads: 2 }));
         return buildIndex(root, options);
       } });
     assert.equal(result.status, 'published'); assert.equal(result.lineage.length, 1);

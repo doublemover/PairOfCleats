@@ -102,7 +102,7 @@ try {
     const { state, output } = prepare(separate), before = new Map(state.semanticFactsByFile), contexts = state.semanticCompilerContexts;
     const last = separate.at(-1), id = 'sa1:' + ({ 'forbidden-syntax': '4', 'cross-group-reference': '5', namespace: '6' })[kind].repeat(64);
     const rows = kind === 'forbidden-syntax' ? [semanticNode(0, last.source.textLength)] : [last.evidence];
-    if (kind === 'cross-group-reference') rows.push({ family: 'edge', row: { id: 0, kind: 'resolvesTo',
+    if (kind === 'cross-group-reference') rows.push({ family: 'edge', row: { id: 0, kind: 'references',
       from: { partitionId: id, localId: 0 }, to: { partitionId: separate[0].syntax.partitionId, localId: 0 },
       callSite: null, operandOrdinal: null, contextKey, condition: null, evidence: { partitionId: id, localId: 0 }, certainty: 'exact-static' } });
     // Namespace inconsistency is rejected either by persisted source validation

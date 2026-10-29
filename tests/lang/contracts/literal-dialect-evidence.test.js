@@ -23,7 +23,9 @@ for (const parser of ['acorn', 'babel']) {
   assert.equal(relations.callDetails.length, cases.length + 1, 'unsupported scalars cannot discard other relations');
   for (let index = 0; index < cases.length; index++) {
     const [raw, kind, representation] = cases[index];
-    const meta = extractDocMeta(source, { name: `f${index}`, start: 0, end: source.length }, relations);
+    const start = source.indexOf(`function f${index}(`);
+    const end = source.indexOf('\n', start);
+    const meta = extractDocMeta(source, { name: `f${index}`, start, end: end < 0 ? source.length : end }, relations);
     const literal = meta.paramDefaultLiterals.value;
     assert.equal(literal.kind, kind);
     assert.equal(literal.scalar?.representation ?? null, representation);

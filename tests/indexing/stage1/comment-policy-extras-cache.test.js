@@ -15,7 +15,7 @@ const input = { text, ext: '.py', languageId: 'python', lineIndex: buildLineInde
   fileHash: crypto.createHash('sha256').update(text).digest('hex'), fileHashAlgo: 'sha256' };
 const key = buildExtractedProseExtrasCacheKey(input);
 assert.match(key, new RegExp(`^comments:${COMMENT_CLASSIFICATION_VERSION}\\|`));
-assert.equal(commentPolicyReceipt(config).version, '5');
+assert.equal(commentPolicyReceipt(config).version, COMMENT_CLASSIFICATION_VERSION);
 const legacy = `hash:sha256:${input.fileHash}|ext:.py|lang:python`;
 assert.notEqual(key, legacy);
 for (const changed of [{ includeLicense: true }, { minTokens: 99 }, { headerMaxLines: 1 }, { licensePattern: 'Foobarbaz' }]) {

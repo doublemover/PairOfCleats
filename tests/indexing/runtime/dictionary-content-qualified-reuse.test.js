@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { resolveRuntimeDictionaries } from '../../../src/index/build/runtime/dictionaries.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
+import { errorGraphIncludes } from '../../helpers/error-graph.js';
 
 const { dir } = await prepareIsolatedTestCacheDir('dictionary-qualified-reuse');
 const dictDir = path.join(dir, 'dictionaries'), codeDir = path.join(dictDir, 'code-dicts', 'javascript');
@@ -35,7 +36,7 @@ const originalOpen = fs.open, originalReaddir = fs.readdir, existing = [...sessi
 const failure = Object.freeze(Object.assign(new Error('controlled dictionary refusal'), { code: 'EACCES' }));
 try {
   fs.open = async (target, ...args) => { if (path.relative(String(target), file) === '') throw failure; return originalOpen.call(fs, target, ...args); };
-  await assert.rejects(resolveRuntimeDictionaries(options), error => error === failure || error.cause === failure);
+  await assert.rejects(resolveRuntimeDictionaries(options), error => errorGraphIncludes(error, failure));
   assert.deepEqual([...session.dictCache.keys()], existing, 'failed revalidation cannot publish/replace a complete cache entry');
 } finally { fs.open = originalOpen; }
 
@@ -51,7 +52,7 @@ try {
     };
     return handle;
   };
-  await assert.rejects(resolveRuntimeDictionaries(options), error => error === partialError || error.cause === partialError);
+  await assert.rejects(resolveRuntimeDictionaries(options), error => errorGraphIncludes(error, partialError));
   assert.deepEqual([...session.dictCache.keys()], existing, 'a partially parsed input cannot publish cache readiness');
 } finally { fs.open = originalOpen; }
 const restored = await resolveRuntimeDictionaries(options);
@@ -71,7 +72,7 @@ try {
     if (path.relative(String(target), path.dirname(commonFile)) === '') throw failure;
     return originalReaddir.call(fs, target, ...args);
   };
-  await assert.rejects(resolveRuntimeDictionaries(options), error => error === failure || error.cause === failure,
+  await assert.rejects(resolveRuntimeDictionaries(options), error => errorGraphIncludes(error, failure),
     'denied directory selection cannot become an empty successful dictionary');
 } finally { fs.readdir = originalReaddir; }
 console.log('runtime dictionaries content-qualified reuse passed');
