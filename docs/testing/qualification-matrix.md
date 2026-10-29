@@ -77,6 +77,14 @@ coverage retains the exact original operation and independent close errors;
 physical-link controls remain hosted. Fresh-cache indexing success does not
 attribute the historical intermittent hangs or establish final CI acceptance.
 
+The [native/cleanup follow-up](../archived/windows-native-cleanup-followup-2026-10-29.md)
+retains 95 distinct focused passing storage controls after original failures and
+targeted rechecks. Ignored SQLite child work returns its original accepted
+promise; independent namespace cleanup preserves both healthy sibling retirement
+and failed original owners. Native build/search, validate/search and workspace
+pass locally within unchanged bounds. Ordered CI now includes the storage cases;
+custom-backend deletion and final hosted qualification remain open.
+
 The [full Windows campaign](../archived/windows-full-validation-checkpoint-265-2026-10-28.md)
 completed all 6,098 required fixtures at `90d0e510a`: 5,819 passed and 279 failed,
 including 14 runner timeouts. There were no skips, omissions, duplicate IDs or
