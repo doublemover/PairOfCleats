@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-29T20:54:00.223Z",
+  "generatedAt": "2026-10-29T22:00:11.516Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4248,6 +4248,7 @@
       "files": [
         "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
+        "tests/indexing/runtime/fd-unavailable-build-consumer.test.js",
         "tests/indexing/semantic/compiler-single-cpu-lifecycle.test.js",
         "tools/config/inventory.js"
       ]
@@ -4257,6 +4258,7 @@
       "files": [
         "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
+        "tests/indexing/runtime/fd-unavailable-build-consumer.test.js",
         "tools/config/inventory.js"
       ]
     },
@@ -4265,6 +4267,7 @@
       "files": [
         "src/shared/embedding-execution-plan.js",
         "src/shared/env/runtime.js",
+        "tests/indexing/runtime/fd-unavailable-build-consumer.test.js",
         "tests/indexing/semantic/compiler-single-cpu-lifecycle.test.js",
         "tools/config/inventory.js"
       ]
@@ -4725,12 +4728,18 @@
         "tests/indexing/segments/rust-comment-occurrences.test.js",
         "tests/indexing/semantic/wasm-flow-policy-construction.test.js",
         "tests/indexing/tree-sitter/js-ts-export-bindings.test.js",
+        "tests/indexing/tree-sitter/parser-session-native-consumer.test.js",
+        "tests/indexing/tree-sitter/runtime-fanout-admission.test.js",
+        "tests/indexing/tree-sitter/worker-session-lifecycle.test.js",
         "tests/indexing/validate/operation-generation-selection.test.js",
+        "tests/indexing/watch/native-backend-source-consumer.test.js",
+        "tests/indexing/watch/source-observation-replay.test.js",
         "tests/indexing/workers/coarse-file-analysis-facade.test.js",
         "tests/indexing/workers/coarse-file-analysis-transport.test.js",
         "tests/indexing/workers/process-task-scheduler-retirement.test.js",
         "tests/integrations/core/embedding-plan-late-binding.test.js",
         "tests/integrations/core/embedding-plan-preflight.test.js",
+        "tests/integrations/core/stage2-boolean-background-consumer.test.js",
         "tests/lang/javascript/jsdoc-comment-ownership.test.js",
         "tests/map/scene-render-submission.test.js",
         "tests/perf/bench/artifact-report-admission.test.js",
@@ -4745,8 +4754,10 @@
         "tests/retrieval/backend/boolean-complement-cli.test.js",
         "tests/retrieval/backend/lmdb-failure-propagation.test.js",
         "tests/retrieval/backend/sqlite-uncached-close-ownership.test.js",
+        "tests/retrieval/cli/dictionary-language-consumer.test.js",
         "tests/retrieval/cli/request-generation-promotion.test.js",
         "tests/retrieval/cli/search-publication-settlement.test.js",
+        "tests/retrieval/federation/manifest-caller-cancellation.test.js",
         "tests/retrieval/filters/branch-checkout-index-metrics.test.js",
         "tests/retrieval/output/summary-source-admission.test.js",
         "tests/retrieval/providers/tantivy-reader-lifetime.test.js",
@@ -10235,6 +10246,7 @@
       "src/retrieval/cli/run-search-session/mode-expansion.js",
       "src/retrieval/evaluation/fusion-replay.js",
       "src/retrieval/federation/args.js",
+      "src/retrieval/federation/generation.js",
       "src/retrieval/federation/modes.js",
       "src/retrieval/index-cache.js",
       "src/retrieval/query-parse.js",

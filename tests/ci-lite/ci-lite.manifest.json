@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1470,
+    "hero": 1523,
     "matrix": 109,
     "meta": 49,
     "soak": 1,
@@ -9787,6 +9787,324 @@
     {
       "id": "indexing/build/stage4-mixed-mode-generations/prose",
       "order": 1629,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "embeddings/onnx/downloader-installation-consumer",
+      "order": 1630,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/artifacts/symbols/path-identity-consumer",
+      "order": 1631,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/file-processor/lint-real-session-costs",
+      "order": 1632,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/runtime/fd-unavailable-build-consumer",
+      "order": 1633,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/runtime/queue-cap-admission-consumer",
+      "order": 1634,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/scm/jj-native-read-sessions",
+      "order": 1635,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/scm/read-session-consumer",
+      "order": 1636,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/scm/registered-metadata-key-consumer",
+      "order": 1637,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/tree-sitter/parser-session-native-consumer/tree-worker",
+      "order": 1638,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/tree-sitter/parser-session-native-consumer/python",
+      "order": 1639,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/tree-sitter/runtime-fanout-admission/cpu-1",
+      "order": 1640,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/tree-sitter/runtime-fanout-admission/cpu-2",
+      "order": 1641,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/tree-sitter/runtime-fanout-admission/cpu-8",
+      "order": 1642,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/tree-sitter/runtime-fanout-admission/fd",
+      "order": 1643,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/tree-sitter/runtime-fanout-admission/memory",
+      "order": 1644,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/tree-sitter/runtime-fanout-admission/affinity",
+      "order": 1645,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/tree-sitter/runtime-fanout-admission/scheduler-off",
+      "order": 1646,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/tree-sitter/scheduler-retained-child-admission",
+      "order": 1647,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/tree-sitter/wave-order-permutation",
+      "order": 1648,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/tree-sitter/worker-session-lifecycle/same-config",
+      "order": 1649,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/tree-sitter/worker-session-lifecycle/conflicting-config",
+      "order": 1650,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/tree-sitter/worker-session-lifecycle/shutdown-import",
+      "order": 1651,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/tree-sitter/worker-session-lifecycle/shutdown-reconfigure",
+      "order": 1652,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/tree-sitter/worker-session-lifecycle/import-failure-retry",
+      "order": 1653,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/tree-sitter/worker-session-lifecycle/destroy-failure",
+      "order": 1654,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/tree-sitter/worker-session-lifecycle/stale-close-failure",
+      "order": 1655,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/watch/native-backend-source-consumer/chokidar",
+      "order": 1656,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/watch/native-backend-source-consumer/parcel",
+      "order": 1657,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/watch/startup-close-settlement",
+      "order": 1658,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/workers/cleanup-rejection-owner-retry",
+      "order": 1659,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/workers/task-specific-runtime-observations",
+      "order": 1660,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/core/stage2-boolean-background-consumer/queue",
+      "order": 1661,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/core/stage2-boolean-background-consumer/fallback",
+      "order": 1662,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/python/shutdown-admission-consumer",
+      "order": 1663,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/cli/dictionary-language-consumer/disabled",
+      "order": 1664,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/cli/dictionary-language-consumer/javascript",
+      "order": 1665,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/cli/dictionary-language-consumer/default",
+      "order": 1666,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/cli/dictionary-language-consumer/alias",
+      "order": 1667,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/cli/dictionary-language-consumer/identity-partitions",
+      "order": 1668,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/federation/manifest-caller-cancellation/initial",
+      "order": 1669,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/federation/manifest-caller-cancellation/ranked-revalidation",
+      "order": 1670,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/federation/manifest-caller-cancellation/enumeration-revalidation",
+      "order": 1671,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/federation/manifest-caller-cancellation/pending-reader",
+      "order": 1672,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/federation/manifest-caller-cancellation/pre-aborted",
+      "order": 1673,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/federation/published-watch-root-consumer",
+      "order": 1674,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/filters/expression-grammar-consumer",
+      "order": 1675,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/bundle-producer-budget-consumer",
+      "order": 1676,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/watch/source-observation-replay/chokidar",
+      "order": 1677,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/watch/source-observation-replay/parcel",
+      "order": 1678,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/watch/source-observation-replay/ownership",
+      "order": 1679,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/cli/request-generation-promotion/memory-faults",
+      "order": 1680,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/cli/request-generation-promotion/sqlite-faults",
+      "order": 1681,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/cli/request-generation-promotion/lmdb-faults",
+      "order": 1682,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
