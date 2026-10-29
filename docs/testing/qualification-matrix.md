@@ -21,6 +21,12 @@ compact same-generation native directory and move only a fully closed payload
 into the existing publication layout. Hosted reruns and unrestricted long-root
 LanceDB support remain separate; no full-suite pass is implied.
 
+[Sublime package acceptance](../archived/sublime-native-closeout-2026-10-29.md)
+closes #1289 on Windows Text 4192/Python 3.3. Packed, unpacked and legacy/shadow
+cases pass activation, search, update/reload, uninstall, natural exit and isolated
+desktop/child cleanup; 36 affected controls and the publication gate pass.
+Broader editor/platform acceptance remains under #630.
+
 The [full Windows campaign](../archived/windows-full-validation-checkpoint-265-2026-10-28.md)
 completed all 6,098 required fixtures at `90d0e510a`: 5,819 passed and 279 failed,
 including 14 runner timeouts. There were no skips, omissions, duplicate IDs or

@@ -8,9 +8,9 @@ Canonical for: initiative status, execution order, and remaining work
 ## Current GitHub repair program
 
 The [closeout review](archived/github-issue-closeout-2026-10-26.md) and later
-qualified checks closed 82 reports. The
+qualified checks closed 83 reports. The
 [current reconciliation](archived/windows-partial-validation-checkpoint-305-2026-10-28.md)
-leaves **688 open**: 452 qualification-pending,
+leaves **687 open**: 451 qualification-pending,
 147 partial and 89 unresolved entries.
 
 The [complete assessment](archived/github-issue-closeout-2026-10-26.json) retains
@@ -45,9 +45,11 @@ and 12 controls. The [stable refresh](archived/windows-stable-upgrades-2026-10-2
 updates dependencies, repairs Windows LanceDB staging and qualifies Rust 1.99.1;
 hosted reruns and the remaining P1 acceptances follow.
 
-[Five dependency retirements](archived/dependency-ownership-implementation-2026-10-27.md)
-removed 110 lock records. Setup identities and retained inputs are archived;
-runtime qualification remains separate.
+[Earlier retirements](archived/dependency-ownership-implementation-2026-10-27.md)
+removed 110 lock records; runtime qualification remains separate.
+
+[Sublime #1289](archived/sublime-native-closeout-2026-10-29.md) closes after all
+three Windows native package cases; broader editor/platform acceptance remains.
 
 Suite/platform/model/release acceptance remains separate. [Storage repairs](archived/storage-space-implementation-2026-10-27.md)
 await execution; lifecycle policy (#1267) and custom cleanup (#1574) remain.
