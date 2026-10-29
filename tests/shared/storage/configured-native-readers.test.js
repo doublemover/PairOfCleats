@@ -7,7 +7,7 @@ import { inspectStorageAccess, withExclusiveStorageAccess } from '../../../src/s
 import { getCacheRoot } from '../../../src/shared/cache-roots.js';
 import { getRepoId } from '../../../src/shared/repo-paths.js';
 
-// UNVALIDATED: original storage protocol/metadata and inert native lifetime;
+// Original storage protocol/metadata and inert native lifetime;
 // no arbitrary symlinks, copied executables, GUI or native backend invocation.
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('/').at(-1);
 assert.ok(['sqlite-directory', 'sqlite-file', 'lmdb-directory', 'lmdb-file', 'sidecars', 'selection-change',

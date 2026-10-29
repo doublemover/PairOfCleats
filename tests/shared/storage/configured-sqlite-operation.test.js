@@ -6,7 +6,7 @@ import { withSqliteStorageOperation } from '../../../src/storage/sqlite/build/st
 import { inspectStorageAccess, withExclusiveStorageAccess } from '../../../src/shared/storage/access.js';
 import { repoAccessPaths } from '../../../src/shared/cache/repo-access.js';
 
-// UNVALIDATED: real original lease/session/operation owners; no native writer or
+// Real original lease/session/operation owners; no native writer or
 // recursive removal of user-selected stores. Actual dispatch is separate.
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('/').at(-1);
 assert.ok(['namespace', 'batch-order', 'exclusion', 'changed-selection', 'nested-selection', 'ignored-child',

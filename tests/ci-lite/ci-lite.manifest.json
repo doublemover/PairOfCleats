@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1227,
+    "hero": 1322,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -8323,6 +8323,576 @@
     {
       "id": "storage/semantic/runtime-query-close-ownership",
       "order": 1385,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/configured-native-readers/sqlite-directory",
+      "order": 1386,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/configured-native-readers/sqlite-file",
+      "order": 1387,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/configured-native-readers/lmdb-directory",
+      "order": 1388,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/configured-native-readers/lmdb-file",
+      "order": 1389,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/configured-native-readers/sidecars",
+      "order": 1390,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/configured-native-readers/selection-change",
+      "order": 1391,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/configured-native-readers/pending-close",
+      "order": 1392,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/configured-native-readers/failed-open",
+      "order": 1393,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/configured-native-readers/cache-reuse",
+      "order": 1394,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/configured-native-readers/launch-homes",
+      "order": 1395,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/configured-native-readers/unregistered",
+      "order": 1396,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/configured-native-readers/publication-identity",
+      "order": 1397,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/configured-native-readers/canonical-launch",
+      "order": 1398,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/configured-sqlite-operation/namespace",
+      "order": 1399,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/configured-sqlite-operation/batch-order",
+      "order": 1400,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/configured-sqlite-operation/exclusion",
+      "order": 1401,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/configured-sqlite-operation/changed-selection",
+      "order": 1402,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/configured-sqlite-operation/nested-selection",
+      "order": 1403,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/configured-sqlite-operation/ignored-child",
+      "order": 1404,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/configured-sqlite-operation/metadata-failure",
+      "order": 1405,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/configured-sqlite-operation/unregistered",
+      "order": 1406,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/configured-sqlite-operation/same-namespace",
+      "order": 1407,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/sqlite-operation-lifetime/admission",
+      "order": 1408,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/sqlite-operation-lifetime/metadata",
+      "order": 1409,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/sqlite-operation-lifetime/accepted-child",
+      "order": 1410,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/sqlite-operation-lifetime/ignored-child-failure",
+      "order": 1411,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/sqlite-operation-lifetime/original-observer",
+      "order": 1412,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/sqlite-operation-lifetime/late-admission",
+      "order": 1413,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/sqlite-operation-lifetime/resource-budget",
+      "order": 1414,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/native-reader-lifetime/cache",
+      "order": 1415,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/native-reader-lifetime/uncached",
+      "order": 1416,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/native-reader-lifetime/metadata-failure",
+      "order": 1417,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/native-reader-lifetime/admission-race",
+      "order": 1418,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/native-reader-lifetime/launch-homes",
+      "order": 1419,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/native-reader-lifetime/open-failure",
+      "order": 1420,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/native-reader-lifetime/native-failure",
+      "order": 1421,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/native-reader-lifetime/original-cache-close",
+      "order": 1422,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/native-reader-lifetime/configured-cache",
+      "order": 1423,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/native-reader-lifetime/configured-uncached",
+      "order": 1424,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/native-reader-lifetime/configured-metadata-failure",
+      "order": 1425,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/native-reader-lifetime/configured-admission-race",
+      "order": 1426,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/native-reader-lifetime/configured-launch-homes",
+      "order": 1427,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/native-command-sessions/sqlite",
+      "order": 1428,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/native-command-sessions/lmdb",
+      "order": 1429,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/native-command-sessions/admission-race",
+      "order": 1430,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/native-command-sessions/metadata",
+      "order": 1431,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/native-command-sessions/primary-and-metadata",
+      "order": 1432,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/native-command-sessions/native-unknown",
+      "order": 1433,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/native-command-sessions/scope-authority",
+      "order": 1434,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/native-command-sessions/configured-sqlite",
+      "order": 1435,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/native-command-sessions/configured-lmdb",
+      "order": 1436,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/native-command-sessions/configured-admission-race",
+      "order": 1437,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/native-command-sessions/configured-metadata",
+      "order": 1438,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/native-command-sessions/configured-primary-and-metadata",
+      "order": 1439,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/native-command-observation/mutable",
+      "order": 1440,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/native-command-observation/frozen",
+      "order": 1441,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/native-command-observation/callable",
+      "order": 1442,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/native-command-observation/captured-callback",
+      "order": 1443,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/native-command-observation/admission-inspection",
+      "order": 1444,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/storage/native-command-observation/marker-getter",
+      "order": 1445,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/build/storage-session-dispatch/artifacts",
+      "order": 1446,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/build/storage-session-dispatch/bundles",
+      "order": 1447,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/build/storage-session-dispatch/incremental",
+      "order": 1448,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/build/storage-session-dispatch/fallback",
+      "order": 1449,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/build/storage-session-dispatch/unknown-close",
+      "order": 1450,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/build/storage-session-dispatch/configured-artifacts",
+      "order": 1451,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/build/storage-session-dispatch/configured-bundles",
+      "order": 1452,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/build/storage-session-dispatch/configured-incremental",
+      "order": 1453,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/build/storage-session-dispatch/configured-fallback",
+      "order": 1454,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/build/runner-finalizer-storage/wait",
+      "order": 1455,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/build/runner-finalizer-storage/primary-and-finalizer",
+      "order": 1456,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/build/runner-finalizer-storage/owned-child-in-finalizer",
+      "order": 1457,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/cache-close-result-ownership/native-pending",
+      "order": 1458,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/cache-close-result-ownership/native-replaced",
+      "order": 1459,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/cache-close-result-ownership/native-inspection",
+      "order": 1460,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/cache-close-result-ownership/native-independent",
+      "order": 1461,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/cache-close-result-ownership/native-revoked",
+      "order": 1462,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/cache-close-result-ownership/hook-pending",
+      "order": 1463,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/cache-close-result-ownership/closed-pending",
+      "order": 1464,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/cache-close-result-ownership/handoff-pending",
+      "order": 1465,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/cache-close-result-ownership/hook-promise",
+      "order": 1466,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/cache-close-result-ownership/closed-promise",
+      "order": 1467,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/cache-close-result-ownership/hook-ordinary-failure",
+      "order": 1468,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/cache-close-result-ownership/closed-ordinary-failure",
+      "order": 1469,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/cache-close-result-ownership/closed-before-namespace",
+      "order": 1470,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/cache-close-result-ownership/handoff-original",
+      "order": 1471,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/cache-close-result-ownership/native-actual",
+      "order": 1472,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/cache-close-result-ownership/native-actual-pending",
+      "order": 1473,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/cache-close-result-ownership/cache-registry",
+      "order": 1474,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/cache-close-result-ownership/storage-sibling",
+      "order": 1475,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/backend/sqlite-uncached-close-ownership/sticky-failure",
+      "order": 1476,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/backend/sqlite-uncached-close-ownership/native-observation",
+      "order": 1477,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/backend/sqlite-uncached-close-ownership/explicit-false",
+      "order": 1478,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/backend/sqlite-uncached-close-ownership/initialization-failure",
+      "order": 1479,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "tooling/index/clean-artifacts-reader-exclusion",
+      "order": 1480,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
