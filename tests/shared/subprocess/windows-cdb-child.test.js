@@ -6,7 +6,7 @@ import { spawnSubprocess } from '../../../src/shared/subprocess/runner.js';
 import { WINDOWS_CDB_CHILD_CONTEXT } from '../../../tools/shared/windows-cdb-protocol.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 
-// UNVALIDATED: ordinary small real Node children; no CDB or native crash.
+// Ordinary small real Node children; no CDB or native crash.
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('/').at(-1);
 assert.ok(['async-output', 'nonzero-exit', 'truncated-output', 'invalid-context', 'simulated-native-exit', 'phase-checkpoint'].includes(selected));
 const { dir: root } = await prepareIsolatedTestCacheDir(`cdb-child-${selected}`);
@@ -45,7 +45,14 @@ try {
     }
     if (selected === 'nonzero-exit') { assert.equal(result.exitCode, 7); assert.equal(reply.exitCode, 7); }
     if (selected === 'simulated-native-exit') {
-      assert.equal(reply.exitCode, 3221225477);
+      // Node's exit callback can expose the signed int32 representation. The
+      // protocol retains that exact value; both representations have these bits.
+      assert.ok([0xC0000005, 0xC0000005 | 0].includes(reply.exitCode), 'only the exact signed/unsigned status is admitted');
+      assert.equal(reply.exitCode >>> 0, 0xC0000005);
+      assert.notEqual(result.exitCode, 0, 'the native-shaped status remains a failed process');
+      assert.equal(result.signal, null);
+      assert.equal(process.platform === 'win32' ? result.exitCode >>> 0 : result.exitCode,
+        process.platform === 'win32' ? 0xC0000005 : 5, 'the OS child outcome retains its platform exit semantics');
       assert.equal((await fs.readdir(directory)).some(name => name.endsWith('.dmp')), false, 'process.exit never establishes native minidump capture');
     }
     if (selected === 'truncated-output') {
