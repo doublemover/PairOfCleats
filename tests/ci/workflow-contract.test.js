@@ -425,6 +425,7 @@ for (const platform of ['ubuntu', 'windows', 'macos']) {
   const goSetup = steps.findIndex(step => step.name === 'Setup qualified Go SDK');
   const goVerify = steps.findIndex(step => step.name === 'Verify selected Go SDK');
   const goStartup = steps.findIndex(step => step.name === 'Qualify real Go language server startup');
+  const goProvision = steps.findIndex(step => step.name === 'Provision pinned Go language server for CI');
   const go = steps[goSetup];
   if (goSetup < 0 || goVerify <= goSetup
     || goVerify >= steps.findIndex(step => step.name === 'Install optional LSP tools (best effort)')
@@ -433,6 +434,8 @@ for (const platform of ['ubuntu', 'windows', 'macos']) {
     || !steps[goVerify].run.includes('delete env.GOROOT')
     || !steps[goVerify].run.includes('GOTOOLCHAIN=local')
     || !steps[goVerify].run.includes('.diagnostics/go-sdk.json')
+    || goProvision <= goVerify || goProvision >= steps.findIndex(step => step.name === 'Install optional LSP tools (best effort)')
+    || steps[goProvision].run !== 'node tools/ci/provision-gopls.js'
     || goStartup <= steps.findIndex(step => step.name === 'Install optional LSP tools (best effort)')
     || goStartup >= steps.findIndex(step => step.name === 'CI Suite')
     || !steps[goStartup].run.includes('qualifyInstalledLspRuntime')
@@ -445,8 +448,8 @@ for (const platform of ['ubuntu', 'windows', 'macos']) {
   const dotnet = steps[dotnetSetup];
   if (dotnetSetup < 0 || dotnetVerify <= dotnetSetup
     || dotnetVerify >= steps.findIndex(step => step.name === 'Install optional LSP tools (best effort)')
-    || dotnet.uses !== 'actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1'
-    || dotnet.with?.['dotnet-version'] !== '10.0.113'
+    || dotnet.uses !== 'actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68'
+    || dotnet.with?.['dotnet-version'] !== '10.0.403'
     || dotnet.env?.DOTNET_INSTALL_DIR !== '${{ runner.temp }}/poc-dotnet-sdk'
     || parse(ciWorkflow).jobs[platform].env?.DOTNET_GENERATE_ASPNET_CERTIFICATE !== 'false'
     || parse(ciWorkflow).jobs[platform].env?.DOTNET_CLI_HOME !== '${{ github.workspace }}/.tmp/ci/dotnet-cli-home'
@@ -463,6 +466,8 @@ for (const platform of ['ubuntu', 'windows', 'macos']) {
   const upload = steps.find(step => step.name === 'Upload quality artifacts');
   const paths = String(upload?.with?.path || '').trim().split(/\r?\n/).map(line => line.trim());
   const optional = steps.findIndex(step => step.name === 'Install optional LSP tools (best effort)');
+  assert.ok(!/--tools\s+[^\s]*\bgopls\b/u.test(steps[optional].run), 'CI runtime setup cannot depend on the application\'s unqualified managed gopls build forecast');
+  assert.ok(paths.includes('.diagnostics/gopls-provisioning.json'), 'CI must retain the separately provisioned Go server identity');
   const phpSetup = steps.findIndex(step => step.name === 'Setup qualified PHP runtime');
   const phpVerify = steps.findIndex(step => step.name === 'Verify selected PHP runtime');
   const phpStartup = steps.findIndex(step => step.name === 'Qualify real PHPactor startup');
@@ -480,7 +485,7 @@ for (const platform of ['ubuntu', 'windows', 'macos']) {
     const setup = steps[phpSetup];
     if (phpSetup < 0 || phpVerify <= phpSetup || phpVerify >= optional
       || setup.uses !== 'shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962'
-      || setup.with?.['php-version'] !== '8.4.26' || setup.with?.coverage !== 'none' || setup.with?.tools !== 'none'
+      || setup.with?.['php-version'] !== '8.5.12' || setup.with?.coverage !== 'none' || setup.with?.tools !== 'none'
       || !String(setup.with?.extensions).split(/,\s*/).includes('posix')
       || !steps[phpVerify].run.includes('get_loaded_extensions()')
       || steps[optional].env?.PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS !== '["https://release-assets.githubusercontent.com"]'

@@ -141,14 +141,14 @@ export const runLspQualificationWorker = async input => {
   if (input.providerId === 'csharp-ls' && !fixture) {
     const selectedRoot = process.env.DOTNET_ROOT;
     const reportedPaths = receipt.stderr.flatMap(line => {
-      const match = /Version=10\.0\.113, MSBuildPath="([^"]+)"/u.exec(line);
+      const match = /Version=10\.0\.403, MSBuildPath="([^"]+)"/u.exec(line);
       return match ? [match[1]] : [];
     });
     const physical = value => { try { return fs.realpathSync(value); } catch { return null; } };
-    const expectedSdk = selectedRoot ? physical(path.join(selectedRoot, 'sdk', '10.0.113')) : null;
-    receipt.sdkSelection = { root: selectedRoot || null, version: '10.0.113', reportedPaths };
+    const expectedSdk = selectedRoot ? physical(path.join(selectedRoot, 'sdk', '10.0.403')) : null;
+    receipt.sdkSelection = { root: selectedRoot || null, version: '10.0.403', reportedPaths };
     if (!expectedSdk || !reportedPaths.some(value => physical(value) === expectedSdk)
-      || !receipt.stderr.includes('MSBuildLocator: will register ".NET Core SDK", Version=10.0.113 as default instance')) {
+      || !receipt.stderr.includes('MSBuildLocator: will register ".NET Core SDK", Version=10.0.403 as default instance')) {
       reasons.push('server_sdk_identity_unproven');
     }
   }

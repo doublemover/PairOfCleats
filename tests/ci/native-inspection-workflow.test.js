@@ -26,4 +26,8 @@ for (const option of ['--jobs 1', '--pairofcleats-threads 1', '--timeout-ms 3000
 const upload = steps.find(step => step.uses?.startsWith('actions/upload-artifact@'));
 assert.equal(upload.if, 'always()'); assert.equal(upload.with['include-hidden-files'], true);
 assert.ok(upload.with.path.includes('.testLogs/**'));
+for (const witness of ['native-source-identity.json', 'terminal-receipt*.json', 'screen-*.txt', 'pids.jsonl']) {
+  assert.ok(upload.with.path.includes(witness), `missing bounded native witness: ${witness}`);
+}
+assert.equal(upload.with['retention-days'], 7);
 console.log('Native workflow qualification uses actual source, setup, binary, serial terminal and full-producer owners on all three platforms');

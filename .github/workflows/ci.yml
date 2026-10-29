@@ -33,7 +33,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version: '26.12.1'
+          node-version: '26.13.0'
           cache: npm
 
       - name: Restore node_modules cache
@@ -41,7 +41,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.12.1-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.13.0-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
 
       - name: Install deps
         shell: bash
@@ -107,12 +107,12 @@ jobs:
       - name: Setup Node for protocol fixtures
         uses: actions/setup-node@v7
         with:
-          node-version: '26.12.1'
+          node-version: '26.13.0'
 
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.88.0
+          toolchain: 1.99.1
           components: rustfmt, clippy
 
       - name: Restore Cargo cache
@@ -165,7 +165,7 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: 1.88.0
+          toolchain: 1.99.1
       - name: Locked bootstrap
         run: npm run bootstrap:ci
       - name: Native and patch verification
@@ -182,13 +182,19 @@ jobs:
         run: node tests/run.js --lane all --match '/^(indexing\/build-state\/produced-contract|tui\/(operator-index-workflows|supervisor-index-workflows|supervisor-index-build))$/' --jobs 1 --pairofcleats-threads 1 --timeout-ms 30000 --retries 0 --native-status-redo=false --report-file .diagnostics/native-inspection/index-contracts.json
       - name: Upload native qualification evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: native-inspection-${{ matrix.os }}
           path: |
             .diagnostics/native-inspection/**
             .testLogs/**
+            .tmp/dev/tests/cache/native-index-*/native-source-identity.json
+            .tmp/dev/tests/cache/native-index-*/terminal-receipt*.json
+            .tmp/dev/tests/cache/native-index-*/screen-*.txt
+            .tmp/dev/tests/cache/native-index-*/seed-*.json
+            .tmp/dev/tests/cache/native-index-*/pids.jsonl
           include-hidden-files: true
+          retention-days: 7
           if-no-files-found: warn
 
   ubuntu:
@@ -209,7 +215,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version: '26.12.1'
+          node-version: '26.13.0'
           cache: npm
 
       - name: Restore PairOfCleats cache
@@ -228,7 +234,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.12.1-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.13.0-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
 
       - name: Install deps and report versions
         shell: bash
@@ -249,7 +255,7 @@ jobs:
       - name: Setup qualified PHP runtime
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
         with:
-          php-version: '8.4.26'
+          php-version: '8.5.12'
           extensions: posix, mbstring, openssl, tokenizer, phar, ctype, dom, fileinfo, iconv, xml, xmlreader, xmlwriter
           coverage: none
           tools: none
@@ -267,7 +273,7 @@ jobs:
           assert.equal(result.status, 0, JSON.stringify(result));
           assert.equal(result.stderr, "");
           const sdk = JSON.parse(result.stdout);
-          assert.equal(sdk.version, "8.4.26");
+          assert.equal(sdk.version, "8.5.12");
           assert.ok(path.isAbsolute(sdk.binary));
           const extensions = sdk.extensions.map(name => name.toLowerCase());
           for (const name of ["posix", "mbstring", "openssl", "tokenizer", "phar", "ctype", "dom", "fileinfo", "iconv", "xml", "xmlreader", "xmlwriter"]) assert.ok(extensions.includes(name), name);
@@ -279,11 +285,11 @@ jobs:
           '
 
       - name: Setup qualified .NET SDK
-        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         env:
           DOTNET_INSTALL_DIR: ${{ runner.temp }}/poc-dotnet-sdk
         with:
-          dotnet-version: '10.0.113'
+          dotnet-version: '10.0.403'
 
       - name: Verify selected .NET SDK
         run: |
@@ -301,9 +307,9 @@ jobs:
           const selected = runCommand("dotnet", ["--version"], options);
           const runtimes = runCommand(command, ["--list-runtimes"], options);
           for (const result of [version, selected, runtimes]) { assert.equal(result.status, 0, JSON.stringify(result)); assert.equal(result.stderr, ""); }
-          assert.equal(version.stdout.trim(), "10.0.113");
-          assert.equal(selected.stdout.trim(), "10.0.113");
-          assert.match(runtimes.stdout, /^Microsoft\.NETCore\.App 10\.0\.13 \[/m);
+          assert.equal(version.stdout.trim(), "10.0.403");
+          assert.equal(selected.stdout.trim(), "10.0.403");
+          assert.match(runtimes.stdout, /^Microsoft\.NETCore\.App 10\.0\.14 \[/m);
           const archRoot = "DOTNET_ROOT_" + process.arch.toUpperCase();
           fs.appendFileSync(process.env.GITHUB_ENV, archRoot + "=" + root + "\nDOTNET_HOST_PATH=" + command + "\n");
           const receipt = { source: process.env.GITHUB_SHA, node: process.version, platform: process.platform, arch: process.arch, root, command, sdkVersion: version.stdout.trim(), runtimeOutput: runtimes.stdout, binarySha256: createHash("sha256").update(fs.readFileSync(command)).digest("hex") };
@@ -340,13 +346,16 @@ jobs:
           console.log(JSON.stringify(sdk));
           '
 
+      - name: Provision pinned Go language server for CI
+        run: node tools/ci/provision-gopls.js
+
       - name: Install optional LSP tools (best effort)
         shell: bash
         env:
           PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS: '["https://release-assets.githubusercontent.com"]'
         run: |
           set +e
-          node tools/tooling/install.js --scope cache --tools pyright,yaml-language-server,gopls,csharp-ls,solargraph,phpactor --json
+          node tools/tooling/install.js --scope cache --tools pyright,yaml-language-server,csharp-ls,solargraph,phpactor --json
           status=$?
           if [ $status -ne 0 ]; then
             echo "optional tooling install had non-fatal failures (continuing)."
@@ -416,6 +425,7 @@ jobs:
         if: always()
         shell: pwsh
         run: |
+          if (!(Test-Path -LiteralPath '.diagnostics/cache-root.json')) { Write-Output 'CI suite did not publish cache selection; no cache cleanup is authorized.'; exit 0 }
           $cacheRoot = node -e "const fs=require('fs');const payload=JSON.parse(fs.readFileSync('.diagnostics/cache-root.json','utf8'));process.stdout.write(payload.cacheRoot);"
           $env:PAIROFCLEATS_CACHE_ROOT = $cacheRoot
           node tools/index/cache-gc.js --apply --grace-days 3 --max-deletes 200 --repo .
@@ -432,6 +442,7 @@ jobs:
             .diagnostics/phpactor-startup.json
             .diagnostics/serial-native-lifecycle.json
             .diagnostics/go-sdk.json
+            .diagnostics/gopls-provisioning.json
             .diagnostics/gopls-startup.json
             .diagnostics/serial-runtime-budgets.json
             .diagnostics/api-contracts.json
@@ -476,7 +487,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version: '26.12.1'
+          node-version: '26.13.0'
           cache: npm
 
       - name: Restore PairOfCleats cache
@@ -493,7 +504,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.12.1-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.13.0-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
 
       - name: Install deps and report versions
         shell: pwsh
@@ -515,11 +526,11 @@ jobs:
           npm -v
 
       - name: Setup qualified .NET SDK
-        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         env:
           DOTNET_INSTALL_DIR: ${{ runner.temp }}/poc-dotnet-sdk
         with:
-          dotnet-version: '10.0.113'
+          dotnet-version: '10.0.403'
 
       - name: Verify selected .NET SDK
         run: |
@@ -537,9 +548,9 @@ jobs:
           const selected = runCommand("dotnet", ["--version"], options);
           const runtimes = runCommand(command, ["--list-runtimes"], options);
           for (const result of [version, selected, runtimes]) { assert.equal(result.status, 0, JSON.stringify(result)); assert.equal(result.stderr, ""); }
-          assert.equal(version.stdout.trim(), "10.0.113");
-          assert.equal(selected.stdout.trim(), "10.0.113");
-          assert.match(runtimes.stdout, /^Microsoft\.NETCore\.App 10\.0\.13 \[/m);
+          assert.equal(version.stdout.trim(), "10.0.403");
+          assert.equal(selected.stdout.trim(), "10.0.403");
+          assert.match(runtimes.stdout, /^Microsoft\.NETCore\.App 10\.0\.14 \[/m);
           const archRoot = "DOTNET_ROOT_" + process.arch.toUpperCase();
           fs.appendFileSync(process.env.GITHUB_ENV, archRoot + "=" + root + "\nDOTNET_HOST_PATH=" + command + "\n");
           const receipt = { source: process.env.GITHUB_SHA, node: process.version, platform: process.platform, arch: process.arch, root, command, sdkVersion: version.stdout.trim(), runtimeOutput: runtimes.stdout, binarySha256: createHash("sha256").update(fs.readFileSync(command)).digest("hex") };
@@ -576,10 +587,13 @@ jobs:
           console.log(JSON.stringify(sdk));
           '
 
+      - name: Provision pinned Go language server for CI
+        run: node tools/ci/provision-gopls.js
+
       - name: Install optional LSP tools (best effort)
         shell: pwsh
         run: |
-          node tools/tooling/install.js --scope cache --tools pyright,yaml-language-server,gopls,csharp-ls,solargraph --json
+          node tools/tooling/install.js --scope cache --tools pyright,yaml-language-server,csharp-ls,solargraph --json
           if ($LASTEXITCODE -ne 0) {
             Write-Host 'optional tooling install had non-fatal failures (continuing).'
           }
@@ -654,6 +668,7 @@ jobs:
             .diagnostics/phpactor-platform.json
             .diagnostics/serial-native-lifecycle.json
             .diagnostics/go-sdk.json
+            .diagnostics/gopls-provisioning.json
             .diagnostics/gopls-startup.json
             .diagnostics/windows-subprocess-ownership.json
             .diagnostics/serial-runtime-budgets.json
@@ -697,7 +712,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version: '26.12.1'
+          node-version: '26.13.0'
           cache: npm
 
       - name: Verify qualification commit
@@ -714,7 +729,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.12.1-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.13.0-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
 
       - name: Prepare and verify required dependencies
         shell: pwsh
@@ -763,7 +778,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version: '26.12.1'
+          node-version: '26.13.0'
           cache: npm
 
       - name: Restore PairOfCleats cache
@@ -780,7 +795,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: node_modules
-          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.12.1-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
+          key: node-modules-${{ runner.os }}-${{ runner.arch }}-node-26.13.0-v2-${{ hashFiles('package-lock.json', 'patches/**/*.patch') }}
 
       - name: Install deps and report versions
         shell: bash
@@ -801,7 +816,7 @@ jobs:
       - name: Setup qualified PHP runtime
         uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
         with:
-          php-version: '8.4.26'
+          php-version: '8.5.12'
           extensions: posix, mbstring, openssl, tokenizer, phar, ctype, dom, fileinfo, iconv, xml, xmlreader, xmlwriter
           coverage: none
           tools: none
@@ -819,7 +834,7 @@ jobs:
           assert.equal(result.status, 0, JSON.stringify(result));
           assert.equal(result.stderr, "");
           const sdk = JSON.parse(result.stdout);
-          assert.equal(sdk.version, "8.4.26");
+          assert.equal(sdk.version, "8.5.12");
           assert.ok(path.isAbsolute(sdk.binary));
           const extensions = sdk.extensions.map(name => name.toLowerCase());
           for (const name of ["posix", "mbstring", "openssl", "tokenizer", "phar", "ctype", "dom", "fileinfo", "iconv", "xml", "xmlreader", "xmlwriter"]) assert.ok(extensions.includes(name), name);
@@ -831,11 +846,11 @@ jobs:
           '
 
       - name: Setup qualified .NET SDK
-        uses: actions/setup-dotnet@26b0ec14cb23fa6904739307f278c14f94c95bf1 # v5
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6
         env:
           DOTNET_INSTALL_DIR: ${{ runner.temp }}/poc-dotnet-sdk
         with:
-          dotnet-version: '10.0.113'
+          dotnet-version: '10.0.403'
 
       - name: Verify selected .NET SDK
         run: |
@@ -853,9 +868,9 @@ jobs:
           const selected = runCommand("dotnet", ["--version"], options);
           const runtimes = runCommand(command, ["--list-runtimes"], options);
           for (const result of [version, selected, runtimes]) { assert.equal(result.status, 0, JSON.stringify(result)); assert.equal(result.stderr, ""); }
-          assert.equal(version.stdout.trim(), "10.0.113");
-          assert.equal(selected.stdout.trim(), "10.0.113");
-          assert.match(runtimes.stdout, /^Microsoft\.NETCore\.App 10\.0\.13 \[/m);
+          assert.equal(version.stdout.trim(), "10.0.403");
+          assert.equal(selected.stdout.trim(), "10.0.403");
+          assert.match(runtimes.stdout, /^Microsoft\.NETCore\.App 10\.0\.14 \[/m);
           const archRoot = "DOTNET_ROOT_" + process.arch.toUpperCase();
           fs.appendFileSync(process.env.GITHUB_ENV, archRoot + "=" + root + "\nDOTNET_HOST_PATH=" + command + "\n");
           const receipt = { source: process.env.GITHUB_SHA, node: process.version, platform: process.platform, arch: process.arch, root, command, sdkVersion: version.stdout.trim(), runtimeOutput: runtimes.stdout, binarySha256: createHash("sha256").update(fs.readFileSync(command)).digest("hex") };
@@ -892,13 +907,16 @@ jobs:
           console.log(JSON.stringify(sdk));
           '
 
+      - name: Provision pinned Go language server for CI
+        run: node tools/ci/provision-gopls.js
+
       - name: Install optional LSP tools (best effort)
         shell: bash
         env:
           PAIROFCLEATS_DOWNLOAD_REDIRECT_ORIGINS: '["https://release-assets.githubusercontent.com"]'
         run: |
           set +e
-          node tools/tooling/install.js --scope cache --tools pyright,yaml-language-server,gopls,csharp-ls,solargraph,phpactor --json
+          node tools/tooling/install.js --scope cache --tools pyright,yaml-language-server,csharp-ls,solargraph,phpactor --json
           status=$?
           if [ $status -ne 0 ]; then
             echo "optional tooling install had non-fatal failures (continuing)."
@@ -976,6 +994,7 @@ jobs:
             .diagnostics/phpactor-startup.json
             .diagnostics/serial-native-lifecycle.json
             .diagnostics/go-sdk.json
+            .diagnostics/gopls-provisioning.json
             .diagnostics/gopls-startup.json
             .diagnostics/serial-runtime-budgets.json
             .diagnostics/api-contracts.json
