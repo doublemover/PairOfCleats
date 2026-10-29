@@ -1,0 +1,14 @@
+{
+  "description": "Reviewed ranges from the October 28 hosted npm audit failure. Preserve earlier baselines and the live full-graph CI audit.",
+  "capturedAt": "2026-10-28",
+  "packages": {
+    "@hono/node-server": {
+      "range": ">=1.19.10 <2.1.3",
+      "advisories": ["https://github.com/advisories/GHSA-rmxm-3fg6-px4f"]
+    },
+    "re2js": {
+      "range": ">=2.2.0 <2.8.7",
+      "advisories": ["https://github.com/advisories/GHSA-gg6h-894w-4m9c"]
+    }
+  }
+}

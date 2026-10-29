@@ -15,6 +15,7 @@ const lock = readJson('package-lock.json');
 const baseline = readJson('tests/fixtures/security/dependency-advisories-2026-10-02.json');
 const additions = readJson('tests/fixtures/security/dependency-advisories-2026-10-06.json');
 const current = readJson('tests/fixtures/security/dependency-advisories-2026-10-24.json');
+const october28 = readJson('tests/fixtures/security/dependency-advisories-2026-10-28.json');
 
 assert.equal(lock.lockfileVersion, 3, 'dependency security checks require the complete npm lock graph');
 for (const field of ['dependencies', 'optionalDependencies', 'devDependencies', 'engines']) {
@@ -39,7 +40,7 @@ for (const [packagePath, entry] of Object.entries(lock.packages)) {
   if (packageName === 'braces' && semver.satisfies(entry.version, '<=3.0.3')) {
     failures.push(`${packagePath}@${entry.version}: vulnerable recursive brace expansion`);
   }
-  for (const advisories of [baseline, additions, current]) {
+  for (const advisories of [baseline, additions, current, october28]) {
     const advisory = advisories.packages[packageName];
     if (advisory && semver.satisfies(entry.version, advisory.range, { includePrerelease: true })) {
       failures.push(`${packagePath}@${entry.version}: known vulnerable range ${advisory.range}`);
