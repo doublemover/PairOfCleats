@@ -73370,6 +73370,26 @@
         147,
         131
       ]
+    },
+    "hostedCiGateFollowup": {
+      "failedHead": "21e08c9f10b05a2fe5a9432b1f69f878109419c2",
+      "run": 40946405077,
+      "job": 123702814030,
+      "log": ".tmp/tasks/p2-p3-closeout-20261029/hosted-gate-21e08c9.log",
+      "sha256": "df17ec4730092e45f0b4043ef137bc564bc31a2550e41a61d6964f0de02670ee",
+      "cause": "Roadmap appended reconciliation stayed below20KiB LF but exceeded authoritative20000-byte CRLF worst-case contract. Downstream jobs skipped.",
+      "repair": "Condense repeated completed campaign history to existing archive references; preserve current issue counts and remaining scope.",
+      "sizes": {
+        "lfBytes": 19166,
+        "crlfBytes": 19416,
+        "limitBytes": 20000
+      },
+      "focusedCheck": {
+        "command": "node tests/tooling/docs/contract-matrix.test.js",
+        "exitCode": 0,
+        "notes": "Existing historical-evidence notices retained; no Linux/macOS execution locally."
+      },
+      "hostedAcceptance": "pending"
     }
   }
 }

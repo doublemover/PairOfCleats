@@ -24,21 +24,10 @@ Completed source-bound checks are indexed in the
 [qualification archive](archived/native-runtime-qualification-index-2026-10-27.md)
 and [qualification matrix](testing/qualification-matrix.md).
 
-The [full Windows baseline](archived/windows-full-validation-checkpoint-265-2026-10-28.md)
-executed all 6,098 required fixtures: 5,819 passed and 279 failed, including 14
-timeouts. Import/registry follow-ups now pass 109/109 cases, including all five
-original failures. Three Cargo/TUI cases and four R acceptance controls pass;
-queued vector-only readiness and other catalogued failures remain.
-
-The [security follow-up](archived/windows-security-and-validation-followup-2026-10-28.md)
-passes 76/77; queued vector-only readiness fails.
-Checkpoint-305 stopped at user request:
-**2,606 passed, 46 failed (five timeouts), 3,450 unrun**.
-Use focused failure rechecks and direct regressions; no full rerun is scheduled.
-The [contract repairs](archived/windows-contract-repair-checkpoint-305-2026-10-28.md)
-pass 46 controls. [Focused repairs](archived/windows-focused-failure-repairs-2026-10-28.md)
-pass 26/26; [comment/handoff repairs](archived/windows-comment-and-handoff-failure-repairs-2026-10-28.md)
-pass 73 controls. Together they resolve 21 original failures, leaving 25.
+[Historical Windows campaigns](archived/windows-full-validation-checkpoint-265-2026-10-28.md)
+and their [focused repairs](archived/windows-comment-and-handoff-failure-repairs-2026-10-28.md)
+retain original failures and source identities. Continue affected rechecks; no new
+full-suite run is scheduled.
 
 [CI](archived/windows-ci-failure-repairs-2026-10-29.md),
 [paths](archived/windows-ci-native-path-followup-2026-10-29.md),
