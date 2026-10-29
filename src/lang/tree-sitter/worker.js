@@ -105,6 +105,24 @@ let lifecycleTail=Promise.resolve();
 let lifecycleGeneration=0;
 let shutdownPending=0;
 let retirementError=null;
+const retiringPools = new WeakSet(), legacyWorkerViews = new WeakMap();
+const viewLegacyPool = (pool, config, generation) => {
+  let view = legacyWorkerViews.get(pool);
+  if (!view) {
+    const run = pool.run.bind(pool);
+    view = Object.freeze({ maxQueue: config.maxQueue,
+      get queueSize() { return pool.queueSize; }, get threads() { return pool.threads; },
+      run: (...args) => {
+        if (generation !== lifecycleGeneration || shutdownPending > 0 || retiringPools.has(pool)
+          || treeSitterState.treeSitterWorkerPool !== pool) return Promise.reject(Object.assign(
+          new Error('Tree-sitter worker admission is retired.'), { code: 'ERR_TREE_SITTER_WORKER_RETIRED' }));
+        return run(...args);
+      }
+    });
+    legacyWorkerViews.set(pool, view);
+  }
+  return view;
+};
 const serializeLifecycle=task=>{
   const pending=lifecycleTail.then(task);
   lifecycleTail=pending.catch(()=>{});
@@ -120,6 +138,7 @@ const closeWorkerPool = async (pool, options, label) => {
 const retirePool=async(options,label)=>{
   const pool=treeSitterState.treeSitterWorkerPool;
   if(!pool)return;
+  retiringPools.add(pool);
   try {
     await closeWorkerPool(pool, options, label);
   }catch(error){retirementError=error;throw error;}
@@ -198,19 +217,24 @@ export const getTreeSitterWorkerPool = async(rawConfig,options={})=>{
   return serializeLifecycle(async()=>{
     if(generation!==lifecycleGeneration||shutdownPending>0)return null;
     if(retirementError)throw retirementError;
-    if(treeSitterState.treeSitterWorkerPool&&treeSitterState.treeSitterWorkerConfigSignature===signature)return treeSitterState.treeSitterWorkerPool;
+    if(treeSitterState.treeSitterWorkerPool&&treeSitterState.treeSitterWorkerConfigSignature===signature)return viewLegacyPool(treeSitterState.treeSitterWorkerPool, config, generation);
     await retirePool(options,'tree-sitter.worker-pool.reconfigure');
     if(generation!==lifecycleGeneration||shutdownPending>0)return null;
     const pool = await createWorkerPool(config, options, () => generation === lifecycleGeneration && shutdownPending === 0);
     if (!pool) return null;
     if (generation !== lifecycleGeneration || shutdownPending > 0) {
-      await closeWorkerPool(pool, options, 'tree-sitter.worker-pool.stale-initialization');
+      // Retain the late resource under the same retirement owner before close
+      // can fail. A later shutdown can observe/recover that original handle.
+      treeSitterState.treeSitterWorkerPool=pool;
+      treeSitterState.treeSitterWorkerConfigSignature=signature;
+      treeSitterState.treeSitterWorkerMaxQueue=config.maxQueue;
+      await retirePool(options, 'tree-sitter.worker-pool.stale-initialization');
       return null;
     }
     treeSitterState.treeSitterWorkerPool=pool;
     treeSitterState.treeSitterWorkerConfigSignature=signature;
     treeSitterState.treeSitterWorkerMaxQueue=config.maxQueue;
-    return pool;
+    return viewLegacyPool(pool, config, generation);
   });
 };
 

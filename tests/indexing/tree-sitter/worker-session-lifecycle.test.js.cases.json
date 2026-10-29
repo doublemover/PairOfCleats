@@ -1,0 +1,1 @@
+{"schemaVersion":1,"cases":["same-config","conflicting-config","shutdown-import","shutdown-reconfigure","import-failure-retry","destroy-failure","stale-close-failure"]}

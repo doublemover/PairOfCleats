@@ -4,6 +4,7 @@ import path from 'node:path';
 import { jjProvider } from '../../../src/index/scm/providers/jj.js';
 import { getScmRuntimeConfig, setScmRuntimeConfig } from '../../../src/index/scm/runtime.js';
 import { getScmCommandRunner, setScmCommandRunner } from '../../../src/index/scm/runner.js';
+import { completeScmFixtureOutput } from '../../helpers/scm-output.js';
 
 const defaultRunner = getScmCommandRunner();
 const defaultScmConfig = getScmRuntimeConfig();
@@ -41,6 +42,7 @@ try {
     if (args.includes('--version')) {
       return { exitCode: 0, stdout: 'jj 0.20.0', stderr: '' };
     }
+    if (args.includes('op')) return completeScmFixtureOutput('a'.repeat(64));
     if (args.includes('log')) {
       const filesetArg = args[args.length - 1];
       const filePosix = parseFileFromFilesetArg(filesetArg);

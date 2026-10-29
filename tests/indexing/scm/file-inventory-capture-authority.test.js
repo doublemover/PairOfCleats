@@ -9,18 +9,21 @@ import { discoverEntries } from '../../../src/index/build/discover.js';
 import { getScmCommandRunner, setScmCommandRunner, runScmCommand } from '../../../src/index/scm/runner.js';
 import { getScmRuntimeConfig, setScmRuntimeConfig } from '../../../src/index/scm/runtime.js';
 import { completeScmFixtureOutput } from '../../helpers/scm-output.js';
+import { inspectScmFileInventory } from '../../../src/index/scm/file-inventory.js';
 
 const root = await fs.mkdtemp(path.join(os.tmpdir(), 'poc-scm-inventory-'));
 const originalRunner = getScmCommandRunner(), originalConfig = getScmRuntimeConfig(), originalWarn = console.warn;
 const warnings = [], calls = [];
 let selected = null, fallback = null;
 const commandResult = stdout => completeScmFixtureOutput(stdout);
+assert.throws(() => inspectScmFileInventory(commandResult('unframed'), { provider: 'git', operation: 'tracked', framing: 'unknown' }), TypeError);
 try {
   console.warn = message => warnings.push(String(message));
   setScmRuntimeConfig({ maxConcurrentProcesses: 1, jj: { snapshotWorkingCopy: false } });
   setScmCommandRunner(async (command, args) => {
     calls.push({ command, args });
     if (args.includes('--version')) return commandResult('jj fixture\n');
+    if (command === 'jj' && args.includes('op')) return commandResult('a'.repeat(64));
     if (args.includes('merge-base')) return commandResult('');
     if (fallback && command === 'jj' && !args.includes('-0')) return fallback;
     return selected;

@@ -33,6 +33,16 @@ Metadata prefetch identity includes whether churn is requested. Historical
 annotations pass a validated commit ID to the blame command. Unpinned blame
 does not reuse a cached working-tree result across subsequent edits/commits.
 
+JJ runtime providers bind an invocation-owned read session into provenance,
+inventory, metadata and annotation calls. One lossless operation-log observation
+pins all content reads in that session. A later runtime acquires a new immutable
+operation; failed acquisition never becomes a successful mutable `@` pin.
+Read-only sessions use `--ignore-working-copy` and never snapshot. The existing
+explicit working-copy snapshot opt-in runs `status` before acquiring its pin.
+Historical immutable operation IDs remain explicit session inputs. Run teardown
+joins admitted readers before retiring the session, including late acquisition.
+Metadata producer 2 and snapshot schema 3 invalidate earlier collided-key reuse.
+
 ### detect
 
 ```ts

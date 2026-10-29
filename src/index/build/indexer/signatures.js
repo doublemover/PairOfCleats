@@ -270,6 +270,7 @@ export const buildDependencySignatures = (runtime, mode, tokenizationKey) => {
   };
   const lexical = { mode, tokenizationKey, literalAnalyzer: payload.literalAnalyzer, lexicon: payload.lexicon, profile: payload.profile };
   const enrichment = {
+    ...(payload.scm && payload.scm.provider !== 'none' ? { scmMetadataProducer: SEMANTIC_ANALYSIS_VERSIONS.scmMetadata } : {}),
     features: payload.features, riskInterproceduralConfig: payload.riskInterproceduralConfig,
     riskRules: payload.riskRules, riskRegex: payload.riskRegex, riskPolicyReceipt: payload.riskPolicyReceipt,
     riskCaps: payload.riskCaps, importScan: payload.importScan,

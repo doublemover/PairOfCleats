@@ -6,6 +6,8 @@ import { createTempWatchRepo, createWatchRuntime, createWatchDeps, normalizeAbsP
 
 const turn = () => new Promise(resolve => setImmediate(resolve));
 const fail = code => Object.assign(new Error(`injected ${code}`), { code });
+const selected = process.env.PAIROFCLEATS_TEST_ID?.split('indexing/watch/source-observation-replay/')[1];
+assert.ok(['chokidar', 'parcel', 'ownership'].includes(selected));
 const start = async (backend, observe, { beforeBuild = async () => {}, observeStability = ({ stat }) => stat() } = {}) => {
   const repo = await createTempWatchRepo({ prefix: 'poc-watch-observation-', files: {
     a: { rel: 'src/a.js', content: 'export const a = 1;\n' },
@@ -53,9 +55,13 @@ const start = async (backend, observe, { beforeBuild = async () => {}, observeSt
     } };
 };
 
-for (const backend of ['chokidar', 'parcel']) {
-  for (const code of ['EIO', 'ENOENT']) {
-    const context = await start(backend, ({ name, count, stat }) => {
+for (const backend of selected === 'ownership' ? [] : [selected]) {
+  for (const code of ['EIO', 'EMFILE', 'ENOENT', 'atomic-save']) {
+    const context = await start(backend, async ({ name, count, stat, file }) => {
+      if (name === 'a' && code === 'atomic-save') {
+        if (count === 1) await fs.rename(file, file + '.saving');
+        return stat();
+      }
       if (name === 'a' && count === 1) throw fail(code);
       return stat();
     });
@@ -64,6 +70,7 @@ for (const backend of ['chokidar', 'parcel']) {
       context.event('a');
       context.event('b');
       await context.pending(1);
+      if (code === 'atomic-save') await fs.rename(context.files.a.abs + '.saving', context.files.a.abs);
       await waitFor(() => context.calls.get('b') === 1 && !context.runtime.watchState.updateQueueRunning);
       assert.equal(context.publications.length, 0, 'unknown source must block publication');
       context.clock.advance(49);
@@ -72,7 +79,7 @@ for (const backend of ['chokidar', 'parcel']) {
       context.clock.advance(1);
       await waitFor(() => context.publications.length > 0 && context.runtime.watchState.quiescent);
       const published = context.publications.at(-1).discovery;
-      assert.ok(published.entries.includes(normalizeAbsPath(context.files.a.abs)));
+      assert.ok(published.entries.includes(normalizeAbsPath(context.files.a.abs)), backend + '/' + code);
       assert.ok(published.entries.includes(normalizeAbsPath(context.files.b.abs)));
       assert.ok(!published.skipped.includes(normalizeAbsPath(context.files.a.abs)));
       assert.equal(published.contents['src/a.js'], 'export const a = "new source bytes";\n');
@@ -124,79 +131,81 @@ for (const backend of ['chokidar', 'parcel']) {
   } finally { await absent.stop(); }
 }
 
-let stabilityFailure = true;
-const stability = await start('parcel', ({ stat }) => stat(), { observeStability: ({ stat }) => {
-  if (stabilityFailure) { stabilityFailure = false; throw fail('EMFILE'); }
-  return stat();
-} });
-try {
-  stability.event('a');
-  await stability.pending(1);
-  assert.equal(stability.runtime.watchState.sourceObservations.failures[0].code, 'EMFILE');
-  assert.equal(stability.calls.get('a'), undefined, 'failed stability observation cannot admit later classification');
-  assert.equal(stability.publications.length, 0);
-  stability.clock.advance(50);
-  await waitFor(() => stability.publications.length > 0 && stability.runtime.watchState.quiescent);
-  assert.ok(stability.publications.at(-1).discovery.entries.includes(normalizeAbsPath(stability.files.a.abs)));
-} finally { await stability.stop(); }
+if (selected === 'ownership') {
+  let stabilityFailure = true;
+  const stability = await start('parcel', ({ stat }) => stat(), { observeStability: ({ stat }) => {
+    if (stabilityFailure) { stabilityFailure = false; throw fail('EMFILE'); }
+    return stat();
+  } });
+  try {
+    stability.event('a');
+    await stability.pending(1);
+    assert.equal(stability.runtime.watchState.sourceObservations.failures[0].code, 'EMFILE');
+    assert.equal(stability.calls.get('a'), undefined, 'failed stability observation cannot admit later classification');
+    assert.equal(stability.publications.length, 0);
+    stability.clock.advance(50);
+    await waitFor(() => stability.publications.length > 0 && stability.runtime.watchState.quiescent);
+    assert.ok(stability.publications.at(-1).discovery.entries.includes(normalizeAbsPath(stability.files.a.abs)));
+  } finally { await stability.stop(); }
 
-let release, entered = false;
-const active = await start('chokidar', ({ name, count, stat }) => {
-  if (name === 'a' && count === 2) throw fail('EIO');
-  return stat();
-}, { beforeBuild: async count => {
-  if (count === 1) { entered = true; await new Promise(resolve => { release = resolve; }); }
-} });
-try {
-  active.event('a');
-  await waitFor(() => entered);
-  await fs.writeFile(active.files.a.abs, 'export const a = "after active build";\n');
-  active.event('a');
-  await active.pending(1);
-  release();
-  await waitFor(() => !active.runtime.watchState.running);
-  assert.equal(active.publications.length, 0, 'the active attempt cannot publish after failed observation');
-  active.clock.advance(50);
-  await waitFor(() => active.publications.length > 0 && active.runtime.watchState.quiescent);
-  assert.equal(active.publications.at(-1).discovery.contents['src/a.js'], 'export const a = "after active build";\n');
-} finally { release?.(); await active.stop(); }
+  let release, entered = false;
+  const active = await start('chokidar', ({ name, count, stat }) => {
+    if (name === 'a' && count === 2) throw fail('EIO');
+    return stat();
+  }, { beforeBuild: async count => {
+    if (count === 1) { entered = true; await new Promise(resolve => { release = resolve; }); }
+  } });
+  try {
+    active.event('a');
+    await waitFor(() => entered);
+    await fs.writeFile(active.files.a.abs, 'export const a = "after active build";\n');
+    active.event('a');
+    await active.pending(1);
+    release();
+    await waitFor(() => !active.runtime.watchState.running);
+    assert.equal(active.publications.length, 0, 'the active attempt cannot publish after failed observation');
+    active.clock.advance(50);
+    await waitFor(() => active.publications.length > 0 && active.runtime.watchState.quiescent);
+    assert.equal(active.publications.at(-1).discovery.contents['src/a.js'], 'export const a = "after active build";\n');
+  } finally { release?.(); await active.stop(); }
 
-entered = false;
-const unlinked = await start('chokidar', async ({ name, stat }) => {
-  const observed = await stat();
-  if (name === 'a') { entered = true; await new Promise(resolve => { release = resolve; }); }
-  return observed;
-});
-try {
-  unlinked.event('a');
-  await waitFor(() => entered);
-  await fs.unlink(unlinked.files.a.abs);
-  unlinked.event('a', 'unlink');
-  await turn();
-  assert.equal(unlinked.publications.length, 0, 'publication must wait for the active observation owner');
-  release();
-  await waitFor(() => unlinked.publications.length > 0 && unlinked.runtime.watchState.quiescent);
-  assert.ok(!unlinked.publications.at(-1).discovery.entries.includes(normalizeAbsPath(unlinked.files.a.abs)),
-    'a late successful observation must not undo unlink');
-} finally { release?.(); await unlinked.stop(); }
+  entered = false;
+  const unlinked = await start('chokidar', async ({ name, stat }) => {
+    const observed = await stat();
+    if (name === 'a') { entered = true; await new Promise(resolve => { release = resolve; }); }
+    return observed;
+  });
+  try {
+    unlinked.event('a');
+    await waitFor(() => entered);
+    await fs.unlink(unlinked.files.a.abs);
+    unlinked.event('a', 'unlink');
+    await turn();
+    assert.equal(unlinked.publications.length, 0, 'publication must wait for the active observation owner');
+    release();
+    await waitFor(() => unlinked.publications.length > 0 && unlinked.runtime.watchState.quiescent);
+    assert.ok(!unlinked.publications.at(-1).discovery.entries.includes(normalizeAbsPath(unlinked.files.a.abs)),
+      'a late successful observation must not undo unlink');
+  } finally { release?.(); await unlinked.stop(); }
 
-entered = false;
-const shutdown = await start('chokidar', async ({ name, stat }) => {
-  if (name === 'a') { entered = true; await new Promise(resolve => { release = resolve; }); }
-  return stat();
-});
-let settled = false;
-shutdown.watchPromise.then(() => { settled = true; }, () => { settled = true; });
-try {
-  shutdown.event('a');
-  await waitFor(() => entered);
-  shutdown.abortController.abort();
-  await turn();
-  assert.equal(settled, false, 'shutdown must own active classification until it settles');
-  assert.equal(shutdown.publications.length, 0);
-  release();
-  await shutdown.watchPromise;
-  assert.equal(shutdown.publications.length, 0);
-  assert.equal(shutdown.clock.pending(), 0);
-} finally { release?.(); await shutdown.stop(); }
+  entered = false;
+  const shutdown = await start('chokidar', async ({ name, stat }) => {
+    if (name === 'a') { entered = true; await new Promise(resolve => { release = resolve; }); }
+    return stat();
+  });
+  let settled = false;
+  shutdown.watchPromise.then(() => { settled = true; }, () => { settled = true; });
+  try {
+    shutdown.event('a');
+    await waitFor(() => entered);
+    shutdown.abortController.abort();
+    await turn();
+    assert.equal(settled, false, 'shutdown must own active classification until it settles');
+    assert.equal(shutdown.publications.length, 0);
+    release();
+    await shutdown.watchPromise;
+    assert.equal(shutdown.publications.length, 0);
+    assert.equal(shutdown.clock.pending(), 0);
+  } finally { release?.(); await shutdown.stop(); }
+}
 console.log('watch source observation replay test passed');

@@ -3,10 +3,12 @@ import path from 'node:path';
 import { registerHooks } from 'node:module';
 import { releaseCacheWriterOwnership } from '../../../src/index/build/cache-writer-drain.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
+import { createBuildScheduler } from '../../../src/shared/concurrency/scheduler-core.js';
 
 const { dir } = await prepareIsolatedTestCacheDir('tree-sitter-pending-failure');
 const key = Symbol.for('test.tree-sitter-original-subprocess-owner');
 let failure, launches = 0, snapshots = 0, records = 0;
+let scheduler = null;
 globalThis[key] = async (_command, _args, options) => {
   launches++;
   assert.equal(options.ownershipId, 'build-A:stage1:tree-sitter:task-A');
@@ -29,7 +31,7 @@ try {
   const run = (log = null) => executeTreeSitterSchedulerTasks({
     plannedTasks: [{ taskId: 'task-A', grammarKeys: ['native:javascript'], timeoutMs: 10, planPath: path.join(dir, 'unused-plan.json') }],
     execConcurrency: 1, effectiveAbortSignal: new AbortController().signal,
-    runtime: { argv: { verbose: Boolean(log) }, subprocessOwnership: { stage1FilePrefix: 'build-A:stage1' } },
+    runtime: { scheduler, argv: { verbose: Boolean(log) }, subprocessOwnership: { stage1FilePrefix: 'build-A:stage1' } },
     outDir: dir, runtimeEnv: {}, schedulerExecPath: 'unused-executor.js', log,
     crashTracker: { async recordFailure() { records++; }, summarize() { return {}; } }, planResult: { plan: {}, groups: [] },
     async onWritePlannerFailureSnapshot() { snapshots++; }
@@ -80,5 +82,15 @@ try {
   failure = Object.freeze(timeout(confirmed)); launches = snapshots = records = 0;
   await run(); assert.equal(launches, 1); assert.equal(records, 1); assert.equal(snapshots, 1,
     'confirmed original child cleanup still permits ordinary timeout degradation');
+  scheduler = createBuildScheduler({ cpuTokens: 1, ioTokens: 1, memoryTokens: 1, adaptive: false });
+  closed = false;
+  failure = Object.freeze(Object.assign(timeout(confirmed), { cacheOwnershipPending: true, cacheOwnershipReleased: () => closed }));
+  await assert.rejects(run(), error => error.cacheOwnershipPending === true && contains(error, failure));
+  assert.equal(scheduler.stats().tokens.cpu.used, 1, 'actual prepass launch retains the original child compute admission');
+  let replacement = false;
+  const queued = scheduler.schedule('stage1.cpu', { cpu: 1, signal: new AbortController().signal }, () => { replacement = true; });
+  await new Promise(resolve => setImmediate(resolve)); assert.equal(replacement, false);
+  closed = true;
+  await queued; await scheduler.shutdown({ awaitRunning: true, timeoutMs: 1000 }); scheduler = null;
 } finally { hook.deregister(); delete globalThis[key]; }
 console.log('scheduler original subprocess failures preserve the writer-release barrier');

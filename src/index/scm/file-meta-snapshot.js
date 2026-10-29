@@ -16,7 +16,7 @@ import { buildScmFreshnessGuard, getScmRuntimeConfigEpoch, resolveScmRevisionIde
 import { buildScmMetadataFailure, normalizeScmMetadataDiagnostics, preserveScmMetadataFailure } from './metadata-diagnostics.js';
 import { normalizeScmFileKey } from './paths.js';
 
-const SCM_FILE_META_SNAPSHOT_SCHEMA_VERSION = 2;
+const SCM_FILE_META_SNAPSHOT_SCHEMA_VERSION = 3;
 const SCM_FILE_META_SNAPSHOT_NAME = 'file-meta-v1.json';
 
 const normalizeRepoRoot = (value) => {

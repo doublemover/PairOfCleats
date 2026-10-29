@@ -40,6 +40,7 @@ import { mergeConfig } from '../../../shared/config.js';
 import { setXxhashBackend } from '../../../shared/hash.js';
 import { getScmProvider, getScmProviderAndRoot, resolveScmConfig } from '../../scm/registry.js';
 import { setScmRuntimeConfig, resolveScmRevisionIdentity } from '../../scm/runtime.js';
+import { bindScmReadSession, createScmReadSession } from '../../scm/read-session.js';
 import { normalizeRiskConfig } from '../../risk.js';
 import { normalizeRiskInterproceduralConfig } from '../../risk-interprocedural/config.js';
 import { normalizeRecordsConfig } from '../records.js';
@@ -535,6 +536,10 @@ async function createBuildRuntimeImpl({
         startPath: root,
         log
       });
+      if (scmSelection.provider === 'jj') {
+        scmSelection = { ...scmSelection, providerImpl: bindScmReadSession(scmSelection.providerImpl,
+          createScmReadSession({ repoRoot: scmSelection.repoRoot, owner: resourceScope })) };
+      }
       if (scmSelection.provider === 'none') {
         log('[scm] provider=none; SCM provenance unavailable.');
       }

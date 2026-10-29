@@ -12,6 +12,7 @@ export const scmFileInventoryReceipt = ({ provider, operation, reason = null, ca
 });
 
 export const inspectScmFileInventory = (result, { provider, operation, framing = 'nul' }) => {
+  if (!['nul', 'line', 'raw'].includes(framing)) throw new TypeError('Unknown SCM capture framing.');
   const capture = result?.outputCapture?.stdout;
   let reason = null;
   if (result?.exitCode !== 0 || result.signal !== null || result.error != null || result.spawnError != null || result.timedOut === true) {
@@ -23,7 +24,7 @@ export const inspectScmFileInventory = (result, { provider, operation, framing =
   else if (captureFields.some(key => count(capture[key]) === null)
     || capture.observedBytes !== capture.retainedBytes || capture.outputBytes !== Buffer.byteLength(result.stdout, 'utf8')
     || capture.retainedBytes !== capture.outputBytes) reason = 'capture-extent-mismatch';
-  else if (result.stdout && (framing === 'nul' ? !result.stdout.endsWith('\0') : !result.stdout.endsWith('\n') || result.stdout.includes('\0'))) {
+  else if (result.stdout && (framing === 'nul' ? !result.stdout.endsWith('\0') : framing === 'line' && (!result.stdout.endsWith('\n') || result.stdout.includes('\0')))) {
     reason = 'incomplete-record-framing';
   }
   return scmFileInventoryReceipt({ provider, operation, reason, capture });

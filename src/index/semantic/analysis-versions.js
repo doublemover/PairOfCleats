@@ -4,14 +4,16 @@ import { MODULE_EXPORTS_VERSION } from '../../lang/js-ts-exports.js';
 import { FLOW_METADATA_VERSION } from '../../shared/flow-evidence.js';
 import { SOURCE_OUTLINE_VERSION } from '../../shared/source-outline.js';
 import { JAVASCRIPT_RELATIONS_VERSION } from '../../lang/javascript/version.js';
+import { SCM_METADATA_PRODUCER_VERSION } from '../scm/version.js';
 
 /** Shared by producers and replay admission. Bump the affected producer when its
  * semantics change; syntax extraction and physical layout remain independent.
  */
 export const SEMANTIC_ANALYSIS_VERSIONS = Object.freeze({
+  scmMetadata: SCM_METADATA_PRODUCER_VERSION,
   moduleExports: MODULE_EXPORTS_VERSION, sqlRelations: SQL_RELATION_PRODUCER_VERSION, javascriptRelations: JAVASCRIPT_RELATIONS_VERSION, flowMetadata: FLOW_METADATA_VERSION, sourceOutline: SOURCE_OUTLINE_VERSION,
   lexicalAnalyzer: '5', importResolution: '26', pieceAssembly: '5',
-  recordsProducer: '12', ignoreRules: '5', documentExtraction: '7', discoverySelection: '7',
+  recordsProducer: '12', ignoreRules: '5', documentExtraction: '7', discoverySelection: '8',
   repoMapProducer: '2', graphRelations: '3',
   sourceChunking: '49', typeNormalization: '15', vfsRouting: '8', complexityAnalysis: '3', lintProjection: '3',
   riskPropagation: '7', callSiteIdentity: '3', runtimeClaims: '2',

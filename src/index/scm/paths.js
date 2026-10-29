@@ -17,7 +17,7 @@ export const normalizeScmFileKey = (filePath, {
   repoRoot = null,
   rejectEscape = true
 } = {}) => {
-  if (typeof filePath !== 'string' || !filePath) return null;
+  if (typeof filePath !== 'string' || !filePath || filePath.includes('\0')) return null;
   const normalized = repoRoot
     ? toRepoPosixPath(filePath, repoRoot)
     : path.posix.normalize(process.platform === 'win32' ? toPosix(String(filePath || '')) : String(filePath || '')).replace(/^\.\//, '');

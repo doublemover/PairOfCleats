@@ -2,6 +2,7 @@ import { runWithSchedulerTaskLease, currentSchedulerTaskLease } from '../schedul
 import { createAbortError, isAbortSignal, coerceAbortSignal } from '../../abort.js';
 import { appendBounded } from '../scheduler-telemetry.js';
 import { schedulerReplayLimitIdentity } from '../scheduler-dispatch-replay.js';
+import { observeStorageResource } from '../../storage/failure-observation.js';
 
 export function createSchedulerDispatch({
   config,
@@ -12,6 +13,21 @@ export function createSchedulerDispatch({
   dispatchReplay
 }) {
   const blockedScans = new WeakMap();
+  const retainedSettlements = new Set();
+  let settlementTimer = null;
+  const observeRetainedSettlements = () => {
+    settlementTimer = null;
+    for (const entry of retainedSettlements) {
+      let settled = false;
+      try { settled = entry.observation.isSettled(); } catch {}
+      if (!settled) continue;
+      retainedSettlements.delete(entry);
+      entry.retire(); entry.resolve();
+    }
+    if (retainedSettlements.size) {
+      settlementTimer = setTimeout(observeRetainedSettlements, 25);
+    }
+  };
   const replayEnvelope = () => ({ tokens: { cpu: { ...state.tokens.cpu }, io: { ...state.tokens.io }, mem: { ...state.tokens.mem } },
     globalBytes: state.globalInFlightBytes, globalMaxBytes: config.globalMaxInFlightBytes,
     writeBackpressure: { ...queueLifecycle.evaluateWriteBackpressure() },
@@ -342,28 +358,49 @@ export function createSchedulerDispatch({
       })
       .then(value => ({ value, failed: false }), error => ({ error, failed: true }))
       .then(outcome => {
-        dispatchReplay?.observeEnd(next, outcome.failed ? 'failed' : 'completed');
-        appendBounded(queue.stats.runSamples, Math.max(0, config.nowMs() - startedAt), config.WAIT_TIME_SAMPLE_LIMIT);
-        queue.runningSince.delete(next);
-        queue.running -= 1;
-        lease.active = false;
-        if (lease.suspended) {
-          queue.suspendedCpu = Math.max(0, queue.suspendedCpu - 1);
-          const retired = new Error('Scheduler task retired with an unawaited suspended operation.');
-          retired.code = 'ERR_SCHEDULER_TASK_RETIRED';
-          lease.resumeReject?.(retired);
-        }
-        if (lease.surfaceActive) queueLifecycle.bumpSurfaceRunning(queue.surface, -1);
-        release(queue, used);
-        state.runningTasks.delete(done);
-        pump();
-        // Completion is observable only after this exact task's reservations
-        // retire. Immediate optional-child admission must see the released state.
+        const retire = (alreadyRejected = false) => {
+          dispatchReplay?.observeEnd(next, outcome.failed ? 'failed' : 'completed');
+          appendBounded(queue.stats.runSamples, Math.max(0, config.nowMs() - startedAt), config.WAIT_TIME_SAMPLE_LIMIT);
+          queue.runningSince.delete(next);
+          queue.running -= 1;
+          lease.active = false;
+          if (lease.suspended) {
+            queue.suspendedCpu = Math.max(0, queue.suspendedCpu - 1);
+            const retired = new Error('Scheduler task retired with an unawaited suspended operation.');
+            retired.code = 'ERR_SCHEDULER_TASK_RETIRED';
+            lease.resumeReject?.(retired);
+          }
+          if (lease.surfaceActive) queueLifecycle.bumpSurfaceRunning(queue.surface, -1);
+          release(queue, used);
+          state.runningTasks.delete(done);
+          pump();
+          // Completion is observable only after this exact task's reservations
+          // retire. Immediate optional-child admission must see the released state.
+          if (outcome.failed) {
+            if (!alreadyRejected) { queue.stats.failed += 1; config.counters.failed += 1; next.reject(outcome.error); }
+          } else {
+            queue.stats.completed += 1; config.counters.completed += 1; next.resolve(outcome.value);
+          }
+        };
         if (outcome.failed) {
-          queue.stats.failed += 1; config.counters.failed += 1; next.reject(outcome.error);
-        } else {
-          queue.stats.completed += 1; config.counters.completed += 1; next.resolve(outcome.value);
+          const observation = observeStorageResource(outcome.error, { phase: 'scheduler-task-resource-retirement' });
+          let pendingFailure;
+          try { observation.requireSettled(); } catch (failure) { pendingFailure = failure; }
+          if (pendingFailure) {
+            // The function rejected, but its original child/resource did not
+            // retire. Reject the public request now while retaining this exact
+            // admission and drain promise. Only the captured original observer
+            // can release it; rewritten diagnostic fields grant no authority.
+            lease.active = false;
+            const held = new Promise(resolve => { retainedSettlements.add({ observation, resolve, retire: () => retire(true) }); });
+            if (!settlementTimer) {
+              settlementTimer = setTimeout(observeRetainedSettlements, 25);
+            }
+            queue.stats.failed += 1; config.counters.failed += 1; next.reject(pendingFailure);
+            return held;
+          }
         }
+        retire();
       }).catch(error => {
         // Never leave the public request pending if teardown diagnostics fail.
         next.reject(error);
