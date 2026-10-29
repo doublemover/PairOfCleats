@@ -61,6 +61,14 @@ export const resolveSemanticPartPath = async (root, relativePath) => {
   return resolvePhysicalPartPath(await fs.realpath(root), relativePath);
 };
 
+// Contained reads validate the authorized lexical root and every component
+// themselves. Canonicalizing just the target first loses a valid aliased
+// ancestor and bypasses the relative components that must reject links.
+const resolveContainedSemanticPartPath = (root, relativePath) => {
+  assertSemanticPartPath(relativePath);
+  return path.resolve(root, relativePath);
+};
+
 /**
  * Artifact backend for completed staging/published descriptors. Publication must
  * validate all parts first. Persistent caches contain validation metadata only.
@@ -289,7 +297,7 @@ export const createArtifactSemanticStore = ({
       if (text === undefined) {
         decodedBytes += source.byteLength;
         if (decodedBytes > maxRecordBytes) throw Object.assign(new Error('Source hydration exceeds decoded-source allowance.'), { code: 'ERR_SEMANTIC_OUTPUT_LIMIT' });
-        const filePath = await resolveSemanticPartPath(root, 'semantic-sources/' + source.byteHash + '.utf8');
+        const filePath = resolveContainedSemanticPartPath(root, 'semantic-sources/' + source.byteHash + '.utf8');
         let bytes;
         try {
           ({ buffer: bytes } = await readVerifiedContainedFile(root, filePath, {
@@ -484,7 +492,7 @@ export const createArtifactSemanticStore = ({
     }
     const boundaries = expected.encoding === 'binary' ? [] : [...new Set(spans.flat())].sort((a, b) => a - b);
     let nextBoundary = 0;
-    const file = await resolveSemanticPartPath(root, 'semantic-sources/' + expected.byteHash + '.utf8');
+    const file = resolveContainedSemanticPartPath(root, 'semantic-sources/' + expected.byteHash + '.utf8');
     const byteHash = createHash('sha256'), textHash = createHash('sha256');
     const decoder = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true });
     let byteLength = 0, textLength = 0;

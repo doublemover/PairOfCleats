@@ -21,8 +21,12 @@ export const createStaleProcessRestartHarness = () => {
     assert.equal((await client.waitForResourceSettlement()).settled, true,
       'actual child close and original tree cleanup must both finish before restart');
     const backoff = lifecycleEvents.findLast(event => event.backoffMs > 0);
-    const remaining = backoff ? Math.max(0, backoff.at + backoff.backoffMs - Date.now()) : 0;
-    if (remaining) await new Promise(resolve => setTimeout(resolve, remaining));
+    const readyAt = backoff ? backoff.at + backoff.backoffMs : 0;
+    // Timers may fire before their wall-clock deadline. Establish readiness
+    // before the single start attempt; preserve the runtime's backoff guard.
+    for (let remaining = readyAt - Date.now(); remaining > 0; remaining = readyAt - Date.now()) {
+      await new Promise(resolve => setTimeout(resolve, remaining));
+    }
     return client.start();
   };
 
