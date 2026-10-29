@@ -8,7 +8,8 @@ const state = { workers: [], kills: 0, probes: 0, registered: 0, kill: null, pro
 const key = Symbol.for('poc.test.python-retirement');
 globalThis[key] = state;
 const access = 'const state = globalThis[Symbol.for("poc.test.python-retirement")];';
-state.spawn = () => {
+state.spawn = (command, args, options) => {
+  assert.equal(options.windowsHide, true, 'headless AST workers must not open Windows console windows');
   const proc = new EventEmitter();
   Object.assign(proc, { stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(), unref() {} });
   proc.stdin.on('data', chunk => { proc.lastRequest = JSON.parse(String(chunk)); });

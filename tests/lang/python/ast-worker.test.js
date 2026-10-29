@@ -1,17 +1,8 @@
 #!/usr/bin/env node
-import { spawnSync } from 'node:child_process';
 import { getPythonAst, shutdownPythonAstPool } from '../../../src/lang/python.js';
+import { findPythonExecutable } from '../../../src/lang/python/executable.js';
 
-function hasPython() {
-  const candidates = ['python', 'python3'];
-  for (const cmd of candidates) {
-    const result = spawnSync(cmd, ['-c', 'import sys; sys.stdout.write("ok")'], { encoding: 'utf8' });
-    if (result.status === 0 && result.stdout.trim() === 'ok') return true;
-  }
-  return false;
-}
-
-if (!hasPython()) {
+if (!await findPythonExecutable()) {
   console.log('Python AST worker test skipped (python not available).');
   process.exit(0);
 }

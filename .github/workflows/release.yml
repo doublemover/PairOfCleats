@@ -43,6 +43,12 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
 
+      - name: Setup Python
+        id: python-runtime
+        uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
+
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
@@ -50,6 +56,8 @@ jobs:
           cache: npm
 
       - name: Install deps
+        env:
+          NODE_GYP_FORCE_PYTHON: ${{ steps.python-runtime.outputs.python-path }}
         run: npm run bootstrap:ci
 
       - name: Resolve checked out release revision
@@ -111,6 +119,12 @@ jobs:
         with:
           ref: ${{ needs.prepare.outputs.release_git_sha }}
 
+      - name: Setup Python
+        id: python-runtime
+        uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
+
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
@@ -118,6 +132,8 @@ jobs:
           cache: npm
 
       - name: Install deps
+        env:
+          NODE_GYP_FORCE_PYTHON: ${{ steps.python-runtime.outputs.python-path }}
         run: npm run bootstrap:ci
 
       - name: Build packaged node surfaces
@@ -150,6 +166,12 @@ jobs:
         with:
           ref: ${{ needs.prepare.outputs.release_git_sha }}
 
+      - name: Setup Python
+        id: python-runtime
+        uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
+
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
@@ -157,6 +179,8 @@ jobs:
           cache: npm
 
       - name: Install deps
+        env:
+          NODE_GYP_FORCE_PYTHON: ${{ steps.python-runtime.outputs.python-path }}
         run: npm run bootstrap:ci
 
       - name: Verify runtime surfaces
@@ -190,6 +214,12 @@ jobs:
         with:
           ref: ${{ needs.prepare.outputs.release_git_sha }}
 
+      - name: Setup Python
+        id: python-runtime
+        uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
+
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
@@ -197,6 +227,8 @@ jobs:
           cache: npm
 
       - name: Install deps
+        env:
+          NODE_GYP_FORCE_PYTHON: ${{ steps.python-runtime.outputs.python-path }}
         run: npm run bootstrap:ci
 
       - name: Download packaged node artifacts
@@ -244,6 +276,12 @@ jobs:
         with:
           ref: ${{ needs.prepare.outputs.release_git_sha }}
 
+      - name: Setup Python
+        id: python-runtime
+        uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
+
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
@@ -256,6 +294,8 @@ jobs:
           toolchain: 1.99.1
 
       - name: Install deps
+        env:
+          NODE_GYP_FORCE_PYTHON: ${{ steps.python-runtime.outputs.python-path }}
         run: npm run bootstrap:ci
 
       - name: Build TUI release artifacts
@@ -299,6 +339,12 @@ jobs:
         with:
           ref: ${{ needs.prepare.outputs.release_git_sha }}
 
+      - name: Setup Python
+        id: python-runtime
+        uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
+
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
@@ -306,6 +352,8 @@ jobs:
           cache: npm
 
       - name: Install deps
+        env:
+          NODE_GYP_FORCE_PYTHON: ${{ steps.python-runtime.outputs.python-path }}
         run: npm run bootstrap:ci
 
       - name: Download TUI build artifacts
@@ -349,6 +397,12 @@ jobs:
         with:
           ref: ${{ needs.prepare.outputs.release_git_sha }}
 
+      - name: Setup Python
+        id: python-runtime
+        uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
+
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
@@ -356,6 +410,8 @@ jobs:
           cache: npm
 
       - name: Install deps
+        env:
+          NODE_GYP_FORCE_PYTHON: ${{ steps.python-runtime.outputs.python-path }}
         run: npm run bootstrap:ci
 
       - name: Download prepare artifacts
@@ -472,6 +528,12 @@ jobs:
         with:
           ref: ${{ needs.prepare.outputs.release_git_sha }}
 
+      - name: Setup Python
+        id: python-runtime
+        uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
+
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
@@ -484,6 +546,8 @@ jobs:
           toolchain: 1.99.1
 
       - name: Install deps
+        env:
+          NODE_GYP_FORCE_PYTHON: ${{ steps.python-runtime.outputs.python-path }}
         run: npm run bootstrap:ci
 
       - name: Install cargo-cyclonedx
@@ -610,6 +674,12 @@ jobs:
         with:
           ref: ${{ needs.prepare.outputs.release_git_sha }}
 
+      - name: Setup Python
+        id: python-runtime
+        uses: actions/setup-python@v7
+        with:
+          python-version-file: .python-version
+
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
@@ -617,6 +687,8 @@ jobs:
           cache: npm
 
       - name: Install deps
+        env:
+          NODE_GYP_FORCE_PYTHON: ${{ steps.python-runtime.outputs.python-path }}
         run: npm run bootstrap:ci
 
       - name: Download prepare artifacts

@@ -8,6 +8,12 @@ remove that requirement. Python must satisfy node-gyp (currently >=3.6); use a
 currently maintained Python 3 release. Python 3.12+ needs node-gyp >=10; the lock
 includes node-gyp 13.1.0.
 
+CI and release native builds select **Python 3.15.2** from `.python-version`
+through `actions/setup-python`, then bind preflight/node-gyp to that action's
+exact interpreter. Local bootstrap still accepts a compatible maintained Python;
+select the pinned version explicitly with `NODE_GYP_FORCE_PYTHON` when installed
+alongside another interpreter. Runtime Python commands use the selected PATH.
+
 ## Windows
 
 Install [Python 3](https://www.python.org/downloads/windows/),

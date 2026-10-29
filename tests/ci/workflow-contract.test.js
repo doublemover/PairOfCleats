@@ -24,6 +24,8 @@ if (!fs.existsSync(runSuitePath)) {
 const pkg = JSON.parse(fs.readFileSync(packagePath, 'utf8'));
 const scripts = pkg.scripts || {};
 const pinnedNodeVersion = fs.readFileSync(path.join(ROOT, '.nvmrc'), 'utf8').trim();
+const pinnedPythonVersion = fs.readFileSync(path.join(ROOT, '.python-version'), 'utf8').trim();
+assert.match(pinnedPythonVersion, /^3\.\d+\.\d+$/, '.python-version must select an exact stable Python 3 release');
 if (!/^26\.\d+\.\d+$/.test(pinnedNodeVersion)) {
   console.error('.nvmrc must pin an exact Node 26 version.');
   process.exit(1);
@@ -342,6 +344,7 @@ const readWorkflow = (name) => {
 const minimumActionMajor = {
   'checkout': 7,
   'setup-node': 7,
+  'setup-python': 7,
   'cache': 6,
   'upload-artifact': 6,
   'download-artifact': 7,
@@ -360,6 +363,35 @@ const assertJobEnvironmentContexts = (workflow, label) => {
     }
   }
 };
+const assertBootstrapPython = (workflow, label) => {
+  for (const [id, job] of Object.entries(workflow.jobs || {})) {
+    const steps = job.steps || [];
+    const setup = steps.findIndex(step => step.uses?.startsWith('actions/setup-python@'));
+    for (let index = 0; index < steps.length; index++) {
+      if (!/npm run bootstrap(?::ci)?\b/.test(steps[index].run || '')) continue;
+      assert.ok(setup >= 0 && setup < index, `${label}:${id} must select Python before native bootstrap`);
+      assert.equal(steps[setup].with?.['python-version-file'], '.python-version');
+      assert.ok([undefined, false, 'false'].includes(steps[setup].with?.['allow-prereleases']),
+        `${label}:${id} must retain stable-only Python selection`);
+      assert.equal(steps[index].env?.NODE_GYP_FORCE_PYTHON,
+        '${{ steps.' + steps[setup].id + '.outputs.python-path }}',
+        `${label}:${id} must bind preflight/node-gyp to the selected interpreter`);
+    }
+  }
+};
+const pythonBootstrapControl = {
+  jobs: { fixture: { steps: [
+    { id: 'python-runtime', uses: 'actions/setup-python@v7', with: { 'python-version-file': '.python-version' } },
+    { run: 'npm run bootstrap:ci', env: { NODE_GYP_FORCE_PYTHON: '${{ steps.python-runtime.outputs.python-path }}' } }
+  ] } }
+};
+assert.doesNotThrow(() => assertBootstrapPython(pythonBootstrapControl, 'positive'));
+const missingPython = structuredClone(pythonBootstrapControl);
+missingPython.jobs.fixture.steps.shift();
+assert.throws(() => assertBootstrapPython(missingPython, 'negative'), /select Python before native bootstrap/);
+const stalePython = structuredClone(pythonBootstrapControl);
+stalePython.jobs.fixture.steps[1].env.NODE_GYP_FORCE_PYTHON = 'python';
+assert.throws(() => assertBootstrapPython(stalePython, 'negative'), /bind preflight\/node-gyp/);
 for (const expression of ['${{ runner.temp }}/home', '${{ runner[\'temp\'] }}/home']) {
   assert.throws(() => assertJobEnvironmentContexts({ jobs: { fixture: { env: { HOME: expression } } } }, 'negative'), /runner context is unavailable/);
 }
@@ -389,6 +421,7 @@ for (const fileName of fs.readdirSync(path.join(ROOT, '.github', 'workflows'))) 
   }
   const workflow = parse(workflowText);
   assertJobEnvironmentContexts(workflow, fileName);
+  assertBootstrapPython(workflow, fileName);
   for (const job of Object.values(workflow.jobs || {})) {
     for (const step of job.steps || []) {
       const pinnedAction = step.uses?.match(/^actions\/(checkout|github-script)@([0-9a-f]{40})$/);

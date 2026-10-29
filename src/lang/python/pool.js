@@ -339,7 +339,8 @@ function createPythonAstPool({ pythonBin, config, log }) {
   const spawnWorker = () => {
     if (state.stopping || isDisabled() || workerCount() >= config.maxWorkers) return null;
     const proc = spawn(pythonBin, ['-u', '-c', PYTHON_AST_SCRIPT], {
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true
     });
     const unregisterChild = registerChildProcessForCleanup(proc, {
       killTree: true,
