@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-29T17:14:30.508Z",
+  "generatedAt": "2026-10-29T18:46:44.153Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -5264,6 +5264,7 @@
         "tests/tooling/doctor/dedicated-provider-handshake-fixtures.test.js",
         "tests/tooling/doctor/generic-preset-matrix.test.js",
         "tests/tooling/doctor/zls-zig-compatibility.test.js",
+        "tests/tooling/index-stats/all-manifest-byte-accounting.test.js",
         "tests/tooling/index-stats/option-admission.test.js",
         "tests/tooling/index-stats/verify-manifest-formats.test.js",
         "tests/tooling/index/clean-artifacts-multi-repository.test.js",
@@ -6841,6 +6842,14 @@
         ]
       },
       {
+        "file": "tests/lang/contracts/c-prototype-registry-acceptance.test.js",
+        "flags": [
+          "astDataflowEnabled",
+          "controlFlowEnabled",
+          "treeSitter"
+        ]
+      },
+      {
         "file": "tests/lang/contracts/clike-registry-prepared-relations.test.js",
         "flags": [
           "treeSitter"
@@ -6870,6 +6879,12 @@
         "flags": [
           "collectorNow",
           "collectorScanBudget"
+        ]
+      },
+      {
+        "file": "tests/lang/contracts/logical-build-template-import-acceptance.test.js",
+        "flags": [
+          "collectorNow"
         ]
       },
       {
@@ -8743,7 +8758,7 @@
       },
       {
         "flag": "treeSitter",
-        "count": 24,
+        "count": 25,
         "files": [
           "src/lang/javascript/chunks.js",
           "src/lang/typescript/chunks.js",
@@ -8756,6 +8771,7 @@
           "tests/indexing/tree-sitter/preload-and-planning-contract-matrix.test.js",
           "tests/indexing/tree-sitter/streaming-chunking.test.js",
           "tests/indexing/tree-sitter/xml-runtime.test.js",
+          "tests/lang/contracts/c-prototype-registry-acceptance.test.js",
           "tests/lang/contracts/clike-registry-prepared-relations.test.js",
           "tests/lang/contracts/html-prepared-source.test.js",
           "tests/lang/contracts/managed-flow-source-ownership.test.js",
@@ -8827,6 +8843,40 @@
         ]
       },
       {
+        "flag": "astDataflowEnabled",
+        "count": 11,
+        "files": [
+          "tests/indexing/language-registry/python-prepared-chunks.test.js",
+          "tests/lang/contracts/c-prototype-registry-acceptance.test.js",
+          "tests/lang/contracts/managed-flow-source-ownership.test.js",
+          "tests/lang/contracts/native-call-argument-authority.test.js",
+          "tests/lang/contracts/native-call-scope-roles.test.js",
+          "tests/lang/contracts/python-declaration-header-ownership.test.js",
+          "tests/lang/contracts/python-lambda-execution-ownership.test.js",
+          "tests/lang/contracts/python-parenthesized-prefix-coverage.test.js",
+          "tests/lang/contracts/python-repeated-lexical-call-ownership.test.js",
+          "tests/lang/contracts/syntax-call-canonical-handoff.test.js",
+          "tests/lang/helpers/heuristic-adapter-contracts.js"
+        ]
+      },
+      {
+        "flag": "controlFlowEnabled",
+        "count": 11,
+        "files": [
+          "tests/indexing/language-registry/python-prepared-chunks.test.js",
+          "tests/lang/contracts/c-prototype-registry-acceptance.test.js",
+          "tests/lang/contracts/managed-flow-source-ownership.test.js",
+          "tests/lang/contracts/native-call-argument-authority.test.js",
+          "tests/lang/contracts/native-call-scope-roles.test.js",
+          "tests/lang/contracts/python-declaration-header-ownership.test.js",
+          "tests/lang/contracts/python-lambda-execution-ownership.test.js",
+          "tests/lang/contracts/python-parenthesized-prefix-coverage.test.js",
+          "tests/lang/contracts/python-repeated-lexical-call-ownership.test.js",
+          "tests/lang/contracts/syntax-call-canonical-handoff.test.js",
+          "tests/lang/helpers/heuristic-adapter-contracts.js"
+        ]
+      },
+      {
         "flag": "pythonAst",
         "count": 11,
         "files": [
@@ -8841,38 +8891,6 @@
           "tests/lang/python/python-contract-matrix.test.js",
           "tests/lang/python/registry-relations.test.js",
           "tests/lang/python/utf8-chunk-ranges.test.js"
-        ]
-      },
-      {
-        "flag": "astDataflowEnabled",
-        "count": 10,
-        "files": [
-          "tests/indexing/language-registry/python-prepared-chunks.test.js",
-          "tests/lang/contracts/managed-flow-source-ownership.test.js",
-          "tests/lang/contracts/native-call-argument-authority.test.js",
-          "tests/lang/contracts/native-call-scope-roles.test.js",
-          "tests/lang/contracts/python-declaration-header-ownership.test.js",
-          "tests/lang/contracts/python-lambda-execution-ownership.test.js",
-          "tests/lang/contracts/python-parenthesized-prefix-coverage.test.js",
-          "tests/lang/contracts/python-repeated-lexical-call-ownership.test.js",
-          "tests/lang/contracts/syntax-call-canonical-handoff.test.js",
-          "tests/lang/helpers/heuristic-adapter-contracts.js"
-        ]
-      },
-      {
-        "flag": "controlFlowEnabled",
-        "count": 10,
-        "files": [
-          "tests/indexing/language-registry/python-prepared-chunks.test.js",
-          "tests/lang/contracts/managed-flow-source-ownership.test.js",
-          "tests/lang/contracts/native-call-argument-authority.test.js",
-          "tests/lang/contracts/native-call-scope-roles.test.js",
-          "tests/lang/contracts/python-declaration-header-ownership.test.js",
-          "tests/lang/contracts/python-lambda-execution-ownership.test.js",
-          "tests/lang/contracts/python-parenthesized-prefix-coverage.test.js",
-          "tests/lang/contracts/python-repeated-lexical-call-ownership.test.js",
-          "tests/lang/contracts/syntax-call-canonical-handoff.test.js",
-          "tests/lang/helpers/heuristic-adapter-contracts.js"
         ]
       },
       {
@@ -9136,6 +9154,16 @@
         ]
       },
       {
+        "flag": "collectorNow",
+        "count": 4,
+        "files": [
+          "tests/lang/contracts/handlebars-ast-boundaries.test.js",
+          "tests/lang/contracts/jsonc-structure-boundaries.test.js",
+          "tests/lang/contracts/logical-build-template-import-acceptance.test.js",
+          "tests/lang/contracts/managed-reference-kind-and-owner.test.js"
+        ]
+      },
+      {
         "flag": "config",
         "count": 4,
         "files": [
@@ -9339,15 +9367,6 @@
           "tests/tooling/script-coverage/script-coverage.runner.js",
           "tools/bench/embeddings/model-bakeoff.js",
           "tools/cache/clear-cache.js"
-        ]
-      },
-      {
-        "flag": "collectorNow",
-        "count": 3,
-        "files": [
-          "tests/lang/contracts/handlebars-ast-boundaries.test.js",
-          "tests/lang/contracts/jsonc-structure-boundaries.test.js",
-          "tests/lang/contracts/managed-reference-kind-and-owner.test.js"
         ]
       },
       {
@@ -10245,6 +10264,7 @@
       "tests/lang/contracts/html-registry-metadata.test.js",
       "tests/lang/contracts/jinja-django-lexical-boundaries.test.js",
       "tests/lang/contracts/mustache-parse-token-boundaries.test.js",
+      "tests/lang/contracts/native-rust-java-scope-acceptance.test.js",
       "tests/lang/contracts/proto-reflection-lexical-boundaries.test.js",
       "tests/lang/contracts/rust-attached-documentation.test.js",
       "tests/lang/contracts/template-and-build-import-identities.test.js",

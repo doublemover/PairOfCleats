@@ -9,7 +9,7 @@
   "sourceConfigFile": "tests/runner/lane-manifests.jsonc",
   "timingArtifactPaths": [],
   "suiteCategorySummary": {
-    "hero": 1343,
+    "hero": 1369,
     "matrix": 108,
     "meta": 49,
     "soak": 1,
@@ -9019,6 +9019,162 @@
     {
       "id": "indexing/type-inference/crossfile/global-call-summary-budget",
       "order": 1501,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "integrations/mcp/result-envelope-types",
+      "order": 1502,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "retrieval/ranking/graph-ranking-preparation",
+      "order": 1503,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "graph/manifest-integrity-admission",
+      "order": 1504,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "graph/preparation-work-budget",
+      "order": 1505,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/chunking/heuristic-template-preamble-ownership",
+      "order": 1506,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/chunking/starlark-body-source-ownership",
+      "order": 1507,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/chunking/yaml-document-source-ownership",
+      "order": 1508,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/incremental/crossfile-enrichment-only-reuse",
+      "order": 1509,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/incremental/lexicon-filter-stats-roundtrip",
+      "order": 1510,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/metadata/external-docs-chunk-payload",
+      "order": 1511,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/publication/state-refresh-integrity",
+      "order": 1512,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/records/sniff-sampling-parity",
+      "order": 1513,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "indexing/relations/omitted-inference-limits",
+      "order": 1514,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/c-prototype-registry-acceptance",
+      "order": 1515,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/css-source-selector-acceptance",
+      "order": 1516,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/logical-build-template-import-acceptance",
+      "order": 1517,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/lua-assignment-call-consumer-acceptance",
+      "order": 1518,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/native-c-objc-cpp-declaration-acceptance",
+      "order": 1519,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/native-go-swift-kotlin-declaration-acceptance",
+      "order": 1520,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/native-rust-java-scope-acceptance",
+      "order": 1521,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/ruby-php-native-consumer-acceptance",
+      "order": 1522,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/scala-r-native-metadata-acceptance",
+      "order": 1523,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "lang/contracts/sql-xml-source-import-acceptance",
+      "order": 1524,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/artifact-io/packed-postings-large-list-windows",
+      "order": 1525,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "shared/io/bundle-patch-persisted-equivalence",
+      "order": 1526,
+      "suiteCategory": "hero",
+      "suiteCategoryReason": "default-standalone-behavior"
+    },
+    {
+      "id": "storage/sqlite/incremental/finalized-metadata-reuse",
+      "order": 1527,
       "suiteCategory": "hero",
       "suiteCategoryReason": "default-standalone-behavior"
     }
