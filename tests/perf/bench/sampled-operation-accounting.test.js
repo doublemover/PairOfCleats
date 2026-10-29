@@ -1,8 +1,12 @@
 import assert from 'node:assert/strict';
-import { runSampledBench, assertSampledBenchAccounting } from '../../../tools/bench/micro/utils.js';
+import { runSampledBench, assertSampledBenchAccounting, summarizeDurations } from '../../../tools/bench/micro/utils.js';
 import { runHashBenchmark } from '../../../tools/bench/micro/hash-runner.js';
 import { runRegexBenchmark } from '../../../tools/bench/micro/regex-runner.js';
 import { runSampled as runVfsSampled } from '../../../tools/bench/vfs/shared.js';
+
+assert.deepEqual(summarizeDurations([0, 0, 0]), {
+  count: 3, mean: 0, min: 0, max: 0, p50: 0.001, p95: 0.001, p99: 0.001
+}, 'zero-duration work remains valid at the existing one-microsecond histogram resolution');
 
 const sample = (operation, options) => {
   let time = 0n;

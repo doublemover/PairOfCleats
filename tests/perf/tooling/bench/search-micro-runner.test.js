@@ -26,7 +26,10 @@ await withMicrobenchCacheOwner(sqliteCache, async () => {
     args: ['--stats', '--quality', 'balanced'], json: true, emitOutput: false, indexCache, sqliteCache };
   const miss = await search(repoRoot, args), hit = await search(repoRoot, args);
   assert.equal(miss.retrieval.cache.hit, false, 'fresh task-owned result cache must first execute retrieval');
-  assert.equal(hit.retrieval.cache.hit, true, 'balanced repeated queries demonstrate the original cache-hit path');
+  assert.equal(hit.retrieval.cache.hit, true, JSON.stringify({
+    assertion: 'balanced repeated queries demonstrate the original cache-hit path',
+    first: miss.retrieval, second: hit.retrieval, cache: hit.stats?.cache
+  }));
   const hits = miss.code.filter(row => row.file === 'sample.js');
   assert.ok(hits.length > 0, 'independent indexed source must be retrieved before timing');
   const common = { repoRoot, query: 'microcacheprobe', mode: 'code', backend: 'memory', ann: false,
@@ -40,7 +43,8 @@ await withMicrobenchCacheOwner(sqliteCache, async () => {
   assert.equal(retrieval.work.phases.measured.cacheHits, 0); assert.equal(retrieval.work.phases.measured.cacheMisses, 2);
   assert.equal(retrieval.work.phases.measured.candidateStages, 2);
   assert.equal(retrieval.work.phases.measured.queryEmbeddingRequests, 0);
-  assert.equal(retrieval.work.phases.measured.qualified, 2);
+  await fs.writeFile(path.join(dir, 'real-search-observations.json'), JSON.stringify({ miss: miss.retrieval, hit: hit.retrieval, cache, retrieval }, null, 2));
+  assert.equal(retrieval.work.phases.measured.qualified, 2, JSON.stringify(retrieval.work.phases.measured));
   assert.equal(retrieval.work.phases.measured.controls[0].policyIdentity, cache.work.phases.measured.controls[0].policyIdentity);
   assert.equal(retrieval.work.phases.measured.controls[0].outputIdentity, cache.work.phases.measured.controls[0].outputIdentity);
 });

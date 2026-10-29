@@ -2,7 +2,7 @@ import { VIEW_LIMITS } from './projection.js';
 import { captureSceneResource, preserveSceneCleanupFailures } from '../isometric/client/scene-retirement.js';
 import { createSceneWorkPrerequisites } from '../isometric/client/scene-work-prerequisites.js';
 import { captureSceneFailure } from '../isometric/client/scene-failure-inspection.js';
-export const RELADRAW_VERSION = '0.16.0';
+export const RELADRAW_VERSION = '0.21.0';
 /** Labels are data, never Reladraw statements, markup or line-break syntax. */
 export const quoteLabel = text => '"' + String(text).slice(0, 240).replace(/\\/g, '\\\\').replace(/"/g, '\\"')
   .replace(/\[/g, '\\[').replace(/\//g, '\\/').replace(/[\r\n\t\u0000-\u001f]/g, ' ')+ '"';
@@ -10,14 +10,15 @@ export function authorProjection(projection) {
   if (projection.nodes.length > VIEW_LIMITS.nodes || projection.edges.length > VIEW_LIMITS.edges) throw new RangeError('Reladraw admission exceeded.');
   const bindings = {}, names = new Map(), source = [];
   const admitted = new Set(projection.nodes.map(node => node.id));
+  const containers = new Set(projection.nodes.filter(node => admitted.has(node.parentId)).map(node => node.parentId));
   // Topological containment, including paged-out parents and cyclic/broken source scopes.
   const remaining = new Map(projection.nodes.map(node => [node.id, node]));
   let index = 0;
   const roots = [];
   const rootPlacement = name => {
     const at = roots.length; let placement = '';
-    if (at > 0 && at % 4 === 0) placement = ` below ${roots.slice(at - 4, at).join(' and ')} left level with ${roots[at - 4]}`;
-    else if (at > 0) placement = ` right of ${roots[at - 1]} top level with ${roots[at - at % 4]}`;
+    if (at > 0 && at % 4 === 0) placement = ` below ${roots.slice(at - 4, at).join(' and ')} left even with ${roots[at - 4]}`;
+    else if (at > 0) placement = ` right of ${roots[at - 1]} top even with ${roots[at - at % 4]}`;
     roots.push(name); return placement;
   };
   while (remaining.size) {
@@ -27,7 +28,7 @@ export function authorProjection(projection) {
       const parent = names.get(node.parentId);
       const name = parent ? `${parent}.n${index++}` : `n${index++}`;
       names.set(id, name); bindings[name] = { id, ref: node.ref, label: node.label };
-      source.push(`node ${name} ${quoteLabel(node.label)}${parent ? '' : rootPlacement(name) + ' shape: rectangle'}`);
+      source.push(`node ${name} ${quoteLabel(node.label)}${parent ? '' : rootPlacement(name) + ' shape: rectangle'}${containers.has(id) ? ' layout: column' : ''}`);
       remaining.delete(id); progress = true;
     }
     if (!progress) {
@@ -35,7 +36,7 @@ export function authorProjection(projection) {
       const [id, node] = remaining.entries().next().value;
       const name = `n${index++}`;
       names.set(id, name); bindings[name] = { id, ref: node.ref, label: node.label };
-      source.push(`node ${name} ${quoteLabel(node.label)}${rootPlacement(name)}`); remaining.delete(id);
+      source.push(`node ${name} ${quoteLabel(node.label)}${rootPlacement(name)}${containers.has(id) ? ' layout: column' : ''}`); remaining.delete(id);
     }
   }
   // Edges retain source orientation; layout constraints never reverse the graph.

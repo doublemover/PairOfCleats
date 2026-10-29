@@ -14,12 +14,11 @@ import { withMicrobenchCacheOwner } from './cache-owner.js';
 const { default: yargs } = await import('yargs/yargs');
 const { hideBin } = await import('yargs/helpers');
 const { Bench } = await import('tinybench');
-const { build: buildHistogram } = await import('hdr-histogram-js');
 const { buildIndex, search } = await import('../../../src/integrations/core/index.js');
 const { createSqliteDbCache } = await import('../../../src/retrieval/sqlite-cache.js');
 const { hasChunkMetaArtifactsSync } = await import('../../../src/shared/artifact-io/chunk-meta-presence.js');
 const { getIndexDir, resolveRepoRootArg, resolveToolRoot } = await import('../../shared/dict-utils.js');
-const { formatMs, writeJsonWithDir } = await import('./utils.js');
+const { formatMs, writeJsonWithDir, buildLatencyHistogram } = await import('./utils.js');
 
 const toolRoot = resolveToolRoot();
 const defaultRepo = path.resolve(toolRoot, 'tests', 'fixtures', 'sample');
@@ -392,14 +391,7 @@ function summarizeTask(task) {
  */
 function summarizeSamples(samples) {
   if (!samples.length) return { p50: null, p95: null, p99: null };
-  const scaled = samples.map((value) => Math.max(1, Math.round(value * 1000)));
-  const maxValue = scaled.reduce((maximum, value) => Math.max(maximum, value), 1);
-  const histogram = buildHistogram({
-    lowestDiscernibleValue: 1,
-    highestTrackableValue: maxValue,
-    numberOfSignificantValueDigits: 3
-  });
-  scaled.forEach((value) => histogram.recordValue(value));
+  const histogram = buildLatencyHistogram(samples);
   return {
     p50: histogram.getValueAtPercentile(50) / 1000,
     p95: histogram.getValueAtPercentile(95) / 1000,

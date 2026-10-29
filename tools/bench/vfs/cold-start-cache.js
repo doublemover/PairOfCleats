@@ -33,7 +33,7 @@ const writeMarker = async (root, value) => {
 };
 const runSubprocess = async ({ mode, rootDir, docs, docBytes }) => {
   const result = await spawnSubprocess(process.execPath, [fileURLToPath(import.meta.url), '--mode', mode, '--root', rootDir,
-    '--docs', String(docs), '--doc-bytes', String(docBytes), '--samples', '1', '--json'], {
+    '--docs', String(docs), '--docBytes', String(docBytes), '--samples', '1', '--json'], {
     timeoutMs: 30000, maxOutputBytes: 256 * 1024, outputEncoding: 'utf8', outputMode: 'string',
     captureStdout: true, captureStderr: true, rejectOnNonZeroExit: true, killTree: true
   });

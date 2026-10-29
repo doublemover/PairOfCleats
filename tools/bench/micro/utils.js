@@ -1,10 +1,10 @@
 import { build as buildHistogram } from 'hdr-histogram-js';
 import { writeJsonFileSyncResolved } from '../../../src/shared/json-file.js';
 
-const buildLatencyHistogram = (values) => {
+export const buildLatencyHistogram = (values) => {
   if (!values.length) return null;
   const scaled = values.map((value) => Math.max(1, Math.round(value * 1000)));
-  const maxValue = Math.max(...scaled, 1);
+  const maxValue = scaled.reduce((maximum, value) => Math.max(maximum, value), 2);
   const histogram = buildHistogram({
     lowestDiscernibleValue: 1,
     highestTrackableValue: maxValue,

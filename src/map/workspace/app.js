@@ -172,7 +172,7 @@ async function compileSource() {
     const mounted = mountDiagram($('diagram'), result, story.bindings, selection);
     validSource = submittedSource; compiled = result; diagram = mounted;
     if (selected) diagram.select(selected);
-    $('compile-status').textContent = `${compiled.layout.nodes.length} shapes · ${compiled.layout.nodes.filter(node => story.bindings[node.name]).length} bound identities · Reladraw 0.16.0`;
+    $('compile-status').textContent = `${compiled.layout.nodes.length} shapes · ${compiled.layout.nodes.filter(node => story.bindings[node.name]).length} bound identities · Reladraw ${story.version}`;
     $('export-svg').disabled = false; $('export-story').disabled = false;
   } catch (error) {
     if (current !== loadId || requestEpoch !== compileEpoch) return;

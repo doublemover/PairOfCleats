@@ -10,7 +10,7 @@ The initial workspace checkpoint was based on `codex/semantic-resume-campaign-20
 at `91b3c48968d3453d051bd41e23a70d98eca4f697`. The October 12 interface repairs use
 the audited `bb9901ac808a24629c8004ddd2479006716498be` baseline.
 The [owner's integration plan](https://chatgpt.com/space/page_aa58b6c8d548819184b23ee01c489455) identifies
-`reladraw/reladraw`; the npm dependency is exactly `reladraw@0.16.0`, Apache-2.0.
+`reladraw/reladraw`; the npm dependency is `reladraw@0.21.0`, Apache-2.0.
 The upstream NOTICE is retained in `docs/licenses/reladraw-NOTICE.txt`.
 No upstream contribution, GitHub publication or live user indexing is part of this checkpoint.
 

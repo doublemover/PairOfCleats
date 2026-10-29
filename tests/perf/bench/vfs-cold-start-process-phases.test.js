@@ -10,7 +10,7 @@ applyTestEnv();
 const script = fileURLToPath(new URL('../../../tools/bench/vfs/cold-start-cache.js', import.meta.url));
 const { dir } = await prepareIsolatedTestCacheDir('vfs-phases');
 try {
-  const result = await spawnSubprocess(process.execPath, [script, '--docs', '2', '--doc-bytes', '8', '--samples', '2', '--json'], {
+  const result = await spawnSubprocess(process.execPath, [script, '--docs', '2', '--docBytes', '8', '--samples', '2', '--json'], {
     timeoutMs: 30000, maxOutputBytes: 1024 * 1024, outputEncoding: 'utf8', outputMode: 'string',
     captureStdout: true, captureStderr: true, rejectOnNonZeroExit: true, killTree: true
   });
@@ -36,7 +36,7 @@ try {
   }
   await fs.writeFile(path.join(dir, 'sentinel'), 'unowned fixture must remain');
   const rejected = await spawnSubprocess(process.execPath, [script, '--mode', 'cold', '--root', dir,
-    '--docs', '2', '--doc-bytes', '8', '--samples', '1', '--json'], {
+    '--docs', '2', '--docBytes', '8', '--samples', '1', '--json'], {
     timeoutMs: 30000, maxOutputBytes: 65536, outputEncoding: 'utf8', outputMode: 'string',
     captureStdout: true, captureStderr: true, rejectOnNonZeroExit: false, killTree: true
   });

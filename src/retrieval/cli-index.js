@@ -2,6 +2,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { buildLocalCacheKey } from '../shared/cache-key.js';
 import { getBuildsRoot, getCurrentBuildInfo, getIndexDir } from '../shared/repo-paths.js';
+import { buildGenerationKey } from '../shared/indexing/build-generation.js';
 import { createError, ERROR_CODES } from '../shared/error-codes.js';
 import { buildIndexSignatureInfo } from './index-cache.js';
 import { probeFileSignature } from '../shared/file-signature.js';
@@ -403,14 +404,21 @@ export async function getIndexSignature(options) {
   await Promise.all(
     Object.entries(modeDirs).map(async ([mode, dir]) => {
       const info = dir ? await buildIndexSignatureInfo(dir) : null;
+      // The selected artifact directory is already captured for this request.
+      // Standalone searches need the same observed generation facts as a
+      // coordinator, without rereading a mutable current pointer here.
+      const observedRoot = info ? path.dirname(info.canonicalDir) : null;
+      const observedGeneration = info?.buildId && info?.artifactSurfaceVersion ? buildGenerationKey({
+        buildId: info.buildId, buildRoot: observedRoot, activeRoot: observedRoot, buildRoots: { [mode]: observedRoot }
+      }) : null;
       modeSignatures[mode] = info?.signature || null;
       generationByMode[mode] = info
         ? {
           buildId: info.buildId || null,
           artifactSurfaceVersion: info.artifactSurfaceVersion || null,
           canonicalIndexDir: info.canonicalDir,
-          generationKey: generationContext?.buildGenerationKey || null,
-          activeBuildRoot: generationContext?.activeBuildRoot || null
+          generationKey: generationContext?.buildGenerationKey || observedGeneration,
+          activeBuildRoot: generationContext?.activeBuildRoot || observedRoot
         }
         : null;
     })
