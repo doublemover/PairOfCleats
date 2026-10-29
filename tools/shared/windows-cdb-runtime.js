@@ -210,8 +210,6 @@ export const runWindowsCdbCapture = async (config, options, retainFailure) => {
     remember(await inventory(directory), 'published-inventory');
     if (debuggerFailed) {
       failure = fail('debugger-or-growth-monitor-failed', { crashCapture: captureWithProgress, childResult });
-      if (processFailure !== null) failure = combine(failure, processFailure);
-      if (monitorFailure !== null) failure = combine(failure, monitorFailure);
     }
     requireOriginals();
   } catch (error) { observations.push(observeStorageResource(error, { phase: 'windows-cdb-original-failure' })); failure = combine(failure, error); }
@@ -224,6 +222,11 @@ export const runWindowsCdbCapture = async (config, options, retainFailure) => {
     }
   }
   if (failure !== null) {
+    // Missing/incomplete child evidence can fail before the final debugger
+    // classification above. Preserve the original launch/monitor failures on
+    // every path, including evidence reads and metadata retirement failures.
+    if (processFailure !== null) failure = combine(failure, processFailure);
+    if (monitorFailure !== null) failure = combine(failure, monitorFailure);
     const context = { windowsCdbAttemptDirectory: directory, windowsCdbResourceId: resourceId };
     if (reservation && !released) Object.assign(context, { cacheOwnershipPending: true,
       cacheOwnershipReleased: () => {

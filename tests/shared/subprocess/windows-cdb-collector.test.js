@@ -8,10 +8,10 @@ import { runSqliteDenseWithBoundary } from '../../../tools/build/embeddings/sqli
 import { createWindowsMinidumpFixture } from '../../helpers/windows-minidump-fixture.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { applyTestEnv, withTemporaryEnv } from '../../helpers/test-env.js';
-import { errorGraphIncludes } from '../../helpers/error-graph.js';
+import { errorGraphIncludes, errorGraphSome } from '../../helpers/error-graph.js';
 import { skip } from '../../helpers/skip.js';
 
-// UNVALIDATED: real bounded evidence IO, fixture-controlled debugger only.
+// Real bounded evidence IO, fixture-controlled debugger only.
 // These synthetic dumps/statuses cannot qualify real native crash capture.
 applyTestEnv();
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('/').at(-1);
@@ -129,6 +129,12 @@ try {
     } else {
       assert.ok(failure, `${selected} must fail without retry`);
       if (selected === 'launch-failure' || selected === 'capture-write-failure' || selected === 'metadata-release-failure') assert.ok(errorGraphIncludes(failure, primary));
+      if (selected === 'launch-failure') {
+        assert.ok(errorGraphSome(failure, error => error?.code === 'ENOENT'), 'the independent absent-child evidence failure also survives');
+        const retained = getWindowsCdbFailureResult(failure);
+        assert.equal(retained.childResult, null); assert.equal(retained.crashCapture.status, 'failed');
+        assert.deepEqual(retained.crashCapture.dumpFiles, [], 'failed launch cannot establish native crash capture');
+      }
       if (selected.startsWith('boundary-')) {
         if (['boundary-forged', 'boundary-dual-runner'].includes(selected)) assert.equal(failure.code, 'ERR_SQLITE_DENSE_ISOLATE_INPUT');
         else {
