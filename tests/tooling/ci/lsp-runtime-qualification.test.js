@@ -11,7 +11,8 @@ import { killProcessTree } from '../../../src/shared/kill-tree.js';
 
 const cases = ['success', 'unexpected-stderr', 'unresponsive-initialize', 'unresponsive-shutdown',
   'diagnostics-truncated', 'observer-throw', 'untrusted-command', 'workspace-not-trusted', 'version-timeout', 'fixture-without-testing',
-  'phpactor-info', 'phpactor-unexpected-stderr', 'phpactor-duplicate-info'];
+  'phpactor-info', 'phpactor-unexpected-stderr', 'phpactor-duplicate-info',
+  'csharp-single-digit-hour', 'csharp-double-digit-hour', 'csharp-invalid-time', 'csharp-warning'];
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('tooling/ci/lsp-runtime-qualification/')[1];
 assert.ok(cases.includes(selected));
 const providerId = selected.startsWith('phpactor-') ? 'phpactor' : 'csharp-ls';
@@ -40,6 +41,13 @@ else {
   if(selected==='phpactor-duplicate-info') process.stderr.write('Starting language server, use -vvv for verbose output\\n');
   if(selected==='phpactor-unexpected-stderr') process.stderr.write('explicit unclassified fixture diagnostic\\n');
   if(selected==='unexpected-stderr'||selected==='observer-throw') process.stderr.write('explicit unclassified fixture diagnostic\\n');
+  const csharpLog = {
+    'csharp-single-digit-hour': '6:32:00.228 info: LifeCycle[0]',
+    'csharp-double-digit-hour': '16:32:00.228 info: Roslyn.Solution[0]',
+    'csharp-invalid-time': '26:72:00.228 info: LifeCycle[0]',
+    'csharp-warning': '6:32:00.228 warn: LifeCycle[0]'
+  }[selected];
+  if(csharpLog) process.stderr.write(csharpLog+'\\n');
   if(selected==='diagnostics-truncated') for(let i=0;i<70;i++) process.stderr.write('explicit unclassified fixture diagnostic '+i+'\\n');
   process.argv.push('--mode', ${JSON.stringify(mode)});
   await import(${JSON.stringify(stub)});
@@ -74,14 +82,15 @@ await withTemporaryEnv(env, async () => {
       const result = selected === 'fixture-without-testing'
         ? await withTemporaryEnv({ PAIROFCLEATS_TESTING: undefined, PAIROFCLEATS_TEST_CONFIG: undefined }, qualify)
         : await qualify();
-      assert.equal(result.ok, ['success', 'phpactor-info'].includes(selected), JSON.stringify(result));
+      const successful = ['success', 'phpactor-info', 'csharp-single-digit-hour', 'csharp-double-digit-hour'].includes(selected);
+      assert.equal(result.ok, successful, JSON.stringify(result));
       if (selected === 'fixture-without-testing') {
         assert.equal(result.receipt, null);
         assert.equal(result.process.exitCode, 1);
         assert.match(result.process.stderr, /Explicit fixture commands require the test environment/);
         await assert.rejects(fs.access(marker), { code: 'ENOENT' }, 'non-testing qualification cannot execute fixture commands');
         return;
-      } else if (['success', 'phpactor-info'].includes(selected)) {
+      } else if (successful) {
         assert.equal(result.receipt.workspace, qualificationWorkspace, 'the simulated protocol uses only its explicitly granted fixture workspace');
         assert.equal(result.process.exitCode, 0);
         assert.equal(result.process.stderr, '');
@@ -108,6 +117,7 @@ await withTemporaryEnv(env, async () => {
       } else {
         const reason = { 'unexpected-stderr': 'unexpected_stderr', 'diagnostics-truncated': 'diagnostics_truncated',
           'phpactor-unexpected-stderr': 'unexpected_stderr', 'phpactor-duplicate-info': 'unexpected_stderr',
+          'csharp-invalid-time': 'unexpected_stderr', 'csharp-warning': 'unexpected_stderr',
           'unresponsive-initialize': 'initialize_failed', 'unresponsive-shutdown': 'shutdown_not_acknowledged' }[selected];
         assert.ok(result.receipt.reasons.includes(reason), JSON.stringify(result));
         assert.ok(result.receipt.reaped.every(item => !item.alive));

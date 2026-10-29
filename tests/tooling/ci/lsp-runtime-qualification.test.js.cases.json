@@ -1,4 +1,4 @@
 {
   "schemaVersion": 1,
-  "cases": ["success", "unexpected-stderr", "unresponsive-initialize", "unresponsive-shutdown", "diagnostics-truncated", "observer-throw", "untrusted-command", "workspace-not-trusted", "version-timeout", "fixture-without-testing", "phpactor-info", "phpactor-unexpected-stderr", "phpactor-duplicate-info"]
+  "cases": ["success", "unexpected-stderr", "unresponsive-initialize", "unresponsive-shutdown", "diagnostics-truncated", "observer-throw", "untrusted-command", "workspace-not-trusted", "version-timeout", "fixture-without-testing", "phpactor-info", "phpactor-unexpected-stderr", "phpactor-duplicate-info", "csharp-single-digit-hour", "csharp-double-digit-hour", "csharp-invalid-time", "csharp-warning"]
 }

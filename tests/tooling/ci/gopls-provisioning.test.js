@@ -41,6 +41,8 @@ for (const mode of ['success', 'sdk-mismatch', 'build-failure', 'wrong-package',
   if (mode === 'success') {
     const receipt = await provisionCiGopls({ root, env, run });
     assert.equal(receipt.binarySha256, createHash('sha256').update(binary).digest('hex'));
+    assert.equal(receipt.routes.GOBIN, path.join(receipt.toolingRoot, 'bin'));
+    assert.equal(path.dirname(receipt.command), receipt.routes.GOBIN);
     assert.equal(receipt.managedProductInstallQualified, false); assert.equal(receipt.runtimeHandshakeQualified, false);
     assert.equal(builds, 1);
     assert.ok((await fs.readFile(envFile, 'utf8')).startsWith('ORIGINAL=retained\n'));

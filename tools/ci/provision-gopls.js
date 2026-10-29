@@ -23,8 +23,10 @@ export const provisionCiGopls = async ({ root = process.cwd(), env = process.env
   assert.match(sdk.GOVERSION, /^go\d+\.\d+\.\d+$/u);
   assert.ok(path.isAbsolute(sdk.GOROOT || '') && !/[\r\n]/u.test(sdk.GOROOT));
   const work = await fs.mkdtemp(path.join(env.RUNNER_TEMP, 'poc-ci-gopls-'));
-  const routes = Object.fromEntries(['GOBIN', 'GOPATH', 'GOMODCACHE', 'GOCACHE', 'GOTMPDIR']
-    .map(key => [key, path.join(work, key.toLowerCase())]));
+  const toolingRoot = path.join(work, 'tooling');
+  await fs.mkdir(toolingRoot);
+  const routes = { GOBIN: path.join(toolingRoot, 'bin'), ...Object.fromEntries(['GOPATH', 'GOMODCACHE', 'GOCACHE', 'GOTMPDIR']
+    .map(key => [key, path.join(work, key.toLowerCase())])) };
   for (const directory of Object.values(routes)) await fs.mkdir(directory);
   const launchEnv = { ...env, ...routes, GOROOT: sdk.GOROOT, GOTOOLCHAIN: 'local', GOWORK: 'off', GOFLAGS: '' };
   const invoke = async (command, args, timeoutMs = 4000) => {
@@ -52,7 +54,7 @@ export const provisionCiGopls = async ({ root = process.cwd(), env = process.env
   assert.ok(metadata.stdout.includes(`\tmod\tgolang.org/x/tools/gopls\tv${GOPLS_VERSION}\t`));
   assert.ok(metadata.stdout.split(/\r?\n/u)[0].endsWith(`: ${sdk.GOVERSION}`));
   const receipt = { schemaVersion: 1, source: env.GITHUB_SHA || null, node: process.version,
-    platform: process.platform, arch: process.arch, package: GOPLS_PACKAGE, sdk, command, routes,
+    platform: process.platform, arch: process.arch, package: GOPLS_PACKAGE, sdk, command, routes, toolingRoot,
     binarySha256: createHash('sha256').update(await fs.readFile(command)).digest('hex'),
     build: { durationMs: built.durationMs, stdout: built.stdout, stderr: built.stderr },
     metadata: metadata.stdout, qualification: 'ci-owned-build-and-executable-identity',

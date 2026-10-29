@@ -385,11 +385,14 @@ jobs:
           import path from "node:path";
           import { getToolingConfig } from "./tools/shared/dict-utils.js";
           import { qualifyInstalledLspRuntime } from "./tools/ci/qualify-lsp-runtime.js";
-          const result = await qualifyInstalledLspRuntime({ providerId: "gopls", repoRoot: process.cwd(), toolingConfig: getToolingConfig(process.cwd()), diagnosticsDir: path.resolve(".diagnostics") });
+          const provision = JSON.parse(fs.readFileSync(".diagnostics/gopls-provisioning.json", "utf8"));
+          const result = await qualifyInstalledLspRuntime({ providerId: "gopls", repoRoot: process.cwd(), toolingConfig: { ...getToolingConfig(process.cwd()), dir: provision.toolingRoot }, diagnosticsDir: path.resolve(".diagnostics") });
           const receipt = { ...result.receipt, ok: result.ok, process: result.process, sdk: JSON.parse(fs.readFileSync(".diagnostics/go-sdk.json", "utf8")), qualification: "initialize-shutdown-clean-exit" };
           fs.writeFileSync(".diagnostics/gopls-startup.json", JSON.stringify(receipt, null, 2) + "\n");
           console.log(JSON.stringify({ ok: result.ok, result: result.receipt?.result, process: result.process }));
           assert.equal(result.ok, true, JSON.stringify(receipt));
+          assert.equal(receipt.commandRealpath, fs.realpathSync(provision.command));
+          assert.equal(receipt.binarySha256, provision.binarySha256);
           assert.equal(receipt.result.capabilities.documentSymbol, true);
           assert.equal(receipt.result.capabilities.definition, true);
           '
@@ -640,11 +643,14 @@ jobs:
           import path from "node:path";
           import { getToolingConfig } from "./tools/shared/dict-utils.js";
           import { qualifyInstalledLspRuntime } from "./tools/ci/qualify-lsp-runtime.js";
-          const result = await qualifyInstalledLspRuntime({ providerId: "gopls", repoRoot: process.cwd(), toolingConfig: getToolingConfig(process.cwd()), diagnosticsDir: path.resolve(".diagnostics") });
+          const provision = JSON.parse(fs.readFileSync(".diagnostics/gopls-provisioning.json", "utf8"));
+          const result = await qualifyInstalledLspRuntime({ providerId: "gopls", repoRoot: process.cwd(), toolingConfig: { ...getToolingConfig(process.cwd()), dir: provision.toolingRoot }, diagnosticsDir: path.resolve(".diagnostics") });
           const receipt = { ...result.receipt, ok: result.ok, process: result.process, sdk: JSON.parse(fs.readFileSync(".diagnostics/go-sdk.json", "utf8")), qualification: "initialize-shutdown-clean-exit" };
           fs.writeFileSync(".diagnostics/gopls-startup.json", JSON.stringify(receipt, null, 2) + "\n");
           console.log(JSON.stringify({ ok: result.ok, result: result.receipt?.result, process: result.process }));
           assert.equal(result.ok, true, JSON.stringify(receipt));
+          assert.equal(receipt.commandRealpath, fs.realpathSync(provision.command));
+          assert.equal(receipt.binarySha256, provision.binarySha256);
           assert.equal(receipt.result.capabilities.documentSymbol, true);
           assert.equal(receipt.result.capabilities.definition, true);
           '
@@ -974,11 +980,14 @@ jobs:
           import path from "node:path";
           import { getToolingConfig } from "./tools/shared/dict-utils.js";
           import { qualifyInstalledLspRuntime } from "./tools/ci/qualify-lsp-runtime.js";
-          const result = await qualifyInstalledLspRuntime({ providerId: "gopls", repoRoot: process.cwd(), toolingConfig: getToolingConfig(process.cwd()), diagnosticsDir: path.resolve(".diagnostics") });
+          const provision = JSON.parse(fs.readFileSync(".diagnostics/gopls-provisioning.json", "utf8"));
+          const result = await qualifyInstalledLspRuntime({ providerId: "gopls", repoRoot: process.cwd(), toolingConfig: { ...getToolingConfig(process.cwd()), dir: provision.toolingRoot }, diagnosticsDir: path.resolve(".diagnostics") });
           const receipt = { ...result.receipt, ok: result.ok, process: result.process, sdk: JSON.parse(fs.readFileSync(".diagnostics/go-sdk.json", "utf8")), qualification: "initialize-shutdown-clean-exit" };
           fs.writeFileSync(".diagnostics/gopls-startup.json", JSON.stringify(receipt, null, 2) + "\n");
           console.log(JSON.stringify({ ok: result.ok, result: result.receipt?.result, process: result.process }));
           assert.equal(result.ok, true, JSON.stringify(receipt));
+          assert.equal(receipt.commandRealpath, fs.realpathSync(provision.command));
+          assert.equal(receipt.binarySha256, provision.binarySha256);
           assert.equal(receipt.result.capabilities.documentSymbol, true);
           assert.equal(receipt.result.capabilities.definition, true);
           '

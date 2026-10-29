@@ -439,7 +439,10 @@ for (const platform of ['ubuntu', 'windows', 'macos']) {
     || goStartup <= steps.findIndex(step => step.name === 'Install optional LSP tools (best effort)')
     || goStartup >= steps.findIndex(step => step.name === 'CI Suite')
     || !steps[goStartup].run.includes('qualifyInstalledLspRuntime')
-    || !steps[goStartup].run.includes('providerId: "gopls"')) {
+    || !steps[goStartup].run.includes('providerId: "gopls"')
+    || !steps[goStartup].run.includes('dir: provision.toolingRoot')
+    || !steps[goStartup].run.includes('fs.realpathSync(provision.command)')
+    || !steps[goStartup].run.includes('receipt.binarySha256, provision.binarySha256')) {
     throw new Error(`${platform}: qualify the explicit compatible Go SDK before optional installs, bind its root, and retain the executable receipt.`);
   }
   const dotnetSetup = steps.findIndex(step => step.name === 'Setup qualified .NET SDK');

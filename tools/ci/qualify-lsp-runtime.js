@@ -33,7 +33,7 @@ const recipes = {
 const phpactorStartupInfo = 'Starting language server, use -vvv for verbose output';
 
 const expectedCsharpInfo = [
-  /^\d{2}:\d{2}:\d{2}\.\d{3} info: (?:LifeCycle|Roslyn\.Solution)\[\d+\]$/u,
+  /^(?:[01]?\d|2[0-3]):[0-5]\d:[0-5]\d\.\d{3} info: (?:LifeCycle|Roslyn\.Solution)\[\d+\]$/u,
   new RegExp(`^initializing, csharp-ls version ${CSHARP_LS_VERSION.replaceAll('.', '\\.')} `, 'u'),
   /^csharp-ls is released under MIT license and is not affiliated with Microsoft Corp\.; see https:\/\/github\.com\/razzmatazz\/csharp-language-server$/u,
   /^SDK instances found, as reported by MSBuild:$/u,
