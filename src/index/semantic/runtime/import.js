@@ -1,3 +1,4 @@
+import { observeStorageResource, describeStorageFailure } from '../../../shared/storage/failure-observation.js';
 import { addStorageFailureContext } from '../../../shared/storage/operation-error.js';
 import { readRuntimeMemberBytes, readRuntimeMemberJson, openVerifiedRuntimeMember } from './verified-reads.js';
 import { withRuntimeDestinationWriter } from './ownership.js';
@@ -228,6 +229,17 @@ const importRuntimeEvidenceOwned = async ({ destination, capture: suppliedCaptur
     try { await fs.rename(pending, final); retained = true; }
     catch (error) {
       if (!['EEXIST', 'ENOTEMPTY', 'EPERM'].includes(error.code)) throw error;
+      if (error.code === 'EPERM') {
+        // Windows also reports EPERM for noncollision rename failures. Only an
+        // existing target can enter full immutable-family collision verification.
+        try { await fs.lstat(final); }
+        catch (probeError) {
+          const observed = observeStorageResource(probeError, { phase: 'runtime-family-collision-probe' });
+          observed.requireSettled();
+          if (describeStorageFailure(probeError, { phase: 'runtime-family-collision-probe' }).code === 'ENOENT') throw error;
+          throw addStorageFailureContext(error, {}, probeError, { secondaryPresent: true });
+        }
+      }
       await verifyRuntimeFamily({ destination, pointer, maxBytes: importOptions.maxDiskWorkingSetBytes, signal });
     }
     await verifyRuntimeFamily({ destination, pointer, maxBytes: importOptions.maxDiskWorkingSetBytes, signal });

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { resolveDevelopmentArtifactPath } from '../../../tools/shared/dev-artifacts.js';
+import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import fsSync from 'node:fs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -62,7 +62,7 @@ if (testingDefaultsEnabled) {
 }
 if (testingDefaultsEnabled) {
   applyTestEnv({
-    cacheRoot: resolveDevelopmentArtifactPath(root, 'test-cache', 'bench-run'),
+    cacheRoot: (await prepareIsolatedTestCacheDir('bench-run')).dir,
     embeddings: 'stub',
     testConfig: createFastIndexingTestConfig()
   });
@@ -182,10 +182,8 @@ if (needsMemory && !buildIndex && (!hasIndex('code') || !hasIndex('prose'))) {
   buildIndex = true;
   logBench('[bench] Missing index artifacts; enabling --build-index.');
 }
-if (needsSqlite && !buildSqlite && ['code', 'prose'].some((mode) => {
-  const status = resolveSqliteModeStatus(mode);
-  return !status.dbExists && !status.zeroState;
-})) {
+if (needsSqlite && !buildSqlite && (await Promise.all(['code', 'prose'].map(resolveSqliteModeStatus)))
+  .some(status => !status.dbExists && !status.zeroState)) {
   buildSqlite = true;
   logBench('[bench] Missing sqlite artifacts; enabling --build-sqlite.');
 }
@@ -431,8 +429,8 @@ const queryBackendDecision = resolveBenchQueryBackends({
   requestedBackends,
   requestedModes: testHarnessSearchMode ? [testHarnessSearchMode] : ['code', 'prose'],
   sqliteModes: {
-    code: resolveSqliteModeStatus('code'),
-    prose: resolveSqliteModeStatus('prose')
+    code: await resolveSqliteModeStatus('code'),
+    prose: await resolveSqliteModeStatus('prose')
   },
   sqlitePaths: (() => {
     const paths = resolveSqlitePaths(runtimeRoot, userConfig);

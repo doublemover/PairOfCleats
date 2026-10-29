@@ -25,7 +25,7 @@ const observeStage = async ({ enabled = true, vector = false, minhash = false, a
     }
   };
   const providers = new Map([['js', provider]]);
-  const idx = { denseVec: { vectors: [[0.1, 0.2]], dims: 2 }, minhash: { signatures: [[]] } };
+  const idx = { denseVec: { vectors: [Uint8Array.of(140, 153)], dims: 2, count: 1 }, minhash: { signatures: [[]] } };
   await tracker.span('ann', metrics, () => runAnnStage({
     idx,
     annDiscovery: adaptive ? 'lexical-rerank' : 'independent',

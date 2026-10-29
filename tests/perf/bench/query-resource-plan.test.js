@@ -44,6 +44,7 @@ try {
       export const getRuntimeConfig=()=>({maxOldSpaceMb:1024});
       export const resolveRuntimeEnv=(config,env)=>({...env});
       export const resolveSqlitePaths=()=>({codePath:'fixture-code.db',prosePath:'fixture-prose.db'});`,
+    '../../../tools/bench/language/artifact-report.js': 'export const collectBenchmarkArtifactReport=()=>({report:{repo:{root:'+JSON.stringify(dir)+'},throughput:{},corruption:{ok:true,issues:[]}},receipt:{state:"explicit-query-plan-fixture"}});',
     '../../../src/shared/artifact-io/chunk-meta-presence.js': 'export const hasChunkMetaArtifactsSync=()=>true;',
     '../../../tools/bench/language/sqlite-mode-status.js': 'export const resolveBenchSqliteModeStatus=()=>({dbExists:true,zeroState:false});',
     'node:child_process': "export const spawnSync=()=>({status:0,stdout:'{}'});",

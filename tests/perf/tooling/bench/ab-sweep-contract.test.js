@@ -5,15 +5,22 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 
 import { applyTestEnv } from '../../../helpers/test-env.js';
+import { prepareIsolatedTestCacheDir } from '../../../helpers/test-cache.js';
+import { initGitRepo, runGit } from '../../../helpers/git-fixture.js';
 import { runNode } from '../../../helpers/run-node.js';
 
 
 const testEnv = applyTestEnv({ testing: '1' });
 
-const root = process.cwd();
-const fixtureScript = path.join(root, 'tests', 'fixtures', 'ab-sweep', 'knob-aware.js');
+const sourceRoot = process.cwd();
+const { dir: root } = await prepareIsolatedTestCacheDir('ab-sweep-contract');
+initGitRepo(root);
+await fs.writeFile(path.join(root, '.gitignore'), '.testLogs/\n');
+runGit(['add', '.gitignore'], { cwd: root });
+runGit(['commit', '-m', 'Initialize isolated A/B fixture'], { cwd: root });
+const fixtureScript = path.join(sourceRoot, 'tests', 'fixtures', 'ab-sweep', 'knob-aware.js');
 
-const scriptPath = path.join(root, 'tools', 'bench', 'ab-sweep.js');
+const scriptPath = path.join(sourceRoot, 'tools', 'bench', 'ab-sweep.js');
 const result = runNode(
   [
     scriptPath,
@@ -62,7 +69,7 @@ for (const row of report.runs) {
   assert.equal(row.eligibility.eligible, true);
 }
 
-const failed = runNode([scriptPath, '--scripts', path.join(root, 'tests', 'fixtures', 'ab-sweep', 'nonzero.js'),
+const failed = runNode([scriptPath, '--scripts', path.join(sourceRoot, 'tests', 'fixtures', 'ab-sweep', 'nonzero.js'),
   '--timeout-ms', '3000'], 'bench ab sweep nonzero receipt', root, testEnv,
 { stdio: 'pipe', allowFailure: true, timeoutMs: 10000 });
 assert.equal(failed.status, 1);

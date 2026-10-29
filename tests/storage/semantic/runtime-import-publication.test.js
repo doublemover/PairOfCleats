@@ -15,6 +15,18 @@ try {
   const first = await importRuntimeEvidence(options);
   const currentPath = path.join(options.destination, 'current.json');
   const previous = await fs.readFile(currentPath);
+  const rename = fs.rename;
+  const denied = Object.assign(new Error('Controlled original generation publication denial.'), { code: 'EPERM' });
+  try {
+    fs.rename = async (from, to) => {
+      if (path.basename(String(from)).startsWith('.pending-') && /^[a-f0-9]{64}$/.test(path.basename(String(to)))) throw denied;
+      return rename(from, to);
+    };
+    await assert.rejects(importRuntimeEvidence({ ...options, capture: { ...fixture.capture, question: 'different denied family' } }),
+      error => error === denied, 'missing target cannot replace the original rename denial with a misleading ENOENT');
+    assert.deepEqual(await fs.readFile(currentPath), previous);
+  } finally { fs.rename = rename; }
+
   assert.throws(() => assertRuntimeFamily('pointer', { ...first.pointer, artifactSurfaceVersion: '0.0.0' }), { code: 'ERR_INDEX_FORMAT_UNSUPPORTED' });
   const charged = account.used;
   const rawInputs = first.capture.rawArtifacts.map(row => ({ artifactId: row.artifactId, path: path.join(options.destination, row.storageRef) }));
