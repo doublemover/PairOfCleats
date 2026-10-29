@@ -17,6 +17,7 @@
     "handoff-original",
     "native-actual",
     "native-actual-pending",
-    "cache-registry"
+    "cache-registry",
+    "storage-sibling"
   ]
 }

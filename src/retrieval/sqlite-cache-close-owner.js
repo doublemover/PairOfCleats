@@ -13,6 +13,14 @@ export const addSqliteNativeSettlementHook = (db, hook) => {
   if (!physical || typeof hook !== 'function' || physical.retired()) throw new Error('SQLite storage requires its active original native owner.');
   physical.hooks.add(hook);
 };
+/** Independent storage admissions retire metadata after native/bookkeeping
+ * prerequisites. One failed namespace cannot prevent a healthy sibling's close.
+ * Every failure/result still belongs to the enclosing physical owner. */
+export const addSqliteStorageSettlementHook = (db, hook) => {
+  const physical = nativeSettlements.get(db);
+  if (!physical || typeof hook !== 'function' || physical.retired()) throw new Error('SQLite storage requires its active original native owner.');
+  physical.storageHooks.add(hook);
+};
 /** Only an original constructor-time owner can transfer its reference gate to
  * the built-in cache. A handle field or replacement close method grants nothing.
  */
@@ -32,7 +40,7 @@ export const getSqliteCacheFailureOwner = error => objectLike(error) ? failureOw
  * repeated by eviction/dispose; explicit reconciliation still requires all
  * original observers and zero references. No numeric handle or field adoption.
  */
-export const createSqliteCacheCloseOwner = (db, { canClose, onClosed, onNativeClosed = () => {}, allowCacheHandoff = false }) => {
+export const createSqliteCacheCloseOwner = (db, { canClose, onClosed, onNativeClosed = () => {}, onStorageClosed = null, allowCacheHandoff = false }) => {
   const captured = nativeSettlements.get(db);
   if (captured) {
     if (captured.owner.lastError) throw captured.owner.lastError;
@@ -43,6 +51,7 @@ export const createSqliteCacheCloseOwner = (db, { canClose, onClosed, onNativeCl
   }
   const failures = [], seen = new Set(), observers = [], resultObservers = [], nativeResultObservers = [];
   const settlementHooks = new Set([onNativeClosed]);
+  const storageHooks = new Set(onStorageClosed ? [onStorageClosed] : []), completedStorage = new Set();
   const completedHooks = new Set(), completedClosed = new Set(), closedCallbacks = [{ method: onClosed, receiver: undefined }];
   let originalClose, captureFailed = false, disposed = false, closed = false, closing = false;
   let lastError = null, overflow = false, owner, retired = false, nativeConfirmed = false;
@@ -133,9 +142,9 @@ export const createSqliteCacheCloseOwner = (db, { canClose, onClosed, onNativeCl
       if (!resourcesSettled()) throw describe();
       nativeConfirmed = true;
       const settlementErrors = [];
-      const settleCallback = (key, completed, method, receiver, phase) => {
+      const settleCallback = (key, completed, method, receiver, phase, ready = resourcesSettled) => {
         if (completed.has(key)) return;
-        if (!resourcesSettled()) throw describe();
+        if (!ready()) throw describe();
         try {
           const value = method.call(receiver);
           completed.add(key);
@@ -155,6 +164,16 @@ export const createSqliteCacheCloseOwner = (db, { canClose, onClosed, onNativeCl
       for (const hook of settlementHooks) settleCallback(hook, completedHooks, hook, undefined, 'sqlite-cache-native-settlement-result');
       if (settlementErrors.length) throw new AggregateError(settlementErrors, 'SQLite storage settlement failed.', { cause: settlementErrors[0] });
       if (!resourcesSettled()) throw describe();
+      // Capture the native/bookkeeping prerequisites before independently
+      // retiring namespace metadata. Recheck those exact observations for each
+      // sibling; a later metadata failure remains required for overall closure.
+      const prerequisiteObservers = [...observers], prerequisiteResults = [...resultObservers];
+      const storageReady = () => nativeConfirmed && !overflow && nativeResultsSettled()
+        && prerequisiteObservers.every(observe => observe()) && resultsSettled(prerequisiteResults);
+      for (const hook of storageHooks) settleCallback(hook, completedStorage, hook, undefined,
+        'sqlite-cache-storage-settlement-result', storageReady);
+      if (settlementErrors.length) throw new AggregateError(settlementErrors, 'SQLite namespace settlement failed.', { cause: settlementErrors[0] });
+      if (!resourcesSettled()) throw describe();
       closed = true;
       const result = receipt();
       if (!result.settled) throw describe();
@@ -168,7 +187,7 @@ export const createSqliteCacheCloseOwner = (db, { canClose, onClosed, onNativeCl
     get lastError() { return lastError; }, retainFailure: record,
     retire: () => close(), release: () => close({ retry: true }) });
   if (objectLike(db)) nativeSettlements.set(db, { owner, settled: () => nativeConfirmed && nativeResultsSettled(),
-    hooks: settlementHooks, retired: () => closing || disposed || captureFailed || lastError !== null });
+    hooks: settlementHooks, storageHooks, retired: () => closing || disposed || captureFailed || lastError !== null });
   try {
     originalClose = db?.close;
     if (typeof originalClose !== 'function') throw new TypeError('SQLite cache requires its original synchronous close method.');

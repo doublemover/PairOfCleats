@@ -2,23 +2,37 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createSqliteCacheCloseOwner, getSqliteNativeSettlement, addSqliteNativeSettlementHook,
-  takeSqliteCacheCloseOwner, getPendingSqliteCacheOwners } from '../../../src/retrieval/sqlite-cache-close-owner.js';
+  addSqliteStorageSettlementHook, takeSqliteCacheCloseOwner, getPendingSqliteCacheOwners } from '../../../src/retrieval/sqlite-cache-close-owner.js';
 import { prepareIsolatedTestCacheDir } from '../../helpers/test-cache.js';
 import { errorGraphIncludes } from '../../helpers/error-graph.js';
 import { createSqliteDbCache } from '../../../src/retrieval/sqlite-cache.js';
 
-// UNVALIDATED: inert original-result controls plus real synchronous SQLite close.
+// Original-result controls plus real synchronous SQLite close.
 const selected = process.env.PAIROFCLEATS_TEST_ID?.split('/').at(-1);
 const cases = ['native-pending', 'native-replaced', 'native-inspection', 'native-independent', 'native-revoked',
   'hook-pending', 'closed-pending', 'handoff-pending', 'hook-promise', 'closed-promise', 'hook-ordinary-failure',
-  'closed-ordinary-failure', 'closed-before-namespace', 'handoff-original', 'cache-registry', 'native-actual', 'native-actual-pending'];
+  'closed-ordinary-failure', 'closed-before-namespace', 'handoff-original', 'cache-registry', 'native-actual', 'native-actual-pending', 'storage-sibling'];
 assert.ok(cases.includes(selected));
 let ready = false, secondaryReady = false, inspectReady = false, deny = true;
 let nativeCalls = 0, hookCalls = 0, closedCalls = 0, siblingCalls = 0;
 const secondary = Object.freeze(Object.assign(new Error('independent original close inspection'), { cacheOwnershipReleased: () => secondaryReady }));
 const ordinary = Object.freeze(new Error('original settlement callback failure'));
 const result = { cacheOwnershipReleased: () => ready };
-if (selected === 'cache-registry') {
+if (selected === 'storage-sibling') {
+  const db = { close() { nativeCalls++; return this; } };
+  const metadataFailure = Object.freeze(Object.assign(new Error('original namespace metadata remains pending'), {
+    cacheOwnershipReleased: () => ready
+  }));
+  const owner = createSqliteCacheCloseOwner(db, { canClose: () => true, onClosed() {},
+    onStorageClosed() { hookCalls++; if (deny) throw metadataFailure; } });
+  addSqliteStorageSettlementHook(db, () => { siblingCalls++; });
+  assert.throws(() => owner.retire(), error => errorGraphIncludes(error, metadataFailure));
+  assert.equal(owner.isSettled(), false); assert.equal(siblingCalls, 1);
+  assert.throws(() => owner.release()); assert.equal(nativeCalls, 1);
+  ready = true; deny = false;
+  assert.equal(owner.release().settled, true);
+  assert.equal(hookCalls, 2); assert.equal(siblingCalls, 1); assert.equal(nativeCalls, 1);
+} else if (selected === 'cache-registry') {
   const { dir: root } = await prepareIsolatedTestCacheDir('sqlite-close-result-cache-registry');
   let passed = false;
   const file = path.join(root, 'identity.db'); await fs.writeFile(file, 'ordinary fixture identity, no native binding');
@@ -84,6 +98,8 @@ if (selected === 'cache-registry') {
       if (selected === 'hook-pending') return result;
     } });
   const physical = getSqliteNativeSettlement(db);
+  let storageCalls = 0;
+  addSqliteStorageSettlementHook(db, () => { storageCalls++; });
   if (selected === 'hook-ordinary-failure') addSqliteNativeSettlementHook(db, () => { siblingCalls++; });
   if (selected.startsWith('handoff-')) {
     const gate = { canClose: () => true, onClosed() { assert.equal(this, gate); siblingCalls++; } };
@@ -109,6 +125,7 @@ if (selected === 'cache-registry') {
     if (nativeResult || selected === 'native-inspection') assert.equal(physical(), false);
     else assert.equal(physical(), true, 'physical native closure does not depend on its metadata-release callbacks');
     if (['closed-pending', 'closed-before-namespace', 'handoff-pending'].includes(selected)) assert.equal(hookCalls, 0);
+    assert.equal(storageCalls, 0, 'native/bookkeeping/ordinary settlement prerequisites precede namespace release');
     if (selected === 'handoff-pending') assert.equal(siblingCalls, 0);
     if (selected === 'native-independent') { inspectReady = true; ready = true; }
     if (!['hook-ordinary-failure', 'closed-ordinary-failure'].includes(selected)) assert.throws(() => owner.release());

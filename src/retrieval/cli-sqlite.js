@@ -11,7 +11,7 @@ import {
 
 import { applyReadPragmas } from '../storage/sqlite/build/pragmas.js';
 import { stableStringifyForSignature } from '../shared/stable-json.js';
-import { createSqliteCacheCloseOwner, getSqliteNativeSettlement, addSqliteNativeSettlementHook } from './sqlite-cache-close-owner.js';
+import { createSqliteCacheCloseOwner, getSqliteNativeSettlement, addSqliteStorageSettlementHook } from './sqlite-cache-close-owner.js';
 import { addStorageFailureContext } from '../shared/storage/operation-error.js';
 import { acquireNativeReaderStorage, findNativeReaderStorage, registerNativeReaderStorage } from '../shared/storage/native-reader.js';
 
@@ -271,7 +271,7 @@ export async function createSqliteBackend(options) {
         if (nativeSettled && !existing) {
           storage = acquireNativeReaderStorage(dbPath, storageContext, nativeSettled);
           if (storage) {
-            addSqliteNativeSettlementHook(cached, () => storage.releaseAfterClosure());
+            addSqliteStorageSettlementHook(cached, () => storage.releaseAfterClosure());
             storage.start();
             registerNativeReaderStorage(cached, storage);
           }
@@ -309,7 +309,7 @@ export async function createSqliteBackend(options) {
       try {
         const owner = createSqliteCacheCloseOwner(db, { canClose: () => true, onClosed: () => {},
           allowCacheHandoff: usesCacheLeases,
-          onNativeClosed: () => { nativeClosed = true; storage?.releaseAfterClosure(); } });
+          onNativeClosed: () => { nativeClosed = true; }, onStorageClosed: () => storage?.releaseAfterClosure() });
         record.cleanup = () => owner.retire();
         record.closeNative = record.cleanup;
         if (storage) registerNativeReaderStorage(db, storage);

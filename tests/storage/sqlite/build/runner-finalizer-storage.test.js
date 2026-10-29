@@ -41,7 +41,7 @@ const entered = new Promise(resolve => { announce = resolve; }), gate = new Prom
 const cleanup = Object.freeze(new Error('original runner finalizer failed'));
 await withSqliteStorageOperation({ repoRoot: root, userConfig }, [], () => {});
 const before = process.listenerCount('exit');
-const operation = buildSqliteIndex({ root, userConfig, codeDir: indexDir, out: output, compact: false,
+const operation = buildSqliteIndex({ root, userConfig, mode: 'code', codeDir: indexDir, out: output, compact: false,
   emitOutput: false, validateMode: 'off', logger: { log() {}, warn() {}, error() {} },
   onFinalize: async () => {
     calls++; announce(); await protection(true);
