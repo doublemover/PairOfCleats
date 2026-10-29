@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-29T04:51:48.681Z",
+  "generatedAt": "2026-10-29T07:01:23.275Z",
   "budgets": {
     "configKeys": 5,
     "envVars": 1,
@@ -4729,6 +4729,7 @@
         "tests/perf/bench/evidence-retirement.test.js",
         "tests/perf/bench/process-tree-memory.test.js",
         "tests/perf/bench/query-resource-plan.test.js",
+        "tests/perf/crash-log-error-latency.test.js",
         "tests/perf/tooling/bench/sqlite-benchmark-cli.test.js",
         "tests/perf/tooling/bench/sqlite-campaign.test.js",
         "tests/retrieval/ann/query-vector-admission.test.js",
