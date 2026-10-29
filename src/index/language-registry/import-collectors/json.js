@@ -57,7 +57,7 @@ export const createStrictJsonImportCollector = ({ parseValue = parseStrictJson, 
   };
 };
 
-export const createJsoncImportCollector = ({ parseStructure = parseJsoncStructure } = {}) => (text, options = {}) => {
+export const createJsoncImportCollector = ({ parseStructure = parseJsoncStructure, parseValue = parseStrictJson } = {}) => (text, options = {}) => {
   const initialization = !isCancelled(options) ? parseStructure.initialize?.() || null : null;
   const context = createCollectorBudgetContext({ text, options, collectorId: 'imports:jsonc',
     defaults: JSON_SCAN_BUDGET });
@@ -76,7 +76,7 @@ export const createJsoncImportCollector = ({ parseStructure = parseJsoncStructur
       // No vendor ranges are produced by this compatibility path.
       if (!context.scanBudget.consumeTime()) return result;
       let parsed;
-      try { parsed = parseStrictJson(context.source); }
+      try { parsed = parseValue(context.source); }
       catch (error) {
         if (!(error instanceof SyntaxError)) throw error;
         // A valid deep JSONC document may not be strict JSON. Its original
@@ -108,8 +108,8 @@ export const createJsoncImportCollector = ({ parseStructure = parseJsoncStructur
       if (!context.scanBudget.consumeLine()) break;
     }
     context.finalize({ entries: result, structure, initialization, observedEntries,
-      parserIdentityKnown: compatibility || parseStructure === parseJsoncStructure,
-      parserIdentity: compatibility ? strictParserIdentity : parseStructure === parseJsoncStructure
+      parserIdentityKnown: compatibility ? parseValue === parseStrictJson : parseStructure === parseJsoncStructure,
+      parserIdentity: compatibility ? parseValue === parseStrictJson ? strictParserIdentity : null : parseStructure === parseJsoncStructure
         ? { id: 'jsonc-parser', version: installedPackageVersion('jsonc-parser') } : null,
       scope: `json-reference-policy-v${JSON_REFERENCE_POLICY_VERSION}:${compatibility ? 'strict-depth-compat' : 'jsonc'}`,
       parserLimits: compatibility ? { maxNodes: JSON_TRAVERSAL_LIMITS.nodes, maxFrames: JSON_TRAVERSAL_LIMITS.frames,
