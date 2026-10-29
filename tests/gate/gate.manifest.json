@@ -11,7 +11,7 @@
   "suiteCategorySummary": {
     "hero": 35,
     "matrix": 2,
-    "meta": 3,
+    "meta": 4,
     "soak": 0,
     "heavy-runtime": 0
   },
@@ -253,6 +253,12 @@
     {
       "id": "ci/windows-authority-cohort",
       "order": 40,
+      "suiteCategory": "meta",
+      "suiteCategoryReason": "meta-cohort-prefix"
+    },
+    {
+      "id": "ci/ordered-lane-discovery",
+      "order": 41,
       "suiteCategory": "meta",
       "suiteCategoryReason": "meta-cohort-prefix"
     }

@@ -286,6 +286,10 @@ Note: When `--lane ci` or `--lane ci-long` is combined with other lanes (or `--l
 
 For `ci`, `ci-lite`, `ci-long`, and `usr-full-conformance`, the runner requires an explicit order file:
 `tests/<lane>/<lane>.order.txt`. Each line is a test id (relative to `tests/` without `.test.js`).
+Partitioned fixtures append only case IDs declared by their `.cases.json` sidecar.
+An unpartitioned fixture uses its whole-fixture ID and executes all its assertions.
+The gate's `ci/ordered-lane-discovery` check verifies references against actual
+discovery across every ordered lane and checks generated manifest agreement.
 
 Failure semantics:
 - Missing order file or an empty file: runner exits with code `2`.
