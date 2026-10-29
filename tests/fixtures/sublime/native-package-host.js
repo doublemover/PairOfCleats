@@ -113,7 +113,8 @@ try {
     open_results_in: 'output_panel', progress_panel_on_start: false,
     env: { PAIROFCLEATS_CACHE_ROOT: cache, PAIROFCLEATS_HOME: home, PAIROFCLEATS_TESTING: '1' } });
   await fs.copyFile(path.join(root, 'tests/helpers/sublime/native_host_probe.py'), path.join(probe, 'native_probe.py'));
-  await writeJson(path.join(probe, 'native-qualification.json'), { fixture: dir, packages, project });
+  await writeJson(path.join(probe, 'native-qualification.json'), { fixture: dir, packages, project,
+    captureOperationEvents: true });
   const rpc = async (action, fields = {}) => {
     const id = randomUUID(), target = path.join(requests, `${id}.json`), temporary = target + '.tmp';
     await writeJson(temporary, { id, action, ...fields }); await fs.rename(temporary, target);

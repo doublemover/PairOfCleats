@@ -24,6 +24,37 @@ _ORIGINAL_STDERR = None
 _ORIGINAL_ERROR_MESSAGE = None
 _TRACE_FILE = None
 _PROJECT_WINDOWS = set()
+_OPERATION_EVENTS = []
+_OPERATION_TRACES = []
+
+
+def _observe_operations(operations):
+    if not operations or not _CONFIG.get('captureOperationEvents'):
+        return
+    for name in ('capture', 'invalidate', 'shutdown', 'is_current'):
+        original = getattr(operations, name)
+        if any(current is original for _, _, _, current in _OPERATION_TRACES):
+            continue
+
+        def trace(method, label):
+            def observed(*args, **kwargs):
+                before = {key: value['epoch'] for key, value in operations._STATES.items()}
+                result = method(*args, **kwargs)
+                if len(_OPERATION_EVENTS) < 64 and (label != 'is_current' or result is False):
+                    scope = args[0] if args and isinstance(args[0], dict) else None
+                    event = {'name': label, 'before': before,
+                             'after': {key: value['epoch'] for key, value in operations._STATES.items()},
+                             'scopeEpoch': scope.get('epoch') if scope else None,
+                             'scopeContext': scope.get('context') if scope else None,
+                             'caller': traceback.format_stack(limit=3)[:-1]}
+                    _OPERATION_EVENTS.append(event)
+                    _diagnostic('[native operation] ' + json.dumps(event) + '\n')
+                return result
+            return observed
+
+        current = trace(original, name)
+        _OPERATION_TRACES.append((operations, name, original, current))
+        setattr(operations, name, current)
 
 
 class PoCNativeProjectListener(sublime_plugin.EventListener):
@@ -86,6 +117,7 @@ def _inspect():
     window = _window()
     plugin = sys.modules.get('PairOfCleats.plugin')
     operations = sys.modules.get('PairOfCleats.lib.operations')
+    _observe_operations(operations)
     installation = sys.modules.get('PairOfCleats.lib.installation')
     results = sys.modules.get('PairOfCleats.lib.results_state')
     search = sys.modules.get('PairOfCleats.commands.search')
@@ -114,6 +146,7 @@ def _inspect():
         'diagnosticCaptureError': _LOG_FAILURE,
         'apiReady': getattr(sublime_plugin, 'api_ready', None),
         'operationState': {'epoch': state['epoch'], 'closed': state['closed'], 'keys': dict(state['keys'])} if state else None,
+        'operationEvents': list(_OPERATION_EVENTS),
         'searchCommand': search_state,
         'oldScopeCurrent': _OLD_OPERATIONS.is_current(_OLD_SCOPE) if _OLD_OPERATIONS and _OLD_SCOPE else None,
         'rootReloaded': bool(plugin and _OLD_LOADED and plugin.plugin_loaded is not _OLD_LOADED),
@@ -211,6 +244,9 @@ def plugin_loaded():
 
 
 def plugin_unloaded():
+    for operations, name, original, current in _OPERATION_TRACES:
+        if getattr(operations, name) is current:
+            setattr(operations, name, original)
     if _TRACE_FILE is not None:
         import faulthandler
         faulthandler.cancel_dump_traceback_later()

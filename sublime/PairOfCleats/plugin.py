@@ -95,7 +95,7 @@ class PairOfCleatsWindowListener(sublime_plugin.EventListener):
         operations.invalidate(window)
 
     def on_post_save_project(self, window):
-        operations.invalidate(window)
+        operations.invalidate(window, only_if_context_changed=True)
 
     def on_exit(self):
         _dispose_all('app_exit')

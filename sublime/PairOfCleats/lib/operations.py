@@ -54,6 +54,9 @@ def capture(window, key=None):
     # Editor APIs can synchronously wait for a UI callback. Preserve the issued
     # epoch first, then sample context without blocking that callback's lock.
     scope['context'] = _context(window)
+    with _LOCK:
+        if _matches_scope_locked(scope) and 'capturedContext' not in state:
+            state['capturedContext'] = scope['context']
     if _cancel_handles(older):
         raise RuntimeError('A previous PairOfCleats operation could not be cancelled. Inspect its task before retrying.')
     return scope
@@ -106,12 +109,18 @@ def release(handle):
         _RECORDS[:] = [record for record in _RECORDS if record['handle'] is not handle]
 
 
-def invalidate(window):
+def invalidate(window, only_if_context_changed=False):
     window_id = _window_id(window)
+    # Native saves also persist unrelated editor state. Read editor APIs before
+    # taking our mutex, and preserve work when its source context is unchanged.
+    context = _context(window) if only_if_context_changed else None
     with _LOCK:
         state = _STATES.get(window_id)
         if state is not None:
+            if only_if_context_changed and context and state.get('capturedContext') == context:
+                return
             state['epoch'] += 1
+            state.pop('capturedContext', None)
         handles = [record['handle'] for record in _RECORDS if record['scope']['windowId'] == window_id]
     _cancel_handles(handles)
 
