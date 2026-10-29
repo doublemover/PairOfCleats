@@ -295,11 +295,12 @@ impl SearchUi {
             return key.code == KeyCode::Esc;
         }
         if key.code == KeyCode::Esc {
-            if self.pending.is_some() && self.page == Page::Results {
-                let id = self.pending.as_ref().unwrap().0.clone();
-                self.outbox.push_back(json!({"proto":"poc.tui@1","op":"job:cancel","jobId":id,"reason":"native_search_cancelled"}));
-                self.status = "Cancellation requested; waiting for resource settlement".into();
-                return false;
+            if self.page == Page::Results {
+                if let Some((id, _)) = self.pending.as_ref() {
+                    self.outbox.push_back(json!({"proto":"poc.tui@1","op":"job:cancel","jobId":id,"reason":"native_search_cancelled"}));
+                    self.status = "Cancellation requested; waiting for resource settlement".into();
+                    return false;
+                }
             }
             let cancelling = self.pending.is_some();
             self.cancel_pending();
