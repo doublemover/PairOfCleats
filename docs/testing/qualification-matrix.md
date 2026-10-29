@@ -542,12 +542,12 @@ remain in the Windows receipt; the former empty-hit timing is diagnostic history
 All 101 serial performance fixtures and the 16-case serial supplement pass.
 
 
-The current source-only handoff additionally includes V3 embedding profile
+The historical source-only handoff additionally included V3 embedding profile
 retention, exact process-settlement ownership, production scheduler shadow
 exclusions, output-only artifact identity retirement, explicit recovery/SourceKit
 frontdoors and new #1551 micro-batch conservation. Source16/import11/piece3/CFG28/
-call44 coordinate the latest producer migrations. All new consumer controls are
-UNRUN. Full activation/runtime, editor host, Windows .NET/tool prerequisites,
+call44 coordinate the latest producer migrations. Those controls were initially UNRUN; subsequent source-bound receipts below
+record the exercised subsets. Full activation/runtime, editor host, Windows .NET/tool prerequisites,
 LMDB/SQLite, final generated MCP contracts and real-model/performance acceptance
 remain separately required; no prior green receipt qualifies these changes.
 | Native build/compaction sessions (#1574 partial) | Actual SQLite compaction, LMDB build CLI/readback and outstanding native prefetch; original errors, admission and metadata recovery | 24 affected cases and full front gate/40 gate pass at 753c7f9a0; seven prior-owner/snippet controls fail. Frozen work errors retain native cleanup causes; no unknown close retry. Remaining registration/adapters/deletion stay open. [Receipt](../archived/native-command-sessions-2026-10-27.md). |
@@ -564,3 +564,5 @@ navigation/fallback (25.98 s) pass within unchanged 30-second bounds. Software
 renderer receipts establish submitted geometry and raster variation; hardware
 performance and module/shader/render-noop negative qualification remain pending.
 See the same closeout receipt for raw-report hashes, source bindings and exclusions.
+
+October 29 consumer candidate `47d1f6058ec32eb0eda8ed575e62182de6c10ffd`:255 affected/gate cases pass, one semantic-drain timeout remains. The [closeout receipt](../archived/p2-p3-closeout-2026-10-29.md) binds 312 Git blobs and records real DOCX/build/watch, memory/SQLite/LMDB generation promotion, FTS/cache/branch, dictionary/native cancellation and bounded storage controls. Stage4 code/prose cases pass 25.703/26.319 s; their union preserves every original assertion. #1350 aggregate drain and #1362 remaining sidecar faults remain open. Physical alias fixtures stay unrun, editor host exclusions remain, and recorded resource counts do not imply production throughput or peak-memory acceptance.

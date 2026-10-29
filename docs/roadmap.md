@@ -16,8 +16,8 @@ leaves **499 open**: 261 qualification-pending,
 The [assessment](archived/github-issue-closeout-2026-10-26.json) maps sources,
 tests and closure witnesses; [earlier receipts](archived/solo-issue-repairs-2026-10-25.md)
 retain historical evidence. Parent and two persistent agents work on Windows; hosted checks retain
-their source identities. Consumer candidate `d95cc983c` adds 358 passing
-affected/gate fixtures; the original Stage4 wrapper remains over 30 seconds.
+their source identities. Consumer candidate `47d1f6058` adds 255 passing affected/gate cases; Stage4
+code/prose partitions pass, while #1350 retains a semantic-drain timeout.
 All 63 further closures are published and read back; #1384 retains its excluded editor component.
 
 Completed source-bound checks are indexed in the
