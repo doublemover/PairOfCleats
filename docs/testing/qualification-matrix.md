@@ -40,6 +40,14 @@ all platforms; its single-digit-hour info classifier is repaired. Exact fresh Go
 command identity, unchanged production launch assertions and the macOS binding
 deployment floor are repaired; their final hosted acceptance remains pending.
 
+The [LSP exit follow-up](../archived/windows-lsp-exit-repair-2026-10-29.md)
+preserves native exit after ordinary pipe closure during shutdown; real-child
+natural, stalled, cancelled and stream-error variants pass. Windows command
+fixtures select their real platform launcher. GYP's final target pass retains
+the Node deployment floor after dependent settings merge. The artifact wrapper
+is split into seven cases with all original assertions and deadlines. Hosted
+integration has now exposed 49 macOS failures; broader CI remains open.
+
 [Crash-log latency](../archived/crash-log-latency-qualification-2026-10-29.md)
 passes ten Windows controls and retains 20 serial samples per small/long-log
 case. Synchronous p95 is 10.37/9.92 ms; settled p95 is 16.12/16.49 ms against

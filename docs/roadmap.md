@@ -38,8 +38,8 @@ pass 46 controls. [Focused repairs](archived/windows-focused-failure-repairs-202
 pass 26/26; [comment/handoff repairs](archived/windows-comment-and-handoff-failure-repairs-2026-10-28.md)
 pass 73 controls. Together they resolve 21 original failures, leaving 25.
 
-[CI follow-up](archived/windows-ci-qualification-followup-2026-10-29.md) repairs
-startup/source assertions; all three hosted native jobs pass at `ac69aa559`.
+[CI follow-up](archived/windows-lsp-exit-repair-2026-10-29.md) repairs graceful
+server exit, launcher selection and final GYP settings; CI remains open.
 [Stable upgrades](archived/windows-stable-upgrades-2026-10-29.md)
 and Rust 1.99.1 are locally qualified; remaining P1 acceptances follow.
 
