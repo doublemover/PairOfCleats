@@ -41,18 +41,26 @@ const admitDenseVectorValidity = payload => {
   return admission;
 };
 
-export const decodeDenseVectorValidity = payload => admitDenseVectorValidity(payload)?.bits || null;
+export const decodeDenseVectorValidity = payload => {
+  const bits = admitDenseVectorValidity(payload)?.bits;
+  return bits ? Buffer.from(bits) : null;
+};
 
 /** Capture one validated mask before ingestion callbacks/awaits. Mutable public
  * metadata is re-admitted on the next operation, never serialized per row.
  */
 export const createDenseVectorRowPresence = payload => {
   const admission = admitDenseVectorValidity(payload);
-  const bits = admission ? Buffer.from(admission.bits) : null;
-  const count = admission?.count, vectors = payload?.vectors;
+  const vectors = payload?.vectors;
+  const count = admission?.count ?? (Array.isArray(vectors) ? vectors.length : null);
+  const bits = admission ? Buffer.from(admission.bits)
+    : Array.isArray(vectors) ? Buffer.alloc(Math.ceil(count / 8)) : null;
+  if (!admission && bits) for (let id = 0; id < count; id++) {
+    if (vectors[id]?.length) bits[id >> 3] |= 1 << (id & 7);
+  }
   return id => Number.isSafeInteger(id) && id >= 0 && (bits
     ? id < count && Boolean(bits[id >> 3] & (1 << (id & 7)))
-    : Array.isArray(vectors) ? Boolean(vectors[id]?.length) : true);
+    : true);
 };
 
 export const isDenseVectorRowPresent = (payload, id) => {

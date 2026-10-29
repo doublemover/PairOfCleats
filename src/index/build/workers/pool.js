@@ -699,6 +699,7 @@ export async function createIndexerWorkerPool(input = {}) {
             executionPayload,
             { name: task, signal }
           );
+          throwIfAborted(signal);
           updatePoolMetrics();
           return result;
         } catch (err) {

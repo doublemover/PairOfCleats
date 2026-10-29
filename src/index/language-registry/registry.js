@@ -147,6 +147,7 @@ export async function buildLanguageContext({ ext, relPath, mode, text, options }
   const preparedOptions = options && typeof options === 'object'
     ? { ...options, relPath }
     : { relPath };
+  throwIfAborted(preparedOptions.abortSignal || preparedOptions.signal);
   // Prose/extracted-prose paths do not require language prepare passes and can
   // hit expensive parser work (for example large HTML docs) with no downstream use.
   const shouldPrepare = (mode === 'code' || preparedOptions?.forcePrepare === true)
@@ -154,6 +155,7 @@ export async function buildLanguageContext({ ext, relPath, mode, text, options }
   const context = shouldPrepare && lang && typeof lang.prepare === 'function'
     ? await lang.prepare({ ext, relPath, mode, text, options: preparedOptions })
     : {};
+  throwIfAborted(preparedOptions.abortSignal || preparedOptions.signal);
   return { lang, context };
 }
 

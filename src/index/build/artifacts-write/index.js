@@ -1661,6 +1661,7 @@ async function writeIndexArtifactsInCodecScope(input) {
       tokenPostingsBinaryColumnar,
       representationPlan: tokenPostingsRepresentationPlan,
       tokenPostingsCompression,
+      compressionGzipOptions,
       writePriority: 210,
       tokenPostingsEstimatedBytes: tokenPostingsEstimate?.estimatedBytes || null,
       reuseContext: { root, userConfig, mode, enabled: incrementalEnabled === true, signal: effectiveAbortSignal,

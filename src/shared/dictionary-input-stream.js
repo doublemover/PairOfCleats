@@ -11,7 +11,7 @@ const nativeError = value => value !== null && ['object', 'function'].includes(t
  * the stream never closes a second, independently opened pathname descriptor.
  */
 export const createDictionaryInputStream = (file, root) => {
-  let descriptor = null, scope = null, before = null, complete = false, bytes = 0, finish;
+  let descriptor = null, scope = null, before = null, complete = false, bytes = 0, finish, closureFailure = null;
   const finished = new Promise(resolve => { finish = resolve; });
   const hash = createHash('sha256');
   const stream = fs.createReadStream(file, { fs: {
@@ -50,10 +50,10 @@ export const createDictionaryInputStream = (file, root) => {
       try { failure = stream.errored; failed = failure !== null && failure !== undefined; }
       catch (error) { failure = error; failed = true; }
       finish({ failed, failure });
-      scope.then(() => callback(null), error => callback(nativeError(error)));
+      scope.then(() => callback(null), error => { closureFailure = error; callback(nativeError(error)); });
     }
   } });
-  return { stream, opened: () => before !== null, receipt: () => {
+  return { stream, opened: () => before !== null, closureFailure: () => closureFailure, receipt: () => {
     if (!complete || !stream.closed) throw changed();
     return Object.freeze({ outcome: 'complete', bytes, hash: hash.digest('hex'), hashAlgorithm: 'sha256',
       sourceIdentity: Object.freeze({ dev: String(before.dev), ino: String(before.ino) }) });

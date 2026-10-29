@@ -171,6 +171,7 @@ const readDictionaryWordsFromFile = async (
   { lowerCase = false } = {}
 ) => {
   const access = acquireDictionaryStorageRead(dictFile);
+  const releaseAccess = access.releaseAfterClosure.bind(access);
   let stream = null;
   let lineReader = null;
   let closed = null;
@@ -202,19 +203,38 @@ const readDictionaryWordsFromFile = async (
     // readline completion/destroy requests are not native handle closure.
     // Keep the exact scoped lease until the ReadStream emits actual close.
     if (closed) await closed;
+    // ReadStream can retain its first read error instead of emitting the
+    // descriptor owner's later close failure. Preserve that exact original
+    // outcome before deciding whether metadata ownership can be released.
+    const originalCloseFailure = input?.closureFailure();
+    if (originalCloseFailure && originalCloseFailure !== operationError) {
+      operationError = operationError ? retainDictionaryFailure(operationError, originalCloseFailure, 'dictionaryCleanupErrors') : originalCloseFailure;
+    }
     let pendingObservation = null;
     if (operationError) {
       try { observeStorageResource(operationError, { phase: 'dictionary-input-read' }).requireSettled(); }
       catch (error) { pendingObservation = error; }
     }
     if (closeFailure || pendingObservation) {
+      const observations = [...new Set([closeFailure, pendingObservation].filter(Boolean))]
+        .map(error => observeStorageResource(error, { phase: 'dictionary-close-reconciliation' }));
+      let accessReleased = false;
+      const unknownClose = observations.some(observation => !observation.hasResourceObservation);
       const error = Object.assign(new Error('Dictionary file close is unconfirmed; its storage lease remains retained.', { cause: closeFailure || pendingObservation }), {
-        code: 'ERR_DICTIONARY_STORAGE_CLOSE_PENDING', cacheOwnershipPending: true
+        code: 'ERR_DICTIONARY_STORAGE_CLOSE_PENDING', cacheOwnershipPending: true,
+        cacheOwnershipReleased: () => accessReleased && !unknownClose && observations.every(observation => observation.isSettled())
       });
-      Object.defineProperty(error, 'dictionaryStorageAccess', { value: access });
+      Object.defineProperty(error, 'dictionaryStorageAccess', { value: Object.freeze({ ...access, releaseAfterClosure: () => {
+        // This existing capability releases metadata only. It never retries a
+        // native close and cannot bypass independently pending original work.
+        if (accessReleased) return true;
+        for (const observation of observations) observation.requireSettled();
+        if (releaseAccess() !== true) throw new Error('Dictionary metadata release was not confirmed.');
+        accessReleased = true; return true;
+      } }) });
       cleanupError = cleanupError ? retainDictionaryFailure(cleanupError, error, 'dictionaryCleanupErrors') : error;
     } else {
-      try { access.releaseAfterClosure(); }
+      try { releaseAccess(); }
       catch (error) { cleanupError = cleanupError ? retainDictionaryFailure(cleanupError, error, 'dictionaryCleanupErrors') : asDictionaryError(error); }
     }
     if (cleanupError) throw operationError ? retainDictionaryFailure(operationError, cleanupError, 'dictionaryCleanupErrors') : cleanupError;

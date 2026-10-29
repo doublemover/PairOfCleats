@@ -49,7 +49,8 @@ import { buildLineIndex } from '../../../shared/lines.js';
 import { formatError } from './meta.js';
 import { processChunks } from './process-chunks.js';
 import { resolveChunkingFileRole } from '../../chunking/limits.js';
-import { isAbortError } from '../../../shared/abort.js';
+import { isAbortError, throwIfAborted } from '../../../shared/abort.js';
+import { observeStorageResource } from '../../../shared/storage/failure-observation.js';
 import { createTimeoutError, runWithTimeout } from '../../../shared/promise-timeout.js';
 import { createFileProcessorCrashStageUpdater } from './crash-stage.js';
 
@@ -221,13 +222,16 @@ export const processFileCpu = async (context) => {
       relKey,
       mode,
       text,
-      languageContextOptions: { ...languageContextOptions, semanticEnabled: Boolean(context.semantic) },
+      languageContextOptions: { ...languageContextOptions,
+        abortSignal: signal || languageContextOptions?.abortSignal || languageContextOptions?.signal,
+        semanticEnabled: Boolean(context.semantic) },
       treeSitterEnabled,
       treeSitterLanguagePasses,
       treeSitterConfigForMode,
       primaryLanguageId,
       runTreeSitter
     }));
+    throwIfAborted(signal);
     updateCrashStage('tree-sitter:done', {
       languageId: lang?.id || null,
       hasLanguageContext: Boolean(languageContext && typeof languageContext === 'object')
@@ -237,6 +241,9 @@ export const processFileCpu = async (context) => {
       errorName: err?.name || null,
       errorCode: err?.code || null
     });
+    if (isAbortError(err)) throw err;
+    observeStorageResource(err, { phase: 'file-language-preparation' }).requireSettled();
+    throwIfAborted(signal);
     if (languageOptions?.skipOnParseError) {
       return {
         chunks: [],

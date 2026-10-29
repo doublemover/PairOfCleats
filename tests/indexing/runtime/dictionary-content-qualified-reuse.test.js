@@ -40,21 +40,23 @@ try {
   assert.deepEqual([...session.dictCache.keys()], existing, 'failed revalidation cannot publish/replace a complete cache entry');
 } finally { fs.open = originalOpen; }
 
-const partialError = Object.freeze(Object.assign(new Error('controlled partial dictionary'), { code: 'EIO' }));
-try {
-  fs.open = async (target, ...args) => {
-    const handle = await originalOpen.call(fs, target, ...args);
-    if (path.relative(String(target), file) !== '') return handle;
-    const read = handle.read; let calls = 0;
-    handle.read = async function (buffer, offset, length, position) {
-      if (calls++ === 0) return read.call(this, buffer, offset, Math.min(length, 6), position);
-      throw partialError;
+for (const code of ['EIO', 'EACCES', 'EMFILE']) {
+  const partialError = Object.freeze(Object.assign(new Error('controlled partial dictionary'), { code }));
+  try {
+    fs.open = async (target, ...args) => {
+      const handle = await originalOpen.call(fs, target, ...args);
+      if (path.relative(String(target), file) !== '') return handle;
+      const read = handle.read; let calls = 0;
+      handle.read = async function (buffer, offset, length, position) {
+        if (calls++ === 0) return read.call(this, buffer, offset, Math.min(length, 6), position);
+        throw partialError;
+      };
+      return handle;
     };
-    return handle;
-  };
-  await assert.rejects(resolveRuntimeDictionaries(options), error => errorGraphIncludes(error, partialError));
-  assert.deepEqual([...session.dictCache.keys()], existing, 'a partially parsed input cannot publish cache readiness');
-} finally { fs.open = originalOpen; }
+    await assert.rejects(resolveRuntimeDictionaries(options), error => errorGraphIncludes(error, partialError));
+    assert.deepEqual([...session.dictCache.keys()], existing, 'a partially parsed input cannot publish cache readiness');
+  } finally { fs.open = originalOpen; }
+}
 const restored = await resolveRuntimeDictionaries(options);
 assert.ok(restored.dictWords.has('bravo')); assert.ok(restored.codeDictWordsByLanguage.get('javascript').has('callback'));
 assert.ok(restored.dictShared.has('bravo'), 'successful re-acquisition restores worker and inline vocabulary together');

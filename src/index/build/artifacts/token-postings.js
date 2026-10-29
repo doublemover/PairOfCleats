@@ -4,6 +4,7 @@ import { withGeneratedArtifactMetadata } from '../../../shared/generated-artifac
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { writeJsonObjectFile } from '../../../shared/json-stream/json-writers.js';
+import { normalizeGzipOptions } from '../../../shared/json-stream/compress.js';
 import { TOKEN_ID_META } from '../../../shared/token-id.js';
 import { DEFAULT_PACKED_BLOCK_SIZE } from '../../../shared/packed-postings.js';
 import { writePackedTfPostings } from '../../../shared/packed-postings-write.js';
@@ -170,6 +171,7 @@ export async function enqueueTokenPostingsArtifacts({
   tokenPostingsBinaryColumnar = false,
   representationPlan = null,
   tokenPostingsCompression,
+  compressionGzipOptions,
   writePriority = 0,
   tokenPostingsEstimatedBytes = null,
   enqueueJsonObject,
@@ -180,13 +182,16 @@ export async function enqueueTokenPostingsArtifacts({
   reuseContext = null
 }) {
   const primaryLayout = tokenPostingsFormat === 'packed' ? 'packed' : tokenPostingsUseShards ? 'sharded' : 'json';
+  const gzipOptions = tokenPostingsCompression === 'gzip' ? Object.freeze(normalizeGzipOptions(compressionGzipOptions)) : null;
   const writeBinaryColumnar = representationPlan
     ? assertTokenPostingsRepresentationPlan(representationPlan, primaryLayout).emitBinaryColumnar
     : tokenPostingsBinaryColumnar;
   const proof = tokenPostingsRepresentationProof({ state, postings, policy: reuseContext?.policy,
     format: { tokenPostingsFormat, tokenPostingsUseShards, tokenPostingsShardSize,
       tokenPostingsBinaryColumnar: writeBinaryColumnar, representationPlan,
-      tokenPostingsCompression, blockSize: DEFAULT_PACKED_BLOCK_SIZE } });
+      tokenPostingsCompression,
+      ...(primaryLayout !== 'packed' && tokenPostingsCompression === 'gzip' ? { gzipOptions } : {}),
+      blockSize: DEFAULT_PACKED_BLOCK_SIZE } });
   const familyPlan = await reuseTokenPostingsFamily({ ...reuseContext, outDir, proof, addPieceFile });
   if (familyPlan.reused) return familyPlan;
   const vocabIds = Array.isArray(postings.tokenVocabIds) ? postings.tokenVocabIds : null;
@@ -304,6 +309,7 @@ export async function enqueueTokenPostingsArtifacts({
           await writeJsonObjectFile(partPath, {
             arrays,
             compression: tokenPostingsCompression,
+            gzipOptions,
             atomic: true
           });
         }

@@ -2,6 +2,7 @@ import { withGeneratedArtifactMetadata } from '../../../shared/generated-artifac
 import path from 'node:path';
 import { writeJsonLinesSharded } from '../../../shared/json-stream/jsonl-sharded.js';
 import { writeJsonArrayFile, writeJsonObjectFile } from '../../../shared/json-stream/json-writers.js';
+import { normalizeGzipOptions } from '../../../shared/json-stream/compress.js';
 import { SHARDED_JSONL_META_SCHEMA_VERSION } from '../../../contracts/versioning.js';
 import { fromPosix } from '../../../shared/file-paths.js';
 import { createOrderingHasher } from '../../../shared/order.js';
@@ -107,6 +108,7 @@ export async function enqueueRepoMapArtifacts({
   scheduleIo = null
 }) {
   const schedule = typeof scheduleIo === 'function' ? scheduleIo : (fn) => fn();
+  const gzipOptions = repoMapCompression === 'gzip' ? Object.freeze(normalizeGzipOptions(compressionGzipOptions)) : null;
   const resolveJsonExtension = (value) => {
     if (value === 'gzip') return 'json.gz';
     if (value === 'zstd') return 'json.zst';
@@ -157,7 +159,8 @@ export async function enqueueRepoMapArtifacts({
       async () => {
         await writeJsonArrayFile(repoMapPath, repoMapIterator(), {
           atomic: true,
-          compression: repoMapCompression
+          compression: repoMapCompression,
+          gzipOptions
         });
         await removeRepoMapJsonl();
         await removeRepoMapJson(repoMapPath);
@@ -224,7 +227,7 @@ export async function enqueueRepoMapArtifacts({
           maxBytes: maxJsonBytes,
           atomic: true,
           compression: repoMapCompression,
-          gzipOptions: repoMapCompression === 'gzip' ? compressionGzipOptions : null
+          gzipOptions
         }));
         const parts = result.parts.map((part, index) => ({
           path: part,

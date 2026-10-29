@@ -18,6 +18,9 @@ import { getContainedFileSession } from '../../shared/contained-file-resource.js
 import { resolveTreeSitterLanguageForExt } from './language-id.js';
 import { treeSitterState } from './state.js';
 import { currentRunResourceScope } from '../../shared/lifecycle/run-scope.js';
+import { isAbortError, throwIfAborted } from '../../shared/abort.js';
+import { observeStorageResource } from '../../shared/storage/failure-observation.js';
+import { addStorageFailureContext } from '../../shared/storage/operation-error.js';
 import { getTreeSitterWorkerPool, sanitizeTreeSitterOptions } from './worker.js';
 import { recordNodeDensity, resolveTraversalBudget } from './chunking/budget.js';
 import {
@@ -943,6 +946,8 @@ export function buildTreeSitterChunks({ text, languageId, ext, options, captureN
  */
 export async function buildTreeSitterChunksAsync({ text, languageId, ext, options }) {
   currentRunResourceScope()?.assertAccepting();
+  const signal = options?.abortSignal || options?.signal;
+  throwIfAborted(signal);
   // If tree-sitter is disabled (or no config provided), keep the synchronous behavior.
   if (!options?.treeSitter || options.treeSitter.enabled === false) {
     return buildTreeSitterChunks({ text, languageId, ext, options });
@@ -967,10 +972,14 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
       cacheRoot: persistentCacheRoot,
       bumpMetric
     });
-    if (cached) return withParserCoverage(cached, resolvedId);
+    if (cached) {
+      throwIfAborted(signal);
+      return withParserCoverage(cached, resolvedId);
+    }
   }
 
   const pool = await getTreeSitterWorkerPool(options?.treeSitter?.worker, options);
+  throwIfAborted(signal);
   if (!pool) {
     return buildTreeSitterChunks({ text, languageId, ext, options });
   }
@@ -995,16 +1004,18 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
   try {
     const maxQueue = Number(pool.maxQueue ?? treeSitterState.treeSitterWorkerMaxQueue);
     const queueSize = Number(pool?.queueSize);
+    throwIfAborted(signal);
     if (Number.isFinite(maxQueue) && maxQueue > 0
       && Number.isFinite(queueSize) && queueSize >= maxQueue) {
       bumpMetric('workerFallbacks', 1);
       return buildTreeSitterChunks({ text, languageId, ext, options: fallbackOptions });
     }
     const runOptions = { name: 'parseTreeSitter' };
-    if (options?.abortSignal) {
-      runOptions.signal = options.abortSignal;
+    if (signal) {
+      runOptions.signal = signal;
     }
     const result = await pool.run(payload, runOptions);
+    throwIfAborted(signal);
     if (Array.isArray(result) && result.length) {
       const chunks = withParserCoverage(result, resolvedId);
       if (cacheKey && cacheRef) {
@@ -1024,7 +1035,10 @@ export async function buildTreeSitterChunksAsync({ text, languageId, ext, option
     bumpMetric('workerFallbacks', 1);
     return buildTreeSitterChunks({ text, languageId, ext, options: fallbackOptions });
   } catch (err) {
-    if (err?.name === 'AbortError' || err?.code === 'ABORT_ERR') throw err;
+    if (isAbortError(err)) throw err;
+    try { throwIfAborted(signal); }
+    catch (abort) { throw addStorageFailureContext(abort, {}, err, { secondaryPresent: true }); }
+    observeStorageResource(err, { phase: 'tree-sitter-worker-fallback' }).requireSettled();
     if (getContainedFileSession(err)) throw err;
     if (options?.log && !treeSitterState.loggedWorkerFailures.has('run')) {
       options.log(`[tree-sitter] Worker parse failed; falling back to main thread (${err?.message || err}).`);

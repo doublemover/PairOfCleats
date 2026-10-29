@@ -1,7 +1,9 @@
 # Dictionary storage lifecycle
 
-This is authored source, **UNVALIDATED**. No user dictionary, migration,
-download, subprocess or regression execution is acceptance evidence yet.
+Windows reader, migration and ownership regression evidence is recorded in
+[the P2/P3 closeout receipt](../archived/p2-p3-closeout-2026-10-29.md).
+Task-owned fixtures qualify their exercised boundaries; they do not grant
+cleanup authority over user dictionaries or prove platform ACL preservation.
 
 Dictionary path enumeration declares the existing configuration-selected root
 and holds an existing scoped repo-access lease while awaiting its filesystem
@@ -57,5 +59,11 @@ Pending failure composition captures the primary's original closure observer
 and every added pending observer before publishing an aggregate predicate. Every
 captured owner must confirm closure; missing or throwing observers stay false.
 An earlier primary confirmation cannot release a later unsettled sibling.
-This error/ownership propagation and its real-stream injected regressions remain
-**UNVALIDATED**; successful dictionary word and case semantics are unchanged.
+The stream owner retains the original scope-close failure even when ReadStream
+publishes an earlier read error. Error composition captures that original
+closure observer and its metadata-release state before attaching reconciliation
+handles. Checking closure never retries the native close or releases a lease.
+Explicit metadata release is guarded by confirmed native closure or independent
+settlement of that exact owner; unknown closure keeps the lease held. Tests
+exercise real FileHandle descriptors, blocked early release and independent
+close callbacks. Successful dictionary word and case semantics are unchanged.

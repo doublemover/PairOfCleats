@@ -9,10 +9,30 @@ import { loadDictionaryWordSetFromFiles } from '../../../src/shared/dictionary-w
 import { registerDictionaryStorageRoot, dictionaryStorageCoordinationRoot } from '../../../src/shared/storage/dictionary-access.js';
 import { inspectStorageAccess } from '../../../src/shared/storage/access.js';
 import { withExclusiveRepoCacheCleanup } from '../../../src/shared/cache/repo-access.js';
+import { getContainedFileSession } from '../../../src/shared/contained-file-resource.js';
 
 const root = await makeTempDir('dictionary-secondary-failures-');
 const originalCreate = fsSync.createReadStream;
+const originalOpen = fs.open;
 const retained = [];
+const retainsPrimary = (error, primary) => {
+  const seen = new Set();
+  for (let value = error; value && typeof value === 'object' && !seen.has(value); value = value.cause) {
+    if (value === primary) return true; seen.add(value);
+  }
+  return false;
+};
+const findDescriptorOwner = error => {
+  const pending = [error], seen = new Set();
+  while (pending.length) {
+    const value = pending.pop(); if (!value || typeof value !== 'object' || seen.has(value)) continue; seen.add(value);
+    const owner = getContainedFileSession(value); if (owner) return owner;
+    pending.push(value.cause, ...(Array.isArray(value.errors) ? value.errors : []),
+      ...(Array.isArray(value.dictionaryCleanupErrors) ? value.dictionaryCleanupErrors : []),
+      ...(Array.isArray(value.dictionarySiblingFailures) ? value.dictionarySiblingFailures : []));
+  }
+  return null;
+};
 const findAccess = error => {
   if (error.dictionaryStorageAccess) return error.dictionaryStorageAccess;
   for (const nested of [...(Array.isArray(error.dictionaryCleanupErrors) ? error.dictionaryCleanupErrors : []),
@@ -33,7 +53,12 @@ try {
     await fs.writeFile(blockedFile, 'not admitted\n');
     registerDictionaryStorageRoot(dictionary); registerDictionaryStorageRoot(blocked);
     const coordinationRoot = dictionaryStorageCoordinationRoot();
-    let nativeCloseObserved = false;
+    let nativeCloseObserved = false, selectedHandle = null;
+    fs.open = async (selected, ...args) => {
+      const handle = await originalOpen.call(fs, selected, ...args);
+      if (selected === file) selectedHandle = handle;
+      return handle;
+    };
     let readFailure = null;
     let frozenAdmission = null;
     fsSync.createReadStream = (...args) => {
@@ -71,9 +96,10 @@ try {
     let primary;
     await assert.rejects(loadDictionaryWordSetFromFiles([file]), error => {
       primary = error;
-      return error === readFailure && error.cacheOwnershipPending === true;
+      return retainsPrimary(error, readFailure) && error.cacheOwnershipPending === true;
     });
     assert.equal(nativeCloseObserved, true);
+    assert.equal(selectedHandle.fd, -1, 'the original descriptor actually closed, separately from ReadStream close notification');
     assert.ok(primary.dictionaryCleanupErrors.length > 0, 'close cleanup does not replace the original read failure');
     assert.equal(primary.cacheOwnershipReleased(), false, 'a primary confirmed observer cannot settle an unconfirmed cleanup owner');
     const access = findAccess(primary);
@@ -89,7 +115,7 @@ try {
     let aggregated;
     await assert.rejects(loadDictionaryWordSetFromFiles([blockedFile, file]), error => {
       aggregated = error;
-      return error instanceof AggregateError && error.cause === frozenAdmission && error.errors[0] === frozenAdmission
+      return error instanceof AggregateError && retainsPrimary(error, frozenAdmission)
         && error.cacheOwnershipPending === true && error.code === frozenAdmission.code;
     });
     assert.equal(aggregated.dictionarySiblingFailures.length, 1, 'nonarray readonly diagnostics cannot be spread as a failure list');
@@ -101,20 +127,27 @@ try {
     frozenAccess.releaseAfterClosure(); retained.pop();
 
     frozenAdmission = null;
+    let inspectionReady = false;
+    const inspectionFailure = new Error('inert throwing primary observer');
     readFailure = Object.freeze(Object.assign(new Error('inert frozen primary read'), {
       code: 'EIO', syscall: 'read', dictionaryCleanupErrors: 'legacy readonly cleanup diagnostic',
-      cacheOwnershipReleased: () => { throw new Error('inert throwing primary observer'); }
+      cacheOwnershipReleased: () => { if (!inspectionReady) throw inspectionFailure; return true; }
     }));
     await assert.rejects(loadDictionaryWordSetFromFiles([file]), error => {
       aggregated = error;
-      return error instanceof AggregateError && error.cause === readFailure && error.errors[0] === readFailure
+      return error instanceof AggregateError && retainsPrimary(error, readFailure)
         && error.cacheOwnershipPending === true;
     });
-    assert.equal(aggregated.dictionaryCleanupErrors.length, 1);
+    assert.equal(aggregated.dictionaryCleanupErrors.length, 1, 'metadata close receipt remains a separate diagnostic from the original descriptor failure graph');
     assert.equal(aggregated.cacheOwnershipReleased(), false, 'throwing closure observers remain unconfirmed');
     const frozenReadAccess = findAccess(aggregated);
     assert.ok(frozenReadAccess);
     retained.push(frozenReadAccess);
+    assert.throws(() => frozenReadAccess.releaseAfterClosure(), 'metadata release cannot bypass independently pending native closure');
+    assert.ok(selectedHandle.fd >= 0, 'a ReadStream close notification cannot stand in for the blocked original descriptor');
+    const originalOwner = findDescriptorOwner(aggregated); assert.ok(originalOwner, 'the exact original native close owner remains reachable');
+    inspectionReady = true;
+    await originalOwner.releaseAfterClose(); assert.equal(selectedHandle.fd, -1);
     frozenReadAccess.releaseAfterClosure(); retained.pop();
 
     let firstClosed = true, secondClosed = false;
@@ -124,15 +157,20 @@ try {
       cacheOwnershipPending: true, cacheOwnershipReleased: () => secondClosed });
     fsSync.createReadStream = filePath => { throw filePath === blockedFile ? firstPending : secondPending; };
     let combined;
-    await assert.rejects(loadDictionaryWordSetFromFiles([blockedFile, file]), error => { combined = error; return error === firstPending; });
+    await assert.rejects(loadDictionaryWordSetFromFiles([blockedFile, file]), error => { combined = error; return retainsPrimary(error, firstPending); });
     assert.equal(combined.cacheOwnershipReleased(), false);
+    const combinedAccess = findAccess(combined); assert.ok(combinedAccess); retained.push(combinedAccess);
+    assert.throws(() => combinedAccess.releaseAfterClosure(), 'an unsettled original callback still protects metadata');
     secondClosed = true;
+    assert.equal(combined.cacheOwnershipReleased(), false, 'native settlement alone cannot report retained metadata as released');
+    combinedAccess.releaseAfterClosure(); retained.pop();
     assert.equal(combined.cacheOwnershipReleased(), true, 'composed observation captures the original primary function without self-recursion');
     firstClosed = false;
     assert.equal(combined.cacheOwnershipReleased(), false, 'every captured pending owner remains required');
   });
 } finally {
   fsSync.createReadStream = originalCreate;
+  fs.open = originalOpen;
   for (const access of retained) access.releaseAfterClosure();
   await rmDirRecursive(root);
 }

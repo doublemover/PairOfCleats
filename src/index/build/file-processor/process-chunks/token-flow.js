@@ -8,6 +8,7 @@ import { MINHASH_HASH_IDENTITY } from '../../../minhash.js';
 import util from 'node:util';
 import { isAbortError, throwIfAborted } from '../../../../shared/abort.js';
 import { isQueueRecoveryUnsafe } from '../../../../shared/concurrency/queue-recovery.js';
+import { addStorageFailureContext } from '../../../../shared/storage/operation-error.js';
 import { recordTokenizationRoute } from '../tokenization-evidence.js';
 import { analyzeComplexity, COMPLEXITY_ANALYZER_VERSION, lintFile } from '../../../analysis.js';
 import { getLanguageForFile } from '../../../language-registry.js';
@@ -737,6 +738,7 @@ const processChunksRun = async (context, acquireLineCache) => {
           ...(workerDictOverride ? { dictConfig: workerDictOverride } : {})
         };
         tokenPayload = tokenBatchWindow ? await tokenBatchWindow.take(ci, workerInput) : await runTokenize(workerInput);
+        throwIfAborted(signal);
         updateCrashStage('tokenize-worker:done', {
           chunkIndex: ci,
           chunkMode,
@@ -754,8 +756,9 @@ const processChunksRun = async (context, acquireLineCache) => {
         }
       } catch (err) {
         if (isQueueRecoveryUnsafe(err)) throw err;
-        throwIfAborted(signal);
         if (isAbortError(err)) throw err;
+        try { throwIfAborted(signal); }
+        catch (abort) { throw addStorageFailureContext(abort, {}, err, { secondaryPresent: true }); }
         inlineReason = 'caller-error';
         if (!workerState.workerTokenizeFailed) {
           const message = formatError(err);
