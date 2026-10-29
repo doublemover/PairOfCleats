@@ -60,8 +60,9 @@ try {
     modes: ['code'], rawEnv: env, intent: inlineIntent }));
   const changedConfig = { ...config, models: { ...config.models, id: 'later-parent-config' },
     indexing: { ...config.indexing, embeddings: { ...config.indexing.embeddings, normalize: true, provider: 'onnx' } } };
-  await runEmbeddingsStage({ ...base, userConfig: changedConfig,
-    runtimeEnv: { ...env, PAIROFCLEATS_THREADS: '9' }, embeddingRuntime: { ...inlineIntent, executionPlan: selected } });
+  await withTemporaryEnv({ PAIROFCLEATS_CACHE_ROOT: path.join(temp, 'unselected-ambient-cache') }, () =>
+    runEmbeddingsStage({ ...base, userConfig: changedConfig,
+      runtimeEnv: { ...env, PAIROFCLEATS_THREADS: '9' }, embeddingRuntime: { ...inlineIntent, executionPlan: selected } }));
   const direct = JSON.parse(await fs.readFile(output, 'utf8'));
   assert.equal(direct.plan.repoRoot, toRealPathSync(repo));
   assert.equal(direct.plan.indexRoot, toRealPathSync(build));
@@ -70,6 +71,8 @@ try {
   assert.equal(direct.normalize, false); assert.equal(direct.provider, selected.embeddings.provider);
   assert.equal(direct.plan.selectedAt, selected.selectedAt);
   assert.deepEqual(direct.plan.environment, selected.environment);
+  await assert.rejects(runEmbeddingsStage({ ...base, repoCacheRoot: path.join(temp, 'unselected'),
+    embeddingRuntime: { ...inlineIntent, executionPlan: selected } }), { code: 'ERR_INDEX_STORAGE_SELECTION' });
   for (const key of ['threads', 'scheduler', 'scheduler-cpu', 'scheduler-io', 'scheduler-mem', 'scheduler-starvation', 'scheduler-low-resource']) {
     assert.equal(direct.argv[key], argv[key], key);
   }

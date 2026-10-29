@@ -177,6 +177,7 @@ export const runEmbeddingsStage = async ({
   buildEmbeddingsPath
   , cacheWriterLease = null
 }) => {
+  runtimeEnv = { ...(runtimeEnv || process.env) };
   const launchObservability = parseObservabilityContextEnv(runtimeEnv) || {};
   if (parentAttemptId) launchObservability.context = { ...launchObservability.context, runtimeAttemptId: parentAttemptId };
   const effectiveAbortSignal = coerceAbortSignal(abortSignal);
@@ -231,7 +232,7 @@ export const runEmbeddingsStage = async ({
     const borrowed = Boolean(cacheWriterLease);
     const lock = borrowed ? assertIndexCacheLease(cacheWriterLease, repoCacheRoot)
       : await acquireBuildIndexLock({ repoCacheRoot, log, signal: effectiveAbortSignal,
-        storageContext: { repoRoot: root, userConfig },
+        storageContext: { repoRoot: root, userConfig, env: runtimeEnv },
         requireSettlement: true, metadata: { operation: 'stage3-embeddings' } });
     // Graceful abort drains the child before ownership ends. An unknown resource
     // survives parent exit; only the drained owner may explicitly release it.
